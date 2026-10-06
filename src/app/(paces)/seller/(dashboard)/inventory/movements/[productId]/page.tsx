@@ -33,7 +33,7 @@ import { isProActive } from '@/services/inventory-entitlement.service'
 import { getStockMovementHistory } from '@/services/inventory-stock.service'
 import { prisma } from '@/lib/prisma'
 import MovementHistoryTable, { type MovementRow } from './MovementHistoryTable'
-import { shouldHidePaidFeatures } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 
 export const metadata: Metadata = { title: 'ประวัติการเคลื่อนไหว' }
 
@@ -97,7 +97,11 @@ export default async function MovementHistoryPage({ params }: PageProps) {
           <div className="card-body p-7.5 text-center">
             <Icon icon="lock" width={48} height={48} className="text-warning mx-auto mb-4" />
             <h3 className="mb-1.25 text-xl font-bold">ประวัติการเคลื่อนไหวสต็อกเป็นฟีเจอร์ Pro</h3>
-            <p className="text-default-400 mb-6">อัพเกรดเป็น Deep Stock Pro เพื่อดูประวัติ</p>
+            {/* ในแอป (Android — iOS ถูกเด้งออกตั้งแต่ด่าน hidePaidFeatures ข้างบน): บอกสถานะ ไม่ชวนอัปเกรด
+                เพราะ Deep Stock ไม่มีขายในแอป = คำว่า "อัพเกรด" คือพาไปจ่ายนอก Play */}
+            <p className="text-default-400 mb-6">
+              {(await shouldHidePayments()) ? 'แพ็กเกจปัจจุบันยังไม่รวมประวัติการเคลื่อนไหวสต็อก' : 'อัพเกรดเป็น Deep Stock Pro เพื่อดูประวัติ'}
+            </p>
             <Link
               href="/inventory"
               className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold text-white"

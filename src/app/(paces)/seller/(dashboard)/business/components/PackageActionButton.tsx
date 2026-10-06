@@ -14,6 +14,7 @@
  *   409 SUBSCRIPTION_ALREADY_EXISTS/NOT_AN_UPGRADE, 402 INSUFFICIENT_CREDIT
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
@@ -38,7 +39,7 @@ function actionErrorMessage(status: number, code: string | undefined, mode: 'sub
   return mode === 'subscribe' ? 'สมัครแพ็กเกจไม่สำเร็จ กรุณาลองใหม่' : 'อัพเกรดแพ็กเกจไม่สำเร็จ กรุณาลองใหม่'
 }
 
-export default function PackageActionButton({ tier, tierLabel, price, mode }: PackageActionButtonProps) {
+function PackageActionButtonInner({ tier, tierLabel, price, mode }: PackageActionButtonProps) {
   const router = useRouter()
   const priceLabel = `฿${price.toLocaleString('th-TH')}`
   const endpoint = mode === 'subscribe' ? '/api/business/subscribe' : '/api/business/upgrade'
@@ -98,4 +99,13 @@ export default function PackageActionButton({ tier, tierLabel, price, mode }: Pa
       {actionLabel}
     </button>
   )
+}
+
+/**
+ * 🛑 ด่านที่ตัว component เอง — ทั้งก้อนคือทางไปจ่ายเงิน/ชวนซื้อ ห้ามขึ้นในแอป (iOS 3.1.1 · Google Payments)
+ * ไม่พึ่งหน้าแม่: LockedStateBanner เคยหลุด 6 หน้าเพราะพึ่งผู้เรียก (2026-10-05) · ห่อเป็นชั้นนอก
+ * เพื่อไม่ให้ early return มาอยู่ก่อน hook ของตัวใน (rules of hooks)
+ */
+export default function PackageActionButton(props: PackageActionButtonProps) {
+  return useHidePayments() ? null : <PackageActionButtonInner {...props} />
 }

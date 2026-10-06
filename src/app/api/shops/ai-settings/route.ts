@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { shouldHidePayments, shouldOfferIap } from "@/lib/app-shell-server";
+import { canAskToBuy } from "@/lib/purchase-prompt";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -102,7 +104,10 @@ export async function PUT(request: NextRequest) {
     if (e instanceof Error && e.message === CONTEXT_GATE_PAID_PLAN_REQUIRED) {
       return NextResponse.json(
         {
-          error: "ปิดใช้งานบริบทสินค้า/ประวัติลูกค้า/ไฟล์แนบสำหรับแพ็กเกจนี้ — อัพเกรดแพ็กเกจธุรกิจเพื่อใช้งาน",
+          // แอป Android ไม่มีหน้าซื้อ ⇒ ห้ามชวนอัปเกรด (Google Payments policy) · เว็บ/iOS (มี IAP) ชวนได้
+          error: canAskToBuy(await shouldHidePayments(), await shouldOfferIap())
+            ? "ปิดใช้งานบริบทสินค้า/ประวัติลูกค้า/ไฟล์แนบสำหรับแพ็กเกจนี้ — อัพเกรดแพ็กเกจธุรกิจเพื่อใช้งาน"
+            : "แพ็กเกจปัจจุบันยังไม่รวมบริบทสินค้า/ประวัติลูกค้า/ไฟล์แนบ",
           code: CONTEXT_GATE_PAID_PLAN_REQUIRED,
         },
         { status: 403 },

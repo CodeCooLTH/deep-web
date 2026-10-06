@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import NavigationLoader from './NavigationLoader'
 import AppOAuthBridge from '@/components/paces/AppOAuthBridge'
 import { PaymentRestrictionProvider } from '@/components/paces/PaymentRestrictionProvider'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 
 export const metadata: Metadata = {
   title: { default: 'ผู้ขาย', template: '%s | Deep ผู้ขาย' },
@@ -17,11 +17,11 @@ export default async function SellerLayout({ children }: { children: React.React
    * วางที่ layout ชั้นนอกสุดของ seller เพราะครอบทั้ง (dashboard) และ (chat) — ข้อความ
    * "ยอดเงินไม่พอ — เติมเงิน" มีอยู่ในทั้งสองโซน ถ้าวางที่ layout ย่อยจะครอบไม่ครบ
    */
-  const hidePayments = await shouldHidePayments()
+  const [hidePayments, offerIap] = await Promise.all([shouldHidePayments(), shouldOfferIap()])
 
   // NavigationLoader = global preloading overlay ตอนเปลี่ยนหน้า; Suspense เพราะภายในใช้ useSearchParams
   return (
-    <PaymentRestrictionProvider hidePayments={hidePayments}>
+    <PaymentRestrictionProvider hidePayments={hidePayments} offerIap={offerIap}>
       <Suspense fallback={null}>
         <NavigationLoader />
       </Suspense>

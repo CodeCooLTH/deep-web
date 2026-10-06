@@ -19,6 +19,7 @@
  * Mockup: docs/superpowers/specs/2026-08-04-business-create-modal-mockup.html
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -135,7 +136,7 @@ const VERTICAL_SUMMARY: Record<string, string> = {
   LODGING: 'รับนัดหมายและจอง · มาพักค้างคืน',
 }
 
-export default function BusinessCreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function BusinessCreateModalInner({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter()
   const { update } = useSession()
 
@@ -744,4 +745,13 @@ function Row({ k, v }: { k: string; v: string | null }) {
       </dd>
     </div>
   )
+}
+
+/**
+ * 🛑 ด่านที่ตัว component เอง — ทั้งก้อนคือทางไปจ่ายเงิน/ชวนซื้อ ห้ามขึ้นในแอป (iOS 3.1.1 · Google Payments)
+ * ไม่พึ่งหน้าแม่: LockedStateBanner เคยหลุด 6 หน้าเพราะพึ่งผู้เรียก (2026-10-05) · ห่อเป็นชั้นนอก
+ * เพื่อไม่ให้ early return มาอยู่ก่อน hook ของตัวใน (rules of hooks)
+ */
+export default function BusinessCreateModal(props: { open: boolean; onClose: () => void }) {
+  return useHidePayments() ? null : <BusinessCreateModalInner {...props} />
 }

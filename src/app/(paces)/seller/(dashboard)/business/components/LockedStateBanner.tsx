@@ -28,6 +28,7 @@ import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDate } from '@/lib/format-date'
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 
 export interface LockedStateBannerProps {
   lockReason: string
@@ -79,10 +80,16 @@ export default function LockedStateBanner({
   lockReason,
   packageLockedAt,
   tierPrice,
-  hidePayments = false,
+  hidePayments: hidePaymentsProp,
   level = 'shop',
 }: LockedStateBannerProps) {
   const router = useRouter()
+  /**
+   * 🛑 อ่านจาก context เสมอ prop เป็นแค่ตัวเสริม (OR — ฝั่งไหนบอกซ่อนก็ซ่อน)
+   * เดิมเป็น prop ค่าตั้งต้น `false` แล้ว 6 หน้าเต็มจอ (สินค้า/ออเดอร์/ประมูล ทั้งสร้างและแก้)
+   * ไม่เคยส่ง ⇒ ร้านที่ถูกล็อกเห็นลิงก์ "อัพเกรดแพ็กเกจ/ไปหน้าแพ็กเกจ" ในแอป iOS และ Android (พบ 2026-10-05)
+   */
+  const hidePayments = useHidePayments() || hidePaymentsProp === true
 
   const isGraceEligible = GRACE_ELIGIBLE_REASONS.has(lockReason)
   const label = LOCK_REASON_LABEL[lockReason] ?? lockReason

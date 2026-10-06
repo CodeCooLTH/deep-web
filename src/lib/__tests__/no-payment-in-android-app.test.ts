@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { hasInAppPurchase, isPaidFeatureRestricted, isPaymentRestricted, resolveAppShell } from '@/lib/app-shell'
@@ -140,5 +140,84 @@ describe('[blocker] ไม่มีคำชวนไปจ่ายที่เ
     const gate = code.indexOf('if (hidePayments)', open)
     expect(gate).toBeGreaterThan(open)
     expect(gate, 'ด่านต้องมาก่อน Swal').toBeLessThan(code.indexOf('Swal.fire(', open))
+  })
+})
+
+/**
+ * [blocker] ข้อความ "ให้ไปสมัคร / อัปเกรด / ต่ออายุแพ็กเกจ" — Android ไม่มีหน้าซื้อ ⇒ ข้อความล้วนก็นับเป็น
+ * การพาไปจ่ายนอก Play (พบ 2026-10-05: error จัดการทีม · แบนเนอร์ร้านถูกล็อกใน 6 หน้าเต็มจอ)
+ */
+import { canAskToBuy } from '@/lib/purchase-prompt'
+import { memberErrorText } from '@/app/(paces)/seller/(dashboard)/business/[shopId]/invites/components/member-error-text'
+
+const BUY_PROMPT =
+  /(สมัคร|อัปเกรด|อัพเกรด|ต่ออายุ|ซื้อ)\s?(แพ็กเกจ|แพคเกจ|แพ็คเกจ)|(อัปเกรด|อัพเกรด|ต่ออายุ)[^'"`\n]{0,20}(แพ็กเกจ|Business|Pro)|อั[ปพ]เกรดเป็น|สมัคร (Business|Pro|Deep Stock)/
+
+describe('[blocker] ชวนซื้อได้เฉพาะเปลือกที่ซื้อได้', () => {
+  it('canAskToBuy: เว็บ ได้ · iOS (มี IAP) ได้ · Android ไม่ได้', () => {
+    expect(canAskToBuy(false, false)).toBe(true)
+    expect(canAskToBuy(true, true)).toBe(true)
+    expect(canAskToBuy(true, false)).toBe(false)
+  })
+
+  it('error จัดการทีม: Android ไม่มีคำชวนซื้อ แต่ยังบอกทางออก · เว็บ/iOS คงข้อความเดิม', () => {
+    for (const code of ['SHOP_LOCKED', 'RECIPIENT_NO_PACKAGE', 'RECIPIENT_BUSINESS_QUOTA', 'RECIPIENT_ADMIN_QUOTA']) {
+      const android = memberErrorText(code, 'บี', 'เอ', false)
+      expect(android, code).not.toMatch(BUY_PROMPT)
+      expect(android, `${code} ต้องบอกทางออก`).toMatch(/ติดต่อ|เลือกโอนให้สมาชิกคนอื่น|ลดจำนวนผู้ดูแล/)
+      expect(memberErrorText(code, 'บี', 'เอ', true), code).toMatch(BUY_PROMPT)
+    }
+  })
+
+  it('แบนเนอร์ร้านถูกล็อกอ่าน context เอง (prop เป็นแค่ตัวเสริม) · layout ส่ง offerIap', () => {
+    expect(read('src/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner.tsx')).toMatch(
+      /const hidePayments = useHidePayments\(\) \|\| hidePaymentsProp === true/,
+    )
+    expect(read('src/app/(paces)/seller/layout.tsx')).toMatch(
+      /<PaymentRestrictionProvider hidePayments=\{hidePayments\} offerIap=\{offerIap\}>/,
+    )
+  })
+
+  it('error ของ API ที่แอปเห็น: ต่ออายุ/อัพเกรดแพ็กเกจ ผ่าน canAskToBuy', () => {
+    expect(read('src/lib/auto-reply-route-context.ts')).toMatch(/ctx\.askToBuy \? ' — ต่ออายุแพ็กเกจ/)
+    expect(read('src/app/api/shops/ai-settings/route.ts')).toMatch(/canAskToBuy\(await shouldHidePayments\(\), await shouldOfferIap\(\)\)/)
+  })
+})
+
+describe('[blocker] สแกนทั้งโซนผู้ขาย: ข้อความชวนซื้อต้องอยู่ในไฟล์ที่ผ่านด่านเปลือกแอป', () => {
+  /**
+   * ด่านระดับไฟล์ — จับ "ไฟล์ใหม่ที่ไม่รู้เรื่องนี้เลย" (เคสที่เกิดจริงทั้งสองครั้ง) ส่วนความถูกของแต่ละกิ่ง
+   * คุมด้วยเทสพฤติกรรมด้านบน · สแกนจากซอร์สจริง ไม่ใช่รายชื่อไฟล์
+   */
+  const GATE = /hidePayments|useHidePayments|shouldHidePayments|canAskToBuy|useCanAskToBuy|askToBuy|offerIap|isPaymentRestricted/
+  const ROOTS = ['src/app/(paces)/seller', 'src/components', 'src/app/api/shops', 'src/app/api/business', 'src/lib/auto-reply-route-context.ts']
+
+  function walkAll(rel: string, out: string[] = []): string[] {
+    const abs = join(process.cwd(), rel)
+    if (!statSync(abs).isDirectory()) {
+      if (/\.tsx?$/.test(rel)) out.push(rel)
+      return out
+    }
+    for (const name of readdirSync(abs)) {
+      if (name === '__tests__' || /\.test\.tsx?$/.test(name)) continue
+      walkAll(`${rel}/${name}`, out)
+    }
+    return out
+  }
+
+  it('ไม่มีไฟล์ที่ชวนสมัคร/อัปเกรด/ต่ออายุโดยไม่ดูเปลือกแอป', () => {
+    const offenders: string[] = []
+    let scanned = 0
+    for (const root of ROOTS) {
+      for (const f of walkAll(root)) {
+        scanned += 1
+        const code = read(f)
+        /* ตัดบรรทัด import ก่อนหาด่าน — ลบตัวด่านทิ้งแต่ลืมลบ import ต้องแดง ไม่ใช่เขียวหลอก */
+        const body = code.replace(/^import[^\n]*$/gm, '')
+        if (BUY_PROMPT.test(code) && !GATE.test(body)) offenders.push(f)
+      }
+    }
+    expect(scanned, 'สแกนไม่เจอไฟล์ = path พัง ไม่ใช่ระบบสะอาด').toBeGreaterThan(300)
+    expect(offenders, `ชวนซื้อโดยไม่ผ่านด่าน:\n${offenders.join('\n')}`).toEqual([])
   })
 })

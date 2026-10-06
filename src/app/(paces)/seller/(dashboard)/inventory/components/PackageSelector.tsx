@@ -27,6 +27,7 @@
  * เช่น SellerErrorState.tsx, AuctionForm.tsx, OnboardingModal.tsx ฯลฯ)
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
@@ -96,7 +97,7 @@ function errorMessage(mode: 'subscribe' | 'reactivate', status: number): string 
   }
 }
 
-export default function PackageSelector({ mode, lockedAt = null }: PackageSelectorProps) {
+function PackageSelectorInner({ mode, lockedAt = null }: PackageSelectorProps) {
   const router = useRouter()
   const [selected, setSelected] = useState<InventoryPackage | null>(null)
   const cfg = MODE_CONFIG[mode]
@@ -273,4 +274,13 @@ function PackageCard({
       </div>
     </div>
   )
+}
+
+/**
+ * 🛑 ด่านที่ตัว component เอง — ทั้งก้อนคือทางไปจ่ายเงิน/ชวนซื้อ ห้ามขึ้นในแอป (iOS 3.1.1 · Google Payments)
+ * ไม่พึ่งหน้าแม่: LockedStateBanner เคยหลุด 6 หน้าเพราะพึ่งผู้เรียก (2026-10-05) · ห่อเป็นชั้นนอก
+ * เพื่อไม่ให้ early return มาอยู่ก่อน hook ของตัวใน (rules of hooks)
+ */
+export default function PackageSelector(props: PackageSelectorProps) {
+  return useHidePayments() ? null : <PackageSelectorInner {...props} />
 }
