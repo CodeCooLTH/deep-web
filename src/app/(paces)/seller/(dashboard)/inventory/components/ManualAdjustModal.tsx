@@ -191,7 +191,7 @@ export default function ManualAdjustModal({
         if (e.target === e.currentTarget) handleClose()
       }}
     >
-      <div className="ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
+      <div className={'ease-in-out transition-all duration-200 lg:max-w-lg md:max-w-md md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center' /* carve-out HR7: กว้างเต็มจอลบขอบ m-3 สองข้างบนมือถือ — Paces ไม่มี token ของ "เต็มลบ margin" (โครงเดิมของโมดัล ไม่ได้เปลี่ยน layout · ท่าเดียวกับ TopUpRequestModal) */}>
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ─────────────────────────────────────────────────────── */}
           <div className="card-header p-5">
