@@ -221,3 +221,73 @@ describe('[blocker] สแกนทั้งโซนผู้ขาย: ข้�
     expect(offenders, `ชวนซื้อโดยไม่ผ่านด่าน:\n${offenders.join('\n')}`).toEqual([])
   })
 })
+
+/**
+ * [blocker] Android ไม่แสดงสถานะเงิน — ยอดเครดิต · ประวัติเติมเงิน · ป้ายแพ็กเกจ/ต่ออายุไม่สำเร็จ
+ * (user สั่ง 2026-10-06 · iOS คงแสดงตามมติ 2026-08-10 — ต่ออายุผ่าน Apple ได้)
+ */
+import { canShowMoneyStatus } from '@/lib/purchase-prompt'
+
+describe('[blocker] Android ไม่แสดงสถานะเงิน', () => {
+  it('canShowMoneyStatus: เว็บ ได้ · iOS ได้ · Android ไม่ได้', () => {
+    expect(canShowMoneyStatus(false, false)).toBe(true)
+    expect(canShowMoneyStatus(true, true)).toBe(true)
+    expect(canShowMoneyStatus(true, false)).toBe(false)
+  })
+
+  it('เมนู "กระเป๋าเงิน" หายบน Android · iOS ยังอยู่', () => {
+    const menu = [
+      { label: 'g', children: [{ url: '/wallet', slug: 'seller:wallet', label: 'กระเป๋าเงิน' }] },
+    ] as unknown as Parameters<typeof applyPaymentRestriction>[0]
+    const slugs = (offerIap: boolean) =>
+      applyPaymentRestriction(menu, { hidePayments: true, entitlementStatus: 'ACTIVE', hidePaidFeatures: false, offerIap })
+        .flatMap((g) => (g.children ?? []).map((c) => c.slug))
+    expect(slugs(false)).not.toContain('seller:wallet')
+    expect(slugs(true)).toContain('seller:wallet')
+  })
+
+  it('หน้า /wallet เด้ง Android ออก (พิมพ์ URL ตรงได้)', () => {
+    expect(read('src/app/(paces)/seller/(dashboard)/wallet/page.tsx')).toMatch(
+      /if \(!\(await shouldShowMoneyStatus\(\)\)\) redirect\('\/dashboard'\)/,
+    )
+  })
+
+  it('หัวหน้าแรก: ยอดเครดิตและชิปแพ็กเกจอยู่หลัง showMoneyStatus', () => {
+    const hero = read('src/app/(paces)/seller/(dashboard)/dashboard/components/CompactHero.tsx')
+    expect(hero).toMatch(/const showMoneyStatus = await shouldShowMoneyStatus\(\)/)
+    const chip = hero.indexOf('{packageChipLabel}')
+    expect(hero.lastIndexOf('{showMoneyStatus && (', chip), 'ชิปแพ็กเกจต้องอยู่ในกิ่ง showMoneyStatus').toBeGreaterThan(
+      hero.lastIndexOf(')}', chip),
+    )
+    const bal = hero.indexOf('walletBalance.toLocaleString')
+    expect(hero.lastIndexOf('{showMoneyStatus ? (', bal), 'ยอดเครดิตต้องอยู่ในกิ่ง showMoneyStatus').toBeGreaterThan(-1)
+  })
+
+  it('ฟีดกิจกรรม: ผู้เรียกทุกตัว (สแกนทั้ง src) ส่ง includeTopups', () => {
+    const offenders: string[] = []
+    const scan = (rel: string) => {
+      const abs = join(process.cwd(), rel)
+      for (const name of readdirSync(abs)) {
+        const r = `${rel}/${name}`
+        if (statSync(join(abs, name)).isDirectory()) {
+          if (name !== '__tests__' && name !== 'node_modules') scan(r)
+        } else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) && !r.endsWith('activity.service.ts')) {
+          const code = read(r)
+          for (const m of code.matchAll(/getRecentActivity\(/g)) {
+            if (!code.slice(m.index!, m.index! + 160).includes('includeTopups')) offenders.push(r)
+          }
+        }
+      }
+    }
+    scan('src')
+    expect(offenders).toEqual([])
+    expect(read('src/services/activity.service.ts')).toMatch(/opts\.includeTopups \? await getTransactions/)
+  })
+
+  it('ป้ายต่ออายุ/ยอดเงินในแถบร้านถูกล็อก · แผนตรวจ · แชทบอท อยู่หลัง useShowMoneyStatus', () => {
+    const D = 'src/app/(paces)/seller/(dashboard)'
+    expect(read(`${D}/business/components/LockedStateBanner.tsx`)).toMatch(/const label = showMoneyStatus \?/)
+    expect(read(`${D}/inspection/components/PlanStatusCard.tsx`)).toMatch(/\{inGrace && showMoneyStatus && \(/)
+    expect(read(`${D}/settings/chatbot/ChatbotClient.tsx`)).toMatch(/\{showMoneyStatus && \(\s*<p[^>]*>ยอดเงินคงเหลือ/)
+  })
+})

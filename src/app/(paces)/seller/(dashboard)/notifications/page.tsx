@@ -12,6 +12,7 @@
  *       ลบ Phase 2 OOS-5 — ห้ามลบในงานนี้
  */
 
+import { shouldShowMoneyStatus } from '@/lib/app-shell-server'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
@@ -44,7 +45,7 @@ export default async function NotificationsPage() {
     if (shop?.id) {
       // ครอบ try/catch แยก — getRecentActivity มี try/catch ใน service อยู่แล้ว
       // แต่ wrap อีกชั้นเพื่อกัน crash ถ้า service throw ในอนาคต
-      items = await getRecentActivity(shop.id, 20)
+      items = await getRecentActivity(shop.id, 20, { includeTopups: await shouldShowMoneyStatus() })
     }
     // ไม่มี shop → items = [] → NotificationFeed แสดง empty state
   } catch {

@@ -892,6 +892,9 @@ export function applyPaymentRestriction(
        ปลายทางที่ถูกกฎให้ไป (`/subscriptions` เด้งกลับหน้าแรก) จึงซ่อนเมนูไปเลย
        iOS ยังเก็บไว้ตามเหตุผลด้านบน — ต้องมีทางเข้าหน้าซื้อพอดี 1 ทาง */
     if (!ctx.offerIap) removed.add('seller:subscriptions')
+    /* 🛑 Android (user สั่ง 2026-10-06) — ไม่แสดงสถานะเงินเลย ⇒ "กระเป๋าเงิน" (ยอด + ประวัติ) ซ่อนทั้งเมนู
+       iOS เก็บไว้ตามมติ 2026-08-10 (ยอดคงเหลือ = สถานะบัญชี) · กฎคู่: `canShowMoneyStatus` */
+    if (!ctx.offerIap) removed.add('seller:wallet')
   }
   /* 🛑 feature 00064 — ซ่อน Deep Stock **แม้คนที่สมัครแล้ว** (status ACTIVE)
      เดิมตรงนี้จงใจปล่อยให้คนที่จ่ายเงินแล้วเห็นเมนูต่อ โดยให้เหตุผลว่า badge 'Pro'

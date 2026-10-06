@@ -23,6 +23,7 @@
 
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
+import { shouldShowMoneyStatus } from '@/lib/app-shell-server'
 import ShopLinkButtons from './ShopLinkButtons'
 import AccountSwitcherLauncher from './AccountSwitcherLauncher'
 import {
@@ -87,6 +88,9 @@ export default async function CompactHero({
   hidePayments = false,
 }: CompactHeroProps) {
   const t = await getT()
+  /* 🛑 Android (user สั่ง 2026-10-06): ไม่แสดงสถานะเงิน — ชิปแพ็กเกจ ("ต่ออายุไม่สำเร็จ"/ชื่อแพ็กเกจ)
+     และยอดเครดิต · ถามเองที่นี่ ไม่รับเป็น prop (บทเรียน LockedStateBanner 2026-10-05) */
+  const showMoneyStatus = await shouldShowMoneyStatus()
   // คำนามผันตามประเภทร้าน — ผู้เรียกส่งคำที่แปลแล้วมา; ไม่ส่ง = ถอยไปคำของร้านขายออนไลน์
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
@@ -289,13 +293,15 @@ export default async function CompactHero({
                 </span>
               </div>
 
-              <span
-                className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
-                aria-label={packageAriaLabel}
-              >
-                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
-                {packageChipLabel}
-              </span>
+              {showMoneyStatus && (
+                <span
+                  className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
+                  aria-label={packageAriaLabel}
+                >
+                  <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
+                  {packageChipLabel}
+                </span>
+              )}
             </div>
           </div>
 
@@ -326,13 +332,20 @@ export default async function CompactHero({
 
         {/* Row 2: wallet balance + ปุ่มเติมเงิน + divider + ShopLinkButtons */}
         <div className="flex items-center gap-2.5 mt-3">
-          {/* Wallet icon */}
-          <Icon icon="solar:wallet-bold-duotone" className="text-lg text-white/95 flex-shrink-0" />
+          {showMoneyStatus ? (
+            <>
+              {/* Wallet icon */}
+              <Icon icon="solar:wallet-bold-duotone" className="text-lg text-white/95 flex-shrink-0" />
 
-          {/* Wallet balance */}
-          <span className="flex-1 text-sm font-bold text-white tabular-nums">
-            ฿{walletBalance.toLocaleString('th-TH')}
-          </span>
+              {/* Wallet balance */}
+              <span className="flex-1 text-sm font-bold text-white tabular-nums">
+                ฿{walletBalance.toLocaleString('th-TH')}
+              </span>
+            </>
+          ) : (
+            /* ดันปุ่มลิงก์ร้านไปชิดขวาเหมือนเดิม (เดิมยอดเงินเป็นตัว flex-1) */
+            <span className="flex-1" aria-hidden="true" />
+          )}
 
           {/*
            * ปุ่มเติมเงิน — white pill; ใช้ next/link ตรง (RSC ห้าม component={Link})

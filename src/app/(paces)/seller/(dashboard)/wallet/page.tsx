@@ -13,6 +13,7 @@
  * - hasError flag: service throw → ส่ง hasError=true ลง WalletCard แทนการ silent ฿0
  */
 
+import { redirect } from 'next/navigation'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
@@ -20,7 +21,7 @@ import { getTopUpsByShop } from '@/services/topup.service'
 import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
-import { shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldShowMoneyStatus } from '@/lib/app-shell-server'
 import WalletCard from './components/WalletCard'
 import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
@@ -61,6 +62,8 @@ export default async function WalletPage() {
    * โมดัลอัปสลิป และตารางคำขอเติมเงิน) ดูเหตุผลเต็มที่ src/lib/app-shell.ts
    */
   const hidePayments = await shouldHidePayments()
+  /* 🛑 Android (user สั่ง 2026-10-06): ไม่แสดงสถานะเงินเลย ⇒ เด้งออก (ซ่อนเมนูอย่างเดียวไม่พอ — พิมพ์ URL ตรงได้) */
+  if (!(await shouldShowMoneyStatus())) redirect('/dashboard')
 
   // no-shop case: balance = 0, transactions = [] — ตาม spec "no-shop → balance 0 + empty table"
   let balance = 0

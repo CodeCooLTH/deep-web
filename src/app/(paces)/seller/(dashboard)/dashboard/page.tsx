@@ -28,7 +28,7 @@ import {
   type DashboardRange,
 } from './components/DashboardRangeControl'
 import { authOptions } from '@/lib/auth'
-import { shouldHidePaidFeatures, shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldHidePayments, shouldOfferIap, shouldShowMoneyStatus } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
@@ -370,7 +370,7 @@ export default async function SellerDashboardPage() {
             // มีสองนิยามของคำว่า "เดือนนี้"
             getSalesChannelBreakdown(shop.id, rangePeriod),
             // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
-            getRecentActivity(shop.id, 6),
+            getRecentActivity(shop.id, 6, { includeTopups: await shouldShowMoneyStatus() }),
             // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
             shop.vertical === 'ONLINE_SALES'
               ? getProvinceSales(shop.id, rangePeriod)
