@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDate } from '@/lib/format-date'
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { useHidePayments, useShowMoneyStatus } from '@/components/paces/PaymentRestrictionProvider'
 
 export interface LockedStateBannerProps {
   lockReason: string
@@ -90,9 +90,11 @@ export default function LockedStateBanner({
    * ไม่เคยส่ง ⇒ ร้านที่ถูกล็อกเห็นลิงก์ "อัพเกรดแพ็กเกจ/ไปหน้าแพ็กเกจ" ในแอป iOS และ Android (พบ 2026-10-05)
    */
   const hidePayments = useHidePayments() || hidePaymentsProp === true
+  /* Android (user สั่ง 2026-10-06): ไม่พูดถึงการต่ออายุ/ยอดเงิน และไม่นับถอยหลัง — บอกแค่ว่าล็อกเพราะแพ็กเกจ */
+  const showMoneyStatus = useShowMoneyStatus()
 
   const isGraceEligible = GRACE_ELIGIBLE_REASONS.has(lockReason)
-  const label = LOCK_REASON_LABEL[lockReason] ?? lockReason
+  const label = showMoneyStatus ? (LOCK_REASON_LABEL[lockReason] ?? lockReason) : 'ร้านนี้ถูกล็อกตามสถานะแพ็กเกจ'
 
   // countdown deadline = packageLockedAt + 30 วัน, clamp ไม่ให้ติดลบ (ล็อกมาเกิน 30 วันแล้วก็ยังโชว์ "0 วัน" ไม่ใช่ค่าติดลบ)
   let daysLeft: number | null = null
@@ -156,7 +158,7 @@ export default function LockedStateBanner({
         <Icon icon="alert-triangle" className="size-5 shrink-0 mt-0.5" aria-hidden="true" />
         <span>
           {label}
-          {isGraceEligible && daysLeft !== null && (
+          {showMoneyStatus && isGraceEligible && daysLeft !== null && (
             <>
               {' '}
               — เหลือเวลา {daysLeft} วัน (ล็อกถาวรวันที่ {deadlineLabel})

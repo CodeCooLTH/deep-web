@@ -10,6 +10,7 @@
  */
 'use client'
 
+import { useShowMoneyStatus } from '@/components/paces/PaymentRestrictionProvider'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
@@ -33,11 +34,14 @@ const PRICING_BLOCKED = INSPECTION_PRICING_IS_DRAFT && process.env.NODE_ENV === 
  *    เหมือนคำเชิญอื่น (App Store 3.1.1) — จุดนี้หลุดด่านของเทส [blocker] ได้เพราะเทสตรวจแค่ว่า
  *    "ไฟล์นี้มีคำว่า hidePayments ไหม" ไม่ได้ตรวจว่ากั้นครบทุกจุดในไฟล์
  */
-const reasonLabel = (reason: string, hidePayments: boolean): string | undefined =>
+const reasonLabel = (reason: string, hidePayments: boolean, showMoneyStatus: boolean): string | undefined =>
   reason === 'OWNER_CANCELLED'
     ? 'ยกเลิกโดยเจ้าของร้าน'
     : reason === 'RENEWAL_FAILED'
-      ? hidePayments
+      ? !showMoneyStatus
+        ? /* Android (user สั่ง 2026-10-06): ไม่พูดถึงการต่ออายุ/เครดิตเลย บอกแค่ว่าแผนจบแล้ว */
+          'แผนหมดอายุแล้ว'
+        : hidePayments
         ? /* 🛑 ในแอปห้ามบอกทางไปจ่ายที่เว็บ (anti-steering ของ Apple และ Google) — บอกแค่สถานะ */
           'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ)'
         : 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ) — เติมเครดิตแล้วสมัครใหม่ได้'
@@ -52,6 +56,7 @@ type Props = {
 
 export default function PlanStatusCard({ plan, canManage, hidePayments = false }: Props) {
   const router = useRouter()
+  const showMoneyStatus = useShowMoneyStatus()
   const [cancelError, setCancelError] = useState<string | null>(null)
 
   const handleCancel = async () => {
@@ -141,7 +146,8 @@ export default function PlanStatusCard({ plan, canManage, hidePayments = false }
         </span>
       </div>
       <div className="card-body">
-        {inGrace && (
+        {/* Android: กล่อง "ค้างชำระ — เหลือเวลา X วัน" คือสถานะเงิน ซ่อนทั้งกล่อง (user สั่ง 2026-10-06) */}
+        {inGrace && showMoneyStatus && (
           <div className="bg-warning/15 mb-3 flex items-start gap-2 rounded-lg p-3">
             <Icon icon="alert-triangle" className="text-warning-ink mt-0.5 size-4 shrink-0" />
             <p className="text-warning-ink text-sm">
@@ -178,7 +184,7 @@ export default function PlanStatusCard({ plan, canManage, hidePayments = false }
             ไม่ได้อยู่ในแผนการตรวจสอบต่อเนื่องแล้ว — โปรไฟล์สาธารณะแสดงเป็นแถบสีเทากลาง
             ประวัติรอบตรวจเดิมยังแสดงอยู่ครบ
             {plan.lapsedReason && (
-              <p className="mt-1 text-default-500">{reasonLabel(plan.lapsedReason, hidePayments)}</p>
+              <p className="mt-1 text-default-500">{reasonLabel(plan.lapsedReason, hidePayments, showMoneyStatus)}</p>
             )}
           </div>
         )}

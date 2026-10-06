@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from 'react'
 
-import { canAskToBuy } from '@/lib/purchase-prompt'
+import { canAskToBuy, canShowMoneyStatus } from '@/lib/purchase-prompt'
 
 /**
  * PaymentRestrictionProvider — บอกทุก client component ว่า "หน้านี้ห้ามมีช่องทาง/คำเชิญให้จ่ายเงิน"
@@ -60,4 +60,10 @@ export function useHidePayments(): boolean {
 export function useCanAskToBuy(): boolean {
   const { hidePayments, offerIap } = useContext(PaymentRestrictionContext)
   return canAskToBuy(hidePayments, offerIap)
+}
+
+/** แสดงยอดเครดิต/ป้ายแพ็กเกจได้ไหม — เว็บ/iOS ได้ · Android ไม่ได้ (`canShowMoneyStatus`) */
+export function useShowMoneyStatus(): boolean {
+  const { hidePayments, offerIap } = useContext(PaymentRestrictionContext)
+  return canShowMoneyStatus(hidePayments, offerIap)
 }

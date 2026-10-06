@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { canShowMoneyStatus } from '@/lib/purchase-prompt'
 import { cache } from 'react'
 import { cookies, headers } from 'next/headers'
 
@@ -64,3 +65,10 @@ export async function shouldOfferIap(): Promise<boolean> {
   return hasInAppPurchase(await getAppShell())
 }
 
+/**
+ * แสดงสถานะเงิน (ยอดเครดิต · ประวัติเติมเงิน · ป้ายแพ็กเกจ) ได้ไหม — เว็บ/iOS ได้ · Android ไม่ได้
+ * กฎอยู่ที่ `canShowMoneyStatus()` (`@/lib/purchase-prompt`)
+ */
+export async function shouldShowMoneyStatus(): Promise<boolean> {
+  return canShowMoneyStatus(await shouldHidePayments(), await shouldOfferIap())
+}

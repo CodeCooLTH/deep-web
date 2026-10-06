@@ -41,8 +41,15 @@ function maskBuyerPhone(phone: string): string {
  *
  * @param shopId  - Shop.id ที่ resolve จาก server (ไม่ใช่ user input — กัน IDOR)
  * @param take    - จำนวน item สูงสุดที่คืน (default 10)
+ * @param opts.includeTopups - รวมรายการ "เติมเงิน ฿X" ไหม — 🛑 แอป Android ต้องเป็น false
+ *   (ไม่แสดงสถานะเงิน · user สั่ง 2026-10-06) ผู้เรียกส่ง `await shouldShowMoneyStatus()`
+ *   ทุกผู้เรียกในแอปต้องส่งค่านี้ — ด่าน `no-payment-in-android-app.test.ts` สแกนอยู่
  */
-export async function getRecentActivity(shopId: string, take = 10): Promise<ActivityItem[]> {
+export async function getRecentActivity(
+  shopId: string,
+  take = 10,
+  opts: { includeTopups: boolean } = { includeTopups: true },
+): Promise<ActivityItem[]> {
   try {
     // ─── Source 1: Orders ──────────────────────────────────────────────────
     // query แยก take รายการล่าสุด เพื่อกัน payload ใหญ่เกิน
@@ -122,7 +129,7 @@ export async function getRecentActivity(shopId: string, take = 10): Promise<Acti
 
     // ─── Source 4: WalletTransaction (TOPUP only) ──────────────────────────
     // reuse getTransactions จาก wallet.service — คืน [] ถ้าไม่มี wallet
-    const transactions = await getTransactions(shopId, take)
+    const transactions = opts.includeTopups ? await getTransactions(shopId, take) : []
     const topupItems: ActivityItem[] = transactions
       .filter((t) => t.type === 'TOPUP')
       .map((t) => ({

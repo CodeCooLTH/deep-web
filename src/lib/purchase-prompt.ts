@@ -17,3 +17,16 @@
 export function canAskToBuy(hidePayments: boolean, offerIap: boolean): boolean {
   return !hidePayments || offerIap
 }
+
+/**
+ * แสดง **สถานะเงิน** (ยอดเครดิต · ประวัติเติมเงิน · ป้ายแพ็กเกจ/ต่ออายุไม่สำเร็จ) ได้ไหม
+ *
+ * ตอบเท่ากับ `canAskToBuy` ทุกกรณีวันนี้ แต่เป็น **คนละคำถาม** — แยกไว้ตามหลักห้ามยุบของสองอย่าง
+ * ที่บังเอิญค่าเท่ากัน (`docs/conventions/domain-term-single-definition.md`):
+ *   - iOS แสดงได้ตามมติ 2026-08-10 (สถานะบัญชีไม่ใช่ช่องทางจ่าย · ต่ออายุผ่าน Apple ได้)
+ *   - **Android ซ่อน** (user สั่ง 2026-10-06: "ป้ายต่ออายุกับยอดเครดิตไม่ควรแสดง ซ่อนดีกว่า")
+ *     ไม่มีทางเติม/ต่ออายุในแอป ⇒ ยอดเงินกับป้าย "ต่ออายุไม่สำเร็จ" มีแต่ชวนให้ไปจ่ายข้างนอก
+ */
+export function canShowMoneyStatus(hidePayments: boolean, offerIap: boolean): boolean {
+  return !hidePayments || offerIap
+}

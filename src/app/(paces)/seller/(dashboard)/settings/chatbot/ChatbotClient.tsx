@@ -15,7 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import TestThreadsCard from '../auto-reply/[id]/TestThreadsCard'
 import { pacesConfirm } from '@/lib/paces-swal'
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { useHidePayments, useShowMoneyStatus } from '@/components/paces/PaymentRestrictionProvider'
 
 export type GuardrailRow = {
   id: string
@@ -94,6 +94,7 @@ export default function ChatbotClient({
 }: Props) {
   // ห้ามบอกให้ไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1 / 3.1.3(f)) — ดู `@/lib/app-shell`
   const hidePayments = useHidePayments()
+  const showMoneyStatus = useShowMoneyStatus()
   const router = useRouter()
   const [cfg, setCfg] = useState(initialConfig)
   const [rules, setRules] = useState(initialGuardrails)
@@ -420,7 +421,10 @@ export default function ChatbotClient({
                 }}
               />
             </div>
-            <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
+            {/* Android (user สั่ง 2026-10-06): ไม่แสดงยอดเงิน · กฎ canShowMoneyStatus */}
+            {showMoneyStatus && (
+              <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
+            )}
           </div>
 
           {/* เพดานต่อห้อง — คนละเรื่องกับเพดานเงินต่อวัน: อันนั้นคุมค่าใช้จ่ายรวมทั้งร้าน
