@@ -43,7 +43,7 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น.",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
        }
       ]
@@ -67,7 +67,7 @@
           "type": "text",
           "text": "คำสั่งซื้อ",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },

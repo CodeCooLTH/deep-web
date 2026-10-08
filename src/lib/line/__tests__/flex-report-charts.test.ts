@@ -34,7 +34,7 @@ describe('trendChart (AC-09-1/3/5)', () => {
   const t = trend([1000, 4000, 0, 800, 5600, 2200, 3100])
   const node = trendChart({ trend: t, measure: 'sales', word: 'คำสั่งซื้อ' })
 
-  it('ยอดขาย: แท่งเขียว (ยืนยันแล้ว) · ป้ายตัวเลขเฉพาะเหนือแท่งสูงสุด ไม่มี ฿ · เส้นจุด 7 วัน', () => {
+  it('ยอดขาย: แท่งเขียว (ยืนยันแล้ว) · ป้ายตัวเลขเฉพาะเหนือแท่งสูงสุด ไม่มี ฿ · ไม่มีค่าใช้จ่าย = ไม่มีเส้น (ทับขอบแท่ง)', () => {
     const b = bars(node)
     expect(b).toHaveLength(6) // วันที่ 0 ไม่มีแท่ง
     expect(b.find((x) => x.height === '80%')).toBeTruthy()
@@ -42,8 +42,7 @@ describe('trendChart (AC-09-1/3/5)', () => {
     expect(texts(node)).toContain('5.6k')
     expect(texts(node).some((s) => s.includes('฿'))).toBe(false)
     expect(texts(node)).toContain('ยอดขาย 7 วัน')
-    expect(texts(node)).toContain('ยอดขายรวม')
-    expect(dots(node)).toHaveLength(7 + 6 * 3) // จุดวัน 7 + จุดย่อยระหว่างวัน
+    expect(dots(node)).toHaveLength(0)
   })
   it('รอยืนยัน = ส่วนเหลืองปลายแท่ง · แท่งสูงตามยอดรวม (ยืนยัน+รอยืนยัน)', () => {
     const x = trendChart({ trend: trend([0, 0, 0, 0, 0, 0, 300], undefined, undefined, [0, 0, 0, 0, 0, 0, 100]), measure: 'sales', word: 'x' })
@@ -54,12 +53,21 @@ describe('trendChart (AC-09-1/3/5)', () => {
   })
   it('มีค่าใช้จ่าย → แท่งแดงข้างแท่งยอดขาย · เส้น = ยอดขาย − ค่าใช้จ่าย (ติดลบชิดพื้น)', () => {
     const x = trendChart({ trend: trend([1000, 1000, 1000, 1000, 1000, 1000, 1000]), measure: 'sales', word: 'x', expense: [0, 500, 1000, 2000, 0, 0, 0] })
-    expect(flat(x).filter((n) => n.backgroundColor === FLEX_COLORS.DANGER)).toHaveLength(3 + 1) // แท่งแดง 3 วัน + สัญลักษณ์คำอธิบาย
+    const line = dots(x)
+    const flatSegs = line.filter((n) => n.height === '3px')
+    // แท่งแดง 3 วัน + สัญลักษณ์คำอธิบาย + ช่วงเส้นวันติดลบ 1 ช่วง
+    expect(flat(x).filter((n) => n.backgroundColor === FLEX_COLORS.EXPENSE_RED && !line.includes(n))).toHaveLength(3 + 1)
     expect(texts(x)).toContain('ยอดขายและค่าใช้จ่าย 7 วัน')
     expect(texts(x)).toContain('ยอดขายหลังหักค่าใช้จ่าย')
-    const day = dots(x).filter((n) => n.width === '6px').map((n) => n.offsetBottom)
-    // max = 2000 → ยอด 1000 = 40% · หลังหัก 500 = 20% · 0 = 0% · -1000 = 0%
-    expect(day).toEqual(['40%', '20%', '0%', '0%', '40%', '40%', '40%'])
+    // max = 2000 → ยอด 1000 = 40% · หลังหัก 500 = 20% · 0 = 0% · -1000 = 0% (สีแดง = ขาดทุน)
+    expect(flatSegs.map((n) => n.offsetBottom)).toEqual(['40%', '20%', '0%', '0%', '40%', '40%', '40%'])
+    expect(flatSegs.map((n) => n.backgroundColor)).toEqual([...Array(3).fill(FLEX_COLORS.ACCENT), FLEX_COLORS.EXPENSE_RED, ...Array(3).fill(FLEX_COLORS.ACCENT)])
+    // ช่วงแนวนอนต่อกันไม่ขาด: ขอบขวาของวัน i = ขอบซ้ายของวัน i+1 · ครบ 100%
+    const w = flatSegs.map((n) => [parseInt(n.offsetStart as string), parseInt(n.width as string)])
+    for (let i = 1; i < w.length; i++) expect(w[i][0]).toBe(w[i - 1][0] + w[i - 1][1])
+    expect(w.at(-1)![0] + w.at(-1)![1]).toBe(100)
+    // ช่วงแนวตั้งเฉพาะวันที่ระดับเปลี่ยน: 40→20, 20→0, 0→40 (0→0 และ 40→40 ไม่มี)
+    expect(line.filter((n) => n.width === '3px').map((n) => n.height)).toEqual(['20%', '20%', '40%'])
   })
   it('ป้ายใต้แท่ง = วันย่อไทย + วันที่ · คร่อมเดือนวันที่ไม่ค้าง', () => {
     const x = trendChart({ trend: trend([1000, 2000, 3000, 4000, 5000, 6000, 7000], undefined, '2026-09-28'), measure: 'sales', word: 'x' })

@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · บริการ 11 รายการ · ยอดขาย 2,050 · รอยืนยัน 50 · ยกเลิก 1 ใบ · ข้อมูล ณ 21:02 น.",
+  "altText": "ยอดขาย 2,050 · รอยืนยัน 50 · รายงานยอดรายวัน 5 ต.ค. 2569 · บริการ 11 รายการ · ยกเลิก 1 ใบ · ข้อมูล ณ 21:02 น.",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -43,8 +43,39 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น.",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "text",
+        "text": "ยอดขาย",
+        "size": "xs",
+        "color": "#707380",
+        "wrap": true
+       },
+       {
+        "type": "text",
+        "text": "2,050",
+        "size": "xxl",
+        "color": "#2F2B3D",
+        "wrap": false,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "รอยืนยัน 50",
+        "size": "xs",
+        "color": "#92400e",
+        "wrap": true,
+        "weight": "bold"
        }
       ]
      },
@@ -67,7 +98,7 @@
           "type": "text",
           "text": "บริการ",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -90,42 +121,9 @@
         "contents": [
          {
           "type": "text",
-          "text": "ยอดขาย",
-          "size": "sm",
-          "color": "#808390",
-          "wrap": true,
-          "flex": 3
-         },
-         {
-          "type": "text",
-          "text": "2,050",
-          "size": "sm",
-          "color": "#2F2B3D",
-          "wrap": true,
-          "flex": 4,
-          "align": "end",
-          "weight": "bold"
-         }
-        ]
-       },
-       {
-        "type": "text",
-        "text": "รอยืนยัน 50",
-        "size": "xs",
-        "color": "#92400e",
-        "wrap": true,
-        "weight": "bold"
-       },
-       {
-        "type": "box",
-        "layout": "horizontal",
-        "spacing": "md",
-        "contents": [
-         {
-          "type": "text",
           "text": "ยกเลิก",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -168,7 +166,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -188,7 +186,7 @@
           "type": "text",
           "text": "บริการยอดนิยม",
           "size": "xs",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "margin": "sm"
          },
@@ -210,7 +208,7 @@
             "type": "text",
             "text": "5 ครั้ง",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -235,7 +233,7 @@
             "type": "text",
             "text": "3 ครั้ง",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -260,7 +258,7 @@
             "type": "text",
             "text": "1 ครั้ง",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"

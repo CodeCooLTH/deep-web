@@ -43,7 +43,7 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น. · รวม 2 ร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
        }
       ]
@@ -67,7 +67,7 @@
           "type": "text",
           "text": "ยกเลิก",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -99,7 +99,7 @@
         "type": "text",
         "text": "แยกรายร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true,
         "weight": "bold"
        },
@@ -118,7 +118,7 @@
             "type": "text",
             "text": "ร้าน 2",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -151,7 +151,7 @@
             "type": "text",
             "text": "ร้าน 1",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },

@@ -3,11 +3,11 @@
  *
  * pure · ไม่ใช้รูป (ไม่มี node `image`) — วาดด้วย box ที่ height/width เป็น % (ยืนยันกับ LINE validate/push แล้ว)
  * ตัวเลขทุกตัวมาจาก `Trend`/`ShopSummary` ที่ส่งเข้ามา — ไม่คำนวณยอดเอง (HR16)
- * สี: ยอดขาย = แท่งซ้อน เขียว (ยืนยันแล้ว) + เหลือง (รอยืนยัน) — มติ user 2026-10-08 แทน AC-09-6 เดิม ·
+ * สี: ยอดขาย = แท่งซ้อน เขียว (ยืนยันแล้ว) + เหลือง (รอยืนยัน) · ค่าใช้จ่าย = แดงอิฐ + เส้นขั้นบันไดน้ำเงิน — มติ user 2026-10-08 แทน AC-09-6 เดิม ·
  *      จำนวนใบ = ACCENT (วันรายงาน/อันดับ 1) + GRID_GRAY เหมือนเดิม
  * ⚠️ import วนกับ flex-report-blocks (helper/สี) — ใช้ตอนเรียกฟังก์ชันเท่านั้น ไม่มีการใช้ที่ top-level
  */
-import { ACCENT, CONFIRMED_GREEN, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, type Node } from '@/lib/line/flex-report-blocks'
+import { ACCENT, CONFIRMED_GREEN, EXPENSE_RED, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, type Node } from '@/lib/line/flex-report-blocks'
 import { weekdayShortTH } from '@/lib/format-date'
 import { formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import type { ShopSummary, Trend } from '@/lib/line-report/types'
@@ -50,39 +50,26 @@ const legendRow = (items: Node[][]): Node => ({ type: 'box', layout: 'horizontal
 /** คำอธิบายสีแท่ง (กราฟเทียบรายร้าน) — บรรทัดเดียว */
 export const salesLegend = (): Node => legendRow([legendItem(CONFIRMED_GREEN, 'ยืนยันแล้ว'), legendItem(PENDING_YELLOW, 'รอยืนยัน')])
 
-/** จุดย่อยระหว่างวัน — มากพอให้อ่านเป็นเส้น · น้อยพอไม่กินเพดาน 30KB */
-const LINE_STEPS = 4
-const DOT = '4px'
+/** ความหนาเส้น — px คงที่ (ความกว้าง/สูงของช่วงเป็น %) */
+const LINE_W = '3px'
 
 /**
- * เส้นแนวโน้มแบบจุดต่อกัน — Flex วาดเส้นเฉียงไม่ได้ (ไม่มี node เส้น/หมุน) จึงวางจุด absolute ไล่ระหว่างวัน
- * x = กึ่งกลางคอลัมน์ของวัน · y = สเกลเดียวกับแท่ง (ค่าติดลบชิดพื้น)
+ * เส้นแนวโน้มแบบขั้นบันได — Flex วาดเส้นเฉียงไม่ได้ (ไม่มี node เส้น/หมุน) จึงประกอบจากกล่อง absolute:
+ * ช่วงแนวนอนเต็มคอลัมน์ของแต่ละวัน + ช่วงแนวตั้งต่อระหว่างวัน = เส้นทึบต่อกัน (มติ user 2026-10-08 แทนจุดลอย)
+ * y = สเกลเดียวกับแท่ง · วันติดลบวางที่พื้นเป็นสีแดงค่าใช้จ่าย (มองเห็นว่าขาดทุน ไม่ใช่ "ไม่มียอด")
+ * offset เป็น % จำนวนเต็ม (เอกสาร LINE ยืนยันเฉพาะจำนวนเต็ม) — ความกว้างคิดจากขอบที่ปัดแล้ว เส้นจึงไม่ขาด
  */
-function lineDots(values: number[], max: number): Node[] {
+function stepLine(values: number[], max: number): Node[] {
   const n = values.length
-  const y = (v: number) => (Math.max(0, v) / max) * BAR_MAX_PCT
-  const x = (i: number) => ((i + 0.5) / n) * 100
-  const dot = (xp: number, yp: number, big: boolean): Node => ({
-    type: 'box',
-    layout: 'vertical',
-    position: 'absolute',
-    // LINE รับ % สำหรับ offset (เอกสารยืนยันเฉพาะจำนวนเต็ม) → ปัดเป็นจำนวนเต็ม
-    offsetStart: `${Math.round(xp)}%`,
-    offsetBottom: `${Math.round(yp)}%`,
-    width: big ? '6px' : DOT,
-    height: big ? '6px' : DOT,
-    cornerRadius: big ? '3px' : '2px',
-    backgroundColor: ACCENT,
-    contents: [fill()],
-  })
+  const y = (v: number) => Math.round((Math.max(0, v) / max) * BAR_MAX_PCT)
+  const edge = (i: number) => Math.round((i / n) * 100)
+  const seg = (o: Node, color = ACCENT): Node => ({ type: 'box', layout: 'vertical', position: 'absolute', backgroundColor: color, contents: [fill()], ...o })
   const out: Node[] = []
   for (let i = 0; i < n; i++) {
-    out.push(dot(x(i), y(values[i]), true))
+    out.push(seg({ offsetStart: `${edge(i)}%`, offsetBottom: `${y(values[i])}%`, width: `${edge(i + 1) - edge(i)}%`, height: LINE_W }, values[i] < 0 ? EXPENSE_RED : ACCENT))
     if (i === n - 1) break
-    for (let k = 1; k < LINE_STEPS; k++) {
-      const t = k / LINE_STEPS
-      out.push(dot(x(i) + (x(i + 1) - x(i)) * t, y(values[i]) + (y(values[i + 1]) - y(values[i])) * t, false))
-    }
+    const a = y(values[i]), b = y(values[i + 1])
+    if (a !== b) out.push(seg({ offsetStart: `${edge(i + 1)}%`, offsetBottom: `${Math.min(a, b)}%`, width: LINE_W, height: `${Math.abs(a - b)}%` }))
   }
   return out
 }
@@ -108,8 +95,8 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
   const pend = trend.unconfirmed.map((v) => Math.max(0, v))
   const values = sales ? conf.map((v, i) => v + (pend[i] ?? 0)) : trend.orders.map((v) => Math.max(0, v))
   const exp = sales && expense ? values.map((_, i) => Math.max(0, expense[i] ?? 0)) : undefined
-  // เส้น: ยอดขายรวม หรือ ยอดขาย − ค่าใช้จ่าย เมื่อมีค่าใช้จ่าย (มติ user 2026-10-08)
-  const line = sales ? values.map((v, i) => v - (exp?.[i] ?? 0)) : undefined
+  // เส้น = ยอดขาย − ค่าใช้จ่าย เฉพาะเมื่อมีค่าใช้จ่าย · ไม่มีค่าใช้จ่าย เส้นจะทับขอบแท่งพอดี (ซ้ำ) จึงไม่วาด
+  const line = exp ? values.map((v, i) => v - exp[i]) : undefined
   const n = values.length
   const max = Math.max(0, ...values, ...(exp ?? []))
   const title = sales ? (exp ? `ยอดขายและค่าใช้จ่าย ${n} วัน` : `ยอดขาย ${n} วัน`) : `${word} ${n} วัน`
@@ -138,7 +125,7 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
           alignItems: 'flex-end',
           contents: [
             pct > 0 ? stackedBar('vertical', conf[i], pend[i] ?? 0, { height: rel(pct), flex: 1 }) : { type: 'filler' },
-            pe > 0 ? bar(rel(pe), DANGER, 1) : { type: 'filler' },
+            pe > 0 ? bar(rel(pe), EXPENSE_RED, 1) : { type: 'filler' },
           ],
         },
       ]
@@ -161,7 +148,7 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
               contents: [...(i === maxIdx ? [text(fmt(v, measure), { size: 'xxs', align: 'center', weight: 'bold', wrap: false })] : []), ...column(v, i)],
             }) as Node,
         ),
-        ...(line ? lineDots(line, max) : []),
+        ...(line ? stepLine(line, max) : []),
       ],
     })
     rows.push({
@@ -187,9 +174,9 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
         legendRow([
           legendItem(CONFIRMED_GREEN, 'ยืนยันแล้ว'),
           legendItem(PENDING_YELLOW, 'รอยืนยัน'),
-          ...(exp ? [legendItem(DANGER, 'ค่าใช้จ่าย')] : []),
+          ...(exp ? [legendItem(EXPENSE_RED, 'ค่าใช้จ่าย')] : []),
         ]),
-        legendRow([legendItem(ACCENT, exp ? 'ยอดขายหลังหักค่าใช้จ่าย' : 'ยอดขายรวม', '3px')]),
+        ...(exp ? [legendRow([legendItem(ACCENT, 'ยอดขายหลังหักค่าใช้จ่าย', '3px')])] : []),
       )
     }
   }

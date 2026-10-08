@@ -53,8 +53,9 @@ describe('AC-EXP-03-1 แถวรวม + เงื่อนไข', () => {
   })
   it('ติดกับ sales ใน section เดียว ตามลำดับที่เรียง', () => {
     const t = texts(first(summary(two), [NET, SALES, EXP]))
-    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ยอดขาย'))
-    expect(t.indexOf('ยอดขาย')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
+    // ยอดขาย = ตัวเด่นใต้หัวเสมอ · แถวการเงินเรียงตามเทมเพลต
+    expect(t.indexOf('ยอดขาย')).toBeLessThan(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย'))
+    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
   })
   it('ผสมกติกาการเงิน → ไม่มีแถว + skipped', () => {
     const s = summary([shop(1), shop(2, {}, 'SERVICE_QUEUE')])
@@ -198,7 +199,7 @@ describe('กราฟ 7 วัน + ค่าใช้จ่าย (user 2026-1
   const CH: Block = { id: 'c', type: 'chart_trend', measure: 'sales' }
   const tr = { dates: ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'], confirmed: [9, 9, 9, 9, 9, 9, 900], unconfirmed: [0, 0, 0, 0, 0, 0, 100], orders: [1, 1, 1, 1, 1, 1, 1], expense: [0, 0, 0, 0, 0, 0, 400] }
   const withTr = (shops: ShopSummary[]) => ({ ...summary(shops), trend: tr })
-  const reds = (blocks: Block[], s: GroupSummary) => flat(first(s, blocks)).filter((n) => n.backgroundColor === FLEX_COLORS.DANGER)
+  const reds = (blocks: Block[], s: GroupSummary) => flat(first(s, blocks)).filter((n) => n.backgroundColor === FLEX_COLORS.EXPENSE_RED)
   it('เปิดเผยค่าใช้จ่าย ∧ รวมได้ → แท่งแดง + เส้นหลังหักค่าใช้จ่าย', () => {
     const s = withTr([shop(1), shop(2)])
     expect(reds([CH, EXP], s).length).toBeGreaterThan(0)

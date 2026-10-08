@@ -77,21 +77,25 @@ describe('template = แบบมาตรฐาน ≡ flags (AC-EXT-01-1 ฝ�
 })
 
 describe('ลำดับตามเทมเพลต (FR-EXT-06)', () => {
-  it('ยอดขายมาก่อนจำนวนใบ ถ้าเทมเพลตเรียงอย่างนั้น', () => {
-    const [m] = run(T([B.sales(), B.orders()]))
-    const s = json(bodyOf(m)[2])
-    expect(s.indexOf('"ยอดขาย"')).toBeGreaterThan(-1)
-    expect(s.indexOf('"ยอดขาย"')).toBeLessThan(s.indexOf('23 รายการ'))
+  it('ยอดขายเป็นตัวเลขเด่นใต้หัวรายงานเสมอ ไม่ว่าบล็อก sales อยู่ตรงไหน (critique 2026-10-08)', () => {
+    for (const order of [[B.sales(), B.orders()], [B.orders(), B.sales()]]) {
+      const [m] = run(T(order))
+      const hero = json(bodyOf(m)[1])
+      expect(hero).toContain('"ยอดขาย"')
+      expect(hero).toContain('"size":"xxl"')
+      expect(json(bodyOf(m)[3])).toContain('23 รายการ')
+      expect(json(bodyOf(m).slice(2))).not.toContain('"ยอดขาย"') // ไม่มีแถวยอดขายซ้ำ
+    }
   })
   it('ข้อความอิสระคั่นระหว่างบล็อก → section ตัวเลขแยกสองก้อน หมายเหตุอยู่ก้อนท้าย', () => {
     const s = summary([shop(1), shop(2, { state: 'ERROR' })])
     const [m] = run(T([B.orders(), B.text([{ t: 'คั่น' }]), B.sales()]), s)
     const j = bodyOf(m).map((x) => json(x))
-    expect(j[2]).toContain('คำสั่งซื้อ')
-    expect(j[3]).toContain('คั่น')
-    expect(j[4]).toContain('ยอดขาย')
-    expect(j[4]).toContain('ยอดรวมยังไม่ครบ')
-    expect(j[2]).not.toContain('ยอดรวมยังไม่ครบ')
+    expect(j[1]).toContain('ยอดขาย') // ตัวเด่นใต้หัว
+    expect(j[3]).toContain('คำสั่งซื้อ')
+    expect(j[4]).toContain('คั่น')
+    expect(j[5]).toContain('ยอดรวมยังไม่ครบ') // หมายเหตุยังติดก้อนท้ายของกลุ่มตัวเลข
+    expect(j[3]).not.toContain('ยอดรวมยังไม่ครบ')
   })
   it('ผลบวกรายร้านเท่ายอดรวมไม่ว่าบล็อกลำดับใด (AC-EXT-06-3)', () => {
     const s = summary(two, { total: { orders: 999, confirmed: 999, unconfirmed: 0, cancelled: 0 } })
@@ -226,7 +230,8 @@ describe('โทเคน (FR-EXT-05)', () => {
 describe('ยุบ separator (FR-EXT-06)', () => {
   const k = (blocks: Block[], s = summary(two)) => kinds(run(T(blocks), s)[0])
   it('ต้น/ท้าย/ติดกัน → ยุบ', () => {
-    expect(k([B.sep(), B.orders(), B.sep(), B.sep(), B.sales(), B.sep()])).toEqual(['box', 'sep', 'box', 'sep', 'box', 'box'].slice(0, 5))
+    // หัว · ยอดขายเด่น · sep · orders (บล็อก sales ไม่มีแถวของตัวเองแล้ว → sep ท้ายยุบ)
+    expect(k([B.sep(), B.orders(), B.sep(), B.sep(), B.sales(), B.sep()])).toEqual(['box', 'box', 'sep', 'box'])
   })
   it('ชิดบล็อกที่ไม่ render (shops ร้านเดียวไม่มีอะไรแสดง) → ยุบ', () => {
     expect(k([B.orders(), B.sep(), B.shops(), B.sep(), B.cycle()], summary([shop(1)]))).toEqual(['box', 'sep', 'box'])
