@@ -51,14 +51,19 @@ export const TOKENS: Record<TokenKey, string> = {
   date_range: '{วันที่}',
   computed_at: '{เวลาข้อมูล}',
   orders_count: '{จำนวนรายการ}',
-  sales_counted: '{ยอดขาย (นับแล้ว)}',
-  sales_pending: '{ยังไม่นับ}',
+  sales_counted: '{ยอดขาย}',
+  sales_pending: '{รอยืนยัน}',
   cancelled_count: '{ยกเลิก}',
   cycle_sales: '{ยอดสะสมรอบ}',
   profit: '{กำไร}',
 }
 export const TOKEN_KEYS = Object.keys(TOKENS) as TokenKey[]
-const TOKEN_BY_LABEL = new Map<string, TokenKey>(TOKEN_KEYS.map((k) => [TOKENS[k], k]))
+// ป้ายเก่าก่อน 2026-10-08 ยัง parse ได้ — ผู้ใช้ที่จำ/วางข้อความเดิมไม่เจอโทเคนกลายเป็นตัวอักษรเฉย ๆ
+const TOKEN_BY_LABEL = new Map<string, TokenKey>([
+  ['{ยอดขาย (นับแล้ว)}', 'sales_counted'],
+  ['{ยังไม่นับ}', 'sales_pending'],
+  ...TOKEN_KEYS.map((k) => [TOKENS[k], k] as [string, TokenKey]),
+])
 
 /** ชนิดที่ใส่ได้ไม่เกินเท่านี้ (ที่ไม่ระบุ = 1) */
 export const BLOCK_LIMITS: Record<BlockType, number> = {

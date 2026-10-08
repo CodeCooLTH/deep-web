@@ -20,6 +20,8 @@ vi.mock('@/lib/line-report/line-client', () => lc)
 
 import { consumeBindCode, createBindCode, reissueBindCode } from '@/services/line-report-bind.service'
 import { handleEvents } from '@/services/line-report-command.service'
+import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
+import { dayText } from '@/lib/line/flex-report-blocks'
 import { removeGroup } from '@/services/line-report-group.service'
 import {
   ALREADY_BOUND_SELF_MESSAGE, BIND_FAILED_MESSAGE, COMMAND_RATE_LIMITED_MESSAGE,
@@ -415,6 +417,16 @@ describe.skipIf(!isLocal)('00070 line-report bind + command (DB)', () => {
       await handleEvents([say(x.G, 'สรุปเดือนนี้')], Date.now())
       expect(lc.replyTo).toHaveBeenCalledTimes(1)
       expect(JSON.stringify(lc.replyTo.mock.calls[0][1])).toContain('รายงานสรุปยอด')
+    })
+
+    it('สรุปเมื่อวาน → รายงานของวันก่อนหน้า (ไม่ใช่วันนี้)', async () => {
+      const x = await bound('m3y')
+      await handleEvents([say(x.G, 'สรุปเมื่อวาน')], Date.now())
+      expect(lc.replyTo).toHaveBeenCalledTimes(1)
+      const body = JSON.stringify(lc.replyTo.mock.calls[0][1])
+      const today = todayThaiIsoDate()
+      expect(body).toContain(dayText(shiftIsoDate(today, -1)))
+      expect(body).not.toContain(dayText(today))
     })
 
     it('showProfit=false → ข้อความไม่มีคำว่ากำไรเลย', async () => {

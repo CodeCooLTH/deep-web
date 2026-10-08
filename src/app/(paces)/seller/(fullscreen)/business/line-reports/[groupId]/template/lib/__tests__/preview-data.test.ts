@@ -14,7 +14,7 @@ const args = { template: tpl(), shops, kind: 'DAILY' as const, monthlyEnabled: f
 describe('preview-data', () => {
   it('ใช้ composer จริง: ได้ bubble ที่มีชื่อร้านจริงและยอดหลักล้าน', () => {
     const json = JSON.stringify(buildPreviewContents(args))
-    expect(json).toContain('18,902,340')
+    expect(json).toContain('20,106,840') // ยอดขายรวม = 18,902,340 + รอยืนยัน 1,204,500
     expect(json).toContain('ร้านหนึ่ง')
     expect(json).toContain('ร้านล็อก')
   })
@@ -31,8 +31,9 @@ describe('preview-data', () => {
   })
   it('มี expense/net_sales: ไม่ throw และพรีวิวมีส่วนค่าใช้จ่าย (รายละเอียดบรรทัดเป็นของ composer)', () => {
     const t: TemplateV1 = { ...tpl(), blocks: [...tpl().blocks, { id: 'e', type: 'expense' }, { id: 'n', type: 'net_sales' }] }
-    const json = JSON.stringify(buildPreviewContents({ ...args, template: t }))
-    expect(json).toContain('ค่าใช้จ่าย')
+    // 2 ร้าน = ไม่มีร้านล้มในตัวอย่าง → แถวรวมค่าใช้จ่ายแสดงจริง (มีร้านล้ม = รวมไม่ได้ ตามกฎ)
+    const json = JSON.stringify(buildPreviewContents({ ...args, shops: shops.slice(0, 2), template: t }))
+    expect(json).toContain('ยอดขายหลังหักค่าใช้จ่าย')
     expect(JSON.stringify(buildPreviewContents(args))).not.toContain('ค่าใช้จ่าย')
   })
 })

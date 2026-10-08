@@ -100,10 +100,13 @@ describe('dailyValues / sumTrend (EXT-09)', () => {
     expect(dailyValues([5], oct, '2026-10-01', '2026-10-03')).toEqual([5, 0, 0])
     expect(dailyValues(series, feb, '2028-02-27', '2028-03-03')).toEqual([270, 280, 290])
   })
-  const ok = (c: number[], o: number[]) => ({ state: 'OK', trend: { dates: ['a', 'b'], confirmed: c, orders: o } }) as unknown as ShopSummary
+  const ok = (c: number[], o: number[], e?: number[]) => ({ state: 'OK', trend: { dates: ['a', 'b'], confirmed: c, unconfirmed: [1, 0], orders: o, ...(e ? { expense: e } : {}) } }) as unknown as ShopSummary
   it('sumTrend รวมเฉพาะร้าน OK · ไม่มีร้านที่มี trend = undefined', () => {
-    const err = { state: 'ERROR', trend: { dates: ['a', 'b'], confirmed: [999, 999], orders: [9, 9] } } as unknown as ShopSummary
-    expect(sumTrend([ok([1, 2], [1, 1]), ok([10, 20], [2, 0]), err])).toEqual({ dates: ['a', 'b'], confirmed: [11, 22], orders: [3, 1] })
+    const err = { state: 'ERROR', trend: { dates: ['a', 'b'], confirmed: [999, 999], unconfirmed: [9, 9], orders: [9, 9] } } as unknown as ShopSummary
+    expect(sumTrend([ok([1, 2], [1, 1]), ok([10, 20], [2, 0]), err])).toEqual({ dates: ['a', 'b'], confirmed: [11, 22], unconfirmed: [2, 0], orders: [3, 1] })
+    // ค่าใช้จ่ายรวมได้เมื่อทุกร้าน OK มีค่า · ขาดร้านเดียว = ไม่มี (ไม่ประมาณ)
+    expect(sumTrend([ok([1, 2], [1, 1], [5, 6]), ok([1, 2], [1, 1], [1, 1])])?.expense).toEqual([6, 7])
+    expect(sumTrend([ok([1, 2], [1, 1], [5, 6]), ok([1, 2], [1, 1])])?.expense).toBeUndefined()
     expect(sumTrend([err])).toBeUndefined()
   })
 })

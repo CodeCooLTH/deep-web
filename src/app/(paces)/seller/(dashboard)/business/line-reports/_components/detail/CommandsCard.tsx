@@ -1,5 +1,5 @@
 /**
- * CommandsCard — คำสั่งที่พิมพ์ในกลุ่ม LINE ได้เอง (สรุปวันนี้ / สรุปเดือนนี้) · คัดลอกได้
+ * CommandsCard — คำสั่งที่พิมพ์ในกลุ่ม LINE ได้เอง (สรุปวันนี้ / สรุปเมื่อวาน / สรุปเดือนนี้) · คัดลอกได้
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (.card)
  *   + src/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton.tsx (ปุ่มคัดลอกกลาง — ไม่เปิดโหมดพรีวิวของปุ่ม: ฟอนต์ monospace ในนั้นฆ่า Anuphan)
@@ -9,8 +9,9 @@
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 
 const COMMANDS = [
-  { text: 'สรุปวันนี้', hint: 'ส่งสรุปยอดของวันนี้เข้ากลุ่มทันที' },
-  { text: 'สรุปเดือนนี้', hint: 'ส่งสรุปยอดของรอบเดือนนี้ (นับตามวันตัดรอบ) เข้ากลุ่มทันที' },
+  { text: 'สรุปวันนี้', hint: 'ยอดของวันนี้ ถึงเวลาที่พิมพ์' },
+  { text: 'สรุปเมื่อวาน', hint: 'ยอดทั้งวันของเมื่อวาน' },
+  { text: 'สรุปเดือนนี้', hint: 'ยอดตั้งแต่วันตัดรอบถึงวันนี้' },
 ] as const
 
 export default function CommandsCard() {

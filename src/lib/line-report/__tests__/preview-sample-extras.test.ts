@@ -39,7 +39,7 @@ describe('sampleCycleTotals', () => {
 describe('withSampleFinance (EXT-EXP)', () => {
   it('ร้านแรกปกติ · วนครบ 3 สถานะ (ปกติ/ยังไม่มีบันทึก/ติดลบ) · ไม่แตะร้านที่ไม่ OK', async () => {
     const { withSampleFinance } = await import('../preview-sample')
-    const ok = (confirmed: number) => ({ state: 'OK', confirmed }) as never
+    const ok = (confirmed: number) => ({ state: 'OK', confirmed, unconfirmed: 0 }) as never
     const out = withSampleFinance({ shops: [ok(500_000), ok(300_000), ok(100_000), { state: 'ERROR' } as never] } as never)
     const f = out.shops.map((s) => s.finance)
     expect(f[0]).toMatchObject({ expenseRecorded: true, expense: 128_400, netSales: 500_000 - 128_400 })

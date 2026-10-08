@@ -225,16 +225,16 @@ describe('needExpense -> finance', () => {
     expenses.mockResolvedValue([{ id: 'e' }] as never)
   })
 
-  it('1: needExpense เปิด -> เรียก getPnlReport เติม finance (netSales=round2) แต่ไม่เติม profit', async () => {
+  it('1: needExpense เปิด -> เติม finance · netSales = ยอดขายรวม (ยืนยัน+รอยืนยัน) − ค่าใช้จ่าย · ไม่เติม profit', async () => {
     const s = await run()
     expect(pnl).toHaveBeenCalledTimes(1)
-    expect(s.shops[0].finance).toEqual({ expense: 300.05, netSales: 700.05, expenseRecorded: true })
+    expect(s.shops[0].finance).toEqual({ expense: 300.05, netSales: 49.95, expenseRecorded: true })
     expect(s.shops[0].profit).toBeUndefined()
   })
   it('3: ไม่มีแถวค่าใช้จ่าย -> expenseRecorded=false (expense 0 ≠ ไม่ได้บันทึก)', async () => {
     expenses.mockResolvedValue([])
     pnl.mockResolvedValue({ netProfit: 1, hasMissingCost: false, revenue: 500, totalExpense: 0 } as never)
-    expect((await run()).shops[0].finance).toEqual({ expense: 0, netSales: 500, expenseRecorded: false })
+    expect((await run()).shops[0].finance).toEqual({ expense: 0, netSales: 350, expenseRecorded: false })
   })
   it('4: needExpense ปิด + showProfit ปิด -> ไม่เรียก pnl ไม่มี finance · showProfit เปิดอย่างเดียว -> profit ไม่มี finance', async () => {
     const a = await run(off, {})
@@ -251,12 +251,20 @@ describe('needExpense -> finance', () => {
     expect(s.shops[0].finance).toBeDefined()
   })
   it('netSales ปัดทศนิยม 2 ตำแหน่ง (กัน float 0.3-0.1)', async () => {
+    series.mockImplementation(async () => fakeSeries(1, 0.3, 0))
     pnl.mockResolvedValue({ netProfit: 0, hasMissingCost: false, revenue: 0.3, totalExpense: 0.1 } as never)
     expect((await run()).shops[0].finance?.netSales).toBe(0.2)
   })
   it('ร้านติดลบ: ยอดหลังหักค่าใช้จ่ายติดลบได้', async () => {
-    pnl.mockResolvedValue({ netProfit: -5, hasMissingCost: false, revenue: 100, totalExpense: 250 } as never)
+    pnl.mockResolvedValue({ netProfit: -5, hasMissingCost: false, revenue: 100, totalExpense: 500 } as never)
     expect((await run()).shops[0].finance?.netSales).toBe(-150)
+  })
+  it('กราฟ 7 วัน + needExpense → ค่าใช้จ่ายรายวัน (P&L วันละครั้ง) · ไม่ขอ needExpense → ไม่มี', async () => {
+    const s = await run(off, { needExpense: true, needTrend7: true })
+    expect(s.shops[0].trend?.expense).toEqual(Array(7).fill(300.05))
+    expect(pnl).toHaveBeenCalledTimes(7) // ช่วงรายงาน = วันสุดท้ายของกราฟ → memo ใช้ร่วม
+    const t = await run(off, { needTrend7: true })
+    expect(t.shops[0].trend?.expense).toBeUndefined()
   })
 })
 

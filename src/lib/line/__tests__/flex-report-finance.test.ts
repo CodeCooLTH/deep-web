@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildSummaryReportFlex, collectSkipped, rebuildAtLevel } from '../flex-summary-report'
-import { reportCostNoun, EXPENSE_BY_RECORD_DATE_NOTE, FLEX_COLORS } from '../flex-report-blocks'
+import { reportCostNoun, FLEX_COLORS } from '../flex-report-blocks'
 import { canSumProfit, combineTotals, isMixedFinanceRules } from '@/lib/line-report/aggregate'
 import { measureTemplate } from '@/lib/line-report/template-size'
 import type { Block, TemplateV1 } from '@/lib/line-report/template'
@@ -44,23 +44,23 @@ beforeEach(() => { process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.deepthai
 afterEach(() => { delete process.env.NEXT_PUBLIC_SELLER_URL })
 
 describe('AC-EXP-03-1 แถวรวม + เงื่อนไข', () => {
-  it('2 ร้านกติกาเดียวกัน → แถวรวม ค่าใช้จ่าย ฿600 / หลังหัก ฿1,400', () => {
+  it('2 ร้านกติกาเดียวกัน → แถวรวม ค่าใช้จ่าย 600 / หลังหัก 1,400', () => {
     const t = texts(first(summary(two), [EXP, NET]))
     expect(t).toContain('ค่าใช้จ่าย')
-    expect(t).toContain('฿600')
+    expect(t).toContain('600')
     expect(t).toContain('ยอดขายหลังหักค่าใช้จ่าย')
-    expect(t).toContain('฿1,400')
+    expect(t).toContain('1,400')
   })
   it('ติดกับ sales ใน section เดียว ตามลำดับที่เรียง', () => {
     const t = texts(first(summary(two), [NET, SALES, EXP]))
-    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ยอดขาย (นับแล้ว)'))
-    expect(t.indexOf('ยอดขาย (นับแล้ว)')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
+    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ยอดขาย'))
+    expect(t.indexOf('ยอดขาย')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
   })
   it('ผสมกติกาการเงิน → ไม่มีแถว + skipped', () => {
     const s = summary([shop(1), shop(2, {}, 'SERVICE_QUEUE')])
     const ms = build(s, [EXP, NET])
-    expect(texts(ms[0])).not.toContain('฿600')
-    expect(json(ms)).not.toContain('฿0')
+    expect(texts(ms[0])).not.toContain('600')
+    expect(json(ms)).not.toContain('"text":"0"')
     expect(collectSkipped(ms)).toEqual([
       { label: 'ค่าใช้จ่าย', reason: 'รวมค่าใช้จ่ายไม่ได้ในรอบนี้' },
       { label: 'ยอดขายหลังหักค่าใช้จ่าย', reason: 'รวมค่าใช้จ่ายไม่ได้ในรอบนี้' },
@@ -73,37 +73,37 @@ describe('AC-EXP-03-1 แถวรวม + เงื่อนไข', () => {
     expect(collectSkipped(ms)).toHaveLength(1)
   })
   it('ร้านเดียว → ใช้ของร้านนั้น · ร้านเดียวที่ ERROR → เงียบ', () => {
-    expect(texts(first(summary([shop(1)]), [EXP]))).toContain('฿300')
+    expect(texts(first(summary([shop(1)]), [EXP]))).toContain('300')
     const ms = build(summary([shop(1, { state: 'ERROR', finance: undefined })]), [EXP])
     expect(collectSkipped(ms)).toEqual([])
   })
-  it('12 ร้าน → รวมได้ ฿3,600', () => {
+  it('12 ร้าน → รวมได้ 3,600', () => {
     const s = summary(Array.from({ length: 12 }, (_, i) => shop(i)))
-    expect(texts(first(s, [EXP]))).toContain('฿3,600')
+    expect(texts(first(s, [EXP]))).toContain('3,600')
   })
   it('AC-EXP-03-8: ลำดับบล็อก/ร้านสลับ → ยอดรวมเท่ากัน · ร้าน EXCLUDED ไม่ถูกรวม', () => {
     const s = summary([shop(1), shop(2, { finance: fin(0.1, 10) }), shop(3, { finance: fin(0.2, 10) }), shop(4, { state: 'EXCLUDED', excludedReason: 'LOCKED' })])
-    for (const bl of [[EXP, NET], [NET, EXP]]) expect(texts(first(s, bl))).toContain('฿300.30')
-    expect(texts(first(summary([...s.shops].reverse()), [EXP]))).toContain('฿300.30')
+    for (const bl of [[EXP, NET], [NET, EXP]]) expect(texts(first(s, bl))).toContain('300.30')
+    expect(texts(first(summary([...s.shops].reverse()), [EXP]))).toContain('300.30')
   })
   it('ร้านเดียวไม่มี finance → ไม่ render ตัวเลข', () => {
     const t = texts(first(summary([shop(1, { finance: undefined })]), [EXP, NET]))
-    expect(t.join('|')).not.toMatch(/฿300|ยังไม่มีบันทึก/)
+    expect(t.join('|')).not.toMatch(/300|ยังไม่มีบันทึก/)
   })
 })
 
 describe('ป้าย (BR-LGS-32) + ติดลบ (AC-EXP-03-2/BR-LGS-35)', () => {
-  it('ยังไม่มีบันทึก ∧ 0 → "ยังไม่มีบันทึก" ไม่ใช่ ฿0 · หลังหัก "ไม่เกิน"', () => {
+  it('ยังไม่มีบันทึก ∧ 0 → "ยังไม่มีบันทึก" ไม่ใช่ 0 · หลังหัก "ไม่เกิน"', () => {
     const t = texts(first(summary([shop(1, { finance: fin(0, 1000, false) })]), [EXP, NET]))
     expect(t).toContain('ยังไม่มีบันทึก')
     expect(t).toContain('ยอดขายหลังหักค่าใช้จ่ายไม่เกิน')
   })
-  it('ติดลบ → ป้ายใหม่ ค่าสัมบูรณ์ ไม่มี ฿- · สีเป็น INK/SLATE เท่านั้น', () => {
+  it('ติดลบ → ป้ายใหม่ ค่าสัมบูรณ์ ไม่มี - · สีเป็น INK/SLATE เท่านั้น', () => {
     const m = first(summary([shop(1, { finance: fin(1500, -500) })]), [EXP, NET])
     const t = texts(m)
     expect(t).toContain('ยอดขายต่ำกว่าค่าใช้จ่าย')
-    expect(t).toContain('฿500')
-    expect(json(m)).not.toMatch(/฿-|-฿/)
+    expect(t).toContain('500')
+    expect(json(m)).not.toMatch(/"-\d/)
     const colors = new Set(flat(m).map((n) => n.color).filter(Boolean))
     expect(colors.has(FLEX_COLORS.DANGER)).toBe(false)
     expect(colors.has('#2F2B3D') || colors.has(FLEX_COLORS.INK)).toBe(true)
@@ -118,7 +118,7 @@ describe('AC-EXP-03-3 หมายเหตุต้นทุน ผันตา
     ['LODGING', 'ต้นทุนต่อห้อง'],
   ])('%s', (v, noun) => {
     const t = texts(first(summary([shop(1, {}, v)]), [NET]))
-    expect(t).toContain(`= ยอดขาย (นับแล้ว) − ค่าใช้จ่าย · ยังไม่หัก${noun}`)
+    expect(t).toContain(`ยังไม่หัก${noun}`)
   })
   it('ผสม = "ต้นทุน"', () => {
     const s = [shop(1), shop(2, {}, 'LODGING')]
@@ -126,11 +126,9 @@ describe('AC-EXP-03-3 หมายเหตุต้นทุน ผันตา
   })
 })
 
-describe('AC-EXP-03-4 หมายเหตุวันที่บันทึก', () => {
-  it('ขึ้นเมื่อมีบล็อกใหม่ · ไม่ขึ้นเมื่อไม่มี (golden ไม่เปลี่ยน)', () => {
-    expect(texts(first(summary(two), [EXP]))).toContain(EXPENSE_BY_RECORD_DATE_NOTE)
-    expect(texts(first(summary(two), [NET]))).toContain(EXPENSE_BY_RECORD_DATE_NOTE)
-    expect(texts(first(summary(two), [SALES]))).not.toContain(EXPENSE_BY_RECORD_DATE_NOTE)
+describe('หมายเหตุวันที่บันทึก ถอดออก (user 2026-10-08: คำอธิบายรก)', () => {
+  it('ไม่มีหมายเหตุ "ลงตามวันที่บันทึก" ทุกบล็อก', () => {
+    for (const b of [[EXP], [NET], [SALES]]) expect(texts(first(summary(two), b)).some((x) => x.includes('วันที่บันทึก'))).toBe(false)
   })
 })
 
@@ -139,8 +137,8 @@ describe('AC-EXP-03-6 ไม่ถูกตัดทุกระดับ + ข�
     const [m] = build(summary(two), [EXP, NET])
     for (const lv of [0, 1, 2, 3, 4]) {
       const t = texts(rebuildAtLevel(m, lv))
-      expect(t).toContain('฿600')
-      expect(t).toContain(EXPENSE_BY_RECORD_DATE_NOTE)
+      expect(t).toContain('600')
+      expect(t).toContain('ยอดขายหลังหักค่าใช้จ่าย')
     }
   })
   it('เทมเพลตการเงินเต็มที่ fixture เลวร้ายสุด ระดับ 3 ≤ 30KB', () => {
@@ -152,8 +150,8 @@ describe('AC-EXP-03-7 altText', () => {
   const alt = (s: GroupSummary, blocks: Block[]) => (first(s, blocks) as unknown as { altText: string }).altText
   it('มีบล็อก ∧ รวมได้ → ต่อท้ายด้วยข้อความจาก display', () => {
     const a = alt(summary(two), [EXP, NET])
-    expect(a).toContain('ค่าใช้จ่าย ฿600')
-    expect(a).toContain('ยอดขายหลังหักค่าใช้จ่าย ฿1,400')
+    expect(a).toContain('ค่าใช้จ่าย 600')
+    expect(a).toContain('ยอดขายหลังหักค่าใช้จ่าย 1,400')
   })
   it('ไม่มีบล็อก/รวมไม่ได้ → ไม่มี', () => {
     expect(alt(summary(two), [SALES])).not.toContain('ค่าใช้จ่าย')
@@ -171,10 +169,10 @@ describe('ITEMS §17: รายการย่อยค่าใช้จ่า�
 
   it('items=true → แถวรวมก่อน แล้วรายการย่อยตามลำดับ (ร้านเดียวและรวมหลายร้าน)', () => {
     const t1 = texts(first(summary(withItems(1)), [EXP_I]))
-    expect(t1.slice(t1.indexOf('ค่าใช้จ่าย'), t1.indexOf('ค่าใช้จ่าย') + 5)).toEqual(['ค่าใช้จ่าย', '฿300', 'ค่าเช่า', '฿200', 'ค่าโฆษณา'])
+    expect(t1.slice(t1.indexOf('ค่าใช้จ่าย'), t1.indexOf('ค่าใช้จ่าย') + 5)).toEqual(['ค่าใช้จ่าย', '300', 'ค่าเช่า', '200', 'ค่าโฆษณา'])
     const t2 = texts(first(summary(withItems(2)), [EXP_I]))
-    expect(t2).toContain('฿400') // ค่าเช่ารวม 2 ร้าน
-    expect(t2).toContain('฿200')
+    expect(t2).toContain('400') // ค่าเช่ารวม 2 ร้าน
+    expect(t2).toContain('200')
   })
   it('items ไม่ตั้ง/false → ไม่มีรายการย่อย', () => {
     expect(texts(first(summary(withItems(1)), [EXP]))).not.toContain('ค่าเช่า')
@@ -188,10 +186,26 @@ describe('ITEMS §17: รายการย่อยค่าใช้จ่า�
     const m = first(summary(withItems(1)), [EXP_I])
     const t = texts(rebuildAtLevel(m, 1))
     expect(t).not.toContain('ค่าเช่า')
-    expect(t).toContain('฿300')
+    expect(t).toContain('300')
   })
   it('โน้ตไม่หลุดลง JSON (ไม่มีทางผ่านชนิดข้อมูล)', () => {
     const s = summary(withItems(1))
     expect(json(build(s, [EXP_I]))).not.toMatch(/โน้ตลับ/)
+  })
+})
+
+describe('กราฟ 7 วัน + ค่าใช้จ่าย (user 2026-10-08)', () => {
+  const CH: Block = { id: 'c', type: 'chart_trend', measure: 'sales' }
+  const tr = { dates: ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'], confirmed: [9, 9, 9, 9, 9, 9, 900], unconfirmed: [0, 0, 0, 0, 0, 0, 100], orders: [1, 1, 1, 1, 1, 1, 1], expense: [0, 0, 0, 0, 0, 0, 400] }
+  const withTr = (shops: ShopSummary[]) => ({ ...summary(shops), trend: tr })
+  const reds = (blocks: Block[], s: GroupSummary) => flat(first(s, blocks)).filter((n) => n.backgroundColor === FLEX_COLORS.DANGER)
+  it('เปิดเผยค่าใช้จ่าย ∧ รวมได้ → แท่งแดง + เส้นหลังหักค่าใช้จ่าย', () => {
+    const s = withTr([shop(1), shop(2)])
+    expect(reds([CH, EXP], s).length).toBeGreaterThan(0)
+    expect(json(first(s, [CH, NET]))).toContain('ยอดขายหลังหักค่าใช้จ่าย')
+  })
+  it('ไม่มีบล็อกค่าใช้จ่าย หรือ รวมไม่ได้ (ผสมกติกา) → ไม่มีแท่งแดง แม้ trend มีค่าใช้จ่าย', () => {
+    expect(reds([CH], withTr([shop(1), shop(2)]))).toHaveLength(0)
+    expect(reds([CH, EXP], withTr([shop(1), shop(2, {}, 'SERVICE_QUEUE')]))).toHaveLength(0)
   })
 })

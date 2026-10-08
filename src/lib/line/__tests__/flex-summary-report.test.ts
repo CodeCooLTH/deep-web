@@ -48,11 +48,11 @@ describe('buildSummaryReportFlex', () => {
       expect(both(run({ showOrders: false }))).not.toMatch(/รายการ(?!สินค้า)|ออเดอร์|คำสั่งซื้อ/)
       expect(run({}).altText).toContain('รายการ')
     })
-    it('ปิดยอดขาย → ไม่มี ยอดขาย/ยังไม่นับเป็นยอดขาย/ยอดสะสม/฿ ทั้ง bubble และ altText', () => {
+    it('ปิดยอดขาย → ไม่มี ยอดขาย/รอยืนยัน/ยอดสะสม/฿ ทั้ง bubble และ altText', () => {
       const s = both(run({ showSales: false, showProfit: false }))
       expect(s).not.toContain('ยอดขาย')
       expect(s).not.toContain('ยอดสะสม')
-      expect(s).not.toContain('฿')
+      expect(s).not.toMatch(/รอยืนยัน|\d,\d{3}/)
       expect(both(run({}))).toContain('ยอดสะสม')
     })
     it('ปิดยกเลิก → ไม่มีคำว่า ยกเลิก', () => {
@@ -62,15 +62,15 @@ describe('buildSummaryReportFlex', () => {
     })
     it('ปิด Top 3 → ไม่มี 3 อันดับ/ชื่อสินค้า', () => {
       const s = both(run({ showTopProducts: false }))
-      expect(s).not.toContain('3 อันดับ')
+      expect(s).not.toContain('สินค้าขายดี')
       expect(s).not.toContain('สินค้า 1')
-      expect(both(run({}))).toContain('3 อันดับ')
+      expect(both(run({}))).toContain('สินค้าขายดี')
     })
     it('ปิดออเดอร์+ยอดขาย → แถวรายร้านใช้ยกเลิก · เหลือแต่ Top3 → ชื่อร้านอย่างเดียว ไม่มี ฿', () => {
       expect(json(run({ showOrders: false, showSales: false }).contents)).toContain('ยกเลิก 1 ใบ')
       const nameOnly = run({ showOrders: false, showSales: false, showCancelled: false, showProfit: false })
       expect(json(nameOnly.contents)).toContain('ร้าน 1')
-      expect(both(nameOnly)).not.toContain('฿')
+      expect(both(nameOnly)).not.toMatch(/\d,\d{3}/)
     })
     it('ปิดหมดทุกตัว → fallback แสดงจำนวนออเดอร์', () => {
       const m = run({ showOrders: false, showSales: false, showCancelled: false, showTopProducts: false, showProfit: false })
@@ -93,15 +93,15 @@ describe('buildSummaryReportFlex', () => {
     const shops = [shop(1), shop(2)]
     const [m] = mk(shops, { flags: ALL })
     expect(m.altText.length).toBeLessThanOrEqual(1500)
-    for (const s of ['รายงานยอดรายวัน', '5 ต.ค. 2569', 'คำสั่งซื้อ 23 รายการ', 'ยอดขาย ฿5,000', 'กำไรสุทธิ ฿500', '21:02']) {
+    for (const s of ['รายงานยอดรายวัน', '5 ต.ค. 2569', 'คำสั่งซื้อ 23 รายการ', 'ยอดขาย 5,150', 'รอยืนยัน 150', 'กำไรสุทธิ 500', '21:02']) {
       expect(m.altText).toContain(s)
     }
     expect(mk(shops)[0].altText).not.toContain('กำไร')
   })
 
-  it('โครงเนื้อหา: ป้ายวันที่ + ข้อมูล ณ + รวม N ร้าน + ยังไม่นับ + ยกเลิก', () => {
+  it('โครงเนื้อหา: ป้ายวันที่ + ข้อมูล ณ + รวม N ร้าน + รอยืนยัน + ยกเลิก', () => {
     const j = json(mk([shop(1), shop(2)])[0])
-    for (const s of ['ข้อมูล ณ 21:02 น.', 'รวม 2 ร้าน', 'ยังไม่นับเป็นยอดขาย ฿150', 'ยกเลิก', 'แยกรายร้าน', 'สินค้าขายดี 3 อันดับ']) {
+    for (const s of ['ข้อมูล ณ 21:02 น.', 'รวม 2 ร้าน', 'รอยืนยัน 150', 'ยกเลิก', 'แยกรายร้าน', 'สินค้าขายดี']) {
       expect(j).toContain(s)
     }
   })
@@ -120,7 +120,6 @@ describe('buildSummaryReportFlex', () => {
   it('vertical เดียวกัน → มีกำไรรวม + ป้ายเพดานเมื่อ capped', () => {
     const j = json(mk([shop(1), shop(2, { profit: { netProfit: 40, capped: true } })], { flags: ALL }))
     expect(j).toContain('กำไรสุทธิไม่เกิน')
-    expect(j).toContain('ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน')
   })
 
   it('ร้าน ERROR → "ดึงข้อมูลไม่สำเร็จ" + หมายเหตุยอดรวมไม่ครบ ไม่ใช่ 0', () => {
@@ -130,9 +129,9 @@ describe('buildSummaryReportFlex', () => {
   })
 
   it('LODGING ไม่มี Top3 · Top3 ว่าง → ข้อความว่าง', () => {
-    expect(json(mk([shop(1, {}, 'LODGING'), shop(2, {}, 'LODGING')]))).not.toContain('3 อันดับ')
+    expect(json(mk([shop(1, {}, 'LODGING'), shop(2, {}, 'LODGING')]))).not.toContain('ยังไม่มีรายการสินค้า')
     expect(json(mk([shop(1, { top3: [] })]))).toContain('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้')
-    expect(json(mk([shop(1, {}, 'SERVICE_QUEUE')]))).toContain('บริการยอดนิยม 3 อันดับ')
+    expect(json(mk([shop(1, {}, 'SERVICE_QUEUE')]))).toContain('บริการยอดนิยม')
   })
 
   it('กลุ่มร้านเดียว ไม่มีบล็อกรายร้านซ้ำยอด', () => {
@@ -162,7 +161,7 @@ describe('buildSummaryReportFlex', () => {
   it('ร้านถูกตัด → หมายเหตุ ไม่รวมร้าน X (ถูกล็อก) และไม่อยู่ในยอดรวม', () => {
     const j = json(mk([shop(1), shop(2, { state: 'EXCLUDED', excludedReason: 'LOCKED' })])[0])
     expect(j).toContain('ไม่รวมร้าน ร้าน 2 (ถูกล็อก)')
-    expect(j).toContain('ยอดขาย (นับแล้ว)')
+    expect(j).toContain('"ยอดขาย"')
     expect(j).not.toContain('รวม 2 ร้าน')
   })
 
@@ -185,7 +184,7 @@ describe('buildSummaryReportFlex', () => {
   it('total ที่ไม่ตรงผลบวกรายร้านถูกเมิน (AC-15-2)', () => {
     const shops = [shop(1), shop(2)]
     const m = mk(shops, {}, { total: { orders: 999, confirmed: 987654, unconfirmed: 1, cancelled: 1 } })[0]
-    expect(json(m)).toContain('฿5,000')
+    expect(json(m)).toContain('5,150')
     expect(json(m)).not.toContain('987,654')
     expect(m.altText).not.toContain('987,654')
   })
@@ -214,18 +213,18 @@ describe('buildSummaryReportFlex', () => {
     expect(json(mk([shop(1)], { cycleToDate })[0])).toContain('ยอดสะสมรอบนี้')
   })
 
-  it('ยอดสะสมรอบ: บางร้านล้ม = มีหมายเหตุ "ไม่ครบ" · ทุกร้านล้ม = "ดึงข้อมูลไม่สำเร็จ" ไม่โชว์ ฿0 · ไม่ล้ม = ไม่มีหมายเหตุ', () => {
+  it('ยอดสะสมรอบ: บางร้านล้ม = มีหมายเหตุ "ไม่ครบ" · ทุกร้านล้ม = "ดึงข้อมูลไม่สำเร็จ" ไม่โชว์ 0 · ไม่ล้ม = ไม่มีหมายเหตุ', () => {
     const base = { startIso: '2026-09-06', endIso: '2026-10-05', totals: { orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0 } }
     const ok = json(mk([shop(1), shop(2)], { cycleToDate: base })[0])
     expect(ok).not.toContain('ยอดรวมยังไม่ครบ')
     const partial = json(mk([shop(1), shop(2)], { cycleToDate: { ...base, totals: { ...base.totals, confirmed: 500 }, failedShops: 1 } })[0])
     expect(partial).toContain('ยอดรวมยังไม่ครบ เพราะดึงข้อมูลบางร้านไม่สำเร็จ')
-    expect(partial).toContain('฿500')
+    expect(partial).toContain('500')
     const all = json(mk([shop(1), shop(2)], { cycleToDate: { ...base, failedShops: 2 } })[0])
     expect(all).toContain('ดึงข้อมูลไม่สำเร็จ')
     const tail = all.slice(all.indexOf('ยอดสะสมรอบนี้'))
-    expect(tail).not.toContain('ยอดขาย (นับแล้ว)')
-    expect(tail).not.toContain('฿0')
+    expect(tail).not.toContain('"ยอดขาย"')
+    expect(tail).not.toContain('"text":"0"')
   })
 
   it('text ว่างไม่ถูกส่งให้ LINE (ชื่อร้านว่าง · notice ว่าง)', () => {
@@ -253,11 +252,12 @@ describe('fitToLimits', () => {
     expect(Buffer.byteLength(json(m.contents))).toBeLessThanOrEqual(30_000)
     expect(m.altText.length).toBeLessThanOrEqual(1500)
     const j = json(m)
-    for (const s of ['ยอดขาย (นับแล้ว)', 'ยังไม่นับเป็นยอดขาย', 'ยกเลิก', '5 ต.ค. 2569', 'ข้อมูล ณ 21:02 น.', 'รวม 10 ร้าน']) {
+    for (const s of ['"ยอดขาย"', 'รอยืนยัน', 'ยกเลิก', '5 ต.ค. 2569', 'ข้อมูล ณ 21:02 น.', 'รวม 10 ร้าน']) {
       expect(j).toContain(s)
     }
-    expect(j).not.toContain('3 อันดับ') // Top3 ถูกตัดก่อน
-    expect(m.altText).toContain('ยอดขาย ฿')
+    expect(j).not.toContain('สินค้าขายดี') // Top3 ถูกตัดก่อน
+    expect(m.altText).toMatch(/ยอดขาย \d/)
+    expect(m.altText).not.toContain('฿')
   })
 
   it('30 ร้านชื่อยาว + ร้านถูกตัด/ERROR เยอะ → ถึงระดับ 2/3 ยังอยู่ใน 30KB', () => {
@@ -273,7 +273,7 @@ describe('fitToLimits', () => {
     expect(Buffer.byteLength(json(m.contents), 'utf8')).toBeLessThanOrEqual(30_000)
     expect(j).toMatch(/…และอีก \d+ ร้าน/)
     expect(json(m.contents)).not.toContain('ก'.repeat(100)) // ชื่อถูกตัด (altText ไม่นับ)
-    for (const s of ['ยอดขาย (นับแล้ว)', 'ยังไม่นับเป็นยอดขาย', '5 ต.ค. 2569', 'ข้อมูล ณ 21:02 น.', 'ยอดรวมยังไม่ครบ']) expect(j).toContain(s)
+    for (const s of ['"ยอดขาย"', 'รอยืนยัน', '5 ต.ค. 2569', 'ข้อมูล ณ 21:02 น.', 'ยอดรวมยังไม่ครบ']) expect(j).toContain(s)
     expect(m.altText.length).toBeLessThanOrEqual(1500)
   })
 

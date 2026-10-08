@@ -8,7 +8,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
-import { todayThaiIsoDate } from '@/lib/date-range'
+import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { parseGroupCommand } from '@/lib/line-report/commands'
 import { cycleContaining } from '@/lib/line-report/cycle'
 import { resolveDailyWindow } from '@/lib/line-report/schedule'
@@ -72,15 +72,17 @@ async function handleBind(code: string, lineGroupId: string, ctx: Ctx, now: Date
   if (sent === 'EXPIRED' || !sent.ok) console.warn(LOG, 'reply ผลผูกไม่สำเร็จ', r.outcome, sent === 'EXPIRED' ? 'EXPIRED' : sent.reason)
 }
 
+type SummaryCommand = 'TODAY' | 'YESTERDAY' | 'MONTH'
+
 type ReplyOutcome = { status: 'SENT' | 'REPLY_FAILED' | 'FAILED'; reason?: string; httpStatus?: number }
 
 /**
- * สรุปวันนี้/สรุปเดือนนี้ — ผลทุกทางออกไปจบที่ `writeDelivery` จุดเดียวท้ายฟังก์ชัน (TFR-21)
+ * สรุปวันนี้/สรุปเมื่อวาน/สรุปเดือนนี้ — ผลทุกทางออกไปจบที่ `writeDelivery` จุดเดียวท้ายฟังก์ชัน (TFR-21)
  * ชุดตัวเลข = ธงของกลุ่ม (กำไรปิด = ไม่คำนวณ) · ตอบเสมอแม้ 0 (ไม่ใช้ skipWhenNoOrders)
  */
 export async function replyCommand(
   group: { id: string; ownerId: string; cutoffDay: number | null } & ReportConfigGroup,
-  command: 'TODAY' | 'MONTH',
+  command: SummaryCommand,
   claimedRowId: string,
   ctx: Ctx,
   now: Date,
@@ -109,7 +111,7 @@ function sentOrFailed(r: SendResult | 'EXPIRED', okReason?: string): ReplyOutcom
 
 async function composeAndReply(
   group: Parameters<typeof replyCommand>[0],
-  command: 'TODAY' | 'MONTH',
+  command: SummaryCommand,
   ctx: Ctx,
   now: Date,
 ): Promise<ReplyOutcome> {
@@ -119,10 +121,13 @@ async function composeAndReply(
   }
   const today = todayThaiIsoDate(now)
   // รอบของ "กลุ่มนี้" แม้ monthlyEnabled=false (AC-11-8) · ไม่ใช่ fullDay → ป้าย "ณ เวลา" ตามปกติ
+  // เมื่อวาน = ครบทั้งวัน (1440) → ไม่แนบยอดสะสมรอบ
   const window: Window =
     command === 'TODAY'
       ? resolveDailyWindow(0, today, now)
-      : { startIso: cycleContaining(today, group.cutoffDay).startIso, endIso: today, computedAt: now.toISOString() }
+      : command === 'YESTERDAY'
+        ? resolveDailyWindow(1440, shiftIsoDate(today, -1), now)
+        : { startIso: cycleContaining(today, group.cutoffDay).startIso, endIso: today, computedAt: now.toISOString() }
   const { sendable, excluded } = await resolveSendableShops(group)
   const { template, flags, needs } = resolveReportConfig(group)
   const summary = await buildGroupSummary({ shops: sendable, excluded, window, flags, needs, cache: createSweepCache() })
@@ -130,7 +135,7 @@ async function composeAndReply(
   return sentOrFailed(await replyMessages(ctx, messages))
 }
 
-async function handleSummaryCommand(command: 'TODAY' | 'MONTH', lineGroupId: string, eventId: string | undefined, ctx: Ctx, now: Date) {
+async function handleSummaryCommand(command: SummaryCommand, lineGroupId: string, eventId: string | undefined, ctx: Ctx, now: Date) {
   // ตัวนับเดียวกันทั้งกลุ่มที่ผูกและไม่ผูก (AC-22-9) — นับก่อนตัดสินใจอะไร
   const n = await recordAndCountRate(lineGroupId, 'COMMAND', now, COMMAND_LIMIT + 1)
   if (n > COMMAND_LIMIT + 1) return

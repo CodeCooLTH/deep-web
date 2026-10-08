@@ -12,7 +12,7 @@ export const GREETING_MESSAGE =
 
 export function bindSuccessMessage(groupName: string, shopNames: readonly string[]): string {
   const name = groupName ? `กลุ่ม "${groupName}"` : 'กลุ่มนี้'
-  return `ผูก${name}สำเร็จแล้ว\nร้านที่รวมในรายงาน: ${shopNames.join(', ')}\nพิมพ์ สรุปวันนี้ หรือ สรุปเดือนนี้ เพื่อดูยอดได้ทุกเมื่อ`
+  return `ผูก${name}สำเร็จแล้ว\nร้านที่รวมในรายงาน: ${shopNames.join(', ')}\nพิมพ์ สรุปวันนี้ · สรุปเมื่อวาน · สรุปเดือนนี้ เพื่อดูยอดได้ทุกเมื่อ`
 }
 
 export const ALREADY_BOUND_SELF_MESSAGE = 'กลุ่มนี้ผูกกับบัญชีของคุณอยู่แล้ว'

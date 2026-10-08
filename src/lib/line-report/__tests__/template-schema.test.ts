@@ -55,7 +55,7 @@ const bad: Row[] = [
   ['run ไม่มี t/tok', base([text('t', { runs: [{ b: true }] })]), 'RUN_SHAPE', 't'],
   ['run b=false', base([text('t', { runs: [{ t: 'a', b: false }] })]), 'SHAPE', 't'],
   ['ข้อความ 121 ตัว', base([text('t', { runs: [{ t: 'ก'.repeat(121) }] })]), 'TEXT_TOO_LONG', 't'],
-  ['โทเคนทำให้เกิน 120 (นับป้ายมาตรฐาน)', base([text('t', { runs: [{ t: 'ก'.repeat(105) }, { tok: 'sales_counted' }] })]), 'TEXT_TOO_LONG', 't'],
+  ['โทเคนทำให้เกิน 120 (นับป้ายมาตรฐาน)', base([text('t', { runs: [{ t: 'ก'.repeat(115) }, { tok: 'sales_counted' }] })]), 'TEXT_TOO_LONG', 't'],
   ['ข้อความว่าง (runs ว่าง)', base([text('t', { runs: [] })]), 'TEXT_EMPTY', 't'],
   ['ข้อความมีแต่ช่องว่าง', base([text('t', { runs: [{ t: '   ' }] })]), 'TEXT_EMPTY', 't'],
   ['ขึ้นบรรทัดใหม่ในข้อความ', base([text('t', { runs: [{ t: 'a\nb' }] })]), 'TEXT_NEWLINE', 't'],

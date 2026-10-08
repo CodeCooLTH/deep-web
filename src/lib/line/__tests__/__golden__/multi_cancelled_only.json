@@ -73,7 +73,7 @@
          },
          {
           "type": "text",
-          "text": "3 ใบ (ใบที่เปิดในช่วงนี้)",
+          "text": "3 ใบ",
           "size": "sm",
           "color": "#2F2B3D",
           "wrap": true,

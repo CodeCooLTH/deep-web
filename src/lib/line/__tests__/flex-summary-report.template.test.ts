@@ -80,8 +80,8 @@ describe('ลำดับตามเทมเพลต (FR-EXT-06)', () => {
   it('ยอดขายมาก่อนจำนวนใบ ถ้าเทมเพลตเรียงอย่างนั้น', () => {
     const [m] = run(T([B.sales(), B.orders()]))
     const s = json(bodyOf(m)[2])
-    expect(s.indexOf('ยอดขาย (นับแล้ว)')).toBeGreaterThan(-1)
-    expect(s.indexOf('ยอดขาย (นับแล้ว)')).toBeLessThan(s.indexOf('23 รายการ'))
+    expect(s.indexOf('"ยอดขาย"')).toBeGreaterThan(-1)
+    expect(s.indexOf('"ยอดขาย"')).toBeLessThan(s.indexOf('23 รายการ'))
   })
   it('ข้อความอิสระคั่นระหว่างบล็อก → section ตัวเลขแยกสองก้อน หมายเหตุอยู่ก้อนท้าย', () => {
     const s = summary([shop(1), shop(2, { state: 'ERROR' })])
@@ -97,7 +97,7 @@ describe('ลำดับตามเทมเพลต (FR-EXT-06)', () => {
     const s = summary(two, { total: { orders: 999, confirmed: 999, unconfirmed: 0, cancelled: 0 } })
     for (const order of [[B.shops(), B.sales()], [B.sales(), B.shops()]]) {
       const j = json(run(T(order), s))
-      expect(j).toContain('฿5,000') // 2000+3000 ไม่ใช่ total ปลอม
+      expect(j).toContain('5,150') // (2000+50)+(3000+100) ไม่ใช่ total ปลอม
       expect(j).not.toContain('999')
     }
   })
@@ -186,26 +186,26 @@ describe('โทเคน (FR-EXT-05)', () => {
     ['date_range', '5 ต.ค. 2569'],
     ['computed_at', '21:02 น.'],
     ['orders_count', '23'],
-    ['sales_counted', '฿5,000'],
-    ['sales_pending', '฿150'],
+    ['sales_counted', '5,150'], // ยอดรวม ยืนยัน+รอยืนยัน
+    ['sales_pending', '150'],
     ['cancelled_count', '3'],
   ])('%s → %s', (t, want) => expect(one(t).v).toBe(want))
   it('{ชื่อร้าน} ร้านเดียว = ชื่อร้านจริง', () => expect(one('shop_name', summary([shop(1)])).v).toBe('ร้าน 1'))
   it('{ยอดสะสมรอบ} มีค่าเมื่อรายวันมี cycleToDate · ไม่มี/ครบทั้งวัน/MONTHLY/ทุกร้านล้ม → ตัดบล็อก', () => {
-    expect(one('cycle_sales', summary(two), { cycleToDate: cyc }).v).toBe('฿7,777')
+    expect(one('cycle_sales', summary(two), { cycleToDate: cyc }).v).toBe('7,777')
     expect(one('cycle_sales').v).toBeNull()
     expect(one('cycle_sales', summary(two, { window: { ...win, fullDay: true } }), { cycleToDate: cyc }).v).toBeNull()
     expect(one('cycle_sales', summary(two), { cycleToDate: cyc, kind: 'MONTHLY' }).v).toBeNull()
     expect(one('cycle_sales', summary(two), { cycleToDate: { ...cyc, failedShops: 2 } }).v).toBeNull()
   })
   it('{กำไร}: รวมได้ = ผลบวก · ต่างกติกา/มี ERROR → ตัดบล็อก + บันทึก skipped', () => {
-    expect(one('profit').v).toBe('฿500')
+    expect(one('profit').v).toBe('500')
     const mixed = one('profit', summary([shop(1), shop(2, {}, 'SERVICE_QUEUE')]))
     expect(mixed.v).toBeNull()
     expect(collectSkipped(mixed.msgs)).toContainEqual({ label: '{กำไร}', reason: 'คำนวณไม่ได้ในรอบนี้' })
     expect(one('profit', summary([shop(1), shop(2, { state: 'ERROR', profit: undefined })])).v).toBeNull()
   })
-  it('{กำไร} ร้านเดียวที่มีกำไร = กำไรร้านนั้น (A-3)', () => expect(one('profit', summary([shop(1)])).v).toBe('฿200'))
+  it('{กำไร} ร้านเดียวที่มีกำไร = กำไรร้านนั้น (A-3)', () => expect(one('profit', summary([shop(1)])).v).toBe('200'))
   it('ทุกร้านล้ม → โทเคนตัวเลขเป็น null', () => {
     const dead = summary([shop(1, { state: 'ERROR' }), shop(2, { state: 'ERROR' })])
     for (const t of ['orders_count', 'sales_counted', 'sales_pending', 'cancelled_count'] as const) expect(one(t, dead).v).toBeNull()
@@ -239,7 +239,7 @@ describe('ยุบ separator (FR-EXT-06)', () => {
 describe('ชนิดกราฟ + ปุ่ม + diagnostics', () => {
   it('chart_trend ไม่มี trend → ข้าม+skipped · chart_compare มี 2 ร้าน OK → วาด (รายละเอียดใน flex-report-charts.test)', () => {
     const msgs = run(T([B.orders(), { id: 'c1', type: 'chart_trend', measure: 'sales' }, { id: 'c2', type: 'chart_compare', measure: 'orders' }]))
-    expect(collectSkipped(msgs).map((s) => s.label)).toEqual(['กราฟแนวโน้ม 7 วัน'])
+    expect(collectSkipped(msgs).map((s) => s.label)).toEqual(['กราฟ 7 วัน'])
     expect(json(msgs[0].contents)).not.toContain('"image"')
   })
   it('cycle: DAILY ไม่มี cycleToDate → log · MONTHLY/ครบทั้งวัน → เงียบ', () => {

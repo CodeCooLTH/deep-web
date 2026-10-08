@@ -8,6 +8,8 @@ describe('parseGroupCommand (AC-22-6)', () => {
     ['สรุปวันนี้\u3000', { type: 'TODAY' }], // ช่องว่าง ideographic หัวท้าย → NFKC + trim
     ['สรุปวันนี้\n', { type: 'TODAY' }],
     ['สรุปเดือนนี้', { type: 'MONTH' }],
+    ['สรุปเมื่อวาน', { type: 'YESTERDAY' }],
+    [' สรุปเมื่อวาน ', { type: 'YESTERDAY' }],
     ['ผูก ABCD-2345', { type: 'BIND', code: 'ABCD2345' }],
     ['ผูก ABCD2345', { type: 'BIND', code: 'ABCD2345' }],
     ['ผูกABCD-2345', { type: 'BIND', code: 'ABCD2345' }],

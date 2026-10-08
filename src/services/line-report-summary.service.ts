@@ -109,7 +109,35 @@ async function summarizeShop(
       return series
     })
 
-  if (flags.showOrders || flags.showSales || needs.needSeries || needs.needCompare) {
+  // getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนกำไร · ค่าใช้จ่าย · ค่าใช้จ่ายรายวันของกราฟ
+  const pnlFor = (from: string, to: string) =>
+    memo(cache.pnl, `${shop.id}:${from}:${to}`, async () => {
+      const range = resolveDateRange('custom', from, to)
+      // ยิงค่าใช้จ่ายขนานกับ P&L · คงรูป `= await getPnlReport(` ไว้ให้เทสสแกน AC-14-1
+      const expensesP = listExpenses(shop.id, { range: range.expenseRange })
+      // กัน unhandledRejection ถ้า getPnlReport throw ก่อนถึง await expensesP (await ด้านล่างยังได้ error ตามปกติ)
+      expensesP.catch(() => undefined)
+      const report = await getPnlReport(shop.id, range, shop.vertical)
+      const expenses = await expensesP
+      // ชุดเดียวกับ sales/page.tsx — ป้ายเพดานเมื่อข้อมูลไม่ครบ (ตัวนับรายการสินค้าไม่มีผลกับ `complete`)
+      const c = resolveDataCompleteness({
+        hasMissingCost: report.hasMissingCost,
+        expenseCount: expenses.length,
+        uncostedItemCount: 0,
+        soldItemCount: 0,
+      })
+      return {
+        netProfit: report.netProfit,
+        capped: !c.complete,
+        expense: report.totalExpense,
+        netSales: round2(report.revenue - report.totalExpense),
+        expenseRecorded: expenses.length > 0,
+        items: expenseItems(expenses, report),
+      }
+    })
+
+  // needExpense ต้องมียอดขายรวม (ยอดขายหลังหักค่าใช้จ่าย = ยอดขายรวม − ค่าใช้จ่าย)
+  if (flags.showOrders || flags.showSales || needs.needSeries || needs.needCompare || needs.needExpense) {
     const all = await Promise.all(months.map(loadSeries))
     all.forEach((s, i) => {
       out.orders += sumDays(s.orderCounts, months[i], startIso, endIso)
@@ -122,12 +150,19 @@ async function summarizeShop(
     const tStart = shiftIsoDate(endIso, -(TREND_DAYS - 1))
     const tMonths = monthsInRange(tStart, endIso)
     const all = await Promise.all(tMonths.map(loadSeries))
-    out.trend = { dates: [], confirmed: [], orders: [] }
+    out.trend = { dates: [], confirmed: [], unconfirmed: [], orders: [] }
     all.forEach((s, i) => {
       out.trend!.confirmed.push(...dailyValues(s.confirmedValues, tMonths[i], tStart, endIso))
+      out.trend!.unconfirmed.push(...dailyValues(s.unconfirmedValues, tMonths[i], tStart, endIso))
       out.trend!.orders.push(...dailyValues(s.orderCounts, tMonths[i], tStart, endIso))
     })
     for (let i = 0; i < TREND_DAYS; i++) out.trend.dates.push(shiftIsoDate(tStart, i))
+    // แท่งค่าใช้จ่ายรายวัน — เฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่ายอยู่แล้ว (deriveExposure) · นิยามเดียวกับแถวค่าใช้จ่าย
+    // ponytail: P&L วันละครั้ง (7 ครั้ง/ร้าน, memo ข้ามกลุ่มในรอบเดียวกัน) — ช้าเมื่อไหร่ค่อยทำ query รายวันก้อนเดียว
+    if (needs.needExpense) {
+      const days = out.trend.dates
+      out.trend.expense = (await Promise.all(days.map((d) => pnlFor(d, d)))).map((p) => p.expense)
+    }
   }
 
   if (flags.showCancelled || needs.needCancelled) {
@@ -164,34 +199,13 @@ async function summarizeShop(
 
   // 🛑 guard ก่อนเรียก — showProfit=false ต้องไม่แตะ getPnlReport เลย (TFR-LGS-11)
   if (flags.showProfit || needs.needExpense) {
-    const pnl = await memo(cache.pnl, `${shop.id}:${startIso}:${endIso}`, async () => {
-      const range = resolveDateRange('custom', startIso, endIso)
-      // ยิงค่าใช้จ่ายขนานกับ P&L · คงรูป `= await getPnlReport(` ไว้ให้เทสสแกน AC-14-1
-      const expensesP = listExpenses(shop.id, { range: range.expenseRange })
-      // กัน unhandledRejection ถ้า getPnlReport throw ก่อนถึง await expensesP (await ด้านล่างยังได้ error ตามปกติ)
-      expensesP.catch(() => undefined)
-      const report = await getPnlReport(shop.id, range, shop.vertical)
-      const expenses = await expensesP
-      // ชุดเดียวกับ sales/page.tsx — ป้ายเพดานเมื่อข้อมูลไม่ครบ (ตัวนับรายการสินค้าไม่มีผลกับ `complete`)
-      const c = resolveDataCompleteness({
-        hasMissingCost: report.hasMissingCost,
-        expenseCount: expenses.length,
-        uncostedItemCount: 0,
-        soldItemCount: 0,
-      })
-      return {
-        netProfit: report.netProfit,
-        capped: !c.complete,
-        expense: report.totalExpense,
-        netSales: round2(report.revenue - report.totalExpense),
-        expenseRecorded: expenses.length > 0,
-        items: expenseItems(expenses, report),
-      }
-    })
+    const pnl = await pnlFor(startIso, endIso)
     // แยกสิทธิ์: profit เติมเฉพาะ showProfit · finance เฉพาะ needExpense (ไม่ปะปน)
     if (flags.showProfit) out.profit = { netProfit: pnl.netProfit, capped: pnl.capped }
+    // ยอดขายหลังหักค่าใช้จ่าย = ยอดขายรวม (ยืนยันแล้ว + รอยืนยัน) − ค่าใช้จ่าย — มติ user 2026-10-08
+    // (ผู้ขายลืมกดยืนยันบ่อย) · ไม่ใช่ pnl.revenue ซึ่งนับเฉพาะยืนยันแล้ว · out.confirmed/unconfirmed โหลดแล้วเพราะ needSeries ครอบ needExpense
     if (needs.needExpense) out.finance = {
-      expense: pnl.expense, netSales: pnl.netSales, expenseRecorded: pnl.expenseRecorded,
+      expense: pnl.expense, netSales: round2(out.confirmed + out.unconfirmed - pnl.expense), expenseRecorded: pnl.expenseRecorded,
       // ไม่ขอ = ไม่ใส่ key (golden/JSON เดิมไม่เปลี่ยน)
       ...(needs.needExpenseItems ? { items: pnl.items } : {}),
     }

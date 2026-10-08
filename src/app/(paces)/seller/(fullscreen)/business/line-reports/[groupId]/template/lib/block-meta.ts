@@ -25,7 +25,7 @@ export const BLOCK_ICON: Record<BlockType, string> = {
 export const blockTitle = (type: BlockType, word: string): string =>
   ({
     orders: `จำนวน${word}`,
-    sales: 'ยอดขาย (นับแล้ว) และยังไม่นับ',
+    sales: 'ยอดขาย',
     cancelled: `จำนวน${word}ที่ยกเลิก`,
     shops: 'รายร้าน',
     cycle: 'ยอดสะสมรอบนี้',
@@ -34,11 +34,11 @@ export const blockTitle = (type: BlockType, word: string): string =>
     net_sales: 'ยอดขายหลังหักค่าใช้จ่าย',
     text: 'ข้อความพิมพ์เอง',
     separator: 'เส้นคั่น',
-    chart_trend: 'แนวโน้ม 7 วันล่าสุด',
+    chart_trend: 'ยอด 7 วันล่าสุด',
     chart_compare: 'เทียบรายร้าน',
   })[type]
 
-export const measureLabel = (m: 'sales' | 'orders', word: string): string => (m === 'sales' ? 'ยอดขาย (นับแล้ว)' : `จำนวน${word}`)
+export const measureLabel = (m: 'sales' | 'orders', word: string): string => (m === 'sales' ? 'ยอดขาย' : `จำนวน${word}`)
 
 export const TEXT_SUMMARY_LEN = 40
 export const TEXT_EMPTY_SUMMARY = 'ยังไม่ได้พิมพ์ข้อความ'
@@ -103,14 +103,14 @@ export function makeBlock(type: BlockType, id: string): Block {
   }
 }
 
-/** คำอธิบายใต้ชื่อบล็อกในคลัง — ตรวจกับพฤติกรรมจริงแล้ว: ยกเลิก = ใบที่เปิดในช่วงรายงาน (composer: "ใบที่เปิดในช่วงนี้") · ข้อความ ≤6 (BLOCK_LIMITS) */
+/** คำอธิบายใต้ชื่อบล็อกในคลัง — ตรวจกับพฤติกรรมจริงแล้ว: ยกเลิก = ใบที่เปิดในช่วงรายงาน (composer: "ยกเลิก N ใบ") · ข้อความ ≤6 (BLOCK_LIMITS) */
 export function libraryDesc(type: BlockType, word: string, draft: { blocks: readonly Block[] }): string {
   switch (type) {
     case 'orders': return `นับ${word}รวมทุกร้าน`
-    case 'sales': return 'ยอดนับแล้ว และยังไม่นับ แสดงติดกัน'
+    case 'sales': return 'ยอดรวมทั้งหมด เตือนถ้ามียอดรอยืนยัน'
     case 'cancelled': return 'นับใบที่เปิดในช่วงรายงานแล้วถูกยกเลิก'
     case 'shops': return 'แยกรายร้าน เลือกขายดี 3 อันดับหรือกำไรต่อร้านได้'
-    case 'cycle': return 'ยอดนับแล้วสะสมตั้งแต่วันตัดรอบ'
+    case 'cycle': return 'ยอดขายสะสมตั้งแต่วันตัดรอบ'
     case 'profit':
     case 'expense':
     case 'net_sales': return 'ทุกคนในกลุ่มจะเห็น — ถามยืนยันก่อนเพิ่ม'

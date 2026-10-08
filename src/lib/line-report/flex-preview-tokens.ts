@@ -13,12 +13,16 @@ const BY_HEX: Record<string, string> = {
   [FLEX_COLORS.DANGER.toLowerCase()]: 'text-danger-ink',
   // GRID_GRAY ใช้เป็นสีพื้นแท่งกราฟเท่านั้น — ถ้าไปอยู่บนตัวอักษรให้เป็นเทากลางแทนหมึก
   [FLEX_COLORS.GRID_GRAY.toLowerCase()]: 'text-default-700',
+  [FLEX_COLORS.PENDING_TEXT.toLowerCase()]: 'text-warning-ink',
 }
 
 /** สีพื้น (backgroundColor) — GRID_GRAY #D9DBE0 → default-300 (#e7e9eb) คือโทนใกล้สุดใน ramp ของ Paces (default-200 จางเกินบนการ์ด) */
 const BG_BY_HEX: Record<string, string> = {
   [FLEX_COLORS.ACCENT.toLowerCase()]: 'bg-primary',
   [FLEX_COLORS.GRID_GRAY.toLowerCase()]: 'bg-default-300',
+  [FLEX_COLORS.CONFIRMED_GREEN.toLowerCase()]: 'bg-success',
+  [FLEX_COLORS.PENDING_YELLOW.toLowerCase()]: 'bg-warning',
+  [FLEX_COLORS.DANGER.toLowerCase()]: 'bg-danger',
 }
 
 /** ค่า enum ของ Flex → คลาส Paces (เทสสแกน output ของ builder ว่าทุกค่าอยู่ในนี้) — margin ทำเฉพาะแนวตั้ง (builder ใช้ margin ในกล่อง vertical เท่านั้น) */
@@ -26,14 +30,14 @@ export const MARGIN: Record<string, string> = { xs: 'mt-0.5', sm: 'mt-1', md: 'm
 export const GAP: Record<string, string> = { xs: 'gap-0.5', sm: 'gap-1', md: 'gap-2', lg: 'gap-3', xl: 'gap-4' }
 // xxs (กราฟ) ไม่มีขนาดเล็กกว่า text-xs ใน Paces โดยไม่ใช้ arbitrary value (HR7) → ใช้ xs
 export const TEXT_SIZE: Record<string, string> = { xxs: 'text-xs', xs: 'text-xs', sm: 'text-sm', md: 'text-md' }
-export const RADIUS: Record<string, string> = { '2px': 'rounded-sm' } // carve-out: มุมแท่งกราฟในพรีวิว = cornerRadius 2px ของ Flex (ไม่ใช่ภาชนะ/ปุ่ม)
+export const RADIUS: Record<string, string> = { '2px': 'rounded-sm', '3px': 'rounded-full' } // carve-out: มุมแท่งกราฟในพรีวิว = cornerRadius 2px ของ Flex (ไม่ใช่ภาชนะ/ปุ่ม)
 export const ITEMS: Record<string, string> = { 'flex-start': 'items-start', center: 'items-center', 'flex-end': 'items-end' }
 export const JUSTIFY: Record<string, string> = { 'flex-start': 'justify-start', center: 'justify-center', 'flex-end': 'justify-end' }
 
 /** คุณสมบัติของโหนดที่พรีวิวรู้จักต่อชนิด — composer ปล่อย key นอกนี้ = เทสแดง (พรีวิวต้องตามให้ทัน) */
 export const FLEX_SUPPORTED_KEYS: Record<string, readonly string[]> = {
   bubble: ['type', 'size', 'body', 'footer'],
-  box: ['type', 'layout', 'contents', 'margin', 'spacing', 'flex', 'height', 'width', 'backgroundColor', 'cornerRadius', 'justifyContent', 'alignItems'],
+  box: ['type', 'layout', 'contents', 'margin', 'spacing', 'flex', 'height', 'width', 'backgroundColor', 'cornerRadius', 'justifyContent', 'alignItems', 'position', 'offsetStart', 'offsetBottom'],
   text: ['type', 'text', 'contents', 'size', 'color', 'weight', 'wrap', 'align', 'maxLines', 'flex', 'margin'],
   span: ['type', 'text', 'weight', 'color'],
   filler: ['type'],
