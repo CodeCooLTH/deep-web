@@ -129,7 +129,7 @@ describe('config', () => {
     process.env.NEXT_PUBLIC_SELLER_URL = 'http://seller.deepth.local:4000'
     expect(sellerDashboardUrl()).toBeNull()
     process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.deepthailand.app/'
-    expect(sellerDashboardUrl()).toBe('https://seller.deepthailand.app/dashboard')
+    expect(sellerDashboardUrl()).toBe('https://seller.deepthailand.app/dashboard?openExternalBrowser=1')
   })
 })
 

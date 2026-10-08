@@ -219,8 +219,11 @@ describe('Top 3 มีรูป (user 2026-10-08: [รูป] ชื่อ จ�
     const m = first(summary([shop(1, { top3 })]), [SH])
     const rows = flat(m).filter((n) => n.layout === 'horizontal' && (n.contents as unknown[] | undefined)?.length === 3 && json(n).includes('ชิ้น'))
     expect(rows.map(row)).toEqual([['box', 'text', 'text'], ['box', 'text', 'text']])
-    expect(flat(m).filter((n) => n.type === 'image').map((n) => n.url)).toEqual(['https://x.app/img?k=a&s=b'])
+    // หัวมีไอคอนเปลวไฟ (asset บนโดเมนผู้ขาย) + รูปสินค้า · ชื่อไม่มีเลขลำดับนำหน้า
+    expect(flat(m).filter((n) => n.type === 'image').map((n) => n.url)).toEqual(['https://seller.deepthailand.app/images/line-report/bestseller.png', 'https://x.app/img?k=a&s=b'])
+    expect(texts(m)).toContain('ก')
+    expect(texts(m)).not.toContain('1 ก')
     const plain = first(summary([shop(1, { top3: [{ name: 'ก', qty: 3, amount: 30 }] })]), [SH])
-    expect(flat(plain).some((n) => n.type === 'image' || n.width === '40px')).toBe(false)
+    expect(flat(plain).some((n) => n.width === '40px')).toBe(false)
   })
 })

@@ -14,7 +14,7 @@ const flat = (x: unknown): N[] => (x && typeof x === 'object' ? [x as N, ...Obje
 const texts = (x: unknown) => flat(x).filter((n) => n.type === 'text').map((n) => n.text as string)
 const bars = (x: unknown) => flat(x).filter((n) => n.type === 'box' && (n.height?.endsWith('%') || n.width?.endsWith('%')))
 const colorsOf = (x: unknown) => new Set(flat(x).flatMap((n) => [n.color, n.backgroundColor].filter((c): c is string => typeof c === 'string')))
-const ALLOWED = new Set([FLEX_COLORS.ACCENT, FLEX_COLORS.INK, FLEX_COLORS.SLATE, FLEX_COLORS.GRID_GRAY, FLEX_COLORS.DANGER, FLEX_COLORS.CONFIRMED_GREEN, FLEX_COLORS.PENDING_YELLOW])
+const ALLOWED = new Set([FLEX_COLORS.ACCENT, FLEX_COLORS.INK, FLEX_COLORS.SLATE, FLEX_COLORS.GRID_GRAY, FLEX_COLORS.DANGER, FLEX_COLORS.CONFIRMED_BAR, FLEX_COLORS.PENDING_YELLOW])
 const dots = (x: unknown) => flat(x).filter((n) => n.position === 'absolute')
 
 const dates = (from: string, n = 7) => {
@@ -38,7 +38,7 @@ describe('trendChart (AC-09-1/3/5)', () => {
     const b = bars(node)
     expect(b).toHaveLength(6) // วันที่ 0 ไม่มีแท่ง
     expect(b.find((x) => x.height === '80%')).toBeTruthy()
-    expect(colorsOf(b)).toContain(FLEX_COLORS.CONFIRMED_GREEN)
+    expect(colorsOf(b)).toContain(FLEX_COLORS.CONFIRMED_BAR)
     expect(texts(node)).toContain('5.6k')
     expect(texts(node).some((s) => s.includes('฿'))).toBe(false)
     expect(texts(node)).toContain('ยอดขาย 7 วัน')
@@ -61,7 +61,7 @@ describe('trendChart (AC-09-1/3/5)', () => {
     expect(texts(x)).toContain('ยอดขายหลังหักค่าใช้จ่าย')
     // max = 2000 → ยอด 1000 = 40% · หลังหัก 500 = 20% · 0 = 0% · -1000 = 0% (สีแดง = ขาดทุน)
     expect(flatSegs.map((n) => n.offsetBottom)).toEqual(['40%', '20%', '0%', '0%', '40%', '40%', '40%'])
-    expect(flatSegs.map((n) => n.backgroundColor)).toEqual([...Array(3).fill(FLEX_COLORS.ACCENT), FLEX_COLORS.EXPENSE_RED, ...Array(3).fill(FLEX_COLORS.ACCENT)])
+    expect(flatSegs.map((n) => n.backgroundColor)).toEqual([...Array(3).fill(FLEX_COLORS.INK), FLEX_COLORS.EXPENSE_RED, ...Array(3).fill(FLEX_COLORS.INK)])
     // ช่วงแนวนอนต่อกันไม่ขาด: ขอบขวาของวัน i = ขอบซ้ายของวัน i+1 · ครบ 100%
     const w = flatSegs.map((n) => [parseInt(n.offsetStart as string), parseInt(n.width as string)])
     for (let i = 1; i < w.length; i++) expect(w[i][0]).toBe(w[i - 1][0] + w[i - 1][1])
@@ -133,7 +133,7 @@ describe('compareChart (AC-09-4/5)', () => {
     const names = texts(n).filter((s) => ['ฮ', 'ข', 'ค', 'x'].includes(s))
     expect(names).toEqual(['ค', 'ข', 'ฮ'])
     expect(bars(n).map((b) => b.width)).toEqual(['100%', '6%', '6%'])
-    expect(colorsOf(n)).toContain(FLEX_COLORS.CONFIRMED_GREEN)
+    expect(colorsOf(n)).toContain(FLEX_COLORS.CONFIRMED_BAR)
     expect(texts(n)).toContain('9k')
   })
   it('ชื่อ 50 ตัวอักษร: maxLines 1 ที่ ~38% · JSON ไม่พัง', () => {
@@ -196,7 +196,7 @@ describe('ต่อเข้า composer', () => {
     }
     // กราฟล้วน (ไม่รวมหมายเหตุ/ปุ่ม) ไม่มีสีเตือน
     const only = trendChart({ trend: trend([1, 2, 3, 4, 5, 6, 7]), measure: 'sales', word: 'x' })
-    for (const c of colorsOf(only)) expect([FLEX_COLORS.ACCENT, FLEX_COLORS.INK, FLEX_COLORS.SLATE, FLEX_COLORS.GRID_GRAY, FLEX_COLORS.CONFIRMED_GREEN, FLEX_COLORS.PENDING_YELLOW]).toContain(c)
+    for (const c of colorsOf(only)) expect([FLEX_COLORS.ACCENT, FLEX_COLORS.INK, FLEX_COLORS.SLATE, FLEX_COLORS.GRID_GRAY, FLEX_COLORS.CONFIRMED_BAR, FLEX_COLORS.PENDING_YELLOW]).toContain(c)
   })
   it('ไม่มีหมายเหตุแท่งสุดท้ายทุกรอบ (หัวรายงานมี "ข้อมูล ณ" แล้ว)', () => {
     const s = withTrend([shop('ก'), shop('ข')])

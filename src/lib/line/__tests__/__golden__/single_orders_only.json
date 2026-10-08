@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 11 รายการ · ข้อมูล ณ 21:02 น.",
+  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 11 รายการ",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -38,13 +38,6 @@
         "color": "#236dc9",
         "wrap": true,
         "weight": "bold"
-       },
-       {
-        "type": "text",
-        "text": "ข้อมูล ณ 21:02 น.",
-        "size": "xs",
-        "color": "#707380",
-        "wrap": true
        }
       ]
      },
@@ -99,7 +92,7 @@
       "action": {
        "type": "uri",
        "label": "เปิด Deep",
-       "uri": "https://seller.deepthailand.app/dashboard"
+       "uri": "https://seller.deepthailand.app/dashboard?openExternalBrowser=1"
       }
      }
     ]
