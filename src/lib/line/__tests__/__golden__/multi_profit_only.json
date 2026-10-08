@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · กำไรสุทธิ ฿500 · ข้อมูล ณ 21:02 น. · ร้าน 2 · ร้าน 1",
+  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · กำไรสุทธิ 500 · ข้อมูล ณ 21:02 น. · ร้าน 2 · ร้าน 1",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -73,7 +73,7 @@
          },
          {
           "type": "text",
-          "text": "฿500",
+          "text": "500",
           "size": "sm",
           "color": "#2F2B3D",
           "wrap": true,
@@ -132,7 +132,7 @@
            },
            {
             "type": "text",
-            "text": "฿300",
+            "text": "300",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -173,7 +173,7 @@
            },
            {
             "type": "text",
-            "text": "฿200",
+            "text": "200",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,

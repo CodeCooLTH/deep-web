@@ -50,9 +50,18 @@ export function sumTrend(shops: readonly ShopSummary[]): Trend | undefined {
   let acc: Trend | undefined
   for (const s of shops) {
     if (s.state !== 'OK' || !s.trend) continue
-    if (!acc) acc = { dates: [...s.trend.dates], confirmed: s.trend.confirmed.map(() => 0), orders: s.trend.orders.map(() => 0) }
+    if (!acc) {
+      const zeros = () => s.trend!.dates.map(() => 0)
+      acc = { dates: [...s.trend.dates], confirmed: zeros(), unconfirmed: zeros(), orders: zeros() }
+    }
     s.trend.confirmed.forEach((v, i) => (acc!.confirmed[i] += v))
+    s.trend.unconfirmed.forEach((v, i) => (acc!.unconfirmed[i] += v))
     s.trend.orders.forEach((v, i) => (acc!.orders[i] += v))
+  }
+  // ค่าใช้จ่ายรวมได้เฉพาะเมื่อทุกร้าน OK มีค่ารายวัน — ขาดร้านเดียว = ไม่แสดงแท่งแดง (ไม่ประมาณ)
+  const ok = shops.filter((s) => s.state === 'OK' && s.trend)
+  if (acc && ok.length > 0 && ok.every((s) => s.trend!.expense)) {
+    acc.expense = acc.dates.map((_, i) => ok.reduce((n, s) => n + (s.trend!.expense![i] ?? 0), 0))
   }
   return acc
 }

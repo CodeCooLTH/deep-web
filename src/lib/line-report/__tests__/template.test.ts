@@ -65,7 +65,7 @@ describe('deriveFlags / deriveNeeds จากโทเคน', () => {
 
 describe('markup', () => {
   it('ตัวอย่างพื้นฐาน', () => {
-    expect(parseMarkup('สวัสดี **ทีม** ยอด {ยอดขาย (นับแล้ว)} ^^วันนี้^^')).toEqual({
+    expect(parseMarkup('สวัสดี **ทีม** ยอด {ยอดขาย} ^^วันนี้^^')).toEqual({
       ok: true,
       runs: [{ t: 'สวัสดี ' }, { t: 'ทีม', b: true }, { t: ' ยอด ' }, { tok: 'sales_counted' }, { t: ' ' }, { t: 'วันนี้', accent: true }],
     })
@@ -113,7 +113,10 @@ describe('authoredLength', () => {
   })
   it('โทเคนนับเป็นป้ายมาตรฐาน (รวมปีกกา)', () => {
     expect(authoredLength([{ tok: 'shop_name' }])).toBe(Array.from(TOKENS.shop_name).length)
-    expect(authoredLength([{ tok: 'sales_counted' }, { t: 'x' }])).toBe(Array.from('{ยอดขาย (นับแล้ว)}').length + 1)
+    expect(authoredLength([{ tok: 'sales_counted' }, { t: 'x' }])).toBe(Array.from('{ยอดขาย}').length + 1)
+  })
+  it('ป้ายเก่าก่อน 2026-10-08 ยัง parse เป็นโทเคนเดิม', () => {
+    expect(parseMarkup('{ยอดขาย (นับแล้ว)} {ยังไม่นับ}')).toEqual({ ok: true, runs: [{ tok: 'sales_counted' }, { t: ' ' }, { tok: 'sales_pending' }] })
   })
 })
 

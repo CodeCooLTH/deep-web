@@ -157,15 +157,17 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
         cache: createSweepCache(), window: { startIso: endIso, endIso, computedAt: new Date().toISOString() },
       })
       const dates = datesIn(shiftIsoDate(endIso, -6), endIso)
-      const want = { dates, confirmed: [] as number[], orders: [] as number[] }
+      const want = { dates, confirmed: [] as number[], unconfirmed: [] as number[], orders: [] as number[] }
       for (const d of dates) {
-        let c = 0, o = 0
+        let c = 0, u = 0, o = 0
         for (const v of VERTICALS) {
           const r = await direct(shopOf[v], v, [d])
           c += r.confirmed
+          u += r.unconfirmed
           o += r.orders
         }
         want.confirmed.push(c)
+        want.unconfirmed.push(u)
         want.orders.push(o)
       }
       expect(sum.trend).toEqual(want)
@@ -178,7 +180,7 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
   // AC-EXP-01-2: round2(netSales + expense) === confirmed ต่อร้าน ต่อหน้าต่าง (ผ่านเส้นทางจริง ไม่ mock)
   for (const v of VERTICALS) {
     for (const [label, startIso, endIso] of windows) {
-      it(`EXP ${v} · ${label}: round2(netSales+expense) = ยอดขายนับแล้ว`, async () => {
+      it(`EXP ${v} · ${label}: round2(netSales+expense) = ยอดขายรวม (ยืนยัน+รอยืนยัน)`, async () => {
         const shop = { id: shopOf[v], name: v, vertical: v }
         const sum = await buildGroupSummary({
           shops: [shop], excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false }, needs: { needExpense: true },
@@ -187,7 +189,7 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
         const g = sum.shops[0]
         expect(g.profit).toBeUndefined()
         expect(g.confirmed).toBeGreaterThan(0)
-        expect(round2(g.finance!.netSales + g.finance!.expense)).toBe(round2(g.confirmed))
+        expect(round2(g.finance!.netSales + g.finance!.expense)).toBe(round2(g.confirmed + g.unconfirmed))
       })
     }
   }
@@ -218,12 +220,12 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
       const go = () => buildGroupSummary({ shops: [{ id, name: v, vertical: v }], excluded: [], flags: { ...flags, showProfit: false, showTopProducts: false }, needs: { needExpense: true }, cache: createSweepCache(), window: win })
       const a = (await go()).shops[0]
       expect(a.finance!.expenseRecorded).toBe(false)
-      expect(round2(a.finance!.netSales + a.finance!.expense)).toBe(round2(a.confirmed))
+      expect(round2(a.finance!.netSales + a.finance!.expense)).toBe(round2(a.confirmed + a.unconfirmed))
       const ex = await prisma.expense.create({ data: { shopId: id, category: 'OTHER', amount: 45.5, expenseDate: new Date(Date.UTC(2026, 8, 2)), createdByUserId: ids.user }, select: { id: true } })
       ids.expenses.push(ex.id)
       const b = (await go()).shops[0]
       expect(b.finance!.expenseRecorded).toBe(true)
-      expect(round2(b.finance!.netSales + b.finance!.expense)).toBe(round2(b.confirmed))
+      expect(round2(b.finance!.netSales + b.finance!.expense)).toBe(round2(b.confirmed + b.unconfirmed))
       expect(b.finance!.expense).toBeGreaterThanOrEqual(45.5)
     }
   })

@@ -53,6 +53,7 @@ export function worstCaseSummary(computedAt: string): GroupSummary {
   const trend: Trend = {
     dates: [1, 2, 3, 4, 5, 6, 7].map(iso),
     confirmed: [BIG, BIG, BIG, BIG, BIG, BIG, BIG],
+    unconfirmed: [BIG, BIG, BIG, BIG, BIG, BIG, BIG],
     orders: [99_999, 99_999, 99_999, 99_999, 99_999, 99_999, 99_999],
   }
   const shops = [

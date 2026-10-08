@@ -71,7 +71,7 @@ export default function ScheduleCard({
         {isAutoReportOff(settings) && (
           <div role="status" className="bg-info/15 text-info-ink mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
             <Icon icon="info-circle" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
-            <p className="mb-0">ตอนนี้ยังไม่ได้เปิดรายงานอัตโนมัติ กลุ่มนี้จะได้รับสรุปเมื่อมีคนพิมพ์ “สรุปวันนี้” หรือ “สรุปเดือนนี้” เท่านั้น</p>
+            <p className="mb-0">ตอนนี้ยังไม่ได้เปิดรายงานอัตโนมัติ กลุ่มนี้จะได้รับสรุปเมื่อมีคนพิมพ์ “สรุปวันนี้” “สรุปเมื่อวาน” หรือ “สรุปเดือนนี้” เท่านั้น</p>
           </div>
         )}
 

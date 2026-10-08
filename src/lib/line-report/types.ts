@@ -67,8 +67,15 @@ export type ExpenseItem = { key: string; label: string; amount: number }
  * ผลของร้านเดียว · `orders`/`cancelled` = จำนวนใบ · `confirmed`/`unconfirmed` = ยอดเงินบาท
  * (confirmedValues / unconfirmedValues ของ getSalesSeries) · ERROR/EXCLUDED ไม่นับในยอดรวม
  */
-/** แนวโน้มรายวัน 7 วันล่าสุดที่จบที่ window.endIso — index ตรงกันทั้งสามอาเรย์ (เก่า→ใหม่) · EXT-09 */
-export type Trend = { dates: string[]; confirmed: number[]; orders: number[] }
+/** แนวโน้มรายวัน 7 วันล่าสุดที่จบที่ window.endIso — index ตรงกันทุกอาเรย์ (เก่า→ใหม่) · EXT-09 */
+export type Trend = {
+  dates: string[]
+  confirmed: number[]
+  unconfirmed: number[]
+  orders: number[]
+  /** ค่าใช้จ่ายรายวัน — เติมเฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่าย (needExpense) */
+  expense?: number[]
+}
 
 export type ShopSummary = {
   shop: ShopRef

@@ -7,7 +7,6 @@
  */
 import { compareChart, trendChart } from '@/lib/line/flex-report-charts'
 import { combineFinance, combineTotals } from '@/lib/line-report/aggregate'
-import { todayThaiIsoDate } from '@/lib/date-range'
 import { TOKENS, type Block, type Run, type TemplateV1, type TokenKey } from '@/lib/line-report/template'
 import type { GroupSummary, ReportKind, ShopFinance, ShopSummary, Totals } from '@/lib/line-report/types'
 import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
@@ -19,9 +18,21 @@ export const ACCENT = '#236dc9'
 export const INK = '#2F2B3D'
 export const SLATE = '#808390'
 export const DANGER = '#d92d20'
+/** แท่งกราฟ: เขียว = ยืนยันแล้ว · เหลือง = รอยืนยัน (มติ user 2026-10-08) */
+export const CONFIRMED_GREEN = '#28a745'
+export const PENDING_YELLOW = '#f5b400'
+/** ตัวอักษรเตือน "รอยืนยัน" บนพื้นขาว — เหลืองเข้มเฉดเดียวกับแท่งให้อ่านได้ (≥4.5:1) */
+export const PENDING_TEXT = '#92400e'
 /** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
 export const GRID_GRAY = '#D9DBE0'
-export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY } as const
+export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_GREEN, PENDING_YELLOW, PENDING_TEXT } as const
+
+/** ยอดขาย = ยืนยันแล้ว + รอยืนยัน รวมเป็นยอดเดียว (บางทีผู้ขายลืมกดยืนยัน — มติ user 2026-10-08) */
+/** เงินในรายงาน LINE ไม่ใส่ ฿ — ทั้งข้อความเป็นบาทอยู่แล้ว (มติ user 2026-10-08) · ติดลบสื่อด้วยป้าย (formatBaht คืนค่าสัมบูรณ์) */
+export const money = (n: number) => noBaht(formatBaht(n))
+export const noBaht = (s: string) => s.replace('฿', '')
+
+export const salesTotal = (x: { confirmed: number; unconfirmed: number }) => x.confirmed + x.unconfirmed
 
 const SHOP_NAME_COMPACT_MAX = 24
 const COMPACT_SHOP_LIMIT = 10
@@ -58,14 +69,12 @@ export function reportCostNoun(shops: readonly Pick<ShopSummary, 'shop' | 'state
   return resolveOrderVocab([...verticals][0] ?? 'ONLINE_SALES').costNoun
 }
 
-/** หมายเหตุร่วมของกำไรต่อร้านที่ capped และบล็อกการเงินใหม่ (BR-LGS-34) — ค่าเดียว ไม่ copy สตริง */
-export const EXPENSE_BY_RECORD_DATE_NOTE = 'ค่าใช้จ่ายลงตามวันที่บันทึก ไม่เฉลี่ยรายวัน'
 
 export const sortShops = (shops: readonly ShopSummary[]) =>
   [...shops].sort(
     (a, b) =>
       Number(a.state === 'ERROR') - Number(b.state === 'ERROR') ||
-      b.confirmed - a.confirmed ||
+      salesTotal(b) - salesTotal(a) ||
       a.shop.name.localeCompare(b.shop.name, 'th'),
   )
 
@@ -88,9 +97,12 @@ const subKv = (k: string, v: string): Node => ({
 })
 export const section = (contents: Node[]): Node => ({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'xs', contents })
 
+/** เตือนยอดที่ยังไม่กดยืนยัน — รวมอยู่ในยอดขายแล้ว */
+const pendingNote = (amount: number): Node => note(`รอยืนยัน ${money(amount)}`, { color: PENDING_TEXT, weight: 'bold' })
+
 function profitRow(p: { netProfit: number; capped: boolean }): Node {
   const d = profitDisplay(p.netProfit, { capped: p.capped })
-  return kv(d.label, d.text)
+  return kv(d.label, noBaht(d.text))
 }
 
 // ─── บริบทของข้อความหนึ่งใบ ───────────────────────────────────────────────────────
@@ -189,17 +201,17 @@ function tokenValue(tok: TokenKey, c: Ctx): string | null {
     case 'orders_count':
       return hasOk ? formatNumberNoSymbol(c.t.orders) : null
     case 'sales_counted':
-      return hasOk ? formatBaht(c.t.confirmed) : null
+      return hasOk ? money(salesTotal(c.t)) : null
     case 'sales_pending':
-      return hasOk ? formatBaht(c.t.unconfirmed) : null
+      return hasOk ? money(c.t.unconfirmed) : null
     case 'cancelled_count':
       return hasOk ? formatNumberNoSymbol(c.t.cancelled) : null
     case 'cycle_sales':
-      return cycleApplies(c) && c.cycleToDate && !cycleAllFailed(c) ? formatBaht(c.cycleToDate.totals.confirmed) : null
+      return cycleApplies(c) && c.cycleToDate && !cycleAllFailed(c) ? money(salesTotal(c.cycleToDate.totals)) : null
     case 'profit': {
       // ร้านเดียว = กำไรของร้านนั้น (A-3) · หลายร้าน = กฎเดียวกับแถวกำไรรวม
       const p = c.listed.length === 1 ? (c.listed[0].state === 'OK' ? c.listed[0].profit : undefined) : totalProfit(c)
-      return p ? profitDisplay(p.netProfit, { capped: p.capped }).text : null
+      return p ? noBaht(profitDisplay(p.netProfit, { capped: p.capped }).text) : null
     }
   }
 }
@@ -271,15 +283,12 @@ const TOTALS_TYPES = new Set<Block['type']>(['orders', 'sales', 'cancelled', 'pr
 /** orders/sales/cancelled/profit ที่ติดกัน = section เดียว (เหมือน totals เดิม) · แถวเรียงตามบล็อก */
 function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
   const rows: Node[] = []
-  let hasFinance = false
   for (const b of blocks) {
     if (b.type === 'orders') rows.push(kv(c.ow.word, `${formatNumberNoSymbol(c.t.orders)}${c.ow.mixed ? '' : ' รายการ'}`))
     else if (b.type === 'sales') {
-      rows.push(
-        kv('ยอดขาย (นับแล้ว)', formatBaht(c.t.confirmed), { bold: true }),
-        note(`ยังไม่นับเป็นยอดขาย ${formatBaht(c.t.unconfirmed)} (รอยืนยัน/รอขนส่งรับ)`),
-      )
-    } else if (b.type === 'cancelled') rows.push(kv('ยกเลิก', `${formatNumberNoSymbol(c.t.cancelled)} ใบ (ใบที่เปิดในช่วงนี้)`))
+      rows.push(kv('ยอดขาย', money(salesTotal(c.t)), { bold: true }))
+      if (c.t.unconfirmed > 0) rows.push(pendingNote(c.t.unconfirmed))
+    } else if (b.type === 'cancelled') rows.push(kv('ยกเลิก', `${formatNumberNoSymbol(c.t.cancelled)} ใบ`))
     else if (b.type === 'profit') {
       const p = totalProfit(c)
       if (p) rows.push(profitRow(p))
@@ -289,21 +298,19 @@ function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
       const f = totalFinance(c)
       if (f && b.type === 'expense') {
         const d = expenseDisplay(f.expense, { recorded: f.expenseRecorded })
-        rows.push(kv(d.label, d.text))
+        rows.push(kv(d.label, noBaht(d.text)))
         // รายการย่อย (§17) — เงื่อนไขเดียวกับแถวรวม (f) · ระดับ ≥1 ตัดทิ้งพร้อม Top3 · แถวรวมไม่ถูกตัด
         if ((b as { items?: boolean }).items && c.level < 1 && f.items?.length) {
-          for (const i of f.items) rows.push(subKv(i.label, formatBaht(i.amount)))
+          for (const i of f.items) rows.push(subKv(i.label, money(i.amount)))
         }
       } else if (f) {
         const d = netSalesDisplay(f.netSales, { capped: !f.expenseRecorded })
-        rows.push(kv(d.label, d.text), note(`= ยอดขาย (นับแล้ว) − ค่าใช้จ่าย · ยังไม่หัก${reportCostNoun(c.shops)}`))
+        rows.push(kv(d.label, noBaht(d.text)), note(`ยังไม่หัก${reportCostNoun(c.shops)}`))
       } else if (c.multi) {
         c.skipped.push({ label: b.type === 'expense' ? 'ค่าใช้จ่าย' : 'ยอดขายหลังหักค่าใช้จ่าย', reason: 'รวมค่าใช้จ่ายไม่ได้ในรอบนี้' })
       }
-      hasFinance = true
     }
   }
-  if (hasFinance) rows.push(note(EXPENSE_BY_RECORD_DATE_NOTE, { margin: 'sm' }))
   return section([...rows, ...(withNotes ? totalsNotes(c) : [])])
 }
 
@@ -323,7 +330,7 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
         // ส่วนที่เปิดเท่านั้น · ออเดอร์+ยอดขายปิดหมด → ใช้ยกเลิกแทน · ไม่เหลือตัวเลข → ชื่อร้านอย่างเดียว (กำไรมีแถวของตัวเอง)
         const parts: string[] = []
         if (showOrders && level < 3) parts.push(formatNumberNoSymbol(s.orders))
-        if (showSales) parts.push(formatBaht(s.confirmed))
+        if (showSales) parts.push(money(salesTotal(s)))
         if (parts.length === 0 && showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(s.cancelled)} ใบ`)
         rows.push(parts.length > 0 ? kv(name, parts.join(' · '), { bold: true }) : text(name, { weight: 'bold' }))
       }
@@ -331,7 +338,7 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
       if (level < 1 && b.top3 && resolveShopVertical(s.shop.vertical) !== 'LODGING') {
         const vocab = resolveProductVocab(resolveShopVertical(s.shop.vertical))
         const top = s.top3 ?? []
-        rows.push(note(`${vocab.bestSellerTitle} 3 อันดับ · นับทุกใบที่ไม่ยกเลิก`, { margin: 'sm' }))
+        rows.push(note(vocab.bestSellerTitle, { margin: 'sm' }))
         if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
         if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
         top.forEach((r, i) =>
@@ -355,9 +362,6 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
   if (b.profit && multi && !c.summary.profitSummable) {
     foot.push(note('กำไรแต่ละร้านคิดตามกติกาของประเภทธุรกิจ จึงไม่รวมเป็นยอดเดียว', { margin: 'md' }))
   }
-  if (b.profit && c.ok.some((s) => s.profit?.capped)) {
-    foot.push(note(EXPENSE_BY_RECORD_DATE_NOTE, { margin: 'sm' }))
-  }
   return section([...(multi ? [note('แยกรายร้าน', { weight: 'bold' })] : []), ...shopBlocks, ...foot])
 }
 
@@ -376,7 +380,7 @@ function renderCycle(c: Ctx): Node | null {
     ...(cycleAllFailed(c)
       ? [note('ดึงข้อมูลไม่สำเร็จ', { color: DANGER })]
       : [
-          kv('ยอดขาย (นับแล้ว)', formatBaht(cy.totals.confirmed)),
+          kv('ยอดขาย', money(salesTotal(cy.totals))),
           ...(failed > 0 ? [note('ยอดรวมยังไม่ครบ เพราะดึงข้อมูลบางร้านไม่สำเร็จ', { color: DANGER, margin: 'sm' })] : []),
         ]),
   ])
@@ -399,7 +403,7 @@ const CHART_CUT_NOTE = 'กราฟถูกตัดเพราะข้อ�
 
 /** กราฟ 1 บล็อก — null = ข้าม (บันทึก skipped) · ระดับ ≥2 = แทนด้วยหมายเหตุ (ข้อความอื่นไม่ถูกตัด, AC-EXT-08-1) */
 function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }>, c: Ctx): Node | null {
-  const label = b.type === 'chart_trend' ? 'กราฟแนวโน้ม 7 วัน' : 'กราฟเทียบรายร้าน'
+  const label = b.type === 'chart_trend' ? 'กราฟ 7 วัน' : 'กราฟเทียบรายร้าน'
   let node: Node | null
   if (b.type === 'chart_trend') {
     const tr = c.summary.trend
@@ -407,16 +411,10 @@ function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }
       c.skipped.push({ label, reason: 'ไม่มีข้อมูลแนวโน้มในรอบนี้' })
       return null
     }
-    // แท่งสุดท้าย = วันนี้ที่ยังไม่จบ → นับถึงเวลาคำนวณ (รอบครบทั้งวัน/ย้อนหลัง = ครบวัน ไม่ติดหมายเหตุ)
-    const w = c.summary.window
-    const partial = !w.fullDay && w.endIso === todayThaiIsoDate(new Date(w.computedAt))
-    node = trendChart({
-      trend: tr,
-      measure: b.measure,
-      word: c.ow.word,
-      partialUntil: partial ? formatTimeHM(w.computedAt) : undefined,
-      incomplete: c.summary.trendPartial,
-    })
+    // แท่งวันนี้นับถึงเวลาคำนวณ — หัวรายงานบอก "ข้อมูล ณ HH:MM น." อยู่แล้ว ไม่ติดหมายเหตุซ้ำ
+    // แท่งค่าใช้จ่าย: เฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่าย ∧ รวมค่าใช้จ่ายได้ (กฎเดียวกับแถวค่าใช้จ่าย — totalFinance)
+    const showExpense = (c.has('expense') || c.has('net_sales')) && !!totalFinance(c) && !!tr.expense
+    node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })
   } else {
     node = compareChart(c.shops, b.measure, c.ow.word)
     if (!node) {

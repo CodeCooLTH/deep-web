@@ -32,7 +32,8 @@ const shiftIso = (iso: string, days: number): string => {
 function sampleTrend(endIso: string, i: number): Trend {
   const orders = [21, 0, 28, 34, 25, 38, 32].map((v) => (v > 0 ? v + i * 9 : 0))
   const confirmed = [78_000, 0, 96_500, 112_000, 85_400, 131_000, 128_000].map((v) => (v > 0 ? v - i * 17_500 : 0))
-  return { dates: [-6, -5, -4, -3, -2, -1, 0].map((d) => shiftIso(endIso, d)), confirmed, orders }
+  const unconfirmed = [6_000, 0, 4_500, 0, 9_800, 3_200, 21_000].map((v) => (v > 0 ? v + i * 1_000 : 0))
+  return { dates: [-6, -5, -4, -3, -2, -1, 0].map((d) => shiftIso(endIso, d)), confirmed, unconfirmed, orders }
 }
 
 /** ตัวเลขตัวอย่างต่อร้าน — ขยับตามลำดับร้านเพื่อให้เห็นการเรียง/รวมยอด แต่คงที่ทุกครั้ง */
@@ -108,17 +109,18 @@ const SAMPLE_ITEMS = [
  */
 export function withSampleFinance(summary: GroupSummary): GroupSummary {
   let k = 0
-  return {
-    ...summary,
-    shops: summary.shops.map((s) => {
-      if (s.state !== 'OK') return s
-      const kind = k++ % 3
-      const finance = kind === 0 ? { expense: 128_400, netSales: s.confirmed - 128_400, expenseRecorded: true, items: SAMPLE_ITEMS }
-        : kind === 1 ? { expense: 0, netSales: s.confirmed, expenseRecorded: false, items: [] }
-        : { expense: s.confirmed + 9_500, netSales: -9_500, expenseRecorded: true, items: [{ key: 'OTHER', label: 'อื่นๆ', amount: s.confirmed + 9_500 }] }
-      return { ...s, finance }
-    }),
-  }
+  const shops = summary.shops.map((s) => {
+    if (s.state !== 'OK') return s
+    const kind = k++ % 3
+    const sales = s.confirmed + s.unconfirmed
+    const finance = kind === 0 ? { expense: 128_400, netSales: sales - 128_400, expenseRecorded: true, items: SAMPLE_ITEMS }
+      : kind === 1 ? { expense: 0, netSales: sales, expenseRecorded: false, items: [] }
+      : { expense: sales + 9_500, netSales: -9_500, expenseRecorded: true, items: [{ key: 'OTHER', label: 'อื่นๆ', amount: sales + 9_500 }] }
+    // ค่าใช้จ่ายรายวันตัวอย่างของแท่งแดง — ราวหนึ่งในสามของยอดวันนั้น
+    const trend = s.trend && { ...s.trend, expense: s.trend.confirmed.map((v) => Math.round(v / 3)) }
+    return { ...s, finance, ...(trend ? { trend } : {}) }
+  })
+  return { ...summary, shops, ...(summary.trend ? { trend: sumTrend(shops) } : {}) }
 }
 
 /** ยอดสะสมรอบตัวอย่างของบรรทัด "ยอดสะสมรอบนี้" (รายวันที่แนบรอบ) — คูณจากยอดวันเพื่อให้ใหญ่กว่ายอดวันเสมอ */

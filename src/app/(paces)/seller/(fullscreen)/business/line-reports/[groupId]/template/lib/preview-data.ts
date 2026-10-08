@@ -26,6 +26,8 @@ function worstify(base: GroupSummary, todayIso: string): GroupSummary {
   const trendOf = (k: number): Trend => ({
     dates: [6, 5, 4, 3, 2, 1, 0].map((d) => shiftIso(todayIso, -d)),
     confirmed: [0, 1, 2, 3, 4, 5, 6].map((i) => Math.round((BIG * (i + 3)) / 9 / (k + 1))),
+    unconfirmed: [0, 1, 2, 3, 4, 5, 6].map((i) => Math.round((BIG * (i + 1)) / 40 / (k + 1))),
+    expense: [0, 1, 2, 3, 4, 5, 6].map((i) => Math.round((BIG * (i + 2)) / 30 / (k + 1))),
     orders: [0, 1, 2, 3, 4, 5, 6].map((i) => (i + 3) * 11 * (4 - Math.min(k, 3))),
   })
   const shops: ShopSummary[] = base.shops.map((s, i) => {

@@ -50,6 +50,12 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
       const style: CSSProperties = { ...flexStyle }
       if (isFlexLength(n.height)) style.height = n.height // ค่าจากข้อมูลกราฟ (HR7 carve-out)
       if (isFlexLength(n.width)) style.width = n.width // ค่าจากข้อมูลกราฟ (HR7 carve-out)
+      // จุดของเส้นแนวโน้ม — ตำแหน่งมาจากข้อมูลกราฟ (HR7 carve-out)
+      if (n.position === 'absolute') {
+        style.position = 'absolute'
+        if (isFlexLength(n.offsetStart)) style.left = n.offsetStart
+        if (isFlexLength(n.offsetBottom)) style.bottom = n.offsetBottom
+      }
       return (
         <div
           key={key}
@@ -63,6 +69,7 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
             RADIUS[str(n.cornerRadius)],
             flexBgClass(n.backgroundColor),
             hasPctHeightChild(n) && 'self-stretch',
+            kids(n).some((c) => c.position === 'absolute') && 'relative',
             margin,
             flexClass,
           )}

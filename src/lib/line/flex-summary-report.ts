@@ -15,6 +15,9 @@ import {
   MIXED_ORDER_WORD,
   rangeText,
   renderHead,
+  money,
+  noBaht,
+  salesTotal,
   reportOrderWord,
   sortShops,
   text,
@@ -27,7 +30,7 @@ import { sellerDashboardUrl } from '@/lib/line-report/config'
 import { DEFAULT_BUTTON_LABEL, defaultTemplateFromFlags, deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
 import type { GroupSummary, ReportKind, Totals } from '@/lib/line-report/types'
 import { formatTimeHM } from '@/lib/format-date'
-import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
+import { expenseDisplay, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 
 // ชื่อเดิมที่โมดูลอื่น/เทสอ้างถึง — ตัวจริงย้ายไป flex-report-blocks (กัน import วน)
 export { FLEX_COLORS, MIXED_ORDER_WORD, reportOrderWord }
@@ -115,7 +118,7 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   const f = normFlags(deriveFlags(templateOf(input)))
   const parts = [`${kind === 'TEST' ? '[ทดสอบ] ' : ''}${titleOf(kind, summary, input.titleOverride || templateOf(input).title)} ${rangeText(summary.window.startIso, summary.window.endIso)}`]
   if (f.showOrders) parts.push(`${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`)
-  if (f.showSales) parts.push(`ยอดขาย ${formatBaht(t.confirmed)}`)
+  if (f.showSales) parts.push(`ยอดขาย ${money(salesTotal(t))}`, ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []))
   if (f.showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(t.cancelled)} ใบ`)
   const ok = summary.shops.filter((s) => s.state === 'OK')
   if (f.showProfit && summary.profitSummable && ok.length > 1 && ok.every((s) => s.profit)) {
@@ -123,20 +126,20 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
       ok.reduce((n, s) => n + (s.profit?.netProfit ?? 0), 0),
       { capped: ok.some((s) => s.profit?.capped) },
     )
-    parts.push(`${d.label} ${d.text}`)
+    parts.push(`${d.label} ${noBaht(d.text)}`)
   }
   // บล็อกการเงินใหม่ไม่มี flag ใน deriveFlags → เช็คจาก template.blocks ตรง ๆ · เงื่อนไขรวมได้เดียวกับแถวในบับเบิล (ctx เดียวกัน)
   const tpl = templateOf(input)
   const wantExp = tpl.blocks.some((b) => b.type === 'expense'), wantNet = tpl.blocks.some((b) => b.type === 'net_sales')
   if (wantExp || wantNet) {
     const fin = totalFinance(makeCtx(summary, kind, tpl, level, undefined, []))
-    if (fin && wantExp) { const d = expenseDisplay(fin.expense, { recorded: fin.expenseRecorded }); parts.push(`${d.label} ${d.text}`) }
-    if (fin && wantNet) { const d = netSalesDisplay(fin.netSales, { capped: !fin.expenseRecorded }); parts.push(`${d.label} ${d.text}`) }
+    if (fin && wantExp) { const d = expenseDisplay(fin.expense, { recorded: fin.expenseRecorded }); parts.push(`${d.label} ${noBaht(d.text)}`) }
+    if (fin && wantNet) { const d = netSalesDisplay(fin.netSales, { capped: !fin.expenseRecorded }); parts.push(`${d.label} ${noBaht(d.text)}`) }
   }
   if (summary.shops.some((s) => s.state === 'ERROR')) parts.push('ยอดรวมยังไม่ครบ')
   parts.push(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.`)
   // level ≥4 = ย่อ altText เหลือแค่ตัวเลขสรุป (ตัดรายร้าน)
-  if (level < 4) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${formatBaht(s.confirmed)}` : s.shop.name)
+  if (level < 4) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${money(salesTotal(s))}` : s.shop.name)
   return Array.from(parts.join(' · ')).slice(0, ALT_TEXT_MAX).join('')
 }
 
