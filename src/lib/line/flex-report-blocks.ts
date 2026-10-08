@@ -19,16 +19,16 @@ export const INK = '#2F2B3D'
 /** เทาข้อความรอง — เข้มขึ้นจาก #808390 (3.77:1 ไม่ผ่าน AA) เป็น 4.72:1 เฉดเดิม (contrast-fix-keeps-hue) */
 export const SLATE = '#707380'
 export const DANGER = '#d92d20'
-/** แท่งกราฟ: เขียว = ยืนยันแล้ว · เหลือง = รอยืนยัน (มติ user 2026-10-08) */
-export const CONFIRMED_GREEN = '#28a745'
+/** แท่งกราฟ: น้ำเงิน (= ปุ่ม "ดูภาพรวม") = ยืนยันแล้ว · เหลือง = รอยืนยัน (มติ user 2026-10-08 — เดิมเขียว) */
+export const CONFIRMED_BAR = ACCENT
 export const PENDING_YELLOW = '#f5b400'
-/** แท่งค่าใช้จ่าย — แดงอิฐเข้ม แยกจาก DANGER (ข้อความข้อผิดพลาด) และเข้มกว่าเขียวชัด คนตาบอดสีแดง-เขียวแยกด้วยความสว่างได้ */
+/** แท่งค่าใช้จ่าย — แดงอิฐเข้ม แยกจาก DANGER (ข้อความข้อผิดพลาด) และแยกจากแท่งน้ำเงินชัด */
 export const EXPENSE_RED = '#b42318'
 /** ตัวอักษรเตือน "รอยืนยัน" บนพื้นขาว — เหลืองเข้มเฉดเดียวกับแท่งให้อ่านได้ (≥4.5:1) */
 export const PENDING_TEXT = '#92400e'
 /** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
 export const GRID_GRAY = '#D9DBE0'
-export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_GREEN, PENDING_YELLOW, PENDING_TEXT, EXPENSE_RED } as const
+export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_BAR, PENDING_YELLOW, PENDING_TEXT, EXPENSE_RED } as const
 
 /** ยอดขาย = ยืนยันแล้ว + รอยืนยัน รวมเป็นยอดเดียว (บางทีผู้ขายลืมกดยืนยัน — มติ user 2026-10-08) */
 /** เงินในรายงาน LINE ไม่ใส่ ฿ — ทั้งข้อความเป็นบาทอยู่แล้ว (มติ user 2026-10-08) · ติดลบสื่อด้วยป้าย (formatBaht คืนค่าสัมบูรณ์) */
@@ -269,7 +269,8 @@ export function renderHead(title: string, c: Pick<Ctx, 'summary' | 'kind' | 'lis
       ],
     },
     text(rangeText(summary.window.startIso, summary.window.endIso), { weight: 'bold', color: ACCENT }),
-    note(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.${listed.length > 1 ? ` · รวม ${listed.length} ร้าน` : ''}`),
+    // ไม่มี "ข้อมูล ณ HH:MM" — เวลาส่งของข้อความใน LINE บอกอยู่แล้ว (user 2026-10-08)
+    ...(listed.length > 1 ? [note(`รวม ${listed.length} ร้าน`)] : []),
   ])
 }
 
@@ -329,6 +330,26 @@ function renderHero(c: Ctx): Node | null {
   ])
 }
 
+/**
+ * หัว "สินค้าขายดี" แบบเด่น (user 2026-10-08) — ไอคอนเปลวไฟ + ตัวหนาสีหมึก
+ * ไอคอนต้องเป็นรูป PNG บน https (Flex ใช้ icon font ไม่ได้) → public/images/line-report/bestseller.png (tabler flame-filled)
+ * ไม่มี NEXT_PUBLIC_SELLER_URL (เทส) = ไม่มีไอคอน
+ */
+function bestSellerHead(title: string): Node {
+  const base = process.env.NEXT_PUBLIC_SELLER_URL
+  return {
+    type: 'box',
+    layout: 'horizontal',
+    spacing: 'sm',
+    alignItems: 'center',
+    margin: 'md',
+    contents: [
+      ...(base ? [{ type: 'box', layout: 'vertical', width: '18px', height: '18px', flex: 0, contents: [{ type: 'image', url: `${base}/images/line-report/bestseller.png`, size: 'full', aspectMode: 'fit', aspectRatio: '1:1' }] }] : []),
+      text(title, { weight: 'bold', size: 'sm', color: INK }),
+    ],
+  }
+}
+
 const THUMB = '40px'
 /** รูปสินค้าสี่เหลี่ยมมุมมน · ไม่มีรูป = กล่องเทาขนาดเท่ากัน */
 function productThumb(url: string | undefined): Node {
@@ -370,12 +391,12 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
       if (level < 1 && b.top3 && resolveShopVertical(s.shop.vertical) !== 'LODGING') {
         const vocab = resolveProductVocab(resolveShopVertical(s.shop.vertical))
         const top = s.top3 ?? []
-        rows.push(note(vocab.bestSellerTitle, { margin: 'sm' }))
+        rows.push(bestSellerHead(vocab.bestSellerTitle))
         if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
         if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
         // [รูป] ชื่อ จำนวน — มีรูปอย่างน้อยหนึ่งแถว ⇒ ทุกแถวมีช่องรูป (แถวไม่มีรูปเป็นกล่องเทา ให้ชื่อตรงแนวกัน)
         const withImg = top.some((r) => r.imageUrl)
-        top.forEach((r, i) =>
+        top.forEach((r) =>
           rows.push({
             type: 'box',
             layout: 'horizontal',
@@ -383,7 +404,7 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
             ...(withImg ? { alignItems: 'center', margin: 'sm' } : {}),
             contents: [
               ...(withImg ? [productThumb(r.imageUrl)] : []),
-              text(`${i + 1} ${r.name}`, { flex: 5, maxLines: 2 }),
+              text(r.name, { flex: 5, maxLines: 2 }),
               text(`${formatNumberNoSymbol(r.qty)} ${vocab.unitLabel}`, { flex: 2, align: 'end', color: SLATE }),
             ],
           }),
@@ -447,7 +468,7 @@ function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }
       c.skipped.push({ label, reason: 'ไม่มีข้อมูลแนวโน้มในรอบนี้' })
       return null
     }
-    // แท่งวันนี้นับถึงเวลาคำนวณ — หัวรายงานบอก "ข้อมูล ณ HH:MM น." อยู่แล้ว ไม่ติดหมายเหตุซ้ำ
+    // แท่งวันนี้นับถึงเวลาส่ง — เวลาของข้อความใน LINE บอกอยู่แล้ว ไม่ติดหมายเหตุ
     // แท่งค่าใช้จ่าย: เฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่าย ∧ รวมค่าใช้จ่ายได้ (กฎเดียวกับแถวค่าใช้จ่าย — totalFinance)
     const showExpense = (c.has('expense') || c.has('net_sales')) && !!totalFinance(c) && !!tr.expense
     node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })

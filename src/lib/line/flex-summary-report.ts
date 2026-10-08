@@ -29,7 +29,6 @@ import { combineTotals } from '@/lib/line-report/aggregate'
 import { sellerDashboardUrl } from '@/lib/line-report/config'
 import { DEFAULT_BUTTON_LABEL, defaultTemplateFromFlags, deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
 import type { GroupSummary, ReportKind, Totals } from '@/lib/line-report/types'
-import { formatTimeHM } from '@/lib/format-date'
 import { expenseDisplay, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 
 // ชื่อเดิมที่โมดูลอื่น/เทสอ้างถึง — ตัวจริงย้ายไป flex-report-blocks (กัน import วน)
@@ -141,7 +140,6 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
     if (fin && wantNet) { const d = netSalesDisplay(fin.netSales, { capped: !fin.expenseRecorded }); parts.push(`${d.label} ${noBaht(d.text)}`) }
   }
   if (summary.shops.some((s) => s.state === 'ERROR')) parts.push('ยอดรวมยังไม่ครบ')
-  parts.push(`ข้อมูล ณ ${formatTimeHM(summary.window.computedAt)} น.`)
   // level ≥4 = ย่อ altText เหลือแค่ตัวเลขสรุป (ตัดรายร้าน)
   if (level < 4) for (const s of sortShops(summary.shops)) if (s.state === 'OK' && summary.shops.length > 1) parts.push(f.showSales ? `${s.shop.name} ${money(salesTotal(s))}` : s.shop.name)
   return Array.from(parts.join(' · ')).slice(0, ALT_TEXT_MAX).join('')
@@ -223,7 +221,7 @@ export function rebuildAtLevel(m: LineFlexMessage, level: number): LineFlexMessa
  * 🛑 ต้องรับ object ที่ `buildSummaryReportFlex` สร้างเองเท่านั้น (ผูกด้วย identity ผ่าน WeakMap) —
  * ข้อความที่ clone/โหลดจาก JSON ตัดได้แค่ altText
  * ลำดับ (FR-EXT-08): Top3 → กราฟ → ย่อรายร้าน → ย่อ altText · ข้ามระดับกราฟเมื่อข้อความไม่มีกราฟ (ผลเท่าเดิมทุกไบต์)
- * ไม่แตะยอดรวม/ป้ายช่วงเวลา/ข้อมูล ณ/ข้อความอิสระ
+ * ไม่แตะยอดรวม/ป้ายช่วงเวลา/ข้อความอิสระ
  */
 export function fitToLimits(messages: LineFlexMessage[]): LineFlexMessage[] {
   return messages.slice(0, MAX_MESSAGES).map((m) => {

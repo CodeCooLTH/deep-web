@@ -20,7 +20,8 @@ const BY_HEX: Record<string, string> = {
 const BG_BY_HEX: Record<string, string> = {
   [FLEX_COLORS.ACCENT.toLowerCase()]: 'bg-primary',
   [FLEX_COLORS.GRID_GRAY.toLowerCase()]: 'bg-default-300',
-  [FLEX_COLORS.CONFIRMED_GREEN.toLowerCase()]: 'bg-success',
+  // เส้นขั้นบันได (ยอดหลังหักค่าใช้จ่าย)
+  [FLEX_COLORS.INK.toLowerCase()]: 'bg-default-900',
   [FLEX_COLORS.PENDING_YELLOW.toLowerCase()]: 'bg-warning',
   [FLEX_COLORS.EXPENSE_RED.toLowerCase()]: 'bg-danger',
 }

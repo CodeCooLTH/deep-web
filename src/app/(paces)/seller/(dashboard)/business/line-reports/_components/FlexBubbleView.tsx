@@ -22,9 +22,13 @@ const LINE_CLAMP: Record<number, string> = { 1: 'line-clamp-1', 2: 'line-clamp-2
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 const kids = (n: FlexNode): FlexNode[] => (Array.isArray(n.contents) ? (n.contents as FlexNode[]) : [])
 
-/** flex: 0 = ไม่ยืด · n = สัดส่วน (LINE: grow n, basis 0) — สัดส่วนมาจาก composer (เช่น 38/62) จึงใส่ผ่าน style ไม่ใช่คลาส */
+/**
+ * flex: 0 = ไม่ยืด · n = สัดส่วน (LINE: grow n, basis 0) — สัดส่วนมาจาก composer (เช่น 38/62) จึงใส่ผ่าน style ไม่ใช่คลาส
+ * แนวตั้ง: LINE ยืด box ตาม flex ด้วย (ส่วนเขียวของแท่งซ้อน = flex 1 ใต้ส่วนเหลือง) — เดิมพรีวิวใช้แค่แนวนอน
+ * แท่งเขียวเลยสูง 0 เหลือแต่เหลือง (user 2026-10-08) · จำกัดที่ box: ข้อความในแนวตั้งไม่ควรยืด
+ */
 function flexOf(n: FlexNode, parent: Layout): { className?: string; style?: CSSProperties } {
-  if (parent !== 'horizontal' || typeof n.flex !== 'number') return {}
+  if (typeof n.flex !== 'number' || (parent !== 'horizontal' && n.type !== 'box')) return {}
   if (n.flex === 0) return { className: 'shrink-0' }
   return { style: { flex: `${n.flex} 1 0px` } } // ค่าสัดส่วนจากข้อมูลของ composer (HR7 carve-out)
 }

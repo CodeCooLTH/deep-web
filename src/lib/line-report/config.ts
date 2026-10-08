@@ -28,5 +28,7 @@ export function addFriendUrl(): string | null {
 /** ปลายทางปุ่ม "เปิด Deep" ใน Flex — LINE ปฏิเสธ uri ที่ไม่ใช่ https ⇒ ไม่ใช่ https = null (ไม่ใส่ปุ่ม) */
 export function sellerDashboardUrl(): string | null {
   const base = process.env.NEXT_PUBLIC_SELLER_URL?.trim().replace(/\/+$/, '')
-  return base && base.startsWith('https://') ? `${base}/dashboard` : null
+  // openExternalBrowser=1: LINE ส่งลิงก์ให้ระบบเปิดแทน browser ในตัว → Android ที่ลงแอปผู้ขาย (assetlinks) เปิดเข้าแอป
+  // iOS ยังเปิด Safari (AASA ยังไม่มี applinks) — user 2026-10-08 "กดแล้วเปิด app deep"
+  return base && base.startsWith('https://') ? `${base}/dashboard?openExternalBrowser=1` : null
 }

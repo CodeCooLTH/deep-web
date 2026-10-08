@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "ยอดขาย 2,050 · รอยืนยัน 50 · รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 11 รายการ · ยกเลิก 1 ใบ · ข้อมูล ณ 21:02 น.",
+  "altText": "ยอดขาย 2,050 · รอยืนยัน 50 · รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 11 รายการ · ยกเลิก 1 ใบ",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -38,13 +38,6 @@
         "color": "#236dc9",
         "wrap": true,
         "weight": "bold"
-       },
-       {
-        "type": "text",
-        "text": "ข้อมูล ณ 21:02 น.",
-        "size": "xs",
-        "color": "#707380",
-        "wrap": true
        }
       ]
      },
@@ -183,12 +176,37 @@
           ]
          },
          {
-          "type": "text",
-          "text": "สินค้าขายดี",
-          "size": "xs",
-          "color": "#707380",
-          "wrap": true,
-          "margin": "sm"
+          "type": "box",
+          "layout": "horizontal",
+          "spacing": "sm",
+          "alignItems": "center",
+          "margin": "md",
+          "contents": [
+           {
+            "type": "box",
+            "layout": "vertical",
+            "width": "18px",
+            "height": "18px",
+            "flex": 0,
+            "contents": [
+             {
+              "type": "image",
+              "url": "https://seller.deepthailand.app/images/line-report/bestseller.png",
+              "size": "full",
+              "aspectMode": "fit",
+              "aspectRatio": "1:1"
+             }
+            ]
+           },
+           {
+            "type": "text",
+            "text": "สินค้าขายดี",
+            "size": "sm",
+            "color": "#2F2B3D",
+            "wrap": true,
+            "weight": "bold"
+           }
+          ]
          },
          {
           "type": "box",
@@ -197,7 +215,7 @@
           "contents": [
            {
             "type": "text",
-            "text": "1 สินค้า 1 A",
+            "text": "สินค้า 1 A",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -222,7 +240,7 @@
           "contents": [
            {
             "type": "text",
-            "text": "2 สินค้า 1 B",
+            "text": "สินค้า 1 B",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -247,7 +265,7 @@
           "contents": [
            {
             "type": "text",
-            "text": "3 สินค้า 1 C",
+            "text": "สินค้า 1 C",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -283,7 +301,7 @@
       "action": {
        "type": "uri",
        "label": "เปิด Deep",
-       "uri": "https://seller.deepthailand.app/dashboard"
+       "uri": "https://seller.deepthailand.app/dashboard?openExternalBrowser=1"
       }
      }
     ]

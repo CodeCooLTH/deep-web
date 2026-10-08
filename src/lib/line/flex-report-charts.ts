@@ -3,11 +3,11 @@
  *
  * pure · ไม่ใช้รูป (ไม่มี node `image`) — วาดด้วย box ที่ height/width เป็น % (ยืนยันกับ LINE validate/push แล้ว)
  * ตัวเลขทุกตัวมาจาก `Trend`/`ShopSummary` ที่ส่งเข้ามา — ไม่คำนวณยอดเอง (HR16)
- * สี: ยอดขาย = แท่งซ้อน เขียว (ยืนยันแล้ว) + เหลือง (รอยืนยัน) · ค่าใช้จ่าย = แดงอิฐ + เส้นขั้นบันไดน้ำเงิน — มติ user 2026-10-08 แทน AC-09-6 เดิม ·
+ * สี: ยอดขาย = แท่งซ้อน น้ำเงิน (ยืนยันแล้ว) + เหลือง (รอยืนยัน) · ค่าใช้จ่าย = แดงอิฐ + เส้นขั้นบันไดสีหมึก (แท่งยืนยันแล้วเป็นน้ำเงินแล้ว เส้นน้ำเงินจะกลืน) — มติ user 2026-10-08 แทน AC-09-6 เดิม ·
  *      จำนวนใบ = ACCENT (วันรายงาน/อันดับ 1) + GRID_GRAY เหมือนเดิม
  * ⚠️ import วนกับ flex-report-blocks (helper/สี) — ใช้ตอนเรียกฟังก์ชันเท่านั้น ไม่มีการใช้ที่ top-level
  */
-import { ACCENT, CONFIRMED_GREEN, EXPENSE_RED, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, type Node } from '@/lib/line/flex-report-blocks'
+import { ACCENT, CONFIRMED_BAR, EXPENSE_RED, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, type Node } from '@/lib/line/flex-report-blocks'
 import { weekdayShortTH } from '@/lib/format-date'
 import { formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import type { ShopSummary, Trend } from '@/lib/line-report/types'
@@ -33,7 +33,7 @@ const pendingPct = (confirmed: number, unconfirmed: number) =>
 function stackedBar(dir: 'vertical' | 'horizontal', confirmed: number, unconfirmed: number, size: Node): Node {
   const y = pendingPct(confirmed, unconfirmed)
   const dim = dir === 'vertical' ? 'height' : 'width'
-  const green: Node = { type: 'box', layout: 'vertical', flex: 1, backgroundColor: CONFIRMED_GREEN, contents: [fill()] }
+  const green: Node = { type: 'box', layout: 'vertical', flex: 1, backgroundColor: CONFIRMED_BAR, contents: [fill()] }
   const yellow: Node = { type: 'box', layout: 'vertical', [dim]: `${y}%`, flex: 0, backgroundColor: PENDING_YELLOW, contents: [fill()] }
   const parts = y >= 100 ? [{ ...yellow, [dim]: undefined, flex: 1 }] : y > 0 ? (dir === 'vertical' ? [yellow, green] : [green, yellow]) : [green]
   return { type: 'box', layout: dir, cornerRadius: '2px', ...size, contents: parts }
@@ -48,7 +48,7 @@ const legendItem = (color: string, label: string, h?: string): Node[] => [
 const legendRow = (items: Node[][]): Node => ({ type: 'box', layout: 'horizontal', spacing: 'xs', alignItems: 'center', margin: 'sm', contents: items.flat() })
 
 /** คำอธิบายสีแท่ง (กราฟเทียบรายร้าน) — บรรทัดเดียว */
-export const salesLegend = (): Node => legendRow([legendItem(CONFIRMED_GREEN, 'ยืนยันแล้ว'), legendItem(PENDING_YELLOW, 'รอยืนยัน')])
+export const salesLegend = (): Node => legendRow([legendItem(CONFIRMED_BAR, 'ยืนยันแล้ว'), legendItem(PENDING_YELLOW, 'รอยืนยัน')])
 
 /** ความหนาเส้น — px คงที่ (ความกว้าง/สูงของช่วงเป็น %) */
 const LINE_W = '3px'
@@ -63,10 +63,10 @@ function stepLine(values: number[], max: number): Node[] {
   const n = values.length
   const y = (v: number) => Math.round((Math.max(0, v) / max) * BAR_MAX_PCT)
   const edge = (i: number) => Math.round((i / n) * 100)
-  const seg = (o: Node, color = ACCENT): Node => ({ type: 'box', layout: 'vertical', position: 'absolute', backgroundColor: color, contents: [fill()], ...o })
+  const seg = (o: Node, color = INK): Node => ({ type: 'box', layout: 'vertical', position: 'absolute', backgroundColor: color, contents: [fill()], ...o })
   const out: Node[] = []
   for (let i = 0; i < n; i++) {
-    out.push(seg({ offsetStart: `${edge(i)}%`, offsetBottom: `${y(values[i])}%`, width: `${edge(i + 1) - edge(i)}%`, height: LINE_W }, values[i] < 0 ? EXPENSE_RED : ACCENT))
+    out.push(seg({ offsetStart: `${edge(i)}%`, offsetBottom: `${y(values[i])}%`, width: `${edge(i + 1) - edge(i)}%`, height: LINE_W }, values[i] < 0 ? EXPENSE_RED : INK))
     if (i === n - 1) break
     const a = y(values[i]), b = y(values[i + 1])
     if (a !== b) out.push(seg({ offsetStart: `${edge(i + 1)}%`, offsetBottom: `${Math.min(a, b)}%`, width: LINE_W, height: `${Math.abs(a - b)}%` }))
@@ -107,7 +107,6 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
       note(sales ? `ยังไม่มียอดขายใน ${n} วันนี้` : `ยังไม่มี${word}ใน ${n} วันนี้`),
     )
   } else {
-    const maxIdx = values.indexOf(Math.max(...values)) // ป้ายเดียวเสมอ ที่ยอดขายสูงสุด (เท่ากัน → แท่งแรก)
     const column = (v: number, i: number): Node[] => {
       const pct = pctOf(v, max, BAR_MAX_PCT)
       if (!sales) return pct > 0 ? [bar(`${pct}%`, i === n - 1 ? ACCENT : GRID_GRAY)] : []
@@ -145,7 +144,8 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
               layout: 'vertical',
               flex: 1,
               justifyContent: 'flex-end',
-              contents: [...(i === maxIdx ? [text(fmt(v, measure), { size: 'xxs', align: 'center', weight: 'bold', wrap: false })] : []), ...column(v, i)],
+              // ป้ายตัวเลขทุกแท่งที่ไม่เป็น 0 (user 2026-10-08: เดิมป้ายเดียวที่แท่งสูงสุด อ่านยอดวันอื่นไม่ได้)
+              contents: [...(v > 0 ? [text(fmt(v, measure), { size: 'xxs', align: 'center', weight: 'bold', wrap: false })] : []), ...column(v, i)],
             }) as Node,
         ),
         ...(line ? stepLine(line, max) : []),
@@ -172,11 +172,11 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
     if (sales) {
       rows.push(
         legendRow([
-          legendItem(CONFIRMED_GREEN, 'ยืนยันแล้ว'),
+          legendItem(CONFIRMED_BAR, 'ยืนยันแล้ว'),
           legendItem(PENDING_YELLOW, 'รอยืนยัน'),
           ...(exp ? [legendItem(EXPENSE_RED, 'ค่าใช้จ่าย')] : []),
         ]),
-        ...(exp ? [legendRow([legendItem(ACCENT, 'ยอดขายหลังหักค่าใช้จ่าย', '3px')])] : []),
+        ...(exp ? [legendRow([legendItem(INK, 'ยอดขายหลังหักค่าใช้จ่าย', '3px')])] : []),
       )
     }
   }

@@ -108,12 +108,13 @@ describe('ลำดับตามเทมเพลต (FR-EXT-06)', () => {
 })
 
 describe('หัวรายงานล็อก (AC-EXT-03-1/2)', () => {
-  it('blocks=[] → ยังมีชื่อ ช่วงวันที่ ข้อมูล ณ รวม N ร้าน · ไม่มี separator ลอย', () => {
+  it('blocks=[] → ยังมีชื่อ ช่วงวันที่ รวม N ร้าน · ไม่มี separator ลอย', () => {
     const [m] = run(T([]))
     expect(bodyOf(m)).toHaveLength(1)
     const j = json(m.contents)
     expect(j).toContain('5 ต.ค. 2569')
-    expect(j).toContain('ข้อมูล ณ 21:02 น. · รวม 2 ร้าน')
+    expect(j).toContain('"รวม 2 ร้าน"')
+    expect(j).not.toContain('ข้อมูล ณ')
     expect(j).not.toContain('"separator"')
   })
   it('blocks=[] แต่มีร้านถูกตัด → หมายเหตุ ไม่รวมร้าน ยังอยู่ (AC-EXT-13-1)', () => {
@@ -263,7 +264,7 @@ describe('ชนิดกราฟ + ปุ่ม + diagnostics', () => {
     expect(f(run(T([B.orders()], { button: { show: true, label: 'ดูในแอป' } }))[0])?.contents[0].action).toEqual({
       type: 'uri',
       label: 'ดูในแอป',
-      uri: 'https://seller.deepthailand.app/dashboard',
+      uri: 'https://seller.deepthailand.app/dashboard?openExternalBrowser=1',
     })
     expect(f(run(T([B.orders()], { button: { show: false, label: 'x' } }))[0])).toBeUndefined()
     delete process.env.NEXT_PUBLIC_SELLER_URL
