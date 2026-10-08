@@ -210,3 +210,17 @@ describe('กราฟ 7 วัน + ค่าใช้จ่าย (user 2026-1
     expect(reds([CH, EXP], withTr([shop(1), shop(2, {}, 'SERVICE_QUEUE')]))).toHaveLength(0)
   })
 })
+
+describe('Top 3 มีรูป (user 2026-10-08: [รูป] ชื่อ จำนวน)', () => {
+  const SH: Block = { id: 'sh', type: 'shops', top3: true, profit: false }
+  const row = (n: Record<string, unknown>) => (n.contents as Record<string, unknown>[]).map((c) => c.type)
+  it('มีรูปอย่างน้อยหนึ่งแถว → ทุกแถวมีช่องรูป 40px (ไม่มีรูป = กล่องเทา) · ไม่มีรูปเลย → แถวเดิม', () => {
+    const top3 = [{ name: 'ก', qty: 3, amount: 30, imageUrl: 'https://x.app/img?k=a&s=b' }, { name: 'ข', qty: 2, amount: 20 }]
+    const m = first(summary([shop(1, { top3 })]), [SH])
+    const rows = flat(m).filter((n) => n.layout === 'horizontal' && (n.contents as unknown[] | undefined)?.length === 3 && json(n).includes('ชิ้น'))
+    expect(rows.map(row)).toEqual([['box', 'text', 'text'], ['box', 'text', 'text']])
+    expect(flat(m).filter((n) => n.type === 'image').map((n) => n.url)).toEqual(['https://x.app/img?k=a&s=b'])
+    const plain = first(summary([shop(1, { top3: [{ name: 'ก', qty: 3, amount: 30 }] })]), [SH])
+    expect(flat(plain).some((n) => n.type === 'image' || n.width === '40px')).toBe(false)
+  })
+})

@@ -329,6 +329,22 @@ function renderHero(c: Ctx): Node | null {
   ])
 }
 
+const THUMB = '40px'
+/** รูปสินค้าสี่เหลี่ยมมุมมน · ไม่มีรูป = กล่องเทาขนาดเท่ากัน */
+function productThumb(url: string | undefined): Node {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    width: THUMB,
+    height: THUMB,
+    flex: 0,
+    cornerRadius: '6px',
+    backgroundColor: GRID_GRAY,
+    contents: url ? [{ type: 'image', url, size: 'full', aspectMode: 'cover', aspectRatio: '1:1' }] : [fill()],
+  }
+}
+const fill = (): Node => ({ type: 'filler' })
+
 /** รายร้าน — null = ไม่มีอะไรให้แสดง (ร้านเดียวไม่มีตัวเลือกเสริม ฯลฯ) · ตัวเลขต่อร้านตาม "การมีบล็อก" orders/sales/cancelled */
 function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null {
   const { level, multi } = c
@@ -357,12 +373,16 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
         rows.push(note(vocab.bestSellerTitle, { margin: 'sm' }))
         if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
         if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
+        // [รูป] ชื่อ จำนวน — มีรูปอย่างน้อยหนึ่งแถว ⇒ ทุกแถวมีช่องรูป (แถวไม่มีรูปเป็นกล่องเทา ให้ชื่อตรงแนวกัน)
+        const withImg = top.some((r) => r.imageUrl)
         top.forEach((r, i) =>
           rows.push({
             type: 'box',
             layout: 'horizontal',
             spacing: 'md',
+            ...(withImg ? { alignItems: 'center', margin: 'sm' } : {}),
             contents: [
+              ...(withImg ? [productThumb(r.imageUrl)] : []),
               text(`${i + 1} ${r.name}`, { flex: 5, maxLines: 2 }),
               text(`${formatNumberNoSymbol(r.qty)} ${vocab.unitLabel}`, { flex: 2, align: 'end', color: SLATE }),
             ],

@@ -44,7 +44,8 @@ export type DueSlot = {
   fireAtMs: number
 }
 
-export type Top3Row = { name: string; qty: number; amount: number }
+/** productId = สินค้าในแค็ตตาล็อก (ไม่มี = ชื่อพิมพ์เอง) · imageUrl = รูปที่ LINE ดึงได้ (เติมฝั่ง server เท่านั้น) */
+export type Top3Row = { name: string; qty: number; amount: number; productId?: string; imageUrl?: string }
 
 /** กำไรของร้านเดียว — `capped` = ข้อมูลไม่ครบ (ป้ายเพดานจาก profitDisplay) */
 export type ShopProfit = { netProfit: number; capped: boolean }

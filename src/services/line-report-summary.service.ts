@@ -7,6 +7,8 @@
  * ต่อร้าน try/catch แยก — ล้ม = state ERROR (ไม่นับยอดรวม · ไม่ใช่ 0)
  */
 import { getSalesSeries, type SalesSeries } from '@/services/dashboard.service'
+import { prisma } from '@/lib/prisma'
+import { lineProductImageUrl } from '@/lib/line-report/product-image'
 import { getPnlReport } from '@/services/pnl.service'
 import { getProductSalesMonth, type ProductSalesMonth } from '@/services/product-sales-series.service'
 import { listExpenses } from '@/services/expense.service'
@@ -193,6 +195,16 @@ async function summarizeShop(
       }
     })
     out.top3 = mergeTop3(rows)
+    // รูปสินค้า (user 2026-10-08: [รูป] ชื่อ จำนวน) — รูปแรกของสินค้า · จำกัดในร้านนี้ (กันคีย์ข้ามร้าน)
+    const ids = out.top3.flatMap((r) => (r.productId ? [r.productId] : []))
+    if (ids.length > 0) {
+      const prods = await prisma.product.findMany({ where: { id: { in: ids }, shopId: shop.id }, select: { id: true, images: true } })
+      const first = new Map(prods.map((p) => [p.id, Array.isArray(p.images) ? (p.images[0] as string | undefined) : undefined]))
+      out.top3 = out.top3.map((r) => {
+        const imageUrl = r.productId ? lineProductImageUrl(first.get(r.productId)) : undefined
+        return imageUrl ? { ...r, imageUrl } : r
+      })
+    }
     // ข้อมูลถูกตัดเพราะชนเพดาน = อันดับจากข้อมูลบางส่วน ต้องบอกผู้อ่าน (partial-data-must-be-labeled-or-filled)
     if (all.some((pm) => pm.truncated)) out.top3Truncated = true
   }

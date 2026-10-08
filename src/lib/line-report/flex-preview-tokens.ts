@@ -30,7 +30,7 @@ export const MARGIN: Record<string, string> = { xs: 'mt-0.5', sm: 'mt-1', md: 'm
 export const GAP: Record<string, string> = { xs: 'gap-0.5', sm: 'gap-1', md: 'gap-2', lg: 'gap-3', xl: 'gap-4' }
 // xxs (กราฟ) ไม่มีขนาดเล็กกว่า text-xs ใน Paces โดยไม่ใช้ arbitrary value (HR7) → ใช้ xs
 export const TEXT_SIZE: Record<string, string> = { xxs: 'text-xs', xs: 'text-xs', sm: 'text-sm', md: 'text-md', xxl: 'text-2xl' }
-export const RADIUS: Record<string, string> = { '2px': 'rounded-sm', '3px': 'rounded-full' } // carve-out: มุมแท่งกราฟในพรีวิว = cornerRadius 2px ของ Flex (ไม่ใช่ภาชนะ/ปุ่ม)
+export const RADIUS: Record<string, string> = { '2px': 'rounded-sm', '3px': 'rounded-full', '6px': 'rounded-md' } // carve-out: มุมแท่งกราฟในพรีวิว = cornerRadius 2px ของ Flex (ไม่ใช่ภาชนะ/ปุ่ม)
 export const ITEMS: Record<string, string> = { 'flex-start': 'items-start', center: 'items-center', 'flex-end': 'items-end' }
 export const JUSTIFY: Record<string, string> = { 'flex-start': 'justify-start', center: 'justify-center', 'flex-end': 'justify-end' }
 
@@ -41,6 +41,7 @@ export const FLEX_SUPPORTED_KEYS: Record<string, readonly string[]> = {
   text: ['type', 'text', 'contents', 'size', 'color', 'weight', 'wrap', 'align', 'maxLines', 'flex', 'margin'],
   span: ['type', 'text', 'weight', 'color'],
   filler: ['type'],
+  image: ['type', 'url', 'size', 'aspectMode', 'aspectRatio'],
   separator: ['type', 'margin'],
   button: ['type', 'style', 'color', 'height', 'action'],
 }

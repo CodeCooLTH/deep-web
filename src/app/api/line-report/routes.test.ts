@@ -85,7 +85,8 @@ function scanRoutes(dir = ROOT, out: string[] = []): string[] {
     if (e.isDirectory()) scanRoutes(p, out)
     else if (e.name === 'route.ts') out.push(relative(ROOT, dir))
   }
-  return out.filter((r) => r !== 'webhook')
+  // webhook = ลายเซ็น LINE · product-image = เซิร์ฟเวอร์ LINE ดึงรูปแบบไม่ล็อกอิน คุมด้วย HMAC (เทสของตัวเองใน product-image/__tests__)
+  return out.filter((r) => r !== 'webhook' && r !== 'product-image')
 }
 
 async function call(routeDir: string, method: Method, body?: unknown, raw?: string) {

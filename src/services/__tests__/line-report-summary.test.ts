@@ -10,12 +10,14 @@ vi.mock('@/services/pnl.service', () => ({ getPnlReport: vi.fn() }))
 vi.mock('@/services/product-sales-series.service', () => ({ getProductSalesMonth: vi.fn() }))
 vi.mock('@/services/expense.service', () => ({ listExpenses: vi.fn(async () => []) }))
 vi.mock('@/services/cancelled-order-count.service', () => ({ countCancelledOrders: vi.fn(async () => 2) }))
+vi.mock('@/lib/prisma', () => ({ prisma: { product: { findMany: vi.fn(async () => []) } } }))
 
 import { getSalesSeries } from '@/services/dashboard.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { getProductSalesMonth } from '@/services/product-sales-series.service'
 import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
+import { prisma } from '@/lib/prisma'
 import { buildGroupSummary, buildCycleCumulative, createSweepCache } from '../line-report-summary.service'
 
 const series = vi.mocked(getSalesSeries)
@@ -111,7 +113,26 @@ describe('buildGroupSummary', () => {
       ],
     }) as never)
     const s = await buildGroupSummary({ shops: [mk('a', 'ก'), mk('b', 'ข')], excluded: [], window: win, flags: all, cache: createSweepCache() })
-    for (const x of s.shops) expect(x.top3).toEqual([{ name: 'เสื้อ', qty: 2, amount: 20 }])
+    for (const x of s.shops) expect(x.top3).toEqual([{ name: 'เสื้อ', qty: 2, amount: 20, productId: 'p1' }])
+  })
+
+  it('Top 3 รูปสินค้า: คีย์บัคเก็ต → URL ลงลายเซ็น (ค้นในร้านนี้เท่านั้น) · URL ภายนอก/ไม่มีรูป → ไม่มี imageUrl', async () => {
+    const env = { ...process.env }
+    process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.example.app'
+    process.env.NEXTAUTH_SECRET = 'test-secret'
+    try {
+      top.mockImplementation(async () => ({ rows: [{ key: 'p1', name: 'ก', isCustom: false, ...sparse(3, 30) }, { key: 'p2', name: 'ข', isCustom: false, ...sparse(2, 20) }, { key: 'p3', name: 'ค', isCustom: false, ...sparse(1, 10) }] }) as never)
+      const find = vi.mocked(prisma.product.findMany)
+      find.mockResolvedValueOnce([{ id: 'p1', images: ['2026/10/08/a.webp'] }, { id: 'p2', images: ['https://cdn.example/x.jpg'] }, { id: 'p3', images: [] }] as never)
+      const s = await buildGroupSummary({ shops: [mk('a', 'ก')], excluded: [], window: win, flags: all, cache: createSweepCache() })
+      expect(find).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['p1', 'p2', 'p3'] }, shopId: 'a' } }))
+      const [r1, r2, r3] = s.shops[0].top3!
+      expect(r1.imageUrl).toMatch(/^https:\/\/seller\.example\.app\/api\/line-report\/product-image\?k=2026%2F10%2F08%2Fa\.webp&s=[\w-]{22}$/)
+      expect(r2.imageUrl).toBeUndefined()
+      expect(r3.imageUrl).toBeUndefined()
+    } finally {
+      process.env = env
+    }
   })
 
   it('top3Truncated: เดือนใดเดือนหนึ่ง truncated -> ตั้งธง · ไม่ truncated -> ไม่ตั้ง', async () => {

@@ -70,6 +70,7 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
             flexBgClass(n.backgroundColor),
             hasPctHeightChild(n) && 'self-stretch',
             kids(n).some((c) => c.position === 'absolute') && 'relative',
+            kids(n).some((c) => c.type === 'image') && 'overflow-hidden', // มุมมนต้องตัดรูปด้วย
             margin,
             flexClass,
           )}
@@ -101,6 +102,10 @@ function renderNode(n: FlexNode, key: number, parent: Layout): ReactNode {
         </span>
       )
     }
+    case 'image':
+      // รูปสินค้า Top 3 — เต็มกล่องแม่ (กล่องแม่กำหนดขนาด/มุมมน) · alt ว่าง: ชื่อสินค้าอยู่ข้าง ๆ แล้ว
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img key={key} src={str(n.url)} alt="" className="size-full object-cover" />
     case 'filler':
       return <div key={key} aria-hidden="true" className="flex-1" />
     case 'separator':
