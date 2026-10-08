@@ -103,7 +103,7 @@ export function mergeTop3(rows: readonly TopRow[], limit = 3): Top3Row[] {
     if (cur) {
       cur.qty += r.qty
       cur.amount += r.amount
-    } else by.set(key, { name: r.name, qty: r.qty, amount: r.amount })
+    } else by.set(key, { name: r.name, qty: r.qty, amount: r.amount, ...(r.productId ? { productId: r.productId } : {}) })
   }
   return [...by.values()]
     .sort((a, b) => b.qty - a.qty || b.amount - a.amount || a.name.localeCompare(b.name, 'th'))

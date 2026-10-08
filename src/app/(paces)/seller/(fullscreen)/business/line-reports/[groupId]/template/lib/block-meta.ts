@@ -107,7 +107,7 @@ export function makeBlock(type: BlockType, id: string): Block {
 export function libraryDesc(type: BlockType, word: string, draft: { blocks: readonly Block[] }): string {
   switch (type) {
     case 'orders': return `นับ${word}รวมทุกร้าน`
-    case 'sales': return 'ยอดรวมทั้งหมด เตือนถ้ามียอดรอยืนยัน'
+    case 'sales': return 'ตัวเลขใหญ่ใต้หัวรายงาน เตือนถ้ามียอดรอยืนยัน'
     case 'cancelled': return 'นับใบที่เปิดในช่วงรายงานแล้วถูกยกเลิก'
     case 'shops': return 'แยกรายร้าน เลือกขายดี 3 อันดับหรือกำไรต่อร้านได้'
     case 'cycle': return 'ยอดขายสะสมตั้งแต่วันตัดรอบ'

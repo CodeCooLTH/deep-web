@@ -65,7 +65,7 @@ describe('mergeTop3', () => {
       { name: 'จ', qty: 1, amount: 1 },
     ])
     expect(out.map((r) => r.name)).toEqual(['ค', 'ข', 'ก'])
-    expect(out[1]).toEqual({ name: 'ข', qty: 5, amount: 250 })
+    expect(out[1]).toEqual({ name: 'ข', qty: 5, amount: 250, productId: 'p1' })
   })
   it('ไม่ถึง 3 รายการก็คืนเท่าที่มี', () => expect(mergeTop3([])).toEqual([]))
 })

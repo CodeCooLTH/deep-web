@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · ยอดขาย 5,150 · รอยืนยัน 150 · ข้อมูล ณ 21:02 น. · ร้าน 2 3,100 · ร้าน 1 2,050",
+  "altText": "ยอดขาย 5,150 · รอยืนยัน 150 · รายงานยอดรายวัน 5 ต.ค. 2569 · ข้อมูล ณ 21:02 น. · ร้าน 2 3,100 · ร้าน 1 2,050",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -43,14 +43,10 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น. · รวม 2 ร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
        }
       ]
-     },
-     {
-      "type": "separator",
-      "margin": "lg"
      },
      {
       "type": "box",
@@ -59,29 +55,19 @@
       "spacing": "xs",
       "contents": [
        {
-        "type": "box",
-        "layout": "horizontal",
-        "spacing": "md",
-        "contents": [
-         {
-          "type": "text",
-          "text": "ยอดขาย",
-          "size": "sm",
-          "color": "#808390",
-          "wrap": true,
-          "flex": 3
-         },
-         {
-          "type": "text",
-          "text": "5,150",
-          "size": "sm",
-          "color": "#2F2B3D",
-          "wrap": true,
-          "flex": 4,
-          "align": "end",
-          "weight": "bold"
-         }
-        ]
+        "type": "text",
+        "text": "ยอดขาย",
+        "size": "xs",
+        "color": "#707380",
+        "wrap": true
+       },
+       {
+        "type": "text",
+        "text": "5,150",
+        "size": "xxl",
+        "color": "#2F2B3D",
+        "wrap": false,
+        "weight": "bold"
        },
        {
         "type": "text",
@@ -107,7 +93,7 @@
         "type": "text",
         "text": "แยกรายร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true,
         "weight": "bold"
        },
@@ -126,7 +112,7 @@
             "type": "text",
             "text": "ร้าน 2",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -159,7 +145,7 @@
             "type": "text",
             "text": "ร้าน 1",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },

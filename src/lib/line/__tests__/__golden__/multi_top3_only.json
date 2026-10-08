@@ -43,7 +43,7 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น. · รวม 2 ร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
        }
       ]
@@ -73,7 +73,7 @@
         "type": "text",
         "text": "แยกรายร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true,
         "weight": "bold"
        },
@@ -95,7 +95,7 @@
           "type": "text",
           "text": "สินค้าขายดี",
           "size": "xs",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "margin": "sm"
          },
@@ -117,7 +117,7 @@
             "type": "text",
             "text": "5 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -142,7 +142,7 @@
             "type": "text",
             "text": "3 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -167,7 +167,7 @@
             "type": "text",
             "text": "1 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -194,7 +194,7 @@
           "type": "text",
           "text": "สินค้าขายดี",
           "size": "xs",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "margin": "sm"
          },
@@ -216,7 +216,7 @@
             "type": "text",
             "text": "5 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -241,7 +241,7 @@
             "type": "text",
             "text": "3 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"
@@ -266,7 +266,7 @@
             "type": "text",
             "text": "1 ชิ้น",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 2,
             "align": "end"

@@ -1,7 +1,7 @@
 [
  {
   "type": "flex",
-  "altText": "รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 1,220 รายการ · ยอดขาย 901,000 · รอยืนยัน 41,000 · ยกเลิก 820 ใบ · กำไรสุทธิ 86,000 · ข้อมูล ณ 21:02 น. · ร้าน 40 43,000 · ร้าน 39 41,950 · ร้าน 38 40,900 · ร้าน 37 39,850 · ร้าน 36 38,800 · ร้าน 35 37,750 · ร้าน 34 36,700 · ร้าน 33 35,650 · ร้าน 32 34,600 · ร้าน 31 33,550 · ร้าน 30 32,500 · ร้าน 29 31,450 · ร้าน 28 30,400 · ร้าน 27 29,350 · ร้าน 26 28,300 · ร้าน 25 27,250 · ร้าน 24 26,200 · ร้าน 23 25,150 · ร้าน 22 24,100 · ร้าน 21 23,050 · ร้าน 20 22,000 · ร้าน 19 20,950 · ร้าน 18 19,900 · ร้าน 17 18,850 · ร้าน 16 17,800 · ร้าน 15 16,750 · ร้าน 14 15,700 · ร้าน 13 14,650 · ร้าน 12 13,600 · ร้าน 11 12,550 · ร้าน 10 11,500 · ร้าน 9 10,450 · ร้าน 8 9,400 · ร้าน 7 8,350 · ร้าน 6 7,300 · ร้าน 5 6,250 · ร้าน 4 5,200 · ร้าน 3 4,150 · ร้าน 2 3,100 · ร้าน 1 2,050",
+  "altText": "ยอดขาย 901,000 · รอยืนยัน 41,000 · รายงานยอดรายวัน 5 ต.ค. 2569 · คำสั่งซื้อ 1,220 รายการ · ยกเลิก 820 ใบ · กำไรสุทธิ 86,000 · ข้อมูล ณ 21:02 น. · ร้าน 40 43,000 · ร้าน 39 41,950 · ร้าน 38 40,900 · ร้าน 37 39,850 · ร้าน 36 38,800 · ร้าน 35 37,750 · ร้าน 34 36,700 · ร้าน 33 35,650 · ร้าน 32 34,600 · ร้าน 31 33,550 · ร้าน 30 32,500 · ร้าน 29 31,450 · ร้าน 28 30,400 · ร้าน 27 29,350 · ร้าน 26 28,300 · ร้าน 25 27,250 · ร้าน 24 26,200 · ร้าน 23 25,150 · ร้าน 22 24,100 · ร้าน 21 23,050 · ร้าน 20 22,000 · ร้าน 19 20,950 · ร้าน 18 19,900 · ร้าน 17 18,850 · ร้าน 16 17,800 · ร้าน 15 16,750 · ร้าน 14 15,700 · ร้าน 13 14,650 · ร้าน 12 13,600 · ร้าน 11 12,550 · ร้าน 10 11,500 · ร้าน 9 10,450 · ร้าน 8 9,400 · ร้าน 7 8,350 · ร้าน 6 7,300 · ร้าน 5 6,250 · ร้าน 4 5,200 · ร้าน 3 4,150 · ร้าน 2 3,100 · ร้าน 1 2,050",
   "contents": {
    "type": "bubble",
    "size": "mega",
@@ -43,8 +43,39 @@
         "type": "text",
         "text": "ข้อมูล ณ 21:02 น. · รวม 40 ร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true
+       }
+      ]
+     },
+     {
+      "type": "box",
+      "layout": "vertical",
+      "margin": "lg",
+      "spacing": "xs",
+      "contents": [
+       {
+        "type": "text",
+        "text": "ยอดขาย",
+        "size": "xs",
+        "color": "#707380",
+        "wrap": true
+       },
+       {
+        "type": "text",
+        "text": "901,000",
+        "size": "xxl",
+        "color": "#2F2B3D",
+        "wrap": false,
+        "weight": "bold"
+       },
+       {
+        "type": "text",
+        "text": "รอยืนยัน 41,000",
+        "size": "xs",
+        "color": "#92400e",
+        "wrap": true,
+        "weight": "bold"
        }
       ]
      },
@@ -67,7 +98,7 @@
           "type": "text",
           "text": "คำสั่งซื้อ",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -90,42 +121,9 @@
         "contents": [
          {
           "type": "text",
-          "text": "ยอดขาย",
-          "size": "sm",
-          "color": "#808390",
-          "wrap": true,
-          "flex": 3
-         },
-         {
-          "type": "text",
-          "text": "901,000",
-          "size": "sm",
-          "color": "#2F2B3D",
-          "wrap": true,
-          "flex": 4,
-          "align": "end",
-          "weight": "bold"
-         }
-        ]
-       },
-       {
-        "type": "text",
-        "text": "รอยืนยัน 41,000",
-        "size": "xs",
-        "color": "#92400e",
-        "wrap": true,
-        "weight": "bold"
-       },
-       {
-        "type": "box",
-        "layout": "horizontal",
-        "spacing": "md",
-        "contents": [
-         {
-          "type": "text",
           "text": "ยกเลิก",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -150,7 +148,7 @@
           "type": "text",
           "text": "กำไรสุทธิ",
           "size": "sm",
-          "color": "#808390",
+          "color": "#707380",
           "wrap": true,
           "flex": 3
          },
@@ -182,7 +180,7 @@
         "type": "text",
         "text": "แยกรายร้าน",
         "size": "xs",
-        "color": "#808390",
+        "color": "#707380",
         "wrap": true,
         "weight": "bold"
        },
@@ -201,13 +199,13 @@
             "type": "text",
             "text": "ร้าน 40",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "50 · 43,000",
+            "text": "50 รายการ · 43,000",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -226,7 +224,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -259,13 +257,13 @@
             "type": "text",
             "text": "ร้าน 39",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "49 · 41,950",
+            "text": "49 รายการ · 41,950",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -284,7 +282,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -317,13 +315,13 @@
             "type": "text",
             "text": "ร้าน 38",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "48 · 40,900",
+            "text": "48 รายการ · 40,900",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -342,7 +340,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -375,13 +373,13 @@
             "type": "text",
             "text": "ร้าน 37",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "47 · 39,850",
+            "text": "47 รายการ · 39,850",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -400,7 +398,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -433,13 +431,13 @@
             "type": "text",
             "text": "ร้าน 36",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "46 · 38,800",
+            "text": "46 รายการ · 38,800",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -458,7 +456,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -491,13 +489,13 @@
             "type": "text",
             "text": "ร้าน 35",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "45 · 37,750",
+            "text": "45 รายการ · 37,750",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -516,7 +514,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -549,13 +547,13 @@
             "type": "text",
             "text": "ร้าน 34",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "44 · 36,700",
+            "text": "44 รายการ · 36,700",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -574,7 +572,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -607,13 +605,13 @@
             "type": "text",
             "text": "ร้าน 33",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "43 · 35,650",
+            "text": "43 รายการ · 35,650",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -632,7 +630,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -665,13 +663,13 @@
             "type": "text",
             "text": "ร้าน 32",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "42 · 34,600",
+            "text": "42 รายการ · 34,600",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -690,7 +688,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -723,13 +721,13 @@
             "type": "text",
             "text": "ร้าน 31",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "41 · 33,550",
+            "text": "41 รายการ · 33,550",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -748,7 +746,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -781,13 +779,13 @@
             "type": "text",
             "text": "ร้าน 30",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "40 · 32,500",
+            "text": "40 รายการ · 32,500",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -806,7 +804,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -839,13 +837,13 @@
             "type": "text",
             "text": "ร้าน 29",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "39 · 31,450",
+            "text": "39 รายการ · 31,450",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -864,7 +862,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -897,13 +895,13 @@
             "type": "text",
             "text": "ร้าน 28",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "38 · 30,400",
+            "text": "38 รายการ · 30,400",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -922,7 +920,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -955,13 +953,13 @@
             "type": "text",
             "text": "ร้าน 27",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "37 · 29,350",
+            "text": "37 รายการ · 29,350",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -980,7 +978,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1013,13 +1011,13 @@
             "type": "text",
             "text": "ร้าน 26",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "36 · 28,300",
+            "text": "36 รายการ · 28,300",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1038,7 +1036,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1071,13 +1069,13 @@
             "type": "text",
             "text": "ร้าน 25",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "35 · 27,250",
+            "text": "35 รายการ · 27,250",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1096,7 +1094,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1129,13 +1127,13 @@
             "type": "text",
             "text": "ร้าน 24",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "34 · 26,200",
+            "text": "34 รายการ · 26,200",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1154,7 +1152,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1187,13 +1185,13 @@
             "type": "text",
             "text": "ร้าน 23",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "33 · 25,150",
+            "text": "33 รายการ · 25,150",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1212,7 +1210,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1245,13 +1243,13 @@
             "type": "text",
             "text": "ร้าน 22",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "32 · 24,100",
+            "text": "32 รายการ · 24,100",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1270,7 +1268,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1303,13 +1301,13 @@
             "type": "text",
             "text": "ร้าน 21",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "31 · 23,050",
+            "text": "31 รายการ · 23,050",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1328,7 +1326,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1361,13 +1359,13 @@
             "type": "text",
             "text": "ร้าน 20",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "30 · 22,000",
+            "text": "30 รายการ · 22,000",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1386,7 +1384,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1419,13 +1417,13 @@
             "type": "text",
             "text": "ร้าน 19",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "29 · 20,950",
+            "text": "29 รายการ · 20,950",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1444,7 +1442,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1477,13 +1475,13 @@
             "type": "text",
             "text": "ร้าน 18",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "28 · 19,900",
+            "text": "28 รายการ · 19,900",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1502,7 +1500,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1535,13 +1533,13 @@
             "type": "text",
             "text": "ร้าน 17",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "27 · 18,850",
+            "text": "27 รายการ · 18,850",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1560,7 +1558,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1593,13 +1591,13 @@
             "type": "text",
             "text": "ร้าน 16",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "26 · 17,800",
+            "text": "26 รายการ · 17,800",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1618,7 +1616,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1651,13 +1649,13 @@
             "type": "text",
             "text": "ร้าน 15",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "25 · 16,750",
+            "text": "25 รายการ · 16,750",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1676,7 +1674,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1709,13 +1707,13 @@
             "type": "text",
             "text": "ร้าน 14",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "24 · 15,700",
+            "text": "24 รายการ · 15,700",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1734,7 +1732,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1767,13 +1765,13 @@
             "type": "text",
             "text": "ร้าน 13",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "23 · 14,650",
+            "text": "23 รายการ · 14,650",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1792,7 +1790,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1825,13 +1823,13 @@
             "type": "text",
             "text": "ร้าน 12",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "22 · 13,600",
+            "text": "22 รายการ · 13,600",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1850,7 +1848,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1883,13 +1881,13 @@
             "type": "text",
             "text": "ร้าน 11",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "21 · 12,550",
+            "text": "21 รายการ · 12,550",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1908,7 +1906,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1941,13 +1939,13 @@
             "type": "text",
             "text": "ร้าน 10",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "20 · 11,500",
+            "text": "20 รายการ · 11,500",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -1966,7 +1964,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -1999,13 +1997,13 @@
             "type": "text",
             "text": "ร้าน 9",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "19 · 10,450",
+            "text": "19 รายการ · 10,450",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2024,7 +2022,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2057,13 +2055,13 @@
             "type": "text",
             "text": "ร้าน 8",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "18 · 9,400",
+            "text": "18 รายการ · 9,400",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2082,7 +2080,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2115,13 +2113,13 @@
             "type": "text",
             "text": "ร้าน 7",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "17 · 8,350",
+            "text": "17 รายการ · 8,350",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2140,7 +2138,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2173,13 +2171,13 @@
             "type": "text",
             "text": "ร้าน 6",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "16 · 7,300",
+            "text": "16 รายการ · 7,300",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2198,7 +2196,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2231,13 +2229,13 @@
             "type": "text",
             "text": "ร้าน 5",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "15 · 6,250",
+            "text": "15 รายการ · 6,250",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2256,7 +2254,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2289,13 +2287,13 @@
             "type": "text",
             "text": "ร้าน 4",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "14 · 5,200",
+            "text": "14 รายการ · 5,200",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2314,7 +2312,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2347,13 +2345,13 @@
             "type": "text",
             "text": "ร้าน 3",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "13 · 4,150",
+            "text": "13 รายการ · 4,150",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2372,7 +2370,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2405,13 +2403,13 @@
             "type": "text",
             "text": "ร้าน 2",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "12 · 3,100",
+            "text": "12 รายการ · 3,100",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2430,7 +2428,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
@@ -2463,13 +2461,13 @@
             "type": "text",
             "text": "ร้าน 1",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },
            {
             "type": "text",
-            "text": "11 · 2,050",
+            "text": "11 รายการ · 2,050",
             "size": "sm",
             "color": "#2F2B3D",
             "wrap": true,
@@ -2488,7 +2486,7 @@
             "type": "text",
             "text": "กำไรสุทธิ",
             "size": "sm",
-            "color": "#808390",
+            "color": "#707380",
             "wrap": true,
             "flex": 3
            },

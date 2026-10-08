@@ -53,8 +53,9 @@ describe('AC-EXP-03-1 แถวรวม + เงื่อนไข', () => {
   })
   it('ติดกับ sales ใน section เดียว ตามลำดับที่เรียง', () => {
     const t = texts(first(summary(two), [NET, SALES, EXP]))
-    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ยอดขาย'))
-    expect(t.indexOf('ยอดขาย')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
+    // ยอดขาย = ตัวเด่นใต้หัวเสมอ · แถวการเงินเรียงตามเทมเพลต
+    expect(t.indexOf('ยอดขาย')).toBeLessThan(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย'))
+    expect(t.indexOf('ยอดขายหลังหักค่าใช้จ่าย')).toBeLessThan(t.indexOf('ค่าใช้จ่าย'))
   })
   it('ผสมกติกาการเงิน → ไม่มีแถว + skipped', () => {
     const s = summary([shop(1), shop(2, {}, 'SERVICE_QUEUE')])
@@ -198,7 +199,7 @@ describe('กราฟ 7 วัน + ค่าใช้จ่าย (user 2026-1
   const CH: Block = { id: 'c', type: 'chart_trend', measure: 'sales' }
   const tr = { dates: ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'], confirmed: [9, 9, 9, 9, 9, 9, 900], unconfirmed: [0, 0, 0, 0, 0, 0, 100], orders: [1, 1, 1, 1, 1, 1, 1], expense: [0, 0, 0, 0, 0, 0, 400] }
   const withTr = (shops: ShopSummary[]) => ({ ...summary(shops), trend: tr })
-  const reds = (blocks: Block[], s: GroupSummary) => flat(first(s, blocks)).filter((n) => n.backgroundColor === FLEX_COLORS.DANGER)
+  const reds = (blocks: Block[], s: GroupSummary) => flat(first(s, blocks)).filter((n) => n.backgroundColor === FLEX_COLORS.EXPENSE_RED)
   it('เปิดเผยค่าใช้จ่าย ∧ รวมได้ → แท่งแดง + เส้นหลังหักค่าใช้จ่าย', () => {
     const s = withTr([shop(1), shop(2)])
     expect(reds([CH, EXP], s).length).toBeGreaterThan(0)
@@ -207,5 +208,19 @@ describe('กราฟ 7 วัน + ค่าใช้จ่าย (user 2026-1
   it('ไม่มีบล็อกค่าใช้จ่าย หรือ รวมไม่ได้ (ผสมกติกา) → ไม่มีแท่งแดง แม้ trend มีค่าใช้จ่าย', () => {
     expect(reds([CH], withTr([shop(1), shop(2)]))).toHaveLength(0)
     expect(reds([CH, EXP], withTr([shop(1), shop(2, {}, 'SERVICE_QUEUE')]))).toHaveLength(0)
+  })
+})
+
+describe('Top 3 มีรูป (user 2026-10-08: [รูป] ชื่อ จำนวน)', () => {
+  const SH: Block = { id: 'sh', type: 'shops', top3: true, profit: false }
+  const row = (n: Record<string, unknown>) => (n.contents as Record<string, unknown>[]).map((c) => c.type)
+  it('มีรูปอย่างน้อยหนึ่งแถว → ทุกแถวมีช่องรูป 40px (ไม่มีรูป = กล่องเทา) · ไม่มีรูปเลย → แถวเดิม', () => {
+    const top3 = [{ name: 'ก', qty: 3, amount: 30, imageUrl: 'https://x.app/img?k=a&s=b' }, { name: 'ข', qty: 2, amount: 20 }]
+    const m = first(summary([shop(1, { top3 })]), [SH])
+    const rows = flat(m).filter((n) => n.layout === 'horizontal' && (n.contents as unknown[] | undefined)?.length === 3 && json(n).includes('ชิ้น'))
+    expect(rows.map(row)).toEqual([['box', 'text', 'text'], ['box', 'text', 'text']])
+    expect(flat(m).filter((n) => n.type === 'image').map((n) => n.url)).toEqual(['https://x.app/img?k=a&s=b'])
+    const plain = first(summary([shop(1, { top3: [{ name: 'ก', qty: 3, amount: 30 }] })]), [SH])
+    expect(flat(plain).some((n) => n.type === 'image' || n.width === '40px')).toBe(false)
   })
 })

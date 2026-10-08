@@ -16,16 +16,19 @@ import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 
 export const ACCENT = '#236dc9'
 export const INK = '#2F2B3D'
-export const SLATE = '#808390'
+/** เทาข้อความรอง — เข้มขึ้นจาก #808390 (3.77:1 ไม่ผ่าน AA) เป็น 4.72:1 เฉดเดิม (contrast-fix-keeps-hue) */
+export const SLATE = '#707380'
 export const DANGER = '#d92d20'
 /** แท่งกราฟ: เขียว = ยืนยันแล้ว · เหลือง = รอยืนยัน (มติ user 2026-10-08) */
 export const CONFIRMED_GREEN = '#28a745'
 export const PENDING_YELLOW = '#f5b400'
+/** แท่งค่าใช้จ่าย — แดงอิฐเข้ม แยกจาก DANGER (ข้อความข้อผิดพลาด) และเข้มกว่าเขียวชัด คนตาบอดสีแดง-เขียวแยกด้วยความสว่างได้ */
+export const EXPENSE_RED = '#b42318'
 /** ตัวอักษรเตือน "รอยืนยัน" บนพื้นขาว — เหลืองเข้มเฉดเดียวกับแท่งให้อ่านได้ (≥4.5:1) */
 export const PENDING_TEXT = '#92400e'
 /** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
 export const GRID_GRAY = '#D9DBE0'
-export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_GREEN, PENDING_YELLOW, PENDING_TEXT } as const
+export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_GREEN, PENDING_YELLOW, PENDING_TEXT, EXPENSE_RED } as const
 
 /** ยอดขาย = ยืนยันแล้ว + รอยืนยัน รวมเป็นยอดเดียว (บางทีผู้ขายลืมกดยืนยัน — มติ user 2026-10-08) */
 /** เงินในรายงาน LINE ไม่ใส่ ฿ — ทั้งข้อความเป็นบาทอยู่แล้ว (มติ user 2026-10-08) · ติดลบสื่อด้วยป้าย (formatBaht คืนค่าสัมบูรณ์) */
@@ -281,14 +284,12 @@ function totalsNotes(c: Ctx): Node[] {
 const TOTALS_TYPES = new Set<Block['type']>(['orders', 'sales', 'cancelled', 'profit', 'expense', 'net_sales'])
 
 /** orders/sales/cancelled/profit ที่ติดกัน = section เดียว (เหมือน totals เดิม) · แถวเรียงตามบล็อก */
-function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
+function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node | null {
   const rows: Node[] = []
   for (const b of blocks) {
     if (b.type === 'orders') rows.push(kv(c.ow.word, `${formatNumberNoSymbol(c.t.orders)}${c.ow.mixed ? '' : ' รายการ'}`))
-    else if (b.type === 'sales') {
-      rows.push(kv('ยอดขาย', money(salesTotal(c.t)), { bold: true }))
-      if (c.t.unconfirmed > 0) rows.push(pendingNote(c.t.unconfirmed))
-    } else if (b.type === 'cancelled') rows.push(kv('ยกเลิก', `${formatNumberNoSymbol(c.t.cancelled)} ใบ`))
+    // sales = ตัวเลขเด่นใต้หัวรายงาน (renderHero) ไม่ใช่แถวในกลุ่มนี้
+    else if (b.type === 'cancelled') rows.push(kv('ยกเลิก', `${formatNumberNoSymbol(c.t.cancelled)} ใบ`))
     else if (b.type === 'profit') {
       const p = totalProfit(c)
       if (p) rows.push(profitRow(p))
@@ -311,8 +312,38 @@ function renderTotals(blocks: Block[], c: Ctx, withNotes: boolean): Node {
       }
     }
   }
-  return section([...rows, ...(withNotes ? totalsNotes(c) : [])])
+  const out = [...rows, ...(withNotes ? totalsNotes(c) : [])]
+  return out.length > 0 ? section(out) : null
 }
+
+/**
+ * ยอดขายตัวเด่นใต้หัวรายงาน (critique 2026-10-08 P1: ตัวเลขที่เจ้าของอยากเห็นต้องเห็นก่อนกราฟ)
+ * มีบล็อก sales ∧ มีร้านที่ดึงได้ — ตำแหน่งบล็อก sales ในเทมเพลตไม่มีผลกับตัวเลขนี้แล้ว
+ */
+function renderHero(c: Ctx): Node | null {
+  if (!c.has('sales') || c.ok.length === 0) return null
+  return section([
+    note('ยอดขาย'),
+    text(money(salesTotal(c.t)), { size: 'xxl', weight: 'bold', wrap: false }),
+    ...(c.t.unconfirmed > 0 ? [pendingNote(c.t.unconfirmed)] : []),
+  ])
+}
+
+const THUMB = '40px'
+/** รูปสินค้าสี่เหลี่ยมมุมมน · ไม่มีรูป = กล่องเทาขนาดเท่ากัน */
+function productThumb(url: string | undefined): Node {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    width: THUMB,
+    height: THUMB,
+    flex: 0,
+    cornerRadius: '6px',
+    backgroundColor: GRID_GRAY,
+    contents: url ? [{ type: 'image', url, size: 'full', aspectMode: 'cover', aspectRatio: '1:1' }] : [fill()],
+  }
+}
+const fill = (): Node => ({ type: 'filler' })
 
 /** รายร้าน — null = ไม่มีอะไรให้แสดง (ร้านเดียวไม่มีตัวเลือกเสริม ฯลฯ) · ตัวเลขต่อร้านตาม "การมีบล็อก" orders/sales/cancelled */
 function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null {
@@ -329,7 +360,8 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
       if (multi) {
         // ส่วนที่เปิดเท่านั้น · ออเดอร์+ยอดขายปิดหมด → ใช้ยกเลิกแทน · ไม่เหลือตัวเลข → ชื่อร้านอย่างเดียว (กำไรมีแถวของตัวเอง)
         const parts: string[] = []
-        if (showOrders && level < 3) parts.push(formatNumberNoSymbol(s.orders))
+        // ไม่มี ฿ แล้ว → จำนวนต้องมีหน่วยกำกับ ไม่งั้นแยกจากยอดเงินไม่ออก
+        if (showOrders && level < 3) parts.push(`${formatNumberNoSymbol(s.orders)} รายการ`)
         if (showSales) parts.push(money(salesTotal(s)))
         if (parts.length === 0 && showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(s.cancelled)} ใบ`)
         rows.push(parts.length > 0 ? kv(name, parts.join(' · '), { bold: true }) : text(name, { weight: 'bold' }))
@@ -341,12 +373,16 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
         rows.push(note(vocab.bestSellerTitle, { margin: 'sm' }))
         if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
         if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
+        // [รูป] ชื่อ จำนวน — มีรูปอย่างน้อยหนึ่งแถว ⇒ ทุกแถวมีช่องรูป (แถวไม่มีรูปเป็นกล่องเทา ให้ชื่อตรงแนวกัน)
+        const withImg = top.some((r) => r.imageUrl)
         top.forEach((r, i) =>
           rows.push({
             type: 'box',
             layout: 'horizontal',
             spacing: 'md',
+            ...(withImg ? { alignItems: 'center', margin: 'sm' } : {}),
             contents: [
+              ...(withImg ? [productThumb(r.imageUrl)] : []),
               text(`${i + 1} ${r.name}`, { flex: 5, maxLines: 2 }),
               text(`${formatNumberNoSymbol(r.qty)} ${vocab.unitLabel}`, { flex: 2, align: 'end', color: SLATE }),
             ],
@@ -448,7 +484,8 @@ export function composeBody(template: TemplateV1, c: Ctx): Node[] {
     if (TOTALS_TYPES.has(b.type)) {
       let j = i
       while (j < blocks.length && TOTALS_TYPES.has(blocks[j].type)) j++
-      items.push(renderTotals(blocks.slice(i, j), c, j - 1 === lastTotals))
+      const n = renderTotals(blocks.slice(i, j), c, j - 1 === lastTotals)
+      if (n) items.push(n)
       i = j
     } else if (b.type === 'text') {
       let j = i
@@ -492,6 +529,7 @@ export function composeBody(template: TemplateV1, c: Ctx): Node[] {
     }
   }
   const ex = renderExcluded(c)
+  const hero = renderHero(c)
   // separator คั่นหัวกับเนื้อหา — ไม่มีเนื้อหา (blocks=[]) = มีแต่หัว
-  return [...(body.length > 0 ? [{ type: 'separator', margin: 'lg' } as Node] : []), ...body, ...(ex ? [ex] : [])]
+  return [...(hero ? [hero] : []), ...(body.length > 0 ? [{ type: 'separator', margin: 'lg' } as Node] : []), ...body, ...(ex ? [ex] : [])]
 }

@@ -16,9 +16,10 @@ export type SampleShopInput = {
   state: string
 }
 
+// รูปตัวอย่างจาก asset กลาง (พรีวิวเท่านั้น — ไม่ถูกส่งเข้า LINE) · ตัวที่สามไม่มีรูป ให้เห็นกล่องเทาแทน
 const TOP3 = [
-  { name: 'สินค้าตัวอย่าง ก', qty: 42, amount: 25200 },
-  { name: 'สินค้าตัวอย่าง ข', qty: 31, amount: 15500 },
+  { name: 'สินค้าตัวอย่าง ก', qty: 42, amount: 25200, imageUrl: '/images/cards/apple-watch-series-7.png' },
+  { name: 'สินค้าตัวอย่าง ข', qty: 31, amount: 15500, imageUrl: '/images/cards/nike-air-jordan.png' },
   { name: 'สินค้าตัวอย่าง ค', qty: 18, amount: 5400 },
 ]
 

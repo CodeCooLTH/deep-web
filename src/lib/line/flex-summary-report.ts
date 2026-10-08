@@ -116,9 +116,13 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   const t = combineTotals(summary.shops)
   const ow = reportOrderWord(summary.shops)
   const f = normFlags(deriveFlags(templateOf(input)))
-  const parts = [`${kind === 'TEST' ? '[ทดสอบ] ' : ''}${titleOf(kind, summary, input.titleOverride || templateOf(input).title)} ${rangeText(summary.window.startIso, summary.window.endIso)}`]
+  const title = `${titleOf(kind, summary, input.titleOverride || templateOf(input).title)} ${rangeText(summary.window.startIso, summary.window.endIso)}`
+  // จอล็อก/รายการแชทตัดราว 40–60 ตัวอักษร → ยอดขายต้องมาก่อนชื่อรายงาน (critique 2026-10-08)
+  const parts = f.showSales
+    ? [`ยอดขาย ${money(salesTotal(t))}`, ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []), title]
+    : [title]
+  if (kind === 'TEST') parts[0] = `[ทดสอบ] ${parts[0]}`
   if (f.showOrders) parts.push(`${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`)
-  if (f.showSales) parts.push(`ยอดขาย ${money(salesTotal(t))}`, ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []))
   if (f.showCancelled) parts.push(`ยกเลิก ${formatNumberNoSymbol(t.cancelled)} ใบ`)
   const ok = summary.shops.filter((s) => s.state === 'OK')
   if (f.showProfit && summary.profitSummable && ok.length > 1 && ok.every((s) => s.profit)) {
