@@ -1,3 +1,4 @@
+import { toCatalogProduct } from "@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -107,25 +108,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** มิเรอร์ toCatalog ของ (chat)/layout.tsx — ทั้งสองทางต้องประกอบ CatalogProduct เหมือนกัน */
-function toCatalog(p: {
-  id: string;
-  name: string;
-  price: unknown;
-  type: string;
-  fulfillmentMode: string;
-  images: unknown;
-  sku: string | null;
-  stockQty: number | null;
-}) {
-  return {
-    id: p.id,
-    name: p.name,
-    price: Number(p.price),
-    type: p.type,
-    fulfillmentMode: p.fulfillmentMode,
-    image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
-    sku: p.sku ?? null,
-    stockQty: p.stockQty ?? null,
-  };
-}
+/**
+ * แคตตาล็อกของร้านในเธรด — `toCatalogProduct` ตัวเดียวกับ (chat)/layout.tsx และหน้าเต็ม /orders/new
+ * 🛑 เดิมมี mapper แยกที่ไม่มี `cost` (และ `description`) ⇒ ฟอร์มในแชทขึ้น "ยังไม่ตั้งต้นทุน" ทั้งที่ตั้งแล้ว
+ */
+const toCatalog = (p: unknown) => toCatalogProduct(p);

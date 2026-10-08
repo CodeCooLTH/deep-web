@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // 🛑 ถ้าไม่คืนค่านี้ ร้านที่กดบันทึกโดยไม่แตะปุ่มจะทำให้ออเดอร์นัดรับ **กลับเป็นจัดส่งเงียบ ๆ**
       // (updateOrder คำนวณใหม่จาก items เมื่อไม่ได้รับค่า) — คลาสเดียวกับบั๊ก createAt ข้างล่าง
       fulfillmentMode: true,
-      items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
+      items: { select: { productId: true, name: true, description: true, qty: true, price: true, cost: true } },
     },
   });
   if (!order) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
@@ -98,6 +98,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         description: it.description,
         qty: it.qty,
         price: Number(it.price),
+        // ต้นทุนที่บันทึกไว้ในใบนี้ — ฟอร์มแก้ไขต้องได้ค่าเดิมกลับไป (ร้านแจ้ง 2026-10-08)
+        // 🛑 เดิมไม่ส่ง ⇒ ฟอร์มส่งทุนว่างตอนบันทึก ⇒ updateOrder ใช้ทุน *ล่าสุด* ของสินค้าแทนทุนเดิม
+        //    และรายการพิมพ์เองที่เคยใส่ทุนไว้ ทุนหายเป็น null ⇒ กำไรของใบนั้นเปลี่ยนเอง
+        cost: it.cost != null ? Number(it.cost) : null,
       })),
     },
     { headers: NO_STORE },

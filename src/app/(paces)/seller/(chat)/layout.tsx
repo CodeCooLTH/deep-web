@@ -49,6 +49,7 @@ import type { MenuItemType } from '@/types'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 // feature 00024 — บล็อกวันเข้าใช้บริการในโมดัลสร้างรายการจากแชท (user request 2026-08-05)
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { listServiceResources } from '@/services/service-resource.service'
@@ -56,19 +57,14 @@ import { listChannelsForShops } from '@/services/shop-channel.service'
 import { resolveChatIshipCreateMode, type ChatIShipCreateMode } from '@/lib/iship/chat-create-mode'
 import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 
-// map Product → CatalogProduct (เหมือน (fullscreen)/orders/new/page.tsx) — สำหรับโมดัลสร้างคำสั่งซื้อในแชท
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const toCatalog = (p: any): CatalogProduct => ({
-  id: p.id,
-  name: p.name,
-  description: p.description ?? null,
-  price: Number(p.price),
-  type: p.type,
-  fulfillmentMode: p.fulfillmentMode,
-  image: Array.isArray(p.images) && p.images.length > 0 ? `/api/files/${p.images[0]}` : null,
-  sku: p.sku ?? null,
-  stockQty: p.stockQty ?? null
-})
+/**
+ * แคตตาล็อกของฟอร์มสร้างคำสั่งซื้อในแชท — ใช้ `toCatalogProduct` ตัวเดียวกับหน้าเต็ม (/orders/new, หน้าแก้ไข)
+ *
+ * 🛑 เดิมมี mapper ของตัวเองที่ตัดฟิลด์ทิ้ง และไม่มี `cost` ⇒ ฟอร์มในแชทขึ้น "ยังไม่ตั้งต้นทุน"
+ *    ทุกสินค้าทั้งที่ร้านตั้งทุนไว้แล้ว (ร้านแจ้ง 2026-10-08 · ตั้งแต่เพิ่มช่องทุนรายบรรทัด 00016)
+ *    mapper ต้องมีที่เดียว ไม่งั้นฟิลด์ใหม่ที่เติมให้หน้าเต็มจะหายเงียบ ๆ ในแชทอีก
+ */
+const toCatalog = (p: unknown): CatalogProduct => toCatalogProduct(p)
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const session = await getCachedSession()

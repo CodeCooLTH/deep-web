@@ -1554,7 +1554,7 @@ erDiagram
 |--------|------|------|---------|---------|
 | GET | `/api/orders` | Buyer/Seller | ดู order list — `?role=buyer` สำหรับ buyer, default = seller | `order.service` |
 | POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` — body: `CreateOrderSchema` (มี `createdAt` optional, feature 00033) + **`shopId` optional** (ดู 🛑 ใต้ตาราง) | `order.service` |
-| GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) | — |
+| GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) · `items[].cost` = ต้นทุนที่บันทึกไว้ในใบ (2026-10-08) 🛑 ต้องส่งเสมอ ไม่งั้นบันทึกการแก้ไขแล้วทุนเดิมถูกแทนด้วยทุนล่าสุดของสินค้า / รายการพิมพ์เองทุนหาย · แคตตาล็อกของฟอร์มทุกทาง (หน้าเต็ม · แชท layout · `/api/chat/shop-context`) ใช้ `toCatalogProduct()` ตัวเดียว (มี `cost`) | — |
 | PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) + **`shopId` optional** | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | GET | `/api/seller/customers/{key}/contact` | Seller-owner | **เปิดเผยข้อมูลติดต่อเต็ม (unmasked) ของลูกค้า 1 คน** — `key` = opaque row key เดียวกับ `/customers/[id]` · คืน `{ contact }` · `cache-control: private, no-store` · 🛑 `INVALID_KEY` กับ `NOT_FOUND` ตอบ **404 เหมือนกันโดยตั้งใจ** (กัน cross-shop enumeration) · authorization อยู่ที่ `where: { shopId }` ตั้งแต่ SELECT ไม่ใช่กรองทีหลัง (feature 00057) | `customer-directory.service` |
