@@ -12,7 +12,9 @@ import {
   GeminiApiError,
   type SuggestMedia,
 } from "@/lib/gemini";
-import { SanitizeError, sanitizeForExternalAi, sanitizedContext } from "@/lib/ai-suggest-sanitize";
+import { SanitizeError, sanitizeForExternalAi, sanitizedContextForGemini } from "@/lib/ai-suggest-sanitize";
+import { formatInterestedProductLine } from "@/lib/reply-suggest-prompt";
+import { loadPromptMemory } from "@/services/chat-memory.service";
 import { buildSuggestTurns } from "@/lib/ai-suggest-turns";
 import { restorePii, type PiiVault } from "@/lib/pii-redact";
 import { draftReplySuggestions, resolveSuggestProvider } from "@/lib/reply-suggest-provider";
@@ -406,8 +408,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .filter((r) => r.unresolved.length === 0) // ป้ายที่ไม่รู้จัก = ตัดข้อนั้นทิ้ง
       .map((r) => r.text);
 
+  // ความจำ + สินค้าที่แปะ (00019-ext-mem) — respect สวิตช์ก่อนอ่าน (ปิด = ไม่แตะ DB ส่วนนั้น) · fail-soft ไม่ throw
+  const promptMem = await loadPromptMemory({
+    shopId: activeCtx.shopId,
+    conversationId: conversation.id,
+    includeMemory: aiSetting.includeCustomerContext,
+    includeProducts: aiSetting.includeProductContext,
+  }).catch(() => ({ memory: null, products: [] }));
+
   let payload: ReturnType<typeof sanitizeForExternalAi> | undefined;
-  let ctx: ReturnType<typeof sanitizedContext> | undefined;
+  let ctx: ReturnType<typeof sanitizedContextForGemini> | undefined;
   try {
     const identity = await buildSuggestIdentity({ crm, rows: ordered, sessionName: session.user.name });
     payload = sanitizeForExternalAi(
@@ -416,13 +426,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         shopName: shop?.shopName ?? "ร้านค้า",
         instruction: aiSetting.instruction,
         contextBlock,
+        memory: promptMem.memory,
+        interestedProducts: promptMem.products.map(formatInterestedProductLine),
         customerNote: crm?.note ?? null,
         ...identity,
         vertical,
       },
       "gemini",
     );
-    ctx = sanitizedContext(payload);
+    ctx = sanitizedContextForGemini(payload);
     const draft = await draftReplySuggestions("gemini", payload.turns, ctx, media);
     const { usage } = draft;
     const suggestions = restoreAll(draft.suggestions, payload.vault);

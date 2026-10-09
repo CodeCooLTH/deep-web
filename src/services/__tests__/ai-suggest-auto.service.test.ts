@@ -36,6 +36,8 @@ vi.mock('@/services/ai-context.service', () => ({
   composeContextBlock: vi.fn(() => ''),
 }))
 vi.mock('@/services/ai-suggest-quota.service', () => ({ isOwnerPaidPlan: vi.fn() }))
+const mem = vi.hoisted(() => ({ loadPromptMemory: vi.fn() }))
+vi.mock('@/services/chat-memory.service', () => mem)
 
 import { getConversationCrm } from '@/services/chat-crm.service'
 import { getAiSetting } from '@/services/ai-setting.service'
@@ -81,6 +83,7 @@ function happy() {
   vi.mocked(getConversationCrm).mockResolvedValue({ alias: 'ฟ้า', realName: 'สมชาย ใจดี', phones: [], address: null } as never)
   vi.mocked(getAiSetting).mockResolvedValue({ instruction: '', includeProductContext: false, includeCustomerContext: false, includeMediaContext: false, updatedAt: null })
   vi.mocked(isOwnerPaidPlan).mockResolvedValue(false)
+  mem.loadPromptMemory.mockResolvedValue({ memory: null, products: [] })
   provider.resolveSuggestProvider.mockReturnValue('typhoon')
   provider.draftReplySuggestions.mockResolvedValue({ suggestions: ['ได้เลยครับ'], usage: { inputTokens: 10, outputTokens: 5, model: 'm' }, model: 'm', latencyMs: 120 })
 }
@@ -343,6 +346,70 @@ describe('clampSuggestion', () => {
     expect(out.endsWith('คำ')).toBe(true)
   })
   it('ไม่มีช่องว่าง → ตัดที่เพดาน', () => expect(clampSuggestion('ก'.repeat(500)).length).toBe(400))
+})
+
+describe('ความจำ + สินค้าที่แปะ เข้า prompt Typhoon (00019-ext-mem U9)', () => {
+  const MEM = { text: 'ใส่ไซส์ L ชอบสีครีม', updatedDay: '2026-10-08' }
+  const prod = (o: Record<string, unknown>) => ({ name: 'D21', optionLabel: 'สี ครีม · ขนาด L', state: 'ACTIVE', price: '450.00', stockQty: 3, ...o })
+  const on = { instruction: '', includeProductContext: true, includeCustomerContext: true, includeMediaContext: false, updatedAt: null }
+
+  // จับ request body จริงที่จะไป Typhoon: provider จำลองเรียก generateTyphoonReply จริงกับ fetch ปลอม
+  async function systemPromptOf(p: Parameters<typeof requestAutoSuggest>[0]) {
+    const { generateTyphoonReply } = await import('@/lib/typhoon')
+    let system = ''
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init: { body: string }) => {
+      system = JSON.parse(init.body).messages[0].content
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'ได้เลยครับ' } }] }) }
+    }))
+    process.env.TYPHOON_API_KEY = 'k'
+    provider.draftReplySuggestions.mockImplementation(async (_p: string, payload: SanitizedPayload) => {
+      const r = await generateTyphoonReply(payload)
+      return { suggestions: [r.text], usage: null, model: 'm', latencyMs: 1 }
+    })
+    await requestAutoSuggest(p)
+    vi.unstubAllGlobals()
+    return system
+  }
+
+  it.each([
+    ['AUTO_NEW_MESSAGE', { ...P }],
+    ['AUTO_OPEN', { ...P, trigger: 'AUTO_OPEN' as const }],
+    ['MANUAL', { ...P, manual: true, trigger: 'MANUAL' as const }],
+  ])('%s: ความจำ + สินค้า อยู่ใต้หัวข้อของตัวเอง', async (_n, params) => {
+    vi.mocked(getAiSetting).mockResolvedValue(on)
+    mem.loadPromptMemory.mockResolvedValue({ memory: MEM, products: [prod({}), prod({ state: 'INACTIVE', stockQty: null }), prod({ state: 'DELETED', price: null, stockQty: null })] })
+    const sys = await systemPromptOf(params)
+    expect(sys).toMatch(/=== ความจำเกี่ยวกับลูกค้า \(อัปเดตล่าสุด 2026-10-08\) ===[\s\S]*ใส่ไซส์ L ชอบสีครีม[\s\S]*=== จบความจำ ===/)
+    expect(sys).toContain('=== สินค้าที่ลูกค้าสนใจ ===')
+    expect(sys).toContain('- D21 · สี ครีม · ขนาด L — 450.00 บาท (คงเหลือ 3 ชิ้น)')
+    expect(sys).toContain('- D21 · สี ครีม · ขนาด L — 450.00 บาท (ปิดขายแล้ว)')
+    expect(sys).toContain('- D21 · สี ครีม · ขนาด L (สินค้าถูกลบแล้ว)')
+  })
+
+  it('ห้องว่าง → ไม่มีหัวข้อเลย', async () => {
+    vi.mocked(getAiSetting).mockResolvedValue(on)
+    const sys = await systemPromptOf(P)
+    expect(sys).not.toContain('=== ความจำ')
+    expect(sys).not.toContain('=== สินค้าที่ลูกค้าสนใจ')
+  })
+
+  it('สวิตช์ปิด → ไม่มีส่วนนั้น (ลูกค้าปิด = ไม่มีความจำ · สินค้าปิด = ไม่มีสินค้า)', async () => {
+    mem.loadPromptMemory.mockResolvedValue({ memory: MEM, products: [prod({})] })
+    vi.mocked(getAiSetting).mockResolvedValue({ ...on, includeCustomerContext: false })
+    let sys = await systemPromptOf(P)
+    expect(sys).not.toContain('ใส่ไซส์ L')
+    expect(sys).toContain('=== สินค้าที่ลูกค้าสนใจ ===')
+    vi.mocked(getAiSetting).mockResolvedValue({ ...on, includeProductContext: false })
+    sys = await systemPromptOf(P)
+    expect(sys).toContain('ใส่ไซส์ L')
+    expect(sys).not.toContain('=== สินค้าที่ลูกค้าสนใจ')
+  })
+
+  it('loadPromptMemory throw → คำแนะนำยังทำงาน (READY)', async () => {
+    vi.mocked(getAiSetting).mockResolvedValue(on)
+    mem.loadPromptMemory.mockRejectedValue(new Error('boom'))
+    expect(await requestAutoSuggest(P)).toMatchObject({ status: 'READY' })
+  })
 })
 
 describe('branded payload (compile-time)', () => {

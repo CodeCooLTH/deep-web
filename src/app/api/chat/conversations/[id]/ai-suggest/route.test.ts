@@ -71,6 +71,8 @@ vi.mock("@/services/wallet.service", () => ({
   getBalance: m.balance,
 }));
 vi.mock("@/lib/storage", () => ({ getFile: m.getFile }));
+const mem = vi.hoisted(() => ({ loadPromptMemory: vi.fn() }));
+vi.mock("@/services/chat-memory.service", () => mem);
 
 import { POST } from "./route";
 
@@ -104,6 +106,7 @@ beforeEach(() => {
     { senderRole: "SHOP", type: "TEXT", body: "ได้ค่ะ คุณสมชาย", productRefId: null, imageUrl: null, senderUserId: null },
     { senderRole: "BUYER", type: "TEXT", body: "ขอบคุณครับ", productRefId: null, imageUrl: null, senderUserId: null },
   ].reverse());
+  mem.loadPromptMemory.mockResolvedValue({ memory: null, products: [] });
   m.draft.mockResolvedValue({ suggestions: ["รับทราบค่ะ"], usage: null, model: "g", latencyMs: 1 });
 });
 
@@ -155,6 +158,34 @@ describe("สาขา Gemini (S-13)", () => {
     expect(res.status).toBe(500);
     expect(m.draft).not.toHaveBeenCalled();
     expect(m.refundFree).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("สาขา Gemini — ความจำ + สินค้าที่แปะ (00019-ext-mem U10)", () => {
+  const on = { includeProductContext: true, includeCustomerContext: true, includeMediaContext: false, instruction: "" };
+  const MEM = { text: "ใส่ไซส์ L ชอบสีครีม", updatedDay: "2026-10-08" };
+  const PROD = { name: "D21", optionLabel: "สี ครีม · ขนาด L", state: "ACTIVE", price: "450.00", stockQty: 3 };
+
+  it("ต่อท้าย contextBlock ใต้หัวข้อของตัวเอง + ส่งสวิตช์ให้ตัวอ่าน", async () => {
+    m.setting.mockReturnValue(on);
+    mem.loadPromptMemory.mockResolvedValue({ memory: MEM, products: [PROD] });
+    expect((await POST(req(), ctx)).status).toBe(200);
+    expect(mem.loadPromptMemory).toHaveBeenCalledWith({ shopId: "s1", conversationId: CONV, includeMemory: true, includeProducts: true });
+    const block: string = m.draft.mock.calls[0]![2].contextBlock;
+    expect(block).toMatch(/=== ความจำเกี่ยวกับลูกค้า[\s\S]*ใส่ไซส์ L ชอบสีครีม[\s\S]*=== จบความจำ ===/);
+    expect(block).toContain("- D21 · สี ครีม · ขนาด L — 450.00 บาท (คงเหลือ 3 ชิ้น)");
+  });
+
+  it("ห้องว่าง → ไม่มีหัวข้อ · สวิตช์ปิดถูกส่งต่อเป็น includeX=false", async () => {
+    m.setting.mockReturnValue({ ...on, includeCustomerContext: false });
+    await POST(req(), ctx);
+    expect(mem.loadPromptMemory).toHaveBeenCalledWith(expect.objectContaining({ includeMemory: false, includeProducts: true }));
+    expect(m.draft.mock.calls[0]![2].contextBlock).not.toContain("===");
+  });
+
+  it("loadPromptMemory throw → ยังตอบ 200", async () => {
+    mem.loadPromptMemory.mockRejectedValue(new Error("boom"));
+    expect((await POST(req(), ctx)).status).toBe(200);
   });
 });
 

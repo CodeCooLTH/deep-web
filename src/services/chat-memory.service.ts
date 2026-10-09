@@ -4,7 +4,8 @@ import { CHAT_MEMORY_MAX } from '@/lib/chat-memory-types'
 import { canUseProducts, normalizeMemoryText } from '@/lib/chat-memory-rules'
 import { resolveSuggestProvider } from '@/lib/reply-suggest-provider'
 import { expandClusters } from '@/services/follow-up-scope'
-import { listInterestedProducts } from '@/services/chat-interested-product.service'
+import { thaiDayKey } from '@/lib/format-date'
+import { listInterestedProducts, listInterestedForPrompt } from '@/services/chat-interested-product.service'
 import { getAiSetting, getEffectiveAiSetting } from '@/services/ai-setting.service'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
 import type {
@@ -15,8 +16,6 @@ import type {
   PromptProduct,
 } from '@/lib/chat-memory-types'
 
-// loadPromptMemory ยัง stub (T6)
-
 /** รูปแถว ChatMemory เท่าที่ผู้ใช้ภายนอกต้องรู้ (Prisma model มาใน T1) */
 export type ChatMemoryRow = {
   id: string
@@ -26,6 +25,7 @@ export type ChatMemoryRow = {
   source: ChatMemorySource
   version: number
   previousText: string | null
+  basedOnMessageId: string | null
   updatedAt: Date
   aiUpdatedAt: Date | null
 }
@@ -167,6 +167,24 @@ export async function loadPromptMemory(p: {
   includeMemory: boolean
   includeProducts: boolean
 }): Promise<PromptMemory> {
-  void p
-  throw new Error('NOT_IMPLEMENTED')
+  // แยก try ต่อส่วน: ส่วนหนึ่งล้ม ไม่ลากอีกส่วน/คำแนะนำทั้งก้อนล้มตาม (log เฉพาะชนิด error ไม่ log เนื้อความ)
+  const [memory, products] = await Promise.all([
+    p.includeMemory
+      ? resolveEffectiveMemory(p.shopId, p.conversationId)
+          .then((eff) =>
+            eff?.row?.text.trim() ? { text: eff.row.text, updatedDay: thaiDayKey(eff.row.updatedAt) } : null,
+          )
+          .catch((e) => {
+            console.error('[chat-memory] load memory failed:', (e as Error).name)
+            return null
+          })
+      : null,
+    p.includeProducts
+      ? listInterestedForPrompt(p.shopId, p.conversationId).catch((e) => {
+          console.error('[chat-memory] load products failed:', (e as Error).name)
+          return [] as PromptProduct[]
+        })
+      : ([] as PromptProduct[]),
+  ])
+  return { memory, products }
 }

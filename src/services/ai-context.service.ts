@@ -25,7 +25,12 @@ export const PRODUCT_CONTEXT_LIMIT = 20
 /** จำนวนออเดอร์สูงสุดที่แนบต่อหนึ่งคำขอ (BR-AI-08) */
 export const ORDER_CONTEXT_LIMIT = 5
 
-export type ProductCardInfo = { name: string; price: string; isActive: boolean }
+export type ProductCardInfo = { name: string; price: string; isActive: boolean; stockQty: number | null }
+
+/** กฎ "คงเหลือ" เดียวของระบบ: null (ไม่ติดตามสต็อก) → ว่าง */
+export function formatStockSuffix(stockQty: number | null): string {
+  return stockQty === null ? '' : ` (คงเหลือ ${stockQty} ชิ้น)`
+}
 
 /**
  * resolveProductCards — ดึงชื่อ/ราคาของสินค้าที่ถูกอ้างถึงด้วยการ์ดสินค้าในเธรด (TFR-003)
@@ -39,10 +44,10 @@ export async function resolveProductCards(
   if (ids.length === 0) return new Map()
   const rows = await prisma.product.findMany({
     where: { id: { in: ids }, shopId },
-    select: { id: true, name: true, price: true, isActive: true },
+    select: { id: true, name: true, price: true, isActive: true, stockQty: true },
   })
   return new Map(
-    rows.map((r) => [r.id, { name: r.name, price: r.price.toFixed(2), isActive: r.isActive }]),
+    rows.map((r) => [r.id, { name: r.name, price: r.price.toFixed(2), isActive: r.isActive, stockQty: r.stockQty }]),
   )
 }
 
@@ -101,7 +106,7 @@ export async function buildProductBlock(shopId: string, buyerTexts: string[]): P
   if (rows.length === 0) return ''
 
   const lines = rows.map((p) => {
-    const stock = p.stockQty === null ? '' : ` (คงเหลือ ${p.stockQty} ชิ้น)`
+    const stock = formatStockSuffix(p.stockQty)
     return `- ${p.name} — ${p.price.toFixed(2)} บาท${stock}`
   })
   return ['[สินค้าของร้าน (ราคาจริงจากระบบ ใช้อ้างอิงได้)]', ...lines].join('\n')

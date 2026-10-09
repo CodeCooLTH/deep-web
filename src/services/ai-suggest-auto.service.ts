@@ -23,6 +23,8 @@ import {
 import { MEMORY_RPM_SHARE } from '@/lib/chat-memory-types'
 import { getAiSetting, getEffectiveAiSetting } from '@/services/ai-setting.service'
 import { buildCustomerBlock, buildProductBlock, composeContextBlock, resolveProductCards } from '@/services/ai-context.service'
+import { formatInterestedProductLine } from '@/lib/reply-suggest-prompt'
+import { loadPromptMemory } from '@/services/chat-memory.service'
 import { getConversationCrm } from '@/services/chat-crm.service'
 import { buildSuggestIdentity } from '@/services/ai-suggest-identity'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
@@ -229,11 +231,16 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
   const rows = rowsDesc.reverse()
 
   // isOwnerPaidPlan ล้ม = ถือเป็น non-paid (ไม่ fail ทั้งคำขอ) — ฝั่งนี้ไม่มีโควตา จึงกระทบแค่สิทธิ์บริบท (OQ-7)
-  const [shop, crm, stored, isPaid] = await Promise.all([
+  // loadPromptMemory อ่านก่อนรู้สวิตช์ (ขนานกับ query เดิม ไม่เพิ่ม round-trip) แล้วทิ้งส่วนที่สวิตช์ปิดทีหลัง;
+  // fail-soft ในตัว แต่กันซ้ำเผื่อ mock/อนาคต throw
+  const [shop, crm, stored, isPaid, promptMem] = await Promise.all([
     prisma.shop.findUnique({ where: { id: p.shopId }, select: { shopName: true, vertical: true } }),
     getConversationCrm(p.conversationId, p.shopId),
     getAiSetting(p.shopId),
     isOwnerPaidPlan(p.shopId).catch(() => false),
+    loadPromptMemory({ shopId: p.shopId, conversationId: p.conversationId, includeMemory: true, includeProducts: true }).catch(
+      () => ({ memory: null, products: [] }),
+    ),
   ])
   const setting = getEffectiveAiSetting(stored, isPaid)
 
@@ -269,6 +276,8 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
       shopName: shop?.shopName ?? '',
       instruction: setting.instruction,
       contextBlock,
+      memory: setting.includeCustomerContext ? promptMem.memory : null,
+      interestedProducts: setting.includeProductContext ? promptMem.products.map(formatInterestedProductLine) : [],
       vertical: isShopVertical(rawVertical) ? rawVertical : DEFAULT_SHOP_VERTICAL,
       ...identity,
     },
