@@ -194,6 +194,8 @@ export async function maybeUpdateMemory(p: {
       },
       'typhoon',
     )
+    // sanitize ทิ้งความจำเดิม (scrub พัง) → AI จะเขียนใหม่จากศูนย์ทับของเดิม ⇒ ไม่ส่ง
+    if (hasText && payload.memory === null) return await finish('ERROR')
 
     // 6) คิวต่ำกว่าคำแนะนำหลัก รอได้สั้น ๆ
     if (!(await reserveSlot(runId, shopId, { lowPriority: true, deadlineAt: Date.now() + MEMORY_SLOT_WAIT_MS }))) {

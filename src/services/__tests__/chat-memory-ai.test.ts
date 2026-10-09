@@ -11,6 +11,7 @@ const m = vi.hoisted(() => ({
   count: vi.fn(),
   update: vi.fn(),
   findMsgs: vi.fn(),
+  dropMemory: false,
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -28,6 +29,17 @@ vi.mock('@/services/ai-setting.service', () => ({
 vi.mock('@/services/ai-suggest-quota.service', () => ({ isOwnerPaidPlan: async () => true }))
 vi.mock('@/services/chat-crm.service', () => ({ getConversationCrm: async () => null }))
 vi.mock('@/services/ai-suggest-identity', () => ({ buildSuggestIdentity: async () => ({ knownCustomerNames: [], adminNames: [], knownLiterals: [] }) }))
+// จำลอง scrub ความจำพัง: sanitize คืน memory=null ทั้งที่ฐานมีข้อความ
+vi.mock('@/lib/ai-suggest-sanitize', async (orig) => {
+  const o = await orig<typeof import('@/lib/ai-suggest-sanitize')>()
+  return {
+    ...o,
+    sanitizeForExternalAi: (...a: Parameters<typeof o.sanitizeForExternalAi>) => {
+      const r = o.sanitizeForExternalAi(...a)
+      return m.dropMemory ? { ...r, memory: null } : r
+    },
+  }
+})
 vi.mock('@/services/chat-memory.service', () => ({ resolveEffectiveMemory: m.eff }))
 vi.mock('@/services/ai-suggest-auto.service', () => ({ claimRun: m.claim, reserveSlot: m.reserve }))
 
@@ -39,6 +51,7 @@ const P = { shopId: 's1', conversationId: 'c1', latestMessageId: 'm9' }
 beforeEach(() => {
   vi.clearAllMocks()
   m.switchOn = true
+  m.dropMemory = false
   m.provider.mockReturnValue('typhoon')
   m.eff.mockResolvedValue({ row: null, shared: false, roomIds: ['c1'] })
   m.count.mockResolvedValue(5) // ห้องใหม่: total 5 / ลูกค้า 5
@@ -97,5 +110,16 @@ describe('maybeUpdateMemory (mock)', () => {
     expect(await maybeUpdateMemory(P)).toEqual({ outcome: 'ERROR' })
     expect(JSON.stringify(spy.mock.calls)).not.toContain('0812345678')
     spy.mockRestore()
+  })
+
+  it('sanitize ทิ้งความจำเดิม → ERROR ไม่ส่งโมเดล (กันเขียนใหม่ทับของเดิม)', async () => {
+    m.dropMemory = true
+    m.eff.mockResolvedValue({
+      row: { id: 'mem1', version: 2, text: 'ชอบสีดำ', basedOnMessageId: null, updatedAt: new Date(0), aiUpdatedAt: null },
+      shared: false,
+      roomIds: ['c1'],
+    })
+    expect(await maybeUpdateMemory({ ...P, force: true })).toEqual({ outcome: 'ERROR' })
+    expect(m.gen).not.toHaveBeenCalled()
   })
 })
