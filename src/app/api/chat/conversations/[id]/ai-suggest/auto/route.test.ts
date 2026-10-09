@@ -8,8 +8,18 @@ const m = vi.hoisted(() => ({
   request: vi.fn(),
   latest: vi.fn(),
   feedback: vi.fn(),
+  provider: vi.fn(() => "typhoon"),
+  memory: vi.fn(),
+  afterFn: vi.fn(),
 }));
 
+vi.mock("next/server", async (orig) => ({
+  ...(await orig<typeof import("next/server")>()),
+  // นอก request scope after() throw → จับ callback แล้วรันเอง (ไม่ทิ้งเหมือน precedent) เพื่อพิสูจน์ว่า error ไม่รั่ว
+  after: (cb: () => unknown) => m.afterFn(cb),
+}));
+vi.mock("@/lib/reply-suggest-provider", () => ({ resolveSuggestProvider: m.provider }));
+vi.mock("@/services/chat-memory-ai.service", () => ({ maybeUpdateMemory: m.memory }));
 vi.mock("next-auth", () => ({ getServerSession: m.session }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/prisma", () => ({ prisma: { conversation: { findFirst: m.findConv } } }));
@@ -37,6 +47,8 @@ beforeEach(() => {
   m.resolveShop.mockResolvedValue({ shopId: "s1" });
   m.findConv.mockResolvedValue({ id: CONV });
   m.rate.mockReturnValue(true);
+  m.provider.mockReturnValue("typhoon");
+  m.memory.mockResolvedValue({ outcome: "OK" });
 });
 
 describe("auth / param / ownership", () => {
@@ -174,5 +186,47 @@ describe("PATCH", () => {
     m.findConv.mockResolvedValueOnce(null);
     expect((await PATCH(req(ok), ctx())).status).toBe(404);
     expect(m.feedback).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST -> after() อัปเดตความจำ", () => {
+  const body = { anchorMessageId: ANCHOR, manual: false };
+  const READY = { status: "READY", anchorMessageId: ANCHOR, attempt: 1, suggestion: "ค่ะ", feedback: null };
+
+  it("READY + typhoon -> เรียก maybeUpdateMemory ผ่าน after() ด้วย anchor", async () => {
+    m.request.mockResolvedValueOnce(READY);
+    const r = await POST(req(body), ctx());
+    expect(r.status).toBe(200);
+    expect(m.afterFn).toHaveBeenCalledTimes(1);
+    await m.afterFn.mock.calls[0][0]();
+    expect(m.memory).toHaveBeenCalledWith({ shopId: "s1", conversationId: CONV, latestMessageId: ANCHOR });
+  });
+
+  it("callback กลืน error ของงานความจำ (ไม่รั่ว)", async () => {
+    m.request.mockResolvedValueOnce(READY);
+    m.memory.mockRejectedValueOnce(new Error("boom"));
+    await POST(req(body), ctx());
+    await expect(Promise.resolve(m.afterFn.mock.calls[0][0]())).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["THINKING", { status: "THINKING", anchorMessageId: ANCHOR, attempt: 1 }, "typhoon"],
+    ["NONE", { status: "NONE", anchorMessageId: ANCHOR, attempt: 1, reason: "ERROR" }, "typhoon"],
+    ["READY แต่ร้านไม่ใช่ typhoon", READY, "gemini"],
+  ])("%s -> ไม่ตั้ง after()", async (_n, state, prov) => {
+    m.provider.mockReturnValue(prov);
+    m.request.mockResolvedValueOnce(state);
+    expect((await POST(req(body), ctx())).status).toBe(200);
+    expect(m.afterFn).not.toHaveBeenCalled();
+  });
+
+  it("after() throw (นอก request scope) -> คำตอบยังเป็น 200 READY", async () => {
+    m.request.mockResolvedValueOnce(READY);
+    m.afterFn.mockImplementationOnce(() => {
+      throw new Error("outside request scope");
+    });
+    const r = await POST(req(body), ctx());
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual(READY);
   });
 });
