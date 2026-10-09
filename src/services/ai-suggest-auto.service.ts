@@ -22,6 +22,7 @@ import {
 import { getAiSetting, getEffectiveAiSetting } from '@/services/ai-setting.service'
 import { buildCustomerBlock, buildProductBlock, composeContextBlock, resolveProductCards } from '@/services/ai-context.service'
 import { getConversationCrm } from '@/services/chat-crm.service'
+import { buildSuggestIdentity } from '@/services/ai-suggest-identity'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
 
 /**
@@ -220,15 +221,11 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
     select: { senderRole: true, type: true, body: true, productRefId: true, senderUserId: true },
   })
   const rows = rowsDesc.reverse()
-  const senderIds = [...new Set(rows.filter((r) => r.senderRole === 'SHOP' && r.senderUserId).map((r) => r.senderUserId as string))]
 
   // isOwnerPaidPlan ล้ม = ถือเป็น non-paid (ไม่ fail ทั้งคำขอ) — ฝั่งนี้ไม่มีโควตา จึงกระทบแค่สิทธิ์บริบท (OQ-7)
-  const [shop, crm, senders, stored, isPaid] = await Promise.all([
+  const [shop, crm, stored, isPaid] = await Promise.all([
     prisma.shop.findUnique({ where: { id: p.shopId }, select: { shopName: true, vertical: true } }),
     getConversationCrm(p.conversationId, p.shopId),
-    senderIds.length
-      ? prisma.user.findMany({ where: { id: { in: senderIds } }, select: { displayName: true } })
-      : Promise.resolve([] as { displayName: string | null }[]),
     getAiSetting(p.shopId),
     isOwnerPaidPlan(p.shopId).catch(() => false),
   ])
@@ -258,7 +255,7 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
   )
 
   const rawVertical = shop?.vertical ?? ''
-  const nonEmpty = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x && x.trim().length > 0)
+  const identity = await buildSuggestIdentity({ crm, rows, sessionName: p.userDisplayName })
   return {
     turns,
     input: {
@@ -267,9 +264,7 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
       instruction: setting.instruction,
       contextBlock,
       vertical: isShopVertical(rawVertical) ? rawVertical : DEFAULT_SHOP_VERTICAL,
-      knownCustomerNames: nonEmpty([crm?.alias, crm?.realName]),
-      adminNames: nonEmpty([...senders.map((s) => s.displayName), p.userDisplayName]),
-      knownLiterals: nonEmpty([...(crm?.phones ?? []), crm?.address]),
+      ...identity,
     },
   }
 }
