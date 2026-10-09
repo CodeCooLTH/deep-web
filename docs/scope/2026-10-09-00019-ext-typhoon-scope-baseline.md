@@ -134,3 +134,7 @@ phase นี้ SIGNED-OFF ได้เมื่อครบทุกข้อ (
 | 2026-10-09 | S-4 เพิ่มคอลัมน์ `firedAt` + index `[firedAt]`, `[shopId, firedAt]` | planner C-2: นับ "ยิงจริง" จาก createdAt ไม่ได้ ต้องมีเวลาเริ่มยิงแยก | Controller |
 | 2026-10-09 | S-10 response เพิ่ม `provider`/`attempt`/`feedback`, POST body เพิ่ม `trigger?` | planner C-3: superset ของ spec §10 ที่ client ต้องใช้ | Controller |
 | 2026-10-09 | A-3 ยืนยัน | `safepay-mobile/App.tsx` = react-native-webview ห่อ seller.deepthailand.app | Controller |
+| 2026-10-09 | S-9(ค): `firedAt` ใช้นาฬิกา DB (clock_timestamp) ไม่ใช่นาฬิกา app | เทส 20 พร้อมกันเกินเพดาน 5/3 เมื่อใช้นาฬิกา app · กัน clock skew ข้าม instance | Controller |
+| 2026-10-09 | S-7/S-8: ตัวปิดบังแบบคืนค่าได้ขยายชนิด NAME/CONTACT/NUMBER + normalize ตัวเลข/ตัวคั่น (`redactPii` เดิมไม่เปลี่ยน) | security review 2 รอบ (H1-H3, N1/N2/N4/N6) · ข้อจำกัดที่ยอมรับ: เบอร์เขียนเป็นคำ/emoji, ชื่อที่ระบบไม่รู้ (R-1) | Controller |
+| 2026-10-09 | S-17: ข้อความใน `/settings/ai` (อยู่ใน `AiSettingForm.tsx`) มีเฉพาะ TH — acceptance "TH/EN" ลดเป็น TH | หน้าเดิมไม่ใช้ i18n ทั้งหน้า การย้ายเข้า useT = refactor นอก scope | Controller |
+| 2026-10-09 | S-13: helper ประกอบชื่อ/literal สำหรับปิดบังใช้ร่วม route เดิม + service (กำลังทำ) | HR16 — นิยามแหล่ง PII สองชุดจะ drift แล้วรั่วเงียบ | Controller |
