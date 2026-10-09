@@ -279,16 +279,18 @@ model ChatInterestedProduct {
 ทุก endpoint: `resolveConversationShopId` (ตามแบบ `crm/route.ts:21-31`), `sessionUserId()`, Valibot ใน `validations.ts`, ส่วนหัว `Cache-Control` ตาม NFR-MEM-Cache; 401 ไม่ล็อกอิน · 404 ไม่ใช่ห้องของร้านที่เข้าถึงได้ (ไม่ leak)
 
 ### `GET /api/chat/conversations/{id}/memory`
-200 `{ memory: { text, source, version, updatedAt, aiUpdatedAt, shared: boolean } | null, products: [{ id, productId|null, name, optionLabel, state: "ACTIVE"|"INACTIVE"|"DELETED", imageFileId|null }], canUseProducts: boolean, aiWrites: boolean }` · `shared` = แถวจริงมาจากห้องอื่นใน cluster · `aiWrites` = ร้านบน Typhoon (false → UI ไม่บอกว่า AI จะเขียนให้)
+> **แก้ตามมติ Controller 2026-10-09 (Change Log ใน baseline; ตรงแผน phase 00019-ext-mem ข้อ 2.2):** (1) `aiWrites` เปลี่ยนเป็นออบเจ็กต์ `ai` (2) `memory` เพิ่ม `previousText` (3) POST สินค้ารับ `selections` แทน `optionLabel` (4) 409 `current` เพิ่ม `updatedAt`
+
+200 `{ memory: { text, source, version, updatedAt, aiUpdatedAt, shared: boolean, previousText: string|null } | null, products: [{ id, productId|null, name, optionLabel, state: "ACTIVE"|"INACTIVE"|"DELETED", imageFileId|null }], canUseProducts: boolean, ai: { provider: "typhoon"|"gemini"|"none", writes: boolean, readsMemory: boolean, readsProducts: boolean, updating: boolean, noteReadByAi: boolean } }` · `shared` = แถวจริงมาจากห้องอื่นใน cluster · `ai.writes` = `provider==='typhoon'` (false → UI ไม่บอกว่า AI จะเขียนให้) · `readsMemory`/`readsProducts` = สวิตช์ `includeCustomerContext`/`includeProductContext` หลัง `getEffectiveAiSetting` · `updating` = มีแถว `MEMORY_UPDATE` สถานะ `THINKING` อายุ ≤ 30 วิของห้องนี้ · `noteReadByAi` = `provider==='gemini'`
 
 ### `PUT /api/chat/conversations/{id}/memory`
-Request `{ text: string(≤800), expectedVersion: number | null }` (`null` = ยังไม่มีแถว) · 200 `{ memory }` · 400 ข้อความยาวเกิน/ไม่ถูกต้อง · 409 `{ error: "VERSION_CONFLICT", current: { text, version, source } }`
+Request `{ text: string(≤800), expectedVersion: number | null }` (`null` = ยังไม่มีแถว) · 200 `{ memory }` · 400 ข้อความยาวเกิน/ไม่ถูกต้อง · 409 `{ error: "VERSION_CONFLICT", current: { text, version, source, updatedAt } | null }` (`null` = ไม่มีแถว; แก้ตามมติ Controller 2026-10-09 เพิ่ม `updatedAt` ให้ UI แสดงเวลา)
 
 ### `POST /api/chat/conversations/{id}/memory/refresh` (nice-to-have)
 200 `{ status: "UPDATED" | "THINKING" | "NONE", reason? }` · 400 ร้านไม่ได้ใช้ Typhoon · 429 `Retry-After`
 
 ### `POST /api/chat/conversations/{id}/interested-products`
-Request `{ productId: uuid, optionLabel?: string(≤80) }` · 201 `{ item }` · 404 ไม่พบสินค้าในร้านนี้ · 409 ซ้ำ · 422 ครบ 10 รายการ / ตัวเลือกไม่อยู่ใน attributes
+Request `{ productId: uuid, selections?: { key: string, value: string }[] (≤ 10 หัวข้อ) }` — server ประกอบ `optionLabel` เองจาก `Product.attributes` เป็นรูปแบบ "สี ครีม · ขนาด L" (แก้ตามมติ Controller 2026-10-09 แทน `optionLabel` ที่ client ส่งตรง; ตัวอย่างใน FR-MEM-14 "สีครีม · L" ใช้รูปแบบนี้แทน) · 201 `{ item }` · 404 ไม่พบสินค้าในร้านนี้ · 409 ซ้ำ · 422 ครบ 10 รายการ / ตัวเลือกไม่อยู่ใน attributes
 
 ### `DELETE /api/chat/conversations/{id}/interested-products/{rowId}`
 204 · 404 ไม่ใช่แถวของร้านนี้ (ตรวจ `{id, shopId}` และห้องอยู่ใน cluster ที่เข้าถึงได้)
@@ -410,7 +412,7 @@ Request `{ productId: uuid, optionLabel?: string(≤80) }` · 201 `{ item }` · 
 - **AC-MEM-14 (กดสินค้า = ถาดส่งการ์ด)** Given สินค้าที่แปะ ACTIVE When กด Then `ProductPickerPanel` เปิดพร้อมติ๊กสินค้านั้น และไม่มีข้อความถูกส่งจนกว่าแอดมินกดส่ง
 - **AC-MEM-15 (ร้านไม่มีสินค้า)** Given ร้านไม่มี Product Then ไม่มีส่วนสินค้า ความจำใช้ได้
 - **AC-MEM-16 (ราคา/สต็อกสด — ตาม OQ-M3)** Given อนุมัติแบบ "เข้า" When สินค้าที่แปะมีราคา 450 และ stockQty 3 Then prompt มีราคา 450 และ "คงเหลือ 3 ชิ้น" · แถวในตารางไม่มีสองค่านี้ · สินค้าไม่ติดตามสต็อกไม่มีข้อความคงเหลือ
-- **AC-MEM-17 (Gemini)** Given ร้านนอก allow-list When สร้างคำแนะนำ Then ความจำ+สินค้าเข้า `contextBlock` ผ่าน sanitize · ไม่มีแถว `MEMORY_UPDATE` · `GET memory` คืน `aiWrites:false`
+- **AC-MEM-17 (Gemini)** Given ร้านนอก allow-list When สร้างคำแนะนำ Then ความจำ+สินค้าเข้า `contextBlock` ผ่าน sanitize · ไม่มีแถว `MEMORY_UPDATE` · `GET memory` คืน `ai.writes:false` (แทน `aiWrites` ตามมติ Controller 2026-10-09)
 - **AC-MEM-18 (สวิตช์ร้าน)** Given `includeCustomerContext=false` Then ไม่มีความจำใน prompt · `includeProductContext=false` Then ไม่มีสินค้า
 - **AC-MEM-19 (fail-soft ต่อฟิลด์)** Given sanitize ความจำล้ม Then คำแนะนำยังออกโดยไม่มีหัวข้อความจำ และไม่มีข้อความความจำใน payload
 

@@ -415,3 +415,77 @@ sequenceDiagram
 ### 9.11 การทดสอบ
 
 TC-AIT-01..09 map เป็นไฟล์เทส: `typhoon.test`, `reply-suggest-provider.test`, `ai-suggest-sanitize.test` (+ mutation), `pii-redact-reversible.test`, `ai-suggest-auto.service.test`, `ai-suggest-auto.service.db.test` (claim/pacing บน Postgres `localhost:5434` เท่านั้น), `auto/route.test`, `ai-suggest/route.test`, `auto-suggest-machine.test`; ส่วนที่เหลือครอบด้วย Playwright E2E (TC-AIT-08)
+
+---
+
+## 10. ความจำของแชท + สินค้าที่สนใจ (extension 2026-10-09)
+
+อ้างอิง: `EXTENSIONS-2026-10-09-chat-memory.md` · FR-MEM ดู [[SRS]] §11.6 · API ดู [[API]] §10 · ตาราง ดู [[DATABASE]] §10 · สถานะ: ออกแบบตามแผน phase 00019-ext-mem (ยังไม่มีโค้ด)
+
+### 10.1 โมดูล (แยก 3 service กันวนพึ่งกันเอง)
+
+`ai-suggest-auto.service.loadPayload` ต้องอ่านความจำ ส่วน `maybeUpdateMemory` ต้องใช้ `claimRun`/`reserveSlot` จาก `ai-suggest-auto.service` — ถ้ารวมไฟล์เดียวจะวน จึงแยก:
+
+| ไฟล์ | หน้าที่ |
+|------|---------|
+| `src/services/chat-memory.service.ts` | `resolveEffectiveMemory` (หาแถวจริงด้วย `expandClusters`) · `getMemoryPanel` · `saveMemoryByAdmin` (CAS) · `loadPromptMemory` (fail-soft ไม่ throw) |
+| `src/services/chat-interested-product.service.ts` | `addInterestedProduct` · `removeInterestedProduct` · `listInterestedProducts` · `listInterestedForPrompt` |
+| `src/services/chat-memory-ai.service.ts` | `maybeUpdateMemory` · `applyAiUpdate` (CAS ด้วย `version`) — import `claimRun`/`reserveSlot` ได้ทางเดียว |
+| `src/lib/chat-memory-rules.ts` (pure) | `normalizeMemoryText`, `canUseProducts`, `baseHasPii`, `validateAiMemory`, `shouldAttemptMemoryUpdate` |
+| `src/lib/product-attributes.ts` (pure) | `splitAttributeValues`, `normalizeAttributes`, `buildOptionLabel` |
+| `src/lib/chat-memory-types.ts` / `chat-memory-ui.ts` / `chat-memory-events.ts` | type + ค่าคงที่ client-safe · ฟังก์ชันตัดสิน UI เทสได้ · event `PRODUCT_TRAY_OPEN_EVENT`, `MEMORY_POKE_EVENT` |
+| `src/lib/memory-writer-prompt.ts` + `typhoon.ts` (`generateTyphoonMemoryText`) | prompt ผู้เขียนความจำ (temperature 0.2, max_tokens ~400) |
+
+กติกา: ทุก query มี `shopId` ใน WHERE · CAS ด้วย `updateMany where {id, shopId, version}` · สร้างแถวใหม่ด้วย `createMany({skipDuplicates:true})` แล้วดู `count` · ใช้ result code ล้วน ไม่ throw custom Error ข้ามไฟล์
+
+### 10.2 จุดฉีด prompt
+
+```mermaid
+flowchart LR
+    L[loadPayload] -->|Promise.all ขนานกับ query เดิม| M[loadPromptMemory]
+    M --> E[expandClusters] --> R[แถวความจำ + สินค้าที่แปะ + ราคา/สต็อก/isActive สด]
+    R --> S[sanitizeForExternalAi แยก try ต่อฟิลด์]
+    S -->|Typhoon| T[buildTyphoonSystemPrompt แทรก 2 หัวข้อ ก่อนกฎปิดท้าย]
+    S -->|Gemini| G[sanitizedContextForGemini ต่อท้าย contextBlock หลัง sanitize]
+```
+
+- Typhoon: `renderMemorySections` ใส่ 2 หัวข้อแยกจาก "ข้อเท็จจริงจากระบบ" + `MEMORY_SECTION_NOTE` + `NO_CONFIRM_OPTION_RULE`
+- Gemini: `gemini.ts` ห่อ `contextBlock` ใต้หัว "ข้อเท็จจริงจากระบบ" (ขัด BR-MEM-08) และห้ามแก้ จึงส่งผ่าน `SanitizeInput.memory/interestedProducts` แล้วต่อบล็อกที่มีหัวและข้อความ "ไม่ใช่ข้อเท็จจริงยืนยัน" ท้าย `contextBlock` หลัง sanitize (ceiling: ยังอยู่ใต้หัวใหญ่ของ gemini.ts แต่ป้ายกำกับอยู่ในบล็อกเอง)
+- ค่าตั้งต้นของ `SanitizeOutput` = `memory: null, interestedProducts: []` พฤติกรรมเดิมไม่เปลี่ยน · ฟิลด์ memory/products โยน → ตัดเฉพาะส่วนนั้น · transcript/shopName/instruction/contextBlock โยน → หยุดทั้งก้อน (FR-AIT-10)
+- `resolveProductCards` เพิ่ม `stockQty` และ export `formatStockSuffix` เป็นกฎ "คงเหลือ" เดียวกับ `buildProductBlock`
+
+### 10.3 Flow อัปเดตความจำ (`maybeUpdateMemory`)
+
+ลำดับ: (1) provider typhoon + `includeCustomerContext` (2) `shouldAttemptMemoryUpdate` — ข้ามแล้วคืนค่า **ไม่เขียนแถว** (3) `claimRun('mem:<latestId>')` (4) `baseHasPii` → `SKIPPED_BASE_HAS_PII` (5) sanitize ฐาน + ข้อความใหม่ ≤ 40 (6) `reserveSlot` สิทธิ์ต่ำ รอ ≤ 2 วิ (7) `generateTyphoonMemoryText` (ห้าม `restorePii` ลงความจำ) (8) `validateAiMemory` (9) `applyAiUpdate` CAS (10) ปิดแถวด้วย outcome
+
+```mermaid
+stateDiagram-v2
+    [*] --> ตรวจเงื่อนไข
+    ตรวจเงื่อนไข --> จบ: ข้อความน้อย/cooldown (ไม่เขียนแถว)
+    ตรวจเงื่อนไข --> claim
+    claim --> จบ: claim แพ้
+    claim --> SKIPPED_BASE_HAS_PII: ฐานมี PII
+    claim --> รอสล็อต
+    รอสล็อต --> RATE_LIMITED: เกิน 70% RPM หรือรอ > 2 วิ
+    รอสล็อต --> เรียกTyphoon
+    เรียกTyphoon --> TIMEOUT_ERROR: ล้ม
+    เรียกTyphoon --> ตรวจผล
+    ตรวจผล --> REJECTED: PII / รูปแบบ / ย่อเกินครึ่ง
+    ตรวจผล --> CAS
+    CAS --> SUPERSEDED: version เปลี่ยน
+    CAS --> OK
+```
+
+- cooldown 120 วิ นับจาก max(`aiUpdatedAt`, `createdAt` ของแถว `MEMORY_UPDATE` ล่าสุดทุก outcome) กัน `REJECTED_*` ยิงซ้ำ (P-3)
+- ฐานนับ "ข้อความใหม่": ถ้า `basedOnMessageId` อยู่ห้องปัจจุบันนับหลังมัน ไม่งั้นนับข้อความของห้องนี้ที่ `createdAt > row.updatedAt` (P-5)
+- `after()` ใน `/ai-suggest/auto` เฉพาะ `status==='READY'` + provider typhoon ห่อ `.catch(() => {})` · Vercel นับ `after` รวมใน `maxDuration` (30 วิ) — ต้องพิสูจน์บน prod ใน QA (A-M2)
+
+### 10.4 การนับเพดาน
+
+แถว `MEMORY_UPDATE` มี `provider='typhoon'` และ `firedAt` จึงถูกนับในหน้าต่าง 60 วิเดียวกับคำแนะนำ · `claimRun` รับ `trigger: AutoSuggestTrigger | typeof MEMORY_UPDATE_TRIGGER` · `computePacingVerdict(rows, me, {rps, rpm, lowPriorityShare?})` — ตั้ง `lowPriorityShare=0.7` ต้องผ่านเพิ่ม `ahead.length < floor(rpm*share)` (80/100 ไม่ผ่าน) · `reserveSlot(runId, shopId, {deadlineAt?, lowPriority?})` ทั้งหมด optional ไม่ส่ง = พฤติกรรมเดิม
+
+### 10.5 ความเสี่ยงทางเทคนิคที่บันทึกไว้
+
+- `expandClusters` เป็น self-join `Conversation` ทั้งร้าน ถูกเรียกทุกคำแนะนำ/GET/PUT — วัดตอน QA (NFR-MEM-Latency) ถ้าเกินต้องขอแก้ `follow-up-scope.ts`
+- เพดานสินค้า 10 ต่อห้อง ไม่ atomic (นับแล้ว insert) สองคำขอพร้อมกันอาจเกินเล็กน้อย — ตอนอ่านตัดที่ 10 อยู่แล้ว
+- ชื่อลูกค้าที่แอดมินพิมพ์ในความจำถูก scrub เป็น "ลูกค้า" ก่อนส่ง AI (ceiling)

@@ -2,6 +2,8 @@
 
 > ผลิตโดย safepay-ux 2026-10-09 (HR8) · Controller รับค่าตั้งต้นของ Open questions ทุกข้อตามที่ ux เสนอ
 
+> **ดูเพิ่ม:** บล็อก "ความจำของแชทนี้" และ "สินค้าที่สนใจ" ในแผงขวา (ตรวจแล้ว ไม่กระทบแผงคำแนะนำในเอกสารนี้) อยู่ที่ `UX-Design-Spec-2026-10-09-chat-memory.md` · ข้อมูลและ contract: `EXTENSIONS-2026-10-09-chat-memory.md`
+
 ## หน้า: ห้องแชท, คำแนะนำ AI แบบอัตโนมัติ (Typhoon) (`/seller/inbox/[conversationId]`)
 
 อ่านครบแล้ว: ส่วนขยาย 00019 รวมภาคผนวก ก, `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json`, Impeccable `shape` / `operate` / `craft-floor`, ui-guideline README, และโค้ดจริงของ `AiSuggestPanel.tsx` / `ChatThread.tsx` / `BotPausedBanner.tsx`. อ้างบรรทัดตามไฟล์ใน worktree `/Users/craftman/Projects/safepay-typhoon-suggest`.

@@ -268,3 +268,84 @@ Request: `{ anchorMessageId, attempt, feedback: "UP" | "DOWN", reason?: "WRONG_I
 | `TyphoonApiError` | 200 NONE (`TIMEOUT` / `ERROR`) | 502 (ห้ามใส่ body จาก Typhoon) |
 | `SanitizeError` | 200 NONE (`ERROR`) | 500 (สาขา Gemini: คืนสิทธิ์โควตาก่อน) |
 | DB error อื่น | 200 NONE (`ERROR`) — `PATCH` เท่านั้นที่คืน 500 ได้ | 500 |
+
+---
+
+## 10. ความจำของแชท + สินค้าที่สนใจ (extension 2026-10-09)
+
+อ้างอิง: `EXTENSIONS-2026-10-09-chat-memory.md` §10 · type กลาง: `src/lib/chat-memory-types.ts` · route ทั้งหมดอยู่ใต้ `src/app/api/chat/conversations/[id]/`
+
+ทุก endpoint: `force-dynamic` + `Cache-Control: private, no-store, max-age=0, must-revalidate` ทุก response · `sessionUserId()` (ไม่ cast, null → 401) · `shopId` จาก `resolveConversationShopId` เท่านั้น ไม่รับจาก client · ห้องที่ไม่ใช่ของร้านที่เข้าถึงได้ = 404 (ไม่ใช่ 403) · Valibot ใน `validations.ts` · Prisma error อื่น = 500 `{ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }`
+
+### 10.1 `GET .../memory`
+
+อ่าน DB อย่างเดียว ไม่เรียกโมเดล
+
+200:
+```json
+{
+  "memory": { "text": "", "source": "AI|ADMIN", "version": 3, "updatedAt": "ISO", "aiUpdatedAt": "ISO|null", "shared": false, "previousText": "string|null" },
+  "products": [{ "id": "", "productId": "string|null", "name": "", "optionLabel": "สี ครีม · ขนาด L", "state": "ACTIVE|INACTIVE|DELETED", "imageFileId": "string|null" }],
+  "canUseProducts": true,
+  "ai": { "provider": "typhoon|gemini|none", "writes": true, "readsMemory": true, "readsProducts": true, "updating": false, "noteReadByAi": false }
+}
+```
+- `memory = null` เมื่อไม่มีแถวใน cluster · `shared` = แถวจริงมาจากห้องอื่นใน cluster
+- `products` = union ของ cluster ตัดซ้ำ ตัดเหลือ 10 รายการที่ใหม่สุด (P-6)
+- `ai` แทน `aiWrites` ของร่างแรก (มติ Controller 2026-10-09) · `writes = provider==='typhoon'` · `readsMemory`/`readsProducts` = สวิตช์หลัง `getEffectiveAiSetting` · `updating` = มีแถว `MEMORY_UPDATE` `THINKING` อายุ ≤ 30 วิของห้องนี้ · `noteReadByAi = provider==='gemini'`
+- 404 ห้องไม่ใช่ของร้าน
+
+### 10.2 `PUT .../memory`
+
+Request `{ "text": string (≤ 800 หลัง normalize), "expectedVersion": number | null }` (`null` = ยังไม่มีแถว)
+
+| สถานะ | Body | เมื่อ |
+|-------|------|-------|
+| 200 | `{ memory }` (รูปแบบเดียวกับ GET) | บันทึกแล้ว `source='ADMIN'` `version+1` |
+| 400 | `{ error }` | ข้อความยาวเกิน 800 / ไม่ถูกต้อง (`INVALID_TEXT`) |
+| 404 | `{ error }` | ห้องไม่ใช่ของร้าน |
+| 409 | `{ error: "VERSION_CONFLICT", current: { text, version, source, updatedAt } \| null }` | `expectedVersion` ไม่ตรง · `current=null` = ไม่มีแถว (client ถือเป็นว่าง) |
+
+### 10.3 `POST .../memory/refresh`
+
+ข้ามเงื่อนไขจำนวนข้อความและ cooldown แต่ไม่ข้าม sanitize/pacing/PII guard/CAS
+
+| สถานะ | Body | เมื่อ |
+|-------|------|-------|
+| 200 | `{ status: "UPDATED" \| "THINKING" \| "NONE", reason? }` | `OK` → UPDATED · claim แพ้/THINKING → THINKING · outcome อื่น → NONE + `reason` |
+| 400 | `{ error }` | provider ไม่ใช่ `typhoon` (รวม `none`) |
+| 429 | `{ error }` + `Retry-After` | เกิน `checkApiRateLimit` ของ ai-suggest |
+
+### 10.4 `POST .../interested-products`
+
+Request `{ "productId": uuid, "selections"?: [{ "key": string, "value": string }] }` (≤ 10 หัวข้อ) — server ประกอบ `optionLabel` เองด้วย `buildOptionLabel` ตามลำดับ key ของ `Product.attributes` เช่น **"สี ครีม · ขนาด L"** ('' ถ้าไม่เลือก) ไม่รับ `optionLabel` จาก client
+
+| สถานะ | Body | เมื่อ |
+|-------|------|-------|
+| 201 | `{ item }` (`InterestedProductDto`) | แปะแล้ว (เก็บ id + ชื่อ snapshot + ป้ายตัวเลือก ไม่เก็บราคา/สต็อก) |
+| 404 | `{ error }` | ห้องไม่ใช่ของร้าน / ไม่พบสินค้า `{id, shopId}` / สินค้าถูกลบระหว่างนั้น (FK P2003) |
+| 409 | `{ error }` | ซ้ำ (สินค้า+ตัวเลือกเดียวกันในห้อง) |
+| 422 | `{ error }` | ครบ 10 รายการ (ต่อห้อง) หรือ `selections` ไม่อยู่ใน attributes (`INVALID_OPTION`) |
+
+### 10.5 `DELETE .../interested-products/{rowId}`
+
+| สถานะ | เมื่อ |
+|-------|-------|
+| 204 | ลบแล้ว (ตรวจ `{id, shopId}` และห้องใน cluster ที่เข้าถึงได้) |
+| 404 | ไม่ใช่แถวของร้านนี้ |
+
+### 10.6 การเปลี่ยนของ endpoint เดิม
+
+- `POST .../ai-suggest/auto`: หลังตอบ `READY` ของร้านบน Typhoon เรียก `after(() => maybeUpdateMemory(...).catch(() => {}))` — **ไม่เปลี่ยน contract response**; อัปเดตความจำไม่ throw ออกมา
+- `POST .../ai-suggest` (Gemini): ความจำ+สินค้าที่สนใจถูกต่อท้าย `contextBlock` หลัง sanitize ใต้หัวข้อกำกับ ("ไม่ใช่ข้อเท็จจริงยืนยัน") · ไม่แก้ `gemini.ts`
+- `GET .../ai-suggest/auto` ไม่ปนกับแถว `mem:` (กรองด้วย `anchorMessageId` ของข้อความล่าสุด)
+
+### 10.7 Error mapping (service result code → HTTP)
+
+| service / code | HTTP |
+|----------------|------|
+| `saveMemoryByAdmin` `NOT_FOUND` / `INVALID_TEXT` / `VERSION_CONFLICT` | 404 / 400 / 409 |
+| `getMemoryPanel` = `null` | 404 |
+| `addInterestedProduct` `NOT_FOUND`, `PRODUCT_NOT_FOUND` / `DUPLICATE` / `LIMIT_REACHED`, `INVALID_OPTION` | 404 / 409 / 422 |
+| `removeInterestedProduct` `{ok:false}` | 404 |
+| `maybeUpdateMemory` (ใน `after()` / `/refresh`) | ไม่มี HTTP error — outcome ล้วน (`RATE_LIMITED`/`TIMEOUT`/`ERROR` ฯลฯ) |
