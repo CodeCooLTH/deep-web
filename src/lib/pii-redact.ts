@@ -135,7 +135,8 @@ function tokenFor(vault: PiiVault, kind: PiiKind, value: string): string {
 /** ตัวคั่นที่คนใช้แทน "-" ในเบอร์/เลขบัญชี: จุด, en/em dash, non-breaking hyphen, figure dash, minus */
 // ตัวคั่นระหว่างเลข: อักขระใดก็ได้ที่ไม่ใช่ตัวอักษร/ตัวเลข/":" (กันเวลา 14:30) ติดกันไม่เกิน 2 ตัว ("-\n" ขึ้นบรรทัดใหม่)
 // ponytail: "100, 200, 300" (≥9 หลัก) ถูกปิดด้วย — เอียงไปทางปิดเกิน; ถ้าราคารายการโดนบ่อยค่อยจำกัดชนิดตัวคั่น
-const DIGIT_RUN_RE = /\d+(?:[^\p{L}\p{N}:]{1,2}\d+)+/gu
+// ติดกันได้ถึง 3 ตัวเพื่อรับ " - " (081 - 234 - 5678); เวลา "10.30 - 12.30" ไม่ถึง 9 หลักจึงไม่ถูกแตะ
+const DIGIT_RUN_RE = /\d+(?:[^\p{L}\p{N}:]{1,3}\d+)+/gu
 
 /**
  * ทำสำเนาข้อความให้เป็นรูปที่ regex จับได้: เลขไทย/fullwidth → ASCII, ตัดอักขระความกว้างศูนย์,
@@ -172,7 +173,7 @@ const OBF_EMAIL_RE = new RegExp(
 )
 const PROFILE_URL_RE =
   /(?<![A-Za-z0-9.-])(?:https?:\/\/)?(?:www\.|m\.)?(?:facebook\.com|fb\.com|fb\.me|m\.me|line\.me|lin\.ee|instagram\.com|tiktok\.com|twitter\.com|x\.com|t\.me)\/\S*/gi
-const LINE_ID_RE = /(?<![A-Za-z])(?:line\s*id|ไอดีไลน์|ไลน์\s*ไอดี|ไลน์|line)\s*[:：=]?\s*@?[A-Za-z0-9._-]{3,}/gi
+const LINE_ID_RE = /(?<![A-Za-z])(?:line\s*id|ไอดีไลน์|ไลน์\s*ไอดี|ไลน์\s*id|ไลน์|line|(?:ig|instagram|tiktok|tt|fb|facebook)(?![A-Za-z]))\s*[:：=]?\s*@?[A-Za-z0-9._-]{3,}/gi
 const HANDLE_RE = /(?<![\w@/])@[A-Za-z0-9._]{3,}/g
 /** `ชื่อ`/`ชื่อผู้รับ` ตามด้วยช่องว่างหรือ : แล้วค่า — ปิดทั้งที่เหลือของบรรทัด ("ชื่อสินค้า" ไม่โดนเพราะไม่มีช่องว่างคั่น) */
 const NAME_RE = /(ชื่อ(?:ผู้รับ)?(?:\s*[:：]\s*|[ \t]+))([^\n]+)/g
