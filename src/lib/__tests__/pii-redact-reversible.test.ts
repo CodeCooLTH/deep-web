@@ -4,7 +4,7 @@ import { createPiiVault, redactPii, redactPiiReversible, restorePii } from '../p
 // CORPUS ใช้เฉพาะรูปแบบที่ redactPii เดิมรองรับ — ฝั่ง reversible ตั้งใจเข้มกว่า (normalize เลขไทย/ตัวคั่น, ที่อยู่ไม่มี zip,
 // เลขยาว ≥9 หลัก, โซเชียล/อีเมลอำพราง) จึงห้ามเอารูปแบบเหล่านั้นมาเทียบ parity · รูปแบบเข้มดูใน ai-suggest-sanitize.test.ts
 const CORPUS = [
-  'โทร 081-234-5678 ส่งที่ ซ.5 ต.บางนา 10260',
+  // (ย้ายออก: บรรทัดเดียวปนข้อความอื่น ฝั่ง reversible ปิดเฉพาะช่วงที่อยู่ ตั้งใจต่างจาก redactPii — ดูเทสท้ายไฟล์)
   'เบอร์ +66 81 234 5678 ครับ',
   'บัตร 1-2345-67890-12-3 และอีเมล a.b@test.co.th',
   'โอนบัญชี 1234567890123 หรือ 0123456789',
@@ -119,3 +119,27 @@ describe('redactPiiReversible: security round 2 (N1/N2/N4/N6)', () => {
     },
   )
 })
+
+describe('redactPiiReversible: ที่อยู่ในบรรทัดเดียวกับคำสั่งซื้อ', () => {
+  const red = (t: string) => redactPiiReversible(t, createPiiVault()).text
+
+  it.each([
+    ['สั่งเสื้อ 2 ตัวค่ะ ส่งที่ 12/3 หมู่ 5 ต.บางพลี อ.บางพลี จ.สมุทรปราการ 10540 โทร 081-234-5678',
+      'สั่งเสื้อ 2 ตัวค่ะ ส่งที่ [ที่อยู่#1] โทร [เบอร์โทร#1]'],
+    ['สั่งเสื้อ 2 ตัวค่ะ ส่งที่ 12/3 หมู่ 5 ต.บางพลี อ.บางพลี จ.สมุทรปราการ โทร 081-234-5678',
+      'สั่งเสื้อ 2 ตัวค่ะ ส่งที่ [ที่อยู่#1] โทร [เบอร์โทร#1]'],
+    ['ส่งที่ 12/3 หมู่ 5 ต.บางพลี อ.บางพลี จ.สมุทรปราการ 10540 เอาสีดำนะคะ',
+      'ส่งที่ [ที่อยู่#1] เอาสีดำนะคะ'],
+  ])('%j', (input, expected) => {
+    const vault = createPiiVault()
+    const r = redactPiiReversible(input, vault)
+    expect(r.text).toBe(expected)
+    expect(restorePii(r.text, vault).text).toBe(normalizeSame(input))
+  })
+
+  it('หาจุดจบไม่ได้ → ปิดทั้งบรรทัด', () => {
+    expect(red('สั่ง 2 ตัว ส่งที่ 12/3 หมู่ 5')).toBe('[ที่อยู่#1]')
+  })
+})
+
+const normalizeSame = (s: string) => s

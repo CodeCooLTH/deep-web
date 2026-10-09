@@ -193,6 +193,32 @@ const isAddressLine = (bare: string) =>
   HOUSE_NO_RE.test(bare) ||
   ADMIN_UNIT_RES.filter((r) => r.test(bare)).length >= 2
 
+// จุดเริ่มที่อยู่: บ้านเลขที่ 12/3 · คำบอกตำแหน่งที่ตามด้วยเลข · หรือหน่วยปกครอง (ต./อ./จ. …) ตัวแรก
+const ADDR_START_RE =
+  /ที่อยู่|(?<![\d/])\d{1,4}\/\d{1,4}(?![\d/])|(?:บ้านเลขที่|เลขที่|หมู่บ้าน|หมู่|ซอย|ถนน|(?<![ก-ฮ])[มซ]\.)\s*\d|(?<![ก-ฮ])[ตอจ]\.(?![ก-ฮ]{1,2}\.)|ตำบล|แขวง|อำเภอ|เขต|จังหวัด|กทม/g
+// จุดจบที่อยู่: รหัสไปรษณีย์ หรือ จังหวัด+ชื่อ / กทม / กรุงเทพ — เอาตัวท้ายสุดที่เจอ
+const ADDR_END_RE =
+  /(?<!\d)\d{5}(?!\d)|(?:(?<![ก-ฮ])จ\.|จังหวัด)\s*[ก-๛]+|กรุงเทพ(?:มหานคร|ฯ)?|กทม\.?/g
+
+/**
+ * บรรทัดเดียวที่มีที่อยู่ปนกับข้อความอื่น ("สั่งเสื้อ 2 ตัว ส่งที่ 12/3 … 10540 โทร …") → ปิดเฉพาะช่วงที่อยู่
+ * หาขอบเขตไม่ได้ (ไม่มีจุดจบ) → คืน null ให้ปิดทั้งบรรทัดเหมือนเดิม (fail-safe)
+ */
+function narrowAddressSpan(line: string): { before: string; addr: string; after: string } | null {
+  ADDR_START_RE.lastIndex = 0
+  const m = ADDR_START_RE.exec(line)
+  if (!m) return null
+  // ถอยไปเอาเลขบ้านที่อยู่ติดหน้าคำบอกตำแหน่ง ("12 ซอย…")
+  const pre = line.slice(0, m.index).match(/\d[\d/]*\s*$/)
+  const start = pre ? m.index - pre[0].length : m.index
+  let end = -1
+  for (const e of line.matchAll(ADDR_END_RE)) {
+    if (e.index! >= start) end = Math.max(end, e.index! + e[0].length)
+  }
+  if (end < 0) return null
+  return { before: line.slice(0, start), addr: line.slice(start, end), after: line.slice(end) }
+}
+
 /**
  * ปิดบังแบบคืนค่าได้ — ใช้ regex ตัวเดียวกับ redactPii แต่เข้มกว่า (normalize ก่อน, เบอร์/บัญชี/บัตรมีตัวคั่น,
  * อีเมล/โซเชียลอำพราง, ที่อยู่ที่ไม่มีรหัสไปรษณีย์, ด่านเลขยาวสุดท้าย) · parity test ใช้เฉพาะ corpus ที่ redactPii เดิมรองรับ
@@ -239,7 +265,14 @@ export function redactPiiReversible(input: string, vault: PiiVault): RedactResul
     if (!group) return
     found.add('ADDRESS')
     // บรรทัดอาจมีป้ายเบอร์/อีเมลที่แทนไปแล้ว — เก็บค่าจริงก่อน ไม่งั้น restore ผ่านเดียวจะเหลือป้ายซ้อน
-    out.push(tokenFor(vault, 'ADDRESS', restorePii(group.join('\n'), vault).text))
+    const full = group.join('\n')
+    const span = group.length === 1 ? narrowAddressSpan(group[0]) : null
+    if (span) {
+      // ส่วนก่อน/หลังที่อยู่อยู่ในรูปป้ายแล้ว ไม่ต้อง restore; เฉพาะช่วงที่อยู่ที่ต้องเก็บค่าจริง
+      out.push(span.before + tokenFor(vault, 'ADDRESS', restorePii(span.addr, vault).text) + span.after)
+    } else {
+      out.push(tokenFor(vault, 'ADDRESS', restorePii(full, vault).text))
+    }
     group = null
   }
   for (const line of lines) {

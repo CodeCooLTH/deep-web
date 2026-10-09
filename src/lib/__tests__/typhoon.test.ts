@@ -142,3 +142,12 @@ describe('กันลอก: กฎความปลอดภัยต้อ�
     expect(prompt).toContain('[เบอร์โทร#1]')
   })
 })
+
+describe('กติกาห้ามยืนยันสต็อกเอง', () => {
+  it('อยู่ใน prompt ทั้งช่วงกติกาและช่วงปิดท้าย', async () => {
+    const { NO_INVENTED_FACTS_RULE } = await import('@/lib/reply-suggest-prompt')
+    const p = buildTyphoonSystemPrompt({ shopName: 'ร้านทดสอบ' } as never)
+    expect(p.split(NO_INVENTED_FACTS_RULE).length - 1).toBe(2)
+    expect(NO_INVENTED_FACTS_RULE).toContain('ขอเช็กให้ก่อน')
+  })
+})
