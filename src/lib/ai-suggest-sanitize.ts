@@ -23,6 +23,9 @@ export interface SanitizeInput {
   knownLiterals?: string[]
   /** ONLINE_SALES | SERVICE_QUEUE | LODGING — ค่าจาก enum ของระบบ ไม่ใช่ข้อความอิสระ */
   vertical?: string
+  /** 00019-ext-mem: ความจำแชท + สินค้าที่สนใจ (G0 ยังไม่ scrub — T2 ทำ) */
+  memory?: { text: string; updatedDay: string } | null
+  interestedProducts?: string[]
 }
 
 /**
@@ -42,6 +45,8 @@ export interface SanitizeOutput {
   customerNote: string | null
   vault: PiiVault
   foundKinds: PiiKind[]
+  memory: { text: string; updatedDay: string } | null
+  interestedProducts: string[]
 }
 
 const LITERAL_LABEL = '[ข้อมูลลูกค้า]'
@@ -75,7 +80,9 @@ function replaceAllCI(text: string, needles: string[], to: string): string {
 export type SanitizedPayload = SanitizeOutput
 
 /** ctx สำหรับ prompt ประกอบจาก payload ที่ผ่าน sanitize แล้วเท่านั้น */
-export function sanitizedContext(p: SanitizedPayload): SuggestContext {
+export function sanitizedContext(
+  p: SanitizedPayload,
+): SuggestContext & { memory?: SanitizeOutput['memory']; interestedProducts?: string[] } {
   return {
     shopName: p.shopName,
     vertical: p.vertical,
@@ -84,6 +91,12 @@ export function sanitizedContext(p: SanitizedPayload): SuggestContext {
     customerName: null,
     customerNote: p.customerNote,
   }
+}
+
+/** stub ของ G0 — T2 ทำจริง: contextBlock + renderMemorySections ต่อท้าย (P-2) */
+export function sanitizedContextForGemini(p: SanitizedPayload): SuggestContext {
+  void p
+  throw new Error('NOT_IMPLEMENTED')
 }
 
 export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'gemini'): SanitizedPayload {
@@ -119,6 +132,8 @@ export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'g
       customerNote: mode === 'typhoon' || !input.customerNote ? null : scrub(input.customerNote),
       vault,
       foundKinds: [...found],
+      memory: null, // G0: ยังไม่ scrub
+      interestedProducts: [] as string[],
     } as SanitizeOutput
     return out
   } catch (e) {
