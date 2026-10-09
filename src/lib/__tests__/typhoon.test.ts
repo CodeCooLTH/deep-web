@@ -151,3 +151,13 @@ describe('กติกาห้ามยืนยันสต็อกเอง'
     expect(NO_INVENTED_FACTS_RULE).toContain('ขอเช็กให้ก่อน')
   })
 })
+
+describe('กติกาห้ามเดาสื่อ + ห้ามเรียกลูกค้าว่า "ลูกค้า"', () => {
+  it('อยู่ใน prompt', async () => {
+    const { NO_GUESS_MEDIA_RULE, ADDRESSING_RULE } = await import('@/lib/reply-suggest-prompt')
+    const p = buildTyphoonSystemPrompt({ shopName: 'ร้านทดสอบ' } as never)
+    expect(p).toContain(NO_GUESS_MEDIA_RULE)
+    expect(p).toContain(ADDRESSING_RULE)
+    expect(NO_GUESS_MEDIA_RULE).toContain('[รูป]')
+  })
+})
