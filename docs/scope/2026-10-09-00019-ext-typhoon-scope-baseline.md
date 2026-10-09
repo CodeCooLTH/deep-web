@@ -138,3 +138,4 @@ phase นี้ SIGNED-OFF ได้เมื่อครบทุกข้อ (
 | 2026-10-09 | S-7/S-8: ตัวปิดบังแบบคืนค่าได้ขยายชนิด NAME/CONTACT/NUMBER + normalize ตัวเลข/ตัวคั่น (`redactPii` เดิมไม่เปลี่ยน) | security review 2 รอบ (H1-H3, N1/N2/N4/N6) · ข้อจำกัดที่ยอมรับ: เบอร์เขียนเป็นคำ/emoji, ชื่อที่ระบบไม่รู้ (R-1) | Controller |
 | 2026-10-09 | S-17: ข้อความใน `/settings/ai` (อยู่ใน `AiSettingForm.tsx`) มีเฉพาะ TH — acceptance "TH/EN" ลดเป็น TH | หน้าเดิมไม่ใช้ i18n ทั้งหน้า การย้ายเข้า useT = refactor นอก scope | Controller |
 | 2026-10-09 | S-13: helper ประกอบชื่อ/literal สำหรับปิดบังใช้ร่วม route เดิม + service (กำลังทำ) | HR16 — นิยามแหล่ง PII สองชุดจะ drift แล้วรั่วเงียบ | Controller |
+| 2026-10-09 | OOS-1 (ความจำของแชท) + OOS-2 (สินค้าที่สนใจ) ถูกรับเข้าเป็น phase แยก 00019-ext-mem — ดู `docs/scope/2026-10-09-00019-ext-mem-scope-baseline.md` | user ขอเพิ่ม + อนุมัติ OQ-M1..M12 | user |
