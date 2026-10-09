@@ -15,7 +15,7 @@ type ExpoMessage = {
   subtitle?: string
   body: string
   data?: Record<string, unknown>
-  sound?: 'default'
+  sound?: string
   /**
    * 'high' = APNs priority 10 / FCM high — ส่งถึงเครื่อง "ทันที" แม้จอล็อกหรือผู้ใช้อยู่แอปอื่น
    *
@@ -42,6 +42,29 @@ export const isExpoToken = (t: string) => t.startsWith('ExponentPushToken') || t
 
 /** ผู้รับหนึ่งเครื่อง — สตริงเปล่า = ไม่รู้ platform (ถือเป็น iOS ดู composeForPlatform) */
 export type PushTarget = string | { token: string; platform?: string | null }
+
+/**
+ * เสียงแจ้งเตือน — ชุดที่แอปผู้ขายรู้จัก (2026-10-09 · user เลือก: แอปผู้ขาย · เฉพาะแชทใหม่)
+ *
+ * - `default` = เสียงมาตรฐานของเครื่อง · Android channel `default`
+ * - `chat`    = เสียงแชทเดียวกับที่ดังในเว็บ (`public/sounds/sound-new-chat-msg.m4a`) แปลงเป็น
+ *               `new_chat_message.wav` แล้วฝังในแอปผู้ขาย (deep-seller-app `assets/sounds/`)
+ *               · iOS เล่นตามชื่อไฟล์ใน payload · Android เล่นตาม channel `chat` ที่แอปสร้างไว้
+ *
+ * 🛑 ชื่อไฟล์และชื่อ channel ต้องตรงกับแอปผู้ขายทุกตัวอักษร (`src/core/push/notifications.ts`)
+ * 🛑 เครื่องที่ยังไม่อัปเดตแอป: iOS หาไฟล์ไม่เจอ → เล่นเสียงมาตรฐานแทน (ไม่พัง)
+ * 🛑 `PushToken` ไม่ได้เก็บว่าเป็นแอปผู้ขายหรือผู้ซื้อ ⇒ ผู้ขายที่ล็อกอินแอปผู้ซื้อด้วย จะได้ payload นี้ที่แอปผู้ซื้อด้วย
+ *    iOS: แอปผู้ซื้อไม่มีไฟล์ → เสียงมาตรฐาน · Android: แอปผู้ซื้อต้องมี channel `chat` ก่อนปล่อย Android
+ *    (ทั้งสองแอปยังไม่ปล่อย Android ณ วันที่เขียน)
+ */
+export type PushSound = 'default' | 'chat'
+const PUSH_SOUNDS: Record<PushSound, { sound: string; channelId: string }> = {
+  default: { sound: 'default', channelId: 'default' },
+  chat: { sound: 'new_chat_message.wav', channelId: 'chat' },
+}
+export function resolvePushSound(sound: PushSound | undefined): { sound: string; channelId: string } {
+  return PUSH_SOUNDS[sound ?? 'default']
+}
 
 type PushLines = { title: string; subtitle?: string; body: string }
 
@@ -71,8 +94,9 @@ export async function sendExpoPushWithStatus(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string },
+  options?: { subtitle?: string; sound?: PushSound },
 ): Promise<{ invalid: string[]; delivered: boolean }> {
+  const tone = resolvePushSound(options?.sound)
   const targets = tokens
     .map((t) => (typeof t === 'string' ? { token: t, platform: null } : t))
     .filter((t) => isExpoToken(t.token))
@@ -87,9 +111,9 @@ export async function sendExpoPushWithStatus(
       subtitle: lines.subtitle,
       body: lines.body,
       data,
-      sound: 'default',
+      sound: tone.sound,
       priority: 'high',
-      channelId: 'default',
+      channelId: tone.channelId,
     }
   })
   try {
@@ -119,7 +143,7 @@ export async function sendExpoPush(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string },
+  options?: { subtitle?: string; sound?: PushSound },
 ): Promise<string[]> {
   return (await sendExpoPushWithStatus(tokens, title, body, data, options)).invalid
 }
