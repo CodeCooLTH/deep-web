@@ -1289,6 +1289,21 @@ export const AiSuggestRequestSchema = v.object({
   confirmUseCredit: v.optional(v.boolean(), false),
 });
 
+// 00019-ext Typhoon auto-suggest — body ของ /ai-suggest/auto (ค่า enum ต้อง sync ai-suggest-auto-types.ts)
+export const AutoSuggestPostSchema = v.object({
+  anchorMessageId: v.pipe(v.string(), v.uuid("anchorMessageId ไม่ถูกต้อง")),
+  manual: v.boolean(),
+  trigger: v.optional(v.picklist(["AUTO_NEW_MESSAGE", "AUTO_OPEN"])),
+});
+
+export const AutoSuggestPatchSchema = v.object({
+  anchorMessageId: v.pipe(v.string(), v.uuid("anchorMessageId ไม่ถูกต้อง")),
+  attempt: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  feedback: v.picklist(["UP", "DOWN"]),
+  reason: v.optional(v.picklist(["WRONG_INFO", "OFF_TOPIC", "BAD_TONE", "LENGTH"])),
+  note: v.optional(v.pipe(v.string(), v.maxLength(120, "หมายเหตุต้องไม่เกิน 120 ตัวอักษร"))),
+});
+
 export const ShopAiSettingSchema = v.object({
   instruction: v.pipe(v.string(), v.maxLength(2000, "คำสั่งประจำร้านต้องไม่เกิน 2,000 ตัวอักษร")),
   includeProductContext: v.optional(v.boolean()),
