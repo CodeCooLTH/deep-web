@@ -1480,6 +1480,46 @@ erDiagram
 
 **Constraint / Index:** `@@unique([conversationId, anchorMessageId, attempt])` (claim แบบ idempotent — ใช้ `createMany({skipDuplicates:true})` เพื่อไม่ให้เกิด ERROR ใน log Postgres) · `@@index([createdAt])` · `@@index([shopId, createdAt])` · `@@index([conversationId, createdAt])` · `@@index([firedAt])` · `@@index([shopId, firedAt])`
 
+**ส่วนขยาย 00019-ext-mem:** ไม่เปลี่ยนโครง — แถวอัปเดตความจำใช้ `trigger='MEMORY_UPDATE'`, `anchorMessageId='mem:<id ข้อความล่าสุดที่รวมในฐาน>'`, `suggestion=null` และ `outcome` ชุด `MEMORY_UPDATE_OUTCOMES` (§8.13) · นับในตัวนับ pacing เดียวกัน (`provider='typhoon'`, `firedAt`) แต่สิทธิ์ต่ำกว่าคำแนะนำ · `getLatestAutoSuggest` กรองด้วย `anchorMessageId` ข้อความล่าสุดจึงไม่ปนกับแถวนี้
+
+### 6.69 `ChatMemory` — ความจำของแชท (feature 00019-ext-mem)
+
+> เอกสารต้นทาง: `EXTENSIONS-2026-10-09-chat-memory.md` §9 · ตารางใหม่ additive ไม่แตะตารางเดิม ไม่ backfill (เพิ่มแค่ relation back-reference ฝั่ง `Conversation`) · สถานะ: **สเปก** — ตรวจ `prisma/schema.prisma` ก่อนอ้างอิง
+> 1 แถวต่อห้อง · ข้อความย่อหน้าเดียว ≤ 800 ตัวอักษร ที่ผ่านกฎไม่มี PII (BR-MEM-03) — เป็นข้อยกเว้นของ BR-AIT-09 "ไม่เก็บ transcript" (เป็นสรุป ไม่ใช่ transcript) · 🛑 **ห้ามเก็บที่ `Customer`** (ตารางข้ามร้าน) — ใช้ร่วมในกลุ่มลูกค้าเดียวกันด้วยการอ่านหา "แถวจริง" (`updatedAt` ใหม่สุดในห้องของ cluster ผ่าน `expandClusters` ของ `follow-up-scope.ts` เท่านั้น · ไม่ข้ามร้าน)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `shopId` | String | ทุก query มีใน WHERE |
+| `conversationId` | String **@unique** | FK → `Conversation` `onDelete: Cascade` |
+| `text` | Text default `''` | ≤ `CHAT_MEMORY_MAX` (800) บังคับที่ Valibot + service |
+| `source` | String default `'AI'` | `AI` \| `ADMIN` (ผู้เขียนล่าสุด · §8.13) |
+| `version` | Int default 1 | compare-and-set (`updateMany where {id, shopId, version}`) — แอดมินชนะ AI เสมอ |
+| `basedOnMessageId` | String? | ข้อความล่าสุดที่รวมในความจำแล้ว (ฐานรอบถัดไป) |
+| `previousText` | Text? | ข้อความก่อนหน้า 1 เวอร์ชัน (กู้คืน) |
+| `updatedByUserId` | String? | ผู้แก้ล่าสุดเมื่อ `source='ADMIN'` |
+| `aiUpdatedAt` | DateTime? | ฐาน cooldown 120 วินาที |
+| `createdAt` / `updatedAt` | DateTime | `updatedAt` ใช้เลือก "แถวจริง" |
+
+**Index:** `@@index([shopId, updatedAt])`
+
+### 6.70 `ChatInterestedProduct` — สินค้าที่สนใจที่แอดมินแปะกับห้อง (feature 00019-ext-mem)
+
+> แปะได้ ≤ `INTERESTED_PRODUCT_MAX` (10) ต่อห้อง · **ไม่เก็บราคา/สต็อก** (ดึงสดตอนใช้) · ตัวเลือกเป็นป้ายจาก `Product.attributes` ไม่ใช่ variant (ระบบไม่มี variant/สต็อกต่อตัวเลือก) · สถานะ: **สเปก**
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `shopId` | String | |
+| `conversationId` | String | FK → `Conversation` `onDelete: Cascade` |
+| `productId` | String? | FK → `Product` `onDelete: SetNull` (สินค้าถูกลบ → แสดง snapshot + สถานะ `DELETED`) |
+| `productName` | String | snapshot ตอนแปะ |
+| `optionLabel` | String default `''` | เช่น `"สีครีม · L"` · `''` = ไม่มีตัวเลือก |
+| `createdByUserId` | String | |
+| `createdAt` | DateTime default now | |
+
+**Constraint / Index:** `@@unique([conversationId, productId, optionLabel])` (กันแปะซ้ำ · `productId` null หลังสินค้าถูกลบ → NULL ไม่ชนกัน ยอมรับ) · `@@index([shopId, conversationId])`
+
 ---
 
 ## §7 API Reference
@@ -2185,6 +2225,50 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 - ร้านนอก allow-list (Gemini): ยังเป็น 3 ตัวเลือก + โควตา 10/วัน + 402 `QUOTA_EXCEEDED` เหมือนเดิม **ยกเว้น** ข้อความลูกค้า/ชื่อ/`customerNote` ผ่าน `sanitizeForExternalAi(...,'gemini')` ก่อนส่ง Gemini และ `restorePii` ก่อนส่งกลับ
 - ร้านใน allow-list (Typhoon): ไม่เรียก provider เอง — ส่งต่อ `requestAutoSuggest` (anchor = ข้อความล่าสุดของห้อง, `manual:true`) → 200 `{ suggestions:[ข้อความเดียว], usedCredit:false, freeRemaining:null, cost:null }` ไม่นับโควตา/ไม่หักเครดิต/ไม่เขียน `AiSuggestUsageEvent` · ข้อความล่าสุดไม่ใช่ลูกค้า → 400 · ไม่มีกุญแจ 503 · Typhoon 429 → 429 + `Retry-After: 5` · Typhoon ล้ม 502 · sanitize/DB ล้ม 500
 
+### 7.26 ความจำของแชท + สินค้าที่สนใจ (`/api/chat/conversations/[id]/memory`, `…/interested-products`) — feature 00019-ext-mem
+
+> เอกสารต้นทาง: `EXTENSIONS-2026-10-09-chat-memory.md` §10 + แผน `docs/superpowers/plans/2026-10-09-00019-ext-mem-plan.md` §2.2 (contract), §6 (error mapping) · types `src/lib/chat-memory-types.ts` · สถานะ: **สเปก/contract** (โค้ดตามแผน — ตรวจ route จริงก่อนอ้างอิง)
+> Auth/Cache: เหมือน §7.25 (`sessionUserId()`, `resolveConversationShopId`, 404 ไม่ leak, `Cache-Control: private, no-store, max-age=0, must-revalidate`, `force-dynamic`) · POST/PUT/DELETE ผ่าน CSRF guard · service ใช้ result code ล้วน ไม่ throw ข้ามไฟล์
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/chat/conversations/[id]/memory` | อ่านความจำ (แถวจริงของ cluster) + สินค้าที่สนใจ (union ของ cluster) — อ่าน DB อย่างเดียว ไม่เรียกโมเดล |
+| PUT | `…/memory` | แอดมินแก้ความจำทั้งก้อน (CAS ด้วย `expectedVersion`) |
+| POST | `…/memory/refresh` | กดอัปเดตความจำด้วยมือ (ข้ามเงื่อนไขจำนวนข้อความ/cooldown ไม่ข้าม sanitize/pacing/PII guard/CAS) |
+| POST | `…/interested-products` | แปะสินค้า (เขียนที่ห้องปัจจุบัน) |
+| DELETE | `…/interested-products/[rowId]` | ลบสินค้าที่แปะ |
+
+**GET** → 200 `ChatMemoryGetResponse`
+`{ memory: { text, source:'AI'|'ADMIN', version, updatedAt, aiUpdatedAt|null, shared, previousText|null } | null, products: [{ id, productId|null, name, optionLabel, state:'ACTIVE'|'INACTIVE'|'DELETED', imageFileId|null }], canUseProducts, ai: { provider:'typhoon'|'gemini'|'none', writes, readsMemory, readsProducts, updating, noteReadByAi } }`
+- `shared` = แถวจริงมาจากห้องอื่นใน cluster · `canUseProducts=false` เมื่อร้านไม่มีสินค้า (UI ซ่อนส่วนสินค้า) · `ai.writes` = `provider==='typhoon'` · `readsMemory`/`readsProducts` = `includeCustomerContext`/`includeProductContext` หลัง `getEffectiveAiSetting` · `updating` = มีแถว `MEMORY_UPDATE` `THINKING` อายุ ≤ 30 วินาที · `noteReadByAi` = `provider==='gemini'` · `previousText` ส่งเฉพาะ GET/PUT (ไม่ลง log)
+- 404 ห้องไม่ใช่ของร้านที่เข้าถึงได้
+
+**PUT** body `{ text: string, expectedVersion: number | null }` (`null` = ยังไม่มีแถว · `text` normalize แล้ว ≤ 800 ตัวอักษร บรรทัดใหม่ยุบเป็นช่องว่าง · ว่าง = ล้าง ไม่ลบแถว)
+
+| สถานะ | Body | เมื่อ |
+|---|---|---|
+| 200 | `{ memory: ChatMemoryDto }` | สำเร็จ → `source='ADMIN'`, `version+1`, `previousText`=ข้อความก่อนหน้า (ข้อความ normalize แล้วเท่าเดิม = ไม่เขียน ไม่ bump version) |
+| 400 | `{ error }` | เกิน 800 / body ไม่ถูกต้อง (`INVALID_TEXT`) |
+| 404 | `{ error }` | ห้องไม่ใช่ของร้าน |
+| 409 | `{ error:'VERSION_CONFLICT', current: { text, version, source, updatedAt } \| null }` | `expectedVersion` ไม่ตรง · `current=null` = ไม่มีแถว (client ถือว่าว่าง) |
+
+**POST `…/memory/refresh`** → 200 `{ status:'UPDATED'|'THINKING'|'NONE', reason?: MemoryUpdateOutcome }` (OK→`UPDATED` · claim แพ้/กำลังทำ→`THINKING` · outcome อื่น→`NONE`+`reason`) · 400 ร้านไม่ได้ใช้ Typhoon (`provider !== 'typhoon'` รวม `none`) · 429 + `Retry-After` เกิน `checkApiRateLimit` · 404
+
+**POST `…/interested-products`** body `{ productId: uuid, selections?: [{ key, value }] }` (≤ `SELECTIONS_MAX`=10 หัวข้อ · `key/value` ต้องอยู่ใน `Product.attributes` ของสินค้านั้น หัวข้อละ 1 ค่า → ประกอบเป็น `optionLabel` เช่น `"สีครีม · L"` · เก็บแค่ id+ชื่อ snapshot+ป้ายตัวเลือก ไม่เก็บราคา/สต็อก)
+
+| สถานะ | Body | เมื่อ |
+|---|---|---|
+| 201 | `{ item: InterestedProductDto }` | แปะสำเร็จ |
+| 404 | `{ error }` | ห้องไม่ใช่ของร้าน (`NOT_FOUND`) หรือสินค้าไม่ใช่ `{id, shopId}` / ถูกลบระหว่างนั้น (`PRODUCT_NOT_FOUND`) |
+| 409 | `{ error }` | ซ้ำ (สินค้า+ตัวเลือกเดียวกันในห้อง · `DUPLICATE`) |
+| 422 | `{ error }` | ครบ 10 รายการ (`LIMIT_REACHED`) หรือตัวเลือกไม่อยู่ใน attributes (`INVALID_OPTION`) |
+
+**DELETE `…/interested-products/[rowId]`** → 204 · 404 ไม่ใช่แถวของร้านนี้ (ตรวจ `{id, shopId}`)
+
+ทุก route: Prisma error อื่น → 500 `{ error }` (log เฉพาะชนิด error ไม่ log เนื้อความจำ/ชื่อสินค้า)
+
+**เปลี่ยน endpoint เดิม:** `POST …/ai-suggest/auto` ต่อ `after()` เรียก `maybeUpdateMemory` หลัง READY (response ไม่เปลี่ยน · callback ต้อง `.catch(()=>{})`) · `POST …/ai-suggest` (Gemini) ต่อความจำ+สินค้าเข้า `contextBlock` · ความจำ/สินค้าเข้า prompt ทุก trigger ผ่าน `sanitizeForExternalAi` (ความจำ/สินค้าล้ม = ตัดหัวข้อนั้น ทำคำแนะนำต่อ)
+
 ---
 
 ## §8 Enums & Constants
@@ -2615,6 +2699,11 @@ HTTP ตามตาราง §7.21
 | `AutoSuggestFeedback` (2) | `UP` · `DOWN` |
 | `AutoSuggestFeedbackReason` (4) | `WRONG_INFO` · `OFF_TOPIC` · `BAD_TONE` · `LENGTH` |
 | `AutoSuggestProvider` (`SuggestProvider`) | `typhoon` · `gemini` · `none` (`none` = อยู่ใน allow-list แต่ไม่มี `TYPHOON_API_KEY` — ห้ามถอยไป Gemini) |
+| `MEMORY_UPDATE_TRIGGER` (`AiSuggestRun.trigger` เพิ่ม 1 ค่า · feature 00019-ext-mem) | `MEMORY_UPDATE` — **แยกจาก** `AUTO_SUGGEST_TRIGGERS` (ชุดที่ client ส่งได้) ห้ามเพิ่มเข้าชุดนั้น · `claimRun` รับ `AutoSuggestTrigger \| 'MEMORY_UPDATE'` · แถวนี้ `anchorMessageId='mem:<id>'`, `suggestion=null` เสมอ, OK → `status READY` อื่น ๆ → `NONE` |
+| `MemoryUpdateOutcome` (`AiSuggestRun.outcome` ของแถว `MEMORY_UPDATE` · 11 ค่า · `src/lib/ai-suggest-auto-types.ts` `MEMORY_UPDATE_OUTCOMES`) | `OK` · `SUPERSEDED` · `REJECTED_PII` · `REJECTED_FORMAT` · `REJECTED_SHRINK` · `SKIPPED_BASE_HAS_PII` · `SKIPPED_COOLDOWN` · `SKIPPED_FEW_MESSAGES` · `RATE_LIMITED` · `TIMEOUT` · `ERROR` — **ห้ามเพิ่มเข้า `AUTO_SUGGEST_OUTCOMES`** (`AutoSuggestReason` derive จากชุดนั้นและถูกส่งถึง client) |
+| `ChatMemorySource` (`ChatMemory.source`) | `AI` · `ADMIN` (ผู้เขียนล่าสุด) |
+| `InterestedProductState` (คำนวณตอนอ่าน ไม่เก็บใน DB · `src/lib/chat-memory-types.ts`) | `ACTIVE` (สินค้า `isActive`) · `INACTIVE` (ปิดขาย) · `DELETED` (`productId` เป็น null หลัง FK SetNull) |
+| ค่าคงที่ความจำ (`src/lib/chat-memory-types.ts`) | `CHAT_MEMORY_MAX=800` · `INTERESTED_PRODUCT_MAX=10` · `SELECTIONS_MAX=10` · `MEMORY_AI_MIN_NEW_MESSAGES=3` · `MEMORY_AI_FIRST_MIN_MESSAGES=4` (+ลูกค้า ≥ `MEMORY_AI_FIRST_MIN_BUYER=2`) · `MEMORY_AI_COOLDOWN_MS=120000` · `MEMORY_AI_WINDOW=40` · `MEMORY_RPM_SHARE=0.7` · `MEMORY_SLOT_WAIT_MS=2000` · `MEMORY_SHRINK_RATIO=0.5` (ฐาน ≥ `MEMORY_SHRINK_BASE_MIN=100`) |
 | `AutoSuggestReason` (ฝั่ง client · ใน response `NONE`) | outcome ทุกค่าที่ไม่ใช่ `OK` + `NO_RUN` (ยังไม่มีแถวของ anchor นี้) · `STALE_ANCHOR` (anchor ไม่ใช่ข้อความล่าสุดของห้อง) · `NOT_CONFIGURED` (อยู่ใน allow-list แต่ไม่มีกุญแจ) · `NOT_ENABLED` (ร้านใช้ Gemini) |
 
 **ค่าคงที่:** `AUTO_SUGGEST_NOTE_MAX = 120` · ตัดผล ≤3 ประโยค/≤400 ตัวอักษร (`clampSuggestion`) · Typhoon timeout 8 วินาที ไม่ retry (`TYPHOON_TIMEOUT_MS`) · รอคิว pacing ≤5 วินาที (รอบละ 250 ms) แล้วทิ้ง `RATE_LIMITED` · pacing `AI_SUGGEST_RPS` 3 / `AI_SUGGEST_RPM` 100 / ต่อร้าน `floor(RPM/2)` · `THINKING` อายุ >30 วินาที ยึดต่อได้ · `SKIPPED_BOT` = มี `AutoReplyJob` ของ anchor สถานะ `PENDING`/`PROCESSING` และ `updatedAt` ภายใน 5 นาที · `manual` ≤15 ครั้ง/นาที/ผู้ใช้
