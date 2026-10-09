@@ -54,9 +54,11 @@ type Props = {
   isPaidPlan: boolean
   /** ร้าน non-paid ที่เคยสมัครแล้วแต่ subscription ถูกล็อกจาก renew ล้มเหลว — ใช้เลือกข้อความ badge */
   subscriptionLapsed: boolean
+  /** ร้านนี้ใช้ผู้ให้บริการที่ไม่รองรับสื่อ (ไม่ใช่ Gemini) — FR-AIT-18; คำนวณที่ server (provider เป็น server-only) */
+  mediaUnsupported?: boolean
 }
 
-export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed }: Props) {
+export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed, mediaUnsupported = false }: Props) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
   const router = useRouter()
@@ -246,6 +248,11 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
             <span className="text-warning mt-1 block text-xs">
               เปิดแล้วไฟล์จะถูกส่งเข้าระบบ AI ทั้งไฟล์ — ถ้าในรูปหรือเสียงมีเบอร์โทร/ที่อยู่ AI จะเห็นด้วย
             </span>
+            {mediaUnsupported && (
+              <span className="text-default-500 mt-1 block text-xs">
+                ผู้ช่วยตอบอัตโนมัติของร้านนี้ไม่ดูรูปและไฟล์แนบ เพื่อไม่ส่งข้อมูลส่วนตัวของลูกค้าออกนอกระบบ
+              </span>
+            )}
           </span>
           <input
             type="checkbox"
