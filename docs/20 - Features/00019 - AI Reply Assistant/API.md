@@ -51,7 +51,8 @@ related: ["[[SDS]]", "[[SRS]]", "[[BRD]]", "[[DATABASE]]"]
 |--------|------|----------|
 | GET | `/api/shops/ai-settings` | อ่านการตั้งค่า AI ของร้านที่ active |
 | PUT | `/api/shops/ai-settings` | บันทึกการตั้งค่า AI ของร้านที่ active |
-| POST | `/api/chat/conversations/{id}/ai-suggest` | ขอร่างคำตอบ 3 แบบ (มีอยู่แล้ว — contract ไม่เปลี่ยน) |
+| POST | `/api/chat/conversations/{id}/ai-suggest` | ขอร่างคำตอบ 3 แบบ (มีอยู่แล้ว — contract ไม่เปลี่ยน; ร้านใน allow-list Typhoon ดู §9) |
+| POST / GET / PATCH | `/api/chat/conversations/{id}/ai-suggest/auto` | (extension 2026-10-09) คำแนะนำ 1 ข้อด้วย Typhoon — ดู §9 |
 
 ---
 
@@ -203,3 +204,67 @@ sequenceDiagram
 มี endpoint ใหม่เพียงคู่เดียว (`GET`/`PUT /api/shops/ai-settings`) และ endpoint เดิมของการขอร่างไม่เปลี่ยน contract ภายนอกเลย ทำให้ฝั่ง client ของแผง AI ไม่ต้องแก้เพื่อรองรับฟีเจอร์นี้ จุดที่ต้องระวังที่สุดคือ `shopId` ต้อง derive จาก session ทุก endpoint และสิทธิ์เขียนต้องตรวจฝั่งเซิร์ฟเวอร์เสมอ ไม่พึ่ง `canEdit` ที่ส่งไปให้ UI
 
 schema ที่รองรับ contract นี้ดู [[DATABASE]] — ชุดทดสอบดู `Tests/00001-ai-shop-context.md`
+
+---
+
+## 9. Typhoon auto-suggest (extension 2026-10-09)
+
+อ้างอิง: `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` · type กลางของ contract: `src/lib/ai-suggest-auto-types.ts`
+
+### 9.1 `POST/GET/PATCH /api/chat/conversations/{id}/ai-suggest/auto`
+
+ทุก response: `Cache-Control: private, no-store, max-age=0, must-revalidate` (+ `force-dynamic`)
+สิทธิ์: NextAuth session · `shopId` มาจากเธรดเท่านั้น (`resolveConversationShopId`) · เธรดของร้านที่เข้าถึงไม่ได้ = 404
+
+#### POST
+
+Request: `{ "anchorMessageId": "<uuid>", "manual": false, "trigger": "AUTO_NEW_MESSAGE" | "AUTO_OPEN" }` — `trigger` ไม่บังคับ · `manual=true` จะบันทึกเป็น `MANUAL` เสมอ
+
+| สถานะ | Body | เมื่อ |
+|-------|------|-------|
+| 200 | `{ status: "READY", anchorMessageId, attempt, suggestion, feedback: null \| "UP" \| "DOWN" }` | ได้ผล (ใหม่หรือของเดิม) |
+| 200 | `{ status: "THINKING", anchorMessageId, attempt }` | มีคำขอเดียวกันกำลังทำ → client poll `GET` |
+| 200 | `{ status: "NONE", anchorMessageId, attempt, reason }` | ทิ้งเงียบ/ข้าม · `reason` ∈ `RATE_LIMITED`, `TIMEOUT`, `ERROR`, `UNRESOLVED_TOKEN`, `SKIPPED_*`, `STALE_ANCHOR`, `NOT_CONFIGURED` |
+| 400 | `{ error }` | body ไม่ถูกต้อง หรือ anchor ไม่ใช่ข้อความของห้องนี้ |
+| 401 | `{ error }` | ไม่ได้ล็อกอิน |
+| 404 | `{ error }` | ไม่ใช่ห้องของร้านที่เข้าถึงได้ |
+| 429 | `{ error }` + `Retry-After: 60` | `manual=true` เกิน 15 ครั้ง/นาที/ผู้ใช้ |
+
+ล้มเหลวทุกแบบที่ไม่ใช่ข้างบนคืน **200 NONE** ไม่ใช่ 5xx (NFR-AIT-Failsoft)
+
+#### GET
+
+อ่าน DB อย่างเดียว ไม่เรียกโมเดล
+Response 200: state แบบเดียวกับ POST + `{ provider: "typhoon" | "gemini" | "none" }`
+- ข้อความล่าสุดของห้องไม่ใช่ลูกค้า → `{ status: "NONE", anchorMessageId: null, attempt: null, reason: "STALE_ANCHOR" }`
+- ยังไม่เคยมีแถวของข้อความลูกค้าล่าสุด → `{ status: "NONE", anchorMessageId, attempt: null, reason: "NO_RUN" }` (client ขอ `POST` ได้)
+- provider ไม่ใช่ `typhoon` → `reason: "NOT_ENABLED"`
+
+#### PATCH (ความเห็น)
+
+Request: `{ anchorMessageId, attempt, feedback: "UP" | "DOWN", reason?: "WRONG_INFO" | "OFF_TOPIC" | "BAD_TONE" | "LENGTH", note?: string (≤ 120) }`
+
+| สถานะ | Body | เมื่อ |
+|-------|------|-------|
+| 200 | `{ ok: true }` | บันทึกแล้ว |
+| 400 | `{ error }` | `feedback`/`reason`/`note` ไม่ถูกต้อง (note ยาว 121 ตัวอักษร = 400) |
+| 404 | `{ error }` | ไม่มีแถว READY ของ (conversationId, shopId, anchorMessageId, attempt) |
+
+`note` ถูกปิดบังด้วย `redactPii` ก่อนบันทึก (BR-AIT-11) · `DOWN` ที่ไม่มี `reason` ก็นับ · กดซ้ำเปลี่ยนค่าได้ · ไม่เรียกโมเดล
+
+### 9.2 `POST /api/chat/conversations/{id}/ai-suggest` (เดิม — เปลี่ยนเฉพาะที่ระบุ)
+
+- **ร้านนอก allow-list:** เหมือนเดิมทุกประการ (3 ข้อ, โควตา 10/วัน, 402) ยกเว้นข้อความลูกค้า/ชื่อ/โน้ตผ่านการปิดบัง PII ก่อนส่งไป Gemini (ปิดช่องว่าง BR-AI-09)
+- **ร้านใน allow-list:** ส่งต่อ `requestAutoSuggest` (`manual=true`, anchor = ข้อความล่าสุดของห้อง) ไม่นับโควตา ไม่หักเครดิต
+  - 200 `{ suggestions: [ข้อความเดียว], usedCredit: false, freeRemaining: null, cost: null }`
+  - 400 ถ้าข้อความล่าสุดไม่ใช่ลูกค้า (กระทบเฉพาะแอปเก่า) · 503 ไม่มีกุญแจ · 429 + `Retry-After: 5` Typhoon 429 · 502 Typhoon ล้ม · 500 `SanitizeError`
+
+### 9.3 Error mapping
+
+| Error | `/auto` | `/ai-suggest` เดิม (สาขา Typhoon) |
+|-------|---------|-----------------------------------|
+| `TyphoonNotConfiguredError` | 200 NONE (`NOT_CONFIGURED`) | 503 |
+| `TyphoonRateLimitedError` | 200 NONE (`RATE_LIMITED`) | 429 + `Retry-After: 5` |
+| `TyphoonApiError` | 200 NONE (`TIMEOUT` / `ERROR`) | 502 (ห้ามใส่ body จาก Typhoon) |
+| `SanitizeError` | 200 NONE (`ERROR`) | 500 (สาขา Gemini: คืนสิทธิ์โควตาก่อน) |
+| DB error อื่น | 200 NONE (`ERROR`) — `PATCH` เท่านั้นที่คืน 500 ได้ | 500 |

@@ -38,7 +38,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[../../S
 
 **นอกขอบเขต:**
 - การตอบอัตโนมัติ, rolling summary, prompt รายเพจ, RAG จากไฟล์แนบ, การวิเคราะห์รูป (ดู [[PRD]] §5)
-- การเปลี่ยนผู้ให้บริการ AI
+- ~~การเปลี่ยนผู้ให้บริการ AI~~ — **แก้ 2026-10-09:** ทำแล้วในส่วนขยาย Typhoon (เฉพาะร่างคำตอบ) ดู §11
 
 ### 1.3 เอกสารอ้างอิง (References)
 
@@ -204,6 +204,7 @@ flowchart LR
 | GET | `/api/shops/ai-settings` | อ่านการตั้งค่า AI ของร้านที่ active (คืนค่าเริ่มต้นถ้ายังไม่เคยตั้ง) | NextAuth session + `canAccessShop` |
 | PUT | `/api/shops/ai-settings` | บันทึกการตั้งค่า AI ของร้านที่ active | NextAuth session + role OWNER/ADMIN |
 | POST | `/api/chat/conversations/{id}/ai-suggest` | ขอร่าง 3 แบบ (มีอยู่แล้ว — ขยายให้แนบบริบท) | NextAuth session + ownership เธรด |
+| POST / GET / PATCH | `/api/chat/conversations/{id}/ai-suggest/auto` | (extension 2026-10-09) คำแนะนำ 1 ข้อด้วย Typhoon: ขอ/อ่านผลล่าสุด/ให้ความเห็น — ดู [[API]] §9 และ §11 | NextAuth session + `shopId` จากเธรด |
 
 ### 4.2 รายละเอียดต่อ Endpoint
 
@@ -346,6 +347,7 @@ erDiagram
 | Dependency | ประเภท | ความเสี่ยง |
 |------------|--------|-----------|
 | Google Gemini API | external | ปลดระวางรุ่นโมเดล / โควตา / ความหน่วง |
+| Typhoon API (opentyphoon.ai) — extension 2026-10-09 | external | ฟรี ไม่มี SLA · เพดาน 5 req/s · 200 req/นาที ใช้ร่วม gochat · TAC ข้อ 2/4/7 (ห้าม PII, ใช้ Input เทรนถาวร, ระงับบริการ) — ดู §11 |
 | `resolveActiveShopContext` | internal | ถ้า resolve ผิดจะทำให้ข้อมูลข้ามร้าน — ต้อง re-verify membership เสมอ |
 | `canAccessShop` | internal | ฐานของสิทธิ์อ่าน |
 | Product / Order / Customer services | internal | โครงสร้างฟิลด์เปลี่ยนจะกระทบ context builder |
@@ -394,3 +396,100 @@ erDiagram
 ฟีเจอร์นี้เพิ่มตารางเดียว (`ShopAiSetting`) service สองตัว (`ai-setting`, `ai-context`) endpoint สองตัว และหน้าตั้งค่าหนึ่งหน้า โดยไม่เปลี่ยน contract ภายนอกของ `ai-suggest` เดิม ความเสี่ยงหลักอยู่ที่ขอบเขตข้อมูล (ต้อง scope `shopId` ทุก query) และความเป็นส่วนตัว (ห้ามส่งข้อมูลติดต่อลูกค้าออกนอกระบบ) ซึ่งถูกกำหนดเป็น NFR-Sec-01 และ NFR-Sec-02 พร้อมวิธีตรวจที่ทำได้จริงในขั้นตอน review
 
 สำหรับการออกแบบ component และ data flow ดู [[SDS]] — contract ระดับ endpoint ดู [[API]] — schema และ migration ดู [[DATABASE]]
+
+---
+
+## 11. ส่วนขยาย Typhoon auto-suggest (2026-10-09)
+
+> ที่มา: `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` (§5 FR-AIT, §6 BR-AIT, §7 NFR-AIT, ภาคผนวก ก) · BR-AIT-01..12 ดู [[BRD]] §8.5
+> เปลี่ยนเฉพาะ "AI ร่างคำตอบ" — ฟีเจอร์ Gemini อื่น (`ai-enhance`, `auto-reply`, `parse-address`) และ `gemini.ts` ไม่ถูกแตะ
+> สถานะ: เอกสาร sync ก่อนเขียนโค้ด (HR11) · "บังคับที่" ระบุไฟล์ที่จะมี ไม่ใช่ของที่มีแล้ว
+
+### 11.1 FR-AIT-01..20
+
+| FR | ข้อกำหนด (สรุป) | บังคับที่ |
+|----|-----------------|-----------|
+| FR-AIT-01 | จุดสลับผู้ให้บริการจุดเดียว `resolveSuggestProvider(shopId)` → `typhoon` / `gemini` / `none` ตาม env + allow-list · ทุกที่ที่ร่างคำตอบเรียกผ่าน `draftReplySuggestions` เท่านั้น | `src/lib/reply-suggest-provider.ts` · เทส `reply-suggest-provider.test.ts` |
+| FR-AIT-02 | ตัวเรียก Typhoon `POST https://api.opentyphoon.ai/v1/chat/completions` Bearer `TYPHOON_API_KEY` โมเดลจาก `TYPHOON_MODEL` (default `typhoon-v2.5-30b-a3b-instruct`) timeout 8 วินาที ไม่ retry · 429 → `TyphoonRateLimitedError` · ตอบว่าง → `TyphoonApiError` · ไม่มีกุญแจ → `TyphoonNotConfiguredError` (ไม่ยิง network) | `src/lib/typhoon.ts` (`server-only`) · prompt อยู่ `src/lib/reply-suggest-prompt.ts` |
+| FR-AIT-03 | สร้างอัตโนมัติเมื่อลูกค้าส่งข้อความและมีคนดูห้อง (กฎ ก): client ได้ realtime signal → debounce ~1.5 วิ → `POST .../ai-suggest/auto` ด้วย `anchorMessageId` = ข้อความ BUYER ล่าสุด | `useAutoSuggest` + `auto-suggest-machine.ts` (pure) |
+| FR-AIT-04 | สร้างตอนเปิดห้อง (กฎ ข): `GET` ก่อน → ถ้า reason `NO_RUN` ค่อย `POST` (trigger `AUTO_OPEN`) · มีผลแล้ว = แสดงทันที ไม่เรียกโมเดลซ้ำ | เส้นทางเดียวกับ FR-AIT-03 (idempotent ตาม FR-AIT-13) |
+| FR-AIT-05 | ไม่มีคนดู = ไม่เรียกโมเดล (กฎ ค): ยิงจาก client ที่ mount + `visible` เท่านั้น · webhook/cron/trigger ห้ามเรียก provider | grep-gate: webhook ไม่ import `reply-suggest-provider` |
+| FR-AIT-06 | คำตอบเดียว 1-3 ประโยค · server ตัดผลที่เกิน 3 ประโยค หรือ 400 ตัวอักษร (ตัดที่ช่องว่างสุดท้ายก่อนเพดาน) ไม่ทิ้งทั้งก้อน | prompt ใน `reply-suggest-prompt.ts` · `clampSuggestion` ใน `ai-suggest-auto.service.ts` |
+| FR-AIT-07 | ไม่เขียนลงช่องพิมพ์เอง · ใส่ช่องพิมพ์เมื่อแอดมินกดเลือกเท่านั้น · แอดมินเริ่มพิมพ์ → แผงซ่อน + ปุ่มเรียกกลับ (เฉพาะตอนซ่อน) · "ปิด" ปิดเฉพาะ anchor นั้น ข้อความลูกค้าใหม่เปิดให้อีกครั้ง | `ChatThread.tsx` (`setText` จาก `onPick` เท่านั้น) |
+| FR-AIT-08 | ทิ้งผลที่ anchor ไม่ใช่ข้อความ BUYER ล่าสุด (server ตรวจซ้ำก่อนคืน → `STALE_ANCHOR`) | `ai-suggest-auto.service.ts` + client machine |
+| FR-AIT-09 | เงื่อนไขข้าม: ไม่ใช่ BUYER · `isSpam` · งานบอท (`AutoReplyJob`) ของ anchor สถานะ PENDING/PROCESSING และ `updatedAt` ภายใน 5 นาที · turns ว่าง · ไม่อยู่ใน allow-list/ไม่มีกุญแจ — คืน `status` พร้อมเหตุผล ไม่ใช่ error · `handoffAt` มีค่า / `autoReplyEnabled=false` / งานบอท DONE-SKIPPED-FAILED **ไม่ใช่** เหตุข้าม | `ai-suggest-auto.service.ts` |
+| FR-AIT-10 | ปิดบังข้อมูลส่วนตัวก่อนส่งทุกครั้ง fail-closed: turns, `instruction`, `contextBlock`, `shopName` ผ่าน `sanitizeForExternalAi` — เบอร์/อีเมล/เลขบัตร/เลขบัญชี/ที่อยู่ (`pii-redact.ts`) + ชื่อที่ระบบรู้ → "ลูกค้า"/"แอดมิน" · ไม่ส่ง `customerName`/`customerNote` ดิบ · สื่อ → `[รูป]`/`[ข้อความเสียง]`/`[ไฟล์]` · `SanitizeError` = ไม่เรียก | `src/lib/ai-suggest-sanitize.ts`, `ai-suggest-turns.ts` · เทส + mutation (ถอด `redactPii` ทีละชนิดแล้วเทสต้องแดง) |
+| FR-AIT-11 | คืนค่าจริงกลับก่อนแสดง: ป้ายมีลำดับ (`[เบอร์โทร#1]`) ตารางจับคู่อยู่ในหน่วยความจำของ request เท่านั้น · ป้ายที่หาค่าไม่เจอ (รวมป้ายไม่มีเลขลำดับ) = `UNRESOLVED_TOKEN` ไม่แสดง | `createPiiVault`/`redactPiiReversible`/`restorePii` เพิ่มใน `pii-redact.ts` แบบ additive (ห้ามเปลี่ยน `redactPii`) |
+| FR-AIT-12 | ตัวคุมจังหวะ 3 เพดาน: รวม ≤ `AI_SUGGEST_RPS` (3) ต่อวินาที · รวม ≤ `AI_SUGGEST_RPM` (100) ต่อนาที · ต่อร้าน ≤ ครึ่ง RPM · เกินรอได้ถึง ~5 วิแล้วทิ้ง `RATE_LIMITED` · Typhoon 429 = ทิ้งไม่ retry | ดู TFR-AIT-02 |
+| FR-AIT-13 | เก็บผลต่อห้อง + idempotent: unique (conversationId, anchorMessageId, attempt) · `THINKING` ค้างเกิน 30 วินาที ถือว่าตาย · `GET` คืนผลล่าสุดของห้อง | ดู TFR-AIT-03 |
+| FR-AIT-14 | เส้นทาง Typhoon ไม่นับโควตา ไม่หักเครดิต ไม่ถามยืนยัน · ระบบโควตา/เครดิตเดิมคงไว้ทั้งหมดสำหรับ Gemini · แผงโหมด Typhoon ไม่เรียก `ai-quota` | แยกสาขาใน `ai-suggest/route.ts` ตามผลของ `resolveSuggestProvider` |
+| FR-AIT-15 | allow-list `TYPHOON_SUGGEST_SHOP_IDS` (ว่าง = ไม่มีร้านใด · คั่นจุลภาค · `*` = ทุกร้าน) · ร้านอยู่ในรายการแต่ไม่มีกุญแจ = `none` (ห้ามถอยไป Gemini) | `resolveSuggestProvider` · `.env.example` |
+| FR-AIT-16 | ขอใหม่ด้วยมือ (↻): sanitize → pacing → Typhoon เส้นทางเดียวกัน สร้างแถว `attempt+1` · ใต้ rate limit 15/นาที/ผู้ใช้เดิม | `checkApiRateLimit('ai-suggest:'+userId, 15, 60_000)` เฉพาะ `manual:true` |
+| FR-AIT-17 | บันทึกผลทุกครั้ง: `outcome` ∈ `OK`, `RATE_LIMITED`, `TIMEOUT`, `ERROR`, `UNRESOLVED_TOKEN`, `SKIPPED_NOT_BUYER`, `SKIPPED_BOT`, `SKIPPED_SPAM`, `SKIPPED_NOT_ALLOWED`, `SKIPPED_EMPTY` + `latencyMs`, token, provider, model, trigger (`AUTO_NEW_MESSAGE`/`AUTO_OPEN`/`MANUAL`) · ห้ามบันทึกเนื้อความลง log | ตาราง `AiSuggestRun` · ไฟล์ใหม่ไม่มี `console.*` ที่รับ body/text |
+| FR-AIT-18 | ไม่ส่งสื่อเข้า Typhoon เลย · สวิตช์ `includeMediaContext` (BR-AIM-01) ไม่มีผลกับ Typhoon · `/settings/ai` ต้องสื่อว่าสวิตช์ใช้กับผู้ให้บริการที่รองรับสื่อเท่านั้น | `ai-suggest-turns.ts` (`externalSafe`) · ข้อความจริงโดย `safepay-ux` |
+| FR-AIT-19 | รูปแบบการแสดงผล (พฤติกรรมอ้างอิง): ไม่มีกรอบ/การ์ด · บรรทัดเล็ก "AI · คำตอบแนะนำ" + ข้อความ · กดข้อความ = ใส่ช่องพิมพ์ (ไม่ส่งเอง) · ปุ่ม 4 อย่าง ถูกใจ/ไม่ถูกใจ/สร้างใหม่/ปิด · ไม่มีปุ่มแก้ · ไม่มีบรรทัดเตือนท้ายแผง · ไม่มีชิป token/USD และป้ายโควตา | **ไฟล์ใหม่ `AiSuggestInline.tsx`** (ตาม UX-Design-Spec-2026-10-09-auto-suggest.md) — `AiSuggestPanel.tsx` ไม่ถูกแก้ ร้าน Gemini คงพฤติกรรมเดิม 100% |
+| FR-AIT-20 | ความเห็นต่อคำแนะนำ: ถูกใจ = `UP` · ไม่ถูกใจ = `DOWN` (ไม่บังคับเลือกเหตุผล) + เหตุผล 1 ใน 4 (`WRONG_INFO`, `OFF_TOPIC`, `BAD_TONE`, `LENGTH`) + note ≤120 ตัวอักษร ผ่าน `redactPii` ก่อนบันทึก (BR-AIT-11) · ผูกกับแถว `AiSuggestRun` ที่แสดง กดซ้ำเปลี่ยนค่าได้ | `PATCH .../ai-suggest/auto` · Valibot ใน `validations.ts` · เทส + mutation (ถอด `redactPii` แล้วเทสแดง) |
+
+**ข้อที่ไม่เป็น requirement ของรอบนี้**
+- **FR-AIT-21** (กล่องกลางสาย "ลูกค้าต้องการคุยกับแอดมิน") — **ตัดแล้ว (scope S-18 = N/A, 2026-10-09)**: `safepay-ux` ตรวจ OQ-13 พบว่า handoff แสดงอยู่แล้วที่ชิปบอทหยุด/`BotPausedBanner.tsx` และไม่มีข้อมูล "ลูกค้าขอคุยกับคน" ให้แสดง จึงไม่ทำกล่องใหม่
+- **FR-AIT-22** ("AI ใช้ครบโควตาเดือนนี้") — ไม่ระบุเป็น requirement (OQ-12: ไม่เพิ่มโควตารายเดือน)
+
+### 11.2 TFR เพิ่ม
+
+#### TFR-AIT-01: sanitize ก่อนออกนอกระบบ (FR-AIT-10/11, BR-AIT-01/02/09)
+
+- ทุก string ที่จะออกไปหา Typhoon ผ่าน `sanitizeForExternalAi(input, 'typhoon')` ฟังก์ชันเดียว ไม่มีเส้นทางข้าม · throw `SanitizeError` = ห้ามเรียก provider (fail-closed)
+- เส้นทาง Gemini เดิมผ่านฟังก์ชันเดียวกัน (`mode='gemini'`) สำหรับข้อความ/ชื่อ/โน้ต — `customerNote` redact แล้วส่งได้ ส่วน Typhoon เป็น `null` เสมอ
+- ชื่อที่ระบบรู้: `Conversation.alias`, `ExternalContact.name ?? buyer.displayName`, ชื่อแอดมิน (`User.displayName` ของ `senderUserId` ใน 15 ข้อความล่าสุด + user ของ session) · `Customer` ไม่มีฟิลด์ชื่อจึงไม่เป็นแหล่ง
+- `PiiVault` อยู่ในหน่วยความจำของ request เท่านั้น ไม่เก็บ DB ไม่ log · log ได้เฉพาะ `PiiKind` ที่เจอ
+
+#### TFR-AIT-02: pacing แบบ reserve-then-verify (FR-AIT-12, BR-AIT-04)
+
+- นับจากตาราง `AiSuggestRun.firedAt` (เวลาเริ่มยิงจริง — `createdAt` นับไม่ได้เพราะแถวที่ข้าม/รอคิว/ทิ้งก็มี `createdAt`)
+- ขั้นตอน: เขียน `firedAt=now` → อ่านแถว `provider='typhoon'` ที่ `firedAt` ในหน้าต่าง 60 วินาที เรียง (`firedAt`, `id`) → นับอันดับของตัวเองใน (1 วินาทีล่าสุด ≤ RPS) (60 วินาทีรวม ≤ RPM) (60 วินาทีของร้าน ≤ RPM/2) → ไม่ผ่านให้ล้าง `firedAt=null` รอ 250 ms ลองใหม่ จนครบ 5 วินาทีจากเริ่ม request แล้วทิ้ง
+- ข้อจำกัดที่ยอมรับ (R-5): clock skew ข้าม instance อาจเกินเพดานเล็กน้อย · ตัวนับกลาง (Redis/แถว counter) เป็นงานถัดไป
+
+#### TFR-AIT-03: claim แบบ idempotent (FR-AIT-13)
+
+- `createMany({ data, skipDuplicates: true })` บน unique (conversationId, anchorMessageId, attempt) — `count===1` คือชนะ · ไม่ใช้ insert-then-catch P2002 เพราะ Postgres เขียน ERROR ลง log ทุกครั้งที่ชน (convention `insert-then-catch-logs-every-error`)
+- `count===0` → อ่านแถวเดิม: READY → คืน · THINKING อายุ ≤30 วินาที → คืน THINKING · THINKING อายุ >30 วินาที → ยึดด้วย `updateMany` เงื่อนไข `status='THINKING' AND createdAt < now-30s` · NONE → คืน NONE
+- manual (↻): `attempt` = attempt สูงสุดของ anchor + 1
+- service ต้องมี `try/finally` ปิดแถว THINKING เป็น NONE + `ERROR` เมื่อ throw ที่ไม่คาดคิด (กันแผงค้าง)
+
+### 11.3 NFR-AIT (สรุป)
+
+Latency p95 ≤ 4 วินาที (วัดซ้ำบนระบบเรา) · ห้ามเพิ่มงานในเส้นทาง webhook · fail-soft ทุกแบบ (แอดมินพิมพ์ต่อได้ ไม่ toast แดง) · `TYPHOON_API_KEY` ฝั่ง server เท่านั้น · `Cache-Control: private, no-store, max-age=0, must-revalidate` · `shopId` จากเธรดเท่านั้น · poll `GET` ทุก ~1.5 วิ ไม่เกิน ~10 วิ เฉพาะตอน `THINKING` · ข้อความ UI ผ่าน i18n TH/EN (00047) · live region `role="status"`
+
+### 11.4 Flow (ย่อ)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as หน้าแชท (mount + visible)
+    participant S as POST ai-suggest/auto
+    participant P as pacing (AiSuggestRun.firedAt)
+    participant T as Typhoon
+    A->>S: anchorMessageId (debounce 1.5 วิ)
+    S->>S: สิทธิ์ · allow-list · เงื่อนไขข้าม · claim
+    S->>S: sanitizeForExternalAi (fail-closed)
+    S->>P: reserve slot (รอไม่เกิน ~5 วิ)
+    alt ได้สล็อต
+        S->>T: chat/completions
+        T-->>S: คำตอบ (มีป้ายแทน PII)
+        S->>S: restorePii → clamp 3 ประโยค/400 ตัวอักษร
+        S-->>A: READY + suggestion
+    else เกินเวลา หรือ 429
+        S-->>A: NONE (RATE_LIMITED ทิ้งเงียบ)
+    end
+```
+
+### 11.5 Traceability เพิ่ม
+
+| BRD / extension | SRS |
+|-----------------|-----|
+| BR-AIT-01, 02, 09 | FR-AIT-10, 11, 17, TFR-AIT-01 |
+| BR-AIT-03, 05 | FR-AIT-03, 04, 05, 08 |
+| BR-AIT-04 | FR-AIT-12, TFR-AIT-02 |
+| BR-AIT-06, 12 | FR-AIT-07, 19 |
+| BR-AIT-07, 08, 10 | FR-AIT-01, 14, 15 |
+| BR-AIT-11 | FR-AIT-20 |

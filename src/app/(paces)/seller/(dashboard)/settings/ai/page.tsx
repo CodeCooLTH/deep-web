@@ -29,6 +29,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { resolveSuggestProvider } from '@/lib/reply-suggest-provider'
 import { getAiSetting } from '@/services/ai-setting.service'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
 import { getSubscriptionStatus } from '@/services/business-package.service'
@@ -99,6 +100,7 @@ export default async function AiSettingsPage() {
           canEdit={canEdit}
           isPaidPlan={isPaidPlan}
           subscriptionLapsed={subscriptionLapsed}
+          mediaUnsupported={resolveSuggestProvider(activeCtx.shopId) !== 'gemini'}
         />
       </div>
     </>

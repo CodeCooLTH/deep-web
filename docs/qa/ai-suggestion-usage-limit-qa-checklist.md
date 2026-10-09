@@ -62,6 +62,13 @@
 - [ ] Swal confirm dialog readable บนมือถือ, ปุ่มไม่ล้นจอ
 - [ ] ตัดสิน "หน้าตาสมเป็น Deep ไหม" ไม่ใช่แค่ไม่ error — เทียบ token สี (success=เขียว unlimited, primary=ปุ่ม credit, warning=บล็อก) กับ `.impeccable/design.json`
 
+## E. เส้นทาง Typhoon (00019-ext, FR-AIT-14/15)
+- [ ] ร้านที่อยู่ใน `TYPHOON_SUGGEST_SHOP_IDS` (หรือตั้ง `*`): สร้างคำแนะนำอัตโนมัติ **ไม่นับโควตา** — `AiSuggestDailyUsage` ไม่เพิ่ม
+- [ ] ร้านใน allow-list: **ไม่หักเครดิต** — `SellerWallet.balance` ไม่เปลี่ยน, ไม่มี credit-prompt/credit-block
+- [ ] ร้านใน allow-list: **ไม่เห็นป้ายโควตา** ("เหลือฟรีวันนี้ N/10") และ **ไม่เห็นชิป token** ใต้แผง AI
+- [ ] ร้านนอก allow-list: พฤติกรรมเดิม 100% (Gemini มือกด, นับโควตา, credit-prompt/402 `QUOTA_EXCEEDED`, ป้ายโควตา, ชิป token) — รันหัวข้อ A–C ซ้ำแล้วต้องผ่านเหมือนเดิม
+- [ ] `TYPHOON_SUGGEST_SHOP_IDS` ว่าง → ทุกร้านใช้ Gemini ตามเดิม (ไม่มีร้านไหนเข้าเส้นทาง Typhoon)
+
 ## ยังไม่ได้เทส (carry) — จากรอบ 2026-07-29
 > **ทุกข้อในไฟล์นี้ยังไม่ได้ verify แม้แต่ข้อเดียว** — QA run วันที่ 2026-07-29 เจอ blocker
 > ตั้งแต่ pre-flight แรก (ดู VERDICT ในรายงาน): dev server บน `seller.deepth.local:4000` serve

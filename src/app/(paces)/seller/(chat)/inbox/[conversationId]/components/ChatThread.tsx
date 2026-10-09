@@ -156,6 +156,10 @@ export function mediaSrc(key: string): string {
   return fileUrlOf(key)
 }
 import AiSuggestPanel from './AiSuggestPanel'
+import AiSuggestInline from './AiSuggestInline'
+import { useAutoSuggest } from './useAutoSuggest'
+import { getAutoSuggestView } from '@/lib/auto-suggest-machine'
+import type { AutoSuggestFeedback, AutoSuggestFeedbackReason } from '@/lib/ai-suggest-auto-types'
 import ThreadSoundButton from './ThreadSoundToggle'
 import ThreadOverflowMenu from './ThreadOverflowMenu'
 import ThreadAutoReplyToggle from './ThreadAutoReplyToggle'
@@ -881,6 +885,11 @@ type Props = {
    * ตอนเปิดห้อง ⇒ สเกเลตันของเธรดไม่ต้องโผล่เลย. null = ผู้เรียกที่ยังไม่ส่งมา (ได้พฤติกรรมเดิม)
    */
   initialMessages?: InitialThreadMessages | null
+  /**
+   * 00019-ext — 'auto' = ร้านที่ใช้ Typhoon: แผงคำแนะนำอัตโนมัติเหนือช่องพิมพ์ (AiSuggestInline)
+   * 'manual' (ค่าตั้งต้น) = ปุ่ม sparkles + AiSuggestPanel เดิมทุกอย่าง · ลืมส่ง = พฤติกรรมเดิม
+   */
+  aiSuggestMode?: 'auto' | 'manual'
 }
 
 // feature 00018 — ดู comment หัวไฟล์ (badge "ส่งไม่สำเร็จ")
@@ -1250,6 +1259,7 @@ export default function ChatThread({
   customerPanelData,
   savedFileIds,
   initialMessages,
+  aiSuggestMode = 'manual',
 }: Props) {
   const t = useT()
   const { data: session } = useSession()
@@ -2102,6 +2112,74 @@ export default function ChatThread({
   const openEditOrderStable = useStableCallback(openEditOrder)
   const jumpToMessageStable = useStableCallback(jumpToMessage)
   const openSlide = useStableCallback((key: string) => setLightboxIndex(slideIndexByMessageId.get(key) ?? -1))
+
+
+  // ── 00019-ext คำแนะนำอัตโนมัติ (Typhoon) ─────────────────────────────────────
+  // 🛑 อยู่เหนือ early return (errorState/loadingInitial) ทั้งหมด — hook ใต้ return = จอขาวเมื่อสถานะเปลี่ยน
+  // latest = ข้ามการ์ด AUTO_ORDER_RESULT (บันทึกภายใน ไม่ใช่ข้อความจริง — server ข้ามเหมือนกัน)
+  // และ anchor = ข้อความ BUYER ล่าสุดในนั้น · enabled=false → hook ไม่ fetch/ไม่มี timer เลย
+  const autoSuggestOn = aiSuggestMode === 'auto'
+  let latestRealMsg: (typeof messages)[number] | undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].type !== AUTO_ORDER_RESULT_TYPE) {
+      latestRealMsg = messages[i]
+      break
+    }
+  }
+  const latestMessageIsBuyer = latestRealMsg?.senderRole === 'BUYER'
+  const autoSuggest = useAutoSuggest({
+    enabled: autoSuggestOn,
+    conversationId,
+    latestBuyerMessageId: latestMessageIsBuyer ? latestRealMsg!.id : null,
+    latestMessageIsBuyer,
+  })
+  const aiState = autoSuggest.state
+  const aiAnchorId = aiState?.anchorMessageId ?? null
+  const aiAttempt = aiState && 'attempt' in aiState ? aiState.attempt : null
+  const aiKey = aiAnchorId !== null ? `${aiAnchorId}-${aiAttempt}` : null
+  // ค่า dismissed/recalled เทียบกับ anchor ตรง ๆ ใน getAutoSuggestView → anchor ใหม่ = ค่าเก่าไม่ตรง = หมดผลเอง ไม่ต้องมี effect ล้าง
+  const [dismissedAnchorId, setDismissedAnchorId] = useState<string | null>(null)
+  const [recalledAnchorId, setRecalledAnchorId] = useState<string | null>(null)
+  // feedback ท้องถิ่นต่อ anchor-attempt: key ไม่ตรง = ไม่ใช้ (attempt ใหม่เริ่มสะอาด)
+  const [aiLocal, setAiLocal] = useState<{
+    key: string
+    feedback: AutoSuggestFeedback | null
+    reason: AutoSuggestFeedbackReason | null
+    note: string
+  } | null>(null)
+  const aiView = getAutoSuggestView({
+    mode: aiSuggestMode,
+    status: aiState?.status === 'READY' ? 'ready' : aiState?.status === 'THINKING' ? 'thinking' : 'none',
+    anchorIsLatestBuyer: aiAnchorId !== null, // hook กรอง isResultCurrent ให้แล้ว
+    typing: text.trim() !== '',
+    dismissedAnchorId,
+    anchorId: aiAnchorId,
+    recalledAnchorId,
+    activePanel,
+    composerDisabled,
+  })
+  const aiLive = aiLocal && aiLocal.key === aiKey ? aiLocal : null
+  const aiFeedback = aiLive ? aiLive.feedback : aiState?.status === 'READY' ? aiState.feedback : null
+  const sendAiFeedback = (next: { feedback: AutoSuggestFeedback; reason?: AutoSuggestFeedbackReason; note?: string }) => {
+    if (aiAnchorId === null || aiAttempt === null || aiKey === null) return
+    const prev = aiLive
+    // server เขียนทับ reason + note ทุกครั้ง (ไม่ส่ง = null) → DOWN ต้องพก note เดิมไปด้วยเสมอ ไม่งั้นเปลี่ยนเหตุผลแล้ว note ใน DB หาย
+    // ส่วน UP ตั้งใจล้างทั้งคู่
+    const note = next.feedback === 'DOWN' ? (next.note ?? prev?.note ?? '') : ''
+    setAiLocal({ key: aiKey, feedback: next.feedback, reason: next.reason ?? null, note })
+    autoSuggest
+      .sendFeedback({
+        anchorMessageId: aiAnchorId,
+        attempt: aiAttempt,
+        feedback: next.feedback,
+        ...(next.reason ? { reason: next.reason } : {}),
+        ...(note ? { note } : {}),
+      })
+      .catch(() => {
+        // ล้ม → ย้อนเงียบ (คำแนะนำเป็นของช่วย ไม่ใช่ข้อมูลสำคัญ)
+        setAiLocal(prev)
+      })
+  }
 
   if (errorState) {
     // reuse SellerErrorState แทนเขียนการ์ด error ใหม่ (Link ใช้ next/link ได้ปกติในนี้ — ไฟล์นี้เป็น
@@ -3219,7 +3297,40 @@ export default function ChatThread({
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
             ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
             เลือกสินค้า = info) */}
-        {aiOpen && (
+        {autoSuggestOn &&
+          (aiView === 'thinking' || aiView === 'ready') &&
+          aiState &&
+          aiKey !== null &&
+          aiAnchorId !== null && (
+            <AiSuggestInline
+              key={aiKey}
+              view={aiView}
+              suggestion={aiState.status === 'READY' ? aiState.suggestion : ''}
+              feedback={aiFeedback}
+              reason={aiFeedback === 'DOWN' ? (aiLive?.reason ?? null) : null}
+              savedNote={aiLive?.note ?? ''}
+              regenerating={false}
+              onPick={(picked) => {
+                // ทางเดียวที่คำแนะนำเขียนลงช่องพิมพ์ — ต่อท้ายข้อความเดิม ไม่ทับ
+                setText((prev) => (prev.trim() ? `${prev}\n${picked}` : picked))
+                setRecalledAnchorId(null)
+                composerRef.current?.focus()
+              }}
+              onLike={() => sendAiFeedback({ feedback: 'UP' })}
+              onDislike={() =>
+                sendAiFeedback({ feedback: 'DOWN', ...(aiLive?.reason ? { reason: aiLive.reason } : {}) })
+              }
+              onReason={(reason) => sendAiFeedback({ feedback: 'DOWN', ...(reason ? { reason } : {}) })}
+              onNote={(note) =>
+                sendAiFeedback({ feedback: 'DOWN', ...(aiLive?.reason ? { reason: aiLive.reason } : {}), note })
+              }
+              onRegenerate={() => {
+                autoSuggest.regenerate().catch(() => pacesToast.warning(t.inbox.aiSuggestRegenBusy))
+              }}
+              onDismiss={() => setDismissedAnchorId(aiAnchorId)}
+            />
+          )}
+        {!autoSuggestOn && aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
             hidePayments={hidePayments}
@@ -3410,17 +3521,26 @@ export default function ChatThread({
           )}
 
           {/* composer improvement #3 — ปุ่ม AI ช่วยร่างคำตอบ (accent เขียว success ตาม ref) */}
+          {(!autoSuggestOn || aiView === 'recall') && (
           <button
             type="button"
-            onClick={() => togglePanel('ai')}
+            onClick={
+              autoSuggestOn
+                ? () => {
+                    setRecalledAnchorId(aiAnchorId)
+                    setDismissedAnchorId(null)
+                  }
+                : () => togglePanel('ai')
+            }
             disabled={composerDisabled}
-            aria-label="AI ช่วยร่างคำตอบ"
-            aria-expanded={aiOpen}
-            title="AI ช่วยร่างคำตอบ"
+            aria-label={autoSuggestOn ? t.inbox.aiSuggestRecall : 'AI ช่วยร่างคำตอบ'}
+            {...(autoSuggestOn ? {} : { 'aria-expanded': aiOpen })}
+            title={autoSuggestOn ? t.inbox.aiSuggestRecall : 'AI ช่วยร่างคำตอบ'}
             className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>
+          )}
 
           {/* ดูตารางว่างคิวงาน (user สั่ง 2026-08-10) — เห็นทุก breakpoint เพราะไม่มีทางเข้าอื่น
               (ต่างจากปุ่มสร้างออเดอร์ที่ md:hidden เพราะ ≥768 มีปุ่มมีป้ายที่หัวเธรดอยู่แล้ว)

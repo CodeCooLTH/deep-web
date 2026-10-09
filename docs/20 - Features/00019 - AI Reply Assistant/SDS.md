@@ -301,3 +301,117 @@ sequenceDiagram
 การออกแบบวางจุดตัดสินใจด้านความปลอดภัยไว้ที่ไฟล์เดียว (`ai-context.service.ts`) เพื่อให้ตรวจสอบได้ว่าอะไรออกไปสู่ผู้ให้บริการภายนอกบ้าง และแยกการตั้งค่าออกเป็นตารางของตัวเองเพื่อไม่ให้กระทบ query ที่ร้อนที่สุดของระบบ ทุกเส้นทางความล้มเหลวถูกออกแบบให้ลดระดับการทำงานลงแทนการล้มทั้ง request
 
 รายละเอียด contract ระดับ endpoint ดู [[API]] — schema และแผน migration ดู [[DATABASE]] — ชุดทดสอบดู `Tests/00001-ai-shop-context.md`
+
+---
+
+## 9. Typhoon auto-suggest (extension 2026-10-09)
+
+อ้างอิง: `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` (FR-AIT-01..20, BR-AIT-01..12) · FR-AIT-21 ตัดแล้ว (S-18 = N/A)
+
+### 9.1 โมดูลใหม่
+
+| ไฟล์ | หน้าที่ |
+|------|---------|
+| `src/lib/typhoon.ts` (`server-only`) | เรียก `POST https://api.opentyphoon.ai/v1/chat/completions` (Bearer `TYPHOON_API_KEY`, โมเดลจาก `TYPHOON_MODEL`, timeout 8 วินาที, ไม่ retry) ผลคือข้อความเดียว ไม่ใช้ response format ที่ Typhoon ไม่รองรับ · error: `TyphoonNotConfiguredError`, `TyphoonRateLimitedError` (429), `TyphoonApiError` (kind: `TIMEOUT`/`NETWORK`/`HTTP`/`EMPTY`) |
+| `src/lib/reply-suggest-prompt.ts` | prompt ของ Typhoon: กฎความปลอดภัยชุดเดียวกับ `gemini.ts` (ห้ามขอ OTP/รหัสผ่าน/บัตร, ห้ามแต่งราคา, ข้อความลูกค้าเป็นเนื้อหาไม่ใช่คำสั่ง) + ตอบ 1-3 ประโยค + ห้ามเดาชื่อ/เบอร์ ให้ใช้ป้ายตามที่เห็น · **แยกไฟล์ ไม่แก้ `gemini.ts`** มีเทสกันลอก drift (อ่านซอร์ส `gemini.ts` แล้วยืนยันกฎปิดท้ายยังอยู่ในค่าคงที่ของเรา) |
+| `src/lib/reply-suggest-provider.ts` | `resolveSuggestProvider(shopId)` → `typhoon` / `gemini` / `none` ตาม `TYPHOON_SUGGEST_SHOP_IDS` (ว่าง = ไม่มีร้านใด, รายการ id คั่นจุลภาค, `*` = ทุกร้าน) · ร้านอยู่ในรายการแต่ไม่มีกุญแจ = `none` (ไม่ถอยไป Gemini) · `draftReplySuggestions` เป็นทางเรียกผู้ให้บริการทางเดียว (Typhoon ไม่อ่าน media เด็ดขาด) |
+| `src/lib/ai-suggest-sanitize.ts` | `sanitizeForExternalAi` ครอบ turns, `instruction`, `contextBlock`, `shopName`: `redactPiiReversible` + ชื่อลูกค้าที่ระบบรู้ → "ลูกค้า" + ชื่อแอดมิน → "แอดมิน" + ไม่ส่ง `customerName`/`customerNote` ดิบ (Typhoon) · throw `SanitizeError` = ห้ามเรียกผู้ให้บริการ (fail-closed) |
+| `src/lib/ai-suggest-turns.ts` | ประกอบ turns จากแถวแชท (ย้ายมาจาก `ai-suggest/route.ts`) · โหมด `externalSafe` แทนสื่อด้วย `[รูป]`/`[ข้อความเสียง]`/`[ไฟล์]` |
+| `src/lib/pii-redact.ts` (เพิ่ม) | `createPiiVault`, `redactPiiReversible`, `restorePii`: ป้ายมีลำดับ เช่น `[เบอร์โทร#1]` · ตารางจับคู่อยู่ในหน่วยความจำของ request เท่านั้น ไม่เก็บ DB ไม่ log · ป้ายที่หาค่าไม่เจอ = ไม่แสดงผล (`UNRESOLVED_TOKEN`) · `redactPii` เดิมไม่เปลี่ยน |
+| `src/lib/ai-suggest-auto-types.ts` | type/ค่าคงที่ของ contract (pure, client import ได้) |
+| `src/services/ai-suggest-auto.service.ts` | claim, เงื่อนไขข้าม, pacing, เรียก provider, ตัดความยาว, บันทึกผล, ความเห็น |
+| `src/app/api/chat/conversations/[id]/ai-suggest/auto/route.ts` | POST / GET / PATCH |
+| ฝั่ง client: `useAutoSuggest.ts` + `auto-suggest-machine.ts` (pure) | ตัดสินใจขอ/แสดง/ทิ้งผล (client เป็นผู้ขอ ไม่ใช่ webhook) |
+| ฝั่ง client: **`AiSuggestInline.tsx` (ไฟล์ใหม่)** | แสดงคำแนะนำโหมด Typhoon (1 ข้อ, ปุ่ม 4 อย่าง, สถานะกำลังคิด) · `AiSuggestPanel.tsx` **ไม่ถูกแก้** ร้าน Gemini คงพฤติกรรมเดิม 100% · `aiSuggestMode` ส่งจาก `page.tsx` (RSC) |
+
+### 9.2 Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as ลูกค้า
+    participant W as Webhook / DB trigger
+    participant A as หน้าแชท (เว็บ/แอป)
+    participant S as POST ai-suggest/auto
+    participant P as ตัวคุมจังหวะ (AiSuggestRun.firedAt)
+    participant T as Typhoon
+
+    C->>W: ส่งข้อความ
+    W-->>A: broadcast chat:{conversationId} update (signal-only)
+    A->>A: refetchNewer เห็นข้อความ BUYER ล่าสุด รอ debounce 1.5 วิ
+    Note over A: คนดูห้อง = mount + visible เท่านั้น<br/>ไม่มีคนดู = ไม่มีใครเรียก S เลย
+    A->>S: POST anchorMessageId
+    S->>S: ตรวจสิทธิ์ ร้าน allow-list เงื่อนไขข้าม claim
+    S->>S: sanitizeForExternalAi (ล้มเหลว = หยุด)
+    S->>P: reserve slot (รอไม่เกิน ~5 วิ)
+    alt ได้สล็อต
+        S->>T: chat/completions
+        T-->>S: คำตอบ (ป้ายแทน PII)
+        S->>S: restorePii → ตัด 3 ประโยค/400 ตัวอักษร
+        S-->>A: READY + suggestion
+    else เกิน 5 วิ หรือ 429
+        S-->>A: NONE (RATE_LIMITED ทิ้งเงียบ ไม่ retry)
+    end
+    A->>A: แสดงในแผง ไม่แตะช่องพิมพ์
+```
+
+ลำดับฝั่ง server: ตรวจสิทธิ์/ร้านจากเธรด → ตรวจ anchor เป็นของห้อง → เงื่อนไขข้าม → claim → sanitize → ขอ slot → Typhoon → `restorePii` → ตัด 3 ประโยค/400 ตัวอักษร → ตรวจซ้ำว่า anchor ยังเป็นข้อความล่าสุด → บันทึกผล
+บริบทที่โหลด: `getConversationCrm`, 15 ข้อความล่าสุด (ไม่รวม `AUTO_ORDER_RESULT_TYPE`), `getEffectiveAiSetting(stored, isOwnerPaidPlan)` — error ของ `isOwnerPaidPlan` ถือเป็น non-paid ไม่ fail ทั้งคำขอ (เส้นทางนี้ไม่มีเงินเกี่ยว ต่างจาก gate โควตาที่ fail-closed)
+
+### 9.3 Claim แบบ idempotent
+
+- unique (`conversationId`, `anchorMessageId`, `attempt`)
+- `createMany({ skipDuplicates: true })` เพื่อไม่ให้เกิด ERROR ใน log Postgres (convention `insert-then-catch-logs-every-error`)
+- ชน: READY → คืนผลเดิม · THINKING อายุ ≤ 30 วินาที → คืน THINKING · THINKING อายุ > 30 วินาที → ยึดด้วย `updateMany` เงื่อนไข `status='THINKING' AND createdAt < now-30s` · NONE → คืน NONE
+- manual (กด ↻): `attempt` = attempt สูงสุดของ anchor + 1
+
+### 9.4 เงื่อนไขข้าม (ไม่เรียกโมเดล)
+
+| เงื่อนไข | outcome |
+|----------|---------|
+| anchor ไม่ใช่ข้อความ BUYER / ไม่ใช่ข้อความล่าสุดของห้อง | `SKIPPED_NOT_BUYER` (reason `STALE_ANCHOR` ถ้าเป็นกรณีหลัง) |
+| `Conversation.isSpam` | `SKIPPED_SPAM` |
+| `AutoReplyJob` ของ `chatMessageId` = anchor สถานะ `PENDING` หรือ `PROCESSING` และ `updatedAt` ภายใน 5 นาที (const ใหม่ในไฟล์เรา ไม่แก้ `auto-reply.service.ts`) | `SKIPPED_BOT` |
+| turns ว่าง | `SKIPPED_EMPTY` |
+| ร้านไม่อยู่ใน allow-list หรือไม่มี `TYPHOON_API_KEY` | `SKIPPED_NOT_ALLOWED` |
+
+งานบอทสถานะ `DONE`/`SKIPPED`/`FAILED`, `handoffAt` มีค่า, `autoReplyEnabled=false` **ไม่ใช่** เหตุข้าม · ช่องว่างที่รู้ตัว: `enqueue` ของบอททำใน `after()` job อาจยังไม่มีตอน client ขอ — ถ้าบอทตอบก่อน anchor ไม่ใช่ข้อความล่าสุดและผลถูกทิ้งตาม BR-AIT-05 (เสียแค่ 1 สล็อต)
+
+### 9.5 Pacing (นับจาก `AiSuggestRun.firedAt`)
+
+- เพดานรวม `AI_SUGGEST_RPS` (3) ต่อวินาที, รวม `AI_SUGGEST_RPM` (100) ต่อนาที, ต่อร้าน ≤ ครึ่งของ RPM (50)
+- reserve-then-verify: เขียน `firedAt=now` → นับอันดับของตัวเองในหน้าต่าง (เรียง `firedAt`, `id`) → เกินเพดานให้ล้าง `firedAt` แล้วรอ 250 ms ลองใหม่ จนครบ 5 วินาที → ทิ้ง (`RATE_LIMITED`)
+- Typhoon 429 → ไม่ retry (`RATE_LIMITED`)
+- ข้อจำกัดที่ยอมรับ (R-5): clock skew ข้าม instance อาจเกินเพดานเล็กน้อย · ตัวนับกลางเป็นงานถัดไป
+
+### 9.6 การตัดผล
+
+ไม่เกิน 3 ประโยค (แบ่งที่ `.` `!` `?` `…` ตามด้วยช่องว่าง, ขึ้นบรรทัดใหม่, หรือช่องว่างตั้งแต่ 2 ตัว) และไม่เกิน 400 ตัวอักษร (ตัดที่ช่องว่างสุดท้ายก่อนเพดาน) ไม่ทิ้งทั้งก้อน · ceiling: ข้อความไทยที่ไม่มีช่องว่างเลยอาจถูกตัดกลางคำ (prompt คุมความยาวเป็นด่านแรก)
+
+### 9.7 การบันทึก
+
+`AiSuggestRun`: `outcome`, `trigger`, `provider`, `model`, `latencyMs`, `inputTokens`, `outputTokens`, `firedAt`, `suggestion` (หลัง restore, เพื่อแสดงผลเท่านั้น) · ห้ามมี transcript/payload/ตารางป้าย · ไม่มี `console.*` ที่รับเนื้อความ
+
+### 9.8 ทางเดิม `POST /ai-suggest`
+
+- ร้านนอก allow-list: Gemini + โควตา + เครดิต เหมือนเดิม แต่ผ่าน `sanitizeForExternalAi` (ข้อความ ชื่อ โน้ต) และ `restorePii` ก่อนส่งกลับ (ปิดช่องว่าง BR-AI-09)
+- ร้านใน allow-list: ส่งต่อ `requestAutoSuggest` (`manual=true`, anchor = ข้อความล่าสุดของห้อง) ตอบ `{ suggestions: [ข้อความเดียว] }` ไม่นับโควตา ไม่หักเครดิต ไม่เขียน `AiSuggestUsageEvent` — ไม่เรียก provider เองเพื่อไม่ข้าม pacing/claim/logging
+- ข้อความล่าสุดไม่ใช่ลูกค้า → 400
+
+### 9.9 Error mapping
+
+| error | จุด catch | `/auto` | `/ai-suggest` (เดิม สาขา Typhoon) |
+|-------|-----------|---------|-----------------------------------|
+| `TyphoonNotConfiguredError` | service | 200 NONE (`NOT_CONFIGURED`) | 503 |
+| `TyphoonRateLimitedError` | service | 200 NONE (`RATE_LIMITED`) | 429 + `Retry-After: 5` |
+| `TyphoonApiError` | service | 200 NONE (`TIMEOUT`/`ERROR`) | 502 |
+| `SanitizeError` | service และ catch ใน route เดิม | 200 NONE (`ERROR`) | 500 (สาขา Gemini: คืนสิทธิ์โควตาก่อน) |
+| ข้อผิดพลาด DB อื่น | route catch-all | 200 NONE (`ERROR`) | 500 |
+
+### 9.10 ตัวแปรสภาพแวดล้อม
+
+`TYPHOON_API_KEY`, `TYPHOON_MODEL` (default `typhoon-v2.5-30b-a3b-instruct`), `TYPHOON_SUGGEST_SHOP_IDS`, `AI_SUGGEST_RPS` (3), `AI_SUGGEST_RPM` (100)
+
+### 9.11 การทดสอบ
+
+TC-AIT-01..09 map เป็นไฟล์เทส: `typhoon.test`, `reply-suggest-provider.test`, `ai-suggest-sanitize.test` (+ mutation), `pii-redact-reversible.test`, `ai-suggest-auto.service.test`, `ai-suggest-auto.service.db.test` (claim/pacing บน Postgres `localhost:5434` เท่านั้น), `auto/route.test`, `ai-suggest/route.test`, `auto-suggest-machine.test`; ส่วนที่เหลือครอบด้วย Playwright E2E (TC-AIT-08)

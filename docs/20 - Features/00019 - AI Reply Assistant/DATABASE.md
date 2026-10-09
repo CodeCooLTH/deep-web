@@ -22,7 +22,7 @@ related: ["[[SDS]]", "[[SRS]]", "[[API]]"]
 
 ## 1. Overview
 
-ฟีเจอร์นี้เพิ่มตารางใหม่เพียงตารางเดียวคือ `ShopAiSetting` ซึ่งเก็บการตั้งค่าผู้ช่วย AI ต่อร้าน ตารางอื่นทั้งหมด (`Product`, `Order`, `Customer`, `ExternalContact`, `Conversation`, `ChatMessage`) ถูกใช้แบบอ่านอย่างเดียว ไม่มีการเปลี่ยนโครงสร้าง
+ฟีเจอร์นี้เพิ่มตารางใหม่ตารางแรกคือ `ShopAiSetting` ซึ่งเก็บการตั้งค่าผู้ช่วย AI ต่อร้าน (ส่วนขยาย Typhoon 2026-10-09 เพิ่มอีกตาราง `AiSuggestRun` — ดู §9) ตารางอื่นทั้งหมด (`Product`, `Order`, `Customer`, `ExternalContact`, `Conversation`, `ChatMessage`) ถูกใช้แบบอ่านอย่างเดียว ไม่มีการเปลี่ยนโครงสร้าง
 
 **ข้อควรระวังเฉพาะโปรเจกต์นี้:** ฐานข้อมูล development และ production เป็น instance เดียวกันบน Supabase และมี drift จาก migration ที่ไม่อยู่ใน git — **ห้ามใช้ `prisma migrate dev` เด็ดขาด** (จะ reset ฐานข้อมูลจริง) ต้องเขียนไฟล์ migration ด้วยมือแล้ว apply ด้วย `prisma migrate deploy -e .env.local` พร้อมขอยืนยันจากผู้ใช้ก่อนทุกครั้ง (ดู `docs/conventions/prisma-shared-db-drift.md`)
 
@@ -193,3 +193,63 @@ DROP TABLE IF EXISTS "ShopAiSetting";
 การเปลี่ยนแปลงฐานข้อมูลของฟีเจอร์นี้มีเพียงตารางเดียวและเป็นแบบเพิ่มอย่างเดียว ทำให้ deploy และ rollback ตรงไปตรงมา ความเสี่ยงที่แท้จริงไม่ได้อยู่ที่ schema แต่อยู่ที่ **วิธี apply** — ฐานข้อมูลนี้เป็น production ที่ dev ใช้ร่วมกัน จึงต้องเขียน migration ด้วยมือ ใช้ `migrate deploy` เท่านั้น และขอยืนยันจากผู้ใช้ก่อนรันทุกครั้ง
 
 contract ของ endpoint ที่ใช้ตารางนี้ดู [[API]] — การออกแบบ service ที่อ่าน/เขียนดู [[SDS]]
+
+---
+
+## 9. `AiSuggestRun` (extension Typhoon auto-suggest, 2026-10-09)
+
+ตารางใหม่ 1 ตาราง แบบ additive ล้วน ไม่แตะตารางเดิม ไม่มี backfill · อ้างอิง `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` §9 + ภาคผนวก ก + Change Log (`firedAt`)
+DDL จริงเป็นงานของ `safepay-database` (migration `<ts>_ai_suggest_run` = CREATE TABLE / CREATE INDEX / UNIQUE เท่านั้น — ห้ามมี ALTER/DROP) — เอกสารนี้คือสเปกที่ต้องตรงกับ `schema.prisma`
+
+ทำ 3 หน้าที่ในตารางเดียว: (1) ผลล่าสุดของห้อง ให้เปิดห้องแล้วเห็นทันที (2) ตัวนับจังหวะ — ตัวนับ in-memory ใช้ข้าม instance บน serverless ไม่ได้ (3) สถิติ `outcome` ไว้ตัดสินใจย้ายออกจาก API ฟรี
+
+```prisma
+model AiSuggestRun {
+  id               String   @id @default(uuid())
+  shopId           String
+  conversationId   String   // ไม่ใส่ FK ตามแบบ AiSuggestUsageEvent — log อยู่อิสระจากวงจรเธรด
+  anchorMessageId  String   // ข้อความ BUYER ที่คำแนะนำนี้ตอบ
+  attempt          Int      @default(1) // 1 = อัตโนมัติ · 2+ = กดขอใหม่
+  trigger          String   // AUTO_NEW_MESSAGE | AUTO_OPEN | MANUAL
+  status           String   // THINKING | READY | NONE
+  outcome          String?  // OK | RATE_LIMITED | TIMEOUT | ERROR | UNRESOLVED_TOKEN | SKIPPED_NOT_BUYER | SKIPPED_BOT | SKIPPED_SPAM | SKIPPED_NOT_ALLOWED | SKIPPED_EMPTY (null ขณะ THINKING)
+  suggestion       String?  // หลังคืนค่าจริงแล้ว — เก็บเพื่อแสดงผลเท่านั้น (BR-AIT-09)
+  provider         String   // typhoon | gemini
+  model            String?
+  latencyMs        Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  firedAt          DateTime? // เวลาเริ่มยิงจริง (reserve-then-verify) — null = ยังไม่ได้สล็อต/ถูกล้างระหว่างรอคิว
+  feedback         String?   // UP | DOWN (FR-AIT-20) — null = ยังไม่กด
+  feedbackReason   String?   // WRONG_INFO | OFF_TOPIC | BAD_TONE | LENGTH — null ได้
+  feedbackNote     String?   // ≤120 ตัวอักษร ผ่าน redactPii ก่อนบันทึก (BR-AIT-11)
+  feedbackAt       DateTime?
+  createdAt        DateTime @default(now())
+  finishedAt       DateTime?
+
+  @@unique([conversationId, anchorMessageId, attempt]) // claim แบบ idempotent (FR-AIT-13)
+  @@index([createdAt])
+  @@index([shopId, createdAt])
+  @@index([conversationId, createdAt]) // GET ผลล่าสุดของห้อง
+  @@index([firedAt])                   // pacing รวมทั้งระบบ
+  @@index([shopId, firedAt])           // pacing ต่อร้าน
+}
+```
+
+### Indexes
+
+| Columns | Type | Query ที่รองรับ |
+|---------|------|-----------------|
+| `(conversationId, anchorMessageId, attempt)` | UNIQUE | claim (`createMany skipDuplicates`) + หา attempt สูงสุดของ anchor |
+| `firedAt` | INDEX | นับจังหวะรวมทั้งระบบ (RPS/RPM) |
+| `(shopId, firedAt)` | INDEX | นับจังหวะต่อร้าน (≤ RPM/2) |
+| `(conversationId, createdAt)` | INDEX | `GET` ผลล่าสุดของห้อง |
+| `createdAt`, `(shopId, createdAt)` | INDEX | สถิติ outcome ตามช่วงเวลา/ร้าน |
+
+### ข้อควรระวัง
+
+- **ไม่มีคอลัมน์เก็บ transcript/payload/ตารางป้าย** (BR-AIT-09) — ข้อความที่เก็บได้มีแค่ `suggestion` (หลังคืนค่าจริง) และ `feedbackNote` (หลัง `redactPii`) ซึ่งเป็นข้อยกเว้นเดียวของหลัก "ไม่เก็บบทสนทนาที่ส่งให้ AI" ใน §6
+- ไม่มี FK → ลบเธรดแล้วแถวค้าง (ตั้งใจ) · ค่า enum เป็น `String` ตาม convention ของโปรเจกต์ (sync รายการค่าไปที่ `docs/SRS.md`)
+- **retention/ลบแถวเก่า ไม่อยู่ในรอบนี้** — เสนอเก็บ 30 วัน แต่การลบต้องขออนุมัติ user ก่อนเสมอ (OQ-8) ให้เป็นงานแยก
+- **วิธี apply:** push `main` = `prisma migrate deploy` บน prod ในตัว (HR15) ก่อน migrate ต้องบอก user 3 ข้อ (prod ไม่ต้องสั่ง · local ต้อง apply เอง · migrate ล้ม = deploy ไม่ขึ้น) · local ใช้ `npm run db:local:migrate` ปักหมุด `localhost:5434` · **ห้าม** `migrate dev` / `db pull` / `migrate reset`
+- Rollback: `DROP TABLE IF EXISTS "AiSuggestRun";` (เสียเฉพาะผลที่แคชและสถิติ ไม่กระทบตารางอื่น) — ต้องขออนุมัติก่อนรันเสมอ

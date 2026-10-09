@@ -70,6 +70,7 @@ import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import RscTiming from './components/RscTiming'
 import { createRscTimer } from '@/lib/rsc-timer'
 import ChatThread from './components/ChatThread'
+import { resolveSuggestProvider } from '@/lib/reply-suggest-provider'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
 import { resolveThreadOrderFilter } from '@/lib/chat-thread-orders'
 import { resolveLibraryOwner } from '@/lib/customer-file-library'
@@ -783,6 +784,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         customerPanelData={customerPanelData}
         savedFileIds={savedFileIds}
         initialMessages={initialMessages}
+        // 00019-ext — Typhoon = แผงอัตโนมัติ · gemini/none = ปุ่มมือเดิม (none ไม่มีกุญแจ → ไม่ให้แผงใหม่โผล่)
+        aiSuggestMode={resolveSuggestProvider(threadShopId) === 'typhoon' ? 'auto' : 'manual'}
       />
       {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ
           rail (384px) ทำให้สองข้างกิน 768px เหลือคอลัมน์แชทแค่ 256px — ข้อความตัดบรรทัดทุก 3-4 คำ

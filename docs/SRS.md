@@ -487,6 +487,18 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 - ใช้ `CRON_SECRET` (เดิม) กับ cron · ปุ่ม "เปิด Deep" ใน Flex ใช้ `NEXT_PUBLIC_SELLER_URL` เฉพาะเมื่อเป็น `https://`
 - ตัวแปรทั้ง 3 อยู่ใน `.env.example` แล้ว
 
+### 5.2 env ใหม่ของ feature 00019-ext (Typhoon auto-suggest · 2026-10-09)
+
+> เอกสารต้นทาง: `docs/20 - Features/00019 - AI Reply Assistant/EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` · อ่านฝั่ง server เท่านั้น ห้ามมี `NEXT_PUBLIC_`
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `TYPHOON_API_KEY` | `src/lib/typhoon.ts` (Bearer) | ใช่ (ร้านที่อยู่ใน allow-list) | ห้ามอยู่ใน error/log · ร้านอยู่ใน allow-list แต่ไม่มีกุญแจ = provider `none` (ไม่ถอยไป Gemini) |
+| `TYPHOON_MODEL` | `typhoon.ts` | ไม่ | default `typhoon-v2.5-30b-a3b-instruct` |
+| `TYPHOON_SUGGEST_SHOP_IDS` | `resolveSuggestProvider` | ไม่ | ว่าง = ไม่มีร้านใดใช้ Typhoon · `id1,id2` = เฉพาะร้านในรายการ · `*` = ทุกร้าน |
+| `AI_SUGGEST_RPS` | pacing ใน `ai-suggest-auto.service` | ไม่ | default 3 (ยิงจริงรวมต่อวินาที) |
+| `AI_SUGGEST_RPM` | pacing | ไม่ | default 100 (รวมต่อนาที · ต่อร้าน ≤ `floor(RPM/2)`) |
+
 ---
 
 ## §6 Data Model & Schema
@@ -1438,6 +1450,36 @@ erDiagram
 
 ความคงที่ข้ามฟิลด์ที่ **บังคับที่ service ไม่ใช่ DB:** `(dailyEnabled ∨ monthlyEnabled) ⇒ dailyTimes.length ≥ 1` · `attachCycleToDaily` ล้างเป็น false เมื่อ `monthlyEnabled=false` · `profitEnabledAt` non-null ⇔ `showProfit` · กลุ่มต่อเจ้าของ ≤10 (`status<>'REMOVED'`) · ร้านต่อกลุ่ม ≤10 · **[EXT]** เมื่อ `template ≠ NULL` คอลัมน์ `show*`/`attachCycleToDaily`/`profitEnabledAt` = cache ที่ derive จากเทมเพลต (`deriveFlags`) เขียนใน transaction เดียวกับ `template` (ตัวตัดสินตอนส่งคือ `resolveReportConfig(group)` ไม่ใช่คอลัมน์) · `LineReportDelivery.summary` ต่อท้าย ` · ข้าม: …` เมื่อ composer ข้ามบล็อก/ตัดบรรทัด (ไม่เปลี่ยนสคีมา)
 
+### 6.68 `AiSuggestRun` — คำแนะนำตอบแชทอัตโนมัติ (feature 00019-ext, Typhoon auto-suggest)
+
+> เอกสารต้นทาง: `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` §9 + ภาคผนวก ก + `firedAt` (มติ C-2) · ตารางใหม่ 1 ตาราง additive (CREATE TABLE/INDEX ล้วน ไม่แตะตารางเดิม ไม่ backfill) · enum ทุกฟิลด์เป็น String (ค่าอยู่ §8.13)
+> ทำ 3 หน้าที่ในตารางเดียว: (1) ผลล่าสุดของห้อง (2) ตัวนับจังหวะยิง (ข้าม instance บน serverless) (3) สถิติ outcome
+> 🛑 **ไม่มี FK** (log อยู่อิสระจากวงจรเธรด · ลบเธรดแล้วแถวค้างโดยตั้งใจ) · **ไม่มีคอลัมน์ transcript/payload/ตารางป้าย PII** (BR-AIT-09) · `suggestion` เก็บเพื่อแสดงผลเท่านั้น · retention ยังไม่ทำ (งานแยก ต้องขออนุมัติก่อนลบ)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `shopId` | String | ไม่มี FK |
+| `conversationId` | String | ไม่มี FK |
+| `anchorMessageId` | String | ข้อความ BUYER ที่คำแนะนำนี้ตอบ |
+| `attempt` | Int default 1 | 1 = อัตโนมัติ · 2+ = กด ↻ (= attempt สูงสุดของ anchor + 1) |
+| `trigger` | String | `AUTO_NEW_MESSAGE` \| `AUTO_OPEN` \| `MANUAL` |
+| `status` | String | `THINKING` \| `READY` \| `NONE` |
+| `outcome` | String? | 10 ค่า (§8.13) · `null` ขณะ `THINKING` |
+| `suggestion` | String? | หลัง `restorePii` + ตัด 3 ประโยค/400 ตัวอักษร |
+| `provider` | String | `typhoon` \| `gemini` (ค่า `none` ไม่ถูกเขียนลงแถว) |
+| `model` | String? | |
+| `latencyMs` / `inputTokens` / `outputTokens` | Int? | |
+| `feedback` | String? | `UP` \| `DOWN` · `null` = ยังไม่กด |
+| `feedbackReason` | String? | `WRONG_INFO` \| `OFF_TOPIC` \| `BAD_TONE` \| `LENGTH` |
+| `feedbackNote` | String? | ≤120 ตัวอักษร · ผ่าน `redactPii` ก่อนบันทึก (BR-AIT-11) |
+| `feedbackAt` | DateTime? | |
+| `firedAt` | DateTime? | **[มติ C-2]** เวลาที่ "ยิงจริง" ไป provider — ตัวนับ pacing ใช้คอลัมน์นี้ ไม่ใช่ `createdAt` (แถวที่ข้าม/รอคิว/ทิ้งก็มี `createdAt`) · reserve-then-verify: เขียน `now` ก่อน นับอันดับตัวเอง เกินเพดาน → ล้างเป็น `null` แล้วรอ |
+| `createdAt` | DateTime default now | ใช้เป็น lease ของ `THINKING` (อายุ >30 วินาที ยึดต่อได้) |
+| `finishedAt` | DateTime? | |
+
+**Constraint / Index:** `@@unique([conversationId, anchorMessageId, attempt])` (claim แบบ idempotent — ใช้ `createMany({skipDuplicates:true})` เพื่อไม่ให้เกิด ERROR ใน log Postgres) · `@@index([createdAt])` · `@@index([shopId, createdAt])` · `@@index([conversationId, createdAt])` · `@@index([firedAt])` · `@@index([shopId, firedAt])`
+
 ---
 
 ## §7 API Reference
@@ -2111,6 +2153,38 @@ schema สืบทอดช่วงเวลามาจาก `PnlReportQuery
 
 webhook หลังลายเซ็นผ่านตอบ 200 เสมอ (แม้ภายในล้ม) · cron ที่ `CRON_SECRET` ว่าง/ไม่ตรง = 401 `{error:'unauthorized'}`
 
+### 7.25 คำแนะนำตอบแชทอัตโนมัติ (`/api/chat/conversations/[id]/ai-suggest/auto`) — feature 00019-ext
+
+> เอกสารต้นทาง: `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md` §10 + ภาคผนวก ก + แผน `docs/superpowers/plans/2026-10-09-00019-ext-typhoon-auto-suggest-plan.md` §2 (contract) · types อยู่ `src/lib/ai-suggest-auto-types.ts`
+> Auth: NextAuth session ผ่าน `sessionUserId()` · `shopId` มาจากเธรดผ่าน `resolveConversationShopId` เท่านั้น (ไม่รับจาก client) · เธรดของร้านที่เข้าถึงไม่ได้ = **404** (ไม่ใช่ 403) · ทุก response `Cache-Control: private, no-store, max-age=0, must-revalidate` · `maxDuration = 30`
+> ความล้มเหลวอื่นทุกแบบ (Typhoon ล่ม/429/timeout, sanitize ล้ม, DB) คืน **200 `NONE`** ไม่ใช่ 5xx
+
+| Method | Path | Purpose | Service |
+|---|---|---|---|
+| POST | `/api/chat/conversations/[id]/ai-suggest/auto` | ขอคำแนะนำ (claim แถว → sanitize → Typhoon → restorePii → ตัดความยาว) | `ai-suggest-auto.service.requestAutoSuggest` |
+| GET | `…/ai-suggest/auto` | อ่านผลล่าสุดของห้อง (อ่าน DB อย่างเดียว ไม่เรียกโมเดล) | `getLatestAutoSuggest` |
+| PATCH | `…/ai-suggest/auto` | ความเห็น UP/DOWN (ไม่เรียกโมเดล) | `submitAutoSuggestFeedback` |
+
+**POST** body `{ anchorMessageId: string, manual: boolean, trigger?: 'AUTO_NEW_MESSAGE' | 'AUTO_OPEN' }` (Valibot · `manual:true` บันทึก trigger เป็น `MANUAL` เสมอ และ attempt+1)
+
+| สถานะ | Body | เมื่อ |
+|---|---|---|
+| 200 | `{ status:'READY', anchorMessageId, attempt, suggestion, feedback: null\|'UP'\|'DOWN' }` | ได้ผล (ใหม่หรือของเดิม) |
+| 200 | `{ status:'THINKING', anchorMessageId, attempt }` | คำขอเดียวกันกำลังทำอยู่ → client poll GET |
+| 200 | `{ status:'NONE', anchorMessageId, attempt, reason }` | ข้าม/ทิ้งเงียบ · `reason` = `AutoSuggestReason` (§8.13) |
+| 400 | `{ error }` | body ไม่ถูกต้อง หรือ anchor ไม่ใช่ข้อความของห้องนี้ (`INVALID_ANCHOR`) |
+| 401 | `{ error }` | ไม่มี session |
+| 404 | `{ error }` | ไม่ใช่ห้องของร้านที่เข้าถึงได้ |
+| 429 | `{ error }` + `Retry-After: 60` | `manual:true` เกิน 15 ครั้ง/นาที/ผู้ใช้ (`checkApiRateLimit('ai-suggest:'+userId)` — key เดียวกับเส้นเดิม) |
+
+**GET** → 200 `AutoSuggestState & { provider: 'typhoon'|'gemini'|'none' }` — ข้อความล่าสุดของห้องไม่ใช่ลูกค้า → `NONE` `anchorMessageId:null` `attempt:null` `reason:'STALE_ANCHOR'` · ยังไม่มีแถวของข้อความลูกค้าล่าสุด → `NONE` `reason:'NO_RUN'` (client POST ได้) · `provider !== 'typhoon'` → `NONE` `reason:'NOT_ENABLED'` · มีหลาย attempt → เอา attempt สูงสุด
+
+**PATCH** body `{ anchorMessageId, attempt (int ≥1), feedback:'UP'|'DOWN', reason?: 'WRONG_INFO'|'OFF_TOPIC'|'BAD_TONE'|'LENGTH', note?: string (≤120) }` → 200 `{ ok:true }` · 400 ค่านอกรายการ/`note` 121 ตัวอักษร · 404 ไม่มีแถว `READY` ของ `(conversationId, shopId, anchorMessageId, attempt)` · `note` ผ่าน `redactPii` ก่อนบันทึก · `DOWN` ไม่มี `reason` ก็นับ · กดซ้ำเปลี่ยนค่าได้
+
+**`POST …/ai-suggest` (เดิม) — เปลี่ยนเฉพาะที่ระบุ:**
+- ร้านนอก allow-list (Gemini): ยังเป็น 3 ตัวเลือก + โควตา 10/วัน + 402 `QUOTA_EXCEEDED` เหมือนเดิม **ยกเว้น** ข้อความลูกค้า/ชื่อ/`customerNote` ผ่าน `sanitizeForExternalAi(...,'gemini')` ก่อนส่ง Gemini และ `restorePii` ก่อนส่งกลับ
+- ร้านใน allow-list (Typhoon): ไม่เรียก provider เอง — ส่งต่อ `requestAutoSuggest` (anchor = ข้อความล่าสุดของห้อง, `manual:true`) → 200 `{ suggestions:[ข้อความเดียว], usedCredit:false, freeRemaining:null, cost:null }` ไม่นับโควตา/ไม่หักเครดิต/ไม่เขียน `AiSuggestUsageEvent` · ข้อความล่าสุดไม่ใช่ลูกค้า → 400 · ไม่มีกุญแจ 503 · Typhoon 429 → 429 + `Retry-After: 5` · Typhoon ล้ม 502 · sanitize/DB ล้ม 500
+
 ---
 
 ## §8 Enums & Constants
@@ -2530,6 +2604,20 @@ HTTP ตามตาราง §7.21
 **บรรทัดฟีเจอร์ของแพ็กเกจธุรกิจ (`tierQuotaFeatures`, `src/lib/business-package.ts`):** เพิ่ม `'รายงานสรุปยอดเข้ากลุ่ม LINE'` ต่อท้ายรายการสิทธิ์ของ **tier ที่ขายจริงทุกตัว** (GROWTH/PRO/BUSINESS — สาขา `maxBusinesses !== 0`) · การ์ด **Free** (pseudo-tier `maxBusinesses===0`) **ไม่มี** บรรทัดนี้ · `featuresForTier(tier)` เป็นตัวช่วยที่เรียก `tierQuotaFeatures` ⇒ `PackageTierGrid` และ `IapSubscribeClient` ได้บรรทัดเดียวกันจากฟังก์ชันเดียว
 
 **เมนู:** slug `seller:line-reports` (กลุ่ม SHOPS · url `/business/line-reports` · icon `brand-line` · label "รายงานเข้ากลุ่ม LINE" · i18n `menu.lineReports`) — ซ่อนเมื่อ `staff.role !== 'OWNER'`
+
+### 8.13 คำแนะนำตอบแชทอัตโนมัติ (feature 00019-ext — `src/lib/ai-suggest-auto-types.ts` เป็น SSOT · ทุกค่าเก็บเป็น String)
+
+| enum | ค่า |
+|---|---|
+| `AutoSuggestOutcome` (`AiSuggestRun.outcome` · 10 ค่า) | `OK` · `RATE_LIMITED` · `TIMEOUT` · `ERROR` · `UNRESOLVED_TOKEN` · `SKIPPED_NOT_BUYER` · `SKIPPED_BOT` · `SKIPPED_SPAM` · `SKIPPED_NOT_ALLOWED` · `SKIPPED_EMPTY` |
+| `AutoSuggestTrigger` (3) | `AUTO_NEW_MESSAGE` · `AUTO_OPEN` · `MANUAL` |
+| `AutoSuggestStatus` (3) | `THINKING` · `READY` · `NONE` |
+| `AutoSuggestFeedback` (2) | `UP` · `DOWN` |
+| `AutoSuggestFeedbackReason` (4) | `WRONG_INFO` · `OFF_TOPIC` · `BAD_TONE` · `LENGTH` |
+| `AutoSuggestProvider` (`SuggestProvider`) | `typhoon` · `gemini` · `none` (`none` = อยู่ใน allow-list แต่ไม่มี `TYPHOON_API_KEY` — ห้ามถอยไป Gemini) |
+| `AutoSuggestReason` (ฝั่ง client · ใน response `NONE`) | outcome ทุกค่าที่ไม่ใช่ `OK` + `NO_RUN` (ยังไม่มีแถวของ anchor นี้) · `STALE_ANCHOR` (anchor ไม่ใช่ข้อความล่าสุดของห้อง) · `NOT_CONFIGURED` (อยู่ใน allow-list แต่ไม่มีกุญแจ) · `NOT_ENABLED` (ร้านใช้ Gemini) |
+
+**ค่าคงที่:** `AUTO_SUGGEST_NOTE_MAX = 120` · ตัดผล ≤3 ประโยค/≤400 ตัวอักษร (`clampSuggestion`) · Typhoon timeout 8 วินาที ไม่ retry (`TYPHOON_TIMEOUT_MS`) · รอคิว pacing ≤5 วินาที (รอบละ 250 ms) แล้วทิ้ง `RATE_LIMITED` · pacing `AI_SUGGEST_RPS` 3 / `AI_SUGGEST_RPM` 100 / ต่อร้าน `floor(RPM/2)` · `THINKING` อายุ >30 วินาที ยึดต่อได้ · `SKIPPED_BOT` = มี `AutoReplyJob` ของ anchor สถานะ `PENDING`/`PROCESSING` และ `updatedAt` ภายใน 5 นาที · `manual` ≤15 ครั้ง/นาที/ผู้ใช้
 
 ---
 

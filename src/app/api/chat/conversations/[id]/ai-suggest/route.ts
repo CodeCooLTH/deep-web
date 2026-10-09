@@ -8,12 +8,16 @@ import { resolveConversationShopId } from "@/lib/chat-scope";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
 import {
-  generateReplySuggestions,
   GeminiNotConfiguredError,
   GeminiApiError,
-  type SuggestTurn,
   type SuggestMedia,
 } from "@/lib/gemini";
+import { SanitizeError, sanitizeForExternalAi, sanitizedContext } from "@/lib/ai-suggest-sanitize";
+import { buildSuggestTurns } from "@/lib/ai-suggest-turns";
+import { restorePii, type PiiVault } from "@/lib/pii-redact";
+import { draftReplySuggestions, resolveSuggestProvider } from "@/lib/reply-suggest-provider";
+import { buildSuggestIdentity } from "@/services/ai-suggest-identity";
+import { requestAutoSuggest } from "@/services/ai-suggest-auto.service";
 import { computeUsageCost } from "@/lib/ai-pricing";
 import { getFile } from "@/lib/storage";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // มันอ่านการตั้งค่า AI/สินค้า/โควตา ของร้านไปสร้างคำตอบ — ถ้าใช้ร้านที่ active ในโหมดรวม
   // ผู้ขายจะได้ร่างคำตอบที่อ้างสินค้าและน้ำเสียงของ "อีกร้าน" มาตอบลูกค้าร้านนี้
   const resolved = await resolveConversationShopId(
-    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    { user: { id: userId, activeShopId: (session.user as { activeShopId?: string | null }).activeShopId ?? null } },
     idCheck.output,
   );
   if (!resolved) {
@@ -125,6 +129,64 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: parsedBody.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
   const confirmUseCredit = parsedBody.output.confirmUseCredit;
+
+  // ── 00019-ext S-12 (C-4): ร้านใน allow-list Typhoon ส่งต่อ requestAutoSuggest ตัวเดียวกับ /auto ──────
+  // ไม่ผ่านโควตา/เครดิต/usage event เลย (ฟรี) และไม่เรียก provider เอง → pacing/claim/log ครบจาก service
+  const provider = resolveSuggestProvider(shopId);
+  if (provider !== "gemini") {
+    const latest = await prisma.chatMessage.findFirst({
+      where: { conversationId, type: { not: AUTO_ORDER_RESULT_TYPE } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, senderRole: true },
+    });
+    if (!latest || latest.senderRole !== "BUYER") {
+      return NextResponse.json({ error: "ยังไม่มีข้อความลูกค้าให้ตอบ" }, { status: 400 });
+    }
+    try {
+      const r = await requestAutoSuggest({
+        shopId,
+        conversationId,
+        userId,
+        userDisplayName: session.user.name ?? null,
+        anchorMessageId: latest.id,
+        manual: true,
+        trigger: "MANUAL",
+      });
+      if (r.status === "INVALID_ANCHOR") return NextResponse.json({ error: "ข้อความอ้างอิงไม่ถูกต้อง" }, { status: 400 });
+      if (r.status === "READY") {
+        return NextResponse.json(
+          { suggestions: [r.suggestion], usedCredit: false, freeRemaining: null, cost: null },
+          { headers: NO_STORE_HEADERS },
+        );
+      }
+      if (r.status === "THINKING") {
+        return NextResponse.json({ error: "กำลังสร้างคำแนะนำ ลองอีกครั้ง" }, { status: 409 });
+      }
+      switch (r.reason) {
+        case "NOT_CONFIGURED":
+          return NextResponse.json({ error: "ระบบ AI ยังไม่พร้อมใช้งาน (ยังไม่ตั้งค่า)" }, { status: 503 });
+        case "RATE_LIMITED":
+          return NextResponse.json(
+            { error: "ใช้ AI ถี่เกินไป กรุณารอสักครู่" },
+            { status: 429, headers: { "Retry-After": "5" } },
+          );
+        case "STALE_ANCHOR":
+          return NextResponse.json({ error: "มีข้อความใหม่เข้ามา ลองอีกครั้ง" }, { status: 409 });
+        case "SKIPPED_NOT_BUYER":
+          return NextResponse.json({ error: "ยังไม่มีข้อความลูกค้าให้ตอบ" }, { status: 400 });
+        case "SKIPPED_EMPTY":
+          return NextResponse.json({ error: "ยังไม่มีข้อความให้ AI ช่วยร่าง" }, { status: 400 });
+        case "SKIPPED_SPAM":
+        case "SKIPPED_BOT":
+          return NextResponse.json({ error: "ยังร่างคำตอบไม่ได้ในขณะนี้" }, { status: 409 });
+        default: // TIMEOUT / ERROR / UNRESOLVED_TOKEN ฯลฯ — ห้ามใส่ detail จาก provider
+          return NextResponse.json({ error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง" }, { status: 502 });
+      }
+    } catch (e) {
+      console.error("[ai-suggest] typhoon branch failed", e instanceof Error ? e.name : "unknown");
+      return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+    }
+  }
 
   let isPaidPlan: boolean;
   try {
@@ -230,7 +292,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // CRM (feature 00018) — โน้ต/ชื่อที่แอดมินจดไว้ ให้ AI ใช้ประกอบการร่าง (ตอบตรงคน/บริบทมากขึ้น)
   const crm = await getConversationCrm(conversation.id, activeCtx.shopId);
-  const customerName = crm?.alias ?? crm?.realName ?? null;
 
   // ข้อความล่าสุด (ใหม่→เก่า) แล้ว reverse ให้เป็นเก่า→ใหม่สำหรับ transcript
   const rows = await prisma.chatMessage.findMany({
@@ -241,7 +302,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     take: RECENT_LIMIT,
     // feature 00019: productRefId ใช้แปลงการ์ดสินค้าเป็นชื่อ+ราคาจริง (TFR-003)
     // imageUrl (= storage fileId ของ IMAGE/AUDIO/VIDEO/FILE): ใช้ดึงไฟล์จริงส่งให้ AI ดู/ฟัง (00019 ext)
-    select: { senderRole: true, type: true, body: true, productRefId: true, imageUrl: true },
+    select: { senderRole: true, type: true, body: true, productRefId: true, imageUrl: true, senderUserId: true },
   });
   const ordered = rows.reverse();
 
@@ -265,28 +326,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  const turns: SuggestTurn[] = ordered
-    .map((m) => {
-      const role: "BUYER" | "SHOP" = m.senderRole === "SHOP" ? "SHOP" : "BUYER";
-      // placeholder ข้อความสำหรับ transcript — ไฟล์จริงส่งแยกเป็น inline media (ถ้าเปิดสวิตช์)
-      let text = m.body ?? "";
-      if (m.type === "IMAGE") text = m.body ? `[รูปภาพ] ${m.body}` : "[ส่งรูปภาพ]";
-      else if (m.type === "AUDIO") text = m.body ? `[ข้อความเสียง] ${m.body}` : "[ส่งข้อความเสียง]";
-      else if (m.type === "PRODUCT") {
-        const card = m.productRefId ? productCards.get(m.productRefId) : undefined;
-        if (card) {
-          const state = card.isActive ? "เปิดขาย" : "ปิดขายแล้ว";
-          text = `[ส่งการ์ดสินค้า: ${card.name} — ${card.price} บาท (${state})]`;
-        } else if (aiSetting.includeProductContext && m.productRefId) {
-          // หาไม่เจอ = สินค้าถูกลบ — ต้องไม่ throw และต้องบอก AI ตรง ๆ ว่าอ้างอิงราคาไม่ได้ (AC-004-02)
-          text = "[ส่งการ์ดสินค้า: สินค้าถูกลบแล้ว]";
-        } else {
-          text = "[ส่งการ์ดสินค้า]";
-        }
-      }
-      return { role, text: text.trim() };
-    })
-    .filter((t) => t.text.length > 0);
+  // externalSafe:false = พฤติกรรมสื่อเดิมตามสวิตช์ BR-AIM-01 (ข้อความถูกปิดบัง PII ทีหลังที่ sanitize)
+  const turns = buildSuggestTurns(ordered, {
+    productCards,
+    includeProductContext: aiSetting.includeProductContext,
+    externalSafe: false,
+  });
 
   if (turns.length === 0) {
     return NextResponse.json({ error: "ยังไม่มีข้อความให้ AI ช่วยร่าง" }, { status: 400 });
@@ -353,15 +398,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     media.push(...picked.map((p) => p.item));
   }
 
+  // S-13: ทุก string ที่ออกไป Gemini ต้องผ่านด่านปิดบัง PII (ชื่อลูกค้า/แอดมิน, เบอร์, ที่อยู่, customerNote)
+  // SanitizeError โยนจากใน try → ไป catch ด้านล่าง (refund + 500) โดยไม่เคยเรียก Gemini
+  const restoreAll = (list: string[], vault: PiiVault) =>
+    list
+      .map((t) => restorePii(t, vault))
+      .filter((r) => r.unresolved.length === 0) // ป้ายที่ไม่รู้จัก = ตัดข้อนั้นทิ้ง
+      .map((r) => r.text);
+
+  let payload: ReturnType<typeof sanitizeForExternalAi> | undefined;
+  let ctx: ReturnType<typeof sanitizedContext> | undefined;
   try {
-    const { suggestions, usage } = await generateReplySuggestions(turns, {
-      shopName: shop?.shopName ?? "ร้านค้า",
-      vertical,
-      instruction: aiSetting.instruction,
-      contextBlock,
-      customerName,
-      customerNote: crm?.note ?? null,
-    }, media);
+    const identity = await buildSuggestIdentity({ crm, rows: ordered, sessionName: session.user.name });
+    payload = sanitizeForExternalAi(
+      {
+        turns,
+        shopName: shop?.shopName ?? "ร้านค้า",
+        instruction: aiSetting.instruction,
+        contextBlock,
+        customerNote: crm?.note ?? null,
+        ...identity,
+        vertical,
+      },
+      "gemini",
+    );
+    ctx = sanitizedContext(payload);
+    const draft = await draftReplySuggestions("gemini", payload.turns, ctx, media);
+    const { usage } = draft;
+    const suggestions = restoreAll(draft.suggestions, payload.vault);
+    if (suggestions.length === 0) {
+      await refundUsage();
+      return NextResponse.json({ error: "AI ไม่พร้อมใช้งานชั่วคราว ลองใหม่อีกครั้ง" }, { status: 502 });
+    }
     const cost = usage ? computeUsageCost(usage) : null;
     // NFR-AIQ-Obs: audit log ทุก path ที่ผ่าน gate สำเร็จ — best-effort, ไม่ทำให้ response หลักพัง
     await logUsageEvent({
@@ -373,6 +441,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return NextResponse.json({ suggestions, usedCredit, freeRemaining, cost }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
+    if (e instanceof SanitizeError) {
+      // ปิดบังไม่สำเร็จ = ยังไม่เคยเรียก Gemini → คืนสิทธิ์ · log ชนิดเท่านั้น (message อาจมีเนื้อความลูกค้า)
+      console.error("[ai-suggest] SanitizeError");
+      await refundUsage();
+      return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+    }
     if (e instanceof GeminiNotConfiguredError) {
       // BR-AIQ-06/07: Gemini ล้มเหลวจริง (แม้เพราะยังไม่ตั้งค่า) ต้องคืนสิทธิ์ที่ใช้ไป — unlimited path ไม่มีอะไรคืน
       await refundUsage();
@@ -383,16 +457,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // fail-soft ไฟล์แนบ (00019 ext): ถ้าพลาดตอนที่ "มีไฟล์แนบ" ให้ลองใหม่แบบข้อความล้วนก่อนยอมแพ้
       // — ครอบเคสที่ Gemini ไม่รับไฟล์บางชนิด (เช่น ogg-opus ของข้อความเสียง Messenger) หรือ
       // request ใหญ่/ช้าเกิน ผู้ใช้ควรได้ร่างคำตอบจากข้อความอยู่ดี ดีกว่าเห็น error เปล่า ๆ
-      if (media.length > 0) {
+      if (media.length > 0 && payload && ctx) {
         try {
-          const { suggestions, usage } = await generateReplySuggestions(turns, {
-            shopName: shop?.shopName ?? "ร้านค้า",
-            vertical,
-            instruction: aiSetting.instruction,
-            contextBlock,
-            customerName,
-            customerNote: crm?.note ?? null,
-          });
+          const retry = await draftReplySuggestions("gemini", payload.turns, ctx);
+          const { usage } = retry;
+          const suggestions = restoreAll(retry.suggestions, payload.vault);
+          if (suggestions.length === 0) throw new Error("no restorable suggestion");
           const cost = usage ? computeUsageCost(usage) : null;
           console.warn("[ai-suggest] ถอยไปโหมดข้อความล้วน (ไฟล์แนบใช้ไม่ได้)");
           // BR-AIQ-08: mediaSkipped:true = "สำเร็จ" เสมอ — ห้ามคืนโควตา/ยอดเงิน แม้ไม่ได้ใช้ไฟล์แนบจริง
