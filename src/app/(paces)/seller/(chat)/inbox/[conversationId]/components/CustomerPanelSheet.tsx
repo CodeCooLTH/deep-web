@@ -86,7 +86,7 @@ export default function CustomerPanelSheet({ data, onClose, initialTab }: Props)
           </button>
         </div>
 
-        <CustomerPanelBody data={data} initialTab={initialTab} />
+        <CustomerPanelBody data={data} initialTab={initialTab} onRequestClose={onClose} />
       </div>
     </div>
   )

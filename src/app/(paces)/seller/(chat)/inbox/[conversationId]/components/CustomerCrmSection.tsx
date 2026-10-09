@@ -100,6 +100,10 @@ export default function CustomerCrmSection({
   crm: Crm
   /** parent เก็บ crm ที่อัปเดตแล้วต่อ (แชร์ระหว่างแท็บ) */
   onSaved: (next: Crm) => void
+  /** ข้อความใต้โน้ตตามที่ AI อ่านจริง (00019-ext-mem) — T12 ใช้ ตอนนี้ยังไม่เปลี่ยนข้อความ */
+  noteHint?: 'reads' | 'ignores' | 'neutral'
+  /** ลิงก์ "ความจำของแชทนี้" ใต้โน้ต → สลับไปแท็บข้อมูลแล้วโฟกัสหัวความจำ (T12 ใช้) */
+  onGoToMemory?: () => void
 }) {
   const t = useT()
   const SALES_STATUS_META = salesStatusMeta(t)
