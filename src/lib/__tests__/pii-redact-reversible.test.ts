@@ -143,3 +143,21 @@ describe('redactPiiReversible: ที่อยู่ในบรรทัดเ�
 })
 
 const normalizeSame = (s: string) => s
+
+describe('security batch B1: H1 ตัวคั่น " - " / M2 โซเชียล', () => {
+  it.each(['โทร 081 - 234 - 5678', 'โทร 081 – 234 – 5678', 'โทร 081 — 234 — 5678'])('H1 ปิดเบอร์: %s', (t) => {
+    const r = redactPiiReversible(t, createPiiVault())
+    expect(r.found).toContain('PHONE')
+    expect(r.text).not.toMatch(/234/)
+  })
+  it.each(['ราคา 1,299 บาท', 'วันที่ 12/10/2026', 'นัด 14:30', 'เปิด 10.30 - 12.30', 'ส่ง 2 ชิ้น', 'อก 36 เอว 28'])('H1 ไม่โดน: %s', (t) => {
+    const r = redactPiiReversible(t, createPiiVault())
+    expect(r.found).toEqual([])
+    expect(r.text).toBe(t)
+  })
+  it.each(['ig: somchai_k', 'IG somchai_k', 'tiktok @x_y', 'fb: somchai.k', 'facebook=somchai'])('M2 ปิดโซเชียล: %s', (t) => {
+    const r = redactPiiReversible(t, createPiiVault())
+    expect(r.found).toContain('CONTACT')
+    expect(r.text).not.toMatch(/somchai|x_y/)
+  })
+})
