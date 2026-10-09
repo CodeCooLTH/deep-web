@@ -23,6 +23,23 @@ export type AutoSuggestOutcome = (typeof AUTO_SUGGEST_OUTCOMES)[number]
 export const AUTO_SUGGEST_TRIGGERS = ['AUTO_NEW_MESSAGE', 'AUTO_OPEN', 'MANUAL'] as const
 export type AutoSuggestTrigger = (typeof AUTO_SUGGEST_TRIGGERS)[number]
 
+// 00019-ext-mem: แถว AiSuggestRun ของงานอัปเดตความจำ — แยกจาก AUTO_SUGGEST_* เพื่อไม่ให้ client/AutoSuggestReason กว้างตาม
+export const MEMORY_UPDATE_TRIGGER = 'MEMORY_UPDATE' as const
+export const MEMORY_UPDATE_OUTCOMES = [
+  'OK',
+  'SUPERSEDED',
+  'REJECTED_PII',
+  'REJECTED_FORMAT',
+  'REJECTED_SHRINK',
+  'SKIPPED_BASE_HAS_PII',
+  'SKIPPED_COOLDOWN',
+  'SKIPPED_FEW_MESSAGES',
+  'RATE_LIMITED',
+  'TIMEOUT',
+  'ERROR',
+] as const
+export type MemoryUpdateOutcome = (typeof MEMORY_UPDATE_OUTCOMES)[number]
+
 export const AUTO_SUGGEST_STATUSES = ['THINKING', 'READY', 'NONE'] as const
 export type AutoSuggestStatus = (typeof AUTO_SUGGEST_STATUSES)[number]
 

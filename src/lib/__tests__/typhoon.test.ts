@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sanitizeForExternalAi } from '@/lib/ai-suggest-sanitize'
 import { buildTyphoonSystemPrompt, SAFETY_RULE_LINES } from '@/lib/reply-suggest-prompt'
 import {
+  generateTyphoonMemoryText,
   generateTyphoonReply,
   isTyphoonConfigured,
   TYPHOON_ENDPOINT,
@@ -159,5 +160,63 @@ describe('กติกาห้ามเดาสื่อ + ห้ามเร�
     expect(p).toContain(NO_GUESS_MEDIA_RULE)
     expect(p).toContain(ADDRESSING_RULE)
     expect(NO_GUESS_MEDIA_RULE).toContain('[รูป]')
+  })
+})
+
+describe('generateTyphoonMemoryText', () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubEnv('TYPHOON_API_KEY', KEY)
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('temperature 0.2 · max_tokens 400 · system เป็น prompt ผู้เขียนความจำ · user มีความจำเดิม+บทสนทนา', async () => {
+    fetchMock.mockResolvedValue(ok(good))
+    const mem = sanitizeForExternalAi(
+      { turns, shopName: ctx.shopName, knownCustomerNames: [], adminNames: [], memory: { text: 'ชอบสีดำ', updatedDay: '2026-10-01' } },
+      'typhoon',
+    )
+    const r = await generateTyphoonMemoryText(mem)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(TYPHOON_ENDPOINT)
+    const body = JSON.parse(init.body)
+    expect(body.temperature).toBe(0.2)
+    expect(body.max_tokens).toBe(400)
+    expect(body.messages[0].content).toContain('800')
+    expect(body.messages[1].content).toContain('ชอบสีดำ')
+    expect(body.messages[1].content).toContain('สนใจครับ')
+    expect(r.text).toBe('สวัสดีครับ')
+  })
+
+  it('ไม่มีความจำ → "(ยังไม่มี)"', async () => {
+    fetchMock.mockResolvedValue(ok(good))
+    await generateTyphoonMemoryText(payload)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).messages[1].content).toContain('(ยังไม่มี)')
+  })
+
+  it('429 → RateLimited · ไม่มีกุญแจ → NotConfigured', async () => {
+    fetchMock.mockResolvedValue(ok({}, 429))
+    await expect(generateTyphoonMemoryText(payload)).rejects.toBeInstanceOf(TyphoonRateLimitedError)
+    vi.stubEnv('TYPHOON_API_KEY', '')
+    await expect(generateTyphoonMemoryText(payload)).rejects.toBeInstanceOf(TyphoonNotConfiguredError)
+  })
+
+  it('เกิน 8 วิ → TIMEOUT', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(
+      (_u: string, init: { signal: AbortSignal }) =>
+        new Promise((_res, rej) => {
+          init.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+        }),
+    )
+    const p = generateTyphoonMemoryText(payload).catch((x) => x)
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(await p).toMatchObject({ kind: 'TIMEOUT' })
   })
 })

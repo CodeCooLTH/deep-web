@@ -18,6 +18,7 @@ import {
 } from "@/lib/geo-thailand";
 import { CHAT_CHANNELS } from "@/lib/chat-channel";
 import { LOCALES } from "@/i18n/locales";
+import { CHAT_MEMORY_MAX, SELECTIONS_MAX } from "@/lib/chat-memory-types";
 import {
   APPOINTMENT_CLOSING_MAX,
   HIDEABLE_APPOINTMENT_SUMMARY_KEYS,
@@ -1302,6 +1303,22 @@ export const AutoSuggestPatchSchema = v.object({
   feedback: v.picklist(["UP", "DOWN"]),
   reason: v.optional(v.picklist(["WRONG_INFO", "OFF_TOPIC", "BAD_TONE", "LENGTH"])),
   note: v.optional(v.pipe(v.string(), v.maxLength(120, "หมายเหตุต้องไม่เกิน 120 ตัวอักษร"))),
+});
+
+// 00019-ext-mem — ความจำต่อห้อง · maxLength เผื่อ 2 เท่าเพราะ normalizeMemoryText (ตัดช่องว่าง/บรรทัดซ้ำ) อยู่ใน service → service ตัดสิน 800 จริง (INVALID_TEXT)
+export const ChatMemoryPutSchema = v.object({
+  text: v.pipe(v.string(), v.maxLength(CHAT_MEMORY_MAX * 2, "ข้อความยาวเกินกำหนด")),
+  expectedVersion: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1))),
+});
+
+export const InterestedProductPostSchema = v.object({
+  productId: v.pipe(v.string(), v.uuid("productId ไม่ถูกต้อง")),
+  selections: v.optional(
+    v.pipe(
+      v.array(v.object({ key: v.pipe(v.string(), v.maxLength(50)), value: v.pipe(v.string(), v.maxLength(80)) })),
+      v.maxLength(SELECTIONS_MAX),
+    ),
+  ),
 });
 
 export const ShopAiSettingSchema = v.object({

@@ -18,9 +18,13 @@ import {
   type AutoSuggestReason,
   type AutoSuggestState,
   type AutoSuggestTrigger,
+  MEMORY_UPDATE_TRIGGER,
 } from '@/lib/ai-suggest-auto-types'
+import { MEMORY_RPM_SHARE } from '@/lib/chat-memory-types'
 import { getAiSetting, getEffectiveAiSetting } from '@/services/ai-setting.service'
 import { buildCustomerBlock, buildProductBlock, composeContextBlock, resolveProductCards } from '@/services/ai-context.service'
+import { formatInterestedProductLine } from '@/lib/reply-suggest-prompt'
+import { loadPromptMemory } from '@/services/chat-memory.service'
 import { getConversationCrm } from '@/services/chat-crm.service'
 import { buildSuggestIdentity } from '@/services/ai-suggest-identity'
 import { isOwnerPaidPlan } from '@/services/ai-suggest-quota.service'
@@ -85,7 +89,7 @@ type PacingRow = { id: string; shopId: string; firedAt: Date | null }
 export function computePacingVerdict(
   rows: PacingRow[],
   me: { id: string; shopId: string; firedAt: Date },
-  limits: { rps: number; rpm: number },
+  limits: { rps: number; rpm: number; lowPriorityShare?: number },
 ): boolean {
   const t = me.firedAt.getTime()
   const ahead = rows.filter((r) => {
@@ -95,13 +99,17 @@ export function computePacingVerdict(
   })
   const inSec = ahead.filter((r) => r.firedAt!.getTime() > t - 1000).length
   const shopMin = ahead.filter((r) => r.shopId === me.shopId).length
-  return inSec < limits.rps && ahead.length < limits.rpm && shopMin < Math.floor(limits.rpm / 2)
+  // งานรอง (ความจำ) ต้องเหลือที่ว่างให้คำแนะนำหลัก: ผ่านเมื่อคนข้างหน้า < rpm*share
+  const shareOk = limits.lowPriorityShare === undefined || ahead.length < Math.floor(limits.rpm * limits.lowPriorityShare)
+  return inSec < limits.rps && ahead.length < limits.rpm && shopMin < Math.floor(limits.rpm / 2) && shareOk
 }
 
 /** true = ได้สิทธิ์ยิง (firedAt คงไว้) · false = หมดเวลา (firedAt ถูกล้าง) */
-export async function reserveSlot(runId: string, shopId: string, opts: { deadlineAt?: number } = {}): Promise<boolean> {
+export async function reserveSlot(runId: string, shopId: string, opts: { deadlineAt?: number; lowPriority?: boolean } = {}): Promise<boolean> {
   const deadlineAt = opts.deadlineAt ?? Date.now() + PACING_DEADLINE_MS
-  const limits = { rps: envInt('AI_SUGGEST_RPS', 3), rpm: envInt('AI_SUGGEST_RPM', 100) }
+  const limits = { rps: envInt('AI_SUGGEST_RPS', 3), rpm: envInt('AI_SUGGEST_RPM', 100),
+    lowPriorityShare: opts.lowPriority ? MEMORY_RPM_SHARE : undefined,
+  }
   for (;;) {
     // เวลาจาก DB ณ ตอนเขียน (ไม่ใช่นาฬิกา app): ถ้า app เก็บ now() ไว้ก่อนแล้วค่อยเขียน คำขอที่ now เก่ากว่าแต่เขียนช้ากว่า
     // จะไม่เห็นคนที่ผ่านไปแล้ว → ทั้งคู่ผ่านเกินเพดาน (เจอจริงในเทส 20 พร้อมกัน) · ยังกันนาฬิกาต่าง instance (R-5) ด้วย
@@ -173,7 +181,7 @@ export async function claimRun(p: {
   conversationId: string
   anchorMessageId: string
   attempt: number
-  trigger: AutoSuggestTrigger
+  trigger: AutoSuggestTrigger | typeof MEMORY_UPDATE_TRIGGER
 }): Promise<ClaimResult> {
   const id = randomUUID()
   const { count } = await prisma.aiSuggestRun.createMany({
@@ -223,11 +231,16 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
   const rows = rowsDesc.reverse()
 
   // isOwnerPaidPlan ล้ม = ถือเป็น non-paid (ไม่ fail ทั้งคำขอ) — ฝั่งนี้ไม่มีโควตา จึงกระทบแค่สิทธิ์บริบท (OQ-7)
-  const [shop, crm, stored, isPaid] = await Promise.all([
+  // loadPromptMemory อ่านก่อนรู้สวิตช์ (ขนานกับ query เดิม ไม่เพิ่ม round-trip) แล้วทิ้งส่วนที่สวิตช์ปิดทีหลัง;
+  // fail-soft ในตัว แต่กันซ้ำเผื่อ mock/อนาคต throw
+  const [shop, crm, stored, isPaid, promptMem] = await Promise.all([
     prisma.shop.findUnique({ where: { id: p.shopId }, select: { shopName: true, vertical: true } }),
     getConversationCrm(p.conversationId, p.shopId),
     getAiSetting(p.shopId),
     isOwnerPaidPlan(p.shopId).catch(() => false),
+    loadPromptMemory({ shopId: p.shopId, conversationId: p.conversationId, includeMemory: true, includeProducts: true }).catch(
+      () => ({ memory: null, products: [] }),
+    ),
   ])
   const setting = getEffectiveAiSetting(stored, isPaid)
 
@@ -263,6 +276,8 @@ async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: str
       shopName: shop?.shopName ?? '',
       instruction: setting.instruction,
       contextBlock,
+      memory: setting.includeCustomerContext ? promptMem.memory : null,
+      interestedProducts: setting.includeProductContext ? promptMem.products.map(formatInterestedProductLine) : [],
       vertical: isShopVertical(rawVertical) ? rawVertical : DEFAULT_SHOP_VERTICAL,
       ...identity,
     },

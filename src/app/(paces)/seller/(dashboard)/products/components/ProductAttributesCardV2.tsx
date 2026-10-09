@@ -16,6 +16,7 @@
 import { Icon } from '@iconify/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { splitAttributeValues } from '@/lib/product-attributes'
 
 interface ProductAttributesCardV2Props {
   value: Record<string, string>
@@ -57,19 +58,12 @@ const MAX_KEY_LEN = 50
 // stable id สำหรับ React key — ไม่ต้อง persist
 const newId = () => `attr-${Math.random().toString(36).slice(2, 10)}`
 
-// แยก comma-joined string → string[] (trim + filter empty)
-const splitValues = (raw: string): string[] =>
-  raw
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0)
-
 // แปลง record (comma-joined value) → rows (ใช้ตอน mount/reset เท่านั้น)
 const recordToRows = (rec: Record<string, string>): Row[] =>
   Object.entries(rec).map(([k, v]) => ({
     id: newId(),
     key: k,
-    values: splitValues(v),
+    values: splitAttributeValues(v),
     keyLocked: PRESET_KEYS.has(k),
   }))
 

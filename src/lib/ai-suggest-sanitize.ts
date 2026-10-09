@@ -1,4 +1,5 @@
 import 'server-only'
+import { renderMemorySections } from '@/lib/reply-suggest-prompt'
 import type { SuggestContext, SuggestTurn } from '@/lib/gemini'
 import {
   createPiiVault,
@@ -23,6 +24,9 @@ export interface SanitizeInput {
   knownLiterals?: string[]
   /** ONLINE_SALES | SERVICE_QUEUE | LODGING — ค่าจาก enum ของระบบ ไม่ใช่ข้อความอิสระ */
   vertical?: string
+  /** 00019-ext-mem: ความจำแชท + สินค้าที่สนใจ (G0 ยังไม่ scrub — T2 ทำ) */
+  memory?: { text: string; updatedDay: string } | null
+  interestedProducts?: string[]
 }
 
 /**
@@ -42,6 +46,8 @@ export interface SanitizeOutput {
   customerNote: string | null
   vault: PiiVault
   foundKinds: PiiKind[]
+  memory: { text: string; updatedDay: string } | null
+  interestedProducts: string[]
 }
 
 const LITERAL_LABEL = '[ข้อมูลลูกค้า]'
@@ -75,7 +81,9 @@ function replaceAllCI(text: string, needles: string[], to: string): string {
 export type SanitizedPayload = SanitizeOutput
 
 /** ctx สำหรับ prompt ประกอบจาก payload ที่ผ่าน sanitize แล้วเท่านั้น */
-export function sanitizedContext(p: SanitizedPayload): SuggestContext {
+export function sanitizedContext(
+  p: SanitizedPayload,
+): SuggestContext & { memory?: SanitizeOutput['memory']; interestedProducts?: string[] } {
   return {
     shopName: p.shopName,
     vertical: p.vertical,
@@ -83,7 +91,15 @@ export function sanitizedContext(p: SanitizedPayload): SuggestContext {
     contextBlock: p.contextBlock,
     customerName: null,
     customerNote: p.customerNote,
+    memory: p.memory,
+    interestedProducts: p.interestedProducts,
   }
+}
+
+/** Gemini ไม่มีช่อง memory แยก ⇒ ต่อท้าย contextBlock (หลัง sanitize แล้ว) — P-2 */
+export function sanitizedContextForGemini(p: SanitizedPayload): SuggestContext {
+  const sections = renderMemorySections(p)
+  return { ...sanitizedContext(p), contextBlock: sections ? `${p.contextBlock}\n\n${sections}` : p.contextBlock }
 }
 
 export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'gemini'): SanitizedPayload {
@@ -109,6 +125,20 @@ export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'g
       return r.text
     }
 
+    // try แยกต่อฟิลด์: ความจำ/สินค้าพังไม่ควรทำให้คำแนะนำทั้งก้อนตาย — ตัดเฉพาะส่วนนั้นทิ้ง (log เฉพาะชนิด error)
+    let memory: SanitizeOutput['memory'] = null
+    try {
+      if (input.memory?.text?.trim()) memory = { text: scrub(input.memory.text), updatedDay: input.memory.updatedDay }
+    } catch (e) {
+      console.error('[ai-suggest-sanitize] memory dropped:', (e as Error).name)
+    }
+    let interestedProducts: string[] = []
+    try {
+      interestedProducts = (input.interestedProducts ?? []).map(scrub)
+    } catch (e) {
+      console.error('[ai-suggest-sanitize] interestedProducts dropped:', (e as Error).name)
+    }
+
     const out = {
       vertical: input.vertical ?? 'ONLINE_SALES',
       turns: input.turns.map((t) => ({ role: t.role, text: scrub(t.text) })),
@@ -119,6 +149,8 @@ export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'g
       customerNote: mode === 'typhoon' || !input.customerNote ? null : scrub(input.customerNote),
       vault,
       foundKinds: [...found],
+      memory,
+      interestedProducts,
     } as SanitizeOutput
     return out
   } catch (e) {

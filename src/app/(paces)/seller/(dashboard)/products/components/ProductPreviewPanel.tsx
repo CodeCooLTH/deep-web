@@ -19,6 +19,7 @@
 import { Icon } from '@iconify/react'
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import { splitAttributeValues } from '@/lib/product-attributes'
 import type { FulfillmentMode, BillingMode, BillingPeriod } from '@/lib/product-types/registry'
 
 interface ProductPreviewPanelProps {
@@ -230,10 +231,7 @@ export default function ProductPreviewPanel({
           <div className="text-dark mt-4 mb-2 text-sm font-semibold">รายละเอียดสินค้า</div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {attrEntries.map(([k, v]) => {
-              const chips = v
-                .split(',')
-                .map((c) => c.trim())
-                .filter((c) => c.length > 0)
+              const chips = splitAttributeValues(v)
               return (
                 <div key={k} className="contents">
                   <dt className="text-default-400">{k}</dt>

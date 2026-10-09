@@ -66,6 +66,10 @@ import { fmt } from '@/i18n/fmt'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import FollowUpPanel from './FollowUpPanel'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
+import ChatMemorySection from './ChatMemorySection'
+import InterestedProductsSection from './InterestedProductsSection'
+import { useChatMemory } from './useChatMemory'
+import { noteHintKind } from '@/lib/chat-memory-ui'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
 import ReturnPanel from '../../../../(dashboard)/orders/[token]/components/ReturnPanel'
@@ -769,7 +773,16 @@ function OrdersList({
  * สถิติลูกค้า (count/total/since) มาจาก page.tsx aggregate แล้ว (data.customerStats) ไม่คำนวณ
  * ฝั่ง client อีกต่อไป — เดิม summarize() นับจาก orders 20 แถวที่ list ใช้ ซึ่งเพี้ยนถ้าลูกค้าซื้อเกิน 20
  */
-export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelData; initialTab?: Tab }) {
+export function CustomerPanelBody({
+  data,
+  initialTab,
+  onRequestClose,
+}: {
+  data: CustomerPanelData
+  initialTab?: Tab
+  /** sheet เท่านั้น: ให้ส่วนสินค้าที่สนใจปิด sheet ได้หลังเปิดถาดส่งการ์ดในเธรด */
+  onRequestClose?: () => void
+}) {
   const t = useT()
   // user request 2026-07-25 — เปิดจากไอคอนตะกร้าใน inbox (?panel=orders) → เด้งแท็บออเดอร์ทันที
   // ใช้ useEffect sync ตาม param (ไม่พึ่ง useState initializer อย่างเดียว) เพราะ App Router อาจ reuse
@@ -805,6 +818,16 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
     })
   // orderHref ย้ายไป module-level (ใช้ใน OrderCard) — CustomerPanelBody ไม่อ้างตรง ๆ แล้ว
   const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
+
+  // ความจำของแชท + สินค้าที่สนใจ (00019-ext-mem): fetch ที่นี่ครั้งเดียว เพราะโน้ต CRM ต้องรู้ว่า AI อ่านโน้ตหรือไม่
+  // (ข้อความใต้โน้ตจะโกหกถ้าไม่รู้) — hook อยู่ก่อน return ใด ๆ ของคอมโพเนนต์นี้
+  const memory = useChatMemory(data.conversationId)
+  const memoryHeadingId = `${uid}-memory-title`
+  // ลิงก์ใต้โน้ต → สลับไปแท็บ "ข้อมูล" แล้วโฟกัสหัวความจำ (แท็บเพิ่งโชว์ ต้องรอ 1 เฟรม)
+  const goToMemory = () => {
+    setTab('customer')
+    requestAnimationFrame(() => document.getElementById(memoryHeadingId)?.focus())
+  }
 
   // ── CRM: fetch ครั้งเดียวที่นี่ แล้วส่งลงทั้งแท็บ "ข้อมูลลูกค้า" และ "โน้ต" ──
   // (เดิมแต่ละแท็บ fetch เอง + unmount ทุกครั้งที่สลับ → draft หาย, skeleton กระพริบ, fail แล้วเงียบ)
@@ -851,6 +874,8 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
         variant={variant}
         crm={crm}
         onSaved={setCrm}
+        noteHint={noteHintKind(memory.data?.ai ?? null)}
+        onGoToMemory={goToMemory}
       />
     )
   }
@@ -973,8 +998,20 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           aria-labelledby={`${uid}-tab-customer`}
           className={tab === 'customer' ? 'space-y-4' : 'hidden'}
         >
+          {/* 00019-ext-mem — ความจำ + สินค้าที่สนใจ อยู่บนสุดของแท็บ (key=ห้อง กัน draft ห้องเก่าค้าง ท่าเดียวกับ FollowUpPanel) */}
+          <div className="space-y-5">
+            <ChatMemorySection key={data.conversationId} state={memory} headingId={memoryHeadingId} />
+            <InterestedProductsSection
+              key={data.conversationId}
+              conversationId={data.conversationId}
+              channel={data.channel}
+              state={memory}
+              onRequestClose={onRequestClose}
+            />
+          </div>
+
           {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
-          {crmSlot('profile')}
+          <div className="border-default-300 border-t border-dashed pt-4">{crmSlot('profile')}</div>
 
           {/* feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติจาก Meta แบบ Business
               Suite: บอกว่าลูกค้าคนนี้มาจากโฆษณาไหน. แยกจาก tag ของ CRM ด้านบนชัดเจนเพราะอันนี้
@@ -1069,7 +1106,7 @@ export function CustomerPanelBody({ data, initialTab }: { data: CustomerPanelDat
           <CustomerFileLibrarySection conversationId={data.conversationId} customerName={data.contactName} />
         </div>
 
-        {/* แท็บโน้ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI ใช้เป็นบริบทตอนช่วยร่าง) */}
+        {/* แท็บโน้ต — โน้ตภายในร้านต่อผู้ติดต่อ (ลูกค้าไม่เห็น; AI อ่านโน้ตนี้เฉพาะร้านที่ใช้ Gemini — ร้าน Typhoon AI อ่านจาก "ความจำของแชทนี้" แทน ดู ai.noteReadByAi) */}
         <div
           role="tabpanel"
           id={`${uid}-panel-note`}

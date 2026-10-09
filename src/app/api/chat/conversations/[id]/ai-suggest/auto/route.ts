@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -7,6 +7,8 @@ import { resolveConversationShopId } from "@/lib/chat-scope";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { sessionUserId } from "@/lib/session-user";
 import { AutoSuggestPostSchema, AutoSuggestPatchSchema } from "@/lib/validations";
+import { resolveSuggestProvider } from "@/lib/reply-suggest-provider";
+import { maybeUpdateMemory } from "@/services/chat-memory-ai.service";
 import {
   requestAutoSuggest,
   getLatestAutoSuggest,
@@ -97,6 +99,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       trigger: body.manual ? "MANUAL" : (body.trigger ?? "AUTO_NEW_MESSAGE"),
     });
     if (result.status === "INVALID_ANCHOR") return json({ error: "ข้อความอ้างอิงไม่ถูกต้อง" }, 400);
+    // อัปเดตความจำหลังตอบ (FR-MEM-06): เฉพาะคำแนะนำสำเร็จบนร้าน typhoon · รับ error ทั้งหมดไม่ให้กระทบคำตอบ
+    if (result.status === "READY" && resolveSuggestProvider(resolved.shopId) === "typhoon") {
+      const memoryJob = { shopId: resolved.shopId, conversationId: conversation.id, latestMessageId: body.anchorMessageId };
+      try {
+        after(() => maybeUpdateMemory(memoryJob).catch(() => {}));
+      } catch {
+        /* นอก request scope — ข้าม */
+      }
+    }
     return json(result);
   } catch (e) {
     console.error("[POST ai-suggest/auto]", e instanceof Error ? e.name : "unknown"); // ชื่อชนิดเท่านั้น — message ของ Prisma อาจมีค่าที่ส่งเข้าไป (BR-AIT-09)

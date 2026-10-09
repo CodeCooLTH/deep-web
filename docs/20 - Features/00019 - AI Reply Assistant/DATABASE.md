@@ -170,6 +170,7 @@ DROP TABLE IF EXISTS "ShopAiSetting";
 ## 6. Retention / ข้อควรระวัง
 
 - **ไม่เก็บบทสนทนาที่ส่งให้ AI ลงฐานข้อมูล** — prompt ถูกประกอบในหน่วยความจำแล้วส่งออกทันที ไม่มีการ log เนื้อหา เพื่อไม่ให้เกิดสำเนาบทสนทนาชุดที่สองที่ต้องดูแลตามกฎความเป็นส่วนตัว
+  - **ข้อยกเว้น (extension chat-memory 2026-10-09):** เก็บ "ความจำของแชท" ได้ใน `ChatMemory` (§10) เป็นสรุปย่อหน้าเดียว ≤ 800 ตัวอักษร ที่ผ่านกฎ BR-MEM-03 (ห้ามมี PII) — ไม่ใช่ transcript และไม่ใช่ payload ที่ส่งไป AI · ยังห้ามเก็บ transcript/payload/ตารางป้ายเหมือนเดิม (BR-AIT-09)
 - **ห้าม log ข้อความบริบทเต็ม** ในระบบ log — log ได้เฉพาะเมตาดาต้า เช่น ความยาวบริบท จำนวนสินค้าที่แนบ และรุ่นโมเดลที่ใช้
 - `instruction` เป็นข้อความที่ร้านกรอกเอง ต้องถือเป็นข้อมูลที่ไม่น่าเชื่อถือเมื่อนำไปแสดงผลใน UI (escape ตามปกติของ React) และเมื่อประกอบ prompt ต้องห่อด้วยตัวคั่นที่ชัดเจน
 - การลบร้าน (`Shop`) จะลบการตั้งค่าตามด้วย `onDelete: Cascade` — ตรงกับพฤติกรรมที่คาดหวังเพราะการตั้งค่าไม่มีความหมายเมื่อไม่มีร้าน
@@ -248,8 +249,79 @@ model AiSuggestRun {
 
 ### ข้อควรระวัง
 
-- **ไม่มีคอลัมน์เก็บ transcript/payload/ตารางป้าย** (BR-AIT-09) — ข้อความที่เก็บได้มีแค่ `suggestion` (หลังคืนค่าจริง) และ `feedbackNote` (หลัง `redactPii`) ซึ่งเป็นข้อยกเว้นเดียวของหลัก "ไม่เก็บบทสนทนาที่ส่งให้ AI" ใน §6
+- **ไม่มีคอลัมน์เก็บ transcript/payload/ตารางป้าย** (BR-AIT-09) — ข้อความที่เก็บได้มีแค่ `suggestion` (หลังคืนค่าจริง) และ `feedbackNote` (หลัง `redactPii`) ซึ่งเป็นข้อยกเว้นของหลัก "ไม่เก็บบทสนทนาที่ส่งให้ AI" ใน §6 (ข้อยกเว้นอีกข้อคือ `ChatMemory` ใน §10) · แถว `trigger='MEMORY_UPDATE'` ไม่เก็บข้อความความจำ (`suggestion` เป็น null เสมอ)
 - ไม่มี FK → ลบเธรดแล้วแถวค้าง (ตั้งใจ) · ค่า enum เป็น `String` ตาม convention ของโปรเจกต์ (sync รายการค่าไปที่ `docs/SRS.md`)
 - **retention/ลบแถวเก่า ไม่อยู่ในรอบนี้** — เสนอเก็บ 30 วัน แต่การลบต้องขออนุมัติ user ก่อนเสมอ (OQ-8) ให้เป็นงานแยก
 - **วิธี apply:** push `main` = `prisma migrate deploy` บน prod ในตัว (HR15) ก่อน migrate ต้องบอก user 3 ข้อ (prod ไม่ต้องสั่ง · local ต้อง apply เอง · migrate ล้ม = deploy ไม่ขึ้น) · local ใช้ `npm run db:local:migrate` ปักหมุด `localhost:5434` · **ห้าม** `migrate dev` / `db pull` / `migrate reset`
 - Rollback: `DROP TABLE IF EXISTS "AiSuggestRun";` (เสียเฉพาะผลที่แคชและสถิติ ไม่กระทบตารางอื่น) — ต้องขออนุมัติก่อนรันเสมอ
+
+---
+
+## 10. `ChatMemory` + `ChatInterestedProduct` (extension chat-memory, 2026-10-09)
+
+ตารางใหม่ 2 ตาราง additive ล้วน ไม่แตะตารางเดิม ไม่มี backfill · อ้างอิง `EXTENSIONS-2026-10-09-chat-memory.md` §9 · migration ตามแผน `20261009200000_chat_memory` (CREATE TABLE / INDEX / UNIQUE / FK เท่านั้น — ห้าม ALTER/DROP ตารางเดิม) · `schema.prisma` เพิ่มเฉพาะ back-relation ฝั่ง `Conversation`/`Product` (ไม่มีคอลัมน์ใหม่ในตารางเดิม) · สถานะ: สเปกก่อนเขียนโค้ด — DDL จริงเป็นงาน `safepay-database` ต้องตรงกับเอกสารนี้
+
+```prisma
+// ความจำของแชท — ย่อหน้าเดียวต่อห้อง ไม่ใช่ transcript (ข้อยกเว้นของ §6, BR-MEM-03)
+// ห้ามเก็บที่ Customer (ตารางข้ามร้าน) — ใช้ร่วมใน cluster ด้วยการอ่านหา "แถวจริง" (BR-MEM-06)
+model ChatMemory {
+  id               String    @id @default(uuid())
+  shopId           String
+  conversationId   String    @unique
+  text             String    @default("") @db.Text // ≤ 800 บังคับที่ Valibot + service
+  source           String    @default("AI")        // AI | ADMIN — ผู้เขียนล่าสุด
+  version          Int       @default(1)           // compare-and-set (FR-MEM-05/06)
+  basedOnMessageId String?                         // ข้อความล่าสุดที่รวมอยู่แล้ว (ฐานรอบถัดไป)
+  previousText     String?   @db.Text              // ข้อความก่อนหน้า 1 เวอร์ชัน (กู้คืน)
+  updatedByUserId  String?                         // ผู้แก้ล่าสุดถ้า source=ADMIN
+  aiUpdatedAt      DateTime?                       // ฐานของ cooldown 120 วิ (ร่วมกับแถว MEMORY_UPDATE ล่าสุด — P-3)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, updatedAt])
+}
+
+// สินค้าที่แอดมินแปะไว้กับห้อง — เก็บ id + ชื่อ snapshot + ป้ายตัวเลือก; ไม่เก็บราคา/สต็อก (ดึงสดตอนใช้)
+model ChatInterestedProduct {
+  id              String   @id @default(uuid())
+  shopId          String
+  conversationId  String
+  productId       String?  // SetNull เมื่อสินค้าถูกลบ → state DELETED
+  productName     String   // snapshot ณ ตอนแปะ
+  optionLabel     String   @default("") // "สี ครีม · ขนาด L" server ประกอบจาก Product.attributes ; '' = ไม่มีตัวเลือก
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, productId, optionLabel]) // productId NULL ไม่ชนกัน (ยอมรับ)
+  @@index([shopId, conversationId])
+}
+```
+
+### Indexes
+
+| Columns | Type | Query ที่รองรับ |
+|---------|------|-----------------|
+| `ChatMemory.conversationId` | UNIQUE | 1 แถวต่อห้อง · `createMany skipDuplicates` |
+| `ChatMemory (shopId, updatedAt)` | INDEX | หาแถวจริงของ cluster (`updatedAt` ใหม่สุด) |
+| `ChatInterestedProduct (conversationId, productId, optionLabel)` | UNIQUE | กันแปะซ้ำ → 409 |
+| `ChatInterestedProduct (shopId, conversationId)` | INDEX | list ต่อห้อง/cluster |
+
+### ค่าใหม่ของ `AiSuggestRun` (ไม่เปลี่ยนโครงตาราง §9)
+
+- `trigger = 'MEMORY_UPDATE'` · `anchorMessageId = 'mem:<id ข้อความล่าสุดในฐาน>'` · `attempt = 1` · `provider = 'typhoon'` · `suggestion = null` เสมอ · `status`: OK → `READY`, อื่น ๆ → `NONE`
+- `outcome` เพิ่ม: `SUPERSEDED`, `REJECTED_PII`, `REJECTED_FORMAT`, `REJECTED_SHRINK`, `SKIPPED_BASE_HAS_PII` (อีก 2 ค่า `SKIPPED_COOLDOWN`/`SKIPPED_FEW_MESSAGES` เป็นค่าคืนของฟังก์ชัน ไม่เขียนแถว — P-4) · ใช้ค่าเดิมร่วม: `OK`, `RATE_LIMITED`, `TIMEOUT`, `ERROR`
+- ค่าคงที่แยกเป็น `MEMORY_UPDATE_TRIGGER` / `MEMORY_UPDATE_OUTCOMES` ใน `src/lib/ai-suggest-auto-types.ts` — **ห้ามเพิ่มเข้า** `AUTO_SUGGEST_TRIGGERS`/`AUTO_SUGGEST_OUTCOMES` (`AutoSuggestReason` derive จากมันและถูกส่งถึง client) · `getLatestAutoSuggest` กรองด้วย `anchorMessageId` ของข้อความล่าสุด จึงไม่ปนกับแถว `mem:`
+
+### ข้อควรระวัง
+
+- `ChatMemory.text` เป็นข้อมูลส่วนบุคคลที่ AI สรุปและเก็บถาวร (R-M2) · ลบห้อง = ลบความจำ (cascade) · แอดมินล้างข้อความได้ทันที · **retention/ตัวลบแถวเก่า ไม่อยู่ในรอบนี้** การลบต้องขออนุมัติ user ก่อน (OQ-M9) · ✕ ของสินค้าที่สนใจเป็นการลบโดยผู้ใช้สั่งเท่านั้น
+- ไม่มีคอลัมน์ราคา/สต็อกใน `ChatInterestedProduct` (ตรวจ schema ได้)
+- `previousText` อาจมีข้อความที่แอดมินพิมพ์ → ส่งเฉพาะ GET/PUT ที่ผ่านสิทธิ์ห้อง ห้าม log
+- ทุก query ต้องมี `shopId` ใน WHERE · cluster ขยายด้วย `expandClusters` เท่านั้น
+- **วิธี apply:** เหมือน §9 (HR15 แจ้ง 3 ข้อก่อน push `main` · local `npm run db:local:migrate` ปักหมุด `localhost:5434` · ห้าม `migrate dev`/`db pull`/`migrate reset`)
+- Rollback: `DROP TABLE IF EXISTS "ChatInterestedProduct"; DROP TABLE IF EXISTS "ChatMemory";` (เสียความจำและสินค้าที่แปะ) — ต้องขออนุมัติก่อนรันเสมอ
