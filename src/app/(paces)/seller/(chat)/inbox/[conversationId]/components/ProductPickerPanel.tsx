@@ -32,6 +32,16 @@
  *   + VerticalTaxonomyPicker.tsx (เครื่องหมายถูกมุมขวาบนของการ์ดที่ถูกเลือก)
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import type { OptionSelection } from '@/lib/chat-memory-types'
+import {
+  attachEscapeAction,
+  buildAttachPicks,
+  optionGroupsOf,
+  toggleOptionPick,
+  type OptionPicks,
+} from '@/lib/product-picker-attach'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
 import { useThreadShopId } from '@/app/(paces)/seller/(chat)/_components/DraftOrderProvider'
@@ -57,6 +67,8 @@ type PickerProduct = {
   stockQty: number | null
   /** จำนวนสั่งซื้อรวม (ไม่รวม CANCELLED) — มาจาก `?sort=best` (0 = ยังไม่เคยมีคนสั่งซื้อ) */
   soldCount?: number
+  /** หัวข้อตัวเลือก → ค่าคั่นจุลภาค (ใช้ในโหมด attach) — GET /api/products ส่งมาอยู่แล้ว */
+  attributes?: Record<string, string> | null
 }
 
 const formatThb = (n: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -79,6 +91,19 @@ type Props = {
   /** ส่งการ์ดหลายใบ — `ok` = สำเร็จทั้งหมด (แผงถูกปิดจากข้างนอก) · ไม่สำเร็จ = แผงเปิดค้างให้กดใหม่
    *  `sentMessages` = ส่งออกไปได้กี่ข้อความก่อนล้ม (>0 เฉพาะกรณี 207 ส่งได้บางส่วน) */
   onSendMany: (productIds: string[]) => Promise<{ ok: boolean; sentMessages: number }>
+  /** (00019-ext-mem) 'attach' = แปะเป็นสินค้าที่สนใจในความจำแชท ไม่ส่งหาลูกค้า · default 'send' = เดิม 100% */
+  mode?: 'send' | 'attach'
+  /** ใช้กับ attach: ถอดแถบเต็มกว้างของเดิม ใช้กล่องมน (แผงขวา) */
+  inline?: boolean
+  /** ใช้เมื่อ mode='attach' — remaining = เพดานที่เลือกได้ · onAttach คืนผลให้แผงรู้ว่าสำเร็จไหม */
+  attach?: {
+    remaining: number
+    onAttach: (
+      picks: { productId: string; selections: OptionSelection[] }[],
+    ) => Promise<{ ok: boolean; saved: number; skipped: number }>
+  }
+  /** ใช้กับ send: เริ่มที่โหมดหลายรายการและติ๊กไว้แล้ว (FR-MEM-18 กดแถวสินค้าที่สนใจ) */
+  initialSelectedIds?: string[]
 }
 
 /** รูปแรกของสินค้า — seed เก่าบางตัวเก็บเป็น URL เต็ม (picsum/CDN) ไม่ใช่ storage fileId
@@ -91,19 +116,33 @@ function imageSrc(images: string[]): string | null {
 
 const priceText = (p: number) => `฿${p.toLocaleString('th-TH')}`
 
-export default function ProductPickerPanel({ onPick, onClose, disabled, channel, onSendMany }: Props) {
+export default function ProductPickerPanel({
+  onPick,
+  onClose,
+  disabled,
+  channel,
+  onSendMany,
+  mode = 'send',
+  inline,
+  attach,
+  initialSelectedIds,
+}: Props) {
+  const t = useT().inbox.productPicker
+  const isAttach = mode === 'attach' && !!attach
   const [items, setItems] = useState<PickerProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<PickerProduct | null>(null)
   /** โหมดเลือกหลายรายการ — สไลด์ตัวเดิมทุกประการ ต่างแค่ "แตะแล้วติ๊ก" แทน "แตะแล้วไปหน้าเลือกรูปแบบ" */
-  const [multi, setMulti] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [multi, setMulti] = useState(() => isAttach || !!initialSelectedIds?.length)
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => initialSelectedIds ?? [])
   const [sending, setSending] = useState(false)
+  const [step, setStep] = useState<'pick' | 'options'>('pick')
+  const [optionPicks, setOptionPicks] = useState<OptionPicks>({})
 
   const perMessage = productCardsPerMessage(channel)
-  const maxSelectable = maxSelectableProducts(channel)
+  const maxSelectable = isAttach ? attach.remaining : maxSelectableProducts(channel)
   const count = selectedIds.length
   const selection = describeProductSelection(count, perMessage)
   const atMax = count >= maxSelectable
@@ -149,14 +188,26 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || sending) return
+      if (isAttach) {
+        // capture + stopPropagation ทุกครั้ง — Esc หนึ่งครั้งใช้ไปหนึ่งชั้น: ถอยในแผงนี้ หรือปิดแผงนี้ ไม่ทะลุไปปิดชีตข้างนอก
+        const action = attachEscapeAction(step, count)
+        e.stopPropagation()
+        if (action === 'close') {
+          onClose()
+          return
+        }
+        if (action === 'back-options') setStep('pick')
+        else setSelectedIds([])
+        return
+      }
       if (selected) setSelected(null)
       else if (count > 0) setSelectedIds([])
       else if (multi) setMulti(false)
       else onClose()
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, selected, multi, count, sending])
+    document.addEventListener('keydown', onKey, { capture: isAttach })
+    return () => document.removeEventListener('keydown', onKey, { capture: isAttach })
+  }, [onClose, selected, multi, count, sending, isAttach, step])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -222,11 +273,60 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
     }
   }
 
+  /** สินค้าที่ติ๊กไว้ (ตามลำดับที่ติ๊ก) และกลุ่มตัวเลือกของแต่ละตัว — ใช้ตัดสินปุ่ม "ต่อไป" กับหน้าตัวเลือก */
+  const pickedWithGroups = selectedIds.flatMap((id) => {
+    const p = items.find((x) => x.id === id)
+    return p ? [{ p, groups: optionGroupsOf(p.attributes) }] : []
+  })
+  const withOptions = pickedWithGroups.filter((x) => x.groups.length > 0)
+  const inOptions = isAttach && step === 'options'
+
+  async function handleAttach() {
+    if (!isAttach || count === 0 || sending || disabled) return
+    setSending(true)
+    try {
+      const res = await attach.onAttach(buildAttachPicks(selectedIds, optionPicks))
+      if (res.ok) {
+        setSelectedIds([])
+        setOptionPicks({})
+        setStep('pick')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const attachButtonLabel = sending ? (
+    <>
+      <Icon icon="loader-2" className="me-1 animate-spin" aria-hidden="true" /> {t.attaching}
+    </>
+  ) : (
+    fmt(t.attachCta, { count })
+  )
+
   return (
-    <div className="border-default-300 bg-info/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
+    <div
+      className={
+        inline
+          ? 'bg-info/5 rounded-lg px-3 py-2'
+          : 'border-default-300 bg-info/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6'
+      }
+    >
       <div className="flex items-center justify-between pb-1.5">
         <span className="text-info flex items-center gap-2 text-sm font-semibold">
-          {selected ? (
+          {inOptions ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep('pick')}
+                aria-label={t.optionsBack}
+                className="text-default-700 hover:text-info flex size-11 lg:size-7 items-center justify-center rounded"
+              >
+                <Icon icon="arrow-left" className="text-base" />
+              </button>
+              {t.optionsTitle}
+            </>
+          ) : selected ? (
             <>
               <button
                 type="button"
@@ -241,7 +341,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
           ) : (
             <>
               <Icon icon="package" className="text-base" />
-              เลือกสินค้า
+              {isAttach ? t.attachTitle : 'เลือกสินค้า'}
             </>
           )}
         </span>
@@ -257,7 +357,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
               min-h-11 sm:min-h-7 — 44px เฉพาะจอที่กดด้วยนิ้ว ส่วนจอกว้าง (rail ในเดสก์ท็อป = เมาส์)
               ยุบกลับให้เท่าปุ่มปิดข้าง ๆ ไม่ให้หัวแผงบวมกินพื้นที่เธรด. ท่าเดียวกับปุ่ม "ตอบเอง"
               ของแถบ Meta AI ใน ChatThread.tsx ไฟล์เดียวกันนี้ */}
-          {!selected && (
+          {!selected && !isAttach && (
             <button
               type="button"
               onClick={() => (multi ? leaveMulti() : setMulti(true))}
@@ -285,7 +385,44 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
         </span>
       </div>
 
-      {selected ? (
+      {inOptions ? (
+        /* ── attach ขั้น 2: เลือกตัวเลือก (ไม่บังคับ · 1 ค่าต่อหัวข้อ) ── */
+        <div className="flex flex-col gap-3 pb-1">
+          <p className="text-default-700 mb-0 text-xs">{t.optionsHint}</p>
+          {withOptions.map(({ p, groups }) => (
+            <div key={p.id}>
+              <p className="text-default-800 mb-1 truncate text-sm font-medium">{p.name}</p>
+              {groups.map((g) => (
+                <div key={g.key} className="mb-1.5 flex flex-wrap items-center gap-1.5" role="group" aria-label={`${p.name} ${g.key}`}>
+                  <span className="text-default-700 w-12 shrink-0 text-xs">{g.key}</span>
+                  {g.values.map((v) => {
+                    const on = optionPicks[p.id]?.[g.key] === v
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setOptionPicks((prev) => toggleOptionPick(prev, p.id, g.key, v))}
+                        aria-pressed={on}
+                        disabled={sending}
+                        className={`badge inline-flex min-h-11 items-center px-3 text-xs ${
+                          on ? 'bg-info/15 text-info-ink ring-1 ring-info-ink' : 'bg-default-100 text-default-700'
+                        }`}
+                      >
+                        {v}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          ))}
+          {pickedWithGroups.length > withOptions.length && (
+            <p className="text-default-700 mb-0 text-xs">
+              {fmt(t.optionsNone, { count: pickedWithGroups.length - withOptions.length })}
+            </p>
+          )}
+        </div>
+      ) : selected ? (
         /* ── เลือกรูปแบบการส่ง ── */
         <div className="flex flex-col gap-2 pb-1">
           <ModeButton
@@ -458,7 +595,46 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
           🛑 ป้าย "จะแบ่งเป็นกี่ข้อความ" ต้องอยู่ **ก่อนกดส่ง** (มติ user 2026-08-11) และอยู่ 2 จุด
           (บรรทัดสถานะ + บนตัวปุ่มเอง) — ผู้ขายที่ตากวาดไปที่ปุ่มอย่างเดียวต้องเห็นเหมือนกัน
           warning ไม่ใช่ danger: เกินเพดานต่อการ์ดไม่ใช่ความผิดพลาด ยังกดส่งได้ปกติ */}
-      {multi && !selected ? (
+      {isAttach ? (
+        <div className="border-default-300 mt-1.5 border-t border-dashed pt-2">
+          {!inOptions && (
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="text-default-700 min-w-0 truncate text-xs" aria-live="polite">
+                {fmt(t.attachSelected, { count, left: Math.max(0, attach.remaining - count) })}
+              </span>
+              {count > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  disabled={sending}
+                  className="text-default-700 hover:text-danger min-h-11 shrink-0 text-xs sm:min-h-0"
+                >
+                  ล้างทั้งหมด
+                </button>
+              )}
+            </div>
+          )}
+          {!inOptions && withOptions.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setStep('options')}
+              disabled={count === 0 || sending || disabled}
+              className="btn bg-primary min-h-11 w-full text-white disabled:opacity-50"
+            >
+              {t.attachNext}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleAttach}
+              disabled={count === 0 || sending || disabled}
+              className="btn bg-primary min-h-11 w-full text-white disabled:opacity-50"
+            >
+              {attachButtonLabel}
+            </button>
+          )}
+        </div>
+      ) : multi && !selected ? (
         <div className="border-default-300 mt-1.5 border-t border-dashed pt-2">
           {/* 🛑 เพดานรวมถูกยุบเข้ามาในป้ายเดียวกัน ไม่แยกเป็นบรรทัดที่สอง — `atMax` เกิดพร้อม
               `exceedsPerMessage` **เสมอ** (atMax = count ≥ perMessage×3 ⇒ count > perMessage) สอง
