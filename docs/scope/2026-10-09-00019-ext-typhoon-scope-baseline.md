@@ -131,3 +131,6 @@ phase นี้ SIGNED-OFF ได้เมื่อครบทุกข้อ (
 |--------|-----------|--------|-----------|
 | 2026-10-09 | S-18 → N/A | safepay-ux ตรวจ OQ-13: handoff แสดงอยู่แล้วที่ชิปบอทหยุด/`BotPausedBanner.tsx` และไม่มีข้อมูล "ลูกค้าขอคุยกับคน" ให้แสดง → ไม่ทำกล่องกลางสายใหม่ | Controller |
 | 2026-10-09 | S-15 ทำเป็นไฟล์ใหม่ `AiSuggestInline.tsx` แทนการแก้ `AiSuggestPanel.tsx` | ร้าน Gemini คงพฤติกรรมเดิม 100% พิสูจน์ด้วย diff ว่าง + เลี่ยง hook ใต้ early return | Controller |
+| 2026-10-09 | S-4 เพิ่มคอลัมน์ `firedAt` + index `[firedAt]`, `[shopId, firedAt]` | planner C-2: นับ "ยิงจริง" จาก createdAt ไม่ได้ ต้องมีเวลาเริ่มยิงแยก | Controller |
+| 2026-10-09 | S-10 response เพิ่ม `provider`/`attempt`/`feedback`, POST body เพิ่ม `trigger?` | planner C-3: superset ของ spec §10 ที่ client ต้องใช้ | Controller |
+| 2026-10-09 | A-3 ยืนยัน | `safepay-mobile/App.tsx` = react-native-webview ห่อ seller.deepthailand.app | Controller |
