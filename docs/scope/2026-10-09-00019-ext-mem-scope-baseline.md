@@ -124,3 +124,5 @@ phase นี้ SIGNED-OFF ได้เมื่อครบทุกข้อ (
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-10-09 | ออก baseline ครั้งแรก · ย้าย OOS-1/OOS-2 ของ baseline Typhoon เดิมเข้า In-Scope | user อนุมัติ spec chat-memory "ตามข้อเสนอทั้งหมด" รวม OQ-M3 = เข้า prompt ราคา+สถานะ+คงเหลือ | Controller / user |
+| 2026-10-09 | P-8: GET /memory คืน `ai` object (แทน `aiWrites`) + `memory.previousText` · POST สินค้ารับ `selections` label "สี ครีม · ขนาด L" · 409 `current.updatedAt` · ไฟล์ใหม่ `product-attributes.ts`/`chat-memory-events.ts`/`chat-memory-ui.ts`/`chat-memory-rules.ts` + แก้ `ProductAttributesCardV2.tsx`/`ProductPreviewPanel.tsx` ให้ import ตัวแยกค่า · service แตก 3 ไฟล์ (P-1) · Gemini ฉีดความจำหลัง sanitize ผ่าน `sanitizedContextForGemini` (P-2) · cooldown นับจากแถว MEMORY_UPDATE ล่าสุด (P-3) | มติ UX + แผน planner | Controller |
+| 2026-10-09 | ตรวจ `docs/PRD.md` root: ไม่มีบรรทัด feature-level ของ 00019 (grep 0) → ไม่ต้องแก้ | S-2 | Controller |
