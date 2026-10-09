@@ -738,6 +738,7 @@ model Product {
   // --- feature 00023 Chat Auto-Reply (additive) ---
   autoReplyRules           AutoReplyRule[] // เงื่อนไขสินค้าของกฎคำตอบ (nullable, onDelete SetNull ฝั่ง AutoReplyRule)
   conversationAutoReplyCtx Conversation[]  @relation("ConversationContextProduct") // back-relation ของ Conversation.contextProductId
+  interestedIn             ChatInterestedProduct[] // 00019-ext-mem — ห้องที่แอดมินแปะสินค้านี้ไว้ (SetNull ฝั่ง ChatInterestedProduct)
 
   @@index([shopId, stockQty])
   @@index([shopId, pinnedAt]) // Pin Products (00013) — query "pinnedAt not null ORDER BY pinnedAt desc" ต่อ shop (FR-PIN-06)
@@ -2047,6 +2048,10 @@ model Conversation {
   // แล้ว query ที่เหลือ JOIN ต่อจากชุดนั้น. ห้ามเปลี่ยนไปใช้ lastMessageAt แทน — ค่านั้นขยับ
   // ทุกครั้งที่มีคนพิมพ์ เธรดเก่าจึงกระโดดเข้ามาในช่วงของวันนี้พร้อมเวลาตอบครั้งแรกของเดือนก่อน
   @@index([shopId, createdAt])
+  // 00019-ext-mem — back-relation ความจำ + สินค้าที่แปะ
+  chatMemory         ChatMemory?
+  interestedProducts ChatInterestedProduct[]
+
   @@index([externalContactId]) // feature 00066 — cluster query (unique เดิมขึ้นต้น shopChannelId ใช้ไม่ได้)
 }
 
@@ -5106,4 +5111,44 @@ model AiSuggestRun {
   @@index([conversationId, createdAt])
   @@index([firedAt])
   @@index([shopId, firedAt])
+}
+
+// ChatMemory — ความจำของแชท (ย่อหน้าเดียวต่อห้อง) 00019-ext-mem
+// ไม่ใช่ transcript: เป็นสรุป ≤ 800 ตัวอักษรที่ผ่านกฎ BR-MEM-03 (ไม่มี PII) — ต้องแก้ BR-AIT-09 / DATABASE.md:172 ให้รับรู้
+// ห้ามเก็บที่ Customer (ตารางข้ามร้าน) — ใช้ร่วมใน cluster ด้วยการอ่านหา "แถวจริง" (BR-MEM-06)
+model ChatMemory {
+  id               String    @id @default(uuid())
+  shopId           String
+  conversationId   String    @unique
+  text             String    @default("") @db.Text // ≤ CHAT_MEMORY_MAX (800) บังคับที่ Valibot + service
+  source           String    @default("AI") // AI | ADMIN — ผู้เขียนล่าสุด
+  version          Int       @default(1) // compare-and-set (FR-MEM-05/06)
+  basedOnMessageId String? // ข้อความล่าสุดที่รวมอยู่ในความจำแล้ว (ฐานของรอบอัปเดตถัดไป)
+  previousText     String?   @db.Text // ข้อความก่อนหน้า 1 เวอร์ชัน (กู้คืน) — nice-to-have
+  updatedByUserId  String? // ผู้แก้ล่าสุดถ้า source=ADMIN
+  aiUpdatedAt      DateTime? // ฐานของ cooldown 120 วิ
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, updatedAt])
+}
+
+// ChatInterestedProduct — สินค้าที่แอดมินแปะไว้กับห้อง (เก็บ id + ชื่อ + ตัวเลือก; ไม่เก็บราคา/สต็อก — ดึงสดตอนใช้)
+model ChatInterestedProduct {
+  id              String   @id @default(uuid())
+  shopId          String
+  conversationId  String
+  productId       String? // SetNull เมื่อสินค้าถูกลบ → แสดง snapshot + ป้าย "ถูกลบ"
+  productName     String // snapshot ณ ตอนแปะ
+  optionLabel     String   @default("") // เช่น "สีครีม · L" (จาก Product.attributes) ; '' = ไม่มีตัวเลือก
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, productId, optionLabel]) // กันแปะซ้ำ (productId null หลังสินค้าถูกลบ: NULL ไม่ชนกัน ยอมรับ)
+  @@index([shopId, conversationId])
 }
