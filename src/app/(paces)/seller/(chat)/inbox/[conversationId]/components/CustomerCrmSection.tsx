@@ -5,7 +5,7 @@
  *
  * View-only + ปุ่มดินสอ (pencil) กดแก้ไขทั้งชุด → save (PATCH /api/chat/conversations/[id]/crm).
  * ฟิลด์: ชื่อในแชท (alias, ต่อแชท) / ชื่อจริง (view-only) / สถานะการขาย / tag / เบอร์ (หลายเบอร์) /
- * ที่อยู่ / Note (AI ใช้ประกอบการตอบ). external=false (DEEP) → แก้ได้แค่ alias.
+ * ที่อยู่ / Note (AI อ่านเฉพาะร้าน Gemini — ร้าน Typhoon ไม่ส่งโน้ตให้ AI · ใช้ "ความจำของแชท" แทน). external=false (DEEP) → แก้ได้แค่ alias.
  *
  * Base: theme/paces form/elements (form-input/form-textarea/form-label) + badge (chip) — Paces primitive (HR7)
  */
@@ -89,18 +89,42 @@ type CrmVariant = 'profile' | 'note'
  *  `hidden`) → draft อยู่รอดข้ามแท็บ */
 export type { Crm as ConversationCrm }
 
+/** ข้อความใต้โน้ต เลือกตามว่า AI อ่านโน้ตจริงไหม — {memory} เป็นปุ่มลิงก์ (แยก string ที่ token ให้ผู้แปลจัดลำดับคำได้) */
+function NoteHint({ kind, onGoToMemory, className }: { kind?: 'reads' | 'ignores' | 'neutral'; onGoToMemory?: () => void; className: string }) {
+  const t = useT()
+  const cp = t.inbox.customerPanel
+  if (kind === 'reads') return <p className={className}>{cp.noteHintReads}</p>
+  if (kind !== 'ignores') return <p className={className}>{cp.noteHintNeutral}</p>
+  const [before, after = ''] = cp.noteHintIgnores.split('{memory}')
+  return (
+    <p className={className}>
+      {before}
+      {onGoToMemory ? (
+        <button type="button" onClick={onGoToMemory} className="text-primary -my-3 py-3 font-medium underline-offset-2 hover:underline">
+          {cp.memory.title}
+        </button>
+      ) : (
+        cp.memory.title
+      )}
+      {after}
+    </p>
+  )
+}
+
 export default function CustomerCrmSection({
   conversationId,
   variant = 'profile',
   crm,
   onSaved,
+  noteHint,
+  onGoToMemory,
 }: {
   conversationId: string
   variant?: CrmVariant
   crm: Crm
   /** parent เก็บ crm ที่อัปเดตแล้วต่อ (แชร์ระหว่างแท็บ) */
   onSaved: (next: Crm) => void
-  /** ข้อความใต้โน้ตตามที่ AI อ่านจริง (00019-ext-mem) — T12 ใช้ ตอนนี้ยังไม่เปลี่ยนข้อความ */
+  /** ข้อความใต้โน้ตตามที่ AI อ่านจริง (00019-ext-mem) */
   noteHint?: 'reads' | 'ignores' | 'neutral'
   /** ลิงก์ "ความจำของแชทนี้" ใต้โน้ต → สลับไปแท็บข้อมูลแล้วโฟกัสหัวความจำ (T12 ใช้) */
   onGoToMemory?: () => void
@@ -195,7 +219,7 @@ export default function CustomerCrmSection({
                 <p className="text-default-600 mb-0 text-sm">ยังไม่มีโน้ต</p>
               )}
               {/* บอกผลลัพธ์ที่ผู้ใช้ได้ ไม่ใช่กลไกภายใน: โน้ตนี้ถูกส่งเป็นบริบทให้ AI ตอนช่วยร่างคำตอบ */}
-              <p className="text-default-700 mb-0 text-xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+              <NoteHint kind={noteHint} onGoToMemory={onGoToMemory} className="text-default-700 mb-0 text-xs" />
             </>
           ) : (
             <p className="text-default-700 mb-0 text-xs">โน้ตใช้ได้เฉพาะแชทช่องทางภายนอก (Messenger/Instagram)</p>
@@ -256,7 +280,7 @@ export default function CustomerCrmSection({
         <div>
           <label className="form-label" htmlFor={`${fieldId}-note`}>โน้ต</label>
           <textarea id={`${fieldId}-note`} className="form-input min-h-32" placeholder="ข้อมูลที่ควรจำเกี่ยวกับลูกค้าคนนี้..." value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-          <p className="text-default-700 mt-1 mb-0 text-xs">ลูกค้าไม่เห็นโน้ตนี้ — AI ใช้ประกอบการร่างคำตอบ</p>
+          <NoteHint kind={noteHint} onGoToMemory={onGoToMemory} className="text-default-700 mt-1 mb-0 text-xs" />
         </div>
       ) : (
         <div>
