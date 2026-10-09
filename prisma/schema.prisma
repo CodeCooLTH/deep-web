@@ -5070,3 +5070,40 @@ model LineReportDelivery {
   @@index([status, createdAt])
   @@index([createdAt])
 }
+
+// AiSuggestRun — การขอคำแนะนำ 1 ครั้ง (ทั้งอัตโนมัติและกดเอง) ทำ 3 หน้าที่ในตารางเดียว:
+//   (1) ผลล่าสุดของห้อง ให้เปิดห้องแล้วเห็นทันที (แถว attempt สูงสุดของ anchor ล่าสุด)
+//   (2) ตัวนับจังหวะ — ตัวนับ in-memory ใช้ข้าม instance บน serverless ไม่ได้ (F-10)
+//       firedAt = เวลาที่ "ยิงโมเดลจริง" (reserve-then-verify, มติ C-2) ต่างจาก createdAt ที่รวมแถวที่ถูกข้าม/รอคิว
+//   (3) สถิติ outcome (rate_limited ฯลฯ) ไว้ตัดสินใจย้ายออกจาก API ฟรี
+// ไม่ใส่ FK ตามแบบ AiSuggestUsageEvent — log ต้องอยู่อิสระจากวงจรเธรด · ห้ามเก็บ transcript/payload (BR-AIT-09)
+model AiSuggestRun {
+  id              String    @id @default(uuid())
+  shopId          String
+  conversationId  String
+  anchorMessageId String // ข้อความ BUYER ที่คำแนะนำนี้ตอบ
+  attempt         Int       @default(1) // 1 = อัตโนมัติ · 2+ = กดขอใหม่
+  trigger         String // AUTO_NEW_MESSAGE | AUTO_OPEN | MANUAL
+  status          String // THINKING | READY | NONE
+  outcome         String? // null ขณะ THINKING (FR-AIT-17)
+  suggestion      String? // เก็บเพื่อแสดงผลเท่านั้น (BR-AIT-09)
+  provider        String // typhoon | gemini
+  model           String?
+  latencyMs       Int?
+  inputTokens     Int?
+  outputTokens    Int?
+  firedAt         DateTime?
+  feedback        String? // UP | DOWN (FR-AIT-20)
+  feedbackReason  String? // WRONG_INFO | OFF_TOPIC | BAD_TONE | LENGTH
+  feedbackNote    String? // ≤120 ตัวอักษร ผ่านตัวกรอง PII ก่อนบันทึก (BR-AIT-11)
+  feedbackAt      DateTime?
+  createdAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@unique([conversationId, anchorMessageId, attempt]) // claim แบบ idempotent (FR-AIT-13)
+  @@index([createdAt])
+  @@index([shopId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([firedAt])
+  @@index([shopId, firedAt])
+}
