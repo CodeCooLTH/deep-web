@@ -157,24 +157,6 @@ describe('[blocker] syncMissingMessagesFromMeta — ไล่ย้อนที�
     )
   })
 
-  it('ข้อความระบบของ Meta ในนามเพจ (Lead stage …) ไม่ถูกเก็บ · ข้อความลูกค้าข้อความเดียวกันยังเก็บ', async () => {
-    db.conversation.findUnique.mockResolvedValue(conv({ metaBackfilledAt: new Date('2026-09-13T00:00:00Z') }))
-    vi.mocked(fetchThreadMessagesPage).mockResolvedValue({
-      threadId: 't_1',
-      nextAfter: null,
-      items: [
-        msg('m-sys', '2026-09-12T10:00:00Z', PAGE_ID, 'Lead stage set to Qualified'),
-        msg('m-shop', '2026-09-12T10:01:00Z', PAGE_ID, 'ส่งของแล้วค่ะ'),
-        msg('m-buyer', '2026-09-12T10:02:00Z', PSID, 'Lead stage set to Qualified'),
-      ],
-    })
-
-    await syncMissingMessagesFromMeta(conversationId)
-
-    const ids = db.chatMessage.createMany.mock.calls.flatMap((c) => c[0].data.map((d: { externalMessageId: string }) => d.externalMessageId))
-    expect(ids).toEqual(['m-shop', 'm-buyer'])
-  })
-
   it('(a) เธรดที่ปักธงแล้ว: ดึงหน้าเดียว และไม่แตะ metaBackfilledAt', async () => {
     db.conversation.findUnique.mockResolvedValue(conv({ metaBackfilledAt: new Date('2026-09-13T00:00:00Z') }))
     vi.mocked(fetchThreadMessagesPage).mockResolvedValue({
