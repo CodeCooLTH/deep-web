@@ -8,6 +8,8 @@ vi.mock('@/lib/prisma', () => ({
     shopMember: { findMany: vi.fn(async () => []) },
     // ไม่มีแถว = ทุกคนเปิดแจ้งเตือนอยู่ (กติกา opt-out ของ ShopNotificationPref)
     shopNotificationPref: { findMany: vi.fn(async () => [] as { userId: string }[]) },
+    // เสียงแจ้งเตือนที่ผู้ใช้เลือก (2026-10-09) — ไม่มีแถว = "chat" ค่าตั้งต้น
+    user: { findMany: vi.fn(async () => [] as { id: string; chatPushSound: string }[]) },
   },
 }))
 vi.mock('@/services/chat.service', () => ({ getConversationToastPreview: vi.fn() }))
@@ -187,5 +189,39 @@ describe('pushNewChatMessage — ตั้งค่าแจ้งเตือ�
     expect(audience).toContain('owner1')
     expect(audience).toContain('staff2')
     expect(audience).not.toContain('staff1')
+  })
+})
+
+/**
+ * [blocker] เสียงแจ้งเตือนแชทใหม่ตามที่แต่ละคนเลือก (2026-10-09)
+ * ค่าตั้งต้น = "chat" (เสียงแชท Deep) · คนที่เลือก "default" ได้เสียงมาตรฐานของเครื่อง
+ * และคนหนึ่งเลือกไม่กระทบคนอื่นในร้านเดียวกัน
+ */
+describe('[blocker] pushNewChatMessage — เสียงตามที่ผู้รับเลือก', () => {
+  beforeEach(() => {
+    vi.mocked(pushToUsers).mockClear()
+    // เทสกลุ่มก่อนหน้าตั้ง mock ให้ staff1 ปิดแจ้งเตือนแบบค้างไว้ — คืนเป็น "ทุกคนเปิด" ก่อนเสมอ
+    vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([]))
+  })
+
+  it('ไม่มีใครตั้งค่า = ทุกคนได้เสียงแชท ยิงครั้งเดียว', async () => {
+    vi.mocked(prisma.shopMember.findMany).mockResolvedValueOnce(selected([{ userId: 'staff1' }]))
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('conv-sound-1') as never)
+    await pushNewChatMessage({ shopId: 'shop1', conversationId: 'conv-sound-1' })
+    expect(vi.mocked(pushToUsers).mock.calls).toHaveLength(1)
+    const [audience, , , , options] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(audience).toEqual(expect.arrayContaining(['owner1', 'staff1']))
+    expect(options?.sound).toBe('chat')
+  })
+
+  it('คนที่เลือกเสียงมาตรฐานได้เสียงมาตรฐาน · คนอื่นยังได้เสียงแชท', async () => {
+    vi.mocked(prisma.shopMember.findMany).mockResolvedValueOnce(selected([{ userId: 'staff1' }]))
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce(selected([{ id: 'staff1', chatPushSound: 'default' }]))
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('conv-sound-2') as never)
+    await pushNewChatMessage({ shopId: 'shop1', conversationId: 'conv-sound-2' })
+    const bySound = Object.fromEntries(
+      vi.mocked(pushToUsers).mock.calls.map(([users, , , , options]) => [options?.sound, users]),
+    )
+    expect(bySound).toEqual({ chat: ['owner1'], default: ['staff1'] })
   })
 })

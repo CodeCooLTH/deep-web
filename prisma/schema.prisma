@@ -71,6 +71,13 @@ model User {
   // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่าให้คอลัมน์นี้ (เหตุผลเดียวกับ chatScopeMode)
   locale String @default("th")
 
+  // เสียงแจ้งเตือน "แชทใหม่" ในแอปผู้ขาย (2026-10-09) — `chat` = เสียงแชท Deep (ไฟล์เดียวกับในเว็บ)
+  // · `default` = เสียงมาตรฐานของเครื่อง · ผูกกับ "ตัวคน" ไม่ใช่ร้าน (ตั้งที่ /account)
+  // default "chat" = พฤติกรรมเดียวกับ #133 ที่ขึ้นไปแล้ว ⇒ ผู้ใช้เดิมไม่เห็นอะไรเปลี่ยน ไม่ต้อง backfill
+  // String ไม่ใช่ enum (convention เดียวกับ locale) · ค่าที่ไม่รู้จักตีเป็น "chat" (toChatPushSound)
+  // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่า (เหตุผลเดียวกับ locale/chatScopeMode)
+  chatPushSound String @default("chat")
+
   authAccounts           AuthAccount[]
   mobileAuthTickets      MobileAuthTicket[]
   shops                  Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller

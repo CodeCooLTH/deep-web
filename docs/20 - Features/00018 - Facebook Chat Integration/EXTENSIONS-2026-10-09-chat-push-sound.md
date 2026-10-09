@@ -37,3 +37,27 @@ scope: แอปผู้ขาย (deep-seller-app) · แจ้งเตือ
   - เฉพาะ `pushNewChatMessage` ที่ใช้ `sound: 'chat'`
 - `src/services/__tests__/app-push-with-status.test.ts`: `pushToUsers` ส่งค่า sound ต่อถึงตัวส่งครบ
 - mutation 6 แบบ แดงครบ
+
+## ส่วนต่อ (2026-10-09 รอบสอง): ผู้ใช้เลือกกลับไปเสียงของเครื่องได้
+
+**ที่มา:** iOS ไม่มีเมนูให้ผู้ใช้เปลี่ยนเสียงของแอปเอง ส่วน Android เปลี่ยนได้ที่ช่องแจ้งเตือน "แชทใหม่" → user สั่งให้มีตัวเลือกในเว็บ
+
+**หน้าจอ:** `/account` › การ์ด "การแจ้งเตือน" › "เสียงแจ้งเตือนข้อความใหม่"
+- 2 ตัวเลือก: **เสียงแชท Deep** (ค่าตั้งต้น) / **เสียงแจ้งเตือนของเครื่อง**
+- ปุ่ม "ฟังเสียงแชท Deep" (`previewChatSound()` ไม่ผ่าน throttle/ปิดเสียงของ `playChatBeep`)
+
+**ข้อมูล:** `User.chatPushSound` (migration `20261009300000_user_chat_push_sound` · additive · default `chat` จึงไม่ต้อง backfill)
+- ผูกกับ **ตัวคน** ไม่ใช่ร้าน
+- ตั้งค่าครั้งเดียวมีผลกับแจ้งเตือนแชทของทุกร้าน
+
+**API:** `GET/PATCH /api/account/notification-sound`
+
+**การส่ง:** `pushNewChatMessage` แบ่งผู้รับตามเสียงที่แต่ละคนเลือก (`groupUsersByChatPushSound`) แล้วยิงกลุ่มละ 1 request ไม่เกิน 2 กลุ่ม
+- เลือก `default` ⇒ payload `sound: default` + channel `default` (Android ได้เสียงมาตรฐานด้วย)
+
+**ไม่ต้อง build แอปใหม่:** แอป 1.0.2 มีไฟล์เสียงแชทแล้ว และเสียงของเครื่องมีอยู่แล้ว
+
+**เทส `[blocker]`:**
+- `src/services/__tests__/chat-push-sound-pref.test.ts` (7)
+- `seller-push-page-title.test.ts` 2 เคสใหม่
+- mutation 7 แบบ แดงครบ
