@@ -242,6 +242,14 @@ describe('pacing', () => {
     expect(computePacingVerdict([row('a', -10), row('b', -20), row('c', -30)], me, lim)).toBe(false)
     expect(computePacingVerdict([row('a', -10), row('b', -20), row('c', -1500)], me, lim)).toBe(true)
   })
+  it('lowPriorityShare 0.7: ข้างหน้า 80/100 → ไม่ผ่าน · ไม่ส่ง share → ผ่าน', () => {
+    const rows = Array.from({ length: 80 }, (_, i) => row(`r${i}`, -2000 - i * 100, `s${i}`))
+    expect(computePacingVerdict(rows, me, { rps: 3, rpm: 100 })).toBe(true)
+    expect(computePacingVerdict(rows, me, { rps: 3, rpm: 100, lowPriorityShare: 0.7 })).toBe(false)
+    expect(computePacingVerdict(rows.slice(0, 69), me, { rps: 3, rpm: 100, lowPriorityShare: 0.7 })).toBe(true)
+    // ขอบ: ahead = floor(100*0.7) = 70 ต้องไม่ผ่าน (กัน off-by-one ระหว่าง < กับ <=)
+    expect(computePacingVerdict(rows.slice(0, 70), me, { rps: 3, rpm: 100, lowPriorityShare: 0.7 })).toBe(false)
+  })
   it('เสมอเวลา → เทียบ id · อันที่อยู่หลังเราไม่นับ', () => {
     const lim = { rps: 1, rpm: 100 }
     expect(computePacingVerdict([row('a', 0)], me, lim)).toBe(false) // 'a' < 'm'
