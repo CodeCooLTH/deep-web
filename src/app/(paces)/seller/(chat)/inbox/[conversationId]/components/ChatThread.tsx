@@ -166,6 +166,7 @@ import ThreadAutoReplyToggle from './ThreadAutoReplyToggle'
 import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
+import { PRODUCT_TRAY_OPEN_EVENT, dispatchMemoryPoke } from '@/lib/chat-memory-events'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 import { knownChatImageSize, shouldShowImagePlaceholder } from '@/lib/chat-image-reserve'
@@ -2137,6 +2138,32 @@ export default function ChatThread({
   const aiAnchorId = aiState?.anchorMessageId ?? null
   const aiAttempt = aiState && 'attempt' in aiState ? aiState.attempt : null
   const aiKey = aiAnchorId !== null ? `${aiAnchorId}-${aiAttempt}` : null
+  // 00019-ext-mem: แผงลูกค้าแตะแถวสินค้า → เปิดถาดสินค้าพร้อมติ๊กไว้ (nonce ทำให้กดซ้ำแถวเดิมก็ remount) — ไม่ส่งอัตโนมัติ
+  const [preselect, setPreselect] = useState<{ id: string; nonce: number } | null>(null)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent<{ productId?: string }>).detail?.productId
+      if (!id) return
+      setActivePanel('product')
+      setPreselect((p) => ({ id, nonce: (p?.nonce ?? 0) + 1 }))
+    }
+    window.addEventListener(PRODUCT_TRAY_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(PRODUCT_TRAY_OPEN_EVENT, onOpen)
+  }, [])
+  // ติ๊กล่วงหน้าใช้ได้ "ครั้งเดียว" — ถาดปิด หรือสลับห้อง (ChatThread ไม่ remount) ต้องล้าง
+  // ไม่งั้นเปิดถาดตามปกติครั้งถัดไปจะมีสินค้าเก่าติ๊กค้าง แล้วผู้ขายเผลอส่งการ์ดผิดให้ลูกค้าอีกห้อง
+  const productTrayOpen = activePanel === 'product'
+  useEffect(() => {
+    if (!productTrayOpen) setPreselect(null)
+  }, [productTrayOpen])
+  useEffect(() => {
+    setPreselect(null)
+  }, [conversationId])
+  // คำแนะนำใหม่พร้อม (anchor/attempt เปลี่ยน) = ความจำอาจเพิ่งอัปเดต → ให้แผงดึงใหม่ · deps เป็น primitive
+  const aiReadyKey = aiState?.status === 'READY' ? aiKey : null
+  useEffect(() => {
+    if (aiReadyKey !== null) dispatchMemoryPoke()
+  }, [aiReadyKey])
   // ค่า dismissed/recalled เทียบกับ anchor ตรง ๆ ใน getAutoSuggestView → anchor ใหม่ = ค่าเก่าไม่ตรง = หมดผลเอง ไม่ต้องมี effect ล้าง
   const [dismissedAnchorId, setDismissedAnchorId] = useState<string | null>(null)
   const [recalledAnchorId, setRecalledAnchorId] = useState<string | null>(null)
@@ -3356,7 +3383,8 @@ export default function ChatThread({
              เคลียร์ items/selected/q/loading ให้เองโดยไม่ต้องไล่ผูก dep รายตัว — แพตเทิร์นเดียว
              กับ key={scopeKey} ที่ (chat)/layout.tsx และ inbox/comments/page.tsx ใช้อยู่แล้ว */
           <ProductPickerPanel
-            key={threadShopIdForPanels}
+            key={`${threadShopIdForPanels}:${preselect?.nonce ?? 0}`}
+            initialSelectedIds={preselect ? [preselect.id] : undefined}
             onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}

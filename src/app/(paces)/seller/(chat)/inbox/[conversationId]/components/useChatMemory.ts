@@ -149,7 +149,8 @@ export function useChatMemory(conversationId: string) {
     async (rowId: string): Promise<boolean> => {
       try {
         const res = await fetch(`${base}/interested-products/${encodeURIComponent(rowId)}`, { method: 'DELETE' })
-        return res.ok
+        // 404 = แถวหายไปแล้ว (อีกแท็บลบ) — ผลลัพธ์เท่ากับลบสำเร็จ ไม่ต้องคืนแถว
+        return res.ok || res.status === 404
       } catch {
         return false
       }
