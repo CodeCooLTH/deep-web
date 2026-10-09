@@ -158,7 +158,8 @@ export async function pushNewChatMessage(params: {
         channel: preview.channel,
         channelName: preview.channelName,
       },
-      { subtitle: preview.senderName },
+      // เสียงแชทเดียวกับในเว็บ — แจ้งเตือนแชทใหม่เท่านั้น (user เลือก 2026-10-09) · ดู PushSound ใน lib/expo-push
+      { subtitle: preview.senderName, sound: 'chat' },
     )
   } catch (e) {
     console.error('[seller-push] pushNewChatMessage failed', e)

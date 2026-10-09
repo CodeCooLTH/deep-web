@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { sendExpoPush, sendExpoPushWithStatus, isExpoToken } from '@/lib/expo-push'
+import { sendExpoPush, sendExpoPushWithStatus, isExpoToken, type PushSound } from '@/lib/expo-push'
 
 /**
  * ส่ง push ให้ user "หลายคน" พร้อมกัน — best-effort
@@ -17,7 +17,7 @@ export async function pushToUsers(
   body: string,
   data?: Record<string, unknown>,
   /** subtitle = บรรทัดกลาง — iOS เป็นบรรทัดแยก · Android ยกไปนำหน้า body (composeForPlatform) */
-  options?: { subtitle?: string },
+  options?: { subtitle?: string; sound?: PushSound },
 ): Promise<void> {
   await pushToUsersWithStatus(userIds, title, body, data, options)
 }
@@ -31,7 +31,7 @@ export async function pushToUsersWithStatus(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string },
+  options?: { subtitle?: string; sound?: PushSound },
 ): Promise<'SENT' | 'NO_TOKEN' | 'FAILED'> {
   if (userIds.length === 0) return 'NO_TOKEN'
   try {

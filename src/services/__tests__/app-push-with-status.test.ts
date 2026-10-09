@@ -56,3 +56,12 @@ describe('pushToUsersWithStatus [blocker 00066 AC-ACT-41]', () => {
     expect(sendStatus).toHaveBeenLastCalledWith([{ token: TOK, platform: 'android' }], 't', 'b', undefined, { subtitle: 's' })
   })
 })
+
+describe('[blocker] เสียงแจ้งเตือนส่งต่อถึงตัวส่ง (2026-10-09)', () => {
+  it('pushToUsers ส่ง sound/subtitle ต่อให้ sendExpoPushWithStatus ครบ — ไม่ทำหล่นระหว่างทาง', async () => {
+    findMany.mockResolvedValue([{ token: TOK, platform: 'ios' }])
+    sendStatus.mockResolvedValueOnce({ invalid: [], delivered: true })
+    await pushToUsers(['u'], 't', 'b', { type: 'chat' }, { subtitle: 's', sound: 'chat' })
+    expect(sendStatus.mock.calls[0][4]).toEqual({ subtitle: 's', sound: 'chat' })
+  })
+})
