@@ -9,6 +9,11 @@
 > ที่ยังไม่ครบโควตาฟรี), **"credit path"** (ร้าน non-paid ที่ครบโควตาฟรีแล้วและเลือกจ่ายด้วยเครดิต).
 > **"paid plan"** หมายถึงสถานะ subscription (`BusinessPackageSubscription.status === "ACTIVE"`) เท่านั้น
 > — ไม่ใช่ชื่อเรียก credit path
+>
+> **หมายเหตุ (extension 2026-10-09 — BR-AIT-08):** ระบบโควตา/เครดิตในเอกสารนี้ใช้กับเส้นทาง **Gemini** เท่านั้น เส้นทาง Typhoon
+> (ต้นทุนต่อครั้ง = 0, ร้านใน allow-list `TYPHOON_SUGGEST_SHOP_IDS`) **ไม่ผ่านโควตา ไม่หักเครดิต ไม่ถามยืนยัน** และไม่เขียน `AiSuggestUsageEvent`/`AiSuggestDailyUsage` ·
+> โค้ดโควตาคงไว้ทั้งหมด — ร้านนอก allow-list ยังเจอ 402 `QUOTA_EXCEEDED` ที่ครั้งที่ 11 ตามเดิม และถ้าสลับกลับไป Gemini BR-AIQ-01..14 กลับมามีผลทันที ·
+> BR-AIQ-10 ยังจริง: เส้นทาง `/ai-suggest/auto` ถือเป็นส่วนหนึ่งของ ai-suggest · ดู `EXTENSIONS-2026-10-09-typhoon-auto-suggest.md`
 
 ---
 
