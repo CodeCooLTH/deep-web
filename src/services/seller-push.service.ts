@@ -11,6 +11,7 @@ import { getChannelLabel } from '@/lib/chat-channel'
 import { describeSendFailure } from '@/lib/chat-send-failure'
 import { resolveChatChannel } from '@/lib/chat-channel'
 import { pushToUsers } from './app-push.service'
+import { groupUsersByChatPushSound } from './notification-pref.service'
 import { getConversationToastPreview } from './chat.service'
 
 /** เวลาที่ต้องเว้นก่อนยิง noti ของเธรดเดิมซ้ำ — ลูกค้าพิมพ์ 5 ข้อความรวดเดียวต้องได้เด้งเดียว */
@@ -147,19 +148,28 @@ export async function pushNewChatMessage(params: {
      * channel/channelName ใส่ลง data ด้วย ไม่ใช่แค่บรรทัดที่แสดง — วันที่แอปอยากใช้ค่าพวกนี้เอง
      * (จัดกลุ่ม noti ตามเพจ / ทำหน้าตาเอง / รองรับ Android) จะหยิบได้ทันทีโดยไม่ต้องแก้ฝั่งเว็บซ้ำ
      */
-    await pushToUsers(
-      audience,
-      pageTitle(preview.channel, preview.channelName),
-      body,
-      {
-        type: 'chat',
-        url: `/inbox/${params.conversationId}`,
-        conversationId: params.conversationId,
-        channel: preview.channel,
-        channelName: preview.channelName,
-      },
-      // เสียงแชทเดียวกับในเว็บ — แจ้งเตือนแชทใหม่เท่านั้น (user เลือก 2026-10-09) · ดู PushSound ใน lib/expo-push
-      { subtitle: preview.senderName, sound: 'chat' },
+    /**
+     * เสียงตามที่ผู้รับแต่ละคนเลือกที่ /account (2026-10-09) — "chat" = เสียงแชท Deep (ค่าตั้งต้น)
+     * · "default" = เสียงมาตรฐานของเครื่อง ⇒ แบ่งผู้รับเป็นกลุ่มตามเสียง ยิงกลุ่มละ 1 request
+     * (มากสุด 2 กลุ่ม — ยังพร้อมกันอยู่ ไม่ไล่ทีละคน)
+     */
+    const groups = await groupUsersByChatPushSound(audience)
+    await Promise.all(
+      [...groups].map(([sound, userIds]) =>
+        pushToUsers(
+          userIds,
+          pageTitle(preview.channel, preview.channelName),
+          body,
+          {
+            type: 'chat',
+            url: `/inbox/${params.conversationId}`,
+            conversationId: params.conversationId,
+            channel: preview.channel,
+            channelName: preview.channelName,
+          },
+          { subtitle: preview.senderName, sound },
+        ),
+      ),
     )
   } catch (e) {
     console.error('[seller-push] pushNewChatMessage failed', e)

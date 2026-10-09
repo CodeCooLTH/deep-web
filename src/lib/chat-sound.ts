@@ -127,6 +127,17 @@ export function playChatBeep(opts: { shopId?: string | null; conversationId?: st
   void el.play().catch(() => {})
 }
 
+/**
+ * ฟังตัวอย่างเสียงแชท — ปุ่ม "ฟังเสียง" ในหน้า /account (2026-10-09)
+ * ไม่ผ่าน throttle/สวิตช์ปิดเสียงของ playChatBeep เพราะผู้ใช้กดเองตั้งใจฟัง
+ */
+export function previewChatSound(): void {
+  const el = getAudio()
+  if (!el) return
+  el.currentTime = 0
+  void el.play().catch(() => {})
+}
+
 /** ปลดล็อกเสียงตอน gesture แรกของผู้ใช้ (คลิก/แตะ/กดคีย์) — เรียกครั้งเดียวจาก ChatHeader
  *  เล่นเงียบ (volume 0) 1 ครั้งเพื่อให้เบราว์เซอร์อนุญาต play() ครั้งถัดไปโดยไม่ต้องมี gesture ตรงจังหวะ */
 export function primeChatSound(): () => void {

@@ -23,6 +23,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { previewChatSound } from '@/lib/chat-sound'
+import type { ChatPushSound } from '@/services/notification-pref.service'
 import {
   openNativeNotificationSettings,
   readPushPermission,
@@ -61,9 +63,46 @@ function ShopMark({ logo, name }: { logo: string | null; name: string }) {
   )
 }
 
-export default function NotificationPrefsCard({ shops }: { shops: NotificationShopRow[] }) {
+/**
+ * ตัวเลือกเสียงแจ้งเตือนแชทใหม่ (2026-10-09) — ลำดับ = ค่าตั้งต้นก่อน
+ * 🛑 ค่าต้องตรงกับ CHAT_PUSH_SOUNDS (notification-pref.service) และ PushSound (lib/expo-push)
+ */
+const SOUND_OPTIONS: { value: ChatPushSound; name: string; hint: string }[] = [
+  { value: 'chat', name: 'เสียงแชท Deep', hint: 'เสียงเดียวกับที่ดังในหน้าแชท' },
+  { value: 'default', name: 'เสียงแจ้งเตือนของเครื่อง', hint: 'เสียงมาตรฐานของโทรศัพท์' },
+]
+
+export default function NotificationPrefsCard({
+  shops,
+  chatPushSound,
+}: {
+  shops: NotificationShopRow[]
+  chatPushSound: ChatPushSound
+}) {
   const [rows, setRows] = useState(shops)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [sound, setSound] = useState<ChatPushSound>(chatPushSound)
+  const [savingSound, setSavingSound] = useState(false)
+
+  const chooseSound = useCallback(async (next: ChatPushSound, prev: ChatPushSound) => {
+    if (next === prev) return
+    setSavingSound(true)
+    setSound(next) // optimistic — เหมือนสวิตช์รายร้าน
+    try {
+      const res = await fetch('/api/account/notification-sound', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatPushSound: next }),
+      })
+      if (!res.ok) throw new Error('failed')
+      pacesToast.success('บันทึกเสียงแจ้งเตือนแล้ว')
+    } catch {
+      setSound(prev)
+      pacesToast.error('เปลี่ยนเสียงแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setSavingSound(false)
+    }
+  }, [])
 
   /**
    * สิทธิ์แจ้งเตือนระดับเครื่อง — `null` = ไม่ได้เปิดอยู่ในแอป (เว็บธรรมดา) จึงไม่ต้องพูดถึงเลย
@@ -164,6 +203,59 @@ export default function NotificationPrefsCard({ shops }: { shops: NotificationSh
             ))}
           </ul>
         )}
+
+        {/* เสียงแจ้งเตือนข้อความใหม่ (2026-10-09) — ของ "ตัวคน" ใช้กับทุกร้าน จึงอยู่ใต้รายการร้าน
+            ไม่ใช่ในแถวของร้านใดร้านหนึ่ง · radio ชุดเดียวกับการ์ดภาษา (LanguagePrefsCard) */}
+        <div className="border-default-200 mt-5 border-t border-dashed pt-4">
+          <p className="text-dark mb-1 text-sm font-medium">เสียงแจ้งเตือนข้อความใหม่</p>
+          <p className="text-default-500 mb-3 text-xs">
+            ใช้กับแอปผู้ขายบนมือถือ เวอร์ชัน 1.0.2 ขึ้นไป — เวอร์ชันก่อนหน้าจะได้เสียงของเครื่องเสมอ
+          </p>
+          <fieldset
+            className={`border-default-200 divide-default-200 divide-y overflow-hidden rounded border ${savingSound ? 'pointer-events-none opacity-60' : ''}`}
+            disabled={savingSound}
+          >
+            <legend className="sr-only">เสียงแจ้งเตือนข้อความใหม่</legend>
+            {SOUND_OPTIONS.map((option) => {
+              const active = option.value === sound
+              return (
+                <div key={option.value} className="relative">
+                  <input
+                    type="radio"
+                    name="chat-push-sound"
+                    id={`chat-sound-${option.value}`}
+                    value={option.value}
+                    checked={active}
+                    onChange={() => chooseSound(option.value, sound)}
+                    className="peer sr-only"
+                  />
+                  <label
+                    htmlFor={`chat-sound-${option.value}`}
+                    className="peer-checked:border-primary peer-checked:bg-primary/5 peer-focus-visible:ring-primary hover:bg-default-50 flex cursor-pointer items-center gap-3 border-s-3 border-transparent px-4 py-3 peer-focus-visible:ring-2 peer-focus-visible:ring-inset"
+                  >
+                    <span className="grow">
+                      <span className={`block text-sm ${active ? 'text-primary font-medium' : 'text-dark'}`}>{option.name}</span>
+                      <span className="text-default-500 block text-xs">{option.hint}</span>
+                    </span>
+                    {active && <Icon icon="circle-check" className="text-primary size-5 shrink-0" aria-hidden="true" />}
+                  </label>
+                </div>
+              )
+            })}
+          </fieldset>
+          {/* ฟังตัวอย่างได้เฉพาะเสียงแชท Deep — เสียงของเครื่องเล่นจากเว็บไม่ได้ (แต่ละเครื่องตั้งไว้ไม่เหมือนกัน) */}
+          <button
+            type="button"
+            className="btn btn-sm bg-light text-default-700 hover:bg-light-hover mt-3 inline-flex items-center gap-1.5"
+            onClick={previewChatSound}
+          >
+            <Icon icon="player-play" className="size-4" aria-hidden="true" />
+            ฟังเสียงแชท Deep
+          </button>
+          <p className="text-default-500 mt-3 mb-0 text-xs">
+            Android เลือกเสียงอื่นได้อีกที่ ตั้งค่าเครื่อง › แอป › Deep Seller › การแจ้งเตือน › แชทใหม่
+          </p>
+        </div>
       </div>
     </div>
   )

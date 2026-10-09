@@ -7,6 +7,7 @@
 // ไม่งั้นทุกคนจะเงียบพร้อมกันโดยไม่มีอะไรบอก
 import { prisma } from '@/lib/prisma'
 import { listAccessibleShopIds } from '@/lib/shop-context'
+import type { PushSound } from '@/lib/expo-push'
 
 export interface ShopNotificationRow {
   shopId: string
@@ -105,4 +106,43 @@ export async function listMutedUserIds(shopId: string): Promise<Set<string>> {
     select: { userId: true },
   })
   return new Set(rows.map((r) => r.userId))
+}
+
+// ── เสียงแจ้งเตือนแชทใหม่ (2026-10-09) ──────────────────────────────────────
+//
+// ผูกกับ "ตัวคน" (User.chatPushSound) ไม่ใช่ (คน, ร้าน) — เป็นเรื่องเสียงของโทรศัพท์คนนั้น
+// ไม่ได้ขึ้นกับว่าข้อความมาจากร้านไหน · ค่าตั้งต้น "chat" = พฤติกรรมของ #133 ที่ขึ้นไปแล้ว
+
+/** ค่าที่ผู้ใช้เลือกได้ — ตรงกับ PushSound ของ lib/expo-push */
+export const CHAT_PUSH_SOUNDS = ['chat', 'default'] as const satisfies readonly PushSound[]
+export type ChatPushSound = (typeof CHAT_PUSH_SOUNDS)[number]
+
+/** ค่าจากฐาน → ค่าที่ใช้ได้ · ไม่รู้จัก/ว่าง = "chat" (ค่าตั้งต้นของคอลัมน์) */
+export function toChatPushSound(value: string | null | undefined): ChatPushSound {
+  return (CHAT_PUSH_SOUNDS as readonly string[]).includes(value ?? '') ? (value as ChatPushSound) : 'chat'
+}
+
+export async function getChatPushSound(userId: string): Promise<ChatPushSound> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { chatPushSound: true } })
+  return toChatPushSound(u?.chatPushSound)
+}
+
+export async function setChatPushSound(userId: string, sound: ChatPushSound): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { chatPushSound: sound } })
+}
+
+/**
+ * แบ่งผู้รับตามเสียงที่แต่ละคนเลือก — ใช้ตอนส่งแจ้งเตือนแชทใหม่ (ผู้รับหลายคนในร้านเดียว)
+ * คืนเฉพาะกลุ่มที่มีคน · คนที่หาแถวไม่เจอ = "chat" (ค่าตั้งต้น ไม่ทำให้ใครหลุดจากการส่ง)
+ */
+export async function groupUsersByChatPushSound(userIds: string[]): Promise<Map<ChatPushSound, string[]>> {
+  const groups = new Map<ChatPushSound, string[]>()
+  if (userIds.length === 0) return groups
+  const rows = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, chatPushSound: true } })
+  const byId = new Map(rows.map((r) => [r.id, toChatPushSound(r.chatPushSound)]))
+  for (const id of userIds) {
+    const sound = byId.get(id) ?? 'chat'
+    groups.set(sound, [...(groups.get(sound) ?? []), id])
+  }
+  return groups
 }

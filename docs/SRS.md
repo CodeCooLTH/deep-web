@@ -638,6 +638,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `passwordHash` | String? | bcryptjs hash — ใช้กับ seller-credentials login + admin login; buyer ไม่มี (no email+password) |
 | `createdAt` | DateTime | วันสมัคร — ใช้คำนวณ Age component trust score |
 | `chatScopeMode` | String default `"SINGLE"` | **feature 00037** — มุมมองกล่องข้อความของผู้ใช้คนนี้: `"SINGLE"` = เห็นเฉพาะแชทของร้านที่ active (พฤติกรรมเดิมทั้งหมด) · `"UNIFIED"` = เห็นแชทของทุกร้านที่เข้าถึงได้รวมในรายการเดียว. เก็บที่ `User` ไม่ใช่ `Shop` เพราะเป็น "วิธีทำงานของคน" ไม่ใช่ "การตั้งค่าของร้าน". **ไม่มี CHECK constraint โดยตั้งใจ** (ดู `docs/conventions/migration-check-constraint-additive.md`) — ด่านอยู่ที่ Valibot ขาเขียนกับ `normalizeChatScopeMode()` ขาอ่าน (ค่าที่ไม่รู้จัก → `SINGLE`) |
+| `chatPushSound` | String default `"chat"` | **2026-10-09** — เสียงแจ้งเตือน "แชทใหม่" ในแอปผู้ขายของผู้ใช้คนนี้: `"chat"` = เสียงแชท Deep (ไฟล์เดียวกับในเว็บ · ค่าตั้งต้น = พฤติกรรมของ #133) · `"default"` = เสียงมาตรฐานของเครื่อง · ตั้งที่ `/account` ผ่าน `PATCH /api/account/notification-sound` · ผูกกับตัวคน ไม่ใช่ร้าน · ไม่มี CHECK constraint (Valibot picklist ขาเขียน · `toChatPushSound()` ขาอ่าน ค่าที่ไม่รู้จัก → `chat`) · ใช้เฉพาะ `pushNewChatMessage` |
 
 **Relations:** `shop`, `authAccounts`, `verifications`, `userBadges`, `trustScoreHistory`, `ordersAsBuyer`, `reviewsGiven`, `verificationsReviewed`, `topUpRequestsReviewed`
 
@@ -1562,6 +1563,7 @@ erDiagram
 |--------|------|------|---------|---------|
 | POST | `/api/account/set-password` | Guest (OTP-verify flow) | verify OTP แล้ว set `passwordHash` — ใช้ใน signup + reset-password | `lib/auth.ts` |
 | POST | `/api/account/set-phone` | Seller (authed) | ตั้งเบอร์โทร (OTP ยืนยันแล้ว) + สร้าง L1 PHONE_OTP verification — **immutable: ตั้งครั้งเดียว ถ้ามีเบอร์แล้ว → 409** | `user.service` |
+| GET / PATCH | `/api/account/notification-sound` | Seller (authed) | **2026-10-09** อ่าน/ตั้งเสียงแจ้งเตือนแชทใหม่ของตัวเอง — body `{ chatPushSound: "chat" \| "default" }` · ผูก `session.user.id` (ไม่อ่าน activeShopId) · อยู่ใต้ `/api/account` จึงผ่านด่าน CSRF Origin | `notification-pref.service` |
 | POST | `/api/account/shop-info` | Seller (authed) | upsert displayName / username (dedupe) / category ของร้าน ตอน onboarding | `shop.service` |
 
 ### 7.3 Shops

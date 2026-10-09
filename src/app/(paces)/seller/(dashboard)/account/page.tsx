@@ -23,6 +23,7 @@ import { listShopNotificationPrefs } from '@/services/notification-pref.service'
 import { ConnectedAccountsClient } from './components/ConnectedAccountsClient'
 import ProfileForm from './components/ProfileForm'
 import DeleteAccountCard from './components/DeleteAccountCard'
+import { toChatPushSound } from '@/services/notification-pref.service'
 import NotificationPrefsCard from './components/NotificationPrefsCard'
 import LanguagePrefsCard from './components/LanguagePrefsCard'
 
@@ -38,7 +39,7 @@ export default async function AccountPage() {
     prisma.authAccount.findMany({ where: { userId: sessionUser.id }, select: { provider: true } }),
     prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { displayName: true, username: true, avatar: true, email: true, phone: true, passwordHash: true },
+      select: { displayName: true, username: true, avatar: true, email: true, phone: true, passwordHash: true, chatPushSound: true },
     }),
     // ร้านทั้งหมดที่ผู้ใช้เข้าถึงได้ + สถานะแจ้งเตือนของแต่ละร้าน — ผูกกับ session.user.id
     // ไม่ใช่ activeShopId (เส้นแบ่งของหน้านี้ ดู comment หัวไฟล์)
@@ -144,7 +145,7 @@ export default async function AccountPage() {
 
             แสดงทุก breakpoint ไม่ซ่อนบนเดสก์ท็อป — คนที่เผลอปิดร้านหนึ่งไว้จากมือถือ ต้องเปิดกลับ
             จากคอมได้ ถ้าซ่อนไว้เขาจะหาไม่เจอแล้วสรุปว่าแจ้งเตือนของร้านนั้นพัง */}
-        <NotificationPrefsCard shops={notificationShops} />
+        <NotificationPrefsCard shops={notificationShops} chatPushSound={toChatPushSound(dbUser.chatPushSound)} />
 
         {/* ลบบัญชี — ท้ายสุดของหน้าเสมอ (App Store Guideline 5.1.1(v) บังคับให้มีในแอป)
             ทำไมอยู่หน้านี้ ไม่ใช่ /shop: ลบบัญชีคือลบ "ตัวคน" ไม่ใช่ลบร้าน จึงเข้าพวกกับ

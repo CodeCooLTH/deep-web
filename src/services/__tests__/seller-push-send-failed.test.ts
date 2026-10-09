@@ -17,6 +17,8 @@ vi.mock('@/lib/prisma', () => ({
     shopMember: { findMany: vi.fn(async () => []) },
     // ไม่มีแถว = ทุกคนเปิดแจ้งเตือนอยู่ (กติกา opt-out ของ ShopNotificationPref)
     shopNotificationPref: { findMany: vi.fn(async () => [] as { userId: string }[]) },
+    // เสียงแจ้งเตือนที่ผู้ใช้เลือก (2026-10-09) — ไม่มีแถว = "chat" ค่าตั้งต้น
+    user: { findMany: vi.fn(async () => [] as { id: string; chatPushSound: string }[]) },
   },
 }))
 vi.mock('@/services/chat.service', () => ({ getConversationToastPreview: vi.fn() }))
