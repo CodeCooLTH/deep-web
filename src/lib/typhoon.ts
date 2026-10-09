@@ -1,6 +1,7 @@
 import 'server-only'
 import type { TokenUsage } from '@/lib/ai-pricing'
 import { sanitizedContext, type SanitizedPayload } from '@/lib/ai-suggest-sanitize'
+import { buildMemoryWriterSystemPrompt } from '@/lib/memory-writer-prompt'
 import { buildTyphoonSystemPrompt, buildTyphoonTranscript } from '@/lib/reply-suggest-prompt'
 
 // Typhoon (opentyphoon.ai) — ตัวร่างคำตอบอัตโนมัติ 00019-ext
@@ -38,10 +39,25 @@ export function isTyphoonConfigured(): boolean {
   return Boolean(process.env.TYPHOON_API_KEY?.trim())
 }
 
+type TyphoonResult = { text: string; usage: TokenUsage | null; model: string; latencyMs: number }
+
 /** รับเฉพาะ payload ที่ผ่าน sanitizeForExternalAi — ส่งข้อความดิบเข้ามาไม่ได้ (compile error) */
-export async function generateTyphoonReply(
-  payload: SanitizedPayload,
-): Promise<{ text: string; usage: TokenUsage | null; model: string; latencyMs: number }> {
+export function generateTyphoonReply(payload: SanitizedPayload): Promise<TyphoonResult> {
+  return callTyphoon(
+    buildTyphoonSystemPrompt(sanitizedContext(payload)),
+    buildTyphoonTranscript(payload.turns),
+    0.3,
+    300,
+  )
+}
+
+/** ผู้เขียนความจำ 00019-ext-mem: ฐาน = payload.memory, ข้อความใหม่ = payload.turns */
+export function generateTyphoonMemoryText(payload: SanitizedPayload): Promise<TyphoonResult> {
+  const user = `ความจำปัจจุบัน:\n${payload.memory?.text?.trim() || '(ยังไม่มี)'}\n\nบทสนทนาใหม่:\n${buildTyphoonTranscript(payload.turns)}`
+  return callTyphoon(buildMemoryWriterSystemPrompt(), user, 0.2, 400)
+}
+
+async function callTyphoon(system: string, user: string, temperature: number, maxTokens: number): Promise<TyphoonResult> {
   const key = process.env.TYPHOON_API_KEY?.trim()
   if (!key) throw new TyphoonNotConfiguredError()
   const model = process.env.TYPHOON_MODEL || TYPHOON_DEFAULT_MODEL
@@ -61,11 +77,11 @@ export async function generateTyphoonReply(
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: buildTyphoonSystemPrompt(sanitizedContext(payload)) },
-          { role: 'user', content: buildTyphoonTranscript(payload.turns) },
+          { role: 'system', content: system },
+          { role: 'user', content: user },
         ],
-        temperature: 0.3,
-        max_tokens: 300,
+        temperature,
+        max_tokens: maxTokens,
       }),
       signal: controller.signal,
     })
