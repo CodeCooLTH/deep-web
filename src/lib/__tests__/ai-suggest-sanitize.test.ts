@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { PiiVault } from '../pii-redact'
 
 // ตัวสวิตช์ mutation: ชนิดที่ "ปิดบังไม่ทำงาน" — ทำโดยคืนค่าจริงแทนป้ายของชนิดนั้นหลังตัวจริงทำงาน
-const mutation = vi.hoisted(() => ({ label: null as string | null }))
+const mutation = vi.hoisted(() => ({ label: null as string | null, throwOn: null as string | null }))
 vi.mock('../pii-redact', async (importOriginal) => {
   const orig = await importOriginal<typeof import('../pii-redact')>()
   return {
     ...orig,
     redactPiiReversible: (input: string, vault: PiiVault) => {
+      if (mutation.throwOn && input.includes(mutation.throwOn)) throw new Error('boom')
       const r = orig.redactPiiReversible(input, vault)
       if (mutation.label) {
         const re = new RegExp(`\\[${mutation.label}#\\d+\\]`, 'g')
@@ -24,6 +25,7 @@ import { restorePii } from '../pii-redact'
 
 beforeEach(() => {
   mutation.label = null
+  mutation.throwOn = null
 })
 
 const PHONES = [
@@ -288,5 +290,53 @@ describe('buildSuggestTurns M3: allow-list ตอน externalSafe', () => {
   })
   it('TEXT ส่ง body', () => {
     expect(buildSuggestTurns([{ senderRole: 'BUYER', type: 'TEXT', body: 'สวัสดี', productRefId: null }], o)[0].text).toBe('สวัสดี')
+  })
+})
+
+describe('00019-ext-mem: memory + interestedProducts ผ่าน scrub เดียวกัน', () => {
+  const mem = { text: 'ใส่ไซส์ L โทร 081-234-5678 ชื่อ สมหญิง', updatedDay: '2026-10-09' }
+  const withMem = (over: Partial<SanitizeInput> = {}) =>
+    base(['สวัสดี'], { memory: mem, knownCustomerNames: ['สมหญิง'], ...over })
+
+  it('ความจำไม่มีเบอร์ดิบ ชื่อ→"ลูกค้า" และ restore เบอร์ได้', () => {
+    const o = sanitizeForExternalAi(withMem(), 'typhoon')
+    expect(o.memory).not.toBeNull() // ถ้า scrub ถูกข้าม/พัง memory จะเป็น null หรือรั่ว → แดง
+    expect(digits(o.memory!.text)).not.toContain('0812345678')
+    expect(o.memory!.text).not.toContain('สมหญิง')
+    expect(o.memory!.updatedDay).toBe('2026-10-09')
+    expect(digits(restorePii(o.memory!.text, o.vault).text)).toContain('0812345678')
+  })
+
+  it('บรรทัดสินค้าที่สนใจถูก scrub ด้วย', () => {
+    const o = sanitizeForExternalAi(base(['hi'], { interestedProducts: ['- เสื้อ คุณสมหญิง สั่ง 081-234-5678'], knownCustomerNames: ['สมหญิง'] }), 'typhoon')
+    expect(o.interestedProducts).toHaveLength(1)
+    expect(o.interestedProducts[0]).not.toContain('สมหญิง')
+    expect(digits(o.interestedProducts[0])).not.toContain('0812345678')
+  })
+
+  it('scrub โยนเฉพาะ memory → memory null แต่ turns ครบ', () => {
+    mutation.throwOn = 'ไซส์ L'
+    const o = sanitizeForExternalAi(withMem(), 'typhoon')
+    expect(o.memory).toBeNull()
+    expect(o.turns).toHaveLength(1)
+    expect(o.turns[0].text).toBe('สวัสดี')
+  })
+
+  it('scrub โยนเฉพาะ products → [] ', () => {
+    mutation.throwOn = 'SKU-X'
+    const o = sanitizeForExternalAi(withMem({ interestedProducts: ['- SKU-X'] }), 'typhoon')
+    expect(o.interestedProducts).toEqual([])
+    expect(o.memory).not.toBeNull()
+  })
+
+  it('scrub โยนที่ transcript → SanitizeError', () => {
+    mutation.throwOn = 'สวัสดี'
+    expect(() => sanitizeForExternalAi(withMem(), 'typhoon')).toThrow(SanitizeError)
+  })
+
+  it('mutation: ชนิด PHONE ปิดบังไม่ทำงาน → ความจำไม่ผ่าน (null) ไม่ใช่รั่วออกไป', () => {
+    mutation.label = 'เบอร์โทร'
+    const o = sanitizeForExternalAi(withMem(), 'typhoon')
+    expect(o.memory).toBeNull()
   })
 })

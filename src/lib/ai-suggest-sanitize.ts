@@ -1,4 +1,5 @@
 import 'server-only'
+import { renderMemorySections } from '@/lib/reply-suggest-prompt'
 import type { SuggestContext, SuggestTurn } from '@/lib/gemini'
 import {
   createPiiVault,
@@ -90,13 +91,15 @@ export function sanitizedContext(
     contextBlock: p.contextBlock,
     customerName: null,
     customerNote: p.customerNote,
+    memory: p.memory,
+    interestedProducts: p.interestedProducts,
   }
 }
 
-/** stub ของ G0 — T2 ทำจริง: contextBlock + renderMemorySections ต่อท้าย (P-2) */
+/** Gemini ไม่มีช่อง memory แยก ⇒ ต่อท้าย contextBlock (หลัง sanitize แล้ว) — P-2 */
 export function sanitizedContextForGemini(p: SanitizedPayload): SuggestContext {
-  void p
-  throw new Error('NOT_IMPLEMENTED')
+  const sections = renderMemorySections(p)
+  return { ...sanitizedContext(p), contextBlock: sections ? `${p.contextBlock}\n\n${sections}` : p.contextBlock }
 }
 
 export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'gemini'): SanitizedPayload {
@@ -122,6 +125,20 @@ export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'g
       return r.text
     }
 
+    // try แยกต่อฟิลด์: ความจำ/สินค้าพังไม่ควรทำให้คำแนะนำทั้งก้อนตาย — ตัดเฉพาะส่วนนั้นทิ้ง (log เฉพาะชนิด error)
+    let memory: SanitizeOutput['memory'] = null
+    try {
+      if (input.memory?.text?.trim()) memory = { text: scrub(input.memory.text), updatedDay: input.memory.updatedDay }
+    } catch (e) {
+      console.error('[ai-suggest-sanitize] memory dropped:', (e as Error).name)
+    }
+    let interestedProducts: string[] = []
+    try {
+      interestedProducts = (input.interestedProducts ?? []).map(scrub)
+    } catch (e) {
+      console.error('[ai-suggest-sanitize] interestedProducts dropped:', (e as Error).name)
+    }
+
     const out = {
       vertical: input.vertical ?? 'ONLINE_SALES',
       turns: input.turns.map((t) => ({ role: t.role, text: scrub(t.text) })),
@@ -132,8 +149,8 @@ export function sanitizeForExternalAi(input: SanitizeInput, mode: 'typhoon' | 'g
       customerNote: mode === 'typhoon' || !input.customerNote ? null : scrub(input.customerNote),
       vault,
       foundKinds: [...found],
-      memory: null, // G0: ยังไม่ scrub
-      interestedProducts: [] as string[],
+      memory,
+      interestedProducts,
     } as SanitizeOutput
     return out
   } catch (e) {

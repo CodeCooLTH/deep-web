@@ -61,3 +61,12 @@ export type OptionSelection = { key: string; value: string }
 export type InterestedProductPostBody = { productId: string; selections?: OptionSelection[] }
 export type InterestedProductPostResponse = { item: InterestedProductDto }
 export type MemoryRefreshResponse = { status: 'UPDATED' | 'THINKING' | 'NONE'; reason?: MemoryUpdateOutcome }
+
+/** สินค้าที่สนใจในรูปที่ใช้ประกอบ prompt (ย้ายมาจาก service เพื่อให้ lib ไม่พึ่ง services) */
+export type PromptProduct = {
+  name: string
+  optionLabel: string
+  state: InterestedProductState
+  price: string | null
+  stockQty: number | null
+}

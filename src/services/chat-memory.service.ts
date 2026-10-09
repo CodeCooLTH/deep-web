@@ -4,7 +4,7 @@ import type {
   ChatMemoryDto,
   ChatMemoryGetResponse,
   ChatMemorySource,
-  InterestedProductState,
+  PromptProduct,
 } from '@/lib/chat-memory-types'
 
 // stub ของ G0 (contract freeze) — เนื้อจริงมาใน T4/T6
@@ -51,13 +51,7 @@ export async function saveMemoryByAdmin(p: {
   throw new Error('NOT_IMPLEMENTED')
 }
 
-export type PromptProduct = {
-  name: string
-  optionLabel: string
-  state: InterestedProductState
-  price: string | null
-  stockQty: number | null
-}
+export type { PromptProduct }
 export type PromptMemory = { memory: { text: string; updatedDay: string } | null; products: PromptProduct[] }
 
 /** fail-soft: ไม่ throw (NFR-MEM-Failsoft) · includeX=false → ไม่อ่านส่วนนั้นเลย */
