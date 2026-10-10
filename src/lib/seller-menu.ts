@@ -746,7 +746,8 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     countColLabel: 'ใช้บริการ',
     amountColLabel: 'ยอดใช้บริการ',
     productNoun: 'บริการและสินค้า',
-    createProductLabel: 'เพิ่มบริการ',
+    // user เคาะ 2026-10-10: ปุ่มสร้างเหลือ "สร้างสินค้าหรือบริการ" + "สร้างงานบริการ" — ร้านบริการสร้างได้ทั้งสองอย่าง
+    createProductLabel: 'สร้างสินค้าหรือบริการ',
     firstItemLabel: 'เพิ่มบริการแรก',
     addProductLabel: 'เพิ่มบริการ',
     itemSingular: 'รายการ',

@@ -41,6 +41,8 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+import { isServiceWorkStage } from '@/lib/service-work-stage'
+import { useT } from '@/i18n/LocaleProvider'
 import {
   APPOINTMENT_STAGE_KEYS,
   APPOINTMENT_STAGE_META,
@@ -176,6 +178,23 @@ export default function OrdersList({
    * แยกจาก `dateFilter` ด้วย เพราะตัวนั้นกรอง `createdAtISO` = **วันที่สั่งซื้อ** คนละวันกับวันนัด
    * และเป็น client state ที่ deep-link ไม่ได้ · ค่าที่ไม่รู้จัก = ไม่กรอง (fail-open)
    */
+  /**
+   * `?work=` — ขั้นงานร้านบริการ (ทางเข้า: ไทล์ "งานบริการ" บนหน้าแรก 2026-10-10)
+   * อ่านจาก URL ล้วนเหมือนแกนอื่น (ไม่ mirror เป็น state) · ค่าที่ไม่รู้จัก = ไม่กรอง (fail-open)
+   */
+  const workParam = searchParams.get('work')
+  const work = isServiceWorkStage(workParam) ? workParam : null
+  const tr = useT()
+  const workLabel = work
+    ? tr.dashboard[
+        ({
+          AWAITING_SERVICE: 'workAwaitingService',
+          APPT_CONFIRMED: 'workApptConfirmed',
+          AWAITING_CLOSE: 'workAwaitingClose',
+          AWAITING_BUYER: 'workAwaitingBuyer',
+        } as const)[work]
+      ]
+    : null
   const apptDayParam = searchParams.get('apptDay')
   const apptDay = isAppointmentDayKey(apptDayParam) ? apptDayParam : null
   /**
@@ -276,6 +295,7 @@ export default function OrdersList({
     stage?: string | null
     appt?: string | null
     apptDay?: string | null
+    work?: string | null
     fulfillment?: string | null
   }) => {
     const next = new URLSearchParams(searchParams.toString())
@@ -307,7 +327,7 @@ export default function OrdersList({
     setLocalStatus('all')
     setTypeFilter('')
     setDateFilter('All')
-    pushQuery({ status: null, stage: null, appt: null, apptDay: null, fulfillment: null })
+    pushQuery({ status: null, stage: null, appt: null, apptDay: null, work: null, fulfillment: null })
   }
 
   /** กดชิปที่เลือกอยู่ซ้ำ = ล้างตัวกรอง (ทางออกเดียวกับกากบาทบนชิป) */
@@ -515,8 +535,10 @@ export default function OrdersList({
     else if (appt) list = list.filter((o) => o.appointment?.stage === appt)
     // วิธีส่งมอบ (feature 00062 U18) — field เดียวกับที่ fulfillmentCounts นับ, AND กับแกนอื่น
     if (fulfillment) list = list.filter((o) => o.fulfillmentMode === fulfillment)
+    // ขั้นงานบริการ — field เดียวกับที่ตัวนับหน้าแรกนับ (deriveServiceWorkStage), AND กับแกนอื่น
+    if (work) list = list.filter((o) => o.workStage === work)
     return list
-  }, [dayScoped, stage, appt, fulfillment])
+  }, [dayScoped, stage, appt, fulfillment, work])
 
   /** ทุกตัวกรองยกเว้นคำค้น — คำค้นถูกใส่เป็นชั้นสุดท้ายเสมอ (AND เกิดจากลำดับ ไม่ใช่จากเงื่อนไขซ้ำ) */
   const preSearch = useMemo(() => {
@@ -561,7 +583,7 @@ export default function OrdersList({
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, appliedSearch, stage, appt, apptDay, dateFilter])
+  }, [localStatus, typeFilter, appliedSearch, stage, appt, apptDay, work, dateFilter])
 
   /**
    * เขียนคำค้นกลับลง URL — หน่วงหลังหยุดพิมพ์ แล้วใช้ `history.replaceState` ไม่ใช่ router
@@ -712,6 +734,15 @@ export default function OrdersList({
                 }
               : undefined
           }
+          workFilter={
+            work && workLabel
+              ? {
+                  label: workLabel,
+                  count: stageFiltered.length,
+                  onClear: () => pushQuery({ work: null }),
+                }
+              : undefined
+          }
           apptDayFilter={
             apptDay
               ? {
@@ -859,6 +890,24 @@ export default function OrdersList({
 
             ปุ่มล้างเป็น <button> มี aria-label จริง ไม่ใช่ <span> ที่ใส่ label แล้วถูก AT ทิ้ง
             (docs/conventions/aria-name-requires-supporting-role.md) + py-2 ดัน hit-area ให้ถึงนิ้ว */}
+        {/* ขั้นงานบริการ (?work=) — แถบเดียวกับ "นัดวันนี้" ด้านล่าง: บริบทที่ผู้ใช้ถูกพามาจากไทล์
+            ต้องเห็นและล้างได้ ไม่งั้นกรองค้างแล้วรายการหดโดยไม่รู้สาเหตุ · ปุ่มล้างเป็น <button> จริง */}
+        {work && workLabel && (
+          <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
+            <Icon icon="clipboard-check" className="text-primary shrink-0 text-base" aria-hidden="true" />
+            <p className="text-primary-ink mb-0 min-w-0 flex-1 text-xs font-semibold">
+              {workLabel} {stageFiltered.length}
+            </p>
+            <button
+              type="button"
+              onClick={() => pushQuery({ work: null })}
+              aria-label={`ล้างตัวกรอง${workLabel}`}
+              className="text-primary-ink hover:bg-primary/10 inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-semibold"
+            >
+              ล้าง
+            </button>
+          </div>
+        )}
         {apptDay && (
           <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
             <Icon icon="calendar-event" className="text-primary shrink-0 text-base" aria-hidden="true" />

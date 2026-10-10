@@ -47,8 +47,19 @@ const buildFabActions = (
   t: Dictionary,
   vertical: string | null | undefined,
   kind: string | null | undefined,
-) =>
-  [
+) => {
+  /**
+   * ร้านที่รับนัด (บริการ) — เหลือ 2 ปุ่ม: สร้างสินค้าหรือบริการ · สร้างงานบริการ (user เคาะ 2026-10-10)
+   * ใช้ createLabel เต็ม ("สร้างงานบริการ") ไม่ใช่ createLabelShort — user ระบุคำนี้ตรง ๆ และเหลือ 2 ปุ่มพอที่
+   * ประเภทงานยังเข้าได้จากเมนูตั้งค่า
+   */
+  if (canUseAppointments({ kind: kind ?? '', vertical: vertical ?? '' })) {
+    return [
+      { label: byVertical(t.vocab.createProductLabel, vertical), href: '/products/new', icon: 'package-plus' },
+      { label: vocab.createLabel, href: '/orders/new', icon: 'shopping-cart-plus' },
+    ]
+  }
+  return [
     /**
      * ช่องแรก — ของที่ต้อง "ตั้งไว้ก่อน" ถึงจะเปิดรับงาน/ขายได้ · คนละอย่างตามประเภทกิจการ
      *
@@ -86,7 +97,8 @@ const buildFabActions = (
       href: '/orders/new',
       icon: 'shopping-cart-plus',
     },
-  ] as const
+  ]
+}
 
 // ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
 // S-2: ตัด "สินค้า" ออก — /products ยังเข้าได้จากเมนูลัด dashboard (CarouselGrid)

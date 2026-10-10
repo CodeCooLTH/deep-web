@@ -11,6 +11,7 @@
 // T6 re-home: type ย้ายไปอยู่ที่ src/services/activity.service.ts แล้ว
 // import มาใช้ใน CommandCenterData + re-export เพื่อ backward compat กับ component ที่ import จาก _constants
 // ไม่ circular: _constants ไม่ถูก import โดย activity.service → OK
+import type { ServiceWorkStage } from '@/lib/service-work-stage'
 import type { ActivityItem } from '@/services/activity.service'
 // type-only (ลบทิ้งตอน compile) — ไม่พา prisma เข้า client bundle
 import type { PortfolioSeries } from '@/services/business-overview.service'
@@ -57,6 +58,8 @@ export type CommandCenterData = {
    * ตลอดกาล) เป็น "นัดวันนี้" — ดูเหตุผลเต็มใน OrderStatusBandProps.appointmentToday
    */
   appointmentTodayCount?: number
+  /** ขั้นงานร้านบริการ — ส่งมา = ไทล์ "งานบริการ" 4 ขั้นแทนชุดสถานะการขาย */
+  serviceWorkCounts?: Record<ServiceWorkStage, number>
 
   /**
    * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) — resolve ที่ page.tsx แล้วส่งเป็น "สตริง"
