@@ -77,6 +77,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - [[docs/conventions/component-declared-in-render]] — ห้ามประกาศ component ในตัว render
   - [[docs/conventions/mutation-silence-means-weak-corpus]] — mutation แล้วยังเขียว = input อ่อน
   - [[docs/conventions/oauth-signup-unique-collisions]] — P2002 ตอนสมัคร OAuth ต้องแยกตามคอลัมน์
+  - [[docs/conventions/permission-gate-follows-the-row]] — ปิดสิทธิ์ข้อมูลไล่ตามแถวไม่ใช่ตามจอ · พารามิเตอร์สิทธิ์ห้าม default เปิด
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
