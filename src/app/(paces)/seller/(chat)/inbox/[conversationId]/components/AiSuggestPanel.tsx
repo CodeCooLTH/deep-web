@@ -164,7 +164,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
       icon: 'question',
       title: 'ใช้เงินในกระเป๋า ฿1 ขอร่างเพิ่ม?',
       text: hideBalance
-        ? `จะหักจากกระเป๋าเงินของร้าน ฿${priceBaht} ต่อครั้ง`
+        ? 'ระบบจะหักจากกระเป๋าเงินของร้าน'
         : `ยอดคงเหลือในกระเป๋าเงิน ฿${balance}`,
       showCancelButton: true,
       confirmButtonText: 'ใช้เงินในกระเป๋า ฿1',
@@ -188,7 +188,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
             // 🛑 ในแอป iOS ห้ามมีลิงก์ไปหน้าเติมเงินและห้ามใช้คำว่า "เติมเงิน" — บอกได้แค่สาเหตุ
             Swal.showValidationMessage(
               hideBalance
-                ? 'เครดิตของร้านไม่พอสำหรับขอร่างเพิ่ม ติดต่อเจ้าของร้าน'
+                ? 'เครดิตของร้านไม่พอสำหรับขอร่างเพิ่ม — ติดต่อเจ้าของร้าน'
                 : hidePayments
                 ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม'
                 : 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>',
@@ -212,7 +212,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
       // API ไม่ส่ง balance หลังหักกลับมาตรง ๆ (contract response 200 มีแค่ suggestions/usedCredit/freeRemaining)
       // คำนวณจากยอดที่รู้ล่าสุด (จาก GET ai-quota) ลบราคาคงที่ ฿1 — ค่าประมาณที่ดีที่สุดที่ client มี
       if (hideBalance) {
-        pacesToast.success(`หักเงิน ฿${priceBaht} จากกระเป๋าร้านแล้ว`)
+        pacesToast.success(`หัก ฿${priceBaht} จากกระเป๋าเงินของร้านแล้ว`)
       } else {
         const newBalance = Math.max(0, balance - priceBaht)
         pacesToast.success(`หักเงิน ฿1 แล้ว คงเหลือ ฿${newBalance}`)

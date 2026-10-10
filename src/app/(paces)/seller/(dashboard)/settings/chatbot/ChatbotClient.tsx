@@ -277,7 +277,10 @@ export default function ChatbotClient({
           <div className="card-body flex items-start gap-3">
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
             <div className="text-sm">
-              <p className="text-default-800 font-semibold">เงินในกระเป๋าหมด — AI ยังไม่ทำงาน</p>
+              <p className="text-default-800 font-semibold">
+                {/* ผู้ไม่ใช่เจ้าของ: เรียก "เครดิตของร้าน" ให้ตรงศัพท์ชุดเดียวกับที่อื่น · เจ้าของคงข้อความเดิม (critique 00071 C9) */}
+                {walletBalance == null ? 'เครดิตของร้านหมด — ChatBot ยังไม่ตอบ' : 'เงินในกระเป๋าหมด — AI ยังไม่ทำงาน'}
+              </p>
               {/* 🛑 ในแอป iOS ห้ามสั่งให้ไปจ่ายเงิน (Guideline 3.1.3(f): "no calls to action for
                   purchase outside of the app") — คำว่า "เติมเงินก่อน" คือคำสั่งให้ไปซื้อ ถึงจะไม่มี
                   ลิงก์ก็ตาม · Apple นับแม้แต่ "หน้าสมัครบัญชี" ว่าเป็นทางเข้าไปจ่ายเงินภายนอก
@@ -291,7 +294,7 @@ export default function ChatbotClient({
                   (มติเดิม 2026-08-10 เขียนไว้ที่ `useHidePayments`) */}
               <p className="text-default-700 mt-1">
                 {walletBalance == null && !hidePayments
-                  ? 'ติดต่อเจ้าของร้านเพื่อเติมเงิน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'
+                  ? 'ChatBot จะกลับมาตอบเองเมื่อเจ้าของร้านเติมเงินเข้ากระเป๋าเงินของร้าน'
                   : hidePayments
                     ? 'ChatBot จะกลับมาตอบอัตโนมัติเมื่อมีเครดิตอีกครั้ง (เครดิตก้อนเดียวกับที่ใช้ส่ง SMS)'
                     : 'เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'}

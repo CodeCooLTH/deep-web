@@ -125,7 +125,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
               <div>
                 <p className="text-default-600 text-sm mb-0">เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน</p>
                 <p className="text-default-700 text-sm mt-1 mb-0">
-                  ข้อมูลการเงินของร้าน (ยอดขาย กำไร ต้นทุน ค่าใช้จ่าย กระเป๋า SMS) เห็นได้เฉพาะเจ้าของร้าน
+                  ข้อมูลการเงินของร้าน (ยอดขาย กำไร ต้นทุน ค่าใช้จ่าย ยอดซื้อสะสมของลูกค้า และกระเป๋าเงินของร้าน) เห็นได้เฉพาะเจ้าของร้าน ผู้ดูแลจะไม่เห็นตัวเลขเหล่านี้
                 </p>
               </div>
               <Link href="/admins" className="btn btn-sm bg-primary text-white hover:bg-primary-hover">

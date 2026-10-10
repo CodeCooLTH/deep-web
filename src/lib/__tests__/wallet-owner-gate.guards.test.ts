@@ -59,7 +59,7 @@ describe('insufficientCreditHtml canTopUp', () => {
     }
   })
   it('เจ้าของ → เหมือนเดิม', () => {
-    expect(insufficientCreditHtml(false, 'เติมเงิน')).toContain('href="/wallet"')
-    expect(insufficientCreditHtml(true)).toBe('เครดิตไม่พอ')
+    expect(insufficientCreditHtml(false, 'เติมเงิน', true)).toContain('href="/wallet"')
+    expect(insufficientCreditHtml(true, 'เติมเงิน', true)).toBe('เครดิตไม่พอ')
   })
 })

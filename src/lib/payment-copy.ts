@@ -13,7 +13,6 @@
  */
 
 /** ป้ายลิงก์ท้ายข้อความบนเว็บ — เปลี่ยนตามบริบทได้ ("เติมเงินก่อนสมัคร", "เติมเงินก่อนซื้อสล็อต") */
-const DEFAULT_LINK_LABEL = 'เติมเงิน'
 
 /**
  * ข้อความ "เครดิตไม่พอ" แบบ HTML (ใช้กับ Swal ที่รับ html ได้)
@@ -24,8 +23,9 @@ const DEFAULT_LINK_LABEL = 'เติมเงิน'
  */
 export function insufficientCreditHtml(
   hidePayments: boolean,
-  linkLabel: string = DEFAULT_LINK_LABEL,
-  canTopUp: boolean = true,
+  linkLabel: string,
+  // บังคับส่ง (ไม่มีค่าตั้งต้น) — ลืมส่งแล้วได้ true = ผู้ไม่ใช่เจ้าของเห็นลิงก์ /wallet ที่ตัน (critique 00071)
+  canTopUp: boolean,
 ): string {
   // 00071 F3: ผู้ไม่ใช่เจ้าของเติมเงินไม่ได้ (/wallet = 403) → บอกทางออก ไม่มีลิงก์ ไม่มีตัวเลข
   if (!canTopUp) return NON_OWNER_INSUFFICIENT_CREDIT_TEXT
@@ -37,4 +37,4 @@ export function insufficientCreditHtml(
 export const INSUFFICIENT_CREDIT_TEXT = 'เครดิตไม่พอ'
 
 /** ผู้ไม่ใช่เจ้าของร้านเจอเครดิตไม่พอ — ไม่มีลิงก์ไปกระเป๋า (00071 F3) */
-export const NON_OWNER_INSUFFICIENT_CREDIT_TEXT = 'เครดิตของร้านไม่พอ ติดต่อเจ้าของร้าน'
+export const NON_OWNER_INSUFFICIENT_CREDIT_TEXT = 'เครดิตของร้านไม่พอ — ติดต่อเจ้าของร้าน'
