@@ -1013,6 +1013,12 @@ export async function updateOrder(
   data: Parameters<typeof createOrder>[1],
   // feature 00031 — คนที่กดแก้ไข (optional เพื่อไม่ให้ผู้เรียกเดิมพัง; ไม่ส่ง = "ระบบ")
   actorUserId?: string | null,
+  /**
+   * 00071 D-4 — ผู้ไม่ใช่เจ้าของไม่เห็น/ไม่ส่งต้นทุน แต่การแก้ออเดอร์ลบ item แล้วสร้างใหม่:
+   * ถ้าไม่รักษา OrderItem.cost เดิม ต้นทุนของใบจะถูกแทนด้วย Product.cost ล่าสุดเงียบ ๆ (กำไรเปลี่ยนเอง)
+   * true = บรรทัดที่จับคู่กับ item เดิมได้ (productId ก่อน แล้วชื่อ) ใช้ cost เดิม · จับคู่ไม่ได้ = resolveLineCosts ตามปกติ
+   */
+  opts?: { keepLineCosts?: boolean },
 ) {
   // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
   const editedAt = new Date();
@@ -1119,6 +1125,13 @@ export async function updateOrder(
       },
     });
     if (!existing) throw new OrderNotFoundError();
+    // อ่านต้นทุนเดิมก่อน deleteMany (D-4) — แยก query ไม่ยัดใน select ข้างบน กันกระทบ diff ของ ORDER_EDITED
+    const oldCostRows = opts?.keepLineCosts
+      ? await tx.orderItem.findMany({
+          where: { orderId: existing.id },
+          select: { productId: true, name: true, cost: true },
+        })
+      : [];
     // แก้ได้เฉพาะ PENDING — ตรงกับกฎที่ UI ใช้อยู่แล้วทุกที่ (OrderActions/OrderCardMenu: canEdit = PENDING)
     // เดิมบล็อกแค่ CANCELLED ทำให้โมดัลแก้ไขในแชท (ซึ่งไม่ได้ gate สถานะเลย) แก้ออเดอร์ที่
     // SHIPPED/CONFIRMED ได้ = รื้อ OrderItem ทิ้งสร้างใหม่ + reverse/deduct สต็อก ทั้งที่ผู้ซื้อ
@@ -1159,11 +1172,23 @@ export async function updateOrder(
 
     // 5) cost snapshot + write-back — ฟังก์ชันเดียวกับ createOrder (ห้ามเขียนแยก)
     const costMap = await resolveLineCosts(tx, shopId, resolvedItems);
-    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => ({
-      ...item,
-      stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
-      cost: typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null),
-    }));
+    // D-4: จับคู่บรรทัดใหม่กับ item เดิม (หนึ่งต่อหนึ่ง) ด้วย productId ก่อน แล้ว fallback ด้วยชื่อ
+    const pool = [...oldCostRows];
+    const takeOld = (it: { productId?: string; name: string }) => {
+      let i = it.productId ? pool.findIndex((o) => o.productId === it.productId) : -1;
+      if (i < 0) i = pool.findIndex((o) => o.name === it.name);
+      return i < 0 ? undefined : pool.splice(i, 1)[0];
+    };
+    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => {
+      const old = opts?.keepLineCosts ? takeOld(item) : undefined;
+      return {
+        ...item,
+        stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
+        cost: old
+          ? old.cost
+          : (typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null)),
+      };
+    });
 
     // 6) customer link — relink เฉพาะเมื่อมีเบอร์ (ไม่มีเบอร์ = ไม่แตะ customerId เดิม กัน unlink ไม่ตั้งใจ)
     //

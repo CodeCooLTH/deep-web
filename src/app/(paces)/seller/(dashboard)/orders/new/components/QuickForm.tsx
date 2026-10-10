@@ -58,6 +58,8 @@ interface Props {
   appointmentBlock?: ReactNode
   /** compact = render ในโมดัลสร้างคำสั่งซื้อ (feature 00018) — footer sticky ในโมดัลแทน fixed viewport */
   compact?: boolean
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — ส่งต่อไป line item/summary · ไม่ส่ง = false */
+  showCost?: boolean
   /** feature 00033 — ค่า orderedAt เริ่มต้นมาจากเวลาข้อความในแชท → OrderDateRow เปิดช่องค้างไว้เอง */
   orderDateFromMessage?: boolean
   /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปเตือนใน OrderDateRow) */
@@ -87,6 +89,7 @@ export default function QuickForm({
   total,
   appointmentBlock,
   compact = false,
+  showCost = false,
   orderDateFromMessage,
   orderDateMessageTooOld,
   orderDateLabel,
@@ -187,6 +190,7 @@ export default function QuickForm({
               productIcon={productIcon}
               unitLabel={unitLabel}
               onOpenPicker={() => setPickerIndex(i)}
+              showCost={showCost}
             />
           ))}
         </div>
@@ -211,7 +215,7 @@ export default function QuickForm({
       </section>
 
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
-      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} />
+      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} showCost={showCost} />
 
       {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
       <ProductPickerSheet

@@ -307,6 +307,8 @@ type ShopChatContextReady = {
   /** feature 00022 × 00037 — โหมดเปิดพัสดุของ "ร้านนี้" (ดู resolveChatIshipCreateMode)
    *  เดิมเป็น state ตัวเดียวทั้ง provider จึงใช้ค่าของร้าน active กับร่างของทุกร้าน */
   ishipCreateMode: IShipCreateMode
+  /** เจ้าของร้านนี้ไหม (00071 S-3) — ตัดสินต้นทุนรายบรรทัด · undefined = false */
+  canSeeCost?: boolean
 }
 type ShopChatContext =
   | ShopChatContextReady
@@ -398,6 +400,8 @@ type ProviderProps = {
   appointmentGranularity?: AppointmentGranularity
   /** feature 00022 — โหมดเปิดพัสดุของร้าน active (layout seed; ร้านอื่นมาทาง shop-context) */
   ishipCreateMode?: IShipCreateMode
+  /** เจ้าของร้าน active ไหม — seed ให้ shopCtx ของร้าน active (ร้านอื่นมาทาง shop-context) */
+  canSeeCost?: boolean
   children: React.ReactNode
 }
 
@@ -413,6 +417,7 @@ export default function DraftOrderProvider({
   serviceResources = [],
   appointmentGranularity = 'DAY',
   ishipCreateMode = 'OFF',
+  canSeeCost = false,
   children,
 }: ProviderProps) {
   const [drafts, setDrafts] = useState<ChatDraft[]>([])
@@ -438,6 +443,7 @@ export default function DraftOrderProvider({
       serviceResources,
       appointmentGranularity,
       ishipCreateMode,
+      canSeeCost,
     },
   }))
 
@@ -796,6 +802,7 @@ export default function DraftOrderProvider({
                 prefillParseText={d.prefillText ?? undefined}
                 /* ของ "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active — ctx มาจาก shopCtx[d.shopId] */
                 ishipCreateMode={ctx.ishipCreateMode}
+                showCost={ctx.canSeeCost === true}
                 serviceResourcesEnabled={ctx.serviceResourcesEnabled}
                 serviceResources={ctx.serviceResources}
                 appointmentGranularity={ctx.appointmentGranularity}

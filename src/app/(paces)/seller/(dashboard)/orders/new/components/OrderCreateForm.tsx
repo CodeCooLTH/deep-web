@@ -123,6 +123,8 @@ interface Props {
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
    *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
   compact?: boolean
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — false = ซ่อนช่องต้นทุนรายบรรทัด + ไม่ส่ง cost ใน payload */
+  showCost?: boolean
   /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (BUSINESS + GENERAL เท่านั้น, BR-RSV-01)
    *  false = ไม่ render บล็อกวันนัดเลย DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด */
   serviceResourcesEnabled?: boolean
@@ -328,6 +330,7 @@ export default function OrderCreateForm({
   conversationId,
   editOrderToken,
   compact = false,
+  showCost = false,
   ishipCreateMode = 'OFF',
   serviceResourcesEnabled = false,
   serviceResources = [],
@@ -844,7 +847,7 @@ export default function OrderCreateForm({
         price: item.price,
         // ส่ง key เฉพาะตอนกรอกจริง — ไม่กรอก = ไม่ส่ง = fallback ไป Product.cost (FR-EXP-17-AC-01)
         // ห้ามส่ง null/0 แทนค่าว่าง (0 คือ "ต้นทุนศูนย์บาทจริง" คนละความหมาย)
-        ...(item.cost != null ? { cost: item.cost } : {}),
+        ...(showCost && item.cost != null ? { cost: item.cost } : {}),
       })),
       ...(buyerContact ? { buyerContact } : {}),
       ...(buyerName ? { buyerName } : {}),
@@ -1078,6 +1081,7 @@ export default function OrderCreateForm({
           orderDateMessageTooOld={effectivePrefillTooOld}
           orderDateLabel={vocab.dateLabel}
           showDeliveryToggle={showDeliveryToggle}
+          showCost={showCost}
         />
       </div>
 
@@ -1113,6 +1117,7 @@ export default function OrderCreateForm({
             orderDateLabel={vocab.dateLabel}
             showDeliveryToggle={showDeliveryToggle}
             itemLabel={itemLabel}
+            showCost={showCost}
             cartTitle={vocab.cartTitle}
             addToCartLabel={vocab.addToCartLabel}
           />

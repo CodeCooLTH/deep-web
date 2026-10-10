@@ -21,6 +21,8 @@
  */
 
 import { useState } from 'react'
+import { useController } from 'react-hook-form'
+import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import { productMargin } from '@/lib/order-profit'
 
@@ -104,4 +106,33 @@ export default function LineCostField({ cost, price, onChange, knownMissing }: P
 export function countCostCoverage(items: { name?: string; cost?: number | null }[]) {
   const named = items.filter((i) => Boolean(i?.name?.trim()))
   return { withCost: named.filter((i) => i.cost != null).length, total: named.length }
+}
+
+/**
+ * LineCostSlot — ห่อ useController ของ items.N.cost ไว้ใน component ที่ render เฉพาะตอน showCost
+ * (00071 S-3): ผู้ไม่ใช่เจ้าของไม่ลงทะเบียนฟิลด์ cost ในฟอร์มเลย → state ไม่เก็บต้นทุน
+ * และไม่ขัด rules of hooks เพราะเงื่อนไขอยู่ที่ตัวเรียก <LineCostSlot/> ไม่ใช่ hook
+ */
+export function LineCostSlot({
+  control,
+  index,
+  price,
+  catalogProduct,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: Control<any>
+  index: number
+  price: number
+  /** สินค้าจากแคตตาล็อก (ถ้ามี) — cost == null = รู้แน่ว่ายังไม่เคยตั้งต้นทุน */
+  catalogProduct?: { cost?: number | null }
+}) {
+  const { field } = useController({ control, name: `items.${index}.cost`, defaultValue: null })
+  return (
+    <LineCostField
+      cost={(field.value as number | null) ?? null}
+      price={price}
+      onChange={field.onChange}
+      knownMissing={Boolean(catalogProduct && catalogProduct.cost == null)}
+    />
+  )
 }

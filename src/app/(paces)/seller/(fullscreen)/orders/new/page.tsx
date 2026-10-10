@@ -19,6 +19,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import Icon from '@/components/wrappers/Icon'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
@@ -117,10 +118,12 @@ export default async function NewOrderPage() {
     : []
 
   // map Product → CatalogProduct: ใช้ toCatalogProduct กลาง (แชร์กับหน้าแก้ไขออเดอร์)
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — role อ่านสดจาก requireActiveShop
+  const canSeeCost = can(rolesFromMembership(active.role), 'P3')
   let catalog: CatalogProduct[] = []
   try {
     const products = await getProductsByShop(shop.id)
-    catalog = products.map(toCatalogProduct)
+    catalog = products.map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
   }
@@ -128,7 +131,7 @@ export default async function NewOrderPage() {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalogProduct)
+    bestSellers = (await getBestSellerProducts(shop.id, 8)).map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }
@@ -153,7 +156,7 @@ export default async function NewOrderPage() {
         backHref="/orders"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
+      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} showCost={canSeeCost} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

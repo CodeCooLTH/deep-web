@@ -30,6 +30,7 @@
  * bg-card (โทเคน Paces — ขาวโหมด light, การ์ดเข้มโหมด dark ตาม theme/paces/.../config/_root.css)
  * ไม่ hardcode ขาว ตามที่สั่ง "ต้องถูกทั้ง light และ dark mode"
  */
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { getCachedSession } from '@/lib/session-cache'
 import { redirect } from 'next/navigation'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
@@ -64,7 +65,7 @@ import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/ord
  *    ทุกสินค้าทั้งที่ร้านตั้งทุนไว้แล้ว (ร้านแจ้ง 2026-10-08 · ตั้งแต่เพิ่มช่องทุนรายบรรทัด 00016)
  *    mapper ต้องมีที่เดียว ไม่งั้นฟิลด์ใหม่ที่เติมให้หน้าเต็มจะหายเงียบ ๆ ในแชทอีก
  */
-const toCatalog = (p: unknown): CatalogProduct => toCatalogProduct(p)
+const toCatalog = (p: unknown, canSeeCost: boolean): CatalogProduct => toCatalogProduct(p, { canSeeCost })
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const session = await getCachedSession()
@@ -149,15 +150,17 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // ทั้งสองค่านี้เป็น input ของเมนู แต่ต้องรู้ก่อนเรียก resolveSellerMenuItems จึงยิงไปพร้อมชุดล่าง
   let unreadChatCount = 0
   let hidePayments = false
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — ร้านที่ preload = ร้าน active
+  const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole), 'P3') : false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
       getProductsByShop(shopId)
-        .then(ps => ps.map(toCatalog))
+        .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
       getBestSellerProducts(shopId, 8)
-        .then(ps => ps.map(toCatalog))
+        .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
@@ -347,6 +350,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       serviceResources={serviceResources}
       appointmentGranularity={appointmentGranularity}
       ishipCreateMode={ishipCreateMode}
+      canSeeCost={canSeeCost}
     >
       {shell}
     </DraftOrderProvider>

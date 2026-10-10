@@ -28,6 +28,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
@@ -136,9 +137,11 @@ export default async function EditOrderPage({ params }: PageProps) {
   // ระบบคลัง (Inventory Add-on) เปิดอยู่ไหม — ถ้าเปิด แสดงสต็อกคงเหลือใน grid/line + เตือน qty เกิน
   const inventoryEnabled = await isEntitlementActive(shop.id).catch(() => false)
 
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — role อ่านสดจาก requireActiveShop
+  const canSeeCost = can(rolesFromMembership(active.role), 'P3')
   let catalog: CatalogProduct[] = []
   try {
-    catalog = (await getProductsByShop(shop.id)).map(toCatalogProduct)
+    catalog = (await getProductsByShop(shop.id)).map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
   }
@@ -146,7 +149,7 @@ export default async function EditOrderPage({ params }: PageProps) {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalogProduct)
+    bestSellers = (await getBestSellerProducts(shop.id, 8)).map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }
@@ -173,6 +176,7 @@ export default async function EditOrderPage({ params }: PageProps) {
         saveLabel="บันทึกการแก้ไข"
       />
       <OrderCreateForm
+        showCost={canSeeCost}
         vocab={vocab}
         shopVertical={shop.vertical}
         shopId={shop.id}

@@ -1,3 +1,5 @@
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { stripOrderItemCost } from "@/lib/order-cost-redact";
 import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -31,7 +33,9 @@ export async function GET(request: NextRequest) {
   if (!active) return NextResponse.json([]);
 
   const orders = await getOrdersByShop(active.shop.id, status);
-  return NextResponse.json(orders);
+  // ต้นทุนรายบรรทัดเฉพาะเจ้าของร้าน (00071) — orderListInclude ดึง items ทั้งแถว
+  const canSeeCost = can(rolesFromMembership(active.role), "P3");
+  return NextResponse.json(orders.map((o) => stripOrderItemCost(o, canSeeCost)));
 }
 
 export async function POST(request: NextRequest) {
@@ -135,8 +139,14 @@ export async function POST(request: NextRequest) {
     // คนที่กดสร้างคือเจ้าของ session นี้ — เอามาจาก session ฝั่ง server เท่านั้น ห้ามรับจาก body
     // (ไม่งั้นใครก็ยิงระบุชื่อคนอื่นเป็นคนสร้างได้) มิเรอร์วิธีเดียวกับ otp-for-password ใน feat 00026
     const createdByUserId = (session.user as { id?: string }).id ?? null;
-    const order = await createOrder(shop.id, { ...parsed.output, appointment, createdByUserId });
-    return NextResponse.json(order, { status: 201 });
+    // ผู้ไม่ใช่เจ้าของ: ตัด items[].cost ทิ้งเงียบ (00071 D-7) → resolveLineCosts ใช้ Product.cost ตามปกติ
+    const canSeeCost = can(rolesFromMembership(active.role), "P3");
+    const items = canSeeCost
+      ? parsed.output.items
+      : parsed.output.items.map(({ cost: _cost, ...it }) => it);
+    const order = await createOrder(shop.id, { ...parsed.output, items, appointment, createdByUserId });
+    // response ก็ต้องไม่มีต้นทุน — createOrder คืน items ทั้งแถว (review T7)
+    return NextResponse.json(stripOrderItemCost(order, canSeeCost), { status: 201 });
   } catch (e) {
     // feature 00024 — error ของโดเมนนัดหมายต้องมี catch ครอบที่นี่ มิฉะนั้นตกเป็น 500
     // (บทเรียน feedback_service_error_route_mapping)

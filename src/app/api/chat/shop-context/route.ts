@@ -10,6 +10,7 @@ import { listServiceResources } from "@/services/service-resource.service";
 import { canUseAppointments } from "@/lib/appointments";
 import { resolveOrderVocab } from "@/lib/seller-menu";
 import { resolveChatIshipCreateMode } from "@/lib/iship/chat-create-mode";
+import { isShopOwnerOfShop } from "@/lib/shop-owner";
 import { sessionUserId } from "@/lib/session-user";
 
 /**
@@ -52,6 +53,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // ต้นทุนสินค้า (00071 S-3): ตัดสินจากบทบาทของ "ร้านที่ขอ" ไม่ใช่ร้าน active — กล่องแชทรวมหลายร้าน
+    const canSeeCost = await isShopOwnerOfShop(shopId, userId, "P3");
     const [catalog, bestSellers, inventoryEnabled, shopRow, shipping] = await Promise.all([
       getProductsByShop(shopId),
       getBestSellerProducts(shopId, 8),
@@ -86,8 +89,9 @@ export async function GET(request: NextRequest) {
         shopId,
         // toCatalog ของ layout ทำ mapping เดียวกันนี้ — รูปแบบต้องตรงกันเป๊ะ ไม่งั้นฟอร์มที่โหลด
         // ผ่านเส้นทางนี้จะได้ข้อมูลคนละหน้าตากับที่ preload มาจาก layout
-        catalog: catalog.map(toCatalog),
-        bestSellers: bestSellers.map(toCatalog),
+        catalog: catalog.map((p) => toCatalog(p, canSeeCost)),
+        bestSellers: bestSellers.map((p) => toCatalog(p, canSeeCost)),
+        canSeeCost,
         inventoryEnabled,
         vocab: resolveOrderVocab(shopRow.vertical),
         shopVertical: shopRow.vertical,
@@ -112,4 +116,4 @@ export async function GET(request: NextRequest) {
  * แคตตาล็อกของร้านในเธรด — `toCatalogProduct` ตัวเดียวกับ (chat)/layout.tsx และหน้าเต็ม /orders/new
  * 🛑 เดิมมี mapper แยกที่ไม่มี `cost` (และ `description`) ⇒ ฟอร์มในแชทขึ้น "ยังไม่ตั้งต้นทุน" ทั้งที่ตั้งแล้ว
  */
-const toCatalog = (p: unknown) => toCatalogProduct(p);
+const toCatalog = (p: unknown, canSeeCost: boolean) => toCatalogProduct(p, { canSeeCost });

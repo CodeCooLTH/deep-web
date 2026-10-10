@@ -1,9 +1,11 @@
+import { stripOrderItemCost } from "@/lib/order-cost-redact";
 import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
 import { prisma } from "@/lib/prisma";
 import { CreateOrderSchema } from "@/lib/validations";
 import {
@@ -59,6 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ctx = await resolveShop(session, shopId);
   if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
+  const canSeeCost = can(rolesFromMembership(ctx.role), "P3");
   const order = await prisma.order.findFirst({
     where: { publicToken: token, shopId: ctx.shopId },
     select: {
@@ -69,7 +72,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // 🛑 ถ้าไม่คืนค่านี้ ร้านที่กดบันทึกโดยไม่แตะปุ่มจะทำให้ออเดอร์นัดรับ **กลับเป็นจัดส่งเงียบ ๆ**
       // (updateOrder คำนวณใหม่จาก items เมื่อไม่ได้รับค่า) — คลาสเดียวกับบั๊ก createAt ข้างล่าง
       fulfillmentMode: true,
-      items: { select: { productId: true, name: true, description: true, qty: true, price: true, cost: true } },
+      // cost เลือกเฉพาะเจ้าของ (00071 S-3) — ผู้อื่นไม่ query ต้นทุนเลย
+      items: { select: { productId: true, name: true, description: true, qty: true, price: true, ...(canSeeCost ? { cost: true } : {}) } },
     },
   });
   if (!order) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
@@ -102,7 +106,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         // ต้นทุนที่บันทึกไว้ในใบนี้ — ฟอร์มแก้ไขต้องได้ค่าเดิมกลับไป (ร้านแจ้ง 2026-10-08)
         // 🛑 เดิมไม่ส่ง ⇒ ฟอร์มส่งทุนว่างตอนบันทึก ⇒ updateOrder ใช้ทุน *ล่าสุด* ของสินค้าแทนทุนเดิม
         //    และรายการพิมพ์เองที่เคยใส่ทุนไว้ ทุนหายเป็น null ⇒ กำไรของใบนั้นเปลี่ยนเอง
-        cost: it.cost != null ? Number(it.cost) : null,
+        ...(canSeeCost ? { cost: "cost" in it && it.cost != null ? Number(it.cost) : null } : {}),
       })),
     },
     { headers: NO_STORE },
@@ -129,8 +133,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     // feature 00031 — actor ของ ORDER_EDITED มาจาก session เสมอ ไม่รับจาก body
     const actorUserId = (session as { user?: { id?: string } }).user?.id ?? null;
-    const order = await updateOrder(ctx.shopId, token, parsed.output, actorUserId);
-    return NextResponse.json(order, { headers: NO_STORE });
+    // ผู้ไม่ใช่เจ้าของ: ตัด items[].cost ทิ้งเงียบ (D-7) + รักษา cost เดิมของใบ (D-4)
+    const isOwner = can(rolesFromMembership(ctx.role), "P3");
+    const data = isOwner
+      ? parsed.output
+      : { ...parsed.output, items: parsed.output.items.map(({ cost: _cost, ...it }) => it) };
+    const order = await updateOrder(ctx.shopId, token, data, actorUserId, { keepLineCosts: !isOwner });
+    // response ก็ต้องไม่มีต้นทุน — updateOrder คืน items ทั้งแถว (review T7)
+    return NextResponse.json(stripOrderItemCost(order, isOwner), { headers: NO_STORE });
   } catch (e: unknown) {
     // vertical ของร้านสำหรับเลือกคำในข้อความ — ดึงเฉพาะทาง error (ctx ของ resolveActiveShopContext ไม่มี vertical)
     // ไม่เพิ่ม round-trip ให้ทางสำเร็จ

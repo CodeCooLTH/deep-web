@@ -8,7 +8,9 @@
  */
 import type { CatalogProduct } from './OrderCreateForm'
 
-export function toCatalogProduct(p: any): CatalogProduct {
+// canSeeCost default false (fail-closed, 00071 S-3): ไม่ใช่เจ้าของ = ไม่มีคีย์ cost ใน object เลย
+// (ไม่ใช่ null/0) เพื่อไม่ให้ต้นทุนข้ามเส้น RSC/JSON ไปถึง client ของพนักงาน
+export function toCatalogProduct(p: any, opts: { canSeeCost?: boolean } = {}): CatalogProduct {
   return {
     id: p.id,
     name: p.name,
@@ -23,6 +25,6 @@ export function toCatalogProduct(p: any): CatalogProduct {
     stockQty: p.stockQty ?? null,
     // cost: Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้) · null คงเป็น null
     // ไม่แปลงเป็น 0 — null = "ยังไม่เคยตั้ง" ต่างจาก 0 = "ไม่มีต้นทุนจริง" (FR-EXP-17)
-    cost: p.cost == null ? null : Number(p.cost),
+    ...(opts.canSeeCost ? { cost: p.cost == null ? null : Number(p.cost) } : {}),
   }
 }
