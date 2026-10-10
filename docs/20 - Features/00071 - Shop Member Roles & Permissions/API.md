@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** Draft (สัญญาก่อน implement)
+> **สถานะ:** P1 implement แล้ว (§4.3-§4.4) · P2/P3 ยังเป็นสัญญาก่อน implement
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # API Contract: บทบาทและสิทธิ์สมาชิกร้าน
@@ -48,7 +48,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[TestCase]]"]
 | `PATCH` | `/api/business/shops/[shopId]/members/[memberId]` | เปลี่ยน `role` และ/หรือ `roles` ของสมาชิก (เจ้าของเท่านั้น) | P2 |
 | `POST` | invite create (path เดิมของ 00008) | สร้างคำเชิญอีเมล/เบอร์ พร้อม `roles` | P2 |
 | `POST` | invite-link create (path เดิมของ 00012) | สร้างลิงก์เชิญ พร้อม `roles` | P2 |
-| `PATCH` | `/api/business/shops/[shopId]/finance-visibility` | **ลบ** (สวิตช์ `staffCanViewFinance` ถูกยกเลิก) | P1 |
+| `PATCH` | `/api/business/shops/[shopId]/finance-visibility` | **ลบแล้ว** (สวิตช์ `staffCanViewFinance` ถูกยกเลิก) | P1 ✅ |
 
 path ของสอง invite endpoint ยืนยันจากโค้ดจริงตอน implement P2 (ไม่ระบุที่นี่เพื่อไม่เดา)
 
@@ -101,14 +101,29 @@ path ของสอง invite endpoint ยืนยันจากโค้ด�
 
 ### 4.3 ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` (P1)
 
-ตัด endpoint สลับ `staffCanViewFinance` ออกพร้อมสวิตช์ในหน้าสมาชิก · พฤติกรรมเมื่อถูกเรียกหลังลบ (404 หรือ 410) กำหนดตอน implement P1 (S-5)
+ตัด endpoint สลับ `staffCanViewFinance` ออกพร้อมสวิตช์ในหน้าสมาชิก · ลบไฟล์ route ทิ้ง ไม่ทำ 410 — หลังลบได้ 404 ตามปกติของ Next
 
 ### 4.4 พฤติกรรมปฏิเสธบน endpoint เดิมอื่น
 
 | Phase | ผิวที่คืน `403 FORBIDDEN_ROLE` เมื่อไม่ใช่เจ้าของ |
 |-------|----------------------------------------------------|
-| P1 | API การเงินเต็ม F1/F2/F3: ค่าใช้จ่าย (`/api/expenses*`) · รายงาน (`/api/expenses/report` และรายงานที่มีรายได้) · กระเป๋า SMS (`/api/wallet*`) — รายการ path จริงยืนยันจากโค้ดตอน S-4 |
+| P1 ✅ | ดูตารางสัญญา P1 ด้านล่าง |
 | P3 | ทุก route ฝั่งร้านตาม capability §8.3 (แชท H1-H3 · ออเดอร์ O1-O7 · พัสดุ S1-S2 · สินค้า P1-P3 · ลูกค้า C1-C3 ฯลฯ) |
+
+**สัญญา P1 จริง (จากโค้ด · ผู้ที่ไม่ใช่เจ้าของ):**
+
+| Endpoint | พฤติกรรม |
+|---|---|
+| `/api/expenses` · `/api/expenses/[id]` · `/api/expenses/report` · `/api/finance/receivables` · `/api/seller/sales-series` | `403 FORBIDDEN_ROLE` |
+| `/api/wallet` · `/api/wallet/topup` · `/api/wallet/events` | `403 FORBIDDEN_ROLE` (F3) — เส้นหักเครดิตภายในของ ADMIN ไม่โดนด่าน |
+| `POST /api/products` · `PATCH /api/products/[id]` | `403` เมื่อ body มี `cost` |
+| `POST /api/inventory/csv/import` | `403` ทั้งคำขอ เมื่อแถวใดมี `cost` (ไม่ทิ้งเงียบ) |
+| `GET /api/products` · `SerializedProduct` · CSV export | `cost` เป็น optional — ไม่มีคีย์ |
+| `GET/POST /api/orders` · `GET/PATCH /api/orders/[token]` | ไม่มี `items[].cost` · PATCH ทิ้ง `cost` ใน body เงียบ ๆ และคงต้นทุนเดิมของบรรทัด (`keepLineCosts`) |
+| `GET /api/chat/ai-quota` | `balance: number \| null` (`null` = ไม่ใช่เจ้าของ) |
+| `POST …/ai-suggest` | `402 INSUFFICIENT_CREDIT` ไม่มี `balance` |
+| `GET /api/chat/shop-context` | เพิ่ม `canSeeCost` |
+| `GET /api/seller/reports/agents*` | โหมด SELF: `revenue` = `null` ทุกชั้น |
 
 ไม่เปลี่ยนรูป request/response ของ endpoint เหล่านั้นนอกจากฟิลด์เงินที่ถูกตัดตาม `moneyLevel` สำหรับผู้ที่ไม่ใช่เจ้าของ
 
@@ -174,5 +189,5 @@ sequenceDiagram
 
 **Open Questions:**
 - path ที่แน่นอนของ invite create / invite-link create และรูป response — ยืนยันจากโค้ดตอน implement P2
-- endpoint finance-visibility ตอบ 404 หรือ 410 หลังลบ — กำหนดตอน implement P1
-- รายการ path API การเงินเต็มที่ต้องใส่ guard — ยืนยันจากโค้ดตอน S-4
+- ~~finance-visibility 404 หรือ 410~~ — ตัดสินแล้ว: ลบ route = 404
+- ~~รายการ path API การเงินเต็ม~~ — ตัดสินแล้ว (ตารางสัญญา P1 §4.4)

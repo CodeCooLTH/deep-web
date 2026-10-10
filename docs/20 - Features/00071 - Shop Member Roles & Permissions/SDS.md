@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** System Design Spec (SDS)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** Draft (ออกแบบก่อน implement)
+> **สถานะ:** P1 implement แล้ว · P2/P3 ยังเป็นการออกแบบ
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SDS: บทบาทและสิทธิ์สมาชิกร้าน (System Design Spec)
@@ -158,7 +158,7 @@ sequenceDiagram
 - **ตัดสินใจ:** ฟิลด์เงินเต็มไม่ออกจาก service ให้ผู้ที่ไม่ใช่เจ้าของ
 - **เหตุผล:** ซ่อน UI ไม่กัน flight payload/API (กฎ 00016: "ต้องไม่อยู่ใน flight payload")
 - **ทางเลือกที่ตัดทิ้ง:** ซ่อนเฉพาะ UI — รั่วทาง RSC payload
-- **ผลกระทบ:** ทุก DAL ที่มีฟิลด์เงินต้องรับ `moneyLevel` หรือถูกครอบด้วย guard — รายชื่อผิวกำหนดตอน implement P1 (S-3)
+- **ผลกระทบ:** ทุก DAL ที่มีฟิลด์เงินต้องรับ `moneyLevel` หรือถูกครอบด้วย guard — รายชื่อผิว (P1 สรุปแล้ว): ต้นทุนสินค้า/รายบรรทัด · ยอดสะสมลูกค้า · แดชบอร์ด/Command Center · กระเป๋า/เครดิต AI · รายงานแอดมิน · ค่าใช้จ่าย/P&L/ลูกหนี้/ซีรีส์ยอดขาย — ตัวช่วยอยู่ `src/lib/{dashboard-money,order-cost-redact,agent-revenue-redact,shop-owner,forbidden-role}.ts` และบังคับด้วยเทส `src/lib/__tests__/finance-surface-guard.test.ts` (ไฟล์ page/layout/route ใดเรียกแหล่งเงินโดยไม่มีตัวตัดสินในไฟล์ = เทสแดง ยกเว้นอยู่ใน ALLOW พร้อมเหตุผล)
 
 ### TD-005: ปฏิเสธด้วย 403 `FORBIDDEN_ROLE` และหน้าแจ้งไม่มีสิทธิ์
 - **ตัดสินใจ:** API → 403 `{ error: 'FORBIDDEN_ROLE' }` · RSC → หน้าแจ้งว่าต้องขอบทบาทไหนจากเจ้าของ
@@ -194,4 +194,4 @@ sequenceDiagram
 
 **Open Questions:**
 - ต้องเพิ่ม DB CHECK additive เพื่อบังคับ invariant `roles` หรือไม่ — กำหนดตอน implement P2
-- รายชื่อผิวการเงินที่ต้องตัด — กำหนดตอน implement P1 (S-3) จากผล `rg`
+- ~~รายชื่อผิวการเงินที่ต้องตัด~~ — ตัดสินแล้วใน P1 (ดู TD-004 และ finance-surface-guard)

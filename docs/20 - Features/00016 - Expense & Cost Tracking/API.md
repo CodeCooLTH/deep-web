@@ -14,6 +14,11 @@ related: ["[[SDS]]", "[[SRS]]", "[[Feature-Docs-Ownership]]"]
 > `/api/expenses`, `/api/expenses/[id]`, `/api/expenses/report` **คงเดิมทุกช่อง** — 00067 เรียกใช้ตามสัญญานี้
 > และเพิ่ม endpoint ใหม่แยกไว้ที่ `/api/finance/receivables` (ดู `00067/API.md` และ `docs/SRS.md` §7.23)
 
+> ## 🔄 หมายเหตุ 2026-10-10 — 00071 P1 แทนที่ `staffCanViewFinance`
+>
+> `PATCH /api/business/shops/[shopId]/finance-visibility` **ถูกลบ** · ทุก endpoint การเงินในเอกสารนี้ตอบ `403 { error: 'FORBIDDEN_ROLE' }` สำหรับผู้ที่ไม่ใช่เจ้าของ (ธงไม่ถูกอ่านแล้ว) ·
+> `POST/PATCH /api/products` ที่ส่ง `cost` และ `inventory/csv/import` ที่มี `cost` ก็ 403 เช่นกัน — ดู `docs/20 - Features/00071 - Shop Member Roles & Permissions/API.md` §4.4
+
 > **โมดูล:** M00016-ExpenseCostTracking
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0

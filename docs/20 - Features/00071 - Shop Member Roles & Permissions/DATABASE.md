@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[API]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** Draft (ออกแบบก่อน implement — P1 ไม่มี migration)
+> **สถานะ:** P1 implement แล้ว (ไม่มี migration · ไม่แตะ schema) · P2 ยังเป็นการออกแบบ
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # DATABASE: บทบาทและสิทธิ์สมาชิกร้าน
@@ -104,7 +104,7 @@ invariant (บังคับที่ service เว้นแต่ตัดส
 
 ### 3.4 `Shop.staffCanViewFinance` (deprecated)
 
-`Boolean @default(true)` คงอยู่ใน schema · P1 เลิกอ่านทุกจุด (3 ไฟล์ `*-access` ใช้กฎ "การเงินเต็ม = เจ้าของ") · **ไม่ drop** — การ drop ต้องขออนุมัติ user แยก (OOS-9)
+`Boolean @default(true)` คงอยู่ใน schema · P1 เลิกอ่านทุกจุดแล้ว (3 ไฟล์ `*-access` ใช้กฎ "การเงินเต็ม = เจ้าของ" · `rg staffCanViewFinance src` เหลือแค่คอมเมนต์ · ตั้งเป็น `true` ก็ไม่มีผล) · **ไม่ drop** — การ drop ต้องขออนุมัติ user แยก (OOS-9)
 
 ---
 

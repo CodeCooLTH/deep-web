@@ -11,7 +11,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) - TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** Draft (สเปกก่อน implement — ยังไม่มีโค้ด)
+> **สถานะ:** P1 implement แล้ว (branch `feat/00071-member-roles`) · P2/P3 ยังเป็นสเปก (ยังไม่มีโค้ด)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SRS: บทบาทและสิทธิ์สมาชิกร้าน (Software Requirements Specification — Technical)
@@ -86,7 +86,7 @@ flowchart LR
 - **คำอธิบายเชิงเทคนิค:** `src/lib/shop-permissions.ts` เป็น SSOT ของตาราง capability × 5 บทบาท (ตรง BRD §8.3 ทุกเซลล์) · `can(roles, cap)` = มีบทบาทใดบทบาทหนึ่งที่ได้ cap (union) · `moneyLevel(roles)` = ระดับสูงสุดของทุกบทบาท (FULL > PER_ORDER > NONE) · cap ที่ไม่อยู่ในตาราง = OWNER เท่านั้น · T4 = เจ้าของหลัก (ตัดสินที่ guard ด้วย `Shop.userId` ไม่ใช่ที่ตาราง) · `rolesFromMembership('OWNER'|'ADMIN')` ใช้ใน P1 → `['OWNER']` | `['MANAGER']`
 - **Precondition:** ไม่มี (pure)
 - **Postcondition:** ผลเดียวกันทุกครั้งสำหรับ input เดียวกัน · ไม่ throw กับ input ว่าง (`roles=[]` → `can` เป็น false, `moneyLevel` เป็น NONE)
-- **Error / Edge cases:** บทบาทที่ไม่รู้จักใน `roles` ถูกข้าม (ไม่ให้สิทธิ์) · รูปแบบ signature/ชนิด export อื่นกำหนดตอน implement P1 (S-2)
+- **Error / Edge cases:** บทบาทที่ไม่รู้จักใน `roles` ถูกข้าม (ไม่ให้สิทธิ์) · **P1 implement แล้ว:** export จริง = `ShopRole` · `MoneyLevel` · `Capability` · `CAPABILITY_ROLES` · `can` · `moneyLevel` · `rolesFromMembership` (`role` ที่ไม่ใช่ OWNER/ADMIN → `[]` fail-closed) · helper คู่กัน: `src/lib/forbidden-role.ts` (`forbiddenRoleResponse()` → 403 `{error:'FORBIDDEN_ROLE'}`) · `src/lib/shop-owner.ts` (`isShopOwnerRole`, `isShopOwnerOfShop(shopId,userId,cap='F3')` สำหรับ route ที่ร้านมาจากเธรด) · `src/lib/dashboard-money.ts` · `src/lib/order-cost-redact.ts` · `src/lib/agent-revenue-redact.ts` · เทส `src/lib/shop-permissions.test.ts`
 
 ### TFR-002: Guard ฝั่งเซิร์ฟเวอร์ (fail-closed)
 - **Trace to:** FR-RP-02, S-4, S-12, S-17
@@ -101,13 +101,14 @@ flowchart LR
 - **Precondition:** ผู้เรียกผ่าน guard ของ capability นั้นแล้ว
 - **Postcondition:** คีย์การเงินเต็มไม่อยู่ใน payload ของผู้ที่ไม่ใช่เจ้าของ (รวมใน RSC flight payload)
 - **Error / Edge cases:** ผิวที่ไม่ได้ไล่ = ความเสี่ยง R-1 → แนบผล `rg` ผิวเงินใน PR (S-3)
+- **P1 implement แล้ว (วิธีตัด):** "ไม่มีคีย์" ไม่ใช่ `null`/`0` ยกเว้น `revenue` ของรายงานแอดมินโหมด SELF และ `balance` ของ `/api/chat/ai-quota` ที่เป็น `null` (สัญญาเดิมเป็นตัวเลข) · `Product.cost` → `serializeProduct(…,{canSeeCost})` + `exportStockToCsv({includeCost})` · `items[].cost` → `stripOrderItemCost` + `updateOrder` `keepLineCosts` · ยอดสะสมลูกค้า → `redactCustomerSpend` · แดชบอร์ด/Command Center → `dashboardMoney` + `redactCommandCenterData` · รายละเอียด endpoint ดู [[API]] §4.4
 
 ### TFR-004: ผิวการเงินเต็มเจ้าของเท่านั้น และยกเลิก `staffCanViewFinance`
 - **Trace to:** FR-RP-03, FR-RP-04, BR-RP-10
 - **คำอธิบายเชิงเทคนิค:** `/sales` `/expenses` `/reports/*` `/wallet` และ API การเงิน = F1/F2/F3 (เจ้าของเท่านั้น) · ตัดสินสิทธิ์ของ `expense/agent-report/product-report access` เลิกอ่าน `Shop.staffCanViewFinance` ใช้กฎ "การเงินเต็ม = เจ้าของ" · ถอดสวิตช์หน้าสมาชิก · ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` (P1) · คอลัมน์ยังอยู่ใน schema (deprecated ไม่ drop — OOS-9)
 - **Precondition:** —
 - **Postcondition:** `rg "staffCanViewFinance" src` ไม่เหลือที่ตัดสินสิทธิ์ · ธง `true` แล้ว ADMIN ยังถูกปฏิเสธ
-- **Error / Edge cases:** ผู้ใช้เก่าที่ยิง endpoint ที่ลบแล้ว → 404 หรือ 410 (กำหนดตอน implement P1)
+- **Error / Edge cases:** ผู้ใช้เก่าที่ยิง endpoint ที่ลบแล้ว → **ลบไฟล์ route ทิ้ง (ไม่ทำ 410)** จึงได้ 404 ตามปกติของ Next · **P1 implement แล้ว:** `resolveExpenseAccess` / `resolveAgentReportAccess` / `resolveProductReportAccess` ใช้ F1 (ผู้ไม่ใช่เจ้าของ → `STAFF_NOT_ALLOWED` / `SELF` / ปฏิเสธ) · เหลือ `staffCanViewFinance` ในโค้ดเฉพาะคอมเมนต์ · ด่านกันลืมผิวเงินใหม่: `src/lib/__tests__/finance-surface-guard.test.ts`
 
 ### TFR-005: โมเดลข้อมูลบทบาท (P2)
 - **Trace to:** FR-RP-01, FR-RP-08, FR-RP-10, BR-RP-02, BR-RP-04, BR-RP-12, BR-RP-16
@@ -285,6 +286,6 @@ P1 ไม่มี migration · P2 migration additive + backfill (ไม่ DROP
 - บังคับรายบทบาททุก route + เมนูกฎเดียว (P3)
 
 **ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
-- signature/ชนิด export ของ `shop-permissions` นอกเหนือ `can`/`moneyLevel`/`rolesFromMembership` — กำหนดตอน implement P1
-- endpoint เก่า finance-visibility ตอบ 404 หรือ 410 — กำหนดตอน implement P1
+- ~~signature/ชนิด export ของ `shop-permissions`~~ — ตัดสินแล้วใน P1 (ดู TFR-001)
+- ~~endpoint เก่า finance-visibility ตอบ 404 หรือ 410~~ — ตัดสินแล้ว: ลบ route ทิ้ง = 404
 - เกณฑ์ "ร้านขายบริการได้" สำหรับ BILLING — กำหนดตอน implement P2

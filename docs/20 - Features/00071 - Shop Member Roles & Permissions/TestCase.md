@@ -11,7 +11,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** Draft (ยังไม่ได้รัน — ยังไม่มีโค้ด)
+> **สถานะ:** P1 มีไฟล์เทสแล้ว (ดู §2.1) · P2/P3 ยังไม่มีโค้ด/เทส
 > **เจ้าของเอกสาร:** QA (ดู [[Feature-Docs-Ownership]])
 
 # Test Case: บทบาทและสิทธิ์สมาชิกร้าน
@@ -127,7 +127,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
   2. ยิง endpoint finance-visibility
   3. M เรียก `expense/agent-report/product-report access`
   4. `rg "staffCanViewFinance" src`
-- **Expected Result:** ไม่มีสวิตช์ · endpoint 404/410 หรือถูกลบ · M ยังถูกปฏิเสธ · rg ไม่พบที่ตัดสินสิทธิ์
+- **Expected Result:** ไม่มีสวิตช์ · endpoint ถูกลบ (route ไม่มี = 404) · M ยังถูกปฏิเสธ · rg ไม่พบที่ตัดสินสิทธิ์ (เหลือเฉพาะคอมเมนต์)
 
 ### TC-013: ตอบแชท C
 - **Linked to:** FR-RP-05-a, FR-RP-05-b, FR-RP-05-c
@@ -239,6 +239,20 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
   2. ตรวจ payload ที่ส่งมากับ RSC
 - **Expected Result:** ไม่มี profit/cost/totalRevenue/lifetimeSpend/walletBalance ใน payload (ไม่ใช่แค่ไม่ render)
 
+### 2.1 ไฟล์เทส P1 (ที่มีอยู่จริงใน repo)
+
+| TC | ไฟล์เทส |
+|----|---------|
+| TC-001, TC-002, TC-003 | `src/lib/shop-permissions.test.ts` |
+| TC-004, TC-011 | `src/app/api/wallet/wallet-routes.test.ts` · `src/app/api/seller/sales-series/route.test.ts` · `src/lib/__tests__/finance-page-gate-order.test.ts` · `src/lib/__tests__/wallet-owner-gate.guards.test.ts` · `src/lib/__tests__/finance-surface-guard.test.ts` (ด่านสแกนซอร์ส กันผิวเงินใหม่ที่ลืม guard — ครอบ S-3/S-5/S-7) |
+| TC-009, TC-010 (ส่วนต้นทุน) | `src/services/__tests__/product-cost-redaction.test.ts` · `src/lib/__tests__/order-cost-redact.test.ts` · `src/app/api/orders/[token]/route.cost.test.ts` · `src/app/api/products/cost-guard.test.ts` · `src/app/api/inventory/csv/cost-guard.test.ts` · `src/lib/__tests__/order-form-line-cost.test.ts` · `src/services/__tests__/order-keep-line-costs.db.test.ts` |
+| TC-009, TC-024 (ยอดรวม/ยอดสะสม/กระเป๋า) | `src/lib/__tests__/dashboard-money.test.ts` · `src/lib/__tests__/customer-directory.test.ts` · `src/lib/__tests__/customer-spend-inbox-gate.test.ts` · `src/services/__tests__/ai-suggest-quota-balance.test.ts` · `src/app/api/chat/conversations/[id]/ai-suggest/route.test.ts` |
+| TC-012 | `src/services/expense-access.service.test.ts` · `src/services/agent-report-access.service.test.ts` · `src/services/product-report-access.service.test.ts` · `src/lib/__tests__/product-report-guards.test.ts` |
+| รายงานแอดมิน SELF ไม่มี `revenue` (TC-009) | `src/app/api/seller/reports/agents/route.test.ts` · `src/services/agent-report-access.service.test.ts` |
+| เมนูการเงินเจ้าของเท่านั้น (ส่วน P1 ของ TC-023) | `src/lib/seller-menu.test.ts` (`applyOwnerOnlyFinanceMenu`) |
+
+TC-005..007, TC-013..021, TC-022 (ส่วน P2/P3) ยังไม่มีเทส — เป็นของ P2/P3 · TC-023 (เมนูมือถือเต็ม) เป็นของ P3
+
 ---
 
 ## 3. Traceability Matrix
@@ -298,7 +312,7 @@ flowchart TD
 
 | Run | วันที่ | ผล (Pass/Fail/Blocked) | ผู้ทดสอบ (Tester) |
 |-----|--------|--------------------------|---------------------|
-| - | - | ยังไม่ได้รัน (ยังไม่มีโค้ด) | - |
+| - | - | P1: ไฟล์เทสเขียนแล้ว (§2.1) — ผลรันยังไม่บันทึกที่นี่ (ผู้เขียนเอกสารไม่ได้รัน) · P2/P3: ยังไม่มีโค้ด | - |
 
 ---
 
@@ -307,5 +321,5 @@ flowchart TD
 เอกสาร Test Case นี้กำหนด **ชุดเคสทดสอบ** ของ **บทบาทและสิทธิ์สมาชิกร้าน (00071)** ที่ trace กลับ Acceptance Criteria ใน [[BRD]] ทุกข้อ เพื่อให้มั่นใจว่าทุกข้อกำหนดเชิงธุรกิจถูกทดสอบครบ
 
 **Open Questions:**
-- ชื่อไฟล์เทสและตำแหน่งจริง — กำหนดตอน implement แต่ละ phase
+- ชื่อไฟล์เทสและตำแหน่งจริง — P1 ตัดสินแล้ว (§2.1) · P2/P3 กำหนดตอน implement
 - เกณฑ์ "ร้านขายบริการได้" ที่ TC-019 ใช้ — ยืนยันตอน implement P2
