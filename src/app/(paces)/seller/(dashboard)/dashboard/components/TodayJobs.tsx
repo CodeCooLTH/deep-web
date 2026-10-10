@@ -71,7 +71,7 @@ export default function TodayJobs({ className = '' }: { className?: string }) {
       <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:calendar-event" className="size-4 text-primary" />
-          {items ? fmt(t.todayJobsTitleCount, { n: total }) : t.todayJobsTitle}
+          {items && total > 0 ? fmt(t.todayJobsTitleCount, { n: total }) : t.todayJobsTitle}
         </h4>
         <Link
           href={`/queues?date=${day}`}

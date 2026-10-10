@@ -287,11 +287,17 @@ export default function AppointmentCard({
           </div>
         )}
 
+        {/* ผู้ดูที่เลื่อนไม่ได้ (เช่นฝ่ายช่าง) เห็นคำขอแต่ไม่มีปุ่ม — บอกว่าต้องให้ใครทำต่อ */}
+        {awaitingReschedule && !canReschedule && !terminal && (
+          <p className="text-default-700 mb-0 mt-2 text-xs">ลูกค้าขอเลื่อนนัด ให้เจ้าของร้านหรือผู้ดูแลเลือกเวลาใหม่</p>
+        )}
+
         {rescheduleCount > 0 && (
           <p className="text-default-500 mb-0 mt-2 text-xs">เลื่อนมาแล้ว {rescheduleCount} ครั้ง</p>
         )}
 
-        {!terminal && (
+        {/* ไม่มีปุ่มสักอัน = ไม่ต้องมีเส้นประโดดเดี่ยว */}
+        {!terminal && (canSendSummary || canReschedule || canOutcome) && (
           <div className="border-default-200 mt-4 border-t border-dashed pt-4">
             {/* เลื่อนนัดอยู่บนสุดเพราะก่อนถึงเวลานัด ปุ่มปิดผลถูกปิดอยู่ — ตัวนี้เป็น action
                 เดียวที่กดได้จริง · น้ำหนัก tonal ไม่ใช่ outline semantic เพราะเบากว่าการปิดผล

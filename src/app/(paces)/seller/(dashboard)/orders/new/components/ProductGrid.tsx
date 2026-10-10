@@ -60,7 +60,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
           <Icon icon="package" className="size-12 opacity-40" />
           {/* บทบาทเปิดบิลเห็นเฉพาะบริการ — ว่าง ≠ ร้านไม่มีสินค้า จึงบอกทางต่อ (พิมพ์รายการเองได้) */}
           <p className="text-sm">{billingOnly ? 'ยังไม่มีบริการในรายการ' : `ยังไม่มี${productNoun}ในแคตตาล็อก`}</p>
-          {billingOnly && <p className="text-xs">พิมพ์ชื่อรายการเองได้ หรือขอให้ผู้ดูแลเพิ่มบริการให้</p>}
+          {billingOnly && <p className="text-xs">พิมพ์ชื่อรายการเองได้ หรือขอให้เจ้าของร้านหรือผู้ดูแลเพิ่มบริการให้</p>}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-default-400">

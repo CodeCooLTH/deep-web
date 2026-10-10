@@ -68,9 +68,11 @@ type Props = {
   vertical?: string
   /** 00071 P3: เจ้าของเท่านั้นเห็นต้นทุน/ชิป/ตัวกรองต้นทุน — ค่าตั้งต้น false (fail-closed) */
   showCost?: boolean
+  /** P2 — ไม่ส่ง = ซ่อนปุ่มเพิ่ม (fail-closed; ผู้ที่ไม่มีสิทธิ์ไม่ควรเห็นปุ่มที่กดไปเจอการ์ดปฏิเสธ) */
+  canCreate?: boolean
 }
 
-const ProductsListing = ({ showCost = false, products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular, vertical }: Props) => {
+const ProductsListing = ({ showCost = false, canCreate = false, products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular, vertical }: Props) => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
@@ -331,13 +333,15 @@ const ProductsListing = ({ showCost = false, products, pinSlots, pinnedCount, pr
 
               {/* เพิ่มสินค้า — ปุ่ม filled สีน้ำเงินตัวเดียวในหัวหน้า (One Voice); full-screen mode
                   ซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย ถ้าไม่มีปุ่มนี้จะสร้างสินค้าไม่ได้เลยบนมือถือ */}
-              <Link
-                href="/products/new"
-                aria-label={addProductLabel}
-                className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white"
-              >
-                <Icon icon="plus" className="text-xl" />
-              </Link>
+              {canCreate && (
+                <Link
+                  href="/products/new"
+                  aria-label={addProductLabel}
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white"
+                >
+                  <Icon icon="plus" className="text-xl" />
+                </Link>
+              )}
             </div>
 
             {/* แถวชิป — badge ปักหมุด (non-interactive) + ชิปสถานะ 3 อัน มีตัวเลขนับทุกอัน */}
@@ -413,7 +417,7 @@ const ProductsListing = ({ showCost = false, products, pinSlots, pinnedCount, pr
                   compact
                   icon="tabler:package-off"
                   title={emptyState.title}
-                  action={emptyState.showCta ? { label: `+ ${addProductLabel}แรก`, href: '/products/new' } : undefined}
+                  action={emptyState.showCta && canCreate ? { label: `+ ${addProductLabel}แรก`, href: '/products/new' } : undefined}
                 />
               </div>
             </div>

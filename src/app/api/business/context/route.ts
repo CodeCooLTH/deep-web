@@ -3,6 +3,7 @@ import { shouldHidePayments } from "@/lib/app-shell-server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { rolesFromMembership } from "@/lib/shop-permissions";
 import { getPersonalShop } from "@/lib/shop-context";
 import { getSubscriptionStatus } from "@/services/business-package.service";
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from "@/lib/business-package";
@@ -56,6 +57,7 @@ export async function GET() {
       where: { userId, shop: { kind: "BUSINESS", deletedAt: null } },
       select: {
         role: true,
+        roles: true,
         shop: {
           select: { id: true, shopName: true, logo: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
         },
@@ -80,6 +82,8 @@ export async function GET() {
       shopName: m.shop.shopName,
       logo: m.shop.logo,
       role: m.role,
+      // แสดงผลเท่านั้น (ป้ายบทบาทตัวสลับบัญชี) — ไม่ใช่ authz
+      roles: rolesFromMembership(m.role as "OWNER" | "ADMIN", m.roles),
       locked: m.shop.packageLockedAt !== null,
       lockReason: m.shop.packageLockReason,
       deletedAt: m.shop.deletedAt,

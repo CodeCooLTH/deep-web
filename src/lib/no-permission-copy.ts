@@ -11,7 +11,7 @@ import { CAPABILITY_ROLES, PRIMARY_OWNER_ONLY, STAFF_ROLES, type Capability, typ
 export const FINANCE_NO_PERMISSION_DETAIL =
   'ข้อมูลการเงินของร้านเปิดให้เจ้าของร้านเท่านั้น ถ้าต้องการตัวเลขส่วนนี้ ขอจากเจ้าของร้านได้โดยตรง'
 
-const ROLE_LABEL: Record<ShopRole, string> = {
+export const ROLE_LABEL: Record<ShopRole, string> = {
   OWNER: 'เจ้าของร้าน',
   MANAGER: 'ผู้ดูแล',
   CHAT: 'ตอบแชท',
@@ -46,7 +46,8 @@ export function noPermissionCopy(input: {
   if (PRIMARY_OWNER_ONLY.has(capability)) {
     return {
       title: 'หน้านี้ดูได้เฉพาะเจ้าของหลักของร้าน',
-      body: 'เจ้าของร่วมเข้าหน้านี้ไม่ได้ ถ้าต้องการใช้ ขอให้เจ้าของหลักเป็นคนทำ',
+      // ประโยคเป็นกลาง: ผู้ดูอาจไม่ใช่เจ้าของร่วม (เข้าลิงก์ตรง) จึงห้ามพูดถึง "เจ้าของร่วม"
+      body: 'หน้านี้เปิดได้เฉพาะเจ้าของหลักของร้าน (ผู้ถือแพ็กเกจ) ถ้าต้องการใช้ ขอให้เจ้าของหลักเป็นคนทำ',
       viewerLine: who,
     }
   }
@@ -59,7 +60,17 @@ export function noPermissionCopy(input: {
   }
   return {
     title: 'หน้านี้ดูได้เฉพาะบางบทบาท',
-    body: `เจ้าของร้านและคนที่มีบทบาท${orList(staff.map((r) => ROLE_LABEL[r]))}เปิดหน้านี้ได้`,
-    viewerLine: who ? `${who} · ถ้าต้องใช้หน้านี้ ขอให้เจ้าของร้านเพิ่มบทบาทให้` : null,
+    body: `เจ้าของร้านและคนที่มีบทบาท ${orList(staff.map((r) => ROLE_LABEL[r]))} เปิดหน้านี้ได้`,
+    viewerLine: who ? `${who} · ถ้าต้องการใช้หน้านี้ ขอให้เจ้าของร้านเพิ่มบทบาทให้` : null,
   }
+}
+
+/**
+ * ป้ายบทบาทในตัวสลับบัญชี (แสดงผลเท่านั้น ไม่ใช่ authz) — เจ้าของ → "เจ้าของ" ; สมาชิก → ชื่อบทบาทคั่น " · "
+ * roles = null/ว่าง → ไม่มีป้าย (ผู้เรียกไม่ควรเดาเป็น "ผู้ดูแล")
+ */
+export function shopRoleBadgeLabel(roles: readonly ShopRole[] | null | undefined, ownerLabel = 'เจ้าของ'): string | null {
+  if (!roles || roles.length === 0) return null
+  if (roles.includes('OWNER')) return ownerLabel
+  return STAFF_ROLES.filter((r) => roles.includes(r)).map((r) => ROLE_LABEL[r]).join(' · ')
 }

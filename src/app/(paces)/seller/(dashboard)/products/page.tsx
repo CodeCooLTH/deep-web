@@ -213,7 +213,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing showCost={showCost} products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
+      <ProductsListing showCost={showCost} canCreate={can(rolesFromMembership(active.role, active.roles), 'P2')} products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
     </>
   )
 }

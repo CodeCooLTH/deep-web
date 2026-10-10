@@ -13,6 +13,8 @@ import { useT } from '@/i18n/LocaleProvider'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
+import { shopRoleBadgeLabel } from '@/lib/no-permission-copy'
+import type { ShopRole } from '@/lib/shop-permissions'
 
 type UserProfileMenuType = {
   label: string
@@ -29,6 +31,7 @@ interface BusinessContextItem {
   shopName: string
   logo: string | null
   role: 'OWNER' | 'ADMIN'
+  roles?: ShopRole[]
   locked: boolean
   lockReason: string | null
   deletedAt: string | null
@@ -68,6 +71,8 @@ const UserDropdown = () => {
         hasBusinessMembership?: boolean
         activeShopId?: string | null
         activeShopRole?: 'OWNER' | 'ADMIN' | null
+        // แสดงผลเท่านั้น (ป้ายบทบาท) — ไม่ใช่ authz
+        activeShopRoles?: ShopRole[] | null
         activeShopKind?: 'PERSONAL' | 'BUSINESS'
         activeShopName?: string | null
         activeShopLogo?: string | null
@@ -87,11 +92,7 @@ const UserDropdown = () => {
   const activeName = isBusiness ? (user?.activeShopName ?? t.menu.shop) : displayName
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
   const activeRoleLabel = isBusiness
-    ? user?.activeShopRole === 'ADMIN'
-      ? t.accountSwitcher.roleAdmin
-      : user?.activeShopRole === 'OWNER'
-        ? t.accountSwitcher.roleOwner
-        : null // role null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
+    ? shopRoleBadgeLabel(user?.activeShopRoles, t.accountSwitcher.roleOwner) // null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
     : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
@@ -242,13 +243,11 @@ const UserDropdown = () => {
                 >
                   <AccountAvatar src={b.logo} kind="business" className="size-7" />
                   <span className="flex-1 truncate">{b.shopName}</span>
-                  <span
-                    className={`badge shrink-0 ${
-                      b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
-                    }`}
-                  >
-                    {b.role === 'OWNER' ? t.accountSwitcher.roleOwner : t.accountSwitcher.roleAdmin}
-                  </span>
+                  {shopRoleBadgeLabel(b.roles, t.accountSwitcher.roleOwner) && (
+                    <span className={`badge shrink-0 ${b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'}`}>
+                      {shopRoleBadgeLabel(b.roles, t.accountSwitcher.roleOwner)}
+                    </span>
+                  )}
                   {b.locked && (
                     <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
                       <Icon icon="lock" className="size-3" aria-hidden="true" />

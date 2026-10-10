@@ -410,8 +410,8 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
       {action !== 'none' ? (
         <div className="border-default-200 mt-2.5 flex items-center gap-2 border-t border-dashed pt-2.5">
           {action === 'reschedule' && !canReschedule ? (
-            /* ช่างเลื่อนนัดไม่ได้ (O3) — คงตำแหน่งปุ่ม ⋯ ไว้ท้ายแถวเหมือนเดิม ไม่ให้แถวกระโดด */
-            <span className="flex-1" aria-hidden="true" />
+            /* ช่างเลื่อนนัดไม่ได้ (O3) — บอกว่าต้องให้ใครทำ (ไม่ใช่ปล่อยแถวว่าง) และคงตำแหน่งปุ่ม ⋯ ไว้ท้ายแถว */
+            <p className="text-default-700 mb-0 flex-1 text-xs">ลูกค้าขอเลื่อนนัด ให้เจ้าของร้านหรือผู้ดูแลเลือกเวลาใหม่</p>
           ) : action === 'reschedule' ? (
             /* ตัวเลือกเวลาใหม่อยู่ในหน้ารายละเอียดออเดอร์ (RescheduleAppointmentSheet ต้องการ
                resourceId + เหตุผลที่ลูกค้าฝากไว้ ซึ่ง payload ของจอนี้ไม่มีโดยตั้งใจ) — ปุ่มนี้

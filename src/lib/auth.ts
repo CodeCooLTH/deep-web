@@ -1052,9 +1052,9 @@ export const authOptions: NextAuthOptions = {
                   userId: user.id,
                   shop: { deletedAt: null, purgedAt: null },
                 },
-                select: { role: true },
+                select: { role: true, roles: true },
               });
-              if (m) membership = { shopId: tokenActiveShopId, role: m.role as "OWNER" | "ADMIN" };
+              if (m) membership = { shopId: tokenActiveShopId, role: m.role as "OWNER" | "ADMIN", roles: m.roles };
             }
             hasBusinessMembership =
               (await prisma.shopMember.count({
@@ -1066,7 +1066,7 @@ export const authOptions: NextAuthOptions = {
             hasBusinessMembership = false;
           }
           // S-17: ไม่มี fallback OWNER — ไม่เจอ/ล้ม → ถอย Personal (null ถ้าไม่มี Personal) ดู lib/session-active-shop.ts
-          const { activeShopId: resolvedActiveShopId, role: activeShopRole } = resolveSessionActiveShop({
+          const { activeShopId: resolvedActiveShopId, role: activeShopRole, roles: activeShopRoles } = resolveSessionActiveShop({
             personalShopId: personalId,
             tokenActiveShopId,
             membership,
@@ -1127,7 +1127,7 @@ export const authOptions: NextAuthOptions = {
             email: user.email, avatar: user.avatar, isShop: user.isShop,
             isAdmin: user.isAdmin, trustScore: user.trustScore,
             shopSlug, needsOnboarding, needsPhoneVerify,
-            activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
+            activeShopId: resolvedActiveShopId, activeShopRole, activeShopRoles, hasBusinessMembership,
             // FB switcher (origin/main): active shop identity สำหรับ topbar/sidebar
             activeShopKind, activeShopName, activeShopLogo, activeShopSlug,
             // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม

@@ -35,6 +35,26 @@ export function canEditOrderAs(roles: readonly ShopRole[], order: { type: string
   return order.type === 'SERVICE' && order.unpaid
 }
 
+/** เหตุที่ BILLING แก้บิลไม่ได้ — PAID = รับชำระแล้ว · NOT_SERVICE = ไม่ใช่บิลบริการ (ตรวจประเภทก่อน เพราะบิลสินค้าไม่ควรถูกบอกว่า "รับชำระแล้ว") */
+export type OrderEditLockReason = 'PAID' | 'NOT_SERVICE'
+
+/** null = แก้ได้ · ตัดสินจาก canEditOrderAs ตัวเดียวกัน จึงไม่มีทางที่ "ล็อก" กับ "เหตุ" ไม่ตรงกัน */
+export function orderEditLockReason(
+  roles: readonly ShopRole[],
+  order: { type: string; unpaid: boolean },
+): OrderEditLockReason | null {
+  if (canEditOrderAs(roles, order)) return null
+  // ไม่มี O3 เลย (ไม่ใช่เคส BILLING) ก็ตกที่นี่ — หน้าเรียกหลังผ่าน gate O3 แล้วเสมอ จึงเหลือแค่ 2 เหตุ
+  return order.type !== 'SERVICE' ? 'NOT_SERVICE' : 'PAID'
+}
+
+/** ข้อความต่อเหตุ — {noun} ผันตามประเภทกิจการ (resolveOrderVocab) */
+export function orderEditLockMessage(reason: OrderEditLockReason, noun: string): string {
+  return reason === 'NOT_SERVICE'
+    ? `${noun}นี้ไม่ใช่บิลบริการ บทบาทเปิดบิลแก้ไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้`
+    : 'บิลนี้รับชำระแล้ว แก้รายการไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้'
+}
+
 /** ปุ่มบนหน้าออเดอร์ → capability ที่ต้องมี (ปุ่มที่ไม่อยู่ในตาราง = ดู/คัดลอก ไม่เปลี่ยนข้อมูล) */
 export const ORDER_ACTION_CAP: Readonly<Record<string, Capability>> = {
   'send-sms': 'O7',

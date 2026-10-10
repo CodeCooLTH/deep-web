@@ -3,7 +3,7 @@
  * ทดสอบทุก capability จริงจากตารางสิทธิ์ (ไม่ใช่ตัวอย่างที่เลือกมา) — เพิ่ม capability แล้วลืมข้อความ = ห้ามสตริงต้องห้ามหลุด/กรณีผิด
  */
 import { describe, expect, it } from 'vitest'
-import { FINANCE_NO_PERMISSION_DETAIL, noPermissionCopy } from '@/lib/no-permission-copy'
+import { FINANCE_NO_PERMISSION_DETAIL, noPermissionCopy, shopRoleBadgeLabel } from '@/lib/no-permission-copy'
 import { CAPABILITY_ROLES, PRIMARY_OWNER_ONLY, STAFF_ROLES, type Capability, type ShopRole } from '@/lib/shop-permissions'
 
 const CAPS = Object.keys(CAPABILITY_ROLES) as Capability[]
@@ -42,21 +42,23 @@ describe('noPermissionCopy', () => {
     expect(noPermissionCopy({ capability: 'F3', viewerRoles: [] }).body).toBe('ถ้าต้องการใช้หน้านี้ ขอให้เจ้าของร้านเป็นคนทำให้ได้เลย')
   })
 
-  it('T4: เจ้าของร่วมได้ข้อความเจ้าของหลัก', () => {
+  it('T4: ประโยคเป็นกลาง ใช้ได้ทุกบทบาท (ไม่พูดถึง "เจ้าของร่วม" กับคนที่ไม่ใช่)', () => {
+    const body = 'หน้านี้เปิดได้เฉพาะเจ้าของหลักของร้าน (ผู้ถือแพ็กเกจ) ถ้าต้องการใช้ ขอให้เจ้าของหลักเป็นคนทำ'
     expect(noPermissionCopy({ capability: 'T4', viewerRoles: ['OWNER'] })).toEqual({
       title: 'หน้านี้ดูได้เฉพาะเจ้าของหลักของร้าน',
-      body: 'เจ้าของร่วมเข้าหน้านี้ไม่ได้ ถ้าต้องการใช้ ขอให้เจ้าของหลักเป็นคนทำ',
+      body,
       viewerLine: 'บทบาทของคุณตอนนี้: เจ้าของร้าน',
     })
+    for (const v of VIEWERS) expect(noPermissionCopy({ capability: 'T4', viewerRoles: v }).body).not.toContain('เจ้าของร่วม')
   })
 
   it('บางบทบาท: {list} 1/2/3 ตัว ตามตารางจริง และบรรทัดผู้ดูต่อท้ายคำแนะนำ', () => {
     // H3 = [O,M] → ผู้ดูแล 1 ตัว ; S1 = [O,M,C] → 2 ; Q1 = [O,M,C,B,T] → 4
-    expect(noPermissionCopy({ capability: 'F4', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาทผู้ดูแลเปิดหน้านี้ได้')
-    expect(noPermissionCopy({ capability: 'H1', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาทผู้ดูแลหรือตอบแชทเปิดหน้านี้ได้')
-    expect(noPermissionCopy({ capability: 'O2s', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาทผู้ดูแล ตอบแชท หรือเปิดบิลเปิดหน้านี้ได้')
+    expect(noPermissionCopy({ capability: 'F4', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาท ผู้ดูแล เปิดหน้านี้ได้')
+    expect(noPermissionCopy({ capability: 'H1', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาท ผู้ดูแลหรือตอบแชท เปิดหน้านี้ได้')
+    expect(noPermissionCopy({ capability: 'O2s', viewerRoles: [] }).body).toBe('เจ้าของร้านและคนที่มีบทบาท ผู้ดูแล ตอบแชท หรือเปิดบิล เปิดหน้านี้ได้')
     const c = noPermissionCopy({ capability: 'H1', viewerRoles: ['TECHNICIAN', 'BILLING'] })
-    expect(c.viewerLine).toBe('บทบาทของคุณตอนนี้: ฝ่ายช่าง และ เปิดบิล · ถ้าต้องใช้หน้านี้ ขอให้เจ้าของร้านเพิ่มบทบาทให้')
+    expect(c.viewerLine).toBe('บทบาทของคุณตอนนี้: ฝ่ายช่าง และ เปิดบิล · ถ้าต้องการใช้หน้านี้ ขอให้เจ้าของร้านเพิ่มบทบาทให้')
   })
 
   it('ผู้ดูไม่มีบทบาท = ไม่แสดงบรรทัดผู้ดู', () => {
@@ -65,5 +67,23 @@ describe('noPermissionCopy', () => {
 
   it('ผู้ดู 3 บทบาท: คั่นด้วย ", " และ "และ" ก่อนตัวสุดท้าย', () => {
     expect(noPermissionCopy({ capability: 'F1', viewerRoles: ['MANAGER', 'CHAT', 'BILLING'] }).viewerLine).toBe('บทบาทของคุณตอนนี้: ผู้ดูแล, ตอบแชท และ เปิดบิล')
+  })
+})
+
+describe('shopRoleBadgeLabel (ป้ายตัวสลับบัญชี · แสดงผลเท่านั้น)', () => {
+  it('null/ว่าง → ไม่มีป้าย (ห้ามเดาเป็น "ผู้ดูแล")', () => {
+    expect(shopRoleBadgeLabel(null)).toBeNull()
+    expect(shopRoleBadgeLabel(undefined)).toBeNull()
+    expect(shopRoleBadgeLabel([])).toBeNull()
+  })
+  it('OWNER → เจ้าของ (หรือคำที่ผู้เรียกส่งมา เช่น EN)', () => {
+    expect(shopRoleBadgeLabel(['OWNER'])).toBe('เจ้าของ')
+    expect(shopRoleBadgeLabel(['OWNER'], 'Owner')).toBe('Owner')
+  })
+  it('สมาชิก: ชื่อบทบาทจริง ไม่ใช่ "ผู้ดูแล" ทุกคน · หลายบทบาทเรียงตามตาราง', () => {
+    expect(shopRoleBadgeLabel(['TECHNICIAN'])).toBe('ฝ่ายช่าง')
+    expect(shopRoleBadgeLabel(['BILLING'])).toBe('เปิดบิล')
+    expect(shopRoleBadgeLabel(['MANAGER'])).toBe('ผู้ดูแล')
+    expect(shopRoleBadgeLabel(['TECHNICIAN', 'CHAT'])).toBe('ตอบแชท · ฝ่ายช่าง')
   })
 })

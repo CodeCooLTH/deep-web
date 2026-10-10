@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canEditOrderAs, filterActionSetByRoles, isBillingOnly, isBillingOnlyEditor, isBillingOnlyFor } from '@/lib/order-role-rules'
+import { canEditOrderAs, filterActionSetByRoles, isBillingOnly, isBillingOnlyEditor, isBillingOnlyFor, orderEditLockMessage, orderEditLockReason } from '@/lib/order-role-rules'
 import type { OrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import type { ShopRole } from '@/lib/shop-permissions'
 
@@ -79,5 +79,34 @@ describe('filterActionSetByRoles — ปุ่มที่โชว์ตาม�
   })
   it('ไม่มีบทบาท (ชุดว่าง) = ไม่เห็นปุ่มเปลี่ยนข้อมูลเลย — ปิดเป็นค่าตั้งต้น', () => {
     expect(keys(filterActionSetByRoles(FULL, []))).toEqual(['copy-link', 'copy-address'])
+  })
+})
+
+describe('orderEditLockReason / orderEditLockMessage (critique P1-4)', () => {
+  const BILLING: ShopRole[] = ['BILLING']
+  it('บิลบริการที่ยังไม่จ่าย → แก้ได้ (null)', () => {
+    expect(orderEditLockReason(BILLING, { type: 'SERVICE', unpaid: true })).toBeNull()
+  })
+  it('บริการที่จ่ายแล้ว → PAID', () => {
+    expect(orderEditLockReason(BILLING, { type: 'SERVICE', unpaid: false })).toBe('PAID')
+  })
+  it('บิลสินค้า (แม้ยังไม่จ่าย) → NOT_SERVICE ไม่ใช่ "รับชำระแล้ว"', () => {
+    expect(orderEditLockReason(BILLING, { type: 'PHYSICAL', unpaid: true })).toBe('NOT_SERVICE')
+    expect(orderEditLockReason(BILLING, { type: 'PHYSICAL', unpaid: false })).toBe('NOT_SERVICE')
+  })
+  it('บทบาทอื่นที่มี O3 → ไม่ล็อก', () => {
+    expect(orderEditLockReason(['CHAT'], { type: 'PHYSICAL', unpaid: false })).toBeNull()
+  })
+  it('สอดคล้องกับ canEditOrderAs ทุกชุด (ล็อก ⇔ มีเหตุ)', () => {
+    for (const roles of [BILLING, ['CHAT'], ['MANAGER'], ['OWNER']] as ShopRole[][])
+      for (const type of ['SERVICE', 'PHYSICAL'])
+        for (const unpaid of [true, false])
+          if (roles.some((r) => r !== 'TECHNICIAN'))
+            expect(orderEditLockReason(roles, { type, unpaid }) === null).toBe(canEditOrderAs(roles, { type, unpaid }))
+  })
+  it('ข้อความแยกตามเหตุ + ศัพท์ล็อก', () => {
+    expect(orderEditLockMessage('PAID', 'บิล')).toBe('บิลนี้รับชำระแล้ว แก้รายการไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้')
+    expect(orderEditLockMessage('NOT_SERVICE', 'บิล')).toBe('บิลนี้ไม่ใช่บิลบริการ บทบาทเปิดบิลแก้ไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้')
+    for (const r of ['PAID', 'NOT_SERVICE'] as const) expect(orderEditLockMessage(r, 'บิล')).not.toMatch(/ไม่สามารถ|คุณไม่มีสิทธิ์/)
   })
 })

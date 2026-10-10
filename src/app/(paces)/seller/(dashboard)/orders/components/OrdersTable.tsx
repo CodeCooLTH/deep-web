@@ -1166,12 +1166,15 @@ export default function OrdersTable({
 
         {/* ขวา: เส้นคั่นบางแยกโซนตัวกรองออกจาก action + สร้างออเดอร์ */}
         <div className="flex items-center gap-2.5">
-          <span className="bg-default-200 h-6 w-px" aria-hidden="true" />
           {canCreate && (
-            <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
-              <Icon icon="plus" className="size-4.5" />
-              {vocab.createLabel}
-            </Link>
+            <>
+              {/* เส้นคั่นอยู่กับปุ่มสร้าง — ไม่มีปุ่ม (ไม่มีสิทธิ์) ก็ไม่มีเส้นลอย */}
+              <span className="bg-default-200 h-6 w-px" aria-hidden="true" />
+              <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
+                <Icon icon="plus" className="size-4.5" />
+                {vocab.createLabel}
+              </Link>
+            </>
           )}
         </div>
       </div>

@@ -35,7 +35,7 @@ import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
-import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('edit')
@@ -53,7 +53,7 @@ export default async function EditProductPage({ params }: PageProps) {
   // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
   const gate = await gatePage(session, 'P2')
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
-    return <NoPermissionCard capability="P2" viewerRoles={await viewerRolesOf(session)} />
+    return <NoPermissionScreen capability="P2" viewerRoles={await viewerRolesOf(session)} />
   }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')

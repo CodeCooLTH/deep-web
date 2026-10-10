@@ -15,7 +15,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
-import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 import { requireActiveShop } from '@/lib/shop-context'
 import { formatDateTH } from '@/lib/format-date'
 import { toFileUrl } from '@/lib/file-url'
@@ -72,7 +72,7 @@ export default async function ReceiptPage({ params }: PageProps) {
   const session = await getServerSession(authOptions)
   const gate = await gatePage(session, 'D1')
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
-    return <NoPermissionCard capability="D1" viewerRoles={await viewerRolesOf(session)} />
+    return <NoPermissionScreen capability="D1" viewerRoles={await viewerRolesOf(session)} backTo={`/orders/${token}`} backLabel="กลับไปหน้ารายละเอียด" />
   }
   const view = await loadView(token)
   if (!view) redirect(`/orders/${token}`)

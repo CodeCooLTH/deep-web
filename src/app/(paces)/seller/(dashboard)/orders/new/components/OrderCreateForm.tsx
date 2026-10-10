@@ -11,6 +11,7 @@
  */
 'use client'
 
+import { orderEditLockMessage } from '@/lib/order-role-rules'
 import { orderFormWords } from './order-form-words'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -923,7 +924,8 @@ export default function OrderCreateForm({
         if (billingOnly && res.status === 403 && data?.error === 'FORBIDDEN_ROLE') {
           setSubmitError(
             editOrderToken
-              ? 'บิลนี้รับชำระแล้ว แก้รายการไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้'
+              ? // หน้าแก้ไขกรองบิลที่ไม่ใช่บริการออกไปก่อนแล้ว (orderEditLockReason) — มาถึงตรงนี้ได้ = เพิ่งถูกรับชำระระหว่างแก้
+                orderEditLockMessage('PAID', vocab.noun)
               : 'บทบาทเปิดบิลสร้างได้เฉพาะบิลบริการ เอารายการที่ไม่ใช่บริการออกแล้วบันทึกอีกครั้ง',
           )
           setSubmitErrorCode(shown.code)

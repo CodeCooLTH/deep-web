@@ -27,7 +27,7 @@ import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/Full
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
-import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 /** feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request) */
 export async function generateMetadata(): Promise<Metadata> {
@@ -46,7 +46,7 @@ export default async function NewOrderPage() {
   // 00071 P3 (O2s): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
   const gate = await gatePage(session, 'O2s')
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
-    return <NoPermissionCard capability="O2s" viewerRoles={await viewerRolesOf(session)} />
+    return <NoPermissionScreen capability="O2s" viewerRoles={await viewerRolesOf(session)} />
   }
 
   // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี

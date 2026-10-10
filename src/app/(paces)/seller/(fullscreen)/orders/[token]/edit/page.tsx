@@ -29,7 +29,7 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
 import { can } from '@/lib/shop-permissions'
-import { canEditOrderAs, isBillingOnlyEditor } from '@/lib/order-role-rules'
+import { orderEditLockMessage, orderEditLockReason, isBillingOnlyEditor } from '@/lib/order-role-rules'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
@@ -37,7 +37,7 @@ import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
-import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -65,7 +65,7 @@ export default async function EditOrderPage({ params }: PageProps) {
   // 00071 P3 (O3): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
   const gate = await gatePage(session, 'O3')
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
-    return <NoPermissionCard capability="O3" viewerRoles={await viewerRolesOf(session)} />
+    return <NoPermissionScreen capability="O3" viewerRoles={await viewerRolesOf(session)} backTo={`/orders/${token}`} backLabel="กลับไปหน้ารายละเอียด" />
   }
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) notFound()
@@ -84,13 +84,14 @@ export default async function EditOrderPage({ params }: PageProps) {
   // (ตัวบังคับจริงอยู่ที่ updateOrder ในธุรกรรมเดียวกับที่แก้ — หน้านี้แค่ไม่พาไปกรอกจนกดบันทึกแล้วโดนปฏิเสธ)
   const roles = gate.ok ? gate.roles : []
   const billingEdit = isBillingOnlyEditor(roles)
-  if (!canEditOrderAs(roles, { type: order.type, unpaid: isOrderUnpaid(order) })) {
+  const lockReason = orderEditLockReason(roles, { type: order.type, unpaid: isOrderUnpaid(order) })
+  if (lockReason) {
     return (
       <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
         <Icon icon="lock" width={64} height={64} className="text-warning mx-auto mb-4" />
         <h2 className="text-dark mb-2 text-xl font-bold">แก้ไข{vocab.noun} {orderNo} ไม่ได้</h2>
         <p className="text-default-400 mb-6">
-          บิลนี้รับชำระแล้ว แก้รายการไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้
+          {orderEditLockMessage(lockReason, vocab.noun)}
         </p>
         <Link
           href={`/orders/${order.publicToken}`}

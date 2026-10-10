@@ -433,7 +433,7 @@ export const th = {
     todayJobsSchedule: 'ดูตารางงาน',
     todayJobsLoadFailed: 'โหลดงานวันนี้ไม่สำเร็จ',
     todayJobsRetry: 'ลองอีกครั้ง',
-    todayJobsEmpty: 'วันนี้ยังไม่มีนัด',
+    todayJobsEmpty: 'วันนี้ยังไม่มีงาน',
     todayJobsMonth: 'ดูตารางงานทั้งเดือน',
     todayJobsAllToday: 'ดูทั้งหมดวันนี้ ({n})',
   },

@@ -345,7 +345,7 @@ export const en: Dictionary = {
     todayJobsSchedule: 'View schedule',
     todayJobsLoadFailed: "Couldn't load today's jobs",
     todayJobsRetry: 'Try again',
-    todayJobsEmpty: 'No appointments today',
+    todayJobsEmpty: 'No jobs today',
     todayJobsMonth: 'View the full month schedule',
     todayJobsAllToday: 'View all today ({n})',
   },
