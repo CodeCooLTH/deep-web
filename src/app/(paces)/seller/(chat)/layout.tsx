@@ -33,6 +33,8 @@
 import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { getCachedSession } from '@/lib/session-cache'
 import { redirect } from 'next/navigation'
+import { CanTopUpProvider } from '@/components/paces/PaymentRestrictionProvider'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
@@ -237,7 +239,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // rail กับที่ว่างที่กันไว้ให้มันต้องมาจากเงื่อนไขเดียวกันเสมอ (ดูคอมเมนต์ที่ .chat-shell)
   const hasNavRail = navMenuItems.length > 0
 
+  // เติมเงินกระเป๋าได้เฉพาะเจ้าของร้าน active (00071 F3) — ไม่มีขอบเขต = false (fail-closed)
   const shell = (
+    <CanTopUpProvider canTopUp={scope ? isShopOwnerRole(scope.activeRole) : false}>
     <ChatSearchProvider>
       {/**
        * ChatNavRail — แถบเมนูร้านแบบไอคอนล้วนที่ขอบซ้าย กางตอน hover (≥1024px)
@@ -332,6 +336,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           เพราะ fixed ต้องไม่ถูก overflow-hidden ของ shell ตัด · ไม่มีร้าน active = ไม่มีรายการให้ดึง */}
       {scope?.activeShopId && <FollowUpBubble unified={scope.mode === 'UNIFIED'} />}
     </ChatSearchProvider>
+    </CanTopUpProvider>
   )
 
   // ห่อด้วย DraftOrderProvider เมื่อมีร้าน active — โมดัลสร้างคำสั่งซื้อ (feature 00018) ค้างข้ามแชทได้
