@@ -93,7 +93,7 @@ export default async function SalesPage({
    * 00071 BR-RP-08: หน้านี้ทั้งหน้า (ทุกแท็บ) เป็นการเงินเต็ม = เจ้าของร้านเท่านั้น
    * 🛑 ต้องตัดสินตรงนี้ ก่อน parse ช่วงเวลา/query ใด ๆ — ผู้ไม่ใช่เจ้าของต้องไม่ถูกดึงข้อมูลเลย
    */
-  if (!can(rolesFromMembership(active.role), 'F1')) {
+  if (!can(rolesFromMembership(active.role, active.roles), 'F1')) {
     return (
       <>
         <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />

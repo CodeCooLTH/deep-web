@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 00071: ยอดขายรายวัน/เดือน = การเงินเต็ม (F1) เจ้าของร้านเท่านั้น — ตัดก่อน parse/query ใด ๆ
-  if (!can(rolesFromMembership(active.role), 'F1')) return forbiddenRoleResponse()
+  if (!can(rolesFromMembership(active.role, active.roles), 'F1')) return forbiddenRoleResponse()
 
   const { searchParams } = new URL(request.url)
   const monthRaw = searchParams.get('month')

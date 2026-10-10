@@ -20,7 +20,7 @@ describe('getBalance ต้องถูกครอบเงื่อนไข�
   it('subscriptions/page.tsx: ไม่เรียก getBalance ตรง และส่ง canSeeBalance ตาม role', () => {
     const s = read(`${D}/subscriptions/page.tsx`)
     expect(s).not.toMatch(/await getBalance\(/)
-    expect(s).toMatch(/canSeeBalance:\s*isShopOwnerRole\(activeCtx\.role\)/)
+    expect(s).toMatch(/canSeeBalance:\s*isShopOwnerRole\(activeCtx\.role, activeCtx\.roles\)/)
   })
   it('subscription-overview.service: getBalance ถูกครอบด้วย canSeeBalance', () => {
     expect(read('src/services/subscription-overview.service.ts')).toMatch(/canSeeBalance\s*\?\s*await getBalance\(/)
@@ -29,7 +29,7 @@ describe('getBalance ต้องถูกครอบเงื่อนไข�
     expect(read(`${D}/settings/chatbot/page.tsx`)).toMatch(/walletBalance=\{isOwner\s*\?/)
   })
   it('layout: TopUpCelebrationPoller mount เฉพาะเจ้าของ', () => {
-    expect(read(`${D}/layout.tsx`)).toMatch(/isShopOwnerRole\(active\.role\)\s*&&\s*<TopUpCelebrationPoller/)
+    expect(read(`${D}/layout.tsx`)).toMatch(/isShopOwnerRole\(active\.role, active\.roles\)\s*&&\s*<TopUpCelebrationPoller/)
   })
   it('wallet page: gate อยู่ก่อน getBalance', () => {
     const s = read(`${D}/wallet/page.tsx`)

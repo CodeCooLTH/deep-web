@@ -4,8 +4,8 @@ import { can, rolesFromMembership, type Capability } from '@/lib/shop-permission
  * ผู้เห็นการเงินเต็ม/กระเป๋า = เจ้าของร้าน (F3) — จุดเดียวที่ T3 ใช้ตัดสิน
  * role มาจาก requireActiveShop/resolveActiveShopContext (อ่านฐานสด ไม่ใช่ JWT)
  */
-export function isShopOwnerRole(role: 'OWNER' | 'ADMIN'): boolean {
-  return can(rolesFromMembership(role), 'F3')
+export function isShopOwnerRole(role: 'OWNER' | 'ADMIN', roles: readonly string[]): boolean {
+  return can(rolesFromMembership(role, roles), 'F3')
 }
 
 /**
@@ -26,7 +26,7 @@ export async function isShopOwnerOfShop(
   if (shop.userId === userId) return can(['OWNER'], cap)
   const m = await prisma.shopMember.findUnique({
     where: { shopId_userId: { shopId, userId } },
-    select: { role: true },
+    select: { role: true, roles: true },
   })
-  return m?.role === 'OWNER' || m?.role === 'ADMIN' ? can(rolesFromMembership(m.role), cap) : false
+  return m?.role === 'OWNER' || m?.role === 'ADMIN' ? can(rolesFromMembership(m.role, m.roles), cap) : false
 }

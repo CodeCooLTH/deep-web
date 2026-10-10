@@ -203,7 +203,7 @@ export default async function SubscriptionsPage() {
   // ═══ BUSINESS CONTEXT ═══ เห็นแค่ Stock Pro ของ business นั้นใบเดียว (จัดการได้), ไม่มี Business Package
   if (activeCtx?.kind === 'BUSINESS') {
     // ผู้ไม่ใช่เจ้าของไม่อ่านยอดกระเป๋าร้านเลย (ตัดที่ service ไม่ใช่ซ่อนใน JSX)
-    const shop = await getShopSubscriptionRow(activeCtx.shopId, { canSeeBalance: isShopOwnerRole(activeCtx.role) })
+    const shop = await getShopSubscriptionRow(activeCtx.shopId, { canSeeBalance: isShopOwnerRole(activeCtx.role, activeCtx.roles) })
     const lockedAt = await getActiveLockedAt(shop ?? undefined)
     return (
       <>

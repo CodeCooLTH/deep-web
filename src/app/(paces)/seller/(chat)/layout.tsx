@@ -153,7 +153,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   let unreadChatCount = 0
   let hidePayments = false
   // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — ร้านที่ preload = ร้าน active
-  const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole), 'P3') : false
+  const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole, scope.activeRoles), 'P3') : false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
@@ -190,6 +190,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       shopId,
       kind: scope.activeKind,
       role: scope.activeRole,
+      roles: scope.activeRoles,
       vertical: shopVertical,
       unreadChatCount,
       hidePayments,
@@ -241,7 +242,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
   // เติมเงินกระเป๋าได้เฉพาะเจ้าของร้าน active (00071 F3) — ไม่มีขอบเขต = false (fail-closed)
   const shell = (
-    <CanTopUpProvider canTopUp={scope ? isShopOwnerRole(scope.activeRole) : false}>
+    <CanTopUpProvider canTopUp={scope ? isShopOwnerRole(scope.activeRole, scope.activeRoles) : false}>
     <ChatSearchProvider>
       {/**
        * ChatNavRail — แถบเมนูร้านแบบไอคอนล้วนที่ขอบซ้าย กางตอน hover (≥1024px)

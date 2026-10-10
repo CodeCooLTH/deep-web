@@ -20,7 +20,7 @@ const req = () => new NextRequest('http://seller.deepth.local/api/seller/sales-s
 function as(role: 'OWNER' | 'ADMIN') {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1' } } as never)
   // เจ้าของร่วม = ShopMember.role OWNER แต่ shop.userId เป็นคนอื่น — ตัดสินที่ role ไม่ใช่ shop.userId
-  requireActiveShopMock.mockResolvedValue({ shop: { id: 's1', userId: 'someone-else', vertical: 'ONLINE_SALES' }, role })
+  requireActiveShopMock.mockResolvedValue({ shop: { id: 's1', userId: 'someone-else', vertical: 'ONLINE_SALES' }, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] })
 }
 
 describe('GET /api/seller/sales-series', () => {

@@ -41,7 +41,7 @@ export async function resolveProductReportAccess(
     return { kind: 'WRONG_VERTICAL' }
   }
 
-  if (can(rolesFromMembership(active.role), 'F1')) {
+  if (can(rolesFromMembership(active.role, active.roles), 'F1')) {
     return { kind: 'OK', shop: active.shop, role: active.role }
   }
 

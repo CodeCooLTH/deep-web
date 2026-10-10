@@ -26,7 +26,7 @@ describe('resolveAgentReportAccess', () => {
   })
 
   it('[blocker] ไม่มี session (ไม่ได้ล็อกอิน) → NO_SHOP ไม่ใช่ FULL', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'OWNER' })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'OWNER', roles: [] })
     // 🛑 เคสนี้สำคัญ: requireActiveShop คืนร้านมาได้ แต่ไม่มี userId ⇒ ห้ามผ่าน
     // ("มี session" ≠ "รู้ว่าเป็นใคร" — docs/conventions/session-exists-is-not-identity.md)
     expect(await resolveAgentReportAccess({ user: { id: null, activeShopId: 's1' } })).toEqual({
@@ -37,7 +37,7 @@ describe('resolveAgentReportAccess', () => {
 
   it('[blocker] เจ้าของร้าน → FULL แม้ธง false (ธงไม่มีผล)', async () => {
     for (const flag of [true, false]) {
-      requireActiveShop.mockResolvedValue({ shop: shop(flag), role: 'OWNER' })
+      requireActiveShop.mockResolvedValue({ shop: shop(flag), role: 'OWNER', roles: [] })
       const d = await resolveAgentReportAccess(session)
       expect(d.kind).toBe('FULL')
       expect(d.kind === 'FULL' && d.scopeToAgentUserId).toBeNull()
@@ -46,12 +46,12 @@ describe('resolveAgentReportAccess', () => {
   })
 
   it('[blocker] เจ้าของร่วม (Shop.userId เป็นคนอื่น) → FULL', async () => {
-    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'someone-else' }, role: 'OWNER' })
+    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'someone-else' }, role: 'OWNER', roles: [] })
     expect((await resolveAgentReportAccess(session)).kind).toBe('FULL')
   })
 
   it('[blocker] ADMIN ธง true → ยัง SELF · ไม่เห็นเงิน (พิสูจน์ว่าธงไม่มีผล)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN' })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'] })
     const d = await resolveAgentReportAccess(session)
     expect(d.kind).toBe('SELF')
     expect(d.kind === 'SELF' && d.scopeToAgentUserId).toBe('u1')
@@ -59,7 +59,7 @@ describe('resolveAgentReportAccess', () => {
   })
 
   it('[blocker] ADMIN ธง false → SELF', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN' })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'] })
     expect((await resolveAgentReportAccess(session)).kind).toBe('SELF')
   })
 })
@@ -68,13 +68,13 @@ describe('redactRevenue', () => {
   const rows = [{ agentUserId: 'a1', revenue: 1200 }]
 
   it('[blocker] FULL → ตัวเลขเงินผ่านไปครบ', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'OWNER' })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'OWNER', roles: [] })
     const access = await resolveAgentReportAccess(session)
     expect(redactRevenue(rows, access)[0].revenue).toBe(1200)
   })
 
   it('[blocker] SELF → ตัวเลขเงินต้องเป็น null ไม่ใช่ 0', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN' })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'] })
     const access = await resolveAgentReportAccess(session)
     // 🛑 0 แปลว่า "ขายไม่ได้เลย" ซึ่งเป็นคำโกหก · null = "คุณไม่มีสิทธิ์เห็น" ⇒ จอซ่อนคอลัมน์ได้
     expect(redactRevenue(rows, access)[0].revenue).toBeNull()

@@ -36,7 +36,7 @@ export async function GET() {
     return NextResponse.json({ balance: 0, transactions: [] });
   }
   // 00071 F3: กระเป๋า = เจ้าของร้านเท่านั้น (ก่อน query ยอด)
-  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
+  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   // try/catch ตาม convention orders/route.ts (959b7cd) — ถ้า Prisma throw

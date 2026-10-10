@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   if (!resolved.ok) return NextResponse.json([]);
   const shop = resolved.target.shop;
   // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น — role ของร้านที่ขอ (ไม่ใช่ร้าน active)
-  const canSeeCost = can(rolesFromMembership(resolved.target.role), "P3");
+  const canSeeCost = can(rolesFromMembership(resolved.target.role, resolved.target.roles), "P3");
 
   const products = await getProductsByShop(shop.id);
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   // 00071 D-7: ผู้ไม่ใช่เจ้าของส่งคีย์ cost มา (แม้ null) = 403 · ไม่ส่งคีย์ = ผ่านปกติ
-  const canSeeCost = can(rolesFromMembership(active.role), "P3");
+  const canSeeCost = can(rolesFromMembership(active.role, active.roles), "P3");
   if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา

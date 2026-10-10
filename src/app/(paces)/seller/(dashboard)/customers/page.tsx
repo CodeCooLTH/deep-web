@@ -86,7 +86,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 
   const shop = active.shop
   // ยอดซื้อสะสมลูกค้า = F1 (เจ้าของเท่านั้น) · role มาจาก membership สด
-  const showSpend = can(rolesFromMembership(active.role), 'F1')
+  const showSpend = can(rolesFromMembership(active.role, active.roles), 'F1')
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
   /**

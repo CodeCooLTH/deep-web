@@ -45,7 +45,7 @@ export async function resolveAgentReportAccess(
   const active = await requireActiveShop(session)
   if (!active || !userId) return { kind: 'NO_SHOP' }
 
-  if (can(rolesFromMembership(active.role), 'F1')) {
+  if (can(rolesFromMembership(active.role, active.roles), 'F1')) {
     return {
       kind: 'FULL', shop: active.shop, role: active.role, userId,
       scopeToAgentUserId: null, canSeeRevenue: true,

@@ -88,10 +88,26 @@ describe('moneyLevel() — สูงสุดของทุกบทบาท',
 })
 
 describe('rolesFromMembership()', () => {
-  it('OWNER → [OWNER] · ADMIN → [MANAGER]', () => {
-    expect(rolesFromMembership('OWNER')).toEqual(['OWNER'])
-    expect(rolesFromMembership('ADMIN')).toEqual(['MANAGER'])
-    // ค่าแปลกจากฐาน → ไม่มีสิทธิ์ (ไม่ใช่ MANAGER)
-    expect(rolesFromMembership('WEIRD' as 'ADMIN')).toEqual([])
+  it('OWNER → [OWNER] ไม่สน roles', () => {
+    expect(rolesFromMembership('OWNER', [])).toEqual(['OWNER'])
+    expect(rolesFromMembership('OWNER', ['CHAT', 'BILLING'])).toEqual(['OWNER'])
+  })
+  it('ADMIN → roles ที่อยู่ใน STAFF_ROLES', () => {
+    expect(rolesFromMembership('ADMIN', ['MANAGER'])).toEqual(['MANAGER'])
+    expect(rolesFromMembership('ADMIN', ['CHAT', 'BILLING'])).toEqual(['CHAT', 'BILLING'])
+  })
+  it('ADMIN roles ว่าง = [] (ห้ามตกเป็น MANAGER)', () => {
+    expect(rolesFromMembership('ADMIN', [])).toEqual([])
+  })
+  it('ADMIN: ตัด OWNER/ค่าแปลก/ค่าซ้ำ', () => {
+    expect(rolesFromMembership('ADMIN', ['OWNER', 'WEIRD', 'CHAT', 'CHAT'])).toEqual(['CHAT'])
+  })
+  it('role แปลกจากฐาน → [] (ไม่ใช่ MANAGER)', () => {
+    expect(rolesFromMembership('WEIRD' as 'ADMIN', ['MANAGER'])).toEqual([])
+  })
+  it('parity P1: ADMIN+[MANAGER] ได้ผลเท่าคอลัมน์ MANAGER ของตารางทุก capability', () => {
+    for (const [cap, mask] of Object.entries(EXPECTED)) {
+      expect(can(rolesFromMembership('ADMIN', ['MANAGER']), cap as Capability), cap).toBe(mask[1] === 'Y')
+    }
   })
 })

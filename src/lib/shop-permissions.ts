@@ -4,8 +4,7 @@
  * ไฟล์บริสุทธิ์: ห้าม import prisma/service เพื่อให้เทสทุกคู่ (บทบาท × capability) ได้โดยไม่ต้องมี DB
  * และให้ client component import ได้
  *
- * ทำไม `rolesFromMembership`: วันนี้ `ShopMember.role` มีแค่ OWNER/ADMIN (P1 ยังไม่มีคอลัมน์ roles)
- * ฟังก์ชันนี้คือ "จุดสลับเดียว" — P2 จะเปลี่ยนให้อ่านคอลัมน์ roles จริง ผู้เรียกทุกรายไม่ต้องแก้
+ * ทำไม `rolesFromMembership`: จุดแปลง `ShopMember.role` + คอลัมน์ `roles` (P2) เป็นชุดบทบาท — จุดเดียวทั้งระบบ
  *
  * เซลล์แบบมีเงื่อนไขใน BRD (O3 ของ BILLING = เฉพาะบริการที่ยังไม่ชำระ · P1 ของ BILLING = เฉพาะบริการ)
  * ระดับ module นี้คืน `true` (D-6) — เงื่อนไขต่อใบ/ต่อประเภทบังคับที่ caller ใน P3
@@ -82,11 +81,16 @@ export function moneyLevel(roles: readonly ShopRole[]): MoneyLevel {
   return best
 }
 
-/** OWNER → เจ้าของ · ADMIN → ผู้ดูแล (BR-RP-06) — จุดสลับเดียวที่ P2 จะแทนด้วยคอลัมน์ roles */
-export function rolesFromMembership(role: 'OWNER' | 'ADMIN'): ShopRole[] {
+/** บทบาทที่มอบให้ ADMIN ได้ (BR-RP) — OWNER ไม่อยู่ในชุดนี้: เจ้าของมาจาก ShopMember.role เท่านั้น */
+export const STAFF_ROLES = ['MANAGER', 'CHAT', 'BILLING', 'TECHNICIAN'] as const
+
+/**
+ * OWNER → เจ้าของ (ไม่สน roles) · ADMIN → roles ∩ STAFF_ROLES ตัดซ้ำ (BR-RP-06)
+ * ไม่มีค่าตั้งต้นโดยตั้งใจ (permission-gate-follows-the-row): ADMIN ที่ roles ว่าง/แปลก = [] ไม่ใช่ MANAGER
+ * ค่าอื่นที่หลุดมาจากฐาน (คอลัมน์เป็น String) = [] เช่นกัน (fail-closed)
+ */
+export function rolesFromMembership(role: 'OWNER' | 'ADMIN', roles: readonly string[]): ShopRole[] {
   if (role === 'OWNER') return ['OWNER']
-  if (role === 'ADMIN') return ['MANAGER']
-  // ค่าอื่นที่หลุดมาจากฐาน (คอลัมน์เป็น String) = ไม่มีสิทธิ์อะไรเลย — ห้ามโยนเป็น MANAGER
-  // ซึ่งเป็นบทบาทที่สิทธิ์สูงสุดรองจากเจ้าของ (fail-closed, security review T1)
+  if (role === 'ADMIN') return STAFF_ROLES.filter((r) => roles.includes(r))
   return []
 }

@@ -61,7 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ctx = await resolveShop(session, shopId);
   if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
-  const canSeeCost = can(rolesFromMembership(ctx.role), "P3");
+  const canSeeCost = can(rolesFromMembership(ctx.role, ctx.roles), "P3");
   const order = await prisma.order.findFirst({
     where: { publicToken: token, shopId: ctx.shopId },
     select: {
@@ -134,7 +134,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // feature 00031 — actor ของ ORDER_EDITED มาจาก session เสมอ ไม่รับจาก body
     const actorUserId = (session as { user?: { id?: string } }).user?.id ?? null;
     // ผู้ไม่ใช่เจ้าของ: ตัด items[].cost ทิ้งเงียบ (D-7) + รักษา cost เดิมของใบ (D-4)
-    const isOwner = can(rolesFromMembership(ctx.role), "P3");
+    const isOwner = can(rolesFromMembership(ctx.role, ctx.roles), "P3");
     const data = isOwner
       ? parsed.output
       : { ...parsed.output, items: parsed.output.items.map(({ cost: _cost, ...it }) => it) };

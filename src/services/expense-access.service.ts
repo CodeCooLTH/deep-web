@@ -24,6 +24,6 @@ export async function resolveExpenseAccess(
   const active = await requireActiveShop(session)
   if (!active) return { kind: 'NO_SHOP' }
 
-  if (!can(rolesFromMembership(active.role), 'F1')) return { kind: 'FORBIDDEN_ROLE' }
+  if (!can(rolesFromMembership(active.role, active.roles), 'F1')) return { kind: 'FORBIDDEN_ROLE' }
   return { kind: 'GRANTED', shop: active.shop, role: active.role }
 }

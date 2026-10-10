@@ -39,6 +39,7 @@ export type SellerMenuContext = {
   shopId: string | null
   kind: 'PERSONAL' | 'BUSINESS'
   role: 'OWNER' | 'ADMIN'
+  roles: readonly string[]
   vertical: string
   /** badge เมนู "ข้อความ" — ผู้เรียกดึงเองเพราะใช้ที่อื่นด้วย */
   unreadChatCount: number
@@ -85,7 +86,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
     applyChatBadge(
       resolveVisibleSellerMenu(sellerMenuItems, {
         entitlement,
-        staff: { kind: ctx.kind, role: ctx.role },
+        staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
         ownsShop,
         shop: { kind: ctx.kind, vertical: ctx.vertical },
         hidePayments: ctx.hidePayments,

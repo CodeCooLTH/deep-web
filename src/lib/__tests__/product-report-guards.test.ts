@@ -34,7 +34,7 @@ function menuFor(vertical: string) {
   return flattenSellerMenu(
     resolveVisibleSellerMenu(sellerMenuItems, {
       entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
-      staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const },
+      staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const, roles: [] },
       ownsShop: true,
       shop: { kind: 'BUSINESS', vertical },
     }),
@@ -87,7 +87,7 @@ describe('[blocker] product-report-access — fail-closed ด้วย F1', () =
   // 00071: ยกเลิกธง staffCanViewFinance — ตัดสินด้วย can(F1) ตัวกลางเท่านั้น
   it('ไม่อ่านธง staffCanViewFinance อีก และตัดสินด้วย can(..., F1)', () => {
     expect(svc).not.toContain('staffCanViewFinance')
-    expect(svc).toMatch(/can\(\s*rolesFromMembership\(active\.role\),\s*'F1'\s*\)/)
+    expect(svc).toMatch(/can\(\s*rolesFromMembership\(active\.role, active\.roles\),\s*'F1'\s*\)/)
   })
 
   /**

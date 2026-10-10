@@ -42,7 +42,7 @@ export async function GET() {
 
   // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — role สดจาก membership ของร้านนี้
   const ctx = await resolveActiveShopContext({ user: { id: userId, activeShopId: shop.id } });
-  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role, ctx.roles), "P3");
 
   // 4. gen CSV จาก service แล้วส่งเป็นไฟล์แนบ
   const csv = await exportStockToCsv(shop.id, { includeCost: canSeeCost });

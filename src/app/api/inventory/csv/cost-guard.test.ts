@@ -6,7 +6,7 @@ vi.mock('next-auth', () => ({ getServerSession: vi.fn(async () => ({ user: { id:
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 const role = vi.hoisted(() => ({ current: 'ADMIN' as 'OWNER' | 'ADMIN' }))
 vi.mock('@/lib/shop-context', () => ({
-  resolveActiveShopContext: vi.fn(async () => ({ shopId: 'shop-1', role: role.current })),
+  resolveActiveShopContext: vi.fn(async () => ({ shopId: 'shop-1', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] })),
 }))
 vi.mock('@/services/shop.service', () => ({ getShopByUserId: vi.fn(async () => ({ id: 'shop-1', vertical: 'ONLINE_SALES' })) }))
 vi.mock('@/services/inventory-entitlement.service', () => ({ isProActive: vi.fn(async () => true) }))

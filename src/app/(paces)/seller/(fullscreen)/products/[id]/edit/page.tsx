@@ -91,7 +91,7 @@ export default async function EditProductPage({ params }: PageProps) {
   }
 
   // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — ผู้ไม่ใช่เจ้าของไม่ได้คีย์ cost และฟอร์มไม่แสดง/ไม่ส่งช่องต้นทุน
-  const canEditCost = can(rolesFromMembership(active.role), 'P3')
+  const canEditCost = can(rolesFromMembership(active.role, active.roles), 'P3')
   const product = serializeProduct(productRaw, { canSeeCost: canEditCost })
 
   // Business ถูก package lock (read-only) — ห้ามแก้ไขสินค้า

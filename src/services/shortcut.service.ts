@@ -136,7 +136,7 @@ async function buildEligibleCatalog(
 
   const visible = resolveVisibleSellerMenu(sellerMenuItems, {
     entitlement,
-    staff: { kind: active.kind, role: active.role },
+    staff: { kind: active.kind, role: active.role, roles: active.roles },
     ownsShop,
     shop: { kind: active.kind, vertical: shop.vertical },
     hidePayments: shell.hidePayments,

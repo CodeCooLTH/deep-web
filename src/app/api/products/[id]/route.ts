@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // 00071 D-7: role ของร้านที่เป็นเจ้าของสินค้า (fresh membership) · ผู้ไม่ใช่เจ้าของส่งคีย์ cost (แม้ null) = 403
   const ctx = await resolveActiveShopContext({ user: { id: (session.user as any).id, activeShopId: product.shopId } });
-  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role, ctx.roles), "P3");
   if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา

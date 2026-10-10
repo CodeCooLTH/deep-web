@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
-  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
+  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   // 3. parse + validate body ด้วย Valibot (CreateTopUpRequestSchema)

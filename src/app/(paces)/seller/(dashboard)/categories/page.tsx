@@ -56,7 +56,7 @@ export default async function CategoriesPage() {
   if (!active) redirect('/shop')
   const shop = active.shop
   // ยอดขายรายหมวด = การเงินเต็ม (00071 BR-RP-09) — ผู้ไม่ใช่เจ้าของไม่คำนวณ ไม่ส่งคีย์ (security review M1)
-  const showRevenue = can(rolesFromMembership(active.role), 'F1')
+  const showRevenue = can(rolesFromMembership(active.role, active.roles), 'F1')
 
   const [products, orders] = await Promise.all([
     getProductsByShop(shop.id).catch(() => []),

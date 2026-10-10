@@ -39,7 +39,7 @@ describe('H2 ออเดอร์ฝั่งผู้ซื้อ', () => {
 describe('M1 /categories', () => {
   const s = code('src/app/(paces)/seller/(dashboard)/categories/page.tsx')
   it('ตัดสินด้วย F1 และไม่คำนวณยอดเมื่อไม่มีสิทธิ์', () => {
-    expect(s).toMatch(/const showRevenue = can\(rolesFromMembership\(active\.role\), 'F1'\)/)
+    expect(s).toMatch(/const showRevenue = can\(rolesFromMembership\(active\.role, active\.roles\), 'F1'\)/)
     expect(s).toMatch(/const revenue = !showRevenue \? undefined :/)
   })
 })

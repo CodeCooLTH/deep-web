@@ -109,7 +109,7 @@ export default async function NewProductV2Page() {
         vertical={shop.vertical}
         shopId={shop.id}
         formId={FORM_ID}
-        canEditCost={can(rolesFromMembership(active.role), 'P3')}
+        canEditCost={can(rolesFromMembership(active.role, active.roles), 'P3')}
         entitlementActive={entitlementActive}
         isProActive={proActive}
         hidePayments={await shouldHidePayments()}

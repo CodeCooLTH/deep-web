@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — role สดจาก membership ของร้านนี้
   const ctx = await resolveActiveShopContext({ user: { id: userId, activeShopId: shop.id } });
-  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role, ctx.roles), "P3");
   // D-7: ผู้ไม่ใช่เจ้าของส่ง cost มาในแถวใด ๆ = 403 ทั้งคำขอ (ไม่ตัดทิ้งเงียบ — กันเขียนต้นทุนโดยไม่รู้ตัว)
   if (!canSeeCost && parsed.output.rows.some((r) => r.cost !== undefined)) return forbiddenRoleResponse();
 

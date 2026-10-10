@@ -16,7 +16,7 @@ const SRC = readFileSync(
 describe('inbox customerStats spend gate', () => {
   it('canSeeSpend ตัดสินจาก F1 ของร้านเธรด (threadShopId) ไม่ใช่ร้าน active', () => {
     expect(SRC).toMatch(/resolveActiveShopContext\(\{ user: \{ id: user\.id as string, activeShopId: threadShopId \} \}\)/)
-    expect(SRC).toMatch(/canSeeSpend = !!threadCtx && can\(rolesFromMembership\(threadCtx\.role\), 'F1'\)/)
+    expect(SRC).toMatch(/canSeeSpend = !!threadCtx && can\(rolesFromMembership\(threadCtx\.role, threadCtx\.roles\), 'F1'\)/)
   })
 
   it('order.aggregate ทุกครั้งอยู่ใต้ canSeeSpend ?', () => {

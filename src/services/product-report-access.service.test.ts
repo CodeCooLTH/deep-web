@@ -21,22 +21,22 @@ describe('resolveProductReportAccess', () => {
   })
 
   it('เจ้าของ → OK แม้ธง false', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER' })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER', roles: [] })
     expect((await resolveProductReportAccess(session)).kind).toBe('OK')
   })
 
   it('เจ้าของร่วม (Shop.userId เป็นคนอื่น) → OK', async () => {
-    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'other' }, role: 'OWNER' })
+    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'other' }, role: 'OWNER', roles: [] })
     expect((await resolveProductReportAccess(session)).kind).toBe('OK')
   })
 
   it('[blocker] ADMIN ธง true → FORBIDDEN (ธงไม่มีผล)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN' })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'] })
     expect(await resolveProductReportAccess(session)).toEqual({ kind: 'FORBIDDEN' })
   })
 
   it('ร้านคนละประเภท → WRONG_VERTICAL ก่อนสิทธิ์', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true, 'LODGING'), role: 'ADMIN' })
+    requireActiveShop.mockResolvedValue({ shop: shop(true, 'LODGING'), role: 'ADMIN', roles: ['MANAGER'] })
     expect((await resolveProductReportAccess(session)).kind).toBe('WRONG_VERTICAL')
   })
 })

@@ -29,24 +29,24 @@ describe('resolveExpenseAccess', () => {
   })
 
   it('เจ้าของร้าน → GRANTED แม้ธง staffCanViewFinance เป็น false (ธงไม่มีผลแล้ว)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER', locked: false })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER', roles: [], locked: false })
     expect((await resolveExpenseAccess(session)).kind).toBe('GRANTED')
   })
 
   it('เจ้าของร่วม (role OWNER · Shop.userId เป็นคนอื่น) → GRANTED', async () => {
-    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'someone-else' }, role: 'OWNER', locked: false })
+    requireActiveShop.mockResolvedValue({ shop: { ...shop(false), userId: 'someone-else' }, role: 'OWNER', roles: [], locked: false })
     const d = await resolveExpenseAccess({ user: { id: 'co-owner', activeShopId: 's1' } })
     expect(d.kind).toBe('GRANTED')
   })
 
   // ── เทสเชิงลบ: เหตุผลที่ไฟล์นี้มีอยู่ ──────────────────────────────────────────
   it('[blocker] ADMIN → FORBIDDEN_ROLE แม้ธง staffCanViewFinance เป็น true (พิสูจน์ว่าธงไม่มีผล · 00071 BR-RP-10)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', locked: false })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'], locked: false })
     expect(await resolveExpenseAccess(session)).toEqual({ kind: 'FORBIDDEN_ROLE' })
   })
 
   it('[blocker] ADMIN ธง false → FORBIDDEN_ROLE', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', locked: false })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'], locked: false })
     expect(await resolveExpenseAccess(session)).toEqual({ kind: 'FORBIDDEN_ROLE' })
   })
 
@@ -54,16 +54,16 @@ describe('resolveExpenseAccess', () => {
     // กลับทิศจากพฤติกรรมเดิมโดยตั้งใจ (D-EXT-1): `locked` มาจาก Shop.packageLockedAt ล้วน ๆ
     // ซึ่งเป็นเรื่อง "ต่ออายุไม่ผ่าน/โควตาเกิน" = billing ไม่ใช่ความปลอดภัย
     // ถ้าเทสนี้แดง แปลว่ามีคนเอาเงื่อนไขการจ่ายเงินกลับเข้ามาในเส้นทางสิทธิ์อีกรอบ
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER', locked: true })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'OWNER', roles: [], locked: true })
     expect((await resolveExpenseAccess(session)).kind).toBe('GRANTED')
   })
 
   it('ไม่มี variant PACKAGE_LOCKED หลงเหลืออยู่ในผลลัพธ์ที่เป็นไปได้', async () => {
     // กันการ "เอากลับมาแบบเงียบ ๆ" — union มี 3 ค่าเท่านั้นหลัง D-EXT-1
     const cases = [
-      { shop: shop(false), role: 'ADMIN', locked: true },
-      { shop: shop(true), role: 'ADMIN', locked: true },
-      { shop: shop(false), role: 'OWNER', locked: true },
+      { shop: shop(false), role: 'ADMIN', roles: ['MANAGER'], locked: true },
+      { shop: shop(true), role: 'ADMIN', roles: ['MANAGER'], locked: true },
+      { shop: shop(false), role: 'OWNER', roles: [], locked: true },
     ]
     for (const c of cases) {
       requireActiveShop.mockResolvedValue(c)

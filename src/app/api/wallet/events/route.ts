@@ -33,7 +33,7 @@ export async function GET() {
   if (!active) {
     return NextResponse.json({ approved: [], balance: 0 });
   }
-  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
+  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   try {
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     // ไม่มีร้าน → ไม่มี record ที่ต้อง ack; คืน ok=true (idempotent)
     return NextResponse.json({ ok: true, marked: 0 });
   }
-  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
+  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   try {

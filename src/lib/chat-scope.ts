@@ -34,6 +34,7 @@ export interface ChatScope {
   activeShopId: string;
   activeKind: "PERSONAL" | "BUSINESS";
   activeRole: "OWNER" | "ADMIN";
+  activeRoles: string[];
   /** true = ร้าน active ถูก package lock (read-only) — คงความหมายเดิมของ resolveActiveShopContext */
   activeLocked: boolean;
   activeLockReason: string | null;
@@ -88,6 +89,7 @@ export async function resolveChatScope(session: SessionLike): Promise<ChatScope 
       activeShopId: activeCtx.shopId,
       activeKind: activeCtx.kind,
       activeRole: activeCtx.role,
+    activeRoles: activeCtx.roles,
       activeLocked: activeCtx.locked,
       activeLockReason: activeCtx.lockReason,
     };
@@ -108,6 +110,7 @@ export async function resolveChatScope(session: SessionLike): Promise<ChatScope 
     activeShopId: activeCtx.shopId,
     activeKind: activeCtx.kind,
     activeRole: activeCtx.role,
+    activeRoles: activeCtx.roles,
     activeLocked: activeCtx.locked,
     activeLockReason: activeCtx.lockReason,
   };

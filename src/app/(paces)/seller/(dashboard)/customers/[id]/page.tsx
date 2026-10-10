@@ -52,7 +52,7 @@ export default async function CustomerProfilePage({ params }: PageProps) {
 
   const shop = active.shop
   // ยอดซื้อสะสม/ค่าเฉลี่ยต่อบิล = F1 (เจ้าของเท่านั้น, 00071 S-3)
-  const showSpend = can(rolesFromMembership(active.role), 'F1')
+  const showSpend = can(rolesFromMembership(active.role, active.roles), 'F1')
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
 

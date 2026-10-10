@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const orders = await getOrdersByShop(active.shop.id, status);
   // ต้นทุนรายบรรทัดเฉพาะเจ้าของร้าน (00071) — orderListInclude ดึง items ทั้งแถว
-  const canSeeCost = can(rolesFromMembership(active.role), "P3");
+  const canSeeCost = can(rolesFromMembership(active.role, active.roles), "P3");
   return NextResponse.json(orders.map((o) => stripOrderItemCost(o, canSeeCost)));
 }
 
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     // (ไม่งั้นใครก็ยิงระบุชื่อคนอื่นเป็นคนสร้างได้) มิเรอร์วิธีเดียวกับ otp-for-password ใน feat 00026
     const createdByUserId = (session.user as { id?: string }).id ?? null;
     // ผู้ไม่ใช่เจ้าของ: ตัด items[].cost ทิ้งเงียบ (00071 D-7) → resolveLineCosts ใช้ Product.cost ตามปกติ
-    const canSeeCost = can(rolesFromMembership(active.role), "P3");
+    const canSeeCost = can(rolesFromMembership(active.role, active.roles), "P3");
     const items = canSeeCost
       ? parsed.output.items
       : parsed.output.items.map(({ cost: _cost, ...it }) => it);

@@ -34,7 +34,7 @@ export default async function ChatbotPage() {
   })
   if (!activeCtx) return null
 
-  const isOwner = isShopOwnerRole(activeCtx.role)
+  const isOwner = isShopOwnerRole(activeCtx.role, activeCtx.roles)
   const [config, guardrails, wallet, qnaCount] = await Promise.all([
     getChatbotConfig(activeCtx.shopId),
     listShopGuardrails(activeCtx.shopId),

@@ -65,7 +65,7 @@ export async function requireLodgingShop(): Promise<GuardResult> {
 
 type GeneralGuardResult =
   | { error: NextResponse }
-  | { shopId: string; userId: string; role: "OWNER" | "ADMIN" };
+  | { shopId: string; userId: string; role: "OWNER" | "ADMIN"; roles: string[] };
 
 /**
  * ต้องเป็นสมาชิกร้าน + ร้านต้องเป็นประเภทขายออนไลน์ (feature 00022; ค่าที่เทียบเปลี่ยนเป็น
@@ -143,7 +143,7 @@ export async function requireGeneralShop(opts?: {
     };
   }
 
-  return { shopId: active.shop.id, userId, role: active.role };
+  return { shopId: active.shop.id, userId, role: active.role, roles: active.roles };
 }
 
 /**

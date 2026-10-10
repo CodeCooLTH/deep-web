@@ -814,7 +814,7 @@ export function resolveVisibleSellerMenu(
   items: MenuItemType[],
   ctx: {
     entitlement: { status: EntitlementStatus; package: InventoryPackage | null }
-    staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' }
+    staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN'; roles: readonly string[] }
     shop: { kind: string; vertical: string }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
@@ -853,7 +853,7 @@ export function resolveVisibleSellerMenu(
           ),
           { ownsShop: ctx.ownsShop },
         ),
-        ctx.staff.kind === 'PERSONAL' ? ['OWNER'] : rolesFromMembership(ctx.staff.role),
+        ctx.staff.kind === 'PERSONAL' ? ['OWNER'] : rolesFromMembership(ctx.staff.role, ctx.staff.roles),
       ),
       ctx.shop.vertical,
     ),

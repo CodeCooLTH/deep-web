@@ -54,7 +54,7 @@ export default async function WalletPage() {
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
-    if (active) isOwner = isShopOwnerRole(active.role)
+    if (active) isOwner = isShopOwnerRole(active.role, active.roles)
   } catch {
     shop = null
   }

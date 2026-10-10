@@ -24,7 +24,7 @@ import { GET as eventsGET, POST as eventsPOST } from './events/route'
 
 function as(role: 'OWNER' | 'ADMIN', shopUserId = 'u1') {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1' } } as never)
-  requireActiveShopMock.mockResolvedValue({ shop: { id: 's1', userId: shopUserId }, role })
+  requireActiveShopMock.mockResolvedValue({ shop: { id: 's1', userId: shopUserId }, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] })
 }
 const post = (body: unknown) =>
   new Request('http://x/api', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } })

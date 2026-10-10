@@ -639,7 +639,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // resolve ไม่ได้/ไม่ใช่สมาชิก = ไม่เห็น (fail-closed) · ไม่ aggregate เลยเมื่อไม่มีสิทธิ์ ไม่ใช่ aggregate แล้วซ่อน
     // 🛑 ห้ามตั้ง customerStats = null แทน — null แปลว่า "ยังไม่ผูกลูกค้า" แถวอื่นจะหายตามไปด้วย
     const threadCtx = await resolveActiveShopContext({ user: { id: user.id as string, activeShopId: threadShopId } })
-    const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role), 'F1')
+    const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role, threadCtx.roles), 'F1')
     const [orderCount, spentAgg] = await Promise.all([
       // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
       // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ

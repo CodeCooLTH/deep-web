@@ -119,7 +119,7 @@ export default async function NewOrderPage() {
 
   // map Product → CatalogProduct: ใช้ toCatalogProduct กลาง (แชร์กับหน้าแก้ไขออเดอร์)
   // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — role อ่านสดจาก requireActiveShop
-  const canSeeCost = can(rolesFromMembership(active.role), 'P3')
+  const canSeeCost = can(rolesFromMembership(active.role, active.roles), 'P3')
   let catalog: CatalogProduct[] = []
   try {
     const products = await getProductsByShop(shop.id)

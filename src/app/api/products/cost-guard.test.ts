@@ -11,11 +11,11 @@ vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 const role = vi.hoisted(() => ({ current: 'ADMIN' as 'OWNER' | 'ADMIN', ctxNull: false }))
 vi.mock('@/lib/shop-context', () => ({
   requireActiveShop: vi.fn(async () => ({
-    shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, kind: 'BUSINESS', role: role.current, locked: false, lockReason: null,
+    shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, kind: 'BUSINESS', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [], locked: false, lockReason: null,
   })),
-  requireShopForRequest: vi.fn(async () => ({ ok: true, target: { shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, role: role.current } })),
+  requireShopForRequest: vi.fn(async () => ({ ok: true, target: { shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] } })),
   canAccessShop: vi.fn(async () => true),
-  resolveActiveShopContext: vi.fn(async () => (role.ctxNull ? null : { shopId: 'shop-1', role: role.current })),
+  resolveActiveShopContext: vi.fn(async () => (role.ctxNull ? null : { shopId: 'shop-1', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] })),
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: { product: { findUnique: vi.fn(async () => ({ id: 'p1', shopId: 'shop-1', type: 'PHYSICAL', stockQty: null, shop: { vertical: 'ONLINE_SALES' } })) } },

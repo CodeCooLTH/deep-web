@@ -66,7 +66,7 @@ export default async function ProductsPage() {
   const { productNoun, addProductLabel, itemSingular } = resolveProductVocab(shop.vertical)
 
   // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น (role สดจาก requireActiveShop)
-  const showCost = can(rolesFromMembership(active.role), 'P3')
+  const showCost = can(rolesFromMembership(active.role, active.roles), 'P3')
 
   // --- Fetch products + orders + pin state แบบขนาน (Promise.allSettled — ล้มเหลวอันหนึ่งไม่กระทบอันอื่น) ---
   let products: any[] = []

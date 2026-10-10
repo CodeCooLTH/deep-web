@@ -225,7 +225,7 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
-      moneyLvl = active ? moneyLevel(rolesFromMembership(active.role)) : 'NONE'
+      moneyLvl = active ? moneyLevel(rolesFromMembership(active.role, active.roles)) : 'NONE'
       const money = dashboardMoney(moneyLvl)
       // เจ้าของ: ล้ม = 0 ตามเดิม (honest-zero) · ผู้ไม่ใช่เจ้าของ: คง null
       if (money.walletHero) walletBalance = 0

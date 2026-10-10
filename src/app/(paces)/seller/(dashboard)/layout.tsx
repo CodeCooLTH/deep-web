@@ -149,6 +149,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     shopId: shop?.id ?? null,
     kind: active.kind,
     role: active.role,
+    roles: active.roles,
     vertical: shop.vertical,
     unreadChatCount,
     hidePayments,
@@ -162,7 +163,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // 00071 F3: ผู้ไม่ใช่เจ้าของเติมเงินไม่ได้ — ปุ่ม/ข้อความ "เครดิตไม่พอ" ทั้งโซนอ่านจาก context นี้
   return (
-    <CanTopUpProvider canTopUp={isShopOwnerRole(active.role)}>
+    <CanTopUpProvider canTopUp={isShopOwnerRole(active.role, active.roles)}>
     <VerticalLayout
       menuItems={menuItems}
       shellClassName="seller-mobile-shell"
@@ -214,7 +215,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           mount ที่ layout เพื่อให้แจ้ง seller ทุก page ไม่ใช่แค่ wallet page
           'use client' component — import ตรงจาก RSC layout ได้ (Next.js 16) */}
       {/* 00071 F3: ผู้ไม่ใช่เจ้าของโดน 403 จาก /api/wallet/events อยู่แล้ว — ไม่ mount ให้ poll ฟรี ๆ */}
-      {isShopOwnerRole(active.role) && <TopUpCelebrationPoller />}
+      {isShopOwnerRole(active.role, active.roles) && <TopUpCelebrationPoller />}
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />

@@ -66,7 +66,7 @@ export default async function InventoryPage() {
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
-    isOwner = active ? isShopOwnerRole(active.role) : false
+    isOwner = active ? isShopOwnerRole(active.role, active.roles) : false
   } catch {
     shop = null
   }

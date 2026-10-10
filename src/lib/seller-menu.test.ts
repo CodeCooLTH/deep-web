@@ -29,7 +29,7 @@ import {
 function ctx(vertical: string) {
   return {
     entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
-    staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const },
+    staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const, roles: [] },
     ownsShop: true,
     shop: { kind: 'BUSINESS', vertical },
   }
@@ -300,7 +300,7 @@ describe('resolveVisibleSellerMenu — ตัวกรองยังทำง�
       flattenSellerMenu(
         resolveVisibleSellerMenu(sellerMenuItems, {
           ...ctx('ONLINE_SALES'),
-          staff: { kind: 'PERSONAL', role: 'OWNER' },
+          staff: { kind: 'PERSONAL', role: 'OWNER', roles: [] },
         }),
       ),
     )
@@ -401,11 +401,11 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
   })
 
   it('ADMIN ที่ไม่ได้เป็นเจ้าของหลักของร้านใด ไม่เห็น', () => {
-    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' }, ownsShop: false }))).toBe(false)
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN', roles: ['MANAGER'] }, ownsShop: false }))).toBe(false)
   })
 
   it('ADMIN ของร้านนี้ แต่เป็นเจ้าของหลักของร้านอื่น เห็น (ฟีเจอร์ระดับบัญชี ไม่ผูกกับร้านที่เปิดอยู่)', () => {
-    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN' }, ownsShop: true }))).toBe(true)
+    expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN', roles: ['MANAGER'] }, ownsShop: true }))).toBe(true)
   })
 
   it('ไม่ถูกซ่อนเพราะข้อจำกัดของแอป (hidePayments/hidePaidFeatures ทุกเปลือก)', () => {
@@ -417,7 +417,7 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
   it('shortcut.service.buildEligibleCatalog ใช้ pipeline เดียวกัน (ส่ง ownsShop จาก ownsAnyShop + ข้อจำกัดเปลือกเข้า resolveVisibleSellerMenu) · ไม่กรองเมนูนี้เอง', () => {
     const src = readFileSync('src/services/shortcut.service.ts', 'utf8')
     expect(src).toMatch(/resolveVisibleSellerMenu\(sellerMenuItems/)
-    expect(src).toMatch(/staff:\s*\{\s*kind: active\.kind, role: active\.role\s*\}/)
+    expect(src).toMatch(/staff:\s*\{\s*kind: active\.kind, role: active\.role, roles: active\.roles\s*\}/)
     expect(src).not.toContain('line-reports')
     expect(src).toMatch(/ownsShop = await ownsAnyShop\(userId\)/)
     expect(src).toMatch(/^\s+ownsShop,$/m)
@@ -436,7 +436,7 @@ describe('applyOwnerOnlyFinanceMenu — เมนูการเงินเฉ�
   const visible = (role: 'OWNER' | 'ADMIN', kind: 'BUSINESS' | 'PERSONAL' = 'BUSINESS') =>
     slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, {
       ...ctx('ONLINE_SALES'),
-      staff: { kind, role },
+      staff: { kind, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] },
     })))
 
   it('[blocker] ADMIN ไม่เห็น 4 เมนูการเงิน แต่ยังเห็น reports-agents', () => {

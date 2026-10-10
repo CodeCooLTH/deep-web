@@ -40,7 +40,7 @@ function asRole(role: 'OWNER' | 'ADMIN') {
     id: SHOP, userId: USER, kind: 'BUSINESS', vertical: 'ONLINE_SALES',
     packageLockedAt: null, packageLockReason: null, deletedAt: null,
   })
-  prismaMock.shopMember.findUnique.mockResolvedValue({ role })
+  prismaMock.shopMember.findUnique.mockResolvedValue({ role, roles: role === 'ADMIN' ? ['MANAGER'] : [] })
 }
 
 const item = { productId: null, name: 'a', description: null, qty: 1, price: 10, cost: 5 }
