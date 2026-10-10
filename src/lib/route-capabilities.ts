@@ -446,6 +446,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/shops/current/page-builder/prices/route.ts': { PATCH: 'T1', status: 'DECLARED' },
   'src/app/api/shops/current/page-builder/publish/route.ts': { PATCH: 'T1', status: 'DECLARED' },
   'src/app/api/shops/current/page-builder/route.ts': { PUT: 'T1', status: 'DECLARED' },
+  'src/app/api/shops/current/page-builder/tabs/route.ts': { PATCH: 'T1', status: 'DECLARED' },
   'src/app/api/shops/current/rooms/[roomId]/route.ts': { GET: 'Q1', PATCH: 'Q2', status: 'DECLARED' },
   'src/app/api/shops/current/rooms/availability/route.ts': { GET: 'Q1', status: 'DECLARED' },
   'src/app/api/shops/current/rooms/route.ts': { GET: 'Q1', POST: 'Q2', status: 'DECLARED' },

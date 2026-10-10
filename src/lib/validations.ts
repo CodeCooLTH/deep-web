@@ -11,6 +11,7 @@ import {
 // isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
 import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
+import { HIDEABLE_TAB_KEYS } from "@/lib/profile-tab-keys";
 import {
   THAILAND_LAT_MIN,
   THAILAND_LAT_MAX,
@@ -1989,6 +1990,13 @@ export const SetShopPagePublishedSchema = v.object({
 // PATCH .../page-builder/prices (00053 API.md §4.1)
 export const SetShopPageShowPricesSchema = v.object({
   showPrices: v.boolean(),
+});
+
+// PATCH .../page-builder/tabs (CR 00053 2026-10-10 hide-tabs) — แทนที่ทั้งชุด
+// 🛑 reject คีย์ที่ซ่อนไม่ได้ (reviews/about/แปลกปลอม) แทนกรองเงียบ — client ของเราไม่มีทางส่งมา
+// ถ้ามาแปลว่าเป็น payload ดัดแปลง · ด่านจริงอยู่ที่ computeVisibleTabKeys อีกชั้น
+export const SetShopPageHiddenTabsSchema = v.object({
+  hiddenTabs: v.pipe(v.array(v.picklist(HIDEABLE_TAB_KEYS)), v.maxLength(HIDEABLE_TAB_KEYS.length)),
 });
 
 // PATCH .../page-builder/item-visibility (00053 API.md §4.2)

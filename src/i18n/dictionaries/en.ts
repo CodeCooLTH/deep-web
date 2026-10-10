@@ -998,6 +998,26 @@ export const en: Dictionary = {
       hiddenToast: 'Prices are now hidden on your storefront',
     },
 
+    /** CR 00053 2026-10-10 — hide storefront tabs card */
+    tabVisibility: {
+      cardTitle: 'Tabs on your storefront',
+      subtitle:
+        'Turn a switch off to hide that tab from your storefront. Nothing is deleted — bookings, orders and links you send customers keep working.',
+      hiddenTag: 'Hidden',
+      alwaysShown: 'Reviews and About are always shown because customers use them to decide whether to trust your shop.',
+      hiddenBanner: 'Some tabs are hidden. Visitors will not see them on your storefront.',
+      saveError: 'Could not change tab visibility',
+      shownToast: 'Tab is now shown on your storefront',
+      hiddenToast: 'Tab is now hidden from your storefront',
+      names: {
+        pinned: 'Pinned',
+        rooms: 'Rooms',
+        calendar: 'Calendar',
+        services: 'Services',
+        items: 'Products',
+      },
+    },
+
     /** feature 00053 — per-item visibility card */
     itemVisibility: {
       cardTitle: 'Items shown on your storefront',

@@ -3841,6 +3841,12 @@ model ShopPageLayout {
   // ไม่มี CHECK ที่ DB (มิเรอร์ Shop.categories/Shop.salesChannels ที่ validate แค่ชั้น Valibot เหมือนกัน)
   tabOrder String[] @default([])
 
+  // hiddenTabs: แท็บที่ร้านสั่งซ่อนจากหน้าร้านสาธารณะ (CR 00053 2026-10-10 hide-tabs) — คนละเรื่องกับ
+  // tabOrder (ลำดับ) · ซ่อนได้เฉพาะแท็บเนื้อหา HIDEABLE_TAB_KEYS ใน src/lib/profile-tab-keys.ts
+  // 🛑 'reviews'/'about' ซ่อนไม่ได้ (00035 D-9) — บังคับที่ computeVisibleTabKeys ไม่ใช่แค่ validation
+  // ว่าง [] = แสดงทุกแท็บเหมือนเดิม (zero-regression) · ร้านที่ไม่มีแถว fallback [] ที่ service
+  hiddenTabs String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -193,9 +193,10 @@
 | FR-9.9  | **Verified chip** — แสดงเมื่อ maxVerifyLevel ≥ 1 (สีตาม level: L1=info, L2=success, L3=primary); ไม่มี verification → ซ่อน chip (ไม่แสดง "ยังไม่ยืนยัน") | Must     | **DONE** |
 | FR-9.10 | **Cross-platform stats + On-time/Response time** — แสดงเป็น **placeholder ตัวอย่าง (hardcode)** พร้อมป้าย "ตัวอย่าง" ชัดเจน — **Phase 2:** เชื่อม real cross-platform API + deliveryDeadline tracking จริง | Phase 2 | PLACEHOLDER |
 | FR-9.11 | **Follow + Chat FAB** — ปุ่ม disabled + tooltip "เร็ว ๆ นี้" — **Phase 2:** ต้องมี backend follow system + chat | Phase 2 | DISABLED |
-| FR-9.12 | **ตัวจัดหน้าร้าน (feature 00035)** — ผู้ขาย (OWNER/ADMIN ของร้าน) จัดลำดับแท็บของหน้าโปรไฟล์ตัวเองได้ผ่าน `/public-profile/builder` (`ShopPageLayout.tabOrder`) — จัดได้แค่ **"ลำดับ"** เท่านั้น ปิด/ลบแท็บออกไม่ได้ (BR-PGB-01, D-9) แท็บที่ไม่มีข้อมูลจริงยังไม่ถูก render เหมือนเดิม (`computeVisibleTabKeys`/`applyTabOrder` — `src/lib/profile-tab-keys.ts`) | Must | **DONE** |
+| FR-9.12 | **ตัวจัดหน้าร้าน (feature 00035)** — ผู้ขาย (OWNER/ADMIN ของร้าน) จัดลำดับแท็บของหน้าโปรไฟล์ตัวเองได้ผ่าน `/public-profile/builder` (`ShopPageLayout.tabOrder`) — จัดได้แค่ **"ลำดับ"** ในตัวจัดหน้าร้าน (การซ่อนแท็บเนื้อหาอยู่ที่ FR-9.15 · รีวิว/เกี่ยวกับร้านยังซ่อนไม่ได้ตาม D-9) แท็บที่ไม่มีข้อมูลจริงยังไม่ถูก render เหมือนเดิม (`computeVisibleTabKeys`/`applyTabOrder` — `src/lib/profile-tab-keys.ts`) | Must | **DONE** |
 | FR-9.13 | **บล็อกเหนือแถบแท็บ (feature 00035)** — เพิ่มได้ 2 ชนิด: **เหรียญตราเด่น** (`UserBadge` ที่ `Badge.type='ACHIEVEMENT'` เท่านั้น สูงสุด 4 ใบ มีได้ 1 บล็อกต่อร้าน) และ **โพสต์ Facebook รายโพสต์** (มีได้หลายแถว โพสต์เดียวกันเพิ่มซ้ำในร้านเดียวกันไม่ได้) — เก็บใน `ShopPageBlock`; ต้นทางที่ถูกลบ (เหรียญถูกถอด/โพสต์หาย) หลุดออกจากผลลัพธ์เงียบ ๆ ไม่ทำหน้าร้านพัง | Must | **DONE** |
 | FR-9.14 | **สวิตช์เผยแพร่หน้าร้าน (feature 00035)** — `ShopPageLayout.isPublished` ปิดแล้วผู้เยี่ยมชมทั่วไปเห็นหน้า "ปิดการแสดงผลชั่วคราว" (`ProfileUnavailable`, คืน 200 ไม่ใช่ 404) แต่เจ้าของ/ทีมงานร้านยังเห็นหน้าจริงเสมอ (`canAccessShop`); ร้านเดิมทุกร้านที่ไม่เคยตั้งค่านี้ = เผยแพร่โดย default (zero-regression) | Must | **DONE** |
+| FR-9.15 | **ซ่อนแท็บเนื้อหา (CR 00053 2026-10-10)** — ร้านปิดแท็บ ปักหมุด/บริการ/สินค้า/ห้องพัก/ปฏิทิน ได้เองที่การ์ด "แท็บบนหน้าร้าน" ใน `/public-profile` (`ShopPageLayout.hiddenTabs`) · **รีวิว + เกี่ยวกับร้านซ่อนไม่ได้** (D-9) บังคับ 2 ชั้น: Valibot `picklist(HIDEABLE_TAB_KEYS)` + `computeVisibleTabKeys` เมินคีย์นอก `HIDEABLE_TAB_KEYS` · ซ่อนแล้วกระทบแค่แถบแท็บบน `/u`,`/b` และ canvas ตัวจัดหน้าร้าน — ข้อมูล/การจอง/ออเดอร์ไม่ถูกแตะ · CR: `docs/20 - Features/00053 - Public Profile Display Controls/EXTENSIONS-2026-10-10-hide-tabs.md` | Should | **DONE** |
 
 > **feature 00035 (ตัวจัดหน้าร้าน):** รายละเอียดเต็ม `docs/20 - Features/00035 - Shop Page Builder/` (PRD/BRD/SRS/SDS/DATABASE/API/TestCase) — SRS/API/Data Model ที่นี่เป็น summary sync เท่านั้น
 
@@ -898,6 +899,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `shopId` | String `@unique` FK → Shop | cascade delete — 1 ร้าน 1 ชุดตั้งค่า (pattern เดียวกับ `AutoReplyConfig`) |
 | `isPublished` | Boolean `@default(true)` | สวิตช์เผยแพร่ทั้งหน้า (FR-9.14) — 🛑 default มีผลเฉพาะตอน INSERT แถวใหม่เท่านั้น ร้านที่ยังไม่เคยมีแถวนี้เลย (ไม่มีแถว ≠ ไม่เผยแพร่) ต้อง fallback เป็น `true` ที่ชั้น service เสมอ (`getShopPageLayout`) ห้ามพึ่ง DB default อย่างเดียว |
 | `tabOrder` | String[] `@default([])` | ลำดับ tab key ที่ร้านจัดเอง — เก็บแค่ "ลำดับ" ไม่ใช่ "รายการที่จะแสดง" ค่าที่ถูกต้อง 7 ตัว (SSOT `src/lib/profile-tab-keys.ts::PROFILE_TAB_KEYS`) — ว่าง `[]` = ใช้ลำดับ default ของระบบ; ไม่มี CHECK ที่ DB (validate ที่ Valibot อย่างเดียว มิเรอร์ `Shop.categories`) |
+| `hiddenTabs` | String[] `@default([])` | (CR 00053 2026-10-10) แท็บที่ร้านสั่งซ่อน — ค่าที่ถูกต้อง 5 ตัว (`HIDEABLE_TAB_KEYS`: pinned/rooms/calendar/services/items) · ว่าง = แสดงทุกแท็บ · ร้านที่ไม่มีแถว fallback `[]` ที่ service · ไม่มี CHECK ที่ DB |
 | `createdAt` / `updatedAt` | DateTime | |
 
 #### ShopPageBlock (`prisma/schema.prisma:2753`) — feature 00035
@@ -1617,6 +1619,7 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | POST | `/api/shops/current/page-builder/facebook-posts/mirror` | Seller (OWNER/ADMIN) | mirror รูปปกโพสต์ 1 โพสต์ลง storage ของเรา — เรียกตอนกด "+" ในคลัง **ก่อน** Save, idempotent, ไม่ persist `ShopPageBlock` ใด ๆ | `shop-page-layout.service` (`mirrorFacebookPostForBuilder`), reuse `mirrorRemoteImage()` (feature 00018) |
 | PUT | `/api/shops/current/page-builder` | Seller (OWNER/ADMIN) | บันทึกผัง — แทนที่ `tabOrder` + `ShopPageBlock` ทั้งชุดของร้านในทรานแซกชันเดียว (ไม่แตะ `isPublished`) | `shop-page-layout.service` (`saveShopPageLayout`) |
 | PATCH | `/api/shops/current/page-builder/publish` | Seller (OWNER/ADMIN) | สลับสถานะเผยแพร่ทั้งหน้า — endpoint เดียวใช้ร่วมทั้ง desktop builder toolbar และ `/public-profile` มือถือ | `shop-page-layout.service` (`setShopPagePublished`) |
+| PATCH | `/api/shops/current/page-builder/tabs` | Seller (OWNER/ADMIN) | แทนที่ชุดแท็บที่ซ่อน `{ hiddenTabs: string[] }` — คีย์นอก `HIDEABLE_TAB_KEYS` = `400 VALIDATION_ERROR` (CR 00053 2026-10-10) | `shop-page-layout.service` (`setShopPageHiddenTabs`) |
 
 > **Auth:** session → `requireActiveShop()` (ไม่มี active shop → `404 NOT_FOUND`) → `canAccessShop()` เป็น defense-in-depth ชั้นสอง (`403 FORBIDDEN`) — ไม่มีเช็ค `role` แยกอีกชั้น เพราะ `ShopMember.role` มีแค่ `OWNER`/`ADMIN` สองค่าเท่านั้นที่มีอยู่จริงในระบบ (ไม่มี STAFF) — `canAccessShop` true ของทั้งคู่พอดีตรงกับ FR-9.12–9.14
 > **Error response shape ต่างจาก endpoint อื่นในเอกสารนี้:** `{error:{code,message,details}}` (ไม่ใช่ flat `{error:"text",code}}`) — error code: `VALIDATION_ERROR`(400) `UNAUTHORIZED`(401) `NOT_FOUND`(404) `FORBIDDEN`(403) `NOT_OWNED`(403, resource ไม่ใช่ของร้านนี้จริง) `CONFLICT`(409, โพสต์ซ้ำในชุดเดียวกัน/ชนกับ partial unique index) — รายละเอียดเต็ม `docs/20 - Features/00035 - Shop Page Builder/API.md` §5
@@ -2837,7 +2840,7 @@ HTTP ตามตาราง §7.21
 | ดูผลลัพธ์บน `/u`,`/b` (เผยแพร่อยู่) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | ดูหน้าที่ปิดเผยแพร่ (`isPublished=false`) | ❌ (`ProfileUnavailable`, HTTP 200) | ❌ | ✅ (`canAccessShop`) | ❌ | ❌ |
 | เปิด `/public-profile/builder` (server page, desktop เท่านั้น) | — | — | ✅ (`requireActiveShop` + slug ต้องมีก่อน) | ❌ redirect | — |
-| `GET .../library` / `POST .../facebook-posts/mirror` / `PUT /page-builder` / `PATCH .../publish` | — | — | ✅ | ❌ `403 FORBIDDEN` | — |
+| `GET .../library` / `POST .../facebook-posts/mirror` / `PUT /page-builder` / `PATCH .../publish` / `PATCH .../tabs` | — | — | ✅ | ❌ `403 FORBIDDEN` | — |
 | โหมด draft preview (`?builderDraft=1`) | เห็นหน้าปกติ (query param ไม่มีผลด้าน authz) | เห็นหน้าปกติ | ✅ mount `BuilderPreviewBridge` | เห็นหน้าปกติ | เห็นหน้าปกติ |
 
 > enforce ทั้ง 2 ชั้น: **server** (`canAccessShop` ทุกฟังก์ชันใน `shop-page-layout.service.ts` เป็นบรรทัดแรกเสมอ) และ **หน้าจอ** (`(fullscreen)` layout guard + `requireActiveShop` ที่ `page.tsx`) — ไม่มี role `STAFF` ในระบบ จึง "OWNER + ShopMember(role=ADMIN)" เทียบเท่ากับ `canAccessShop` ตรง ๆ
@@ -3014,6 +3017,7 @@ HTTP ตามตาราง §7.21
 | | `take` | int 1-50 (optional, default 20 ที่ service) |
 | `MirrorFacebookPostSchema` | `facebookPostId` | UUID |
 | `SaveShopPageLayoutSchema` | `tabOrder` | string[] ≤7 items — ค่าที่ไม่ใช่ 1 ใน 7 tab key (§8.2b) **ถูกกรองทิ้งเงียบ ๆ** ด้วย `v.transform` ไม่ reject ทั้ง request |
+| `SetShopPageHiddenTabsSchema` | `hiddenTabs` | array ของ `picklist(HIDEABLE_TAB_KEYS)` ≤5 — **reject** คีย์อื่น (รวม reviews/about) ไม่กรองเงียบ |
 | | `blocks` | array ≤200 items — discriminated union ตาม `type` (`v.variant`) |
 | | `blocks[].badgeIds` (เมื่อ `type=BADGE_HIGHLIGHT`) | UUID[] ≤4 |
 | | `blocks[].facebookPostId` (เมื่อ `type=FACEBOOK_POST`) | UUID |
