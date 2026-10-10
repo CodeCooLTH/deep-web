@@ -8,6 +8,9 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { CanTopUpProvider } from '@/components/paces/PaymentRestrictionProvider'
 import { isShopOwnerRole } from '@/lib/shop-owner'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+import { getT } from '@/i18n/server'
+import { can, effectiveRoles } from '@/lib/shop-permissions'
+import { bottomNavHiddenPages, resolveMobileNav } from '@/lib/role-nav'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
@@ -70,11 +73,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // ชื่อร้านสำหรับ mobile header — active shop (Personal/Business)
   const shopNameForHeader = shop.shopName ?? `ร้านของ ${user.displayName}`
 
+  /**
+   * 00071 P3 · S-16: บทบาทที่ "มีผลจริง" ของผู้ดูในร้านนี้ — คำนวณครั้งเดียวแล้วใช้ตัดสินทั้งแถบล่าง/แชท/เมนู
+   * (กฎ PERSONAL=เจ้าของ · BILLING ในร้านที่ขายบริการไม่ได้ถูกตัด อยู่ที่ effectiveRoles ที่เดียว)
+   */
+  const roles = effectiveRoles({ kind: active.kind, vertical: shop.vertical }, active.role, active.roles)
+  // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
+  // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
+  const orderVocab = resolveOrderVocab(shop.vertical)
+  const nav = resolveMobileNav(roles, { kind: active.kind, vertical: shop.vertical }, orderVocab, await getT())
+  const navHidden = bottomNavHiddenPages(roles)
+
   // pendingCount สำหรับ SellerBottomNav badge — ดึงเฉพาะเมื่อ shop มี id
   // (shop อาจเป็น null เมื่อเพิ่ง auto-create → skip getOrderStatusCounts กัน error ก่อน redirect ทำงาน)
   // try/catch fallback 0 — pattern เดียวกับ dashboard/page.tsx (ไม่ให้ layout crash จาก DB error)
   let pendingCount = 0
-  if (shop?.id) {
+  if (shop?.id && nav.tabs.some((tb) => tb.badge === 'pending')) {
     try {
       const counts = await getOrderStatusCounts(shop.id)
       pendingCount = counts.PENDING
@@ -85,8 +99,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // S-13 (feat 00011 Deep Chat) — unread chat count สำหรับ badge เมนู "ข้อความ"
   // fail-closed: query error → 0 (ไม่แสดง badge) ไม่ให้ layout crash — pattern เดียวกับ pendingCount
+  // 00071: คำนวณเฉพาะบทบาทที่มี H1 (แชท) — ช่าง/เปิดบิลไม่มีช่องแชท ไม่ควรเสีย query และไม่ควรได้ตัวเลขข้อความลูกค้า
+  const canChat = can(roles, 'H1')
   let unreadChatCount = 0
-  if (shop?.id) {
+  if (shop?.id && canChat) {
     try {
       unreadChatCount = await getUnreadCountForShop(shop.id)
     } catch (e) {
@@ -153,13 +169,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     vertical: shop.vertical,
     unreadChatCount,
     hidePayments,
+    // เจ้าของหลักของร้านนี้ (T4) — requireActiveShop อ่านแถวร้านมาแล้ว ไม่ต้อง query ซ้ำในตัวประกอบเมนู
+    isPrimaryOwner: active.shop.userId === user.id,
     hidePaidFeatures: await shouldHidePaidFeatures(),
     offerIap: await shouldOfferIap(),
   })
-
-  // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
-  // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
-  const orderVocab = resolveOrderVocab(shop.vertical)
 
   // 00071 F3: ผู้ไม่ใช่เจ้าของเติมเงินไม่ได้ — ปุ่ม/ข้อความ "เครดิตไม่พอ" ทั้งโซนอ่านจาก context นี้
   return (
@@ -179,15 +193,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       }
       bottomNavSlot={
         <SellerBottomNav
+          nav={nav}
           pendingCount={pendingCount}
           unreadChatCount={unreadChatCount}
           shopAlert={shopAlert}
-          orderVocab={orderVocab}
-          shopVertical={shop.vertical}
-          /* 🛑 ส่ง `kind` จริงลงไปด้วย ไม่ใช่ค่าปลอม — FAB เรียก `canUseAppointments()` ตัวเดียว
-             กับที่หน้า `/settings/job-types` ใช้เป็น guard · วันที่เกณฑ์กลับมาสนใจ `kind` อีก
-             (เคยสนใจแล้วถอดออกไปเมื่อ 00028) ปุ่มกับหน้าจะยังตรงกันเองโดยไม่ต้องมีใครจำ */
-          shopKind={active.kind}
+          hideOnOrderDetail={navHidden.orderDetail}
+          hideOnQueues={navHidden.queues}
         />
       }
       sidenavFooterSlot={<OnboardingGate vertical={shop.vertical} />}
@@ -218,7 +229,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {isShopOwnerRole(active.role, active.roles) && <TopUpCelebrationPoller />}
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
-      <ChatToastListener shopId={shop?.id ?? null} />
+      {/* 00071: เฉพาะบทบาทที่มี H1 — ช่าง/เปิดบิลไม่ควรได้ toast ข้อความลูกค้า (เนื้อแชทผ่าน realtime channel) */}
+      {canChat && <ChatToastListener shopId={shop?.id ?? null} />}
       {/* IapRecoveryListener (00064): รับธุรกรรม Apple ที่ค้างจากรอบก่อนแล้วเปิดสิทธิ์ให้เอง
           — mount ที่ layout เพราะคนที่จ่ายเงินแล้วสิทธิ์ไม่เปิดจะไม่เดินกลับไปหน้าแพ็กเกจเอง
           บนเบราว์เซอร์ปกติตัวนี้ไม่แขวน listener ใด ๆ (ไม่มี ReactNativeWebView) */}

@@ -133,7 +133,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00066 — หน้ารวมติดตามลูกค้า · เห็นทุก vertical (มติ Q14: ทุกร้านที่มีแชท) ⇒ ห้ามใส่ slug นี้ใน *_ONLY_SLUGS
       // ไม่ใส่ตัวเลขบนเมนู (BRD) · icon 'list-check' ตาม UX spec §Theme mapping
       { url: '/follow-ups', slug: 'seller:follow-ups', label: 'ติดตามลูกค้า', icon: 'list-check' },
-      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyOwnerOnlyFinanceMenu ด้านล่าง
+      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyCapabilityMenu (role-nav) + applyFinanceMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
@@ -198,7 +198,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'crown' verified มีจริงใน tabler (ใช้ซ้ำกับ UpgradeToProCard)
       { url: '/subscriptions', slug: 'seller:subscriptions', label: 'แพ็กเกจของฉัน', icon: 'crown' },
       // feature 00012 (Shop Staff Invite Links, Task 4.3) — เมนู "พนักงาน" จัดการลิงก์เชิญ + สมาชิก Business
-      // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
+      // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyCapabilityMenu (BUSINESS_ONLY_SLUGS) — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
       { url: '/admins', slug: 'seller:admins', label: 'พนักงาน', icon: 'users-group' },
       // feature 00070 — รายงานสรุปยอดเข้ากลุ่ม LINE · เฉพาะ owner (ซ่อนด้วย applyLineReportMenu)
@@ -773,8 +773,8 @@ export function resolveVisibleSellerMenu(
     shop: {
       kind: string
       vertical: string
-      /** เป็นเจ้าของหลัก (`Shop.userId`) — T4 (แพ็กเกจ ฯลฯ) · ไม่ส่ง = true (UX hint · ด่านจริงอยู่ที่หน้า) · ผู้เรียกจริงส่ง */
-      isPrimaryOwner?: boolean
+      /** เป็นเจ้าของหลัก (`Shop.userId`) — T4 (แพ็กเกจ ฯลฯ) · บังคับส่ง: ลืมส่งแล้วเมนูแพ็กเกจโผล่ให้เจ้าของร่วมเงียบ ๆ */
+      isPrimaryOwner: boolean
     }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
@@ -813,7 +813,7 @@ export function resolveVisibleSellerMenu(
               offerIap: ctx.offerIap ?? true,
             }),
             roles,
-            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner ?? true },
+            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner },
           ),
           { ownsShop: ctx.ownsShop },
         ),
@@ -852,7 +852,7 @@ export const FINANCE_EXPENSE_TAB_URL = '/sales?tab=expense'
  * การชี้ใหม่แก้ได้ทั้งสองทางพร้อมกัน: เมนูลัดที่ผู้ใช้ตั้งไว้ยังกดได้และพาไปถูกแท็บ ·
  * ไม่มีรายการ "ไม่พร้อมใช้งาน" · และเมนูซ้ายยังพาไปหน้าเดียวกันทั้งคู่ (คนละแท็บ ไม่ใช่คนละเรื่อง)
  *
- * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyOwnerOnlyFinanceMenu` ซึ่งอาจถอด
+ * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyCapabilityMenu` ซึ่งอาจถอด
  * `seller:expenses` ไปแล้วเมื่อไม่มีสิทธิ์ (ชี้ใหม่ให้รายการที่ถูกถอดไปแล้วไม่มีผล ถูกต้องแล้ว)
  *
  * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่เพี้ยนโดยไม่มีคนสั่ง)

@@ -57,7 +57,8 @@ describe('SellerBottomNav — จุดแดงที่ "ร้านค้า
   const nav = read('src/app/(paces)/seller/(dashboard)/_shared/SellerBottomNav.tsx')
   it('prop บังคับ + ใช้ aria จาก dictionary', () => {
     expect(nav).toMatch(/\n\s*shopAlert: boolean/)
-    expect(nav).toMatch(/\{shopAlert && \(/)
+    // 00071 T7: ช่องแท็บเป็น NavTabLink (ตามบทบาท) — จุดแดงยังเกาะ tab.badge === 'shopAlert' && shopAlert
+    expect(nav).toMatch(/tab\.badge === 'shopAlert' && shopAlert/)
     expect(nav).toContain('t.dashboard.navShopAlertAria')
   })
   it('dictionary ครบสองภาษา + layout ส่ง prop', () => {

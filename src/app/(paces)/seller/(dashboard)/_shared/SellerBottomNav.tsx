@@ -20,126 +20,57 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
  *       + theme/paces/Admin/TS/src/layouts/components/Customizer/index.tsx
  *
+ * 00071 P3 · S-16: แท็บ/FAB มาจาก `resolveMobileNav` (prop `nav`) ตามบทบาท — เจ้าของ/ผู้ดูแลได้ DOM เดิมทุกตัวอักษร
+ *   (ล็อกด้วยเทส golden `bottom-nav-owner.golden.json`) · ช่าง/ตอบแชท/เปิดบิลได้จำนวนช่องต่างกันตามสิทธิ์จริง
+ *
  * Speed-dial logic reuse จาก CreateFab.tsx (FAB_ACTIONS, useState, ESC, backdrop, focus trap)
  */
 
 import Icon from '@/components/wrappers/Icon'
-import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
-import { byVertical } from '@/i18n/vertical'
-import { canUseAppointments } from '@/lib/appointments'
-import type { Dictionary } from '@/i18n/dictionaries/th'
+import type { MobileNav, NavTab } from '@/lib/role-nav'
 
-// ─── FAB_ACTIONS — reuse ตรงจาก CreateFab (href verified จากไฟล์นั้น) ────────
-// short path ไม่มี /seller prefix ตาม Paces routing convention
+// FAB_ACTIONS / buildFabActions ย้ายไป `@/lib/role-nav` (00071 P3 · S-16) — มีที่เดียว ห้ามก็อปกลับมา
 // ลำดับ array: pills render ผ่าน flex-col ที่ระยะ 5.5rem+safe-area (เหนือ FAB) → index 0 อยู่บนสุด,
-// index สุดท้ายอยู่ล่างสุด = ใกล้ปุ่ม FAB ที่สุด. ดังนั้น 'สร้างออเดอร์' (index 2, action หลัก
-// ตาม PRD S-3) เป็น pill ล่างสุด/ใกล้นิ้วสุด — อ่านจาก FAB ขึ้นบน = ออเดอร์→สินค้า→หมวดหมู่
-// ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
-// feature 00030: ป้ายของ action ออเดอร์ผันตามประเภทกิจการ จึงเป็นฟังก์ชันไม่ใช่ constant
-// 2026-08-23 (user สั่ง): ช่องแรกผันตาม vertical ด้วยแล้ว — เหลือ "สินค้า" ตัวเดียวที่คงที่
-const buildFabActions = (
-  vocab: OrderVocab,
-  t: Dictionary,
-  vertical: string | null | undefined,
-  kind: string | null | undefined,
-) => {
-  /**
-   * ร้านที่รับนัด (บริการ) — เหลือ 2 ปุ่ม: สร้างสินค้าหรือบริการ · สร้างงานบริการ (user เคาะ 2026-10-10)
-   * ใช้ createLabel เต็ม ("สร้างงานบริการ") ไม่ใช่ createLabelShort — user ระบุคำนี้ตรง ๆ และเหลือ 2 ปุ่มพอที่
-   * ประเภทงานยังเข้าได้จากเมนูตั้งค่า
-   */
-  if (canUseAppointments({ kind: kind ?? '', vertical: vertical ?? '' })) {
-    return [
-      { label: byVertical(t.vocab.createProductLabel, vertical), href: '/products/new', icon: 'package-plus' },
-      { label: vocab.createLabel, href: '/orders/new', icon: 'shopping-cart-plus' },
-    ]
-  }
-  return [
-    /**
-     * ช่องแรก — ของที่ต้อง "ตั้งไว้ก่อน" ถึงจะเปิดรับงาน/ขายได้ · คนละอย่างตามประเภทกิจการ
-     *
-     * · ร้านบริการ → **ประเภทงาน** (`/settings/job-types`) — user สั่งเปลี่ยน 2026-08-23
-     *   ร้านบริการไม่มีคำว่า "หมวดหมู่สินค้า" อยู่ในหัวเลย ปุ่มเดิมจึงพาไปที่ที่ไม่เกี่ยวกับงานเขา
-     * · ร้านอื่น → หมวดหมู่สินค้าเหมือนเดิม
-     *
-     * 🛑 **ห้ามเปลี่ยนเป็นประเภทงานให้ทุก vertical** — `settings/job-types/page.tsx` เรียก
-     * `notFound()` เมื่อ `canUseAppointments()` ไม่ผ่าน ⇒ ร้านขายออนไลน์จะได้ปุ่มที่พาไป 404
-     * (คลาสเดียวกับ 00028: ฟีเจอร์ที่กันด้วยการซ่อนเมนูอย่างเดียว แล้วมีทางเข้าอื่นหลุด)
-     *
-     * 🛑 ใช้ `canUseAppointments()` ตัวเดียวกับที่หน้านั้นใช้เป็น guard — ห้ามเขียน
-     * `vertical === 'SERVICE_QUEUE'` ซ้ำที่นี่ วันที่เกณฑ์เปลี่ยน ปุ่มกับหน้าจะไม่ตรงกัน
-     * แล้วกลายเป็นปุ่มที่พาไป 404 อีกแบบเงียบ ๆ (HR16)
-     */
-    canUseAppointments({ kind: kind ?? '', vertical: vertical ?? '' })
-      ? {
-          label: t.dashboard.navCreateJobType,
-          href: '/settings/job-types',
-          icon: 'category-plus',
-        }
-      : {
-          label: t.dashboard.navCreateCategory,
-          href: '/categories',
-          icon: 'category-plus',
-        },
-    {
-      label: byVertical(t.vocab.createProductLabel, vertical),
-      href: '/products/new',
-      icon: 'package-plus',
-    },
-    {
-      // createLabelShort ไม่ใช่ createLabel — pill ลอยกลางจอ คำเต็มของร้านบริการยาวเกินสวย
-      label: byVertical(t.vocab.createLabelShort, vertical),
-      href: '/orders/new',
-      icon: 'shopping-cart-plus',
-    },
-  ]
-}
-
-// ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
-// S-2: ตัด "สินค้า" ออก — /products ยังเข้าได้จากเมนูลัด dashboard (CarouselGrid)
-// WARNING: อาเรย์นี้ไม่ได้ถูก render — nav ด้านล่างเขียน JSX ทีละช่องด้วยมือ (badge/FAB ต่างกัน
-// ทุกช่องจน map ไม่คุ้ม) เก็บไว้เป็นสารบัญของช่องทั้ง 5 เท่านั้น แก้ที่นี่แล้วหน้าจอไม่เปลี่ยน
-const NAV_ITEMS = [
-  { label: 'หน้าหลัก', href: '/dashboard', icon: 'home-2', exactMatch: true },
-  // ป้ายจริงของช่องนี้มาจาก vocab.nounShort ไม่ใช่ค่านี้ (อาเรย์นี้เป็นสารบัญเฉย ๆ ไม่ถูก render)
-  { label: 'คำสั่งซื้อ', href: '/orders', icon: 'clipboard-list', exactMatch: false },
-  // index 2 = center button (placeholder ไม่อยู่ใน array นี้)
-  { label: 'แชท', href: '/inbox', icon: 'message-circle', exactMatch: false },
-  { label: 'ร้านค้า', href: '/shop', icon: 'building-store', exactMatch: false },
-] as const
+// index สุดท้ายอยู่ล่างสุด = ใกล้ปุ่ม FAB ที่สุด (ห้ามสลับลำดับโดยไม่ดูทิศ flex-col)
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface SellerBottomNavProps {
+  /** แท็บ + FAB ตามบทบาท — layout คำนวณจาก `resolveMobileNav` (บทบาทที่มีผลจริงของผู้ดู) */
+  nav: MobileNav
   pendingCount: number
-  /** unread chat count — badge ช่อง "แชท" (ChatWidget task, feat 00011 Deep Chat) */
+  /** unread chat count — badge ช่อง "แชท" · layout ไม่คำนวณให้บทบาทที่ไม่มี H1 (ส่ง 0 และไม่มีช่องแชท) */
   unreadChatCount: number
-  /**
-   * คลังคำของ order lifecycle ผันตามประเภทกิจการ — layout เป็นคนคำนวณ (resolveOrderVocab)
-   * เพื่อให้ตรงกับ sidebar และชื่อหน้าเป๊ะ ๆ. ที่นี่ใช้ 2 ช่อง: nounShort (ป้ายช่อง /orders
-   * กว้าง ~64px ที่ 320px) และ createLabelShort (pill ของ FAB)
-   */
-  orderVocab: OrderVocab
-  /**
-   * `Shop.vertical` — ใช้เลือกคำนามที่แปลแล้วจาก dictionary
-   *
-   * ทำไมไม่ derive จาก `orderVocab`: อ็อบเจกต์นั้นเก็บ *คำไทย* ไว้แล้ว การเดาย้อนกลับจากคำ
-   * ไปเป็นประเภทร้านคือการผูกความหมายไว้กับข้อความ ซึ่งพังทันทีที่คำเปลี่ยน
-   */
-  shopVertical?: string | null
-  /** `active.kind` (PERSONAL/BUSINESS) — ส่งเข้า `canUseAppointments()` คู่กับ vertical
-   *  เพื่อให้ปุ่มแรกของ FAB ใช้เกณฑ์ตัวเดียวกับ guard ของหน้า `/settings/job-types` เป๊ะ */
-  shopKind?: string | null
   /**
    * feature 00070 — มีกลุ่มรายงาน LINE ที่ alert ยังไม่รับทราบ → จุดแดงที่ช่อง "ร้านค้า"
    * 🛑 บังคับส่ง ไม่มี default (ผู้เรียกที่ลืม = จุดไม่ขึ้นเงียบ ๆ) · ไม่ผูก hidePayments (ไม่มีทางจ่ายเงิน)
    */
   shopAlert: boolean
+  /**
+   * `/orders/<token>` ซ่อนแถบล่างเพราะหน้านั้นวาด OrderActionBar แทน — ซ่อนเฉพาะบทบาทที่ OrderActionBar render จริง
+   * (ช่างไม่มี → เห็นแถบล่าง) · ตัดสินที่ `bottomNavHiddenPages(roles)` ใน role-nav
+   */
+  hideOnOrderDetail: boolean
+  /** `/queues` ซ่อนเพราะบอร์ดวาดแถบสร้างงานเอง (can(O2s)) — ช่างไม่มีแถบนั้น จึงต้องเห็นแถบล่าง */
+  hideOnQueues: boolean
 }
+
+const FAB_BUTTON_CLASS = [
+  /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button
+     -30px (เดิม -26): แถบสูงขึ้น 8px → จุดกึ่งกลาง cell เลื่อนลง 4px ต้องชดเชยเพื่อให้
+     FAB โผล่พ้นขอบบนแถบเท่าเดิม */
+  'absolute top-[-30px] left-1/2 -translate-x-1/2', // carve-out: raised FAB
+  'w-[54px] h-[54px]', // carve-out: ขนาด FAB
+  /* arbitrary: FAB border ring 3px ขาว — ไม่มี Paces border-width token > 2px */
+  'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white', // carve-out: border 3px (Paces มีถึง 2px)
+  /* arbitrary: FAB drop shadow + inset highlight — Paces shadow-* ไม่รองรับ multi-layer + inset */
+  'shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]', // carve-out: เงา multi-layer + inset
+  'transition-transform active:scale-95',
+].join(' ')
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
 type SpeedDialActionProps = {
@@ -163,27 +94,91 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
   )
 }
 
+// ─── ช่องแท็บธรรมดา (ทุกช่องยกเว้น FAB) ──────────────────────────────────────────
+function NavTabLink({
+  tab,
+  active,
+  count,
+  shopAlert,
+}: {
+  tab: NavTab
+  active: boolean
+  /** ตัวเลข badge ของช่องนี้ (pending/unread) — ช่องอื่นไม่ใช้ */
+  count: number
+  shopAlert: boolean
+}) {
+  const t = useT()
+  const countText = count >= 100 ? '99+' : String(count)
+  const ariaSuffix =
+    tab.badge === 'pending' && count > 0
+      ? ` (${fmt(t.dashboard.navPendingAria, { n: count })})`
+      : tab.badge === 'unread' && count > 0
+        ? ` (${fmt(t.dashboard.navUnreadAria, { n: count })})`
+        : tab.badge === 'shopAlert' && shopAlert
+          ? ` (${t.dashboard.navShopAlertAria})`
+          : ''
+  return (
+    <Link
+      href={tab.href}
+      className={`${tab.badge ? 'relative ' : ''}flex h-full flex-col items-center justify-center gap-1 ${
+        active ? 'text-primary' : 'text-default-500'
+      }`}
+      aria-label={`${tab.ariaLabel}${ariaSuffix}`}
+      aria-current={active ? 'page' : undefined}
+    >
+      {/* nav icon = text-2xl (24px token) — ทุกช่องใช้ขนาดนี้ */}
+      <Icon icon={tab.icon} className="text-2xl" />
+      <span className={`text-xs font-medium${tab.key === 'orders' ? ' leading-tight' : ''}`}>{tab.label}</span>
+      {(tab.badge === 'pending' || tab.badge === 'unread') && count > 0 && (
+        <span
+          aria-hidden="true"
+          className={[
+            'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
+            /* arbitrary: badge ตำแหน่ง offset จาก center icon — calc ไม่มี token แทน */
+            'min-w-[16px] h-[16px]', // carve-out: badge 16px รองรับ 2 หลัก
+            /* arbitrary: badge ขนาดเล็กสุด 16px — ใช้ min-w เพื่อรองรับ 2 หลัก */
+            'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
+            /* arbitrary: badge ring 2px ขาว — ไม่มี Paces/Tailwind token outline white สำหรับ ring บน badge */
+            'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
+          ].join(' ')}
+        >
+          {countText}
+        </span>
+      )}
+      {tab.badge === 'shopAlert' && shopAlert && (
+        <span
+          aria-hidden="true"
+          className={[
+            'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
+            /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge ตัวเลข */
+            'size-2.5 rounded-full bg-danger', // จุดแดงไม่มีตัวเลข
+            /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge ตัวเลข */
+            'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
+          ].join(' ')}
+        />
+      )}
+    </Link>
+  )
+}
+
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
 export default function SellerBottomNav({
+  nav,
   pendingCount,
   unreadChatCount,
-  orderVocab,
-  shopVertical,
-  shopKind,
   shopAlert,
+  hideOnOrderDetail,
+  hideOnQueues,
 }: SellerBottomNavProps) {
   const t = useT()
-  const fabActions = buildFabActions(orderVocab, t, shopVertical, shopKind)
+  // FAB speed-dial เท่านั้นที่มี action list · direct/null ไม่มี
+  const fabActions = nav.fab?.kind === 'speedDial' ? nav.fab.actions : []
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
   // ref สำหรับ focus trap — action แรก + center button
   const firstActionRef = useRef<HTMLAnchorElement | null>(null)
   const centerButtonRef = useRef<HTMLButtonElement>(null)
-
-  // badge clamp: แสดง "99+" เมื่อ ≥100
-  const badgeText = pendingCount >= 100 ? '99+' : String(pendingCount)
-  const chatBadgeText = unreadChatCount >= 100 ? '99+' : String(unreadChatCount)
 
   // active logic — /dashboard ใช้ exact match; tab อื่น ใช้ startsWith
   function isActive(href: string, exactMatch: boolean): boolean {
@@ -238,6 +233,7 @@ export default function SellerBottomNav({
 
   // /orders (list) = หน้า full-screen focused (มี back มุมซ้ายบน) → ซ่อน bottom nav (user req)
   // /orders/<token> (order detail, S-7) = งานเดียวจบ พื้นที่แถบล่างเอาไปทำ action bar แทน
+  //   (00071: ซ่อนเฉพาะบทบาทที่ OrderActionBar render จริง — hideOnOrderDetail · ช่างไม่มี action bar จึงเห็นแถบล่าง)
   // → ซ่อนเฉพาะ path ที่มี segment เดียวหลัง /orders/ และไม่ใช่ 'new' (สร้างออเดอร์ต้องเห็น nav ปกติ)
   // /orders/<token>/edit มี 2 segment ไม่ match regex นี้ → ยังเห็น nav ตามปกติ
   // /products (list): full-bleed เดียวกับ /orders (2026-08-06) — exact match เท่านั้น
@@ -248,10 +244,16 @@ export default function SellerBottomNav({
   //   AppointmentMonthBoard) — ถ้าวันไหนถอดบาร์นั้นออก ต้องเอา /queues ออกจากลิสต์นี้ด้วย
   //   ไม่งั้นซ้ำรอย /orders ที่เคยสร้างออเดอร์บนมือถือไม่ได้เลยโดยไม่มีอะไรฟ้อง
   //   (docs/conventions/seller-action-placement.md §5.1)
+  //   00071: ซ่อนเฉพาะบทบาทที่บอร์ดวาดแถบสร้างงานให้ (can(O2s)) — hideOnQueues · ช่างไม่มีแถบนั้นจึงเห็นแถบล่าง
   // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
   const orderDetailMatch = pathname.match(/^\/orders\/([^/]+)$/)
   const isOrderDetail = orderDetailMatch !== null && orderDetailMatch[1] !== 'new'
-  if (pathname === '/orders' || isOrderDetail || pathname === '/products' || pathname === '/queues') {
+  if (
+    pathname === '/orders' ||
+    (isOrderDetail && hideOnOrderDetail) ||
+    pathname === '/products' ||
+    (pathname === '/queues' && hideOnQueues)
+  ) {
     return null
   }
 
@@ -302,67 +304,24 @@ export default function SellerBottomNav({
           'border-t border-default-200',
           /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
           'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]', // carve-out: เงาทิศขึ้น Paces ไม่มี token
-          /* grid-cols-5 = 4 nav item + 1 center FAB cell (S-2: ตัด "สินค้า" ออก) */
-          'grid grid-cols-5 items-center',
+          /* nav.gridClass = 'grid grid-cols-N' (สตริงตรงตัวจาก role-nav) — เจ้าของ N=5 = 4 ช่อง + FAB */
+          `${nav.gridClass} items-center`,
           /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
           'pb-[env(safe-area-inset-bottom)]',
         ].join(' ')}
         aria-label={t.dashboard.navMenuAria}
       >
-        {/* ช่อง 1: หน้าหลัก */}
-        {/* gap-1 (4px token) ระหว่าง icon กับ label ทุกช่อง — เลิก arbitrary gap-[3px] */}
-        <Link
-          href="/dashboard"
-          className={`flex h-full flex-col items-center justify-center gap-1 ${
-            isActive('/dashboard', true)
-              ? 'text-primary'
-              : 'text-default-500'
-          }`}
-          aria-label={t.dashboard.navHome}
-          aria-current={isActive('/dashboard', true) ? 'page' : undefined}
-        >
-          {/* nav icon = text-2xl (24px token) แทน inline fontSize 23px — ทุกช่องใช้ขนาดนี้ */}
-          <Icon icon="home-2" className="text-2xl" />
-          <span className="text-xs font-medium">{t.dashboard.navHome}</span>
-        </Link>
 
-        {/* ช่อง 2: คำสั่งซื้อ + badge */}
-        <Link
-          href="/orders"
-          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
-            isActive('/orders', false)
-              ? 'text-primary'
-              : 'text-default-500'
-          }`}
-          aria-label={`${byVertical(t.vocab.orderNoun, shopVertical)}${pendingCount > 0 ? ` (${fmt(t.dashboard.navPendingAria, { n: pendingCount })})` : ''}`}
-          aria-current={isActive('/orders', false) ? 'page' : undefined}
-        >
-          <Icon icon="clipboard-list" className="text-2xl" />
-          <span className="text-xs font-medium leading-tight">{byVertical(t.vocab.orderNounShort, shopVertical)}</span>
-          {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
-          {pendingCount > 0 && (
-            <span
-              aria-hidden="true"
-              className={[
-                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
-                /* arbitrary: badge ตำแหน่ง offset จาก center icon — calc ไม่มี token แทน */
-                'min-w-[16px] h-[16px]', // carve-out: badge 16px รองรับ 2 หลัก
-                /* arbitrary: badge ขนาดเล็กสุด 16px — ต่ำกว่า Tailwind w-4 (=16px) ใช้ w-4 ได้แต่ใช้ min-w เพื่อรองรับ 2 หลัก */
-                'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
-                /* arbitrary: badge ring 2px ขาว — ไม่มี Paces/Tailwind token outline white สำหรับ ring บน badge */
-                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
-              ].join(' ')}
-            >
-              {badgeText}
-            </span>
-          )}
-        </Link>
+        {nav.tabs.slice(0, nav.fabAfter).map((tab) => (
+          <NavTabLink key={tab.key} tab={tab} active={isActive(tab.href, tab.exactMatch)} count={tab.badge === 'pending' ? pendingCount : unreadChatCount} shopAlert={shopAlert} />
+        ))}
 
-        {/* ช่อง 3: [+] สร้าง — center raised button + speed-dial */}
+        {/* [+] สร้าง — center raised button + speed-dial */}
         {/*
           relative cell เพื่อให้ absolute button ยกตัวออกมาได้
           touch target ≥44px: button 54px + grid cell สูง 72px = ผ่าน
         */}
+        {nav.fab?.kind === 'speedDial' && (
         <div className="relative flex flex-col items-center">
           <button
             ref={centerButtonRef}
@@ -370,18 +329,7 @@ export default function SellerBottomNav({
             onClick={() => setOpen((prev) => !prev)}
             aria-expanded={open}
             aria-label={open ? t.dashboard.navCreateClose : t.dashboard.navCreateOpen}
-            className={[
-              /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button
-                 -30px (เดิม -26): แถบสูงขึ้น 8px → จุดกึ่งกลาง cell เลื่อนลง 4px ต้องชดเชยเพื่อให้
-                 FAB โผล่พ้นขอบบนแถบเท่าเดิม */
-              'absolute top-[-30px] left-1/2 -translate-x-1/2', // carve-out: raised FAB
-              'w-[54px] h-[54px]', // carve-out: ขนาด FAB
-              /* arbitrary: FAB border ring 3px ขาว — ไม่มี Paces border-width token > 2px */
-              'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white', // carve-out: border 3px (Paces มีถึง 2px)
-              /* arbitrary: FAB drop shadow + inset highlight — Paces shadow-* ไม่รองรับ multi-layer + inset */
-              'shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]', // carve-out: เงา multi-layer + inset
-              'transition-transform active:scale-95',
-            ].join(' ')}
+            className={FAB_BUTTON_CLASS}
           >
             {/* icon toggle: plus (ปิด) → x (เปิด)
                 size-6.5 = 26px: FAB hero icon ใหญ่กว่าไอคอนใน nav เล็กน้อย (text-2xl=24) */}
@@ -395,65 +343,21 @@ export default function SellerBottomNav({
             {t.dashboard.navCreate}
           </span>
         </div>
-
-        {/* ช่อง 4: แชท + badge (ChatWidget task, feat 00011 Deep Chat) — copy badge markup
-            จากช่อง "คำสั่งซื้อ" ด้านบน (bg-danger absolute offset จาก center icon) */}
-        <Link
-          href="/inbox"
-          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
-            isActive('/inbox', false)
-              ? 'text-primary'
-              : 'text-default-500'
-          }`}
-          aria-label={`${t.dashboard.navChat}${unreadChatCount > 0 ? ` (${fmt(t.dashboard.navUnreadAria, { n: unreadChatCount })})` : ''}`}
-          aria-current={isActive('/inbox', false) ? 'page' : undefined}
-        >
-          <Icon icon="message-circle" className="text-2xl" />
-          <span className="text-xs font-medium">{t.dashboard.navChat}</span>
-          {unreadChatCount > 0 && (
-            <span
-              aria-hidden="true"
-              className={[
-                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
-                /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'min-w-[16px] h-[16px]', // carve-out: badge 16px รองรับ 2 หลัก
-                /* arbitrary: badge ขนาดเล็กสุด 16px — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
-                /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
-              ].join(' ')}
-            >
-              {chatBadgeText}
+        )}
+        {nav.fab?.kind === 'direct' && (
+          <div className="relative flex flex-col items-center">
+            <Link href={nav.fab.href} aria-label={nav.fab.ariaLabel} className={FAB_BUTTON_CLASS}>
+              <Icon icon={nav.fab.icon} className="size-6.5" />
+            </Link>
+            <span className="text-xs font-medium text-default-500" style={{ marginTop: '30px' }}>
+              {nav.fab.label}
             </span>
-          )}
-        </Link>
+          </div>
+        )}
 
-        {/* ช่อง 5: ร้านค้า */}
-        <Link
-          href="/shop"
-          className={`relative flex h-full flex-col items-center justify-center gap-1 ${
-            isActive('/shop', false)
-              ? 'text-primary'
-              : 'text-default-500'
-          }`}
-          aria-label={`${t.dashboard.navShop}${shopAlert ? ` (${t.dashboard.navShopAlertAria})` : ''}`}
-          aria-current={isActive('/shop', false) ? 'page' : undefined}
-        >
-          <Icon icon="building-store" className="text-2xl" />
-          <span className="text-xs font-medium">{t.dashboard.navShop}</span>
-          {shopAlert && (
-            <span
-              aria-hidden="true"
-              className={[
-                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
-                /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'size-2.5 rounded-full bg-danger', // จุดแดงไม่มีตัวเลข
-                /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
-              ].join(' ')}
-            />
-          )}
-        </Link>
+        {nav.tabs.slice(nav.fabAfter).map((tab) => (
+          <NavTabLink key={tab.key} tab={tab} active={isActive(tab.href, tab.exactMatch)} count={tab.badge === 'pending' ? pendingCount : unreadChatCount} shopAlert={shopAlert} />
+        ))}
       </nav>
     </>
   )

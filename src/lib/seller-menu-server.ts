@@ -44,6 +44,11 @@ export type SellerMenuContext = {
   vertical: string
   /** badge เมนู "ข้อความ" — ผู้เรียกดึงเองเพราะใช้ที่อื่นด้วย */
   unreadChatCount: number
+  /**
+   * เป็นเจ้าของหลักของร้านนี้ไหม (`Shop.userId === ผู้ดู`) — ผู้เรียกที่มีแถวร้านอยู่แล้ว (requireActiveShop) ส่งมา
+   * ไม่ส่ง = ตัวประกอบเมนูถามฐานเอง (fail-closed false) · ส่งแล้วไม่มี query เพิ่ม
+   */
+  isPrimaryOwner?: boolean
   /** เปิดจากในแอป iOS (App Store Guideline 3.1.1) — ดู `src/lib/app-shell.ts` */
   hidePayments: boolean
   /** เปิดจากในแอป iOS ที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (3.1.3(b) · feature 00064) */
@@ -69,7 +74,9 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
   const [entitlementResult, ownsResult, primaryResult] = await Promise.allSettled([
     ctx.shopId ? getEntitlementInfo(ctx.shopId) : Promise.resolve(entitlement),
     userId ? ownsAnyShop(userId) : Promise.resolve(false),
-    ctx.shopId && userId
+    ctx.isPrimaryOwner !== undefined
+      ? Promise.resolve(ctx.isPrimaryOwner)
+      : ctx.shopId && userId
       ? prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { userId: true } }).then((r) => r?.userId === userId)
       : Promise.resolve(false),
   ])

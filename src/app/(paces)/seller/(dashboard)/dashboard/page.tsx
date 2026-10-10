@@ -72,8 +72,9 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
 // 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
-import { moneyLevel, rolesFromMembership, type MoneyLevel } from '@/lib/shop-permissions'
-import { dashboardMoney, redactCommandCenterData } from '@/lib/dashboard-money'
+import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
+import { dashboardMoney, homeBlocks, redactCommandCenterData } from '@/lib/dashboard-money'
+import TodayJobs from './components/TodayJobs'
 import { resolveShortcutState } from '@/services/shortcut.service'
 import type { ShortcutCatalogItemDto } from './_constants/command-center'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
@@ -214,6 +215,8 @@ export default async function SellerDashboardPage() {
   let portfolio: PortfolioSeries | null = null
   // 00071: ธงเงินของหน้านี้ — fail-closed (ไม่รู้บทบาท = NONE) · เปลี่ยนค่าหลัง requireActiveShop
   let moneyLvl: MoneyLevel = 'NONE'
+  // 00071 P3 S-15: บล็อกหน้าแรกตามบทบาท — fail-closed (ไม่รู้บทบาท = ไม่มีบทบาท → ไม่มีสินค้าขายดี/ไม่มีงานวันนี้ ฯลฯ)
+  let blocks = homeBlocks([], { kind: '', vertical: '' })
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -225,7 +228,10 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
-      moneyLvl = active ? moneyLevel(rolesFromMembership(active.role, active.roles)) : 'NONE'
+      // ใช้บทบาทที่ "มีผลจริง" (effectiveRoles: PERSONAL=เจ้าของ · BILLING ในร้านที่ขายบริการไม่ได้ถูกตัด) ชุดเดียวกับแถบล่าง/เมนู
+      const viewerRoles = active ? effectiveRoles({ kind: active.kind, vertical: active.shop.vertical }, active.role, active.roles) : []
+      moneyLvl = moneyLevel(viewerRoles)
+      if (active) blocks = homeBlocks(viewerRoles, { kind: active.kind, vertical: active.shop.vertical })
       const money = dashboardMoney(moneyLvl)
       // เจ้าของ: ล้ม = 0 ตามเดิม (honest-zero) · ผู้ไม่ใช่เจ้าของ: คง null
       if (money.walletHero) walletBalance = 0
@@ -359,8 +365,9 @@ export default async function SellerDashboardPage() {
             getAvgRatingByUsername(owner?.username ?? ''),
             // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
             prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
-            // สินค้าขายดี (top 8) สำหรับ strip บน command center
-            getBestSellerProducts(shop.id, 8),
+            // สินค้าขายดี (top 8) สำหรับ strip บน command center · TopSellingProducts เดสก์ท็อป
+            // 00071: บทบาทที่ไม่เห็นทั้งสองการ์ด (เปิดบิล/ช่าง) ไม่ query เลย
+            blocks.bestSellerStrip || money.topSelling ? getBestSellerProducts(shop.id, 8) : Promise.resolve(null),
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน · เจ้าของเท่านั้น (F1) ⇒ รวมค่าใช้จ่าย/ต้นทุนเสมอ
             // เท่ากับ expenseGranted เดิมของเจ้าของ (สูตรไม่เปลี่ยน — HR16)
             money.salesChartCard
@@ -376,7 +383,8 @@ export default async function SellerDashboardPage() {
             // ─── 3 การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 — ทั้งหมดผูกกับ "เดือนปฏิทินไทยเดือนนี้" ───
             // ชุดเดียวกับที่ Sales Chart ใช้ (currentYear/currentMonth ด้านบน) เพื่อไม่ให้หน้าเดียว
             // มีสองนิยามของคำว่า "เดือนนี้"
-            getSalesChannelBreakdown(shop.id, rangePeriod),
+            // 00071: ช่างล้วนไม่มีโดนัท (การ์ดงานวันนี้เข้าไปแทน) ⇒ ไม่ query
+            blocks.salesChannelDonut ? getSalesChannelBreakdown(shop.id, rangePeriod) : Promise.resolve<SalesChannelSlice[]>([]),
             // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
             getRecentActivity(shop.id, 6, { includeTopups: money.topups && (await shouldShowMoneyStatus()), vertical: shop.vertical }),
             // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
@@ -428,7 +436,7 @@ export default async function SellerDashboardPage() {
 
         // สินค้าขายดี → map เป็น shape เบา {id,name,price,image} (resolve imageUrl server-side); fallback []
         if (bestSellerRes.status === 'fulfilled') {
-          bestSellers = bestSellerRes.value.map((p) => {
+          bestSellers = (bestSellerRes.value ?? []).map((p) => {
             const imgs = Array.isArray(p.images) ? (p.images as string[]) : []
             const first = imgs[0] ?? ''
             return {
@@ -521,7 +529,8 @@ export default async function SellerDashboardPage() {
           // จุดนี้เป็นหนึ่งใน 5 จุดที่ถือว่า "เพิ่ม PII เข้า flight payload จริง" (ผ่าน security review แล้ว)
           buyerLabel: sellerContactDisplay(o.buyerContact, t.dashboard.unknownContact),
           createdAtISO: o.createdAt.toISOString(),
-          totalAmount: Number(o.totalAmount),
+          // 00071: ระดับเงิน NONE (ช่าง) ไม่ส่งยอดรายใบข้ามเส้น RSC เลย — ไม่ใช่แค่ซ่อนคอลัมน์
+          ...(blocks.recentOrderAmount ? { totalAmount: Number(o.totalAmount) } : {}),
           type: o.type,
           status: o.status as OrderType['status'],
         }))
@@ -614,6 +623,8 @@ export default async function SellerDashboardPage() {
       serviceWords={shopVertical === 'SERVICE_QUEUE'
         ? { buyerNoun: orderVocab.buyerNoun, shippedStatusLabel: orderVocab.shippedStatusLabel, itemSingular: resolveProductVocab(shopVertical).itemSingular }
         : undefined}
+      showAmount={blocks.recentOrderAmount}
+      showTools={blocks.recentOrderTools}
     />
   )
   const activityEl = <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />
@@ -679,6 +690,7 @@ export default async function SellerDashboardPage() {
             // เมนูลัดที่ผู้ใช้คนนี้เลือกไว้ (feature 00027)
             shortcutTiles,
           }, moneyLvl)}
+          blocks={blocks}
         />
       </div>
 
@@ -713,7 +725,8 @@ export default async function SellerDashboardPage() {
             โดนัทกิน 7 คอลเต็มจึงเตี้ยที่สุด: layout ข้างในเป็น chart ซ้าย + legend ขวา ยิ่งกว้าง
             legend ยิ่งไม่ wrap (AchievementLevel ย้ายไปแถว 5 ที่มีเพื่อนสูงพอ ๆ กัน) */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
-          <div className="xl:col-span-5">
+          {/* ช่างล้วนในร้านที่ไม่รับนัด: ไม่มีทั้งโดนัทและงานวันนี้ → ฝั่งซ้ายกินเต็มแถว ไม่ปล่อยช่องว่าง */}
+          <div className={blocks.salesChannelDonut || blocks.todayJobs ? 'xl:col-span-5' : 'xl:col-span-12'}>
             <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
               <UserCard shopName={shopName} trustScore={score} />
               {/* ไม่มีการ์ดรายได้ ⇒ จำนวนการ์ด (UserCard + statData) เป็นคี่ ⇒ ใบสุดท้ายกินสองคอล กันช่องว่างครึ่งแถว */}
@@ -728,9 +741,17 @@ export default async function SellerDashboardPage() {
               )}
             </div>
           </div>
-          <div className="xl:col-span-7">
-            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} vertical={shopVertical} />
-          </div>
+          {blocks.salesChannelDonut && (
+            <div className="xl:col-span-7">
+              <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} vertical={shopVertical} />
+            </div>
+          )}
+          {/* 00071: ช่างล้วน — งานวันนี้ (7 คอล) แทนที่โดนัท · ไม่ mount ให้บทบาทอื่น */}
+          {blocks.todayJobs && (
+            <div className="xl:col-span-7">
+              <TodayJobs className="h-full" />
+            </div>
+          )}
         </div>
 
         {/* แถว 2: สถานะคำสั่งซื้อเต็มความกว้าง — component ตัวเดียวกับบนมือถือ (user เคาะ 2026-08-04)

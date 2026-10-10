@@ -9,7 +9,7 @@
  */
 import type { MenuItemType } from '@/types'
 import { ROUTE_CAPABILITIES, isClassEntry } from '@/lib/route-capabilities'
-import { can, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
+import { can, moneyLevel, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
 import { canUseAppointments } from '@/lib/appointments'
 import { byVertical } from '@/i18n/vertical'
 import type { Dictionary } from '@/i18n/dictionaries/th'
@@ -241,6 +241,23 @@ export function resolveMobileNav(
     fabAfter: Math.ceil(tabs.length / 2),
     gridClass: 'grid ' + GRID_COLS[tabs.length + (fab ? 1 : 0)],
   }
+}
+
+// ─── ซ่อนแถบล่าง (spec §2 · "หน้านั้นวาดแถบล่างเอง") ───────────────────────────
+
+/**
+ * หน้าที่วาดแถบล่างของตัวเองมีเฉพาะบางบทบาท — ซ่อน SellerBottomNav เฉพาะบทบาทนั้น
+ * ไม่งั้นช่าง (ไม่มีแถบของหน้า) เหลือหน้าที่ไม่มีแถบล่างอะไรเลย กดกลับไม่ได้
+ *  · `/orders/<token>`: OrderActionBar render เมื่อระดับเงิน ≠ NONE (ช่างล้วน = ไม่มี · `getOrderActionSet` ว่าง)
+ *  · `/queues`: บอร์ดวาดแถบสร้างงานเมื่อ can(O2s)
+ * 🛑 T5 (หน้ารายละเอียดออเดอร์) ต้องใช้ `orderActionBarRenders` ตัวนี้ตัดสินว่าจะ render OrderActionBar ด้วย — สองฝั่งต้องเป็นเกณฑ์เดียว
+ */
+export function orderActionBarRenders(roles: readonly ShopRole[]): boolean {
+  return moneyLevel(roles) !== 'NONE'
+}
+
+export function bottomNavHiddenPages(roles: readonly ShopRole[]): { orderDetail: boolean; queues: boolean } {
+  return { orderDetail: orderActionBarRenders(roles), queues: can(roles, 'O2s') }
 }
 
 // ─── ShopQuickLinks (spec §6) ────────────────────────────────────────────────

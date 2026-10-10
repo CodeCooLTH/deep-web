@@ -21,12 +21,16 @@ import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import SalesChartCard from './SalesChartCard'
+import TodayJobs from './TodayJobs'
+import type { homeBlocks } from '@/lib/dashboard-money'
 
 type Props = {
   data: CommandCenterData
+  /** บล็อกที่บทบาทนี้เห็น (`homeBlocks`) — ตัดสินที่เดียว ที่นี่แค่ "ไม่ render" ตามธง (ห้ามซ่อนด้วย CSS) */
+  blocks: ReturnType<typeof homeBlocks>
 }
 
-export default function CommandCenter({ data }: Props) {
+export default function CommandCenter({ data, blocks }: Props) {
   // -mx-4: edge-to-edge ทั้ง CC — หักล้าง gutter `.seller-mobile-shell main { padding-inline:1rem }` (16px)
   // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
   // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
@@ -65,6 +69,9 @@ export default function CommandCenter({ data }: Props) {
         costNoun={resolveOrderVocab(data.shopVertical ?? '').costNoun}
       />
 
+      {/* งานวันนี้ — ฝ่ายช่างล้วนในร้านที่รับนัดเท่านั้น (00071 S-15) · ไม่ mount ให้บทบาทอื่น (endpoint คืนเบอร์ลูกค้า) */}
+      {blocks.todayJobs && <TodayJobs />}
+
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
           ร้านคิวงานได้ไทล์ที่ 2 เป็น "นัดวันนี้" แทน "กำลังจัดส่ง" ที่เข้าไม่ถึงตลอดกาล */}
@@ -80,7 +87,8 @@ export default function CommandCenter({ data }: Props) {
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
       {/* ส่ง vertical เป็นสตริง ไม่ใช่ ProductVocab ทั้งก้อน — ในนั้นมีฟังก์ชันที่ข้ามเส้น
           server→client ไม่ได้ (BestSellerStrip เป็น 'use client') */}
-      <BestSellerStrip products={data.bestSellers ?? []} vertical={data.shopVertical} />
+      {/* 00071: เปิดบิล/ช่างไม่มีงานขายสินค้า → ไม่ render (และ page ไม่ query รายการให้) */}
+      {blocks.bestSellerStrip && <BestSellerStrip products={data.bestSellers ?? []} vertical={data.shopVertical} />}
 
       {/* เมนูลัด — รายการมาจากสิทธิ์จริงของผู้ใช้ + ที่เขาเลือกเอง (feature 00027)
           shortcut ว่าง = ไม่ผ่าน gate ร้าน (เช่น session หลุด) → ซ่อนการ์ดไปเลย ไม่โชว์การ์ดเปล่า */}

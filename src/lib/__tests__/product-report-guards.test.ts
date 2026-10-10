@@ -36,7 +36,7 @@ function menuFor(vertical: string) {
       entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
       staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const, roles: [] },
       ownsShop: true,
-      shop: { kind: 'BUSINESS', vertical },
+      shop: { kind: 'BUSINESS', vertical, isPrimaryOwner: true },
     }),
   ).map((i) => i.slug)
 }

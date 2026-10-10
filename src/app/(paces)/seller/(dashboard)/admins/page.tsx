@@ -8,7 +8,7 @@
  * Design Spec: docs/superpowers/specs/2026-07-04-shop-staff-invite-link-design.md §5.2
  *
  * Guard: active.kind==='BUSINESS' && active.role==='OWNER' → notFound() ถ้าไม่ใช่ (ผู้ถูกเชิญ/ADMIN และ
- *   Personal shop เข้าตรง URL ไม่ได้ — mirror การซ่อนเมนูด้วย applyStaffMenu ใน _seller-menu.ts แต่ต้อง
+ *   Personal shop เข้าตรง URL ไม่ได้ — mirror การซ่อนเมนูด้วย applyCapabilityMenu (BUSINESS_ONLY_SLUGS) ใน role-nav.ts แต่ต้อง
  *   gate ที่ RSC ด้วยเพราะ URL เข้าตรงได้เสมอ ไม่ได้ผูกกับเมนู)
  *
  * PII: หน้านี้ไม่มี raw contact (phone/email) ใด ๆ — invite link เป็น capability-URL ไม่ผูก contact

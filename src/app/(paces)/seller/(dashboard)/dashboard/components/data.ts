@@ -10,8 +10,8 @@ export type OrderType = {
   buyerLabel: string
   /** createdAt ISO string — ส่งผ่าน RSC boundary แบบ string เพื่อป้องกัน Date serialization error */
   createdAtISO: string
-  /** ยอดรวมในหน่วย number (บาท) — format ด้วย Intl ที่ client */
-  totalAmount: number
+  /** ยอดรวมในหน่วย number (บาท) — format ด้วย Intl ที่ client · ไม่มีคีย์ = ผู้ดูไม่มีสิทธิ์เห็นเงิน (ช่าง) ห้ามแทนด้วย 0 */
+  totalAmount?: number
   /** ประเภทออเดอร์ PHYSICAL / DIGITAL / SERVICE */
   type: string
   /** สถานะออเดอร์ (ตรงกับ Prisma enum ที่ใช้ใน schema) */

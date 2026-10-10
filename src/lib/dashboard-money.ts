@@ -6,7 +6,8 @@
  *
  * ระดับ PER_ORDER/NONE เห็นเงินรายใบได้ (ราคา/ยอดต่อออเดอร์) แต่ไม่เห็นยอดรวมของร้าน ⇒ ทุกธงเป็น FULL เท่านั้น
  */
-import type { MoneyLevel } from '@/lib/shop-permissions'
+import { canUseAppointments } from '@/lib/appointments'
+import { moneyLevel, type MoneyLevel, type ShopRole } from '@/lib/shop-permissions'
 
 export function dashboardMoney(level: MoneyLevel) {
   const full = level === 'FULL'
@@ -47,4 +48,28 @@ export function redactCommandCenterData<T extends Redactable>(data: T, level: Mo
     })
   }
   return out as T
+}
+
+/**
+ * บล็อกหน้าแรกตามบทบาท (spec 00071 P3 §3) — ตัดสินที่นี่ที่เดียว ทั้ง query ฝั่ง server และ JSX ใช้ค่าชุดนี้
+ * (ห้ามเขียน boolean เดียวกันซ้ำในหน้า — เกณฑ์เพี้ยนกันเมื่อไหร่ ช่างจะเห็นของที่ไม่ควรเห็นเงียบ ๆ)
+ *
+ * · bestSellerStrip: เฉพาะเจ้าของ/ผู้ดูแล/ตอบแชท — เปิดบิล/ช่างไม่มีงานขายสินค้า
+ * · technicianHome: ช่างล้วน (ไม่ถือบทบาทอื่นเลย) — union กับบทบาทอื่น = ผังของบทบาทอื่น (ตรงกับแท็บ "งาน" ใน resolveMobileNav)
+ * · todayJobs: ช่างล้วน + ร้านรับนัด — ห้าม mount ซ่อนด้วย CSS (endpoint คืนเบอร์ลูกค้า)
+ * · recentOrderAmount: ยอดรายใบ — ระดับ NONE (ช่าง) ไม่เห็น · ไม่ query ยอดมาแต่แรก
+ * · recentOrderTools: ปุ่มส่งออก/นำเข้า — ซ่อนเมื่อ NONE (ปุ่มนั้นไม่ทำงานจริงอยู่แล้ว แต่ไม่ควรโผล่ให้ช่าง)
+ * · salesChannelDonut: ช่างล้วนไม่มี (การ์ดงานวันนี้เข้าไปแทนที่)
+ */
+export function homeBlocks(roles: readonly ShopRole[], shop: { kind: string; vertical: string }) {
+  const technicianHome = roles.length > 0 && roles.every((r) => r === 'TECHNICIAN')
+  const level = moneyLevel(roles)
+  return {
+    bestSellerStrip: roles.some((r) => r === 'OWNER' || r === 'MANAGER' || r === 'CHAT'),
+    technicianHome,
+    todayJobs: technicianHome && canUseAppointments(shop),
+    recentOrderAmount: level !== 'NONE',
+    recentOrderTools: level !== 'NONE',
+    salesChannelDonut: !technicianHome,
+  }
 }
