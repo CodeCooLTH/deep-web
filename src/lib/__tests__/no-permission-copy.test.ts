@@ -38,6 +38,12 @@ describe('noPermissionCopy', () => {
     })
   })
 
+  it('X6 (ดูแผนตรวจสอบ): บอกว่าผู้ดูแลเปิดได้ ไม่ใช่เจ้าของหลักล้วน', () => {
+    const c = noPermissionCopy({ capability: 'X6', viewerRoles: ['CHAT'] })
+    expect(c.title).toBe('หน้านี้ดูได้เฉพาะบางบทบาท')
+    expect(c.body).toContain('ผู้ดูแล')
+  })
+
   it('เจ้าของล้วน ไม่มี detail: ประโยคกลาง', () => {
     expect(noPermissionCopy({ capability: 'F3', viewerRoles: [] }).body).toBe('ถ้าต้องการใช้หน้านี้ ขอให้เจ้าของร้านเป็นคนทำให้ได้เลย')
   })

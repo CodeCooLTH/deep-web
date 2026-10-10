@@ -8,7 +8,7 @@ import { NextRequest } from 'next/server'
 
 const ctx = vi.hoisted(() => ({ role: 'OWNER' as 'OWNER' | 'ADMIN', roles: [] as string[], shopOwner: 'u1' }))
 const svc = vi.hoisted(() => ({
-  getVerifications: vi.fn(), updateShop: vi.fn(), cancelPkg: vi.fn(), inspection: vi.fn(),
+  getVerifications: vi.fn(), updateShop: vi.fn(), cancelPkg: vi.fn(), subscribePkg: vi.fn(), inspection: vi.fn(),
 }))
 vi.mock('next-auth', () => ({ getServerSession: vi.fn(async () => ({ user: { id: 'u1' } })) }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
@@ -27,7 +27,8 @@ vi.mock('@/services/shop.service', () => ({
   PayoutForbiddenError: class extends Error {}, PayoutReauthFailedError: class extends Error {}, PayoutReauthUnavailableError: class extends Error {},
 }))
 vi.mock('@/services/receipt.service', () => ({ ReceiptError: class extends Error {}, updateReceiptProfile: vi.fn() }))
-vi.mock('@/services/business-package.service', () => ({ cancelBusinessPackage: svc.cancelPkg }))
+vi.mock('@/services/business-package.service', () => ({ cancelBusinessPackage: svc.cancelPkg, subscribeBusinessPackage: svc.subscribePkg }))
+vi.mock('@/lib/app-purchase-guard', () => ({ rejectInAppPurchase: vi.fn(async () => null) }))
 vi.mock('@/services/inspection-owner.service', () => ({ getInspectionForOwner: svc.inspection }))
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 
@@ -37,6 +38,7 @@ import { POST as slugPost } from '@/app/api/shops/slug/route'
 import { PATCH as receiptPatch } from '@/app/api/shops/receipt-profile/route'
 import { PATCH as payoutPatch } from '@/app/api/shops/payout/route'
 import { POST as cancelPost } from '@/app/api/business/cancel/route'
+import { POST as subscribePost } from '@/app/api/business/subscribe/route'
 import { GET as inspectionGet } from '@/app/api/seller/inspection/route'
 import { PUT as builderPut } from '@/app/api/shops/current/page-builder/route'
 import { gatePage } from '@/lib/shop-capability'
@@ -52,18 +54,17 @@ const CASES: Case[] = [
   { name: 'page-builder PUT', cap: 'T1', call: () => builderPut(req({})) },
   { name: 'receipt-profile PATCH', cap: 'X5', call: () => receiptPatch(req({})) },
   { name: 'payout PATCH', cap: 'T3', call: () => payoutPatch(req({})) },
-  { name: 'business/cancel POST', cap: 'T4', call: () => cancelPost(), service: svc.cancelPkg },
-  { name: 'inspection GET', cap: 'T4', deny: 'NOT_OWNER', call: () => inspectionGet(new NextRequest('http://x/api')), service: svc.inspection },
+  { name: 'inspection GET', cap: 'X6', deny: 'NOT_OWNER', call: () => inspectionGet(new NextRequest('http://x/api')), service: svc.inspection },
 ]
 
 // เจ้าของหลัก = shop.userId ตรงผู้ใช้ · เจ้าของร่วม = role OWNER แต่ shop.userId เป็นคนอื่น
 const ACTORS: { who: string; set: () => void; allow: Record<string, boolean> }[] = [
-  { who: 'เจ้าของหลัก', set: () => Object.assign(ctx, { role: 'OWNER', roles: [], shopOwner: 'u1' }), allow: { T1: true, X5: true, T3: true, T4: true } },
-  { who: 'เจ้าของร่วม', set: () => Object.assign(ctx, { role: 'OWNER', roles: [], shopOwner: 'other' }), allow: { T1: true, X5: true, T3: true, T4: false } },
-  { who: 'ผู้ดูแล', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['MANAGER'], shopOwner: 'other' }), allow: { T1: true, X5: true, T3: false, T4: false } },
-  { who: 'ตอบแชท', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['CHAT'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false } },
-  { who: 'เปิดบิล', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['BILLING'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false } },
-  { who: 'ฝ่ายช่าง', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['TECHNICIAN'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false } },
+  { who: 'เจ้าของหลัก', set: () => Object.assign(ctx, { role: 'OWNER', roles: [], shopOwner: 'u1' }), allow: { T1: true, X5: true, T3: true, T4: true, X6: true } },
+  { who: 'เจ้าของร่วม', set: () => Object.assign(ctx, { role: 'OWNER', roles: [], shopOwner: 'other' }), allow: { T1: true, X5: true, T3: true, T4: false, X6: true } },
+  { who: 'ผู้ดูแล', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['MANAGER'], shopOwner: 'other' }), allow: { T1: true, X5: true, T3: false, T4: false, X6: true } },
+  { who: 'ตอบแชท', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['CHAT'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false, X6: false } },
+  { who: 'เปิดบิล', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['BILLING'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false, X6: false } },
+  { who: 'ฝ่ายช่าง', set: () => Object.assign(ctx, { role: 'ADMIN', roles: ['TECHNICIAN'], shopOwner: 'other' }), allow: { T1: false, X5: false, T3: false, T4: false, X6: false } },
 ]
 
 beforeEach(() => {
@@ -90,6 +91,21 @@ describe.each(CASES)('$name (cap $cap)', ({ cap, call, service, deny }) => {
   })
 })
 
+// แพ็กเกจธุรกิจ = ระดับบัญชี (มติ C-13): active อยู่ร้านของคนอื่นในฐานะผู้ดูแล/เจ้าของร่วม ก็ยังจัดการแพ็กเกจของ "ตัวเอง" ได้
+// ownerId ต้องมาจาก session (u1) เท่านั้น — ไม่ใช่เจ้าของร้านที่ active (other)
+describe.each(ACTORS)('business/subscribe + cancel (SELF) — $who', ({ set }) => {
+  it('ผ่านทุกบทบาทในร้านที่ active และ service รับ ownerId = ผู้ใช้ใน session', async () => {
+    set()
+    svc.subscribePkg.mockResolvedValue({ ok: true })
+    svc.cancelPkg.mockResolvedValue({ ok: true })
+    const res = await subscribePost(req({ tier: 'GROWTH' }))
+    expect(res.status).toBe(200)
+    expect(svc.subscribePkg.mock.calls[0][0]).toBe('u1')
+    expect((await cancelPost()).status).toBe(200)
+    expect(svc.cancelPkg).toHaveBeenCalledWith('u1')
+  })
+})
+
 // หน้า (RSC) ตัดสินด้วย gatePage ตัวเดียวกับ API — ค่า cap ตรงตามที่หน้าเรียก (settings = S2 ตามมติ C-2 ไม่ใช่ T3)
 describe('gatePage ของหน้าโดเมนร้าน', () => {
   const sess = { user: { id: 'u1' } }
@@ -110,5 +126,14 @@ describe('gatePage ของหน้าโดเมนร้าน', () => {
     expect(await ok('T4')).toBe(false)
     ctx.shopOwner = 'u1'
     expect(await ok('T4')).toBe(true)
+  })
+  it('inspection (X6 ดู / T4 จัดการ): ผู้ดูแลผ่าน X6 ไม่ผ่าน T4 · ตอบแชท/เปิดบิล/ช่างไม่ผ่าน X6', async () => {
+    Object.assign(ctx, { role: 'ADMIN', roles: ['MANAGER'], shopOwner: 'other' })
+    expect(await ok('X6')).toBe(true)
+    expect(await ok('T4')).toBe(false)
+    for (const r of ['CHAT', 'BILLING', 'TECHNICIAN']) {
+      Object.assign(ctx, { role: 'ADMIN', roles: [r] })
+      expect(await ok('X6'), r).toBe(false)
+    }
   })
 })

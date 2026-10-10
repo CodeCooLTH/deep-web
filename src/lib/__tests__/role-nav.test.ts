@@ -129,6 +129,10 @@ describe('canSeePage — ตามทะเบียนเดียวกับ 
     expect(canSeePage('/subscriptions', ['OWNER'])).toBe(false)
   })
 
+  it('X6 (/inspection ดูแผนตรวจสอบ): MANAGER เห็นแม้ไม่ใช่เจ้าของหลัก · CHAT/BILLING/TECHNICIAN ไม่เห็น', () => {
+    for (const r of ALL) expect(canSeePage('/inspection', [r], { isPrimaryOwner: false }), r).toBe(r === 'OWNER' || r === 'MANAGER')
+  })
+
   it('[blocker] ทุก url ในเมนูมีกฎในทะเบียน (ไม่ตกไป fail-closed เงียบ ๆ จนผู้ดูแลเสียเมนู)', () => {
     const missing = flattenSellerMenu(sellerMenuItems).filter((i) => i.url && !isRegisteredPage(i.url)).map((i) => i.url)
     expect(missing).toEqual([])

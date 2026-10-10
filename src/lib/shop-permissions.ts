@@ -58,6 +58,7 @@ const TABLE = {
   X3: [O, M], // สร้างออเดอร์อัตโนมัติ (ตั้งค่า)
   X4: [O, M, C], // ผลงานตัวเองในรายงานแอดมิน (SELF)
   X5: [O, M], // โปรไฟล์ใบเสร็จของร้าน
+  X6: [O, M], // ดูแผนตรวจสอบร้าน (อ่านอย่างเดียว) — มติ C-13: คืนสิทธิ์ดูของผู้ดูแลเดิม · การกระทำทั้งหมดยังเป็น T4
 } as const satisfies Record<string, readonly ShopRole[]>
 
 export type Capability = keyof typeof TABLE

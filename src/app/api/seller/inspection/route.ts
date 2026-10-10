@@ -13,7 +13,7 @@ import { mapInspectionError, requireInspectionShop } from './_shared'
  *    ความน่าเชื่อถือล่วงหน้า
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireInspectionShop('T4')
+  const auth = await requireInspectionShop('X6')
   if ('response' in auth) return auth.response
 
   const roomId = request.nextUrl.searchParams.get('roomId')

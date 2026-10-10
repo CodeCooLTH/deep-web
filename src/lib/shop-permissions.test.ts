@@ -40,6 +40,7 @@ const EXPECTED: Record<Capability, string> = {
   X3: 'YY---',
   X4: 'YYY--',
   X5: 'YY---',
+  X6: 'YY---',
 }
 
 describe('can() — ตารางสิทธิ์ครบทุกคู่ (บทบาท × capability)', () => {
@@ -50,8 +51,21 @@ describe('can() — ตารางสิทธิ์ครบทุกคู่
       })
     })
   }
-  it('ตารางคาดหวังครอบทุก capability (35 รหัส)', () => {
-    expect(Object.keys(EXPECTED)).toHaveLength(35)
+  it('ตารางคาดหวังครอบทุก capability (36 รหัส)', () => {
+    expect(Object.keys(EXPECTED)).toHaveLength(36)
+  })
+})
+
+describe('X6 (ดูแผนตรวจสอบ · มติ C-13) vs T4 (จัดการแผน)', () => {
+  it('MANAGER ผ่าน X6 แต่ไม่ผ่าน T4', () => {
+    expect(can(['MANAGER'], 'X6')).toBe(true)
+    expect(can(['MANAGER'], 'T4')).toBe(false)
+  })
+  it.each(['BILLING', 'CHAT', 'TECHNICIAN'] as ShopRole[])('%s ไม่ผ่าน X6', (r) => {
+    expect(can([r], 'X6')).toBe(false)
+  })
+  it('X6 ไม่ใช่เจ้าของหลักเท่านั้น (T4 ตัวเดียวที่เป็น)', () => {
+    expect(PRIMARY_OWNER_ONLY.has('X6')).toBe(false)
   })
 })
 

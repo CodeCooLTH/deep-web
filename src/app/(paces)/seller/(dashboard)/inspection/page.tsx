@@ -40,13 +40,14 @@ export default async function InspectionPage() {
   const userId = sessionUserId(session)
   if (userId === null) return null // layout redirect guard handles unauthenticated
 
-  // 00071 T4: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
-  const gate = await gatePage(session, 'T4')
+  // 00071 X6 (มติ C-13): ผู้ดูแลดูได้ แต่กดจัดการได้เฉพาะเจ้าของหลัก (canManage ด้านล่าง)
+  // บทบาทที่ไม่มีสิทธิ์ดูเห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'X6')
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
     return (
       <>
         <PageBreadcrumb title="แผนการตรวจสอบ" />
-        <NoPermissionCard capability="T4" viewerRoles={await viewerRolesOf(session)} />
+        <NoPermissionCard capability="X6" viewerRoles={await viewerRolesOf(session)} />
       </>
     )
   }
