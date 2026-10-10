@@ -13,7 +13,8 @@
  *      ที่แจกด้วยลิงก์ (2026-10-06: 71:D7:6B:AC:…:CB:56)
  *   2. **App signing key ของ Google Play** (Play Console → Setup → App signing) — Play เซ็นแอปใหม่
  *      ด้วย key ของ Google ก่อนส่งถึงผู้ใช้ ⇒ แอปจาก Play Store จะไม่ผ่านถ้าขาดตัวนี้
- *      **ยังไม่มี** (ต้องอัปโหลด build แรกขึ้น Play ก่อน) — เติมต่อท้ายลิสต์เดิม ห้ามแทนที่ตัวแรก
+ *      (2026-10-11 หลังอัปโหลด build แรก 5 (1.0.2) เข้า Internal testing: F5:43:49:26:…:F5:80)
+ *      — อยู่ต่อท้ายลิสต์ ห้ามแทนที่ตัวแรก
  *
  * ทดสอบบนเครื่องหลัง deploy: `adb shell pm verify-app-links --re-verify com.deepthailand.seller`
  * แล้ว `adb shell pm get-app-links com.deepthailand.seller` ต้องได้ `seller.deepthailand.app: verified`
@@ -29,6 +30,10 @@ const SELLER_PACKAGE = 'com.deepthailand.seller'
 /** upload key ของ EAS ที่เซ็น apk ทดสอบ — ถ้า keystore บน EAS เปลี่ยน ต้องแก้ทั้งที่นี่และในไฟล์ */
 const EAS_UPLOAD_KEY_SHA256 =
   '71:D7:6B:AC:B6:A9:B9:FB:4E:4D:89:81:F6:61:8C:19:71:FF:98:14:09:91:23:25:F6:39:AB:3E:9D:42:CB:56'
+
+/** App signing key ของ Google Play (Play Console → ได้รับการปกป้องด้วย Google Play → การลงนามแอป) */
+const PLAY_APP_SIGNING_SHA256 =
+  'F5:43:49:26:05:47:77:D0:8F:37:B7:DB:F7:AA:91:5D:8E:86:01:49:E4:E1:A9:A6:B2:25:17:95:2F:05:F5:80'
 
 type Statement = {
   relation: string[]
@@ -55,6 +60,10 @@ describe('[blocker] assetlinks.json — Android App Links ของแอปผ�
 
   it('🛑 ยังมี upload key ของ EAS — ถอดออก = apk ทดสอบที่แจกไปแล้วเปิดลิงก์เข้าแอปไม่ได้', () => {
     expect(seller!.target.sha256_cert_fingerprints).toContain(EAS_UPLOAD_KEY_SHA256)
+  })
+
+  it('🛑 มี App signing key ของ Google Play — ขาด = แอปที่ติดตั้งจาก Play เปิดลิงก์เข้าแอปไม่ได้ (เงียบ)', () => {
+    expect(seller!.target.sha256_cert_fingerprints).toContain(PLAY_APP_SIGNING_SHA256)
   })
 
   it('proxy ปล่อย /.well-known/* ผ่านบน subdomain (ไม่งั้น 404 เฉพาะ seller.*)', () => {
