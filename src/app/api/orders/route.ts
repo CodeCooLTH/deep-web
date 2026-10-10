@@ -1,3 +1,4 @@
+import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
     // SECURITY: productId ที่ client ส่งมาไม่ใช่ของร้านนี้ (cross-shop) — fail-closed 400
     if (e instanceof ProductNotInShopError) {
       return NextResponse.json(
-        { error: "พบสินค้าที่ไม่ใช่ของร้านนี้ในคำสั่งซื้อ" },
+        { error: `พบ${itemNounFor(shop.vertical)}ที่ไม่ใช่ของร้านนี้ใน${orderNounFor(shop.vertical)}` },
         { status: 400 },
       );
     }
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
     // (order.service createOrder throws OutOfStockError จาก inventory-stock.service; ตัด/สร้าง rollback แล้ว)
     if (e instanceof OutOfStockError) {
       return NextResponse.json(
-        { error: `สินค้าหมดสต็อก: ${e.productNames.join(", ")}` },
+        { error: `${itemNounFor(shop.vertical)}หมดสต็อก: ${e.productNames.join(", ")}` },
         { status: 400 },
       );
     }

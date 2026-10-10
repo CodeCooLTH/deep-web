@@ -10,6 +10,7 @@
  *   รายการกฎ divide-y + ปุ่มลบต่อแถว) — ยกโครงมาทั้งชุด เปลี่ยนแค่ปลายทาง API เป็นระดับร้าน
  */
 import { useState } from 'react'
+import { chatItemLabel } from '@/lib/chat-vocab'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -53,6 +54,8 @@ type Props = {
   walletBalance: number
   /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
+  /** ประเภทกิจการ — ผันคำ 'สินค้า' ในป้ายให้ร้านบริการ */
+  vertical?: string
 }
 
 /** 3 สถานะ — คำเดียวกับกลุ่มคำของ Auto Reply เพื่อไม่ให้ร้านต้องเรียนความหมายใหม่ */
@@ -91,7 +94,9 @@ export default function ChatbotClient({
   initialGuardrails,
   walletBalance,
   knowledgeCount,
+  vertical,
 }: Props) {
+  const item = chatItemLabel(vertical)
   // ห้ามบอกให้ไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1 / 3.1.3(f)) — ดู `@/lib/app-shell`
   const hidePayments = useHidePayments()
   const showMoneyStatus = useShowMoneyStatus()
@@ -598,7 +603,7 @@ export default function ChatbotClient({
             <span className="min-w-0">
               <span className="text-default-700 block text-sm">ตอบเฉพาะเรื่องของร้าน</span>
               <span className="text-default-400 block text-xs">
-                คำถามที่ไม่เกี่ยวกับสินค้า รวมถึงคุยเล่น จะได้ข้อความปฏิเสธด้านล่างแล้วจบ
+                คำถามที่ไม่เกี่ยวกับ{item} รวมถึงคุยเล่น จะได้ข้อความปฏิเสธด้านล่างแล้วจบ
               </span>
             </span>
             <input
@@ -710,7 +715,9 @@ export default function ChatbotClient({
           {DATA_SOURCES.map((d) => (
             <label key={d.key} className="flex items-center justify-between gap-3">
               <span className="min-w-0">
-                <span className="text-default-700 block text-sm">{d.label}</span>
+                <span className="text-default-700 block text-sm">
+                  {d.key === 'aiChatbotUseShopData' ? `${item}และราคาในระบบ` : d.label}
+                </span>
                 <span className="text-default-400 block text-xs">{d.hint}</span>
               </span>
               <input

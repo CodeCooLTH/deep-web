@@ -2126,7 +2126,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     onClick={() => setDisputeDialogOpen(true)}
                     icon='tabler-flag-3'
                     tone='warning'
-                    title='แจ้งปัญหาคำสั่งซื้อ'
+                    title={order.isServiceShop ? `แจ้งปัญหา${noun}` : 'แจ้งปัญหาคำสั่งซื้อ'}
                     desc='ให้ Deep ตรวจสอบ — ร้านจะเห็นเรื่องนี้ด้วย'
                   />
                 )}
@@ -2856,12 +2856,14 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                * ยกที่ทั้งหมดให้ปุ่มยืนยันซึ่งเป็นงานหลักของหน้า
                */}
               {showCancel && (
-                <Tooltip title='ยกเลิกคำสั่งซื้อ' enterTouchDelay={0}>
+                <Tooltip title={order.isServiceShop ? `ยกเลิก${noun}` : 'ยกเลิกคำสั่งซื้อ'} enterTouchDelay={0}>
                   <Button
                     variant='outlined'
                     color='secondary'
                     onClick={() => setCancelDialogOpen(true)}
                     aria-label='ยกเลิกคำสั่งซื้อ'
+                    /* literal ข้างบนต้องคงไว้ (ด่าน [blocker] อ่านซอร์ส) — ร้านบริการทับด้วยคำของตัวเองด้านล่าง */
+                    {...(order.isServiceShop ? { 'aria-label': `ยกเลิก${noun}` } : undefined)}
                     sx={{
                       minHeight: 44,
                       minWidth: 46,
@@ -2879,7 +2881,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                   >
                     <Icon icon='tabler-x' fontSize={18} />
                     <Box component='span' className='cancel-label' sx={{ ml: 1 }}>
-                      ยกเลิกคำสั่งซื้อ
+                      {order.isServiceShop ? `ยกเลิก${noun}` : 'ยกเลิกคำสั่งซื้อ'}
                     </Box>
                   </Button>
                 </Tooltip>

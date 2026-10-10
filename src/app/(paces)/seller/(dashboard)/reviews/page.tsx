@@ -18,6 +18,7 @@ import ProductReviews from './components/ProductReviews'
 import type { ReviewRow, SummaryData } from './components/data'
 import type { Metadata } from 'next'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
+import { resolveActiveShopContext } from '@/lib/shop-context'
 
 export const metadata: Metadata = { title: 'รีวิวจากลูกค้า' }
 
@@ -35,8 +36,13 @@ function getInitial(label: string): string {
 
 export default async function ReviewsPage() {
   const session = await getServerSession(authOptions)
-  const user = (session as { user?: { id: string } } | null)?.user
+  const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
+
+  // ประเภทกิจการไว้ผันคำ 'สินค้า/ออเดอร์' — fail-soft: resolve ไม่ได้ก็ใช้คำเดิม ไม่ให้หน้ารีวิวล่ม
+  const verticalPromise = resolveActiveShopContext({ user: { id: user.id, activeShopId: user.activeShopId ?? null } })
+    .then((c) => c?.vertical)
+    .catch(() => undefined)
 
   let rawReviews: Awaited<ReturnType<typeof getReviewsByShopUser>> = []
   try {
@@ -115,7 +121,7 @@ export default async function ReviewsPage() {
   return (
     <>
       <PageBreadcrumb title="รีวิว" trail={[{ label: 'การขาย' }]} />
-      <ProductReviews reviews={rows} summary={summary} />
+      <ProductReviews reviews={rows} summary={summary} vertical={await verticalPromise} />
     </>
   )
 }

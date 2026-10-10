@@ -1,3 +1,4 @@
+import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
@@ -131,11 +132,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const order = await updateOrder(ctx.shopId, token, parsed.output, actorUserId);
     return NextResponse.json(order, { headers: NO_STORE });
   } catch (e: unknown) {
-    if (e instanceof OrderNotFoundError) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+    // vertical ของร้านสำหรับเลือกคำในข้อความ — ดึงเฉพาะทาง error (ctx ของ resolveActiveShopContext ไม่มี vertical)
+    // ไม่เพิ่ม round-trip ให้ทางสำเร็จ
+    const vertical = (await prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { vertical: true } }))?.vertical;
+    const orderNoun = orderNounFor(vertical);
+    const itemNoun = itemNounFor(vertical);
+    if (e instanceof OrderNotFoundError) return NextResponse.json({ error: `ไม่พบ${orderNoun}นี้` }, { status: 404 });
     if (e instanceof OrderNotEditableError) {
-      return NextResponse.json({ error: "แก้ไขได้เฉพาะคำสั่งซื้อที่ยังรอดำเนินการเท่านั้น" }, { status: 400 });
+      return NextResponse.json({ error: `แก้ไขได้เฉพาะ${orderNoun}ที่ยังรอดำเนินการเท่านั้น` }, { status: 400 });
     }
-    if (e instanceof ProductNotInShopError) return NextResponse.json({ error: "มีสินค้าที่ไม่ใช่ของร้านนี้" }, { status: 400 });
+    if (e instanceof ProductNotInShopError) return NextResponse.json({ error: `มี${itemNoun}ที่ไม่ใช่ของร้านนี้` }, { status: 400 });
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json({ error: "ออเดอร์ที่ต้องจัดส่งต้องกรอกที่อยู่ให้ครบ" }, { status: 400 });
     }
@@ -147,12 +153,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
     if (e instanceof Error && e.name === "OutOfStockError") {
-      return NextResponse.json({ error: "สินค้าบางรายการสต็อกไม่พอ" }, { status: 400 });
+      return NextResponse.json({ error: `${itemNoun}บางรายการสต็อกไม่พอ` }, { status: 400 });
     }
     if (e instanceof OrderDateOutOfWindowError) {
       return NextResponse.json({ error: ORDER_DATE_OUT_OF_WINDOW_MESSAGE }, { status: 400 });
     }
     console.error("[PATCH /api/orders/[token]]", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "แก้ไขคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่" }, { status: 500 });
+    return NextResponse.json({ error: `แก้ไข${orderNoun}ไม่สำเร็จ กรุณาลองใหม่` }, { status: 500 });
   }
 }

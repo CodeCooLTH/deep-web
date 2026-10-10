@@ -11,14 +11,15 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { resolveProductVocab } from '@/lib/seller-menu'
 import { getOrdersByShop } from '@/services/order.service'
 import { notFound, redirect } from 'next/navigation'
-import type { Metadata } from 'next'
+import { productPageMetadata } from '@/lib/product-page-title'
 import { getServerSession } from 'next-auth'
 import ProductDisplay from './components/ProductDisplay'
 import ProductDetails from './components/ProductDetails'
 import ProductReviews from './components/ProductReviews'
 import type { ProductDetailProps, ReviewRow } from './components/data'
 
-export const metadata: Metadata = { title: 'รายละเอียดสินค้า' }
+// ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
+export const generateMetadata = () => productPageMetadata('detail')
 
 export default async function ProductDetailPage({
   params,

@@ -23,6 +23,8 @@
  * — แค่ปิดการแสดง/แก้ที่ UI นี้เท่านั้น) กรณีชนกับ !canEdit (STAFF ของร้าน non-paid) — !canEdit ชนะ
  * แสดงเฉพาะ banner เดิม ไม่แสดง banner/badge อัปเกรด (STAFF จัดการ billing เองไม่ได้อยู่แล้ว)
  */
+import { chatItemLabel } from '@/lib/chat-vocab'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -56,9 +58,15 @@ type Props = {
   subscriptionLapsed: boolean
   /** ร้านนี้ใช้ผู้ให้บริการที่ไม่รองรับสื่อ (ไม่ใช่ Gemini) — FR-AIT-18; คำนวณที่ server (provider เป็น server-only) */
   mediaUnsupported?: boolean
+  /** ประเภทกิจการ — ผันคำ 'สินค้า/ออเดอร์' ให้ร้านบริการ (ร้านอื่นเห็นคำเดิม) */
+  vertical?: string
 }
 
-export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed, mediaUnsupported = false }: Props) {
+export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed, mediaUnsupported = false, vertical }: Props) {
+  // คำทั้งหมดมาจาก SSOT (chat-vocab/ORDER_VOCAB) — ONLINE_SALES/LODGING ได้ 'สินค้า'/'ออเดอร์' เดิม
+  const isService = vertical === 'SERVICE_QUEUE'
+  const item = chatItemLabel(vertical)
+  const orderWord = isService ? resolveOrderVocab(vertical).noun : 'ออเดอร์'
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
   const router = useRouter()
@@ -153,7 +161,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
         <div id="ai-context-gate-notice" className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="info-circle" className="mt-0.5 shrink-0 text-lg" />
           <span>
-            ตอนนี้ AI เห็นเฉพาะข้อความในแชทเท่านั้น — ให้ AI เห็นข้อมูลสินค้า ประวัติลูกค้า และรูป/เสียงที่ลูกค้าส่งมาได้เมื่อใช้แพ็กเกจธุรกิจ{' '}
+            ตอนนี้ AI เห็นเฉพาะข้อความในแชทเท่านั้น — ให้ AI เห็นข้อมูล{item} ประวัติลูกค้า และรูป/เสียงที่ลูกค้าส่งมาได้เมื่อใช้แพ็กเกจธุรกิจ{' '}
             <Link href="/business" className="underline">
               ดูแพ็กเกจ
             </Link>
@@ -167,7 +175,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-1.5">
               <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
-                ให้ AI เห็นข้อมูลสินค้า
+                ให้ AI เห็นข้อมูล{item}
               </span>
               {showUpgradeGate && !hidePayments && (
                 <Link
@@ -179,8 +187,8 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               )}
             </span>
             <span className="text-default-500 block text-xs">
-              AI จะเห็นชื่อและราคาสินค้าที่เปิดขายของร้านนี้ เพื่อตอบคำถามเรื่องราคาได้ตรง
-              (สินค้าที่ปิดขายและสินค้าของร้านอื่นไม่ถูกส่งไป)
+              AI จะเห็นชื่อและราคา{item}ที่เปิดขายของร้านนี้ เพื่อตอบคำถามเรื่องราคาได้ตรง
+              ({item}ที่ปิดขายและ{item}ของร้านอื่นไม่ถูกส่งไป)
             </span>
           </span>
           <input
@@ -209,8 +217,8 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               )}
             </span>
             <span className="text-default-500 block text-xs">
-              AI จะเห็นออเดอร์ล่าสุดของลูกค้ารายนั้นกับร้านนี้ (สถานะ ยอด วันที่) เพื่อตอบคำถาม
-              &ldquo;ของถึงไหนแล้ว&rdquo; ได้ — เบอร์โทร อีเมล และที่อยู่ที่เก็บในระบบไม่ถูกส่งไปไม่ว่ากรณีใด
+              AI จะเห็น{orderWord}ล่าสุดของลูกค้ารายนั้นกับร้านนี้ (สถานะ ยอด วันที่) เพื่อตอบคำถาม
+              &ldquo;{isService ? 'งานถึงไหนแล้ว' : 'ของถึงไหนแล้ว'}&rdquo; ได้ — เบอร์โทร อีเมล และที่อยู่ที่เก็บในระบบไม่ถูกส่งไปไม่ว่ากรณีใด
             </span>
           </span>
           <input
@@ -242,7 +250,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               )}
             </span>
             <span className="text-default-500 block text-xs">
-              AI จะเปิดดูรูป (สลิปโอนเงิน รูปสินค้า ที่อยู่จัดส่ง) และถอดข้อความเสียงที่ลูกค้าส่งมา
+              AI จะเปิดดูรูป ({isService ? `สลิปโอนเงิน รูป${item}` : 'สลิปโอนเงิน รูปสินค้า ที่อยู่จัดส่ง'}) และถอดข้อความเสียงที่ลูกค้าส่งมา
               เพื่อร่างคำตอบให้ตรงเรื่อง — ปิดไว้ AI จะเห็นแค่ว่า &ldquo;ลูกค้าส่งรูป/เสียงมา&rdquo;
             </span>
             <span className="text-warning mt-1 block text-xs">

@@ -38,10 +38,14 @@ import {
 import ReviewImageGallery from './ReviewImageGallery'
 import ShopReplyBlock from './ShopReplyBlock'
 import type { ReviewRow, SummaryData } from './data'
+import { chatItemLabel } from '@/lib/chat-vocab'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 
 type Props = {
   reviews: ReviewRow[]
   summary: SummaryData
+  /** ประเภทกิจการ — ผันคำ 'สินค้า/ออเดอร์' ให้ร้านบริการ (ร้านอื่นเห็นคำเดิม) */
+  vertical?: string
 }
 
 const starRatings = [5, 4, 3, 2, 1] as const
@@ -49,7 +53,10 @@ const starRatings = [5, 4, 3, 2, 1] as const
 const columnHelper = createColumnHelper<ReviewRow>()
 
 
-const ProductReviews = ({ reviews, summary }: Props) => {
+const ProductReviews = ({ reviews, summary, vertical }: Props) => {
+  // คำมาจาก SSOT — ONLINE_SALES/LODGING คงคำเดิม 'สินค้า'/'ออเดอร์'
+  const itemWord = chatItemLabel(vertical)
+  const orderWord = vertical === 'SERVICE_QUEUE' ? resolveOrderVocab(vertical).noun : 'ออเดอร์'
   const [globalFilter, setGlobalFilter] = useState('')
   // feature 00041 — แท็บกรอง + แถวที่กำลังเปิดฟอร์มตอบ
   // 🛑 openReplyId อยู่ที่นี่ตัวเดียว ไม่ใช่ state ในแต่ละแถว: บังคับให้เปิดได้ทีละใบ
@@ -87,7 +94,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
 
   const columns = [
     columnHelper.accessor('productName', {
-      header: 'สินค้า',
+      header: itemWord,
       cell: ({ row }) => (
         <div className="flex items-center gap-base">
           {/* Product image omitted — orderItems ไม่มี snapshot image */}
@@ -151,7 +158,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
     }),
     {
       id: 'actions',
-      header: 'ออเดอร์',
+      header: orderWord,
       enableSorting: false,
       enableColumnFilter: false,
       cell: ({ row }: { row: { original: ReviewRow } }) => (
@@ -389,7 +396,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
             <div className="py-10 text-center">
               <Icon icon="star" className="text-default-300 mb-3 text-5xl" />
               <p className="text-default-400">ยังไม่มีรีวิว</p>
-              <p className="text-default-400 mt-1 text-sm">รีวิวจะปรากฏที่นี่หลังลูกค้ายืนยันออเดอร์</p>
+              <p className="text-default-400 mt-1 text-sm">รีวิวจะปรากฏที่นี่หลังลูกค้ายืนยัน{orderWord}</p>
             </div>
           )
         }
@@ -422,7 +429,7 @@ const ProductReviews = ({ reviews, summary }: Props) => {
                     href={`/orders/${r.orderToken}`}
                     className="text-primary -mr-2 inline-flex min-h-11 shrink-0 items-center gap-1 px-2 text-xs font-medium"
                   >
-                    ดูออเดอร์
+                    ดู{orderWord}
                     <Icon icon="chevron-right" className="text-sm" />
                   </Link>
                 </div>

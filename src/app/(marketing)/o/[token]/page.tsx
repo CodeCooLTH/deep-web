@@ -54,7 +54,22 @@ import { sessionUserId } from '@/lib/session-user'
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ sms?: string }> }
 
-export const metadata: Metadata = { title: 'คำสั่งซื้อ' }
+// ชื่อแท็บผันตามประเภทกิจการของร้านเจ้าของใบ — ดึงแค่ shop.vertical ด้วยโทเคน UUID (เดาไม่ได้)
+// ไม่คืนข้อมูลอื่นใดออกมาทางชื่อแท็บ; ไม่พบ/error/โทเคนไม่ใช่ UUID → ถอยไปคำเดิม 'คำสั่งซื้อ'
+export async function generateMetadata({ params }: Pick<Props, 'params'>): Promise<Metadata> {
+  const fallback = 'คำสั่งซื้อ'
+  try {
+    const { token } = await params
+    if (!UUID_V4_RE.test(token)) return { title: fallback }
+    const row = await prisma.order.findUnique({
+      where: { publicToken: token },
+      select: { shop: { select: { vertical: true } } },
+    })
+    return { title: row?.shop.vertical === 'SERVICE_QUEUE' ? ORDER_VOCAB.SERVICE_QUEUE.noun : fallback }
+  } catch {
+    return { title: fallback }
+  }
+}
 
 // UUID v4 pattern — ใช้ discriminate ก่อน (ลำดับ 1)
 const UUID_V4_RE =

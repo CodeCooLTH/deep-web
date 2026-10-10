@@ -1,3 +1,4 @@
+import { orderNounFor, buyerNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import * as v from "valibot";
@@ -156,7 +157,7 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          "คำสั่งซื้อนี้ยังไม่มีเบอร์ผู้ซื้อ กรุณาระบุเบอร์โทรผู้ซื้อในคำสั่งซื้อก่อนส่ง SMS",
+          `${orderNounFor(shop.vertical)}นี้ยังไม่มีเบอร์${buyerNounFor(shop.vertical)} กรุณาระบุเบอร์โทร${buyerNounFor(shop.vertical)}ใน${orderNounFor(shop.vertical)}ก่อนส่ง SMS`,
       },
       { status: 422 },
     );
@@ -238,7 +239,8 @@ export async function POST(
     .trim()
     .replace(/\/+$/, "");
   const orderLink = `${baseUrl}/o/${rawCode}`;
-  const smsText = `Deep: ลิงก์คำสั่งซื้อของคุณ ${orderLink}`;
+  // ร้านบริการ: "ลิงก์งานบริการของคุณ" (ลูกค้าเป็นคนอ่าน) · ร้านอื่นคำเดิมทุกตัวอักษร — ความยาวใกล้เคียงเดิม ไม่ข้ามเพดาน 1 SMS
+  const smsText = `Deep: ลิงก์${orderNounFor(shop.vertical)}ของคุณ ${orderLink}`;
 
   // RC-8: ห้าม log rawCode, smsText, buyerPhone — log เฉพาะ status/id generic
   try {

@@ -20,12 +20,13 @@ import { isEntitlementActive, isProActive } from '@/services/inventory-entitleme
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Icon } from '@iconify/react'
-import type { Metadata } from 'next'
+import { productPageMetadata } from '@/lib/product-page-title'
 import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
-export const metadata: Metadata = { title: 'เพิ่มสินค้าใหม่' }
+// ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
+export const generateMetadata = () => productPageMetadata('new')
 
 const FORM_ID = 'product-form-v2'
 
