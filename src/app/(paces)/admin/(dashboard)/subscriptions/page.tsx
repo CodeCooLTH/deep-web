@@ -13,6 +13,8 @@
  * AuthGuard สำหรับ isAdmin บังคับที่ parent (dashboard) layout แล้ว (A1) — หน้านี้ไม่ต้องเช็คซ้ำ.
  */
 
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
@@ -39,6 +41,10 @@ const resolveProfileUrl = (username: string): string => {
 }
 
 export default async function AdminSubscriptionsPage() {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const shops = await prisma.shop.findMany({
     where: { deletedAt: null },
     select: {

@@ -13,7 +13,8 @@
  *   - 8 stats (PRD §9.1): total users, shops, orders, pending verifications,
  *     avg trust score, completion rate, avg review rating, active users (30 วัน).
  */
-import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { authOptions, requireAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import StatisticCard, { type AdminStat } from '@/views/dashboards/ecommerce/StatisticCard'
@@ -79,6 +80,10 @@ async function getAdminStats() {
 }
 
 export default async function AdminDashboard() {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user as { displayName?: string } | undefined
 

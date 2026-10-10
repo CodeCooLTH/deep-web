@@ -144,7 +144,15 @@ export async function POST(request: NextRequest) {
       ? parsed.output.items
       : parsed.output.items.map(({ cost: _cost, ...it }) => it);
     // C-6: เปิดบิล (O2s ไม่มี O2) → service บังคับ type=SERVICE + ปฏิเสธสินค้าที่ไม่ใช่บริการ
-    const order = await createOrder(shop.id, { ...parsed.output, items, appointment, createdByUserId }, { billingOnly: isBillingOnly(gate.roles) });
+    const order = await createOrder(shop.id, {
+      ...parsed.output,
+      items,
+      appointment,
+      createdByUserId,
+      // ไม่ถือ H1 (เช่น BILLING ล้วน) = อ่านเธรดแชทไม่ได้ → ตัด conversationId ทิ้งเงียบ ไม่ให้ดึงข้อมูลติดต่อจากเธรดเข้าออเดอร์
+      // (security review 00071 P3) — สร้างบิลปกติยังได้
+      conversationId: can(gate.roles, "H1") ? parsed.output.conversationId : undefined,
+    }, { billingOnly: isBillingOnly(gate.roles) });
     // response ก็ต้องไม่มีต้นทุน — createOrder คืน items ทั้งแถว (review T7)
     return NextResponse.json(stripOrderItemCost(order, canSeeCost), { status: 201 });
   } catch (e) {

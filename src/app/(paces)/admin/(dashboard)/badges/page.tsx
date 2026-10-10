@@ -10,6 +10,8 @@
  * fetched directly via Prisma (server-side) mirroring the /users page;
  * admin guard is enforced by the parent (dashboard) layout.
  */
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
@@ -20,6 +22,10 @@ import type { AdminBadgeRow } from './components/BadgesTable'
 export const metadata: Metadata = { title: 'Badges' }
 
 export default async function AdminBadgesPage() {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const badges = await prisma.badge.findMany({
     include: { _count: { select: { userBadges: true } } },
     orderBy: [{ type: 'asc' }, { nameEN: 'asc' }],

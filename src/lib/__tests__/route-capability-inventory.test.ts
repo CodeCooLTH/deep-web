@@ -288,10 +288,12 @@ export const PREFIX_GUARDS: PrefixGuard[] = [
   { prefix: 'src/app/api/channels/line/webhook/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)validateSignature\s*\(/, what: 'ลายเซ็น x-line-signature' },
   { prefix: 'src/app/api/line-report/webhook/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)validateSignature\s*\(/, what: 'ลายเซ็น x-line-signature (OA กลาง)' },
 ]
-// หน้าแอดมิน: ต้องมี admin guard ในหน้าเอง หรือ layout บรรพบุรุษในโซนแอดมินที่ตรวจ isAdmin แล้ว redirect (ลำดับชั้น Next: layout ครอบหน้า)
+// หน้าแอดมิน: ต้องเรียก requireAdmin() ในหน้าเอง ก่อนดึงข้อมูล
 const ADMIN_PAGE_PREFIX = 'src/app/(paces)/admin/'
 const ADMIN_PAGE_SKIP = ['src/app/(paces)/admin/auth/'] // หน้า sign-in/verify-otp ของแอดมิน — ก่อนล็อกอิน
-const ADMIN_PAGE_GUARD = /(?<![\w.])(?<!function\s+)requireAdmin\s*\(|\.isAdmin\b|\bisAdmin\b/
+const ADMIN_PAGE_GUARD = /(?<![\w.])(?<!function\s+)requireAdmin\s*\(/
+// การดึงข้อมูลแรก: prisma.* หรือ await อะไรก็ตามที่ไม่ใช่ guard/params/searchParams (service call ทุกแบบ)
+const ADMIN_PAGE_DATA = /\bprisma\.|\bawait\s+(?!requireAdmin\b|params\b|searchParams\b)/
 
 export function scanPrefixGuards(sources: ReadonlyMap<string, string>): string[] {
   const v: string[] = []
@@ -309,18 +311,14 @@ export function scanPrefixGuards(sources: ReadonlyMap<string, string>): string[]
       }
     }
     if (path.startsWith(ADMIN_PAGE_PREFIX) && /\/page\.tsx$/.test(path) && !ADMIN_PAGE_SKIP.some((s) => path.startsWith(s))) {
-      if (ADMIN_PAGE_GUARD.test(code)) continue
-      // ไล่หา layout บรรพบุรุษที่ตรวจ isAdmin + redirect
-      let dir = posix.dirname(path), guarded = false
-      while (dir.startsWith(ADMIN_PAGE_PREFIX.slice(0, -1)) && !guarded) {
-        const layout = sources.get(`${dir}/layout.tsx`)
-        if (layout !== undefined) {
-          const lc = stripComments(layout)
-          guarded = /\bisAdmin\b/.test(lc) && /\bredirect\s*\(/.test(lc)
-        }
-        dir = posix.dirname(dir)
-      }
-      if (!guarded) v.push(`PREFIX_GUARD_MISSING ${path} expects admin guard ในหน้าเอง หรือ layout บรรพบุรุษที่ตรวจ isAdmin+redirect`)
+      // ด่านต้องอยู่ในหน้าเอง และมาก่อนการดึงข้อมูลแรกใน default export — layout ถูกข้ามได้ตอน client navigation
+      // (partial rendering) ฉะนั้น layout ที่ตรวจ isAdmin ไม่นับเป็นด่านของหน้า (00071 P3 security review)
+      const start = code.search(/export default (async )?function/)
+      const body = start < 0 ? code : code.slice(start)
+      const g = body.search(ADMIN_PAGE_GUARD)
+      const d = body.search(ADMIN_PAGE_DATA)
+      if (g < 0) v.push(`PREFIX_GUARD_MISSING ${path} expects requireAdmin() ในหน้าเอง (layout ไม่นับ)`)
+      else if (d >= 0 && d < g) v.push(`PREFIX_GUARD_MISSING ${path} requireAdmin() ต้องมาก่อนการดึงข้อมูลแรก`)
     }
   }
   return v
@@ -648,14 +646,16 @@ export async function POST() { return Response.json({}) }`
     expect(pg([[WH, `export async function POST() { return 1 }`]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
   })
 
-  it('M19d หน้าแอดมิน: ด่านในหน้าเอง หรือ layout บรรพบุรุษที่ตรวจ isAdmin+redirect · ไม่มีทั้งคู่แดง', () => {
+  it('M19d หน้าแอดมิน: requireAdmin ในหน้าเอง ก่อนดึงข้อมูล · layout ไม่นับ', () => {
     const page = `export default async function P() { return null }`
     const layoutOk = `export default async function L() { if (!user.isAdmin) redirect('/auth/sign-in') }`
-    expect(pg([[APAGE, page], [ALAYOUT, layoutOk]])).toEqual([])
+    expect(pg([[APAGE, page], [ALAYOUT, layoutOk]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
     expect(pg([[APAGE, page]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
-    expect(pg([[APAGE, page], [ALAYOUT, `export default async function L() { return null }`]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
-    expect(pg([[APAGE, page], [ALAYOUT, `export default async function L() { const a = user.isAdmin }`]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
+    expect(pg([[APAGE, `export default async function P() { const a = user.isAdmin }`]])).toEqual([expect.stringContaining('PREFIX_GUARD_MISSING')])
     expect(pg([[APAGE, `export default async function P() { await requireAdmin() }`]])).toEqual([])
+    expect(pg([[APAGE, `async function h() { await prisma.x.findMany() }\nexport default async function P() { await requireAdmin(); await prisma.x.findMany() }`]])).toEqual([])
+    expect(pg([[APAGE, `export default async function P() { const r = await prisma.x.findMany(); await requireAdmin() }`]])).toEqual([expect.stringContaining('ก่อนการดึงข้อมูล')])
+    expect(pg([[APAGE, `export default async function P() { const r = await getStuff(); await requireAdmin() }`]])).toEqual([expect.stringContaining('ก่อนการดึงข้อมูล')])
   })
 
   it('M20 ทะเบียนที่ยังเหลือ PENDING → pendingKeys คืนรายการนั้น', () => {
