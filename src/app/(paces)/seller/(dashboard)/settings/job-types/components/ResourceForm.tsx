@@ -196,9 +196,10 @@ export default function ResourceForm({ resource }: Props) {
               <label htmlFor="res-description" className="form-label">
                 คำอธิบาย <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
               </label>
+              {/* form-textarea ไม่ใช่ form-input — form-input ล็อกสูง 44px + py-0 ⇒ ข้อความอัดชิดขอบบน */}
               <textarea
                 id="res-description"
-                className="form-input"
+                className="form-textarea"
                 rows={3}
                 placeholder="เช่น นวดแผนไทย นวดน้ำมัน"
                 {...register('description')}

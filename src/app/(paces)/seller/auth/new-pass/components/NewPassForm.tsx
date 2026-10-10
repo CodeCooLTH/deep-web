@@ -18,6 +18,7 @@
 
 import PasswordInputWithStrength from '@/components/PasswordInputWithStrength'
 import { pacesToast } from '@/lib/paces-toast'
+import { NEW_PASSWORD_HINT, NEW_PASSWORD_MESSAGES, NEW_PASSWORD_PATTERNS } from '@/lib/new-password-rules'
 import { cn } from '@/utils/helpers'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { Icon } from '@iconify/react'
@@ -29,14 +30,14 @@ import * as Yup from 'yup'
 
 const schema = Yup.object({
   password: Yup.string()
-    .min(8, 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
-    .matches(/[a-zA-Z]/, 'ต้องมีตัวอักษร')
-    .matches(/\d/, 'ต้องมีตัวเลข')
-    .matches(/[\W_]/, 'ต้องมีอักขระพิเศษ')
-    .required('กรุณากรอกรหัสผ่านใหม่'),
+    .min(8, NEW_PASSWORD_MESSAGES.min)
+    .matches(NEW_PASSWORD_PATTERNS.letter, NEW_PASSWORD_MESSAGES.letter)
+    .matches(NEW_PASSWORD_PATTERNS.number, NEW_PASSWORD_MESSAGES.number)
+    .matches(NEW_PASSWORD_PATTERNS.special, NEW_PASSWORD_MESSAGES.special)
+    .required(NEW_PASSWORD_MESSAGES.required),
   confirmPassword: Yup.string()
-    .oneOf([Yup.ref('password')], 'รหัสผ่านไม่ตรงกัน')
-    .required('กรุณายืนยันรหัสผ่าน'),
+    .oneOf([Yup.ref('password')], NEW_PASSWORD_MESSAGES.mismatch)
+    .required(NEW_PASSWORD_MESSAGES.confirmRequired),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -149,9 +150,7 @@ export default function NewPassForm() {
           hideHint
         />
         {/* hint ภาษาไทย — แสดงแทน hint อังกฤษ default ของ component (hideHint=true ปิดบรรทัดอังกฤษแล้ว) */}
-        <p className="text-default-400 text-xs">
-          ≥8 ตัว มีตัวอักษร ตัวเลข และอักขระพิเศษ
-        </p>
+        <p className="text-default-400 text-xs">{NEW_PASSWORD_HINT}</p>
         {errors.password && (
           <p className="invalid-msg mt-1 text-sm text-danger">{errors.password.message}</p>
         )}

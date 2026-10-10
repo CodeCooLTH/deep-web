@@ -35,6 +35,7 @@ import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { OAUTH_PROVIDER_LABEL } from '@/lib/oauth-provider-display'
 import LoginProviderLogo from '@/components/safepay/LoginProviderLogo'
+import { buildSetPasswordHtml, readSetPasswordForm, wireSetPasswordDialog } from './set-password-dialog'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -810,24 +811,17 @@ export function ConnectedAccountsClient({
         confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
         cancelButton: 'btn bg-light hover:text-default-800 mt-2',
       },
-      html: `
-        <p class="text-start text-sm mb-3">ส่งรหัส 6 หลักไปที่ <b>${sent.value}</b> แล้ว</p>
-        <input id="pw-otp" class="form-input mb-2" inputmode="numeric" maxlength="6" placeholder="รหัส OTP 6 หลัก" autocomplete="one-time-code" />
-        <input id="pw-new" class="form-input" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password" />
-        <p class="text-default-500 text-xs text-start mt-2">ยาว 8 ตัวขึ้นไป มีตัวอักษร ตัวเลข และอักขระพิเศษ</p>
-      `,
+      html: buildSetPasswordHtml(String(sent.value)),
+      didOpen: (popup) => wireSetPasswordDialog(popup),
       preConfirm: async () => {
-        const otp = (document.getElementById('pw-otp') as HTMLInputElement | null)?.value.trim() ?? ''
-        const password = (document.getElementById('pw-new') as HTMLInputElement | null)?.value ?? ''
-        if (!/^[0-9]{6}$/.test(otp)) {
-          Swal.showValidationMessage('รหัส OTP ต้องเป็นตัวเลข 6 หลัก')
+        // กติกา/ข้อความเดียวกับหน้า "ตั้งรหัสผ่านใหม่" หลังลืมรหัส (new-password-rules.ts)
+        // ตัวกันจริงคือ isStrongPassword ฝั่ง server — ตรงนี้แค่บอกผู้ใช้เร็ว
+        const form = readSetPasswordForm(Swal.getPopup() ?? document)
+        if ('error' in form) {
+          Swal.showValidationMessage(form.error)
           return false
         }
-        // เช็คฝั่ง client ให้ตรงกับ isStrongPassword ของ server (lib/password.ts) — บอกเร็ว ไม่ใช่กัน
-        if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-          Swal.showValidationMessage('รหัสผ่านต้องยาว 8 ตัวขึ้นไป มีตัวอักษร ตัวเลข และอักขระพิเศษ')
-          return false
-        }
+        const { otp, password } = form
         const res = await fetch('/api/account/set-password-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
