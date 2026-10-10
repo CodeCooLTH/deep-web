@@ -14,6 +14,7 @@
  * (backend ใช้ Valibot — คนละชั้น ไม่ปนกัน)
  */
 
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -25,15 +26,18 @@ import { APPOINTMENT_DEPOSIT_MODES } from '@/lib/appointments'
 import { formatDateTime } from '@/lib/format-date'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
 
+/** ร้านบริการเท่านั้น (หน้านี้ notFound ถ้าไม่ใช่) จึงอ่านคำจากชุด SERVICE_QUEUE ตรง ๆ */
+const SV = ORDER_VOCAB.SERVICE_QUEUE
+
 /** ยอดสมมติในกล่องตัวอย่าง — 1,000 บาท อ่านง่ายและคิดเปอร์เซ็นต์ในใจได้ทันที */
 const PREVIEW_TOTAL = 1000
 
 const schema = Yup.object({
   name: Yup.string()
     .trim()
-    .min(1, 'ใส่ชื่อไว้เพื่อให้เลือกได้ตอนสร้างออเดอร์')
+    .min(1, `ใส่ชื่อไว้เพื่อให้เลือกได้ตอน${SV.createLabel}`)
     .max(100, 'ชื่อยาวได้ไม่เกิน 100 ตัวอักษร')
-    .required('ใส่ชื่อไว้เพื่อให้เลือกได้ตอนสร้างออเดอร์'),
+    .required(`ใส่ชื่อไว้เพื่อให้เลือกได้ตอน${SV.createLabel}`),
   description: Yup.string().max(1000).default(''),
   durationMinutes: Yup.number()
     .typeError('ใส่เป็นตัวเลข')
@@ -218,7 +222,7 @@ export default function ResourceForm({ resource }: Props) {
                 <span className="text-default-500 shrink-0">นาที</span>
               </div>
               <p className="text-default-500 mt-1 text-sm">
-                ใช้เติมเวลาสิ้นสุดให้อัตโนมัติตอนสร้างออเดอร์ แก้ทีหลังได้เสมอ
+                ใช้เติมเวลาสิ้นสุดให้อัตโนมัติตอน{SV.createLabel} แก้ทีหลังได้เสมอ
                 ไม่กระทบนัดที่บันทึกไว้แล้ว
               </p>
               {errors.durationMinutes && (
@@ -257,7 +261,7 @@ export default function ResourceForm({ resource }: Props) {
                   <p className="text-default-600 mt-1 text-sm">
                     มีนัดจองไว้ในช่วง {formatDateTime(new Date(blockedBy.start))} –{' '}
                     {formatDateTime(new Date(blockedBy.end))}
-                    {blockedBy.orderNo ? ` (ออเดอร์ ${blockedBy.orderNo})` : ''}
+                    {blockedBy.orderNo ? ` (${SV.noun} ${blockedBy.orderNo})` : ''}
                   </p>
                   <p className="text-default-600 mt-1 text-sm">
                     ปรับจำนวนคิวให้ไม่ต่ำกว่าจำนวนที่จองไว้แล้ว หรือย้าย/ยกเลิกนัดนั้นก่อน
@@ -274,7 +278,7 @@ export default function ResourceForm({ resource }: Props) {
         <div className="card-header">
           <h4 className="card-title">มัดจำเริ่มต้น</h4>
           <p className="text-default-500 mt-0.5 text-sm">
-            ใช้เป็นค่าตั้งต้นของประเภทงานนี้ ปรับเป็นรายออเดอร์ได้ตอนสร้างออเดอร์
+            ใช้เป็นค่าตั้งต้นของประเภทงานนี้ ปรับเป็นราย{SV.noun}ได้ตอน{SV.createLabel}
           </p>
         </div>
         <div className="card-body">
@@ -317,7 +321,7 @@ export default function ResourceForm({ resource }: Props) {
             {preview ? (
               <>
                 <p className="text-default-500 text-sm">
-                  ตัวอย่าง: ออเดอร์ ฿{PREVIEW_TOTAL.toLocaleString('th-TH')}
+                  ตัวอย่าง: {SV.noun} ฿{PREVIEW_TOTAL.toLocaleString('th-TH')}
                 </p>
                 <p className="text-default-800 mt-1 font-medium">
                   มัดจำ ฿{preview.deposit.toLocaleString('th-TH')}

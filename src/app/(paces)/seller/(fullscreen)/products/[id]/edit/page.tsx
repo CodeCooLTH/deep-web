@@ -20,6 +20,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
@@ -120,7 +121,7 @@ export default async function EditProductPage({ params }: PageProps) {
         cancelHref → /products (proxy rewrite ครอบ → /seller/products บน seller subdomain)
       */}
       <FullscreenPageHeader
-        title="แก้ไขสินค้า"
+        title={`แก้ไข${resolveProductVocab(shop.vertical).itemSingular}`}
         subtitle={product.name}
         cancelHref="/products"
         saveFormId={FORM_ID}
@@ -133,6 +134,7 @@ export default async function EditProductPage({ params }: PageProps) {
       {/* feature 00030 BR-BKU-13 — ร้านรับนัดใช้บริการไม่มีการจัดส่ง ซ่อนตัวเลือกไปเลย */}
       <ProductFormV2
         noShipping={shop.vertical === 'SERVICE_QUEUE'}
+        vertical={shop.vertical}
         shopId={shop.id}
         product={product}
         formId={FORM_ID}

@@ -45,7 +45,13 @@ const STATUS_LABEL_KEY: Record<string, keyof Dictionary['dashboard']> = {
   CANCELLED: 'statusCancelled',
 }
 
-const RecentOrder = ({ orders = [], orderNoun }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string }) => {
+/**
+ * คำของร้านบริการ (ORDER_VOCAB / PRODUCT_VOCAB) — ส่งมาเฉพาะ SERVICE_QUEUE ร้านอื่นไม่ส่ง = คำเดิมจาก dictionary
+ * ทำไมเป็น prop ไม่ใช่อ่านเอง: SSOT เก็บเป็นไทยล้วนอยู่ฝั่ง server ส่วนร้านอื่นต้องตามภาษา UI
+ */
+export type RecentOrderServiceWords = { buyerNoun: string; shippedStatusLabel: string; itemSingular: string }
+
+const RecentOrder = ({ orders = [], orderNoun, serviceWords }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string; serviceWords?: RecentOrderServiceWords }) => {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [data] = useState<OrderType[]>(orders)
@@ -67,7 +73,7 @@ const RecentOrder = ({ orders = [], orderNoun }: { orders?: OrderType[]; /** ช
     }),
 
     columnHelper.accessor('buyerLabel', {
-      header: t.dashboard.colBuyer,
+      header: serviceWords?.buyerNoun ?? t.dashboard.colBuyer,
       cell: ({ getValue }) => (
         <span className="font-semibold">{getValue()}</span>
       ),
@@ -93,7 +99,7 @@ const RecentOrder = ({ orders = [], orderNoun }: { orders?: OrderType[]; /** ช
       header: t.dashboard.colType,
       cell: ({ getValue }) => {
         const typeLabel: Record<string, string> = {
-          PHYSICAL: t.dashboard.typePhysical,
+          PHYSICAL: serviceWords?.itemSingular ?? t.dashboard.typePhysical,
           DIGITAL: t.dashboard.typeDigital,
           SERVICE: t.dashboard.typeService,
         }
@@ -114,7 +120,7 @@ const RecentOrder = ({ orders = [], orderNoun }: { orders?: OrderType[]; /** ช
               'bg-danger/15 text-danger':   s === 'CANCELLED',
             })}
           >
-            {(STATUS_LABEL_KEY[s] && t.dashboard[STATUS_LABEL_KEY[s]]) ?? toPascalCase(s)}
+            {s === 'SHIPPED' && serviceWords ? serviceWords.shippedStatusLabel : (STATUS_LABEL_KEY[s] && t.dashboard[STATUS_LABEL_KEY[s]]) ?? toPascalCase(s)}
           </span>
         )
       },

@@ -8,15 +8,17 @@ import { pacesConfirm } from '@/lib/paces-swal'
 
 interface Props {
   productId: string
+  /** PRODUCT_VOCAB.itemSingular — ร้านบริการ = "รายการ" (default = คำเดิม) */
+  itemSingular?: string
 }
 
-export default function DeleteProductButton({ productId }: Props) {
+export default function DeleteProductButton({ productId, itemSingular = 'สินค้า' }: Props) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    const ok = await pacesConfirm.danger('ลบสินค้านี้?', 'สินค้าจะถูกลบถาวร · ย้อนกลับไม่ได้', {
-      confirmButtonText: 'ลบสินค้า',
+    const ok = await pacesConfirm.danger(`ลบ${itemSingular}นี้?`, `${itemSingular}จะถูกลบถาวร · ย้อนกลับไม่ได้`, {
+      confirmButtonText: `ลบ${itemSingular}`,
     })
     if (!ok) return
 
@@ -25,10 +27,10 @@ export default function DeleteProductButton({ productId }: Props) {
       const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error(data?.error ?? 'ลบสินค้าไม่สำเร็จ')
+        pacesToast.error(data?.error ?? `ลบ${itemSingular}ไม่สำเร็จ`)
         return
       }
-      pacesToast.success('ลบสินค้าแล้ว')
+      pacesToast.success(`ลบ${itemSingular}แล้ว`)
       router.push('/products')
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -49,7 +51,7 @@ export default function DeleteProductButton({ productId }: Props) {
       ) : (
         <Icon icon="tabler:trash" className="text-base" />
       )}
-      ลบสินค้า
+      ลบ{itemSingular}
     </button>
   )
 }

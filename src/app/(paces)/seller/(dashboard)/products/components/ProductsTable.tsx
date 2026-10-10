@@ -53,6 +53,8 @@ type Props = {
   productNoun: string
   /** PRODUCT_VOCAB.addProductLabel */
   addProductLabel: string
+  /** PRODUCT_VOCAB.itemSingular — ส่งต่อให้ PinToggleButton */
+  itemSingular?: string
 }
 
 const ProductsTable = ({
@@ -64,6 +66,7 @@ const ProductsTable = ({
   initialCostMissing = false,
   productNoun,
   addProductLabel,
+  itemSingular,
 }: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
@@ -197,6 +200,7 @@ const ProductsTable = ({
           pinSlots={pinSlots}
           pinnedCount={pinnedCount}
           onChange={onPinChange}
+          itemSingular={itemSingular}
         />
       ),
     }),

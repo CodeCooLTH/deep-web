@@ -32,6 +32,8 @@ interface SendSmsButtonProps {
   className?: string
   /** emphasis='primary' → ปุ่ม compact เป็นสีน้ำเงินเด่น (CTA หลักในการ์ดออเดอร์); default = outline เดิม (ไม่กระทบ call-site อื่น เช่น StatusHero) */
   emphasis?: 'default' | 'primary'
+  /** คำของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) — ไม่ส่ง = คำเดิม "คำสั่งซื้อ/ผู้ซื้อ" */
+  serviceVocab?: { noun: string; buyerNoun: string }
 }
 
 // SUCCESS_RESET_MS: reset ปุ่มกลับ idle หลัง success (ยังใช้งานอยู่)
@@ -39,7 +41,7 @@ const SUCCESS_RESET_MS = 3000
 
 // map HTTP status → validation message (HTML; แสดงในกล่อง dialog ผ่าน showValidationMessage)
 // หมายเหตุ: ไม่มี case 403 (L2 gate) แล้ว — route ไม่ return 403 อีกตาม product decision 2026-05-17
-function smsErrorMessage(status: number, hidePayments: boolean): string {
+function smsErrorMessage(status: number, hidePayments: boolean, noun = 'คำสั่งซื้อ', buyerNoun = 'ผู้ซื้อ'): string {
   switch (status) {
     case 402:
       // 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน — ข้อความมาจาก SSOT ที่ lib/payment-copy
@@ -47,13 +49,13 @@ function smsErrorMessage(status: number, hidePayments: boolean): string {
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
-      return 'ยังไม่มีเบอร์ผู้ซื้อในคำสั่งซื้อนี้ — ส่ง SMS ไม่ได้ ให้คัดลอกลิงก์ส่งทางแชทแทน'
+      return `ยังไม่มีเบอร์${buyerNoun}ใน${noun}นี้ — ส่ง SMS ไม่ได้ ให้คัดลอกลิงก์ส่งทางแชทแทน`
     default:
       return 'ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่'
   }
 }
 
-export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '', emphasis = 'default' }: SendSmsButtonProps) {
+export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '', emphasis = 'default', serviceVocab }: SendSmsButtonProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
   const [showSuccess, setShowSuccess] = useState(false)
@@ -77,7 +79,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
       buttonsStyling: false,
       icon: 'question',
       title: 'ส่งลิงก์ทาง SMS?',
-      text: 'ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อ และหัก ฿1 จากกระเป๋าเงินของคุณ',
+      text: `ระบบจะส่งลิงก์${serviceVocab?.noun ?? 'คำสั่งซื้อ'}ทาง SMS ให้${serviceVocab?.buyerNoun ?? 'ผู้ซื้อ'} และหัก ฿1 จากกระเป๋าเงินของคุณ`,
       showCancelButton: true,
       confirmButtonText: 'ส่ง SMS',
       cancelButtonText: 'ยกเลิก',
@@ -95,7 +97,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
             method: 'POST',
           })
           if (res.ok) return true
-          Swal.showValidationMessage(smsErrorMessage(res.status, hidePayments))
+          Swal.showValidationMessage(smsErrorMessage(res.status, hidePayments, serviceVocab?.noun, serviceVocab?.buyerNoun))
           return false
         } catch {
           Swal.showValidationMessage('ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่')

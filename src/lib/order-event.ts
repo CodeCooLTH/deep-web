@@ -6,6 +6,7 @@
 // pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server เขียน event และ client เรนเดอร์)
 
 import { formatDateTimeTH } from './format-date'
+import type { OrderVocab } from './seller-menu'
 
 /** 17 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
@@ -111,7 +112,28 @@ export const ORDER_EVENT_META: Record<
 export function resolveOrderEventLabel(
   type: OrderEventType,
   vocab: { noun: string; createLabel: string },
+  /**
+   * คลังคำเต็มของร้านบริการ — ส่งเฉพาะ SERVICE_QUEUE เท่านั้น (user 2026-10-10: ร้านบริการต้องไม่เห็นคำร้านขายของ)
+   * ไม่ส่ง = คำกลางเดิมเป๊ะ ทั้ง ONLINE_SALES และ LODGING (LODGING ยังไม่ได้ทบทวน)
+   * ทำไมไม่เช็ก vocab.buyerNoun !== 'ผู้ซื้อ' เอา: LODGING ใช้คำเดิมเหมือนกัน แต่ noun ต่างกัน ต้องแยกด้วยธงที่ชัด
+   */
+  service?: OrderVocab,
 ): string {
+  if (service) {
+    switch (type) {
+      case 'BUYER_CONFIRMED':
+        return service.buyerConfirmedStepLabel
+      case 'SYSTEM_CONFIRMED':
+        return `ระบบยืนยัน${service.noun}อัตโนมัติ`
+      // dateLabel ไม่ใช่ "วันที่"+noun — ห้ามชนกับวันนัด/serviceStart (ดูคอมเมนต์ที่ ORDER_VOCAB.dateLabel)
+      case 'ORDER_DATE_CHANGED':
+        return `เปลี่ยน${service.dateLabel}`
+      case 'ORDER_DISPUTE_OPENED':
+        return `${service.buyerNoun}แจ้งว่ายังไม่ได้รับบริการ`
+      case 'ORDER_DISPUTE_RESOLVED':
+        return `ปิดเรื่องที่${service.buyerNoun}แจ้งไว้`
+    }
+  }
   switch (type) {
     case 'ORDER_CREATED':
       return vocab.createLabel
@@ -178,11 +200,15 @@ export type OrderEventView = {
  * describeOrderEvent — คำอธิบายบรรทัดรองของแต่ละเหตุการณ์ (null = ไม่ต้องมีบรรทัดรอง)
  * แยกจาก label เพราะ label ตอบว่า "เกิดอะไร" ส่วนอันนี้ตอบว่า "รายละเอียดคืออะไร"
  */
-export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): string | null {
+export function describeOrderEvent(
+  e: Pick<OrderEventView, 'type' | 'meta'>,
+  /** ส่งเฉพาะร้านบริการ — ดู resolveOrderEventLabel */
+  service?: OrderVocab,
+): string | null {
   switch (e.type) {
     case 'ORDER_CREATED':
       // บรรทัดรองโผล่เฉพาะออเดอร์ที่ลงวันที่ย้อนหลัง/ล่วงหน้า — ออเดอร์ปกติไม่มี meta.orderedAt
-      return e.meta.orderedAt ? `ลงวันที่สั่งซื้อ ${formatDateTimeTH(e.meta.orderedAt)}` : null
+      return e.meta.orderedAt ? `ลง${service ? service.dateLabel : 'วันที่สั่งซื้อ'} ${formatDateTimeTH(e.meta.orderedAt)}` : null
     case 'ORDER_DATE_CHANGED':
       // มีคำว่า "จาก/เป็น" ไม่ใช่ลูกศรเปล่า — ลูกศรอย่างเดียวให้ผู้อ่านเดาทิศเอง และ screen reader
       // อ่านไม่ออกว่ามันแปลว่าอะไร (impeccable clarify 2026-08-06)
@@ -212,7 +238,7 @@ export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): st
     case 'ORDER_CANCELLED':
       // ไม่รู้ตัวคนแต่รู้ฝั่ง — บอกเท่าที่รู้จริง ดีกว่าเว้นว่างให้เดาเอง
       if (!e.meta.actorNameSnapshot && e.meta.initiatorRole) {
-        return e.meta.initiatorRole === 'buyer' ? 'ยกเลิกโดยผู้ซื้อ' : 'ยกเลิกโดยร้าน'
+        return e.meta.initiatorRole === 'buyer' ? `ยกเลิกโดย${service ? service.buyerNoun : 'ผู้ซื้อ'}` : 'ยกเลิกโดยร้าน'
       }
       return null
     default:

@@ -20,6 +20,7 @@
  * IMPORTANT: คำว่า "ที่นั่ง" (serviceSeat) เป็นกลไกภายใน ห้ามโผล่ในหน้าจอ
  */
 
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { useEffect, useMemo, useState } from 'react'
 import { Controller, type Control, type FieldErrors, type UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -191,8 +192,8 @@ export default function AppointmentBlock({
             )}
             <p className="text-default-600 mt-1 text-sm">
               {prefilledFromCalendar
-                ? 'เลือกบริการด้านล่าง แล้ววันและเวลาข้างบนจะถูกบันทึกเป็นวันนัดของออเดอร์นี้'
-                : 'เลือกประเภทงานด้านล่างก่อน ไม่งั้นออเดอร์นี้จะถูกบันทึกเป็นออเดอร์ปกติที่ไม่มีวันนัด'}
+                ? `เลือกบริการด้านล่าง แล้ววันและเวลาข้างบนจะถูกบันทึกเป็นวันนัดของ${ORDER_VOCAB.SERVICE_QUEUE.noun}นี้`
+                : `เลือกประเภทงานด้านล่างก่อน ไม่งั้น${ORDER_VOCAB.SERVICE_QUEUE.noun}นี้จะถูกบันทึกเป็น${ORDER_VOCAB.SERVICE_QUEUE.noun}ปกติที่ไม่มีวันนัด`}
             </p>
           </div>
         )}

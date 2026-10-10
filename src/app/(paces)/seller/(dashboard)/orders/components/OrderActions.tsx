@@ -31,6 +31,8 @@ export type OrderActionsVariant = 'card' | 'table' | 'table-grid'
 interface OrderActionsProps {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง OrderCardMenu */
   orderNoun?: string
+  /** คำของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) ใช้ใน QR/SMS · ไม่ส่ง = คำเดิมของร้านขายของ */
+  serviceVocab?: { noun: string; buyerNoun: string }
 
   order: OrderRow
   onCancelRequest: (token: string) => void
@@ -39,7 +41,7 @@ interface OrderActionsProps {
 
 const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-default-100'
 
-export default function OrderActions({ order, onCancelRequest, variant, orderNoun }: OrderActionsProps) {
+export default function OrderActions({ order, onCancelRequest, variant, orderNoun, serviceVocab }: OrderActionsProps) {
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const canEdit = canEditOrder(order.status)
 
@@ -78,9 +80,9 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
         </Link>
       ) : null,
       !isTerminal ? (
-        <SendSmsButton key="sms" publicToken={order.publicToken} iconOnly className="rounded-none border-0 bg-white" />
+        <SendSmsButton serviceVocab={serviceVocab} key="sms" publicToken={order.publicToken} iconOnly className="rounded-none border-0 bg-white" />
       ) : null,
-      <QrCodeButton key="qr" order={order} className="rounded-none border-0 bg-white" />,
+      <QrCodeButton orderWord={serviceVocab?.noun} key="qr" order={order} className="rounded-none border-0 bg-white" />,
       <CopyLinkButton key="copy" value={url} label="คัดลอกลิงก์" iconOnly className="rounded-none border-0 bg-white" />,
     ].filter(Boolean)
 
@@ -108,9 +110,9 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
             </Link>
           )}
           {!isTerminal && (
-            <SendSmsButton publicToken={order.publicToken} iconOnly className="-ms-px rounded-none" />
+            <SendSmsButton serviceVocab={serviceVocab} publicToken={order.publicToken} iconOnly className="-ms-px rounded-none" />
           )}
-          <QrCodeButton order={order} className="-ms-px rounded-none" />
+          <QrCodeButton orderWord={serviceVocab?.noun} order={order} className="-ms-px rounded-none" />
           <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly className="-ms-px rounded-s-none" />
         </div>
       </div>
@@ -121,9 +123,9 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   return (
     <div className="flex items-center justify-end gap-1.5">
       {!isTerminal && (
-        <SendSmsButton publicToken={order.publicToken} iconOnly emphasis="primary" className="min-h-11 min-w-11" />
+        <SendSmsButton serviceVocab={serviceVocab} publicToken={order.publicToken} iconOnly emphasis="primary" className="min-h-11 min-w-11" />
       )}
-      <QrCodeButton order={order} className="min-h-11 min-w-11" />
+      <QrCodeButton orderWord={serviceVocab?.noun} order={order} className="min-h-11 min-w-11" />
       <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly className="min-h-11 min-w-11" />
       <OrderCardMenu
         token={order.publicToken}

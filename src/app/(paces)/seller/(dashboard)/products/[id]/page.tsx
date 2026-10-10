@@ -8,6 +8,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import { getOrdersByShop } from '@/services/order.service'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -34,6 +35,8 @@ export default async function ProductDetailPage({
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/shop')
   const shop = active.shop
+  // คำเรียกของที่ร้านขาย ผันตามประเภทกิจการ (ONLINE_SALES/LODGING = "สินค้า" เดิม)
+  const { productNoun } = resolveProductVocab(shop.vertical)
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const product = await prisma.product.findFirst({ where: { id, shopId: shop.id } })
@@ -123,7 +126,7 @@ export default async function ProductDetailPage({
 
   return (
     <>
-      <PageBreadcrumb title={product.name} trail={[{ label: 'การขาย' }, { label: 'สินค้า', href: '/products' }]} />
+      <PageBreadcrumb title={product.name} trail={[{ label: 'การขาย' }, { label: productNoun, href: '/products' }]} />
       {/* 3-col card layout ตาม Paces theme: ซ้าย display, ขวา details + reviews */}
       <div className="card">
         <div className="card-body">
@@ -133,7 +136,7 @@ export default async function ProductDetailPage({
             </div>
             <div className="lg:col-span-2">
               <div className="md:p-7.5">
-                <ProductDetails product={productProps} />
+                <ProductDetails product={productProps} vertical={shop.vertical} />
                 <div className="mt-10 md:mt-15">
                   <ProductReviews
                     reviews={reviewRows}

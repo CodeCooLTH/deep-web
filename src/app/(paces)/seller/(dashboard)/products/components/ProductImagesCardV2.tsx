@@ -44,6 +44,8 @@ interface ProductImagesCardV2Props {
   onChange: (next: string[]) => void
   maxFiles?: number
   formId?: string
+  /** PRODUCT_VOCAB.itemSingular — default = "สินค้า" (คำเดิม) */
+  itemSingular?: string
 }
 
 type UploadingItem = {
@@ -58,6 +60,7 @@ export default function ProductImagesCardV2({
   maxFiles = 10,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   formId,
+  itemSingular = 'สินค้า',
 }: ProductImagesCardV2Props) {
   const [uploading, setUploading] = useState<UploadingItem[]>([])
 
@@ -159,7 +162,7 @@ export default function ProductImagesCardV2({
         >
           <input {...heroDropzone.getInputProps()} />
           <Icon icon="tabler:camera" className="size-7 text-default-400" aria-hidden />
-          <p className="text-dark text-sm font-semibold">เพิ่มรูปสินค้า (แตะ/ลากมาวาง)</p>
+          <p className="text-dark text-sm font-semibold">เพิ่มรูป{itemSingular} (แตะ/ลากมาวาง)</p>
           <span className="border-default-300 mt-1 inline-flex min-h-9 items-center gap-1.5 rounded-lg border bg-white px-3 text-xs font-semibold shadow-sm">
             <Icon icon="tabler:plus" className="size-3.5" />
             เลือกรูป
@@ -175,7 +178,7 @@ export default function ProductImagesCardV2({
             <div className="border-default-200 relative h-44 sm:h-56 lg:h-96 w-full overflow-hidden rounded-2xl border bg-black/5">
               <Image
                 src={`/api/files/${heroImageId}`}
-                alt="รูปหลักของสินค้า"
+                alt={`รูปหลักของ${itemSingular}`}
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 640px, 720px"
                 className="object-cover"
@@ -224,7 +227,7 @@ export default function ProductImagesCardV2({
                 >
                   <Image
                     src={`/api/files/${id}`}
-                    alt={`รูปสินค้า ${idx + 1}`}
+                    alt={`รูป${itemSingular} ${idx + 1}`}
                     width={64}
                     height={64}
                     className="size-full object-cover"

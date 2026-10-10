@@ -866,7 +866,7 @@ export default function OrdersTable({
       header: () => <div>ดำเนินการ</div>,
       meta: { headerClassName: 'w-36 whitespace-nowrap', cellClassName: 'w-36 whitespace-nowrap align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
-        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} />
+        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} serviceVocab={isService ? { noun: vocab.noun, buyerNoun: vocab.buyerNoun } : undefined} />
       ),
     },
   ]
@@ -1317,6 +1317,9 @@ export default function OrdersTable({
       selectedRows={table.getSelectedRowModel().rows}
       onClear={() => table.resetRowSelection()}
       buyerBaseUrl={buyerBaseUrl}
+      orderWord={orderNoun}
+      linkNoun={isService ? vocab.noun : undefined}
+      buyerNoun={isService ? vocab.buyerNoun : undefined}
     />
     </>
   )

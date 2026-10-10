@@ -164,6 +164,7 @@ export default async function CustomerProfilePage({ params }: PageProps) {
             showAddress={shopShipsGoods(shop.vertical)}
             createLabel={vocab.createLabel}
             avg={avgPerOrder(entry)}
+            vertical={shop.vertical}
           />
         </div>
       </div>

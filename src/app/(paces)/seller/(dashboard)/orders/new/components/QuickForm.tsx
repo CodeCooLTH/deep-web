@@ -24,10 +24,13 @@ import MoreOptions from './MoreOptions'
 import OrderDateRow from './OrderDateRow'
 import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
+import type { OrderFormWords } from './order-form-words'
 
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
   orderNoun?: string
+  /** คำร้านบริการ — ส่งต่อลง CustomerQuickBlock · ไม่ส่ง = คำเดิม */
+  words?: OrderFormWords
   /** คำเรียกของที่ร้านขาย ตามประเภทกิจการ (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
   productNoun?: string
   /** ไอคอนแทน 'ของที่ร้านขาย' ตามประเภทกิจการ (package/tool/bed) — SSOT: PRODUCT_VOCAB.soldIcon */
@@ -67,6 +70,7 @@ interface Props {
 
 export default function QuickForm({
   orderNoun = 'คำสั่งซื้อ',
+  words,
   productNoun = 'สินค้า',
   productIcon = 'package',
   unitLabel = 'ชิ้น',
@@ -134,6 +138,7 @@ export default function QuickForm({
           needsShipping={needsShipping}
           prefillParseText={prefillParseText}
           showDeliveryToggle={showDeliveryToggle}
+          words={words}
         />
       </section>
 

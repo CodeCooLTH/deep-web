@@ -14,6 +14,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { redirect } from 'next/navigation'
@@ -90,7 +91,7 @@ export default async function NewProductV2Page() {
         fullscreen ย้าย actions ไป sticky top bar เพื่อ UX ที่ดีกว่าบน mobile
       */}
       <FullscreenPageHeader
-        title="เพิ่มสินค้าใหม่"
+        title={`เพิ่ม${resolveProductVocab(shop.vertical).itemSingular}ใหม่`}
         cancelHref="/products"
         saveLabel="บันทึก"
         saveFormId={FORM_ID}
@@ -103,6 +104,7 @@ export default async function NewProductV2Page() {
       {/* feature 00030 BR-BKU-13 — ร้านรับนัดใช้บริการไม่มีการจัดส่ง ซ่อนตัวเลือกไปเลย */}
       <ProductFormV2
         noShipping={shop.vertical === 'SERVICE_QUEUE'}
+        vertical={shop.vertical}
         shopId={shop.id}
         formId={FORM_ID}
         entitlementActive={entitlementActive}

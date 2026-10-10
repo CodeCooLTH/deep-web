@@ -1007,6 +1007,7 @@ export function CustomerPanelBody({
               conversationId={data.conversationId}
               channel={data.channel}
               state={memory}
+              vertical={data.vertical}
               onRequestClose={onRequestClose}
             />
           </div>

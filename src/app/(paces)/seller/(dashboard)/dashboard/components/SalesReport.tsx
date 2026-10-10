@@ -16,6 +16,8 @@ import { getColor } from '@/utils/helpers'
 import { ApexOptions } from 'apexcharts'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import { dashboardOrderWords } from './order-words'
 
 /** แต่ละ data point ต่อเดือน — ส่งผ่าน RSC boundary เป็น plain object */
 export type SalesSeriesPoint = {
@@ -34,6 +36,8 @@ export type SalesSummary = {
 type SalesReportProps = {
   series: SalesSeriesPoint[]
   summary: SalesSummary
+  /** ประเภทกิจการ — ร้านบริการเห็น "งานบริการ" แทน "ออเดอร์" */
+  vertical?: string
 }
 
 /**
@@ -108,10 +112,11 @@ export const buildSalesReportChart = (
   legend: { offsetY: 15 },
 })
 
-const SalesReport = ({ series, summary }: SalesReportProps) => {
+const SalesReport = ({ series, summary, vertical }: SalesReportProps) => {
   const t = useT()
+  const words = dashboardOrderWords(t, vertical)
   const isEmpty = summary.totalOrders === 0
-  const seriesNames = { revenue: t.dashboard.salesSeriesRevenue, orders: t.dashboard.salesSeriesOrders }
+  const seriesNames = { revenue: t.dashboard.salesSeriesRevenue, orders: words.title }
 
   return (
     <div className="card h-full">
@@ -131,7 +136,7 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
             compact
             icon="chart-bar-off"
             title={t.dashboard.salesEmptyTitle}
-            description={t.dashboard.salesEmptyDesc}
+            description={fmt(t.dashboard.salesEmptyDesc, { word: words.word })}
           />
         </div>
       ) : (
@@ -149,7 +154,7 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
                 </h4>
               </div>
               <div>
-                <p className="text-default-400 mt-5 mb-1.25">{t.dashboard.salesSummaryOrders}</p>
+                <p className="text-default-400 mt-5 mb-1.25">{words.title}</p>
                 <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
                   <Icon icon="basket" className="text-success me-2" />
                   <span>

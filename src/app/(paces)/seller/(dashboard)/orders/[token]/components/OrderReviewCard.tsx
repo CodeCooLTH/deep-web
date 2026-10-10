@@ -35,13 +35,17 @@ interface OrderReviewCardProps {
   orderNoun?: string
   /** null = ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้ */
   review: OrderReviewData | null
+  /** ร้านบริการส่ง vocab.buyerNoun ("ลูกค้า") · ไม่ส่ง = "ผู้ซื้อ" */
+  buyerNoun?: string
+  /** ร้านบริการส่ง vocab.buyerConfirmLabel ("ยืนยันรับบริการ") · ไม่ส่ง = "ยืนยันการรับสินค้า" */
+  confirmedPhrase?: string
 }
 
-const OrderReviewCard = ({ review, orderNoun = 'คำสั่งซื้อ' }: OrderReviewCardProps) => {
+const OrderReviewCard = ({ review, orderNoun = 'คำสั่งซื้อ', buyerNoun = 'ผู้ซื้อ', confirmedPhrase = 'ยืนยันการรับสินค้า' }: OrderReviewCardProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">รีวิวจากผู้ซื้อ</h4>
+        <h4 className="card-title">รีวิวจาก{buyerNoun}</h4>
       </div>
       <div className="card-body">
         {!review ? (
@@ -51,7 +55,7 @@ const OrderReviewCard = ({ review, orderNoun = 'คำสั่งซื้อ' 
             <Icon icon="star-off" className="text-3xl text-default-300 mb-2" />
             <p className="text-default-700 text-sm">ยังไม่มีรีวิวสำหรับ{orderNoun}นี้</p>
             <p className="text-default-700 text-xs mt-1">
-              ผู้ซื้อจะสามารถรีวิวได้หลังยืนยันการรับสินค้า
+              {buyerNoun}จะสามารถรีวิวได้หลัง{confirmedPhrase}
             </p>
           </div>
         ) : (

@@ -30,6 +30,7 @@
  *   "จองแล้ว n จาก m คิว" ซึ่งคำนวณฝั่ง client เพราะ API ไม่ได้ส่งจำนวนมาให้ (API.md §4.5)
  */
 
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -302,7 +303,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
             </p>
           ) : (
             <p className="text-default-500 mt-0.5 text-sm">
-              กดที่นัดเพื่อเปิดคำสั่งซื้อ · นัดที่ยกเลิกแล้วไม่แสดง
+              กดที่นัดเพื่อเปิด{ORDER_VOCAB.SERVICE_QUEUE.noun} · นัดที่ยกเลิกแล้วไม่แสดง
             </p>
           )}
         </div>
@@ -374,7 +375,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
             center: '',
             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
           }}
-          noEventsText="ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์"
+          noEventsText={`ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอน${ORDER_VOCAB.SERVICE_QUEUE.createLabel}`}
           allDayText="ทั้งวัน"
           events={events}
           eventClick={onEventClick}

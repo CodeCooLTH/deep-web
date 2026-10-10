@@ -41,6 +41,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import {
   resolveCustomerListVocab,
   type CustomerListFilter,
@@ -257,6 +258,10 @@ const CustomerTable = ({
   vertical,
 }: CustomerTableProps) => {
   const vocab = resolveCustomerListVocab(vertical)
+  // เฉพาะร้านบริการที่เปลี่ยนคำ — LODGING ("บิลเข้าพัก") ต้องคงข้อความเดิมของจอนี้ ("คำสั่งซื้อ")
+  const isService = vertical === 'SERVICE_QUEUE'
+  const orderNoun = isService ? resolveOrderVocab(vertical).noun : 'คำสั่งซื้อ'
+  const firstOrderPhrase = isService ? `${orderNoun}แรก` : 'คำสั่งซื้อใบแรก'
   const filterChips = chipsFor(vertical, showParcel)
   const router = useRouter()
   const pathname = usePathname()
@@ -488,8 +493,8 @@ const CustomerTable = ({
       title="ยังไม่มีลูกค้า"
       /* 🛑 ห้ามเขียนว่า "รอผู้ซื้อสั่งซื้อ" — สั่งให้รอคือทางตัน และไม่ตอบคำถามที่ผู้ขาย
          ถามจริงตอนเห็นจอนี้คือ "ระบบพังหรือยังไม่มีจริง" ⇒ บอก *กลไก* ว่ารายชื่อมาจากไหน */
-      description="รายชื่อจะขึ้นเองเมื่อมีคำสั่งซื้อใบแรก — ไม่ต้องเพิ่มลูกค้าเอง"
-      action={{ label: 'ไปหน้าคำสั่งซื้อ', href: '/orders' }}
+      description={`รายชื่อจะขึ้นเองเมื่อมี${firstOrderPhrase} — ไม่ต้องเพิ่มลูกค้าเอง`}
+      action={{ label: `ไปหน้า${orderNoun}`, href: '/orders' }}
     />
   ) : (
     <SellerEmptyState

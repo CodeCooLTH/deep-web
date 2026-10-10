@@ -19,9 +19,11 @@ interface Props {
   order: OrderRow
   /** class เพิ่มบนปุ่ม trigger (เช่น min-h-11 การ์ด / -ms-px rounded-none กลุ่มปุ่มตาราง) */
   className?: string
+  /** "ออเดอร์" ผันตามร้าน — ส่งต่อให้ OrderQrSheet */
+  orderWord?: string
 }
 
-export default function QrCodeButton({ order, className = '' }: Props) {
+export default function QrCodeButton({ order, className = '', orderWord }: Props) {
   const [open, setOpen] = useState(false)
 
   const copyCode = order.shortCode || order.publicToken
@@ -43,7 +45,7 @@ export default function QrCodeButton({ order, className = '' }: Props) {
       >
         <Icon icon="qrcode" className="text-base" />
       </button>
-      {open && <OrderQrSheet order={order} url={url} onClose={() => setOpen(false)} />}
+      {open && <OrderQrSheet order={order} url={url} orderWord={orderWord} onClose={() => setOpen(false)} />}
     </>
   )
 }

@@ -64,9 +64,11 @@ type Props = {
   /** PRODUCT_VOCAB.addProductLabel / itemSingular — ปุ่มเพิ่ม + ประโยคเอกพจน์ */
   addProductLabel: string
   itemSingular: string
+  /** Shop.vertical — ส่งต่อให้ ProductCard ผันคำยอดขาย */
+  vertical?: string
 }
 
-const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular }: Props) => {
+const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular, vertical }: Props) => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
@@ -244,6 +246,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
           initialCostMissing={costMissingOnly}
           productNoun={productNoun}
           addProductLabel={addProductLabel}
+          itemSingular={itemSingular}
           products={data}
           pinSlots={pinState.pinSlots}
           pinnedCount={pinState.pinnedCount}
@@ -417,6 +420,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
                   onPinChange={handlePinChange}
                   onActiveToggle={handleActiveToggle}
                   onDeleteRequest={handleDeleteRequest}
+                  vertical={vertical}
                 />
               ))}
 

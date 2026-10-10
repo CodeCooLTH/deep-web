@@ -88,6 +88,7 @@ import SectionTitle from './SectionTitle'
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
 import PaymentSummaryCard from './PaymentSummaryCard'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 
 export type PublicOrderData = {
@@ -1070,6 +1071,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   /* SSOT เดียวกับจอ guest — ห้าม hardcode เงื่อนไข/สีเอง (ดูหมายเหตุที่ชิป) */
   const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
   const avatarLetter = order.shop.user.displayName.slice(0, 1)
+  /* คำเรียกของที่ลูกค้าซื้อ — อ่านจาก ORDER_VOCAB (SSOT) แทน ternary เขียนมือ
+     ผูกกับ isServiceShop ไม่ใช่ vertical ดิบ: LODGING ต้องยังเห็น "คำสั่งซื้อ" เหมือนเดิมบนหน้านี้ */
+  const vocab = resolveOrderVocab(order.isServiceShop ? 'SERVICE_QUEUE' : 'ONLINE_SALES')
+  const noun = vocab.noun
 
   // timeline จาก order-display.ts (T2/T3) — status pill ใช้ SSOT ด้านบนแทน getStatusPill (freeze ตาม UX spec)
   /**
@@ -1155,10 +1160,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   // cancel copy ตาม cancelInitiator
   const cancelCopy =
     order.cancelInitiator === 'seller'
-      ? 'ร้านค้ายกเลิกคำสั่งซื้อ'
+      ? `ร้านค้ายกเลิก${noun}`
       : order.cancelInitiator === 'buyer'
-        ? 'คุณยกเลิกคำสั่งซื้อ'
-        : 'คำสั่งซื้อนี้ถูกยกเลิก'
+        ? `คุณยกเลิก${noun}`
+        : `${noun}นี้ถูกยกเลิก`
 
   return (
     // D1: ตัด MobileFrame ทิ้ง — plain column กลางจอ, page scroll ปกติ (ไม่มี "กรอบมือถือ" อีกต่อไป)
@@ -1292,7 +1297,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           isNewShop={order.completedOrders == null}
           coverUrl={order.shop.coverImage}
           /* ม็อกอัพ v5 `.cover-actions` — ช่วยเหลือ + แชร์ มุมขวาบนของปก */
-          actions={<CoverActions orderNo={orderNo} />}
+          actions={<CoverActions orderNo={orderNo} noun={noun} />}
         />
 
         {/* ── 2. Hero section: Avatar overlap + Identity ── */}
@@ -1717,7 +1722,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 [ORDER_TWO_COL_MQ]: { display: 'inline-flex' },
               }}
             >
-              ดูคำสั่งซื้อทั้งหมด
+              ดู{noun}ทั้งหมด
             </Button>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, mb: 1 }}>
@@ -1947,6 +1952,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {order.appointment && (
             <AppointmentCard
               token={order.publicToken}
+              noun={noun}
               appointment={order.appointment}
               orderCancelled={order.status === 'CANCELLED'}
             />
@@ -2738,7 +2744,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               )}
               <Typography variant='caption' color='text.secondary'>
                 {isCancelled
-                  ? 'คำสั่งซื้อนี้ถูกยกเลิกแล้ว ไม่สามารถดำเนินการต่อได้'
+                  ? `${noun}นี้ถูกยกเลิกแล้ว ไม่สามารถดำเนินการต่อได้`
                   : 'ปกป้องการซื้อขายโดย Deep'}
               </Typography>
             </Box>
@@ -2919,7 +2925,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             {order.isServiceShop ? 'ยืนยันว่ารับบริการแล้ว?' : 'ยืนยันว่าได้รับสินค้าแล้ว?'}
           </Typography>
           <Typography variant='body2' color='text.secondary'>
-            ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน
+            {/* ประโยคเต็มต่อประเภทร้าน (ไม่ต่อ {noun}) — เทส guardrails [blocker] ตรึงประโยคร้านขายของไว้ตรงตัว */}
+            {order.isServiceShop
+              ? 'ยืนยันแล้วจะแจ้งปัญหากับงานบริการนี้ไม่ได้อีก — ถ้ายังไม่ได้รับบริการ อย่าเพิ่งกดยืนยัน'
+              : 'ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน'}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 5, px: 4, gap: 1.5 }}>
@@ -2948,7 +2957,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         shopAvatar={order.shop.user.avatar}
         headline={
           order.isServiceShop
-            ? 'ยืนยันรับบริการแล้ว'
+            ? `${vocab.buyerConfirmLabel}แล้ว`
             : order.fulfillmentMode !== 'SHIPPED'
               ? 'ยืนยันว่าได้รับแล้ว'
               : 'ยืนยันรับสินค้าแล้ว'
@@ -2966,7 +2975,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
           <Icon icon='tabler-flag-3' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-text-disabled)' }} />
           <Typography id='dispute-dialog-title' variant='h5' sx={{ mb: 1 }}>
-            แจ้งปัญหาคำสั่งซื้อนี้
+            แจ้งปัญหา{noun}นี้
           </Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
             บอกร้านค้าว่าเกิดอะไรขึ้น (ไม่บังคับ)
@@ -3009,7 +3018,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             ลบรีวิวนี้?
           </Typography>
           <Typography variant='body2' color='text.secondary'>
-            ลบแล้วจะเขียนรีวิวใหม่สำหรับคำสั่งซื้อนี้อีกไม่ได้
+            ลบแล้วจะเขียนรีวิวใหม่สำหรับ{noun}นี้อีกไม่ได้
           </Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 5, px: 4, gap: 1.5 }}>

@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { formatBaht } from '@/lib/format-money'
 import { productMargin } from '@/lib/order-profit'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import { PRODUCT_TYPE_ICONS, PRODUCT_TYPE_LABELS, type ProductRow } from './data'
 import PinToggleButton, { type PinChangeResult } from './PinToggleButton'
 import ProductCardMenu from './ProductCardMenu'
@@ -62,6 +63,8 @@ interface ProductCardProps {
   onPinChange: (result: PinChangeResult) => void
   onActiveToggle: (productId: string, nextIsActive: boolean) => void
   onDeleteRequest: (productId: string) => void
+  /** Shop.vertical — ผันคำยอดขาย/ป้ายปุ่ม (ร้านบริการ ≠ ชิ้น) */
+  vertical?: string
 }
 
 export default function ProductCard({
@@ -71,7 +74,15 @@ export default function ProductCard({
   onPinChange,
   onActiveToggle,
   onDeleteRequest,
+  vertical,
 }: ProductCardProps) {
+  // ร้านบริการเท่านั้นที่เปลี่ยนคำ — ONLINE_SALES/LODGING ต้องเป็นข้อความเดิมเป๊ะ (soldLine ของ ONLINE คือ "สั่งซื้อแล้ว" ซึ่งไม่ใช่คำเดิมของการ์ดนี้)
+  const isService = vertical === 'SERVICE_QUEUE'
+  const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
+  const soldText = isService
+    ? vocab.soldLine(product.totalSold.toLocaleString('th-TH'))
+    : `ขายแล้ว ${product.totalSold.toLocaleString('th-TH')} ชิ้น`
+  const itemWord = isService ? vocab.itemSingular : 'สินค้า'
   const isPinned = product.pinnedAt !== null
   const hasReviews = product.reviews > 0
 
@@ -81,7 +92,7 @@ export default function ProductCard({
           ปุ่มที่ต้องกดได้ต้องถูกยกขึ้นเหนือแผ่นนี้ด้วย relative z-10 */}
       <Link
         href={`/products/${product.id}`}
-        aria-label={`ดูรายละเอียดสินค้า ${product.name}`}
+        aria-label={`ดูรายละเอียด${itemWord} ${product.name}`}
         className="absolute inset-0 rounded transition-colors active:bg-default-500/10"
       />
 
@@ -143,7 +154,7 @@ export default function ProductCard({
         {/* ── ชั้นท้าย: ขายแล้ว N ชิ้น (+เรตติ้งถ้ามีรีวิว) · ปุ่ม [แก้ไข][ปักหมุด][⋮] ── */}
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-dashed border-default-200 pt-2.5">
           <p className="min-w-0 truncate text-xs text-default-500">
-            ขายแล้ว {product.totalSold.toLocaleString('th-TH')} ชิ้น
+            {soldText}
             {/* ★0.0 (0) ซ้ำทุกสินค้าใหม่ไม่ให้ข้อมูลอะไร — ขึ้นเฉพาะเมื่อมีรีวิวจริง */}
             {hasReviews && <> · ★{product.rating.toFixed(1)} ({product.reviews})</>}
           </p>
@@ -153,7 +164,7 @@ export default function ProductCard({
             {/* primary: แก้ไข — icon-only ทึบน้ำเงิน (งานที่ทำถี่ที่สุดต่อสินค้า 1 ชิ้นหลังเผยแพร่) */}
             <Link
               href={`/products/${product.id}/edit`}
-              aria-label="แก้ไขสินค้า"
+              aria-label={`แก้ไข${itemWord}`}
               className="btn btn-icon bg-primary text-white hover:bg-primary-hover min-h-11 min-w-11"
             >
               <Icon icon="solar:pen-2-linear" className="text-base" />
@@ -166,6 +177,7 @@ export default function ProductCard({
               pinnedCount={pinnedCount}
               onChange={onPinChange}
               variant="mobile"
+              itemSingular={itemWord}
             />
             <ProductCardMenu
               productId={product.id}

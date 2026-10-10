@@ -12,6 +12,7 @@
 import { prisma } from '@/lib/prisma'
 import { maskPhone } from '@/lib/phone-mask'
 import { getTransactions } from '@/services/wallet.service'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 
 // ─── Type ─────────────────────────────────────────────────────────────────────
 // NOTE: type นี้เป็น source of truth หลังจาก T6 re-home
@@ -44,11 +45,13 @@ function maskBuyerPhone(phone: string): string {
  * @param opts.includeTopups - รวมรายการ "เติมเงิน ฿X" ไหม — 🛑 แอป Android ต้องเป็น false
  *   (ไม่แสดงสถานะเงิน · user สั่ง 2026-10-06) ผู้เรียกส่ง `await shouldShowMoneyStatus()`
  *   ทุกผู้เรียกในแอปต้องส่งค่านี้ — ด่าน `no-payment-in-android-app.test.ts` สแกนอยู่
+ * @param opts.vertical - Shop.vertical ผู้เรียกมีอยู่แล้ว (ไม่ query เพิ่ม) · ร้านบริการเห็น "สร้างงานบริการ/ลูกค้ายืนยัน"
+ *   ร้านอื่นรวม LODGING และไม่ส่ง = คำเดิม "สร้างคำสั่งซื้อ/ผู้ซื้อยืนยัน" เป๊ะ
  */
 export async function getRecentActivity(
   shopId: string,
   take = 10,
-  opts: { includeTopups: boolean } = { includeTopups: true },
+  opts: { includeTopups: boolean; vertical?: string } = { includeTopups: true },
 ): Promise<ActivityItem[]> {
   try {
     // ─── Source 1: Orders ──────────────────────────────────────────────────
@@ -67,20 +70,24 @@ export async function getRecentActivity(
 
     // ORDER_CREATED: ทุก order 1 item
     // ORDER_CONFIRMED: เฉพาะ order ที่ status=CONFIRMED เพิ่มอีก 1 item (at=updatedAt)
+    // ร้านบริการเท่านั้นที่ผันคำ — LODGING ยังไม่ได้ทบทวน คงคำเดิม
+    const svc = opts.vertical === 'SERVICE_QUEUE' ? resolveOrderVocab('SERVICE_QUEUE') : null
+    const createdWord = svc ? svc.createLabel : 'สร้างคำสั่งซื้อ'
+    const confirmedWord = svc ? `${svc.buyerNoun}ยืนยัน` : 'ผู้ซื้อยืนยัน'
     const orderItems: ActivityItem[] = []
     for (const o of orders) {
       // label ใช้ 8 char แรกของ publicToken เพื่อให้ seller จำได้ (UUID สั้น)
       const shortToken = o.publicToken.slice(0, 8).toUpperCase()
       orderItems.push({
         type: 'ORDER_CREATED',
-        label: `สร้างคำสั่งซื้อ ${shortToken}`,
+        label: `${createdWord} ${shortToken}`,
         at: o.createdAt,
         href: `/orders/${o.publicToken}`,
       })
       if (o.status === 'CONFIRMED') {
         orderItems.push({
           type: 'ORDER_CONFIRMED',
-          label: `ผู้ซื้อยืนยัน ${shortToken}`,
+          label: `${confirmedWord} ${shortToken}`,
           // updatedAt น่าเชื่อถือกว่า createdAt สำหรับ CONFIRMED event
           at: o.updatedAt,
           href: `/orders/${o.publicToken}`,

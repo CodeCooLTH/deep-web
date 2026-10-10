@@ -86,6 +86,8 @@ type Props = {
   appointment: PublicAppointment
   /** ออเดอร์ถูกยกเลิกทั้งใบ → การ์ดยังแสดงเป็นประวัติ แต่ไม่มีปุ่มใด ๆ */
   orderCancelled: boolean
+  /** คำเรียกบิลตาม vertical — ไม่ส่ง = "คำสั่งซื้อ" เหมือนเดิม */
+  noun?: string
 }
 
 const MAX_NOTE = 500
@@ -131,7 +133,7 @@ function errorMessage(data: unknown, fallback: string): string {
   }
 }
 
-export default function AppointmentCard({ token, appointment, orderCancelled }: Props) {
+export default function AppointmentCard({ token, appointment, orderCancelled, noun = 'คำสั่งซื้อ' }: Props) {
   const [state, setState] = useState(appointment)
   const [confirming, setConfirming] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -333,7 +335,7 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
           {/* ── ปุ่ม/ข้อความตามสถานะ ── */}
           {orderCancelled ? (
             <Typography variant="body2" color="text.secondary">
-              คำสั่งซื้อนี้ถูกยกเลิกแล้ว นัดหมายนี้จึงไม่มีผลอีกต่อไป
+              {noun}นี้ถูกยกเลิกแล้ว นัดหมายนี้จึงไม่มีผลอีกต่อไป
             </Typography>
           ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">

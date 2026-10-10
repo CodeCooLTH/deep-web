@@ -34,7 +34,8 @@ import CoverPill from './CoverPill'
  *  ป้ายยังอยู่ครบใน `aria-label` + tooltip ⇒ เสียเฉพาะ "พื้นที่" ไม่ได้เสีย "ความหมาย" */
 const labelSx = { display: 'none', '@media (min-width:600px)': { display: 'inline' } } as const
 
-export default function CoverActions({ orderNo }: { orderNo: string }) {
+// noun: คำเรียกบิลตาม vertical (ร้านบริการ = "งานบริการ") — ไม่ส่ง = ข้อความเดิมทุกตัวอักษร
+export default function CoverActions({ orderNo, noun = 'คำสั่งซื้อ' }: { orderNo: string; noun?: string }) {
   const [toast, setToast] = useState<string | null>(null)
 
   const share = async () => {
@@ -52,7 +53,7 @@ export default function CoverActions({ orderNo }: { orderNo: string }) {
     }
     try {
       await navigator.clipboard.writeText(url)
-      setToast('คัดลอกลิงก์คำสั่งซื้อแล้ว')
+      setToast(`คัดลอกลิงก์${noun}แล้ว`)
     } catch {
       /* clipboard ถูกปฏิเสธ (iOS ที่ไม่ได้มาจากการแตะโดยตรง / permission) — ต้องบอก
          ไม่ใช่เงียบ ไม่งั้นผู้ใช้กดแล้วไม่มีอะไรเกิดขึ้นแล้วไม่รู้ว่าสำเร็จหรือล้ม */
@@ -82,11 +83,11 @@ export default function CoverActions({ orderNo }: { orderNo: string }) {
           </CoverPill>
         </Tooltip>
 
-        <Tooltip title='แชร์ลิงก์คำสั่งซื้อนี้' enterTouchDelay={0}>
-          <CoverPill onClick={share} aria-label='แชร์คำสั่งซื้อ'>
+        <Tooltip title={`แชร์ลิงก์${noun}นี้`} enterTouchDelay={0}>
+          <CoverPill onClick={share} aria-label={`แชร์${noun}`}>
             <Icon icon='tabler-share-2' fontSize={16} aria-hidden='true' />
             <Box component='span' sx={labelSx}>
-              แชร์คำสั่งซื้อ
+              แชร์{noun}
             </Box>
           </CoverPill>
         </Tooltip>

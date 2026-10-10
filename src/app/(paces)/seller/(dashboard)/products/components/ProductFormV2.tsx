@@ -44,6 +44,7 @@ import ProductTagsCardV2 from './ProductTagsCardV2'
 import ProductAttributesCardV2 from './ProductAttributesCardV2'
 import ProductDescriptionCardV2 from './ProductDescriptionCardV2'
 import ProductPreviewPanel from './ProductPreviewPanel'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 import type { SerializedProduct } from '@/services/product.service'
 
@@ -146,6 +147,8 @@ const schema = Yup.object({
 interface ProductFormV2Props {
   /** ร้านนี้ไม่มีการจัดส่ง (vertical === 'SERVICE_QUEUE') — feature 00030 BR-BKU-13 */
   noShipping?: boolean
+  /** Shop.vertical — ผันคำ "สินค้า"/หน่วยนับในฟอร์ม (ว่าง = ONLINE_SALES เดิม) */
+  vertical?: string
   shopId: string
   formId?: string
   product?: SerializedProduct
@@ -162,6 +165,7 @@ interface ProductFormV2Props {
 
 export default function ProductFormV2({
   noShipping = false,
+  vertical,
   shopId,
   formId,
   product,
@@ -172,6 +176,10 @@ export default function ProductFormV2({
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
+  // ร้านบริการเท่านั้นที่เปลี่ยนคำ — LODGING คงคำเดิมเป๊ะ (unitLabel ของที่พักคือ "คืน" ไม่ใช่ "ชิ้น" เดิม)
+  const isServiceShop = vertical === 'SERVICE_QUEUE'
+  const itemSingular = resolveProductVocab(vertical ?? 'ONLINE_SALES').itemSingular
+  const costUnit = isServiceShop ? resolveProductVocab('SERVICE_QUEUE').unitLabel : 'ชิ้น'
 
   // mobile tab — desktop จะ override ด้วย lg:!block ทั้งสอง panel
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit')
@@ -360,6 +368,7 @@ export default function ProductFormV2({
                   value={field.value ?? []}
                   onChange={field.onChange}
                   formId={formId}
+                  itemSingular={itemSingular}
                 />
               )}
             />
@@ -368,7 +377,12 @@ export default function ProductFormV2({
             )}
 
             <div className="border-default-100 border-t" />
-            <ProductBasicCardV2 register={register} errors={errors} />
+            <ProductBasicCardV2
+              register={register}
+              errors={errors}
+              itemSingular={itemSingular}
+              hideRetailExample={isServiceShop}
+            />
 
             <div className="border-default-100 border-t" />
             <ProductShortDescCardV2 register={register} errors={errors} />
@@ -379,7 +393,7 @@ export default function ProductFormV2({
             {/* ProductCostCardV2 — Expense & Cost Tracking (feature 00016 Unit 5B): แสดงเสมอ
                 (ต่าง ProductStockCardV2 ที่ conditional render — D-9 "แสดงเสมอ ไม่ซ่อน") */}
             <div className="border-default-100 border-t" />
-            <ProductCostCardV2 register={register} errors={errors} watch={watch} />
+            <ProductCostCardV2 register={register} errors={errors} watch={watch} unitLabel={costUnit} />
 
             <div className="border-default-100 border-t" />
             <ProductTypePickerCardV2
@@ -467,6 +481,7 @@ export default function ProductFormV2({
                 fulfillmentMode={watched.fulfillmentMode}
                 billingMode={watched.billingMode}
                 billingPeriod={watched.billingPeriod}
+                itemSingular={itemSingular}
               />
             </div>
           </div>
