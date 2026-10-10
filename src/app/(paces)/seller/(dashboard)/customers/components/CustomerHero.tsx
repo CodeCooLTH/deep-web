@@ -21,9 +21,14 @@ type Props = {
   returned: number
   /** ร้านนี้เคยเปิดพัสดุผ่านระบบไหม — ตัดสินว่าบรรทัดรองจะพูดเรื่องอัตราได้ไหม */
   hasParcels: boolean
+  /**
+   * ร้านที่ไม่ใช่ขายของออนไลน์ (ไม่มีพัสดุ) — บรรทัดรองพูดเรื่องซ้ำ/ยกเลิกแทน
+   * ไม่ส่ง = พฤติกรรมเดิมทุกอย่าง
+   */
+  service?: { repeatLabel: string; repeat: number; watchCount: number }
 }
 
-export default function CustomerHero({ totalCustomers, receivedRate, returned, hasParcels }: Props) {
+export default function CustomerHero({ totalCustomers, receivedRate, returned, hasParcels, service }: Props) {
   return (
     <div className="relative overflow-hidden rounded-b-2xl text-white">
       {/* HR7 carve-out: SVG ไล่สี + overlay — Paces ไม่มี gradient/hero token
@@ -69,7 +74,14 @@ export default function CustomerHero({ totalCustomers, receivedRate, returned, h
           <div className="min-w-0 flex-1">
             <h4 className="mb-0 truncate text-lg leading-tight font-bold text-white">ลูกค้าของร้าน</h4>
             <p className="text-2xs mt-1 mb-0 flex items-center gap-1.5 text-white/80">
-              {hasParcels && receivedRate !== null ? (
+              {service ? (
+                <>
+                  <b className="font-semibold text-white tabular-nums">{service.repeat}</b>
+                  ราย{service.repeatLabel}<span className="opacity-50">·</span>
+                  <b className="font-semibold text-white tabular-nums">{service.watchCount}</b>
+                  รายเคยมีรายการยกเลิก
+                </>
+              ) : hasParcels && receivedRate !== null ? (
                 <>
                   <span className="font-semibold text-white tabular-nums">
                     {Math.round(receivedRate * 100)}%

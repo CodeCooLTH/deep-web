@@ -347,3 +347,67 @@ export function aggregateCustomerStats(
     watchCount,
   }
 }
+
+/**
+ * หน้า `/customers` โชว์เนื้อหาพัสดุ (ตีกลับ/ความเสี่ยงข้ามร้าน/ประกาศไม่เคยเปิดพัสดุ) ได้เฉพาะร้านขายของออนไลน์
+ * — ร้านคิวงาน/ที่พักไม่มีพัสดุเลย เนื้อหาพวกนี้จึงอ่านเป็นความผิดปกติที่ไม่มีจริง
+ * ค่าว่าง/ไม่รู้จัก = ONLINE_SALES (fail-safe เดียวกับ `resolveOrderVocab`) ⇒ ร้านเดิมไม่เปลี่ยน
+ * ตัดสินที่นี่ที่เดียวเพื่อให้เทสจับได้ (`ui-boolean-needs-a-testable-home`)
+ */
+export function customerPageShowsParcels(vertical: string | null | undefined): boolean {
+  return (vertical ?? 'ONLINE_SALES') === 'ONLINE_SALES'
+}
+
+/**
+ * คำบนหน้า `/customers` ผันตาม vertical — เก็บเป็นชุดเดียวที่นี่ ไม่กระจาย ternary
+ * (`ORDER_VOCAB` มีแค่ noun ของ "ใบ" ไม่มีหน่วยนับ/คำว่า "ซ้ำ" จึงต้องมีชุดนี้แยก)
+ * ONLINE_SALES = ข้อความเดิมทุกตัวอักษร
+ */
+export type CustomerListVocab = {
+  repeatLabel: string
+  warnLabel: string
+  totalCol: string
+  lastCol: string
+  /** หน่วยต่อท้ายตัวเลขบนการ์ดมือถือ: "{n} {unit}" */
+  unit: string
+  repeatTileTitle: string
+  repeatTileCaption: string
+}
+
+const ONLINE_LIST_VOCAB: CustomerListVocab = {
+  repeatLabel: 'ซื้อซ้ำ',
+  warnLabel: 'มีสัญญาณเตือนกับร้านนี้',
+  totalCol: 'ออเดอร์ทั้งหมด',
+  lastCol: 'ออเดอร์ล่าสุด',
+  unit: 'ออเดอร์',
+  repeatTileTitle: 'ลูกค้าที่ซื้อซ้ำ',
+  repeatTileCaption: 'ซื้อตั้งแต่ 2 ครั้ง',
+}
+
+const SERVICE_WARN = 'เคยมีรายการยกเลิก'
+
+export const CUSTOMER_LIST_VOCAB: Record<string, CustomerListVocab> = {
+  ONLINE_SALES: ONLINE_LIST_VOCAB,
+  SERVICE_QUEUE: {
+    repeatLabel: 'ใช้บริการซ้ำ',
+    warnLabel: SERVICE_WARN,
+    totalCol: 'ใช้บริการทั้งหมด',
+    lastCol: 'ใช้บริการล่าสุด',
+    unit: 'ครั้ง',
+    repeatTileTitle: 'ลูกค้าที่ใช้บริการซ้ำ',
+    repeatTileCaption: 'ใช้บริการตั้งแต่ 2 ครั้ง',
+  },
+  LODGING: {
+    repeatLabel: 'เข้าพักซ้ำ',
+    warnLabel: SERVICE_WARN,
+    totalCol: 'บิลทั้งหมด',
+    lastCol: 'บิลล่าสุด',
+    unit: 'บิล',
+    repeatTileTitle: 'ลูกค้าที่เข้าพักซ้ำ',
+    repeatTileCaption: 'เปิดบิลตั้งแต่ 2 ใบ',
+  },
+}
+
+export function resolveCustomerListVocab(vertical: string | null | undefined): CustomerListVocab {
+  return CUSTOMER_LIST_VOCAB[vertical ?? ''] ?? ONLINE_LIST_VOCAB
+}

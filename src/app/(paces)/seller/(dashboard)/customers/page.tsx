@@ -29,6 +29,8 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { customerBadges, hasBehaviorWarning } from '@/lib/customer-behavior'
 import {
   aggregateCustomerStats,
+  customerPageShowsParcels,
+  resolveCustomerListVocab,
   maskContact,
   matchesCustomerFilter,
   matchesCustomerQuery,
@@ -40,6 +42,7 @@ import {
 } from '@/lib/customer-directory'
 import { aggregateShopCustomers } from '@/services/customer-directory.service'
 import { classifyCustomerRiskTier, HIGH_RISK_MIN_RETURNED } from '@/lib/buyer-reputation'
+import type { BuyerReputation } from '@/lib/buyer-reputation'
 import { getBuyerReputations } from '@/services/buyer-reputation.service'
 import CustomerHero from './components/CustomerHero'
 import NoParcelNotice from './components/NoParcelNotice'
@@ -83,6 +86,12 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const shop = active.shop
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
+  /**
+   * ร้านที่ไม่ใช่ขายของออนไลน์ (คิวงาน/ที่พัก) ไม่มีพัสดุ ⇒ ซ่อนเนื้อหาพัสดุ/ความเสี่ยงข้ามร้านทั้งหน้า
+   * ตัดสินที่เดียวจาก `customerPageShowsParcels` — ONLINE_SALES ได้ true เสมอ พฤติกรรมเดิมทุกอย่าง
+   */
+  const showParcel = customerPageShowsParcels(shop.vertical)
+  const listVocab = resolveCustomerListVocab(shop.vertical)
 
   /**
    * ไม่ catch แล้วส่งลิสต์ว่างต่อ — ปล่อยให้ throw ขึ้นมาถึงตรงนี้แล้วแยก UI คนละแบบ
@@ -115,8 +124,10 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   }
 
   const q = (sp.q ?? '').trim()
-  const filter = parseCustomerFilter(sp.f)
-  const risk = parseCustomerRiskFilter(sp.risk)
+  // ไม่มีพัสดุ ⇒ ลิงก์เก่า `?f=returned` / `?risk=` ต้องไม่ทำให้ได้ลิสต์ว่างที่ไม่มีชิปให้กดออก
+  const parsedFilter = parseCustomerFilter(sp.f)
+  const filter = !showParcel && parsedFilter === 'returned' ? 'all' : parsedFilter
+  const risk: CustomerRiskFilter = showParcel ? parseCustomerRiskFilter(sp.risk) : 'all'
 
   /**
    * ป้ายคำนวณที่นี่ (ไม่ใช่ที่ client) เพราะต้องใช้ dictionary + คำนามผันตาม vertical —
@@ -178,9 +189,10 @@ export default async function CustomersPage({ searchParams }: PageProps) {
    * — ถ้านับจากผลลัพธ์ ไทล์จะเปลี่ยนเลขทุกครั้งที่พิมพ์ค้นหา แล้ว "กดเลข 2 เจอ 1"
    * (บทเรียน Command Center 2026-08-04) · จำนวน query ไม่เพิ่ม ยังเป็น batch เดียว
    */
-  const reputations = await getBuyerReputations(
-    entries.map((e) => e.customerId).filter((x): x is string => !!x),
-  )
+  // ไม่มีพัสดุ ⇒ ข้าม query ชื่อเสียงข้ามร้าน (ไม่มีที่แสดง) → trust=null, tier='new'
+  const reputations = showParcel
+    ? await getBuyerReputations(entries.map((e) => e.customerId).filter((x): x is string => !!x))
+    : new Map<string, BuyerReputation>()
   const tierOf = new Map(
     entries.map((e) => [
       e.key,
@@ -218,6 +230,44 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     const qs = params.toString()
     return qs ? `/customers?${qs}` : '/customers'
   }
+
+  /** toggle ?f= ของไทล์ที่กดได้ (เก็บ q ไม่มี risk เพราะร้านนี้ไม่มีแกนความเสี่ยง) */
+  const filterHref = (v: CustomerListFilter) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (filter !== v) params.set('f', v)
+    const qs = params.toString()
+    return qs ? `/customers?${qs}` : '/customers'
+  }
+
+  const serviceStatItems: CustomerStatItem[] = [
+    {
+      value: stats.totalCustomers.toLocaleString('th-TH'),
+      title: 'ลูกค้าทั้งหมด',
+      caption: undefined,
+      icon: 'solar:users-group-rounded-bold-duotone',
+      tone: 'bg-primary',
+    },
+    {
+      value: String(filterCounts.repeat),
+      title: listVocab.repeatTileTitle,
+      caption: `${listVocab.repeatTileCaption} · ${share(filterCounts.repeat) ?? ''}`,
+      icon: 'solar:restart-bold-duotone',
+      tone: 'bg-info',
+      href: filterHref('repeat'),
+      active: filter === 'repeat',
+    },
+    {
+      // 🛑 ห้ามเรียก "ลูกค้ายกเลิก"/"ผิดนัด" — cancelledTotal นับทุกการยกเลิกรวมที่ร้านยกเลิกเอง
+      value: String(stats.watchCount),
+      title: 'เคยมีรายการยกเลิก',
+      caption: `ลูกค้าที่เคยมีรายการถูกยกเลิกกับร้านนี้ · ${share(stats.watchCount) ?? ''}`,
+      icon: 'solar:close-circle-bold-duotone',
+      tone: 'bg-warning',
+      href: filterHref('warn'),
+      active: filter === 'warn',
+    },
+  ]
 
   const statItems: CustomerStatItem[] = [
     {
@@ -302,6 +352,11 @@ export default async function CustomersPage({ searchParams }: PageProps) {
             receivedRate={stats.receivedRate}
             returned={stats.returned}
             hasParcels={shopHasParcels}
+            service={
+              showParcel
+                ? undefined
+                : { repeatLabel: listVocab.repeatLabel, repeat: filterCounts.repeat, watchCount: stats.watchCount }
+            }
           />
         </div>
       )}
@@ -313,15 +368,20 @@ export default async function CustomersPage({ searchParams }: PageProps) {
           🛑 จอใหญ่เท่านั้น — มือถือใช้ `RiskTriageCard` (3 แถวใหญ่) แทน เพราะการ์ด 4 ใบ
           เรียงลงมาบนมือถือกิน ~500px ก่อนถึงลูกค้าคนแรก (บทเรียนเดียวกับที่ /orders เจอ) */}
       {entries.length > 0 && (
-        <div className="mb-1.25 hidden grid-cols-1 gap-1.25 md:grid md:grid-cols-2 lg:grid-cols-4">
-          {statItems.map((item) => (
+        <div
+          className={
+            showParcel
+              ? 'mb-1.25 hidden grid-cols-1 gap-1.25 md:grid md:grid-cols-2 lg:grid-cols-4'
+              : 'mb-1.25 hidden grid-cols-1 gap-1.25 md:grid md:grid-cols-3'
+          }>
+          {(showParcel ? statItems : serviceStatItems).map((item) => (
             <CustomerStatCard key={item.title} item={item} />
           ))}
         </div>
       )}
 
       {/* ร้านที่ไม่เคยเปิดพัสดุ — 6 จาก 7 ร้านบน prod เป็นแบบนี้ ไม่ใช่เคสขอบ */}
-      {entries.length > 0 && !shopHasParcels && (
+      {showParcel && entries.length > 0 && !shopHasParcels && (
         <div className="mb-2.5">
           <NoParcelNotice />
         </div>
@@ -343,6 +403,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         riskCounts={riskCounts}
         shopReturned={stats.returned}
         shopHasParcels={shopHasParcels}
+        showParcel={showParcel}
+        vertical={shop.vertical ?? ''}
       />
     </>
   )
