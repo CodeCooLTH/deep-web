@@ -6,8 +6,9 @@ export type ProductRow = {
   image: string
   price: number
   /** ราคาทุน (feature 00016) — null = ยังไม่เคยตั้ง ซึ่งต่างจาก 0 ที่แปลว่า "ไม่มีต้นทุนจริง"
-   *  UI ต้องแสดง null เป็น "—" ห้ามเป็น ฿0/0% (FR-EXP-15-AC-02) */
-  cost: number | null
+   *  UI ต้องแสดง null เป็น "—" ห้ามเป็น ฿0/0% (FR-EXP-15-AC-02)
+   *  00071: ผู้ไม่ใช่เจ้าของ = ไม่มีคีย์นี้ (undefined) — ไม่มีคีย์ ≠ null; UI ตัดตาม prop showCost ไม่ใช่เดาจากค่านี้ */
+  cost?: number | null
   type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION'
   isActive: boolean
   totalSold: number
@@ -28,6 +29,7 @@ export type ProductRow = {
  * แล้วตัวเลขบนชิปกับจำนวนแถวที่กรองได้จะไม่ตรงกันโดยไม่มีอะไรฟ้อง
  *
  * นิยาม: null = ยังไม่เคยตั้ง · 0 = ตั้งแล้วว่าไม่มีต้นทุน (คนละเรื่องกัน ห้ามยุบรวม)
+ * undefined (ไม่มีคีย์ = ผู้ไม่ใช่เจ้าของมองไม่เห็นต้นทุน) ไม่นับ — ห้ามใช้ `== null`
  */
 export const isMissingCost = (p: Pick<ProductRow, 'cost'>) => p.cost === null
 

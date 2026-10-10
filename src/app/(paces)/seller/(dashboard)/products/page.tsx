@@ -27,6 +27,7 @@ import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
 import type { StatType } from './components/ProductStats'
 import { fileUrlOf } from '@/lib/file-url'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { resolveProductVocab } from '@/lib/seller-menu'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
@@ -63,6 +64,9 @@ export default async function ProductsPage() {
   const shop = active.shop
   // คำเรียก /products ผันตามประเภทกิจการ (ONLINE_SALES = "สินค้า" เหมือนเดิมทุกตัวอักษร)
   const { productNoun, addProductLabel, itemSingular } = resolveProductVocab(shop.vertical)
+
+  // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น (role สดจาก requireActiveShop)
+  const showCost = can(rolesFromMembership(active.role), 'P3')
 
   // --- Fetch products + orders + pin state แบบขนาน (Promise.allSettled — ล้มเหลวอันหนึ่งไม่กระทบอันอื่น) ---
   let products: any[] = []
@@ -106,7 +110,8 @@ export default async function ProductsPage() {
         : '',
       price: Number(p.price ?? 0),
       // Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้); null คงเป็น null ไม่แปลงเป็น 0
-      cost: p.cost == null ? null : Number(p.cost),
+      // 00071: ผู้ไม่ใช่เจ้าของ = ไม่มีคีย์ cost เลย (ไม่ใช่ null/0)
+      ...(showCost ? { cost: p.cost == null ? null : Number(p.cost) } : {}),
       type: (p.type as ProductRow['type']) ?? 'PHYSICAL',
       isActive: p.isActive ?? true,
       totalSold,
@@ -192,7 +197,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
+      <ProductsListing showCost={showCost} products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
     </>
   )
 }

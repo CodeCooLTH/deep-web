@@ -126,7 +126,8 @@ export interface SerializedProduct {
   lowStockThreshold: number | null;
   // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, N>=0=ตั้งค่า
   // (ไม่มี gate ของแพ็กเกจแล้ว — D-EXT-1 2026-08-07 เปิดฟรีทุกร้าน)
-  cost: number | null;
+  // 00071: ผู้ไม่ใช่เจ้าของ = ไม่มีคีย์นี้เลย (ไม่มีคีย์ ≠ null ≠ 0) — ห้ามเดาจากค่า ให้ใช้ prop showCost
+  cost?: number | null;
 }
 
 type ProductWithTags = Prisma.ProductGetPayload<{ include: { tags: true } }>;
@@ -135,8 +136,12 @@ type ProductWithTags = Prisma.ProductGetPayload<{ include: { tags: true } }>;
  * serializeProduct — แปลง Prisma product (Decimal/Json/Date) → plain object
  * ที่ส่งจาก RSC → Client component ได้
  */
-export function serializeProduct(product: ProductWithTags): SerializedProduct {
-  return {
+export function serializeProduct(
+  product: ProductWithTags,
+  // บังคับส่ง (ไม่มี default) เพื่อให้ tsc ชี้ทุก caller — ลืมส่ง = ต้นทุนหลุดให้ผู้ไม่ใช่เจ้าของ
+  { canSeeCost }: { canSeeCost: boolean },
+): SerializedProduct {
+  const out: SerializedProduct = {
     id: product.id,
     shopId: product.shopId,
     name: product.name,
@@ -159,9 +164,10 @@ export function serializeProduct(product: ProductWithTags): SerializedProduct {
     tags: product.tags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })),
     stockQty: product.stockQty ?? null,
     lowStockThreshold: product.lowStockThreshold ?? null,
-    // cost — Expense & Cost Tracking (feature 00016): Decimal→number แปลงเหมือน price, null=ไม่ตั้ง
-    cost: product.cost !== null && product.cost !== undefined ? Number(product.cost) : null,
   };
+  // cost — Expense & Cost Tracking (feature 00016): Decimal→number แปลงเหมือน price, null=ไม่ตั้ง
+  if (canSeeCost) out.cost = product.cost !== null && product.cost !== undefined ? Number(product.cost) : null;
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

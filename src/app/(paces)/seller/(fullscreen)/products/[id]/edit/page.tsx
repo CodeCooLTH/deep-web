@@ -25,6 +25,7 @@ import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { productPageMetadata } from '@/lib/product-page-title'
@@ -89,7 +90,9 @@ export default async function EditProductPage({ params }: PageProps) {
     notFound()
   }
 
-  const product = serializeProduct(productRaw)
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — ผู้ไม่ใช่เจ้าของไม่ได้คีย์ cost และฟอร์มไม่แสดง/ไม่ส่งช่องต้นทุน
+  const canEditCost = can(rolesFromMembership(active.role), 'P3')
+  const product = serializeProduct(productRaw, { canSeeCost: canEditCost })
 
   // Business ถูก package lock (read-only) — ห้ามแก้ไขสินค้า
   if (active.locked) {
@@ -138,6 +141,7 @@ export default async function EditProductPage({ params }: PageProps) {
         vertical={shop.vertical}
         shopId={shop.id}
         product={product}
+        canEditCost={canEditCost}
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}

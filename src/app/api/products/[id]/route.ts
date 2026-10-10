@@ -10,7 +10,9 @@ import {
 } from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShop, resolveActiveShopContext } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -28,6 +30,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
   const parsed = v.safeParse(UpdateProductSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  // 00071 D-7: role ของร้านที่เป็นเจ้าของสินค้า (fresh membership) · ผู้ไม่ใช่เจ้าของส่งคีย์ cost (แม้ null) = 403
+  const ctx = await resolveActiveShopContext({ user: { id: (session.user as any).id, activeShopId: product.shopId } });
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+  if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา
   if (parsed.output.stockQty !== undefined) {
@@ -62,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // feature 00030 (BR-BKU-13) — ส่ง vertical ให้ service ล็อก NO_SHIPPING ของร้าน SERVICE_QUEUE
   // product.shop โหลดมาแล้วด้านบน (ownership check) จึงไม่มี query เพิ่ม
   const updated = await updateProduct(id, { ...parsed.output, shopVertical: product.shop.vertical });
-  return NextResponse.json(serializeProduct(updated));
+  return NextResponse.json(serializeProduct(updated, { canSeeCost }));
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

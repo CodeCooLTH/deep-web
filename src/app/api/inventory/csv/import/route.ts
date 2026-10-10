@@ -7,6 +7,9 @@ import { getShopByUserId } from "@/services/shop.service";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { importStockFromCsvRows } from "@/services/inventory-stock.service";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
+import { resolveActiveShopContext } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 // 500 แถว sequential (per-row transaction) อาจใช้เวลานาน — กัน default timeout ตัดกลางคัน (API.md §4.7)
 export const maxDuration = 30;
@@ -54,6 +57,12 @@ export async function POST(request: NextRequest) {
     const firstIssue = parsed.issues[0]?.message ?? "Invalid input";
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
+
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — role สดจาก membership ของร้านนี้
+  const ctx = await resolveActiveShopContext({ user: { id: userId, activeShopId: shop.id } });
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+  // D-7: ผู้ไม่ใช่เจ้าของส่ง cost มาในแถวใด ๆ = 403 ทั้งคำขอ (ไม่ตัดทิ้งเงียบ — กันเขียนต้นทุนโดยไม่รู้ตัว)
+  if (!canSeeCost && parsed.output.rows.some((r) => r.cost !== undefined)) return forbiddenRoleResponse();
 
   // 5. เรียก service — per-row isolation อยู่ใน service เอง (แถวหนึ่ง fail ไม่ rollback แถวอื่น)
   const result = await importStockFromCsvRows(shop.id, userId, parsed.output.rows);

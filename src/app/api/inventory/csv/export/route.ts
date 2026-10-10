@@ -6,6 +6,9 @@ import { isProActive } from "@/services/inventory-entitlement.service";
 import { exportStockToCsv } from "@/services/inventory-stock.service";
 import { formatDateStampBE } from "@/lib/format-date";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
+import { resolveActiveShopContext } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * GET /api/inventory/csv/export — seller export รายการสินค้า PHYSICAL + stockQty เป็นไฟล์ CSV
@@ -37,8 +40,12 @@ export async function GET() {
     return NextResponse.json({ error: "INVENTORY_NOT_PRO" }, { status: 403 });
   }
 
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — role สดจาก membership ของร้านนี้
+  const ctx = await resolveActiveShopContext({ user: { id: userId, activeShopId: shop.id } });
+  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role), "P3");
+
   // 4. gen CSV จาก service แล้วส่งเป็นไฟล์แนบ
-  const csv = await exportStockToCsv(shop.id);
+  const csv = await exportStockToCsv(shop.id, { includeCost: canSeeCost });
 
   // filename ปี(พ.ศ.)เดือนวัน ติดกัน — เรียงตามวันในโฟลเดอร์ได้
   // 🛑 ห้ามใช้ formatDate ตัด "-" (เดิมทำแบบนั้น) — formatDate เป็น วัน-เดือน-ปี แล้ว (2026-10-01)

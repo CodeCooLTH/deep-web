@@ -11,6 +11,8 @@ import {
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -36,6 +38,8 @@ export async function GET(request: NextRequest) {
   // ตามสัญญาข้อ 3 ของ 00037 API.md (403 จะยืนยันการมีอยู่ของร้าน) และ caller เดิมรับ [] อยู่แล้ว
   if (!resolved.ok) return NextResponse.json([]);
   const shop = resolved.target.shop;
+  // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น — role ของร้านที่ขอ (ไม่ใช่ร้าน active)
+  const canSeeCost = can(rolesFromMembership(resolved.target.role), "P3");
 
   const products = await getProductsByShop(shop.id);
 
@@ -50,11 +54,11 @@ export async function GET(request: NextRequest) {
     const rest = products.filter((p) => !rank.has(p.id));
     // แนบ soldCount ("สั่งซื้อแล้ว X ชิ้น" — นับทุกสถานะยกเว้น CANCELLED) ให้ UI แสดงแบบเดียวกับ BestSellerStrip บน command center
     return NextResponse.json(
-      [...ranked, ...rest].map((p) => ({ ...serializeProduct(p), soldCount: soldById.get(p.id) ?? 0 })),
+      [...ranked, ...rest].map((p) => ({ ...serializeProduct(p, { canSeeCost }), soldCount: soldById.get(p.id) ?? 0 })),
     );
   }
 
-  return NextResponse.json(products.map(serializeProduct));
+  return NextResponse.json(products.map((p) => serializeProduct(p, { canSeeCost })));
 }
 
 export async function POST(request: NextRequest) {
@@ -69,6 +73,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = v.safeParse(CreateProductSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  // 00071 D-7: ผู้ไม่ใช่เจ้าของส่งคีย์ cost มา (แม้ null) = 403 · ไม่ส่งคีย์ = ผ่านปกติ
+  const canSeeCost = can(rolesFromMembership(active.role), "P3");
+  if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา
   if (parsed.output.stockQty !== undefined) {
@@ -102,5 +110,5 @@ export async function POST(request: NextRequest) {
 
   // feature 00028 (BR-SBT-22) — ส่ง shopVertical เข้า service ให้ override fulfillmentMode default
   const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical });
-  return NextResponse.json(serializeProduct(product), { status: 201 });
+  return NextResponse.json(serializeProduct(product, { canSeeCost }), { status: 201 });
 }

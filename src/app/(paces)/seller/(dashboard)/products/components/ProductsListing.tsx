@@ -66,9 +66,11 @@ type Props = {
   itemSingular: string
   /** Shop.vertical — ส่งต่อให้ ProductCard ผันคำยอดขาย */
   vertical?: string
+  /** 00071 P3: เจ้าของเท่านั้นเห็นต้นทุน/ชิป/ตัวกรองต้นทุน — ค่าตั้งต้น false (fail-closed) */
+  showCost?: boolean
 }
 
-const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular, vertical }: Props) => {
+const ProductsListing = ({ showCost = false, products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular, vertical }: Props) => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
@@ -84,8 +86,9 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
   //
   // ค่าเริ่มต้นอ่านจาก ?cost=missing เพื่อรับ deep-link จาก badge "ต้นทุนไม่ครบ" บนการ์ดกำไร
   // ในหน้ารายละเอียดออเดอร์ — ทำให้คำเตือนที่นั่นมีปลายทางจริง ไม่ใช่ป้ายที่กดอะไรไม่ได้
+  // 00071: ผู้ไม่ใช่เจ้าของ = false ตายตัว ห้ามอ่าน ?cost= (deep-link จะกรองด้วยต้นทุนที่ไม่มีคีย์)
   const [costMissingOnly, setCostMissingOnly] = useState(
-    () => searchParams.get('cost') === 'missing',
+    () => showCost && searchParams.get('cost') === 'missing',
   )
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE)
@@ -182,7 +185,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
   }
   // นับจากก้อนดิบทั้งร้านเหมือนตัวนับอื่นในไฟล์นี้ — ไม่ผูกกับคำค้น/ชิปสถานะ เพราะคำถามคือ
   // "ทั้งร้านยังเหลือกี่ตัวที่ยังไม่ตั้งต้นทุน" ไม่ใช่ "ในผลลัพธ์ที่กรองอยู่ตอนนี้เหลือกี่ตัว"
-  const missingCostCount = useMemo(() => data.filter(isMissingCost).length, [data])
+  const missingCostCount = useMemo(() => (showCost ? data.filter(isMissingCost).length : 0), [data, showCost])
 
   // ─── filter pipeline (มือถือ) ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -243,6 +246,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
       {/* ─── Desktop (≥lg): ตารางแบบ Paces theme ─────────────────────────────── */}
       <div className="hidden lg:block">
         <ProductsTable
+          showCost={showCost}
           initialCostMissing={costMissingOnly}
           productNoun={productNoun}
           addProductLabel={addProductLabel}
@@ -342,6 +346,8 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
                 <Icon icon="tabler:pin-filled" className="size-3.5" />
                 ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
               </span>
+              {showCost && (
+                <>
               {/* แกนที่สอง: ไอคอนนำหน้าเหมือนชิป "ปักหมุด" ด้านบน เพื่อบอกด้วยสายตาว่านี่ไม่ใช่
                   สมาชิกของกลุ่ม tab สถานะขาย — ไฟล์นี้สร้าง precedent นั้นไว้แล้ว
                   idle ใช้ warning เมื่อยังมีของค้าง เพื่อให้เห็นว่ามีงานรอโดยไม่ต้องกดก่อน */}
@@ -369,6 +375,8 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
                   <span className="ms-1 font-bold tabular-nums">{missingCostCount}</span>
                 )}
               </button>
+                </>
+              )}
               {STATUS_CHIPS.map((chip) => {
                 const active = activeChip === chip.key
                 const count = chipCount[chip.key]
@@ -413,6 +421,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProd
             <div className="mt-3 space-y-3">
               {visible.map((product) => (
                 <ProductCard
+                  showCost={showCost}
                   key={product.id}
                   product={product}
                   pinSlots={pinState.pinSlots}

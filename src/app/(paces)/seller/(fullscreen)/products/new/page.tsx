@@ -22,6 +22,7 @@ import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import { productPageMetadata } from '@/lib/product-page-title'
 import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
@@ -108,6 +109,7 @@ export default async function NewProductV2Page() {
         vertical={shop.vertical}
         shopId={shop.id}
         formId={FORM_ID}
+        canEditCost={can(rolesFromMembership(active.role), 'P3')}
         entitlementActive={entitlementActive}
         isProActive={proActive}
         hidePayments={await shouldHidePayments()}
