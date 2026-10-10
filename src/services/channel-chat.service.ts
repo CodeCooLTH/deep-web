@@ -1,5 +1,4 @@
 import { Prisma, type ChatMessage } from '@prisma/client'
-import { isMetaSystemNotice } from '@/lib/facebook/meta-system-notice'
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
@@ -273,8 +272,7 @@ async function insertMissingPage(
       })
     ).map((m) => m.externalMessageId),
   )
-  // ข้อความระบบของ Meta (from = เพจ) ไม่ใช่ข้อความที่ร้านพิมพ์ — ไม่เก็บ
-  const missing = remote.filter((m) => !known.has(m.id) && !(m.fromId === pageId && isMetaSystemNotice(m.text)))
+  const missing = remote.filter((m) => !known.has(m.id))
   if (missing.length === 0) return { added: 0, newest: null, newestInboundAt: null }
 
   // แปลงเนื้อหา (รวม mirror ไฟล์แนบ) ให้เสร็จก่อนเขียน — ต้องใช้ผลชุดเดียวกันทั้งตอน createMany
@@ -1280,7 +1278,6 @@ export async function ingestInboundMessage(params: {
   const isEcho = event.message.is_echo === true
   const contactExternalId = isEcho ? event.recipient.id : event.sender.id
   const senderRole = isEcho ? 'SHOP' : 'BUYER'
-  if (isEcho && isMetaSystemNotice(event.message.text)) return { status: 'IGNORED' }
 
   const contactWhere = {
     shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: contactExternalId },
