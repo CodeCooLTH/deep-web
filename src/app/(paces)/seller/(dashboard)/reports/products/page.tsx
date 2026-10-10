@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import ExpenseLockedCard from '../../expenses/components/ExpenseLockedCard'
 import Icon from '@/components/wrappers/Icon'
 import { authOptions } from '@/lib/auth'
 import { formatMonthYearTH, formatTimeHM } from '@/lib/format-date'
@@ -92,15 +93,7 @@ export default async function ProductSalesReportPage({
     return (
       <>
         <PageBreadcrumb title={TITLE} subtitle={SUBTITLE} />
-        {/* ไม่มีปุ่ม action โดยตั้งใจ — ผู้ใช้ไปหน้าอื่นแก้ปัญหานี้เองไม่ได้ ต้องให้เจ้าของร้านแก้ */}
-        {/* 🛑 ต้องเรียกสวิตช์ด้วยชื่อที่ผู้ใช้เห็นจริงบนหน้าจัดการพนักงาน
-            ("ให้พนักงานเห็นข้อมูลการเงิน" — FinanceVisibilityToggle) ไม่ใช่คำที่เราคิดเอง
-            ไม่งั้นเจ้าของร้านหาสวิตช์ไม่เจอ (HR16) */}
-        <SellerEmptyState
-          icon="lock"
-          title="ยังไม่มีสิทธิ์ดูรายงานนี้"
-          description={'รายงานนี้เป็นข้อมูลการเงินของร้าน เจ้าของร้านต้องเปิดสวิตช์ "ให้พนักงานเห็นข้อมูลการเงิน" ที่หน้าจัดการพนักงานก่อน คุณจึงจะเห็นได้'}
-        />
+        <ExpenseLockedCard />
       </>
     )
   }

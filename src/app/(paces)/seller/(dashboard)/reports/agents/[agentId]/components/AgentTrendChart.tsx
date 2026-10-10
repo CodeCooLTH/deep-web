@@ -24,7 +24,8 @@ export type TrendPoint = {
   responseAvgSec: number | null
   orders: number
   conversionRatePct: number | null
-  revenue: number
+  // null = ผู้ดูไม่ใช่เจ้าของร้าน (00071) — ตัดที่ server ก่อนข้ามเส้น client ไม่ใช่ซ่อนแค่กราฟ
+  revenue: number | null
 }
 
 /**
@@ -50,7 +51,7 @@ export default function AgentTrendChart({
   })
 
   const hasAny = points.some(
-    (p) => p.conversations > 0 || p.orders > 0 || p.revenue > 0 || p.responseAvgSec !== null,
+    (p) => p.conversations > 0 || p.orders > 0 || (p.revenue ?? 0) > 0 || p.responseAvgSec !== null,
   )
 
   const getOptions = (): ApexOptions => ({

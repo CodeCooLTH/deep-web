@@ -5,9 +5,7 @@
  *
  * SSOT: docs/20 - Features/00023 - Chat Auto-Reply/UI-DESIGN-SPEC.md §3
  *
- * Base (สวิตช์ `form-switch` controlled): src/app/(paces)/seller/(dashboard)/
- *   business/[shopId]/invites/components/FinanceVisibilityToggle.tsx ซึ่ง Base เดิมมาจาก
- *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
+ * Base (สวิตช์ `form-switch` controlled): theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
  *
  * WARNING: สวิตช์เปิด/ปิดระดับร้านถูกลบทิ้ง 2026-07-30 (user: "ไม่มีแล้วสิ ปิดทั้งหมด ให้ user
  * ปิดเอง ในแต่ละ row") — มันซ้ำกับสถานะรายแถวและสร้างกับดัก "แถวเป็นตอบลูกค้าจริงแต่เงียบ

@@ -33,7 +33,6 @@ import LockedStateBanner from '../../components/LockedStateBanner'
 import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
 import CurrentMembersTable from './components/CurrentMembersTable'
 import { listMutedUserIds } from '@/services/notification-pref.service'
-import FinanceVisibilityToggle from './components/FinanceVisibilityToggle'
 
 export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
 
@@ -62,7 +61,6 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
     select: {
       id: true, shopName: true, userId: true, kind: true,
       packageLockedAt: true, packageLockReason: true, deletedAt: true,
-      staffCanViewFinance: true,
     },
   })
   if (!shop || shop.kind !== 'BUSINESS' || shop.deletedAt) notFound()
@@ -120,17 +118,16 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
       )}
 
       <div className="gap-5 grid grid-cols-1">
-        {/* feature 00016 Unit 5C: toggle staffCanViewFinance — owner-only (defense-in-depth, backend ก็ owner-only) */}
-        {isOwner && (
-          <FinanceVisibilityToggle shopId={shop.id} initial={shop.staffCanViewFinance} locked={isLocked} />
-        )}
         {/* feature 00012: การเชิญพนักงานย้ายไปเมนู "พนักงาน" (ลิงก์เชิญ) — แสดงเฉพาะ owner */}
         {isOwner && (
           <div className="card">
             <div className="card-body flex flex-wrap items-center justify-between gap-3">
-              <p className="text-default-600 text-sm mb-0">
-                เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน
-              </p>
+              <div>
+                <p className="text-default-600 text-sm mb-0">เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน</p>
+                <p className="text-default-700 text-sm mt-1 mb-0">
+                  ข้อมูลการเงินของร้าน (ยอดขาย กำไร ต้นทุน ค่าใช้จ่าย กระเป๋า SMS) เห็นได้เฉพาะเจ้าของร้าน
+                </p>
+              </div>
               <Link href="/admins" className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
                 ไปหน้าพนักงาน
               </Link>

@@ -3,7 +3,8 @@
 /**
  * NotificationPrefsCard — เปิด/ปิดแจ้งเตือนข้อความใหม่ "รายร้าน" (user สั่ง 2026-08-08: "ตั้งค่าทีละร้านได้")
  *
- * Base: src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/components/FinanceVisibilityToggle.tsx:86-110
+ * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductStockCardV2.tsx:58-75
+ *   (ซึ่ง Base มาจาก theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71)
  *   — `form-switch` controlled + optimistic + revert เมื่อ PATCH ล้ม + pacesToast (Hard Rule 9)
  * Base: src/app/(paces)/seller/(dashboard)/account/page.tsx:101-106
  *   — เปลือก `.card` + `.card-header` ที่มีหัวข้อเส้นประ (ชุดเดียวกับการ์ด "วิธีเข้าสู่ระบบ" ในหน้าเดียวกัน)

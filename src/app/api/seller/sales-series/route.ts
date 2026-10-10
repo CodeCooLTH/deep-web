@@ -4,7 +4,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getSalesSeries } from '@/services/dashboard.service'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
+import { forbiddenRoleResponse } from '@/lib/forbidden-role'
 
 // auth per-user + query-driven — ห้าม cache ข้าม user/ช่วง (feedback_auth_api_cache_control)
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน' }, { status: 404 })
   }
 
+  // 00071: ยอดขายรายวัน/เดือน = การเงินเต็ม (F1) เจ้าของร้านเท่านั้น — ตัดก่อน parse/query ใด ๆ
+  if (!can(rolesFromMembership(active.role), 'F1')) return forbiddenRoleResponse()
+
   const { searchParams } = new URL(request.url)
   const monthRaw = searchParams.get('month')
   const parsed = v.safeParse(QuerySchema, {
@@ -46,16 +50,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // ค่าใช้จ่าย/กำไรสุทธิมี gate สิทธิ์ของตัวเอง (แพ็กเกจ + สิทธิ์พนักงาน) — ไม่ผ่าน = ไม่ query
-    // และ response ไม่มีฟิลด์เหล่านั้นเลย ชีตยอดขายจะซ่อนบล็อกนั้นเอง
-    const expenseAccess = await resolveExpenseAccess(
-      session as unknown as { user: { id: string; activeShopId?: string | null } },
-    )
     const series = await getSalesSeries(
       active.shop.id,
       mode,
       { year, month },
-      expenseAccess.kind === 'GRANTED',
+      true, // includeFinance — ผ่านด่านเจ้าของร้านแล้ว
       /* ประเภทกิจการ — ร้านบริการได้คอลัมน์ "มัดจำ/รับจริง" รายวันแทน "ต้นทุน/ค่าส่ง/กำไร"
          ที่ว่างเปล่าเสมอสำหรับร้านประเภทนี้ (SERVICE_QUEUE ล็อก NO_SHIPPING ⇒ ไม่มีค่าส่งได้เลย) */
       active.shop.vertical,

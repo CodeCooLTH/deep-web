@@ -10,7 +10,8 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate, thaiDayKey, localDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
+import ExpenseLockedCard from '../expenses/components/ExpenseLockedCard'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -89,6 +90,19 @@ export default async function SalesPage({
   const shop = active.shop
 
   /**
+   * 00071 BR-RP-08: หน้านี้ทั้งหน้า (ทุกแท็บ) เป็นการเงินเต็ม = เจ้าของร้านเท่านั้น
+   * 🛑 ต้องตัดสินตรงนี้ ก่อน parse ช่วงเวลา/query ใด ๆ — ผู้ไม่ใช่เจ้าของต้องไม่ถูกดึงข้อมูลเลย
+   */
+  if (!can(rolesFromMembership(active.role), 'F1')) {
+    return (
+      <>
+        <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
+        <ExpenseLockedCard />
+      </>
+    )
+  }
+
+  /**
    * ช่วงเวลา — **ชุดเดียวทุกแท็บ** (`?range=` + `start`/`end`) ผ่าน resolveRangeFromParams (2026-10-01)
    *
    * 🛑 เดิมแท็บยอดเก็บเงินอ่าน `?from=&to=` แต่แท็บกำไร/ค่าใช้จ่ายอ่าน `?range=` ⇒ สลับแท็บแล้ว
@@ -113,14 +127,8 @@ export default async function SalesPage({
   const periodLabel = `${formatDate(rangeLabelDays.start)} – ${formatDate(rangeLabelDays.end)}`
   const rangeFilter = <SalesDateRange range={period.preset} customDates={period.custom} />
 
-  /**
-   * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
-   * และไม่ส่งฟิลด์ใด ๆ ลงไป (คอลัมน์/การ์ดหายทั้งอัน) ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าใช้จ่าย
-   */
-  const expenseAccess = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  const canSeeFinance = expenseAccess.kind === 'GRANTED'
+  /** ผ่านด่านเจ้าของร้านข้างบนแล้ว = เห็นการเงินเสมอ (ตัวแปรคงไว้ให้โค้ดเดิมด้านล่างอ่านง่าย) */
+  const canSeeFinance = true
 
   /**
    * ── การเงินร้าน 3 แท็บ (feature 00067) ─────────────────────────────────────

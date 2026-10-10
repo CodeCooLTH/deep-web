@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { jsonNoStore } from '@/lib/shop-api-guard'
+import { redactAgentRevenue } from '@/lib/agent-revenue-redact'
 import { parseReportQuery } from '@/lib/agent-report-query'
 import { resolveAgentReportAccess } from '@/services/agent-report-access.service'
 import { getAgentPerformance } from '@/services/agent-performance.service'
@@ -47,7 +48,7 @@ export async function GET(
     const detail = await getAgentPerformance(access.shop.id, agentId, parsed.filters)
     if (!detail) return jsonNoStore({ error: 'ไม่พบสมาชิกคนนี้ในร้าน' }, { status: 404 })
     return jsonNoStore({
-      ...detail,
+      ...(access.canSeeRevenue ? detail : redactAgentRevenue(detail)),
       label: parsed.label,
       clamped: parsed.clamped,
       access: { kind: access.kind, canSeeRevenue: access.canSeeRevenue },

@@ -8,6 +8,7 @@
  * 🛑 ด่านสิทธิ์อยู่ที่นี่ด้วย ไม่ใช่แค่ที่ API — หน้านี้เป็น RSC ที่ query ตรง คนที่พิมพ์ URL
  * ของเพื่อนร่วมงานเข้ามาต้องไม่เห็นอะไร (โจทย์ข้อ 12)
  */
+import { redactAgentRevenue } from '@/lib/agent-revenue-redact'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
@@ -279,7 +280,10 @@ export default async function AgentPerformanceDetailPage({
       </div>
 
       <div className="mb-4">
-        <AgentTrendChart points={detail.trend} canSeeRevenue={canSeeRevenue} />
+        <AgentTrendChart
+          points={canSeeRevenue ? detail.trend : redactAgentRevenue(detail.trend)}
+          canSeeRevenue={canSeeRevenue}
+        />
       </div>
 
       <ConversationBreakdownTable rows={rows} canSeeRevenue={canSeeRevenue} />

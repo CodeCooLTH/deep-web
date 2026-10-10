@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { jsonNoStore } from '@/lib/shop-api-guard'
+import { redactAgentRevenue } from '@/lib/agent-revenue-redact'
 import { parseReportQuery } from '@/lib/agent-report-query'
 import { resolveAgentReportAccess } from '@/services/agent-report-access.service'
 import { getAgentPerformanceOverview } from '@/services/agent-performance.service'
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       scopeToAgentUserId: access.kind === 'SELF' ? access.scopeToAgentUserId : null,
     })
     return jsonNoStore({
-      ...result,
+      ...(access.canSeeRevenue ? result : redactAgentRevenue(result)),
       label: parsed.label,
       clamped: parsed.clamped,
       access: { kind: access.kind, canSeeRevenue: access.canSeeRevenue, userId: access.userId },

@@ -6,10 +6,9 @@
  * ใช้ endpoint เดียวกันทั้งการ์ด "การมองเห็นหน้าร้าน" บนมือถือ (/public-profile — component นี้)
  * และ toolbar ของ builder บนเดสก์ท็อป (API.md §4.4: PATCH /api/shops/current/page-builder/publish)
  *
- * Base: src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/components/FinanceVisibilityToggle.tsx
- *   — ยกทั้งโครง: form-switch controlled + optimistic + revert เมื่อ PATCH ล้ม + confirm เฉพาะ
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71 (form-switch controlled) + src/lib/paces-swal.ts (pacesConfirm.warning)
+ *   — โครง: form-switch controlled + optimistic + revert เมื่อ PATCH ล้ม + confirm เฉพาะ
  *   ทิศทางเสี่ยง (pacesConfirm.warning ก่อนยิง PATCH)
- *   Adapt: ทิศทางเสี่ยง "กลับด้าน" กับไฟล์ต้นแบบ — ไฟล์ต้นแบบเสี่ยงตอน "เปิด" (admin เห็นข้อมูลการเงิน)
  *   ของเราเสี่ยงตอน "ปิด" (ลูกค้าทั่วไปเข้าหน้าร้านไม่ได้) จึง confirm ก่อน**ปิด** ไม่ confirm ก่อนเปิด
  * Base: src/lib/paces-swal.ts (pacesConfirm.warning) — confirm modal ก่อนทำสิ่งเสี่ยง
  * Base: src/lib/paces-toast.ts (pacesToast) — toast แจ้งผลสำเร็จ/ล้ม (Hard Rule 9 — ห้าม react-toastify)
