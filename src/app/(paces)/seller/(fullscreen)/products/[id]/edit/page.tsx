@@ -27,13 +27,14 @@ import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import type { Metadata } from 'next'
+import { productPageMetadata } from '@/lib/product-page-title'
 import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
-export const metadata: Metadata = { title: 'แก้ไขสินค้า' }
+// ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
+export const generateMetadata = () => productPageMetadata('edit')
 
 const FORM_ID = 'product-form'
 

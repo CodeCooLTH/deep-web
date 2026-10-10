@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { cancelOrder, CancelReasonRequiredError, InvalidCancelReasonError } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
 import { canAccessShop } from "@/lib/shop-context";
+import { orderNounFor } from "@/lib/api-error-vocab";
 
 // POST /api/orders/[token]/cancel
 //
@@ -47,7 +48,7 @@ export async function POST(
     // ไม่ใช่สมาชิกร้าน และไม่ใช่ buyer-owner (รวมเคส order.buyerUserId == null
     // — ไม่มีใครยกเลิกได้ยกเว้น seller)
     return NextResponse.json(
-      { error: "ไม่มีสิทธิ์ยกเลิกคำสั่งซื้อนี้" },
+      { error: `ไม่มีสิทธิ์ยกเลิก${orderNounFor(order.shop.vertical)}นี้` },
       { status: 403 },
     );
   }
@@ -76,12 +77,12 @@ export async function POST(
     const raw = err instanceof Error ? err.message : "";
     if (raw.startsWith("Invalid transition:")) {
       return NextResponse.json(
-        { error: "คำสั่งซื้อนี้อยู่ในสถานะที่ยกเลิกไม่ได้แล้ว" },
+        { error: `${orderNounFor(order.shop.vertical)}นี้อยู่ในสถานะที่ยกเลิกไม่ได้แล้ว` },
         { status: 400 },
       );
     }
     if (raw === "Order not found") {
-      return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+      return NextResponse.json({ error: `ไม่พบ${orderNounFor(order.shop.vertical)}นี้` }, { status: 404 });
     }
 
     // 🛑 ที่เหลือคือ error ที่เราไม่ได้ตั้งใจให้เกิด — ห้ามส่ง message ดิบกลับไป

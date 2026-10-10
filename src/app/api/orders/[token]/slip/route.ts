@@ -7,6 +7,7 @@ import { validateUpload, saveFile, deleteFile, getFileMeta } from "@/lib/storage
 import { AttachSlipSchema } from "@/lib/validations";
 import { attachSlip } from "@/services/order.service";
 import { sessionUserId } from "@/lib/session-user";
+import { orderNounFor } from "@/lib/api-error-vocab";
 
 // POST /api/orders/[token]/slip
 //
@@ -41,11 +42,12 @@ export async function POST(
 
   const order = await prisma.order.findUnique({
     where: { publicToken: token },
-    select: { buyerUserId: true },
+    select: { buyerUserId: true, shop: { select: { vertical: true } } },
   });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  // shop?. : mock เทสเดิมคืนแถวไม่มี shop — ตกเป็นคำเดิมของร้านขายของ
   if (order.buyerUserId !== actorUserId) {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์แนบสลิปคำสั่งซื้อนี้" }, { status: 403 });
+    return NextResponse.json({ error: `ไม่มีสิทธิ์แนบสลิป${orderNounFor(order.shop?.vertical)}นี้` }, { status: 403 });
   }
 
   const contentType = request.headers.get("content-type") ?? "";

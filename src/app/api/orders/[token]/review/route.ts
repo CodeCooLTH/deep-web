@@ -1,3 +1,4 @@
+import { orderNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import * as v from "valibot";
@@ -29,11 +30,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const order = await prisma.order.findUnique({
     where: { publicToken: token },
-    select: { buyerUserId: true },
+    select: { buyerUserId: true, shop: { select: { vertical: true } } },
   });
   if (!order) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อ" }, { status: 404 });
   if (order.buyerUserId !== userId) {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์รีวิวคำสั่งซื้อนี้" }, { status: 403 });
+    return NextResponse.json({ error: `ไม่มีสิทธิ์รีวิว${orderNounFor(order.shop.vertical)}นี้` }, { status: 403 });
   }
 
   try {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "รีวิวได้หลังยืนยันรับแล้วเท่านั้น" }, { status: 409 });
     }
     if (msg.startsWith("Review already exists")) {
-      return NextResponse.json({ error: "คำสั่งซื้อนี้รีวิวไปแล้ว" }, { status: 409 });
+      return NextResponse.json({ error: `${orderNounFor(order.shop.vertical)}นี้รีวิวไปแล้ว` }, { status: 409 });
     }
     console.error("[review POST]", err);
     return NextResponse.json({ error: "ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" }, { status: 400 });

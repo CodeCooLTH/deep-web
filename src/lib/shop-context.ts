@@ -76,6 +76,8 @@ export interface ActiveShopContext {
   role: "OWNER" | "ADMIN";
   locked: boolean;
   lockReason: string | null;
+  /** ประเภทกิจการของร้าน — มากับ query เดิมอยู่แล้ว ให้หน้าที่ต้องผันคำตามประเภทไม่ต้องยิงเพิ่ม */
+  vertical: string;
 }
 
 /** resolveActiveShopContext — ใช้ใน page/route ที่ต้อง operate บน "shop ปัจจุบัน" ของ session
@@ -88,16 +90,16 @@ export async function resolveActiveShopContext(session: {
   if (!shopId) {
     const personal = await getPersonalShop(session.user.id);
     if (!personal) return null;
-    return { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null };
+    return { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null, vertical: personal.vertical };
   }
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: { id: true, kind: true, userId: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
+    select: { id: true, kind: true, userId: true, packageLockedAt: true, packageLockReason: true, deletedAt: true, vertical: true },
   });
   if (!shop || shop.deletedAt) return null; // soft-deleted/ไม่มี → fallback caller ควรพากลับ Personal
   if (shop.kind === "PERSONAL") {
     if (shop.userId !== session.user.id) return null; // ไม่ควรเกิด (Personal เป็นของ user เดียวเสมอ) — defense
-    return { shopId: shop.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null };
+    return { shopId: shop.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null, vertical: shop.vertical };
   }
   // BUSINESS — verify membership จริง (ไม่ trust JWT เพียงอย่างเดียว)
   const member = await prisma.shopMember.findUnique({
@@ -107,7 +109,7 @@ export async function resolveActiveShopContext(session: {
   if (!member) return null;
   return {
     shopId: shop.id, kind: "BUSINESS", role: member.role as "OWNER" | "ADMIN",
-    locked: shop.packageLockedAt !== null, lockReason: shop.packageLockReason,
+    locked: shop.packageLockedAt !== null, lockReason: shop.packageLockReason, vertical: shop.vertical,
   };
 }
 
@@ -145,7 +147,7 @@ export async function requireActiveShop(
     // fallback → Personal (เช่น activeShopId ชี้ business ที่หลุด membership/ถูกลบ)
     const personal = await getPersonalShop(userId);
     if (!personal) return null;
-    meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null };
+    meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", locked: false, lockReason: null, vertical: personal.vertical };
   }
   const shop = await prisma.shop.findUnique({ where: { id: meta.shopId } });
   if (!shop) return null;

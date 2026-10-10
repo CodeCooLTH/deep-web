@@ -21,7 +21,7 @@ import { getProductsByShop } from '@/services/product.service'
 import { getOrdersByShop } from '@/services/order.service'
 import { getPinState } from '@/services/pin.service'
 import Link from 'next/link'
-import type { Metadata } from 'next'
+import { productPageMetadata } from '@/lib/product-page-title'
 import ProductsListing from './components/ProductsListing'
 import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
@@ -29,7 +29,8 @@ import type { StatType } from './components/ProductStats'
 import { fileUrlOf } from '@/lib/file-url'
 import { resolveProductVocab } from '@/lib/seller-menu'
 
-export const metadata: Metadata = { title: 'สินค้า' }
+// ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
+export const generateMetadata = () => productPageMetadata('list')
 
 export default async function ProductsPage() {
   const session = await getServerSession(authOptions)

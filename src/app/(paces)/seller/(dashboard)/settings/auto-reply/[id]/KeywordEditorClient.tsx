@@ -19,6 +19,7 @@
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { chatItemLabel } from '@/lib/chat-vocab'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -58,6 +59,8 @@ type Ad = {
 
 type Props = {
   canEdit: boolean
+  /** ประเภทกิจการ — ผันคำ 'สินค้า' ให้ร้านบริการ (ร้านอื่นเห็นคำเดิม) */
+  vertical?: string
   keyword: {
     id: string
     name: string
@@ -133,7 +136,8 @@ function PreviewBotTag() {
   )
 }
 
-export default function KeywordEditorClient({ canEdit, keyword, overlaps, channels, products }: Props) {
+export default function KeywordEditorClient({ canEdit, vertical, keyword, overlaps, channels, products }: Props) {
+  const item = chatItemLabel(vertical)
   const router = useRouter()
 
   const [status, setStatus] = useState(keyword.status)
@@ -894,7 +898,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       แล้ววางตัวนับไว้นอกกรอบแทน */}
                   <textarea id="k-fallback-reply" className="form-textarea" rows={4} value={defaultReply} disabled={!canEdit}
                     maxLength={REPLY_MAX} onChange={(e) => setDefaultReply(e.target.value)}
-                    placeholder="เช่น สนใจสินค้ารายการไหนคะ ส่งรูปหรือชื่อสินค้าเข้ามาได้เลยค่ะ"
+                    placeholder={`เช่น สนใจ${item}รายการไหนคะ ส่งรูปหรือชื่อ${item}เข้ามาได้เลยค่ะ`}
                     aria-label="คำตอบปกติ" />
                   <div className="mt-1.5 flex justify-end">
                     <span className="text-default-400 text-2xs">{defaultReply.length}/{REPLY_MAX}</span>
@@ -977,7 +981,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
 
       {sheetOpen && (
         <ExceptionSheet
-          keywordId={keyword.id} channels={channels} products={products}
+          keywordId={keyword.id} channels={channels} products={products} vertical={vertical}
           rule={editingRule}
           // เคลียร์ editingRule ด้วย ไม่งั้นกด "เพิ่มเงื่อนไขเฉพาะ" ครั้งถัดไปจะเปิดเป็นโหมดแก้
           onClose={() => { setSheetOpen(false); setEditingRule(null) }}
@@ -1009,9 +1013,10 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
    sheet เพิ่ม/แก้เงื่อนไขเฉพาะ — โหมดแก้ prefill จาก rule เดิมแล้ว PATCH
    ═══════════════════════════════════════════════════════════════════ */
 function ExceptionSheet({
-  keywordId, channels, products, rule = null, onClose, onCreated, onUpdated,
+  keywordId, channels, products, vertical, rule = null, onClose, onCreated, onUpdated,
 }: {
   keywordId: string
+  vertical?: string
   channels: Channel[]
   products: Product[]
   /** null = โหมดเพิ่ม (POST ได้หลายข้อ) · Rule = โหมดแก้ (PATCH ข้อเดียว) */
@@ -1020,6 +1025,7 @@ function ExceptionSheet({
   onCreated: (r: Rule[]) => void
   onUpdated: (r: Rule) => void
 }) {
+  const item = chatItemLabel(vertical)
   /**
    * overlay เต็มจอที่ประกอบเองด้วย React state จึงต้องตรึง scroll เอง
    * (docs/conventions/overlay-scroll-lock.md) — true ตายตัวได้เพราะ parent mount ใต้
@@ -1111,10 +1117,10 @@ function ExceptionSheet({
       )
       parts.push(names.length === 1 ? `โฆษณา “${names[0]}”` : `โฆษณา ${names.map((n) => `“${n}”`).join(' หรือ ')}`)
     }
-    if (useProduct && productId) parts.push(`สินค้า “${products.find((p) => p.id === productId)?.name}”`)
+    if (useProduct && productId) parts.push(`${item} “${products.find((p) => p.id === productId)?.name}”`)
     if (parts.length === 0) return null
     return parts.join(' และ ')
-  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products, rule])
+  }, [usePage, useAd, useProduct, channelIds, adIds, productId, channels, ads, products, rule, item])
 
   const pageChosen = usePage && channelIds.length > 0
   /** จำนวนมิติที่ติ๊กจริง — ใช้บอกความเจาะจงเป็นภาษาคน (ผู้ใช้ไม่ต้องรู้จักคำว่า specificity) */
@@ -1380,12 +1386,12 @@ function ExceptionSheet({
             <label className="flex items-center gap-2 text-sm font-medium">
               <input type="checkbox" className="form-checkbox" checked={useProduct}
                 onChange={(e) => setUseProduct(e.target.checked)} />
-              สนใจสินค้า
+              สนใจ{item}
             </label>
             {useProduct && (
               <div className="mt-2.5">
-                <input className="form-input mb-2.5" placeholder="ค้นหาสินค้า…" value={productQuery}
-                  onChange={(e) => setProductQuery(e.target.value)} aria-label="ค้นหาสินค้า" />
+                <input className="form-input mb-2.5" placeholder={`ค้นหา${item}…`} value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)} aria-label={`ค้นหา${item}`} />
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {visibleProducts.map((p) => (
                     <button key={p.id} type="button" onClick={() => setProductId(p.id)}

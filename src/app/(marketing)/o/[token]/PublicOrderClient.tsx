@@ -18,6 +18,7 @@ import { useState } from 'react'
 
 import { toast } from 'react-toastify'
 
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import OrderDetailMobile, { type PublicOrderData } from './OrderDetailMobile'
 
 type Props = {
@@ -41,7 +42,7 @@ export default function PublicOrderClient({ order }: Props) {
       }
       throw new Error(data.error ?? 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     }
-    toast.success('ยกเลิกคำสั่งซื้อแล้ว')
+    toast.success(orderState.isServiceShop ? `ยกเลิก${ORDER_VOCAB.SERVICE_QUEUE.noun}แล้ว` : 'ยกเลิกคำสั่งซื้อแล้ว')
     // Optimistic update — รวม cancelInitiator จาก response เพื่อให้ copy "คุณ/ร้านค้ายกเลิก" ถูกต้องทันที (ไม่ต้อง reload)
     setOrderState((prev) => ({
       ...prev,

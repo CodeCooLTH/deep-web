@@ -73,6 +73,7 @@ export default async function KeywordEditorPage({ params }: { params: Promise<{ 
 
       <KeywordEditorClient
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
+        vertical={activeCtx.vertical}
         keyword={{
           id: keyword.id,
           name: keyword.name,

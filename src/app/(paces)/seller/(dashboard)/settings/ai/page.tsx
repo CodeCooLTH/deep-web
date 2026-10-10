@@ -100,6 +100,7 @@ export default async function AiSettingsPage() {
           canEdit={canEdit}
           isPaidPlan={isPaidPlan}
           subscriptionLapsed={subscriptionLapsed}
+          vertical={activeCtx.vertical}
           mediaUnsupported={resolveSuggestProvider(activeCtx.shopId) !== 'gemini'}
         />
       </div>

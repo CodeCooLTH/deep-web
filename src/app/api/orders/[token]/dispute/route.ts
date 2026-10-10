@@ -9,6 +9,7 @@ import {
   OrderAlreadyClosedError,
   DISPUTE_NOTE_MAX,
 } from "@/services/order-dispute.service";
+import { orderNounFor } from "@/lib/api-error-vocab";
 
 /**
  * POST /api/orders/[token]/dispute — ผู้ซื้อแจ้งว่ายังไม่ได้รับของ / ของไม่ตรง
@@ -28,7 +29,7 @@ export async function POST(
 
   const order = await prisma.order.findUnique({
     where: { publicToken: token },
-    select: { shopId: true, buyerUserId: true },
+    select: { shopId: true, buyerUserId: true, shop: { select: { vertical: true } } },
   });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
@@ -41,7 +42,7 @@ export async function POST(
   const isBuyerOwner = sessionUserId === order.buyerUserId;
   const isSellerMember = await canAccessShop(order.shopId, sessionUserId);
   if (!isBuyerOwner && !isSellerMember) {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์แจ้งปัญหาคำสั่งซื้อนี้" }, { status: 403 });
+    return NextResponse.json({ error: `ไม่มีสิทธิ์แจ้งปัญหา${orderNounFor(order.shop.vertical)}นี้` }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);
@@ -59,7 +60,7 @@ export async function POST(
   } catch (err) {
     if (err instanceof OrderAlreadyClosedError) {
       return NextResponse.json(
-        { error: "คำสั่งซื้อนี้ปิดจบไปแล้ว แจ้งปัญหาไม่ได้" },
+        { error: `${orderNounFor(order.shop.vertical)}นี้ปิดจบไปแล้ว แจ้งปัญหาไม่ได้` },
         { status: 409 },
       );
     }

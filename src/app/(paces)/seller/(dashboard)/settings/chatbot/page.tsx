@@ -50,6 +50,7 @@ export default async function ChatbotPage() {
         initialGuardrails={guardrails}
         walletBalance={wallet?.balance ?? 0}
         knowledgeCount={qnaCount}
+        vertical={activeCtx.vertical}
       />
     </>
   )
