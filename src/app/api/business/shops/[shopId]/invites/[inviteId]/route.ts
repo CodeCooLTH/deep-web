@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { cancelInvite } from "@/services/shop-member.service";
 
 /**
@@ -15,12 +17,11 @@ export async function DELETE(
   { params }: { params: Promise<{ shopId: string; inviteId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { shopId, inviteId } = await params;
+  // 00071 T2: คงรหัส NOT_OWNER ที่ UI เดิมอ่าน
+  const gate = await requireShopCapability(session, "T2", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const ownerId = gate.userId;
 
   try {
     await cancelInvite(ownerId, shopId, inviteId);

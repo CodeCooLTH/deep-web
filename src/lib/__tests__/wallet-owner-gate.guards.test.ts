@@ -33,8 +33,9 @@ describe('getBalance ต้องถูกครอบเงื่อนไข�
   })
   it('wallet page: gate อยู่ก่อน getBalance', () => {
     const s = read(`${D}/wallet/page.tsx`)
-    expect(s.indexOf('if (!isOwner)')).toBeGreaterThan(0)
-    expect(s.indexOf('if (!isOwner)')).toBeLessThan(s.indexOf('await getBalance('))
+    expect(s.indexOf("gatePage(sessionLike, 'F3')")).toBeGreaterThan(0)
+    expect(s.indexOf("gatePage(sessionLike, 'F3')")).toBeLessThan(s.indexOf('await getBalance('))
+    expect(s.indexOf('if (forbidden)')).toBeLessThan(s.indexOf('await getBalance('))
   })
 })
 

@@ -5,7 +5,7 @@
  * (feature 00067 FR-FIN-10/11)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts (โครง .alert ของ Paces)
- *   ผ่าน precedent ในรีโป: expenses/components/ExpenseLockedCard.tsx (การ์ดที่อธิบาย + พาไปทำต่อ)
+ *   ผ่าน precedent ในรีโป: _shared/NoPermissionCard.tsx (การ์ดที่อธิบาย + พาไปทำต่อ)
  *
  * 🛑 **นี่คือส่วนที่สำคัญที่สุดของทั้งฟีเจอร์** — ร้านบริการไม่มีต้นทุนสินค้าโดยธรรมชาติและถูกล็อก
  * ไม่ให้มีค่าส่ง ถ้าไม่มีทั้งราคาทุนและรายการค่าใช้จ่าย **กำไรจะเท่ากับยอดขายเป๊ะทุกบาท**

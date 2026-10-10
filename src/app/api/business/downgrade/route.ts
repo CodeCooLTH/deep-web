@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { DowngradeBusinessPackageSchema } from "@/lib/validations";
 import { downgradeBusinessPackage } from "@/services/business-package.service";
 
@@ -14,11 +15,10 @@ import { downgradeBusinessPackage } from "@/services/business-package.service";
  */
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // 00071 T4: จัดการแพ็กเกจ = เจ้าของหลักของร้านที่ active (401 ไม่รู้ตัวตน อยู่ในด่านเอง)
+  const gate = await requireShopCapability(session, "T4");
+  if (!gate.ok) return gate.response;
+  const ownerId = gate.userId;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(DowngradeBusinessPackageSchema, body);

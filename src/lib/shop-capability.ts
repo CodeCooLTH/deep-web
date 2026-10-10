@@ -19,7 +19,10 @@ import { sessionUserId } from '@/lib/session-user'
 import { requireShopForRequest, type ActiveShop } from '@/lib/shop-context'
 import { can, PRIMARY_OWNER_ONLY, rolesFromMembership, type Capability, type ShopRole } from '@/lib/shop-permissions'
 
-type SessionLike = { user?: { id?: string | null; activeShopId?: string | null } | null } | null
+// NextAuth `Session` ไม่ประกาศ user.id/activeShopId (ไม่มี d.ts augmentation) — รับ object ตรง ๆ ไม่ต้อง cast ที่ผู้เรียก
+// ตัวตนอ่านผ่าน sessionUserId (ตรวจ id จริง) และ requireShopForRequest (re-verify สมาชิกภาพสด)
+type SessionLike = object | null
+type ShopSession = Parameters<typeof requireShopForRequest>[0]
 
 const NO_STORE = { 'cache-control': 'private, no-store' } as const
 
@@ -63,7 +66,7 @@ export async function requireShopCapability(
 ): Promise<ShopCapabilityResult> {
   const userId = sessionUserId(session)
   if (!userId) return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: NO_STORE }) }
-  const resolved = await requireShopForRequest(session, opts?.shopId)
+  const resolved = await requireShopForRequest(session as ShopSession, opts?.shopId)
   if (!resolved.ok) {
     return resolved.reason === 'NO_SHOP'
       ? { ok: false, response: NextResponse.json({ error: 'NO_SHOP' }, { status: 404, headers: NO_STORE }) }
@@ -85,7 +88,7 @@ export async function gatePage(
 ): Promise<{ ok: true; active: ActiveShop; roles: ShopRole[] } | { ok: false; reason: 'NO_SHOP' | 'FORBIDDEN_ROLE' }> {
   const userId = sessionUserId(session)
   if (!userId) return { ok: false, reason: 'NO_SHOP' }
-  const resolved = await requireShopForRequest(session)
+  const resolved = await requireShopForRequest(session as ShopSession)
   if (!resolved.ok) return { ok: false, reason: 'NO_SHOP' }
   const active = resolved.target
   const eff = effectiveRoles(active.shop, active.role, active.roles)

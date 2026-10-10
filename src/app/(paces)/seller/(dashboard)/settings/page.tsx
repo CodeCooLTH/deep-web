@@ -17,6 +17,9 @@ import type { Metadata } from 'next'
 import ShippingSettingsRow from './ShippingSettingsRow'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'การจัดส่ง' }
 
@@ -27,6 +30,17 @@ export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id: string } } | null)?.user
   if (!user) return null
+
+  // 00071 S2: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'S2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การจัดส่ง" trail={[{ label: 'ภาพรวม' }]} />
+        <NoPermissionCard capability="S2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   // feature 00022 — การ์ดทางเข้าหน้าตั้งค่าการจัดส่ง
   // แสดงเฉพาะร้าน vertical = ONLINE_SALES (feature 00028 BR-SBT-12): ร้านบ้านพัก/รับคิว

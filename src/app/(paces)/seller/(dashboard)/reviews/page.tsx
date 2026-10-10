@@ -19,6 +19,9 @@ import type { ReviewRow, SummaryData } from './components/data'
 import type { Metadata } from 'next'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'รีวิวจากลูกค้า' }
 
@@ -38,6 +41,17 @@ export default async function ReviewsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
+
+  // 00071 T1: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="รีวิว" trail={[{ label: 'การขาย' }]} />
+        <NoPermissionCard capability="T1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   // ประเภทกิจการไว้ผันคำ 'สินค้า/ออเดอร์' — fail-soft: resolve ไม่ได้ก็ใช้คำเดิม ไม่ให้หน้ารีวิวล่ม
   const verticalPromise = resolveActiveShopContext({ user: { id: user.id, activeShopId: user.activeShopId ?? null } })

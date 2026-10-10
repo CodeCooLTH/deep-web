@@ -19,6 +19,7 @@ const MONEY_SOURCES = [
 const DECIDERS = [
   'can', 'moneyLevel', 'dashboardMoney', 'resolveExpenseAccess', 'resolveAgentReportAccess',
   'resolveProductReportAccess', 'resolveReportAccess', 'forbiddenRoleResponse', 'isShopOwnerRole', 'isShopOwnerOfShop',
+  'gatePage', 'requireShopCapability', // ด่านสิทธิ์กลาง P3 (shop-capability.ts) — หน้าการเงินย้ายมาใช้ gatePage
 ]
 
 // ขอบเขตที่ไม่สแกน (แต่ละอันมีเหตุผล)

@@ -22,6 +22,9 @@ import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { listMembers } from '@/services/shop-member.service'
 import { listActiveInviteLinks } from '@/services/invite-link.service'
 import { buildInviteUrl } from '@/lib/invite-link'
@@ -38,6 +41,17 @@ export default async function AdminsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
+
+  // 00071 T2: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="พนักงาน" />
+        <NoPermissionCard capability="T2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   // ไม่ใช่ owner ของ Business shop → notFound() (context isolation — ไม่บอกเหตุผลให้คนนอกเดา)

@@ -25,6 +25,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
@@ -192,6 +195,17 @@ export default async function SubscriptionsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
+
+  // 00071 T4: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T4')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="แพ็กเกจของฉัน" />
+        <NoPermissionCard capability="T4" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   const ownerId = user.id as string
 

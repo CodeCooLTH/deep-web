@@ -8,9 +8,9 @@ import { readFileSync } from 'node:fs'
  */
 const D = 'src/app/(paces)/seller/(dashboard)'
 const PAGES: { file: string; gate: RegExp; queries: RegExp }[] = [
-  { file: `${D}/sales/page.tsx`, gate: /can\(rolesFromMembership\([^)]*\),\s*'F1'\)/,
+  { file: `${D}/sales/page.tsx`, gate: /await gatePage\([^)]*'F1'\)/,
     queries: /\b(resolveRangeFromParams|getOrdersByShop|getPnlReport|listExpenses|getCostCoverage)\(/ },
-  { file: `${D}/expenses/page.tsx`, gate: /await resolveExpenseAccess\(/,
+  { file: `${D}/expenses/page.tsx`, gate: /await gatePage\([^)]*'F1'\)/,
     queries: /\b(listExpenses|getPnlReport|hasAnyExpense)\(/ },
   { file: `${D}/reports/products/page.tsx`, gate: /await resolveProductReportAccess\(/,
     queries: /\b(getProductSalesMonth)\(/ },

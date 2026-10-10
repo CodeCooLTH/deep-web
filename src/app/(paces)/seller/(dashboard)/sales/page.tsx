@@ -10,9 +10,10 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate, thaiDayKey, localDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { can, rolesFromMembership } from '@/lib/shop-permissions'
-import ExpenseLockedCard from '../expenses/components/ExpenseLockedCard'
-import { requireActiveShop } from '@/lib/shop-context'
+import NoPermissionCard from '../_shared/NoPermissionCard'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -85,22 +86,23 @@ export default async function SalesPage({
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect('/auth/sign-in')
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
-  if (!active) redirect('/shop')
-  const shop = active.shop
+  const sessionLike = session as unknown as { user: { id: string; activeShopId?: string | null } }
 
   /**
    * 00071 BR-RP-08: หน้านี้ทั้งหน้า (ทุกแท็บ) เป็นการเงินเต็ม = เจ้าของร้านเท่านั้น
    * 🛑 ต้องตัดสินตรงนี้ ก่อน parse ช่วงเวลา/query ใด ๆ — ผู้ไม่ใช่เจ้าของต้องไม่ถูกดึงข้อมูลเลย
    */
-  if (!can(rolesFromMembership(active.role, active.roles), 'F1')) {
+  const gate = await gatePage(sessionLike, 'F1')
+  if (!gate.ok && gate.reason === 'NO_SHOP') redirect('/shop')
+  if (!gate.ok) {
     return (
       <>
         <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
-        <ExpenseLockedCard />
+        <NoPermissionCard capability="F1" viewerRoles={await viewerRolesOf(sessionLike)} detail={FINANCE_NO_PERMISSION_DETAIL} />
       </>
     )
   }
+  const shop = gate.active.shop
 
   /**
    * ช่วงเวลา — **ชุดเดียวทุกแท็บ** (`?range=` + `start`/`end`) ผ่าน resolveRangeFromParams (2026-10-01)

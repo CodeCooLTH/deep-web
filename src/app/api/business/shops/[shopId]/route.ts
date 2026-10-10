@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { softDeleteBusinessShop } from "@/services/business-shop.service";
 import { BUSINESS_DELETE_RETENTION_DAYS } from "@/lib/business-package";
 
@@ -14,12 +16,11 @@ import { BUSINESS_DELETE_RETENTION_DAYS } from "@/lib/business-package";
  */
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ shopId: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { shopId } = await params;
+  // 00071 T4: ลบร้าน = เจ้าของหลัก · คงรหัส NOT_OWNER ที่ UI เดิมอ่าน
+  const gate = await requireShopCapability(session, "T4", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const ownerId = gate.userId;
 
   try {
     const shop = await softDeleteBusinessShop(ownerId, shopId);

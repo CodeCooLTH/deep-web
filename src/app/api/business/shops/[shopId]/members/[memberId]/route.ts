@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
-import { sessionUserId } from "@/lib/session-user";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { ChangeMemberRoleSchema } from "@/lib/validations";
 import { memberErrorResponse } from "@/lib/shop-member-errors";
 import { changeMemberRole, removeShopMember } from "@/services/shop-member.service";
@@ -18,9 +19,12 @@ import { changeMemberRole, removeShopMember } from "@/services/shop-member.servi
 type Ctx = { params: Promise<{ shopId: string; memberId: string }> };
 
 export async function PATCH(request: NextRequest, { params }: Ctx) {
-  const callerId = sessionUserId(await getServerSession(authOptions));
-  if (!callerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const session = await getServerSession(authOptions);
   const { shopId, memberId } = await params;
+  // 00071 T2: ด่านบทบาทก่อน · กฎ BR-MR (เจ้าของร่วม/หลัก ใน service) คงเดิมเป็นด่านที่สอง
+  const gate = await requireShopCapability(session, "T2", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const callerId = gate.userId;
 
   const parsed = v.safeParse(ChangeMemberRoleSchema, await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
@@ -37,9 +41,12 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Ctx) {
-  const callerId = sessionUserId(await getServerSession(authOptions));
-  if (!callerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const session = await getServerSession(authOptions);
   const { shopId, memberId } = await params;
+  // 00071 T2: ด่านบทบาทก่อน · กฎ BR-MR (เจ้าของร่วม/หลัก ใน service) คงเดิมเป็นด่านที่สอง
+  const gate = await requireShopCapability(session, "T2", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const callerId = gate.userId;
 
   try {
     await removeShopMember(callerId, shopId, memberId);

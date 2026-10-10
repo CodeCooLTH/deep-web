@@ -18,6 +18,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { getInspectionForOwner } from '@/services/inspection-owner.service'
 import { InspectionPlanError } from '@/services/inspection-plan.service'
 import { shouldHidePayments } from '@/lib/app-shell-server'
@@ -36,6 +39,17 @@ export default async function InspectionPage() {
   //    (docs/conventions/session-exists-is-not-identity.md)
   const userId = sessionUserId(session)
   if (userId === null) return null // layout redirect guard handles unauthenticated
+
+  // 00071 T4: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T4')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="แผนการตรวจสอบ" />
+        <NoPermissionCard capability="T4" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },

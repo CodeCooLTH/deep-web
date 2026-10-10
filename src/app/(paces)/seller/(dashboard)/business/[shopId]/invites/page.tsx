@@ -25,7 +25,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isShopMember } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { listMembers } from '@/services/shop-member.service'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -53,8 +54,16 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
 
   const { shopId } = await params
 
-  // 1. membership guard — context isolation (ไม่ leak การมีอยู่ของ shop ให้คนนอก)
-  if (!(await isShopMember(shopId, userId))) notFound()
+  // 1. ด่านบทบาท (T2 = เจ้าของ รวมเจ้าของร่วม · มติ C-3) — ผู้ดูแล/คนนอกได้การ์ด ไม่เห็นรายชื่อสมาชิก
+  //    ตัดสินกับ "ร้านตาม URL" ไม่ใช่ร้านที่ active จึงใช้ canAccessShopWith · ไม่ยืนยันว่าร้านมีจริง (การ์ดไม่มีชื่อร้าน)
+  if (!(await canAccessShopWith(shopId, userId, 'T2'))) {
+    return (
+      <>
+        <PageBreadcrumb title="สมาชิกธุรกิจ" trail={[{ label: 'ธุรกิจ', href: '/business' }]} />
+        <NoPermissionCard capability="T2" viewerRoles={[]} />
+      </>
+    )
+  }
 
   // 2. shop record — เฉพาะ BUSINESS shop เท่านั้นที่มีแนวคิด invite/member (PERSONAL ไม่เกี่ยว)
   const shop = await prisma.shop.findUnique({

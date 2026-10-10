@@ -3,7 +3,8 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { inviteLinkCreateSchema } from "@/lib/validations";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { createInviteLink, listActiveInviteLinks } from "@/services/invite-link.service";
 import { buildInviteUrl, DEFAULT_INVITE_EXPIRY_KEY, type InviteExpiryKey } from "@/lib/invite-link";
 
@@ -19,16 +20,12 @@ import { buildInviteUrl, DEFAULT_INVITE_EXPIRY_KEY, type InviteExpiryKey } from 
  */
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active || active.kind !== "BUSINESS" || active.role !== "OWNER") {
-    return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
-  }
+  // 00071 T2: ลิงก์เชิญ = เจ้าของ (รวมเจ้าของร่วม) · เฉพาะร้านธุรกิจ · คงรหัส NOT_OWNER ที่ UI เดิมอ่าน
+  const gate = await requireShopCapability(session, "T2");
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const active = gate.active;
+  if (active.kind !== "BUSINESS") return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
+  const ownerId = gate.userId;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(inviteLinkCreateSchema, body ?? {});
@@ -60,16 +57,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(_request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const userId = (session.user as any).id as string;
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active || active.kind !== "BUSINESS" || active.role !== "OWNER") {
-    return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
-  }
+  const gate = await requireShopCapability(session, "T2");
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const active = gate.active;
+  if (active.kind !== "BUSINESS") return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
 
   try {
     const links = await listActiveInviteLinks(active.shop.id);

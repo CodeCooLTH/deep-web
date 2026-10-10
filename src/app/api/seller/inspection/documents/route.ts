@@ -15,7 +15,7 @@ import { errorResponse, mapInspectionError, requireInspectionShop } from '../_sh
  * 🛑 `visibility` ไม่มีในสัญญาและถูกบังคับเป็น `PRIVATE` ที่ service เสมอ
  */
 export async function POST(request: Request) {
-  const auth = await requireInspectionShop()
+  const auth = await requireInspectionShop('T4')
   if ('response' in auth) return auth.response
 
   if ((request.headers.get('content-type') ?? '').includes('multipart/form-data')) {

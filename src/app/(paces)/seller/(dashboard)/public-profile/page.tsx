@@ -27,6 +27,9 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { prisma } from '@/lib/prisma'
 import { getShopPageLayout } from '@/services/shop-page-layout.service'
 import { listProfileVisibilityItems } from '@/services/profile-visibility.service'
@@ -54,6 +57,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PublicProfileSettingsPage() {
   const t = await getT()
   const session = await getServerSession(authOptions)
+  // 00071 T1: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title={t.publicProfile.pageTitle} trail={[{ label: t.publicProfile.breadcrumbOverview }]} />
+        <NoPermissionCard capability="T1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   )

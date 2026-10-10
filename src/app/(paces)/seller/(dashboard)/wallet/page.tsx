@@ -16,14 +16,15 @@
 import { redirect } from 'next/navigation'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
 import { getTopUpsByShop } from '@/services/topup.service'
 import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { shouldHidePayments, shouldShowMoneyStatus } from '@/lib/app-shell-server'
-import { isShopOwnerRole } from '@/lib/shop-owner'
-import ExpenseLockedCard from '../expenses/components/ExpenseLockedCard'
+import NoPermissionCard from '../_shared/NoPermissionCard'
+import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import WalletCard from './components/WalletCard'
 import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
@@ -49,22 +50,23 @@ export default async function WalletPage() {
 
   // ดึง active shop (Personal หรือ Business ตาม session.activeShopId) — layout auto-create Personal ให้แล้ว
   // แต่ทำ try/catch กัน edge case; Business มี wallet แยกต่อ shop.id (คนละอันกับ billing package)
+  const sessionLike = session as unknown as { user: { id: string; activeShopId?: string | null } }
   let shop: { id: string } | null = null
-  let isOwner = true
+  let forbidden = false
   try {
-    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
-    shop = active?.shop ?? null
-    if (active) isOwner = isShopOwnerRole(active.role, active.roles)
+    const gate = await gatePage(sessionLike, 'F3')
+    shop = gate.ok ? gate.active.shop : null
+    forbidden = !gate.ok && gate.reason === 'FORBIDDEN_ROLE'
   } catch {
     shop = null
   }
 
   // 00071 F3: กระเป๋า = เจ้าของร้านเท่านั้น — ตัดก่อน getBalance/getTransactions (ไม่ query ยอดเลย)
-  if (!isOwner) {
+  if (forbidden) {
     return (
       <>
         <PageBreadcrumb title="กระเป๋าเงิน" trail={[{ label: 'การขาย' }]} />
-        <ExpenseLockedCard />
+        <NoPermissionCard capability="F3" viewerRoles={await viewerRolesOf(sessionLike)} detail={FINANCE_NO_PERMISSION_DETAIL} />
       </>
     )
   }

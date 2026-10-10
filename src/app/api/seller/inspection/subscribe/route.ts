@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   // ในแอป (iOS/Android) ห้ามจ่ายเงินให้ Deep นอกสโตร์ — ด่านจริง ไม่ใช่แค่ซ่อนปุ่ม (app-purchase-guard.ts)
   const inAppBlocked = await rejectInAppPurchase()
   if (inAppBlocked) return inAppBlocked
-  const auth = await requireInspectionShop()
+  const auth = await requireInspectionShop('T4')
   if ('response' in auth) return auth.response
 
   const body = await request.json().catch(() => null)

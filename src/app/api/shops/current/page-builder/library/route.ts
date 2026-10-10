@@ -16,7 +16,7 @@ import { requireBuilderShopContext, handleBuilderError, errorResponse } from "..
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const { ctx, response } = await requireBuilderShopContext();
+  const { ctx, response } = await requireBuilderShopContext('T1');
   if (!ctx) return response;
 
   const { searchParams } = new URL(request.url);

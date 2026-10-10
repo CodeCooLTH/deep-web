@@ -25,6 +25,9 @@ import { toFileUrl } from '@/lib/file-url'
 import { prisma } from '@/lib/prisma'
 import { applyTabOrder, computeVisibleTabKeys } from '@/lib/profile-tab-keys'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { getTierGradient, getTierLabel } from '@/lib/trust-tier'
 import Icon from '@/components/wrappers/Icon'
 import { getPinnedProducts } from '@/services/pin.service'
@@ -48,6 +51,15 @@ export const metadata: Metadata = { title: 'ตัวจัดหน้าร้
 
 export default async function ShopPageBuilderPage() {
   const session = await getServerSession(authOptions)
+  // 00071 T1: เปลือกเต็มจอไม่มี breadcrumb — ห่อการ์ดด้วยช่องไฟเอง
+  const gate = await gatePage(session, 'T1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <div className="p-4 md:p-6">
+        <NoPermissionCard capability="T1" viewerRoles={await viewerRolesOf(session)} />
+      </div>
+    )
+  }
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   )

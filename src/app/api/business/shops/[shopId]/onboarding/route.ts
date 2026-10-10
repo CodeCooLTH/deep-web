@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { prisma } from "@/lib/prisma";
 import { setShopSlug } from "@/services/shop.service";
 import { createProduct } from "@/services/product.service";
@@ -45,10 +47,10 @@ const Body = v.object({
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ shopId: string }> }) {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const { shopId } = await params;
+  // 00071 T4: onboard ร้านธุรกิจ = เจ้าของหลัก (ด่านนี้ครอบ 401/NOT_OWNER แทนการเทียบ userId เอง)
+  const gate = await requireShopCapability(session, "T4", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
 
   const parsed = v.safeParse(Body, await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
@@ -62,10 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sho
   if (!shop || shop.kind !== "BUSINESS" || shop.deletedAt) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  // owner-only — onboard สงวนสิทธิ์เจ้าของ (mirror business-shop.service.ts NOT_OWNER)
-  if (shop.userId !== userId) {
-    return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
-  }
+  // owner-only (T4) ตัดสินแล้วที่ด่านด้านบน — ไม่เทียบ userId ซ้ำ
 
   const { shopName, category, logo, slug, product } = parsed.output;
 

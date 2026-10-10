@@ -1,7 +1,5 @@
 /**
- * NoPermissionCard — หน้าแจ้ง "บทบาทนี้เข้าหน้านี้ไม่ได้" ที่ gatePage คืน ok:false (00071 FR-RP-02)
- *
- * ทำไมเป็นไฟล์ re-export: ทุกหน้าเรียกชื่อนี้ที่เดียว — ตอน ux ออกแบบ view ทั่วไปเสร็จ (prop ชื่อ/ข้อความ)
- * สลับเนื้อในไฟล์นี้ไฟล์เดียว ไม่ต้องไล่แก้ทุกหน้า · ตอนนี้ใช้การ์ด "ดูได้เฉพาะเจ้าของร้าน" ของหน้าการเงินไปก่อน
+ * NoPermissionCard — re-export ของการ์ดกลาง (00071 P3 · UX spec §1) เพื่อให้ path ของ T1 ยังใช้ได้
+ * ตัวจริงอยู่ที่ (dashboard)/_shared/NoPermissionCard.tsx
  */
-export { default } from '@/app/(paces)/seller/(dashboard)/expenses/components/ExpenseLockedCard'
+export { default } from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'

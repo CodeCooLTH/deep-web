@@ -15,7 +15,9 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import ExpenseLockedCard from '../../expenses/components/ExpenseLockedCard'
+import NoPermissionCard from '../../_shared/NoPermissionCard'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import Icon from '@/components/wrappers/Icon'
 import { authOptions } from '@/lib/auth'
 import { formatMonthYearTH, formatTimeHM } from '@/lib/format-date'
@@ -93,7 +95,7 @@ export default async function ProductSalesReportPage({
     return (
       <>
         <PageBreadcrumb title={TITLE} subtitle={SUBTITLE} />
-        <ExpenseLockedCard />
+        <NoPermissionCard capability="F1" viewerRoles={await viewerRolesOf(session as unknown as { user: { id: string; activeShopId?: string | null } })} detail={FINANCE_NO_PERMISSION_DETAIL} />
       </>
     )
   }

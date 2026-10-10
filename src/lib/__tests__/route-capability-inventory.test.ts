@@ -25,6 +25,7 @@ const GUARDS = [
   'requireShopContext', 'requireSellerShop', 'requireInspectionShop', 'requireAutoOrderShop',
   'requireBuilderShopContext', 'requireShopId', 'requireScope', 'resolveChatChannelForUser', 'requireDraftOwner',
   'requireGeneralShop', 'requireLodgingShop',
+  'requireAccess', // line-report/_shared.ts: requireAccess(level, cap) ส่งต่อ cap ให้ requireShopCapability (T4)
 ]
 // ตัวหาร้าน/สมาชิกแบบไม่มี cap — ใน route ที่ DECLARED ห้ามเหลือ (ตัดสินสิทธิ์ด้วย membership ล้วน = ต้นเหตุช่องโหว่ F-1/F-4)
 const RAW_IN_DECLARED = ['canAccessShop', 'requireShopMember', 'isShopMember', 'assertShopsAccessible', 'getShopByUserId', 'getPersonalShop']
