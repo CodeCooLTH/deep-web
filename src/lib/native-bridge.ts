@@ -19,6 +19,53 @@ type NativeWindow = Window & {
   /** token ที่ SellerWebView ฝากไว้ให้เว็บถอนตอนออกจากระบบ */
   __DEEP_PUSH_TOKEN__?: string
   ReactNativeWebView?: { postMessage: (msg: string) => void }
+  /** ความสามารถ native ที่ build นี้มี — SellerWebView ตั้งก่อนหน้าโหลด (build เก่าไม่มี) */
+  __DEEP_NATIVE_FEATURES__?: unknown
+}
+
+/**
+ * แอปยิงแจ้งเตือนตัวอย่างให้ฟังเสียงได้ (deep-seller-app 1.0.2 build 17 ขึ้นไป · 2026-10-10)
+ * 🛑 ต้องตรงกับ `SOUND_PREVIEW_FEATURE` ใน deep-seller-app `src/core/push/sound-preview.ts`
+ */
+export const NATIVE_FEATURE_SOUND_PREVIEW = 'sound-preview'
+
+/** แอป build นี้มีความสามารถนั้นไหม — เบราว์เซอร์ปกติ / build เก่า = false */
+export function hasNativeFeature(name: string): boolean {
+  if (typeof window === 'undefined') return false
+  const list = (window as NativeWindow).__DEEP_NATIVE_FEATURES__
+  return Array.isArray(list) && list.includes(name)
+}
+
+/**
+ * ขอให้แอปยิงแจ้งเตือนตัวอย่างด้วยเสียงที่เลือก — ได้ยินเหมือนตอนแชทเข้าจริง
+ * (ไฟล์เสียงในแอป + ระดับเสียงแจ้งเตือนของเครื่อง) · ไม่อยู่ในแอป = ไม่ทำอะไร
+ * 🛑 type ต้องตรงกับ `PREVIEW_SOUND_TYPE` ฝั่งแอป
+ */
+export function previewNativePushSound(sound: 'chat' | 'default'): void {
+  if (typeof window === 'undefined') return
+  const bridge = (window as NativeWindow).ReactNativeWebView
+  if (!bridge) return
+  try {
+    bridge.postMessage(JSON.stringify({ type: 'deep:preview-push-sound', sound }))
+  } catch {
+    // postMessage พัง = ปุ่มไม่มีเสียง ไม่ใช่เหตุให้หน้าพัง
+  }
+}
+
+/**
+ * ปุ่ม "ฟังเสียง" ควรทำอะไร กับเสียงที่เลือกอยู่
+ *   - native   : แอปยิงแจ้งเตือนตัวอย่าง (ตรงกับของจริงที่สุด)
+ *   - web      : เล่นไฟล์ในหน้าเว็บ (เบราว์เซอร์ / แอป build เก่า — ได้เฉพาะเสียงแชท)
+ *   - denied   : อยู่ในแอปแต่ปิดสิทธิ์แจ้งเตือน ⇒ ไม่มีเสียงอะไรดังได้ ต้องบอกผู้ใช้
+ *   - none     : เสียงของเครื่องฟังจากเว็บไม่ได้ ⇒ ปิดปุ่ม
+ */
+export function resolveSoundPreview(input: {
+  sound: 'chat' | 'default'
+  nativePreview: boolean
+  permission: PushPermission | null
+}): 'native' | 'web' | 'denied' | 'none' {
+  if (input.nativePreview) return input.permission === 'denied' ? 'denied' : 'native'
+  return input.sound === 'chat' ? 'web' : 'none'
 }
 
 /** ชื่อ event ที่ native ยิงหลังตั้งค่า __DEEP_PUSH_PERMISSION__ — ต้องตรงกับฝั่งแอป */

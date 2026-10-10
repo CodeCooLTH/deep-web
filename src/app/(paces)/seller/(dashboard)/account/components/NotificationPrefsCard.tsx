@@ -26,8 +26,12 @@ import { pacesToast } from '@/lib/paces-toast'
 import { previewChatSound } from '@/lib/chat-sound'
 import type { ChatPushSound } from '@/services/notification-pref.service'
 import {
+  NATIVE_FEATURE_SOUND_PREVIEW,
+  hasNativeFeature,
   openNativeNotificationSettings,
+  previewNativePushSound,
   readPushPermission,
+  resolveSoundPreview,
   subscribePushPermission,
   type PushPermission,
 } from '@/lib/native-bridge'
@@ -116,6 +120,21 @@ export default function NotificationPrefsCard({
     setPermission(readPushPermission())
     return subscribePushPermission(setPermission)
   }, [])
+
+  /**
+   * ปุ่ม "ฟังเสียง" เล่น **เสียงที่เลือกอยู่** (user สั่ง 2026-10-10)
+   * ในแอป build ใหม่ ⇒ แอปยิงแจ้งเตือนตัวอย่าง ได้ยินเหมือนแชทเข้าจริง (ไฟล์ในแอป + ระดับเสียงแจ้งเตือน)
+   * เบราว์เซอร์/แอป build เก่า ⇒ เล่นไฟล์ในหน้าเว็บได้เฉพาะเสียงแชท · เสียงของเครื่องฟังจากเว็บไม่ได้
+   */
+  const [nativePreview, setNativePreview] = useState(false)
+  useEffect(() => setNativePreview(hasNativeFeature(NATIVE_FEATURE_SOUND_PREVIEW)), [])
+  const previewMode = resolveSoundPreview({ sound, nativePreview, permission })
+  const selectedSoundName = SOUND_OPTIONS.find((o) => o.value === sound)?.name ?? ''
+  const playPreview = useCallback(() => {
+    if (previewMode === 'native') previewNativePushSound(sound)
+    else if (previewMode === 'web') previewChatSound()
+    else if (previewMode === 'denied') pacesToast.error('ต้องเปิดการแจ้งเตือนของแอปก่อน จึงจะได้ยินเสียง')
+  }, [previewMode, sound])
 
   const toggle = useCallback(async (shopId: string, next: boolean) => {
     setPendingId(shopId)
@@ -243,15 +262,29 @@ export default function NotificationPrefsCard({
               )
             })}
           </fieldset>
-          {/* ฟังตัวอย่างได้เฉพาะเสียงแชท Deep — เสียงของเครื่องเล่นจากเว็บไม่ได้ (แต่ละเครื่องตั้งไว้ไม่เหมือนกัน) */}
-          <button
-            type="button"
-            className="btn btn-sm bg-light text-default-700 hover:bg-light-hover mt-3 inline-flex items-center gap-1.5"
-            onClick={previewChatSound}
-          >
-            <Icon icon="player-play" className="size-4" aria-hidden="true" />
-            ฟังเสียงแชท Deep
-          </button>
+          {/* ฟังเสียงที่เลือกอยู่ — ปุ่มอยู่กลาง (user สั่ง 2026-10-10) */}
+          <div className="mt-3 flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex items-center gap-1.5 disabled:opacity-60"
+              onClick={playPreview}
+              disabled={previewMode === 'none'}
+            >
+              <Icon icon="player-play" className="size-4" aria-hidden="true" />
+              ฟัง{selectedSoundName}
+            </button>
+            {previewMode === 'native' && (
+              <p className="text-default-500 mb-0 text-center text-xs">จะมีแจ้งเตือนตัวอย่างเด้งขึ้นมา ดังเท่ากับตอนมีแชทเข้าจริง</p>
+            )}
+            {previewMode === 'none' && (
+              <p className="text-default-500 mb-0 text-center text-xs">
+                {/* permission ไม่ใช่ null = อยู่ในแอปแล้ว แต่เป็น build ที่ยังไม่มีเสียงตัวอย่าง */}
+                {permission === null
+                  ? 'เสียงของเครื่องฟังได้ในแอปผู้ขายบนมือถือเท่านั้น'
+                  : 'อัปเดตแอปเป็นเวอร์ชันล่าสุดเพื่อฟังเสียงของเครื่อง'}
+              </p>
+            )}
+          </div>
           <p className="text-default-500 mt-3 mb-0 text-xs">
             Android เลือกเสียงอื่นได้อีกที่ ตั้งค่าเครื่อง › แอป › Deep Seller › การแจ้งเตือน › แชทใหม่
           </p>
