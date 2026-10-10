@@ -263,7 +263,7 @@ describe('acceptInviteLink', () => {
     expect(memberUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { shopId_userId: { shopId: SHOP_ID, userId: USER_ID } },
-        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN' },
+        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN', roles: ['MANAGER'] },
       }),
     )
   })

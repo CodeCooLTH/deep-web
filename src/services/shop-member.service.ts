@@ -69,7 +69,7 @@ export async function acceptShopInvite(inviteId: string, currentUserId: string) 
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: invite.shopId, userId: currentUserId } },
-      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN" },
+      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN", roles: ["MANAGER"] }, // ชั่วคราว: T4 คัดลอก invite.roles
       update: {}, // idempotent กันกด accept ซ้ำ
     });
 
@@ -133,7 +133,7 @@ export async function changeMemberRole(callerId: string, shopId: string, memberI
     const { shop, caller, target } = await loadPair(tx, shopId, callerId, memberId);
     const err = checkRoleChange(shop.userId, caller, target);
     if (err) throw new Error(err);
-    await tx.shopMember.update({ where: { id: memberId }, data: { role } });
+    await tx.shopMember.update({ where: { id: memberId }, data: { role, roles: role === "ADMIN" ? ["MANAGER"] : [] } }); // CHECK ShopMember_roles_check: OWNER=[] / ADMIN=1..4
     return { role };
   });
 }
@@ -162,7 +162,7 @@ export async function transferShopOwnership(callerId: string, shopId: string, me
     if (err) throw new Error(err);
 
     await tx.shop.update({ where: { id: shopId }, data: { userId: recipientId } });
-    await tx.shopMember.update({ where: { id: memberId }, data: { role: "OWNER" } });
+    await tx.shopMember.update({ where: { id: memberId }, data: { role: "OWNER", roles: [] } });
   });
   await recalculateShopTrustScore(shopId).catch((e) =>
     console.error("[transferShopOwnership] trust recalc failed", shopId, e),

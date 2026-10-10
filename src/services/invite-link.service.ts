@@ -176,7 +176,7 @@ export async function acceptInviteLink(
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: link.shopId, userId } },
-      create: { shopId: link.shopId, userId, role: "ADMIN" },
+      create: { shopId: link.shopId, userId, role: "ADMIN", roles: ["MANAGER"] }, // ชั่วคราว: T4 คัดลอก link.roles
       update: {}, // idempotent กันกด accept ซ้อน (race ระหว่าง existingMember check กับที่นี่)
     });
 

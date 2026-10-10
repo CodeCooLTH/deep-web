@@ -70,8 +70,8 @@ async function seed() {
     VALUES ('${SHOP_ID}','${OWNER_ID}','ร้านทดสอบประสิทธิภาพ', now(), 'BUSINESS','ONLINE_SALES')
     ON CONFLICT ("id") DO NOTHING`)
   await prisma.$executeRawUnsafe(`
-    INSERT INTO "ShopMember" ("id","shopId","userId","role","updatedAt")
-    SELECT 'perf59-sm-'||i, '${SHOP_ID}', 'perf59-agent-'||i, 'ADMIN', now()
+    INSERT INTO "ShopMember" ("id","shopId","userId","role","roles","updatedAt")
+    SELECT 'perf59-sm-'||i, '${SHOP_ID}', 'perf59-agent-'||i, 'ADMIN', ARRAY['MANAGER']::text[], now()
     FROM generate_series(0, ${ADMINS - 1}) AS i
     ON CONFLICT ("id") DO NOTHING`)
   await prisma.$executeRawUnsafe(`
