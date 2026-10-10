@@ -17,7 +17,7 @@ import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
 import PhoneSuggestHint from './PhoneSuggestHint'
 import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 import { hasPhoneSuggestion, hasPhoneHint } from '@/lib/phone-hint'
-import { MOBILE_PHONE_RE } from '@/lib/phone'
+import { stripInvisible, MOBILE_PHONE_RE } from '@/lib/phone'
 import type { FormValues } from './OrderCreateForm'
 import type { ParsedOrderMessage } from '@/lib/parse-order-message'
 import { getLocalityStatus } from '@/lib/shipping-address-status'
@@ -336,8 +336,10 @@ export default function CustomerQuickBlock({
           onChange={(e) => {
             setSelected(null)
             setIsNewCustomer(false)
-            contactField.onChange(e)
-            triggerCustomerSearch(e.target.value)
+            // วางจากแชทมักติดอักขระล่องหน (U+200B) มากลางเบอร์ — ตาเห็นถูกแต่ไม่ผ่านด่าน
+            const v = stripInvisible(e.target.value)
+            contactField.onChange(v)
+            triggerCustomerSearch(v)
           }}
           onBlur={contactField.onBlur}
         />

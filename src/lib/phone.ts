@@ -22,6 +22,19 @@
  * (`01/03/04/05/07` ที่ยังพบในเอกสารเก่าคือระบบ 9 หลัก **ก่อนการขยายเลขหมายปี 2549**)
  */
 
+/**
+ * อักขระล่องหน (zero-width space/joiner, word joiner, BOM, LRM/RLM) — คีย์บอร์ดไทยบน iOS แทรก U+200B
+ * กลางคำเอง ลูกค้าพิมพ์ "089913<ZWSP>010<ZWSP>5" มาในแชท แอดมินก๊อปไปวาง ตาเห็น 10 หลักแต่ regex ไม่ผ่าน
+ * (prod 2026-10-10) · ไม่มีทางเป็นส่วนหนึ่งของเบอร์จริง ⇒ ตัดทิ้ง/ถือเป็นตัวคั่นได้เสมอ
+ */
+const INVISIBLE_CHARS = '\u200b\u200c\u200d\u2060\ufeff\u200e\u200f'
+const INVISIBLE_RE = new RegExp(`[${INVISIBLE_CHARS}]`, 'g')
+
+/** ตัดอักขระล่องหนออก — ใช้กับช่องกรอกเบอร์ (ค่าที่วางมาจากแชท) */
+export function stripInvisible(raw: string): string {
+  return raw.replace(INVISIBLE_RE, '')
+}
+
 /** ด่านขาเข้า — เกณฑ์เดียวที่ใช้ตัดสินว่า "เบอร์นี้บันทึกได้ไหม" ทั้งระบบ */
 export const MOBILE_PHONE_RE = /^0[689][0-9]{8}$/
 
@@ -82,7 +95,7 @@ const MAX_SUGGESTIONS = 3
  * 🛑 `/` ไม่อยู่ในชุด เพราะมันคือบ้านเลขที่ (`99/9`) และเป็นตัวคั่นเบอร์ 2 เบอร์
  * ที่ร้านเจอบ่อย (`โทร 0612929865/ 0843642147`)
  */
-const SEPARATORS = ' -._()+'
+const SEPARATORS = ' -._()+' + INVISIBLE_CHARS
 
 const isDigit = (ch: string) => ch >= '0' && ch <= '9'
 const isChunkChar = (ch: string) => isDigit(ch) || SEPARATORS.includes(ch)
