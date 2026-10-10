@@ -15,7 +15,7 @@ import { setCommentResolved } from "@/services/page-comment.service";
  * 🛑 ห้ามอ่าน/เช็ค session.activeShopId ในไฟล์นี้ — อยู่ใต้ src/app/api/chat/** ซึ่งเป็น
  * "ขอบเขตแชท" ตาม src/lib/chat-scope.ts: คอมเมนต์ 1 อันอาจเป็นของร้านที่ไม่ใช่ร้าน active ของ
  * ผู้ใช้ การตรวจสิทธิ์ที่ถูกต้องคือไล่จากแถวข้อมูลเอง (comment → post → channel → shop) ซึ่ง
- * setCommentResolved ทำให้แล้วผ่าน canAccessShop ภายในตัวมันเอง (BR-CR-R6)
+ * setCommentResolved ทำให้แล้วผ่าน canAccessShopWith(cap) ภายในตัวมันเอง (BR-CR-R6)
  *
  * 🛑 ห้ามรับ `reason` จาก body — ค่านี้ hardcode เป็น 'MANUAL' เสมอ (BR-CR-R7)
  * `ALREADY_REPLIED_EXTERNALLY` เป็นข้อเท็จจริงที่มาจาก Meta เท่านั้น (ตั้งโดย
@@ -25,11 +25,8 @@ import { setCommentResolved } from "@/services/page-comment.service";
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
 
-async function applyResolve(
-  params: Promise<{ commentId: string }>,
-  resolved: boolean,
-  cap: "H2",
-): Promise<NextResponse> {
+/** ตัวตนจาก session (ไม่ใช่ด่านสิทธิ์ — ด่าน cap อยู่ใน setCommentResolved ที่ handler ส่ง literal เข้าไปตรง ๆ) */
+async function sessionActor(): Promise<string | NextResponse> {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!session?.user || !userId) {
@@ -38,17 +35,13 @@ async function applyResolve(
       { status: 401, headers: NO_STORE_HEADERS },
     );
   }
+  return userId;
+}
 
-  const { commentId } = await params;
-
+/** แปลงผล/ข้อผิดพลาดของ setCommentResolved เป็น response — ร่วมกันทั้ง POST และ DELETE */
+async function respond(run: () => ReturnType<typeof setCommentResolved>): Promise<NextResponse> {
   try {
-    const result = await setCommentResolved({
-      commentId,
-      actorUserId: userId,
-      resolved,
-      reason: "MANUAL",
-      cap,
-    });
+    const result = await run();
     return NextResponse.json(
       {
         resolvedAt: result.resolvedAt?.toISOString() ?? null,
@@ -80,7 +73,11 @@ async function applyResolve(
 }
 
 export async function POST(_request: NextRequest, ctx: { params: Promise<{ commentId: string }> }) {
-  return applyResolve(ctx.params, true, "H2");
+  const actor = await sessionActor();
+  if (typeof actor !== "string") return actor;
+  const { commentId } = await ctx.params;
+  // cap เป็น literal ตรงนี้ให้ทะเบียน route-capabilities + เทส inventory ตรวจได้ (H2 = ลงมือกับคอมเมนต์)
+  return respond(() => setCommentResolved({ commentId, actorUserId: actor, resolved: true, reason: "MANUAL", cap: "H2" }));
 }
 
 /**
@@ -93,5 +90,8 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ comme
  * ซึ่งก็ยังไม่เป็นอันตราย — จอไม่ได้แสดงเวลานั้น)
  */
 export async function DELETE(_request: NextRequest, ctx: { params: Promise<{ commentId: string }> }) {
-  return applyResolve(ctx.params, false, "H2");
+  const actor = await sessionActor();
+  if (typeof actor !== "string") return actor;
+  const { commentId } = await ctx.params;
+  return respond(() => setCommentResolved({ commentId, actorUserId: actor, resolved: false, reason: "MANUAL", cap: "H2" }));
 }

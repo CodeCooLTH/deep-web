@@ -6,8 +6,8 @@
  *   1) ทุกไฟล์ที่ resolve ร้านต้องมีรายการที่นี่ (ลืมประกาศ = เทสแดง)  2) key ต้องมีไฟล์จริง
  *   3) status 'DECLARED' = method body เรียกด่านด้วย literal cap ตรงทะเบียน  4) คลาสที่ไม่ใช่ cap ห้ามเรียกตัวหาร้านดิบ
  *
- * status: 'PENDING' = จัดหมวดแล้วแต่โค้ดยังใช้ด่านเดิม (ยังไม่ migrate) · T2/T3/T4 พลิกเป็น 'DECLARED' ตอนย้ายเข้า shop-capability
- *   ปิดงาน (T10): ต้องไม่เหลือ PENDING
+ * status: 'PENDING' = จัดหมวดแล้วแต่โค้ดยังใช้ด่านเดิม (ยังไม่ migrate) — T10 ปิดแล้ว: ทะเบียนไม่เหลือ PENDING
+ *   (เทสบังคับ: เพิ่ม PENDING ใหม่ = เทสแดง · ไม่มี route/หน้าไหนค้างด่านเดิมได้อีก)
  * cap เป็นอาร์เรย์ = ต้องผ่านทุกตัว (AND) เช่น housekeeping ต้อง Q1 และ O4
  * เซลล์มีเงื่อนไขต่อใบ (O3/O5 ของ BILLING · P1 ของ BILLING) ใส่ cap ฐานไว้ที่นี่ — เงื่อนไขต่อใบบังคับใน service (D-6)
  */
@@ -18,12 +18,25 @@ export type Caps = Capability | readonly Capability[]
 export type RouteStatus = 'DECLARED' | 'PENDING'
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 
-export type CapEntry = { [M in HttpMethod]?: Caps } & { page?: Caps; status: RouteStatus }
-export type ClassEntry = { class: RouteClass; reason: string; status: RouteStatus }
+/** คลาสรายเมธอด — route เดียวที่เมธอดหนึ่งเป็น cap ร้าน อีกเมธอดเป็นฝั่งผู้ซื้อ (เช่น chat/conversations: GET = H1, POST = BUYER) */
+export type MethodClass = { class: RouteClass; reason: string }
+export type CapEntry = { [M in HttpMethod]?: Caps | MethodClass } & { page?: Caps; status: RouteStatus }
+/**
+ * account = ด่านระดับ "บัญชี" ของคลาส SELF (ไม่ผูกร้านที่ active · รายงานกลุ่ม LINE มติ 00070):
+ *  เมธอด → ระดับที่ `requireAccess(level)` ต้องใช้ (READ = เจ้าของร้านอย่างน้อย 1 ร้าน · PAID = บวกแพ็กเกจธุรกิจ ACTIVE)
+ *  page → 'OWNER' = เรียก `resolveReportAccess` แล้วตัดสิน ANON/NOT_OWNER ในหน้า
+ * เทสสแกนเนอร์บังคับว่าเมธอด/หน้านั้นเรียกด่านนี้จริงด้วย level ตรงทะเบียน — คลาส SELF อื่นเรียกไม่ได้
+ */
+export type AccountGate = { [M in HttpMethod]?: 'READ' | 'PAID' } & { page?: 'OWNER' }
+export type ClassEntry = { class: RouteClass; reason: string; status: RouteStatus; account?: AccountGate }
 export type RouteEntry = CapEntry | ClassEntry
 
 export function isClassEntry(e: RouteEntry): e is ClassEntry {
   return 'class' in e
+}
+
+export function isMethodClass(c: unknown): c is MethodClass {
+  return typeof c === 'object' && c !== null && !Array.isArray(c) && 'class' in c
 }
 
 /**
@@ -65,10 +78,10 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/page.tsx': { page: 'T2', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/business/[shopId]/onboarding/page.tsx': { class: 'SELF', reason: 'หน้าเปลี่ยนทางเท่านั้น (redirect) — ด่านอยู่ที่ API onboarding (T4)', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/business/create/page.tsx': { class: 'SELF', reason: 'สร้างร้านธุรกิจใหม่ของผู้ใช้เอง — โควตาแพ็กเกจตัดสินใน service', status: 'DECLARED' },
-  'src/app/(paces)/seller/(dashboard)/business/line-reports/[groupId]/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/business/line-reports/new/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/business/line-reports/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/business/page.tsx': { class: 'SELF', reason: 'แพ็กเกจ/ร้านธุรกิจของผู้ใช้เอง — อ่านร้านส่วนตัว (getPersonalShop) ไม่ผูกร้านที่ active · PENDING: ยังเรียก resolveReportAccess ตัดสินลิงก์รายงาน LINE — T6 ย้ายเป็น canSeePage', status: 'PENDING' },
+  'src/app/(paces)/seller/(dashboard)/business/line-reports/[groupId]/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { page: 'OWNER' } },
+  'src/app/(paces)/seller/(dashboard)/business/line-reports/new/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { page: 'OWNER' } },
+  'src/app/(paces)/seller/(dashboard)/business/line-reports/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { page: 'OWNER' } },
+  'src/app/(paces)/seller/(dashboard)/business/page.tsx': { class: 'SELF', reason: 'แพ็กเกจ/ร้านธุรกิจของผู้ใช้เอง — อ่านร้านส่วนตัว (getPersonalShop) ไม่ผูกร้านที่ active', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/business/subscribe/page.tsx': { class: 'SELF', reason: 'สมัครแพ็กเกจธุรกิจของผู้ใช้เอง — ยังไม่มีร้านธุรกิจให้ผูกบทบาท', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/calendar/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/categories/page.tsx': { page: 'P2', status: 'DECLARED' },
@@ -91,9 +104,9 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/queues/[resourceId]/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/queues/new/page.tsx': { page: 'Q2', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/queues/page.tsx': { page: 'Q1', status: 'DECLARED' },
-  'src/app/(paces)/seller/(dashboard)/reports/agents/[agentId]/page.tsx': { page: 'X4', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/reports/agents/page.tsx': { page: 'X4', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/reports/products/page.tsx': { page: 'F1', status: 'PENDING' },
+  'src/app/(paces)/seller/(dashboard)/reports/agents/[agentId]/page.tsx': { page: 'X4', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/reports/agents/page.tsx': { page: 'X4', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/reports/products/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reviews/page.tsx': { page: 'T1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/rooms/[roomId]/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/rooms/new/page.tsx': { page: 'Q2', status: 'DECLARED' },
@@ -110,17 +123,17 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/settings/chatbot/logs/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/chatbot/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/comment-reply/page.tsx': { page: 'H3', status: 'DECLARED' },
-  'src/app/(paces)/seller/(dashboard)/settings/job-types/[resourceId]/page.tsx': { page: 'Q2', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/settings/job-types/new/page.tsx': { page: 'Q2', status: 'PENDING' },
-  'src/app/(paces)/seller/(dashboard)/settings/job-types/page.tsx': { page: 'Q2', status: 'PENDING' },
+  'src/app/(paces)/seller/(dashboard)/settings/job-types/[resourceId]/page.tsx': { page: 'Q2', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/job-types/new/page.tsx': { page: 'Q2', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/job-types/page.tsx': { page: 'Q2', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/page.tsx': { page: 'S2', status: 'DECLARED' },
-  'src/app/(paces)/seller/(dashboard)/shop/page.tsx': { class: 'MEMBER', reason: 'หน้ารวมของสมาชิกทุกคน — ความสำเร็จ/แจ้งเตือน/หน้าแรก/หน้าร้าน (C-1/C-8) · ตัวเลขเงินตัดตามระดับเงินใน service ไม่ใช่ด่านหน้า · PENDING: ยังเรียก resolveReportAccess ตัดสินลิงก์รายงาน LINE — T6 ย้ายเป็น canSeePage', status: 'PENDING' },
+  'src/app/(paces)/seller/(dashboard)/shop/page.tsx': { class: 'MEMBER', reason: 'หน้ารวมของสมาชิกทุกคน — ความสำเร็จ/แจ้งเตือน/หน้าแรก/หน้าร้าน (C-1/C-8) · ตัวเลขเงินตัดตามระดับเงินใน service ไม่ใช่ด่านหน้า', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/subscriptions/page.tsx': { page: 'T4', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/verification/page.tsx': { page: 'T1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/wallet/page.tsx': { page: 'F3', status: 'DECLARED' },
   'src/app/(paces)/seller/(fullscreen)/auctions/[id]/edit/page.tsx': { page: 'X1', status: 'DECLARED' },
   'src/app/(paces)/seller/(fullscreen)/auctions/new/page.tsx': { page: 'X1', status: 'DECLARED' },
-  'src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
+  'src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/page.tsx': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { page: 'OWNER' } },
   'src/app/(paces)/seller/(fullscreen)/layout.tsx': { class: 'MEMBER', reason: 'shell ของจอเต็ม — resolve ร้านเพื่อโหลด provider ไม่ตัดสินสิทธิ์ (หน้าลูกประกาศ cap เอง)', status: 'DECLARED' },
   'src/app/(paces)/seller/(fullscreen)/orders/[token]/edit/page.tsx': { page: 'O3', status: 'DECLARED' },
   'src/app/(paces)/seller/(fullscreen)/orders/[token]/receipt/page.tsx': { page: 'D1', status: 'DECLARED' },
@@ -179,7 +192,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/business/shops/[shopId]/invites/route.ts': { POST: 'T2', GET: 'T2', status: 'DECLARED' },
   'src/app/api/business/shops/[shopId]/members/[memberId]/route.ts': { PATCH: 'T2', DELETE: 'T2', status: 'DECLARED' },
   'src/app/api/business/shops/[shopId]/onboarding/route.ts': { POST: 'T4', status: 'DECLARED' },
-  'src/app/api/business/shops/[shopId]/restore/route.ts': { POST: 'T4', status: 'PENDING' },
+  'src/app/api/business/shops/[shopId]/restore/route.ts': { class: 'SELF', reason: 'กู้คืนร้านที่ถูก soft-delete ของผู้ใช้เอง — ด่านกลางมองไม่เห็นร้านที่ deletedAt (resolveActiveShopContext กรองทิ้ง) จึงบังคับ T4 เทียบเท่าใน restoreBusinessShop: shop.userId === ผู้ใช้ใน transaction เดียวกับการกู้ (เจ้าของร่วม/ผู้ดูแลได้ NOT_OWNER) · มีเทส service', status: 'DECLARED' },
   'src/app/api/business/shops/[shopId]/route.ts': { DELETE: 'T4', status: 'DECLARED' },
   'src/app/api/business/shops/[shopId]/transfer/route.ts': { POST: 'T4', status: 'DECLARED' },
   'src/app/api/business/shops/route.ts': { class: 'SELF', reason: 'สร้างร้านธุรกิจใหม่ของผู้ใช้เอง — โควตาแพ็กเกจตัดสินใน service', status: 'DECLARED' },
@@ -229,7 +242,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/conversations/[id]/route.ts': { PATCH: 'H2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/thread-control/route.ts': { POST: 'X2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/typing/route.ts': { POST: 'H2', status: 'DECLARED' },
-  'src/app/api/chat/conversations/route.ts': { POST: 'H2', GET: 'H1', status: 'PENDING' },
+  'src/app/api/chat/conversations/route.ts': { POST: { class: 'BUYER', reason: 'ผู้ซื้อเริ่ม/เปิดห้องแชทกับร้าน — buyerUserId มาจาก session เท่านั้น ไม่ใช่สมาชิกร้าน' }, GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/giphy/route.ts': { GET: 'X2', status: 'DECLARED' },
   'src/app/api/chat/groups/[id]/route.ts': { PATCH: 'X2', DELETE: 'X2', status: 'DECLARED' },
   'src/app/api/chat/groups/route.ts': { GET: 'X2', POST: 'X2', status: 'DECLARED' },
@@ -244,11 +257,11 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/upload/route.ts': { POST: 'H2', status: 'DECLARED' },
   'src/app/api/client-error/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
   'src/app/api/cron/chat-response-metrics/route.ts': { class: 'CRON', reason: 'cron ตรวจ CRON_SECRET ไม่มีผู้ใช้/บทบาท', status: 'DECLARED' },
-  'src/app/api/expenses/[id]/route.ts': { PATCH: 'F2', DELETE: 'F2', status: 'PENDING' },
-  'src/app/api/expenses/report/route.ts': { GET: 'F1', status: 'PENDING' },
-  'src/app/api/expenses/route.ts': { GET: 'F1', POST: 'F2', status: 'PENDING' },
+  'src/app/api/expenses/[id]/route.ts': { PATCH: 'F2', DELETE: 'F2', status: 'DECLARED' },
+  'src/app/api/expenses/report/route.ts': { GET: 'F1', status: 'DECLARED' },
+  'src/app/api/expenses/route.ts': { GET: 'F1', POST: 'F2', status: 'DECLARED' },
   'src/app/api/files/[...fileId]/route.ts': { GET: 'H1', status: 'DECLARED' },
-  'src/app/api/finance/receivables/route.ts': { GET: 'F1', status: 'PENDING' },
+  'src/app/api/finance/receivables/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/follow-ups/[id]/complete/route.ts': { POST: 'X2', status: 'DECLARED' },
   'src/app/api/follow-ups/[id]/outcome/route.ts': { POST: 'X2', status: 'DECLARED' },
   'src/app/api/follow-ups/[id]/reopen/route.ts': { POST: 'X2', status: 'DECLARED' },
@@ -273,14 +286,14 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/inventory/subscribe/route.ts': { POST: 'F4', status: 'DECLARED' },
   'src/app/api/inventory/upgrade/route.ts': { POST: 'F4', status: 'DECLARED' },
   'src/app/api/invites/[inviteId]/accept/route.ts': { class: 'SELF', reason: 'รับคำเชิญเข้าร้านของผู้ใช้ที่ล็อกอิน — ยังไม่เป็นสมาชิก', status: 'DECLARED' },
-  'src/app/api/line-report/bind-code/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/ack/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/bind-code/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/shops/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/template/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/[id]/test/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
-  'src/app/api/line-report/groups/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่าน resolveReportAccess/ownsAnyShop + scope ข้อมูลด้วย ownedShopWhere ไม่ผูกกับร้าน active', status: 'PENDING' },
+  'src/app/api/line-report/bind-code/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { POST: 'PAID' } },
+  'src/app/api/line-report/groups/[id]/ack/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { POST: 'READ' } },
+  'src/app/api/line-report/groups/[id]/bind-code/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { POST: 'PAID' } },
+  'src/app/api/line-report/groups/[id]/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { GET: 'READ', PATCH: 'PAID', DELETE: 'READ' } },
+  'src/app/api/line-report/groups/[id]/shops/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { PUT: 'PAID' } },
+  'src/app/api/line-report/groups/[id]/template/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { PUT: 'PAID', DELETE: 'PAID' } },
+  'src/app/api/line-report/groups/[id]/test/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { POST: 'PAID' } },
+  'src/app/api/line-report/groups/route.ts': { class: 'SELF', reason: 'รายงานกลุ่ม LINE = ระดับบัญชี (มติ 00070 + review 00071 T4): ด่านเจ้าของร้านอย่างน้อย 1 ร้านของผู้ใช้เอง (ownsAnyShop) + scope ข้อมูลด้วย ownedShopWhere — ไม่ผูกกับร้านที่ active จึงไม่ใช่ capability รายร้าน', status: 'DECLARED', account: { GET: 'READ' } },
   'src/app/api/line-report/product-image/route.ts': { class: 'PUBLIC', reason: 'รูปสินค้าที่ LINE ดึงไปแสดง — ลายเซ็น HMAC ในลิงก์ ไม่ใช้ session', status: 'DECLARED' },
   'src/app/api/login/apple-native/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
   'src/app/api/login/apple-native/start/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
@@ -376,14 +389,14 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/iship/unlinked/preview/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/unlinked/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/seller/pin-slots/buy/route.ts': { POST: 'F4', status: 'DECLARED' },
-  'src/app/api/seller/portfolio-series/route.ts': { GET: 'F1', status: 'PENDING' },
+  'src/app/api/seller/portfolio-series/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/seller/products/[id]/pin/route.ts': { POST: 'P2', status: 'DECLARED' },
   'src/app/api/seller/products/[id]/unpin/route.ts': { POST: 'P2', status: 'DECLARED' },
   'src/app/api/seller/push-token/route.ts': { class: 'SELF', reason: 'push token ของอุปกรณ์ผู้ใช้เอง (requireAppUser)', status: 'DECLARED' },
-  'src/app/api/seller/reports/agents/[agentId]/conversations/route.ts': { GET: 'X4', status: 'PENDING' },
-  'src/app/api/seller/reports/agents/[agentId]/route.ts': { GET: 'X4', status: 'PENDING' },
-  'src/app/api/seller/reports/agents/route.ts': { GET: 'X4', status: 'PENDING' },
-  'src/app/api/seller/sales-series/route.ts': { GET: 'F1', status: 'PENDING' },
+  'src/app/api/seller/reports/agents/[agentId]/conversations/route.ts': { GET: 'X4', status: 'DECLARED' },
+  'src/app/api/seller/reports/agents/[agentId]/route.ts': { GET: 'X4', status: 'DECLARED' },
+  'src/app/api/seller/reports/agents/route.ts': { GET: 'X4', status: 'DECLARED' },
+  'src/app/api/seller/sales-series/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/shops/[id]/route.ts': { PATCH: 'T1', status: 'DECLARED' },
   'src/app/api/shops/ai-settings/route.ts': { GET: 'H3', PUT: 'H3', status: 'DECLARED' },
   'src/app/api/shops/auto-reply/ads/route.ts': { GET: 'H3', status: 'DECLARED' },
@@ -450,7 +463,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/shops/route.ts': { class: 'SELF', reason: 'อ่าน/สร้างร้านส่วนตัวของผู้ใช้เอง (getShopByUserId = PERSONAL)', status: 'DECLARED' },
   'src/app/api/shops/slug/route.ts': { POST: 'T1', status: 'DECLARED' },
   'src/app/api/shops/update/route.ts': { class: 'SELF', reason: 'ปรับโปรไฟล์ร้านส่วนตัว (PERSONAL) ของผู้ใช้เองใน flow onboarding', status: 'DECLARED' },
-  'src/app/api/tags/route.ts': { GET: 'X2', status: 'PENDING' },
+  'src/app/api/tags/route.ts': { class: 'SELF', reason: 'คำแนะนำแท็กสินค้า — ข้อมูลกลางของแพลตฟอร์ม (Tag ใช้ร่วมทุกร้าน ไม่ผูกร้าน) ต้องล็อกอินเท่านั้น ไม่ตัดสินด้วยบทบาท', status: 'DECLARED' },
   'src/app/api/upload/route.ts': { class: 'MEMBER', reason: 'ปิดแล้ว ตอบ 410 ทุกคำขอ (ไม่มีผู้เรียก — อัปโหลดผ่าน /api/uploads/*)', status: 'DECLARED' },
   'src/app/api/uploads/commit/route.ts': { POST: 'H2', status: 'DECLARED' },
   'src/app/api/uploads/local/[...path]/route.ts': { class: 'PUBLIC', reason: 'PUT ไปยัง storage ท้องถิ่นของ dev (ticket ลงนามใน URL) — ไม่มีใน prod', status: 'DECLARED' },
@@ -459,7 +472,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/users/check-username/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
   'src/app/api/users/me/route.ts': { class: 'SELF', reason: 'ข้อมูลของผู้ใช้เองจาก session (userId) — ไม่ผูกร้าน/บทบาท', status: 'DECLARED' },
   'src/app/api/verification/route.ts': { GET: 'T1', POST: 'T1', status: 'DECLARED' },
-  'src/app/api/wallet/events/route.ts': { GET: 'F3', POST: 'F3', status: 'PENDING' },
-  'src/app/api/wallet/route.ts': { GET: 'F3', status: 'PENDING' },
-  'src/app/api/wallet/topup/route.ts': { POST: 'F3', status: 'PENDING' },
+  'src/app/api/wallet/events/route.ts': { GET: 'F3', POST: 'F3', status: 'DECLARED' },
+  'src/app/api/wallet/route.ts': { GET: 'F3', status: 'DECLARED' },
+  'src/app/api/wallet/topup/route.ts': { POST: 'F3', status: 'DECLARED' },
 }

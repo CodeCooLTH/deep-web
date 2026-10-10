@@ -72,9 +72,10 @@ export interface RecordPaymentSheetProps {
    * กดยืนยันยอดเองอยู่ดี (มติหัวหน้า 2026-08-15 ข้อ 1) ⇒ ห้ามใช้ค่านี้ข้ามขั้นตอนยืนยัน
    */
   initialSlipFileId?: string | null
-  /** ยกเลิกรายการรับเงินได้ไหม (O6) — ซ่อนปุ่มถังขยะเมื่อไม่มีสิทธิ์ · ตัวบังคับจริงคือ DELETE route · ค่าตั้งต้น true เพื่อ caller เดิมไม่เปลี่ยน
-   */
-  canVoid?: boolean
+  /** ยกเลิกรายการรับเงินได้ไหม (O6) — ซ่อนปุ่มถังขยะเมื่อไม่มีสิทธิ์ · ตัวบังคับจริงคือ DELETE route
+   *  บังคับส่ง (T10): ไม่มีค่าตั้งต้น — เดิม default true ทำให้ผู้เรียกใหม่ที่ลืมส่งเห็นปุ่มยกเลิกโดยไม่มีสิทธิ์ ·
+   *  ผู้เรียกในแชทส่งค่าที่ server คำนวณจากบทบาทของผู้ดูใน "ร้านของเธรด" (CustomerPanelData.canVoidPayment) */
+  canVoid: boolean
   /** ยิงเมื่อมีการเปลี่ยนแปลงเงิน (บันทึก/ยกเลิก) — ผู้เรียกต้อง refresh ข้อมูลของตัวเอง */
   onChanged?: (money: OrderMoney) => void
 }
@@ -103,7 +104,7 @@ export default function RecordPaymentSheet({
   shopId,
   money: initialMoney,
   initialSlipFileId = null,
-  canVoid = true,
+  canVoid,
   onChanged,
 }: RecordPaymentSheetProps) {
   useLockBodyScroll(open)

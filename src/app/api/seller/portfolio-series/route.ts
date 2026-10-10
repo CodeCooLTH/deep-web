@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { requireActiveShop } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import { getPortfolioSeries, listOverviewShops } from '@/services/business-overview.service'
 
@@ -27,9 +27,12 @@ export async function GET(request: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 })
   }
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+  // F1 ของร้านที่ active (ร้าน PERSONAL = เจ้าของเสมอ) แล้วจำกัดบริบท Personal ต่ออีกชั้น
+  const gate = await requireShopCapability(session, 'F1')
+  if (!gate.ok) return gate.response
+  const active = gate.active
   // ภาพรวมเป็นของบริบท Personal เท่านั้น (BRD FR-001) — บริบทร้าน BUSINESS ใช้ชีตยอดขายของร้านเอง
-  if (!active || active.kind !== 'PERSONAL') {
+  if (active.kind !== 'PERSONAL') {
     return NextResponse.json({ error: 'ใช้ได้เฉพาะบัญชีส่วนตัว' }, { status: 403 })
   }
 

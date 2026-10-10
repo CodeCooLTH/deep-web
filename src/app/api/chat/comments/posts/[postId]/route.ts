@@ -29,7 +29,7 @@ import { forbiddenRoleResponse } from "@/lib/forbidden-role";
  * "รันใน after() = หลังส่ง HTML ให้ผู้ใช้แล้ว — ไม่ถ่วงเวลาเปิดหน้าเลย"
  *
  * ⚠️ ลำดับสำคัญ: ต้องลงทะเบียน `after()` **หลัง** `getPostComments()` สำเร็จเท่านั้น เพราะด่านสิทธิ์
- * (`canAccessShop` → throw FORBIDDEN) อยู่ในนั้น — ลงทะเบียนก่อนแปลว่าคนที่ไม่มีสิทธิ์ก็สั่งให้เรา
+ * (`canAccessShopWith` → throw FORBIDDEN) อยู่ในนั้น — ลงทะเบียนก่อนแปลว่าคนที่ไม่มีสิทธิ์ก็สั่งให้เรา
  * ยิง Graph แทนเขาได้
  */
 export const dynamic = "force-dynamic";

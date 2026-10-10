@@ -2984,8 +2984,8 @@ export type SendOutboundParams = {
  */
 export async function resolveOutboundContext(
   params: Pick<SendOutboundParams, 'conversationId' | 'actorUserId' | 'systemShopId'> & {
-    /** cap ที่ผู้ใช้จริงต้องถือ (00071 S-13) — ไม่ส่ง = 'H2' (ส่งออกช่องทางนอก) · เส้นทางระบบ (systemShopId) ไม่ใช้ */
-    cap?: Capability
+    /** cap ที่ผู้ใช้จริงต้องถือ (00071 S-13) — บังคับ ไม่มีค่าตั้งต้น: ผู้เรียกประกาศเองว่าตัดสินด้วยสิทธิ์อะไร (ส่งออก = 'H2') · เส้นทางระบบ (systemShopId) ไม่ใช้ค่านี้ */
+    cap: Capability
   },
 ): Promise<OutboundConversation> {
   const conversation = await prisma.conversation.findUnique({
@@ -3008,7 +3008,7 @@ export async function resolveOutboundContext(
     // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
     if (!params.actorUserId) throw new Error('FORBIDDEN')
     // 00071 S-13: ส่งออกช่องทางนอก = H2 (อ่านแถวสมาชิกสด — แถวที่รอคิวแล้วถูกถอด CHAT ระหว่างรอ จะล้มตอนยิงจริงด้วยรหัสเดิม)
-    if (!(await canAccessShopWith(conversation.shopId, params.actorUserId, params.cap ?? 'H2'))) throw new ForbiddenRoleError()
+    if (!(await canAccessShopWith(conversation.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
   }
 
   return conversation
@@ -4147,7 +4147,8 @@ export async function transmitOutbound(
 }
 
 export async function sendOutboundMessage(params: SendOutboundParams) {
-  const conversation = await resolveOutboundContext(params)
+  // ส่งออกช่องทางนอก = H2 (เส้นทางระบบ systemShopId ไม่ใช้ cap)
+  const conversation = await resolveOutboundContext({ ...params, cap: 'H2' })
 
   // (S-8, feature 00025) LINE แยก flow ออกไปทั้งก้อนตั้งแต่จุดนี้ — early-return ก่อนถึงโค้ดของ Meta
   // แม้แต่บรรทัดเดียว (windowState/HUMAN_AGENT tag ด้านล่างเป็นแนวคิดของ Meta ล้วน ๆ ไม่มีผลกับ LINE)

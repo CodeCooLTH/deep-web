@@ -19,8 +19,12 @@ const MONEY_SOURCES = [
 const DECIDERS = [
   'can', 'moneyLevel', 'dashboardMoney', 'resolveExpenseAccess', 'resolveAgentReportAccess',
   'resolveProductReportAccess', 'resolveReportAccess', 'forbiddenRoleResponse', 'isShopOwnerRole', 'isShopOwnerOfShop',
-  'gatePage', 'requireShopCapability', // ด่านสิทธิ์กลาง P3 (shop-capability.ts) — หน้าการเงินย้ายมาใช้ gatePage
 ]
+// ด่านสิทธิ์กลาง P3 (shop-capability.ts) — รับ cap อะไรก็ได้ จึง "ไม่" นับเป็นตัวตัดสินเรื่องเงินเอง:
+// ต้องเรียกด้วย literal ตระกูล F (F1-F4 = การเงิน) ในวงเล็บของการเรียกนั้น ไม่งั้นหน้าที่ gatePage(session,'H1')
+// แล้วดึงยอดขายจะผ่านเทสทั้งที่ผู้ถือ H1 (ผู้ดูแล/แชท) เห็นเงินได้ (T10 · review T4)
+const CAP_DECIDERS = ['gatePage', 'requireShopCapability']
+const MONEY_CAP = /['"`]F[1-4]['"`]/
 
 // ขอบเขตที่ไม่สแกน (แต่ละอันมีเหตุผล)
 const EXCLUDED_PREFIXES = [
@@ -32,7 +36,6 @@ const EXCLUDED_PREFIXES = [
 
 // ไฟล์ที่เรียกแหล่งเงินโดยไม่มีตัวตัดสินในไฟล์ — เหตุผลบรรทัดเดียวต่อไฟล์ · เข้ารายการนี้ต้องมีคนรีวิว
 const ALLOW: Record<string, string> = {
-  'src/app/api/seller/portfolio-series/route.ts': 'ภาพรวมรวมร้านส่วนตัว (PERSONAL) ของผู้ใช้เอง เจ้าของ 100% ไม่มีร้านที่เป็น ADMIN ปนเข้ามา',
   'src/app/(paces)/seller/(dashboard)/business/page.tsx': 'ยอดกระเป๋าของ "ร้านส่วนตัวของผู้ใช้เอง" ใช้คำนวณเตือนต่ออายุแพ็กเกจ ไม่ผูกร้านที่ active',
 }
 
@@ -53,7 +56,29 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
+/** อาร์กิวเมนต์ดิบในวงเล็บของทุกการเรียก name( — นับวงเล็บซ้อน */
+function callArgs(code: string, names: string[]): string[] {
+  const out: string[] = []
+  const rx = new RegExp(`(?<![\\w.])(?:${names.join('|')})\\s*\\(`, 'g')
+  for (let m = rx.exec(code); m; m = rx.exec(code)) {
+    let depth = 1, i = rx.lastIndex
+    for (; i < code.length && depth > 0; i++) depth += code[i] === '(' ? 1 : code[i] === ')' ? -1 : 0
+    out.push(code.slice(rx.lastIndex, i - 1))
+  }
+  return out
+}
+
+/** ด่านกลางที่เรียกด้วย cap การเงิน (F1-F4) — คืนชื่อไว้แสดงใน deciders */
+const moneyCapGates = (code: string): string[] =>
+  CAP_DECIDERS.filter(n => callArgs(code, [n]).some(a => MONEY_CAP.test(a)))
+
 const calls = (code: string, names: string[]) => names.filter(n => new RegExp(`(?<![\\w.])${n}\\s*\\(`).test(code) || new RegExp(`\\.${n}\\s*\\(`).test(code))
+
+/** แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้ mutation test ฉีดซอร์สปลอมได้ */
+function analyze(src: string) {
+  const code = strip(src)
+  return { money: calls(code, MONEY_SOURCES), deciders: [...calls(code, DECIDERS), ...moneyCapGates(code)] }
+}
 
 function scan() {
   const hits: { path: string; money: string[]; deciders: string[] }[] = []
@@ -62,9 +87,8 @@ function scan() {
     if (!/\/(page|layout)\.tsx$/.test(path) && !/\/api\/.*\/route\.ts$/.test(path)) continue
     if (/\.test\.tsx?$/.test(path) || path.includes('/__tests__/')) continue
     if (EXCLUDED_PREFIXES.some(p => path.startsWith(p))) continue
-    const code = strip(readFileSync(abs, 'utf8'))
-    const money = calls(code, MONEY_SOURCES)
-    if (money.length) hits.push({ path, money, deciders: calls(code, DECIDERS) })
+    const { money, deciders } = analyze(readFileSync(abs, 'utf8'))
+    if (money.length) hits.push({ path, money, deciders })
   }
   return hits
 }
@@ -87,5 +111,27 @@ describe('finance surface guard', () => {
       .filter(([p, why]) => !byPath.has(p) || !why.trim())
       .map(([p]) => p)
     expect(stale).toEqual([])
+  })
+})
+
+describe('finance surface guard — mutation (ตัวตัดสินกลางต้องมี cap การเงิน)', () => {
+  const page = (gate: string) => `export default async function P() { const g = await ${gate}; return getSalesSeries(g) }`
+
+  it('ตัวควบคุมบวก: gatePage(…, F1) นับเป็นตัวตัดสิน', () => {
+    expect(analyze(page("gatePage(session, 'F1')")).deciders).toEqual(['gatePage'])
+    expect(analyze(page('requireShopCapability(session, "F3")')).deciders).toEqual(['requireShopCapability'])
+  })
+
+  it('M1 gatePage ด้วย cap ที่ไม่ใช่ F (H1/O1) ไม่นับ → ไฟล์ที่ดึงเงินไม่มีตัวตัดสิน', () => {
+    expect(analyze(page("gatePage(session, 'H1')")).deciders).toEqual([])
+    expect(analyze(page("requireShopCapability(session, 'O1')")).deciders).toEqual([])
+  })
+
+  it('M2 literal F อยู่นอกวงเล็บของด่าน (ที่อื่นในไฟล์) ไม่นับ', () => {
+    expect(analyze(page("gatePage(session, cap)") + "\nconst x = 'F1'").deciders).toEqual([])
+  })
+
+  it('M3 cap เป็น F-class แต่ชื่อใกล้เคียง (F10/AF1) ไม่นับ', () => {
+    expect(analyze(page("gatePage(session, 'F10')")).deciders).toEqual([])
   })
 })

@@ -18,6 +18,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import PacesStatCard from '../../../_shared/PacesStatCard'
 import SellerErrorState from '../../../_shared/SellerErrorState'
+import NoPermissionCard from '../../../_shared/NoPermissionCard'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
 import { authOptions } from '@/lib/auth'
 import { formatBaht, formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import { formatPercent, formatResponseDuration } from '@/lib/agent-performance'
@@ -54,6 +57,17 @@ export default async function AgentPerformanceDetailPage({
   const sp = await searchParams
   const session = await getServerSession(authOptions)
   if (!session?.user) return null
+
+  // 00071 X4: เจ้าของ/ผู้ดูแล/แชทเท่านั้น (ช่าง·บัญชีไม่เห็น) — ระดับ FULL/SELF ตัดสินต่อจากนี้ด้วย F1 (resolveAgentReportAccess)
+  const gate = await gatePage(session, 'X4')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การตอบแชทของแอดมิน" subtitle="รายงาน" />
+        <NoPermissionCard capability="X4" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   const access = await resolveAgentReportAccess(
     session as unknown as { user: { id: string; activeShopId?: string | null } },

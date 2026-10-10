@@ -15,7 +15,7 @@ import { forbiddenRoleResponse } from "@/lib/forbidden-role";
  * โดยไม่คิดเรื่อง unsend/หลักฐานในเธรดให้จบก่อน
  *
  * ไม่ derive senderRole จาก subdomain เหมือน POST เพราะไม่ได้สร้างข้อความใหม่ — สิทธิ์ตัดสิน
- * จาก canAccessShop ของเธรดใน service ชั้นเดียว
+ * จาก canAccessShopWith(ร้านของเธรด, ผู้ใช้, cap) ใน service ชั้นเดียว
  */
 export async function DELETE(
   _request: NextRequest,

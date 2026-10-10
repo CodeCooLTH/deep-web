@@ -134,19 +134,20 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
   // กำไรรายออเดอร์ (feature 00016 ส่วนขยาย FR-EXP-14) — ตัดสินสิทธิ์ "ก่อน" ดึงออเดอร์ เพราะต้นทุนรายบรรทัด
   // (OrderItem.cost) ถูก omit ที่ระดับ prisma client (00071 T9) · opt-in เฉพาะผู้ที่ GRANTED เท่านั้น
-  const expenseAccess = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  const canSeeProfit = expenseAccess.kind === 'GRANTED'
+  // 00071 P3 (S-14): บทบาทที่มีผลจริงของผู้ดู → ซ่อนปุ่มที่ไม่มีสิทธิ์ · บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ)
+  const viewerRoles = gate.ok ? gate.roles : []
+  // ช่าง (NONE) ไม่แตะตัวตัดสินการเงินเลย (S-15) — ตัดสินก่อน resolveExpenseAccess
+  const isNoMoney = moneyLevel(viewerRoles) === 'NONE'
+  const canSeeProfit = isNoMoney
+    ? false
+    : (await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } })).kind === 'GRANTED'
   const orderRaw = await getOrderForShop(token, shop.id, { withCost: canSeeProfit })
   if (!orderRaw) notFound()
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
-  // 00071 P3 (S-14): บทบาทที่มีผลจริงของผู้ดู → ซ่อนปุ่มที่ไม่มีสิทธิ์ · บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ)
-  const viewerRoles = gate.ok ? gate.roles : []
   // 00071 P3 (S-15): ช่าง (ระดับเงิน NONE) ไปหน้าของช่างเลย — คืนก่อนจะถึงโค้ดคำนวณเงิน/กำไร/ใบเสร็จ/พัสดุทุกบรรทัดข้างล่าง
   // และส่งเฉพาะ allow-list (toNoMoneyOrder) ไม่ส่งแถวดิบ · ค่าที่ gate ไม่ ok = [] = NONE ⇒ ปิดเป็นค่าตั้งต้น
-  if (moneyLevel(viewerRoles) === 'NONE') {
+  if (isNoMoney) {
     return (
       <TechnicianOrderDetail
         order={toNoMoneyOrder(orderRaw)}

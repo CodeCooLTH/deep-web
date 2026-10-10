@@ -19,6 +19,8 @@ import Icon from '@/components/wrappers/Icon'
 import AppointmentDayRows from '@/components/safepay/appointment-board/AppointmentDayRows'
 import type { AppointmentDayApiItem } from '@/components/safepay/appointment-board/types'
 import { thaiDayKey } from '@/lib/format-date'
+import { fmt } from '@/i18n/fmt'
+import { useT } from '@/i18n/LocaleProvider'
 
 const MAX_SHOWN = 3
 
@@ -44,6 +46,8 @@ function fetchDay(day: string): Promise<AppointmentDayApiItem[]> {
 
 export default function TodayJobs({ className = '' }: { className?: string }) {
   const router = useRouter()
+  // ข้อความทั้งหมดผ่าน dictionary (00047) — ไม่ฝังไทยในคอมโพเนนต์ที่ผู้ใช้สลับเป็น EN ได้
+  const t = useT().dashboard
   const [items, setItems] = useState<AppointmentDayApiItem[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [day] = useState(() => thaiDayKey(new Date()))
@@ -67,31 +71,31 @@ export default function TodayJobs({ className = '' }: { className?: string }) {
       <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:calendar-event" className="size-4 text-primary" />
-          งานวันนี้{items ? ` · ${total} งาน` : ''}
+          {items ? fmt(t.todayJobsTitleCount, { n: total }) : t.todayJobsTitle}
         </h4>
         <Link
           href={`/queues?date=${day}`}
           className="text-primary text-sm font-medium inline-flex items-center min-h-11 lg:min-h-0 gap-0.5"
         >
-          ดูตารางงาน
+          {t.todayJobsSchedule}
           <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>
       </div>
       <div className="card-body !p-4">
         {failed ? (
           <div className="flex flex-col items-center gap-2 py-4 text-center">
-            <p className="text-sm text-default-500">โหลดงานวันนี้ไม่สำเร็จ</p>
+            <p className="text-sm text-default-500">{t.todayJobsLoadFailed}</p>
             <button type="button" onClick={load} className="btn btn-sm border-default-300 hover:border-default-400 font-semibold min-h-11 lg:min-h-0">
-              ลองอีกครั้ง
+              {t.todayJobsRetry}
             </button>
           </div>
         ) : items === null ? (
           <span className="bg-default-300 block h-16 animate-pulse rounded-lg" aria-hidden="true" />
         ) : total === 0 ? (
           <div className="flex flex-col items-center gap-2 py-4 text-center">
-            <p className="text-sm text-default-500">วันนี้ยังไม่มีนัด</p>
+            <p className="text-sm text-default-500">{t.todayJobsEmpty}</p>
             <Link href="/queues" className="text-primary text-sm font-medium inline-flex items-center min-h-11 lg:min-h-0 gap-0.5">
-              ดูตารางงานทั้งเดือน
+              {t.todayJobsMonth}
               <Icon icon="tabler:chevron-right" className="size-4" />
             </Link>
           </div>
@@ -107,7 +111,7 @@ export default function TodayJobs({ className = '' }: { className?: string }) {
                 href={`/queues?date=${day}`}
                 className="text-primary text-sm font-medium mt-2 inline-flex items-center min-h-11 lg:min-h-0 gap-0.5"
               >
-                ดูทั้งหมดวันนี้ ({total})
+                {fmt(t.todayJobsAllToday, { n: total })}
                 <Icon icon="tabler:chevron-right" className="size-4" />
               </Link>
             )}

@@ -145,15 +145,6 @@ export function chatScopeOrDeny(
 export type RoleDenied = { denied: true };
 
 /**
- * ตัดสินว่า "ไม่ผ่าน" เพราะบทบาท (403) หรือเพราะไม่มี/ไม่ใช่สมาชิก (404)
- * 403 เฉพาะสมาชิกของร้านนั้น — คนนอกร้านยังได้ 404 เหมือนเดิม (403 ให้คนนอกยืนยันว่ามีร้าน/เธรดนี้ = รั่วข้อมูล)
- * คืนค่าเฉพาะบนเส้นทางที่ miss แล้วเท่านั้น จึงไม่เพิ่ม query ให้ทางปกติ
- */
-async function memberLacksCap(shopId: string, userId: string): Promise<boolean> {
-  return isShopMember(shopId, userId);
-}
-
-/**
  * resolveConversationShopId — "เธรดนี้อยู่ร้านไหน" โดย scope สิทธิ์ไว้ใน WHERE ตั้งแต่คำสั่งแรก
  *
  * ใช้กับ route ที่ทำงานกับเธรดใดเธรดหนึ่ง (`/api/chat/conversations/[id]/**`) ซึ่งเดิม scope
@@ -180,7 +171,8 @@ export async function resolveConversationShopId(
   const userId = session?.user?.id;
   if (!userId) return null;
   const any = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { shopId: true } });
-  return any && (await memberLacksCap(any.shopId, userId)) ? { denied: true } : null;
+  // 403 เฉพาะสมาชิกของร้านนั้น — คนนอกร้านได้ 404 (403 ให้คนนอกยืนยันว่ามีร้าน/เธรดนี้ = รั่วข้อมูล) · ยิงเฉพาะทางที่ miss แล้ว จึงไม่เพิ่ม query ให้ทางปกติ
+  return any && (await isShopMember(any.shopId, userId)) ? { denied: true } : null;
 }
 
 /**
@@ -203,7 +195,7 @@ export async function resolveScopedShopId(
   if (!requestedShopId) return scope.activeHasCap ? { scope, shopId: scope.activeShopId } : { denied: true };
   if (scope.shopIds.includes(requestedShopId)) return { scope, shopId: requestedShopId };
   const userId = session?.user?.id;
-  return userId && (await memberLacksCap(requestedShopId, userId)) ? { denied: true } : null;
+  return userId && (await isShopMember(requestedShopId, userId)) ? { denied: true } : null;
 }
 
 /**

@@ -27,7 +27,8 @@ import { getReceiptProfile } from '@/services/receipt.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 import { verticalRequiresStorefrontLocation } from '@/lib/lodging'
-import { countUnackedAlerts, resolveReportAccess } from '@/services/line-report-access.service'
+import { sessionUserId } from '@/lib/session-user'
+import { countUnackedAlerts, ownsAnyShop } from '@/services/line-report-access.service'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้าน' }
 
@@ -79,9 +80,10 @@ export default async function ShopSettingsPage() {
   // (หน้าปลายทางอธิบายเองว่าล็อกเพราะอะไร) · query ล้ม = ไม่มีจุดแดง ไม่ให้หน้าร้านพัง
   let lineReports: { hasAlert: boolean } | null = null
   try {
-    const access = await resolveReportAccess(session)
-    if (access.kind === 'OK' || access.kind === 'LOCKED') {
-      lineReports = { hasAlert: (await countUnackedAlerts(access.userId)) > 0 }
+    // แสดงผลเท่านั้น (ด่านจริงอยู่ที่หน้า/API line-report) — เจ้าของร้านอย่างน้อย 1 ร้านเห็นแถว (ตรงกับ OK|LOCKED เดิม)
+    const uid = sessionUserId(session)
+    if (uid && (await ownsAnyShop(uid))) {
+      lineReports = { hasAlert: (await countUnackedAlerts(uid)) > 0 }
     }
   } catch {
     lineReports = null

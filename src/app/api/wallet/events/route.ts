@@ -3,9 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getBalance } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
-import { requireActiveShop } from "@/lib/shop-context";
-import { forbiddenRoleResponse } from "@/lib/forbidden-role";
-import { isShopOwnerRole } from "@/lib/shop-owner";
+import { requireShopCapability } from "@/lib/shop-capability";
 
 /**
  * GET /api/wallet/events — poll หา TopUpRequest ที่ approved แต่ยังไม่แจ้ง seller
@@ -27,14 +25,13 @@ export async function GET() {
   }
 
   // DAL: shop derive จาก active shop context ของ session เท่านั้น — ไม่รับ shopId จาก query param (S-C7)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-
-  // seller ยังไม่มีร้าน → empty response (ไม่ error — poller ยังทำงานต่อ)
-  if (!active) {
-    return NextResponse.json({ approved: [], balance: 0 });
+  const gate = await requireShopCapability(session, "F3");
+  if (!gate.ok) {
+    // seller ยังไม่มีร้าน → empty response (ไม่ error — poller ยังทำงานต่อ)
+    if (gate.reason === "NO_SHOP") return NextResponse.json({ approved: [], balance: 0 });
+    return gate.response;
   }
-  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
-  const shop = active.shop;
+  const shop = gate.active.shop;
 
   try {
     // query ใช้ composite index [shopId, status, notifiedAt] ที่ migration 20260517040000 สร้าง
@@ -118,13 +115,13 @@ export async function POST(request: Request) {
   const ids: string[] = (body as any).ids;
 
   // DAL: shop derive จาก active shop context ของ session เท่านั้น (S-C7)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
+  const gate = await requireShopCapability(session, "F3");
+  if (!gate.ok) {
     // ไม่มีร้าน → ไม่มี record ที่ต้อง ack; คืน ok=true (idempotent)
-    return NextResponse.json({ ok: true, marked: 0 });
+    if (gate.reason === "NO_SHOP") return NextResponse.json({ ok: true, marked: 0 });
+    return gate.response;
   }
-  if (!isShopOwnerRole(active.role, active.roles)) return forbiddenRoleResponse();
-  const shop = active.shop;
+  const shop = gate.active.shop;
 
   try {
     // S-C8 + S-C7 conditional updateMany:

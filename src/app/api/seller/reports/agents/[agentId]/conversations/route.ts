@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { jsonNoStore } from '@/lib/shop-api-guard'
 import { parseReportQuery } from '@/lib/agent-report-query'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { resolveAgentReportAccess } from '@/services/agent-report-access.service'
 import { getConversationBreakdown } from '@/services/agent-performance.service'
 
@@ -24,6 +25,10 @@ export async function GET(
 ) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return jsonNoStore({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 })
+
+  // 00071 X4: ช่าง/บัญชีไม่เห็นรายงานนี้เลย · ที่เหลือแยก FULL/SELF ด้วย F1 ต่อจากนี้ (resolveAgentReportAccess)
+  const gate = await requireShopCapability(session, 'X4')
+  if (!gate.ok) return gate.response
 
   const access = await resolveAgentReportAccess(
     session as unknown as { user: { id: string; activeShopId?: string | null } },

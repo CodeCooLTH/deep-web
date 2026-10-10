@@ -7,6 +7,8 @@ import { NextRequest } from 'next/server'
  */
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
+const gateMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/shop-capability', () => ({ requireShopCapability: gateMock }))
 const accessMock = vi.hoisted(() => vi.fn())
 vi.mock('@/services/agent-report-access.service', () => ({ resolveAgentReportAccess: accessMock }))
 const perf = vi.hoisted(() => ({ getAgentPerformanceOverview: vi.fn(), getAgentPerformance: vi.fn() }))
@@ -14,6 +16,7 @@ vi.mock('@/services/agent-performance.service', () => perf)
 
 import { GET as listGET } from './route'
 import { GET as detailGET } from './[agentId]/route'
+import { GET as convGET } from './[agentId]/conversations/route'
 import { getServerSession } from 'next-auth'
 
 const m = { conversations: 3, revenue: 1500 }
@@ -34,6 +37,7 @@ describe('agents API — SELF ไม่มี revenue ตัวเลข', () =>
     vi.clearAllMocks()
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'a1' } } as never)
     accessMock.mockResolvedValue(SELF)
+    gateMock.mockResolvedValue({ ok: true })
     perf.getAgentPerformanceOverview.mockResolvedValue({
       overview: m, previous: m, leaderboard: [{ agentUserId: 'a1', revenue: 900 }], agents: [],
     })
@@ -59,5 +63,19 @@ describe('agents API — SELF ไม่มี revenue ตัวเลข', () =>
     accessMock.mockResolvedValue({ ...SELF, kind: 'FULL', canSeeRevenue: true })
     const body = await (await listGET(new NextRequest('http://x/api/seller/reports/agents'))).json()
     expect(numericRevenuePaths(body).length).toBeGreaterThan(0)
+  })
+
+  it('ไม่มี X4 (ช่าง/บัญชี) → ด่านปิดทั้ง 3 route ก่อนอ่านผลงานใด ๆ', async () => {
+    gateMock.mockResolvedValue({ ok: false, response: new Response(JSON.stringify({ error: 'FORBIDDEN_ROLE' }), { status: 403 }) })
+    const p = { params: Promise.resolve({ agentId: 'a1' }) }
+    const rs = [
+      await listGET(new NextRequest('http://x/api/seller/reports/agents')),
+      await detailGET(new NextRequest('http://x/api/seller/reports/agents/a1'), p),
+      await convGET(new NextRequest('http://x/api/seller/reports/agents/a1/conversations'), p),
+    ]
+    expect(rs.map((r) => r.status)).toEqual([403, 403, 403])
+    expect(gateMock.mock.calls.map((c) => c[1])).toEqual(['X4', 'X4', 'X4'])
+    expect(accessMock).not.toHaveBeenCalled()
+    expect(perf.getAgentPerformanceOverview).not.toHaveBeenCalled()
   })
 })

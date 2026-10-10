@@ -7,13 +7,13 @@ vi.mock('@/lib/prisma', () => ({
     shopNotificationPref: { findMany: vi.fn(), upsert: vi.fn() },
   },
 }))
-vi.mock('@/lib/shop-context', () => ({ listAccessibleShopIds: vi.fn() }))
+vi.mock('@/lib/shop-capability', () => ({ listAccessibleShopIds: vi.fn() }))
 
 const { listShopNotificationPrefs, setShopChatNotification } = await import(
   '@/services/notification-pref.service'
 )
 const { prisma } = await import('@/lib/prisma')
-const { listAccessibleShopIds } = await import('@/lib/shop-context')
+const { listAccessibleShopIds } = await import('@/lib/shop-capability')
 
 /**
  * Prisma type ของ findMany อ้างอิง "แถวเต็ม" เสมอ แต่ service เรียกด้วย `select` จึงได้ subset
@@ -35,6 +35,11 @@ beforeEach(() => {
 })
 
 describe('listShopNotificationPrefs', () => {
+  it('[blocker 00071] ขอบเขตร้าน = ร้านที่ผู้ใช้ถือ H1 (อ่านแชท) — ไม่ใช่สมาชิกล้วน', async () => {
+    await listShopNotificationPrefs('u1')
+    expect(listAccessibleShopIds).toHaveBeenCalledWith('u1', 'H1')
+  })
+
   it('[blocker] ไม่มีแถว = เปิด — ผู้ใช้เดิมทุกคนต้องไม่เงียบหลัง migrate', () => {
     // ถ้าวันหนึ่งมีคนกลับกติกาเป็น opt-in โดยไม่ backfill ทุกคนจะเงียบพร้อมกันโดยไม่มีอะไรบอก
     return listShopNotificationPrefs('u1').then((rows) => {
@@ -77,6 +82,13 @@ describe('setShopChatNotification', () => {
     expect(prisma.shopNotificationPref.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId_shopId: { userId: 'u1', shopId: 'shopA' } } }),
     )
+  })
+
+  it('[blocker 00071] ตัดสินด้วย H1 เช่นเดียวกับรายการ — ร้านที่ถือ BILLING/ช่างอย่างเดียวตั้งสวิตช์ไม่ได้', async () => {
+    vi.mocked(listAccessibleShopIds).mockResolvedValue([]) // ไม่ถือ H1 ในร้านไหนเลย
+    expect(await setShopChatNotification('u1', 'shopA', false)).toBe(false)
+    expect(listAccessibleShopIds).toHaveBeenCalledWith('u1', 'H1')
+    expect(prisma.shopNotificationPref.upsert).not.toHaveBeenCalled()
   })
 
   it('[blocker] ร้านที่ไม่มีสิทธิ์ → คืน false และห้ามเขียนลงตาราง', async () => {

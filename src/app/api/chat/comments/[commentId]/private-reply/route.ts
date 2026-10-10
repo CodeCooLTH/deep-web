@@ -19,7 +19,7 @@ import { forbiddenRoleResponse } from "@/lib/forbidden-role";
  * resolveActiveShopContext/requireActiveShop ตรง ๆ) — คอมเมนต์ 1 อันอาจเป็นของร้านที่ไม่ใช่ร้าน
  * active ของผู้ใช้ (ผู้ใช้เข้าถึงได้หลายร้าน) การตรวจสิทธิ์ที่ถูกต้องคือไล่จากแถวข้อมูลเอง
  * (comment → post → channel → shop) ซึ่ง sendPrivateReplyToCommentById ทำให้แล้วผ่าน
- * canAccessShop(channel.shopId, actorUserId) ภายในตัวมันเอง (ดู docstring ข้อ 3 ของฟังก์ชันนั้น)
+ * canAccessShopWith(channel.shopId, actorUserId, cap) ภายในตัวมันเอง (ดู docstring ข้อ 3 ของฟังก์ชันนั้น)
  *
  * 🛑 ห้ามส่ง reservedLogId (เส้นทาง AUTO เท่านั้น — processCommentAutoReply เป็นคนจองแถวเอง)
  * ต้องส่ง trigger: 'MANUAL' + actorUserId จาก session เสมอ

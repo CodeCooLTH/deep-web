@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * 00071 T3 — 3 route ของ /api/wallet (4 handler) เป็นกระเป๋า F3: เจ้าของร้านเท่านั้น
- * mock session/requireActiveShop/service (ไม่ต่อ DB) — แพตเทิร์นเดียวกับ sales-series/route.test.ts
+ * mock session/requireShopForRequest/service (ไม่ต่อ DB) — แพตเทิร์นเดียวกับ sales-series/route.test.ts
  */
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/app-purchase-guard', () => ({ rejectInAppPurchase: vi.fn().mockResolvedValue(null) }))
-const requireActiveShopMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/shop-context', () => ({ requireActiveShop: requireActiveShopMock }))
+// ด่านจริง (shop-capability) ทำงานเต็ม — mock แค่ตัว resolve ร้าน/สมาชิก
+const requireShopForRequestMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/shop-context', () => ({ requireShopForRequest: requireShopForRequestMock }))
 const getBalanceMock = vi.hoisted(() => vi.fn())
 vi.mock('@/services/wallet.service', () => ({ getBalance: getBalanceMock, getTransactions: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/services/topup.service', () => ({ createTopUpRequest: vi.fn().mockResolvedValue({ id: 't1' }) }))
@@ -24,7 +25,7 @@ import { GET as eventsGET, POST as eventsPOST } from './events/route'
 
 function as(role: 'OWNER' | 'ADMIN', shopUserId = 'u1') {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1' } } as never)
-  requireActiveShopMock.mockResolvedValue({ shop: { id: 's1', userId: shopUserId }, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] })
+  requireShopForRequestMock.mockResolvedValue({ ok: true, target: { shop: { id: 's1', userId: shopUserId, kind: 'BUSINESS', vertical: 'ONLINE_SALES' }, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] } })
 }
 const post = (body: unknown) =>
   new Request('http://x/api', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } })

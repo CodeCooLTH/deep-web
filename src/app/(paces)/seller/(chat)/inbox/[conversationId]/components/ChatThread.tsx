@@ -3042,6 +3042,7 @@ export default function ChatThread({
                       pageAvatarUrl={channelAvatarUrl}
                       // ร้านของเธรด ไม่ใช่ร้านที่ active — เปิดเธรดข้ามร้านได้ (BR-UNI-07)
                       shopId={shopId}
+                      canVoidPayment={customerPanelData.canVoidPayment}
                     />
                   ),
                 },
@@ -3902,6 +3903,7 @@ export default function ChatThread({
         orderLabel={slipTarget.label}
         shopId={shopId}
         money={slipTarget.money}
+        canVoid={customerPanelData.canVoidPayment}
         initialSlipFileId={slipPayFileId}
         onChanged={() => router.refresh()}
       />

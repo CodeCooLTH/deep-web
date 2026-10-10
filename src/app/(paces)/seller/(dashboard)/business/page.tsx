@@ -41,7 +41,8 @@ import BusinessCreateModalMount from './components/BusinessCreateModalMount'
 import PackageTierGrid from './components/PackageTierGrid'
 import type { DowngradeBusinessItem } from './components/DowngradeButton'
 import LineReportsEntryRow from './components/LineReportsEntryRow'
-import { countUnackedAlerts, resolveReportAccess } from '@/services/line-report-access.service'
+import { sessionUserId } from '@/lib/session-user'
+import { countUnackedAlerts, ownsAnyShop } from '@/services/line-report-access.service'
 
 export const metadata: Metadata = { title: 'ธุรกิจ' }
 
@@ -153,8 +154,9 @@ export default async function BusinessPackagePage() {
   // feature 00070 — แถวทางเข้ารายงานกลุ่ม LINE (เจ้าของเท่านั้น · query ล้ม = ไม่โชว์แถว ไม่ให้หน้าแพ็กเกจพัง)
   let lineReportAlerts: number | null = null
   try {
-    const access = await resolveReportAccess(session)
-    if (access.kind === 'OK' || access.kind === 'LOCKED') lineReportAlerts = await countUnackedAlerts(access.userId)
+    // แสดงผลเท่านั้น (ด่านจริงอยู่ที่หน้า/API line-report) — เจ้าของร้านอย่างน้อย 1 ร้านเห็นแถว (ตรงกับ OK|LOCKED เดิม)
+    const uid = sessionUserId(session)
+    if (uid && (await ownsAnyShop(uid))) lineReportAlerts = await countUnackedAlerts(uid)
   } catch {
     lineReportAlerts = null
   }

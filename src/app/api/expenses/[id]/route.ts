@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { UpdateExpenseSchema } from "@/lib/validations";
-import { resolveExpenseAccess } from "@/services/expense-access.service";
-import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { getExpenseById, updateExpense, deleteExpense, serializeExpense } from "@/services/expense.service";
 import { parseIsoDateToUtcMidnight } from "@/lib/date-range";
 
@@ -13,14 +12,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
+  const gate = await requireShopCapability(session, "F2");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   // TD-004: ownership check ที่ route — ไม่พบ หรือคนละ shop → 404 เดียวกัน (ไม่ leak, FR-EXP-04-AC-03)
   const { id } = await params;
   const existing = await getExpenseById(id);
-  if (!existing || existing.shopId !== decision.shop.id) {
+  if (!existing || existing.shopId !== shop.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -44,13 +43,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
+  const gate = await requireShopCapability(session, "F2");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   const { id } = await params;
   const existing = await getExpenseById(id);
-  if (!existing || existing.shopId !== decision.shop.id) {
+  if (!existing || existing.shopId !== shop.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -17,6 +17,7 @@ import Link from 'next/link'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import NoPermissionCard from '../../_shared/NoPermissionCard'
 import { viewerRolesOf } from '@/lib/viewer-roles'
+import { gatePage } from '@/lib/shop-capability'
 import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import Icon from '@/components/wrappers/Icon'
 import { authOptions } from '@/lib/auth'
@@ -91,7 +92,9 @@ export default async function ProductSalesReportPage({
     )
   }
 
-  if (access.kind === 'FORBIDDEN') {
+  // ด่านกลาง F1 (literal ให้ทะเบียน/สแกนเนอร์เห็น) — vertical ตัดสินก่อนข้างบนโดยตั้งใจ จึงต่อด่านหลังจุดนั้น
+  const gate = await gatePage(session, 'F1')
+  if (access.kind === 'FORBIDDEN' || !gate.ok) {
     return (
       <>
         <PageBreadcrumb title={TITLE} subtitle={SUBTITLE} />

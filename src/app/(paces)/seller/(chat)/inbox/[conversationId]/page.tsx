@@ -53,6 +53,7 @@ import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { viewerRolesOf } from '@/lib/viewer-roles'
+import { canAccessShopWith } from '@/lib/shop-capability'
 import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
@@ -685,8 +686,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   const savedFileIds = await savedFileIdsPromise
 
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
+  // ยกเลิกรายการรับเงิน = O6 ตามบทบาทของผู้ดูใน "ร้านของเธรด" (BR-UNI-07 · effectiveRoles ของร้านนั้น) ไม่ใช่ร้านที่ active —
+  // ซ่อนปุ่มอย่างเดียวไม่พอ: ตัวบังคับจริงคือ DELETE /api/orders/[token]/payments/[paymentId] (O6) · ค่านี้แค่ไม่ให้ UI เสนอปุ่มที่กดแล้ว 403
+  const canVoidPayment = await canAccessShopWith(threadShopId, user.id as string, 'O6')
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
+    canVoidPayment,
     // ร้านของเธรด (`threadShopId` = Conversation.shopId) ไม่ใช่ร้านที่ active — BR-UNI-07
     shopId: threadShopId,
     contactName: buyerDisplayName,
