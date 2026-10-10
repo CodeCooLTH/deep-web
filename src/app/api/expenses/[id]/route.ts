@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { UpdateExpenseSchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { getExpenseById, updateExpense, deleteExpense, serializeExpense } from "@/services/expense.service";
 import { parseIsoDateToUtcMidnight } from "@/lib/date-range";
 
@@ -14,9 +15,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
 
   // TD-004: ownership check ที่ route — ไม่พบ หรือคนละ shop → 404 เดียวกัน (ไม่ leak, FR-EXP-04-AC-03)
   const { id } = await params;
@@ -47,9 +46,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
 
   const { id } = await params;
   const existing = await getExpenseById(id);

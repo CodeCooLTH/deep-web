@@ -13,7 +13,6 @@
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { ownsAnyShop } from '@/services/line-report-access.service'
-import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { resolveVisibleSellerMenu, flattenSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
@@ -127,15 +126,6 @@ async function buildEligibleCatalog(
     console.error('[shortcut] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', e)
   }
 
-  let expense: ExpenseAccessDecision = { kind: 'NO_SHOP' }
-  try {
-    // ส่ง activeShopId ไปด้วย ไม่งั้น resolveExpenseAccess จะ resolve ร้านใหม่จาก default ของ user
-    // ซึ่งอาจเป็นคนละร้านกับที่กำลังเปิดอยู่ (สมาชิกที่มีหลายร้าน)
-    expense = await resolveExpenseAccess({ user: { id: shop.userId, activeShopId: shop.id } })
-  } catch (e) {
-    console.error('[shortcut] resolveExpenseAccess failed, fallback NO_SHOP', e)
-  }
-
   // fail-closed: query ล้ม → ไม่เห็นเมนูรายงาน LINE (predicate เดียวกับ sidebar)
   let ownsShop = false
   try {
@@ -147,7 +137,6 @@ async function buildEligibleCatalog(
   const visible = resolveVisibleSellerMenu(sellerMenuItems, {
     entitlement,
     staff: { kind: active.kind, role: active.role },
-    expense,
     ownsShop,
     shop: { kind: active.kind, vertical: shop.vertical },
     hidePayments: shell.hidePayments,

@@ -1,25 +1,15 @@
 /**
  * product-report-access.service — จุดตัดสินสิทธิ์เดียวของรายงาน "ยอดขายรายสินค้า" (feature 00063)
  *
- * โครงเดียวกับ `agent-report-access.service.ts` และ `expense-access.service.ts` โดยตั้งใจ —
- * **ใช้ธงเดิม ไม่ตั้งธงใหม่**
+ * โครงเดียวกับ `agent-report-access.service.ts` และ `expense-access.service.ts` โดยตั้งใจ
  *
- * ── ทำไมถึงเป็น `Shop.staffCanViewFinance` ──────────────────────────────────
- * 🛑 บันทึกไว้เพราะมันขัดกับถ้อยคำของมติเดิม: user เคาะว่า "เจ้าของร้าน + ADMIN เท่านั้น
- * staff ไม่เห็น" โดยเข้าใจว่า ADMIN กับ staff เป็นคนละ role — **แต่ในสคีมาจริงไม่ใช่**
- * `ShopMember.role` มีแค่ `'OWNER' | 'ADMIN'` (schema.prisma:1188) ⇒ ทุกคนที่ถูกเชิญเข้าร้าน
- * คือ ADMIN ทั้งหมด ไม่มี role ที่ต่ำกว่านั้นให้กันออก ถ้าทำตามถ้อยคำตรง ๆ จะแปลว่า
- * "ทุกคนที่เข้าถึงร้านได้" ซึ่งตรงข้ามกับ *เจตนา* ที่ user อธิบายไว้ ("ยอดขายรวมทั้งร้าน
- * เป็นข้อมูลระดับเจ้าของ")
- *
- * ธงที่มีอยู่แล้วและคุมข้อมูลประเภทเดียวกันเป๊ะ (ตัวเลขการเงินระดับร้าน) คือ
- * `staffCanViewFinance` ซึ่ง `/expenses` และ `/reports/agents` ใช้อยู่ — การตั้งธงที่สอง
- * มาคุมของประเภทเดียวกันแปลว่าเจ้าของร้านต้องไปปิดสองที่ถึงจะปิดได้จริง ซึ่งเป็นรูปร่างของ
- * ช่องโหว่ที่ค้นเจอยากที่สุด (เหตุผลเดียวกับที่เขียนไว้ใน agent-report-access.service.ts)
- *
- * ⚠️ ผลข้างเคียงที่ต้องรู้: คอลัมน์นี้ `@default(true)` ⇒ ADMIN เห็นรายงานนี้เป็นค่าตั้งต้น
- * เจ้าของร้านปิดได้จากสวิตช์เดิมที่หน้าตั้งค่าร้าน
+ * ── กฎสิทธิ์ (00071 BR-RP-08/09/10 · มติ D-5) ───────────────────────────────
+ * รายงานยอดขายรายสินค้า = "การเงินเต็ม" = capability F1 = เจ้าของ (รวมเจ้าของร่วม) เท่านั้น
+ * ยกเลิกสวิตช์ `staffCanViewFinance` แล้ว (ไม่อ่านธงนี้อีก — ผู้ดูแลเปิดธงก็ไม่ได้ผล)
+ * เดิมผู้ถูกเชิญทุกคนเป็น ADMIN และธง default true ⇒ ทุกคนเห็นรายงานนี้ ซึ่งผิดเจตนา
+ * ("ยอดขายรวมทั้งร้านเป็นข้อมูลระดับเจ้าของ")
  */
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { requireActiveShop, type ActiveShop } from '@/lib/shop-context'
 
 /** vertical เดียวที่รายงานนี้ให้ความหมายถูกต้อง */
@@ -34,7 +24,7 @@ export type ProductReportAccess =
    * ส่วน `SERVICE_QUEUE` ยังไม่อยู่ในขอบเขตรอบนี้ตามมติ
    */
   | { kind: 'WRONG_VERTICAL' }
-  /** เป็นสมาชิกร้านจริง แต่เจ้าของปิดสิทธิ์ดูตัวเลขการเงินไว้ */
+  /** เป็นสมาชิกร้านจริง แต่ไม่มี capability F1 */
   | { kind: 'FORBIDDEN' }
 
 export async function resolveProductReportAccess(
@@ -51,15 +41,8 @@ export async function resolveProductReportAccess(
     return { kind: 'WRONG_VERTICAL' }
   }
 
-  if (active.role === 'OWNER') {
-    return { kind: 'OK', shop: active.shop, role: 'OWNER' }
-  }
-
-  // 🛑 fail-closed: ต้องเป็น true จริง ๆ ห้ามลัดด้วย `!== false`
-  // (ค่า default เป็น true อยู่แล้ว แต่กลไกต้องอ่านธงเสมอ ไม่งั้นสวิตช์ของเจ้าของร้าน
-  //  จะกลายเป็นของหลอก — เหตุผลเดียวกับ expense-access.service)
-  if (active.shop.staffCanViewFinance === true) {
-    return { kind: 'OK', shop: active.shop, role: 'ADMIN' }
+  if (can(rolesFromMembership(active.role), 'F1')) {
+    return { kind: 'OK', shop: active.shop, role: active.role }
   }
 
   return { kind: 'FORBIDDEN' }

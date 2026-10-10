@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { ReceivableQuerySchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getReceivables } from "@/services/receivable.service";
 import { resolveShopVertical } from "@/lib/lodging";
@@ -25,9 +26,7 @@ export async function GET(request: NextRequest) {
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   );
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "NO_SHOP" }, { status: 403 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: "STAFF_NOT_ALLOWED" }, { status: 403 });
-  }
+  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
 
   /**
    * 🛑 ร้านที่ไม่ใช่ SERVICE_QUEUE ได้ 404 ไม่ใช่ 403 โดยตั้งใจ — 403 แปลว่า "มีของอยู่แต่คุณ

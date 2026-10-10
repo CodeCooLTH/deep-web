@@ -7,11 +7,11 @@
  * Base (page shell + fail-closed gate pattern): src/app/(paces)/seller/(dashboard)/inventory/page.tsx
  *   - session guard + PageBreadcrumb: pattern เดียวกับ inventory/page.tsx / sales/page.tsx
  *   - no-shop card markup (NO_SHOP): inventory/page.tsx:70-91 คัดลอกตรง (icon="building-store", CTA /shop)
- *   - PACKAGE_LOCKED/STAFF_NOT_ALLOWED card: ExpenseLockedCard.tsx (variant prop, Base เดียวกันบรรทัด 70-91)
+ *   - FORBIDDEN_ROLE card (ไม่ใช่เจ้าของร้าน, 00071 BR-RP-08): ExpenseLockedCard.tsx (Base เดียวกันบรรทัด 70-91)
  *
  * 🛑 TFR-007 fail-closed (ตรง SDS §NFR-Security): resolveExpenseAccess() ต้อง resolve "GRANTED" ก่อน
- * เท่านั้นที่ query getPnlReport/listExpenses จริง — ไม่มี query ข้อมูลธุรกิจใด ๆ ในสาขา NO_SHOP/PACKAGE_LOCKED/
- * STAFF_NOT_ALLOWED ด้านล่าง (กัน data leak ผ่าน timing/error message)
+ * เท่านั้นที่ query getPnlReport/listExpenses จริง — ไม่มี query ข้อมูลธุรกิจใด ๆ ในสาขา NO_SHOP/
+ * FORBIDDEN_ROLE ด้านล่าง (กัน data leak ผ่าน timing/error message)
  */
 
 import { getServerSession } from 'next-auth'
@@ -72,7 +72,7 @@ export default async function ExpensesPage({
     )
   }
 
-  if (decision.kind === 'STAFF_NOT_ALLOWED') {
+  if (decision.kind === 'FORBIDDEN_ROLE') {
     return (
       <>
         <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />

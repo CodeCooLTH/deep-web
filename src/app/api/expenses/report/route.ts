@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { PnlReportQuerySchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getPnlReport } from "@/services/pnl.service";
 import { getCostCoverage } from "@/services/cost-coverage.service";
@@ -16,9 +17,7 @@ export async function GET(request: NextRequest) {
 
   const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  if (decision.kind === "FORBIDDEN_ROLE") return forbiddenRoleResponse();
 
   const { searchParams } = request.nextUrl;
   const parsed = v.safeParse(PnlReportQuerySchema, {

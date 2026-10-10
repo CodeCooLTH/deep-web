@@ -30,7 +30,6 @@ function ctx(vertical: string) {
   return {
     entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
     staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const },
-    expense: { kind: 'GRANTED' } as never,
     ownsShop: true,
     shop: { kind: 'BUSINESS', vertical },
   }
@@ -429,5 +428,30 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
     expect(src).toMatch(/let ownsShop = false/)
     expect(src).toMatch(/ownsAnyShop\(userId\)/)
     expect(src).toMatch(/^\s+ownsShop,$/m)
+  })
+})
+
+describe('applyOwnerOnlyFinanceMenu — เมนูการเงินเฉพาะเจ้าของ (00071 BR-RP-08/09)', () => {
+  const FOUR = ['seller:sales', 'seller:expenses', 'seller:reports-products', 'seller:wallet']
+  const visible = (role: 'OWNER' | 'ADMIN', kind: 'BUSINESS' | 'PERSONAL' = 'BUSINESS') =>
+    slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, {
+      ...ctx('ONLINE_SALES'),
+      staff: { kind, role },
+    })))
+
+  it('[blocker] ADMIN ไม่เห็น 4 เมนูการเงิน แต่ยังเห็น reports-agents', () => {
+    const v = visible('ADMIN')
+    for (const s of FOUR) expect(v, s).not.toContain(s)
+    expect(v).toContain('seller:reports-agents')
+  })
+
+  it('OWNER เห็นครบทั้ง 4 + reports-agents', () => {
+    const v = visible('OWNER')
+    for (const s of [...FOUR, 'seller:reports-agents']) expect(v, s).toContain(s)
+  })
+
+  it('ร้าน PERSONAL = เจ้าของ เห็นครบ', () => {
+    const v = visible('ADMIN', 'PERSONAL')
+    for (const s of FOUR) expect(v, s).toContain(s)
   })
 })
