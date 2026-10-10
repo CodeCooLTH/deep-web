@@ -258,3 +258,13 @@ export function attributeMetaAi(
   }
   return out
 }
+
+/**
+ * ข้อความภายในของ Meta ฝั่งเพจ (ลูกค้าไม่เห็น) — เก็บเป็น META_NOTICE ไม่ใช่ข้อความร้าน (2026-10-10)
+ * ใช้กับแถว senderRole=SHOP เท่านั้น · ไม่นับป้าย `[…]` เพราะเป็นการ์ด/ไฟล์ที่ส่งถึงลูกค้าจริง
+ * prod ตอนนี้: replied to an ad 4,696 · welcome 3,768 · Lead stage 1,524 · Auto-label 948 · order-desc 518
+ */
+export function isMetaInternalNote(body: string | null | undefined): boolean {
+  return !!body && !body.trim().startsWith('[') && parseMetaSystemNotice(body) !== null
+}
+

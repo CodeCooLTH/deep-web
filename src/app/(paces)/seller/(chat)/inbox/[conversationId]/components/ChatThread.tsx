@@ -69,7 +69,7 @@
  * "กลับหน้าหลัก" ที่ ChatHeader.tsx — คนละปลายทาง: ปุ่มนี้ไป /inbox ไม่ใช่ /dashboard)
  */
 import Icon from '@/components/wrappers/Icon'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { INTERNAL_MESSAGE_TYPES } from '@/lib/auto-order-message-type'
 import AutoOrderResultCard, { type AutoOrderCardData } from './AutoOrderResultCard'
 import AutoReplyTag from './AutoReplyTag'
 import ThreadChipStrip, {
@@ -2123,7 +2123,7 @@ export default function ChatThread({
   const autoSuggestOn = aiSuggestMode === 'auto'
   let latestRealMsg: (typeof messages)[number] | undefined
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].type !== AUTO_ORDER_RESULT_TYPE) {
+    if (!(INTERNAL_MESSAGE_TYPES as readonly string[]).includes(messages[i].type)) {
       latestRealMsg = messages[i]
       break
     }

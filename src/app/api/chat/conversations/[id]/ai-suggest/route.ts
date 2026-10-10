@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { AUTO_ORDER_RESULT_TYPE } from "@/lib/auto-order-message-type";
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from "@/lib/auto-order-message-type";
 import { resolveConversationShopId } from "@/lib/chat-scope";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const provider = resolveSuggestProvider(shopId);
   if (provider !== "gemini") {
     const latest = await prisma.chatMessage.findFirst({
-      where: { conversationId, type: { not: AUTO_ORDER_RESULT_TYPE } },
+      where: { conversationId, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } },
       orderBy: { createdAt: "desc" },
       select: { id: true, senderRole: true },
     });
@@ -299,7 +299,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const rows = await prisma.chatMessage.findMany({
     // feature 00061 — การ์ดผลลัพธ์เป็นข้อความภายในของระบบ ไม่ใช่บทสนทนา ⇒ ห้ามป้อนให้ AI
     // (ถ้าปน AI จะร่างคำตอบโดยอ้างอิงสิ่งที่ลูกค้าไม่เคยเห็น)
-    where: { conversationId: conversation.id, type: { not: AUTO_ORDER_RESULT_TYPE } },
+    where: { conversationId: conversation.id, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } },
     orderBy: { createdAt: "desc" },
     take: RECENT_LIMIT,
     // feature 00019: productRefId ใช้แปลงการ์ดสินค้าเป็นชื่อ+ราคาจริง (TFR-003)

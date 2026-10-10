@@ -1,7 +1,7 @@
 import 'server-only'
 import { thaiDayKey } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { MEMORY_UPDATE_TRIGGER, type MemoryUpdateOutcome } from '@/lib/ai-suggest-auto-types'
 import { MEMORY_AI_WINDOW, MEMORY_SLOT_WAIT_MS } from '@/lib/chat-memory-types'
 import { baseHasPii, shouldAttemptMemoryUpdate, validateAiMemory } from '@/lib/chat-memory-rules'
@@ -78,7 +78,7 @@ export type MaybeUpdateResult = {
   busy?: boolean
 }
 
-const MSG_WHERE = (conversationId: string) => ({ conversationId, type: { not: AUTO_ORDER_RESULT_TYPE } })
+const MSG_WHERE = (conversationId: string) => ({ conversationId, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } })
 
 /** ไม่ throw ทุกกรณี */
 export async function maybeUpdateMemory(p: {

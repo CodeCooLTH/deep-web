@@ -182,7 +182,8 @@ export type ChatMessageView = {
   // 🛑 ชนิดนี้ **ส่งไม่ได้** — ระบบเขียนลงตารางตรง ๆ เท่านั้น (ฝั่ง server บังคับด้วย
   // `SendableMessageType` ที่แคบกว่า `StoredMessageType`) ชนิดตรงนี้คือ "สิ่งที่เก็บได้"
   // จึงต้องมีค่านี้ ไม่งั้น UI จะวาดมันเป็นบับเบิลเปล่าเพราะไม่รู้จัก
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL' | 'AUTO_ORDER_RESULT'
+  // META_NOTICE = ข้อความภายในของ Meta (แสดงกลางห้อง) — ระบบรับเข้าเท่านั้น ส่งไม่ได้เช่นกัน
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL' | 'AUTO_ORDER_RESULT' | 'META_NOTICE'
   /**
    * mid ของ Meta — รูปหลายใบในข้อความเดียวได้ `mid`, `mid#1`, `mid#2`… (convention ของ ingest)
    * ใช้เป็นเส้นแบ่ง "ก้อนอัลบั้ม" ในเธรด (user report 2026-08-04: 2 รูป + 6 รูป กลายเป็นกอง 8)
