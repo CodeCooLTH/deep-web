@@ -21,6 +21,7 @@ import { fmt } from '@/i18n/fmt'
 import { thaiDayKey } from '@/lib/format-date'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import type { ShippingStageKey } from '@/lib/order-stage'
+import type { ServiceWorkStage } from '@/lib/service-work-stage'
 
 /**
  * ป้ายของไทล์เก็บเป็น "คีย์" ไม่ใช่ "ข้อความ"
@@ -63,6 +64,12 @@ export interface OrderStatusBandProps {
    * stage: การ์ดนี้ตอบคำถาม "วันนี้ต้องทำอะไร" ไม่ใช่ "ออเดอร์กระจายตามสถานะยังไง"
    */
   appointmentToday?: number
+  /**
+   * ขั้นงานของร้านบริการ — ส่งมา = แทนทั้ง 4 ไทล์ด้วยขั้นงาน (user เคาะ 2026-10-10)
+   * ใบหนึ่งอยู่ได้ขั้นเดียว นับด้วย deriveServiceWorkStage ตัวเดียวกับตัวกรอง /orders?work=
+   * ชนกับ `shipping` ไม่ได้ (คนละ vertical) — ถ้ามาทั้งคู่ shipping ชนะ
+   */
+  serviceWork?: Record<ServiceWorkStage, number>
   /** ชื่อของสิ่งที่นับ ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
   orderNoun?: string
   /**
@@ -178,10 +185,28 @@ const SHIPPING_STAGES: {
   },
 ]
 
+/**
+ * ขั้นงานร้านบริการ — สีสื่อว่าใครต้องลงมือ ไม่ใช้เขียว (Verified-Means-Green: ทั้งสี่ขั้นยังไม่จบงาน)
+ *  - รอเข้ารับบริการ = warning (ค้าง) · ยืนยันแล้ว = info (นัดแน่นอน)
+ *  - รอปิดงาน = primary (ร้านต้องกดปิด) · รอลูกค้ายืนยัน = default-500 (ลูกบอลอยู่ที่ลูกค้า ร้านทำอะไรไม่ได้)
+ */
+const SERVICE_WORK_TILES: {
+  key: ServiceWorkStage
+  labelKey: DashboardLabelKey
+  icon: string
+  iconClass: string
+}[] = [
+  { key: 'AWAITING_SERVICE', labelKey: 'workAwaitingService', icon: 'solar:clock-circle-bold-duotone', iconClass: 'text-warning' },
+  { key: 'APPT_CONFIRMED', labelKey: 'workApptConfirmed', icon: 'solar:calendar-mark-bold-duotone', iconClass: 'text-info' },
+  { key: 'AWAITING_CLOSE', labelKey: 'workAwaitingClose', icon: 'solar:clipboard-check-bold-duotone', iconClass: 'text-primary' },
+  { key: 'AWAITING_BUYER', labelKey: 'workAwaitingBuyer', icon: 'solar:user-check-rounded-bold-duotone', iconClass: 'text-default-500' },
+]
+
 export default async function OrderStatusBand({
   counts,
   shipping,
   appointmentToday,
+  serviceWork,
   orderNoun,
   orderNounTitle,
 }: OrderStatusBandProps) {
@@ -205,6 +230,17 @@ export default async function OrderStatusBand({
          * ตัวเลขบนไทล์กับรายการที่กรองได้ ตรงกันเพราะทั้งคู่ผ่าน deriveShippingStage ตัวเดียวกัน
          */
         href: `/orders?stage=${st.key}`,
+      }))
+    : serviceWork
+    ? SERVICE_WORK_TILES.map((st) => ({
+        key: st.key,
+        label: t.dashboard[st.labelKey],
+        icon: st.icon,
+        iconClass: st.iconClass,
+        count: serviceWork[st.key],
+        // ทั้งสี่ขั้นคืองานค้าง → badge ได้หมด
+        showBadge: true,
+        href: `/orders?work=${st.key}`,
       }))
     : STATUSES.map((st) =>
         // ไทล์ที่ 2 ของร้านที่ใช้ระบบนัด = "นัดวันนี้" แทน SHIPPED ที่เข้าไม่ถึงตลอดกาล

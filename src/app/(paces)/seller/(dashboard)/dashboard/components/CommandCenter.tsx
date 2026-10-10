@@ -72,6 +72,7 @@ export default function CommandCenter({ data }: Props) {
         counts={data.orderStatusCounts}
         shipping={data.shippingStageCounts}
         appointmentToday={data.appointmentTodayCount}
+        serviceWork={data.serviceWorkCounts}
         orderNoun={data.orderNoun}
         orderNounTitle={data.orderNounTitle}
       />

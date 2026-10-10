@@ -220,7 +220,7 @@ export const th = {
     /** ปุ่ม/pill เพิ่มของใหม่ใน /products — PRODUCT_VOCAB.createProductLabel */
     createProductLabel: {
       ONLINE_SALES: 'สร้างสินค้า',
-      SERVICE_QUEUE: 'เพิ่มบริการ',
+      SERVICE_QUEUE: 'สร้างสินค้าหรือบริการ',
       LODGING: 'สร้างสินค้า',
     },
     /** ข้อ checklist ตั้งร้าน — PRODUCT_VOCAB.firstItemLabel */
@@ -337,6 +337,11 @@ export const th = {
     stageProblem: 'พัสดุมีปัญหา',
     stageReturned: 'ตีกลับ',
     appointmentToday: 'นัดวันนี้',
+    // ไทล์ขั้นงานของร้านบริการ (src/lib/service-work-stage.ts)
+    workAwaitingService: 'รอเข้ารับบริการ',
+    workApptConfirmed: 'ยืนยันแล้ว',
+    workAwaitingClose: 'รอปิดงาน',
+    workAwaitingBuyer: 'รอลูกค้ายืนยัน',
 
     /** หัวการ์ดตารางใบล่าสุด — {noun} = vocab.orderNoun */
     recentOrdersTitle: '{noun}ล่าสุด',

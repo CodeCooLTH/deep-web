@@ -262,6 +262,10 @@ export const en: Dictionary = {
     stageProblem: 'Delivery problem',
     stageReturned: 'Returned',
     appointmentToday: 'Today’s appointments',
+    workAwaitingService: 'Awaiting service',
+    workApptConfirmed: 'Confirmed',
+    workAwaitingClose: 'To close',
+    workAwaitingBuyer: 'Awaiting customer',
 
     recentOrdersTitle: 'Recent {noun}s',
     recentOrdersExport: 'Export',

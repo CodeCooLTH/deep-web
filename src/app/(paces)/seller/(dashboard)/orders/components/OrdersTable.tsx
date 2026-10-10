@@ -200,6 +200,12 @@ type Props = {
    * เป็น pill ล้างได้ ไม่ใช่ FilterDropdown อีกตัว เพราะแกนนี้มีค่าเดียวและมีทางเข้าเดียว
    * (ไทล์บนหน้าแรก) ดรอปดาวน์ที่มีตัวเลือกเดียวคือปุ่มที่ปลอมตัวเป็นตัวเลือก
    */
+  /** `?work=` ขั้นงานบริการ — pill ล้างได้แบบเดียวกับ apptDayFilter (ทางเข้าคือไทล์หน้าแรก) */
+  workFilter?: {
+    label: string
+    count: number
+    onClear: () => void
+  }
   apptDayFilter?: {
     label: string
     count: number
@@ -236,6 +242,7 @@ export default function OrdersTable({
   hasShippingAxis = true,
   appointmentFilter,
   apptDayFilter,
+  workFilter,
   search,
   appliedSearch,
   onSearchChange,
@@ -982,6 +989,21 @@ export default function OrdersTable({
           {/* นัดวันนี้ — pill ที่มาจากไทล์หน้าแรก (user สั่ง 2026-08-10)
               วางหัวแถวก่อนดรอปดาวน์ทุกตัว เพราะเป็นบริบทที่ผู้ใช้ "พามาเอง" ไม่ใช่สิ่งที่เพิ่ง
               เลือกในหน้านี้ — ถ้าไปอยู่ท้ายแถวจะถูกกวาดตาข้ามแล้วอ่านตัวเลขทั้งตารางผิด */}
+          {workFilter && (
+            <span className="badge bg-primary inline-flex items-center gap-1 rounded-full py-1 ps-3 pe-1 text-xs font-semibold text-white">
+              <Icon icon="clipboard-check" className="text-sm" aria-hidden="true" />
+              {workFilter.label}
+              <span className="tabular-nums">{workFilter.count}</span>
+              <button
+                type="button"
+                onClick={workFilter.onClear}
+                aria-label={`ล้างตัวกรอง${workFilter.label}`}
+                className="ms-0.5 inline-flex size-11 lg:size-5 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
+              >
+                <Icon icon="x" className="text-xs" />
+              </button>
+            </span>
+          )}
           {apptDayFilter && (
             <span className="badge bg-primary inline-flex items-center gap-1 rounded-full py-1 ps-3 pe-1 text-xs font-semibold text-white">
               <Icon icon="calendar-event" className="text-sm" aria-hidden="true" />

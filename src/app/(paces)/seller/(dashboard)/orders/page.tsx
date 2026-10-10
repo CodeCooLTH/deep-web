@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { excludeDraftedWhere } from '@/lib/order-visibility'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { deriveServiceWorkStage } from '@/lib/service-work-stage'
 import { derivePickupStage, isPickupOrder } from '@/lib/order-pickup'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
@@ -235,6 +236,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     statByCustomer.set(r.customerId, cur)
   }
 
+  // now ก้อนเดียวทั้งรอบ — ใบที่นัดหมดพอดีระหว่าง map ต้องไม่ตกคนละกองกับตัวนับบนไทล์
+  const workNow = new Date()
   const orders: OrderRow[] = rawOrders.map((o: any) => {
     // ที่มาของออเดอร์ใบนี้ (2026-08-10) — รูป+badge ต้องมาจากแหล่งเดียวกันเสมอ (resolveOrderSource)
     // ห้ามผสม sourceLogoUrl จาก shopChannel กับ badge จาก salesChannel ดิบ — ดูคอมเมนต์เต็มที่
@@ -317,6 +320,16 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             stage,
           }
         })(),
+    // ขั้นงานร้านบริการ (?work=) — deriveServiceWorkStage ตัวเดียวกับตัวนับบนไทล์หน้าแรก
+    // undefined = ไม่ใช่ร้านคิวงาน, null = ใบนี้ไม่อยู่ในขั้นไหน (ปิดแล้ว/ยกเลิก/ไม่มาตามนัด)
+    workStage: !isServiceQueue
+      ? undefined
+      : deriveServiceWorkStage({
+          status: o.status,
+          appointmentStatus: o.appointmentStatus,
+          serviceEnd: o.serviceEnd,
+          now: workNow,
+        }),
     /**
      * เงินของใบนี้ (feature 00050 · AC-SQ-07) — undefined = ร้านที่ไม่ใช่ SERVICE_QUEUE
      *

@@ -33,7 +33,7 @@ import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
-import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@/services/order.service'
+import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts, getServiceWorkStageCounts } from '@/services/order.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { getBestSellerProducts } from '@/services/product.service'
@@ -41,6 +41,7 @@ import { getBestSellerProducts } from '@/services/product.service'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 // นัดวันนี้ (feature 00024) — ตัวกั้น + ตัวนับ สำหรับไทล์ที่ 2 ของ OrderStatusBand
 import { canUseAppointments } from '@/lib/appointments'
+import type { ServiceWorkStage } from '@/lib/service-work-stage'
 import { getTodayAppointmentCount } from '@/services/appointment.service'
 import type { Metadata } from 'next'
 import { getT } from '@/i18n/server'
@@ -162,6 +163,8 @@ export default async function SellerDashboardPage() {
   let shippingStageCounts: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, number> | undefined
   // จำนวนนัดวันนี้ — เฉพาะร้านที่ใช้ระบบคิวงานได้ (SERVICE_QUEUE); undefined = ไทล์ที่ 2 คงเป็น "กำลังจัดส่ง"
   let appointmentTodayCount: number | undefined
+  // ขั้นงานของร้านบริการ (4 ไทล์) — undefined = ใช้ชุดเดิม
+  let serviceWorkCounts: Record<ServiceWorkStage, number> | undefined
   // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter
   // ประกาศไว้ชั้นนอกเพราะ `shop` เป็น block-scoped อยู่ใน try ด้านล่าง แต่ต้องใช้ตอน render
   // ทั้งก้อนเป็นสตริงล้วน จึงส่งข้ามเส้น server→client ได้ (ต่างจาก ProductVocab ที่มีฟังก์ชัน)
@@ -339,13 +342,15 @@ export default async function SellerDashboardPage() {
               })
             : Promise.resolve(null)
 
-        const [statusRes, shippingStageRes, appointmentTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
+        const [statusRes, shippingStageRes, appointmentTodayRes, serviceWorkRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
             shop.vertical === 'ONLINE_SALES' ? getShippingStageCounts(shop.id) : Promise.resolve(null),
             // นัดวันนี้ — เฉพาะร้านที่ผ่านตัวกั้นระบบคิวงาน (BR-RSV-01); ร้านอื่นไม่ต้องเสีย query
             canUseAppointments(shop) ? getTodayAppointmentCount(shop.id) : Promise.resolve(null),
+            // ขั้นงานร้านบริการ — ตัวกั้นเดียวกับนัดวันนี้ (ร้านที่ใช้ระบบคิวงาน)
+            canUseAppointments(shop) ? getServiceWorkStageCounts(shop.id) : Promise.resolve(null),
             getBalance(shop.id),
             // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
             // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
@@ -390,6 +395,10 @@ export default async function SellerDashboardPage() {
         // "นัดวันนี้ 0" ทั้งที่จริง ๆ อาจมีนัดอยู่ — เลข 0 ที่ผิดอันตรายกว่าไทล์ที่ไม่เกี่ยว
         if (appointmentTodayRes.status === 'fulfilled') appointmentTodayCount = appointmentTodayRes.value ?? undefined
         else console.error('[dashboard] getTodayAppointmentCount failed', appointmentTodayRes.reason)
+
+        // ล้ม = ตกกลับชุดเดิม (เหตุผลเดียวกับด้านบน: 0 ที่ผิดอันตรายกว่าไม่แสดง)
+        if (serviceWorkRes.status === 'fulfilled') serviceWorkCounts = serviceWorkRes.value ?? undefined
+        else console.error('[dashboard] getServiceWorkStageCounts failed', serviceWorkRes.reason)
 
         // v8: walletBalance — fallback 0 ถ้าล้ม
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
@@ -600,6 +609,7 @@ export default async function SellerDashboardPage() {
             shippingStageCounts,
             // ร้านคิวงาน: ไทล์ที่ 2 = "นัดวันนี้" แทน "กำลังจัดส่ง" (user เคาะ 2026-08-07)
             appointmentTodayCount,
+            serviceWorkCounts,
             // คำที่ผันตามประเภทกิจการ — ส่ง "คำที่แปลแล้ว" ไม่ใช่ค่าดิบจาก ORDER_VOCAB
             // 🛑 เดิมส่ง `orderNoun` (ไทยเสมอ) ทำให้หัวการ์ดบนมือถืออ่านว่า "Status of คำสั่งซื้อ"
             //    เมื่อผู้ใช้ตั้งภาษาเป็นอังกฤษ — เทมเพลตแปลแล้วแต่คำที่เสียบเข้าไปยังเป็นไทย
@@ -693,6 +703,7 @@ export default async function SellerDashboardPage() {
             counts={orderStatusCounts}
             shipping={shippingStageCounts}
             appointmentToday={appointmentTodayCount}
+            serviceWork={serviceWorkCounts}
             orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
             orderNounTitle={byVertical(t.vocab.orderNounTitle, shopVertical)}
           />

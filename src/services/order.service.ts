@@ -25,6 +25,7 @@ import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
 import { buildPayoutSnapshot, needsPayoutAccount, type ShopPayoutFields } from "@/lib/shop-payout";
 import { round2 } from "@/lib/round2";
 import { excludeDraftedWhere, withoutDrafted } from "@/lib/order-visibility";
+import { deriveServiceWorkStage, type ServiceWorkStage } from "@/lib/service-work-stage";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -2517,6 +2518,25 @@ export async function getShippingStageCounts(
     });
     // สองกองที่ไม่มีไทล์: DONE (จบแล้ว) และ NOT_SHIPPING (ไม่เคยมีการส่งของเลย)
     if (stage !== "DONE" && stage !== "NOT_SHIPPING") counts[stage] += 1;
+  }
+  return counts;
+}
+
+/**
+ * getServiceWorkStageCounts — 4 ไทล์ "งานบริการ" ของร้านคิวงาน (user เคาะ 2026-10-10)
+ * นับด้วย deriveServiceWorkStage ตัวเดียวกับตัวกรอง /orders?work= (กดไทล์บอก 5 ต้องเจอ 5 ใบ)
+ * ใช้ `now` ก้อนเดียวทั้งรอบ — ไม่งั้นใบที่นัดหมดพอดีระหว่างลูปจะตกคนละกอง
+ */
+export async function getServiceWorkStageCounts(shopId: string): Promise<Record<ServiceWorkStage, number>> {
+  const rows = await prisma.order.findMany({
+    where: { shopId, ...withoutDrafted("CANCELLED") },
+    select: { status: true, appointmentStatus: true, serviceEnd: true },
+  });
+  const counts: Record<ServiceWorkStage, number> = { AWAITING_SERVICE: 0, APPT_CONFIRMED: 0, AWAITING_CLOSE: 0, AWAITING_BUYER: 0 };
+  const now = new Date();
+  for (const o of rows) {
+    const stage = deriveServiceWorkStage({ ...o, now });
+    if (stage) counts[stage] += 1;
   }
   return counts;
 }
