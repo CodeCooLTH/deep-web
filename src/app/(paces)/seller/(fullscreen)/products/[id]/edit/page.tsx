@@ -86,20 +86,23 @@ export default async function EditProductPage({ params }: PageProps) {
 
   const shop = active.shop
 
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — ผู้ไม่ใช่เจ้าของไม่ได้คีย์ cost และฟอร์มไม่แสดง/ไม่ส่งช่องต้นทุน
+  const canEditCost = can(rolesFromMembership(active.role, active.roles), 'P3')
+
   // Fetch product + verify ownership (security: กัน seller แก้ product ของร้านอื่น)
   // serializeProduct แปลง Decimal/Date/Json → plain object ให้ RSC ส่งผ่าน boundary ได้
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const productRaw = await prisma.product.findFirst({
     where: { id, shopId: shop.id },
     include: { tags: true },
+    // 00071 T9: cost ไม่ติดมาเป็นค่าตั้งต้น — opt-in เฉพาะ P3 (ตัดสินจาก role สดข้างล่าง แล้วผ่าน serializeProduct ต่อ)
+    omit: { cost: !canEditCost },
   })
 
   if (!productRaw) {
     notFound()
   }
 
-  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — ผู้ไม่ใช่เจ้าของไม่ได้คีย์ cost และฟอร์มไม่แสดง/ไม่ส่งช่องต้นทุน
-  const canEditCost = can(rolesFromMembership(active.role, active.roles), 'P3')
   const product = serializeProduct(productRaw, { canSeeCost: canEditCost })
 
   // Business ถูก package lock (read-only) — ห้ามแก้ไขสินค้า

@@ -209,7 +209,13 @@ export interface CreateProductInput {
  * เพราะ Prisma จะรันทั้งหมดใน transaction ภายในเดียวกันให้ — ถ้า tag upsert ล้ม
  * product จะไม่ถูกสร้าง. ดีกว่า manual upsert + connect แยกขั้น (C5)
  */
-export async function createProduct(shopId: string, data: CreateProductInput) {
+// withCost — opt-in ต้นทุน (omit ระดับ client: Product.cost ไม่ติดมาเป็นค่าตั้งต้น · 00071 T9)
+// caller ส่ง true เฉพาะเมื่อ can(roles,'P3') แล้วเท่านั้น และต้องผ่าน serializeProduct({canSeeCost}) ต่อ
+export interface ProductReadOpts {
+  withCost?: boolean;
+}
+
+export async function createProduct(shopId: string, data: CreateProductInput, opts: ProductReadOpts = {}) {
   // dedupe tag names (case-insensitive) ก่อนส่งให้ connectOrCreate
   // เพราะถ้ามีชื่อซ้ำใน array, Prisma จะพยายาม create ซ้ำ → P2002
   const seenTags = new Map<string, string>();
@@ -270,6 +276,7 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
         : undefined,
     },
     include: { tags: true },
+    omit: { cost: !opts.withCost },
   });
 
   return created;
@@ -348,7 +355,7 @@ export interface UpdateProductInput {
  *     2) update tags: { connectOrCreate: [...] } → re-attach (สร้างใหม่ถ้ายังไม่มี)
  *   ทำใน prisma.$transaction ให้ atomic (C5)
  */
-export async function updateProduct(productId: string, data: UpdateProductInput) {
+export async function updateProduct(productId: string, data: UpdateProductInput, opts: ProductReadOpts = {}) {
   // Build scalar/json update payload (เฉพาะ field ที่ defined)
   const scalarUpdate: Prisma.ProductUpdateInput = {};
   if (data.name !== undefined) scalarUpdate.name = data.name;
@@ -389,6 +396,7 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
       where: { id: productId },
       data: scalarUpdate,
       include: { tags: true },
+      omit: { cost: !opts.withCost },
     });
   }
 
@@ -425,6 +433,7 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
             }
           : {},
       include: { tags: true },
+      omit: { cost: !opts.withCost },
     }),
   ]);
 
@@ -437,7 +446,7 @@ export async function deleteProduct(productId: string) {
   return prisma.product.update({ where: { id: productId }, data: { isActive: false, pinnedAt: null } });
 }
 
-export interface GetProductsByShopOptions {
+export interface GetProductsByShopOptions extends ProductReadOpts {
   // excludePinned — Pin Products (feature 00013, TD-002): true = ตัดสินค้าที่ปักหมุดออกจาก
   // grid ทั่วไป (โปรไฟล์เรียกคู่กับ getPinnedProducts แยกโซน). optional param ที่ 3 ท้ายสุด
   // เพื่อ backward-compat 100% กับ call-site เดิม (ไม่ส่ง = พฤติกรรมเดิมทุกประการ)
@@ -466,6 +475,7 @@ export async function getProductsByShop(
     },
     orderBy: { createdAt: "desc" },
     include: { tags: true },
+    omit: { cost: !opts?.withCost },
     ...(take ? { take } : {}),
   });
 }
@@ -489,7 +499,7 @@ export async function getProductsByShop(
  * หน้าสาธารณะ /u /b (getConfirmedOrderCountByProduct ข้างล่าง) + ProductsListing (totalSold)
  * ซึ่ง**ไม่ได้เปลี่ยน**ตามรอบนี้ — ห้ามลามเกณฑ์นี้ไปหน้าสาธารณะ (ร้านปั่นยอดโชว์ผู้ซื้อได้)
  */
-export async function getBestSellerProducts(shopId: string, take = 8) {
+export async function getBestSellerProducts(shopId: string, take = 8, opts: ProductReadOpts = {}) {
   // กติกาใหม่ (ตัด RETURNED + หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
   const newRules = await shopUsesServiceFinanceRules(shopId);
   const grouped = await prisma.orderItem.groupBy({
@@ -524,6 +534,7 @@ export async function getBestSellerProducts(shopId: string, take = 8) {
   const products = await prisma.product.findMany({
     where: { id: { in: ids }, shopId, isActive: true },
     include: { tags: true },
+    omit: { cost: !opts.withCost },
   });
   // คงลำดับ best-seller (findMany อาจสลับ + product ที่ปิด/ลบ หลุดออกไป)
   const byId = new Map(products.map((p) => [p.id, p]));

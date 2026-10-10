@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
     // ต้นทุนสินค้า (00071 S-3): ตัดสินจากบทบาทของ "ร้านที่ขอ" ไม่ใช่ร้าน active — กล่องแชทรวมหลายร้าน
     const canSeeCost = await isShopOwnerOfShop(shopId, userId, "P3");
     const [catalog, bestSellers, inventoryEnabled, shopRow, shipping] = await Promise.all([
-      getProductsByShop(shopId),
-      getBestSellerProducts(shopId, 8),
+      getProductsByShop(shopId, undefined, { withCost: canSeeCost }),
+      getBestSellerProducts(shopId, 8, { withCost: canSeeCost }),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shop.findUnique({
         where: { id: shopId },

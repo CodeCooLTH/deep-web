@@ -132,7 +132,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
-  const orderRaw = await getOrderForShop(token, shop.id)
+  // กำไรรายออเดอร์ (feature 00016 ส่วนขยาย FR-EXP-14) — ตัดสินสิทธิ์ "ก่อน" ดึงออเดอร์ เพราะต้นทุนรายบรรทัด
+  // (OrderItem.cost) ถูก omit ที่ระดับ prisma client (00071 T9) · opt-in เฉพาะผู้ที่ GRANTED เท่านั้น
+  const expenseAccess = await resolveExpenseAccess(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  )
+  const canSeeProfit = expenseAccess.kind === 'GRANTED'
+  const orderRaw = await getOrderForShop(token, shop.id, { withCost: canSeeProfit })
   if (!orderRaw) notFound()
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
@@ -283,10 +289,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // ไม่ใช่ส่งตัวเลขลงไปให้ client เลือกไม่แสดง หน้านี้อยู่ใต้ client layout ทุกค่าที่ข้ามเส้น
   // ถูก serialize ลง HTML เสมอ staff ที่เจ้าของร้านปิดสิทธิ์การเงินไว้จึงต้องไม่มีตัวเลขนี้
   // อยู่ในหน้าเลยแม้แต่ใน view-source (FR-EXP-14-AC-04)
-  const expenseAccess = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  const canSeeProfit = expenseAccess.kind === 'GRANTED'
   // countsAsRevenue ต้องได้ shipments มาด้วย — getOrderForShop include ไว้แล้ว (select แคบ 3 field)
   // คืนบางส่วนที่รับของแล้วของใบนี้ — หักในกำไรรายใบด้วย ชุดเดียวกับทุกจอ (มติ 2026-10-01)
   const orderProfit =

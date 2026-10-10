@@ -174,7 +174,7 @@ export default async function EditOrderPage({ params }: PageProps) {
   const canSeeCost = can(roles, 'P3')
   let catalog: CatalogProduct[] = []
   try {
-    catalog = (await getProductsByShop(shop.id)).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
+    catalog = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
   }
@@ -182,7 +182,7 @@ export default async function EditOrderPage({ params }: PageProps) {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
+    bestSellers = (await getBestSellerProducts(shop.id, 8, { withCost: canSeeCost })).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }

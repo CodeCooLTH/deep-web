@@ -70,7 +70,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   // feature 00030 (BR-BKU-13) — ส่ง vertical ให้ service ล็อก NO_SHIPPING ของร้าน SERVICE_QUEUE
   // product.shop โหลดมาแล้วด้านบน (ownership check) จึงไม่มี query เพิ่ม
-  const updated = await updateProduct(id, { ...parsed.output, shopVertical: product.shop.vertical });
+  const updated = await updateProduct(id, { ...parsed.output, shopVertical: product.shop.vertical }, { withCost: canSeeCost });
   return NextResponse.json(serializeProduct(updated, { canSeeCost }));
 }
 

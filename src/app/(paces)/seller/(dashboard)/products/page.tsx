@@ -89,7 +89,7 @@ export default async function ProductsPage() {
   let pinState: { pinSlots: number; pinnedCount: number } = { pinSlots: 1, pinnedCount: 0 }
 
   const [productsResult, ordersResult, pinStateResult] = await Promise.allSettled([
-    getProductsByShop(shop.id),
+    getProductsByShop(shop.id, undefined, { withCost: showCost }),
     getOrdersByShop(shop.id),
     getPinState(shop.id),
   ])

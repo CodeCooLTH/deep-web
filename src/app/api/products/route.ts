@@ -43,13 +43,13 @@ export async function GET(request: NextRequest) {
   // P1 ของ BILLING = เฉพาะสินค้าประเภทบริการ — กรองที่ server ไม่ใช่แค่ซ่อนในฟอร์ม (ยิงตรงต้องไม่เห็นสินค้าจัดส่ง/ต้นทุนร้านอื่น)
   const serviceOnly = isBillingOnlyFor(gate.roles, "P1");
 
-  const products = (await getProductsByShop(shop.id)).filter((p) => !serviceOnly || p.type === "SERVICE");
+  const products = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !serviceOnly || p.type === "SERVICE");
 
   // ?sort=best — เรียงขายดีก่อน (feature 00018: แถบเลือกสินค้าในช่องพิมพ์ user สั่ง 2026-07-23)
   // คืน "สินค้าทั้งหมด" เหมือนเดิม แค่สลับลำดับ: ตัวที่เคยขายได้เรียงตามยอดขายรวม desc แล้วต่อด้วย
   // ตัวที่ยังไม่เคยขาย (คงลำดับ createdAt desc เดิม) — client จึงค้นหาได้ครบทั้งแคตตาล็อกเหมือนเดิม
   if (request.nextUrl.searchParams.get("sort") === "best") {
-    const best = (await getBestSellerProducts(shop.id, 50)).filter((p) => !serviceOnly || p.type === "SERVICE");
+    const best = (await getBestSellerProducts(shop.id, 50, { withCost: canSeeCost })).filter((p) => !serviceOnly || p.type === "SERVICE");
     const rank = new Map(best.map((p, i) => [p.id, i]));
     const soldById = new Map(best.map((p) => [p.id, p.soldCount]));
     const ranked = products.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
@@ -112,6 +112,6 @@ export async function POST(request: NextRequest) {
   // ส่วนด่านเดิม (isCostEditAllowed) เช็คแค่ว่า owner จ่ายค่าแพ็กเกจหรือยัง = billing ล้วน
 
   // feature 00028 (BR-SBT-22) — ส่ง shopVertical เข้า service ให้ override fulfillmentMode default
-  const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical });
+  const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical }, { withCost: canSeeCost });
   return NextResponse.json(serializeProduct(product, { canSeeCost }), { status: 201 });
 }

@@ -166,10 +166,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
-      getProductsByShop(shopId)
+      getProductsByShop(shopId, undefined, { withCost: canSeeCost })
         .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
-      getBestSellerProducts(shopId, 8)
+      getBestSellerProducts(shopId, 8, { withCost: canSeeCost })
         .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),

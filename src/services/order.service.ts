@@ -1766,12 +1766,18 @@ export async function getOrderByToken(publicToken: string) {
 
 // DAL pattern: กรอง ownership ตั้งแต่ query layer เพื่อกัน RSC flight-data leak
 // (redirect-after-fetch ไม่เพียงพอเพราะ Next.js serialize object ก่อน redirect throw)
-export async function getOrderForShop(publicToken: string, shopId: string) {
+export async function getOrderForShop(
+  publicToken: string,
+  shopId: string,
+  // withCost — ส่ง true เฉพาะเมื่อผู้ดูผ่านด่านกำไร (resolveExpenseAccess GRANTED) · ค่าตั้งต้น = ไม่มีคีย์ cost
+  opts: { withCost?: boolean } = {},
+) {
   return prisma.order.findFirst({
     where: { publicToken, shopId },
     include: {
       // เพิ่ม product.images เพื่อ resolve imageUrl thumbnail → OrderSummary (theme fidelity)
       items: {
+        omit: { cost: !opts.withCost },
         include: {
           product: { select: { images: true } },
         },
@@ -2162,7 +2168,7 @@ export async function settleCodFromCarrier(input: {
  * 🛑 ห้ามก็อปไปเขียนซ้ำ: ถ้าสองที่ include ไม่ตรงกัน หน้าจอจะขาดข้อมูลบางฟิลด์เฉพาะเส้นทางเดียว
  * แล้วอาการจะออกมาเป็น "บางใบไม่มีเลขพัสดุ" ซึ่งไม่มีใครโยงกลับมาที่ include ได้
  */
-function orderListInclude(opts?: { withPayments?: boolean }) {
+function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean }) {
   return {
 
       /**
@@ -2176,6 +2182,8 @@ function orderListInclude(opts?: { withPayments?: boolean }) {
       // items: เพิ่ม product.images เพื่อ resolve imageUrl → /api/files/{id} ใน OrderCard (F2)
       // pattern เดียวกับ new/page.tsx L67 ที่ resolve image จาก p.images[0]
       items: {
+        // ต้นทุนรายบรรทัด (00071 T9) — opt-in เฉพาะผู้เรียกที่ผ่านด่าน F1 (sales: COGS) · ที่เหลือไม่ได้คีย์ cost
+        omit: { cost: !opts?.withCost },
         include: {
           product: { select: { images: true } },
         },
@@ -2309,7 +2317,11 @@ export async function getOrdersByShop(
    *
    * ผู้เรียกต้องกั้นด้วย `shop.vertical === 'SERVICE_QUEUE'` — ห้ามกั้นด้วย "ร้านนี้มีมัดจำไหม"
    */
-  opts?: { withPayments?: boolean },
+  opts?: {
+    withPayments?: boolean
+    /** ต้นทุนรายบรรทัด — ส่ง true เฉพาะหน้าที่ผ่าน gatePage F1 แล้ว (sales COGS) · ค่าตั้งต้น = ไม่มีคีย์ cost */
+    withCost?: boolean
+  },
 ) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },

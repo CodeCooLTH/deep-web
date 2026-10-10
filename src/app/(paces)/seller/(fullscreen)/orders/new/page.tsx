@@ -135,7 +135,7 @@ export default async function NewOrderPage() {
   let catalog: CatalogProduct[] = []
   try {
     // P1 ของผู้เปิดบิล = เฉพาะบริการ — กรองที่ server ก่อนส่งลง client (ไม่ซ่อนแค่ในฟอร์ม)
-    const products = (await getProductsByShop(shop.id)).filter((p) => !billingOnly || p.type === 'SERVICE')
+    const products = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !billingOnly || p.type === 'SERVICE')
     catalog = products.map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
@@ -144,7 +144,7 @@ export default async function NewOrderPage() {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).filter((p) => !billingOnly || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
+    bestSellers = (await getBestSellerProducts(shop.id, 8, { withCost: canSeeCost })).filter((p) => !billingOnly || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }

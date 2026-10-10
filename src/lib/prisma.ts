@@ -8,6 +8,10 @@ const createPrismaClient = () =>
       chatMessage: {
         rawMessage: true,
       },
+      // 00071 P3 T9: ต้นทุนไม่ติดมากับ query ปกติ — query ของเจ้าของ/F1 ต้อง opt-in เองด้วย
+      // `select: { cost: true }` หรือ `omit: { cost: false }` (ดูคอมเมนต์ท้ายไฟล์)
+      orderItem: { cost: true },
+      product: { cost: true },
     },
   });
 
@@ -28,6 +32,10 @@ const globalForPrisma = globalThis as unknown as {
  *
  * ต้องการอ่านจริง (ตอน investigate) ให้ขอตรง ๆ ต่อ query:
  *   prisma.chatMessage.findUnique({ where: { id }, omit: { rawMessage: false } })
+ *
+ * OrderItem.cost / Product.cost (00071 P3 T9) — เห็นได้เฉพาะ F1 (เจ้าของ+ผู้ดูแล) ใครต้องใช้ opt-in ตรง ๆ:
+ * `select: { cost: true }` / `omit: { cost: false }` / `include: { items: { omit: { cost: false } } }`
+ * และคอมเมนต์ว่าทางนั้นถึงเฉพาะ owner/F1 — ไม่ครอบ `$queryRaw` กับ aggregate (`_sum` ที่อ้าง cost)
  */
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 

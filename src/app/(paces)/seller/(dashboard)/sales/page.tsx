@@ -244,7 +244,8 @@ export default async function SalesPage({
   // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนผ่านตัวกลางเดียวกับ P&L และชีต (มติ 2026-10-01)
   // ร้านที่ไม่ใช่บริการ: ไม่ดึง/ไม่หักยอดคืน และไม่ตัดร่าง/คืนของ — ของเดิม (Map ว่าง ⇒ amountOf = totalAmount)
   const [shopOrders, returnAdj] = await Promise.all([
-    getOrdersByShop(shop.id),
+    // withCost: หน้านี้ผ่าน gatePage F1 ข้างบนแล้ว (ไม่ถึงบรรทัดนี้ถ้าไม่ใช่เจ้าของ/ผู้ดูแล) — ใช้คิด COGS
+    getOrdersByShop(shop.id, undefined, { withCost: true }),
     newRules ? getReturnAdjustments(shop.id) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
   /** ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้ */
