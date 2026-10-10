@@ -220,7 +220,8 @@ export type OrderRow = {
 
 // ช่องทางการขาย → icon (tabler, ผ่าน Icon wrapper) + label ไทย — order list
 export const SALES_CHANNEL_ICONS: Record<string, string> = {
-  STOREFRONT: 'building-store',
+  // cash-register ไม่ใช่ building-store — ตัวหลังซ้ำกับไอคอนเมนู/ร้านค้า (user เปลี่ยน 2026-10-10)
+  STOREFRONT: 'cash-register',
   FACEBOOK: 'brand-facebook',
   INSTAGRAM: 'brand-instagram',
   LINE: 'brand-line',
