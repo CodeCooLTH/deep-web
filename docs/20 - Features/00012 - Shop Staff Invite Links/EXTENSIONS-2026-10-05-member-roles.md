@@ -1,5 +1,7 @@
 # ส่วนขยาย 2026-10-05 — เปลี่ยนบทบาทสมาชิก (เจ้าของ ↔ ผู้ดูแล) + โอนเจ้าของหลัก
 
+> **ส่วนต่อ (2026-10-10):** feature **00071 — Shop Member Roles & Permissions** (`docs/20 - Features/00071 - Shop Member Roles & Permissions/`) ต่อยอดจากเอกสารนี้ — แตก "ผู้ดูแล" เป็น 4 บทบาท (ผู้ดูแล/ตอบแชท/เปิดบิล/ฝ่ายช่าง) ถือหลายบทบาทได้ โดย **BR-MR-01..08 ในไฟล์นี้ยังคงเดิมทุกข้อ** (`ShopMember.role` ยังเป็น `OWNER|ADMIN`; เพิ่ม `roles` แยก) · API `PATCH …/members/[memberId]` จะขยาย body เป็น `{ role?, roles? }` ใน 00071 P2 · สถานะ: สเปก ยังไม่ implement
+
 > ต้นเรื่อง: user สั่ง "ทำระบบจัดการ user เหมือน gochat-v3 — เอาแค่จุดที่ปรับให้คนเป็นเจ้าของร้านหรือแอดมิน"
 > อ้างอิง IA: `gochat-v3/src/app/(app)/settings/members/client.tsx` + `settings/actions.ts::changeRole`
 > มติ 3 ข้อ user เคาะผ่าน AskUserQuestion วันเดียวกัน (= requirement review ตาม HR11)

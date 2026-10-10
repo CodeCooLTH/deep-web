@@ -1525,6 +1525,20 @@ erDiagram
 
 **Constraint / Index:** `@@unique([conversationId, productId, optionLabel])` (กันแปะซ้ำ · `productId` null หลังสินค้าถูกลบ → NULL ไม่ชนกัน ยอมรับ) · `@@index([shopId, conversationId])`
 
+### 6.71 บทบาทสมาชิกร้าน — `ShopMember.roles` + คอลัมน์ใน invite (feature 00071)
+
+> สถานะ: **สเปก (Draft 2026-10-10) ยังไม่ implement** · P1 ไม่มี migration · P2 additive (ไม่มี DROP) · รายละเอียด: `docs/20 - Features/00071 - Shop Member Roles & Permissions/DATABASE.md`
+
+| ตาราง.คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `ShopMember.role` (เดิม) | String `'OWNER'\|'ADMIN'` | ความหมายคงเดิม = เจ้าของ vs พนักงาน — ไม่เปลี่ยนค่า |
+| `ShopMember.roles` (**ใหม่ P2**) | String[] default `[]` | หน้าที่ของพนักงาน 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · เจ้าของ = ว่าง · ถือ 3 บทบาทนับ 1 คนในโควตา `staffCountWhere()` |
+| `ShopInvite.roles` (**ใหม่ P2**) | String[] default `["MANAGER"]` | เชิญเป็นเจ้าของไม่ได้ |
+| `ShopInviteLink.roles` (**ใหม่ P2**) | String[] default `["MANAGER"]` | เช่นเดียวกัน |
+| `Shop.staffCanViewFinance` | Boolean | **deprecated โดย 00071 P1** — ยังอยู่ใน schema แต่ไม่ถูกอ่านเพื่อตัดสินสิทธิ์ · ห้าม drop โดยไม่ขออนุมัติ user |
+
+Migration (P2): backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (คำเชิญ/ลิงก์ค้างได้ `['MANAGER']` จาก default)
+
 ---
 
 ## §7 API Reference
@@ -1797,8 +1811,8 @@ erDiagram
 | PATCH | `/api/expenses/[id]` | Seller (`GRANTED`) | แก้ค่าใช้จ่าย | `expense.service` |
 | DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
 | GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` + **`coverage{soldItemCount,uncostedItemCount}`** (feature 00067 · additive) | `pnl.service` · `cost-coverage.service` |
-| PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
-| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ | `shop-member.service` |
+| PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` — 🛑 **จะถูกลบใน 00071 P1** (ยกเลิกสวิตช์; สเปก ยังไม่ implement) | `expense.service` |
+| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ · **00071 P2 (สเปก):** body ขยายเป็น `{ role?, roles?: ShopRole[] }` — ดู §7.27 | `shop-member.service` |
 | DELETE | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | ลบผู้ดูแล/เจ้าของร่วม — ห้ามลบเจ้าของหลักและตัวเอง (เดิม: เจ้าของหลักลบได้แค่ ADMIN) | `shop-member.service` |
 | POST | `/api/business/shops/[shopId]/transfer` | **เจ้าของหลักเท่านั้น** | `{ memberId }` โอน `Shop.userId` · ผู้รับต้องมีแพ็กเกจ ACTIVE ที่ร้าน/สมาชิกไม่เกินโควตา · เจ้าของเดิมคง role OWNER | `shop-member.service` |
 
@@ -2273,6 +2287,18 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 ทุก route: Prisma error อื่น → 500 `{ error }` (log เฉพาะชนิด error ไม่ log เนื้อความจำ/ชื่อสินค้า)
 
+### 7.27 บทบาทและสิทธิ์สมาชิกร้าน (feature 00071 — สเปก Draft 2026-10-10 ยังไม่ implement)
+
+> เอกสารเต็ม: `docs/20 - Features/00071 - Shop Member Roles & Permissions/{BRD,SRS,SDS,API,DATABASE,TestCase}.md` · ตารางสิทธิ์ SSOT = **BRD §8.3**
+
+| Phase | การเปลี่ยน |
+|---|---|
+| P1 | ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` · ผิวการเงินเต็ม (F1-F3: `/api/expenses*`, รายงานที่มีรายได้, `/api/wallet*`) ตอบ `403 { error: 'FORBIDDEN_ROLE' }` สำหรับผู้ที่ไม่ใช่เจ้าของ · service ตัดฟิลด์เงินตาม `moneyLevel` |
+| P2 | `PATCH …/members/[memberId]` รับ `{ role?: 'OWNER'\|'ADMIN', roles?: ShopRole[] }` · invite create และ invite-link create รับ `roles` (ค่าตั้งต้น `['MANAGER']`) · เฉพาะเจ้าของ |
+| P3 | ทุก route ฝั่งร้านประกาศ capability แล้วถามตัวตัดสินกลาง `src/lib/shop-permissions.ts` (`can` · `moneyLevel` · `rolesFromMembership`) |
+
+**Error ใหม่:** `403 { error: 'FORBIDDEN_ROLE' }` = เป็นสมาชิกแต่บทบาทไม่มีสิทธิ์ใน capability นั้น (capability ที่ยังไม่จัดหมวด = เจ้าของเท่านั้น) · หน้า RSC แสดงหน้าแจ้งไม่มีสิทธิ์ ไม่ใช่ 404 · error เดิมของ 00012 (`NOT_OWNER`/`PRIMARY_OWNER_LOCKED`/…) คงเดิม
+
 **เปลี่ยน endpoint เดิม:** `POST …/ai-suggest/auto` ต่อ `after()` เรียก `maybeUpdateMemory` หลัง READY (response ไม่เปลี่ยน · callback ต้อง `.catch(()=>{})`) · `POST …/ai-suggest` (Gemini) ต่อความจำ+สินค้าเข้า `contextBlock` · ความจำ/สินค้าเข้า prompt ทุก trigger ผ่าน `sanitizeForExternalAi` (ความจำ/สินค้าล้ม = ตัดหัวข้อนั้น ทำคำแนะนำต่อ)
 
 ---
@@ -2712,6 +2738,17 @@ HTTP ตามตาราง §7.21
 | ค่าคงที่ความจำ (`src/lib/chat-memory-types.ts`) | `CHAT_MEMORY_MAX=800` · `INTERESTED_PRODUCT_MAX=10` · `SELECTIONS_MAX=10` · `MEMORY_AI_MIN_NEW_MESSAGES=3` · `MEMORY_AI_FIRST_MIN_MESSAGES=4` (+ลูกค้า ≥ `MEMORY_AI_FIRST_MIN_BUYER=2`) · `MEMORY_AI_COOLDOWN_MS=120000` · `MEMORY_AI_WINDOW=40` · `MEMORY_RPM_SHARE=0.7` · `MEMORY_SLOT_WAIT_MS=2000` · `MEMORY_SHRINK_RATIO=0.5` (ฐาน ≥ `MEMORY_SHRINK_BASE_MIN=100`) |
 | `AutoSuggestReason` (ฝั่ง client · ใน response `NONE`) | outcome ทุกค่าที่ไม่ใช่ `OK` + `NO_RUN` (ยังไม่มีแถวของ anchor นี้) · `STALE_ANCHOR` (anchor ไม่ใช่ข้อความล่าสุดของห้อง) · `NOT_CONFIGURED` (อยู่ใน allow-list แต่ไม่มีกุญแจ) · `NOT_ENABLED` (ร้านใช้ Gemini) |
 
+### 8.14 บทบาทสมาชิกร้าน (feature 00071 — สเปก ยังไม่ implement · `src/lib/shop-permissions.ts` จะเป็น SSOT · ทุกค่าเก็บเป็น String)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `ShopRole` (รหัสบทบาท) | `OWNER` (เจ้าของ) · `MANAGER` (ผู้ดูแล) · `CHAT` (ตอบแชท) · `BILLING` (เปิดบิล) · `TECHNICIAN` (ฝ่ายช่าง) |
+| `ShopMember.role` (เดิม คงไว้) | `OWNER` · `ADMIN` — เจ้าของ vs พนักงาน · P1 map ผ่าน `rolesFromMembership`: `OWNER`→`['OWNER']`, `ADMIN`→`['MANAGER']` |
+| `ShopMember.roles` (ใหม่ P2) | 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ขายบริการ |
+| `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
+| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` · `T1` `T2` `T3` `T4` — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น |
+| error | `FORBIDDEN_ROLE` (HTTP 403) |
+
 **ค่าคงที่:** `AUTO_SUGGEST_NOTE_MAX = 120` · ตัดผล ≤3 ประโยค/≤400 ตัวอักษร (`clampSuggestion`) · Typhoon timeout 8 วินาที ไม่ retry (`TYPHOON_TIMEOUT_MS`) · รอคิว pacing ≤5 วินาที (รอบละ 250 ms) แล้วทิ้ง `RATE_LIMITED` · pacing `AI_SUGGEST_RPS` 3 / `AI_SUGGEST_RPM` 100 / ต่อร้าน `floor(RPM/2)` · `THINKING` อายุ >30 วินาที ยึดต่อได้ · `SKIPPED_BOT` = มี `AutoReplyJob` ของ anchor สถานะ `PENDING`/`PROCESSING` และ `updatedAt` ภายใน 5 นาที · `manual` ≤15 ครั้ง/นาที/ผู้ใช้
 
 ---
@@ -2817,6 +2854,8 @@ HTTP ตามตาราง §7.21
 
 ### 9.7 Finance / Cost (feature 00016 — อัปเดต 2026-08-08)
 
+> 🛑 **จะถูกแทนที่โดย 00071 P1 (สเปก ยังไม่ implement):** ธง `staffCanViewFinance` เลิกใช้ตัดสินสิทธิ์ (deprecated) · การเงินเต็ม = เจ้าของเท่านั้น (F1-F3, P3) ผู้ดูแลเดิมเห็นระดับ "รายใบ" — ตารางด้านล่างยังเป็นพฤติกรรมจริงของโค้ดจนกว่า P1 จะขึ้น · ดู §9.11
+
 | Operation | Seller-owner | Staff (ShopMember ADMIN) + `staffCanViewFinance=true` (**ค่าเริ่มต้นตั้งแต่ 2026-08-08**) | Staff + toggle ปิด (owner ปิดเอง) |
 |---|---|---|---|
 | `/expenses` — CRUD ค่าใช้จ่าย + รายงาน P&L | ✅ | ✅ | ❌ locked "ยังไม่ได้รับสิทธิ์" |
@@ -2881,6 +2920,16 @@ HTTP ตามตาราง §7.21
 - ทุก query ของ owner API scope ด้วย `ownerId` ที่ `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · เลือกร้านเข้ากลุ่มได้เฉพาะร้านที่ `userId=ownerId ∧ ไม่ลบ ∧ ไม่ purge ∧ ไม่ล็อกแพ็กเกจ` (ร้านที่อยู่ในกลุ่มเดิมแล้วถูกล็อกภายหลังคงไว้ได้ ไม่ลบเงียบ)
 - ผูกกลุ่ม LINE ที่ ACTIVE กับเจ้าของอื่น = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่เปิดเผยเจ้าของ · ไม่เผาโค้ด)
 - **[EXT] เทมเพลตข้อความ:** PUT/DELETE `…/template` เป็น **L2** — `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · `lockOwnedGroup` query `{id, ownerId}` ตั้งแต่แรก (ไม่ใช่ของตน/`REMOVED` = 404 `GROUP_NOT_FOUND`) · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` แต่ **GET (L1) ยังอ่าน `template` เดิมได้** และเทมเพลตถูกเก็บไว้ (กลับ ACTIVE ใช้ต่อ) · ปลายทางปุ่มในข้อความตายตัว (`sellerDashboardUrl()`) ไม่มีฟิลด์ URL ที่ผู้ใช้ตั้งได้ · ข้อความสุดท้ายตอนแพ็กเกจหยุด (`FINAL_NOTICE`) ไม่ผ่านเทมเพลต · เนื้อหาข้อความอิสระไม่ถูก log
+
+### 9.11 บทบาทสมาชิกร้าน (feature 00071 — สเปก Draft 2026-10-10 ยังไม่ implement)
+
+> ตารางสิทธิ์ capability × 5 บทบาท (SSOT) อยู่ที่ **`docs/20 - Features/00071 - Shop Member Roles & Permissions/BRD.md` §8.3** — ไม่คัดลอกซ้ำที่นี่เพื่อกันตารางเพี้ยน · เมนูมือถือ §8.5 · ระดับเงิน §8.2
+
+- สิทธิ์ = union ของบทบาท · ระดับเงิน = สูงสุด · ร้าน `PERSONAL` = เจ้าของเสมอ · อ่านบทบาทสดจาก `ShopMember` ทุกคำขอ · อ่านล้ม/ไม่ใช่สมาชิก = ปฏิเสธ (fail-closed)
+- ผู้ดูแล (`MANAGER`) = สิทธิ์ ADMIN วันนี้ − การเงินเต็ม (F1-F3) − ต้นทุนสินค้า (P3)
+- ปฏิเสธ → `403 { error: 'FORBIDDEN_ROLE' }` (API) / หน้าแจ้งไม่มีสิทธิ์ (RSC)
+- กติกาเจ้าของ/เจ้าของหลัก/โควตา/โอน (00012 BR-MR-01..08) ไม่เปลี่ยน
+- `Shop.staffCanViewFinance` deprecated — ดู §6.71, §9.7
 
 ---
 
