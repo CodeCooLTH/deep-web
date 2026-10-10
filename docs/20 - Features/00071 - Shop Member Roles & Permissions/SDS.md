@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** System Design Spec (SDS)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว · **P2 implement แล้ว** (โมเดล `roles` + CHECK + มอบบทบาทตอนเชิญ/แก้สมาชิก) · P3 ยังเป็นการออกแบบ
+> **สถานะ:** P1 implement แล้ว · **P2 implement แล้ว** (โมเดล `roles` + CHECK + มอบบทบาทตอนเชิญ/แก้สมาชิก) · **P3 implement แล้ว** (ด่านกลาง + ทะเบียน + inventory test + เมนูจากกฎเดียว + Prisma global omit ต้นทุน)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SDS: บทบาทและสิทธิ์สมาชิกร้าน (System Design Spec)
@@ -73,14 +73,18 @@ graph TD
 | Component | หน้าที่ (Responsibility) | Dependency (Submodule / Stack / Store) |
 |-----------|--------------------------|-----------------------------------------|
 | **`shop-permissions`** | ตาราง capability × บทบาท · `can` · `moneyLevel` · `rolesFromMembership` · ไม่มี I/O | TypeScript pure (`src/lib`) |
-| **Guard (route/RSC)** | อ่านบทบาทสด → ถาม `can` → 403 `FORBIDDEN_ROLE` หรือหน้าแจ้งไม่มีสิทธิ์ | `resolveActiveShopContext` → Prisma `ShopMember` |
+| **Guard (route/RSC)** ✅ P3 | อ่านบทบาทสด → ถาม `can` → 403 `FORBIDDEN_ROLE` หรือหน้าแจ้งไม่มีสิทธิ์ · `requireShopCapability` / `gatePage` / `canAccessShopWith` / `listAccessibleShopIds(userId, cap)` / `ForbiddenRoleError` | `src/lib/shop-capability.ts` → `requireShopForRequest` → Prisma `ShopMember` |
 | **Money-level slicing** | ตัดฟิลด์เงินใน service/DAL ตาม `moneyLevel` | `src/services/*` |
 | **Finance access (`expense/agent-report/product-report`)** | เลิกอ่าน `staffCanViewFinance` ใช้ "การเงินเต็ม = เจ้าของ" | `src/services/*-access.service` |
 | **`shop-member.service`** ✅ P2 | `changeMemberRole` (เจ้าของเท่านั้น) · `inviteShopMember` เก็บ `roles` · `acceptShopInvite` คัดลอก `invite.roles` ลง `ShopMember` | Prisma `ShopMember` · `shop-role-assignment.ts` (pure) · `shop-member-errors.ts` |
 | **Invite services** ✅ P2 | `invite-link.service` (`createInviteLink` รับ `roles` · accept คัดลอก `link.roles`) | Prisma `ShopInvite`/`ShopInviteLink` |
 | **`shop-role-picker`** ✅ P2 | ตรรกะ+ข้อความตัวเลือกบทบาทใน UI (ซ่อน BILLING · ปุ่มบันทึกกดได้ไหม · ลำดับ) — pure, client-safe `src/lib/shop-role-picker.ts` | `STAFF_ROLES` |
-| **Menu layer** | คำนวณเมนู/FAB/หน้าแรกจาก union ของบทบาท | `src/lib/seller-menu.ts` และจุดเมนูมือถือ — กำหนดตอน implement P3 |
-| **Route inventory test** | แดงเมื่อพบ route ฝั่งร้านที่ไม่ประกาศ capability | Vitest (P3 S-12) |
+| **Menu layer** ✅ P3 | คำนวณเมนู/FAB/แถบล่าง/ทางลัดจาก union ของบทบาท โดยอ่านทะเบียนเดียวกับ `gatePage` | `src/lib/role-nav.ts` (`canSeePage` · `applyCapabilityMenu` · `resolveMobileNav` · `buildFabActions` · `shopQuickLinks`) + `src/lib/seller-menu.ts` |
+| **ทะเบียน capability** ✅ P3 | path → เมธอด → cap / คลาส (MEMBER, SELF, BUYER, PUBLIC, PLATFORM_ADMIN, CRON, WEBHOOK + reason) · เหตุที่เป็นไฟล์กลาง: Next 16 ไม่ให้ `route.ts` export นอกจาก handler | `src/lib/route-capabilities.ts` |
+| **Route inventory test** ✅ P3 | แดงเมื่อพบ route/หน้าฝั่งร้านที่ไม่ประกาศ capability · key ไม่มีไฟล์จริง · handler ไม่เรียกด่านด้วย literal cap ตรงทะเบียน · คลาสที่ไม่ใช่ cap เรียกตัวหาร้านดิบ · wrapper ใหม่นอก allow-list · หน้า/route แอดมิน cron webhook ไม่เรียกด่านของตัวเอง · PENDING > 0 | Vitest `src/lib/__tests__/route-capability-inventory.test.ts` (มี mutation M1-M20) |
+| **Order view by level** ✅ P3 | allow-list ทุกทางออกของออเดอร์/นัดหมายสำหรับระดับ NONE | `src/lib/order-view-by-level.ts` |
+| **Order role rules** ✅ P3 | `isBillingOnly` · `isBillingOnlyEditor` · `canEditOrderAs` · `orderEditLockReason` · `isOrderUnpaid` (`order-payment-state.ts`, ต่อยอด `computeOrderMoney`) | `src/lib/order-role-rules.ts` · `src/lib/order-payment-state.ts` |
+| **Prisma global omit** ✅ P3 | `OrderItem.cost` / `Product.cost` ไม่ติดมากับ query ปกติ · เจ้าของ opt-in (`select`/`omit:{cost:false}`/`include…omit`) · ไม่ครอบ `$queryRaw`/aggregate | `src/lib/prisma.ts` · ด่าน `cost-optin-guard.test.ts` |
 
 ---
 
@@ -114,7 +118,8 @@ sequenceDiagram
 ```
 
 ### 4.2 Flow กรณีล้มเหลว / ชดเชย (ถ้ามี)
-- อ่านบทบาทล้ม → ปฏิเสธ (fail-closed) ไม่มี fallback เป็นเจ้าของ (P3 S-17)
+- อ่านบทบาทล้ม → ปฏิเสธ (fail-closed) ไม่มี fallback เป็นเจ้าของ (P3 S-17 ✅ `resolveSessionActiveShop`)
+- ไม่ใช่สมาชิกของร้านที่ระบุทรัพยากร → route ที่รับ `reason:'NOT_MEMBER'` แปลงเป็น 404 (ไม่บอกว่ามีอยู่) · สมาชิกแต่ไม่มี cap → 403 `FORBIDDEN_ROLE`
 - เปลี่ยนบทบาทระหว่างใช้งาน: คำขอถัดไปอ่านสดจึงได้สิทธิ์ใหม่ทันที (ไม่ต้อง invalidate cache)
 - migration P2 ล้ม = deploy ไม่ขึ้น (HR15 ข้อ 3) ย้อนด้วยการไม่ใช้คอลัมน์ใหม่ (โค้ด P1 ไม่อ่าน `roles`)
 
@@ -128,7 +133,7 @@ sequenceDiagram
 | **แดชบอร์ด 00069 / Command Center** | internal | ตัดวิดเจ็ตเงินตาม `moneyLevel` (ห้ามเปลี่ยนสูตร) | กราฟยอดขายรั่ว |
 | **00067 แท็บการเงินร้านบริการ / 00016 P&L** | internal | F1 เจ้าของเท่านั้น | กำไรรั่ว |
 | **00019-ext-mem** | internal | OOS-17 ปิดโดยอ้าง H1 (S-18) | — |
-| **iShip** | external | S1 สร้างพัสดุ · S2 ตั้งค่า (OWNER) | — |
+| **iShip** | external | S1 สร้างพัสดุ · S2 ตั้งค่า/เชื่อมบัญชีขนส่ง (เจ้าของ + ผู้ดูแล — มติ C-2) | — |
 
 - **Timeout / Retry / Idempotency:** ไม่มีการเรียกภายนอกใหม่ · `PATCH members` ส่งซ้ำด้วยค่าเดิมได้ผลเดิม
 - **สัญญา API เต็ม:** ดู [[API]]
@@ -150,7 +155,7 @@ sequenceDiagram
 - **ตัดสินใจ:** `src/lib/shop-permissions.ts` ไม่มี I/O · unknown cap = OWNER เท่านั้น
 - **เหตุผล:** เทสได้ตรง (ทุกคู่ + mutation) · ทุกที่ (route, service, เมนู) อ่านที่เดียว (BRD §6.1)
 - **ทางเลือกที่ตัดทิ้ง:** กระจายเช็ค role ตามไฟล์ — ตกหล่นและเมนูกับ API ไม่ตรงกัน
-- **ผลกระทบ:** ทุก route ต้องประกาศ capability (P3) และมี inventory test
+- **ผลกระทบ:** ทุก route ต้องประกาศ capability (P3 ✅ ทะเบียน `route-capabilities.ts` + inventory test) · P3 เพิ่มชั้น `shop-capability.ts` ที่ต่อ `can()` กับแถวสมาชิกสด (PERSONAL/T4/BILLING ตัดทิ้ง) โดย `shop-permissions.ts` ยังบริสุทธิ์ · capability เพิ่มจากมติ P3: S1 (แยกจัดส่งจาก O4) · F4 · X1-X5
 
 ### TD-003: P1 ปิดการเงินก่อนมีโมเดลบทบาท
 - **ตัดสินใจ:** P1 ใช้ `rolesFromMembership('OWNER'|'ADMIN')` → `['OWNER']`|`['MANAGER']` โดยไม่แตะ schema · **P2: `rolesFromMembership(role, roles)` อ่านคอลัมน์ `roles`** (OWNER → `['OWNER']` ไม่สน roles · ADMIN → `roles ∩ STAFF_ROLES` เรียงตามลำดับมาตรฐาน · ADMIN ที่ roles ว่าง/แปลก = `[]` ไม่ fallback เป็น MANAGER — fail-closed)
@@ -168,7 +173,7 @@ sequenceDiagram
 - **ตัดสินใจ:** API → 403 `{ error: 'FORBIDDEN_ROLE' }` · RSC → หน้าแจ้งว่าต้องขอบทบาทไหนจากเจ้าของ
 - **เหตุผล:** แยกจาก `FORBIDDEN`/`NOT_OWNER` เดิม ให้ client แสดงข้อความถูก · ไม่ใช้ 404 เงียบ
 - **ทางเลือกที่ตัดทิ้ง:** reuse `NOT_OWNER` — ความหมายไม่ตรง (บทบาทอื่นก็เป็นสมาชิก)
-- **ผลกระทบ:** error code ใหม่ต้องมี route-catch map และข้อความไทย
+- **ผลกระทบ:** error code ใหม่ต้องมี route-catch map และข้อความไทย · P3: `ForbiddenRoleError` (message `'FORBIDDEN'` + `code`) จาก service ถูกแปลงเป็น 403 ที่ route (`OrderRoleRestrictedError`/`OrderLockedForRoleError` สืบจากมัน) · body 403 ไม่มี field เหตุ (ฝั่ง client แยก "ชำระแล้ว" กับ "ไม่ใช่บิลบริการ" จาก 403 ไม่ได้ — ดูหนี้ในแผน P3)
 
 ---
 
@@ -181,8 +186,8 @@ sequenceDiagram
 | TFR-003 | Money-level slicing / TD-004 | Draft |
 | TFR-004 | Finance access / TD-003 | Draft |
 | TFR-005 | `shop-member.service` + Invite services / TD-001 | Draft |
-| TFR-006 | Guard + route inventory / Flow 4.1 | Draft |
-| TFR-007 | Menu layer | Draft |
+| TFR-006 | Guard + ทะเบียน + route inventory + order role rules + order view by level / Flow 4.1 | P3 implement แล้ว |
+| TFR-007 | Menu layer (`role-nav.ts`) | P3 implement แล้ว |
 | NFR Performance | Flow 4.1 (≤1 query) | Draft |
 
 ---

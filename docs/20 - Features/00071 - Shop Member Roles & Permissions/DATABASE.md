@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[API]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (ไม่มี migration) · **P2 implement แล้ว** (migration `20261010120000_shop_member_roles` · คอลัมน์ `roles` + CHECK 3 ตัว) · P3 ไม่มี migration เพิ่ม
+> **สถานะ:** P1 implement แล้ว (ไม่มี migration) · **P2 implement แล้ว** (migration `20261010120000_shop_member_roles` · คอลัมน์ `roles` + CHECK 3 ตัว) · **P3 implement แล้ว ไม่มี migration เพิ่ม** (การตัดต้นทุน = Prisma global `omit` ใน `src/lib/prisma.ts` ไม่ใช่การเปลี่ยน schema · ไม่มี query ค้นตาม `roles` จึงไม่เพิ่ม GIN index — ด่านกลางอ่านแถวสมาชิกของ `userId` แล้วกรองบทบาทใน memory)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # DATABASE: บทบาทและสิทธิ์สมาชิกร้าน
@@ -189,4 +189,4 @@ invariant: `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1-4 ค่าใน
 
 **Open Questions:**
 - ~~เพิ่ม DB CHECK~~ — ตัดสินแล้ว (P2 มติ 0.3): เพิ่ม 3 ตัว §3.5
-- ต้องมี GIN index บน `roles` หรือไม่ — กำหนดตอน implement P3 ถ้าพบ query ค้นตามบทบาท
+- ~~ต้องมี GIN index บน `roles` หรือไม่~~ — ตัดสินแล้วใน P3: ไม่ต้อง (ไม่มี query ค้นตามบทบาท)

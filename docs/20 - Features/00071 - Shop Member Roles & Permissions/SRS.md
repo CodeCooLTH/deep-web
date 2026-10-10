@@ -11,7 +11,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) - TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (branch `feat/00071-member-roles`) · **P2 implement แล้ว** (branch `feat/00071-p2-roles` · P2+P3 ขึ้น main พร้อมกัน — มติ 0.1) · P3 ยังเป็นสเปก (ยังไม่มีโค้ด)
+> **สถานะ:** P1 implement แล้ว (branch `feat/00071-member-roles`) · **P2 implement แล้ว** (branch `feat/00071-p2-roles` · P2+P3 ขึ้น main พร้อมกัน — มติ 0.1) · **P3 implement แล้ว** (branch `feat/00071-p2-roles` · ไม่มี migration)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SRS: บทบาทและสิทธิ์สมาชิกร้าน (Software Requirements Specification — Technical)
@@ -43,7 +43,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 | **ShopRole** | รหัสบทบาทใน `roles`/capability: `OWNER` · `MANAGER` (ผู้ดูแล) · `CHAT` (ตอบแชท) · `BILLING` (เปิดบิล) · `TECHNICIAN` (ฝ่ายช่าง) |
 | **`ShopMember.role`** | คอลัมน์เดิม String `'OWNER'\|'ADMIN'` — ความหมายคงเดิม = เจ้าของ vs พนักงาน (ไม่เปลี่ยนค่า) |
 | **`ShopMember.roles`** | คอลัมน์ใหม่ `String[]` = ชุดหน้าที่ของพนักงาน (1-4 ค่าจาก MANAGER/CHAT/BILLING/TECHNICIAN) · เจ้าของ = ว่าง |
-| **capability id** | รหัสสิทธิ์ตาม BRD §8.3: H1-H3, O1-O7 (รวม O2s), D1, S1-S2, P1-P3, Q1-Q2, C1-C3, F1-F3, T1-T4 (ระวัง: `P1-P3` ที่นี่คือรหัส capability สินค้า ไม่ใช่ phase) |
+| **capability id** | รหัสสิทธิ์ตาม BRD §8.3: H1-H3, O1-O7 (รวม O2s), D1, S1-S2, P1-P3, Q1-Q2, C1-C3, F1-F4, T1-T4 และ X1-X5 (ที่เพิ่มโดยมติ P3 — ดู BRD §8.3) (ระวัง: `P1-P3` ที่นี่คือรหัส capability สินค้า ไม่ใช่ phase) |
 | **MoneyLevel** | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) |
 | **FORBIDDEN_ROLE** | error code ของการไม่มีสิทธิ์ตามบทบาท — HTTP 403 `{ error: 'FORBIDDEN_ROLE' }` |
 | **เจ้าของหลัก** | `Shop.userId` (BR-MR-02) |
@@ -71,7 +71,9 @@ flowchart LR
 | **`src/lib/shop-permissions.ts`** | ตารางสิทธิ์ §8.3 · `can` · `moneyLevel` · `rolesFromMembership` — pure ไม่มี I/O | TypeScript (src/lib) |
 | **Guard ชั้น route/RSC** | อ่านบทบาทสด → ถาม `can` → 403 `FORBIDDEN_ROLE` / หน้าแจ้งไม่มีสิทธิ์ | Next.js route handler + RSC |
 | **Service/DAL ตัดเงิน** | ตัดฟิลด์ตาม `moneyLevel` ก่อนส่งออก (BR-RP-09) | `src/services/*` |
-| **เมนู** | ซ่อน/แสดงตาม capability (§8.5) | `src/lib/seller-menu.ts` และจุดเมนูมือถือ — กำหนดตอน implement P3 (S-16) |
+| **ด่านกลาง P3** | `requireShopCapability` / `gatePage` / `canAccessShopWith` / `listAccessibleShopIds(userId, cap)` — ต่อ `can()` เข้ากับแถวสมาชิกสด (PERSONAL = เจ้าของ · T4 = `Shop.userId` · ตัด BILLING เมื่อร้านไม่ใช่ `canUseAppointments`) | `src/lib/shop-capability.ts` |
+| **ทะเบียน capability** | path → เมธอด → cap หรือคลาส (MEMBER/SELF/BUYER/PUBLIC/PLATFORM_ADMIN/CRON/WEBHOOK + reason) | `src/lib/route-capabilities.ts` · ตัวบังคับ `src/lib/__tests__/route-capability-inventory.test.ts` |
+| **เมนู** | ซ่อน/แสดงตาม capability (§8.5) จากทะเบียนเดียวกับ `gatePage` | `src/lib/role-nav.ts` (`canSeePage` · `applyCapabilityMenu` · `resolveMobileNav` · `buildFabActions` · `shopQuickLinks`) + `src/lib/seller-menu.ts` |
 | **สมาชิก/เชิญ** | บันทึก/ตรวจ `roles` | `shop-member.service` และ invite service |
 
 ### 2.3 มุมมองการ Deploy (Deployment View)
@@ -93,7 +95,8 @@ flowchart LR
 - **คำอธิบายเชิงเทคนิค:** ทุก route ฝั่งร้านประกาศ capability แล้วถามตัวตัดสินกลางด้วยบทบาทที่อ่านสดจาก `ShopMember` (ผ่าน `resolveActiveShopContext` ≤ 1 query เพิ่ม) · ไม่มีสิทธิ์ → API 403 `{ error: 'FORBIDDEN_ROLE' }` · RSC แสดงหน้าแจ้งไม่มีสิทธิ์ (ไม่ใช่ 404 เงียบ) · ร้าน PERSONAL = เจ้าของเสมอ
 - **Precondition:** มี session และร้าน active
 - **Postcondition:** เปลี่ยนบทบาทแล้วคำขอถัดไปใช้สิทธิ์ใหม่ (ไม่อาศัยค่าใน JWT)
-- **Error / Edge cases:** อ่านบทบาทล้ม/ไม่ใช่สมาชิก → ปฏิเสธ · เลิก fallback `activeShopRole="OWNER"` สำหรับร้าน BUSINESS ใน `src/lib/auth.ts` (P3 S-17) · เทส inventory แดงเมื่อพบ route ที่ไม่ประกาศ capability (P3 S-12)
+- **Error / Edge cases:** อ่านบทบาทล้ม/ไม่ใช่สมาชิก → ปฏิเสธ · เลิก fallback `activeShopRole="OWNER"` สำหรับร้าน BUSINESS ใน `src/lib/auth.ts` (P3 S-17 **✅** — `resolveSessionActiveShop` ใน `src/lib/session-active-shop.ts` · อ่านสมาชิกล้ม = role `null` ถอยไปร้านส่วนตัว) · เทส inventory แดงเมื่อพบ route ที่ไม่ประกาศ capability (P3 S-12 **✅**)
+- **P3 implement แล้ว (จากโค้ด):** ไม่ใช่สมาชิกของร้านที่ระบุทรัพยากร → **404** (route ที่แปลง `reason:'NOT_MEMBER'`) · สมาชิกไม่มีสิทธิ์ → 403 `FORBIDDEN_ROLE` (`Cache-Control: private, no-store`) · `session.activeShopRoles` แสดงผลเท่านั้น (ป้ายตัวสลับบัญชี) ห้ามใช้ตัดสินสิทธิ์ · `GET /api/business/context` คืน `roles` ต่อร้านเพิ่ม · หน้าแอดมินแพลตฟอร์มเรียก `requireAdmin()` ในหน้าเอง (layout ไม่นับ) · ทะเบียนไม่เหลือ `PENDING`
 
 ### TFR-003: ตัดฟิลด์เงินที่ต้นทาง
 - **Trace to:** FR-RP-03, BR-RP-08, BR-RP-09, S-3
@@ -120,17 +123,24 @@ flowchart LR
 
 ### TFR-006: บังคับรายบทบาท (P3)
 - **Trace to:** FR-RP-05, FR-RP-06, FR-RP-07, S-13, S-14, S-15
-- **คำอธิบายเชิงเทคนิค:** แชท H1-H3 (รวมกล่องรวม 00037/unread/แจ้งเตือน/ความคิดเห็น กรองรายร้านตาม H1) · BILLING สร้างเฉพาะ `Order.type=SERVICE` ทุกทาง (POST ประเภทอื่น → 403) แก้เฉพาะบริการที่ยังไม่ชำระ รับชำระได้ ยกเลิก/คืนเงินไม่ได้ · TECHNICIAN เห็นงานทั้งร้านโดยไม่มีเงิน เปลี่ยนสถานะ/ผลเข้ารับบริการได้ แก้รายการ/ราคา/ลูกค้า/ชำระ → 403 · iShip ตั้งค่า (S2) + ต้นทุน (P3) = OWNER
+- **คำอธิบายเชิงเทคนิค:** แชท H1-H3 (รวมกล่องรวม 00037/unread/แจ้งเตือน/ความคิดเห็น กรองรายร้านตาม H1) · BILLING สร้างเฉพาะ `Order.type=SERVICE` ทุกทาง (POST ประเภทอื่น → 403) แก้เฉพาะบริการที่ยังไม่ชำระ รับชำระได้ ยกเลิก/คืนเงินไม่ได้ · TECHNICIAN เห็นงานทั้งร้านโดยไม่มีเงิน เปลี่ยนสถานะ/ผลเข้ารับบริการได้ แก้รายการ/ราคา/ลูกค้า/ชำระ → 403 · iShip ตั้งค่า (S2) = เจ้าของ + ผู้ดูแล (มติ C-2) · ต้นทุน (P3) = เจ้าของเท่านั้น
 - **Precondition:** โมเดลบทบาทจาก P2 พร้อม
 - **Postcondition:** ผู้ดูแลทำได้เท่า ADMIN วันนี้ ยกเว้น F1-F3 และ P3
 - **Error / Edge cases:** พบสิ่งที่ ADMIN ทำได้วันนี้แต่ตารางไม่ให้ → รายงาน Controller ก่อนตัดสิน · ถอด CHAT ระหว่างใช้งาน → ข้อความถัดไป 403
+- **สถานะจริง (P3 implement แล้ว — จากโค้ด):**
+  - **แชท (S-13):** `resolveChatScope(session, cap)` บังคับ cap · กล่องรวม/ตัวเลขยังไม่อ่าน/push/ความคิดเห็น/follow-up reminder กรองด้วยร้านที่มี H1 · เขียน (H2) ตรวจทั้ง route และ service · ตั้งค่าบอท/ช่องทาง = H3 · `ForbiddenRoleError` จาก service → 403 `FORBIDDEN_ROLE` ผ่าน `mapChatServiceError`
+  - **ออเดอร์/บิล (S-14):** `POST /api/orders` ด่าน O2s · ผู้ที่มี O2s แต่ไม่มี O2 (BILLING ล้วน) → service บังคับ `type = SERVICE` เสมอ + ปฏิเสธบรรทัดที่อ้างสินค้าไม่ใช่ SERVICE (`OrderRoleRestrictedError`) · `conversationId` ถูกทิ้งเงียบถ้าไม่มี H1 · PATCH: BILLING แก้ได้เฉพาะ SERVICE ที่ `isOrderUnpaid` (`OrderLockedForRoleError`) · void การชำระ/ยกเลิก/คืนเงิน/ข้อพิพาท = O6 · บันทึกชำระ/COD = O5 · ฟอร์มสร้างบิลของ BILLING ล็อก type SERVICE
+  - **ช่าง (S-15):** ทุกทางออกของออเดอร์/นัดหมายผ่าน allow-list `toNoMoneyOrder` · `toNoMoneyAppointmentDay` · `filterOrderEventsForNoMoney` (`src/lib/order-view-by-level.ts`) · ช่างได้ O1/O4/Q1 (ไม่ได้ S1/O3/C1)
+  - **ต้นทุน:** Prisma global `omit` ตัด `OrderItem.cost`/`Product.cost` โดยค่าตั้งต้น · เจ้าของ opt-in
+  - **มติที่เปลี่ยนจากสเปกเดิม:** `iShip ตั้งค่า (S2)` = เจ้าของ + ผู้ดูแล (มติ C-2 — ไม่ใช่ OWNER อย่างเดียวตามที่ร่างไว้) · ต้นทุน (P3) = เจ้าของ · จัดส่ง/เลขพัสดุ/handover แยกเป็น S1 (ช่างทำไม่ได้)
 
 ### TFR-007: เมนูเดสก์ท็อป + มือถือจากกฎเดียว
 - **Trace to:** FR-RP-09, BR §8.5, S-6, S-16
 - **คำอธิบายเชิงเทคนิค:** sidebar · ChatNavRail · แถบล่าง · FAB · Command Center · ทางลัดปักหมุด · หน้า "ร้าน" อ่านกฎจาก `shop-permissions` (หลายบทบาท = union) · ทางลัดที่ปักหมุดแต่ไม่มีสิทธิ์ซ่อนอัตโนมัติ · การซ่อนเมนูไม่ใช่ตัวกั้น (กั้นที่ TFR-002/003) · รายละเอียด hook/ฟังก์ชันกำหนดตอน implement P1 (S-6) และ P3 (S-16)
 - **Precondition:** —
 - **Postcondition:** `rg` เมนูมือถือที่ไม่อ่านกฎกลาง = 0 (P3)
-- **Error / Edge cases:** —
+- **สถานะจริง (P3 implement แล้ว):** `src/lib/role-nav.ts` — `canSeePage(url, roles, shop)` อ่านทะเบียนเดียวกับ `gatePage` · `applyCapabilityMenu` ครอบ sidebar/ChatNavRail/ทางลัด (ซ่อนด้วย `slugsHiddenByRole`) · `resolveMobileNav` คืนแถบล่าง/FAB ตาม §8.5 (union) · `buildFabActions` · `shopQuickLinks` · ตัวสลับบัญชี 3 จุดแสดงป้ายบทบาทจริงจาก `session.activeShopRoles` (แสดงผลเท่านั้น) · หน้าไม่มีสิทธิ์ใช้ `NoPermissionCard` และ `NoPermissionScreen` (หน้าเต็มจอ มีทางกลับ) ข้อความจาก `src/lib/no-permission-copy.ts`
+- **Error / Edge cases:** ข้อความไม่มีสิทธิ์/บิล/ป้ายบทบาทยังเป็นไทยอย่างเดียว (ไม่ผ่าน dictionary i18n) — ดูหนี้ในแผน P3
 
 ---
 

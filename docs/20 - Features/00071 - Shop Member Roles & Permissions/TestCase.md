@@ -11,7 +11,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 มีไฟล์เทสแล้ว (§2.1) · **P2 มีไฟล์เทสแล้ว (§2.2)** · P3 ยังไม่มีโค้ด/เทส
+> **สถานะ:** P1 มีไฟล์เทสแล้ว (§2.1) · P2 มีไฟล์เทสแล้ว (§2.2) · **P3 มีไฟล์เทสแล้ว (§2.3)** — ผลรันยังไม่บันทึกที่นี่
 > **เจ้าของเอกสาร:** QA (ดู [[Feature-Docs-Ownership]])
 
 # Test Case: บทบาทและสิทธิ์สมาชิกร้าน
@@ -81,7 +81,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 
 ### TC-007: inventory เทสแดงเมื่อ route ไม่ประกาศ capability
 - **Linked to:** FR-RP-02-d
-- **Precondition:** P3
+- **Precondition:** P3 (มีเทสแล้ว — `src/lib/__tests__/route-capability-inventory.test.ts`)
 - **Steps:**
   1. รัน inventory บน tree จริง
   2. เพิ่ม route ปลอมที่ไม่ประกาศ capability แล้วรันซ้ำ
@@ -251,7 +251,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 | รายงานแอดมิน SELF ไม่มี `revenue` (TC-009) | `src/app/api/seller/reports/agents/route.test.ts` · `src/services/agent-report-access.service.test.ts` |
 | เมนูการเงินเจ้าของเท่านั้น (ส่วน P1 ของ TC-023) | `src/lib/seller-menu.test.ts` (`applyOwnerOnlyFinanceMenu`) |
 
-TC-005, TC-007, TC-013..017, TC-022 (ส่วน P3) ยังไม่มีเทส — เป็นของ P3 · TC-023 (เมนูมือถือเต็ม) เป็นของ P3
+TC-005, TC-007, TC-013..017, TC-022 (ส่วน P3), TC-023 (เมนูเต็ม) เป็นของ P3 — ดู §2.3
 
 ### 2.2 ไฟล์เทส P2 (ที่มีอยู่จริงใน repo)
 
@@ -266,7 +266,31 @@ TC-005, TC-007, TC-013..017, TC-022 (ส่วน P3) ยังไม่มี�
 | TC-006 (ส่วน session, S-17 ที่ลงมาในรอบนี้) | `src/lib/__tests__/session-active-shop.test.ts` | อ่านสมาชิกล้ม ⇒ ไม่เป็น OWNER ของร้านนั้น |
 | TC-020 (กติกา 00012 เดิม) | `src/lib/__tests__/shop-member-rules.test.ts` | คงเดิม |
 
-ยังไม่ครอบคลุมใน P2: browser QA ตัวเลือกบทบาทใน UI (user ตรวจเอง) · การบังคับรายบทบาทที่ route (P3 — P2 ให้มอบบทบาทได้อย่างเดียว ผลบังคับจริงยังเท่า ADMIN เดิม)
+ยังไม่ครอบคลุมใน P2: browser QA ตัวเลือกบทบาทใน UI (user ตรวจเอง) · การบังคับรายบทบาทที่ route (อยู่ใน P3 — §2.3)
+
+### 2.3 ไฟล์เทส P3 (ที่มีอยู่จริงใน repo)
+
+| TC | ไฟล์เทส | ครอบคลุม |
+|----|---------|----------|
+| TC-004, TC-006 (ด่านกลาง) | `src/lib/__tests__/shop-capability.test.ts` | `requireShopCapability` บทบาท × cap ผ่านกฎสมาชิกจริง · ไม่ใช่สมาชิก/ไม่มีตัวตน · `gatePage` · `canAccessShopWith` · `listAccessibleShopIds(userId, cap)` · `ForbiddenRoleError` |
+| TC-006 (S-17) | `src/lib/__tests__/session-active-shop.test.ts` | อ่านสมาชิกล้ม/ไม่พบ ⇒ ไม่เป็น OWNER ของร้าน BUSINESS · ถอยร้านส่วนตัว/null |
+| TC-007 | `src/lib/__tests__/route-capability-inventory.test.ts` | ต้นไม้จริง: ทุกไฟล์ที่ resolve ร้านมีรายการ · key มีไฟล์จริง · literal cap ตรงทะเบียนต่อเมธอด · PENDING = 0 · คลาส/prefix (admin cron webhook) เรียกด่านของตัวเอง · หน้าแอดมินเรียก `requireAdmin()` ก่อนดึงข้อมูล · mutation M1-M20 ฉีดซอร์สปลอมแล้วแดง |
+| TC-004, TC-013 (แชท H1-H3/X2) | `src/app/api/chat/__tests__/role-gate.test.ts` · `src/app/api/chat/conversations/[id]/messages/__tests__/role-gate-send.test.ts` · `src/app/api/chat/conversations/[id]/route.test.ts` · `src/services/__tests__/chat-role-gate.test.ts` | ตัวแทนกลุ่ม route × 5 บทบาท · เปลี่ยนบทบาทระหว่างเทสแล้วผลเปลี่ยนทันที (อ่านสดไม่เชื่อ JWT) · ส่งข้อความ · service guard |
+| TC-005, TC-013 (ขอบเขต/กล่องรวม/แจ้งเตือน) | `src/lib/__tests__/chat-scope.test.ts` · `src/lib/__tests__/chat-cap-required.test.ts` · `src/services/__tests__/seller-push-role-audience.test.ts` · `src/services/__tests__/notification-pref.service.test.ts` · `src/services/follow-up-reminder.service.test.ts` | `resolveChatScope` (BILLING/TECHNICIAN ไม่เข้าขอบเขตแชท) · `resolveOutboundContext` cap บังคับ ไม่มีค่าตั้งต้น · ผู้รับ push ตาม H1/H3 · สวิตช์แจ้งเตือนตาม H1 |
+| TC-014, TC-015 (บิล) | `src/services/__tests__/order-billing-only.test.ts` · `src/app/api/orders/__tests__/role-gates.route.test.ts` · `src/lib/__tests__/order-payment-state.test.ts` · `src/lib/__tests__/record-payment-void-gate.test.ts` · `src/app/api/orders/[token]/cancel/route.test.ts` · `src/lib/__tests__/orders-header-create-gate.test.ts` · `src/app/(paces)/seller/(dashboard)/orders/[token]/components/__tests__/order-action-set.test.ts` | บังคับ `type=SERVICE` + ปฏิเสธสินค้าไม่ใช่บริการ (ไม่มีการเขียนเมื่อปฏิเสธ) · แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ (`isOrderUnpaid` ทุกขา) · void/ยกเลิก = O6 · ปุ่มตามบทบาท |
+| TC-008, TC-016 (ช่าง) | `src/lib/__tests__/order-view-by-level.test.ts` · `src/app/api/orders/__tests__/technician-no-money.route.test.ts` · `src/app/(paces)/seller/(dashboard)/orders/__tests__/technician-no-money.page.test.tsx` · `…/orders/__tests__/technician-no-money.ui.test.tsx` · `src/app/(paces)/seller/(dashboard)/bookings/__tests__/technician-no-money.page.test.tsx` · `src/app/(paces)/seller/(dashboard)/queues/__tests__/technician-caps.test.tsx` | allow-list `toNoMoneyOrder`/`toNoMoneyAppointmentDay` · ไล่คีย์ payload ของ route จริงด้วย session ช่าง · หน้า orders/bookings/queues ไม่ส่งเงินลง flight payload |
+| TC-009, TC-010, TC-024 (ระดับฟิลด์ทุกบทบาท) | `tests/integration/role-contract.test.ts` (Postgres localhost:5434 เท่านั้น) | route ตัวแทน × 5 บทบาท ไล่คีย์ต้องห้ามตามระดับเงินทุกชั้น · บวกหน้าแรก `redactCommandCenterData` · **มี `knownLeaks`: `soldCount` จาก `GET /api/products?sort=best` ถึง PER_ORDER** (ดูหนี้ในแผน P3) |
+| TC-010 (ต้นทุน) | `src/lib/__tests__/cost-optin-guard.test.ts` | Prisma global omit ตัดต้นทุนโดยค่าตั้งต้น — ผู้อ่านต้นทุนฝั่งหน้า (เช่น `/sales`) ต้อง opt-in |
+| TC-022 (ผู้ดูแลเท่า ADMIN ยกเว้นการเงิน) | `src/lib/__tests__/shop-domain-route-roles.test.ts` · `tests/integration/role-contract.test.ts` | handler จริงของกลุ่มร้าน/ธุรกิจ/ตั้งค่า × บทบาท (ผ่านด่านเมื่อ status ไม่ใช่ 401/403 · ไม่ผ่านต้อง 403 และ service ไม่ถูกเรียก) · `finance-leak-regressions.test.ts` เป็นของช่องรั่วเดิมปลาย P1 ไม่ใช่ TC-022 |
+| TC-002, TC-017 (union) | `src/lib/shop-permissions.test.ts` · `src/lib/__tests__/role-nav.test.ts` | `can`/`moneyLevel` union · เมนู union |
+| TC-023 (เมนูเดสก์ท็อป/มือถือ) | `src/lib/__tests__/role-nav.test.ts` · `src/lib/seller-menu.test.ts` · `src/services/__tests__/shortcut-role.test.ts` · `src/app/(paces)/seller/(dashboard)/_shared/__tests__/SellerBottomNav.test.tsx` | `canSeePage` · `applyCapabilityMenu` · `resolveMobileNav` (แถบล่าง/FAB) · `shopQuickLinks` · ทางลัดปักหมุดที่ไม่มีสิทธิ์ถูกซ่อน |
+| ข้อความ/หน้าไม่มีสิทธิ์ (critique P3) | `src/lib/__tests__/no-permission-copy.test.ts` · `src/lib/__tests__/p3-critique-fixes.test.ts` | หน้า fullscreen ใช้ `NoPermissionScreen` (มีทางกลับ) ไม่ใช่การ์ดเปล่า |
+
+**ช่องว่างของ P3 ที่ยังไม่มีเทส/ยังไม่ได้ทำ (จากโค้ด):**
+- TC-017 ระดับ route สำหรับผู้ถือ `[CHAT, TECHNICIAN]` — มีเทส union ระดับ pure/เมนูเท่านั้น (`shop-permissions.test.ts`, `role-nav.test.ts`) ไม่มีเทส route ที่ใช้ชุดนี้โดยเฉพาะ
+- TC-022 รายงานเทียบสิทธิ์ ADMIN "ก่อน/หลัง" — ไม่พบไฟล์รายงานนี้ใน repo
+- TC-023 การดูบนจอมือถือจริง = user ตรวจเอง (มติถาวร)
+- `knownLeaks` ใน `role-contract.test.ts` (`soldCount`) และคีย์ที่ `NONE_FORBIDDEN` ไม่ครอบ (`pricePerNight`/`depositValue`) — ดูหนี้ในแผน `docs/superpowers/plans/2026-10-10-00071-p3-plan.md`
 
 ---
 
@@ -327,7 +351,7 @@ flowchart TD
 
 | Run | วันที่ | ผล (Pass/Fail/Blocked) | ผู้ทดสอบ (Tester) |
 |-----|--------|--------------------------|---------------------|
-| - | - | P1/P2: ไฟล์เทสเขียนแล้ว (§2.1, §2.2) — ผลรันยังไม่บันทึกที่นี่ (ผู้เขียนเอกสารไม่ได้รัน) · P3: ยังไม่มีโค้ด | - |
+| - | - | P1/P2/P3: ไฟล์เทสเขียนแล้ว (§2.1, §2.2, §2.3) — ผลรันยังไม่บันทึกที่นี่ (ผู้เขียนเอกสารไม่ได้รัน) | - |
 
 ---
 
@@ -336,5 +360,5 @@ flowchart TD
 เอกสาร Test Case นี้กำหนด **ชุดเคสทดสอบ** ของ **บทบาทและสิทธิ์สมาชิกร้าน (00071)** ที่ trace กลับ Acceptance Criteria ใน [[BRD]] ทุกข้อ เพื่อให้มั่นใจว่าทุกข้อกำหนดเชิงธุรกิจถูกทดสอบครบ
 
 **Open Questions:**
-- ชื่อไฟล์เทสและตำแหน่งจริง — P1 ตัดสินแล้ว (§2.1) · P2/P3 กำหนดตอน implement
+- ชื่อไฟล์เทสและตำแหน่งจริง — ตัดสินแล้ว P1 (§2.1) · P2 (§2.2) · P3 (§2.3)
 - ~~เกณฑ์ "ร้านขายบริการได้" ที่ TC-019~~ — ตัดสินแล้ว: `canUseAppointments`

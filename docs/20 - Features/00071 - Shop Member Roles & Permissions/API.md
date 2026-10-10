@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (§4.3-§4.4) · **P2 implement แล้ว** (§4.1-§4.2 ตรงโค้ด) · P3 ยังเป็นสัญญาก่อน implement
+> **สถานะ:** P1 implement แล้ว (§4.3-§4.4) · **P2 implement แล้ว** (§4.1-§4.2 ตรงโค้ด) · **P3 implement แล้ว** (§4.4-§4.5 ตรงโค้ด — ทะเบียนจริงอยู่ `src/lib/route-capabilities.ts`)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # API Contract: บทบาทและสิทธิ์สมาชิกร้าน
@@ -127,7 +127,7 @@ Error: `400 VALIDATION_ERROR` (valibot: ชุดว่าง/เกิน/ซ�
 | Phase | ผิวที่คืน `403 FORBIDDEN_ROLE` เมื่อไม่ใช่เจ้าของ |
 |-------|----------------------------------------------------|
 | P1 ✅ | ดูตารางสัญญา P1 ด้านล่าง |
-| P3 | ทุก route ฝั่งร้านตาม capability §8.3 (แชท H1-H3 · ออเดอร์ O1-O7 · พัสดุ S1-S2 · สินค้า P1-P3 · ลูกค้า C1-C3 ฯลฯ) |
+| P3 ✅ | ทุก route ฝั่งร้านตาม capability §8.3 (แชท H1-H3 · ออเดอร์ O1-O7 · พัสดุ S1-S2 · สินค้า P1-P3 · ลูกค้า C1-C3 ฯลฯ) — ดู §4.5 |
 
 **สัญญา P1 จริง (จากโค้ด · ผู้ที่ไม่ใช่เจ้าของ):**
 
@@ -146,6 +146,37 @@ Error: `400 VALIDATION_ERROR` (valibot: ชุดว่าง/เกิน/ซ�
 
 ไม่เปลี่ยนรูป request/response ของ endpoint เหล่านั้นนอกจากฟิลด์เงินที่ถูกตัดตาม `moneyLevel` สำหรับผู้ที่ไม่ใช่เจ้าของ
 
+### 4.5 สัญญา P3 จริง (จากโค้ด)
+
+**ด่านและ response ปฏิเสธ** (`requireShopCapability` ใน `src/lib/shop-capability.ts`):
+
+| HTTP | body | เมื่อ |
+|---|---|---|
+| 401 | `{ error: 'unauthorized' }` | ไม่รู้ตัวตนผู้เรียก |
+| 404 | `{ error: 'NO_SHOP' }` | ไม่มีร้านให้ทำงานด้วย |
+| 403 | `{ error: 'FORBIDDEN' }` | ไม่ใช่สมาชิกของร้านที่ระบุ (`reason:'NOT_MEMBER'`) — route ที่ระบุทรัพยากร (เช่น `orders/[token]`, `orders/[token]/cancel`) แปลงเป็น **404** ไม่บอกว่ามีอยู่ |
+| 403 | `{ error: 'FORBIDDEN_ROLE' }` | เป็นสมาชิกแต่ไม่มี capability |
+
+ทุกตัวส่ง `Cache-Control: private, no-store` · บทบาทอ่านสดจาก `ShopMember` ทุกคำขอ (เปลี่ยนบทบาทแล้วคำขอถัดไปมีผล) · cap ที่ประกาศเป็นอาร์เรย์ต้องผ่านทุกตัว
+
+**ทะเบียน:** path → เมธอด → capability อยู่ใน `ROUTE_CAPABILITIES` (`src/lib/route-capabilities.ts`) ซึ่งเป็น SSOT ของ "route ไหนใช้ cap อะไร" — ไม่คัดลอกซ้ำที่นี่ · route ที่ไม่ใช่ capability ของสมาชิกร้านจัดคลาส `MEMBER`/`SELF`/`BUYER`/`PUBLIC`/`PLATFORM_ADMIN`/`CRON`/`WEBHOOK` พร้อมเหตุผล · route เดียวมีหลายคลาสได้รายเมธอด (`api/chat/conversations` GET = H1, POST = BUYER)
+
+**เปลี่ยนบน endpoint เดิม:**
+
+| Endpoint | สัญญา |
+|---|---|
+| `GET /api/business/context` | `businesses[].roles: ShopRole[]` เพิ่ม (แสดงผลเท่านั้น) |
+| session (NextAuth `session.user`) | `activeShopRoles: ShopRole[] \| null` เพิ่ม (เคียง `activeShopRole`) — แสดงผลเท่านั้น ห้ามใช้ตัดสินสิทธิ์ · `null` = อ่านสมาชิกไม่ได้/ไม่มีร้าน |
+| `POST /api/orders` | ด่าน `O2s` · ผู้ที่ไม่มี O2 (BILLING) → บังคับ `type=SERVICE` และปฏิเสธบรรทัดที่อ้างสินค้าไม่ใช่ SERVICE → `403 FORBIDDEN_ROLE` · `conversationId` ถูกทิ้งเงียบถ้าผู้เรียกไม่มี H1 · `shopId` ใน body ระบุร้านปลายทางได้ (ตรวจสิทธิ์ที่ร้านนั้น) |
+| `PATCH /api/orders/[token]` | ด่าน `O3` · BILLING แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ มิฉะนั้น `403 FORBIDDEN_ROLE` (ไม่มี field บอกเหตุ) |
+| `GET /api/orders` · `GET /api/orders/[token]` · นัดหมาย | ผู้ถือเฉพาะ TECHNICIAN (ระดับ NONE) ได้ payload ผ่าน allow-list ไม่มีราคา/ยอด/ชำระ/ต้นทุน |
+| แชททั้งกลุ่ม | อ่าน H1 · เขียน H2 · ตั้งค่า/ช่องทาง H3 · เครื่องมือเสริม X2 · กล่องรวม/unread/push กรองรายร้านตาม H1 |
+| `ship` · `handover` · `shipment-evidence` · `seller/iship/**` | S1 (สร้างพัสดุ/พิมพ์ป้าย/เลขพัสดุ) · เชื่อม/ตั้งค่า iShip (`connection` POST/DELETE, `connection/verify`, `settings` PUT) = S2 (เจ้าของ + ผู้ดูแล) |
+| `orders/[token]/payments/[paymentId]` DELETE · cancel · returns · dispute | O6 (เจ้าของ + ผู้ดูแล) · บันทึกชำระ/COD = O5 |
+| `inventory/{subscribe,upgrade,reactivate}` · `seller/pin-slots/buy` | F4 (หักเครดิตกระเป๋า · ไม่เห็นยอด) |
+
+**ที่ไม่ใช่ `FORBIDDEN_ROLE` มาตรฐาน (หนี้):** `orders/[token]/returns` ตอบ `{ error: 'Forbidden' }` และ iShip ตอบ `{ error: { code, message } }` — ดูแผน P3
+
 ---
 
 ## 5. Error Code Table
@@ -153,7 +184,9 @@ Error: `400 VALIDATION_ERROR` (valibot: ชุดว่าง/เกิน/ซ�
 | Error Code | HTTP Status | ความหมาย / เงื่อนไข |
 |------------|-------------|----------------------|
 | `FORBIDDEN_ROLE` | `403` | **ใหม่** — เป็นสมาชิกแต่บทบาทไม่มีสิทธิ์ใน capability นี้ (BR-RP-11) · capability ที่ยังไม่จัดหมวดก็ตอบรหัสนี้ |
-| `UNAUTHORIZED` | `401` | ไม่มี session |
+| `UNAUTHORIZED` | `401` | ไม่มี session (ด่าน P3 ตอบ `{ error: 'unauthorized' }` ตัวพิมพ์เล็ก) |
+| `FORBIDDEN` | `403` | **P3** ไม่ใช่สมาชิกของร้านที่ระบุ (route ที่ระบุทรัพยากรแปลงเป็น 404) |
+| `NO_SHOP` | `404` | **P3** ไม่มีร้านให้ทำงานด้วย |
 | `NOT_OWNER` / `NOT_PRIMARY_OWNER` | `403` | เดิมของ 00012 — **P2: ใช้กับ PATCH members / สร้างคำเชิญ / สร้างลิงก์ เมื่อผู้เรียกไม่ใช่เจ้าของ** (ไม่ใช้ `FORBIDDEN_ROLE`) |
 | `INVALID_ROLES` | `400` | **P2** ผลลัพธ์เป็น OWNER แต่ส่ง `roles` ไม่ว่าง (ชั้น service) |
 | `BILLING_NOT_AVAILABLE` | `400` | **P2** `BILLING` ในร้านที่ไม่ใช่ร้านบริการ (`canUseAppointments` = false) |
