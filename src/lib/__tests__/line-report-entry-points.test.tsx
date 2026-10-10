@@ -16,9 +16,11 @@ vi.mock('next/link', () => ({
 import ShopQuickLinks from '@/app/(paces)/seller/(dashboard)/shop/components/ShopQuickLinks'
 
 const URL = 'href="/business/line-reports"'
+// เจ้าของหลักร้านธุรกิจเห็นเมนูครบ (visibleUrls = เมนูที่ผ่านตัวกรองบทบาทแล้ว · 00071 S-16)
+const ALL_URLS = new Set(['/verification', '/public-profile', '/subscriptions', '/business/line-reports', '/settings', '/admins'])
 const render = (p: Partial<React.ComponentProps<typeof ShopQuickLinks>>) =>
   renderToStaticMarkup(
-    <ShopQuickLinks shopKind="BUSINESS" shopRole="OWNER" hidePayments={false} offerIap={true} lineReports={null} {...p} />,
+    <ShopQuickLinks visibleUrls={ALL_URLS} hidePayments={false} offerIap={true} lineReports={null} {...p} />,
   )
 
 describe('ShopQuickLinks — แถวรายงานกลุ่ม LINE', () => {

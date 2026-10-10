@@ -18,7 +18,9 @@ import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
 import SignOutCard from './components/SignOutCard'
 import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
-import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
+import { shouldHidePayments, shouldHidePaidFeatures, shouldOfferIap } from '@/lib/app-shell-server'
+import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
+import { flattenSellerMenu } from '@/lib/seller-menu'
 import ShopQuickLinks from './components/ShopQuickLinks'
 import ShopReceiptProfileField from './components/ShopReceiptProfileField'
 import { getReceiptProfile } from '@/services/receipt.service'
@@ -56,17 +58,18 @@ export default async function ShopSettingsPage() {
   // active shop (Personal หรือ Business ตาม session.user.activeShopId, verify membership ภายใน)
   // settings ไม่ gate ด้วย locked — package lock ล็อกเฉพาะ transaction ไม่ใช่การแก้ข้อมูลร้าน
   let shop: any = null
-  // kind/role ของ active shop — ใช้ตัดสินว่ารายการ "จัดการร้าน" จะมีเมนูพนักงานไหม
-  // (เงื่อนไขเดียวกับ applyStaffMenu ใน _seller-menu.ts: BUSINESS + OWNER เท่านั้น)
+  // kind/role/roles ของ active shop — ป้อน resolveSellerMenuItems เพื่อรู้ว่ารายการ "จัดการร้าน" แถวไหนเห็นได้
   // default PERSONAL/OWNER = ปลอดภัยสุด (ไม่โชว์เมนูพนักงาน) เมื่อ resolve ไม่ได้
   let shopKind: 'PERSONAL' | 'BUSINESS' = 'PERSONAL'
   let shopRole: 'OWNER' | 'ADMIN' = 'OWNER'
+  let shopRoles: readonly string[] = []
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
     if (active) {
       shopKind = active.kind
       shopRole = active.role
+      shopRoles = active.roles
     }
   } catch {
     shop = null
@@ -83,6 +86,25 @@ export default async function ShopSettingsPage() {
   } catch {
     lineReports = null
   }
+
+  // รายการ "จัดการร้าน" ตามเมนูที่ผู้ใช้เห็นจริง (บทบาท/ประเภทร้าน/App Store กรองแล้วที่ resolveSellerMenuItems ตัวเดียวกับ sidebar)
+  // ไม่ใช้ badge แชท (0) — เราอ่านแค่ url
+  const visibleUrls = new Set(
+    flattenSellerMenu(
+      await resolveSellerMenuItems({
+        session: session as unknown as { user: { id: string; activeShopId?: string | null } },
+        shopId: shop?.id ?? null,
+        kind: shopKind,
+        role: shopRole,
+        roles: shopRoles,
+        vertical: shop?.vertical ?? '',
+        unreadChatCount: 0,
+        hidePayments: await shouldHidePayments(),
+        hidePaidFeatures: await shouldHidePaidFeatures(),
+        offerIap: await shouldOfferIap(),
+      }),
+    ).flatMap((i) => (i.url ? [i.url] : [])),
+  )
 
   const isExisting = !!shop
   const receiptProfileSetup =
@@ -181,7 +203,7 @@ export default async function ShopSettingsPage() {
           และปุ่มออกจากระบบ ทำให้มือถือเข้าไม่ถึงเลยทั้งสองอย่าง (ดู comment หัวไฟล์ทั้งสองตัว)
           ≥1024px ไม่ render — sidebar + UserDropdownDetailed ทำหน้าที่นี้อยู่แล้ว */}
       <div className="lg:hidden">
-        <ShopQuickLinks shopKind={shopKind} shopRole={shopRole} hidePayments={await shouldHidePayments()}
+        <ShopQuickLinks visibleUrls={visibleUrls} hidePayments={await shouldHidePayments()}
           offerIap={await shouldOfferIap()} lineReports={lineReports}
         />
         <SignOutCard />

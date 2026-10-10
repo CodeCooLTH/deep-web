@@ -11,7 +11,8 @@
  */
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
-import { can, rolesFromMembership, type ShopRole } from '@/lib/shop-permissions'
+import { effectiveRoles } from '@/lib/shop-permissions'
+import { applyCapabilityMenu } from '@/lib/role-nav'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { byVertical } from '@/i18n/vertical'
 
@@ -306,28 +307,6 @@ export function applyChatBadge(items: MenuItemType[], unreadCount: number): Menu
 }
 
 /**
- * applyStaffMenu — runtime transform ของ sellerMenuItems ตาม active shop context (feature 00012, Task 4.3)
- *
- * ทำไม: เมนู "พนักงาน" (`/admins`) เป็นสิทธิ์ owner ของ Business shop เท่านั้น (mirror guard
- * ของหน้า /admins เอง + API /api/shops/current/invite-links) — ผู้ถูกเชิญ (ADMIN) และ Personal
- * shop ต้อง "ซ่อน" ไม่ใช่แค่ disable (ต่างจาก applyInventoryGate ที่ badge/disable แต่ยังโชว์เมนู)
- * เพราะไม่มี use-case ให้ role อื่นเห็นเมนูนี้เลย
- *
- * !(kind==='BUSINESS' && role==='OWNER') → กรอง child slug 'seller:admins' ออกจาก items ทั้งหมด
- */
-export function applyStaffMenu(
-  items: MenuItemType[],
-  ctx: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' },
-): MenuItemType[] {
-  if (ctx.kind === 'BUSINESS' && ctx.role === 'OWNER') return items
-
-  return items.map((group) => !group.children ? group : {
-    ...group,
-    children: group.children.filter((child) => child.slug !== 'seller:admins'),
-  })
-}
-
-/**
  * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่เจ้าของหลักของร้านใดเลย (feature 00070 TFR-LGS-03)
  *
  * ทำไมไม่ดู role: EXT 00012 (BR-MR-08) ทำให้ `ShopMember.role==='OWNER'` ไม่ได้แปลว่าเป็นเจ้าของจริง
@@ -350,30 +329,6 @@ export function applyLineReportMenu(
 }
 
 /**
- * applyOwnerOnlyFinanceMenu — ซ่อนเมนูการเงินจากผู้ไม่มีสิทธิ์ (00071 BR-RP-08/09)
- *
- * ถอด `seller:sales` · `seller:expenses` · `seller:reports-products` เมื่อไม่มี F1 และ
- * `seller:wallet` เมื่อไม่มี F3 (ซ่อนสนิท ไม่ใช่ disable) · คง `seller:reports-agents`
- * (ผู้ไม่มี F1 ได้มุมมอง SELF ที่ไม่มีตัวเลขเงิน)
- *
- * แทน `applyExpenseMenu` เดิมที่อ่านธง staffCanViewFinance — ธงถูกยกเลิกแล้ว
- * หมายเหตุ: นี่คือ UX hint เท่านั้น — ด่านจริงอยู่ที่ route/page (resolveExpenseAccess ฯลฯ)
- */
-export function applyOwnerOnlyFinanceMenu(
-  items: MenuItemType[],
-  roles: readonly ShopRole[],
-): MenuItemType[] {
-  const hidden = new Set<string>()
-  if (!can(roles, 'F1')) ['seller:sales', 'seller:expenses', 'seller:reports-products'].forEach((s) => hidden.add(s))
-  if (!can(roles, 'F3')) hidden.add('seller:wallet')
-  if (hidden.size === 0) return items
-  return items.map((group) => !group.children ? group : {
-    ...group,
-    children: group.children.filter((child) => !child.slug || !hidden.has(child.slug)),
-  })
-}
-
-/**
  * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02;
  * ขยาย 2→3 ทางที่ feature 00028 BR-SBT-15/16 — ยุบ applyAppointmentMenu เดิมเข้ามารวมที่นี่
  * เพราะเงื่อนไขเปิดคิวงานเหลือเช็คแค่ vertical เงื่อนไขเดียวแล้ว (canUseAppointments เปลี่ยนไปตาม
@@ -390,7 +345,7 @@ export function applyOwnerOnlyFinanceMenu(
  * canUseAppointments/requireSellerShop) ที่ทั้ง API route และ page-level server component ด้วยเสมอ
  * ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา" ไม่ได้ทำหน้าที่ป้องกัน
  *
- * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
+ * pattern เดียวกับ applyCapabilityMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  */
 const LODGING_ONLY_SLUGS = [
   'seller:rooms',
@@ -802,7 +757,7 @@ export function applyOrderLabel(items: MenuItemType[], vertical: string): MenuIt
  * เดิม 5 ตัว — applyAppointmentMenu ถูกยุบเข้า applyVerticalMenu แล้วที่ feature 00028 BR-SBT-16)
  *
  * ลำดับเดียวกับที่ layout.tsx compose อยู่เดิมเป๊ะ ๆ:
- *   applyInventoryGate → applyStaffMenu → applyOwnerOnlyFinanceMenu → applyVerticalMenu
+ *   applyInventoryGate → applyPaymentRestriction → applyCapabilityMenu (ตัวกรองบทบาท · ถอดอย่างเดียว) → applyVerticalMenu
  * (applyVerticalMenu อยู่ชั้นนอกสุดโดยตั้งใจ — กรองหลัง gate อื่นทุกตัว เพื่อไม่ให้ badge/disable
  *  ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว)
  *
@@ -815,7 +770,12 @@ export function resolveVisibleSellerMenu(
   ctx: {
     entitlement: { status: EntitlementStatus; package: InventoryPackage | null }
     staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN'; roles: readonly string[] }
-    shop: { kind: string; vertical: string }
+    shop: {
+      kind: string
+      vertical: string
+      /** เป็นเจ้าของหลัก (`Shop.userId`) — T4 (แพ็กเกจ ฯลฯ) · ไม่ส่ง = true (UX hint · ด่านจริงอยู่ที่หน้า) · ผู้เรียกจริงส่ง */
+      isPrimaryOwner?: boolean
+    }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
@@ -837,24 +797,26 @@ export function resolveVisibleSellerMenu(
   // applyPaymentRestriction อยู่ "ในสุด" (ทำก่อนใคร) โดยตั้งใจ: มันลบ badge ที่ applyInventoryGate
   // เพิ่งใส่ให้ไม่ได้ถ้ารันก่อน — จึงต้องรันทีหลัง แต่ต้องอยู่ก่อนตัวกรองอื่นที่อาจลบ item ทิ้ง
   // ไปแล้ว (ลบไปแล้วก็ไม่มีอะไรให้ถอด badge) → วางถัดจาก applyInventoryGate ทันที
+  //
+  // 🛑 applyCapabilityMenu (ตัวกรองบทบาท) ต้องอยู่ "หลัง" applyPaymentRestriction เสมอ และถอดอย่างเดียว —
+  // ลำดับกลับจะให้ตัวกรองบทบาทเห็นรายการที่ App Store ควรซ่อนอยู่แล้ว (ดู skill app-store-surfaces)
+  const roles = effectiveRoles({ kind: ctx.staff.kind, vertical: ctx.shop.vertical }, ctx.staff.role, ctx.staff.roles)
   return applyFinanceMenu(
     applyOrderLabel(
     applyVerticalMenu(
-      applyOwnerOnlyFinanceMenu(
         applyLineReportMenu(
-          applyStaffMenu(
+          applyCapabilityMenu(
             applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
               hidePayments: ctx.hidePayments ?? false,
               entitlementStatus: ctx.entitlement.status,
               hidePaidFeatures: ctx.hidePaidFeatures ?? false,
               offerIap: ctx.offerIap ?? true,
             }),
-            ctx.staff,
+            roles,
+            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner ?? true },
           ),
           { ownsShop: ctx.ownsShop },
         ),
-        ctx.staff.kind === 'PERSONAL' ? ['OWNER'] : rolesFromMembership(ctx.staff.role, ctx.staff.roles),
-      ),
       ctx.shop.vertical,
     ),
     ctx.shop.vertical,

@@ -20,6 +20,7 @@ import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { pacesToast } from '@/lib/paces-toast'
+import { confirmAndSignOut } from '@/lib/confirm-sign-out'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -294,6 +295,17 @@ export default function AccountSwitcherSheet() {
                 <Icon icon="external-link" className="text-default-400 size-4 shrink-0" aria-hidden="true" />
               </a>
             )}
+
+            {/* ออกจากระบบ — แถวสุดท้ายเสมอ ทุกบทบาท (มติ 1 · 00071 P3) · บนมือถือการ์ดใน /shop ซ่อนจากบทบาทที่ไม่มีแท็บร้านค้า
+                (แถบล่างของ TECHNICIAN/BILLING ไม่มีช่อง "ร้านค้า") sheet นี้จึงเป็นทางออกที่เข้าถึงได้จากทุกหน้า */}
+            <button
+              type="button"
+              onClick={() => confirmAndSignOut(displayName)}
+              className="text-danger hover:bg-danger/10 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
+            >
+              <Icon icon="logout" className="size-5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 font-medium">{t.common.signOut}</span>
+            </button>
           </div>
         </div>
           </div>,

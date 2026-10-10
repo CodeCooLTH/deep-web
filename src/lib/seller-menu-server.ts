@@ -3,6 +3,7 @@ import 'server-only'
 import { getT } from '@/i18n/server'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import { applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { prisma } from '@/lib/prisma'
 import { ownsAnyShop } from '@/services/line-report-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import type { MenuItemType } from '@/types'
@@ -54,7 +55,7 @@ export type SellerMenuContext = {
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
   // fail-closed ทั้งสองตัว: query ล้ม → ค่าที่ "ซ่อนของ" ไม่ใช่ "โชว์ของ"
   //   entitlement → NOT_SUBSCRIBED (เมนูสต็อกขึ้น badge เลือกแพ็กเกจ ไม่ใช่เปิดใช้ฟรี)
-  // เมนูการเงินตัดสินจาก role ใน ctx (applyOwnerOnlyFinanceMenu) ไม่ต้อง query เพิ่ม
+  // เมนูตัดสินจาก role ใน ctx (applyCapabilityMenu) — มี query เพิ่มแค่ "เป็นเจ้าของหลักไหม" (T4)
   // ห้าม throw: ทั้งสอง layout ที่เรียกตัวนี้พังทั้งหน้าถ้ามี exception หลุดออกไป
   let entitlement: { status: EntitlementStatus; package: InventoryPackage | null } = {
     status: 'NOT_SUBSCRIBED',
@@ -64,10 +65,16 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
   // ownsShop fail-closed: query ล้ม → false (ซ่อนเมนูรายงาน LINE) · ยิงขนานกับตัวอื่น ไม่เพิ่ม latency
   let ownsShop = false
   const userId = ctx.session?.user?.id
-  const [entitlementResult, ownsResult] = await Promise.allSettled([
+  // เจ้าของหลักของ "ร้านที่เปิดอยู่" (T4) — fail-closed: query ล้ม/ไม่รู้ = false (ซ่อนเมนูที่เป็น T4 เช่น แพ็กเกจ)
+  const [entitlementResult, ownsResult, primaryResult] = await Promise.allSettled([
     ctx.shopId ? getEntitlementInfo(ctx.shopId) : Promise.resolve(entitlement),
     userId ? ownsAnyShop(userId) : Promise.resolve(false),
+    ctx.shopId && userId
+      ? prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { userId: true } }).then((r) => r?.userId === userId)
+      : Promise.resolve(false),
   ])
+  const isPrimaryOwner = primaryResult.status === 'fulfilled' ? primaryResult.value : false
+  if (primaryResult.status === 'rejected') console.error('[seller-menu] primary-owner lookup failed, fallback false', primaryResult.reason)
   if (ownsResult.status === 'fulfilled') ownsShop = ownsResult.value
   else console.error('[seller-menu] ownsAnyShop failed, fallback hide line-reports', ownsResult.reason)
   if (entitlementResult.status === 'fulfilled') entitlement = entitlementResult.value
@@ -88,7 +95,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
         entitlement,
         staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
         ownsShop,
-        shop: { kind: ctx.kind, vertical: ctx.vertical },
+        shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner },
         hidePayments: ctx.hidePayments,
         hidePaidFeatures: ctx.hidePaidFeatures,
         offerIap: ctx.offerIap,

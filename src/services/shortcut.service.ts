@@ -15,6 +15,8 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { ownsAnyShop } from '@/services/line-report-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { resolveVisibleSellerMenu, flattenSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { effectiveRoles } from '@/lib/shop-permissions'
+import { slugsHiddenByRole } from '@/lib/role-nav'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 
 /** จำนวนช่องสูงสุดบนการ์ด — ตรงกับ CHECK ที่ DB และกริด 4x2 ของ CarouselGrid */
@@ -48,7 +50,13 @@ export type ShortcutState = {
   kind: 'OK'
   catalog: ShortcutCatalogItem[]
   pinnedSlugs: string[]
+  /** หลุด catalog เพราะสิทธิ์/ประเภทร้านเปลี่ยน — โชว์ในชีตแก้ไขให้ถอดได้ (ไม่รวมที่บทบาทปัจจุบันถอด ดู unavailableByRole) */
   unavailable: ShortcutUnavailableItem[]
+  /**
+   * slug ที่ปักไว้แต่ "บทบาทปัจจุบันเปิดไม่ได้" (00071 S-16) — ซ่อนจากทั้งการ์ดและชีต ไม่ใช่ "ไม่พร้อมใช้งาน"
+   * (ผู้ใช้ไม่ควรเห็นชื่อเมนูที่เขาไม่มีสิทธิ์) · ยังอยู่ใน pinnedSlugs — ได้บทบาทกลับมาแล้วทางลัดกลับมาเอง
+   */
+  unavailableByRole: string[]
   /** สิ่งที่การ์ดแสดงจริง = pinned ∩ catalog เรียงตามลำดับใน SSOT */
   tiles: ShortcutCatalogItem[]
   /** true = ยังไม่เคยตั้งค่า (ค่าที่เห็นคือค่าเริ่มต้นที่คำนวณสด ยังไม่มีแถวใน DB) */
@@ -82,6 +90,14 @@ export class ShortcutMinRequiredError extends Error {
 // ─── catalog ─────────────────────────────────────────────────────────────────
 
 type ActiveShop = NonNullable<Awaited<ReturnType<typeof requireActiveShop>>>
+
+/** บทบาทที่มีผลจริง + เจ้าของหลักไหม — ชุดเดียวกับที่ปั้นเมนู (ต้องตรงกับ resolveVisibleSellerMenu) */
+function roleContext(active: ActiveShop, userId: string) {
+  return {
+    roles: effectiveRoles({ kind: active.kind, vertical: active.shop.vertical }, active.role, active.roles),
+    shop: { kind: active.kind, isPrimaryOwner: active.shop.userId === userId },
+  }
+}
 
 /**
  * buildEligibleCatalog — เมนูที่ผู้ใช้คนนี้เลือกปักหมุดได้ ณ ขณะนี้
@@ -138,7 +154,7 @@ async function buildEligibleCatalog(
     entitlement,
     staff: { kind: active.kind, role: active.role, roles: active.roles },
     ownsShop,
-    shop: { kind: active.kind, vertical: shop.vertical },
+    shop: { kind: active.kind, vertical: shop.vertical, isPrimaryOwner: active.shop.userId === userId },
     hidePayments: shell.hidePayments,
     hidePaidFeatures: shell.hidePaidFeatures,
     offerIap: shell.offerIap,
@@ -155,6 +171,12 @@ async function buildEligibleCatalog(
     }))
 }
 
+/** slug ที่บทบาทปัจจุบันถอด (จาก SSOT ดิบ) — ใช้แยก unavailableByRole ออกจาก unavailable */
+function hiddenByRole(active: ActiveShop, userId: string): Set<string> {
+  const rc = roleContext(active, userId)
+  return slugsHiddenByRole(sellerMenuItems, rc.roles, rc.shop)
+}
+
 /** ค่าเริ่มต้น = 8 รายการแรกตามลำดับ sidebar ของแคตตาล็อกที่ผู้ใช้คนนี้มองเห็นจริง */
 function computeDefaultSlugs(catalog: ShortcutCatalogItem[]): string[] {
   return catalog.slice(0, MAX_SHORTCUTS).map((c) => c.slug)
@@ -165,6 +187,7 @@ function buildState(
   catalog: ShortcutCatalogItem[],
   pinnedSlugs: string[],
   isDefault: boolean,
+  roleHidden: ReadonlySet<string> = new Set(),
 ): ShortcutState {
   const pinnedSet = new Set(pinnedSlugs)
   const withPinned = catalog.map((c) => ({ ...c, pinned: pinnedSet.has(c.slug) }))
@@ -183,8 +206,9 @@ function buildState(
     catalog: withPinned,
     pinnedSlugs,
     unavailable: pinnedSlugs
-      .filter((s) => !inCatalog.has(s))
+      .filter((s) => !inCatalog.has(s) && !roleHidden.has(s))
       .map((s) => ({ slug: s, label: allBySlug.get(s) ?? s })),
+    unavailableByRole: pinnedSlugs.filter((s) => !inCatalog.has(s) && roleHidden.has(s)),
     tiles: withPinned.filter((c) => c.pinned),
     isDefault,
   }
@@ -207,7 +231,7 @@ export async function resolveShortcutState(
     }),
   ])
 
-  return buildState(catalog, pref?.slugs ?? computeDefaultSlugs(catalog), !pref)
+  return buildState(catalog, pref?.slugs ?? computeDefaultSlugs(catalog), !pref, hiddenByRole(active, userId))
 }
 
 // ─── mutations ───────────────────────────────────────────────────────────────
@@ -232,17 +256,24 @@ async function loadForWrite(session: SessionLike, shell: ShellRestrictions) {
     userId,
     shopId: active.shop.id,
     catalog,
+    roleHidden: hiddenByRole(active, userId),
     current: pref?.slugs ?? computeDefaultSlugs(catalog),
   }
 }
 
-async function persist(userId: string, shopId: string, slugs: string[], catalog: ShortcutCatalogItem[]) {
+async function persist(
+  userId: string,
+  shopId: string,
+  slugs: string[],
+  catalog: ShortcutCatalogItem[],
+  roleHidden: ReadonlySet<string>,
+) {
   await prisma.sellerShortcutPreference.upsert({
     where: { userId_shopId: { userId, shopId } },
     create: { userId, shopId, slugs },
     update: { slugs },
   })
-  return buildState(catalog, slugs, false)
+  return buildState(catalog, slugs, false, roleHidden)
 }
 
 export async function pinShortcut(
@@ -258,12 +289,12 @@ export async function pinShortcut(
   if (!ctx.catalog.some((c) => c.slug === slug)) throw new ShortcutSlugNotInCatalogError(slug)
 
   // ปักซ้ำ = ไม่ error คืนสถานะปัจจุบัน (มิเรอร์ pinProduct) — กดรัว ๆ บนมือถือไม่ควรได้ error
-  if (ctx.current.includes(slug)) return buildState(ctx.catalog, ctx.current, false)
+  if (ctx.current.includes(slug)) return buildState(ctx.catalog, ctx.current, false, ctx.roleHidden)
 
   // เต็มแล้วต้องให้ผู้ใช้เลือกเองว่าจะถอดตัวไหน — ห้ามถอดตัวเก่าสุดให้อัตโนมัติ
   if (ctx.current.length >= MAX_SHORTCUTS) throw new ShortcutCapExceededError()
 
-  return persist(ctx.userId, ctx.shopId, [...ctx.current, slug], ctx.catalog)
+  return persist(ctx.userId, ctx.shopId, [...ctx.current, slug], ctx.catalog, ctx.roleHidden)
 }
 
 export async function unpinShortcut(
@@ -274,7 +305,7 @@ export async function unpinShortcut(
   const ctx = await loadForWrite(session, shell)
   if (!ctx) return { kind: 'NO_SHOP' }
 
-  if (!ctx.current.includes(slug)) return buildState(ctx.catalog, ctx.current, false)
+  if (!ctx.current.includes(slug)) return buildState(ctx.catalog, ctx.current, false, ctx.roleHidden)
 
   /**
    * MIN_REQUIRED นับเฉพาะช่องที่ "ยังใช้ได้จริง" — ช่องที่สิทธิ์หลุดไปแล้วไม่นับ
@@ -289,7 +320,7 @@ export async function unpinShortcut(
 
   // เขียน next ตรง ๆ รวมถึงกรณีว่าง — ห้าม fallback เป็นค่าเดิมตอนว่าง ไม่งั้นการถอดช่อง
   // ที่หมดสิทธิ์ช่องสุดท้ายจะ "สำเร็จแบบเงียบ ๆ แต่ไม่มีอะไรเปลี่ยน"
-  return persist(ctx.userId, ctx.shopId, ctx.current.filter((s) => s !== slug), ctx.catalog)
+  return persist(ctx.userId, ctx.shopId, ctx.current.filter((s) => s !== slug), ctx.catalog, ctx.roleHidden)
 }
 
 /**
@@ -302,5 +333,5 @@ export async function resetShortcuts(
 ): Promise<ShortcutAccessResult> {
   const ctx = await loadForWrite(session, shell)
   if (!ctx) return { kind: 'NO_SHOP' }
-  return persist(ctx.userId, ctx.shopId, computeDefaultSlugs(ctx.catalog), ctx.catalog)
+  return persist(ctx.userId, ctx.shopId, computeDefaultSlugs(ctx.catalog), ctx.catalog, ctx.roleHidden)
 }

@@ -404,6 +404,7 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
     expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN', roles: ['MANAGER'] }, ownsShop: false }))).toBe(false)
   })
 
+  // มติ 00070 คงไว้ (00071 review T4): รายงาน LINE เป็นระดับบัญชี — ทะเบียนเป็น SELF ไม่ผูก T4 กับร้านที่เปิดอยู่
   it('ADMIN ของร้านนี้ แต่เป็นเจ้าของหลักของร้านอื่น เห็น (ฟีเจอร์ระดับบัญชี ไม่ผูกกับร้านที่เปิดอยู่)', () => {
     expect(has(resolveVisibleSellerMenu(sellerMenuItems, { ...ctx('ONLINE_SALES'), staff: { kind: 'BUSINESS', role: 'ADMIN', roles: ['MANAGER'] }, ownsShop: true }))).toBe(true)
   })

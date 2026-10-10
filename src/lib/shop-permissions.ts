@@ -10,6 +10,7 @@
  * ระดับ module นี้คืน `true` (D-6) — เงื่อนไขต่อใบ/ต่อประเภทบังคับที่ caller ใน P3
  * T4 (เจ้าของหลักเท่านั้น) ระดับ module = OWNER; การแยก "เจ้าของหลัก" จาก "เจ้าของร่วม" ทำที่ caller
  */
+import { canUseAppointments } from '@/lib/appointments'
 
 export type ShopRole = 'OWNER' | 'MANAGER' | 'CHAT' | 'BILLING' | 'TECHNICIAN'
 export type MoneyLevel = 'FULL' | 'PER_ORDER' | 'NONE'
@@ -103,4 +104,21 @@ export function rolesFromMembership(role: 'OWNER' | 'ADMIN', roles: readonly str
   if (role === 'OWNER') return ['OWNER']
   if (role === 'ADMIN') return STAFF_ROLES.filter((r) => roles.includes(r))
   return []
+}
+
+/**
+ * ชุดบทบาทที่ "มีผลจริง" ของสมาชิกในร้านนี้ — กฎ PERSONAL/BILLING อยู่ที่นี่ที่เดียว (บริสุทธิ์ · เมนู/ด่านหน้าใช้ร่วมกัน)
+ *  - ร้าน PERSONAL = เจ้าของเสมอ (BR-RP-05)
+ *  - BILLING ถูกตัดทิ้งเมื่อร้านขายบริการไม่ได้ (BR-RP-07)
+ * ย้ายมาจาก shop-capability.ts (ไฟล์นั้น server-only เมนูฝั่ง client import ไม่ได้) — shop-capability ยัง re-export ชื่อเดิม
+ */
+export function effectiveRoles(
+  shop: { kind: string; vertical: string; userId?: string },
+  role: string,
+  roles: readonly string[],
+): ShopRole[] {
+  if (shop.kind === 'PERSONAL') return ['OWNER']
+  if (role !== 'OWNER' && role !== 'ADMIN') return []
+  const rs = rolesFromMembership(role, roles)
+  return canUseAppointments(shop) ? rs : rs.filter((r) => r !== 'BILLING')
 }

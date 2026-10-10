@@ -13,11 +13,10 @@ import 'server-only'
  */
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { canUseAppointments } from '@/lib/appointments'
 import { forbiddenRoleResponse } from '@/lib/forbidden-role'
 import { sessionUserId } from '@/lib/session-user'
 import { requireShopForRequest, type ActiveShop } from '@/lib/shop-context'
-import { can, PRIMARY_OWNER_ONLY, rolesFromMembership, type Capability, type ShopRole } from '@/lib/shop-permissions'
+import { can, effectiveRoles, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
 
 // NextAuth `Session` ไม่ประกาศ user.id/activeShopId (ไม่มี d.ts augmentation) — รับ object ตรง ๆ ไม่ต้อง cast ที่ผู้เรียก
 // ตัวตนอ่านผ่าน sessionUserId (ตรวจ id จริง) และ requireShopForRequest (re-verify สมาชิกภาพสด)
@@ -37,13 +36,7 @@ export class ForbiddenRoleError extends Error {
 
 type ShopFacts = { kind: string; vertical: string; userId: string }
 
-/** ชุดบทบาทที่ "มีผลจริง" ของสมาชิกในร้านนี้ — กฎ PERSONAL/BILLING อยู่ที่นี่ที่เดียว */
-export function effectiveRoles(shop: ShopFacts, role: string, roles: readonly string[]): ShopRole[] {
-  if (shop.kind === 'PERSONAL') return ['OWNER']
-  if (role !== 'OWNER' && role !== 'ADMIN') return []
-  const rs = rolesFromMembership(role, roles)
-  return canUseAppointments(shop) ? rs : rs.filter((r) => r !== 'BILLING')
-}
+export { effectiveRoles }
 
 function allowed(cap: Capability, eff: readonly ShopRole[], shop: ShopFacts, userId: string): boolean {
   if (PRIMARY_OWNER_ONLY.has(cap) && shop.userId !== userId) return false
@@ -52,7 +45,8 @@ function allowed(cap: Capability, eff: readonly ShopRole[], shop: ShopFacts, use
 
 export type ShopCapabilityResult =
   | { ok: true; shopId: string; userId: string; active: ActiveShop; roles: ShopRole[] }
-  | { ok: false; response: NextResponse }
+  // reason = ให้ route เลือกรหัสตอบเองโดยไม่ต้องแกะ body (NOT_MEMBER ของ resource ที่ระบุตัว → 404 ไม่เปิดเผยว่ามีอยู่ · 00037 API.md ข้อ 3)
+  | { ok: false; response: NextResponse; reason: 'UNAUTH' | 'NO_SHOP' | 'NOT_MEMBER' | 'FORBIDDEN_ROLE' }
 
 /**
  * ด่านของ API route — คืนร้านที่คำขอทำงานด้วย + บทบาทที่มีผลจริง
@@ -65,16 +59,16 @@ export async function requireShopCapability(
   opts?: { shopId?: string | null },
 ): Promise<ShopCapabilityResult> {
   const userId = sessionUserId(session)
-  if (!userId) return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: NO_STORE }) }
+  if (!userId) return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401, headers: NO_STORE }), reason: 'UNAUTH' }
   const resolved = await requireShopForRequest(session as ShopSession, opts?.shopId)
   if (!resolved.ok) {
     return resolved.reason === 'NO_SHOP'
-      ? { ok: false, response: NextResponse.json({ error: 'NO_SHOP' }, { status: 404, headers: NO_STORE }) }
-      : { ok: false, response: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403, headers: NO_STORE }) }
+      ? { ok: false, response: NextResponse.json({ error: 'NO_SHOP' }, { status: 404, headers: NO_STORE }), reason: 'NO_SHOP' }
+      : { ok: false, response: NextResponse.json({ error: 'FORBIDDEN' }, { status: 403, headers: NO_STORE }), reason: 'NOT_MEMBER' }
   }
   const active = resolved.target
   const eff = effectiveRoles(active.shop, active.role, active.roles)
-  if (!allowed(cap, eff, active.shop, userId)) return { ok: false, response: forbiddenRoleResponse() }
+  if (!allowed(cap, eff, active.shop, userId)) return { ok: false, response: forbiddenRoleResponse(), reason: 'FORBIDDEN_ROLE' }
   return { ok: true, shopId: active.shop.id, userId, active, roles: eff }
 }
 
