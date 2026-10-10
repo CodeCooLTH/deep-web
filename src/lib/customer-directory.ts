@@ -268,6 +268,23 @@ export function findEntryByKey(
   return entries.find((e) => e.key === key) ?? null
 }
 
+/**
+ * ตัดยอดสะสมลูกค้าออกที่ข้อมูล (00071 S-3) — ผู้ไม่ใช่เจ้าของ (F1) ต้องไม่ได้ `totalSpent`/`revenueOrderCount`
+ * ไม่ใช่ซ่อนที่ UI: ตัดคีย์ทิ้งจริง (ไม่ใช่ null/0) และเพราะ `avgPerOrder` คำนวณจากสองคีย์นี้
+ * จึงคำนวณค่าเฉลี่ยไม่ได้อีกต่อไปโดยปริยาย · `orders[].totalAmount` รายใบคงไว้ (สิทธิ์ระดับใบ = PER_ORDER)
+ */
+export type WithoutCustomerSpend<T> = Omit<T, 'totalSpent' | 'revenueOrderCount'>
+
+export function redactCustomerSpend<T extends { totalSpent: number; revenueOrderCount: number }>(
+  entry: T,
+  canSeeSpend: boolean,
+): T | WithoutCustomerSpend<T> {
+  if (canSeeSpend) return entry
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { totalSpent, revenueOrderCount, ...rest } = entry
+  return rest
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * ตัวเลขสรุป (FR-009)
  * ──────────────────────────────────────────────────────────────────────────── */

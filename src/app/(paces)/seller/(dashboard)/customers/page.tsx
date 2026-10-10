@@ -25,6 +25,7 @@ import { getServerSession } from 'next-auth'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { getT } from '@/i18n/server'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { customerBadges, hasBehaviorWarning } from '@/lib/customer-behavior'
 import {
@@ -84,6 +85,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   }
 
   const shop = active.shop
+  // ยอดซื้อสะสมลูกค้า = F1 (เจ้าของเท่านั้น) · role มาจาก membership สด
+  const showSpend = can(rolesFromMembership(active.role), 'F1')
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
   /**
@@ -321,7 +324,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     isRegistered: e.isRegistered,
     username: e.username,
     totalOrders: e.totalOrders,
-    totalSpent: e.totalSpent,
+    // ตัดคีย์ทิ้งสำหรับผู้ไม่ใช่เจ้าของ (00071 S-3) — ไม่ใช่ null/0
+    ...(showSpend ? { totalSpent: e.totalSpent } : {}),
     lastOrderISO: e.lastOrderISO,
     badges,
     trust: e.customerId ? (reputations.get(e.customerId) ?? null) : null,
@@ -403,6 +407,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         riskCounts={riskCounts}
         shopReturned={stats.returned}
         shopHasParcels={shopHasParcels}
+        showSpend={showSpend}
         showParcel={showParcel}
         vertical={shop.vertical ?? ''}
       />

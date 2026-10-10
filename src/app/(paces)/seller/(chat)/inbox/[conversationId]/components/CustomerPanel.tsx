@@ -163,7 +163,7 @@ export type CustomerPanelData = {
   customer: { id: string; phone: string } | null
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
-  customerStats: { orderCount: number; totalSpent: string; since: string } | null
+  customerStats: { orderCount: number; totalSpent?: string; since: string } | null
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -1043,10 +1043,12 @@ export function CustomerPanelBody({
           {data.customerStats && (
             <div>
               <StatRow label={byVertical(t.inbox.customerPanel.statOrderCount, data.vertical)} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
-              <StatRow
-                label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
-                value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
-              />
+              {data.customerStats.totalSpent !== undefined && (
+                <StatRow
+                  label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
+                  value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
+                />
+              )}
               <StatRow
                 label={t.inbox.customerPanel.statCustomerSince}
                 value={relativeTimeTh(new Date(data.customerStats.since).getTime())}

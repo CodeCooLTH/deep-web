@@ -27,6 +27,7 @@ import {
   avgPerOrder,
   findEntryByKey,
   isValidCustomerKey,
+  redactCustomerSpend,
   maskContact,
   matchesCustomerQuery,
   matchesCustomerFilter,
@@ -321,5 +322,30 @@ describe('[blocker] aggregateCustomerStats — สถิติความน่
       { shopReputation: rep(), hasWarning: true },
     ])
     expect(stats.watchCount).toBe(1)
+  })
+})
+
+describe('[blocker] redactCustomerSpend — ผู้ไม่ใช่เจ้าของไม่ได้ยอดสะสม (00071 S-3)', () => {
+  const FORBIDDEN = ['totalSpent', 'revenueOrderCount']
+
+  it('ไม่ใช่เจ้าของ → ไม่มีคีย์ทั้งสอง (เดินทุกคีย์ ไม่ใช่เช็คทีละชื่อ) ทั้งที่ค่าไม่ใช่ 0', () => {
+    const out = redactCustomerSpend(entry({ totalSpent: 3000, revenueOrderCount: 2 }), false)
+    for (const k of FORBIDDEN) expect(Object.keys(out)).not.toContain(k)
+    expect(JSON.stringify(out)).not.toContain('3000')
+    // avg คำนวณไม่ได้อีก (ตัวตั้ง/ตัวหารไม่อยู่) และฟิลด์อื่นยังครบ
+    expect((out as { totalOrders: number }).totalOrders).toBe(3)
+  })
+
+  it('orders[].totalAmount รายใบคงอยู่', () => {
+    const o = { totalAmount: 500 } as unknown as CustomerDirectoryEntry['orders'][number]
+    const out = redactCustomerSpend(entry({ orders: [o] }), false) as CustomerDirectoryEntry
+    expect(out.orders[0].totalAmount).toBe(500)
+  })
+
+  it('เจ้าของ → คืนของเดิมครบ', () => {
+    const e = entry()
+    const out = redactCustomerSpend(e, true) as CustomerDirectoryEntry
+    expect(out.totalSpent).toBe(3000)
+    expect(out.revenueOrderCount).toBe(2)
   })
 })

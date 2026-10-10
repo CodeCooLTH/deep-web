@@ -33,7 +33,7 @@ export type CustomerRow = {
   isRegistered: boolean
   username: string | null // สำหรับ link /u/@username ถ้าเป็นสมาชิก
   totalOrders: number
-  totalSpent: number // THB — ผลรวม totalAmount (รวม VAT/discount/shipping) ของออเดอร์ที่ countsAsRevenue() (@/lib/order-revenue) เท่านั้น — SSOT เดียวกับ dashboard/รายงานยอดขาย
+  totalSpent?: number // ไม่มีคีย์ = ผู้ไม่ใช่เจ้าของ (00071 S-3) · THB — ผลรวม totalAmount (รวม VAT/discount/shipping) ของออเดอร์ที่ countsAsRevenue() (@/lib/order-revenue) เท่านั้น — SSOT เดียวกับ dashboard/รายงานยอดขาย
   lastOrderISO: string // ISO 8601 — ปลอดภัยส่ง RSC→client (ไม่ใช่ Date object)
   /**
    * ป้ายพฤติกรรมลูกค้า คำนวณที่ server ด้วย `customerBadges()` (SSOT เดียวกับตาราง /orders

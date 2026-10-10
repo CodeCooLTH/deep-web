@@ -47,6 +47,8 @@ import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { redirect } from 'next/navigation'
 import { getCachedSession } from '@/lib/session-cache'
 import { prisma } from '@/lib/prisma'
+import { resolveActiveShopContext } from '@/lib/shop-context'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
@@ -627,31 +629,41 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // — aggregate จริงทั้งหมด ไม่ใช่ 20 แถวที่ list ใช้ (panelOrders cap 20) จึงถูกต้องแม้ลูกค้าซื้อเยอะ
   //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
   const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
-  let customerStats: { orderCount: number; totalSpent: string; since: string } | null = null
+  let customerStats: { orderCount: number; totalSpent?: string; since: string } | null = null
   if (linkedCustomer) {
     // 🛑 2026-08-27: เดิมก้อนนี้มี `behaviorRows` (order.findMany ทุกใบของลูกค้า) + `getBuyerReputation`
     // ต่อท้ายด้วย — ทั้งคู่มีผู้ใช้แค่ป้ายพฤติกรรม/แถบ "ทั้งระบบ" ในแผงขวา ซึ่ง user สั่งถอดออกแล้ว
     // จึงถอดคิวรีตามไปด้วย (คิวรีที่ไม่มีใครอ่านผลคือค่าที่จ่ายทุกครั้งที่เปิดเธรด)
     // ตัวป้าย/สถิติเองยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ที่นั่นมีคิวรีของตัวเอง
+    // 00071 S-3: ยอดซื้อสะสม = F1 (เจ้าของเท่านั้น) ตามบทบาทใน "ร้านของเธรด" (BR-UNI-07) ไม่ใช่ร้านที่ active
+    // resolve ไม่ได้/ไม่ใช่สมาชิก = ไม่เห็น (fail-closed) · ไม่ aggregate เลยเมื่อไม่มีสิทธิ์ ไม่ใช่ aggregate แล้วซ่อน
+    // 🛑 ห้ามตั้ง customerStats = null แทน — null แปลว่า "ยังไม่ผูกลูกค้า" แถวอื่นจะหายตามไปด้วย
+    const threadCtx = await resolveActiveShopContext({ user: { id: user.id as string, activeShopId: threadShopId } })
+    const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role), 'F1')
     const [orderCount, spentAgg] = await Promise.all([
       // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
       // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ
       prisma.order.count({
         where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, ...excludeDraftedWhere },
       }),
-      prisma.order.aggregate({
-        where: {
-          shopId: shop.id,
-          customerId: linkedCustomer.id,
-          ...orderTypeFilter,
-          ...withoutDrafted('CANCELLED'),
-        },
-        _sum: { totalAmount: true },
-      }),
+      canSeeSpend
+        ? prisma.order.aggregate({
+            where: {
+              shopId: shop.id,
+              customerId: linkedCustomer.id,
+              ...orderTypeFilter,
+              ...withoutDrafted('CANCELLED'),
+            },
+            _sum: { totalAmount: true },
+          })
+        : Promise.resolve(null),
     ])
     customerStats = {
       orderCount,
-      totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00',
+      // ไม่มีสิทธิ์ = ไม่มีคีย์ (ไม่ใช่ '0.00')
+      ...(spentAgg
+        ? { totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00' }
+        : {}),
       since: linkedCustomer.createdAt.toISOString(),
     }
   }
