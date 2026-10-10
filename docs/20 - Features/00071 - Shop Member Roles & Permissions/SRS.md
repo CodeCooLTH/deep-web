@@ -43,7 +43,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 | **ShopRole** | รหัสบทบาทใน `roles`/capability: `OWNER` · `MANAGER` (ผู้ดูแล) · `CHAT` (ตอบแชท) · `BILLING` (เปิดบิล) · `TECHNICIAN` (ฝ่ายช่าง) |
 | **`ShopMember.role`** | คอลัมน์เดิม String `'OWNER'\|'ADMIN'` — ความหมายคงเดิม = เจ้าของ vs พนักงาน (ไม่เปลี่ยนค่า) |
 | **`ShopMember.roles`** | คอลัมน์ใหม่ `String[]` = ชุดหน้าที่ของพนักงาน (1-4 ค่าจาก MANAGER/CHAT/BILLING/TECHNICIAN) · เจ้าของ = ว่าง |
-| **capability id** | รหัสสิทธิ์ตาม BRD §8.3: H1-H3, O1-O7 (รวม O2s), D1, S1-S2, P1-P3, Q1-Q2, C1-C3, F1-F4, T1-T4 และ X1-X5 (ที่เพิ่มโดยมติ P3 — ดู BRD §8.3) (ระวัง: `P1-P3` ที่นี่คือรหัส capability สินค้า ไม่ใช่ phase) |
+| **capability id** | รหัสสิทธิ์ตาม BRD §8.3: H1-H3, O1-O7 (รวม O2s), D1, S1-S2, P1-P3, Q1-Q2, C1-C3, F1-F4, T1-T4 และ X1-X6 (ที่เพิ่มโดยมติ P3 — ดู BRD §8.3) (ระวัง: `P1-P3` ที่นี่คือรหัส capability สินค้า ไม่ใช่ phase) |
 | **MoneyLevel** | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) |
 | **FORBIDDEN_ROLE** | error code ของการไม่มีสิทธิ์ตามบทบาท — HTTP 403 `{ error: 'FORBIDDEN_ROLE' }` |
 | **เจ้าของหลัก** | `Shop.userId` (BR-MR-02) |

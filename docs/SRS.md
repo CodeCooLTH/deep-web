@@ -2786,7 +2786,7 @@ HTTP ตามตาราง §7.21
 | `ShopMember.roles` (P2 ✅) | 1-4 ค่าจาก `STAFF_ROLES` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ `canUseAppointments` (vertical `SERVICE_QUEUE`) |
 | error (P2 ✅) | `INVALID_ROLES` · `BILLING_NOT_AVAILABLE` (HTTP 400) |
 | `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
-| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X5` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ) — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
+| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
 | `RouteClass` (ทะเบียน `route-capabilities.ts`) | `MEMBER` · `SELF` · `BUYER` · `PUBLIC` · `PLATFORM_ADMIN` · `CRON` · `WEBHOOK` — route ที่ไม่ใช่ capability ของสมาชิกร้านต้องจัดคลาสพร้อม `reason` |
 | error | `FORBIDDEN_ROLE` (HTTP 403) |
 
