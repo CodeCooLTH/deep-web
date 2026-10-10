@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { NextRequest } from 'next/server'
 
-// ── ด่าน DB: ต้องเป็น localhost:5434 เท่านั้น ไม่งั้นหยุดทั้งไฟล์ก่อน import prisma ──
+// ── ด่าน DB: ต้องเป็น localhost เท่านั้น ไม่งั้นหยุดทั้งไฟล์ก่อน import prisma ──
 function resolveDbUrl(): string {
   let url = process.env.DATABASE_URL ?? ''
   if (!url) {
@@ -23,8 +23,9 @@ function resolveDbUrl(): string {
       url = m?.[1] ?? ''
     } catch { /* ไม่มีไฟล์ */ }
   }
-  if (!url.includes('@localhost:5434/')) {
-    throw new Error('[role-contract] DATABASE_URL ต้องชี้ @localhost:5434/ เท่านั้น (HR13/HR14) — ยกเลิก')
+  // localhost เท่านั้น (เครื่อง dev = 5434 · CI = service postgres 5432) — host อื่น = อาจเป็น prod → หยุด
+  if (!/^postgres(ql)?:\/\/[^@]*@(localhost|127\.0\.0\.1):\d+\//.test(url)) {
+    throw new Error('[role-contract] DATABASE_URL ต้องชี้ localhost เท่านั้น (HR13/HR14) — ยกเลิก')
   }
   process.env.DATABASE_URL = url
   return url

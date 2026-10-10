@@ -149,19 +149,19 @@ const CategoryTable = ({ rows, showRevenue = false }: CategoryTableProps) => {
               </div>
               {/* main: ชื่อหมวดหมู่ + คำอธิบาย + metric รอง (สินค้า · ออเดอร์) */}
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-medium text-ink truncate">{c.label}</p>
-                <p className="text-[12px] text-default-500 truncate">{c.description}</p>
-                <p className="text-[11px] text-default-400 mt-0.5">
+                <p className="text-sm font-medium text-ink truncate">{c.label}</p>
+                <p className="text-xs text-default-500 truncate">{c.description}</p>
+                <p className="text-2xs text-default-400 mt-0.5">
                   {c.activeCount}/{c.productCount} สินค้า · {c.orderCount} ออเดอร์
                 </p>
               </div>
               {/* trailing: ยอดขาย (metric เด่น) — เฉพาะเจ้าของร้าน (00071) */}
               {showRevenue && c.revenue !== undefined && (
                 <div className="shrink-0 text-right">
-                  <p className="text-[14px] font-semibold text-ink leading-tight">
+                  <p className="text-sm font-semibold text-ink leading-tight">
                     {thbFormatter.format(c.revenue)}
                   </p>
-                  <p className="text-[11px] text-default-400 leading-tight">ยอดขาย</p>
+                  <p className="text-2xs text-default-400 leading-tight">ยอดขาย</p>
                 </div>
               )}
             </div>
