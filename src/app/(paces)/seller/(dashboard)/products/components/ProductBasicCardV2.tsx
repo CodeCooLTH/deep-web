@@ -16,20 +16,29 @@ import type { ProductFormV2Values } from './ProductFormV2.types'
 interface ProductBasicCardV2Props {
   register: UseFormRegister<ProductFormV2Values>
   errors: FieldErrors<ProductFormV2Values>
+  /** PRODUCT_VOCAB.itemSingular — default = "สินค้า" (คำเดิม) */
+  itemSingular?: string
+  /** ร้านบริการ: ตัวอย่างใน placeholder เป็นของขายปลีก (กระเป๋าผ้า) ไม่เข้ากับงานบริการ จึงตัดตัวอย่างออก */
+  hideRetailExample?: boolean
 }
 
-export default function ProductBasicCardV2({ register, errors }: ProductBasicCardV2Props) {
+export default function ProductBasicCardV2({
+  register,
+  errors,
+  itemSingular = 'สินค้า',
+  hideRetailExample = false,
+}: ProductBasicCardV2Props) {
   return (
     <div className="px-3 py-2.5">
       {/* visually-hidden label เพื่อ accessibility — placeholder ทำหน้าที่ label */}
       <label htmlFor="v2-name" className="sr-only">
-        ชื่อสินค้า
+        ชื่อ{itemSingular}
       </label>
       <input
         id="v2-name"
         type="text"
         className="text-dark placeholder:text-default-400 focus:border-primary block w-full min-h-11 border-0 border-b-2 border-transparent bg-transparent px-0 text-base font-medium outline-hidden focus:ring-0"
-        placeholder="ชื่อสินค้า*  เช่น กระเป๋าผ้าสะพายข้าง สีเทา"
+        placeholder={hideRetailExample ? `ชื่อ${itemSingular}*` : `ชื่อ${itemSingular}*  เช่น กระเป๋าผ้าสะพายข้าง สีเทา`}
         aria-describedby={errors.name ? 'v2-name-error' : undefined}
         {...register('name')}
       />

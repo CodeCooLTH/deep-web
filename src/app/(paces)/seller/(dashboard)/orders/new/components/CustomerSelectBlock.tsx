@@ -15,6 +15,7 @@
  */
 'use client'
 
+import { DEFAULT_ORDER_FORM_WORDS, type OrderFormWords } from './order-form-words'
 import { useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useController } from 'react-hook-form'
@@ -44,11 +45,13 @@ export interface Props {
   /** S-1: ปุ่ม "วางจากแชท" (เฉพาะ variant embedded) ต้องใช้ setValue เติมฟิลด์จาก parseOrderMessage */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setValue?: UseFormSetValue<any>
+  /** คำร้านบริการ — ไม่ส่ง = คำเดิม (ออเดอร์/ผู้ซื้อ) */
+  words?: OrderFormWords
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CustomerSelectBlock({ control, errors, variant = 'card', setValue }: Props) {
+export default function CustomerSelectBlock({ control, errors, variant = 'card', setValue, words = DEFAULT_ORDER_FORM_WORDS }: Props) {
   const embedded = variant === 'embedded'
   const { field: buyerNameField } = useController({ control, name: 'buyerName', defaultValue: '' })
   const { field: buyerContactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
@@ -258,7 +261,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-dark">{c.name ?? c.contact}</p>
                             <p className="text-xs text-default-500">
-                              {sellerContactDisplay(c.contact)} · ลูกค้าเดิม {c.orderCount} ออเดอร์
+                              {sellerContactDisplay(c.contact)} · ลูกค้าเดิม {c.orderCount} {words.orderUnit}
                             </p>
                           </div>
                           <Icon icon="chevron-right" className="size-3.5 shrink-0 text-default-400" />
@@ -273,7 +276,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
             {selected && (
               <p className="mt-1 flex items-center gap-1 text-xs font-medium text-success">
                 <Icon icon="user-check" className="size-3.5 shrink-0" />
-                ลูกค้าเดิม · {selected.orderCount} ออเดอร์
+                ลูกค้าเดิม · {selected.orderCount} {words.orderUnit}
               </p>
             )}
             {/* สล็อตเดียวใต้ช่อง — chip / คำเตือน / error เลือกกันเองในตัว component
@@ -287,7 +290,7 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
             />
             {!contactHintVisible && !selected ? (
               <p className="text-default-400 mt-1 text-xs">
-                เบอร์โทรสำหรับแจ้งลิงก์ผู้ซื้อ — เบอร์เดิม = จดจำเป็นลูกค้าเดียวกัน
+                เบอร์โทรสำหรับแจ้งลิงก์{words.buyerNoun} — เบอร์เดิม = จดจำเป็นลูกค้าเดียวกัน
               </p>
             ) : null}
           </div>

@@ -40,10 +40,12 @@ interface PinToggleButtonProps {
   onChange: (result: PinChangeResult) => void
   /** desktop = btn-sm ปกติ (คอลัมน์ตาราง); mobile = touch target 44px (mobileCard trailing action) */
   variant?: 'desktop' | 'mobile'
+  /** PRODUCT_VOCAB.itemSingular — ร้านบริการ = "รายการ" (default = คำเดิม) */
+  itemSingular?: string
 }
 
 // map HTTP status ตอนซื้อสล็อต → ข้อความ validation ใน Swal dialog (แสดงผ่าน showValidationMessage — dialog ไม่ปิด)
-function buySlotErrorMessage(status: number, hidePayments: boolean): string {
+function buySlotErrorMessage(status: number, hidePayments: boolean, itemSingular: string): string {
   switch (status) {
     case 402:
       // 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน — ข้อความมาจาก SSOT ที่ lib/payment-copy
@@ -51,7 +53,7 @@ function buySlotErrorMessage(status: number, hidePayments: boolean): string {
     case 403:
       return 'ร้านถูกล็อก ไม่สามารถทำรายการนี้ได้'
     case 400:
-      return 'สินค้านี้ปิดใช้งานอยู่ ไม่สามารถปักหมุดได้'
+      return `${itemSingular}นี้ปิดใช้งานอยู่ ไม่สามารถปักหมุดได้`
     default:
       return 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   }
@@ -65,6 +67,7 @@ export default function PinToggleButton({
   pinnedCount,
   onChange,
   variant = 'desktop',
+  itemSingular = 'สินค้า',
 }: PinToggleButtonProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
@@ -80,15 +83,15 @@ export default function PinToggleButton({
      * บอกแค่ว่าเต็มแล้ว ให้ถอดหมุดตัวอื่นก่อน — ไม่บอกทางไปซื้อที่อื่น
      */
     if (hidePayments) {
-      pacesToast.info(`สล็อตปักหมุดเต็มแล้ว (${pinnedCount}/${pinSlots}) — ถอดหมุดสินค้าอื่นก่อนแล้วลองใหม่`)
+      pacesToast.info(`สล็อตปักหมุดเต็มแล้ว (${pinnedCount}/${pinSlots}) — ถอดหมุด${itemSingular}อื่นก่อนแล้วลองใหม่`)
       return
     }
     // Base: SubscribeButton.handleOpenDialog — confirm + fetch ใน flow เดียว, error ค้าง dialog ผ่าน showValidationMessage
     const result = await Swal.fire({
       buttonsStyling: false,
       icon: 'question',
-      title: 'ปักหมุดสินค้านี้?',
-      html: `สล็อตปักหมุดของคุณเต็มแล้ว (${pinnedCount}/${pinSlots}) ต้องซื้อสล็อตเพิ่มถาวร ฿99 เพื่อปักหมุดสินค้านี้ (ชำระครั้งเดียว ไม่มีการคืนเงิน ไม่มีวันหมดอายุ)`,
+      title: `ปักหมุด${itemSingular}นี้?`,
+      html: `สล็อตปักหมุดของคุณเต็มแล้ว (${pinnedCount}/${pinSlots}) ต้องซื้อสล็อตเพิ่มถาวร ฿99 เพื่อปักหมุด${itemSingular}นี้ (ชำระครั้งเดียว ไม่มีการคืนเงิน ไม่มีวันหมดอายุ)`,
       showCancelButton: true,
       confirmButtonText: 'ซื้อสล็อต ฿99',
       cancelButtonText: 'ยกเลิก',
@@ -107,7 +110,7 @@ export default function PinToggleButton({
             body: JSON.stringify({ productId }),
           })
           if (res.ok) return res.json()
-          Swal.showValidationMessage(buySlotErrorMessage(res.status, hidePayments))
+          Swal.showValidationMessage(buySlotErrorMessage(res.status, hidePayments, itemSingular))
           return false
         } catch {
           Swal.showValidationMessage('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -118,7 +121,7 @@ export default function PinToggleButton({
 
     if (result.isConfirmed && result.value) {
       onChange(result.value as PinChangeResult)
-      pacesToast.success('ปักหมุดสินค้าแล้ว')
+      pacesToast.success(`ปักหมุด${itemSingular}แล้ว`)
       router.refresh()
     }
   }
@@ -169,7 +172,7 @@ export default function PinToggleButton({
         }
       } else {
         onChange(data as PinChangeResult)
-        pacesToast.success('ปักหมุดสินค้าแล้ว')
+        pacesToast.success(`ปักหมุด${itemSingular}แล้ว`)
         router.refresh()
       }
     } catch {
@@ -189,8 +192,8 @@ export default function PinToggleButton({
       type="button"
       onClick={handleClick}
       disabled={!isActive || isLoading}
-      title={!isActive ? 'เปิดใช้งานสินค้าก่อนจึงปักหมุดได้' : isPinned ? 'ยกเลิกปักหมุด' : 'ปักหมุดสินค้า'}
-      aria-label={isPinned ? 'ยกเลิกปักหมุด' : 'ปักหมุดสินค้า'}
+      title={!isActive ? `เปิดใช้งาน${itemSingular}ก่อนจึงปักหมุดได้` : isPinned ? 'ยกเลิกปักหมุด' : `ปักหมุด${itemSingular}`}
+      aria-label={isPinned ? 'ยกเลิกปักหมุด' : `ปักหมุด${itemSingular}`}
       className={cn(
         'btn btn-icon btn-sm border',
         isPinned ? pinnedClass : unpinnedClass,

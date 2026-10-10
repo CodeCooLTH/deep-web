@@ -26,9 +26,11 @@ interface Props {
   /** buyer URL เต็ม (resolved) ที่ QR จะเข้ารหัส — ตัวเดียวกับปุ่มคัดลอกลิงก์ */
   url: string
   onClose: () => void
+  /** "ออเดอร์" ผันตามร้าน (ร้านบริการ = งานบริการ) · ไม่ส่ง = คำเดิม */
+  orderWord?: string
 }
 
-export default function OrderQrSheet({ order, url, onClose }: Props) {
+export default function OrderQrSheet({ order, url, onClose, orderWord = 'ออเดอร์' }: Props) {
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
@@ -69,7 +71,7 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
       className="fixed inset-0 z-80 flex items-end justify-center lg:items-center"
       role="dialog"
       aria-modal="true"
-      aria-label="QR โค้ดออเดอร์"
+      aria-label={`QR โค้ด${orderWord}`}
     >
       {/* scrim — คลิกเพื่อปิด (precedent AccountSwitcherSheet: bg-default-900/40 backdrop-blur-xs) */}
       <button
@@ -96,7 +98,7 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
         </button>
 
         <h3 className="text-center text-base font-bold text-default-900">QR สำหรับลูกค้า</h3>
-        <p className="mt-0.5 text-center text-xs text-default-500">ให้ลูกค้าสแกนเพื่อเปิดหน้าออเดอร์</p>
+        <p className="mt-0.5 text-center text-xs text-default-500">ให้ลูกค้าสแกนเพื่อเปิดหน้า{orderWord}</p>
 
         {/* QR — พื้นขาวเสมอเพื่อสแกนติด (bg-white = utility ปกติ ไม่ใช่ arbitrary) */}
         <div className="mx-auto mt-4 flex w-fit items-center justify-center rounded-2xl border border-default-200 bg-white p-4">
@@ -111,7 +113,7 @@ export default function OrderQrSheet({ order, url, onClose }: Props) {
 
         {/* สรุปออเดอร์ */}
         <p className="mt-3 text-center text-xs text-default-500">
-          ออเดอร์ <span className="font-semibold text-default-900">{cardId}</span>
+          {orderWord} <span className="font-semibold text-default-900">{cardId}</span>
           {' · '}
           {order.buyerName ?? 'ลูกค้า'}
           {' · '}

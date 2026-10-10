@@ -35,6 +35,8 @@ interface ProductPreviewPanelProps {
   billingMode?: BillingMode
   billingPeriod?: BillingPeriod | null
   fulfillmentMode?: FulfillmentMode
+  /** PRODUCT_VOCAB.itemSingular — default = "สินค้า" (คำเดิม) */
+  itemSingular?: string
 }
 
 // icon แทน emoji (กฎ no-emoji) — tabler ผ่าน @iconify/react (colon convention เหมือน tabler:building-store ในไฟล์นี้)
@@ -58,6 +60,7 @@ export default function ProductPreviewPanel({
   billingMode,
   billingPeriod,
   fulfillmentMode,
+  itemSingular = 'สินค้า',
 }: ProductPreviewPanelProps) {
   const [activeIdx, setActiveIdx] = useState(0)
 
@@ -108,7 +111,7 @@ export default function ProductPreviewPanel({
         {activeImageId ? (
           <Image
             src={`/api/files/${activeImageId}`}
-            alt={hasName ? name : 'ตัวอย่างรูปสินค้า'}
+            alt={hasName ? name : `ตัวอย่างรูป${itemSingular}`}
             width={400}
             height={400}
             className="h-full w-full object-cover"
@@ -116,7 +119,7 @@ export default function ProductPreviewPanel({
         ) : (
           <div className="text-default-300 flex h-full w-full flex-col items-center justify-center gap-2">
             <Icon icon="tabler:photo" className="size-16" />
-            <span className="text-sm italic">ตัวอย่างรูปสินค้า</span>
+            <span className="text-sm italic">ตัวอย่างรูป{itemSingular}</span>
           </div>
         )}
       </div>
@@ -164,7 +167,7 @@ export default function ProductPreviewPanel({
       {hasName ? (
         <h1 className="text-dark mt-2 line-clamp-2 text-2xl font-bold break-words">{name}</h1>
       ) : (
-        <h1 className="text-default-300 mt-2 text-xl italic">ชื่อสินค้าจะแสดงที่นี่</h1>
+        <h1 className="text-default-300 mt-2 text-xl italic">ชื่อ{itemSingular}จะแสดงที่นี่</h1>
       )}
 
       {/* Capability badges — แสดงใต้ชื่อ เหนือราคา เฉพาะเมื่อมี flag พิเศษ */}
@@ -228,7 +231,7 @@ export default function ProductPreviewPanel({
       {/* Attributes table — value เก็บเป็น "v1, v2, v3" comma-joined → แสดงเป็น chips */}
       {hasAttrs ? (
         <>
-          <div className="text-dark mt-4 mb-2 text-sm font-semibold">รายละเอียดสินค้า</div>
+          <div className="text-dark mt-4 mb-2 text-sm font-semibold">รายละเอียด{itemSingular}</div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {attrEntries.map(([k, v]) => {
               const chips = splitAttributeValues(v)
@@ -257,7 +260,7 @@ export default function ProductPreviewPanel({
       {/* Description (long) */}
       {hasAnyDescription ? (
         <div className="mt-4">
-          <div className="text-dark mb-2 text-sm font-semibold">คำอธิบายสินค้า</div>
+          <div className="text-dark mb-2 text-sm font-semibold">คำอธิบาย{itemSingular}</div>
           {hasDescription ? (
             <div className="text-default-700 text-sm whitespace-pre-wrap">{description}</div>
           ) : (

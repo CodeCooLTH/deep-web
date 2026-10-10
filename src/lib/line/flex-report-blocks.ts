@@ -392,7 +392,7 @@ function renderShops(b: Extract<Block, { type: 'shops' }>, c: Ctx): Node | null 
         const vocab = resolveProductVocab(resolveShopVertical(s.shop.vertical))
         const top = s.top3 ?? []
         rows.push(bestSellerHead(vocab.bestSellerTitle))
-        if (top.length === 0) rows.push(note('ยังไม่มีรายการสินค้าที่ระบุในช่วงนี้'))
+        if (top.length === 0) rows.push(note(`ยังไม่มีรายการ${vocab.itemColLabel}ที่ระบุในช่วงนี้`))
         if (s.top3Truncated) rows.push(note('อันดับคำนวณจากข้อมูลบางส่วน (ข้อมูลเดือนนี้มากเกินกำหนด)'))
         // [รูป] ชื่อ จำนวน — มีรูปอย่างน้อยหนึ่งแถว ⇒ ทุกแถวมีช่องรูป (แถวไม่มีรูปเป็นกล่องเทา ให้ชื่อตรงแนวกัน)
         const withImg = top.some((r) => r.imageUrl)

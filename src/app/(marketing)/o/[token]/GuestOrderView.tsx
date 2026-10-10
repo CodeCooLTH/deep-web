@@ -158,7 +158,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           isNewShop={order.completedOrders == null}
           /* จอนี้คือจอที่คนได้ลิงก์จากแชทเห็นก่อน — ปุ่ม "ช่วยเหลือ" ต้องมีที่นี่ยิ่งกว่าที่อื่น
              (คนที่สงสัยว่าโดนหลอก คือคนที่ยังไม่ได้ล็อกอิน) */
-          actions={<CoverActions orderNo={formatOrderNo(order.publicToken, order.createdAtIso)} />}
+          actions={<CoverActions orderNo={formatOrderNo(order.publicToken, order.createdAtIso)} noun={order.shop.vertical === 'SERVICE_QUEUE' ? vocab.noun : undefined} />}
         />
 
         {/* 🛑 `position: relative` ไม่ใช่ของประดับ — `ShopCover` เป็น element ที่ positioned

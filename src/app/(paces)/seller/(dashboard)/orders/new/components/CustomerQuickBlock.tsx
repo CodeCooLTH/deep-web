@@ -7,6 +7,7 @@
  * wand tool → PasteParseSheet; locality field → AddressSearchSheet; ที่อยู่แสดงเมื่อ salesChannel !== STOREFRONT
  */
 
+import { DEFAULT_ORDER_FORM_WORDS, type OrderFormWords } from './order-form-words'
 import { useState, useRef, useEffect } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
@@ -36,6 +37,8 @@ interface Props {
   prefillParseText?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** คำร้านบริการ — ไม่ส่ง = คำเดิม */
+  words?: OrderFormWords
 }
 
 export default function CustomerQuickBlock({
@@ -45,6 +48,7 @@ export default function CustomerQuickBlock({
   needsShipping,
   prefillParseText,
   showDeliveryToggle = false,
+  words = DEFAULT_ORDER_FORM_WORDS,
 }: Props) {
   const [pasteOpen, setPasteOpen] = useState(false)
   /** ข้อความตั้งต้นในชีตกระจาย — มีค่าเมื่อเปิดชีตเพราะกระจายได้ไม่ครบ (ให้ร้านแก้ต่อจากของเดิม) */
@@ -265,7 +269,7 @@ export default function CustomerQuickBlock({
         {selected && (
           <span className="badge badge-label bg-success/15 text-success text-2xs font-semibold">
             <Icon icon="user-check" className="text-xs" />
-            ลูกค้าเก่า · {selected.orderCount} ออเดอร์
+            ลูกค้าเก่า · {selected.orderCount} {words.orderUnit}
           </span>
         )}
         {!selected && isNewCustomer && (
@@ -372,7 +376,7 @@ export default function CustomerQuickBlock({
             <div className="mb-2.5 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-warning">
               <Icon icon="alert-triangle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <p className="text-xs font-medium">
-                ออเดอร์นี้ต้องจัดส่ง — กรอกที่อยู่ปลายทางให้ครบก่อนบันทึก (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)
+                {words.orderWord}นี้ต้องจัดส่ง — กรอกที่อยู่ปลายทางให้ครบก่อนบันทึก (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)
               </p>
             </div>
           )}
@@ -468,6 +472,7 @@ export default function CustomerQuickBlock({
         onSelect={selectCustomer}
         onUseNew={useNewCustomer}
         onClose={() => setCustOpen(false)}
+        orderUnit={words.orderUnit}
       />
       {/* key={pasteOpen} → remount ทุกครั้งที่เปิด: text/showBubble เริ่มสด ไม่ต้อง setState ใน effect */}
       <PasteParseSheet

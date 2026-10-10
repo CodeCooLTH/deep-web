@@ -20,7 +20,11 @@ import { formatDateTime } from '@/lib/format-date'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import { hasBehaviorWarning, type CustomerBadge } from '@/lib/customer-behavior'
 import { MIN_SHIPPED_FOR_RATE, rateUnavailableText, type BuyerReputation } from '@/lib/buyer-reputation'
-import type { CustomerDirectoryEntry } from '@/lib/customer-directory'
+import {
+  customerPageShowsParcels,
+  resolveCustomerListVocab,
+  type CustomerDirectoryEntry,
+} from '@/lib/customer-directory'
 
 type Props = {
   entry: CustomerDirectoryEntry
@@ -34,6 +38,8 @@ type Props = {
   createLabel: string
   /** ยอดเฉลี่ยต่อบิล — `null` = ยังไม่มีใบที่นับเป็นยอดขาย (ต้องแสดง `—` ไม่ใช่ ฿0) */
   avg: number | null
+  /** Shop.vertical — ผันคำ + ซ่อนส่วนพัสดุในร้านที่ไม่มีพัสดุ (ว่าง = ONLINE_SALES เดิม) */
+  vertical?: string
 }
 
 /**
@@ -69,7 +75,11 @@ export default function CustomerProfileHeader({
   showAddress,
   createLabel,
   avg,
+  vertical,
 }: Props) {
+  // ร้านคิวงาน/ที่พักไม่มีพัสดุ — สถิติรับของ/ตีกลับอ่านเป็นความผิดปกติที่ไม่มีจริง (ตัดสินที่ SSOT เดียวกับหน้า /customers)
+  const showParcel = customerPageShowsParcels(vertical)
+  const listVocab = resolveCustomerListVocab(vertical)
   // `shippingAddress` เป็น Json ดิบจาก Prisma — แคบชนิดเท่าที่ใช้จริง ไม่ cast ทั้งก้อน
   const addressText =
     latestAddress && typeof latestAddress === 'object'
@@ -112,6 +122,8 @@ export default function CustomerProfileHeader({
           <CustomerBehaviorPills badges={warned ? warnings : badges.slice(0, 1)} />
         </div>
         <div className="card-body">
+          {showParcel && (
+            <>
           <p className="text-default-500 text-2xs mb-0">รับของสำเร็จ (ทั้งระบบ)</p>
           {rep && rep.shipped > 0 ? (
             <p className="text-default-900 mb-0 text-3xl font-extrabold tracking-tight tabular-nums">
@@ -125,21 +137,25 @@ export default function CustomerProfileHeader({
           )}
 
           <CustomerTrustBar reputation={rep} size="lg" />
+            </>
+          )}
 
-          <div className="border-default-100 mt-3 flex flex-col gap-2 border-t pt-3">
+          <div className={`border-default-100 flex flex-col gap-2 ${showParcel ? 'mt-3 border-t pt-3' : ''}`}>
             {/* อัตราโผล่เฉพาะตอนฐานพอ — null ไม่ใช่ 0 (ดูเหตุผลใน CustomerTrustBar) */}
-            <StatRow
-              label="อัตราตีกลับ (ทั้งระบบ)"
-              value={
-                enoughBase && rep.returnRate !== null
-                  ? `${Math.round(rep.returnRate * 100)}%`
-                  : rateUnavailableText()
-              }
-            />
+            {showParcel && (
+              <StatRow
+                label="อัตราตีกลับ (ทั้งระบบ)"
+                value={
+                  enoughBase && rep.returnRate !== null
+                    ? `${Math.round(rep.returnRate * 100)}%`
+                    : rateUnavailableText()
+                }
+              />
+            )}
             {rep && <StatRow label="ยกเลิกโดยลูกค้า (ทั้งระบบ)" value={`${rep.cancelledByBuyer} ครั้ง`} />}
             {/* ตัวเลข "ร้านนี้" อยู่ในการ์ดเดียวกันโดยตั้งใจ — ผู้ขายต้องเทียบสองชั้นในสายตาเดียว
                 แต่ชื่อ label ต้องบอกขอบเขตเองทุกบรรทัด ไม่ใช่แยกเป็นหัวข้อย่อยแล้วให้เดา */}
-            <StatRow label="ตีกลับกับร้านนี้" value={`${entry.behavior.returnedParcels} ครั้ง`} />
+            {showParcel && <StatRow label="ตีกลับกับร้านนี้" value={`${entry.behavior.returnedParcels} ครั้ง`} />}
             <StatRow label="ยกเลิกกับร้านนี้" value={`${entry.behavior.cancelledTotal} ครั้ง`} />
           </div>
         </div>
@@ -199,7 +215,7 @@ export default function CustomerProfileHeader({
       <div className="card">
         <div className="card-body flex flex-col gap-3">
           <div>
-            <p className="text-default-500 mb-0 text-sm">ยอดซื้อสะสม</p>
+            <p className="text-default-500 mb-0 text-sm">{listVocab.spentLabel}</p>
             <p className="text-2xs text-default-400 mb-1">(นับเป็นยอดขายแล้ว)</p>
             {/* พระเอกของการ์ดนี้ — ไม่ใช่การ์ด 5 ใบน้ำหนักเท่ากัน */}
             <p className="text-default-900 mb-0 text-3xl font-bold tabular-nums">
@@ -207,14 +223,14 @@ export default function CustomerProfileHeader({
             </p>
           </div>
           <div className="border-default-100 flex flex-col gap-2 border-t pt-3">
-            <StatRow label="ออเดอร์ทั้งหมด" value={String(entry.totalOrders)} />
+            <StatRow label={listVocab.profileTotalLabel} value={String(entry.totalOrders)} />
             {/* 🛑 `—` ไม่ใช่ ฿0 เมื่อไม่มีใบที่นับเป็นยอดขาย — "เฉลี่ยแล้วได้ศูนย์บาท" ไม่จริง
                 ความจริงคือ "ยังไม่มีอะไรให้เฉลี่ย" (สองอย่างนี้ผู้ใช้ตัดสินใจต่างกัน) */}
             <StatRow label="เฉลี่ยต่อบิล" value={avg === null ? '—' : formatBaht(avg)} />
             {/* จำนวนยกเลิกเป็นตัวเลขของตัวเอง — ห้ามให้ผู้ใช้ลบ "ทั้งหมด − ที่นับเป็นยอดขาย" เอง
                 (ผลต่างนั้นไม่เท่ากับจำนวนที่ยกเลิก เพราะมี PENDING/SHIPPED ที่ยังไม่จบคั่นอยู่) */}
             <StatRow label="ยกเลิก" value={String(entry.behavior.cancelledTotal)} />
-            <StatRow label="ซื้อล่าสุด" value={formatDateTime(entry.lastOrderISO)} />
+            <StatRow label={listVocab.profileLastLabel} value={formatDateTime(entry.lastOrderISO)} />
           </div>
         </div>
       </div>
@@ -222,7 +238,7 @@ export default function CustomerProfileHeader({
       {/* แถบ "ทั้งระบบ" ฉบับเต็มของ feature 00055 — ยก component เดิมมาใช้ซ้ำ ไม่เขียนใหม่
           วางใต้การ์ดยอดเงินโดยตั้งใจ: การ์ดพระเอกด้านบนสรุปให้แล้ว ตรงนี้คือรายละเอียดชิปเต็มชุด
           ไม่มีลูกค้าในระบบ / ไม่เคยมีออเดอร์ → ไม่ render เลย ไม่ใช่แถบว่าง (BR-BR-12) */}
-      {reputation && reputation.orders > 0 && <BuyerReputationRow data={reputation} />}
+      {showParcel && reputation && reputation.orders > 0 && <BuyerReputationRow data={reputation} />}
 
       {showAddress && (
         <div className="card">

@@ -38,7 +38,7 @@ import { countsAsRevenue } from '@/lib/order-revenue'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { getBestSellerProducts } from '@/services/product.service'
 // คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
-import { resolveOrderVocab } from '@/lib/seller-menu'
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 // นัดวันนี้ (feature 00024) — ตัวกั้น + ตัวนับ สำหรับไทล์ที่ 2 ของ OrderStatusBand
 import { canUseAppointments } from '@/lib/appointments'
 import type { ServiceWorkStage } from '@/lib/service-work-stage'
@@ -375,7 +375,7 @@ export default async function SellerDashboardPage() {
             // มีสองนิยามของคำว่า "เดือนนี้"
             getSalesChannelBreakdown(shop.id, rangePeriod),
             // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
-            getRecentActivity(shop.id, 6, { includeTopups: await shouldShowMoneyStatus() }),
+            getRecentActivity(shop.id, 6, { includeTopups: await shouldShowMoneyStatus(), vertical: shop.vertical }),
             // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
             shop.vertical === 'ONLINE_SALES'
               ? getProvinceSales(shop.id, rangePeriod)
@@ -688,7 +688,7 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
           <div className="xl:col-span-7">
-            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} />
+            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} vertical={shopVertical} />
           </div>
         </div>
 
@@ -711,7 +711,7 @@ export default async function SellerDashboardPage() {
 
         {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
         <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
-          <SalesReport series={salesSeries} summary={salesSummary}
+          <SalesReport series={salesSeries} summary={salesSummary} vertical={shopVertical}
           />
           <TopSellingProducts products={bestSellers} vertical={shopVertical} />
         </div>
@@ -721,7 +721,13 @@ export default async function SellerDashboardPage() {
             หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
           <div className="xl:col-span-5">
-            <RecentOrder orders={recentOrders} orderNoun={byVertical(t.vocab.orderNoun, shopVertical)} />
+            <RecentOrder
+              orders={recentOrders}
+              orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
+              serviceWords={shopVertical === 'SERVICE_QUEUE'
+                ? { buyerNoun: orderVocab.buyerNoun, shippedStatusLabel: orderVocab.shippedStatusLabel, itemSingular: resolveProductVocab(shopVertical).itemSingular }
+                : undefined}
+            />
           </div>
           <div className="xl:col-span-7">
             <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />

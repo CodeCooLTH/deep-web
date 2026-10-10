@@ -354,7 +354,7 @@ export default function OrderSummary({
             <Icon icon="note" className="text-warning-ink mt-0.5 shrink-0 text-sm" aria-hidden="true" />
             <span>
               <span className="font-semibold">หมายเหตุภายในร้าน</span> — {internalNote}
-              <span className="text-default-700"> (เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น)</span>
+              <span className="text-default-700"> (เห็นเฉพาะร้าน {vocab.buyerNoun}ไม่เห็น)</span>
             </span>
           </div>
         )}

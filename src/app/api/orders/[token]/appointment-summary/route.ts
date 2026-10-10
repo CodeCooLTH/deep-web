@@ -22,6 +22,7 @@ import { canAccessShop } from "@/lib/shop-context";
 import { sessionUserId } from "@/lib/session-user";
 import { prisma } from "@/lib/prisma";
 import { formatBaht } from "@/lib/format-money";
+import { resolveOrderVocab } from "@/lib/seller-menu";
 import { canUseAppointments, isTerminalAppointmentStatus } from "@/lib/appointments";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,9 @@ export async function GET(
     return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบประเภทงาน" }, { status: 403 });
   }
   if (!order.serviceStart) {
-    return NextResponse.json({ error: "คำสั่งซื้อนี้ไม่มีนัดหมาย" }, { status: 400 });
+    // เรียกบิลตามร้าน: ร้านบริการเห็น "งานบริการ" — vertical อื่นคงคำเดิม (LODGING ไม่ผ่านชุดคำของตัวเอง)
+    const noun = resolveOrderVocab(order.shop.vertical === "SERVICE_QUEUE" ? "SERVICE_QUEUE" : "ONLINE_SALES").noun;
+    return NextResponse.json({ error: `${noun}นี้ไม่มีนัดหมาย` }, { status: 400 });
   }
   if (isTerminalAppointmentStatus(order.appointmentStatus)) {
     return NextResponse.json({ error: "นัดนี้จบแล้ว ส่งสรุปไม่ได้" }, { status: 400 });

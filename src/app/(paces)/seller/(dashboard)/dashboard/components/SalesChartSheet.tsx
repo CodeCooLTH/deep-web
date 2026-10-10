@@ -254,7 +254,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
         : []),
       /** เส้น = จำนวนคำสั่งซื้อ คนละหน่วยกับแท่ง (ใบ vs บาท) จึงต้องมีแกน y ที่สอง ไม่งั้นเส้นจะแบน
        *  ติดพื้นเพราะเลขหลักหน่วยเทียบกับหลักพัน · `stackOnlyBar` กันไม่ให้ Apex เอาเส้นไปซ้อนยอดสะสม */
-      { name: 'คำสั่งซื้อ', type: 'line', data: maskFuture(orderCounts) },
+      { name: countNoun, type: 'line', data: maskFuture(orderCounts) },
     ],
     chart: {
       type: 'line', height: 220, stacked: true, stackOnlyBar: true, toolbar: { show: false },
@@ -315,7 +315,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       { show: false, tickAmount: 3, seriesName: barAxisName },
       { show: false, tickAmount: 3, seriesName: barAxisName },
       ...(showExpense ? [{ show: false, tickAmount: 3, seriesName: barAxisName }] : []),
-      { show: false, opposite: true, seriesName: 'คำสั่งซื้อ', min: 0 },
+      { show: false, opposite: true, seriesName: countNoun, min: 0 },
     ],
     grid: {
       show: true,

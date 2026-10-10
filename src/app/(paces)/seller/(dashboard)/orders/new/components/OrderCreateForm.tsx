@@ -11,6 +11,7 @@
  */
 'use client'
 
+import { orderFormWords } from './order-form-words'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -341,6 +342,8 @@ export default function OrderCreateForm({
   // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (UX-Design-Spec §A1:
   // "ร้าน SERVICE_QUEUE/LODGING ไม่เห็นแถวนี้เลย ไม่ใช่ disabled") ไม่ผูกกับ shipsGoods เพราะคนละคำถาม
   const showDeliveryToggle = shopVertical === 'ONLINE_SALES'
+  // คำร้านบริการสำหรับ block ลูกค้า/หมายเหตุ/นัด (ร้านอื่นได้คำเดิม)
+  const formWords = orderFormWords(shopVertical ?? '', vocab)
   /**
    * คำเรียก "ของที่ร้านขาย" ตามประเภทกิจการ (SSOT: PRODUCT_VOCAB) — ร้านคิวงานเรียก "บริการ"
    * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
@@ -1052,6 +1055,7 @@ export default function OrderCreateForm({
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
           orderNoun={vocab.noun}
+          words={formWords}
           productNoun={productNoun}
           productIcon={productVocab.soldIcon}
           unitLabel={productVocab.unitLabel}
@@ -1092,6 +1096,7 @@ export default function OrderCreateForm({
         <div className="lg:h-full">
           <CartPanel
             orderNoun={vocab.noun}
+            words={formWords}
             productNoun={productNoun}
             shipsGoods={shipsGoods}
             control={control}

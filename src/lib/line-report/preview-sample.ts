@@ -6,6 +6,7 @@
  * เวลา/วันที่รับจากผู้เรียก (server) — ห้ามอ่านนาฬิกาเองเพื่อกัน hydration mismatch
  */
 import { combineTotals, sumTrend } from '@/lib/line-report/aggregate'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import type { GroupSummary, ShopSummary, Trend, Window } from '@/lib/line-report/types'
 
 export type SampleShopInput = {
@@ -16,12 +17,16 @@ export type SampleShopInput = {
   state: string
 }
 
+// ชื่อตัวอย่างผันตามร้าน — เฉพาะร้านบริการที่เปลี่ยนเป็น "บริการตัวอย่าง" (ร้านอื่นคง "สินค้าตัวอย่าง" เดิม)
 // รูปตัวอย่างจาก asset กลาง (พรีวิวเท่านั้น — ไม่ถูกส่งเข้า LINE) · ตัวที่สามไม่มีรูป ให้เห็นกล่องเทาแทน
-const TOP3 = [
-  { name: 'สินค้าตัวอย่าง ก', qty: 42, amount: 25200, imageUrl: '/images/cards/apple-watch-series-7.png' },
-  { name: 'สินค้าตัวอย่าง ข', qty: 31, amount: 15500, imageUrl: '/images/cards/nike-air-jordan.png' },
-  { name: 'สินค้าตัวอย่าง ค', qty: 18, amount: 5400 },
-]
+const sampleTop3 = (vertical: string | null) => {
+  const item = vertical === 'SERVICE_QUEUE' ? resolveProductVocab('SERVICE_QUEUE').itemColLabel : 'สินค้า'
+  return [
+    { name: `${item}ตัวอย่าง ก`, qty: 42, amount: 25200, imageUrl: '/images/cards/apple-watch-series-7.png' },
+    { name: `${item}ตัวอย่าง ข`, qty: 31, amount: 15500, imageUrl: '/images/cards/nike-air-jordan.png' },
+    { name: `${item}ตัวอย่าง ค`, qty: 18, amount: 5400 },
+  ]
+}
 
 const shiftIso = (iso: string, days: number): string => {
   const d = new Date(`${iso}T00:00:00Z`)
@@ -50,7 +55,7 @@ function sampleShop(s: SampleShopInput, i: number, endIso: string): ShopSummary 
     confirmed: 128_000 - i * 17_500,
     unconfirmed: 12_400 - i * 1_200,
     cancelled: 2 + i,
-    top3: TOP3,
+    top3: sampleTop3(s.vertical),
     trend: sampleTrend(endIso, i),
   }
 }

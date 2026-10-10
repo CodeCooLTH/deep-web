@@ -31,9 +31,11 @@ interface ProductCostCardV2Props {
   register: UseFormRegister<ProductFormV2Values>
   errors: FieldErrors<ProductFormV2Values>
   watch: UseFormWatch<ProductFormV2Values>
+  /** หน่วยนับต่อ 1 ขาย — default "ชิ้น" (ร้านบริการ = "ครั้ง") */
+  unitLabel?: string
 }
 
-export default function ProductCostCardV2({ register, errors, watch }: ProductCostCardV2Props) {
+export default function ProductCostCardV2({ register, errors, watch, unitLabel = 'ชิ้น' }: ProductCostCardV2Props) {
   const price = watch('price')
   const cost = watch('cost')
 
@@ -89,12 +91,12 @@ export default function ProductCostCardV2({ register, errors, watch }: ProductCo
         // เฉพาะเมื่อมีสตางค์จริง และ **ไม่มีเครื่องหมายลบชน ฿** ทิศทางสื่อด้วยคำ ("ขาดทุนต่อชิ้น")
         <p className="text-default-700 mt-1 text-xs">
           {marginAmount < 0
-            ? `ขายต่ำกว่าทุน ${formatBaht(marginAmount)} ต่อชิ้น`
-            : `กำไรต่อชิ้น ${formatBaht(marginAmount)}`}
+            ? `ขายต่ำกว่าทุน ${formatBaht(marginAmount)} ต่อ${unitLabel}`
+            : `กำไรต่อ${unitLabel} ${formatBaht(marginAmount)}`}
         </p>
       ) : (
         // empty state ต้องสอนว่ากรอกแล้วได้อะไร ไม่ใช่ปล่อยว่าง (operate.md)
-        <p className="text-default-400 mt-1 text-xs">กรอกราคาทุนเพื่อดูกำไรต่อชิ้นอัตโนมัติ</p>
+        <p className="text-default-400 mt-1 text-xs">กรอกราคาทุนเพื่อดูกำไรต่อ{unitLabel}อัตโนมัติ</p>
       )}
     </div>
   )

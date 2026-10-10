@@ -25,9 +25,11 @@ interface Props {
   onSelect: (c: CustomerResult) => void
   onUseNew: (query: string) => void
   onClose: () => void
+  /** หน่วยนับหลัง "ลูกค้าเดิม N" — ร้านบริการ = "ครั้ง" · ไม่ส่ง = "ออเดอร์" */
+  orderUnit?: string
 }
 
-export default function CustomerSearchSheet({ open, initialQuery = '', onSelect, onUseNew, onClose }: Props) {
+export default function CustomerSearchSheet({ open, initialQuery = '', onSelect, onUseNew, onClose, orderUnit = 'ออเดอร์' }: Props) {
   // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
   useLockBodyScroll(open)
 
@@ -161,7 +163,7 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-dark">{c.name ?? c.contact}</p>
                 <p className="text-xs text-default-500">
-                  {c.contact} · ลูกค้าเดิม {c.orderCount} ออเดอร์
+                  {c.contact} · ลูกค้าเดิม {c.orderCount} {orderUnit}
                 </p>
               </div>
               <Icon icon="chevron-right" className="size-4 shrink-0 text-default-400" />

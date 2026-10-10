@@ -23,15 +23,19 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTH, formatDayMonthShortYearTH, formatTimeHM } from '@/lib/format-date'
 import { ORDER_EVENT_META, describeOrderEvent, resolveOrderEventLabel, type OrderEventView } from '@/lib/order-event'
+import type { OrderVocab } from '@/lib/seller-menu'
 
 export default function ShippingActivity({
   events,
   orderNoun = 'คำสั่งซื้อ',
   createLabel = 'สร้างคำสั่งซื้อ',
+  serviceVocab,
 }: {
   events: OrderEventView[]
   orderNoun?: string
   createLabel?: string
+  /** คลังคำเต็มของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) — ไม่ส่ง = คำกลางเดิม */
+  serviceVocab?: OrderVocab
 }) {
   return (
     <div className="card">
@@ -54,7 +58,7 @@ export default function ShippingActivity({
           <div>
             {events.map((ev, idx) => {
               const meta = ORDER_EVENT_META[ev.type]
-              const desc = describeOrderEvent(ev)
+              const desc = describeOrderEvent(ev, serviceVocab)
               const isLast = idx === events.length - 1
               return (
                 <div className="flex gap-x-3 md:gap-x-base" key={ev.id}>
@@ -118,7 +122,7 @@ export default function ShippingActivity({
                     {/* min-h-9 เท่ากับวงกลม → หัวข้อจัดกึ่งกลางตรงกับไอคอนพอดี (user 2026-08-05) */}
                     {/* 3 event ของ order-lifecycle ผันตาม vertical (BR-BKU-09) — โดเมนพัสดุคง label กลาง */}
                     <h5 className="text-default-800 flex min-h-9 items-center text-sm font-medium">
-                      {resolveOrderEventLabel(ev.type, { noun: orderNoun, createLabel })}
+                      {resolveOrderEventLabel(ev.type, { noun: orderNoun, createLabel }, serviceVocab)}
                     </h5>
                     {desc && <p className="text-default-700 mt-0.5 mb-1 text-sm break-words">{desc}</p>}
                     {/* ไม่มีทั้ง actor และชื่อที่ freeze ไว้ = ระบบทำเอง — ห้ามเดาชื่อเจ้าของร้านมาเติม */}

@@ -48,6 +48,13 @@ interface BulkActionBarProps {
    * ต้องไม่เห็นปุ่มนี้ ไม่ใช่เห็นแล้วกดไม่ได้ (BR-ISHIP-01)
    */
   ishipEnabled?: boolean
+  /**
+   * คำเรียกของร้าน — ส่งมาจาก OrdersTable (ร้านบริการผันเป็นงานบริการ/ลูกค้า) · ไม่ส่ง = คำเดิมของร้านขายของ
+   * orderWord = "ออเดอร์" ในจำนวนนับ · linkNoun = "คำสั่งซื้อ" ในประโยคลิงก์ · buyerNoun = "ผู้ซื้อ"
+   */
+  orderWord?: string
+  linkNoun?: string
+  buyerNoun?: string
 }
 
 // terminal = ส่ง SMS ไม่ได้ (เหมือน OrderActions.tsx)
@@ -58,6 +65,9 @@ export default function BulkActionBar({
   onClear,
   buyerBaseUrl,
   ishipEnabled = false,
+  orderWord = 'ออเดอร์',
+  linkNoun = 'คำสั่งซื้อ',
+  buyerNoun = 'ผู้ซื้อ',
 }: BulkActionBarProps) {
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const [printing, setPrinting] = useState(false)
@@ -154,10 +164,10 @@ export default function BulkActionBar({
    */
   const handleSmsClick = async () => {
     const skippedNote =
-      skippedCount > 0 ? `\n\nข้าม ${skippedCount} ออเดอร์ที่เสร็จสิ้น/ยกเลิกแล้ว (ส่ง SMS ไม่ได้)` : ''
+      skippedCount > 0 ? `\n\nข้าม ${skippedCount} ${orderWord}ที่เสร็จสิ้น/ยกเลิกแล้ว (ส่ง SMS ไม่ได้)` : ''
     const ok = await pacesConfirm.question(
-      `ส่ง SMS ให้ ${eligibleCount} ออเดอร์?`,
-      `ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อแต่ละออเดอร์ และหัก ฿${eligibleCount} จากกระเป๋าเงินของคุณ${skippedNote}`,
+      `ส่ง SMS ให้ ${eligibleCount} ${orderWord}?`,
+      `ระบบจะส่งลิงก์${linkNoun}ทาง SMS ให้${buyerNoun}แต่ละ${orderWord} และหัก ฿${eligibleCount} จากกระเป๋าเงินของคุณ${skippedNote}`,
       { confirmButtonText: `ส่ง SMS (฿${eligibleCount})` },
     )
     if (ok) setSmsDialogOpen(true)
@@ -177,7 +187,7 @@ export default function BulkActionBar({
           {/* zone 1: count */}
           <div className="flex items-center gap-2 ps-4 pe-3">
             <span className="badge bg-primary text-white rounded-full">{selectedCount}</span>
-            <span className="text-xs text-white/70 font-medium text-nowrap">ออเดอร์ที่เลือก</span>
+            <span className="text-xs text-white/70 font-medium text-nowrap">{orderWord}ที่เลือก</span>
           </div>
 
           <span className="border-l border-white/20 self-stretch my-1.5" aria-hidden="true" />
@@ -197,7 +207,7 @@ export default function BulkActionBar({
               type="button"
               onClick={() => void handleSmsClick()}
               disabled={eligibleCount === 0}
-              title={eligibleCount === 0 ? 'ออเดอร์ที่เลือกทั้งหมดเสร็จสิ้นแล้ว ส่ง SMS ไม่ได้' : undefined}
+              title={eligibleCount === 0 ? `${orderWord}ที่เลือกทั้งหมดเสร็จสิ้นแล้ว ส่ง SMS ไม่ได้` : undefined}
               className="btn bg-primary hover:bg-primary-hover text-white rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
             >
               <Icon icon="message-forward" className="size-4.5" />
@@ -235,6 +245,7 @@ export default function BulkActionBar({
       <BulkSmsProgressDialog
         open={smsDialogOpen}
         eligibleRows={eligibleRows}
+        orderWord={orderWord}
         onComplete={() => {
           setSmsDialogOpen(false)
           onClear()
@@ -252,13 +263,14 @@ interface BulkSmsProgressDialogProps {
   open: boolean
   eligibleRows: TableRow<OrderRow>[]
   onComplete: () => void
+  orderWord: string
 }
 
 /**
  * overlay แสดงความคืบหน้าของ loop ส่ง SMS + สรุปผล — เปิดหลังผู้ใช้กดยืนยันใน Sweet Alert แล้ว
  * เท่านั้น (ขั้นยืนยันอยู่ที่ handleSmsClick ตาม Hard Rule 8) จึงเริ่มยิงทันทีที่ open
  */
-function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgressDialogProps) {
+function BulkSmsProgressDialog({ open, eligibleRows, onComplete, orderWord }: BulkSmsProgressDialogProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
   const total = eligibleRows.length
@@ -331,11 +343,11 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgre
     setPhase('done')
 
     if (sent === total) {
-      pacesToast.success(`ส่ง SMS แล้ว ${sent} ออเดอร์ หัก ฿${sent} จากยอดเงิน`)
+      pacesToast.success(`ส่ง SMS แล้ว ${sent} ${orderWord} หัก ฿${sent} จากยอดเงิน`)
     } else if (sent === 0) {
       pacesToast.error(credit ? 'ยอดเงินไม่พอ' : 'ส่ง SMS ล้มเหลวทั้งหมด กรุณาลองใหม่')
     } else {
-      pacesToast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ออเดอร์`)
+      pacesToast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ${orderWord}`)
     }
   }
 
@@ -392,7 +404,7 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgre
                   <span className="flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
                     <Icon icon="circle-check" className="text-3xl" />
                   </span>
-                  <p className="font-semibold text-default-800 text-base">ส่ง SMS สำเร็จ {progress.sent} ออเดอร์</p>
+                  <p className="font-semibold text-default-800 text-base">ส่ง SMS สำเร็จ {progress.sent} {orderWord}</p>
                 </>
               ) : (
                 <>
@@ -400,7 +412,7 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgre
                     <Icon icon="alert-circle" className="text-3xl" />
                   </span>
                   <div>
-                    <p className="font-semibold text-default-800 text-base">สำเร็จ {progress.sent} · ล้มเหลว {progress.failed} ออเดอร์</p>
+                    <p className="font-semibold text-default-800 text-base">สำเร็จ {progress.sent} · ล้มเหลว {progress.failed} {orderWord}</p>
                     {/* 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน (Guideline 3.1.1) — บอกได้แค่
                         สาเหตุว่าทำต่อไม่ได้ ผู้ขายเห็นยอดคงเหลือจากหน้าแรก/หน้ากระเป๋าเงินอยู่แล้ว */}
                     {creditError && (

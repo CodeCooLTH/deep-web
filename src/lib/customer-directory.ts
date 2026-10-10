@@ -368,6 +368,13 @@ export type CustomerListVocab = {
   warnLabel: string
   totalCol: string
   lastCol: string
+  /**
+   * ป้ายในการ์ดสรุปของโปรไฟล์ลูกค้า (/customers/[id]) — แยกจาก totalCol/lastCol เพราะหน้านี้ใช้คำเดิม
+   * ("ออเดอร์ทั้งหมด"/"ซื้อล่าสุด") ซึ่งไม่ตรงกับหัวคอลัมน์ของลิสต์ และ LODGING ต้องคงคำเดิมของหน้า
+   */
+  spentLabel: string
+  profileTotalLabel: string
+  profileLastLabel: string
   /** หน่วยต่อท้ายตัวเลขบนการ์ดมือถือ: "{n} {unit}" */
   unit: string
   repeatTileTitle: string
@@ -379,6 +386,9 @@ const ONLINE_LIST_VOCAB: CustomerListVocab = {
   warnLabel: 'มีสัญญาณเตือนกับร้านนี้',
   totalCol: 'ออเดอร์ทั้งหมด',
   lastCol: 'ออเดอร์ล่าสุด',
+  spentLabel: 'ยอดซื้อสะสม',
+  profileTotalLabel: 'ออเดอร์ทั้งหมด',
+  profileLastLabel: 'ซื้อล่าสุด',
   unit: 'ออเดอร์',
   repeatTileTitle: 'ลูกค้าที่ซื้อซ้ำ',
   repeatTileCaption: 'ซื้อตั้งแต่ 2 ครั้ง',
@@ -393,6 +403,9 @@ export const CUSTOMER_LIST_VOCAB: Record<string, CustomerListVocab> = {
     warnLabel: SERVICE_WARN,
     totalCol: 'ใช้บริการทั้งหมด',
     lastCol: 'ใช้บริการล่าสุด',
+    spentLabel: 'ยอดใช้บริการสะสม',
+    profileTotalLabel: 'ใช้บริการทั้งหมด',
+    profileLastLabel: 'ใช้บริการล่าสุด',
     unit: 'ครั้ง',
     repeatTileTitle: 'ลูกค้าที่ใช้บริการซ้ำ',
     repeatTileCaption: 'ใช้บริการตั้งแต่ 2 ครั้ง',
@@ -402,6 +415,10 @@ export const CUSTOMER_LIST_VOCAB: Record<string, CustomerListVocab> = {
     warnLabel: SERVICE_WARN,
     totalCol: 'บิลทั้งหมด',
     lastCol: 'บิลล่าสุด',
+    // ที่พักยังไม่ได้ทบทวนคำ — คงข้อความเดิมของหน้าทั้ง 3 ป้าย
+    spentLabel: 'ยอดซื้อสะสม',
+    profileTotalLabel: 'ออเดอร์ทั้งหมด',
+    profileLastLabel: 'ซื้อล่าสุด',
     unit: 'บิล',
     repeatTileTitle: 'ลูกค้าที่เข้าพักซ้ำ',
     repeatTileCaption: 'เปิดบิลตั้งแต่ 2 ใบ',

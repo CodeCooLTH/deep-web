@@ -1063,6 +1063,7 @@ export default function OrdersList({
               searchQuery={isSearchActive(appliedSearch) ? appliedSearch : undefined}
               isExactSearchMatch={hitMeta.get(order.publicToken)?.isExactMatch ?? false}
               matchedItemIndexes={hitMeta.get(order.publicToken)?.matchedItemIndexes}
+              serviceVocab={isService ? { noun: vocab.noun, buyerNoun: vocab.buyerNoun } : undefined}
             />
           ))}
 

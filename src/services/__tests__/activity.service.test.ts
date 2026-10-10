@@ -123,6 +123,20 @@ describe('getRecentActivity', () => {
     expect(item!.href).toBe('/orders/abcdef12-3456-7890-abcd-ef1234567890')
   })
 
+  // --- ผันคำตามประเภทกิจการ (ร้านบริการเท่านั้น) ---
+  it.each([
+    ['SERVICE_QUEUE', 'สร้างงานบริการ ABCDEF12', 'ลูกค้ายืนยัน ABCDEF12'],
+    ['LODGING', 'สร้างคำสั่งซื้อ ABCDEF12', 'ผู้ซื้อยืนยัน ABCDEF12'],
+    ['ONLINE_SALES', 'สร้างคำสั่งซื้อ ABCDEF12', 'ผู้ซื้อยืนยัน ABCDEF12'],
+  ])('vertical %s → label ถูกคำ (LODGING/ONLINE คงคำเดิม)', async (vertical, created, confirmed) => {
+    setupMocks({
+      orders: [{ publicToken: 'abcdef12-3456-7890-abcd-ef1234567890', status: 'CONFIRMED', createdAt: dMinsAgo(9), updatedAt: dMinsAgo(8) }],
+    })
+    const result = await getRecentActivity('shop-1', 10, { includeTopups: false, vertical })
+    expect(result.find((i) => i.type === 'ORDER_CREATED')!.label).toBe(created)
+    expect(result.find((i) => i.type === 'ORDER_CONFIRMED')!.label).toBe(confirmed)
+  })
+
   // --- ORDER_CONFIRMED mapper ---
   it('order status CONFIRMED → มีทั้ง ORDER_CREATED และ ORDER_CONFIRMED', async () => {
     const createdAt = dMinsAgo(60)

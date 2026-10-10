@@ -191,7 +191,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} />
+      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
     </>
   )
 }

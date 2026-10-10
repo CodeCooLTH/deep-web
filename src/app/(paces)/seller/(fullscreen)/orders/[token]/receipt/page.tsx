@@ -135,7 +135,7 @@ export default async function ReceiptPage({ params }: PageProps) {
         </div>
         {data.cancelled ? (
           <Notice icon="ban" tone="danger">
-            ออเดอร์นี้ถูกยกเลิกแล้ว ใบเสร็จจะพิมพ์ออกมาพร้อมลายน้ำ &ldquo;ยกเลิก&rdquo;
+            {ORDER_VOCAB.SERVICE_QUEUE.noun}นี้ถูกยกเลิกแล้ว ใบเสร็จจะพิมพ์ออกมาพร้อมลายน้ำ &ldquo;ยกเลิก&rdquo;
           </Notice>
         ) : outstanding > 0 ? (
           <Notice icon="alert-triangle" tone="warning">

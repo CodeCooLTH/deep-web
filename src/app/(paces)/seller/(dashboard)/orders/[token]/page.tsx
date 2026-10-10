@@ -295,7 +295,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     if (order.buyer?.displayName) return order.buyer.displayName
     const raw = order.review?.reviewerContact ?? order.buyerContact ?? null
     if (raw) return raw
-    return 'ผู้ซื้อ (ไม่ระบุชื่อ)'
+    return `${shop.vertical === 'SERVICE_QUEUE' ? vocab.buyerNoun : 'ผู้ซื้อ'} (ไม่ระบุชื่อ)`
   })()
 
   const reviewData: OrderReviewData | null = order.review
@@ -486,7 +486,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
         // feature 00065 — เลขใบเสร็จที่ออกแล้ว (เมนู ⋯ "พิมพ์ใบเสร็จ"/"ดูใบเสร็จ")
         receiptNo={receiptNo}
-        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} />}
+        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} serviceVocab={shop.vertical === 'SERVICE_QUEUE' ? vocab : undefined} />}
         customerCard={
           <CustomerDetails
             summary={customerSummary}
@@ -640,7 +640,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 serviceMoney={serviceMoney}
               />
             )}
-            {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}
+            {showReviewCard && <OrderReviewCard
+              orderNoun={vocab.noun}
+              review={reviewData}
+              buyerNoun={shop.vertical === 'SERVICE_QUEUE' ? vocab.buyerNoun : undefined}
+              confirmedPhrase={shop.vertical === 'SERVICE_QUEUE' ? vocab.buyerConfirmLabel : undefined}
+            />}
           </>
         }
       />

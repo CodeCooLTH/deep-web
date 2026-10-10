@@ -22,13 +22,14 @@ export type InterestedProductsSectionProps = {
   conversationId: string
   channel: string // ส่งต่อให้ picker
   state: ReturnType<typeof useChatMemory>
+  vertical?: string | null // ส่งต่อให้ picker ผันคำเรียกของที่ขาย (ไม่ส่ง = ONLINE_SALES)
   onRequestClose?: () => void // sheet เท่านั้น: ปิด sheet หลังยิง PRODUCT_TRAY_OPEN_EVENT
 }
 
 const noop = () => {}
 const noopMany = async () => ({ ok: false, sentMessages: 0 })
 
-export default function InterestedProductsSection({ channel, state, onRequestClose }: InterestedProductsSectionProps) {
+export default function InterestedProductsSection({ channel, state, vertical, onRequestClose }: InterestedProductsSectionProps) {
   const t = useT()
   const m = t.inbox.customerPanel.interested
   const { data } = state
@@ -108,6 +109,7 @@ export default function InterestedProductsSection({ channel, state, onRequestClo
           mode="attach"
           inline
           channel={channel}
+          vertical={vertical}
           onPick={noop}
           onSendMany={noopMany}
           onClose={() => setPickerOpen(false)}

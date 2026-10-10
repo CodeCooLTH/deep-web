@@ -474,7 +474,7 @@ export default function OrderDetailClient({
   const handleCodReceived = async () => {
     const ok = await pacesConfirm.question(
       'ยืนยันว่าได้รับเงินปลายทางแล้ว?',
-      'ระบบจะบันทึกว่าร้านได้รับเงินของคำสั่งซื้อนี้แล้ว และใบนี้จะออกจากกอง "รอเงิน COD" บนหน้าแรก',
+      `ระบบจะบันทึกว่าร้านได้รับเงินของ${isServiceQueue ? vocab.noun : 'คำสั่งซื้อ'}นี้แล้ว และใบนี้จะออกจากกอง "รอเงิน COD" บนหน้าแรก`,
       { confirmButtonText: 'ได้รับเงินแล้ว', cancelButtonText: 'ยังไม่ได้รับ' },
     )
     if (!ok) return
@@ -528,7 +528,7 @@ export default function OrderDetailClient({
   const handlePaymentReceived = async () => {
     const ok = await pacesConfirm.question(
       'ยืนยันว่าได้รับเงินแล้ว?',
-      'ระบบจะบันทึกว่าร้านได้รับเงินของคำสั่งซื้อนี้แล้ว — ยกเลิกภายหลังได้ถ้ากดผิด',
+      `ระบบจะบันทึกว่าร้านได้รับเงินของ${isServiceQueue ? vocab.noun : 'คำสั่งซื้อ'}นี้แล้ว — ยกเลิกภายหลังได้ถ้ากดผิด`,
       { confirmButtonText: 'ได้รับเงินแล้ว', cancelButtonText: 'ยังไม่ได้รับ' },
     )
     if (!ok) return

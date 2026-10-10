@@ -236,7 +236,7 @@ export default function OrderSlip({
                   endIcon={<Icon icon='tabler-chevron-right' fontSize={16} />}
                   sx={{ display: 'none', minHeight: 44, fontWeight: 500, fontSize: '0.8125rem', flexShrink: 0, [ORDER_TWO_COL_MQ]: { display: 'inline-flex' } }}
                 >
-                  ดูคำสั่งซื้อทั้งหมด
+                  ดู{noun}ทั้งหมด
                 </Button>
               )}
             </Box>

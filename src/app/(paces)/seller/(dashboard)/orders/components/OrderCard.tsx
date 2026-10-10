@@ -123,6 +123,8 @@ interface OrderCardProps {
   isExactSearchMatch?: boolean
   /** สินค้าชิ้นที่ตรงคำค้น — ใช้ตัดสินว่าต้องกางรายการที่ยุบไว้ไหม */
   matchedItemIndexes?: number[]
+  /** คำของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) — ส่งต่อจาก OrdersList ลง QR/SMS · ไม่ส่ง = คำเดิม */
+  serviceVocab?: { noun: string; buyerNoun: string }
 }
 
 export default function OrderCard({
@@ -132,6 +134,7 @@ export default function OrderCard({
   searchQuery,
   isExactSearchMatch = false,
   matchedItemIndexes,
+  serviceVocab,
 }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -469,7 +472,7 @@ export default function OrderCard({
               relative z-10: ยกทั้งกลุ่มขึ้นเหนือแผ่นลิงก์ — .btn ของ Paces มี z-index:10 ในตัวอยู่แล้ว
               แต่เมนู ⋮ กางออกมาเป็น panel ที่ไม่ใช่ .btn จึงต้องยกที่ระดับกลุ่ม ไม่ใช่รายปุ่ม */}
           <div className="relative z-10 shrink-0">
-            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" orderNoun={vocab.noun} />
+            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" orderNoun={vocab.noun} serviceVocab={serviceVocab} />
           </div>
         </div>
 

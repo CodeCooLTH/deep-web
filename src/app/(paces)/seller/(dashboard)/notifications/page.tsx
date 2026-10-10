@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
     if (shop?.id) {
       // ครอบ try/catch แยก — getRecentActivity มี try/catch ใน service อยู่แล้ว
       // แต่ wrap อีกชั้นเพื่อกัน crash ถ้า service throw ในอนาคต
-      items = await getRecentActivity(shop.id, 20, { includeTopups: await shouldShowMoneyStatus() })
+      items = await getRecentActivity(shop.id, 20, { includeTopups: await shouldShowMoneyStatus(), vertical: shop.vertical })
     }
     // ไม่มี shop → items = [] → NotificationFeed แสดง empty state
   } catch {

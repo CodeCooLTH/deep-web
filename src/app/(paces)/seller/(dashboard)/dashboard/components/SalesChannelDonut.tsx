@@ -23,6 +23,7 @@ import type { ApexOptions } from 'apexcharts'
 import type { SalesChannelSlice } from '@/services/dashboard.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import { dashboardOrderWords } from './order-words'
 
 type Props = {
   slices: SalesChannelSlice[]
@@ -33,6 +34,8 @@ type Props = {
    * ไทยเป็นคำเดิมทุกตัวอักษร จึงส่งค่าเดียวกันได้; แยก prop เพราะภาษาอังกฤษต้องต่างจริง
    */
   rangeLabelInline?: string
+  /** ประเภทกิจการ — ร้านบริการเห็น "งานบริการ" แทน "ออเดอร์" */
+  vertical?: string
 }
 
 /**
@@ -53,8 +56,9 @@ const CHANNEL_COLOR_TOKEN: Record<string, string> = {
 
 const colorOf = (channel: string) => getColor(CHANNEL_COLOR_TOKEN[channel] ?? 'chart-gray')
 
-const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline }: Props) => {
+const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline, vertical }: Props) => {
   const t = useT()
+  const words = dashboardOrderWords(t, vertical)
   const total = slices.reduce((sum, s) => sum + s.orderCount, 0)
 
   const getOptions = (): ApexOptions => ({
@@ -70,7 +74,7 @@ const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline }: Props) => {
             total: {
               showAlways: true,
               show: true,
-              label: t.dashboard.statOrders,
+              label: words.title,
               formatter: () => String(total),
             },
           },
@@ -82,7 +86,7 @@ const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline }: Props) => {
     colors: slices.map((s) => colorOf(s.channel)),
     dataLabels: { enabled: false },
     tooltip: {
-      y: { formatter: (v: number) => fmt(t.dashboard.channelsOrdersUnit, { n: v.toLocaleString('th-TH') }) },
+      y: { formatter: (v: number) => fmt(t.dashboard.channelsOrdersUnit, { n: v.toLocaleString('th-TH'), word: words.word }) },
     },
     responsive: [{ breakpoint: 480, options: { chart: { width: 180 } } }],
   })
@@ -100,8 +104,8 @@ const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline }: Props) => {
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
               <Icon icon="chart-donut" className="text-2xl" />
             </span>
-            <p className="text-sm font-semibold">{fmt(t.dashboard.channelsEmptyTitle, { range: rangeLabelInline ?? rangeLabel })}</p>
-            <p className="text-xs text-default-500">{t.dashboard.channelsEmptyDesc}</p>
+            <p className="text-sm font-semibold">{fmt(t.dashboard.channelsEmptyTitle, { range: rangeLabelInline ?? rangeLabel, word: words.word })}</p>
+            <p className="text-xs text-default-500">{fmt(t.dashboard.channelsEmptyDesc, { noun: words.noun })}</p>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-4">

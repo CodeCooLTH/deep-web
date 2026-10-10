@@ -9,10 +9,13 @@ import Rating from '@/components/Rating'
 import Link from 'next/link'
 import { formatDateTime } from '@/lib/format-date'
 import DeleteProductButton from './DeleteProductButton'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import type { ProductDetailProps } from './data'
 
 interface Props {
   product: ProductDetailProps
+  /** Shop.vertical — ผันคำ "สินค้า"/ยอดขาย (ร้านบริการ = รายการ/ใช้บริการแล้ว N ครั้ง) */
+  vertical?: string
 }
 
 const TYPE_META: Record<ProductDetailProps['type'], { icon: string; label: string; cls: string }> = {
@@ -38,7 +41,10 @@ const TYPE_META: Record<ProductDetailProps['type'], { icon: string; label: strin
   },
 }
 
-const ProductDetails = ({ product }: Props) => {
+const ProductDetails = ({ product, vertical }: Props) => {
+  const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
+  // ร้านบริการเท่านั้นที่เปลี่ยนหน่วยยอดขาย — LODGING ต้องคง "ขายแล้ว/ชิ้น" เดิม (unitLabel ของที่พักคือ "คืน")
+  const isService = vertical === 'SERVICE_QUEUE'
   const { id, name, price, rating, reviews, description, type, totalSold, createdAt } = product
   const meta = TYPE_META[type] ?? TYPE_META.PHYSICAL
 
@@ -59,7 +65,7 @@ const ProductDetails = ({ product }: Props) => {
         </div>
       </div>
 
-      {/* ชื่อสินค้า */}
+      {/* ชื่อสินค้า/บริการ */}
       <div className="mt-5 mb-5 md:mb-7.5">
         <h4 className="text-lg">{name}</h4>
       </div>
@@ -71,8 +77,8 @@ const ProductDetails = ({ product }: Props) => {
           <p className="font-medium">{meta.label}</p>
         </div>
         <div>
-          <h6 className="text-default-400 text-xs mb-1.25">ขายแล้ว:</h6>
-          <p className="font-medium">{totalSold.toLocaleString('th-TH')} ชิ้น</p>
+          <h6 className="text-default-400 text-xs mb-1.25">{isService ? 'ใช้บริการแล้ว:' : 'ขายแล้ว:'}</h6>
+          <p className="font-medium">{totalSold.toLocaleString('th-TH')} {isService ? vocab.unitLabel : 'ชิ้น'}</p>
         </div>
         <div>
           <h6 className="text-default-400 text-xs mb-1.25">รีวิว:</h6>
@@ -92,11 +98,11 @@ const ProductDetails = ({ product }: Props) => {
       </h3>
 
       {/* รายละเอียดสินค้า — empty-state ถ้าไม่มีข้อมูล */}
-      <h5 className="text-default-400 mb-2.5 text-xs">รายละเอียดสินค้า:</h5>
+      <h5 className="text-default-400 mb-2.5 text-xs">รายละเอียด{vocab.itemSingular}:</h5>
       {description ? (
         <p className="mb-5 whitespace-pre-line">{description}</p>
       ) : (
-        <p className="mb-5 text-default-400 italic text-sm">ไม่มีรายละเอียดสินค้า</p>
+        <p className="mb-5 text-default-400 italic text-sm">ไม่มีรายละเอียด{vocab.itemSingular}</p>
       )}
 
       {/* Action buttons */}
@@ -106,9 +112,9 @@ const ProductDetails = ({ product }: Props) => {
           className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-1.5"
         >
           <Icon icon="pencil" className="text-base" />
-          แก้ไขสินค้า
+          แก้ไข{vocab.itemSingular}
         </Link>
-        <DeleteProductButton productId={id} />
+        <DeleteProductButton productId={id} itemSingular={vocab.itemSingular} />
       </div>
     </>
   )

@@ -306,14 +306,16 @@ export const th = {
 
     channelsTitle: 'ช่องทางการขาย',
     /** {range} = "วันนี้"/"เดือนนี้" — ไทยเอาช่วงเวลาขึ้นก่อน อังกฤษเอาไว้ท้ายประโยค */
-    channelsEmptyTitle: '{range}ยังไม่มีออเดอร์',
-    channelsEmptyDesc: 'เมื่อมีคำสั่งซื้อ สัดส่วนช่องทางจะแสดงที่นี่',
-    channelsOrdersUnit: '{n} ออเดอร์',
+    /** {word} = ordersWord (ออเดอร์ / ร้านบริการ "งานบริการ") · {noun} = vocab.orderNoun */
+    ordersWord: 'ออเดอร์',
+    channelsEmptyTitle: '{range}ยังไม่มี{word}',
+    channelsEmptyDesc: 'เมื่อมี{noun} สัดส่วนช่องทางจะแสดงที่นี่',
+    channelsOrdersUnit: '{n} {word}',
 
     salesTitle: 'รายงานยอดขาย',
     salesSubtitle: 'ยอดขายรายเดือน',
     salesEmptyTitle: 'ยังไม่มียอดขาย',
-    salesEmptyDesc: 'กราฟจะแสดงเมื่อเริ่มมีออเดอร์',
+    salesEmptyDesc: 'กราฟจะแสดงเมื่อเริ่มมี{word}',
     salesSeriesRevenue: 'รายได้รวม',
     salesSeriesOrders: 'ออเดอร์',
     salesSummaryRevenue: 'รายได้',
