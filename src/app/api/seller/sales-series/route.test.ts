@@ -18,10 +18,10 @@ import { getServerSession } from 'next-auth'
 
 const req = () => new NextRequest('http://seller.deepth.local/api/seller/sales-series?mode=monthly&year=2026')
 
-function as(role: 'OWNER' | 'ADMIN') {
+function as(role: 'OWNER' | 'ADMIN', adminRoles: string[] = ['MANAGER']) {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1' } } as never)
   // เจ้าของร่วม = ShopMember.role OWNER แต่ shop.userId เป็นคนอื่น — ตัดสินที่ role ไม่ใช่ shop.userId
-  requireShopForRequestMock.mockResolvedValue({ ok: true, target: { shop: { id: 's1', userId: 'someone-else', kind: 'BUSINESS', vertical: 'ONLINE_SALES' }, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] } })
+  requireShopForRequestMock.mockResolvedValue({ ok: true, target: { shop: { id: 's1', userId: 'someone-else', kind: 'BUSINESS', vertical: 'ONLINE_SALES' }, role, roles: role === 'ADMIN' ? adminRoles : [] } })
 }
 
 describe('GET /api/seller/sales-series', () => {
@@ -37,8 +37,13 @@ describe('GET /api/seller/sales-series', () => {
     expect(getSalesSeriesMock.mock.calls[0][3]).toBe(true)
   })
 
-  it('ADMIN → 403 FORBIDDEN_ROLE และไม่ query', async () => {
+  it('ADMIN (MANAGER) ผ่าน F1 — คืนสิทธิ์ผู้ดูแล 2026-10-10', async () => {
     as('ADMIN')
+    expect((await GET(req())).status).toBe(200)
+  })
+
+  it('ADMIN (CHAT) → 403 FORBIDDEN_ROLE และไม่ query', async () => {
+    as('ADMIN', ['CHAT'])
     const res = await GET(req())
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'FORBIDDEN_ROLE' })

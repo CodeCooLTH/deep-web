@@ -45,10 +45,10 @@ describe('requireShopCapability — บทบาท × capability (ผ่าน�
     const s = { shopUserId: 'u1', member: { role: 'OWNER', roles: [] } }
     for (const cap of ['F1', 'T2', 'T4'] as const) expect(await verdict(cap, s), cap).toBe('OK')
   })
-  it('MANAGER: T1 S2 F4 ผ่าน · F1 P3 F3 → 403 FORBIDDEN_ROLE', async () => {
+  it('MANAGER: T1 S2 F1 F2 F4 ผ่าน · P3 F3 → 403 FORBIDDEN_ROLE', async () => {
     const s = { member: admin('MANAGER') }
-    for (const cap of ['T1', 'S2', 'F4', 'X1'] as const) expect(await verdict(cap, s), cap).toBe('OK')
-    for (const cap of ['F1', 'P3', 'F3', 'T2'] as const) expect(await verdict(cap, s), cap).toBe('403:FORBIDDEN_ROLE')
+    for (const cap of ['T1', 'S2', 'F1', 'F2', 'F4', 'X1'] as const) expect(await verdict(cap, s), cap).toBe('OK')
+    for (const cap of ['P3', 'F3', 'T2'] as const) expect(await verdict(cap, s), cap).toBe('403:FORBIDDEN_ROLE')
   })
   it('CHAT: H2 X2 O2 S1 ผ่าน · H3 O6 F4 → 403', async () => {
     const s = { member: admin('CHAT') }

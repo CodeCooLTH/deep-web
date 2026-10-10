@@ -31,7 +31,7 @@ describe('resolveProductReportAccess', () => {
   })
 
   it('[blocker] ADMIN ธง true → FORBIDDEN (ธงไม่มีผล)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'] })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['CHAT'] })
     expect(await resolveProductReportAccess(session)).toEqual({ kind: 'FORBIDDEN' })
   })
 
