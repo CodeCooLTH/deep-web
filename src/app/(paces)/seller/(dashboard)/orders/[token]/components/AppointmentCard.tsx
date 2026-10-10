@@ -77,6 +77,11 @@ type Props = {
    */
   canReschedule?: boolean
   canOutcome?: boolean
+  /**
+   * ส่งสรุปนัดเข้าแชท = H1 (ต้องมีห้องแชทให้ส่ง · และสรุปนัดมียอด/มัดจำ จึงไม่ให้ผู้ไม่เห็นเงินเปิดชีตนี้)
+   * ค่าตั้งต้น false — ผู้เรียกต้องส่ง `can(roles,'H1')` เอง (00071 P3 · S-15)
+   */
+  canSendSummary?: boolean
 }
 
 export default function AppointmentCard({
@@ -93,6 +98,7 @@ export default function AppointmentCard({
   createdAtISO,
   canReschedule = true,
   canOutcome = true,
+  canSendSummary = false,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
@@ -306,14 +312,16 @@ export default function AppointmentCard({
              * ปุ่มนี้ไม่ถูกซ่อนเมื่อลูกค้าไม่มีห้องแชท — ชีตเป็นคนบอกเหตุผล (ซ่อนปุ่มแล้วร้านจะ
              * คิดว่าฟีเจอร์ไม่มี แทนที่จะรู้ว่าติดอะไร)
              */}
-            <button
-              type="button"
-              onClick={() => setSummaryOpen(true)}
-              className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 mb-3 min-h-11 w-full"
-            >
-              <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
-              ส่งสรุปนัด
-            </button>
+            {canSendSummary && (
+              <button
+                type="button"
+                onClick={() => setSummaryOpen(true)}
+                className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 mb-3 min-h-11 w-full"
+              >
+                <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
+                ส่งสรุปนัด
+              </button>
+            )}
             {canReschedule && (
               <button
                 type="button"

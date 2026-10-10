@@ -51,7 +51,9 @@ import { isCODPayment } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
-import { can } from '@/lib/shop-permissions'
+import { can, moneyLevel } from '@/lib/shop-permissions'
+import { toNoMoneyOrder } from '@/lib/order-view-by-level'
+import TechnicianOrderDetail from './components/TechnicianOrderDetail'
 import { canEditOrderAs } from '@/lib/order-role-rules'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import ShippingActivity from './components/ShippingActivity'
@@ -134,9 +136,22 @@ export default async function OrderDetailPage({ params }: PageProps) {
   if (!orderRaw) notFound()
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
-  const order: any = orderRaw
   // 00071 P3 (S-14): บทบาทที่มีผลจริงของผู้ดู → ซ่อนปุ่มที่ไม่มีสิทธิ์ · บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ)
   const viewerRoles = gate.ok ? gate.roles : []
+  // 00071 P3 (S-15): ช่าง (ระดับเงิน NONE) ไปหน้าของช่างเลย — คืนก่อนจะถึงโค้ดคำนวณเงิน/กำไร/ใบเสร็จ/พัสดุทุกบรรทัดข้างล่าง
+  // และส่งเฉพาะ allow-list (toNoMoneyOrder) ไม่ส่งแถวดิบ · ค่าที่ gate ไม่ ok = [] = NONE ⇒ ปิดเป็นค่าตั้งต้น
+  if (moneyLevel(viewerRoles) === 'NONE') {
+    return (
+      <TechnicianOrderDetail
+        order={toNoMoneyOrder(orderRaw)}
+        shop={shop}
+        vocab={vocab}
+        viewerRoles={viewerRoles}
+        fbPageAvatar={fbPageAvatar}
+      />
+    )
+  }
+  const order: any = orderRaw
   const editLocked = !canEditOrderAs(viewerRoles, { type: order.type, unpaid: isOrderUnpaid(order) })
   // feature 00065 — ไม่กั้นด้วย vertical: ใบที่ออกแล้วต้องเปิดได้เสมอ (BR-RCP-09) · query เดียวบน unique index
   const receiptNo = await getReceiptNoForOrder(orderRaw.id)
@@ -535,6 +550,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <AppointmentCard
                 canReschedule={can(viewerRoles, 'O3') && !editLocked}
                 canOutcome={can(viewerRoles, 'O4')}
+                canSendSummary={can(viewerRoles, 'H1')}
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
                 // เวลาที่เปิดบิล — ใช้แยก "เดินเข้ามา" ออกจาก "จองล่วงหน้า"

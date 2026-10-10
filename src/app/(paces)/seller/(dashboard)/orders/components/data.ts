@@ -36,7 +36,8 @@ export type OrderItemRow = {
   id: string
   name: string
   qty: number
-  price: number         // Decimal → number ที่ RSC boundary
+  /** Decimal → number ที่ RSC boundary · ไม่มีคีย์ = ผู้ดูระดับเงิน NONE (ช่าง) — ห้ามอ่านโดยไม่เช็ค showMoney */
+  price?: number
   /** imageUrl = /api/files/{images[0]} ถ้า product มีรูป; null = placeholder */
   imageUrl: string | null
 }
@@ -147,7 +148,8 @@ export type OrderRow = {
   /** contact ของผู้ซื้อ **เต็ม ไม่ปิดบัง** (D-13) หรือ '—' — ตัวค้นหาใช้ `buyerPhone` ไม่ใช่ตัวนี้ */
   buyer: string
   orderType: string     // PHYSICAL | DIGITAL | SERVICE
-  total: number
+  /** ยอดรวม — ไม่มีคีย์ = ผู้ดูระดับเงิน NONE (00071 S-15) · ตัดที่ server ไม่ใช่ซ่อนใน JSX */
+  total?: number
   status: OrderStatus
   createdAtISO: string  // ISO 8601 string — convert to Date ใน client เพื่อ format
   // Phase A Unit A: buyer identity fields (null = guest ยังไม่ register)
@@ -179,8 +181,8 @@ export type OrderRow = {
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
    *  (user decision 2026-06-15: เปิดเบอร์จริงให้ seller โทรลูกค้าตัวเองได้) */
   buyerPhone: string | null
-  /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS */
-  paymentMethod: string | null
+  /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS · ไม่มีคีย์ = ผู้ดูระดับเงิน NONE */
+  paymentMethod?: string | null
   /**
    * ปลายทางแยกเป็นส่วน ๆ (2026-08-06 — user สั่งให้รหัสไปรษณีย์อยู่บรรทัดล่างสุดเสมอ
    * "จะได้ก้อบง่าย ๆ") — ประกอบเป็นบรรทัดที่ฝั่งจอ ไม่ใช่ต่อสตริงมาจาก server เพราะ
@@ -218,7 +220,7 @@ export type OrderRow = {
    */
   conversationId: string | null
   /** ร้านได้รับเงินเก็บปลายทางแล้วเมื่อไร (null = ยังไม่ได้รับ) — ใช้ทำเช็กลิสต์สถานะ */
-  codReceivedAtISO: string | null
+  codReceivedAtISO?: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }

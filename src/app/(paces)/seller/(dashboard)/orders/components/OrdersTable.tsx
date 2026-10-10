@@ -60,6 +60,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
+import { useViewerCan } from './OrderViewerRoles'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import OrderDateFilterDropdown from './OrderDateFilterDropdown'
@@ -229,6 +230,11 @@ type Props = {
   wholeShopMatches: number
   /** ล้างตัวกรองทุกแกนแต่คงคำค้น — ฝั่งนี้ต้องล้าง columnFilters ของ TanStack เพิ่มเอง */
   onClearFilters: () => void
+  /**
+   * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ไม่มีคอลัมน์ชำระเงิน/ยอด, ไม่มีราคาต่อหน่วย, ไม่มีขั้นรับเงินในเช็กลิสต์,
+   * ไม่มีไอคอนพฤติกรรมลูกค้า, ไม่มี checkbox เลือก + แถบ bulk (00071 P3 · S-15) · ผู้เรียกที่ลืมส่ง = ปิดเงิน
+   */
+  showMoney?: boolean
 }
 
 export default function OrdersTable({
@@ -248,8 +254,12 @@ export default function OrdersTable({
   onSearchChange,
   wholeShopMatches,
   onClearFilters,
+  showMoney = false,
 }: Props) {
   const t = useT()
+  // ปุ่มสร้าง = O2s · ทักแชทจากหัวแถว = H1 (ตัวบังคับจริงอยู่ที่ route/หน้า — ที่นี่แค่ไม่ให้ปุ่มโผล่แล้วกดแล้ว 403)
+  const canCreate = useViewerCan('O2s')
+  const canOpenChat = useViewerCan('H1')
   const router = useRouter()
   const statusFilterOptions = useMemo(() => buildStatusFilterOptions(vocab), [vocab])
   // คำเรียกของที่ขาย/หน่วยนับ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB ผ่าน orderItemVocab)
@@ -364,7 +374,8 @@ export default function OrdersTable({
   const columns = [
     // ─ checkbox select ─
     // เซลล์ในแถวเนื้อหาว่างโดยเจตนา: ตัวติ๊กจริงอยู่แถบหัวกลุ่ม (groupRow ข้างล่าง)
-    {
+    // เลือกหลายใบมีไว้ทำ bulk (SMS/พิมพ์ใบปะหน้า/คัดลอกลิงก์) ซึ่งช่างไม่มีสิทธิ์ → ไม่มีคอลัมน์นี้เลย
+    ...(!showMoney ? [] : [{
       id: 'select',
       header: ({ table }: { table: TableType<OrderRow> }) => (
         <input
@@ -378,7 +389,7 @@ export default function OrdersTable({
       enableSorting: false,
       enableColumnFilter: false,
       meta: { headerClassName: 'w-px', cellClassName: 'w-px' },
-    },
+    }]),
 
     // ─ รายการสินค้า — โชว์ 2 รายการแรก เกินกว่านั้นกางด้วย <details> ─
     //   user สั่ง 2026-08-06: เลิกใช้ hover panel ให้กด "ดูเพิ่มเติม" แล้วกางในแถวเดิม
@@ -424,10 +435,12 @@ export default function OrdersTable({
               <p className="mb-0 break-words text-sm font-semibold text-default-900">
                 <HighlightText text={it.name} query={searchQuery} />
               </p>
-              {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง */}
-              <p className="mb-0 text-xs text-default-500">
-                ฿{it.price.toLocaleString('th-TH')} ต่อ{itemVocab.unitLabel}
-              </p>
+              {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง · ช่างไม่เห็นราคา */}
+              {showMoney && it.price !== undefined && (
+                <p className="mb-0 text-xs text-default-500">
+                  ฿{it.price.toLocaleString('th-TH')} ต่อ{itemVocab.unitLabel}
+                </p>
+              )}
               <p className="mb-0 text-xs text-default-500">x{it.qty}</p>
             </div>
           </div>
@@ -525,7 +538,7 @@ export default function OrdersTable({
               {/* markup ย้ายไป `@/components/safepay/CustomerBehaviorBadges` แล้ว (00057) —
                   ป้ายชุดนี้ต้องเหมือนกัน 4 จอ (ที่นี่ / แผงลูกค้าในแชท / ลิสต์ลูกค้า / โปรไฟล์ลูกค้า)
                   DOM ที่ render ออกมาเหมือนเดิมทุกคลาส */}
-              <CustomerBehaviorIcons badges={behaviorBadges} />
+              {showMoney && <CustomerBehaviorIcons badges={behaviorBadges} />}
             </p>
             {/* บรรทัดรอง: ชื่อบัญชีของลูกค้าที่ล็อกอินแล้ว — ชุดเดียวกับการ์ดมือถือ (OrderCard)
                 ชื่อหลักข้างบนเป็นชื่อที่ร้านกรอกเสมอ (มติ user 2026-10-04 · lib/buyer-name.ts) */}
@@ -729,7 +742,7 @@ export default function OrdersTable({
     }]),
 
     // ─ การชำระเงิน ─
-    columnHelper.accessor('paymentMethod', {
+    ...(!showMoney ? [] : [columnHelper.accessor('paymentMethod', {
       header: 'การชำระเงิน',
       meta: { cellClassName: 'min-w-36 align-top' },
       cell: ({ row }) => {
@@ -752,10 +765,10 @@ export default function OrdersTable({
           </p>
         )
       },
-    }),
+    })]),
 
     // ─ ยอดคำสั่งซื้อ ─
-    columnHelper.accessor('total', {
+    ...(!showMoney ? [] : [columnHelper.accessor('total', {
       header: `ยอด${vocab.noun}`,
       // whitespace-nowrap อยู่ที่ <td> ตามแพตเทิร์นของคอลัมน์อื่นในตารางนี้ (wrap behavior
       // กำหนดที่ meta ไม่ใช่ที่ content element) — เคยถูกย้ายลงไปที่ <span> ชั่วคราวตอนมี
@@ -763,10 +776,10 @@ export default function OrdersTable({
       meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
       cell: ({ row }) => (
         <span className="text-lg font-bold tabular-nums text-default-900">
-          ฿{row.original.total.toLocaleString('th-TH')}
+          ฿{(row.original.total ?? 0).toLocaleString('th-TH')}
         </span>
       ),
-    }),
+    })]),
 
     // ─ สถานะ = เช็กลิสต์ "ใบนี้ค้างตรงไหน" ─
     //   user สั่ง 2026-08-06 (ยกมาจาก UI ที่เคยทำเอง): เห็นทันทีว่าเหลืออะไร แทนป้ายคำเดียว
@@ -802,7 +815,7 @@ export default function OrdersTable({
           o.pickupStage
             ? { label: 'มอบสินค้า', done: o.pickupStage !== 'AWAITING_HANDOVER' }
             : { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
-          ...(isCODPayment(o.paymentMethod)
+          ...(showMoney && isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
             : []),
           /**
@@ -814,7 +827,7 @@ export default function OrdersTable({
            * เดินครบทุกขั้นแล้วบนจอเดียวที่ผู้ขายใช้กวาดตาทั้งวัน
            * `o.money` มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ผ่าน `hasMoneyStory` ที่ server (AC-SQ-07)
            */
-          ...(o.money ? [{ label: 'เก็บเงินครบ', done: o.money.outstanding <= 0 }] : []),
+          ...(showMoney && o.money ? [{ label: 'เก็บเงินครบ', done: o.money.outstanding <= 0 }] : []),
           { label: vocab.buyerConfirmedStepLabel, done: o.status === 'CONFIRMED' },
         ]
         return (
@@ -866,7 +879,7 @@ export default function OrdersTable({
       header: () => <div>ดำเนินการ</div>,
       meta: { headerClassName: 'w-36 whitespace-nowrap', cellClassName: 'w-36 whitespace-nowrap align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
-        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} serviceVocab={isService ? { noun: vocab.noun, buyerNoun: vocab.buyerNoun } : undefined} />
+        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} serviceVocab={isService ? { noun: vocab.noun, buyerNoun: vocab.buyerNoun } : undefined} showMoney={showMoney} />
       ),
     },
   ]
@@ -894,7 +907,7 @@ export default function OrdersTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     enableColumnFilters: true,
-    enableRowSelection: true,
+    enableRowSelection: showMoney,
     filterFns: {
       dateRange: dateRangeFilterFn,
     },
@@ -1154,10 +1167,12 @@ export default function OrdersTable({
         {/* ขวา: เส้นคั่นบางแยกโซนตัวกรองออกจาก action + สร้างออเดอร์ */}
         <div className="flex items-center gap-2.5">
           <span className="bg-default-200 h-6 w-px" aria-hidden="true" />
-          <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
-            <Icon icon="plus" className="size-4.5" />
-            {vocab.createLabel}
-          </Link>
+          {canCreate && (
+            <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
+              <Icon icon="plus" className="size-4.5" />
+              {vocab.createLabel}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -1222,15 +1237,17 @@ export default function OrdersTable({
               hitMeta.get(row.original.publicToken)?.isExactMatch && '-mx-2 rounded bg-primary/5 px-2',
             )}
           >
-            <span className="flex w-9 shrink-0 items-center">
-              <input
-                type="checkbox"
-                className="form-checkbox form-checkbox-light size-4.5"
-                checked={row.getIsSelected()}
-                onChange={row.getToggleSelectedHandler()}
-                aria-label={`เลือก${orderNoun}นี้`}
-              />
-            </span>
+            {showMoney && (
+              <span className="flex w-9 shrink-0 items-center">
+                <input
+                  type="checkbox"
+                  className="form-checkbox form-checkbox-light size-4.5"
+                  checked={row.getIsSelected()}
+                  onChange={row.getToggleSelectedHandler()}
+                  aria-label={`เลือก${orderNoun}นี้`}
+                />
+              </span>
+            )}
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
               {/* ลำดับตามที่ user สั่ง: [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] … */}
               {/* channel มาจาก sourceChannel (ผูกกับ sourceLogoUrl แหล่งเดียวกัน) ไม่ใช่ salesChannel
@@ -1267,7 +1284,7 @@ export default function OrdersTable({
               )}
               <span className="ms-auto inline-flex items-center gap-3">
                 {/* เปิดแชท — เฉพาะออเดอร์ที่หาห้องแชทของลูกค้าเจอ (ดู OrderRow.conversationId) */}
-                {row.original.conversationId && (
+                {canOpenChat && row.original.conversationId && (
                   <Link
                     href={`/inbox/${row.original.conversationId}`}
                     className="text-primary hover:text-primary/80 inline-flex items-center gap-1 text-xs font-medium hover:underline"
@@ -1312,15 +1329,17 @@ export default function OrdersTable({
     </div>
 
     {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
-    <BulkActionBar
-      ishipEnabled={ishipEnabled}
-      selectedRows={table.getSelectedRowModel().rows}
-      onClear={() => table.resetRowSelection()}
-      buyerBaseUrl={buyerBaseUrl}
-      orderWord={orderNoun}
-      linkNoun={isService ? vocab.noun : undefined}
-      buyerNoun={isService ? vocab.buyerNoun : undefined}
-    />
+    {showMoney && (
+      <BulkActionBar
+        ishipEnabled={ishipEnabled}
+        selectedRows={table.getSelectedRowModel().rows}
+        onClear={() => table.resetRowSelection()}
+        buyerBaseUrl={buyerBaseUrl}
+        orderWord={orderNoun}
+        linkNoun={isService ? vocab.noun : undefined}
+        buyerNoun={isService ? vocab.buyerNoun : undefined}
+      />
+    )}
     </>
   )
 }

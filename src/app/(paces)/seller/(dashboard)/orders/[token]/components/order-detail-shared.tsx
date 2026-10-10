@@ -42,7 +42,8 @@ export type OrderFactsItem = {
   name: string
   description?: string | null
   qty: number
-  price: unknown
+  /** ไม่มีคีย์ = ผู้ดูระดับเงิน NONE (ช่าง) — อ่านเฉพาะเมื่อ showMoney */
+  price?: unknown
   /** resolve ที่ server จาก product.images[0] — null = ใช้ placeholder */
   imageUrl: string | null
 }

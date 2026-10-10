@@ -45,6 +45,8 @@ import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-na
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import { canEditOrderAs } from '@/lib/order-role-rules'
+import { can, moneyLevel } from '@/lib/shop-permissions'
+import { toNoMoneyOrder } from '@/lib/order-view-by-level'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
@@ -100,10 +102,21 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   const shop = active.shop
 
+  /**
+   * 00071 P3 (S-15): ช่าง (ระดับเงิน NONE) ไม่เห็นเงินเลย — ตัดที่ทางออกของข้อมูล (toNoMoneyOrder) ไม่ใช่แค่ซ่อนใน JSX
+   * หน้านี้อยู่ใต้ client layout ทุกคีย์ที่ส่งเข้า OrdersList ลง flight payload ครบ (permission-gate-follows-the-row)
+   * `showMoney` ตัดสินที่นี่ที่เดียวแล้วส่งลงไปเป็น prop (ค่าตั้งต้นฝั่งจอ = false)
+   */
+  const viewerRoles = gate.ok ? gate.roles : []
+  const showMoney = moneyLevel(viewerRoles) !== 'NONE'
+  // ทักแชทจากแถวออเดอร์ต้องมี H1 — ผู้ไม่มี H1 ไม่ได้ห้องแชท (ไม่ใช่แค่ซ่อนปุ่ม)
+  const canChat = can(viewerRoles, 'H1')
+
   // feature 00022 — ปุ่มพิมพ์ใบปะหน้าหลายใบใน bulk bar
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะไม่เห็นปุ่มนี้เลย (BR-ISHIP-01)
+  // ดึงจาก iShip = งานพัสดุ (S1) — ช่างไม่เห็นปุ่มนี้
   const ishipEnabled =
-    shop.vertical === 'ONLINE_SALES'
+    shop.vertical === 'ONLINE_SALES' && can(viewerRoles, 'S1')
       ? await getConnection(shop.id)
           .then((c) => c.connected && c.status === 'ACTIVE')
           .catch(() => false)
@@ -124,7 +137,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   try {
     // ดึงทุก order ของร้าน — client component ทำ status filter เอง
     // ด่าน vertical (AC-SQ-07) — เงินรายใบดึงเฉพาะร้านบริการ ไม่ใช่ทุกร้าน
-    rawOrders = await getOrdersByShop(shop.id, undefined, { withPayments: isServiceQueue })
+    rawOrders = await getOrdersByShop(shop.id, undefined, { withPayments: isServiceQueue && showMoney })
+    if (!showMoney) rawOrders = rawOrders.map(toNoMoneyOrder)
   } catch {
     rawOrders = []
   }
@@ -149,7 +163,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const customerIds = [...new Set(rawOrders.map((o: any) => o.customerId).filter(Boolean))] as string[]
   const buyerUserIds = [...new Set(rawOrders.map((o: any) => o.buyerUserId).filter(Boolean))] as string[]
   const convRows =
-    customerIds.length > 0 || buyerUserIds.length > 0
+    canChat && (customerIds.length > 0 || buyerUserIds.length > 0)
       ? await prisma.conversation.findMany({
           where: {
             shopId: shop.id,
@@ -198,7 +212,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // ยังเป็น query ครั้งเดียวทั้งหน้าเหมือนเดิม — เพิ่ม `cancelInitiator` เป็นมิติที่ 3 ของ groupBy
   // เดิม และนับ "ใบที่ตีกลับ" ด้วย query แยกอีก 1 ตัว (นับเป็นจำนวน **ออเดอร์** ไม่ใช่จำนวนแถว
   // OrderShipment — ใบเดียว retry ได้หลายพัสดุ ดู project_iship_retry_credit_fixes)
-  const [custStatRows, returnedRows] = customerIds.length > 0
+  // ประวัติลูกค้า (ป้ายยกเลิก/ตีกลับ) อยู่คู่กับยอดขายของลูกค้า — ช่างไม่เห็น จึงไม่ต้อง query
+  const [custStatRows, returnedRows] = showMoney && customerIds.length > 0
     ? await Promise.all([
         prisma.order.groupBy({
           // ต้องมี cancelReason ด้วย — บน prod ไม่มีใบไหนเลยที่ cancelInitiator='buyer'
@@ -350,8 +365,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
      * ผ่าน `computeOrderMoney` เท่านั้น ห้ามบวกเองที่นี่ — ตัวตัดยอดที่ถูกยกเลิก (`voidedAt`)
      * อยู่ในนั้น (HR16: ป้ายในรายการกับหน้ารายละเอียดต้องมาจากนิยามเดียวกัน)
      */
-    editLocked: !canEditOrderAs(gate.ok ? gate.roles : [], { type: o.type, unpaid: isOrderUnpaid({ ...o, payments: o.payments ?? [] }) }),
-    money: !isServiceQueue
+    ...(showMoney ? { editLocked: !canEditOrderAs(viewerRoles, { type: o.type, unpaid: isOrderUnpaid({ ...o, payments: o.payments ?? [] }) }) } : {}),
+    ...(showMoney ? { money: !isServiceQueue
       ? undefined
       : (() => {
           const m = computeOrderMoneyFromSerialized({
@@ -370,7 +385,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
              ป้ายเดิม = ย้ายอาการ "สองจอพูดคนละคำ" ไปอยู่อีกกลุ่มหนึ่งแทนที่จะแก้ */
           if (!hasMoneyStory(m)) return undefined
           return { totalAmount: m.totalAmount, totalReceived: m.totalReceived, outstanding: m.outstanding }
-        })(),
+        })() } : {}),
     shippingStage: isOnlineSales
       ? deriveShippingStage({
           status: o.status,
@@ -410,7 +425,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     shortCode: o.shortCode ?? null,
     buyer: sellerContactDisplay(o.buyerContact),
     orderType: o.type ?? 'PHYSICAL',
-    total: Number(o.totalAmount ?? 0),
+    ...(showMoney ? { total: Number(o.totalAmount ?? 0) } : {}),
     status: o.status,
     // ISO string — client component จะ format เป็นภาษาไทย
     createdAtISO: o.createdAt ? new Date(o.createdAt).toISOString() : '',
@@ -448,20 +463,21 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       // ไม่มีอะไรเลยสักช่อง = ถือว่าไม่มีที่อยู่ (อย่าคืนก้อนที่ทุกช่องเป็น null ให้จอไปเช็กเอง)
       return Object.values(shape).some(Boolean) ? shape : null
     })(),
-    codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
-    customerStats: o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
+    ...(showMoney ? { codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null } : {}),
+    customerStats: showMoney && o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
     /* 🛑 ค่าที่บันทึกไว้ตอนสร้างออเดอร์ชนะเสมอ — สอง map ด้านล่างเป็น "การเดา" จากเบอร์โทร
        (Order → Customer → Conversation) ซึ่งคืนเธรดไหนก็ได้ของลูกค้าคนนั้น ไม่ใช่เธรดที่สร้าง
        ออเดอร์ใบนี้จริง ⇒ ลูกค้าที่ทัก FB แล้วย้ายไป LINE หรือร้านที่มี ≥2 เพจ ปุ่ม "เปิดแชท"
        พาไปผิดห้องได้ (บั๊กที่มีอยู่บน prod ก่อน 2026-08-12)
        ออเดอร์เก่าไม่ถูก backfill โดยตั้งใจ (ดู schema.prisma) จึงยังต้องมี fallback ไว้
        ไม่งั้นปุ่มจะหายไปจากออเดอร์เก่าทุกใบ = regress หนักกว่าบั๊กเดิม */
-    conversationId:
-      o.conversationId ??
-      (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
-      (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
-      null,
-    paymentMethod: o.paymentMethod ?? null,
+    conversationId: canChat
+      ? (o.conversationId ??
+        (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
+        (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
+        null)
+      : null,
+    ...(showMoney ? { paymentMethod: o.paymentMethod ?? null } : {}),
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
     items: (o.items ?? []).map((item: any): OrderItemRow => {
@@ -476,7 +492,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         id: item.id,
         name: item.name,
         qty: item.qty,
-        price: Number(item.price),
+        ...(showMoney ? { price: Number(item.price) } : {}),
         imageUrl,
       }
     }),
@@ -580,8 +596,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       </div>
 
       {/* บทบาทที่มีผลจริงของผู้ดู → ปุ่มต่อแถว (แก้ไข/SMS/ยกเลิก/ใบปะหน้า) ซ่อนตามสิทธิ์ — ดู OrderViewerRoles */}
-      <OrderViewerRolesProvider roles={gate.ok ? gate.roles : []}>
+      <OrderViewerRolesProvider roles={viewerRoles}>
         <OrdersList
+          showMoney={showMoney}
           orders={orders}
           activeStatus={activeStatus}
           ishipEnabled={ishipEnabled}

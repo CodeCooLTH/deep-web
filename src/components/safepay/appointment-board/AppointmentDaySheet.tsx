@@ -28,6 +28,7 @@ import { formatDateTH, formatWeekdayDateTH } from '@/lib/format-date'
 import { shiftDayKey, summarizeDay } from '@/lib/appointment-day-view'
 import { localDateKey, type AppointmentDayApiItem } from './types'
 import AppointmentDayList from './AppointmentDayList'
+import { useAppointmentBoardCaps } from './AppointmentBoardCaps'
 
 type Props = {
   /** "YYYY-MM-DD" ของวันที่กำลังดู — ผู้เรียกถือ state นี้ไว้เพื่อให้ปฏิทินข้างหลังเปลี่ยนตาม */
@@ -52,6 +53,7 @@ export default function AppointmentDaySheet({
   createLabelShort,
 }: Props) {
   useLockBodyScroll(true)
+  const { canCreate } = useAppointmentBoardCaps()
 
   const [items, setItems] = useState<AppointmentDayApiItem[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -315,7 +317,9 @@ export default function AppointmentDaySheet({
         </div>
       </div>
 
-      {/* ── แถบสร้างงานของวันที่กำลังดู ────────────────────────────────────── */}
+      {/* ── แถบสร้างงานของวันที่กำลังดู ──────────────────────────────────────
+          ช่างสร้างงานไม่ได้ (O2s) — ไม่มีแถบนี้เลย ไม่ใช่ปุ่มจาง ๆ */}
+      {canCreate && (
       <div className="bg-card border-default-200 shrink-0 border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         {/* carve-out HR7: safe-area ไม่มี token — ปุ่มจะไปนอนใต้แถบ home indicator ถ้าไม่เว้น */}
         <Link
@@ -328,6 +332,7 @@ export default function AppointmentDaySheet({
           {createLabelShort} · {formatDateTH(selectedDate)}
         </Link>
       </div>
+      )}
     </div>
   )
 }

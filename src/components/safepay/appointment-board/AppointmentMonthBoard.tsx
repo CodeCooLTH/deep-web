@@ -49,6 +49,7 @@ import {
 import AppointmentDayCell from './AppointmentDayCell'
 import AppointmentDayRows from './AppointmentDayRows'
 import AppointmentDaySheet from './AppointmentDaySheet'
+import { useAppointmentBoardCaps } from './AppointmentBoardCaps'
 import { localDateKey, type AppointmentBoardItem } from './types'
 
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
@@ -74,6 +75,8 @@ const ALL = ''
 
 export default function AppointmentMonthBoard({ resources, byDay, createLabelShort }: Props) {
   const router = useRouter()
+  // สร้างงานของวันที่เลือก = O2s (ช่างไม่มี → ไม่มีแถบติดล่างเลย · ที่ว่างล่างจอที่ shell เผื่อไว้ยังอยู่ ไม่กระทบเลย์เอาต์)
+  const { canCreate } = useAppointmentBoardCaps()
   const calRef = useRef<FullCalendar>(null)
 
   const [resourceId, setResourceId] = useState<string>(ALL)
@@ -603,6 +606,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
 
           Base: src/app/(paces)/seller/(dashboard)/products/components/ProductFormV2.tsx:463-474
           (แถบบันทึกติดล่างจอของหน้าที่เป็น full-screen เหมือนกัน) */}
+      {canCreate && (
       <div
         className={[
           'bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden',
@@ -625,6 +629,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           {createLabelShort} · {formatDateTH(selectedDate)}
         </button>
       </div>
+      )}
     </>
   )
 }

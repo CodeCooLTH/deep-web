@@ -38,11 +38,16 @@ interface OrderActionsProps {
   order: OrderRow
   onCancelRequest: (token: string) => void
   variant: OrderActionsVariant
+  /**
+   * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ปุ่มคัดลอกลิงก์/QR พาไปหน้าสาธารณะ `/o/…` ที่มียอดเงินครบ
+   * จึงไม่แจกลิงก์นั้นให้ผู้ที่ไม่เห็นเงิน เหลือแค่ "ดูรายละเอียด" (00071 P3 · S-15)
+   */
+  showMoney?: boolean
 }
 
 const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-default-100'
 
-export default function OrderActions({ order, onCancelRequest, variant, orderNoun, serviceVocab }: OrderActionsProps) {
+export default function OrderActions({ order, onCancelRequest, variant, orderNoun, serviceVocab, showMoney = false }: OrderActionsProps) {
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   // O3 แก้ไข · O7 ส่ง SMS — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นปุ่ม (ผู้เปิดบิล: ปุ่มแก้ไขแสดงเฉพาะบิลบริการ — หน้าแก้ไขเช็คสถานะชำระเป็นรายใบอีกชั้น)
   const viewerCanEdit = useViewerCan('O3')
@@ -60,6 +65,16 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   // button group ตาม theme ui/buttons: inline-flex + rounded-*-none + -ms-px (ปุ่มเชื่อมกัน)
   // ดู=ตัวแรก (rounded-e-none), copy=ตัวสุดท้าย (rounded-s-none), กลาง rounded-none
   // กริด: ปุ่มไม่เชื่อมกันแล้ว (คนละแถว) จึงมีขอบมนของตัวเองทุกใบ ไม่ใช้ -ms-px/rounded-*-none
+  // ไม่เห็นเงิน: เหลือเฉพาะปุ่มดู (มือถือ: การ์ดทั้งใบเป็นลิงก์ไปหน้ารายละเอียดอยู่แล้ว จึงไม่ render อะไร)
+  if (!showMoney) {
+    if (variant === 'card') return null
+    return (
+      <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={`${ICON_BTN}`}>
+        <Icon icon="eye" className="text-base" />
+      </Link>
+    )
+  }
+
   if (variant === 'table-grid') {
     /**
      * button group แบบตาราง — ปุ่มชิดกัน มีเส้นคั่นบาง ๆ อยู่ในกรอบมนอันเดียว

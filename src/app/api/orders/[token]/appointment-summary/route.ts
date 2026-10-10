@@ -157,6 +157,9 @@ export async function GET(
   });
 
   const deposit = Number(order.depositAmount ?? 0);
+  // สรุปนัดมีไว้ "ส่งเข้าแชท" (ต้อง H1) — ไม่มี H1 (ช่างระดับเงิน NONE / ผู้เปิดบิล) ไม่ส่งยอด/มัดจำและไม่ส่งห้องแชท
+  // ตัดด้วย "ไม่มีคีย์" ไม่ใช่ข้อความว่าง (00071 P3 · S-15)
+  const canChat = await canAccessShopWith(order.shopId, userId, 'H1');
 
   return NextResponse.json({
     shopId: order.shopId,
@@ -168,12 +171,16 @@ export async function GET(
       resourceName: order.serviceResource?.name ?? null,
       customerName: order.buyerName,
       phone: order.buyerContact,
-      // ฟอร์แมตเงินด้วยสูตรกลางของระบบเสมอ — ถ้าฝั่ง client ฟอร์แมตเอง ยอดบนพรีวิวจะเพี้ยน
-      // จากยอดบนการ์ดที่ส่งจริงได้โดยไม่มีอะไรฟ้อง (HR16)
-      totalText: formatBaht(Number(order.totalAmount)),
-      depositText: deposit > 0 ? formatBaht(deposit) : null,
+      ...(canChat
+        ? {
+            // ฟอร์แมตเงินด้วยสูตรกลางของระบบเสมอ — ถ้าฝั่ง client ฟอร์แมตเอง ยอดบนพรีวิวจะเพี้ยน
+            // จากยอดบนการ์ดที่ส่งจริงได้โดยไม่มีอะไรฟ้อง (HR16)
+            totalText: formatBaht(Number(order.totalAmount)),
+            depositText: deposit > 0 ? formatBaht(deposit) : null,
+          }
+        : {}),
     },
-    targets: [...conversations]
+    targets: (canChat ? [...conversations] : [])
       // ห้องต้นทางขึ้นก่อนเสมอ — ที่เหลือคงลำดับ `lastMessageAt` เดิม
       .sort((a, b) =>
         a.id === order.conversationId ? -1 : b.id === order.conversationId ? 1 : 0,

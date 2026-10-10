@@ -18,6 +18,7 @@ import { listBookings, toDateOnlyString, nightsBetween } from '@/services/bookin
 import { formatDateTH } from '@/lib/format-date'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
+import { moneyLevel } from '@/lib/shop-permissions'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'การจอง' }
@@ -50,6 +51,8 @@ export default async function BookingsPage() {
     )
   }
   if (!session?.user) return null
+  // 00071 P3 (S-15): ช่าง (เงิน NONE) ไม่ได้ยอด/มัดจำ/สลิป — ตัดที่ข้อมูลก่อนข้าม RSC ไม่ใช่แค่ซ่อน JSX
+  const showMoney = gate.ok && moneyLevel(gate.roles) !== 'NONE'
 
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
@@ -68,10 +71,14 @@ export default async function BookingsPage() {
     checkIn: b.checkIn ? toDateOnlyString(b.checkIn) : null,
     checkOut: b.checkOut ? toDateOnlyString(b.checkOut) : null,
     nights: b.checkIn && b.checkOut ? nightsBetween(b.checkIn, b.checkOut) : null,
-    totalAmount: b.totalAmount.toFixed(2),
-    depositAmount: b.depositAmount?.toFixed(2) ?? null,
     status: b.status,
-    hasSlip: !!b.slipFileId,
+    ...(showMoney
+      ? {
+          totalAmount: b.totalAmount.toFixed(2),
+          depositAmount: b.depositAmount?.toFixed(2) ?? null,
+          hasSlip: !!b.slipFileId,
+        }
+      : {}),
   }))
 
   const pendingCount = bookings.filter((b) => b.status === 'PENDING').length
@@ -135,7 +142,7 @@ export default async function BookingsPage() {
                       <span className={`badge ${STATUS[b.status]?.cls ?? ''}`}>
                         {STATUS[b.status]?.label ?? b.status}
                       </span>
-                      <p className="text-default-700 mt-1 text-sm">฿{baht(b.totalAmount)}</p>
+                      {showMoney && <p className="text-default-700 mt-1 text-sm">฿{baht(b.totalAmount ?? '0')}</p>}
                       {b.status === 'PENDING' && b.hasSlip && (
                         <p className="text-warning mt-0.5 text-xs">มีสลิปรอตรวจ</p>
                       )}
@@ -150,7 +157,7 @@ export default async function BookingsPage() {
               <table className="table w-full">
                 <thead>
                   <tr>
-                    {['ผู้จอง', 'ห้องพัก', 'เข้าพัก', 'คืน', 'ยอดรวม', 'มัดจำ', 'สถานะ'].map((h) => (
+                    {(showMoney ? ['ผู้จอง', 'ห้องพัก', 'เข้าพัก', 'คืน', 'ยอดรวม', 'มัดจำ', 'สถานะ'] : ['ผู้จอง', 'ห้องพัก', 'เข้าพัก', 'คืน', 'สถานะ']).map((h) => (
                       <th key={h} className="text-default-500 px-4 py-3 text-start text-sm font-medium">
                         {h}
                       </th>
@@ -170,13 +177,17 @@ export default async function BookingsPage() {
                         {b.checkIn ? formatDateTH(new Date(b.checkIn)) : '—'}
                       </td>
                       <td className="text-default-700 px-4 py-3">{b.nights ?? '—'}</td>
-                      <td className="text-default-700 px-4 py-3">฿{baht(b.totalAmount)}</td>
-                      <td className="text-default-700 px-4 py-3">
-                        {b.depositAmount ? `฿${baht(b.depositAmount)}` : '—'}
-                        {b.status === 'PENDING' && b.hasSlip && (
-                          <span className="text-warning ms-1 text-xs">มีสลิป</span>
-                        )}
-                      </td>
+                      {showMoney && (
+                        <>
+                          <td className="text-default-700 px-4 py-3">฿{baht(b.totalAmount ?? '0')}</td>
+                          <td className="text-default-700 px-4 py-3">
+                            {b.depositAmount ? `฿${baht(b.depositAmount)}` : '—'}
+                            {b.status === 'PENDING' && b.hasSlip && (
+                              <span className="text-warning ms-1 text-xs">มีสลิป</span>
+                            )}
+                          </td>
+                        </>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`badge ${STATUS[b.status]?.cls ?? ''}`}>
                           {STATUS[b.status]?.label ?? b.status}

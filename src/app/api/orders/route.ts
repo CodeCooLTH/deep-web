@@ -1,4 +1,5 @@
-import { can } from "@/lib/shop-permissions";
+import { can, moneyLevel } from "@/lib/shop-permissions";
+import { toNoMoneyOrder } from "@/lib/order-view-by-level";
 import { requireShopCapability, ForbiddenRoleError } from "@/lib/shop-capability";
 import { isBillingOnly } from "@/lib/order-role-rules";
 import { forbiddenRoleResponse } from "@/lib/forbidden-role";
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
   const active = gate.active;
 
   const orders = await getOrdersByShop(active.shop.id, status);
+  // ช่าง (ระดับเงิน NONE): allow-list ไม่มีเงิน — ตัดด้วย "ไม่มีคีย์" (00071 P3 · S-15)
+  if (moneyLevel(gate.roles) === "NONE") return NextResponse.json(orders.map(toNoMoneyOrder));
   // ต้นทุนรายบรรทัดเฉพาะเจ้าของร้าน (00071) — orderListInclude ดึง items ทั้งแถว
   const canSeeCost = can(gate.roles, "P3");
   return NextResponse.json(orders.map((o) => stripOrderItemCost(o, canSeeCost)));

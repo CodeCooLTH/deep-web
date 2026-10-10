@@ -29,6 +29,8 @@ import QueuesCalendarSwitch from './components/QueuesCalendarSwitch'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import { can, moneyLevel } from '@/lib/shop-permissions'
+import { AppointmentBoardCapsProvider } from '@/components/safepay/appointment-board/AppointmentBoardCaps'
 
 export const metadata: Metadata = { title: 'ตารางงาน' }
 
@@ -57,6 +59,17 @@ export default async function WorkSchedulePage() {
   const resources = await listServiceResources(active.shop.id)
   const activeResources = resources.filter((r) => r.isActive)
 
+  // สิทธิ์ของผู้ดู → การ์ดนัด/ชีตวัน/ปฏิทินซ่อนยอด ทักแชท เลื่อนนัด สร้างงาน (00071 P3 · S-15) · ไม่มี gate = ไม่มีบทบาท = ปิดทั้งหมด
+  const viewerRoles = gate.ok ? gate.roles : []
+  const caps = {
+    showMoney: moneyLevel(viewerRoles) !== 'NONE',
+    canChat: can(viewerRoles, 'H1'),
+    canReschedule: can(viewerRoles, 'O3'),
+    canCreate: can(viewerRoles, 'O2s'),
+  }
+  // ตั้งประเภทงาน = Q2 (เจ้าของ+ผู้ดูแล) — ผู้ไม่มี Q2 ไม่เห็นปุ่มไปหน้าตั้งค่า
+  const canSetupJobTypes = can(viewerRoles, 'Q2')
+
   return (
     <>
       {/* breadcrumb เดสก์ท็อปเท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader อยู่แล้ว (กันซ้ำ)
@@ -71,15 +84,17 @@ export default async function WorkSchedulePage() {
            ซึ่ง **ไม่หยุด effect** ของฝั่งที่ซ่อน ผลบนมือถือคือยิง API ซ้ำ 2 ครั้งต่อการเปิดหน้า
            + โหลด timegrid/list ที่ไม่ได้ใช้ + toast ผีตอนเน็ตล้ม (impeccable audit 2026-08-11)
            เหตุผลเต็มอยู่ในหัวไฟล์ QueuesCalendarSwitch */
-        <QueuesCalendarSwitch
-          resources={activeResources.map((r) => ({
-            id: r.id,
-            name: r.name,
-            capacity: r.capacity,
-          }))}
-          byDay={(active.shop.appointmentGranularity as AppointmentGranularity) !== 'TIME'}
-          createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
-        />
+        <AppointmentBoardCapsProvider value={caps}>
+          <QueuesCalendarSwitch
+            resources={activeResources.map((r) => ({
+              id: r.id,
+              name: r.name,
+              capacity: r.capacity,
+            }))}
+            byDay={(active.shop.appointmentGranularity as AppointmentGranularity) !== 'TIME'}
+            createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
+          />
+        </AppointmentBoardCapsProvider>
       ) : (
         /* ยังไม่มีประเภทงาน = ยังจองอะไรไม่ได้ → **ซ่อนปฏิทินทั้งอัน** ไม่ใช่โชว์จาง ๆ ไว้ข้างหลัง
            (user เคาะ 2026-08-12) ตารางเดือนเปล่าเต็มจออ่านไม่ออกว่าระบบพัง ยังไม่ตั้งค่า หรือ
@@ -98,15 +113,19 @@ export default async function WorkSchedulePage() {
             </h5>
             {/* บอกภาพปลายทางให้ชัดว่ากดแล้วจะได้อะไรกลับมา ไม่ใช่แค่บอกว่าตอนนี้ว่าง */}
             <p className="text-default-500 max-w-sm text-sm">
-              ตั้งประเภทงานที่ร้านรับก่อน แล้วตารางนัดของแต่ละวันจะขึ้นที่นี่
+              {canSetupJobTypes
+                ? 'ตั้งประเภทงานที่ร้านรับก่อน แล้วตารางนัดของแต่ละวันจะขึ้นที่นี่'
+                : 'เจ้าของร้านหรือผู้ดูแลต้องตั้งประเภทงานก่อน ตารางนัดของแต่ละวันถึงจะขึ้นที่นี่'}
             </p>
-            <Link
-              href="/settings/job-types"
-              className="btn bg-primary hover:bg-primary-hover mt-1 min-h-11 gap-1.5 text-white"
-            >
-              <Icon icon="settings" className="size-4" aria-hidden="true" />
-              ไปตั้งค่าประเภทงาน
-            </Link>
+            {canSetupJobTypes && (
+              <Link
+                href="/settings/job-types"
+                className="btn bg-primary hover:bg-primary-hover mt-1 min-h-11 gap-1.5 text-white"
+              >
+                <Icon icon="settings" className="size-4" aria-hidden="true" />
+                ไปตั้งค่าประเภทงาน
+              </Link>
+            )}
           </div>
         </div>
       )}

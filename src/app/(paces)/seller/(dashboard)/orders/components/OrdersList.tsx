@@ -29,6 +29,7 @@ import {
   type OrderSearchHit,
 } from '@/lib/order-search'
 import OrderCard from './OrderCard'
+import { useViewerCan } from './OrderViewerRoles'
 import IShipImportModal from './IShipImportModal'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
@@ -112,6 +113,11 @@ type Props = {
    * "หน้านี้บังเอิญมีใบที่มีพัสดุไหม" จะขยับเองตอน lazy-load ซึ่งอ่านเป็นจอกระตุก (BR-SOV-09)
    */
   hasShippingAxis?: boolean
+  /**
+   * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ส่งต่อให้ตาราง/การ์ดซ่อนเงินทั้งหมด (00071 P3 · S-15)
+   * ตัดสินที่ page.tsx จาก `moneyLevel` ที่เดียว · ข้อมูลฝั่ง server ก็ไม่มีคีย์เงินอยู่แล้ว prop นี้คือด่านชั้นที่สอง
+   */
+  showMoney?: boolean
 }
 
 export default function OrdersList({
@@ -121,7 +127,10 @@ export default function OrdersList({
   vocab,
   vertical,
   hasShippingAxis = true,
+  showMoney = false,
 }: Props) {
+  // ปุ่มสร้าง/ลิงก์สร้างในหน้านี้ = O2s (ผู้ไม่มี O2s ไม่เห็น — ช่างเปิดบิลไม่ได้)
+  const canCreate = useViewerCan('O2s')
   const STATUS_TABS = useMemo(() => buildStatusTabs(vocab), [vocab])
   // คำเรียกของที่ขาย/คำว่าออเดอร์ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB/ORDER_VOCAB)
   const itemVocab = orderItemVocab(vertical)
@@ -692,6 +701,7 @@ export default function OrdersList({
         {/* แถบชิปพัสดุ desktop ถูกย้ายเป็น dropdown "พัสดุ" ใน toolbar ของตาราง
             (user 2026-08-06) — state/ตัวนับยังอยู่ที่นี่ symbol เดียวกับชิปมือถือ */}
         <OrdersTable
+          showMoney={showMoney}
           orders={stageFiltered}
           /* คำค้นเดียวกับมือถือ — state เดียว ผูก `?q=` เดียว ให้ผลเดียวกัน (feature 00058) */
           search={search}
@@ -864,22 +874,26 @@ export default function OrdersList({
               หน้านี้ full-screen จึงซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย
               คอมเมนต์เดิมเขียนว่า "มือถือใช้ FAB ใน bottom nav" ซึ่งไม่จริงมาตลอด:
               สร้างออเดอร์จากหน้านี้บนมือถือทำไม่ได้เลย (พบ 2026-08-06 ตอนทำหน้า /products) */}
-          <Link
-            href="/orders/new"
-            aria-label={vocab.createLabel}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white lg:hidden"
-          >
-            <Icon icon="plus" className="text-xl" />
-          </Link>
+          {canCreate && (
+            <Link
+              href="/orders/new"
+              aria-label={vocab.createLabel}
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white lg:hidden"
+            >
+              <Icon icon="plus" className="text-xl" />
+            </Link>
+          )}
 
           {/* สร้างออเดอร์ — เดสก์ท็อป (มีข้อความกำกับ) */}
-          <Link
-            href="/orders/new"
-            className="btn hidden shrink-0 bg-primary text-white hover:bg-primary-hover lg:inline-flex"
-          >
-            <Icon icon="plus" className="text-sm" />
-            {vocab.createLabel}
-          </Link>
+          {canCreate && (
+            <Link
+              href="/orders/new"
+              className="btn hidden shrink-0 bg-primary text-white hover:bg-primary-hover lg:inline-flex"
+            >
+              <Icon icon="plus" className="text-sm" />
+              {vocab.createLabel}
+            </Link>
+          )}
         </div>
 
         {/* แถบ "นัดวันนี้" — ตัวกรองแกนวันที่ต้องมองเห็นและล้างได้ (user สั่ง 2026-08-10)
@@ -1039,7 +1053,9 @@ export default function OrdersList({
                   ? undefined
                   : apptDay
                   ? { label: `ดู${vocab.noun}ทั้งหมด`, href: '/orders' }
-                  : { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
+                  : canCreate
+                    ? { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
+                    : undefined
               }
               actionButton={
                 isSearchActive(appliedSearch) && wholeShopMatches > 0
@@ -1057,6 +1073,7 @@ export default function OrdersList({
           {visible.map((order) => (
             <OrderCard
               key={order.publicToken}
+              showMoney={showMoney}
               order={order}
               onCancelRequest={handleCancelRequest}
               vocab={vocab}

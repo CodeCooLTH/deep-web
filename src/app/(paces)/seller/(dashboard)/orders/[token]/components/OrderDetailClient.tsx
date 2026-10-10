@@ -782,6 +782,7 @@ export default function OrderDetailClient({
           <OrderSummary
             /* ร้านบริการได้ป้ายจากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว) —
                `serviceBadge` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
+            showMoney
             serviceBadge={serviceBadge}
             /* ป้ายการชำระเงินต้องอ่านบัญชีเงินก่อน `Order.status` เสมอเมื่อร้านมีบัญชี */
             serviceMoney={serviceMoney}

@@ -5,7 +5,8 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { requireShopCapability, ForbiddenRoleError } from "@/lib/shop-capability";
-import { can } from "@/lib/shop-permissions";
+import { can, moneyLevel } from "@/lib/shop-permissions";
+import { toNoMoneyOrder } from "@/lib/order-view-by-level";
 import { isBillingOnlyEditor } from "@/lib/order-role-rules";
 import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { prisma } from "@/lib/prisma";
@@ -71,6 +72,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     },
   });
   if (!order) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });
+
+  // ช่าง (ระดับเงิน NONE): allow-list ไม่มีเงิน — ตัดด้วย "ไม่มีคีย์" (00071 P3 · S-15)
+  if (moneyLevel(gate.roles) === "NONE") return NextResponse.json(toNoMoneyOrder(order), { headers: NO_STORE });
 
   return NextResponse.json(
     {
