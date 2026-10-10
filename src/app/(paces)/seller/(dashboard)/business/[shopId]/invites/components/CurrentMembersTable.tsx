@@ -130,7 +130,7 @@ export default async function CurrentMembersTable({
                     <p className="text-xs text-default-500 mt-1">
                       {viewerIsPrimary
                         ? 'แพ็กเกจของคุณกำหนดโควตาของร้านนี้'
-                        : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนบทบาทหรือลบไม่ได้'}
+                        : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนประเภทหรือลบไม่ได้'}
                     </p>
                   )}
                   {member.role === 'ADMIN' && (

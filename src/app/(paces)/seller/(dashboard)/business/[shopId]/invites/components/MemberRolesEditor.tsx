@@ -52,7 +52,7 @@ export default function MemberRolesEditor({ shopId, memberId, name, roles, billi
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`แก้ไขบทบาทของ ${name}`}
-        className="btn bg-light hover:text-primary min-h-11 inline-flex items-center gap-1.5 text-xs"
+        className="btn bg-light hover:text-primary inline-flex items-center gap-1.5 text-xs"
       >
         <Icon icon="pencil" aria-hidden="true" />
         แก้ไขบทบาท
@@ -128,6 +128,7 @@ function RolesDialog({
     }
   }
 
+  // TODO(debt): ยังไม่มี focus trap — ปัญหาเดียวกับ TopUpRequestModal ต้นแบบ แก้ที่ต้นแบบรอบเดียวกัน (critique P2-8)
   return (
     <div
       className="size-full fixed top-0 start-0 z-80 overflow-x-hidden overflow-y-auto overscroll-contain bg-black/50 flex items-start sm:items-center py-4"
@@ -145,7 +146,7 @@ function RolesDialog({
             <h3 id="memberRolesModalLabel" className="font-medium text-sm min-w-0 truncate">
               บทบาทของ {name}
             </h3>
-            <button type="button" aria-label="ปิด" onClick={close} disabled={busy} className="shrink-0 disabled:opacity-40">
+            <button type="button" aria-label="ปิด" onClick={close} disabled={busy} className="inline-flex size-11 shrink-0 items-center justify-center -me-2 disabled:opacity-40">
               <Icon icon="x" className="text-2xl align-middle text-default-600" />
             </button>
           </div>
@@ -173,14 +174,14 @@ function RolesDialog({
           </div>
 
           <div className="flex justify-end items-center gap-x-2 border-t border-default-300 card-body">
-            <button type="button" onClick={close} disabled={busy} className="btn bg-light min-h-11 disabled:opacity-60">
+            <button type="button" onClick={close} disabled={busy} className="btn bg-light disabled:opacity-60">
               ยกเลิก
             </button>
             <button
               type="button"
               onClick={save}
               disabled={!canSave}
-              className="btn bg-primary text-white hover:bg-primary-hover min-h-11 disabled:opacity-60"
+              className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-60"
             >
               {busy ? 'กำลังบันทึก...' : 'บันทึกบทบาท'}
             </button>

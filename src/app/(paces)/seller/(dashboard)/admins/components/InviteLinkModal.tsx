@@ -67,9 +67,8 @@ const EXPIRY_CHOICES: { key: InviteExpiryKey; label: string; recommended?: boole
 // error code จาก POST /api/shops/current/invite-links (route.ts) → ข้อความไทย
 // รหัสที่ไม่อยู่ในตารางนี้ (NOT_OWNER, INVALID_ROLES, BILLING_NOT_AVAILABLE ฯลฯ) ใช้ memberErrorText กลาง
 const CREATE_ERROR_MESSAGE: Record<string, string> = {
-  SHOP_LOCKED: 'ธุรกิจนี้ถูกล็อกอยู่ ไม่สามารถสร้างลิงก์เชิญได้',
-  NO_ACTIVE_PACKAGE: 'ไม่มีแพ็กเกจที่ใช้งานอยู่',
-  VALIDATION_ERROR: 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่',
+  NO_ACTIVE_PACKAGE: 'ร้านนี้ยังไม่มีแพ็กเกจที่ใช้งานอยู่ จึงสร้างลิงก์เชิญไม่ได้',
+  VALIDATION_ERROR: 'ข้อมูลลิงก์ไม่ถูกต้อง เลือกบทบาทและอายุลิงก์ใหม่ แล้วกดสร้างลิงก์อีกครั้ง',
 }
 
 export default function InviteLinkModal({ links, billingAvailable }: InviteLinkModalProps) {
@@ -168,6 +167,7 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
             ].join(' ')}
           >
             <div className="w-full flex flex-col card pointer-events-auto">
+              {/* TODO(debt): ยังไม่มี focus trap — เหมือน TopUpRequestModal ต้นแบบ (critique P2-8) */}
               {/* ─── Header ─────────────────────────────────────────────── */}
               <div className="card-header p-5">
                 <h3 id="inviteLinkModalLabel" className="font-medium text-sm inline-flex items-center gap-2">
@@ -180,7 +180,7 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
                   aria-label="ปิด"
                   onClick={handleClose}
                   disabled={creating}
-                  className="disabled:opacity-40"
+                  className="inline-flex size-11 shrink-0 items-center justify-center -me-2 disabled:opacity-40"
                 >
                   <Icon icon="x" className="text-2xl align-middle text-default-600" />
                 </button>
@@ -188,17 +188,6 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
 
               {/* ─── Body ───────────────────────────────────────────────── */}
               <div className="card-body overflow-y-auto space-y-5">
-                {errorMsg && (
-                  <div
-                    role="alert"
-                    aria-live="polite"
-                    className="flex items-start gap-2 rounded-md bg-danger/10 border border-danger/30 p-3 text-sm text-danger"
-                  >
-                    <Icon icon="alert-circle" className="shrink-0 text-base mt-0.5" />
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-
                 {/* ── สร้างลิงก์ใหม่ ─────────────────────────────────────── */}
                 <StaffRolePicker
                   legend="บทบาทของคนที่เข้าผ่านลิงก์นี้"
@@ -259,6 +248,16 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
                       </>
                     )}
                   </button>
+                  {errorMsg && (
+                    <div
+                      role="alert"
+                      aria-live="polite"
+                      className="mt-3 flex items-start gap-2 rounded-md bg-danger/10 border border-danger/30 p-3 text-sm text-danger"
+                    >
+                      <Icon icon="alert-circle" className="shrink-0 text-base mt-0.5" aria-hidden="true" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── ลิงก์ที่ใช้งานอยู่ ──────────────────────────────────── */}
@@ -306,8 +305,8 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
                             icon="link-off"
                             confirmTitle="ยกเลิกลิงก์นี้?"
                             confirmText="ลิงก์นี้จะใช้เชิญคนใหม่ไม่ได้อีก (คนที่เข้าร่วมไปแล้วยังเป็นสมาชิกอยู่)"
-                            successMessage="ยกเลิกลิงก์เรียบร้อย"
-                            errorMessages={{ NOT_OWNER: 'คุณไม่มีสิทธิ์ยกเลิกลิงก์นี้' }}
+                            successMessage="ยกเลิกลิงก์แล้ว"
+                            errorMessages={{ NOT_OWNER: 'การทำรายการนี้ต้องเป็นเจ้าของร้าน ถ้าคุณเพิ่งถูกเปลี่ยนเป็นพนักงาน ให้โหลดหน้านี้ใหม่' }}
                           />
                         </div>
                       ))}

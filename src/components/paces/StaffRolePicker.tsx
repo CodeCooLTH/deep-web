@@ -40,7 +40,7 @@ export default function StaffRolePicker({ legend, selected, onChange, billingAva
   return (
     <fieldset className="min-w-0" disabled={disabled}>
       <legend className="form-label mb-0">{legend}</legend>
-      <p className="text-xs text-default-500 mb-2">เลือกได้มากกว่า 1</p>
+      <p className="text-xs text-default-500 mb-2">เลือกได้มากกว่า 1 · {FINANCE_NOTE}</p>
 
       <div className="flex flex-col gap-2">
         {options.map((o) => {
@@ -80,15 +80,9 @@ export default function StaffRolePicker({ legend, selected, onChange, billingAva
             <span>{COVERS_HINT}</span>
           </p>
         )}
-        {empty && (
-          <p role="alert" aria-live="polite" className="flex items-start gap-1.5 text-xs text-danger mb-0">
-            <Icon icon="alert-circle" className="shrink-0 text-base" aria-hidden="true" />
-            <span>{emptyRolesText(action)}</span>
-          </p>
-        )}
-        <p className="flex items-start gap-1.5 text-xs text-default-500 mb-0">
-          <Icon icon="info-circle" className="shrink-0 text-base" aria-hidden="true" />
-          <span>{FINANCE_NOTE}</span>
+        {/* เตือนเบา ๆ ไม่ใช่ error — ปุ่มบันทึก/สร้างปิดอยู่แล้ว · region ต้องอยู่ใน DOM ก่อนข้อความเปลี่ยนถึงจะถูกประกาศ */}
+        <p aria-live="polite" className="text-xs text-default-500 mb-0">
+          {empty ? emptyRolesText(action) : null}
         </p>
       </div>
     </fieldset>

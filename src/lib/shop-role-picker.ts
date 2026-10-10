@@ -17,9 +17,9 @@ export const STAFF_ROLE_COPY: Record<StaffRole, { label: string; description: st
   TECHNICIAN: { label: 'ฝ่ายช่าง', description: 'ดูงานทั้งหมด อัปเดตสถานะและผลเข้ารับบริการ ไม่เห็นราคาและแชท' },
 }
 
-export const BILLING_DRIFT_TEXT = 'ร้านนี้ไม่ได้ขายบริการ เอาออกเพื่อบันทึก'
+export const BILLING_DRIFT_TEXT = 'ร้านนี้ไม่ได้ขายบริการแล้ว เอาเปิดบิลออกก่อนบันทึก'
 export const COVERS_HINT = 'ผู้ดูแลมีสิทธิ์ของบทบาทอื่นครบอยู่แล้ว การเลือกบทบาทอื่นเพิ่มจึงไม่ได้ให้สิทธิ์เพิ่ม'
-export const FINANCE_NOTE = 'ยอดขายรวม กำไร ต้นทุน และกระเป๋าเงินของร้าน เห็นได้เฉพาะเจ้าของ'
+export const FINANCE_NOTE = 'ยอดขายรวม กำไร ต้นทุน และกระเป๋าเงินของร้าน เห็นได้เฉพาะเจ้าของร้าน'
 
 export type RoleAction = 'create' | 'save'
 const ACTION_VERB: Record<RoleAction, string> = { create: 'สร้างลิงก์', save: 'บันทึก' }
