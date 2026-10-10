@@ -26,6 +26,11 @@ const GUARDS = [
   'requireBuilderShopContext', 'requireShopId', 'requireScope', 'resolveChatChannelForUser', 'requireDraftOwner',
   'requireGeneralShop', 'requireLodgingShop',
   'requireAccess', // line-report/_shared.ts: requireAccess(level, cap) ส่งต่อ cap ให้ requireShopCapability (T4)
+  // T2: route ส่ง cap literal ให้ service ที่ตรวจ canAccessShopWith กับร้านเจ้าของแถวเอง (review T2 ยืนยันทั้ง 12 ตัว)
+  'replyToComment', 'sendPrivateReplyToCommentById', 'commentOnPost', 'getPostComments', 'setCommentResolved',
+  'getThreadMessagesPage', 'markRead', 'sendOutboundReaction', 'cancelFailedOutboundMessage',
+  'claimConversationControl', 'notifyTyping', 'saveIceBreakers',
+  'applyResolve', // ตัวส่งต่อใน resolve route → setCommentResolved (หนี้ T10: ให้ route ส่ง literal ตรงเข้า setCommentResolved)
 ]
 // ตัวหาร้าน/สมาชิกแบบไม่มี cap — ใน route ที่ DECLARED ห้ามเหลือ (ตัดสินสิทธิ์ด้วย membership ล้วน = ต้นเหตุช่องโหว่ F-1/F-4)
 const RAW_IN_DECLARED = ['canAccessShop', 'requireShopMember', 'isShopMember', 'assertShopsAccessible', 'getShopByUserId', 'getPersonalShop']
