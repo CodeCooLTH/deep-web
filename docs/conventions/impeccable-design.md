@@ -86,11 +86,35 @@ fintech ที่เข้าถึงง่าย — เคาน์เตอ�
 3. **Register: brand vs product** — landing เล่นตามกฎ brand, dashboard/หลังบ้านเล่นตามกฎ product (คนละ register)
 4. **Hierarchy · Contrast · Restraint** — เน้นสิ่งสำคัญให้เด่น (เช่น trust score), ตัดของฟุ่มเฟือย, ม่วงน้อยแต่ตรงจุด
 
-## Workflow ก่อนทำ UI (เพิ่มจาก Hard Rule 1/8)
-1. อ่าน `.impeccable/design.json` + `DESIGN.md` (design decision)
-2. Theme-copy จาก Vuexy/Paces (Hard Rule 1) + ผ่าน `safepay-ux` (Hard Rule 8)
-3. Apply named rules + tokens ข้างบน
-4. Self-check anti-slop: "มันดูเป็นเทมเพลต/generic ไหม? ม่วงเกิน 10% ไหม? เขียวใช้ผิดที่ไหม? ดำสนิทไหม?"
+## Workflow งาน UI — 8 ขั้น (ฉบับเต็มของ Hard Rule 8)
+
+ใช้กับทุกงานที่เปลี่ยนสิ่งที่ผู้ใช้เห็น (หน้าใหม่, redesign, component, layout, responsive) — **ไม่ต้องรอ user พูดคำว่า Impeccable**. งานที่ไม่แตะภาพ (logic/API/เทสล้วน) ข้ามได้.
+
+| # | ขั้น | ใครทำ | คำสั่ง / ไฟล์ |
+|---|---|---|---|
+| 1 | Discovery — อ่าน `PRODUCT.md` + `DESIGN.md` + `.impeccable/design.json` + หน้าพี่น้อง (`sibling-surface-parity`) | `safepay-ux` | — |
+| 2 | Direction — ยึด theme (Vuexy/Paces, Hard Rule 1) + token เดิม ห้ามตั้งระบบใหม่ | `safepay-ux` | — |
+| 3 | Shape — วางโครง/interaction ก่อนเขียนโค้ด อ่าน playbook `shape.md` (+ `operate.md` ถ้า `(paces)/**`, `craft-floor.md` ก่อนสรุป) | `safepay-ux` → Design Spec | `/impeccable shape` ถ้ามี |
+| 4 | Implement — copy จาก theme, ใช้ component/token เดิม, ไม่แตะ business logic | `safepay-developer` | — |
+| 5 | Audit — detector แบบ deterministic บนไฟล์ที่แตะ | Controller | `impeccable detect <ไฟล์>` · `/impeccable audit` เมื่อแตะ a11y/perf |
+| 6 | Critique — รีวิวเชิงดีไซน์ + หา AI-slop + ตรวจ copy | Controller | `/impeccable critique` + `/impeccable clarify` |
+| 7 | Polish — แก้ตามผล 5–6 แล้ว **รัน detect ซ้ำ** | developer → Controller | `/impeccable polish` |
+| 8 | Validate — เปิดหน้าจริงทั้ง desktop + mobile (Chrome DevTools MCP / `safepay-qa`) + tsc/test/build | `safepay-qa` + Controller | — |
+
+🛑 **กฎความซื่อตรงของ gate:**
+- **ห้ามเขียนว่า "ผ่าน Impeccable" / "audit แล้ว" / "critique แล้ว" ถ้าไม่ได้รันคำสั่งนั้นจริงใน session นั้น** — ต้องแนบผล (จำนวน finding ก่อน/หลัง) ในรายงาน
+- **รัน Impeccable ไม่ได้ → รายงาน user ตรง ๆ ว่าขั้นไหนไม่ได้รันเพราะอะไร** แล้วงานนั้นยัง "ไม่ complete" ตาม Hard Rule 8 จนกว่า user จะรับทราบ
+- finding ที่ตั้งใจไม่แก้ (false positive เช่น แถบปกเต็มความกว้าง) → เขียนเหตุผลในรายงาน หรือเพิ่มใน `.impeccable/config.json` `ignoreValues` พร้อม `reason`
+- ไม่ได้เปิดหน้า render จริง → ห้ามอ้างว่า "ตรวจด้วยตาแล้ว"
+
+**หา Impeccable ในเครื่อง:**
+- เครื่อง dev: ปลั๊กอิน → `find ~/.claude/plugins/cache/impeccable -path '*skills/impeccable/reference' -type d`
+- cloud session (Claude Code on the web): SessionStart hook `.claude/hooks/impeccable-cloud-install.sh` ติดตั้ง skill ไว้ที่ `~/.claude/skills/impeccable/` ให้อัตโนมัติ (ปักหมุด commit · เฉพาะ `CLAUDE_CODE_REMOTE=true` · ไม่ติด hook ของ Impeccable ซ้ำ). CLI = `~/.claude/skills/impeccable/scripts/impeccable`
+- คำสั่งเดียวหาได้ทั้งสองที่: `find ~/.claude/plugins/cache/impeccable ~/.claude/skills/impeccable -path '*skills/impeccable/reference' -type d 2>/dev/null`
+
+**สกิลดีไซน์อื่น** (`frontend-design`, `ui-ux-pro-max`, `design-taste-frontend`, `design-taste`) — ใช้เป็นแหล่งไอเดียได้เมื่อ *ติดตั้งอยู่จริง* เท่านั้น ห้ามอ้างว่าใช้ถ้าไม่ได้โหลด. ถ้าขัดกัน ลำดับคือ theme (markup) → `DESIGN.md`/`.impeccable/design.json` (สี/น้ำเสียง/ลำดับชั้น) → สกิลภายนอก.
+
+Self-check anti-slop ระหว่างทุกขั้น: "มันดูเป็นเทมเพลต/generic ไหม? ม่วงเกิน 10% ไหม? เขียวใช้ผิดที่ไหม? ดำสนิทไหม?"
 
 ## ตัวอย่างที่ใช้จริง (บทเรียน)
 - Buyer dashboard 2026-07-04: hero banner โชว์ trust score + สถานะยืนยันตัวตน (สัญญาณจริง ไม่ใช่การ์ตูนลอย), stat tiles สีตาม semantic (เขียว=สำเร็จ), sidebar เอา bullet ออก + ไอคอน active=ม่วง/inactive=สีรอง

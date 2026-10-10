@@ -17,7 +17,7 @@
 | 5 | font Anuphan เท่านั้น (ยกเว้น monospace code + icon font) | `ui-theme-sourcing` |
 | 6 | ref จาก user: asset/content ตาม ref · layout/skin ตาม theme ปัจจุบัน · ไม่ชัด → ถาม | `ui-theme-sourcing` |
 | 7 | `(paces)/**` ประกอบจาก Paces primitive — ห้าม arbitrary Tailwind (`text-[..]`/hex/`shadow-[]`) เว้นมี comment กำกับบรรทัดเดียวกัน; ม่วง #7367F0 = buyer เท่านั้น | reviewer grep |
-| 8 | frontend ทุกชิ้นผ่าน `safepay-ux` ก่อน (อ่าน DESIGN.md + PRODUCT.md + `.impeccable/design.json` + playbook impeccable หา path ด้วย `find ~/.claude/plugins/cache/impeccable -path '*skills/impeccable/reference' -type d`) · หลัง build รัน `/impeccable critique` + `clarify` ก่อน mark complete | Controller |
+| 8 | frontend ทุกชิ้นผ่าน `safepay-ux` ก่อน (อ่าน DESIGN.md + PRODUCT.md + `.impeccable/design.json` + playbook impeccable หา path ด้วย `find ~/.claude/plugins/cache/impeccable ~/.claude/skills/impeccable -path '*skills/impeccable/reference' -type d 2>/dev/null`) · หลัง build รัน `impeccable detect` + `/impeccable critique` + `clarify` ก่อน mark complete · workflow 8 ขั้น → [[docs/conventions/impeccable-design]] · รันไม่ได้ = รายงาน user ห้ามอ้างว่าผ่าน · cloud session ติดตั้งเองด้วย SessionStart hook | Controller |
 | 9 | toast ใน `(paces)/**` = `pacesToast` เท่านั้น · gate: `rg "from ['\"]react-toastify" "src/app/(paces)/"` = 0 | reviewer grep |
 | 10 | chart ใน `(paces)/**` copy จาก `theme/paces/.../widgets/charts/components/` ผ่าน `ApexChart` wrapper · สี `getColor('chart-*')` | reviewer grep |
 | 11 | Documentation-First: PRD+BRD ผ่าน user ก่อนเขียนโค้ด (เร่งก็ไม่ข้าม) · นับครบด้วย `diff` ชื่อไฟล์กับ template · แตะ data model/API/enum ต้อง sync `docs/SRS.md` · diagram = Mermaid | Controller |
