@@ -61,3 +61,21 @@ scope: แอปผู้ขาย (deep-seller-app) · แจ้งเตือ
 - `src/services/__tests__/chat-push-sound-pref.test.ts` (7)
 - `seller-push-page-title.test.ts` 2 เคสใหม่
 - mutation 7 แบบ แดงครบ
+
+## ส่วนขยาย 2026-10-10: เสียงในหน้าเว็บเล่นผ่าน Web Audio (เอาแผงควบคุมเพลงออกจากหน้าล็อก iOS)
+
+**อาการ (ทดสอบแอป 1.0.2 build 14):** หลังเสียงแชทในหน้าเว็บดังครั้งเดียว iPhone ขึ้นแผงควบคุมเพลง (▶ ⏪ ⏩ "ไม่ได้เล่นอยู่") ค้างบนหน้าล็อก
+- **ต้นเหตุ:** `chat-sound.ts` ใช้ `new Audio()` ซึ่งใน WKWebView นับเป็นสื่อที่กำลังเล่น
+- **ไม่เกี่ยวกับแจ้งเตือน push:** push ไม่เคยทำให้เกิดแผงนี้
+
+**แก้:** `playChatBeep` / `previewChatSound` / `primeChatSound` เปลี่ยนไปใช้ `AudioContext` + `AudioBufferSourceNode` (ไฟล์เดิม `/sounds/sound-new-chat-msg.m4a`)
+- WebKit ให้ AudioContext ขึ้นแผงนี้ก็ต่อเมื่อหน้าเว็บตั้ง `navigator.audioSession.type` เป็น `playback` หรือ `play-and-record` (`AudioContext::isNowPlayingEligible`) ⇒ **ห้ามตั้งค่านี้**
+- พัก context หลังเสียงจบทุกครั้ง (นับเสียงที่ดังซ้อนอยู่ก่อนพัก) เพื่อไม่เปลืองแบต และ context ที่สคริปต์พักไว้ไม่มีสิทธิ์ขึ้นแผงอยู่แล้ว
+- ใช้ `<audio>` เป็นทางสำรอง เฉพาะเบราว์เซอร์ที่ไม่มี Web Audio หรือถอดไฟล์ไม่ได้
+- **ผลข้างเคียงที่ยอมรับ:** iOS เงียบตามสวิตช์ปิดเสียงของเครื่อง เหมือนเสียงแจ้งเตือนทั่วไป
+
+**ไม่เปลี่ยน:** throttle / ปิดเสียงรายแอปและรายเธรด / ข้ามแท็บ / ไฟล์เสียง
+
+**เทส `[blocker]`:** `src/lib/__tests__/chat-sound-web-audio.test.ts` (8) · mutation 5 แบบ แดงครบ
+
+**ยังต้องทดสอบบนเครื่องจริง:** แอป iOS ให้มีแชทเข้าตอนเปิดหน้าแชทอยู่ แล้วล็อกจอ ⇒ ต้องไม่มีแผงควบคุมเพลง
