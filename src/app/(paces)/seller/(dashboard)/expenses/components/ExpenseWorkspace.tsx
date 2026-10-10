@@ -60,6 +60,8 @@ type Props = {
   orderNoun?: string
   /** คำเรียกต้นทุนตามประเภทกิจการ (ORDER_VOCAB.costNoun) — การ์ดต้นทุนใน P&L */
   costNoun?: string
+  /** คำเรียกของที่ร้านขาย (PRODUCT_VOCAB.itemColLabel) — ข้อความเตือนต้นทุนที่ยังไม่ได้ใส่ */
+  itemNoun?: string
   /**
    * กติกาการเงินชุดใหม่ (00067): การ์ด "ไม่เกิน" + แถวค่าส่งในรายการค่าใช้จ่าย — ร้านบริการเท่านั้น
    * หน้า /expenses (ร้านที่ไม่ใช่บริการ) ไม่ส่ง = ของเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
@@ -75,6 +77,7 @@ export default function ExpenseWorkspace({
   hasAnyExpenseEver,
   orderNoun = 'ออเดอร์',
   costNoun = 'ต้นทุนสินค้า',
+  itemNoun = 'สินค้า',
   serviceRules = false,
 }: Props) {
   const router = useRouter()
@@ -213,7 +216,7 @@ export default function ExpenseWorkspace({
         >
           <span className="flex items-start gap-2">
             <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้
+            กำไรที่แสดงสูงกว่าความจริง — มี{itemNoun}ที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้
           </span>
           <Link href="/products" className="inline-flex min-h-11 items-center font-semibold underline lg:min-h-0">
             ใส่ต้นทุนตอนนี้ →

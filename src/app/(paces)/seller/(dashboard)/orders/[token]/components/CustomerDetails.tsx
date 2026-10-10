@@ -35,6 +35,7 @@ export default function CustomerDetails({
   summary,
   salesChannel,
   profileKey,
+  buyerNoun,
 }: {
   buyer: OrderFactsBuyer
   /** ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ — null = ออเดอร์ยังไม่ผูก Customer (ไม่มีเบอร์) */
@@ -47,6 +48,8 @@ export default function CustomerDetails({
    * ผู้เรียกเป็นคนตัดสินและส่ง `null` มาให้ ไม่ใช่ให้ที่นี่เดาเอง
    */
   profileKey: string | null
+  /** คำเรียกอีกฝ่ายตามประเภทกิจการ (`vocab.buyerNoun`) — ร้านบริการเรียก "ลูกค้า" */
+  buyerNoun: string
 }) {
   const { displayName, subLabel, hasBuyerInfo } = resolveBuyerNames(buyer)
   const channelLabel = salesChannel ? getSalesChannelDisplay(salesChannel).label : null
@@ -54,7 +57,7 @@ export default function CustomerDetails({
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">ผู้ซื้อ</h4>
+        <h4 className="card-title">{buyerNoun}</h4>
         {/* ทางเข้าที่ 3 ของหน้าโปรไฟล์ลูกค้า (feature 00057 FR-012) */}
         {profileKey && (
           <Link
@@ -69,8 +72,8 @@ export default function CustomerDetails({
         {!hasBuyerInfo ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="user-off" className="text-default-300 mb-2 text-3xl" aria-hidden="true" />
-            <p className="text-default-700 text-sm">ยังไม่มีผู้ซื้อยืนยัน</p>
-            <p className="text-default-700 mt-1 text-xs">ผู้ซื้อจะต้องยืนยัน OTP ผ่านลิงก์ก่อนข้อมูลจะปรากฏ</p>
+            <p className="text-default-700 text-sm">ยังไม่มี{buyerNoun}ยืนยัน</p>
+            <p className="text-default-700 mt-1 text-xs">{buyerNoun}จะต้องยืนยัน OTP ผ่านลิงก์ก่อนข้อมูลจะปรากฏ</p>
           </div>
         ) : (
           <>
@@ -78,7 +81,7 @@ export default function CustomerDetails({
               <div className="relative me-2.5">
                 {buyer.avatar ? (
                   <Image
-                    alt={displayName ?? 'ผู้ซื้อ'}
+                    alt={displayName ?? buyerNoun}
                     className="size-11 rounded-full object-cover"
                     height={44}
                     src={buyer.avatar}

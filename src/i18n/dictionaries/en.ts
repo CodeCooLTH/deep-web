@@ -100,7 +100,12 @@ export const en: Dictionary = {
       LODGING: 'Stay bills',
     },
     auctions: 'Auctions',
-    products: 'Products',
+    // อังกฤษยังไม่ผันตาม vertical (ขอบเขตงานนี้คือไทย) — คงคำเดิมทุกค่าเพื่อให้รูปร่างตรง th
+    products: {
+      ONLINE_SALES: 'Products',
+      SERVICE_QUEUE: 'Products',
+      LODGING: 'Products',
+    },
     inventory: 'Stock',
     queues: 'Schedule',
     rooms: 'Rooms',
@@ -157,6 +162,16 @@ export const en: Dictionary = {
       ONLINE_SALES: 'Create an order',
       SERVICE_QUEUE: 'Create a job',
       LODGING: 'Create a stay bill',
+    },
+    createProductLabel: {
+      ONLINE_SALES: 'New product',
+      SERVICE_QUEUE: 'New product',
+      LODGING: 'New product',
+    },
+    firstItemLabel: {
+      ONLINE_SALES: 'Create your first product',
+      SERVICE_QUEUE: 'Create your first product',
+      LODGING: 'Create your first product',
     },
     bestSellerTitle: {
       ONLINE_SALES: 'Best sellers',
@@ -309,7 +324,6 @@ export const en: Dictionary = {
     navCreateClose: 'Close create menu',
     navCreateCategory: 'New category',
     navCreateJobType: 'New job type',
-    navCreateProduct: 'New product',
     navPendingAria: '{n} awaiting action',
     navUnreadAria: '{n} unread messages',
 
@@ -320,7 +334,6 @@ export const en: Dictionary = {
     checklistCategories: 'Categories',
     checklistAddress: 'Address',
     checklistMapPin: 'Map pin',
-    checklistFirstProduct: 'Create your first product',
   },
 
   comments: {
@@ -686,8 +699,9 @@ export const en: Dictionary = {
       tabCustomer: 'Info',
       tabFiles: 'Files',
       tabFollowUp: 'Follow-up',
-      statOrderCount: 'Orders',
-      statTotalSpent: 'Total spent',
+      // อังกฤษยังไม่ผันตาม vertical — คงคำเดิมทุกค่าเพื่อให้รูปร่างตรง th
+      statOrderCount: { ONLINE_SALES: 'Orders', SERVICE_QUEUE: 'Orders', LODGING: 'Orders' },
+      statTotalSpent: { ONLINE_SALES: 'Total spent', SERVICE_QUEUE: 'Total spent', LODGING: 'Total spent' },
       statCustomerSince: 'Customer for',
       linkStatusTitle: 'Link to customer record',
       linked: 'Linked',

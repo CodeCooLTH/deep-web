@@ -13,16 +13,19 @@ import Icon from '@/components/wrappers/Icon'
 import { formatBaht } from '@/lib/format-money'
 import { formatDateTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
-import { ORDER_STATUS_META } from '@/lib/order-display'
+import { orderStatusMetaFor } from '@/lib/order-display'
 import type { CustomerDirectoryOrder } from '@/lib/customer-directory'
 
 type Props = {
   orders: CustomerDirectoryOrder[]
   /** คำนามผันตาม vertical (`ORDER_VOCAB.noun`) — ห้ามต่อคำเอง */
   vocabNoun: string
+  /** ป้าย SHIPPED ผันตาม vertical (`ORDER_VOCAB.shippedStatusLabel`) */
+  shippedStatusLabel: string
 }
 
-export default function CustomerProfileOrders({ orders, vocabNoun }: Props) {
+export default function CustomerProfileOrders({ orders, vocabNoun, shippedStatusLabel }: Props) {
+  const statusMeta = orderStatusMetaFor({ shippedStatusLabel })
   return (
     <div className="card">
       <div className="card-header">
@@ -32,7 +35,7 @@ export default function CustomerProfileOrders({ orders, vocabNoun }: Props) {
       </div>
       <div className="flex flex-col">
         {orders.map((o) => {
-          const meta = ORDER_STATUS_META[o.status]
+          const meta = statusMeta[o.status]
           return (
             <div
               key={o.publicToken}

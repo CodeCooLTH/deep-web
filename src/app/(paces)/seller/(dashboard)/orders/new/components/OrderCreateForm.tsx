@@ -37,6 +37,7 @@ import {
   toOrderItemShippingKind,
 } from '@/lib/shipping-address-status'
 import { resolveProductVocab } from '@/lib/seller-menu'
+import { orderItemVocab } from '@/lib/order-display'
 import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 
 
@@ -347,6 +348,9 @@ export default function OrderCreateForm({
    */
   const productVocab = resolveProductVocab(shopVertical ?? '')
   const productNoun = productVocab.itemColLabel
+  // คำในช่องค้นหาแถวสินค้า/ป้ายจัดส่ง: เปลี่ยนเฉพาะร้านบริการ (LODGING คงคำเดิมของหน้านี้ — user ขอรอบ 2026-10-10)
+  const itemLabel = orderItemVocab(shopVertical ?? '').itemColLabel
+  const showFulfillmentBadge = shopVertical !== 'SERVICE_QUEUE'
 
   /**
    * ร้านคิวงานไม่เอาวันที่จากข้อความในแชท — ใช้เวลาปัจจุบันเสมอ (user สั่ง 2026-08-07)
@@ -1083,7 +1087,7 @@ export default function OrderCreateForm({
         {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
             (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
         <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} showFulfillmentBadge={showFulfillmentBadge} />
         </div>
         <div className="lg:h-full">
           <CartPanel
@@ -1103,6 +1107,9 @@ export default function OrderCreateForm({
             orderDateMessageTooOld={effectivePrefillTooOld}
             orderDateLabel={vocab.dateLabel}
             showDeliveryToggle={showDeliveryToggle}
+            itemLabel={itemLabel}
+            cartTitle={vocab.cartTitle}
+            addToCartLabel={vocab.addToCartLabel}
           />
         </div>
       </div>

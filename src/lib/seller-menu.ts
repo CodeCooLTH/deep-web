@@ -13,6 +13,7 @@ import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import type { ExpenseAccessDecision } from '@/services/expense-access.service'
 import type { Dictionary } from '@/i18n/dictionaries/th'
+import { byVertical } from '@/i18n/vertical'
 
 /**
  * ข้อความบน badge ของเมนู (feature 00047)
@@ -415,6 +416,9 @@ const ONLINE_SALES_ONLY_SLUGS = [
   'seller:auctions',
   'seller:reports-products',
   'seller:settings-order-agent',
+  // /settings เหลือแค่การตั้งค่าขนส่ง (iShip) ซึ่งหน้าเองแสดงเฉพาะ ONLINE_SALES — vertical อื่น
+  // กดเข้าไปเจอ empty state "ยังไม่มีการตั้งค่าการจัดส่ง" จึงซ่อนเมนูให้ตรงกับหน้า
+  'seller:settings',
 ]
 const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types']
 // seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
@@ -701,6 +705,13 @@ export type ProductVocab = {
   createProductLabel: string
   /** ข้อ checklist ตั้งร้าน "เพิ่มของชิ้นแรก" */
   firstItemLabel: string
+  /** ปุ่มเพิ่มบนหน้า /products (คำเดิมของหน้าคือ "เพิ่ม" ไม่ใช่ "สร้าง" แบบ FAB) */
+  addProductLabel: string
+  /**
+   * คำเรียก "ชิ้นเดียว" ในประโยคลบ/ครบทุก… — productNoun ของร้านบริการเป็นคำรวม ("บริการและสินค้า")
+   * ใส่ในประโยคเอกพจน์แล้วอ่านผิด ("ลบบริการและสินค้านี้?") จึงใช้ "รายการ" ที่ครอบทั้งบริการและของเสริม
+   */
+  itemSingular: string
 }
 
 export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
@@ -718,6 +729,8 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     productNoun: 'สินค้า',
     createProductLabel: 'สร้างสินค้า',
     firstItemLabel: 'สร้างสินค้าแรก',
+    addProductLabel: 'เพิ่มสินค้า',
+    itemSingular: 'สินค้า',
   },
   SERVICE_QUEUE: {
     // "ขายดี" ใช้กับงานบริการแล้วฟังเป็นของที่ขายเป็นชิ้น — "ยอดนิยม" ตรงกว่า
@@ -735,6 +748,8 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     productNoun: 'บริการและสินค้า',
     createProductLabel: 'เพิ่มบริการ',
     firstItemLabel: 'เพิ่มบริการแรก',
+    addProductLabel: 'เพิ่มบริการ',
+    itemSingular: 'รายการ',
   },
   LODGING: {
     bestSellerTitle: 'ห้องพักยอดนิยม',
@@ -752,6 +767,8 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     productNoun: 'สินค้า',
     createProductLabel: 'สร้างสินค้า',
     firstItemLabel: 'สร้างสินค้าแรก',
+    addProductLabel: 'เพิ่มสินค้า',
+    itemSingular: 'สินค้า',
   },
 }
 
@@ -1018,7 +1035,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:reports-products': m.reportsProducts,
     'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
     'seller:auctions': m.auctions,
-    'seller:products': m.products,
+    'seller:products': byVertical(m.products, vertical),
     'seller:inventory': m.inventory,
     'seller:queues': m.queues,
     'seller:rooms': m.rooms,

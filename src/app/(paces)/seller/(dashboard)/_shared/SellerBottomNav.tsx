@@ -76,7 +76,7 @@ const buildFabActions = (
           icon: 'category-plus',
         },
     {
-      label: t.dashboard.navCreateProduct,
+      label: byVertical(t.vocab.createProductLabel, vertical),
       href: '/products/new',
       icon: 'package-plus',
     },

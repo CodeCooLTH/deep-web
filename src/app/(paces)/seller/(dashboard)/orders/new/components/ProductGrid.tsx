@@ -22,11 +22,13 @@ interface Props {
   inc: (p: CatalogProduct) => void
   /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
   productNoun?: string
+  /** false = ซ่อนป้าย จัดส่ง/ไม่จัดส่ง (ร้านบริการไม่มีการจัดส่ง) */
+  showFulfillmentBadge?: boolean
   /** ร้านเปิดระบบคลัง → แสดงสต็อกคงเหลือ + กันเพิ่มสินค้าที่หมด */
   inventoryEnabled?: boolean
 }
 
-export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false, productNoun = 'สินค้า' }: Props) {
+export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false, productNoun = 'สินค้า', showFulfillmentBadge = true }: Props) {
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -116,6 +118,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
                     <p className="line-clamp-2 text-sm font-medium text-dark">{product.name}</p>
                     {product.sku && <p className="truncate text-xs text-default-500">SKU: {product.sku}</p>}
                     <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {showFulfillmentBadge && (
                       <span
                         className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
                           product.fulfillmentMode === 'SHIPPED'
@@ -125,6 +128,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
                       >
                         {product.fulfillmentMode === 'SHIPPED' ? 'จัดส่ง' : 'ไม่จัดส่ง'}
                       </span>
+                      )}
                       {showStock && (
                         <span
                           className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
@@ -198,6 +202,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
                   {product.sku && <p className="truncate text-2xs text-default-400">SKU: {product.sku}</p>}
                   <p className="mt-1 text-sm font-semibold text-primary">{formatThb(product.price)}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {showFulfillmentBadge && (
                     <span
                       className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${
                         product.fulfillmentMode === 'SHIPPED'
@@ -207,6 +212,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
                     >
                       {product.fulfillmentMode === 'SHIPPED' ? 'จัดส่ง' : 'ไม่จัดส่ง'}
                     </span>
+                      )}
                     {showStock && (
                       <span
                         className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ${

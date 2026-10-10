@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getT } from "@/i18n/server";
+import { byVertical } from "@/i18n/vertical";
 
 export type ChecklistItemKey =
   | "slug"
@@ -22,6 +23,7 @@ export async function GET() {
   const shop = await prisma.shop.findFirst({
     where: { userId, kind: "PERSONAL" },
     select: {
+      vertical: true,
       slug: true,
       salesChannels: true,
       categories: true,
@@ -42,7 +44,7 @@ export async function GET() {
     { key: "categories", label: t.dashboard.checklistCategories, done: shop.categories.length >= 1 },
     { key: "address", label: t.dashboard.checklistAddress, done: !!shop.address?.trim() },
     { key: "map_pin", label: t.dashboard.checklistMapPin, done: shop.latitude != null },
-    { key: "first_product", label: t.dashboard.checklistFirstProduct, done: shop._count.products >= 1 },
+    { key: "first_product", label: byVertical(t.vocab.firstItemLabel, shop.vertical), done: shop._count.products >= 1 },
   ];
   return NextResponse.json({ items, isComplete: items.every((i) => i.done) });
 }

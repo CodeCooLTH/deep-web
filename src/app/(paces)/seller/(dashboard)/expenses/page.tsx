@@ -18,6 +18,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { chatItemLabel } from '@/lib/chat-vocab'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import Icon from '@/components/wrappers/Icon'
@@ -133,6 +134,7 @@ export default async function ExpensesPage({
         hasAnyExpenseEver={everRecorded}
         // คำผันตามประเภทกิจการ — ร้านคิวงานไม่มี "ออเดอร์" ให้เฉลี่ยต่อใบ (ORDER_VOCAB)
         orderNoun={resolveOrderVocab(decision.shop.vertical).noun}
+        itemNoun={chatItemLabel(decision.shop.vertical)}
       />
     </>
   )

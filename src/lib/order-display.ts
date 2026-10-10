@@ -24,6 +24,7 @@
  */
 
 import { isAppointmentPast } from "./appointments";
+import { PRODUCT_VOCAB, type ProductVocab } from "./seller-menu";
 export const COD_PAYMENT_PATTERN = 'COD|ปลายทาง|เก็บเงิน'
 
 /**
@@ -380,6 +381,32 @@ export const ORDER_STATUS_META: Record<
    * ต่างจาก "พัสดุมีปัญหา" ที่ยังไม่รู้ผล · ไอคอนลูกศรย้อนกลับชุดเดียวกับกอง "ตีกลับ"
    */
   RETURNED: { label: 'คืนของแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'arrow-back-up', tone: 'warning' },
+}
+
+/**
+ * ORDER_STATUS_META ที่ผันป้าย SHIPPED ตามประเภทกิจการ — ร้านบริการไม่มีการจัดส่ง
+ * ต้องอ่าน `vocab.shippedStatusLabel` แทนค่าคงที่ "กำลังจัดส่ง" (ONLINE_SALES/LODGING ได้ค่าเดิมเป๊ะ)
+ * ใช้เฉพาะจอ seller ที่มี vocab อยู่แล้ว (ตัวกรอง/ป้ายใน list) — ตัวคงที่เดิมยังอยู่ให้ผู้เรียกอื่น
+ */
+export function orderStatusMetaFor(vocab: { shippedStatusLabel: string }): typeof ORDER_STATUS_META {
+  return { ...ORDER_STATUS_META, SHIPPED: { ...ORDER_STATUS_META.SHIPPED, label: vocab.shippedStatusLabel } }
+}
+
+/**
+ * คำเรียกของที่ขายบนหน้าออเดอร์ (สินค้า/ชิ้น) — เฉพาะ SERVICE_QUEUE ที่ผันเป็นบริการ/ครั้ง
+ * ที่อื่นคงคำเดิมของ ONLINE_SALES แม้ LODGING (PRODUCT_VOCAB.LODGING ใช้ "ห้องพัก/คืน" ซึ่งยังไม่ได้ทบทวนกับจอพวกนี้
+ * — รอบนี้ user ขอให้ LODGING เหมือนเดิมทุกตัวอักษร)
+ */
+export function orderItemVocab(vertical: string): ProductVocab {
+  return vertical === "SERVICE_QUEUE" ? PRODUCT_VOCAB.SERVICE_QUEUE : PRODUCT_VOCAB.ONLINE_SALES;
+}
+
+/**
+ * คำว่า "ออเดอร์" ในข้อความช่วย (empty state/aria/ตัวนับหน้า) — ร้านบริการใช้ vocab.noun ("งานบริการ")
+ * ส่วนร้านอื่นคงคำเดิม "ออเดอร์" (ONLINE_SALES.noun คือ "คำสั่งซื้อ" จึงใช้ vocab.noun ตรง ๆ ไม่ได้)
+ */
+export function orderWord(vertical: string, vocab: { noun: string }): string {
+  return vertical === "SERVICE_QUEUE" ? vocab.noun : "ออเดอร์";
 }
 
 /**

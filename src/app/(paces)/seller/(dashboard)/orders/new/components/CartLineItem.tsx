@@ -27,9 +27,11 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors?: FieldErrors<any>
   inventoryEnabled?: boolean
+  /** คำเรียกของที่ขายในช่องค้นหา (สินค้า/บริการ) ส่งต่อให้ ProductCombobox */
+  itemLabel?: string
 }
 
-export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors, inventoryEnabled = false }: Props) {
+export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors, inventoryEnabled = false, itemLabel }: Props) {
   const { field: qtyField } = useController({ control, name: `items.${index}.qty`, defaultValue: 1 })
   const { field: priceField } = useController({ control, name: `items.${index}.price`, defaultValue: 0 })
   const { field: descField } = useController({ control, name: `items.${index}.description`, defaultValue: '' })
@@ -58,6 +60,7 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
           catalog={catalog}
           onPick={(p) => itemsCtl.setLineProduct(index, p)}
           onCustom={(text) => itemsCtl.setLineCustom(index, text)}
+          itemLabel={itemLabel}
         />
         <input
           type="text"

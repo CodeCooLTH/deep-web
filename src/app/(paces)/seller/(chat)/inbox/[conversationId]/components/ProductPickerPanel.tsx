@@ -33,6 +33,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '@/i18n/LocaleProvider'
+import { chatItemLabel, chatSoldLine } from '@/lib/chat-vocab'
 import { fmt } from '@/i18n/fmt'
 import type { OptionSelection } from '@/lib/chat-memory-types'
 import {
@@ -104,6 +105,8 @@ type Props = {
   }
   /** ใช้กับ send: เริ่มที่โหมดหลายรายการและติ๊กไว้แล้ว (FR-MEM-18 กดแถวสินค้าที่สนใจ) */
   initialSelectedIds?: string[]
+  /** Shop.vertical ของร้านเจ้าของเธรด — ผันคำเรียกของที่ขาย (ไม่ส่ง = ONLINE_SALES) */
+  vertical?: string | null
 }
 
 /** รูปแรกของสินค้า — seed เก่าบางตัวเก็บเป็น URL เต็ม (picsum/CDN) ไม่ใช่ storage fileId
@@ -126,8 +129,11 @@ export default function ProductPickerPanel({
   inline,
   attach,
   initialSelectedIds,
+  vertical,
 }: Props) {
   const t = useT().inbox.productPicker
+  // ร้านบริการเรียกของที่ขายว่า "บริการ" ไม่ใช่ "สินค้า" — คำมาจาก PRODUCT_VOCAB ผ่าน chat-vocab
+  const item = chatItemLabel(vertical)
   const isAttach = mode === 'attach' && !!attach
   const [items, setItems] = useState<PickerProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -331,7 +337,7 @@ export default function ProductPickerPanel({
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                aria-label="กลับไปเลือกสินค้า"
+                aria-label={`กลับไปเลือก${item}`}
                 className="text-default-700 hover:text-info flex size-11 lg:size-7 items-center justify-center rounded"
               >
                 <Icon icon="arrow-left" className="text-base" />
@@ -341,7 +347,7 @@ export default function ProductPickerPanel({
           ) : (
             <>
               <Icon icon="package" className="text-base" />
-              {isAttach ? t.attachTitle : 'เลือกสินค้า'}
+              {isAttach ? t.attachTitle : `เลือก${item}`}
             </>
           )}
         </span>
@@ -427,14 +433,14 @@ export default function ProductPickerPanel({
         <div className="flex flex-col gap-2 pb-1">
           <ModeButton
             icon="photo"
-            label="ส่งรูปภาพสินค้าอย่างเดียว"
-            hint={selected.images[0] ? undefined : 'สินค้านี้ยังไม่มีรูป'}
+            label={`ส่งรูปภาพ${item}อย่างเดียว`}
+            hint={selected.images[0] ? undefined : `${item}นี้ยังไม่มีรูป`}
             disabled={!selected.images[0]}
             onClick={() => pick('image')}
           />
           <ModeButton
             icon="file-description"
-            label="ส่งรายละเอียดสินค้า"
+            label={`ส่งรายละเอียด${item}`}
             hint={`${priceText(selected.price)}${selected.shortDescription ? ' · มีคำอธิบายสั้น' : ''}`}
             onClick={() => pick('detail')}
           />
@@ -468,7 +474,7 @@ export default function ProductPickerPanel({
             <p className="text-default-700 mb-1.5 text-2xs font-semibold">ส่งออกทันที</p>
             <ModeButton
               icon="layout-cards"
-              label="ส่งการ์ดสินค้า"
+              label={`ส่งการ์ด${item}`}
               hint="ลูกค้าเห็นเป็นการ์ด (รูป ชื่อ ราคา) — ส่งทันทีเมื่อกด"
               onClick={() => pick('card')}
             />
@@ -482,8 +488,8 @@ export default function ProductPickerPanel({
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="ค้นหาสินค้า"
-              aria-label="ค้นหาสินค้า"
+              placeholder={`ค้นหา${item}`}
+              aria-label={`ค้นหา${item}`}
               className="form-input bg-card"
             />
           </div>
@@ -505,19 +511,19 @@ export default function ProductPickerPanel({
             {loading ? (
               <>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="bg-default-100 h-36 w-28 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลดสินค้า" />
+                  <div key={i} className="bg-default-100 h-36 w-28 shrink-0 animate-pulse rounded-xl" role="status" aria-label={`กำลังโหลด${item}`} />
                 ))}
               </>
             ) : failed ? (
               <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
-                <span>โหลดรายการสินค้าไม่สำเร็จ</span>
+                <span>โหลดรายการ{item}ไม่สำเร็จ</span>
                 <button type="button" onClick={load} className="btn border-default-300 min-h-11">
                   <Icon icon="refresh" className="me-1" /> ลองใหม่
                 </button>
               </div>
             ) : filtered.length === 0 ? (
               <p className="text-default-700 mb-0 py-4 text-center text-sm">
-                {items.length === 0 ? 'ยังไม่มีสินค้าที่เปิดขายอยู่' : 'ไม่พบสินค้าที่ค้นหา'}
+                {items.length === 0 ? `ยังไม่มี${item}ที่เปิดขายอยู่` : `ไม่พบ${item}ที่ค้นหา`}
               </p>
             ) : (
               filtered.map((p) => {
@@ -579,7 +585,7 @@ export default function ProductPickerPanel({
                       ) : (
                         <p className="text-default-700 mt-1 flex items-center gap-1 truncate text-2xs">
                           <Icon icon="package" className="size-3 shrink-0" />
-                          สั่งซื้อแล้ว {(p.soldCount ?? 0).toLocaleString('th-TH')} ชิ้น
+                          {chatSoldLine(vertical, (p.soldCount ?? 0).toLocaleString('th-TH'))}
                         </p>
                       )}
                     </div>
@@ -684,7 +690,7 @@ export default function ProductPickerPanel({
         /* หนี้ที่ ux ชี้ 2026-08-11: ข้อความเดิมเขียนว่า "ทุกโหมดเติมช่องพิมพ์" ซึ่งไม่จริงตั้งแต่มี
            โหมด "ส่งการ์ดสินค้า" ที่ส่งออกทันที — แยกคำตามหน้าที่ผู้ใช้อยู่จริง */
         <div className="text-default-700 pt-1.5 text-2xs">
-          {selected ? 'การ์ดสินค้าส่งออกทันที — อีก 3 แบบจะไปอยู่ในช่องพิมพ์ให้แก้ก่อนส่ง' : 'แตะสินค้าเพื่อเลือกรูปแบบการส่ง'}
+          {selected ? `การ์ด${item}ส่งออกทันที — อีก 3 แบบจะไปอยู่ในช่องพิมพ์ให้แก้ก่อนส่ง` : `แตะ${item}เพื่อเลือกรูปแบบการส่ง`}
         </div>
       )}
     </div>

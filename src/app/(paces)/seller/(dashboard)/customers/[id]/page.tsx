@@ -152,7 +152,7 @@ export default async function CustomerProfilePage({ params }: PageProps) {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-10">
         <div className="order-2 flex flex-col gap-5 xl:order-1 xl:col-span-7">
           <FollowUpProfileSection data={followUps} addConversationId={latestConversationId} />
-          <CustomerProfileOrders orders={entry.orders} vocabNoun={vocab.noun} />
+          <CustomerProfileOrders orders={entry.orders} vocabNoun={vocab.noun} shippedStatusLabel={vocab.shippedStatusLabel} />
         </div>
         <div className="order-1 flex flex-col gap-5 xl:order-2 xl:col-span-3">
           <CustomerProfileHeader

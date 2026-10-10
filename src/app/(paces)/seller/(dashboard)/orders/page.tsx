@@ -522,15 +522,16 @@ export default async function OrdersPage({ searchParams }: PageProps) {
    *
    * ไม่แตะ ORDER_STATUS_META — ดรอปดาวน์ตัวกรองกับป้ายบนแถวยังคงคำเดิมทุกตัวอักษร
    */
+  const vocab = resolveOrderVocab(shop.vertical)
   const orderStatData: OrderStatCardData[] = [
     buildStatCard('รอดำเนินการ', 'PENDING'),
-    buildStatCard('ส่งแล้ว',     'SHIPPED'),
+    // ร้านบริการไม่มีการส่งของ — การ์ดนี้นับ status=SHIPPED ชุดเดียวกับขั้น fulfillLabel ในเช็กลิสต์ จึงใช้คำเดียวกัน
+    buildStatCard(shop.vertical === 'SERVICE_QUEUE' ? vocab.fulfillLabel : 'ส่งแล้ว', 'SHIPPED'),
     buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
     buildStatCard('ยกเลิก',      'CANCELLED'),
   ]
 
   const activeStatus = sp.status ?? 'all'
-  const vocab = resolveOrderVocab(shop.vertical)
 
   return (
     <>

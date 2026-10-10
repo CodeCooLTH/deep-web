@@ -574,7 +574,8 @@ export default async function SellerDashboardPage() {
   // ออเดอร์/รายได้ ตาม filter วันนี้/เดือนนี้ (มี periodLabel กำกับ) — Trust Score ไม่ผูกช่วงเวลา
   // จึงไม่มีป้าย: การมี/ไม่มีป้ายคือตัวบอกว่าใบไหนตาม filter
   const statData: StatType[] = [
-    { title: t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
+    { // ร้านบริการเห็นคำของตัวเอง (ORDER_VOCAB.noun ผ่าน t.vocab) · ร้านอื่นคงคำเดิม "ออเดอร์"
+      title: shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
     { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' },
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]

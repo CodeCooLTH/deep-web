@@ -777,6 +777,8 @@ export default function OrderDetailClient({
             items={items}
             onAction={handleAction}
             orderNoun={orderNoun}
+            vocab={vocab}
+            vertical={vertical}
             paymentMethod={paymentMethod}
             publicToken={publicToken}
             salesChannel={salesChannel}
