@@ -5,10 +5,13 @@ import { NextRequest } from 'next/server'
 vi.mock('next-auth', () => ({ getServerSession: vi.fn(async () => ({ user: { id: 'u1' } })) }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 const role = vi.hoisted(() => ({ current: 'ADMIN' as 'OWNER' | 'ADMIN' }))
+// 00071 P3: ด่านสิทธิ์ผ่าน requireShopCapability → requireShopForRequest (ตัวตัดสิน can() จริง ไม่ mock)
 vi.mock('@/lib/shop-context', () => ({
-  resolveActiveShopContext: vi.fn(async () => ({ shopId: 'shop-1', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] })),
+  requireShopForRequest: vi.fn(async () => ({
+    ok: true,
+    target: { shop: { id: 'shop-1', kind: 'BUSINESS', vertical: 'ONLINE_SALES', userId: 'owner-x' }, role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [], locked: false, lockReason: null },
+  })),
 }))
-vi.mock('@/services/shop.service', () => ({ getShopByUserId: vi.fn(async () => ({ id: 'shop-1', vertical: 'ONLINE_SALES' })) }))
 vi.mock('@/services/inventory-entitlement.service', () => ({ isProActive: vi.fn(async () => true) }))
 const exportStockToCsv = vi.hoisted(() => vi.fn(async () => 'csv'))
 const importRows = vi.hoisted(() => vi.fn(async () => ({ totalRows: 1, successCount: 1, errorCount: 0, results: [] })))

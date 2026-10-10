@@ -1,7 +1,10 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as v from "valibot";
 import { CreateServiceResourceSchema } from "@/lib/validations";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import {
   createServiceResource,
@@ -31,8 +34,9 @@ export async function GET(request: NextRequest) {
    * active อยู่ร้าน A (BR-UNI-07) ⇒ ถ้าเชื่อ `activeShopId` อย่างเดียวจะหาไม่เจอแล้วผู้ใช้
    * ได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน · ไม่ส่งมา = พฤติกรรมเดิมทุกประการ
    */
-  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get("shopId") });
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q1", { shopId: request.nextUrl.searchParams.get("shopId") });
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const activeOnly = request.nextUrl.searchParams.get("activeOnly") === "1";
 
@@ -52,8 +56,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q2");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(CreateServiceResourceSchema, body ?? {});

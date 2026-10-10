@@ -8,7 +8,7 @@ import { listHousekeepers, createHousekeeper } from "@/services/housekeeping.ser
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: NextRequest) {
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("Q1");
   if ("error" in ctx) return ctx.error;
   try {
     const items = await listHousekeepers(ctx.shopId);
@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("Q2");
   if ("error" in ctx) return ctx.error;
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(CreateHousekeeperSchema, body ?? {});

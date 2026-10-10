@@ -10,9 +10,8 @@ import type { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  // ชั่วคราว (user สั่ง 2026-07-29): ปลด ownerOnly — เป็นแค่การตรวจว่า token ที่มีอยู่ยังใช้ได้ไหม
-  // ไม่ได้แก้/เปิดเผยค่า token และไม่เปลี่ยนอะไรนอกจากสถานะการเชื่อมต่อ
-  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
+  // S2 (เจ้าของ+ผู้ดูแล · มติ C-2) — ตรวจว่า token ที่มีอยู่ยังใช้ได้ไหม ไม่ได้แก้/เปิดเผยค่า token
+  const guard = await requireGeneralShop({ cap: "S2", shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   try {

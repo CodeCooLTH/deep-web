@@ -20,6 +20,9 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import CategoryTable from './components/CategoryTable'
 import type { CategoryRow } from './components/data'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'หมวดหมู่สินค้า' }
 
@@ -49,6 +52,16 @@ const FIXED_CATEGORIES: Array<Pick<CategoryRow, 'key' | 'label' | 'description' 
 
 export default async function CategoriesPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="หมวดหมู่สินค้า" />
+        <NoPermissionCard capability="P2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 

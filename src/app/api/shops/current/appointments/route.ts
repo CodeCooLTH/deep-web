@@ -1,5 +1,8 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { listAppointments } from "@/services/appointment.service";
 
@@ -23,8 +26,9 @@ import { listAppointments } from "@/services/appointment.service";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q1");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const sp = request.nextUrl.searchParams;
   const fromRaw = sp.get("from");

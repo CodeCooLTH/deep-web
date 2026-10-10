@@ -25,6 +25,7 @@ import type { OrderRow } from './data'
 import OrderCardMenu from './OrderCardMenu'
 import QrCodeButton from './QrCodeButton'
 import { canEditOrder } from '@/lib/order-display'
+import { useViewerCan } from './OrderViewerRoles'
 
 export type OrderActionsVariant = 'card' | 'table' | 'table-grid'
 
@@ -43,7 +44,10 @@ const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-defa
 
 export default function OrderActions({ order, onCancelRequest, variant, orderNoun, serviceVocab }: OrderActionsProps) {
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
-  const canEdit = canEditOrder(order.status)
+  // O3 แก้ไข · O7 ส่ง SMS — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นปุ่ม (ผู้เปิดบิล: ปุ่มแก้ไขแสดงเฉพาะบิลบริการ — หน้าแก้ไขเช็คสถานะชำระเป็นรายใบอีกชั้น)
+  const viewerCanEdit = useViewerCan('O3')
+  const canSms = useViewerCan('O7')
+  const canEdit = canEditOrder(order.status) && viewerCanEdit && !order.editLocked
 
   // copy link: ใช้ shortCode (สั้น) fallback publicToken; ลิงก์ภายใน /orders/ คงใช้ publicToken
   const copyCode = order.shortCode || order.publicToken
@@ -79,7 +83,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
           <Icon icon="pencil" className="text-base" />
         </Link>
       ) : null,
-      !isTerminal ? (
+      !isTerminal && canSms ? (
         <SendSmsButton serviceVocab={serviceVocab} key="sms" publicToken={order.publicToken} iconOnly className="rounded-none border-0 bg-white" />
       ) : null,
       <QrCodeButton orderWord={serviceVocab?.noun} key="qr" order={order} className="rounded-none border-0 bg-white" />,
@@ -109,7 +113,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
               <Icon icon="pencil" className="text-base" />
             </Link>
           )}
-          {!isTerminal && (
+          {!isTerminal && canSms && (
             <SendSmsButton serviceVocab={serviceVocab} publicToken={order.publicToken} iconOnly className="-ms-px rounded-none" />
           )}
           <QrCodeButton orderWord={serviceVocab?.noun} order={order} className="-ms-px rounded-none" />
@@ -122,7 +126,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   // ── mobile (card): [SMS][QR][copy][⋮] icon-only — SMS=ปุ่มหลักน้ำเงินทึบ ──
   return (
     <div className="flex items-center justify-end gap-1.5">
-      {!isTerminal && (
+      {!isTerminal && canSms && (
         <SendSmsButton serviceVocab={serviceVocab} publicToken={order.publicToken} iconOnly emphasis="primary" className="min-h-11 min-w-11" />
       )}
       <QrCodeButton orderWord={serviceVocab?.noun} order={order} className="min-h-11 min-w-11" />
@@ -130,6 +134,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
       <OrderCardMenu
         token={order.publicToken}
         status={order.status}
+        editLocked={order.editLocked}
         onCancelRequest={onCancelRequest}
         orderNoun={orderNoun}
       />

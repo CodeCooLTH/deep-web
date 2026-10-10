@@ -35,6 +35,7 @@ import { useEffect, useRef, useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
+import { useViewerCan } from './OrderViewerRoles'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface BulkActionBarProps {
@@ -69,6 +70,9 @@ export default function BulkActionBar({
   linkNoun = 'คำสั่งซื้อ',
   buyerNoun = 'ผู้ซื้อ',
 }: BulkActionBarProps) {
+  // O7 ส่ง SMS · S1 พิมพ์ใบปะหน้า (พัสดุ) — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นปุ่ม
+  const canSms = useViewerCan('O7')
+  const canShip = useViewerCan('S1')
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const [printing, setPrinting] = useState(false)
 
@@ -203,6 +207,7 @@ export default function BulkActionBar({
               คัดลอกลิงก์
             </button>
 
+            {canSms && (
             <button
               type="button"
               onClick={() => void handleSmsClick()}
@@ -213,13 +218,14 @@ export default function BulkActionBar({
               <Icon icon="message-forward" className="size-4.5" />
               ส่ง SMS
             </button>
+            )}
           </div>
 
           <span className="border-l border-white/20 self-stretch my-1.5" aria-hidden="true" />
 
           {/* zone 3: close */}
           <div className="ps-1 pe-2">
-            {ishipEnabled && (
+            {ishipEnabled && canShip && (
               <button
                 type="button"
                 onClick={handlePrintLabels}

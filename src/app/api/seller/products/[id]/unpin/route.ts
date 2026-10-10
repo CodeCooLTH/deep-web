@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { unpinProduct, PinProductNotFoundError } from "@/services/pin.service";
 
 // path param productId ต้องเป็น uuid — ไม่ผ่าน = 400 ชัดเจนแทนปล่อยไป findFirst→404 (consistency กับ pin route)
@@ -21,10 +21,9 @@ export async function POST(
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า", code: "SHOP_NOT_FOUND" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "P2");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   // ไม่เช็ค active.locked ที่นี่โดยตั้งใจ — unpin ลด exposure (ปลดสินค้าเด่น) ไม่ใช่ spend action
   // ปล่อยผ่านเหมือน pattern delete เดิม (ร้านที่ถูก lock ยังยกเลิกปักหมุดได้)
 

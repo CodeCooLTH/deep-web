@@ -28,13 +28,27 @@ import type { ProductRow } from './components/data'
 import type { StatType } from './components/ProductStats'
 import { fileUrlOf } from '@/lib/file-url'
 import { can, rolesFromMembership } from '@/lib/shop-permissions'
+import { isBillingOnlyFor } from '@/lib/order-role-rules'
 import { resolveProductVocab } from '@/lib/seller-menu'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('list')
 
 export default async function ProductsPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="สินค้า" />
+        <NoPermissionCard capability="P1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) return null
 
@@ -80,6 +94,8 @@ export default async function ProductsPage() {
     getPinState(shop.id),
   ])
   if (productsResult.status === 'fulfilled') products = productsResult.value
+  // P1 ของผู้เปิดบิล = เฉพาะสินค้าประเภทบริการ — กรองที่ server (เดียวกับ GET /api/products)
+  if (gate.ok && isBillingOnlyFor(gate.roles, 'P1')) products = products.filter((p: any) => p.type === 'SERVICE')
   if (ordersResult.status === 'fulfilled') orders = ordersResult.value
   if (pinStateResult.status === 'fulfilled') pinState = pinStateResult.value
 

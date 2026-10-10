@@ -17,7 +17,7 @@ import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
+  const guard = await requireGeneralShop({ cap: "S1", shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipPriceCompareSchema, await readJson(request));

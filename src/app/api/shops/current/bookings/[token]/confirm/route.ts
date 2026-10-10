@@ -22,7 +22,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("O4");
   if ("error" in ctx) return ctx.error;
 
   try {

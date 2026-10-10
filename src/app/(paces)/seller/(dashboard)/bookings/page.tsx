@@ -16,6 +16,9 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { listBookings, toDateOnlyString, nightsBetween } from '@/services/booking.service'
 import { formatDateTH } from '@/lib/format-date'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'การจอง' }
 
@@ -36,6 +39,16 @@ function baht(v: string): string {
 
 export default async function BookingsPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การจอง" />
+        <NoPermissionCard capability="O1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
 
   const active = await requireActiveShop(

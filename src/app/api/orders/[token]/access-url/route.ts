@@ -4,6 +4,8 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { SetAccessUrlSchema } from "@/lib/validations";
 import { setAccessUrl } from "@/services/order.service";
+import { prisma } from "@/lib/prisma";
+import { canAccessShopWith } from "@/lib/shop-capability";
 
 // POST /api/orders/[token]/access-url
 //
@@ -21,6 +23,13 @@ export async function POST(
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // O7 — ด่านที่ route (ทะเบียนสิทธิ์) ก่อนอ่าน body; service ตรวจซ้ำอีกชั้น
+  const head = await prisma.order.findUnique({ where: { publicToken: token }, select: { shopId: true } });
+  if (!head) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (!(await canAccessShopWith(head.shopId, userId, "O7"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Validate request body — url ต้องเป็น http/https (กัน stored-XSS ผ่าน javascript:/data:)

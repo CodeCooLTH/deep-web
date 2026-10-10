@@ -46,6 +46,8 @@ import dynamic from 'next/dynamic'
 import OrderSummary, { type OrderSummaryProps } from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
+import { filterActionSetByRoles } from '@/lib/order-role-rules'
+import { can, type ShopRole } from '@/lib/shop-permissions'
 import { showReceiptButton } from '@/lib/receipt'
 // feature 00050 — ปุ่มเรื่องเงินของร้านคิวงาน: **ตัวตัดสินว่าเห็นปุ่มอะไร** อยู่ที่ไลบรารีเดียวกับแชท
 // ห้ามเขียนเงื่อนไข `outstanding > 0` ของตัวเองที่นี่ (เหตุผลเต็มอยู่หัวไฟล์ chat-order-actions.ts)
@@ -197,6 +199,13 @@ export interface OrderDetailClientProps {
    * "พิมพ์ใบเสร็จ" (ออกเลขใหม่) กับ "ดูใบเสร็จ" (เปิดใบเดิม ไม่ยิง POST ซ้ำ)
    */
   receiptNo?: string | null
+  /**
+   * 00071 P3 (S-14) — บทบาทที่มีผลจริงของผู้ดู: ใช้ซ่อนปุ่มที่ไม่มีสิทธิ์ (ยกเลิก O6 · รับเงิน O5 · ส่งของ S1 · แก้ O3 · ส่ง SMS O7)
+   * ตัวบังคับจริงอยู่ที่ route — prop นี้ทำให้ปุ่มไม่โผล่แล้วกดแล้ว 403 · ไม่ส่ง/ว่าง = ไม่มีบทบาท = ไม่เห็นปุ่มเปลี่ยนข้อมูลเลย (ปิดเป็นค่าตั้งต้น)
+   */
+  viewerRoles: ShopRole[]
+  /** บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ) — ซ่อนเมนูแก้ไขแม้บทบาทมี O3 */
+  editLocked: boolean
 }
 
 export default function OrderDetailClient({
@@ -247,6 +256,8 @@ export default function OrderDetailClient({
   paymentConfirmedByLabel,
   handedOverAtISO,
   receiptNo = null,
+  viewerRoles,
+  editLocked,
 }: OrderDetailClientProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
@@ -278,6 +289,7 @@ export default function OrderDetailClient({
     isCodUnpaid,
     isPickupPaymentUnpaid,
     isPickupHandedOver,
+    editLocked,
   })
 
   /**
@@ -362,6 +374,11 @@ export default function OrderDetailClient({
         menu: withReturn.menu,
       }
     : withReturn
+
+  // ปุ่มทั้งหมดของหน้า (แถบล่าง + หัวการ์ด) มาจากชุดนี้ชุดเดียว — ตัดปุ่มที่บทบาทนี้ไม่มีสิทธิ์ออกที่จุดเดียว
+  const visibleActionSet = filterActionSetByRoles(actionSet, viewerRoles, { editLocked })
+  const canCancel = can(viewerRoles, 'O6')
+  const canReceiveMoney = can(viewerRoles, 'O5')
 
   // คัดลอกข้อความ/ลิงก์ — Base: CopyLinkButton.tsx handleCopy (fallback execCommand สำหรับ HTTP context)
   const copyText = async (text: string, successMessage: string) => {
@@ -734,7 +751,7 @@ export default function OrderDetailClient({
               ประโยคเรื่องอัตราความสำเร็จไม่ใช่คำปลอบใจ — ยืนยันกับโค้ดแล้วว่าจริง:
               shop.service.ts:381 หักใบที่ `carrierStatus` เป็นตีกลับออกจากตัวหารเสมอ
               (BR-OSM-04) ร้านที่กลัวเสีย % แล้วปล่อยใบค้างไว้คือสิ่งที่ประโยคนี้แก้ */}
-          {shouldPromptCloseReturnedOrder({ status, parcelReturned }) && (
+          {canCancel && shouldPromptCloseReturnedOrder({ status, parcelReturned }) && (
             <div className="bg-warning/15 text-default-800 flex flex-col gap-3 rounded-lg px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-2.5">
                 <Icon
@@ -768,7 +785,7 @@ export default function OrderDetailClient({
             serviceBadge={serviceBadge}
             /* ป้ายการชำระเงินต้องอ่านบัญชีเงินก่อน `Order.status` เสมอเมื่อร้านมีบัญชี */
             serviceMoney={serviceMoney}
-            actionSet={actionSet}
+            actionSet={visibleActionSet}
             createdAtISO={createdAtISO}
             receiptNo={receiptNo}
             internalNote={internalNote}
@@ -800,6 +817,7 @@ export default function OrderDetailClient({
           {/* การ์ดเงินอยู่ใต้ผู้ซื้อ = ลำดับที่ร้านอ่านจริง (ใครซื้อ → ได้เงินหรือยัง → ส่งที่ไหน) */}
           {isCod ? (
             <CodCard
+              canAct={canReceiveMoney}
               codReceivedAtISO={codReceivedAtISO}
               onMarkReceived={handleCodReceived}
               onUndo={handleCodUndo}
@@ -837,6 +855,7 @@ export default function OrderDetailClient({
                 slipFileId={slipFileId}
                 status={status}
                 totalAmount={totalAmount}
+                canAct={canReceiveMoney}
               />
             )
           )}
@@ -848,7 +867,7 @@ export default function OrderDetailClient({
       </div>
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
-      <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />
+      <OrderActionBar variant="bottom" actionSet={visibleActionSet} onAction={handleAction} />
 
       {/* ชีตคืนของ (feature 00056) — component ตัวเดียวกับที่ห้องแชทใช้ ต่างแค่จุดที่เปิด
           `initialCount={0}` เพราะจำนวนจริงมาตอนโหลดในชีต (หน้านี้ไม่ query ล่วงหน้าแล้ว —
@@ -873,6 +892,7 @@ export default function OrderDetailClient({
           orderLabel={orderLabel ?? publicToken.slice(0, 8).toUpperCase()}
           shopId={null}
           money={serviceMoney}
+          canVoid={can(viewerRoles, 'O6')}
           onChanged={() => router.refresh()}
         />
       )}

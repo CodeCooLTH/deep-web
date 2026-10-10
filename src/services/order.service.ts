@@ -1,3 +1,5 @@
+import { ForbiddenRoleError, canAccessShopWith } from "@/lib/shop-capability";
+import { isOrderUnpaid } from "@/lib/order-payment-state";
 import { shopCompletedLabel } from "@/lib/shop-stat-vocab";
 import { randomBytes } from "node:crypto";
 import { ACTIVE_FORWARD_SHIPMENT, LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -108,6 +110,28 @@ export class OrderDateOutOfWindowError extends Error {
     super("ORDER_DATE_OUT_OF_WINDOW")
     this.name = "OrderDateOutOfWindowError"
   }
+}
+
+/**
+ * 00071 P3 (มติ C-6) — บทบาท "เปิดบิล" (O2s แต่ไม่มี O2) สร้าง/แก้ได้เฉพาะบิลบริการ:
+ * รายการที่อ้าง productId ของสินค้าที่ไม่ใช่ SERVICE ถูกปฏิเสธทั้งใบ
+ * extends ForbiddenRoleError ⇒ route ที่จับคลาสแม่ได้ 403 FORBIDDEN_ROLE เหมือนกัน
+ */
+export class OrderRoleRestrictedError extends ForbiddenRoleError {
+  constructor() { super(); this.name = "OrderRoleRestrictedError"; }
+}
+
+/** 00071 P3 (O3 เงื่อนไขต่อใบ) — BILLING แก้ได้เฉพาะบริการที่ยังไม่ชำระ; ใบที่รับเงินแล้ว/ไม่ใช่บริการล็อก */
+export class OrderLockedForRoleError extends ForbiddenRoleError {
+  constructor() { super(); this.name = "OrderLockedForRoleError"; }
+}
+
+/** เทียบ productId ของรายการกับแคตตาล็อกของร้าน — ไม่ใช่ SERVICE ⇒ ปฏิเสธ (สินค้าต่างร้านปล่อยให้ด่าน ProductNotInShopError จัดการต่อ) */
+async function assertBillingItemsAreService(shopId: string, items: { productId?: string }[]) {
+  const ids = items.map((i) => i.productId).filter((id): id is string => !!id);
+  if (ids.length === 0) return;
+  const rows = await prisma.product.findMany({ where: { id: { in: ids }, shopId }, select: { type: true } });
+  if (rows.some((r) => r.type !== "SERVICE")) throw new OrderRoleRestrictedError();
 }
 
 // charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
@@ -362,7 +386,17 @@ export async function createOrder(shopId: string, data: {
   detectionResolvedAt?: Date;
   /** ใบที่เกิดจากโหมด "ห้องทดสอบ" — มิติตั้งฉากกับ status */
   isDryRun?: boolean;
+}, opts?: {
+  /**
+   * 00071 P3 (C-6) — ผู้สร้างเป็นบทบาท "เปิดบิล" (O2s ไม่มี O2): บังคับ type=SERVICE และปฏิเสธบรรทัดที่อ้างสินค้าไม่ใช่ SERVICE
+   * route เป็นคนคำนวณจากบทบาทจริงของ session (isBillingOnly) — ห้ามรับจาก body; caller ภายในระบบ (auto-order/iship) ไม่ส่ง = ไม่จำกัด
+   */
+  billingOnly?: boolean;
 }) {
+  if (opts?.billingOnly) {
+    await assertBillingItemsAreService(shopId, data.items);
+    data = { ...data, type: "SERVICE" };
+  }
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
   const appointmentResource = data.appointment
@@ -1018,8 +1052,16 @@ export async function updateOrder(
    * ถ้าไม่รักษา OrderItem.cost เดิม ต้นทุนของใบจะถูกแทนด้วย Product.cost ล่าสุดเงียบ ๆ (กำไรเปลี่ยนเอง)
    * true = บรรทัดที่จับคู่กับ item เดิมได้ (productId ก่อน แล้วชื่อ) ใช้ cost เดิม · จับคู่ไม่ได้ = resolveLineCosts ตามปกติ
    */
-  opts?: { keepLineCosts?: boolean },
+  opts?: {
+    keepLineCosts?: boolean
+    /** 00071 P3 — ผู้แก้เป็นบทบาท "เปิดบิล": แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ + บังคับกฎรายการเดียวกับ createOrder */
+    billingOnly?: boolean
+  },
 ) {
+  if (opts?.billingOnly) {
+    await assertBillingItemsAreService(shopId, data.items);
+    data = { ...data, type: "SERVICE" };
+  }
   // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
   const editedAt = new Date();
 
@@ -1125,6 +1167,17 @@ export async function updateOrder(
       },
     });
     if (!existing) throw new OrderNotFoundError();
+    // 00071 P3 (O3 เงื่อนไขต่อใบ) — อ่านในธุรกรรมเดียวกับที่จะลบ+สร้างรายการใหม่ ไม่งั้นรับเงินคั่นระหว่างเช็คกับแก้ได้
+    if (opts?.billingOnly) {
+      const pay = await tx.order.findUniqueOrThrow({
+        where: { id: existing.id },
+        select: {
+          type: true, totalAmount: true, paymentConfirmedAt: true, codReceivedAt: true,
+          payments: { select: { kind: true, amount: true, voidedAt: true } },
+        },
+      });
+      if (pay.type !== "SERVICE" || !isOrderUnpaid(pay)) throw new OrderLockedForRoleError();
+    }
     // อ่านต้นทุนเดิมก่อน deleteMany (D-4) — แยก query ไม่ยัดใน select ข้างบน กันกระทบ diff ของ ORDER_EDITED
     const oldCostRows = opts?.keepLineCosts
       ? await tx.orderItem.findMany({
@@ -2441,14 +2494,15 @@ export async function attachSlip(publicToken: string, fileId: string) {
  * ผ่าน shopOwnerId โดยตรง แทนที่จะ duplicate findUnique + shop.userId check
  * ไม่มี status guard — seller ตั้งได้ทุก status (ตาม spec S-5)
  */
-export async function setAccessUrl(publicToken: string, url: string, shopOwnerId: string) {
+export async function setAccessUrl(publicToken: string, url: string, actorUserId: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
     include: { shop: true },
   });
   if (!order) throw new Error("Order not found");
-  // ownership guard — กัน seller อื่นมา set accessUrl ทับ
-  if (order.shop.userId !== shopOwnerId) throw new Error("Forbidden");
+  // ownership + capability guard (O7) — กัน seller อื่น/บทบาทที่ไม่มีสิทธิ์มา set accessUrl ทับ
+  // เดิมเทียบ shop.userId ตรง ๆ ⇒ ผู้ดูแลที่ O7 อนุญาตโดนปฏิเสธ (บั๊กคลาสเดียวกับ cancel/แชท)
+  if (!(await canAccessShopWith(order.shopId, actorUserId, "O7"))) throw new Error("Forbidden");
   return prisma.order.update({ where: { publicToken }, data: { accessUrl: url } });
 }
 

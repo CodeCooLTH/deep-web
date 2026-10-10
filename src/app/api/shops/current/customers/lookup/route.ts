@@ -17,7 +17,7 @@ import { getCancellationSummary } from "@/services/customer.service";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("C1");
   if ("error" in ctx) return ctx.error;
 
   const raw = request.nextUrl.searchParams.get("phone") ?? "";

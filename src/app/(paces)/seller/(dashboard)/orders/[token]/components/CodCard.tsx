@@ -30,6 +30,8 @@ export type CodCardProps = {
   busy?: boolean
   onMarkReceived: () => void
   onUndo: () => void
+  /** 00071 P3 — บทบาทไม่มี O5 (รับเงิน): ซ่อนปุ่มกด คงข้อมูลไว้อ่าน · ค่าตั้งต้น true = พฤติกรรมเดิม */
+  canAct?: boolean
 }
 
 export default function CodCard({
@@ -39,6 +41,7 @@ export default function CodCard({
   busy = false,
   onMarkReceived,
   onUndo,
+  canAct = true,
 }: CodCardProps) {
   const received = Boolean(codReceivedAtISO)
 
@@ -74,7 +77,7 @@ export default function CodCard({
 
         {/* iShip ไม่มีสถานะไหนที่แปลว่า "โอนเงินเข้าร้านแล้ว" (ตรวจครบ 15 สถานะ) เงินจึงต้อง
             ให้ร้านกดยืนยันเอง — ไม่มีทางรู้แทนได้ */}
-        {received ? (
+        {canAct && (received ? (
           <button
             className="btn border-default-300 text-default-700 mt-4 hidden w-full justify-center border text-sm font-medium disabled:opacity-60 lg:flex"
             disabled={busy}
@@ -94,7 +97,7 @@ export default function CodCard({
             <Icon icon="cash" className="me-1.5 text-base" aria-hidden="true" />
             ได้รับเงินแล้ว
           </button>
-        )}
+        ))}
       </div>
     </div>
   )

@@ -209,7 +209,8 @@ describe('[blocker] หน้าจอดูหลักฐาน (BRD §6.7)', 
   })
 
   it('[blocker] ต้องกันสิทธิ์ด้วยร้านเจ้าของออเดอร์', () => {
-    expect(route).toContain('canAccessShop(')
+    expect(route).toContain('canAccessShopWith(') // 00071 P3: ตรวจ capability S1 ด้วย ไม่ใช่แค่สมาชิก
+    expect(route).toMatch(/canAccessShopWith\([^)]*['"]S1['"]\)/)
     expect(route).toContain('sessionUserId(')
     // ห้ามใช้ cast แบบเดิมที่ปิดตา ("มี session" ≠ "รู้ว่าเป็นใคร")
     expect(route).not.toMatch(/session\.user as any/)

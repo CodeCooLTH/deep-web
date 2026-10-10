@@ -90,7 +90,7 @@ describe('PATCH /api/orders/[token] — ตัด items[].cost ของผู�
     expect(res.status).toBe(200)
     const [, , data, , opts] = updateOrderMock.mock.calls[0]
     expect('cost' in data.items[0]).toBe(false)
-    expect(opts).toEqual({ keepLineCosts: true })
+    expect(opts).toEqual({ keepLineCosts: true, billingOnly: false })
   })
 
   it('OWNER: cost ผ่านไปถึง service + keepLineCosts=false', async () => {
@@ -98,7 +98,7 @@ describe('PATCH /api/orders/[token] — ตัด items[].cost ของผู�
     await PATCH(patchReq(), params)
     const [, , data, , opts] = updateOrderMock.mock.calls[0]
     expect(data.items[0].cost).toBe(7)
-    expect(opts).toEqual({ keepLineCosts: false })
+    expect(opts).toEqual({ keepLineCosts: false, billingOnly: false })
   })
 })
 

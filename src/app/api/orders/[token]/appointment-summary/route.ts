@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import { sessionUserId } from "@/lib/session-user";
 import { prisma } from "@/lib/prisma";
 import { formatBaht } from "@/lib/format-money";
@@ -65,7 +65,7 @@ export async function GET(
   });
   // ไม่พบ = 404 ไม่ใช่ 403 — 403 ยืนยันว่าทรัพยากรนั้นมีอยู่จริง (กติกาขอบเขต SRS §7.14)
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!(await canAccessShop(order.shopId, userId))) {
+  if (!(await canAccessShopWith(order.shopId, userId, 'O1'))) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 

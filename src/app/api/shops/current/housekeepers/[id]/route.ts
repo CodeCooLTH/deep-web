@@ -12,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("Q2");
   if ("error" in ctx) return ctx.error;
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(UpdateHousekeeperSchema, body ?? {});

@@ -24,7 +24,7 @@ import * as v from 'valibot'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import { mapIShipError } from '@/lib/iship/route-helpers'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     select: { id: true, shopId: true },
   })
   if (!head) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-  if (!(await canAccessShop(head.shopId, userId))) {
+  if (!(await canAccessShopWith(head.shopId, userId, 'O6'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

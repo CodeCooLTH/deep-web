@@ -1,4 +1,7 @@
-import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { can } from "@/lib/shop-permissions";
+import { requireShopCapability, ForbiddenRoleError } from "@/lib/shop-capability";
+import { isBillingOnly } from "@/lib/order-role-rules";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { stripOrderItemCost } from "@/lib/order-cost-redact";
 import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
@@ -9,7 +12,6 @@ import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError, PickupNotAllowedError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
-import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
 import { sessionUserId } from "@/lib/session-user";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
@@ -29,12 +31,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Default: seller orders
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) return NextResponse.json([]);
+  const gate = await requireShopCapability(session, "O1");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
 
   const orders = await getOrdersByShop(active.shop.id, status);
   // ต้นทุนรายบรรทัดเฉพาะเจ้าของร้าน (00071) — orderListInclude ดึง items ทั้งแถว
-  const canSeeCost = can(rolesFromMembership(active.role, active.roles), "P3");
+  const canSeeCost = can(gate.roles, "P3");
   return NextResponse.json(orders.map((o) => stripOrderItemCost(o, canSeeCost)));
 }
 
@@ -65,17 +68,10 @@ export async function POST(request: NextRequest) {
     requestedShopId = sid.output;
   }
 
-  const resolved = await requireShopForRequest(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-    requestedShopId,
-  );
-  if (!resolved.ok) {
-    // fail-closed: ระบุร้านมาแล้วเข้าไม่ถึง = ปฏิเสธ ห้ามถอยไปสร้างในร้านที่ active
-    return resolved.reason === "FORBIDDEN"
-      ? NextResponse.json({ error: "SHOP_FORBIDDEN", message: "คุณไม่มีสิทธิ์สร้างรายการในร้านนี้" }, { status: 403 })
-      : NextResponse.json({ error: "No shop" }, { status: 404 });
-  }
-  const active = resolved.target;
+  // O2s (สร้างบิลได้) — ชุดบทบาทที่มีผลจริงของร้านปลายทางอยู่ใน gate.roles (BILLING ที่ไม่มี O2 ถูกจำกัดที่ createOrder)
+  const gate = await requireShopCapability(session, "O2s", { shopId: requestedShopId });
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   if (active.locked) return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   const shop = active.shop;
 
@@ -140,16 +136,19 @@ export async function POST(request: NextRequest) {
     // (ไม่งั้นใครก็ยิงระบุชื่อคนอื่นเป็นคนสร้างได้) มิเรอร์วิธีเดียวกับ otp-for-password ใน feat 00026
     const createdByUserId = (session.user as { id?: string }).id ?? null;
     // ผู้ไม่ใช่เจ้าของ: ตัด items[].cost ทิ้งเงียบ (00071 D-7) → resolveLineCosts ใช้ Product.cost ตามปกติ
-    const canSeeCost = can(rolesFromMembership(active.role, active.roles), "P3");
+    const canSeeCost = can(gate.roles, "P3");
     const items = canSeeCost
       ? parsed.output.items
       : parsed.output.items.map(({ cost: _cost, ...it }) => it);
-    const order = await createOrder(shop.id, { ...parsed.output, items, appointment, createdByUserId });
+    // C-6: เปิดบิล (O2s ไม่มี O2) → service บังคับ type=SERVICE + ปฏิเสธสินค้าที่ไม่ใช่บริการ
+    const order = await createOrder(shop.id, { ...parsed.output, items, appointment, createdByUserId }, { billingOnly: isBillingOnly(gate.roles) });
     // response ก็ต้องไม่มีต้นทุน — createOrder คืน items ทั้งแถว (review T7)
     return NextResponse.json(stripOrderItemCost(order, canSeeCost), { status: 201 });
   } catch (e) {
     // feature 00024 — error ของโดเมนนัดหมายต้องมี catch ครอบที่นี่ มิฉะนั้นตกเป็น 500
     // (บทเรียน feedback_service_error_route_mapping)
+    // 00071 P3 — บทบาทเปิดบิลสร้างได้เฉพาะบิลบริการ (OrderRoleRestrictedError ⊂ ForbiddenRoleError)
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const appointmentMapped = appointmentErrorResponse(e);
     if (appointmentMapped) return appointmentMapped;
     if (e instanceof ShippingAddressRequiredError) {

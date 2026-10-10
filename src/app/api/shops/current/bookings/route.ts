@@ -22,7 +22,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("O2");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

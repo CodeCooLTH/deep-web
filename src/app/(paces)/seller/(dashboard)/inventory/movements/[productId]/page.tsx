@@ -28,12 +28,14 @@ import { redirect, notFound } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { getShopByUserId } from '@/services/shop.service'
 import { isProActive } from '@/services/inventory-entitlement.service'
 import { getStockMovementHistory } from '@/services/inventory-stock.service'
 import { prisma } from '@/lib/prisma'
 import MovementHistoryTable, { type MovementRow } from './MovementHistoryTable'
 import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'ประวัติการเคลื่อนไหว' }
 
@@ -45,6 +47,16 @@ export default async function MovementHistoryPage({ params }: PageProps) {
   const { productId } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ประวัติการเคลื่อนไหว" />
+        <NoPermissionCard capability="P2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -55,12 +67,8 @@ export default async function MovementHistoryPage({ params }: PageProps) {
      "การซ่อนเมนูคือ UX ไม่ใช่การควบคุมสิทธิ์ ต้องกันที่หน้านั้นเองด้วย") */
   if (await shouldHidePaidFeatures()) redirect('/dashboard')
 
-  let shop: { id: string } | null = null
-  try {
-    shop = await getShopByUserId(user.id)
-  } catch {
-    shop = null
-  }
+  // ร้านที่ active ตามด่านสิทธิ์ (P2) — เดิมใช้ getShopByUserId = ร้านส่วนตัวเสมอ ซึ่งไม่ตรงกับ API (/api/inventory/movements) ที่ตัดสินที่ร้าน active
+  const shop: { id: string } | null = gate.ok ? gate.active.shop : null
 
   if (!shop) {
     // ไม่มีร้าน — pattern เดียวกับ inventory/page.tsx

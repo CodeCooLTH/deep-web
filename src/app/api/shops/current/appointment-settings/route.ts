@@ -1,6 +1,9 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { assertShopCanUseAppointments } from "@/services/appointment.service";
 import { isAppointmentGranularity } from "@/lib/appointments";
@@ -18,8 +21,9 @@ import { isAppointmentGranularity } from "@/lib/appointments";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest) {
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q2");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const value = (body as { appointmentGranularity?: unknown } | null)

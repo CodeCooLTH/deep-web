@@ -71,6 +71,12 @@ type Props = {
    * ไม่ใช่ตัวเวลานัดเอง
    */
   createdAtISO: string
+  /**
+   * 00071 P3 — เลื่อนนัด = O3 · ปิดผล (ให้บริการแล้ว/ไม่มา) = O4 (ช่างทำได้แต่เลื่อนนัดไม่ได้ · เปิดบิลทำได้ตรงข้าม)
+   * ซ่อนปุ่มที่บทบาทไม่มีสิทธิ์ (ตัวบังคับจริงอยู่ที่ route) · ค่าตั้งต้น true = พฤติกรรมเดิมของผู้เรียกเก่า
+   */
+  canReschedule?: boolean
+  canOutcome?: boolean
 }
 
 export default function AppointmentCard({
@@ -85,6 +91,8 @@ export default function AppointmentCard({
   rescheduleRequestNote,
   buyerLabel,
   createdAtISO,
+  canReschedule = true,
+  canOutcome = true,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
@@ -306,49 +314,53 @@ export default function AppointmentCard({
               <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
               ส่งสรุปนัด
             </button>
-            <button
-              type="button"
-              onClick={() => setRescheduleOpen(true)}
-              className="btn bg-default-100 text-default-800 hover:bg-default-200 mb-3 min-h-11 w-full"
-            >
-              <Icon icon="calendar-repeat" className="text-sm" aria-hidden="true" />
-              {awaitingReschedule ? 'เลือกเวลาใหม่ให้ลูกค้า' : 'เลื่อนนัด'}
-            </button>
+            {canReschedule && (
+              <button
+                type="button"
+                onClick={() => setRescheduleOpen(true)}
+                className="btn bg-default-100 text-default-800 hover:bg-default-200 mb-3 min-h-11 w-full"
+              >
+                <Icon icon="calendar-repeat" className="text-sm" aria-hidden="true" />
+                {awaitingReschedule ? 'เลือกเวลาใหม่ให้ลูกค้า' : 'เลื่อนนัด'}
+              </button>
+            )}
             {/* gap-3 + min-h-11 (44px) ไม่ใช่ค่าตั้งต้นของ .btn (36px, gap-2): ปุ่มสองตัวนี้
                 ย้อนกลับไม่ได้ทั้งคู่และให้ผลตรงข้ามกัน — กดพลาดปุ่มข้าง ๆ คือกดผลที่ตรงข้าม
                 โดยไม่มีทางแก้ ผู้ใช้กลุ่มเป้าหมายถือมือถือมือเดียวกลางร้าน (design.json
                 ประกาศเกณฑ์ tap target ≥44px ไว้เอง) */}
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                disabled={notStarted || loading !== null}
-                onClick={() => submit('COMPLETED')}
-                className="btn border-success text-success-ink hover:bg-success/10 min-h-11 w-full sm:flex-1"
-              >
-                <Icon
-                  icon={loading === 'COMPLETED' ? 'mdi:loading' : 'circle-check-filled'}
-                  className={cn('text-sm', loading === 'COMPLETED' && 'animate-spin')}
-                  aria-hidden="true"
-                />
-                ให้บริการแล้ว
-              </button>
-              <button
-                type="button"
-                disabled={notStarted || loading !== null}
-                onClick={() => submit('NO_SHOW')}
-                className="btn border-danger text-danger-ink hover:bg-danger/10 min-h-11 w-full sm:flex-1"
-              >
-                <Icon
-                  icon={loading === 'NO_SHOW' ? 'mdi:loading' : 'clock-off'}
-                  className={cn('text-sm', loading === 'NO_SHOW' && 'animate-spin')}
-                  aria-hidden="true"
-                />
-                ไม่มาตามนัด
-              </button>
-            </div>
+            {canOutcome && (
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={notStarted || loading !== null}
+                  onClick={() => submit('COMPLETED')}
+                  className="btn border-success text-success-ink hover:bg-success/10 min-h-11 w-full sm:flex-1"
+                >
+                  <Icon
+                    icon={loading === 'COMPLETED' ? 'mdi:loading' : 'circle-check-filled'}
+                    className={cn('text-sm', loading === 'COMPLETED' && 'animate-spin')}
+                    aria-hidden="true"
+                  />
+                  ให้บริการแล้ว
+                </button>
+                <button
+                  type="button"
+                  disabled={notStarted || loading !== null}
+                  onClick={() => submit('NO_SHOW')}
+                  className="btn border-danger text-danger-ink hover:bg-danger/10 min-h-11 w-full sm:flex-1"
+                >
+                  <Icon
+                    icon={loading === 'NO_SHOW' ? 'mdi:loading' : 'clock-off'}
+                    className={cn('text-sm', loading === 'NO_SHOW' && 'animate-spin')}
+                    aria-hidden="true"
+                  />
+                  ไม่มาตามนัด
+                </button>
+              </div>
+            )}
             {/* ข้อความนี้เป็นข้อมูลที่จำเป็นที่สุดในสถานะนี้ (อธิบายว่าทำไมปุ่มกดไม่ได้) จึงใช้
                 น้ำหนักเดียวกับข้อความปกติ ไม่ใช่ default-500 แบบหมายเหตุประกอบ */}
-            {notStarted && (
+            {canOutcome && notStarted && (
               <p className="text-default-700 mb-0 mt-2 text-xs">
                 ปิดผลได้ตั้งแต่ {allDay ? formatDateTH(startISO) : formatDateTimeTH(startISO)}
               </p>

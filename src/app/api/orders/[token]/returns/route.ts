@@ -8,7 +8,7 @@ import * as v from 'valibot'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import {
   OrderReturnError,
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 /** ชื่อ/รหัสขนส่งยาวเกินจริงไม่ได้ — กันข้อความยาวถูกยัดเข้ามาทางคอลัมน์ที่จอเอาไปแสดงตรง ๆ */
 const shortText = () => v.pipe(v.string(), v.maxLength(120))
 
-/** ตรวจสิทธิ์ + คืน { shopId, orderId, userId } — ทุก handler ในไฟล์นี้เริ่มจากตัวนี้ */
+/** ตรวจตัวตน + หาออเดอร์ → { shopId, orderId, userId } — capability (O6) ตรวจที่ handler เอง (ทะเบียน route ต้องเห็น cap ในเนื้อ handler) */
 async function guard(token: string) {
   const userId = sessionUserId(await getServerSession(authOptions))
   if (!userId) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -31,9 +31,6 @@ async function guard(token: string) {
     select: { id: true, shopId: true },
   })
   if (!order) return { error: NextResponse.json({ error: 'Order not found' }, { status: 404 }) }
-  if (!(await canAccessShop(order.shopId, userId))) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  }
   return { shopId: order.shopId, orderId: order.id, userId }
 }
 
@@ -41,6 +38,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   const { token } = await params
   const g = await guard(token)
   if ('error' in g) return g.error
+  if (!(await canAccessShopWith(g.shopId, g.userId, 'O6'))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   return NextResponse.json(await getReturnEligibility(g.shopId, g.orderId))
 }
 
@@ -88,6 +88,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { token } = await params
   const g = await guard(token)
   if ('error' in g) return g.error
+  if (!(await canAccessShopWith(g.shopId, g.userId, 'O6'))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const parsed = v.safeParse(CreateReturnSchema, await request.json().catch(() => null))
   if (!parsed.success) {

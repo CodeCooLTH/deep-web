@@ -51,6 +51,9 @@ import CustomerStatCard, { type CustomerStatItem } from './components/CustomerSt
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
 import CustomerTable from './components/CustomerTable'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
@@ -62,6 +65,16 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sp = await searchParams
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (C1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'C1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ร้านค้า" />
+        <NoPermissionCard capability="C1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
 
   const active = await requireActiveShop(

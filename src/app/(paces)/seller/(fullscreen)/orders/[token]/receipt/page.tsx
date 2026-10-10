@@ -13,6 +13,9 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 
 import { authOptions } from '@/lib/auth'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { requireActiveShop } from '@/lib/shop-context'
 import { formatDateTH } from '@/lib/format-date'
 import { toFileUrl } from '@/lib/file-url'
@@ -65,6 +68,12 @@ const vatLabel = (pct: number) => `ภาษีมูลค่าเพิ่ม
 
 export default async function ReceiptPage({ params }: PageProps) {
   const { token } = await params
+  // 00071 P3 (D1): ใบเสร็จ = เจ้าของ/ผู้ดูแล/ตอบแชท/เปิดบิล — ช่างและบทบาทอื่นเห็นการ์ดบอกเหตุผล
+  const session = await getServerSession(authOptions)
+  const gate = await gatePage(session, 'D1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionCard capability="D1" viewerRoles={await viewerRolesOf(session)} />
+  }
   const view = await loadView(token)
   if (!view) redirect(`/orders/${token}`)
   // แอปผู้ขาย (WebView) ไม่มี window.print — ปุ่มที่กดแล้วเงียบแย่กว่าบอกตรง ๆ

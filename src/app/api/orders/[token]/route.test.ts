@@ -109,7 +109,26 @@ describe('[blocker] GET/PATCH /api/orders/[token] — ต้องทำงา�
 
     const res = await PATCH(req, routeParams)
 
+    // ไม่ใช่สมาชิก = 404 ไม่ใช่ 403 (00037 API.md ข้อ 3: ไม่ยืนยันว่าออเดอร์/ร้านมีอยู่) — ไม่ถอยไปร้าน active
     expect(res.status).toBe(404)
+    expect(updateOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('GET shopId ของร้านที่ไม่ใช่สมาชิก → 404', async () => {
+    const res = await GET(new NextRequest(`http://seller.deepth.local/api/orders/${TOKEN}?shopId=${SHOP_OUTSIDER}`), routeParams)
+    expect(res.status).toBe(404)
+    expect(prismaMock.order.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('สมาชิกร้านที่ระบุแต่ไม่มี O3 → 403 FORBIDDEN_ROLE (ไม่ใช่ 404)', async () => {
+    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['TECHNICIAN'] })
+    const req = new NextRequest(`http://seller.deepth.local/api/orders/${TOKEN}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patchBody({ shopId: SHOP_B })),
+    })
+    const res = await PATCH(req, routeParams)
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'FORBIDDEN_ROLE' })
     expect(updateOrderMock).not.toHaveBeenCalled()
   })
 })

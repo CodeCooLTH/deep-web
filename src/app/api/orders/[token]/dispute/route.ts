@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import {
   openDispute,
   OrderAlreadyClosedError,
@@ -40,7 +40,7 @@ export async function POST(
   }
 
   const isBuyerOwner = sessionUserId === order.buyerUserId;
-  const isSellerMember = await canAccessShop(order.shopId, sessionUserId);
+  const isSellerMember = await canAccessShopWith(order.shopId, sessionUserId, 'O6');
   if (!isBuyerOwner && !isSellerMember) {
     return NextResponse.json({ error: `ไม่มีสิทธิ์แจ้งปัญหา${orderNounFor(order.shop.vertical)}นี้` }, { status: 403 });
   }

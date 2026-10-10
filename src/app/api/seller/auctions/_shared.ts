@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
+import type { Capability } from "@/lib/shop-permissions";
 import {
   AuctionOpError,
   AuctionValidationError,
   BelowReserveConfirmError,
   BidError,
 } from "@/services/auction.service";
-import { sessionUserId } from '@/lib/session-user'
 
 // shared helper สำหรับ 7 endpoint ใต้ src/app/api/seller/auctions/**
 // (feature 00002 Seller Auction, Batch C task #6; wire active-shop-context Phase 4 00008 P4-3)
@@ -23,26 +23,13 @@ import { sessionUserId } from '@/lib/session-user'
  * (ใช้เฉพาะ POST /auctions สร้าง + PATCH /auctions/[id] แก้ไข — endpoint อื่น (list/detail/cancel/
  * publish/end-early) เป็น read หรือ lifecycle-transition ของประมูลที่มีอยู่แล้ว ไม่ใช่ "สร้าง/แก้ประมูล" ใหม่)
  */
-export async function requireSellerShop(opts?: { mutate?: boolean }) {
+export async function requireSellerShop(cap: Capability, opts?: { mutate?: boolean }) {
   const session = await getServerSession(authOptions);
-  const userId = sessionUserId(session);
-  if (!session?.user || !userId) {
-    return {
-      response: NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 }),
-    } as const;
-  }
-
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  );
-  if (!active) {
-    return {
-      response: NextResponse.json(
-        { error: "ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน" },
-        { status: 404 },
-      ),
-    } as const;
-  }
+  // 00071 P3: ด่านสิทธิ์รับ capability บังคับ (X1 = เจ้าของ+ผู้ดูแล) — 401/404/403 ตัดสินที่ requireShopCapability ที่เดียว
+  const gate = await requireShopCapability(session, cap);
+  if (!gate.ok) return { response: gate.response } as const;
+  const active = gate.active;
+  const userId = gate.userId;
 
   // feature 00028 (BR-SBT-14) — ปิดช่องโหว่ที่ไม่เคยมี guard เลย: ระบบประมูลใช้ได้เฉพาะร้าน
   // ประเภทขายออนไลน์เท่านั้น เช็คก่อน mutate/locked check เดิม ครอบทุก method (GET รวมด้วย)

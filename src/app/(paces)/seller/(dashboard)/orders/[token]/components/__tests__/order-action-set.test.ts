@@ -398,3 +398,17 @@ describe('DRAFTED — ร่างจากแชท (feature 00061)', () => {
     }
   })
 })
+
+// 00071 P3 — บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว: ไม่มีปุ่มแก้ไขในทุกสถานะ (ปุ่มอื่นคงเดิม)
+describe('getOrderActionSet — editLocked', () => {
+  const keys = (r: ReturnType<typeof getOrderActionSet>) => [r.primary?.key, ...r.ghosts.map((g) => g.key), ...r.menu.map((m) => m.key)]
+  it.each(['PENDING', 'SHIPPED', 'CONFIRMED'] as const)('%s: editLocked ตัด edit-order · ไม่ล็อกก็ยังมี (PENDING)', (status) => {
+    const locked = getOrderActionSet({ status, fulfillmentMode: 'SHIPPED', shipmentSource: null, editLocked: true })
+    expect(keys(locked)).not.toContain('edit-order')
+    if (status === 'PENDING') {
+      const open = getOrderActionSet({ status, fulfillmentMode: 'SHIPPED', shipmentSource: null })
+      expect(keys(open)).toContain('edit-order')
+      expect(keys(locked)).toContain('cancel-order') // ตัดแค่แก้ไข ไม่ใช่ทั้งเมนู
+    }
+  })
+})

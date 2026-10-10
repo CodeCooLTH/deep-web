@@ -125,6 +125,11 @@ interface Props {
   compact?: boolean
   /** เจ้าของร้านเท่านั้น (00071 S-3) — false = ซ่อนช่องต้นทุนรายบรรทัด + ไม่ส่ง cost ใน payload */
   showCost?: boolean
+  /**
+   * 00071 P3 (C-6) — ผู้ใช้เป็นบทบาท "เปิดบิล" (มี O2s ไม่มี O2): ฟอร์มล็อกเป็นบิลบริการ (type = SERVICE เสมอ · พิมพ์รายการเองได้)
+   * ตัวบังคับจริงคือ server (createOrder opts.billingOnly) — prop นี้แค่ทำให้ฟอร์มไม่ส่งสิ่งที่ server จะปฏิเสธ · ค่าตั้งต้น false
+   */
+  billingOnly?: boolean
   /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (BUSINESS + GENERAL เท่านั้น, BR-RSV-01)
    *  false = ไม่ render บล็อกวันนัดเลย DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด */
   serviceResourcesEnabled?: boolean
@@ -331,6 +336,7 @@ export default function OrderCreateForm({
   editOrderToken,
   compact = false,
   showCost = false,
+  billingOnly = false,
   ishipCreateMode = 'OFF',
   serviceResourcesEnabled = false,
   serviceResources = [],
@@ -699,15 +705,18 @@ export default function OrderCreateForm({
       if (!item.productId) return true
       return catalog.find((p) => p.id === item.productId)?.type === 'PHYSICAL'
     })
-    const derivedType: string = hasPhysical
-      ? 'PHYSICAL'
-      : items.some(
-            (item) =>
-              item.productId &&
-              catalog.find((p) => p.id === item.productId)?.type === 'SERVICE',
-          )
-        ? 'SERVICE'
-        : 'DIGITAL'
+    // billingOnly (C-6): บทบาทเปิดบิลสร้างได้เฉพาะ SERVICE — server บังคับซ้ำ (OrderRoleRestrictedError)
+    const derivedType: string = billingOnly
+      ? 'SERVICE'
+      : hasPhysical
+        ? 'PHYSICAL'
+        : items.some(
+              (item) =>
+                item.productId &&
+                catalog.find((p) => p.id === item.productId)?.type === 'SERVICE',
+            )
+          ? 'SERVICE'
+          : 'DIGITAL'
 
     // ── needsShipping: มี item ที่ fulfillmentMode === 'SHIPPED' หรือ custom item ──
     // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
@@ -910,6 +919,17 @@ export default function OrderCreateForm({
           editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`,
         )
         console.error('[order-submit] failed', { status: res.status, code: data?.error, message: data?.message })
+        // 403 FORBIDDEN_ROLE ของบทบาทเปิดบิล = กฎต่อใบ (ไม่ใช่ "ไม่มีสิทธิ์ทั้งหน้า") — บอกทางแก้แทนรหัส
+        if (billingOnly && res.status === 403 && data?.error === 'FORBIDDEN_ROLE') {
+          setSubmitError(
+            editOrderToken
+              ? 'บิลนี้รับชำระแล้ว แก้รายการไม่ได้ ขอให้เจ้าของร้าน ผู้ดูแล หรือคนที่มีบทบาทตอบแชทแก้ให้'
+              : 'บทบาทเปิดบิลสร้างได้เฉพาะบิลบริการ เอารายการที่ไม่ใช่บริการออกแล้วบันทึกอีกครั้ง',
+          )
+          setSubmitErrorCode(shown.code)
+          setSubmitStatus('error')
+          return
+        }
         setSubmitError(shown.text)
         setSubmitErrorCode(shown.code)
         setSubmitStatus('error')
@@ -1095,7 +1115,7 @@ export default function OrderCreateForm({
         {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
             (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
         <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} showFulfillmentBadge={showFulfillmentBadge} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} showFulfillmentBadge={showFulfillmentBadge} billingOnly={billingOnly} />
         </div>
         <div className="lg:h-full">
           <CartPanel

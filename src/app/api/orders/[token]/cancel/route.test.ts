@@ -61,18 +61,26 @@ function makeRequest() {
 
 const routeParams = { params: Promise.resolve({ token: TOKEN }) }
 
+/**
+ * canAccessShopWith อ่านร้าน + แถวสมาชิกของผู้เรียกใน query เดียว (members nested) —
+ * ตัดสินสิทธิ์ O6 (ยกเลิก) จากบทบาทจริง ไม่ใช่แค่เป็นสมาชิก (00071 P3)
+ */
+function memberOf(members: { role: string; roles: string[] }[]) {
+  prismaMock.shop.findUnique.mockResolvedValue({
+    userId: OWNER_ID, kind: 'BUSINESS', vertical: 'ONLINE_SALES', deletedAt: null, members,
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   prismaMock.order.findUnique.mockResolvedValue(orderRow)
-  // canAccessShop → prisma.shop.findUnique({select:{userId}}) แล้วค่อย shopMember.findUnique
-  prismaMock.shop.findUnique.mockResolvedValue({ userId: OWNER_ID })
   cancelOrderMock.mockResolvedValue({ status: 'CANCELLED' })
 })
 
 describe('POST /api/orders/[token]/cancel — สิทธิ์ฝั่งร้าน', () => {
   it('BUSINESS admin (สมาชิกที่ไม่ใช่ owner) ยกเลิกได้ initiator=seller', async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: ADMIN_ID } } as never)
-    prismaMock.shopMember.findUnique.mockResolvedValue({ shopId: SHOP_ID })
+    memberOf([{ role: 'ADMIN', roles: ['MANAGER'] }])
 
     const res = await POST(makeRequest(), routeParams)
 
@@ -82,7 +90,7 @@ describe('POST /api/orders/[token]/cancel — สิทธิ์ฝั่งร�
 
   it('owner ยังยกเลิกได้เหมือนเดิม', async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: OWNER_ID } } as never)
-    prismaMock.shopMember.findUnique.mockResolvedValue(null)
+    memberOf([{ role: 'OWNER', roles: [] }])
 
     const res = await POST(makeRequest(), routeParams)
 
@@ -92,12 +100,30 @@ describe('POST /api/orders/[token]/cancel — สิทธิ์ฝั่งร�
 
   it('คนนอก (ไม่ใช่สมาชิก ไม่ใช่ buyer) โดน 403 เหมือนเดิม', async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: OUTSIDER_ID } } as never)
-    prismaMock.shopMember.findUnique.mockResolvedValue(null)
+    memberOf([])
 
     const res = await POST(makeRequest(), routeParams)
 
     expect(res.status).toBe(403)
     expect(cancelOrderMock).not.toHaveBeenCalled()
+  })
+
+  // 00071 P3 (O6 = เจ้าของ+ผู้ดูแลเท่านั้น): สมาชิกที่ไม่มีบทบาทผู้ดูแลยกเลิกไม่ได้ แม้เห็นออเดอร์
+  it.each([['CHAT'], ['BILLING'], ['TECHNICIAN']])('สมาชิกบทบาท %s ยกเลิกไม่ได้ → 403 และไม่เรียก cancelOrder', async (role) => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: ADMIN_ID } } as never)
+    memberOf([{ role: 'ADMIN', roles: [role] }])
+
+    const res = await POST(makeRequest(), routeParams)
+
+    expect(res.status).toBe(403)
+    expect(cancelOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('MANAGER ยกเลิกได้ (O6)', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: ADMIN_ID } } as never)
+    memberOf([{ role: 'ADMIN', roles: ['MANAGER'] }])
+
+    expect((await POST(makeRequest(), routeParams)).status).toBe(200)
   })
 })
 

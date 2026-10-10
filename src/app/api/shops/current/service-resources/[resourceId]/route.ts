@@ -1,7 +1,10 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as v from "valibot";
 import { UpdateServiceResourceSchema } from "@/lib/validations";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import {
   deleteServiceResource,
@@ -26,8 +29,9 @@ export async function PATCH(
   { params }: { params: Promise<{ resourceId: string }> },
 ) {
   const { resourceId } = await params;
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q2");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(UpdateServiceResourceSchema, body ?? {});
@@ -55,8 +59,9 @@ export async function DELETE(
   { params }: { params: Promise<{ resourceId: string }> },
 ) {
   const { resourceId } = await params;
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q2");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   try {
     await deleteServiceResource(ctx.shopId, resourceId);

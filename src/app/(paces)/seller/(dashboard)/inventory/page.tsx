@@ -52,11 +52,24 @@ import InventoryManagementTable, {
   type InventoryProductRow,
 } from './components/InventoryManagementTable'
 import InventoryProTools from './components/InventoryProTools'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'จัดการสต็อก' }
 
 export default async function InventoryPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="จัดการสต็อก" />
+        <NoPermissionCard capability="P2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 

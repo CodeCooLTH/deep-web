@@ -13,7 +13,7 @@ vi.mock('@/lib/shop-context', () => ({
   requireActiveShop: vi.fn(async () => ({
     shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, kind: 'BUSINESS', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [], locked: false, lockReason: null,
   })),
-  requireShopForRequest: vi.fn(async () => ({ ok: true, target: { shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] } })),
+  requireShopForRequest: vi.fn(async () => role.ctxNull ? ({ ok: false, reason: 'FORBIDDEN' }) : ({ ok: true, target: { shop: { id: 'shop-1', vertical: 'ONLINE_SALES' }, role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] } })),
   canAccessShop: vi.fn(async () => true),
   resolveActiveShopContext: vi.fn(async () => (role.ctxNull ? null : { shopId: 'shop-1', role: role.current, roles: role.current === 'ADMIN' ? ['MANAGER'] : [] })),
 }))
@@ -98,10 +98,10 @@ describe('GET /api/products — cost redaction', () => {
 })
 
 describe('PATCH — membership ctx เป็น null (fail-closed)', () => {
-  it('ส่ง cost → 403 และไม่เรียก updateProduct', async () => {
+  it('ส่ง cost → 404 (ไม่ใช่สมาชิก = ไม่เปิดเผยว่าสินค้ามีอยู่) และไม่เรียก updateProduct', async () => {
     role.current = 'OWNER'
     role.ctxNull = true
-    expect((await patch({ cost: 5 })).status).toBe(403)
+    expect((await patch({ cost: 5 })).status).toBe(404)
     expect(updateProduct).not.toHaveBeenCalled()
   })
 })

@@ -138,6 +138,8 @@ export type OrderRow = {
    * ขึ้น "รอดำเนินการ" ในรายการ แล้วขึ้น "ชำระเงินแล้ว" เมื่อกดเข้าไป** ห่างกันหนึ่งคลิก
    */
   money?: { totalAmount: number; totalReceived: number; outstanding: number }
+  /** BILLING แก้ใบนี้ไม่ได้ (รับเงินแล้ว/ไม่ใช่บริการ) — คำนวณที่ server ด้วย canEditOrderAs ตัวเดียวกับหน้ารายละเอียด/หน้าแก้ไข · ซ่อนปุ่มแก้ไขในรายการ */
+  editLocked?: boolean
   id: string            // publicToken short (8-char)
   publicToken: string
   /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */

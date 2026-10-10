@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   // พนักงานร้านผูกพัสดุได้ — เป็นงานประจำวันเหมือนการเปิดพัสดุ ไม่ใช่การตั้งค่าร้าน
-  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
+  const guard = await requireGeneralShop({ cap: "S1", shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipLinkShipmentSchema, await readJson(request));

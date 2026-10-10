@@ -58,6 +58,8 @@ export type PaymentReceivedCardProps = {
   busy?: boolean
   onMarkReceived: () => void
   onUndo: () => void
+  /** 00071 P3 — บทบาทไม่มี O5 (รับเงิน): ซ่อนปุ่มกด คงข้อมูลไว้อ่าน · ค่าตั้งต้น true = พฤติกรรมเดิม */
+  canAct?: boolean
 }
 
 export default function PaymentReceivedCard({
@@ -70,6 +72,7 @@ export default function PaymentReceivedCard({
   busy = false,
   onMarkReceived,
   onUndo,
+  canAct = true,
 }: PaymentReceivedCardProps) {
   const received = Boolean(paymentConfirmedAtISO)
   // impeccable critique P1-4 — badge ต้องมาจาก SSOT เดียวกับฝั่งผู้ซื้อเสมอ ห้ามคำนวณเองอีก
@@ -128,7 +131,7 @@ export default function PaymentReceivedCard({
           </div>
         )}
 
-        {received ? (
+        {canAct && (received ? (
           <button
             className="btn border-default-300 text-default-700 mt-4 hidden w-full justify-center border text-sm font-medium disabled:opacity-60 lg:flex"
             disabled={busy}
@@ -149,7 +152,7 @@ export default function PaymentReceivedCard({
             <Icon icon="cash" className="me-1.5 text-base" aria-hidden="true" />
             ได้รับเงินแล้ว
           </button>
-        )}
+        ))}
       </div>
     </div>
   )

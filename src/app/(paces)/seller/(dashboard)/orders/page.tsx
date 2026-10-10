@@ -34,6 +34,7 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
+import { OrderViewerRolesProvider } from './components/OrderViewerRoles'
 import OrdersStatCard from './components/OrdersStatCard'
 // นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
 import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
@@ -41,6 +42,11 @@ import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 import { toFileUrl } from '@/lib/file-url'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { canEditOrderAs } from '@/lib/order-role-rules'
+import { isOrderUnpaid } from '@/lib/order-payment-state'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -65,6 +71,11 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const sp = await searchParams
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionCard capability="O1" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) return null
 
@@ -339,6 +350,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
      * ผ่าน `computeOrderMoney` เท่านั้น ห้ามบวกเองที่นี่ — ตัวตัดยอดที่ถูกยกเลิก (`voidedAt`)
      * อยู่ในนั้น (HR16: ป้ายในรายการกับหน้ารายละเอียดต้องมาจากนิยามเดียวกัน)
      */
+    editLocked: !canEditOrderAs(gate.ok ? gate.roles : [], { type: o.type, unpaid: isOrderUnpaid({ ...o, payments: o.payments ?? [] }) }),
     money: !isServiceQueue
       ? undefined
       : (() => {
@@ -567,14 +579,17 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <OrdersList
-        orders={orders}
-        activeStatus={activeStatus}
-        ishipEnabled={ishipEnabled}
-        vocab={vocab}
-        vertical={resolveShopVertical(shop.vertical)}
-        hasShippingAxis={isOnlineSales}
-      />
+      {/* บทบาทที่มีผลจริงของผู้ดู → ปุ่มต่อแถว (แก้ไข/SMS/ยกเลิก/ใบปะหน้า) ซ่อนตามสิทธิ์ — ดู OrderViewerRoles */}
+      <OrderViewerRolesProvider roles={gate.ok ? gate.roles : []}>
+        <OrdersList
+          orders={orders}
+          activeStatus={activeStatus}
+          ishipEnabled={ishipEnabled}
+          vocab={vocab}
+          vertical={resolveShopVertical(shop.vertical)}
+          hasShippingAxis={isOnlineSales}
+        />
+      </OrderViewerRolesProvider>
     </>
   )
 }

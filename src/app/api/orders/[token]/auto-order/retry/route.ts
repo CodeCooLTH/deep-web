@@ -27,7 +27,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  const guard = await requireDraftOwner(token)
+  const guard = await requireDraftOwner(token, 'O2')
   if (!guard.ok) return guard.response
 
   try {

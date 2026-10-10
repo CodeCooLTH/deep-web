@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cancelOrder, CancelReasonRequiredError, InvalidCancelReasonError } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import { orderNounFor } from "@/lib/api-error-vocab";
 
 // POST /api/orders/[token]/cancel
@@ -35,7 +35,7 @@ export async function POST(
   const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
 
   const isSellerMember =
-    !!sessionUserId && (await canAccessShop(order.shopId, sessionUserId));
+    !!sessionUserId && (await canAccessShopWith(order.shopId, sessionUserId, 'O6'));
   const isBuyerOwner = !!sessionUserId && sessionUserId === order.buyerUserId;
 
   let initiator: "seller" | "buyer";

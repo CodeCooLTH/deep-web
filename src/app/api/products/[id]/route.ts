@@ -10,8 +10,8 @@ import {
 } from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
-import { canAccessShop, resolveActiveShopContext } from "@/lib/shop-context";
-import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { can } from "@/lib/shop-permissions";
 import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,17 +23,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // membership check (owner หรือ BUSINESS admin) — เดิมเช็ค shop.userId ตรง ๆ ทำให้ admin
   // สร้างสินค้าได้ (POST ใช้ requireActiveShop) แต่แก้/ลบไม่ได้ (คลาสเดียวกับบั๊ก cancel/แชท)
   // คง 404 ไว้ (ไม่ใช่ 403) — ไม่บอกคนนอกว่า product id นี้มีอยู่จริง
-  if (!product || !(await canAccessShop(product.shopId, (session.user as any).id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // P2 — แก้/ลบสินค้า = เจ้าของ/ผู้ดูแลเท่านั้น · ตัดสินที่ร้านเจ้าของสินค้า (ไม่ใช่ร้าน active) ·
+  // ไม่ใช่สมาชิกร้านนั้น = 404 · เป็นสมาชิกแต่ไม่มี P2 = 403 FORBIDDEN_ROLE
+  const gate = await requireShopCapability(session, "P2", { shopId: product.shopId });
+  // ไม่ใช่สมาชิกร้านของสินค้า → 404 (ไม่บอกว่า id มีอยู่) · สมาชิกไม่มี P2 → 403 FORBIDDEN_ROLE
+  if (!gate.ok) return gate.reason === "NOT_MEMBER" ? NextResponse.json({ error: "Not found" }, { status: 404 }) : gate.response;
 
   const body = await request.json();
   const parsed = v.safeParse(UpdateProductSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   // 00071 D-7: role ของร้านที่เป็นเจ้าของสินค้า (fresh membership) · ผู้ไม่ใช่เจ้าของส่งคีย์ cost (แม้ null) = 403
-  const ctx = await resolveActiveShopContext({ user: { id: (session.user as any).id, activeShopId: product.shopId } });
-  const canSeeCost = ctx !== null && can(rolesFromMembership(ctx.role, ctx.roles), "P3");
+  const canSeeCost = can(gate.roles, "P3");
   if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา
@@ -79,9 +81,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id } = await params;
   const product = await prisma.product.findUnique({ where: { id }, include: { shop: true } });
   // membership check เหมือน PATCH ด้านบน
-  if (!product || !(await canAccessShop(product.shopId, (session.user as any).id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // P2 — แก้/ลบสินค้า = เจ้าของ/ผู้ดูแลเท่านั้น · ตัดสินที่ร้านเจ้าของสินค้า (ไม่ใช่ร้าน active) ·
+  // ไม่ใช่สมาชิกร้านนั้น = 404 · เป็นสมาชิกแต่ไม่มี P2 = 403 FORBIDDEN_ROLE
+  const gate = await requireShopCapability(session, "P2", { shopId: product.shopId });
+  // ไม่ใช่สมาชิกร้านของสินค้า → 404 (ไม่บอกว่า id มีอยู่) · สมาชิกไม่มี P2 → 403 FORBIDDEN_ROLE
+  if (!gate.ok) return gate.reason === "NOT_MEMBER" ? NextResponse.json({ error: "Not found" }, { status: 404 }) : gate.response;
 
   await deleteProduct(id);
   return NextResponse.json({ deleted: true });

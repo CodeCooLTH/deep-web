@@ -17,6 +17,10 @@ import ProductDisplay from './components/ProductDisplay'
 import ProductDetails from './components/ProductDetails'
 import ProductReviews from './components/ProductReviews'
 import type { ProductDetailProps, ReviewRow } from './components/data'
+import { gatePage } from '@/lib/shop-capability'
+import { isBillingOnlyFor } from '@/lib/order-role-rules'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('detail')
@@ -29,6 +33,11 @@ export default async function ProductDetailPage({
   const { id } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionCard capability="P1" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -41,7 +50,8 @@ export default async function ProductDetailPage({
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const product = await prisma.product.findFirst({ where: { id, shopId: shop.id } })
-  if (!product) notFound()
+  // P1 ของผู้เปิดบิล = เฉพาะบริการ — สินค้าประเภทอื่นเปิดตรงด้วย id ก็ต้องไม่เห็น
+  if (!product || (gate.ok && isBillingOnlyFor(gate.roles, 'P1') && product.type !== 'SERVICE')) notFound()
 
   // Derive review stats + total sold from orders
   let orders: any[] = []

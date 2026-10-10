@@ -6,7 +6,7 @@ import * as v from 'valibot'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import { mapIShipError } from '@/lib/iship/route-helpers'
 import { createReturnShipment } from '@/services/iship.service'
@@ -38,7 +38,7 @@ export async function POST(
     select: { id: true, shopId: true },
   })
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-  if (!(await canAccessShop(order.shopId, userId))) {
+  if (!(await canAccessShopWith(order.shopId, userId, 'O6'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
