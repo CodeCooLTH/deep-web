@@ -51,15 +51,90 @@ export const setConversationMuted = (conversationId: string, muted: boolean) =>
 // user สั่ง 2026-07-24: ใช้ไฟล์เสียง public/sounds/sound-new-chat-msg.m4a แทน beep สังเคราะห์
 const SOUND_SRC = '/sounds/sound-new-chat-msg.m4a'
 
-let audioEl: HTMLAudioElement | null = null
+// เล่นผ่าน Web Audio ไม่ใช่ <audio> (2026-10-10 · แอปผู้ขาย iOS)
+// 🛑 <audio>/new Audio() ใน WKWebView = "สื่อที่กำลังเล่น" ⇒ iOS ขึ้นแผงควบคุมเพลง (▶ ⏪ ⏩ "ไม่ได้เล่นอยู่")
+//    ค้างบนหน้าล็อกหลังเสียงแชทดังครั้งเดียว · AudioContext ขึ้นแผงนี้ก็ต่อเมื่อหน้าเว็บตั้ง
+//    navigator.audioSession.type = 'playback' | 'play-and-record' (WebKit AudioContext::isNowPlayingEligible)
+//    ⇒ ห้ามตั้ง audioSession เป็นสองค่านั้น และห้ามกลับไปใช้ <audio> เป็นทางหลัก
+// ผลข้างเคียงที่ยอมรับ: iOS เงียบตามสวิตช์ปิดเสียงของเครื่อง (เหมือนเสียงแจ้งเตือนทั่วไป)
+// <audio> เหลือเป็นทางสำรองเฉพาะเบราว์เซอร์ที่ไม่มี Web Audio หรือถอดไฟล์ m4a ไม่ได้
+let ctx: AudioContext | null = null
+let bufferPromise: Promise<AudioBuffer | null> | null = null
+let fallbackEl: HTMLAudioElement | null = null
+/** เสียงที่กำลังดังอยู่ — พัก context เมื่อเหลือ 0 เท่านั้น (ข้อความติดกันจากคนละร้านเล่นซ้อนกันได้) */
+let activeSources = 0
 
-function getAudio(): HTMLAudioElement | null {
+function suspendIfIdle(context: AudioContext): void {
+  if (activeSources === 0) void context.suspend().catch(() => {})
+}
+
+function getContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
-  if (!audioEl) {
-    audioEl = new Audio(SOUND_SRC)
-    audioEl.preload = 'auto'
+  if (!ctx) {
+    const AC =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AC) return null
+    try {
+      ctx = new AC()
+    } catch {
+      return null
+    }
   }
-  return audioEl
+  return ctx
+}
+
+/** โหลด + ถอดไฟล์ครั้งเดียว · ล้มแล้วรอบหน้าลองใหม่ (เน็ตหลุดชั่วคราว) */
+function loadBuffer(context: AudioContext): Promise<AudioBuffer | null> {
+  if (!bufferPromise) {
+    bufferPromise = fetch(SOUND_SRC)
+      .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data) => context.decodeAudioData(data))
+      .catch(() => {
+        bufferPromise = null
+        return null
+      })
+  }
+  return bufferPromise
+}
+
+function playFallback(): void {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return
+  if (!fallbackEl) {
+    fallbackEl = new Audio(SOUND_SRC)
+    fallbackEl.preload = 'auto'
+  }
+  fallbackEl.currentTime = 0
+  void fallbackEl.play().catch(() => {})
+}
+
+/**
+ * เล่นเสียง 1 ครั้ง — เงียบเมื่อเบราว์เซอร์ยังไม่อนุญาต (ไม่ throw)
+ * context ถูกพักหลังเสียงจบทุกครั้ง: ไม่เปลืองแบตตอนไม่มีเสียง และ context ที่สคริปต์พักไว้
+ * ไม่มีสิทธิ์ขึ้นแผงควบคุมเพลงเลย (กันอีกชั้น)
+ */
+function playSound(): void {
+  const context = getContext()
+  if (!context) return playFallback()
+  void (async () => {
+    try {
+      if (context.state !== 'running') await context.resume()
+      const buffer = await loadBuffer(context)
+      if (!buffer) return playFallback()
+      if (context.state !== 'running') return // ยังไม่มี gesture — เงียบตามกติกา autoplay
+      const source = context.createBufferSource()
+      source.buffer = buffer
+      source.connect(context.destination)
+      activeSources += 1
+      source.onended = () => {
+        source.disconnect()
+        activeSources -= 1
+        suspendIfIdle(context)
+      }
+      source.start()
+    } catch {
+      // resume ถูกบล็อก/context พัง — เงียบ
+    }
+  })()
 }
 
 // กันเสียงซ้ำซ้อน — throttle "รายร้าน" (user สั่ง 2026-07-24: หลายร้านต้องไม่แข่งกันดัง)
@@ -120,11 +195,7 @@ export function playChatBeep(opts: { shopId?: string | null; conversationId?: st
   // ประกาศให้แท็บอื่นก่อนเล่น — แท็บที่ประกาศทีหลังภายใน MIN_GAP_MS (ร้านเดียวกัน) จะเงียบ; ต่างร้านไม่เกี่ยว
   getSoundChannel()?.postMessage({ playedAt: now, shopKey: key })
 
-  const el = getAudio()
-  if (!el) return
-  el.currentTime = 0 // reset ให้เล่นซ้ำได้ทันทีแม้เสียงก่อนยังไม่จบ
-  // play() reject ถ้าเบราว์เซอร์บล็อก (ยังไม่ interact) หรือไฟล์โหลดไม่ได้ — เงียบตามกติกา ไม่ throw
-  void el.play().catch(() => {})
+  playSound()
 }
 
 /**
@@ -132,33 +203,27 @@ export function playChatBeep(opts: { shopId?: string | null; conversationId?: st
  * ไม่ผ่าน throttle/สวิตช์ปิดเสียงของ playChatBeep เพราะผู้ใช้กดเองตั้งใจฟัง
  */
 export function previewChatSound(): void {
-  const el = getAudio()
-  if (!el) return
-  el.currentTime = 0
-  void el.play().catch(() => {})
+  playSound()
 }
 
 /** ปลดล็อกเสียงตอน gesture แรกของผู้ใช้ (คลิก/แตะ/กดคีย์) — เรียกครั้งเดียวจาก ChatHeader
- *  เล่นเงียบ (volume 0) 1 ครั้งเพื่อให้เบราว์เซอร์อนุญาต play() ครั้งถัดไปโดยไม่ต้องมี gesture ตรงจังหวะ */
+ *  resume AudioContext ภายใน gesture ครั้งเดียว ⇒ ครั้งถัดไปเบราว์เซอร์ยอมให้ resume เองได้โดยไม่ต้องมี
+ *  gesture ตรงจังหวะ · โหลดไฟล์รอไว้ด้วย แล้วพักกลับ (ไม่เปลืองแบต) */
 export function primeChatSound(): () => void {
   if (typeof window === 'undefined') return () => {}
   let primed = false
   const unlock = () => {
     if (primed) return
-    const el = getAudio()
-    if (!el) return
+    const context = getContext()
+    if (!context) return
     primed = true
-    const prevVol = el.volume
-    el.volume = 0
-    void el
-      .play()
+    void context
+      .resume()
       .then(() => {
-        el.pause()
-        el.currentTime = 0
-        el.volume = prevVol
+        void loadBuffer(context)
+        suspendIfIdle(context)
       })
       .catch(() => {
-        el.volume = prevVol
         primed = false // ยังไม่สำเร็จ → ลองใหม่ gesture หน้า
       })
   }
