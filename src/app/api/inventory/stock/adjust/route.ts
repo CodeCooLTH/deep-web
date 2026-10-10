@@ -4,7 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ManualStockAdjustSchema } from "@/lib/validations";
-import { getShopByUserId } from "@/services/shop.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { isEntitlementActive } from "@/services/inventory-entitlement.service";
 import { manualAdjustStock, InsufficientStockError } from "@/services/inventory-stock.service";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
@@ -22,13 +22,11 @@ export async function POST(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as any).id as string;
-
   // 2. DAL: shop derive จาก session userId เท่านั้น
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "P2");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
+  const userId = gate.userId;
 
   // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
   const verticalGate = requireOnlineSalesVertical(shop.vertical);

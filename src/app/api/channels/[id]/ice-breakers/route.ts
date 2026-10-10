@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
 import { listIceBreakers, saveIceBreakers } from "@/services/channel-chat.service";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith, ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -30,9 +31,8 @@ export async function GET(
     select: { shopId: true },
   });
   if (!channel) return NextResponse.json({ error: "ไม่พบช่องทางนี้" }, { status: 404 });
-  if (!(await canAccessShop(channel.shopId, userId))) {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงช่องทางนี้" }, { status: 403 });
-  }
+  // 00071 S-13: ตั้งค่าคำถามยอดฮิตของเพจ = H3 (เจ้าของ+ผู้ดูแล) — อ่านแถวสมาชิกสด
+  if (!(await canAccessShopWith(channel.shopId, userId, "H3"))) return forbiddenRoleResponse();
 
   return NextResponse.json({ items: await listIceBreakers(channelId) });
 }
@@ -61,9 +61,10 @@ export async function PUT(
   });
 
   try {
-    const result = await saveIceBreakers({ shopChannelId: channelId, actorUserId: userId, drafts });
+    const result = await saveIceBreakers({ shopChannelId: channelId, actorUserId: userId, drafts, cap: "H3" });
     return NextResponse.json(result);
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     // ข้อความจาก validateIceBreakers บอกผู้ขายได้ตรง ๆ ว่าต้องแก้อะไร — ส่งต่อทั้งประโยค
     if (msg.startsWith("INVALID:")) {

@@ -31,6 +31,11 @@ vi.mock('next-auth', () => ({
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/subdomain', () => ({ getSubdomain: () => 'seller' }))
 vi.mock('@/lib/api-rate-limit', () => ({ checkApiRateLimit: () => true }))
+// 00071 S-13: ด่านบทบาทของ POST (H2) — เทสชุดนี้สนใจลำดับระบายคิว ไม่ใช่สิทธิ์ ⇒ ให้ผ่านเสมอ (เทสสิทธิ์อยู่ role-gate.test.ts)
+vi.mock('@/lib/shop-capability', () => ({
+  canAccessShopWith: vi.fn(async () => true),
+  ForbiddenRoleError: class ForbiddenRoleError extends Error {},
+}))
 vi.mock('@/services/chat-outbox.service', () => ({
   enqueueOutbound: (arg: unknown) => enqueueOutbound(arg),
   deliverRoom: (id: string, owner: string) => deliverRoom(id, owner),

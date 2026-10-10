@@ -13,10 +13,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
-
-// NextAuth Session ไม่ประกาศ id/activeShopId (โปรเจกต์นี้ไม่มี d.ts augmentation) — cast ที่นี่ที่เดียว
-type SellerSession = { user: { id: string; activeShopId?: string | null } };
+import { requireShopCapability } from "@/lib/shop-capability";
+import type { Capability } from "@/lib/shop-permissions";
 
 export type BuilderShopContext = { shopId: string; actorUserId: string };
 
@@ -38,21 +36,22 @@ export function errorResponse(
  * ไม่เช็ค role แยกอีกชั้นที่นี่ เพราะ requireActiveShop re-verify membership เสมอ (SRS TFR-001) —
  * canAccessShop false (ทฤษฎีเกิดยากมาก) ถูกกันซ้ำที่ service แล้ว route จับผ่าน handleBuilderError
  */
-export async function requireBuilderShopContext(): Promise<
-  { ctx: BuilderShopContext; response: null } | { ctx: null; response: NextResponse }
-> {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return { ctx: null, response: errorResponse("UNAUTHORIZED", "กรุณาเข้าสู่ระบบ", 401) };
+export async function requireBuilderShopContext(
+  cap: Capability,
+): Promise<{ ctx: BuilderShopContext; response: null } | { ctx: null; response: NextResponse }> {
+  // 00071 T1: ตัวจัดหน้าร้าน = เจ้าของ/ผู้ดูแล — รูป error ยังเป็น envelope ของฟีเจอร์นี้ (API.md §5)
+  const gate = await requireShopCapability(await getServerSession(authOptions), cap);
+  if (!gate.ok) {
+    const s = gate.response.status;
+    return {
+      ctx: null,
+      response:
+        s === 401 ? errorResponse("UNAUTHORIZED", "กรุณาเข้าสู่ระบบ", 401)
+        : s === 404 ? errorResponse("NOT_FOUND", "ไม่พบร้านที่ใช้งานอยู่", 404)
+        : errorResponse("FORBIDDEN", "บทบาทของคุณเปิดตัวจัดหน้าร้านไม่ได้ ขอให้เจ้าของร้านหรือผู้ดูแลทำให้", 403),
+    };
   }
-
-  const active = await requireActiveShop(session as unknown as SellerSession);
-  if (!active?.shop) {
-    return { ctx: null, response: errorResponse("NOT_FOUND", "ไม่พบร้านที่ใช้งานอยู่", 404) };
-  }
-
-  return { ctx: { shopId: active.shop.id, actorUserId: userId }, response: null };
+  return { ctx: { shopId: gate.shopId, actorUserId: gate.userId }, response: null };
 }
 
 /**

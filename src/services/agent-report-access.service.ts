@@ -1,20 +1,18 @@
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { requireActiveShop, type ActiveShop } from '@/lib/shop-context'
 
 /**
  * agent-report-access.service — จุดตัดสินสิทธิ์เดียวของรายงานผลงานแอดมิน (feature 00059)
  *
- * โครงเดียวกับ `expense-access.service.ts` โดยตั้งใจ (โจทย์ข้อ 12: "ห้ามสร้างระบบสิทธิ์แยก
- * ของตัวเอง ให้ใช้กลไกที่มีอยู่") — และใช้ **ธงตัวเดียวกัน** ไม่ได้ตั้งธงใหม่
+ * โครงเดียวกับ `expense-access.service.ts` โดยตั้งใจ — ตัดสินด้วย `can()` ตัวกลางเท่านั้น
  *
- * ── ทำไม `Shop.staffCanViewFinance` ถึงเป็นธงที่ถูกต้องสำหรับรายงานนี้ ──────────
- * รายงานนี้แสดง **ยอดขายรายคน** ซึ่งเป็นข้อมูลการเงินระดับร้านชนิดเดียวกับที่ธงนั้นคุมอยู่แล้ว
- * (`/expenses` และกำไร-ขาดทุนใน `/sales`) การตั้งธงที่สองมาคุมของประเภทเดียวกันแปลว่าเจ้าของร้าน
- * ต้องไปปิดสองที่ถึงจะปิดได้จริง ซึ่งเป็นรูปร่างของช่องโหว่ที่ค้นเจอยากที่สุด
+ * ── กฎสิทธิ์ (00071 BR-RP-08/09/10) ─────────────────────────────────────────
+ * ยอดขายรายคนคือ "การเงินเต็ม" = capability F1 = เจ้าของเท่านั้น · ยกเลิกสวิตช์
+ * `staffCanViewFinance` แล้ว (ไม่อ่านธงนี้อีก) ⇒ ใครไม่มี F1 ได้ SELF
  *
  * ── ระดับสิทธิ์ ─────────────────────────────────────────────────────────────
- *   FULL — เจ้าของร้าน หรือ พนักงานที่เจ้าของเปิดสิทธิ์การเงินให้: เห็นทุกคน ทุกคอลัมน์
- *   SELF — พนักงานที่ยังไม่ได้เปิดสิทธิ์การเงิน: เห็น **เฉพาะผลงานของตัวเอง** และ
- *          **ไม่มีคอลัมน์ยอดขาย** (ตัวเลขของเพื่อนร่วมงานไม่ใช่ของที่ทุกคนควรเห็นโดยอัตโนมัติ)
+ *   FULL — มี F1 (เจ้าของ/เจ้าของร่วม): เห็นทุกคน ทุกคอลัมน์
+ *   SELF — ไม่มี F1: เห็น **เฉพาะผลงานของตัวเอง** และ **ไม่มีคอลัมน์ยอดขาย**
  *   NO_SHOP — ยังไม่มีร้าน
  *
  * 🛑 `SELF` ไม่ใช่ "ปิดหน้า" — ผลงานของตัวเองคือข้อมูลของเจ้าตัวเอง การซ่อนทั้งหน้าไม่ได้
@@ -47,19 +45,9 @@ export async function resolveAgentReportAccess(
   const active = await requireActiveShop(session)
   if (!active || !userId) return { kind: 'NO_SHOP' }
 
-  if (active.role === 'OWNER') {
+  if (can(rolesFromMembership(active.role, active.roles), 'F1')) {
     return {
-      kind: 'FULL', shop: active.shop, role: 'OWNER', userId,
-      scopeToAgentUserId: null, canSeeRevenue: true,
-    }
-  }
-
-  // 🛑 fail-closed: ธงต้องเป็น true จริง ๆ เท่านั้น — ห้ามลัดด้วย `!== false`
-  // (ค่า default ของคอลัมน์คือ true อยู่แล้ว แต่กลไกต้องอ่านธงเสมอ ไม่งั้นสวิตช์บนหน้าจอ
-  //  ของเจ้าของร้านจะกลายเป็นของหลอก — เหตุผลเดียวกับที่เขียนไว้ใน expense-access.service)
-  if (active.shop.staffCanViewFinance === true) {
-    return {
-      kind: 'FULL', shop: active.shop, role: 'ADMIN', userId,
+      kind: 'FULL', shop: active.shop, role: active.role, userId,
       scopeToAgentUserId: null, canSeeRevenue: true,
     }
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { conversationIdsByShipmentState } from "@/services/chat.service";
 import { sessionUserId } from "@/lib/session-user";
 
@@ -30,10 +31,12 @@ export async function GET() {
           | null
           | undefined) ?? null,
     },
-  });
+  }, "H1");
   if (!scope) {
     return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
   }
+  // 00071 S-13: มีร้านแต่ไม่ถือ cap ในร้านใดเลย → 403 FORBIDDEN_ROLE (ไม่ใช่รายการว่าง)
+  if (scope.shopIds.length === 0) return forbiddenRoleResponse();
 
   // feature 00037 — ชิป "พัสดุมีปัญหา" ต้องนับตามขอบเขตเดียวกับรายการที่ชิปนั้นกรอง
   const ids = await conversationIdsByShipmentState(scope.shopIds, "problem");

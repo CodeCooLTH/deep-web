@@ -23,7 +23,8 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { getT } from '@/i18n/server'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { customerBadges } from '@/lib/customer-behavior'
-import { avgPerOrder } from '@/lib/customer-directory'
+import { avgPerOrder, redactCustomerSpend } from '@/lib/customer-directory'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { shopShipsGoods } from '@/lib/shipping-address-status'
 import { resolveCustomerByKey } from '@/services/customer-directory.service'
 import { getBuyerReputation } from '@/services/buyer-reputation.service'
@@ -31,6 +32,9 @@ import CustomerProfileHeader from './components/CustomerProfileHeader'
 import CustomerProfileOrders from './components/CustomerProfileOrders'
 import FollowUpProfileSection from './components/FollowUpProfileSection'
 import { listForCustomerProfile } from '@/services/customer-follow-up.service'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
@@ -42,6 +46,16 @@ export default async function CustomerProfilePage({ params }: PageProps) {
   const { id } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (C1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'C1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ร้านค้า" />
+        <NoPermissionCard capability="C1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
 
   const active = await requireActiveShop(
@@ -50,6 +64,8 @@ export default async function CustomerProfilePage({ params }: PageProps) {
   if (!active) notFound()
 
   const shop = active.shop
+  // ยอดซื้อสะสม/ค่าเฉลี่ยต่อบิล = F1 (เจ้าของเท่านั้น, 00071 S-3)
+  const showSpend = can(rolesFromMembership(active.role, active.roles), 'F1')
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
 
@@ -156,14 +172,14 @@ export default async function CustomerProfilePage({ params }: PageProps) {
         </div>
         <div className="order-1 flex flex-col gap-5 xl:order-2 xl:col-span-3">
           <CustomerProfileHeader
-            entry={entry}
+            entry={redactCustomerSpend(entry, showSpend)}
+            spend={showSpend ? { total: entry.totalSpent, avg: avgPerOrder(entry) } : undefined}
             badges={badges}
             reputation={reputation}
             latestConversationId={latestConversationId}
             latestAddress={latestAddress}
             showAddress={shopShipsGoods(shop.vertical)}
             createLabel={vocab.createLabel}
-            avg={avgPerOrder(entry)}
             vertical={shop.vertical}
           />
         </div>

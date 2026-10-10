@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { ReceivableQuerySchema } from "@/lib/validations";
-import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getReceivables } from "@/services/receivable.service";
 import { resolveShopVertical } from "@/lib/lodging";
@@ -21,20 +21,16 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  );
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "NO_SHOP" }, { status: 403 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: "STAFF_NOT_ALLOWED" }, { status: 403 });
-  }
+  const gate = await requireShopCapability(session, "F1");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   /**
    * 🛑 ร้านที่ไม่ใช่ SERVICE_QUEUE ได้ 404 ไม่ใช่ 403 โดยตั้งใจ — 403 แปลว่า "มีของอยู่แต่คุณ
    * ไม่มีสิทธิ์" ซึ่งไม่จริง สำหรับร้านประเภทอื่น endpoint นี้ไม่มีอยู่เลย (ฟีเจอร์ยังไม่เปิดให้)
    * ใช้ `resolveShopVertical` ตัวเดิมที่ fail-closed ห้ามเทียบสตริงเอง
    */
-  if (resolveShopVertical(decision.shop.vertical) !== "SERVICE_QUEUE") {
+  if (resolveShopVertical(shop.vertical) !== "SERVICE_QUEUE") {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
 
@@ -54,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   const range = resolveDateRange(preset, start, end);
-  const result = await getReceivables(decision.shop.id, range, { cursor, limit });
+  const result = await getReceivables(shop.id, range, { cursor, limit });
 
   return NextResponse.json(result);
 }

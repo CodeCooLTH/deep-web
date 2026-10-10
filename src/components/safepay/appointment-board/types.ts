@@ -66,12 +66,13 @@ export type AppointmentDayApiItem = {
   firstItemName: string | null
   /** จำนวนรายการทั้งหมด — ใช้ต่อท้ายเป็น "+N" เมื่อมีมากกว่า 1 */
   itemCount: number
-  totalAmount: string
+  /** ไม่มีคีย์ = ผู้ดูระดับเงิน NONE (ช่าง) — server ตัดทิ้ง (00071 S-15) · อ่านเฉพาะเมื่อ showMoney */
+  totalAmount?: string
   /**
    * 🛑 ยอดที่ **ตกลงไว้** ไม่ใช่สถานะการจ่าย — ระบบไม่ติดตามว่าจ่ายแล้วหรือยัง (BR-RSV-50)
    * UI พูดได้แค่ "มัดจำ ฿900" ห้ามเขียน "จ่ายแล้ว"/"ค้างจ่าย" · "0" = ไม่เก็บมัดจำ ⇒ ไม่ต้องแสดง
    */
-  depositAmount: string
+  depositAmount?: string
 }
 
 /**

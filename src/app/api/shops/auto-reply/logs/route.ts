@@ -7,7 +7,7 @@ import type { AutoReplyLogDecision, ResolutionLevel, SkipReason } from '@/lib/au
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const sp = request.nextUrl.searchParams
 

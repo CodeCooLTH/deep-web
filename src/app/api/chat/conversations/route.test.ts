@@ -132,7 +132,7 @@ describe('GET /api/chat/conversations (seller branch) — scope ตามร้�
       packageLockReason: null,
       deletedAt: null,
     })
-    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'] })
 
     // listConversationsForShop คืนตาม shopId ที่รับจริง — ถ้าโค้ด (bug เดิม) เรียกด้วย SHOP_A_PERSONAL
     // แทน จะได้ threadA ปนมา ซึ่งทดสอบนี้ต้องจับได้

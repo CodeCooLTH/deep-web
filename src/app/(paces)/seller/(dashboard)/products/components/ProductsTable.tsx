@@ -49,6 +49,8 @@ type Props = {
   onDeleteRequest: (productId: string) => void
   /** มาจาก ?cost=missing (deep-link จาก badge "ต้นทุนไม่ครบ" บนการ์ดกำไรของหน้าออเดอร์) */
   initialCostMissing?: boolean
+  /** 00071 P3: เจ้าของเท่านั้นเห็นคอลัมน์/ตัวกรองต้นทุน — ค่าตั้งต้น false (fail-closed) */
+  showCost?: boolean
   /** PRODUCT_VOCAB.productNoun */
   productNoun: string
   /** PRODUCT_VOCAB.addProductLabel */
@@ -64,6 +66,7 @@ const ProductsTable = ({
   onPinChange,
   onDeleteRequest,
   initialCostMissing = false,
+  showCost = false,
   productNoun,
   addProductLabel,
   itemSingular,
@@ -73,7 +76,7 @@ const ProductsTable = ({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
     // seed จาก deep-link ตอน mount — ถ้าไปตั้งใน useEffect ตารางจะ render ชุดเต็มแวบหนึ่งก่อน
     // แล้วค่อยหด ซึ่งอ่านเป็นการกระตุก ไม่ใช่การกรอง
-    initialCostMissing ? [{ id: 'cost', value: 'missing' }] : [],
+    showCost && initialCostMissing ? [{ id: 'cost', value: 'missing' }] : [],
   )
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
@@ -134,6 +137,9 @@ const ProductsTable = ({
     // ซึ่งล้นพื้นที่ content ที่ 1366px อยู่แล้ว (มี overflow-x-auto มาแต่ธีม) แยก 2 คอลัมน์
     // กิน ~150-180px รวมเป็นคอลัมน์เดียวกิน ~110px — และตารางนี้มี precedent อยู่แล้วคือ
     // คอลัมน์ "สินค้า" ที่รวมชื่อ+คำอธิบายไว้ 2 บรรทัดในเซลล์เดียว จึงไม่ใช่ pattern ใหม่
+    // 00071: ผู้ไม่ใช่เจ้าของไม่มีคอลัมน์ต้นทุนเลย (ไม่ใช่แค่ซ่อน) — ห้ามเหลือ getColumn('cost')
+    ...(showCost
+      ? [
     columnHelper.accessor('cost', {
       header: () => (
         <span className="flex flex-col leading-tight">
@@ -151,7 +157,7 @@ const ProductsTable = ({
         const margin = productMargin({ price, cost })
         // cost = null คือ "ยังไม่รู้ต้นทุน" ไม่ใช่ "ต้นทุน 0" — แสดง — ครั้งเดียวไม่ใช่ 2 บรรทัด
         // เพราะไม่มีอะไรให้อ่านสองชั้น (FR-EXP-15-AC-02)
-        if (cost === null) return <span className="text-default-400">—</span>
+        if (cost == null) return <span className="text-default-400">—</span>
         const isLoss = margin !== null && margin < 0
         return (
           <span className="flex flex-col leading-tight">
@@ -173,7 +179,9 @@ const ProductsTable = ({
           </span>
         )
       },
-    }),
+    })
+        ]
+      : []),
     columnHelper.accessor('isActive', {
       header: 'สถานะ',
       filterFn: 'equals',
@@ -289,12 +297,12 @@ const ProductsTable = ({
 
   // นับจาก products ทั้งก้อน (ไม่ใช่แถวที่กรองแล้ว) ให้ตรงกับตัวนับบนชิปมือถือ — ทั้งคู่
   // ตอบคำถามเดียวกันว่า "ทั้งร้านเหลือกี่ตัว" จึงต้องได้เลขเดียวกันเสมอ
-  const missingCostCount = products.filter(isMissingCost).length
+  const missingCostCount = showCost ? products.filter(isMissingCost).length : 0
   const COST_OPTIONS = [
     { value: 'All', label: 'ต้นทุน: ทั้งหมด' },
     { value: 'missing', label: `ยังไม่ตั้งต้นทุน${missingCostCount > 0 ? ` (${missingCostCount})` : ''}` },
   ]
-  const currentCostFilter = (table.getColumn('cost')?.getFilterValue() as string) ?? 'All'
+  const currentCostFilter = showCost ? ((table.getColumn('cost')?.getFilterValue() as string) ?? 'All') : 'All'
 
   return (
     <div className="card">
@@ -327,6 +335,7 @@ const ProductsTable = ({
                 }
               />
             </div>
+            {showCost && (
             <div className="input-icon-group w-full">
               <Icon icon="calculator" className="input-icon" />
               <Select
@@ -340,6 +349,7 @@ const ProductsTable = ({
                 }
               />
             </div>
+            )}
           </div>
           <div>
             <select

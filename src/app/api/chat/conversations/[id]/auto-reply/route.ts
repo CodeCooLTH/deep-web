@@ -16,7 +16,7 @@ import { ConversationAutoReplyPatchSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('X2')
   if ('error' in ctx) return ctx.error
   const { id } = await params
 

@@ -11,10 +11,10 @@
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { authOptions } from '@/lib/auth'
+import { authOptions, requireAdmin } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
 import ReviewActions from './ReviewActions'
@@ -63,6 +63,10 @@ function isLikelyFileId(v: unknown): v is string {
 
 
 export default async function VerificationDetailPage({ params }: PageProps) {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const { id } = await params
 
   const session = await getServerSession(authOptions)

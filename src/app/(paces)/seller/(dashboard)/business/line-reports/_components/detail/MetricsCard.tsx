@@ -5,7 +5,7 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx (`form-checkbox`)
  *   + theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx (ผ่าน `pacesConfirm.warning` ของ src/lib/paces-swal.ts)
- *   + src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/components/FinanceVisibilityToggle.tsx (เปิด = confirm ก่อน · ปิด = ยิงตรง)
+ *   + src/lib/paces-swal.ts (pacesConfirm.warning — เปิด = confirm ก่อน · ปิด = ยิงตรง)
  *
  * เปิดกำไร: ยืนยันก่อนแล้วส่ง `{showProfit:true, confirmProfit:true}` คำขอเดียว ไม่ debounce (ผ่าน onChange immediate)
  * ตัวสุดท้ายที่ติ๊กอยู่ปิดไม่ได้ (METRIC_REQUIRED) — ตัดสินที่ `isLastMetric`

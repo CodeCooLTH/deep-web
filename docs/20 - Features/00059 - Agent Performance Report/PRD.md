@@ -7,6 +7,10 @@ tags: [feature, 00059, report, chat, prd]
 related: ["[[Feature-Docs-Ownership]]", "[[00018 - Facebook Chat Integration]]", "[[00037 - Unified Multi-Shop Inbox]]"]
 ---
 
+> ## 🔄 หมายเหตุ 2026-10-10 — สิทธิ์เปลี่ยนโดย feature 00071 P1
+>
+> ธง `staffCanViewFinance` เลิกอ่านแล้ว — ยอดขายของแอดมินเห็นได้เฉพาะเจ้าของ · ผู้ที่ไม่ใช่เจ้าของทุกคนอยู่โหมด SELF (ไม่มี `revenue`) ข้อความในเอกสารนี้ที่อ้างธงเป็นประวัติ
+
 > **โมดูล:** M59-AgentPerformance
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0

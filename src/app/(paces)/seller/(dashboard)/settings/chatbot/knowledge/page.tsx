@@ -10,7 +10,9 @@
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { listShopQna } from '@/services/auto-reply-qna.service'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import ChatbotTabs from '../ChatbotTabs'
@@ -25,10 +27,20 @@ export default async function KnowledgePage() {
   const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: user.id, activeShopId: user.activeShopId ?? null },
-  })
-  if (!activeCtx) return null
+  // 00071 S-13 — ด่านสิทธิ์หน้าตั้งค่า (H3): ไม่มีร้าน = ตกเงียบเหมือนเดิม · บทบาทไม่ถึง = การ์ดไม่มีสิทธิ์ (ไม่ใช่หน้าว่าง/404)
+  const gate = await gatePage(session, 'H3')
+  if (!gate.ok) {
+    if (gate.reason === 'NO_SHOP') return null
+    return (
+      <>
+        <div className="hidden lg:block">
+          <PageBreadcrumb title="ChatBot" />
+        </div>
+        <NoPermissionCard capability="H3" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
+  const activeCtx = { shopId: gate.active.shop.id, role: gate.active.role, roles: gate.active.roles, vertical: gate.active.shop.vertical }
 
   const qna = await listShopQna(activeCtx.shopId)
 

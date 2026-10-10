@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { commentOnPost } from "@/services/page-comment.service";
 import { GraphApiError } from "@/lib/facebook/graph";
 import { sessionUserId } from "@/lib/session-user";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * POST /api/chat/comments/posts/[postId]/comment — เขียนคอมเมนต์ระดับบนบนโพสต์ในนามเพจ
@@ -41,9 +43,10 @@ export async function POST(
   }
 
   try {
-    const result = await commentOnPost({ postId, message, actorUserId: userId, fileId });
+    const result = await commentOnPost({ postId, message, actorUserId: userId, fileId, cap: "H2" });
     return NextResponse.json({ ok: true, id: result.id });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "POST_NOT_FOUND") return NextResponse.json({ error: "ไม่พบโพสต์นี้" }, { status: 404 });
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์คอมเมนต์โพสต์นี้" }, { status: 403 });

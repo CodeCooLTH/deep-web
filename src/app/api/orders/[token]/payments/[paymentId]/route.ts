@@ -7,10 +7,13 @@
  * ใช้ DELETE ตาม REST ที่ผู้เรียกคาดหวัง แม้ปลายทางจะเป็น soft-void — ให้ตรงกับ
  * `/api/account/link/remove` และ endpoint อื่นในโปรเจกต์ที่ทำแบบเดียวกัน
  */
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { NextRequest } from 'next/server'
 import * as v from 'valibot'
 
-import { requireShopMember, jsonNoStore } from '@/lib/shop-api-guard'
+import { jsonNoStore } from '@/lib/shop-api-guard'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { OrderPaymentError, voidPayment } from '@/services/order-payment.service'
 
 export const dynamic = 'force-dynamic'
@@ -24,9 +27,11 @@ export async function DELETE(
   { params }: { params: Promise<{ token: string; paymentId: string }> },
 ) {
   const { token, paymentId } = await params
+  // O6 (เจ้าของ+ผู้จัดการ) — ยกเลิกรายการเงินที่บันทึกแล้วหนักกว่าการบันทึก (O5) · มติ Controller 00071 P3
   // ?shopId= จากกล่องแชท — เหตุผลเดียวกับ route แม่ (เธรดของอีกร้านเปิดได้ขณะ active คนละร้าน)
-  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get('shopId') })
-  if ('error' in ctx) return ctx.error
+  const gate = await requireShopCapability(await getServerSession(authOptions), 'O6', { shopId: request.nextUrl.searchParams.get('shopId') })
+  if (!gate.ok) return gate.response
+  const ctx = gate
 
   const parsed = v.safeParse(VoidSchema, await request.json().catch(() => null))
   if (!parsed.success) return jsonNoStore({ error: 'VALIDATION_ERROR' }, { status: 400 })

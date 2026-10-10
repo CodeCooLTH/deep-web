@@ -8,7 +8,13 @@ const db = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
-vi.mock('@/lib/shop-context', () => ({ canAccessShop: vi.fn() }))
+vi.mock('@/lib/shop-capability', () => ({
+  canAccessShopWith: vi.fn(),
+  ForbiddenRoleError: class ForbiddenRoleError extends Error {
+    readonly code = 'FORBIDDEN_ROLE' as const
+    constructor() { super('FORBIDDEN'); this.name = 'ForbiddenRoleError' }
+  },
+}))
 vi.mock('@/services/shop-channel.service', () => ({
   getChannelByExternalId: vi.fn(),
   markChannelTokenInvalid: vi.fn(),
@@ -19,9 +25,9 @@ beforeAll(() => {
 })
 
 import { cancelFailedOutboundMessage } from '@/services/channel-chat.service'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith as canAccessShop } from '@/lib/shop-capability'
 
-const params = { conversationId: 'conv1', messageId: 'msg1', actorUserId: 'user1' }
+const params = { conversationId: 'conv1', messageId: 'msg1', actorUserId: 'user1', cap: 'H2' as const }
 
 describe('cancelFailedOutboundMessage', () => {
   beforeEach(() => {

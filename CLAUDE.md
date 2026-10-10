@@ -77,6 +77,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - [[docs/conventions/component-declared-in-render]] — ห้ามประกาศ component ในตัว render
   - [[docs/conventions/mutation-silence-means-weak-corpus]] — mutation แล้วยังเขียว = input อ่อน
   - [[docs/conventions/oauth-signup-unique-collisions]] — P2002 ตอนสมัคร OAuth ต้องแยกตามคอลัมน์
+  - [[docs/conventions/permission-gate-follows-the-row]] — ปิดสิทธิ์ข้อมูลไล่ตามแถวไม่ใช่ตามจอ · พารามิเตอร์สิทธิ์ห้าม default เปิด
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
@@ -176,6 +177,8 @@ theme/
 - **2026-09-14 (00018-ext):** ห้องแชท delta + client store — branch `feat/chat-instant-render-delta` ยังไม่ merge · browser QA ยังไม่ทำ
 - **2026-09-30 (00067):** แท็บการเงินร้านบริการ 3 แท็บ — prod (PR #87/#88) · 2026-10-02 ถอนกติกาออกจากร้านที่ไม่ใช่บริการ · 🛑 `npm test` ในเครื่องชี้ Supabase prod ต้อง override `DATABASE_URL` เป็น 5434
 - **2026-10-09 (00019-ext-mem):** ความจำของแชท + สินค้าที่สนใจ (Typhoon ร้านนำร่องเท่านั้น) — PR นี้ · 🛑 browser QA ยังไม่ทำ (checklist ใน retro) · ไม่มี retention (R-M2)
+- **2026-10-10 (00071 P1):** การเงินเต็มเห็นเฉพาะเจ้าของร้าน — SSOT `src/lib/shop-permissions.ts` · ธง `staffCanViewFinance` ไม่มีผลแล้ว · ไม่มี migration · 🛑 browser QA ยังไม่ทำ
+- **2026-10-10 (00071 P2+P3):** 5 บทบาทถือหลายบทบาทได้ + ทุก route ประกาศ capability (`src/lib/route-capabilities.ts`) — branch `feat/00071-p2-roles` ยังไม่ push · มี migration (HR15) · 🛑 browser QA ยังไม่ทำ
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

@@ -7,9 +7,9 @@
  * Base (textarea + นับตัวอักษร): src/app/(paces)/seller/(dashboard)/products/components/
  *   ProductDescriptionCardV2.tsx (`form-textarea` + counter) ซึ่ง Base เดิมมาจาก
  *   theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx:93
- * Base (สวิตช์ + คำอธิบายใต้ label): src/app/(paces)/seller/(dashboard)/business/[shopId]/invites/
- *   components/FinanceVisibilityToggle.tsx (`form-switch` controlled + description row)
- *   ซึ่ง Base เดิมมาจาก theme/paces/.../form/elements/components/ChecksRadioSwitches.tsx:71
+ * Base (สวิตช์ + คำอธิบายใต้ label): src/app/(paces)/seller/(dashboard)/products/components/
+ *   ProductStockCardV2.tsx:58-75 (`form-switch` controlled + description row)
+ *   ซึ่ง Base เดิมมาจาก theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx:71
  * Base (banner `bg-info/15 text-info` + Icon `info-circle`): banner `!canEdit` ที่มีอยู่แล้วในไฟล์นี้
  * Base (badge soft `bg-{color}/15 text-{color}`): docs/system/ui-guideline/paces-component-reference.md §6
  *

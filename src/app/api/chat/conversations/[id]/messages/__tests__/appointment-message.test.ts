@@ -235,7 +235,8 @@ describe('route — GET /api/orders/[token]/appointment-summary (อ่านซ
   })
 
   it('ตรวจสิทธิ์เข้าถึงร้านของออเดอร์ ไม่ใช่ activeShopId', () => {
-    expect(src).toMatch(/canAccessShop\(order\.shopId,\s*userId\)/)
+    // 00071 P3: ตรวจ capability O1 ของร้านเจ้าของออเดอร์ด้วย (canAccessShopWith) ไม่ใช่แค่เป็นสมาชิก
+    expect(src).toMatch(/canAccessShopWith\(order\.shopId,\s*userId,\s*["']O1["']\)/)
     // ตัดคอมเมนต์ก่อนค้น: หัวไฟล์ *พูดถึง* `activeShopId` เพื่ออธิบายว่าทำไมถึงไม่ใช้มัน
     // (บทเรียน HR9 2026-08-02→08-03: gate ที่ match คำเปล่า ๆ จะแดงตลอดกาลกับไฟล์ที่ทำถูกกฎ
     //  แล้วถูกบันทึกเป็น "หนี้" ทั้งที่ไม่มีการละเมิดเลย)

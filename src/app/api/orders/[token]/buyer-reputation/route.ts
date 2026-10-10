@@ -13,7 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import { getBuyerReputation } from '@/services/buyer-reputation.service'
 
@@ -35,7 +35,7 @@ export async function GET(
     select: { shopId: true, customerId: true },
   })
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-  if (!(await canAccessShop(order.shopId, userId))) {
+  if (!(await canAccessShopWith(order.shopId, userId, 'O1'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

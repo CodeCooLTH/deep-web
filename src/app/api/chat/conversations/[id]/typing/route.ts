@@ -27,6 +27,6 @@ export async function POST(
   }
   const { id } = await params;
   // notifyTyping ไม่ throw เลย (ของประดับ) — ไม่ต้องมี try/catch ซ้อนที่นี่
-  const sent = await notifyTyping({ conversationId: id, actorUserId: userId });
+  const sent = await notifyTyping({ conversationId: id, actorUserId: userId, cap: "H2" });
   return NextResponse.json({ sent });
 }

@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { replyToComment } from "@/services/page-comment.service";
 import { GraphApiError } from "@/lib/facebook/graph";
 import { sessionUserId } from "@/lib/session-user";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * POST /api/chat/comments/[commentId]/reply — ตอบคอมเมนต์แบบสาธารณะในนามเพจ (feature 00029)
@@ -42,9 +44,10 @@ export async function POST(
   }
 
   try {
-    const result = await replyToComment({ commentId, message, actorUserId: userId, fileId });
+    const result = await replyToComment({ commentId, message, actorUserId: userId, fileId, cap: "H2" });
     return NextResponse.json({ ok: true, id: result.id });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "COMMENT_NOT_FOUND") return NextResponse.json({ error: "ไม่พบความคิดเห็นนี้" }, { status: 404 });
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์ตอบความคิดเห็นนี้" }, { status: 403 });

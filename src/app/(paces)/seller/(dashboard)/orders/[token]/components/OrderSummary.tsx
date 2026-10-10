@@ -56,16 +56,21 @@ export type OrderSummaryProps = {
   pageLogoUrl?: string | null
   /** หมายเหตุที่ร้านพิมพ์ไว้ตอนสร้างออเดอร์ — เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น */
   internalNote: string | null
+  /**
+   * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ไม่มีป้ายชำระ/ราคา/ยอด/ส่วนลด/VAT/ปุ่ม action
+   * และ **props เงินทั้งหมดข้างล่างเป็น optional** เพื่อให้หน้าของช่างไม่ต้องส่งเงินข้ามเส้น RSC เลย (00071 P3 · S-15)
+   */
+  showMoney?: boolean
   /** true = เก็บเงินปลายทาง → ไม่ต้องมี badge วิธีชำระที่หัว เพราะมีการ์ดของตัวเองอยู่ขวามือ */
-  isCod: boolean
-  paymentMethod: string | null
-  slipFileId: string | null
+  isCod?: boolean
+  paymentMethod?: string | null
+  slipFileId?: string | null
   /**
    * feature 00062 — ISO ของเวลาที่ร้านกด "ได้รับเงินแล้ว" เอง (TRANSFER/PROMPTPAY/CASH)
    * null = ยังไม่ได้กด/ไม่ใช่วิธีชำระที่ร้านยืนยันเองได้ — เข้า getPaymentBadge SSOT เดียวกับ
    * BillingDetails.tsx (SDS TD-003)
    */
-  paymentConfirmedAt: string | null
+  paymentConfirmedAt?: string | null
   /**
    * ป้ายสถานะที่ผู้เรียกคำนวณมาแล้ว (ร้านบริการ) — null = ใช้ป้ายเดิมจาก `status`
    *
@@ -86,13 +91,13 @@ export type OrderSummaryProps = {
   serviceMoney?: { totalAmount: number; totalReceived: number; outstanding: number } | null
   isFromAuction: boolean
   items: OrderFactsItem[]
-  discount: unknown
-  vatRate: unknown
-  vatAmount: unknown
-  totalAmount: unknown
-  /** ชุดปุ่มที่ getOrderActionSet() คำนวณไว้แล้ว — ไฟล์นี้แค่ render ไม่ตัดสินเอง */
-  actionSet: OrderActionSet
-  onAction: (key: string) => void
+  discount?: unknown
+  vatRate?: unknown
+  vatAmount?: unknown
+  totalAmount?: unknown
+  /** ชุดปุ่มที่ getOrderActionSet() คำนวณไว้แล้ว — ไฟล์นี้แค่ render ไม่ตัดสินเอง · ไม่ส่ง = ไม่มีปุ่ม */
+  actionSet?: OrderActionSet
+  onAction?: (key: string) => void
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
   orderNoun?: string
   /** คำผันตามประเภทกิจการ — ร้านบริการเรียกรายการว่า "บริการ" หน่วย "ครั้ง" แถวยอดว่า "ยอดค่าบริการ" */
@@ -110,10 +115,11 @@ export default function OrderSummary({
   salesChannel,
   pageLogoUrl = null,
   internalNote,
-  isCod,
-  paymentMethod,
-  slipFileId,
-  paymentConfirmedAt,
+  showMoney = false,
+  isCod = false,
+  paymentMethod = null,
+  slipFileId = null,
+  paymentConfirmedAt = null,
   isFromAuction,
   items,
   discount,
@@ -123,7 +129,7 @@ export default function OrderSummary({
   actionSet,
   onAction,
   orderNoun = 'คำสั่งซื้อ',
-  serviceBadge = null,
+  serviceBadge: serviceBadgeProp = null,
   serviceMoney = null,
   vocab,
   vertical,
@@ -131,12 +137,16 @@ export default function OrderSummary({
   const itemVocab = orderItemVocab(vertical)
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
+  // ไม่เห็นเงิน: ป้ายอ่านแกนสถานะ/พัสดุล้วน ไม่ใช่แกนเงิน (จอง/รอชำระ/ชำระเงินแล้ว)
+  const serviceBadge = showMoney ? serviceBadgeProp : null
   const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage, carrierStatus)
-  const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)
+  const paymentBadge = showMoney
+    ? getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)
+    : null
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
   const subtotal = items.reduce((sum, it) => sum + toNum(it.price) * it.qty, 0)
-  const rows = buildBreakdown({
+  const rows = !showMoney ? [] : buildBreakdown({
     subtotal,
     discount: toNum(discount),
     vatAmount: toNum(vatAmount),
@@ -227,9 +237,11 @@ export default function OrderSummary({
         {/* ธีมวางปุ่มไว้ `mt-4 md:ms-auto md:mt-0` — คงตำแหน่งเดิม เปลี่ยนแค่มาจาก actionSet
             ซ่อน <768 เพราะมี OrderActionBar variant="bottom" ติดล่างจออยู่แล้ว (ธีมไม่มี pattern
             มือถือเลย ส่วนนี้เป็น adapt ที่จำเป็น) */}
-        <div className="mt-4 hidden md:ms-auto md:mt-0 md:block">
-          <OrderActionBar actionSet={actionSet} onAction={onAction} variant="inline" />
-        </div>
+        {actionSet && onAction && (
+          <div className="mt-4 hidden md:ms-auto md:mt-0 md:block">
+            <OrderActionBar actionSet={actionSet} onAction={onAction} variant="inline" />
+          </div>
+        )}
       </div>
 
       <div className="card-body px-5!">
@@ -250,10 +262,16 @@ export default function OrderSummary({
                       <p className="text-default-700 mt-0.5 truncate text-2xs">{item.description}</p>
                     )}
                     <p className="text-default-700 mt-1 text-sm">
-                      {formatAmount(item.price)} × {item.qty}{' '}
-                      <span className="text-default-800 font-semibold">
-                        = {formatAmount(Number(item.price) * item.qty)}
-                      </span>
+                      {showMoney ? (
+                        <>
+                          {formatAmount(item.price)} × {item.qty}{' '}
+                          <span className="text-default-800 font-semibold">
+                            = {formatAmount(Number(item.price) * item.qty)}
+                          </span>
+                        </>
+                      ) : (
+                        <>จำนวน {item.qty}</>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -261,7 +279,7 @@ export default function OrderSummary({
             </div>
           )}
 
-          <div className="border-default-300 mt-4 space-y-1.5 border-t pt-3">
+          <div className={cn('border-default-300 mt-4 space-y-1.5 border-t pt-3', rows.length === 0 && 'hidden')}>
             {rows.map((r) => (
               <div
                 className={cn(
@@ -291,15 +309,15 @@ export default function OrderSummary({
             <thead className="thead-sm bg-light/25 text-2xs">
               <tr>
                 <th>ชื่อ{itemVocab.itemColLabel}</th>
-                <th>ราคา/{itemVocab.unitLabel}</th>
+                {showMoney && <th>ราคา/{itemVocab.unitLabel}</th>}
                 <th>จำนวน</th>
-                <th className="text-end">รวม</th>
+                {showMoney && <th className="text-end">รวม</th>}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td className="text-default-700 py-6 text-center" colSpan={4}>
+                  <td className="text-default-700 py-6 text-center" colSpan={showMoney ? 4 : 2}>
                     ยังไม่มีรายการ{itemVocab.itemColLabel}
                   </td>
                 </tr>
@@ -316,9 +334,9 @@ export default function OrderSummary({
                         </div>
                       </div>
                     </td>
-                    <td>{formatAmount(item.price)}</td>
+                    {showMoney && <td>{formatAmount(item.price)}</td>}
                     <td>{item.qty}</td>
-                    <td className="text-end font-medium">{formatAmount(Number(item.price) * item.qty)}</td>
+                    {showMoney && <td className="text-end font-medium">{formatAmount(Number(item.price) * item.qty)}</td>}
                   </tr>
                 ))
               )}

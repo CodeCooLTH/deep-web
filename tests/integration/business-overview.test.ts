@@ -59,7 +59,7 @@ async function seedShop(ownerId: string, opts: { kind?: 'PERSONAL' | 'BUSINESS';
 }
 
 const addMember = (shopId: string, userId: string, role: 'OWNER' | 'ADMIN') =>
-  prisma.shopMember.create({ data: { shopId, userId, role } })
+  prisma.shopMember.create({ data: { shopId, userId, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] } })
 
 d('listOverviewShops / getPortfolioSeries (integration)', () => {
   it('TC-002 ไม่มีร้าน BUSINESS ที่จ่ายแล้ว → ว่าง', async () => {

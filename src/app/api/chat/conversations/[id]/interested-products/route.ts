@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { sessionUserId } from "@/lib/session-user";
 import { InterestedProductPostSchema } from "@/lib/validations";
 import { addInterestedProduct } from "@/services/chat-interested-product.service";
@@ -33,9 +34,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
-    idCheck.output,
+    idCheck.output, "H2"
   );
   if (!resolved) return json({ error: "ไม่พบบทสนทนานี้" }, 404);
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
 
   const parsed = v.safeParse(InterestedProductPostSchema, await request.json().catch(() => null));
   if (!parsed.success) return json({ error: parsed.issues[0]?.message ?? "Invalid input" }, 400);

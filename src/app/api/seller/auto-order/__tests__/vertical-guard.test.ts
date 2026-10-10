@@ -32,7 +32,7 @@ describe('ด่านของ /api/seller/auto-order/*', () => {
 
   it.each(FILES)('[blocker] %s เรียก requireAutoOrderShop เป็นด่านแรก', (file) => {
     const src = readFileSync(file, 'utf8')
-    expect(src).toContain('requireAutoOrderShop()')
+    expect(src).toContain("requireAutoOrderShop('X3')")
     // ต้อง return response ทันทีเมื่อไม่ผ่าน ไม่ใช่เรียกแล้วเมินผล
     expect(src).toMatch(/if\s*\(!guard\.ok\)\s*return guard\.response/)
     // 🛑 ห้ามรับ shopId จาก body/query — membership guard ทั้งชุดได้มาจาก active shop เท่านั้น
@@ -42,7 +42,7 @@ describe('ด่านของ /api/seller/auto-order/*', () => {
   it('[blocker] ด่านร่วมกันทั้ง 3 อย่าง: ล็อกอิน · มีร้าน · vertical', () => {
     const shared = readFileSync(join(ROOT, '_shared.ts'), 'utf8')
     expect(shared).toContain('getServerSession')
-    expect(shared).toContain('requireActiveShop')
+    expect(shared).toContain('requireShopCapability')
     expect(shared).toMatch(/resolveShopVertical\([^)]*\)\s*!==\s*'ONLINE_SALES'/)
     // สถานะต้องเป็น 403 ไม่ใช่ 404 — ร้านมีอยู่จริง แค่ใช้ฟีเจอร์นี้ไม่ได้
     const at = shared.indexOf("!== 'ONLINE_SALES'")

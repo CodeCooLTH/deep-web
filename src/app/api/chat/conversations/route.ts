@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { resolveChatScope, intersectScopedShopIds } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { DEFAULT_INBOX_SORT } from "@/lib/inbox-sort";
 import { prisma } from "@/lib/prisma";
 import {
   getOrCreateConversation,
@@ -245,10 +247,12 @@ export async function GET(request: NextRequest) {
     // ห้าม fallback เงียบ ๆ ไป PERSONAL เมื่อ resolve ไม่ได้ (นั่นคือบั๊กเดิมก่อน 2026-07)
     const scope = await resolveChatScope({
       user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-    });
+    }, "H1");
     if (!scope) {
       return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
     }
+    // 00071 S-13: มีร้านแต่ไม่ถือ cap ในร้านใดเลย → 403 FORBIDDEN_ROLE (ไม่ใช่รายการว่าง)
+    if (scope.shopIds.length === 0) return forbiddenRoleResponse();
     // ตัวกรองร้านที่ client ส่งมาต้องถูกตัดให้อยู่ในขอบเขตเสมอ — ยิงรหัสร้านที่ไม่มีสิทธิ์
     // จะได้ [] แล้ว service คืนรายการว่าง (ไม่ใช่ 403 ที่ยืนยันว่าร้านนั้นมีจริง — BR-UNI-02)
     const scopedShopIds = intersectScopedShopIds(scope.shopIds, parsed.output.shopId);
@@ -258,13 +262,15 @@ export async function GET(request: NextRequest) {
     // usePref=1 (ชุดแรกของ Chat Rail) = ผู้เรียกยังไม่รู้ค่าที่บันทึกไว้ ⇒ server ตัดสินให้ทั้งชุด
     // แล้วส่ง preference กลับไปให้ client ตั้ง state ตาม — ห้ามให้ client เดาเองแล้วยิงซ้ำ
     // เพราะช่วงระหว่างนั้นคือช่วงที่ "รายการกับตัวกรองที่ไฮไลต์ไม่ตรงกัน" ซึ่งพังมาแล้ว 2 รอบ
-    const savedPreference = parsed.output.usePref
-      ? await getInboxPreference(userId, scope.activeShopId)
+    // 00071: ค่าตั้งผูกกับร้าน active — ร้านนั้นไม่ถือ H1 = ไม่อ่านค่าตั้ง (ใช้ค่าตั้งต้น ไม่ชี้ร้านที่ไม่มีสิทธิ์)
+    const prefShopId = scope.activeHasCap ? scope.activeShopId : null;
+    const savedPreference = parsed.output.usePref && prefShopId
+      ? await getInboxPreference(userId, prefShopId)
       : null;
     const prefOptions = savedPreference ? inboxPreferenceToListOptions(savedPreference) : null;
     // client ที่รู้โหมดอยู่แล้วส่งมาเอง = ไม่ต้องอ่านฐานซ้ำทุกครั้งที่เลื่อนรายการ/รีเฟรช 20 วิ
     const sort =
-      prefOptions?.sort ?? parsed.output.sort ?? (await getInboxSortMode(userId, scope.activeShopId));
+      prefOptions?.sort ?? parsed.output.sort ?? (prefShopId ? await getInboxSortMode(userId, prefShopId) : DEFAULT_INBOX_SORT);
     const result = await listConversationsForShops(scopedShopIds, {
       ...(prefOptions ?? {}),
       sort,

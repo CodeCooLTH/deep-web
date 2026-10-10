@@ -10,6 +10,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getVerifications, getMaxVerificationLevel } from '@/services/verification.service'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import LevelCard from './components/LevelCard'
@@ -50,6 +53,17 @@ export default async function VerificationPage() {
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) return null // layout redirect guard handles unauthenticated
+
+  // 00071 T1: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ยืนยันตัวตน" trail={[{ label: 'ตั้งค่า' }]} />
+        <NoPermissionCard capability="T1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
 
   // active shop context (P5-1): Personal → user-level เดิม (shopId null); Business → แยกต่อร้าน
   // feature 00012 (Lazy Personal shop): active อาจเป็น null ได้แล้ว (ผู้ถูกเชิญไม่มี Personal) — โค้ด

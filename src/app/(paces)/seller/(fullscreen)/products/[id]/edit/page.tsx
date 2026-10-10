@@ -25,6 +25,7 @@ import { shouldHidePayments } from '@/lib/app-shell-server'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { productPageMetadata } from '@/lib/product-page-title'
@@ -32,6 +33,9 @@ import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('edit')
@@ -46,6 +50,11 @@ export default async function EditProductPage({ params }: PageProps) {
   const { id } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionScreen capability="P2" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -77,19 +86,24 @@ export default async function EditProductPage({ params }: PageProps) {
 
   const shop = active.shop
 
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — ผู้ไม่ใช่เจ้าของไม่ได้คีย์ cost และฟอร์มไม่แสดง/ไม่ส่งช่องต้นทุน
+  const canEditCost = can(rolesFromMembership(active.role, active.roles), 'P3')
+
   // Fetch product + verify ownership (security: กัน seller แก้ product ของร้านอื่น)
   // serializeProduct แปลง Decimal/Date/Json → plain object ให้ RSC ส่งผ่าน boundary ได้
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   const productRaw = await prisma.product.findFirst({
     where: { id, shopId: shop.id },
     include: { tags: true },
+    // 00071 T9: cost ไม่ติดมาเป็นค่าตั้งต้น — opt-in เฉพาะ P3 (ตัดสินจาก role สดข้างล่าง แล้วผ่าน serializeProduct ต่อ)
+    omit: { cost: !canEditCost },
   })
 
   if (!productRaw) {
     notFound()
   }
 
-  const product = serializeProduct(productRaw)
+  const product = serializeProduct(productRaw, { canSeeCost: canEditCost })
 
   // Business ถูก package lock (read-only) — ห้ามแก้ไขสินค้า
   if (active.locked) {
@@ -138,6 +152,7 @@ export default async function EditProductPage({ params }: PageProps) {
         vertical={shop.vertical}
         shopId={shop.id}
         product={product}
+        canEditCost={canEditCost}
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}

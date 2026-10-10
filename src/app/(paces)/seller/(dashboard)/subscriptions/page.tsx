@@ -25,10 +25,14 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import {
   BUSINESS_PACKAGE_TIER_CONFIG,
   BUSINESS_PACKAGE_ADVANCE_WARNING_DAYS,
@@ -122,7 +126,10 @@ function renderShopCard(shop: ShopSubscriptionRow, isActive: boolean, lockedAt: 
           <span className="text-default-500">
             ต่ออายุ: {shop.nextRenewalAt ? formatDate(shop.nextRenewalAt) : '—'}
           </span>
-          <span className="text-default-500">ยอดกระเป๋า: ฿{shop.walletBalance.toLocaleString('th-TH')}</span>
+          {/* walletBalance null = ผู้ไม่ใช่เจ้าของ (00071 F3) — ไม่แสดงทั้งแถว */}
+          {shop.walletBalance != null && (
+            <span className="text-default-500">ยอดกระเป๋า: ฿{shop.walletBalance.toLocaleString('th-TH')}</span>
+          )}
         </div>
 
         {shop.warnAdvance && shop.nextRenewalAt && (
@@ -189,6 +196,17 @@ export default async function SubscriptionsPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
+  // 00071 T4: บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล (ไม่ใช่ 404 เงียบ) — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'T4')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="แพ็กเกจของฉัน" />
+        <NoPermissionCard capability="T4" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
+
   const ownerId = user.id as string
 
   // active context (membership-verified) — ตัดสินว่า scope personal หรือ business (S-18)
@@ -198,7 +216,8 @@ export default async function SubscriptionsPage() {
 
   // ═══ BUSINESS CONTEXT ═══ เห็นแค่ Stock Pro ของ business นั้นใบเดียว (จัดการได้), ไม่มี Business Package
   if (activeCtx?.kind === 'BUSINESS') {
-    const shop = await getShopSubscriptionRow(activeCtx.shopId)
+    // ผู้ไม่ใช่เจ้าของไม่อ่านยอดกระเป๋าร้านเลย (ตัดที่ service ไม่ใช่ซ่อนใน JSX)
+    const shop = await getShopSubscriptionRow(activeCtx.shopId, { canSeeBalance: isShopOwnerRole(activeCtx.role, activeCtx.roles) })
     const lockedAt = await getActiveLockedAt(shop ?? undefined)
     return (
       <>

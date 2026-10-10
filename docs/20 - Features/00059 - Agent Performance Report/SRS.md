@@ -7,6 +7,10 @@ tags: [feature, 00059, srs]
 related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]"]
 ---
 
+> ## 🔄 หมายเหตุ 2026-10-10 — สิทธิ์เปลี่ยนโดย feature 00071 P1
+>
+> `staffCanViewFinance` **เลิกอ่านแล้ว** — `resolveAgentReportAccess()` ใช้ F1: เจ้าของ = `FULL` · **ผู้ที่ไม่ใช่เจ้าของทุกคน = `SELF`** (เห็นเฉพาะของตัวเอง · `revenue` เป็น `null` ทุกชั้นของ payload ผ่าน `src/lib/agent-revenue-redact.ts`) · ข้อความในเอกสารนี้เรื่อง "พนักงานที่เปิดสิทธิ์การเงิน = FULL" เป็นประวัติ — ดู `docs/SRS.md` (หมวด API ผลงานแอดมิน `/api/seller/reports/agents*`) และ 00071
+
 > **โมดูล:** M59-AgentPerformance
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS)
 > **เวอร์ชัน:** 1.0

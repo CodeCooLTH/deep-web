@@ -22,13 +22,12 @@
  *   theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
  * Logic reused from: src/layouts/components/Sidenav/components/UserProfileSettings.tsx:41
  *   (signOutSeller('/auth/sign-in') — callbackUrl เดียวกันเป๊ะ ไม่แตกทางออกเป็นสองแบบ)
- * Confirm: pacesConfirm.danger — blocking dialog ต้องเป็น Sweet Alerts ตาม src/lib/paces-swal.ts
+ * Confirm: pacesConfirm.danger (ใน confirm-sign-out.ts) — blocking dialog ต้องเป็น Sweet Alerts ตาม src/lib/paces-swal.ts
  *   (ห้าม window.confirm) และต้องถามก่อนเพราะปุ่มอยู่ในหน้าที่ผู้ใช้เข้ามาแก้ข้อมูลร้าน กดพลาดได้
  */
 
 import Icon from '@/components/wrappers/Icon'
-import { signOutSeller } from '@/lib/sign-out-seller'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { confirmAndSignOut } from '@/lib/confirm-sign-out'
 import { useSession } from 'next-auth/react'
 
 export default function SignOutCard() {
@@ -37,17 +36,8 @@ export default function SignOutCard() {
   const user = session?.user as { displayName?: string; username?: string } | undefined
   const name = user?.displayName ?? user?.username ?? 'ผู้ขาย'
 
-  const handleSignOut = async () => {
-    const confirmed = await pacesConfirm.danger(
-      'ออกจากระบบ?',
-      `คุณจะออกจากบัญชี ${name} และกลับไปหน้าเข้าสู่ระบบ`,
-      { confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' },
-    )
-    if (!confirmed) return
-    /* การถอน push token ย้ายเข้า `signOutSeller` แล้ว (2026-09-25) — เดิมอยู่ในไฟล์นี้
-       กับ DeleteAccountCard เท่านั้น ⇒ ทางออกอีก 5 ทางไม่เคยถอนเลย */
-    signOutSeller('/auth/sign-in')
-  }
+  // confirm + ออกจากระบบอยู่ที่ฟังก์ชันร่วม (AccountSwitcherSheet ใช้ตัวเดียวกัน)
+  const handleSignOut = () => confirmAndSignOut(name)
 
   return (
     /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)

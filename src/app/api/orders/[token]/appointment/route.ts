@@ -1,7 +1,14 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as v from "valibot";
 import { SetAppointmentSchema } from "@/lib/validations";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { prisma } from "@/lib/prisma";
+import { canEditOrderAs } from "@/lib/order-role-rules";
+import { isOrderUnpaid } from "@/lib/order-payment-state";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { setOrRescheduleAppointment } from "@/services/appointment.service";
 
@@ -29,8 +36,9 @@ export async function PATCH(
    * active อยู่ร้าน A (BR-UNI-07) ⇒ ถ้าเชื่อ `activeShopId` อย่างเดียวจะหาไม่เจอแล้วผู้ใช้
    * ได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน · ไม่ส่งมา = พฤติกรรมเดิมทุกประการ
    */
-  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get("shopId") });
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "O3", { shopId: request.nextUrl.searchParams.get("shopId") });
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(SetAppointmentSchema, body ?? {});
@@ -45,6 +53,17 @@ export async function PATCH(
   }
 
   try {
+    // C-7: เลื่อนนัด = แก้บิล — BILLING ล้วนทำได้เฉพาะบริการที่ยังไม่ชำระ (เงื่อนไขเดียวกับ updateOrder / หน้าแก้ไข)
+    // ไม่พบออเดอร์ = ปล่อยให้ service ตอบ 404 ตามเดิม
+    const o = await prisma.order.findFirst({
+      where: { publicToken: token, shopId: ctx.shopId },
+      select: {
+        type: true, totalAmount: true, paymentConfirmedAt: true, codReceivedAt: true,
+        payments: { select: { kind: true, amount: true, voidedAt: true } },
+      },
+    });
+    if (o && !canEditOrderAs(gate.roles, { type: o.type, unpaid: isOrderUnpaid(o) })) return forbiddenRoleResponse();
+
     const result = await setOrRescheduleAppointment({
       shopId: ctx.shopId,
       orderToken: token,

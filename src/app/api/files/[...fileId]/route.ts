@@ -6,7 +6,8 @@ import { getFile, getFileMeta, getFileRange, fileIdExt } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { EXT_TO_MIME, isInlineExt } from "@/lib/attachment-mime";
 import { parseRangeHeader, contentRangeHeader } from "@/lib/http-range";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 // feature 00018 (user request 2026-07-24 "รองรับทุกอย่าง"): ตาราง ext→content-type ย้ายไป
 // src/lib/attachment-mime.ts (SSOT ร่วมกับ mirror ฝั่ง channel-chat.service). ไฟล์ที่ browser
@@ -256,11 +257,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       const isBuyer = chatDoc.conversation.buyerUserId === user.id;
+      // 00071 S-13: ฝั่งร้านต้องถือ H1 (อ่านแชท) — เอกสารแนบเป็นเนื้อหาแชท BILLING/TECHNICIAN ไม่ควรเปิดได้แม้รู้ fileId
+      // (อ่านแถวสมาชิกสด) · ชนิดไฟล์อื่น (KYC/สลิปเติมเงิน/สลิปออเดอร์/หลักฐานมิจฉาชีพ) คงด่านเจ้าของ/แอดมินเดิม ไม่ผูกบทบาทร้าน
       const allowed =
-        user.isAdmin === true || isBuyer || (await canAccessShop(chatDoc.conversation.shopId, user.id));
-      if (!allowed) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+        user.isAdmin === true || isBuyer || (await canAccessShopWith(chatDoc.conversation.shopId, user.id, "H1"));
+      if (!allowed) return forbiddenRoleResponse();
     }
   }
 

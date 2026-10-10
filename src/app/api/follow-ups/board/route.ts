@@ -13,7 +13,7 @@ const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 export async function GET(request: NextRequest) {
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
 
   const sp = request.nextUrl.searchParams

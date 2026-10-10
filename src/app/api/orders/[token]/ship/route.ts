@@ -11,7 +11,7 @@ import {
   IShipManagedShipmentError,
 } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 
 export async function POST(
   request: NextRequest,
@@ -27,7 +27,7 @@ export async function POST(
   const userId = (session.user as any).id;
   const order = await prisma.order.findUnique({ where: { publicToken: token }, include: { shop: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (!(await canAccessShop(order.shopId, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessShopWith(order.shopId, userId, 'S1'))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const parsed = v.safeParse(ShipOrderSchema, body);
@@ -56,7 +56,7 @@ export async function PATCH(
   const userId = (session.user as any).id;
   const order = await prisma.order.findUnique({ where: { publicToken: token }, include: { shop: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (!(await canAccessShop(order.shopId, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessShopWith(order.shopId, userId, 'S1'))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const parsed = v.safeParse(ShipOrderSchema, body);

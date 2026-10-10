@@ -8,6 +8,8 @@ import {
   refreshPostStats,
 } from "@/services/page-comment.service";
 import { sessionUserId } from "@/lib/session-user";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * GET /api/chat/comments/posts/[postId] — โพสต์ + คอมเมนต์ทั้งหมด (เก่า→ใหม่)
@@ -27,7 +29,7 @@ import { sessionUserId } from "@/lib/session-user";
  * "รันใน after() = หลังส่ง HTML ให้ผู้ใช้แล้ว — ไม่ถ่วงเวลาเปิดหน้าเลย"
  *
  * ⚠️ ลำดับสำคัญ: ต้องลงทะเบียน `after()` **หลัง** `getPostComments()` สำเร็จเท่านั้น เพราะด่านสิทธิ์
- * (`canAccessShop` → throw FORBIDDEN) อยู่ในนั้น — ลงทะเบียนก่อนแปลว่าคนที่ไม่มีสิทธิ์ก็สั่งให้เรา
+ * (`canAccessShopWith` → throw FORBIDDEN) อยู่ในนั้น — ลงทะเบียนก่อนแปลว่าคนที่ไม่มีสิทธิ์ก็สั่งให้เรา
  * ยิง Graph แทนเขาได้
  */
 export const dynamic = "force-dynamic";
@@ -43,7 +45,7 @@ export async function GET(
   const { postId } = await params;
 
   try {
-    const data = await getPostComments({ postId, actorUserId: userId, skipBackfill: true });
+    const data = await getPostComments({ postId, actorUserId: userId, skipBackfill: true, cap: "H1" });
 
     // ผ่านด่านสิทธิ์มาแล้ว (getPostComments throw FORBIDDEN เอง) จึงลงทะเบียนงานเบื้องหลังได้
     after(async () => {
@@ -58,6 +60,7 @@ export async function GET(
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "POST_NOT_FOUND") return NextResponse.json({ error: "ไม่พบโพสต์นี้" }, { status: 404 });
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงโพสต์นี้" }, { status: 403 });

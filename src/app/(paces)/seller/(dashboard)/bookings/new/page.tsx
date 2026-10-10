@@ -13,11 +13,24 @@ import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { listRooms, serializeRoom } from '@/services/room.service'
 import BookingForm from '../components/BookingForm'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'สร้างการจอง' }
 
 export default async function NewBookingPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การจอง" />
+        <NoPermissionCard capability="O2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
 
   const active = await requireActiveShop(

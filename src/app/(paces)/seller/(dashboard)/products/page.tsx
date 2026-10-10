@@ -27,13 +27,28 @@ import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
 import type { StatType } from './components/ProductStats'
 import { fileUrlOf } from '@/lib/file-url'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
+import { isBillingOnlyFor } from '@/lib/order-role-rules'
 import { resolveProductVocab } from '@/lib/seller-menu'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('list')
 
 export default async function ProductsPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="สินค้า" />
+        <NoPermissionCard capability="P1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) return null
 
@@ -64,6 +79,9 @@ export default async function ProductsPage() {
   // คำเรียก /products ผันตามประเภทกิจการ (ONLINE_SALES = "สินค้า" เหมือนเดิมทุกตัวอักษร)
   const { productNoun, addProductLabel, itemSingular } = resolveProductVocab(shop.vertical)
 
+  // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น (role สดจาก requireActiveShop)
+  const showCost = can(rolesFromMembership(active.role, active.roles), 'P3')
+
   // --- Fetch products + orders + pin state แบบขนาน (Promise.allSettled — ล้มเหลวอันหนึ่งไม่กระทบอันอื่น) ---
   let products: any[] = []
   let orders: any[] = []
@@ -71,11 +89,13 @@ export default async function ProductsPage() {
   let pinState: { pinSlots: number; pinnedCount: number } = { pinSlots: 1, pinnedCount: 0 }
 
   const [productsResult, ordersResult, pinStateResult] = await Promise.allSettled([
-    getProductsByShop(shop.id),
+    getProductsByShop(shop.id, undefined, { withCost: showCost }),
     getOrdersByShop(shop.id),
     getPinState(shop.id),
   ])
   if (productsResult.status === 'fulfilled') products = productsResult.value
+  // P1 ของผู้เปิดบิล = เฉพาะสินค้าประเภทบริการ — กรองที่ server (เดียวกับ GET /api/products)
+  if (gate.ok && isBillingOnlyFor(gate.roles, 'P1')) products = products.filter((p: any) => p.type === 'SERVICE')
   if (ordersResult.status === 'fulfilled') orders = ordersResult.value
   if (pinStateResult.status === 'fulfilled') pinState = pinStateResult.value
 
@@ -106,7 +126,8 @@ export default async function ProductsPage() {
         : '',
       price: Number(p.price ?? 0),
       // Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้); null คงเป็น null ไม่แปลงเป็น 0
-      cost: p.cost == null ? null : Number(p.cost),
+      // 00071: ผู้ไม่ใช่เจ้าของ = ไม่มีคีย์ cost เลย (ไม่ใช่ null/0)
+      ...(showCost ? { cost: p.cost == null ? null : Number(p.cost) } : {}),
       type: (p.type as ProductRow['type']) ?? 'PHYSICAL',
       isActive: p.isActive ?? true,
       totalSold,
@@ -192,7 +213,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
+      <ProductsListing showCost={showCost} canCreate={can(rolesFromMembership(active.role, active.roles), 'P2')} products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} vertical={shop.vertical} />
     </>
   )
 }

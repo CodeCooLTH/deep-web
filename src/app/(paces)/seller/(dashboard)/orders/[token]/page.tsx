@@ -51,6 +51,11 @@ import { isCODPayment } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
+import { can, moneyLevel } from '@/lib/shop-permissions'
+import { toNoMoneyOrder } from '@/lib/order-view-by-level'
+import TechnicianOrderDetail from './components/TechnicianOrderDetail'
+import { canEditOrderAs } from '@/lib/order-role-rules'
+import { isOrderUnpaid } from '@/lib/order-payment-state'
 import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
@@ -76,6 +81,9 @@ import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
 import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
@@ -97,6 +105,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const { token } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionCard capability="O1" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -119,11 +132,34 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
-  const orderRaw = await getOrderForShop(token, shop.id)
+  // กำไรรายออเดอร์ (feature 00016 ส่วนขยาย FR-EXP-14) — ตัดสินสิทธิ์ "ก่อน" ดึงออเดอร์ เพราะต้นทุนรายบรรทัด
+  // (OrderItem.cost) ถูก omit ที่ระดับ prisma client (00071 T9) · opt-in เฉพาะผู้ที่ GRANTED เท่านั้น
+  // 00071 P3 (S-14): บทบาทที่มีผลจริงของผู้ดู → ซ่อนปุ่มที่ไม่มีสิทธิ์ · บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ)
+  const viewerRoles = gate.ok ? gate.roles : []
+  // ช่าง (NONE) ไม่แตะตัวตัดสินการเงินเลย (S-15) — ตัดสินก่อน resolveExpenseAccess
+  const isNoMoney = moneyLevel(viewerRoles) === 'NONE'
+  const canSeeProfit = isNoMoney
+    ? false
+    : (await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } })).kind === 'GRANTED'
+  const orderRaw = await getOrderForShop(token, shop.id, { withCost: canSeeProfit })
   if (!orderRaw) notFound()
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
+  // 00071 P3 (S-15): ช่าง (ระดับเงิน NONE) ไปหน้าของช่างเลย — คืนก่อนจะถึงโค้ดคำนวณเงิน/กำไร/ใบเสร็จ/พัสดุทุกบรรทัดข้างล่าง
+  // และส่งเฉพาะ allow-list (toNoMoneyOrder) ไม่ส่งแถวดิบ · ค่าที่ gate ไม่ ok = [] = NONE ⇒ ปิดเป็นค่าตั้งต้น
+  if (isNoMoney) {
+    return (
+      <TechnicianOrderDetail
+        order={toNoMoneyOrder(orderRaw)}
+        shop={shop}
+        vocab={vocab}
+        viewerRoles={viewerRoles}
+        fbPageAvatar={fbPageAvatar}
+      />
+    )
+  }
   const order: any = orderRaw
+  const editLocked = !canEditOrderAs(viewerRoles, { type: order.type, unpaid: isOrderUnpaid(order) })
   // feature 00065 — ไม่กั้นด้วย vertical: ใบที่ออกแล้วต้องเปิดได้เสมอ (BR-RCP-09) · query เดียวบน unique index
   const receiptNo = await getReceiptNoForOrder(orderRaw.id)
 
@@ -254,10 +290,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // ไม่ใช่ส่งตัวเลขลงไปให้ client เลือกไม่แสดง หน้านี้อยู่ใต้ client layout ทุกค่าที่ข้ามเส้น
   // ถูก serialize ลง HTML เสมอ staff ที่เจ้าของร้านปิดสิทธิ์การเงินไว้จึงต้องไม่มีตัวเลขนี้
   // อยู่ในหน้าเลยแม้แต่ใน view-source (FR-EXP-14-AC-04)
-  const expenseAccess = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  const canSeeProfit = expenseAccess.kind === 'GRANTED'
   // countsAsRevenue ต้องได้ shipments มาด้วย — getOrderForShop include ไว้แล้ว (select แคบ 3 field)
   // คืนบางส่วนที่รับของแล้วของใบนี้ — หักในกำไรรายใบด้วย ชุดเดียวกับทุกจอ (มติ 2026-10-01)
   const orderProfit =
@@ -410,6 +442,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
       <PageBreadcrumb title={`รายละเอียด${vocab.noun}`} trail={[{ label: vocab.noun, href: '/orders' }]} />
 
       <OrderDetailClient
+        viewerRoles={viewerRoles}
+        editLocked={editLocked}
         vocab={vocab}
         /* ป้ายสถานะของร้านบริการ — derive จากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว)
            `orderMoney` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
@@ -517,6 +551,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 เพราะสองอย่างนั้นเปลี่ยนได้ภายหลังโดยที่ข้อมูลนัดยังอยู่ */}
             {order.serviceStart && (
               <AppointmentCard
+                canReschedule={can(viewerRoles, 'O3') && !editLocked}
+                canOutcome={can(viewerRoles, 'O4')}
+                canSendSummary={can(viewerRoles, 'H1')}
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
                 // เวลาที่เปิดบิล — ใช้แยก "เดินเข้ามา" ออกจาก "จองล่วงหน้า"

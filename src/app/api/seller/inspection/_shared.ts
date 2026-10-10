@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { sessionUserId } from '@/lib/session-user'
-import { requireActiveShop } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
+import type { Capability } from '@/lib/shop-permissions'
 import { formatDateTH } from '@/lib/format-date'
 import { nextIntakeOpensAt } from '@/lib/inspection/plan-lifecycle'
 import { InspectionPlanError } from '@/services/inspection-plan.service'
@@ -18,21 +18,17 @@ import { InspectionEvidenceError } from '@/services/inspection-result.service'
  * 🛑 "มี session" ไม่เท่ากับ "รู้ว่าเป็นใคร" — ใช้ `sessionUserId()` เท่านั้น ห้าม cast
  *    `session.user.id` เอง (docs/conventions/session-exists-is-not-identity.md)
  */
-export async function requireInspectionShop() {
-  const session = await getServerSession(authOptions)
-  const userId = sessionUserId(session)
-  if (userId === null) {
-    return { response: errorResponse('UNAUTHORIZED') } as const
+export async function requireInspectionShop(cap: Capability) {
+  // 00071 T4: แผนตรวจสอบ = เจ้าของหลัก (ด่านสิทธิ์กลาง — 401/404/403 แปลงเป็น envelope เดิมของชุดนี้)
+  const gate = await requireShopCapability(await getServerSession(authOptions), cap)
+  if (!gate.ok) {
+    const code = gate.response.status === 401 ? 'UNAUTHORIZED' : gate.response.status === 404 ? 'SHOP_NOT_FOUND' : 'NOT_OWNER'
+    return { response: errorResponse(code) } as const
   }
-
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  if (active === null) return { response: errorResponse('SHOP_NOT_FOUND') } as const
 
   // 🛑 ด่านประเภทร้านอยู่ที่ service ด้วย (ไม่ใช่แค่ที่นี่) — ที่นี่ตัดจบเร็วเพื่อให้ข้อความตรง
   //    ตั้งแต่คำขอแรก ส่วนด่านจริงที่กันการยิงตรงอยู่ใน assertOwnerOfLodgingShop()
-  return { userId, shopId: active.shop.id } as const
+  return { userId: gate.userId, shopId: gate.shopId } as const
 }
 
 type ErrorCode =

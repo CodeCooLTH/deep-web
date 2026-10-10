@@ -206,25 +206,30 @@ export async function getStockMovementHistory(
 }
 
 // CSV export (ค่า string, ไม่ gate ในตัว — gate ที่ route)
-export async function exportStockToCsv(shopId: string): Promise<string> {
+// 00071 P3: includeCost บังคับส่ง — ผู้ไม่ใช่เจ้าของไม่มีคอลัมน์ cost เลย (ไม่ select จาก DB ด้วย)
+export async function exportStockToCsv(shopId: string, { includeCost }: { includeCost: boolean }): Promise<string> {
   const products = await prisma.product.findMany({
     where: { shopId, type: 'PHYSICAL', isActive: true },
-    select: { id: true, sku: true, name: true, stockQty: true, cost: true },
+    select: { id: true, sku: true, name: true, stockQty: true, ...(includeCost ? { cost: true } : {}) },
     orderBy: { name: 'asc' },
   })
   const rows = [
-    ['productId', 'sku', 'name', 'stockQty', 'cost'],
+    ['productId', 'sku', 'name', 'stockQty', ...(includeCost ? ['cost'] : [])],
     ...products.map((p) => [
       p.id,
       p.sku ?? '',
       p.name,
       p.stockQty === null ? '' : String(p.stockQty),
-      // cost ที่เป็น null ต้องออกมาเป็น "ช่องว่าง" ไม่ใช่ "0" — ไม่งั้นการ export แล้ว import
-      // กลับโดยไม่แก้อะไรเลยจะตั้งต้นทุนของทุกสินค้าที่ยังไม่เคยตั้งให้เป็นศูนย์บาท (TC-EXT-12)
-      p.cost === null ? '' : String(p.cost),
+      ...(includeCost ? [costCell((p as { cost?: unknown }).cost)] : []),
     ]),
   ]
   return stringifyCsv(rows)
+}
+
+function costCell(cost: unknown): string {
+  // cost ที่เป็น null ต้องออกมาเป็น "ช่องว่าง" ไม่ใช่ "0" — ไม่งั้นการ export แล้ว import
+  // กลับโดยไม่แก้อะไรเลยจะตั้งต้นทุนของทุกสินค้าที่ยังไม่เคยตั้งให้เป็นศูนย์บาท (TC-EXT-12)
+  return cost === null || cost === undefined ? '' : String(cost)
 }
 
 // CSV import (per-row isolation — แถวหนึ่ง fail ไม่ rollback แถวอื่น)

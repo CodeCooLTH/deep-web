@@ -89,6 +89,8 @@ interface Props {
   orderDateLabel?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — ส่งต่อไป line item/summary · ไม่ส่ง = false */
+  showCost?: boolean
 }
 
 export default function CartPanel({
@@ -112,6 +114,7 @@ export default function CartPanel({
   orderDateLabel,
   shipsGoods = true,
   showDeliveryToggle = false,
+  showCost = false,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -319,6 +322,7 @@ export default function CartPanel({
                 errors={errors}
                 inventoryEnabled={inventoryEnabled}
                 itemLabel={itemLabel}
+                showCost={showCost}
               />
             ))}
           </div>
@@ -591,7 +595,7 @@ export default function CartPanel({
           <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
         </div>
         {/* ความคืบหน้าของต้นทุน — ตัวนับ ไม่ใช่ตัวเลขเงิน (ดู countCostCoverage) */}
-        {costCoverage.total > 0 && (
+        {showCost && costCoverage.total > 0 && (
           <p className="text-default-400 text-xs tabular-nums">
             ตั้งต้นทุนแล้ว {costCoverage.withCost}/{costCoverage.total} รายการ
           </p>

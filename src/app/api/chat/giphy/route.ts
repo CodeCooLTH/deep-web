@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { sessionUserId } from "@/lib/session-user";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { searchGiphy, GiphyError, type GiphyKind } from "@/lib/giphy";
 
@@ -18,11 +18,11 @@ import { searchGiphy, GiphyError, type GiphyKind } from "@/lib/giphy";
  */
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  // "มี session" ≠ "รู้ว่าเป็นใคร" — ดู src/lib/session-user.ts
-  const userId = sessionUserId(session);
-  if (!userId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  // 00071 S-13: เครื่องมือแชท (สติกเกอร์/GIF) = X2 — ต้องเป็นสมาชิกที่บทบาทส่งแชทได้ (เปลืองโควตา GIPHY ของเรา)
+  // requireShopCapability ตรวจ "รู้ว่าเป็นใคร" (sessionUserId) + แถวสมาชิกสดให้ในตัว
+  const gate = await requireShopCapability(session, "X2");
+  if (!gate.ok) return gate.response;
+  const userId = gate.userId;
 
   // แผงพิมพ์ค้นหาแบบ debounce ยิงได้ถี่พอควร แต่ต้องมีเพดาน — คีย์ beta ของ GIPHY โควตาต่ำ
   if (!checkApiRateLimit(`giphy:${userId}`, 60, 60_000)) {

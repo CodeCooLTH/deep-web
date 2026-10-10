@@ -10,7 +10,10 @@ import {
   serializeProduct,
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
-import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { can } from "@/lib/shop-permissions";
+import { isBillingOnlyFor } from "@/lib/order-role-rules";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -28,47 +31,55 @@ export async function GET(request: NextRequest) {
   if (requestedShopId !== null && !v.is(v.pipe(v.string(), v.uuid()), requestedShopId)) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
-  const resolved = await requireShopForRequest(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-    requestedShopId,
-  );
-  // FORBIDDEN → [] เหมือน NO_SHOP: นี่คือ "รายการ" ไม่ใช่การขอทรัพยากรที่ระบุ — คืนผลว่าง
-  // ตามสัญญาข้อ 3 ของ 00037 API.md (403 จะยืนยันการมีอยู่ของร้าน) และ caller เดิมรับ [] อยู่แล้ว
-  if (!resolved.ok) return NextResponse.json([]);
-  const shop = resolved.target.shop;
+  const gate = await requireShopCapability(session, "P1", { shopId: requestedShopId });
+  if (!gate.ok) {
+    // เป็นสมาชิกแต่ไม่มี P1 → 403 FORBIDDEN_ROLE ตามเดิมของทะเบียนสิทธิ์
+    // ไม่ใช่สมาชิก/ไม่มีร้าน → [] ตามสัญญาข้อ 3 ของ 00037 API.md ("รายการ" ไม่ใช่ทรัพยากรที่ระบุ — 403 จะยืนยันว่าร้านมีอยู่)
+    return gate.reason === "FORBIDDEN_ROLE" ? gate.response : NextResponse.json([]);
+  }
+  const shop = gate.active.shop;
+  // 00071 P3: ต้นทุนสินค้า = เจ้าของเท่านั้น — role ของร้านที่ขอ (ไม่ใช่ร้าน active)
+  const canSeeCost = can(gate.roles, "P3");
+  // P1 ของ BILLING = เฉพาะสินค้าประเภทบริการ — กรองที่ server ไม่ใช่แค่ซ่อนในฟอร์ม (ยิงตรงต้องไม่เห็นสินค้าจัดส่ง/ต้นทุนร้านอื่น)
+  const serviceOnly = isBillingOnlyFor(gate.roles, "P1");
 
-  const products = await getProductsByShop(shop.id);
+  const products = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !serviceOnly || p.type === "SERVICE");
 
   // ?sort=best — เรียงขายดีก่อน (feature 00018: แถบเลือกสินค้าในช่องพิมพ์ user สั่ง 2026-07-23)
   // คืน "สินค้าทั้งหมด" เหมือนเดิม แค่สลับลำดับ: ตัวที่เคยขายได้เรียงตามยอดขายรวม desc แล้วต่อด้วย
   // ตัวที่ยังไม่เคยขาย (คงลำดับ createdAt desc เดิม) — client จึงค้นหาได้ครบทั้งแคตตาล็อกเหมือนเดิม
   if (request.nextUrl.searchParams.get("sort") === "best") {
-    const best = await getBestSellerProducts(shop.id, 50);
+    const best = (await getBestSellerProducts(shop.id, 50, { withCost: canSeeCost })).filter((p) => !serviceOnly || p.type === "SERVICE");
     const rank = new Map(best.map((p, i) => [p.id, i]));
     const soldById = new Map(best.map((p) => [p.id, p.soldCount]));
     const ranked = products.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
     const rest = products.filter((p) => !rank.has(p.id));
     // แนบ soldCount ("สั่งซื้อแล้ว X ชิ้น" — นับทุกสถานะยกเว้น CANCELLED) ให้ UI แสดงแบบเดียวกับ BestSellerStrip บน command center
     return NextResponse.json(
-      [...ranked, ...rest].map((p) => ({ ...serializeProduct(p), soldCount: soldById.get(p.id) ?? 0 })),
+      [...ranked, ...rest].map((p) => ({ ...serializeProduct(p, { canSeeCost }), soldCount: soldById.get(p.id) ?? 0 })),
     );
   }
 
-  return NextResponse.json(products.map(serializeProduct));
+  return NextResponse.json(products.map((p) => serializeProduct(p, { canSeeCost })));
 }
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  const gate = await requireShopCapability(session, "P2");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   if (active.locked) return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   const shop = active.shop;
 
   const body = await request.json();
   const parsed = v.safeParse(CreateProductSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  // 00071 D-7: ผู้ไม่ใช่เจ้าของส่งคีย์ cost มา (แม้ null) = 403 · ไม่ส่งคีย์ = ผ่านปกติ
+  const canSeeCost = can(gate.roles, "P3");
+  if (!canSeeCost && body !== null && typeof body === "object" && "cost" in body) return forbiddenRoleResponse();
 
   // stockQty — Inventory Add-on (feature 00003): guard เฉพาะเมื่อ caller ส่ง field นี้มา
   if (parsed.output.stockQty !== undefined) {
@@ -101,6 +112,6 @@ export async function POST(request: NextRequest) {
   // ส่วนด่านเดิม (isCostEditAllowed) เช็คแค่ว่า owner จ่ายค่าแพ็กเกจหรือยัง = billing ล้วน
 
   // feature 00028 (BR-SBT-22) — ส่ง shopVertical เข้า service ให้ override fulfillmentMode default
-  const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical });
-  return NextResponse.json(serializeProduct(product), { status: 201 });
+  const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical }, { withCost: canSeeCost });
+  return NextResponse.json(serializeProduct(product, { canSeeCost }), { status: 201 });
 }

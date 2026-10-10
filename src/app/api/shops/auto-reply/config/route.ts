@@ -8,7 +8,7 @@ import { AutoReplyConfigPatchSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const config = await getConfig(ctx.shopId)
   // canEdit ส่งไปให้ UI ตัดสินโหมดอ่านอย่างเดียว — ฝั่งเขียนตรวจ role ซ้ำเสมอ ไม่เชื่อค่านี้กลับมา
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

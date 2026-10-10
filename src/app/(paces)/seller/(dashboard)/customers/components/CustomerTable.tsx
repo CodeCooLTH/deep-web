@@ -162,6 +162,8 @@ type CustomerTableProps = {
    * (decision อยู่ที่ `customerPageShowsParcels` ฝั่ง server) · vertical ใช้ผันคำเท่านั้น
    */
   showParcel: boolean
+  /** ยอดซื้อสะสม — เฉพาะเจ้าของ (00071 S-3) · ค่าตั้งต้น false = fail-closed */
+  showSpend?: boolean
   vertical: string
 }
 
@@ -255,6 +257,7 @@ const CustomerTable = ({
   filterCounts,
   totalCustomers,
   showParcel,
+  showSpend = false,
   vertical,
 }: CustomerTableProps) => {
   const vocab = resolveCustomerListVocab(vertical)
@@ -423,6 +426,8 @@ const CustomerTable = ({
       header: vocab.totalCol,
       cell: ({ row }) => <span className="font-medium">{row.original.totalOrders}</span>,
     }),
+    ...(showSpend
+      ? [
     columnHelper.accessor('totalSpent', {
       header: () => (
         <div className="flex flex-col">
@@ -432,10 +437,12 @@ const CustomerTable = ({
       ),
       cell: ({ row }) => (
         <span className="text-default-900 text-sm font-semibold tabular-nums">
-          {formatBaht(row.original.totalSpent)}
+          {formatBaht(row.original.totalSpent ?? 0)}
         </span>
       ),
     }),
+        ]
+      : []),
     columnHelper.accessor('lastOrderISO', {
       header: vocab.lastCol,
       cell: ({ row }) => (
@@ -736,12 +743,21 @@ const CustomerTable = ({
                 {/* ยอดซื้อสะสมยังเด่นเท่าความน่าเชื่อถือ (user ย้ำ 2026-08-25) — ไม่ใช่
                     ข้อความเทาเล็ก ๆ ท้ายบรรทัด · `shrink-0` กัน flex บีบจนตัวเลขตัด */}
                 <div className="shrink-0 text-right">
-                  <p className="text-default-900 mb-0 text-sm font-semibold tabular-nums">
-                    {formatBaht(c.totalSpent)}
-                  </p>
-                  <p className="text-2xs text-default-400 mb-0 leading-tight">
-                    {c.totalOrders} {vocab.unit}
-                  </p>
+                  {showSpend ? (
+                    <>
+                      <p className="text-default-900 mb-0 text-sm font-semibold tabular-nums">
+                        {formatBaht(c.totalSpent ?? 0)}
+                      </p>
+                      <p className="text-2xs text-default-400 mb-0 leading-tight">
+                        {c.totalOrders} {vocab.unit}
+                      </p>
+                    </>
+                  ) : (
+                    // ไม่ใช่เจ้าของ: จำนวนออเดอร์ขึ้นแทนบรรทัดยอดเงิน ด้วยสไตล์เดิมของยอดเงิน (spec B2 §1)
+                    <p className="text-default-900 mb-0 text-sm font-semibold tabular-nums">
+                      {c.totalOrders} {vocab.unit}
+                    </p>
+                  )}
                   <p className="text-2xs text-default-400 mb-0 leading-tight">
                     {formatDateTime(c.lastOrderISO)}
                   </p>

@@ -1,5 +1,5 @@
 /**
- * /business/[shopId]/invites — จัดการคำเชิญผู้ดูแล + สมาชิกปัจจุบันของ Business shop (feat 00008 P3-5)
+ * /business/[shopId]/invites — จัดการคำเชิญพนักงาน + สมาชิกปัจจุบันของ Business shop (feat 00008 P3-5)
  *
  * Base (shell/card): theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx card shell — chase ผ่าน
  *   src/app/(paces)/seller/(dashboard)/business/create/page.tsx (PageBreadcrumb + card grid pattern)
@@ -25,15 +25,16 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { isShopMember } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { listMembers } from '@/services/shop-member.service'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
 import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
 import CurrentMembersTable from './components/CurrentMembersTable'
+import { canUseAppointments } from '@/lib/appointments'
 import { listMutedUserIds } from '@/services/notification-pref.service'
-import FinanceVisibilityToggle from './components/FinanceVisibilityToggle'
 
 export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
 
@@ -53,16 +54,23 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
 
   const { shopId } = await params
 
-  // 1. membership guard — context isolation (ไม่ leak การมีอยู่ของ shop ให้คนนอก)
-  if (!(await isShopMember(shopId, userId))) notFound()
+  // 1. ด่านบทบาท (T2 = เจ้าของ รวมเจ้าของร่วม · มติ C-3) — ผู้ดูแล/คนนอกได้การ์ด ไม่เห็นรายชื่อสมาชิก
+  //    ตัดสินกับ "ร้านตาม URL" ไม่ใช่ร้านที่ active จึงใช้ canAccessShopWith · ไม่ยืนยันว่าร้านมีจริง (การ์ดไม่มีชื่อร้าน)
+  if (!(await canAccessShopWith(shopId, userId, 'T2'))) {
+    return (
+      <>
+        <PageBreadcrumb title="สมาชิกธุรกิจ" trail={[{ label: 'ธุรกิจ', href: '/business' }]} />
+        <NoPermissionCard capability="T2" viewerRoles={[]} />
+      </>
+    )
+  }
 
   // 2. shop record — เฉพาะ BUSINESS shop เท่านั้นที่มีแนวคิด invite/member (PERSONAL ไม่เกี่ยว)
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     select: {
-      id: true, shopName: true, userId: true, kind: true,
+      id: true, shopName: true, userId: true, kind: true, vertical: true,
       packageLockedAt: true, packageLockReason: true, deletedAt: true,
-      staffCanViewFinance: true,
     },
   })
   if (!shop || shop.kind !== 'BUSINESS' || shop.deletedAt) notFound()
@@ -93,6 +101,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   const memberRows = members.map((m) => ({
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
+    roles: m.roles,
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     avatar: m.user.avatar,
     providers: [
@@ -120,24 +129,25 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
       )}
 
       <div className="gap-5 grid grid-cols-1">
-        {/* feature 00016 Unit 5C: toggle staffCanViewFinance — owner-only (defense-in-depth, backend ก็ owner-only) */}
-        {isOwner && (
-          <FinanceVisibilityToggle shopId={shop.id} initial={shop.staffCanViewFinance} locked={isLocked} />
-        )}
         {/* feature 00012: การเชิญพนักงานย้ายไปเมนู "พนักงาน" (ลิงก์เชิญ) — แสดงเฉพาะ owner */}
         {isOwner && (
           <div className="card">
             <div className="card-body flex flex-wrap items-center justify-between gap-3">
-              <p className="text-default-600 text-sm mb-0">
-                เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน
-              </p>
+              <div>
+                <p className="text-default-600 text-sm mb-0">เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน</p>
+                <p className="text-default-700 text-sm mt-1 mb-0">
+                  ข้อมูลการเงินของร้าน (ยอดขายรวม กำไร ต้นทุน ค่าใช้จ่าย ยอดซื้อสะสมของลูกค้า และกระเป๋าเงินของร้าน) เห็นได้เฉพาะเจ้าของร้าน พนักงานทุกบทบาทจะไม่เห็นตัวเลขเหล่านี้
+                </p>
+              </div>
               <Link href="/admins" className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
                 ไปหน้าพนักงาน
               </Link>
             </div>
           </div>
         )}
-        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')} />
+        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')}
+          billingAvailable={canUseAppointments(shop)}
+        />
       </div>
     </>
   )

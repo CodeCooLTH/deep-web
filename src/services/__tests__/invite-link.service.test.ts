@@ -251,7 +251,7 @@ describe('acceptInviteLink', () => {
   })
 
   it('happy path — สร้าง ShopMember ADMIN สำเร็จ', async () => {
-    linkFindUnique.mockResolvedValue({ shopId: SHOP_ID, revokedAt: null, expiresAt: new Date(Date.now() + 100000) })
+    linkFindUnique.mockResolvedValue({ shopId: SHOP_ID, revokedAt: null, expiresAt: new Date(Date.now() + 100000), roles: ['CHAT', 'TECHNICIAN'] })
     shopFindUnique.mockResolvedValue(businessShop())
     memberFindUnique.mockResolvedValue(null)
     subFindUnique.mockResolvedValue(activeSub) // PRO — maxAdminsPerBusiness=3
@@ -263,7 +263,7 @@ describe('acceptInviteLink', () => {
     expect(memberUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { shopId_userId: { shopId: SHOP_ID, userId: USER_ID } },
-        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN' },
+        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN', roles: ['CHAT', 'TECHNICIAN'] },
       }),
     )
   })

@@ -21,7 +21,7 @@ export async function PATCH(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("O3");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

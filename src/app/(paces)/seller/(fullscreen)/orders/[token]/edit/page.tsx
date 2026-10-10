@@ -28,10 +28,16 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { can } from '@/lib/shop-permissions'
+import { orderEditLockMessage, orderEditLockReason, isBillingOnlyEditor } from '@/lib/order-role-rules'
+import { isOrderUnpaid } from '@/lib/order-payment-state'
 import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -56,6 +62,11 @@ export default async function EditOrderPage({ params }: PageProps) {
 
   // auth guard + active-shop guard อยู่ใน (fullscreen)/layout.tsx แล้ว
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O3): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O3')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionScreen capability="O3" viewerRoles={await viewerRolesOf(session)} backTo={`/orders/${token}`} backLabel="กลับไปหน้ารายละเอียด" />
+  }
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) notFound()
   const shop = active.shop
@@ -68,6 +79,30 @@ export default async function EditOrderPage({ params }: PageProps) {
   if (!order) notFound()
 
   const orderNo = formatOrderNo(order.publicToken, order.createdAt)
+
+  // 00071 P3 (O3 เงื่อนไขต่อใบ): ผู้เปิดบิลแก้ได้เฉพาะบิลบริการที่ยังไม่รับเงิน — ใบที่รับเงินแล้วบอกทางไปต่อ ไม่ใช่ 403 เปล่า
+  // (ตัวบังคับจริงอยู่ที่ updateOrder ในธุรกรรมเดียวกับที่แก้ — หน้านี้แค่ไม่พาไปกรอกจนกดบันทึกแล้วโดนปฏิเสธ)
+  const roles = gate.ok ? gate.roles : []
+  const billingEdit = isBillingOnlyEditor(roles)
+  const lockReason = orderEditLockReason(roles, { type: order.type, unpaid: isOrderUnpaid(order) })
+  if (lockReason) {
+    return (
+      <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
+        <Icon icon="lock" width={64} height={64} className="text-warning mx-auto mb-4" />
+        <h2 className="text-dark mb-2 text-xl font-bold">แก้ไข{vocab.noun} {orderNo} ไม่ได้</h2>
+        <p className="text-default-400 mb-6">
+          {orderEditLockMessage(lockReason, vocab.noun)}
+        </p>
+        <Link
+          href={`/orders/${order.publicToken}`}
+          className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold text-white"
+        >
+          <Icon icon="arrow-left" width={18} height={18} />
+          กลับไปหน้ารายละเอียด
+        </Link>
+      </div>
+    )
+  }
 
   // Business ถูก package lock (read-only) — ห้ามแก้ไขออเดอร์
   if (active.locked) {
@@ -136,9 +171,11 @@ export default async function EditOrderPage({ params }: PageProps) {
   // ระบบคลัง (Inventory Add-on) เปิดอยู่ไหม — ถ้าเปิด แสดงสต็อกคงเหลือใน grid/line + เตือน qty เกิน
   const inventoryEnabled = await isEntitlementActive(shop.id).catch(() => false)
 
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — role อ่านสดจาก requireActiveShop
+  const canSeeCost = can(roles, 'P3')
   let catalog: CatalogProduct[] = []
   try {
-    catalog = (await getProductsByShop(shop.id)).map(toCatalogProduct)
+    catalog = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
   }
@@ -146,7 +183,7 @@ export default async function EditOrderPage({ params }: PageProps) {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalogProduct)
+    bestSellers = (await getBestSellerProducts(shop.id, 8, { withCost: canSeeCost })).filter((p) => !billingEdit || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }
@@ -173,6 +210,8 @@ export default async function EditOrderPage({ params }: PageProps) {
         saveLabel="บันทึกการแก้ไข"
       />
       <OrderCreateForm
+        showCost={canSeeCost}
+        billingOnly={billingEdit}
         vocab={vocab}
         shopVertical={shop.vertical}
         shopId={shop.id}

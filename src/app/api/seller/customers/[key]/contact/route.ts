@@ -17,7 +17,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { requireActiveShop } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { sessionUserId } from '@/lib/session-user'
 import { resolveCustomerByKey } from '@/services/customer-directory.service'
 
@@ -33,24 +33,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ key
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 })
   }
 
-  /**
-   * 🛑 ประกอบ argument จากค่าที่ **ตรวจแล้ว** แทนการ `as unknown as { user: { id: string } }`
-   * แบบที่ route อื่นทำ — cast ก้อนนั้นยืนยันรูปร่างที่อาจไม่จริง (ชนิด `Session` ของ NextAuth
-   * ไม่มี `id`/`activeShopId` เลย) และเป็นแพตเทิร์นเดียวกับที่เคยทำให้ `undefined` ไหลเข้า
-   * `prisma.…({ where: { id: undefined } })` จนทั้งหน้าเป็น 500 บน prod
-   * (`docs/conventions/session-exists-is-not-identity.md`)
-   */
-  const rawActiveShopId = (session as { user?: { activeShopId?: unknown } } | null)?.user
-    ?.activeShopId
-  const active = await requireActiveShop({
-    user: {
-      id: userId,
-      activeShopId: typeof rawActiveShopId === 'string' ? rawActiveShopId : null,
-    },
-  })
-  if (!active) {
-    return NextResponse.json({ error: 'ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน' }, { status: 404 })
-  }
+  const gate = await requireShopCapability(session, 'C1')
+  if (!gate.ok) return gate.response
+  const active = gate.active
 
   const { key } = await params
 

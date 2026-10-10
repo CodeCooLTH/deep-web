@@ -54,24 +54,27 @@ const columns = [
     header: 'ออเดอร์',
     cell: ({ getValue }) => <span className="text-sm">{getValue()}</span>,
   }),
-  columnHelper.accessor('revenue', {
-    header: 'ยอดขาย',
-    cell: ({ getValue }) => <span className="text-sm font-medium">{thbFormatter.format(getValue())}</span>,
-  }),
 ]
+
+// คอลัมน์ยอดขายเฉพาะเจ้าของร้าน (00071) — ผู้อื่นไม่มีคอลัมน์ ไม่ใช่ ฿0
+const revenueColumn = columnHelper.accessor('revenue', {
+  header: 'ยอดขาย',
+  cell: ({ getValue }) => <span className="text-sm font-medium">{thbFormatter.format(getValue() ?? 0)}</span>,
+})
 
 type CategoryTableProps = {
   rows: CategoryRow[]
+  showRevenue?: boolean
 }
 
-const CategoryTable = ({ rows }: CategoryTableProps) => {
+const CategoryTable = ({ rows, showRevenue = false }: CategoryTableProps) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 8 })
 
   const table = useReactTable({
     data: rows,
-    columns,
+    columns: showRevenue ? [...columns, revenueColumn] : columns,
     state: {
       sorting,
       globalFilter,
@@ -146,19 +149,21 @@ const CategoryTable = ({ rows }: CategoryTableProps) => {
               </div>
               {/* main: ชื่อหมวดหมู่ + คำอธิบาย + metric รอง (สินค้า · ออเดอร์) */}
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-medium text-ink truncate">{c.label}</p>
-                <p className="text-[12px] text-default-500 truncate">{c.description}</p>
-                <p className="text-[11px] text-default-400 mt-0.5">
+                <p className="text-sm font-medium text-ink truncate">{c.label}</p>
+                <p className="text-xs text-default-500 truncate">{c.description}</p>
+                <p className="text-2xs text-default-400 mt-0.5">
                   {c.activeCount}/{c.productCount} สินค้า · {c.orderCount} ออเดอร์
                 </p>
               </div>
-              {/* trailing: ยอดขาย (metric เด่น) */}
-              <div className="shrink-0 text-right">
-                <p className="text-[14px] font-semibold text-ink leading-tight">
-                  {thbFormatter.format(c.revenue)}
-                </p>
-                <p className="text-[11px] text-default-400 leading-tight">ยอดขาย</p>
-              </div>
+              {/* trailing: ยอดขาย (metric เด่น) — เฉพาะเจ้าของร้าน (00071) */}
+              {showRevenue && c.revenue !== undefined && (
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold text-ink leading-tight">
+                    {thbFormatter.format(c.revenue)}
+                  </p>
+                  <p className="text-2xs text-default-400 leading-tight">ยอดขาย</p>
+                </div>
+              )}
             </div>
           )
         }}

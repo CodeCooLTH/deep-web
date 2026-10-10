@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import { sessionUserId } from "@/lib/session-user";
 import { prisma } from "@/lib/prisma";
 import { formatBaht } from "@/lib/format-money";
@@ -65,7 +65,7 @@ export async function GET(
   });
   // ไม่พบ = 404 ไม่ใช่ 403 — 403 ยืนยันว่าทรัพยากรนั้นมีอยู่จริง (กติกาขอบเขต SRS §7.14)
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!(await canAccessShop(order.shopId, userId))) {
+  if (!(await canAccessShopWith(order.shopId, userId, 'O1'))) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
@@ -157,6 +157,9 @@ export async function GET(
   });
 
   const deposit = Number(order.depositAmount ?? 0);
+  // สรุปนัดมีไว้ "ส่งเข้าแชท" (ต้อง H1) — ไม่มี H1 (ช่างระดับเงิน NONE / ผู้เปิดบิล) ไม่ส่งยอด/มัดจำและไม่ส่งห้องแชท
+  // ตัดด้วย "ไม่มีคีย์" ไม่ใช่ข้อความว่าง (00071 P3 · S-15)
+  const canChat = await canAccessShopWith(order.shopId, userId, 'H1');
 
   return NextResponse.json({
     shopId: order.shopId,
@@ -168,12 +171,16 @@ export async function GET(
       resourceName: order.serviceResource?.name ?? null,
       customerName: order.buyerName,
       phone: order.buyerContact,
-      // ฟอร์แมตเงินด้วยสูตรกลางของระบบเสมอ — ถ้าฝั่ง client ฟอร์แมตเอง ยอดบนพรีวิวจะเพี้ยน
-      // จากยอดบนการ์ดที่ส่งจริงได้โดยไม่มีอะไรฟ้อง (HR16)
-      totalText: formatBaht(Number(order.totalAmount)),
-      depositText: deposit > 0 ? formatBaht(deposit) : null,
+      ...(canChat
+        ? {
+            // ฟอร์แมตเงินด้วยสูตรกลางของระบบเสมอ — ถ้าฝั่ง client ฟอร์แมตเอง ยอดบนพรีวิวจะเพี้ยน
+            // จากยอดบนการ์ดที่ส่งจริงได้โดยไม่มีอะไรฟ้อง (HR16)
+            totalText: formatBaht(Number(order.totalAmount)),
+            depositText: deposit > 0 ? formatBaht(deposit) : null,
+          }
+        : {}),
     },
-    targets: [...conversations]
+    targets: (canChat ? [...conversations] : [])
       // ห้องต้นทางขึ้นก่อนเสมอ — ที่เหลือคงลำดับ `lastMessageAt` เดิม
       .sort((a, b) =>
         a.id === order.conversationId ? -1 : b.id === order.conversationId ? 1 : 0,

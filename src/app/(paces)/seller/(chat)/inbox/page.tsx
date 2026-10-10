@@ -48,6 +48,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveChatScope } from '@/lib/chat-scope'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import ChatNoPermission from '../_components/ChatNoPermission'
 import { getInboxPreference } from '@/services/chat-preference.service'
 import { DEFAULT_INBOX_SORT, type InboxSortMode } from '@/lib/inbox-sort'
 import {
@@ -84,7 +86,7 @@ export default async function SellerInboxPage() {
   // ทุกประการ / UNIFIED = ทุกร้านที่ผู้ใช้เข้าถึงได้) ห้ามอ่าน activeShopId ตรง ๆ ในไฟล์นี้อีก
   const scope = await resolveChatScope({
     user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
-  })
+  }, 'H1')
 
   if (!scope) {
     // resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
@@ -94,6 +96,10 @@ export default async function SellerInboxPage() {
         message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
       />
     )
+  }
+  // 00071 S-13 — ร้าน active ไม่ถือ H1 → การ์ดไม่มีสิทธิ์ (ไม่ใช่รายการว่าง) · ห้ามใช้ activeShopId ของร้านที่ไม่มี cap ต่อ
+  if (!scope.activeHasCap) {
+    return <ChatNoPermission capability='H1' viewerRoles={await viewerRolesOf({ user })} />
   }
   // shopIds = ขอบเขตของรายการ; activeShopId ยังต้องรู้ไว้เป็นค่าตั้งต้นของ action ที่ไม่มีเธรด
   const shopIds = scope.shopIds

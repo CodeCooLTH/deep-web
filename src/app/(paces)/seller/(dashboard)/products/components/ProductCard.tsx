@@ -65,6 +65,8 @@ interface ProductCardProps {
   onDeleteRequest: (productId: string) => void
   /** Shop.vertical — ผันคำยอดขาย/ป้ายปุ่ม (ร้านบริการ ≠ ชิ้น) */
   vertical?: string
+  /** 00071 P3: เจ้าของเท่านั้นเห็นต้นทุน/มาร์จิ้น — ค่าตั้งต้น false (fail-closed) */
+  showCost?: boolean
 }
 
 export default function ProductCard({
@@ -75,6 +77,7 @@ export default function ProductCard({
   onActiveToggle,
   onDeleteRequest,
   vertical,
+  showCost = false,
 }: ProductCardProps) {
   // ร้านบริการเท่านั้นที่เปลี่ยนคำ — ONLINE_SALES/LODGING ต้องเป็นข้อความเดิมเป๊ะ (soldLine ของ ONLINE คือ "สั่งซื้อแล้ว" ซึ่งไม่ใช่คำเดิมของการ์ดนี้)
   const isService = vertical === 'SERVICE_QUEUE'
@@ -123,10 +126,10 @@ export default function ProductCard({
                 ความสูงการ์ดถูกกำหนดโดยรูป size-14 (56px) อยู่แล้ว บรรทัดนี้จึงอยู่ในโควตาที่เหลือ
                 คงบรรทัดไว้เสมอแม้ไม่มีข้อมูล เพื่อให้จังหวะการ์ดทุกใบเท่ากัน
                 ใช้คำย่อ "ทุน" เพราะที่ 320px คำเต็มดันแถวขวาล้นออกนอกจอ (คำเต็มยังใช้ในตาราง) */}
-            {(() => {
+            {showCost && (() => {
               const margin = productMargin({ price: product.price, cost: product.cost })
               const isLoss = margin !== null && margin < 0
-              if (product.cost === null) {
+              if (product.cost == null) {
                 return <span className="text-2xs text-default-400">—</span>
               }
               return (

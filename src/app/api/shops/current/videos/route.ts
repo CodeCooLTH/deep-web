@@ -14,7 +14,7 @@ import { getServerSession } from "next-auth";
 import * as v from "valibot";
 
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import {
   listPickableVideos,
   getShopVideos,
@@ -33,11 +33,10 @@ const Body = v.object({
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active?.shop) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
+  // 00071 T1: คลิปหน้าร้าน = เจ้าของ/ผู้ดูแล
+  const gate = await requireShopCapability(session, "T1");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
 
   const [selected, pickable] = await Promise.all([
     getShopVideos(active.shop.id),
@@ -55,11 +54,10 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active?.shop) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
+  // 00071 T1: คลิปหน้าร้าน = เจ้าของ/ผู้ดูแล
+  const gate = await requireShopCapability(session, "T1");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
 
   const parsed = v.safeParse(Body, await request.json().catch(() => null));
   if (!parsed.success) {

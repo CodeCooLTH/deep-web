@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { sessionUserId } from "@/lib/session-user";
 import { resolveSuggestProvider } from "@/lib/reply-suggest-provider";
@@ -34,9 +35,11 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
   // 🛑 ร้านจากเธรดเท่านั้น ห้ามใช้ร้านที่ active (00037)
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
-    idCheck.output,
+    idCheck.output, "H2"
   );
   if (!resolved) return json({ error: "ไม่พบบทสนทนานี้" }, 404);
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
   const conversation = await prisma.conversation.findFirst({
     where: { id: idCheck.output, shopId: resolved.shopId },
     select: { id: true },

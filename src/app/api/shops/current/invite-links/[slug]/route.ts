@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { revokeInviteLink } from "@/services/invite-link.service";
 
 /**
@@ -11,16 +12,12 @@ import { revokeInviteLink } from "@/services/invite-link.service";
  */
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active || active.kind !== "BUSINESS" || active.role !== "OWNER") {
-    return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
-  }
+  // 00071 T2: ลิงก์เชิญ = เจ้าของ · เฉพาะร้านธุรกิจ · คงรหัส NOT_OWNER
+  const gate = await requireShopCapability(session, "T2");
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const active = gate.active;
+  if (active.kind !== "BUSINESS") return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
+  const ownerId = gate.userId;
 
   const { slug } = await params;
 

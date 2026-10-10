@@ -4,7 +4,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { subscribeInventoryEntitlement } from "@/services/inventory-entitlement.service";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { SubscribeInventorySchema } from "@/lib/validations";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
@@ -29,10 +29,9 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "F4");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   if (active.locked) {
     return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   }

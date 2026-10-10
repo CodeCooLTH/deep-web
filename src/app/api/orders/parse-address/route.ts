@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { authOptions } from '@/lib/auth'
 import { generateText } from '@/lib/gemini'
 import { parseOrderMessage, type ParsedOrderMessage } from '@/lib/parse-order-message'
@@ -60,6 +61,9 @@ export async function POST(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+  // O2s — อ่านข้อความที่อยู่ช่วยกรอกฟอร์มสร้างบิล (ใช้โควตา AI ของร้าน จึงต้องเป็นบทบาทที่เปิดบิลได้)
+  const gate = await requireShopCapability(session, 'O2s')
+  if (!gate.ok) return gate.response
 
   let text: string
   try {

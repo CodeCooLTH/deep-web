@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as v from 'valibot'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { requireActiveShop } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { getSalesSeries } from '@/services/dashboard.service'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
 
 // auth per-user + query-driven — ห้าม cache ข้าม user/ช่วง (feedback_auth_api_cache_control)
 export const dynamic = 'force-dynamic'
@@ -22,13 +21,11 @@ export async function GET(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 })
   }
-  // shopId มาจาก active shop ของ session เท่านั้น (ห้ามรับจาก query) — membership guard ฟรีจาก requireActiveShop
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  if (!active) {
-    return NextResponse.json({ error: 'ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน' }, { status: 404 })
-  }
+  // shopId มาจาก active shop ของ session เท่านั้น (ห้ามรับจาก query)
+  // 00071: ยอดขายรายวัน/เดือน = การเงินเต็ม (F1) เจ้าของร้านเท่านั้น — ตัดก่อน parse/query ใด ๆ
+  const gate = await requireShopCapability(session, 'F1')
+  if (!gate.ok) return gate.response
+  const active = gate.active
 
   const { searchParams } = new URL(request.url)
   const monthRaw = searchParams.get('month')
@@ -46,16 +43,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // ค่าใช้จ่าย/กำไรสุทธิมี gate สิทธิ์ของตัวเอง (แพ็กเกจ + สิทธิ์พนักงาน) — ไม่ผ่าน = ไม่ query
-    // และ response ไม่มีฟิลด์เหล่านั้นเลย ชีตยอดขายจะซ่อนบล็อกนั้นเอง
-    const expenseAccess = await resolveExpenseAccess(
-      session as unknown as { user: { id: string; activeShopId?: string | null } },
-    )
     const series = await getSalesSeries(
       active.shop.id,
       mode,
       { year, month },
-      expenseAccess.kind === 'GRANTED',
+      true, // includeFinance — ผ่านด่านเจ้าของร้านแล้ว
       /* ประเภทกิจการ — ร้านบริการได้คอลัมน์ "มัดจำ/รับจริง" รายวันแทน "ต้นทุน/ค่าส่ง/กำไร"
          ที่ว่างเปล่าเสมอสำหรับร้านประเภทนี้ (SERVICE_QUEUE ล็อก NO_SHIPPING ⇒ ไม่มีค่าส่งได้เลย) */
       active.shop.vertical,

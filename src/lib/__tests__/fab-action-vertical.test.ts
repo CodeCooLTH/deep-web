@@ -25,13 +25,17 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { canUseAppointments } from '@/lib/appointments'
+import { buildFabActions } from '@/lib/role-nav'
+import { resolveOrderVocab } from '@/lib/seller-menu'
+import { th } from '@/i18n/dictionaries/th'
 
 const ROOT = process.cwd()
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8')
 const stripComments = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
-const NAV = 'src/app/(paces)/seller/(dashboard)/_shared/SellerBottomNav.tsx'
+// 00071 T7: FAB ย้ายจาก SellerBottomNav ไป role-nav (ตัวเดียว) — ด่านเดิมตามไปที่ตัวจริง
+const NAV = 'src/lib/role-nav.ts'
 const LAYOUT = 'src/app/(paces)/seller/(dashboard)/layout.tsx'
 const PAGE = 'src/app/(paces)/seller/(dashboard)/settings/job-types/page.tsx'
 
@@ -62,16 +66,19 @@ describe('ปุ่มแรกของ FAB ต้องไม่พาไป�
      */
     const nav = stripComments(read(NAV))
     expect(nav, 'FAB ต้องรับ kind มาจากผู้เรียก').toMatch(/kind: kind \?\? ''/)
-    expect(read(LAYOUT), 'layout ต้องส่ง active.kind ลงไป').toMatch(/shopKind=\{active\.kind\}/)
+    expect(read(LAYOUT), 'layout ต้องส่ง active.kind ลงไป').toMatch(/resolveMobileNav\(roles, \{ kind: active\.kind/)
   })
 
-  it('[blocker] ร้านบริการได้ประเภทงาน · ร้านอื่นได้หมวดหมู่ (ทั้งสองปลายทางต้องมีจริง)', () => {
-    const nav = stripComments(read(NAV))
-    expect(nav, 'ร้านบริการต้องไปหน้าประเภทงาน').toContain("href: '/settings/job-types'")
-    expect(nav, 'ร้านอื่นต้องยังไปหน้าหมวดหมู่เหมือนเดิม').toContain("href: '/categories'")
-    expect(nav, 'ป้ายของร้านบริการต้องมาจาก dictionary ไม่ hardcode').toContain(
-      't.dashboard.navCreateJobType',
-    )
+  it('[blocker] ร้านบริการไม่ได้หมวดหมู่ · ร้านอื่นไม่ได้ประเภทงาน (404) — ปลายทางต้องมีจริง', () => {
+    /* user เคาะ 2026-10-10: ร้านบริการเหลือ 2 ปุ่ม (สินค้าหรือบริการ · สร้างงานบริการ) ประเภทงานเข้าจากเมนูตั้งค่า
+       ร้านอื่นยังได้หมวดหมู่ — สิ่งที่ห้ามเด็ดขาดคือร้านอื่นได้ปุ่มประเภทงาน (พาไป 404) */
+    const t = th
+    const vocab = (v: string) => resolveOrderVocab(v)
+    const service = buildFabActions(vocab('SERVICE_QUEUE'), t, 'SERVICE_QUEUE', 'BUSINESS').map((a) => a.href)
+    const online = buildFabActions(vocab('ONLINE_SALES'), t, 'ONLINE_SALES', 'BUSINESS').map((a) => a.href)
+    expect(service).toEqual(['/products/new', '/orders/new'])
+    expect(online).toEqual(['/categories', '/products/new', '/orders/new'])
+    expect(online).not.toContain('/settings/job-types')
   })
 
   it('[blocker] เกณฑ์ต้องแยกร้านบริการออกจากร้านอื่นได้จริง', () => {

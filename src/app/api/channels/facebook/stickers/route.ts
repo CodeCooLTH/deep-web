@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { fetchStickerPacks, fetchStickersInPack, searchStickers, GraphApiError } from '@/lib/facebook/graph'
 
 /**
@@ -24,9 +25,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  // 00071 S-13: คลังสติกเกอร์ของ Meta = เครื่องมือส่งแชท → H2 (ใช้โควตาแอปเรา · อ่านแถวสมาชิกสด)
+  const gate = await requireShopCapability(session, 'H2')
+  if (!gate.ok) return gate.response
 
   const { searchParams } = request.nextUrl
   const packId = searchParams.get('packId')

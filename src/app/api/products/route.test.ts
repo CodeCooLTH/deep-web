@@ -59,12 +59,12 @@ const req = (qs = '') => new NextRequest(`http://seller.deepth.local/api/product
 describe('[blocker] GET /api/products — แคตตาล็อกต้องเป็นของร้านที่ระบุ ไม่ใช่ร้านที่ active', () => {
   it('?shopId=B → อ่านแคตตาล็อกของร้าน B', async () => {
     await GET(req(`?shopId=${SHOP_B}`))
-    expect(getProductsByShopMock).toHaveBeenCalledWith(SHOP_B)
+    expect(getProductsByShopMock).toHaveBeenCalledWith(SHOP_B, undefined, { withCost: true }) // OWNER ⇒ opt-in ต้นทุน (T9)
   })
 
   it('ไม่ส่ง shopId → พฤติกรรมเดิม (ร้านที่ active)', async () => {
     await GET(req())
-    expect(getProductsByShopMock).toHaveBeenCalledWith(SHOP_A)
+    expect(getProductsByShopMock).toHaveBeenCalledWith(SHOP_A, undefined, { withCost: true })
   })
 
   it('shopId ของร้านที่ไม่มีสิทธิ์ → รายการว่าง และห้ามหลุดไปอ่านร้าน active แทน', async () => {

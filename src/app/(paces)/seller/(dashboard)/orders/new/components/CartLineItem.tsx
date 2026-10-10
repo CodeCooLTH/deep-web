@@ -7,7 +7,7 @@
  */
 
 import { useController } from 'react-hook-form'
-import LineCostField from './LineCostField'
+import { LineCostSlot } from './LineCostField'
 import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from './ProductThumb'
@@ -29,22 +29,20 @@ interface Props {
   inventoryEnabled?: boolean
   /** คำเรียกของที่ขายในช่องค้นหา (สินค้า/บริการ) ส่งต่อให้ ProductCombobox */
   itemLabel?: string
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — ไม่ส่ง = false (fail-closed) */
+  showCost?: boolean
 }
 
-export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors, inventoryEnabled = false, itemLabel }: Props) {
+export default function CartLineItem({ index, item, control, catalog, itemsCtl, errors, inventoryEnabled = false, itemLabel, showCost = false }: Props) {
   const { field: qtyField } = useController({ control, name: `items.${index}.qty`, defaultValue: 1 })
   const { field: priceField } = useController({ control, name: `items.${index}.price`, defaultValue: 0 })
   const { field: descField } = useController({ control, name: `items.${index}.description`, defaultValue: '' })
-  const { field: costField } = useController({ control, name: `items.${index}.cost`, defaultValue: null })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemErrors = (errors?.items as any)?.[index]
   const qty = Number(qtyField.value) || 0
   const price = Number(priceField.value) || 0
   const catalogProduct = item.productId ? catalog.find((p) => p.id === item.productId) : undefined
-  // "รู้แน่ว่ายังไม่เคยตั้งต้นทุน" = สินค้าจากแคตตาล็อกที่ cost เป็น null เท่านั้น —
-  // รายการพิมพ์เองไม่มี "ค่าที่ควรจะมีแต่ขาด" ให้เทียบ จึงใช้คำเชิญกลาง ๆ แทน
-  const knownMissingCost = Boolean(catalogProduct && catalogProduct.cost == null)
   const thumbSrc = catalogProduct?.image ?? null
   // สต็อก: เตือนเมื่อ qty เกินคงเหลือ (เฉพาะร้านเปิดระบบคลัง + สินค้า tracked)
   const stock = catalogProduct?.stockQty
@@ -72,13 +70,8 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
         />
         {/* ราคาทุนของบรรทัดนี้ (FR-EXP-17) — อยู่ในคอลัมน์ชื่อซึ่งเป็นพื้นที่ยืดหด
             ไม่ใช่คอลัมน์ที่ 5 (ตะกร้าล้นงบอยู่แล้วที่ 1024px — ดู LineCostField) */}
-        {Boolean(item.name?.trim()) && (
-          <LineCostField
-            cost={(costField.value as number | null) ?? null}
-            price={Number(item.price) || 0}
-            onChange={costField.onChange}
-            knownMissing={knownMissingCost}
-          />
+        {showCost && Boolean(item.name?.trim()) && (
+          <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} />
         )}
         {itemErrors?.name && <p className="mt-0.5 text-xs text-danger">{itemErrors.name.message}</p>}
         {overStock && (

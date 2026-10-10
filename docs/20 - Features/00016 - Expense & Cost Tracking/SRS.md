@@ -9,6 +9,11 @@ tags: [feature, expense, cost, profit, pnl, seller, business-package, srs, techn
 related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 ---
 
+> ## 🔄 หมายเหตุ 2026-10-10 — `staffCanViewFinance` ถูกแทนที่โดย feature 00071 P1
+>
+> ธง `Shop.staffCanViewFinance` และสวิตช์ `PATCH …/finance-visibility` **เลิกใช้แล้ว** (ไม่มีโค้ดอ่านธง · route ถูกลบ) — การเงินเต็ม (ค่าใช้จ่าย/P&L/ต้นทุนสินค้า) = **เจ้าของเท่านั้น**
+> ผู้ดูแลได้ `403 FORBIDDEN_ROLE` · KG-EXT-01 (`Product.cost` ไม่ถูกครอบ) ปิดแล้ว · ข้อความในเอกสารนี้ที่พูดถึงธง/สวิตช์เป็นประวัติ ไม่ใช่พฤติกรรมปัจจุบัน — ดู `docs/20 - Features/00071 - Shop Member Roles & Permissions/` และ `docs/SRS.md` §7.13, §9.7
+
 > **โมดูล:** M00016-ExpenseCostTracking
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) — TECHNICAL
 > **เวอร์ชัน:** 1.0

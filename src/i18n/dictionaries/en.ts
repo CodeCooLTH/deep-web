@@ -339,6 +339,15 @@ export const en: Dictionary = {
     checklistCategories: 'Categories',
     checklistAddress: 'Address',
     checklistMapPin: 'Map pin',
+
+    todayJobsTitle: "Today's jobs",
+    todayJobsTitleCount: "Today's jobs · {n}",
+    todayJobsSchedule: 'View schedule',
+    todayJobsLoadFailed: "Couldn't load today's jobs",
+    todayJobsRetry: 'Try again',
+    todayJobsEmpty: 'No jobs today',
+    todayJobsMonth: 'View the full month schedule',
+    todayJobsAllToday: 'View all today ({n})',
   },
 
   comments: {

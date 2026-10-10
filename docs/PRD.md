@@ -275,6 +275,7 @@ Google Analytics (`NEXT_PUBLIC_GA_MEASUREMENT_ID`) + Google Search Console (`NEX
 | 14 | `OnboardingModal.tsx` dead code หลัง onboarding ย้ายเป็น page | ลบ component + mount point บน dashboard | OPEN (cleanup carry) |
 | 15 | username edit cooldown 30 วัน (หลัง onboarding) | feature อนาคต — ยังไม่มี cooldown enforcement | OPEN (Phase 2) |
 | S-9 | Inventory Add-on (subscription ฿199/mo — stock mgmt PHYSICAL) | PRD+BRD drafted + user-reviewed (2026-07-01) → next: SRS/SDS/DATABASE/API/Tests | OPEN (docs-first, pre-implementation) — `docs/20 - Features/00003 - Inventory Add-on/` |
+| 00071 | ทุกคนเห็นกำไรขาดทุนได้ (`staffCanViewFinance` default true) + สมาชิกร้านมีบทบาทเดียว (ADMIN) | บทบาท 5 แบบ (เจ้าของ/ผู้ดูแล/ตอบแชท/เปิดบิล/ฝ่ายช่าง) ถือหลายบทบาทได้ · เจ้าของเห็นการเงินเต็มคนเดียว · P1 ปิดการเงิน → P2 โมเดลบทบาท → P3 บังคับรายบทบาท | OPEN (docs-first — PRD/BRD อนุมัติ 2026-10-10, ยังไม่ implement) — `docs/20 - Features/00071 - Shop Member Roles & Permissions/` |
 
 ### §7-SMS — สถานะ Paid SMS Order Link + Seller Wallet (ณ 2026-05-17)
 

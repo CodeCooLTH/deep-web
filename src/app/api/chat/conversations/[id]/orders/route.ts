@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { prisma } from "@/lib/prisma";
 import { getThreadPanelOrders } from "@/services/order.service";
 import { resolveThreadOrderFilter } from "@/lib/chat-thread-orders";
@@ -26,9 +27,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   // feature 00037 — ร้านมาจาก "เธรด" ไม่ใช่ร้านที่ active (กล่องแชทรวมทำให้สองอย่างนี้ต่างกันได้)
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
-    idc.output,
+    idc.output, "H1"
   );
   if (!resolved) return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H1 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
   const activeCtx = { shopId: resolved.shopId };
 
   // ownership + resolve linked customer (logic เดียวกับ inbox/[conversationId]/page.tsx T5)

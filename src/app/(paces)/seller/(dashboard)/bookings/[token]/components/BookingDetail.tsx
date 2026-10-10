@@ -36,12 +36,13 @@ export type BookingDetailData = {
   checkIn: string | null
   checkOut: string | null
   nights: number | null
-  totalAmount: string
-  depositAmount: string | null
-  slipFileId: string | null
+  // ช่าง (ไม่มีสิทธิ์เงิน): 4 คีย์นี้ไม่มีใน payload — ห้ามอ่านโดยไม่เช็ค showMoney
+  totalAmount?: string
+  depositAmount?: string | null
+  slipFileId?: string | null
   cancelReason: string | null
   internalNote: string | null
-  publicUrl: string
+  publicUrl?: string
   // feature 00017 P3 — งานแม่บ้าน
   housekeeperId: string | null
   housekeepingStatus: string | null
@@ -63,8 +64,11 @@ function baht(v: string): string {
 export default function BookingDetail({
   booking,
   housekeepers,
+  showMoney = false,
 }: {
   booking: BookingDetailData
+  /** ค่าตั้งต้น false — เจ้าของ/ผู้มีสิทธิ์เงินต้องส่ง true ชัด ๆ */
+  showMoney?: boolean
   housekeepers: HousekeeperOption[]
 }) {
   const router = useRouter()
@@ -107,13 +111,13 @@ export default function BookingDetail({
   }
 
   const deposit = Number(booking.depositAmount ?? 0)
-  const remaining = Number(booking.totalAmount) - deposit
+  const remaining = Number(booking.totalAmount ?? 0) - deposit
   const isPending = booking.status === 'PENDING'
-  const needsSlip = deposit > 0
+  const needsSlip = showMoney && deposit > 0
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(booking.publicUrl)
+      await navigator.clipboard.writeText(booking.publicUrl ?? '')
       pacesToast.success('คัดลอกลิงก์แล้ว ส่งให้ผู้จองได้เลย')
     } catch {
       pacesToast.error('คัดลอกไม่ได้ กดค้างที่ลิงก์เพื่อคัดลอกแทน')
@@ -272,6 +276,7 @@ export default function BookingDetail({
         </div>
       </div>
 
+      {showMoney && (
       <div className="card">
         <div className="card-header">
           <h4 className="card-title">ยอดเงิน</h4>
@@ -280,7 +285,7 @@ export default function BookingDetail({
           <dl className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <dt className="text-default-600">ยอดรวม</dt>
-              <dd className="text-default-800">฿{baht(booking.totalAmount)}</dd>
+              <dd className="text-default-800">฿{baht(booking.totalAmount ?? '0')}</dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-default-600">มัดจำ</dt>
@@ -328,6 +333,7 @@ export default function BookingDetail({
           )}
         </div>
       </div>
+      )}
 
       {booking.status !== 'CANCELLED' && (
         <div className="card">
@@ -383,6 +389,7 @@ export default function BookingDetail({
         </div>
       )}
 
+      {showMoney && booking.publicUrl && (
       <div className="card">
         <div className="card-header">
           <h4 className="card-title">ลิงก์สำหรับผู้จอง</h4>
@@ -406,6 +413,7 @@ export default function BookingDetail({
           </div>
         </div>
       </div>
+      )}
 
       {isPending && (
         <div className="flex flex-wrap items-center justify-end gap-2">

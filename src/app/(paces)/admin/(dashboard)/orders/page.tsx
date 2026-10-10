@@ -15,6 +15,8 @@
  * client component also lets admins flip status chips without reloading.
  */
 
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
@@ -72,6 +74,10 @@ interface PageProps {
 }
 
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const sp = await searchParams
   const statusParam = sp.status
   const statusFilter =

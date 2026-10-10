@@ -197,7 +197,8 @@ function toSendPayload(params: SendOutboundParams): Prisma.InputJsonValue {
 export async function enqueueOutbound(params: SendOutboundParams): Promise<OutboxMessageRow> {
   // ด่านเดิมทุกตัว (CONVERSATION_NOT_FOUND / NOT_EXTERNAL_CHANNEL / FORBIDDEN / INVALID_ACTOR)
   // ยังอยู่ใน POST เหมือนเดิม (D-5) — ผู้ขายต้องได้คำเตือนตอนกดส่ง ไม่ใช่ไปรู้ทีหลังจากหลังบ้าน
-  const conversation = await resolveOutboundContext(params)
+  // ส่งออกช่องทางนอก = H2 — ประกาศที่นี่ (ไม่มีค่าตั้งต้นใน resolveOutboundContext)
+  const conversation = await resolveOutboundContext({ ...params, cap: 'H2' })
 
   /**
    * (R-21) ด่านที่ **ตรวจล่วงหน้าได้จริง** ต้องอยู่ใน POST ไม่ใช่รอไปล้มหลังบ้าน (D-5)
@@ -486,7 +487,7 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
 
   let conversation
   try {
-    conversation = await resolveOutboundContext(params)
+    conversation = await resolveOutboundContext({ ...params, cap: 'H2' })
   } catch (e) {
     // เพจถูกถอด / เธรดหาย / สิทธิ์หาย ระหว่างอยู่ในคิว (E-5) — ปิดแถวพร้อมเหตุผลดิบ
     // ห้ามปล่อยค้าง: แถวที่ claim แล้วไม่มีใครมาปิดจะถูกกวาดเป็น "ไม่แน่ใจ" ทั้งที่รู้ว่าไม่เคยยิง

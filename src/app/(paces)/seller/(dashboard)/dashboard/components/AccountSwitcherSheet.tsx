@@ -20,6 +20,7 @@ import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { pacesToast } from '@/lib/paces-toast'
+import { confirmAndSignOut } from '@/lib/confirm-sign-out'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -27,12 +28,15 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { shopRoleBadgeLabel } from '@/lib/no-permission-copy'
+import type { ShopRole } from '@/lib/shop-permissions'
 
 interface BusinessContextItem {
   shopId: string
   shopName: string
   logo: string | null
   role: 'OWNER' | 'ADMIN'
+  roles?: ShopRole[]
   locked: boolean
   lockReason: string | null
   deletedAt: string | null
@@ -48,7 +52,9 @@ type SessionUser = {
   username?: string
   avatar?: string | null
   activeShopId?: string | null
-  activeShopRole?: 'OWNER' | 'ADMIN'
+  activeShopRole?: 'OWNER' | 'ADMIN' | null
+  // แสดงผลเท่านั้น (ป้ายบทบาท) — ไม่ใช่ authz
+  activeShopRoles?: ShopRole[] | null
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
   activeShopName?: string | null
   activeShopLogo?: string | null
@@ -68,9 +74,7 @@ export default function AccountSwitcherSheet() {
   const activeName = isBusiness ? (user?.activeShopName ?? t.menu.shop) : displayName
   const activeLogo = isBusiness ? (user?.activeShopLogo ?? null) : (user?.avatar ?? null)
   const activeRoleLabel = isBusiness
-    ? user?.activeShopRole === 'ADMIN'
-      ? t.accountSwitcher.roleAdmin
-      : t.accountSwitcher.roleOwner
+    ? shopRoleBadgeLabel(user?.activeShopRoles, t.accountSwitcher.roleOwner) // null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
     : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
@@ -170,7 +174,7 @@ export default function AccountSwitcherSheet() {
             <div className="flex w-full items-center gap-3 rounded-lg px-2 py-3">
               <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
               <span className="min-w-0 flex-1 truncate font-medium">{activeName}</span>
-              <span className="badge bg-default-100 text-default-500 shrink-0">{activeRoleLabel}</span>
+              {activeRoleLabel && <span className="badge bg-default-100 text-default-500 shrink-0">{activeRoleLabel}</span>}
               <Icon icon="circle-check" className="text-primary shrink-0" aria-hidden="true" />
             </div>
           )}
@@ -237,13 +241,11 @@ export default function AccountSwitcherSheet() {
                   >
                     <AccountAvatar src={b.logo} kind="business" className="size-9" />
                     <span className="min-w-0 flex-1 truncate font-medium">{b.shopName}</span>
-                    <span
-                      className={`badge shrink-0 ${
-                        b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
-                      }`}
-                    >
-                      {b.role === 'OWNER' ? t.accountSwitcher.roleOwner : t.accountSwitcher.roleAdmin}
-                    </span>
+                    {shopRoleBadgeLabel(b.roles, t.accountSwitcher.roleOwner) && (
+                      <span className={`badge shrink-0 ${b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'}`}>
+                        {shopRoleBadgeLabel(b.roles, t.accountSwitcher.roleOwner)}
+                      </span>
+                    )}
                     {b.locked && (
                       <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
                         <Icon icon="lock" className="size-3" aria-hidden="true" />
@@ -292,6 +294,17 @@ export default function AccountSwitcherSheet() {
                 <Icon icon="external-link" className="text-default-400 size-4 shrink-0" aria-hidden="true" />
               </a>
             )}
+
+            {/* ออกจากระบบ — แถวสุดท้ายเสมอ ทุกบทบาท (มติ 1 · 00071 P3) · บนมือถือการ์ดใน /shop ซ่อนจากบทบาทที่ไม่มีแท็บร้านค้า
+                (แถบล่างของ TECHNICIAN/BILLING ไม่มีช่อง "ร้านค้า") sheet นี้จึงเป็นทางออกที่เข้าถึงได้จากทุกหน้า */}
+            <button
+              type="button"
+              onClick={() => confirmAndSignOut(displayName)}
+              className="text-danger hover:bg-danger/10 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
+            >
+              <Icon icon="logout" className="size-5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 font-medium">{t.common.signOut}</span>
+            </button>
           </div>
         </div>
           </div>,

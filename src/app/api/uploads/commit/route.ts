@@ -13,6 +13,7 @@ import {
 } from "@/lib/chat-attachment";
 import { checkUploadPolicy, normalizeUploadMime } from "@/lib/upload-policy";
 import { verifyUploadTicket } from "@/lib/upload-ticket";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { resolveChatChannelForUser } from "../_shared";
 import { reconcileUploadedFile } from "@/services/media-asset.service";
 import { generateImageVariants } from "@/services/image-variant.service";
@@ -97,8 +98,15 @@ export async function POST(request: NextRequest) {
   // จึงเป็น "เขียนไปแล้ว → hash → ยืนยัน/ลบทิ้งแล้วใช้ของเดิม" ไม่ใช่ "hash ก่อนเขียน" (TD-08)
   let finalFileId = claim.fileId;
 
+  // 00071 S-13: CHAT ไม่มีเธรด (แนบรูปตอบคอมเมนต์) = H2 ในร้านที่ active — ตรวจซ้ำตอน commit เพราะบทบาทถูกถอดระหว่างรอ ticket ได้
+  // IMAGE/DOCUMENT ไม่ผูก cap ที่นี่ (ดูเหตุผลที่ ticket/route.ts)
+  if (claim.purpose === "CHAT" && !claim.conversationId) {
+    const gate = await requireShopCapability(session, "H2");
+    if (!gate.ok) return reject(403, "FORBIDDEN_ROLE");
+  }
+
   if (claim.purpose === "CHAT" && claim.conversationId) {
-    const resolved = await resolveChatChannelForUser(claim.conversationId, userId);
+    const resolved = await resolveChatChannelForUser(claim.conversationId, userId, "H2");
     if (!resolved.ok) {
       return reject(resolved.status, resolved.error);
     }

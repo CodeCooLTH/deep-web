@@ -18,11 +18,19 @@ import Icon from '@/components/wrappers/Icon'
 import AuctionForm from '@/app/(paces)/seller/(fullscreen)/auctions/components/AuctionForm'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 export const metadata: Metadata = { title: 'สร้างรายการประมูล' }
 
 export default async function NewAuctionPage() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (X1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'X1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionScreen capability="X1" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 

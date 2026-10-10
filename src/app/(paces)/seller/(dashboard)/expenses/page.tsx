@@ -7,11 +7,11 @@
  * Base (page shell + fail-closed gate pattern): src/app/(paces)/seller/(dashboard)/inventory/page.tsx
  *   - session guard + PageBreadcrumb: pattern เดียวกับ inventory/page.tsx / sales/page.tsx
  *   - no-shop card markup (NO_SHOP): inventory/page.tsx:70-91 คัดลอกตรง (icon="building-store", CTA /shop)
- *   - PACKAGE_LOCKED/STAFF_NOT_ALLOWED card: ExpenseLockedCard.tsx (variant prop, Base เดียวกันบรรทัด 70-91)
+ *   - FORBIDDEN_ROLE card (ไม่ใช่เจ้าของร้าน, 00071 BR-RP-08): _shared/NoPermissionCard.tsx
  *
  * 🛑 TFR-007 fail-closed (ตรง SDS §NFR-Security): resolveExpenseAccess() ต้อง resolve "GRANTED" ก่อน
- * เท่านั้นที่ query getPnlReport/listExpenses จริง — ไม่มี query ข้อมูลธุรกิจใด ๆ ในสาขา NO_SHOP/PACKAGE_LOCKED/
- * STAFF_NOT_ALLOWED ด้านล่าง (กัน data leak ผ่าน timing/error message)
+ * เท่านั้นที่ query getPnlReport/listExpenses จริง — ไม่มี query ข้อมูลธุรกิจใด ๆ ในสาขา NO_SHOP/
+ * FORBIDDEN_ROLE ด้านล่าง (กัน data leak ผ่าน timing/error message)
  */
 
 import { getServerSession } from 'next-auth'
@@ -23,12 +23,14 @@ import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { resolveShopVertical } from '@/lib/lodging'
 import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
-import ExpenseLockedCard from './components/ExpenseLockedCard'
+import NoPermissionCard from '../_shared/NoPermissionCard'
 import ExpenseWorkspace from './components/ExpenseWorkspace'
 
 export const metadata: Metadata = { title: 'ค่าใช้จ่าย' }
@@ -46,11 +48,10 @@ export default async function ExpensesPage({
   if (!session?.user) redirect('/auth/sign-in')
 
   // fail-closed (TFR-007) — resolve decision ก่อนถึง Promise.all ใด ๆ ด้านล่าง
-  const decision = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
+  const sessionLike = session as unknown as { user: { id: string; activeShopId?: string | null } }
+  const gate = await gatePage(sessionLike, 'F1')
 
-  if (decision.kind === 'NO_SHOP') {
+  if (!gate.ok && gate.reason === 'NO_SHOP') {
     // ⚠️ ห้าม query stock/expense เพิ่มเติมในสาขานี้ (gate ไม่ leak data) — มักไม่เกิดจริง (auto-create
     // Personal shop) แต่ต้อง handle ตาม UX-Design-Spec.md §Edge states "NO_SHOP"
     return (
@@ -72,14 +73,15 @@ export default async function ExpensesPage({
     )
   }
 
-  if (decision.kind === 'STAFF_NOT_ALLOWED') {
+  if (!gate.ok) {
     return (
       <>
         <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />
-        <ExpenseLockedCard />
+        <NoPermissionCard capability="F1" viewerRoles={await viewerRolesOf(sessionLike)} detail={FINANCE_NO_PERMISSION_DETAIL} />
       </>
     )
   }
+  const decision = { shop: gate.active.shop }
 
   /**
    * ร้านบริการ: หน้านี้ถูกยกไปเป็นแท็บ "ค่าใช้จ่าย" ของ /sales แล้ว (feature 00067 FR-FIN-03)

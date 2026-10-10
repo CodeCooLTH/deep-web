@@ -3,8 +3,8 @@ import 'server-only'
 import { getT } from '@/i18n/server'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import { applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { prisma } from '@/lib/prisma'
 import { ownsAnyShop } from '@/services/line-report-access.service'
-import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import type { MenuItemType } from '@/types'
 
@@ -15,7 +15,7 @@ import type { MenuItemType } from '@/types'
  *
  * `resolveVisibleSellerMenu` (ใน `@/lib/seller-menu`) เป็นฟังก์ชันบริสุทธิ์ — มันรับ "ผลลัพธ์ของ
  * การถามฐานข้อมูล" เข้ามา ไม่ได้ถามเอง ⇒ ผู้เรียกทุกรายต้องประกอบ input ชุดเดียวกันเองทุกครั้ง
- * (entitlement · staff · expense · shop · hidePayments) และต้องพันด้วย `applyChatBadge` →
+ * (entitlement · staff · shop · hidePayments) และต้องพันด้วย `applyChatBadge` →
  * `applyMenuLocale` ตามลำดับที่ถูกด้วย
  *
  * เดิมมีผู้เรียกรายเดียว (`(dashboard)/layout.tsx`) จึงไม่มีปัญหา — พอหน้าแชท (`(chat)/layout.tsx`)
@@ -30,19 +30,25 @@ import type { MenuItemType } from '@/types'
  *
  * ผู้เรียกทั้งสองรายต้องใช้ค่าสองตัวนี้กับของอย่างอื่นด้วยอยู่แล้ว (`(dashboard)` ใช้
  * `unreadChatCount` กับ `SellerBottomNav` และ `hidePayments` กับการ์ดแพ็กเกจ) ถ้าถามเองข้างใน
- * ด้วยจะกลายเป็นถาม 2 รอบต่อ request โดยเปล่าประโยชน์ — ส่วน entitlement/expense ไม่มีใครใช้
+ * ด้วยจะกลายเป็นถาม 2 รอบต่อ request โดยเปล่าประโยชน์ — ส่วน entitlement ไม่มีใครใช้
  * นอกจากเมนู จึงถามเองที่นี่ให้จบ
  */
 export type SellerMenuContext = {
-  /** session ดิบ — ส่งต่อให้ `resolveExpenseAccess` ซึ่ง re-verify membership ของตัวเอง */
+  /** session ดิบ — ใช้หา userId สำหรับ ownsAnyShop */
   session: { user?: { id?: string | null; activeShopId?: string | null } | null } | null
   /** ร้านที่กำลังเปิดอยู่ — null = ยังไม่มีร้าน (ยังต้องคืนเมนูได้ ดู fail-closed ด้านล่าง) */
   shopId: string | null
   kind: 'PERSONAL' | 'BUSINESS'
   role: 'OWNER' | 'ADMIN'
+  roles: readonly string[]
   vertical: string
   /** badge เมนู "ข้อความ" — ผู้เรียกดึงเองเพราะใช้ที่อื่นด้วย */
   unreadChatCount: number
+  /**
+   * เป็นเจ้าของหลักของร้านนี้ไหม (`Shop.userId === ผู้ดู`) — ผู้เรียกที่มีแถวร้านอยู่แล้ว (requireActiveShop) ส่งมา
+   * ไม่ส่ง = ตัวประกอบเมนูถามฐานเอง (fail-closed false) · ส่งแล้วไม่มี query เพิ่ม
+   */
+  isPrimaryOwner?: boolean
   /** เปิดจากในแอป iOS (App Store Guideline 3.1.1) — ดู `src/lib/app-shell.ts` */
   hidePayments: boolean
   /** เปิดจากในแอป iOS ที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (3.1.3(b) · feature 00064) */
@@ -54,28 +60,32 @@ export type SellerMenuContext = {
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
   // fail-closed ทั้งสองตัว: query ล้ม → ค่าที่ "ซ่อนของ" ไม่ใช่ "โชว์ของ"
   //   entitlement → NOT_SUBSCRIBED (เมนูสต็อกขึ้น badge เลือกแพ็กเกจ ไม่ใช่เปิดใช้ฟรี)
-  //   expense     → NO_SHOP (ซ่อนเมนูค่าใช้จ่ายสนิท — ด่านจริงอยู่ที่ ExpensesPage อยู่แล้ว)
+  // เมนูตัดสินจาก role ใน ctx (applyCapabilityMenu) — มี query เพิ่มแค่ "เป็นเจ้าของหลักไหม" (T4)
   // ห้าม throw: ทั้งสอง layout ที่เรียกตัวนี้พังทั้งหน้าถ้ามี exception หลุดออกไป
   let entitlement: { status: EntitlementStatus; package: InventoryPackage | null } = {
     status: 'NOT_SUBSCRIBED',
     package: null,
   }
-  let expense: ExpenseAccessDecision = { kind: 'NO_SHOP' }
 
   // ownsShop fail-closed: query ล้ม → false (ซ่อนเมนูรายงาน LINE) · ยิงขนานกับตัวอื่น ไม่เพิ่ม latency
   let ownsShop = false
   const userId = ctx.session?.user?.id
-  const [entitlementResult, expenseResult, ownsResult] = await Promise.allSettled([
+  // เจ้าของหลักของ "ร้านที่เปิดอยู่" (T4) — fail-closed: query ล้ม/ไม่รู้ = false (ซ่อนเมนูที่เป็น T4 เช่น แพ็กเกจ)
+  const [entitlementResult, ownsResult, primaryResult] = await Promise.allSettled([
     ctx.shopId ? getEntitlementInfo(ctx.shopId) : Promise.resolve(entitlement),
-    resolveExpenseAccess(ctx.session),
     userId ? ownsAnyShop(userId) : Promise.resolve(false),
+    ctx.isPrimaryOwner !== undefined
+      ? Promise.resolve(ctx.isPrimaryOwner)
+      : ctx.shopId && userId
+      ? prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { userId: true } }).then((r) => r?.userId === userId)
+      : Promise.resolve(false),
   ])
+  const isPrimaryOwner = primaryResult.status === 'fulfilled' ? primaryResult.value : false
+  if (primaryResult.status === 'rejected') console.error('[seller-menu] primary-owner lookup failed, fallback false', primaryResult.reason)
   if (ownsResult.status === 'fulfilled') ownsShop = ownsResult.value
   else console.error('[seller-menu] ownsAnyShop failed, fallback hide line-reports', ownsResult.reason)
   if (entitlementResult.status === 'fulfilled') entitlement = entitlementResult.value
   else console.error('[seller-menu] getEntitlementInfo failed, fallback NOT_SUBSCRIBED', entitlementResult.reason)
-  if (expenseResult.status === 'fulfilled') expense = expenseResult.value
-  else console.error('[seller-menu] resolveExpenseAccess failed, fallback NO_SHOP (hide menu)', expenseResult.reason)
 
   /**
    * ลำดับนี้ยกมาจาก `(dashboard)/layout.tsx` ทั้งดุ้น — เหตุผลของแต่ละชั้นอยู่ที่นั่นและที่
@@ -90,10 +100,9 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
     applyChatBadge(
       resolveVisibleSellerMenu(sellerMenuItems, {
         entitlement,
-        staff: { kind: ctx.kind, role: ctx.role },
-        expense,
+        staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
         ownsShop,
-        shop: { kind: ctx.kind, vertical: ctx.vertical },
+        shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner },
         hidePayments: ctx.hidePayments,
         hidePaidFeatures: ctx.hidePaidFeatures,
         offerIap: ctx.offerIap,

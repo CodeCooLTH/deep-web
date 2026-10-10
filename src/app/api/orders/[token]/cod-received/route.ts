@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { setCodReceived } from "@/services/order.service";
 import { isCODPayment } from "@/lib/order-display";
 import { prisma } from "@/lib/prisma";
@@ -25,22 +25,15 @@ import { prisma } from "@/lib/prisma";
  * สิทธิ์: สมาชิกของร้านที่เป็นเจ้าของออเดอร์เท่านั้น (ผ่าน requireActiveShop ซึ่ง guard
  * membership ให้อยู่แล้ว) — ผู้ซื้อกดไม่ได้ ไม่ว่ากรณีใด
  */
-async function resolveOrder(token: string) {
-  const session = await getServerSession(authOptions);
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  ).catch(() => null);
-  if (!active) return { error: NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 }) };
-
+async function resolveOrder(token: string, gate: { shopId: string; userId: string }) {
   // scope shopId ใน WHERE — ออเดอร์ของร้านอื่นต้องหาไม่เจอ ไม่ใช่หาเจอแล้วค่อยปฏิเสธ
   const order = await prisma.order.findFirst({
-    where: { publicToken: token, shopId: active.shop.id },
+    where: { publicToken: token, shopId: gate.shopId },
     select: { id: true, paymentMethod: true, codReceivedAt: true },
   });
   if (!order) return { error: NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 }) };
 
-  const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-  return { order, userId };
+  return { order, userId: gate.userId };
 }
 
 export async function POST(
@@ -48,7 +41,9 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const r = await resolveOrder(token);
+  const gate = await requireShopCapability(await getServerSession(authOptions), "O5");
+  if (!gate.ok) return gate.response;
+  const r = await resolveOrder(token, gate);
   if ("error" in r) return r.error;
 
   // ออเดอร์ที่ไม่ใช่เก็บเงินปลายทางไม่มีเงินให้ตาม — กดได้เท่ากับบันทึกข้อเท็จจริงที่ไม่มีอยู่
@@ -68,7 +63,9 @@ export async function DELETE(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const r = await resolveOrder(token);
+  const gate = await requireShopCapability(await getServerSession(authOptions), "O5");
+  if (!gate.ok) return gate.response;
+  const r = await resolveOrder(token, gate);
   if ("error" in r) return r.error;
 
   const updated = await setCodReceived(r.order.id, null, { clear: true });

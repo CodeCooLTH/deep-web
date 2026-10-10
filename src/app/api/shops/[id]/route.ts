@@ -2,15 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { updateShop } from "@/services/shop.service";
-import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
-  const shop = await prisma.shop.findUnique({ where: { id } });
   // access guard — owner (PERSONAL หรือ BUSINESS owner) หรือ admin/staff ของร้านนี้ แก้ได้
   //
   // 🛑 bug fix 2026-08-01: เดิมใช้ isShopMember() อย่างเดียว ซึ่งดูแค่ตาราง ShopMember
@@ -24,9 +20,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   //
   // canAccessShop() = owner-by-userId OR member — helper ตัวเดียวกับที่ฟีเจอร์แชทใช้
   // (assertParticipant ใน chat.service) ซึ่งเคยเจอบั๊กคลาสเดียวกันมาก่อนและแก้ด้วยวิธีนี้แล้ว
-  if (!shop || !(await canAccessShop(id, (session.user as any).id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  //
+  // 00071 T1: แก้ข้อมูลร้าน = เจ้าของ/ผู้ดูแล (ยังรับ PERSONAL ที่ไม่มีแถว ShopMember — resolver ตัดสินจาก Shop.userId)
+  const gate = await requireShopCapability(session, "T1", { shopId: id });
+  if (!gate.ok) return gate.response;
 
   const body = await request.json();
   try {

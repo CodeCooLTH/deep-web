@@ -14,6 +14,9 @@ import { formatDate } from '@/lib/format-date'
 import Icon from '@/components/wrappers/Icon'
 import RowActionDeleteButton from './RowActionDeleteButton'
 import MemberRoleControls from './MemberRoleControls'
+import MemberRolesEditor from './MemberRolesEditor'
+import { STAFF_ROLE_COPY } from '@/lib/shop-role-picker'
+import { STAFF_ROLES } from '@/lib/shop-permissions'
 import TransferOwnershipButton from './TransferOwnershipButton'
 import LoginProviderLogo, { LOGIN_PROVIDER_LABEL, type LoginProvider } from '@/components/safepay/LoginProviderLogo'
 import { memberErrorText } from './member-error-text'
@@ -23,6 +26,8 @@ import { canAskToBuy } from '@/lib/purchase-prompt'
 export interface MemberRow {
   id: string
   role: 'OWNER' | 'ADMIN'
+  /** บทบาทพนักงาน (ShopMember.roles) — แถว OWNER เป็น [] */
+  roles: string[]
   displayName: string
   /** รูปโปรไฟล์ (User.avatar) — null = แสดงอักษรแรกของชื่อแทน */
   avatar: string | null
@@ -42,6 +47,8 @@ interface CurrentMembersTableProps {
   shopId: string
   /** true = ผู้ดูเป็นเจ้าของ (หลักหรือร่วม) — เปลี่ยนบทบาท/ลบได้ (EXT 2026-10-05 BR-MR-01/07) */
   canManage: boolean
+  /** ร้านเปิดบทบาทเปิดบิลได้ไหม (canUseAppointments) — บังคับส่ง ไม่มีค่าตั้งต้น: ตารางนี้ใช้ 2 หน้า ลืมส่ง = เปิดบทบาทที่ใช้ไม่ได้ */
+  billingAvailable: boolean
   /** card title — default "สมาชิกปัจจุบัน" */
   title?: string
   /** เนื้อหาเสริมฝั่งขวาของ card-header เช่น quota badge (feature 00012 Task 4.3) */
@@ -53,12 +60,13 @@ const ROLE_BADGE: Record<'OWNER' | 'ADMIN', string> = {
   OWNER: 'bg-primary/15 text-primary-ink',
   ADMIN: 'bg-info/15 text-info-ink',
 }
-const ROLE_LABEL: Record<'OWNER' | 'ADMIN', string> = { OWNER: 'เจ้าของ', ADMIN: 'ผู้ดูแล' }
+const ROLE_LABEL: Record<'OWNER' | 'ADMIN', string> = { OWNER: 'เจ้าของ', ADMIN: 'พนักงาน' }
 
 export default async function CurrentMembersTable({
   members,
   shopId,
   canManage,
+  billingAvailable,
   title = 'สมาชิกปัจจุบัน',
   headerRight,
 }: CurrentMembersTableProps) {
@@ -78,7 +86,7 @@ export default async function CurrentMembersTable({
             <tr>
               <th>สมาชิก</th>
               <th>ช่องทาง</th>
-              <th>บทบาท</th>
+              <th>ประเภท</th>
               <th className="hidden sm:table-cell">วันที่เข้าร่วม</th>
               {canManage && <th className="text-end">จัดการ</th>}
             </tr>
@@ -122,8 +130,32 @@ export default async function CurrentMembersTable({
                     <p className="text-xs text-default-500 mt-1">
                       {viewerIsPrimary
                         ? 'แพ็กเกจของคุณกำหนดโควตาของร้านนี้'
-                        : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนบทบาทหรือลบไม่ได้'}
+                        : 'ผูกกับแพ็กเกจที่กำหนดโควตาของร้านนี้ · เปลี่ยนประเภทหรือลบไม่ได้'}
                     </p>
+                  )}
+                  {member.role === 'ADMIN' && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="sr-only">บทบาท:</span>
+                      {STAFF_ROLES.filter((r) => member.roles.includes(r)).map((r) => (
+                        <span key={r} className="badge bg-default-100 text-default-700">
+                          {STAFF_ROLE_COPY[r].label}
+                        </span>
+                      ))}
+                      {/* ข้อมูลเคลื่อน: ADMIN ที่ไม่มีบทบาทที่รู้จักเลย = สิทธิ์ว่าง ต้องบอกเจ้าของ ไม่ซ่อน */}
+                      {!STAFF_ROLES.some((r) => member.roles.includes(r)) && (
+                        <span className="badge bg-warning/15 text-warning-ink">ยังไม่ได้ตั้งบทบาท</span>
+                      )}
+                      {canManage && !member.isPrimary && (
+                        <MemberRolesEditor
+                          shopId={shopId}
+                          memberId={member.id}
+                          name={member.displayName}
+                          roles={member.roles}
+                          billingAvailable={billingAvailable}
+                          primaryOwnerName={primary?.displayName ?? 'เจ้าของหลัก'}
+                        />
+                      )}
+                    </div>
                   )}
                   {member.isPrimary && viewerIsPrimary && members.length > 1 && (
                     <TransferOwnershipButton

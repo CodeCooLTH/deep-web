@@ -26,6 +26,7 @@ const m = vi.hoisted(() => ({
   balance: vi.fn(),
   setting: vi.fn(),
   getFile: vi.fn(),
+  isOwner: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -70,6 +71,7 @@ vi.mock("@/services/wallet.service", () => ({
   creditWallet: m.credit,
   getBalance: m.balance,
 }));
+vi.mock("@/lib/shop-owner", () => ({ isShopOwnerOfShop: m.isOwner }));
 vi.mock("@/lib/storage", () => ({ getFile: m.getFile }));
 const mem = vi.hoisted(() => ({ loadPromptMemory: vi.fn() }));
 vi.mock("@/services/chat-memory.service", () => mem);
@@ -91,6 +93,7 @@ beforeEach(() => {
   m.provider.mockReturnValue("gemini");
   m.setting.mockReturnValue({ includeProductContext: false, includeCustomerContext: false, includeMediaContext: false, instruction: "" });
   m.paid.mockResolvedValue(false);
+  m.isOwner.mockResolvedValue(true);
   m.claim.mockResolvedValue(true);
   m.remaining.mockResolvedValue(9);
   m.crm.mockResolvedValue({
@@ -249,6 +252,19 @@ describe("สาขา Gemini — media retry / credit / paid plan", () => {
     expect((await res.json()).error).toBe("INSUFFICIENT_CREDIT");
     expect(m.draft).not.toHaveBeenCalled();
     expect(m.credit).not.toHaveBeenCalled();
+  });
+
+  it("00071 F3: ผู้ไม่ใช่เจ้าของ เครดิตไม่พอ → 402 ไม่มีคีย์ balance (หักเครดิตฝั่ง server ยังทำงาน)", async () => {
+    m.claim.mockResolvedValue(false);
+    m.isOwner.mockResolvedValue(false);
+    m.deduct.mockRejectedValue(new Error("INSUFFICIENT_CREDIT"));
+    const res = await POST(req({ confirmUseCredit: true }), ctx);
+    const body = await res.json();
+    expect(res.status).toBe(402);
+    expect(body.error).toBe("INSUFFICIENT_CREDIT");
+    expect("balance" in body).toBe(false);
+    expect(m.deduct).toHaveBeenCalledTimes(1);
+    expect(m.balance).not.toHaveBeenCalled();
   });
 
   it("แพ็กเกจจ่ายเงิน → ข้ามโควตา ไม่เรียก claim และล้มก็ไม่ refund", async () => {

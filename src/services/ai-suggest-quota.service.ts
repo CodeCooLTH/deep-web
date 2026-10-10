@@ -23,7 +23,8 @@ export type AiQuotaStatus = {
   freeRemaining: number | null // null เมื่อ isPaidPlan
   canUseCredit: boolean // = !isPaidPlan && balance >= priceBaht
   priceBaht: number
-  balance: number
+  /** null = ผู้เรียกไม่ใช่เจ้าของร้าน (00071 F3) — ไม่ส่งตัวเลขกระเป๋า แต่ canUseCredit ยังคำนวณจากยอดจริงที่ server */
+  balance: number | null
 }
 
 /**
@@ -55,9 +56,16 @@ async function getUsedTodayCount(shopId: string): Promise<number> {
  * (NFR-AIQ-Perf) balance ยังคง query เสมอทั้ง 2 กรณีเพราะ response contract ("balance" field) กำหนดให้ส่งกลับ
  * เสมอแม้ isPaidPlan:true (ไว้ให้ UI แสดงยอดเงินในกระเป๋าเฉย ๆ ไม่ใช้ตัดสินสิทธิ์) — ดู decision note ใน commit
  */
-export async function getAiSuggestQuotaStatus(shopId: string): Promise<AiQuotaStatus> {
+export async function getAiSuggestQuotaStatus(
+  shopId: string,
+  // บังคับส่ง — ลืมส่งแล้วได้ true = ยอดกระเป๋ารั่ว (security review 00071 L2)
+  opts: { canSeeBalance: boolean },
+): Promise<AiQuotaStatus> {
+  const canSeeBalance = opts.canSeeBalance
   const isPaidPlan = await isOwnerPaidPlan(shopId)
-  const balance = await getBalance(shopId)
+  // ยังต้องอ่านยอดจริงเพื่อตัดสิน canUseCredit (กฎหักเครดิตฝั่ง server ห้ามเปลี่ยน) — แต่ไม่คืนตัวเลขถ้าไม่ใช่เจ้าของ
+  const realBalance = await getBalance(shopId)
+  const balance = canSeeBalance ? realBalance : null
 
   if (isPaidPlan) {
     return {
@@ -78,7 +86,7 @@ export async function getAiSuggestQuotaStatus(shopId: string): Promise<AiQuotaSt
     freeLimit: AI_SUGGEST_FREE_DAILY_LIMIT,
     usedToday,
     freeRemaining,
-    canUseCredit: balance >= AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
+    canUseCredit: realBalance >= AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
     priceBaht: AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
     balance,
   }

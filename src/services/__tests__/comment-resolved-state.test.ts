@@ -155,7 +155,7 @@ describe('[blocker] resolveAllExpiredComments — ด่านต้องอย
   it('ต้อง scope ด้วย shopIds + ตัวกรองเพจ/ช่องทางเดียวกับที่จอใช้', () => {
     const start = svc.indexOf('export async function resolveAllExpiredComments(')
     const body = svc.slice(start)
-    expect(body).toContain('assertShopsAccessible')
+    expect(body).toContain('assertShopsHoldCap')
     expect(body).toContain('resolveCommentProvider(params.provider)')
     expect(body).toContain('sc.id = ${params.shopChannelId}')
   })

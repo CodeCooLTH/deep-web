@@ -11,7 +11,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!id) return badId()
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
   const body = await readJson(request)
   if (body === null) return fail(400, 'VALIDATION', 'Invalid input')
@@ -29,7 +29,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!id) return badId()
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
   try {
     await deleteFollowUp(s.scope.shopIds, id)

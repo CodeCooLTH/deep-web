@@ -16,7 +16,7 @@ const BodySchema = v.object({
 
 /** PUT /api/seller/auto-order/phrases — แทนที่ชุดวลีทั้งชุด */
 export async function PUT(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(BodySchema, await request.json().catch(() => null))

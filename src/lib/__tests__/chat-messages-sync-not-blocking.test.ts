@@ -47,9 +47,17 @@ describe('[blocker] GET .../messages — sync ต้องไม่บล็อ�
     // trigger sync กลับมาเหมือนบั๊กเดิม
     // R7: การเปิดห้องเป็น delta แล้ว ⇒ delta ที่ขอ `sync === '1'` ต้อง sync ด้วย ไม่งั้นข้อความที่
     // webhook ไม่ส่ง (Meta AI / standby / ตอบโฆษณา) จะไม่มีวันโผล่
+    // 00071 S-13: ตัดสินเป็นตัวแปร shouldSync ก่อน แล้วลงทะเบียน after() ทีหลังผ่านด่านสิทธิ์ (ดูข้อถัดไป)
     expect(code).toMatch(
-      /if\s*\(\s*!parsed\.output\.cursor\s*&&\s*\(\s*!isDeltaRequest\(parsed\.output\)\s*\|\|\s*parsed\.output\.sync\s*===\s*'1'\s*\)\s*\)/,
+      /shouldSync\s*=\s*!parsed\.output\.cursor\s*&&\s*\(\s*!isDeltaRequest\(parsed\.output\)\s*\|\|\s*parsed\.output\.sync\s*===\s*'1'\s*\)/,
     )
+    expect(code).toMatch(/if\s*\(\s*shouldSync\s*\)\s*after\s*\(\s*syncMissingMessagesFromMeta\s*\(/)
+  })
+
+  it('[blocker 00071] ลงทะเบียน after(sync) หลัง getThreadMessagesPage (ด่านสิทธิ์) เท่านั้น — คนที่ได้ 403 สั่งให้เซิร์ฟเวอร์ไปคุย Meta ไม่ได้', () => {
+    const get = code.slice(code.indexOf('export async function GET'), code.indexOf('export async function POST'))
+    expect(get.indexOf('getThreadMessagesPage(')).toBeGreaterThan(0)
+    expect(get.indexOf('after(syncMissingMessagesFromMeta(')).toBeGreaterThan(get.indexOf('getThreadMessagesPage('))
   })
 
   it('[blocker] route อ่าน query `sync` ส่งเข้า schema จริง (R7)', () => {

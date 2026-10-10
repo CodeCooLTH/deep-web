@@ -17,7 +17,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> },
 ) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const { conversationId } = await params

@@ -6,6 +6,8 @@
  * Adaptations: data จาก prisma (scamReport); คอลัมน์ตาม field รายงานมิจฉาชีพ;
  *              identifiers แสดงแบบ masked (ไม่โชว์ค่าจริง — PDPA)
  */
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -37,6 +39,10 @@ function evidenceCount(evidence: unknown): number {
 }
 
 export default async function AdminScamReportsPage({ searchParams }: PageProps) {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const sp = await searchParams
   const activeStatus = sp.status ?? 'PENDING'
   const where = activeStatus === 'all' ? {} : { status: activeStatus }

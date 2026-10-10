@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!id) return badId()
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
   // body ว่างได้ = "ข้าม" (outcome null)
   const body = (await readJson(request)) ?? {}

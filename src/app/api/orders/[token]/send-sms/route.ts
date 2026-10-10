@@ -5,7 +5,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { SendSmsSchema } from "@/lib/validations";
 import { getOrderForShop } from "@/services/order.service";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
 import { recordOrderEventSafe } from "@/services/order-event.service";
 import { deductCredit, creditWallet } from "@/services/wallet.service";
@@ -90,13 +90,9 @@ export async function POST(
   // ── Step 2: DAL ownership (S-C7) ─────────────────────────────────────────
   // resolve shop จาก active shop context ของ session — ห้าม findUnique order ก่อนแล้วตรวจ owner ทีหลัง
   // (เหตุผล: fetch-then-check leak order data เข้า RSC flight แม้จะ 403 ทีหลัง)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json(
-      { error: "ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน" },
-      { status: 404 },
-    );
-  }
+  const gate = await requireShopCapability(session, "O7");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   if (active.locked) {
     return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   }

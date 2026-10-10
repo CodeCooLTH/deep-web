@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cancelFailedOutboundMessage, sendOutboundReaction } from "@/services/channel-chat.service";
 import { GraphApiError } from "@/lib/facebook/graph";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * DELETE /api/chat/conversations/[id]/messages/[messageId]
@@ -13,7 +15,7 @@ import { GraphApiError } from "@/lib/facebook/graph";
  * โดยไม่คิดเรื่อง unsend/หลักฐานในเธรดให้จบก่อน
  *
  * ไม่ derive senderRole จาก subdomain เหมือน POST เพราะไม่ได้สร้างข้อความใหม่ — สิทธิ์ตัดสิน
- * จาก canAccessShop ของเธรดใน service ชั้นเดียว
+ * จาก canAccessShopWith(ร้านของเธรด, ผู้ใช้, cap) ใน service ชั้นเดียว
  */
 export async function DELETE(
   _request: NextRequest,
@@ -31,9 +33,11 @@ export async function DELETE(
       conversationId: id,
       messageId,
       actorUserId: userId,
+      cap: "H2",
     });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
@@ -96,9 +100,11 @@ export async function POST(
       messageId,
       emoji,
       actorUserId: userId,
+      cap: "H2",
     });
     return NextResponse.json({ ok: true, emoji: result.emoji });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });

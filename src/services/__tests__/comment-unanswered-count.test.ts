@@ -38,9 +38,12 @@ vi.mock('@/lib/prisma', () => {
 // assertShopsAccessible เดิมเรียก listAccessibleShopIds() ซึ่งต้องมี DB จริง — mock ที่ boundary ของ
 // shop-context ตรง ๆ (pattern เดียวกับ comment-private-reply.service.test.ts) ให้ผ่านเสมอ เพราะ
 // เทสชุดนี้ไม่ได้ทดสอบ authorization — ทดสอบแค่รูปร่างของ SQL ที่ประกอบขึ้นหลังผ่านด่านนั้นแล้ว
-vi.mock('@/lib/shop-context', () => ({
-  assertShopsAccessible: vi.fn().mockResolvedValue(undefined),
-  canAccessShop: vi.fn(),
+vi.mock('@/lib/chat-scope', () => ({
+  assertShopsHoldCap: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/lib/shop-capability', () => ({
+  canAccessShopWith: vi.fn(),
+  ForbiddenRoleError: class ForbiddenRoleError extends Error {},
 }))
 
 import { Prisma } from '@prisma/client'
@@ -117,7 +120,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
   })
 
   it('[blocker] คอมเมนต์ที่บอทตอบสาธารณะแล้ว ต้องหลุดจาก UNANSWERED — branch ที่ดักไว้ต้องไม่มี isAutoReply (AC-CR-25)', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     const sql = commentCaseSql(capturedSql())
     // กฎที่ปกป้อง: "มีคำตอบของเพจอยู่ข้างใต้ ไม่ว่าบอทหรือคนเขียน = ไม่ใช่ยังไม่ตอบ"
     // ในโครง CASE ปัจจุบัน ตัวที่ดักเคส "บอทตอบล้วน" คือ branch ที่ให้ผล BOT_ANSWERED
@@ -130,7 +133,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
   })
 
   it('[blocker] UNANSWERED ต้องเป็นทางออกสุดท้ายของ CASE ไม่ใช่ branch ที่ match เอง', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     const sql = commentCaseSql(capturedSql())
     // ถ้าใครเปลี่ยนกลับไปเป็น `WHEN ... THEN 'UNANSWERED'` แปลว่ามีเงื่อนไข "เชิงบวก" ที่ตัดสินว่า
     // ยังไม่ตอบ ซึ่งจะต้องไปไล่ปิดทุกเคสที่ไม่ใช่เองทีละอัน (นั่นคือรูปแบบที่พลาดมาแล้ว 2 รอบ)
@@ -139,7 +142,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
   })
 
   it('[blocker] คอมเมนต์ที่ทักแชทส่วนตัวสำเร็จแล้ว ต้องหลุดจาก UNANSWERED (user report 2026-08-09)', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     const sql = commentCaseSql(capturedSql())
     // ต้องมี branch ที่อ่าน CommentReplyLog ก่อนตกไป ELSE ไม่งั้นคอมเมนต์ที่ถูกดึงเข้าห้องแชท
     // จะค้างในคิว "ยังไม่ตอบ" ตลอดไป (คิวไม่มีวันลดลงแม้งานจบในกล่องข้อความแล้ว)
@@ -152,13 +155,13 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
   })
 
   it('ยังเช็ค isFromPage = true ในเงื่อนไข NOT EXISTS (ต้องมีคำตอบของเพจอยู่ข้างใต้ถึงนับว่าตอบแล้ว)', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     const sql = capturedSql()
     expect(sql).toContain('isFromPage')
   })
 
   it('ยัง scope ด้วย shopIds ที่รับเข้ามา — Prisma.join() ห่อ shopIds จริง ไม่หลุด scope ข้ามร้าน', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1', cap: 'H1' })
     const sql = capturedSql()
     expect(sql).toContain('shopId')
     // ค่าที่ Prisma.join() ห่อไว้ต้องเป็น shopIds ตัวจริงที่ countUnansweredForShops ได้รับมา
@@ -169,7 +172,7 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
   })
 
   it('ไม่ scope ด้วย shopChannelId/ค้นหา (badge ไม่รู้จักตัวกรองพวกนั้น นับทั้งร้านเสมอ)', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     // interpolation ที่ 2 (channelFilter) และ 3 (searchFilter) ต้องเป็น Prisma.empty ตัวเดียวกันเป๊ะ
     // (Sql instance เดี่ยว export จาก @prisma/client) เมื่อไม่ได้ส่ง shopChannelId/q เข้ามา — เช็คแบบนี้
     // เพราะเนื้อ SQL จริงของ fragment ที่ interpolate เข้าไปไม่ปรากฏใน capturedStrings (มันเป็น value

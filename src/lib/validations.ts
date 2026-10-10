@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { STAFF_ROLES } from "@/lib/shop-permissions";
 import { UPLOAD_PURPOSES } from "@/lib/upload-policy";
 import { MOBILE_PHONE_RE } from "@/lib/phone";
 import {
@@ -827,9 +828,18 @@ export const CreateBusinessShopSchema = v.object({
   vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
+// บทบาทย่อยของ ADMIN (00071 P2) — 1–4 ค่า ไม่ซ้ำ ⊆ STAFF_ROLES · BILLING ตามร้านเช็คที่ service (validateAssignableRoles)
+export const StaffRolesSchema = v.pipe(
+  v.array(v.picklist(STAFF_ROLES)),
+  v.minLength(1),
+  v.maxLength(STAFF_ROLES.length),
+  v.check((a) => new Set(a).size === a.length, "roles ซ้ำ"),
+);
+
 export const InviteShopMemberSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
   contactType: v.picklist(["PHONE", "EMAIL"]),
+  roles: v.optional(StaffRolesSchema),
 });
 
 export const SwitchActiveShopSchema = v.object({
@@ -1104,6 +1114,7 @@ export const BuyPinSlotSchema = v.object({
 export const inviteLinkCreateSchema = v.object({
   // omit ได้ — route ใช้ DEFAULT_INVITE_EXPIRY_KEY (@/lib/invite-link) แทนถ้าไม่ส่งมา
   expiryKey: v.optional(v.picklist(["24h", "7d", "30d"])),
+  roles: v.optional(StaffRolesSchema),
 });
 
 // ── feature 00016 Expense & Cost Tracking (SDS §4.1 / API.md §4.1/§4.3/§4.5) ─
@@ -2362,5 +2373,8 @@ export const UpdateInspectorRoleSchema = v.object({
 });
 
 // ส่วนขยาย 00012 (2026-10-05) — เปลี่ยนบทบาทสมาชิก / โอนเจ้าของหลัก
-export const ChangeMemberRoleSchema = v.object({ role: v.picklist(["OWNER", "ADMIN"]) });
+export const ChangeMemberRoleSchema = v.pipe(
+  v.object({ role: v.optional(v.picklist(["OWNER", "ADMIN"])), roles: v.optional(StaffRolesSchema) }),
+  v.check((x) => x.role !== undefined || x.roles !== undefined, "ต้องส่ง role หรือ roles"),
+);
 export const TransferOwnershipSchema = v.object({ memberId: v.pipe(v.string(), v.minLength(1)) });

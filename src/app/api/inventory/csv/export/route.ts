@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { exportStockToCsv } from "@/services/inventory-stock.service";
 import { formatDateStampBE } from "@/lib/format-date";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
+import { resolveActiveShopContext } from "@/lib/shop-context";
+import { can, rolesFromMembership } from "@/lib/shop-permissions";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * GET /api/inventory/csv/export — seller export รายการสินค้า PHYSICAL + stockQty เป็นไฟล์ CSV
@@ -20,13 +23,11 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as any).id as string;
-
   // 2. DAL: shop derive จาก session userId เท่านั้น — ห้ามรับ shopId จาก client
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "P2");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
+  const userId = gate.userId;
 
   // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
   const verticalGate = requireOnlineSalesVertical(shop.vertical);
@@ -37,8 +38,11 @@ export async function GET() {
     return NextResponse.json({ error: "INVENTORY_NOT_PRO" }, { status: 403 });
   }
 
+  // 00071 P3: ต้นทุน = เจ้าของเท่านั้น — role สดจาก membership ของร้านนี้
+  const canSeeCost = can(gate.roles, "P3");
+
   // 4. gen CSV จาก service แล้วส่งเป็นไฟล์แนบ
-  const csv = await exportStockToCsv(shop.id);
+  const csv = await exportStockToCsv(shop.id, { includeCost: canSeeCost });
 
   // filename ปี(พ.ศ.)เดือนวัน ติดกัน — เรียงตามวันในโฟลเดอร์ได้
   // 🛑 ห้ามใช้ formatDate ตัด "-" (เดิมทำแบบนั้น) — formatDate เป็น วัน-เดือน-ปี แล้ว (2026-10-01)

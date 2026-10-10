@@ -34,10 +34,9 @@ function menuFor(vertical: string) {
   return flattenSellerMenu(
     resolveVisibleSellerMenu(sellerMenuItems, {
       entitlement: { status: 'ACTIVE' as const, package: 'PRO' as const },
-      staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const },
-      expense: { kind: 'GRANTED' } as never,
+      staff: { kind: 'BUSINESS' as const, role: 'OWNER' as const, roles: [] },
       ownsShop: true,
-      shop: { kind: 'BUSINESS', vertical },
+      shop: { kind: 'BUSINESS', vertical, isPrimaryOwner: true },
     }),
   ).map((i) => i.slug)
 }
@@ -82,23 +81,13 @@ describe('[blocker] หน้า /reports/products ต้องมี guard ฝ�
   })
 })
 
-describe('[blocker] product-report-access — fail-closed และไม่ตั้งธงใหม่', () => {
+describe('[blocker] product-report-access — fail-closed ด้วย F1', () => {
   const svc = stripComments(readFileSync(ACCESS, 'utf8'))
 
-  it('ใช้ธงเดิม staffCanViewFinance ไม่สร้างคอลัมน์สิทธิ์ของตัวเอง', () => {
-    expect(svc).toContain('staffCanViewFinance')
-  })
-
-  it('เทียบธงด้วย === true เท่านั้น — `!== false` จะทำให้สวิตช์ของเจ้าของร้านเป็นของหลอก', () => {
-    expect(svc).toMatch(/staffCanViewFinance\s*===\s*true/)
-    expect(svc).not.toMatch(/staffCanViewFinance\s*!==\s*false/)
-  })
-
-  it('OWNER ผ่านโดยไม่ต้องดูธง (เจ้าของร้านปิดสิทธิ์ตัวเองไม่ได้)', () => {
-    const ownerAt = svc.indexOf("active.role === 'OWNER'")
-    const flagAt = svc.indexOf('staffCanViewFinance')
-    expect(ownerAt).toBeGreaterThan(-1)
-    expect(ownerAt).toBeLessThan(flagAt)
+  // 00071: ยกเลิกธง staffCanViewFinance — ตัดสินด้วย can(F1) ตัวกลางเท่านั้น
+  it('ไม่อ่านธง staffCanViewFinance อีก และตัดสินด้วย can(..., F1)', () => {
+    expect(svc).not.toContain('staffCanViewFinance')
+    expect(svc).toMatch(/can\(\s*rolesFromMembership\(active\.role, active\.roles\),\s*'F1'\s*\)/)
   })
 
   /**

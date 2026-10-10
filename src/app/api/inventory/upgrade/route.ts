@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getShopByUserId } from "@/services/shop.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { upgradeToProEntitlement } from "@/services/inventory-entitlement.service";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
@@ -26,14 +26,11 @@ export async function POST() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // cast เหมือน pattern ที่มีอยู่ใน src/app/api/wallet/route.ts:29
-  const userId = (session.user as any).id as string;
-
   // 2. DAL: shop derive จาก session userId เท่านั้น — ห้ามรับ shopId จาก client
-  const shop = await getShopByUserId(userId);
-  if (!shop) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "F4");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
+  const userId = gate.userId;
 
   // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
   const verticalGate = requireOnlineSalesVertical(shop.vertical);

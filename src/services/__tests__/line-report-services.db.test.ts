@@ -59,8 +59,8 @@ describe.skipIf(!isLocal)('00070 line-report services (DB)', () => {
     A4 = await mkShop(A, 'a4', { deletedAt: new Date() })
     B1 = await mkShop(B, 'b1')
     // ADM เป็น ADMIN ของ B1 และ A เป็น ADMIN ของ B1 — ต้องไม่ทำให้ B1 เป็นร้านที่ A รายงานได้
-    await prisma.shopMember.create({ data: { shopId: B1, userId: ADM, role: 'ADMIN' } })
-    await prisma.shopMember.create({ data: { shopId: B1, userId: A, role: 'ADMIN' } })
+    await prisma.shopMember.create({ data: { shopId: B1, userId: ADM, role: 'ADMIN', roles: ['MANAGER'] } })
+    await prisma.shopMember.create({ data: { shopId: B1, userId: A, role: 'ADMIN', roles: ['MANAGER'] } })
   })
 
   afterAll(async () => {

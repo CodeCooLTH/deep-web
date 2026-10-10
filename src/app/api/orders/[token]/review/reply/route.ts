@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import * as v from "valibot";
 
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import { ReplyToReviewSchema } from "@/lib/validations";
 import {
   replyToReview,
@@ -48,6 +50,13 @@ export async function POST(
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
 
+  // T1 — ตอบรีวิว = เจ้าของ/ผู้ดูแลเท่านั้น (ทะเบียนสิทธิ์) · service ตรวจสมาชิกภาพซ้ำอีกชั้น
+  const head = await prisma.order.findUnique({ where: { publicToken: token }, select: { shopId: true } });
+  if (!head) return NextResponse.json({ error: "ไม่พบรีวิวของคำสั่งซื้อนี้" }, { status: 404 });
+  if (!(await canAccessShopWith(head.shopId, userId, "T1"))) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์ตอบกลับรีวิวของร้านนี้" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(ReplyToReviewSchema, body);
   if (!parsed.success) {
@@ -82,6 +91,13 @@ export async function DELETE(
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
   if (!userId) return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
+
+  // T1 — ตอบรีวิว = เจ้าของ/ผู้ดูแลเท่านั้น (ทะเบียนสิทธิ์) · service ตรวจสมาชิกภาพซ้ำอีกชั้น
+  const head = await prisma.order.findUnique({ where: { publicToken: token }, select: { shopId: true } });
+  if (!head) return NextResponse.json({ error: "ไม่พบรีวิวของคำสั่งซื้อนี้" }, { status: 404 });
+  if (!(await canAccessShopWith(head.shopId, userId, "T1"))) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์ตอบกลับรีวิวของร้านนี้" }, { status: 403 });
+  }
 
   try {
     await deleteReviewReply(token, userId);

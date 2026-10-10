@@ -51,7 +51,25 @@ const STATUS_LABEL_KEY: Record<string, keyof Dictionary['dashboard']> = {
  */
 export type RecentOrderServiceWords = { buyerNoun: string; shippedStatusLabel: string; itemSingular: string }
 
-const RecentOrder = ({ orders = [], orderNoun, serviceWords }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string; serviceWords?: RecentOrderServiceWords }) => {
+const RecentOrder = ({
+  orders = [],
+  orderNoun,
+  serviceWords,
+  showAmount,
+  showTools,
+}: {
+  orders?: OrderType[]
+  /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */
+  orderNoun?: string
+  serviceWords?: RecentOrderServiceWords
+  /**
+   * คอลัมน์ยอดรวมรายใบ — ช่าง (ระดับเงิน NONE) ไม่เห็น · ผู้เรียกไม่ส่ง `totalAmount` มาด้วย (ไม่ข้ามเส้น RSC)
+   * 🛑 บังคับส่ง ไม่มีค่าตั้งต้น: ลืมส่งแล้วคอลัมน์หาย/โผล่เงียบ ๆ ดีกว่าให้ tsc ฟ้อง (ตัดสินที่ homeBlocks)
+   */
+  showAmount: boolean
+  /** ปุ่มส่งออก/นำเข้า — ซ่อนเมื่อ NONE (homeBlocks.recentOrderTools) */
+  showTools: boolean
+}) => {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [data] = useState<OrderType[]>(orders)
@@ -87,13 +105,18 @@ const RecentOrder = ({ orders = [], orderNoun, serviceWords }: { orders?: OrderT
       },
     }),
 
-    columnHelper.accessor('totalAmount', {
-      header: t.dashboard.colAmount,
-      cell: ({ getValue }) =>
-        new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(
-          getValue()
-        ),
-    }),
+    // คอลัมน์ยอด: spread แบบมีเงื่อนไข ไม่ใช่ซ่อนด้วย CSS — ช่างไม่ได้รับค่าเงินมาตั้งแต่ server
+    ...(showAmount
+      ? [
+          columnHelper.accessor('totalAmount', {
+            header: t.dashboard.colAmount,
+            cell: ({ getValue }) =>
+              new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(
+                getValue() ?? 0
+              ),
+          }),
+        ]
+      : []),
 
     columnHelper.accessor('type', {
       header: t.dashboard.colType,
@@ -154,6 +177,7 @@ const RecentOrder = ({ orders = [], orderNoun, serviceWords }: { orders?: OrderT
         <h4 className="card-title">
           {fmt(t.dashboard.recentOrdersTitle, { noun })}
         </h4>
+        {showTools && (
         <div>
           <button className="btn btn-sm border-default-300 hover:border-default-400 font-semibold me-1">
             <Icon icon="cloud-upload" /> {t.dashboard.recentOrdersExport}
@@ -162,6 +186,7 @@ const RecentOrder = ({ orders = [], orderNoun, serviceWords }: { orders?: OrderT
             <Icon icon="download" /> {t.dashboard.recentOrdersImport}
           </button>
         </div>
+        )}
       </div>
       <div className="card-body p-0">
         {data.length === 0 ? (

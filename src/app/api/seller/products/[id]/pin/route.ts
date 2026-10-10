@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import {
   pinProduct,
   PinProductNotFoundError,
@@ -29,10 +29,9 @@ export async function POST(
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า", code: "SHOP_NOT_FOUND" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "P2");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   // pin = spend/exposure-increasing action (เพิ่มสินค้าที่แสดงเด่น) — ร้านที่ถูก lock (BUSINESS
   // ค้างชำระ package) ต้อง read-only (pattern เดียวกับ api/products/route.ts, api/inventory/subscribe)
   if (active.locked) {

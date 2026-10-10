@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { CommentReplyConfigSchema } from "@/lib/validations";
 
 /**
@@ -26,36 +26,16 @@ import { CommentReplyConfigSchema } from "@/lib/validations";
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
 
-async function requireShopId(): Promise<{ shopId: string } | { error: NextResponse }> {
+async function requireShopId(cap: "H3"): Promise<{ shopId: string } | { error: NextResponse }> {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return {
-      error: NextResponse.json(
-        { error: "unauthorized", code: "UNAUTHORIZED" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  const ctx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId: ((session?.user as { activeShopId?: string | null } | undefined)?.activeShopId) ?? null,
-    },
-  });
-  if (!ctx) {
-    return {
-      error: NextResponse.json(
-        { error: "ไม่พบร้านที่กำลังใช้งาน", code: "FORBIDDEN" },
-        { status: 403, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  return { shopId: ctx.shopId };
+  // 00071 S-13: ตั้งค่าตอบคอมเมนต์ = H3 — อ่านแถวสมาชิกสด (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE)
+  const g = await requireShopCapability(session, cap);
+  if (!g.ok) return { error: g.response };
+  return { shopId: g.shopId };
 }
 
 export async function PATCH(request: NextRequest) {
-  const ctx = await requireShopId();
+  const ctx = await requireShopId("H3");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

@@ -27,7 +27,8 @@
  * เช่น SellerErrorState.tsx, AuctionForm.tsx, OnboardingModal.tsx ฯลฯ)
  */
 
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
@@ -85,10 +86,11 @@ const MODE_CONFIG = {
 } as const
 
 // map HTTP status → validation message — Base: SubscribeButton.tsx/ReactivateButton.tsx (subscribeErrorMessage/reactivateErrorMessage รวมเป็นฟังก์ชันเดียว mode-aware)
-function errorMessage(mode: 'subscribe' | 'reactivate', status: number): string {
+function errorMessage(mode: 'subscribe' | 'reactivate', status: number, canTopUp: boolean): string {
   const cfg = MODE_CONFIG[mode]
   switch (status) {
     case 402:
+      if (!canTopUp) return NON_OWNER_INSUFFICIENT_CREDIT_TEXT
       return `ยอดเงินไม่พอ — <a href="/wallet" class="underline">${cfg.insufficientCreditLink}</a>`
     case 409:
       return cfg.conflictMessage
@@ -99,6 +101,7 @@ function errorMessage(mode: 'subscribe' | 'reactivate', status: number): string 
 
 function PackageSelectorInner({ mode, lockedAt = null }: PackageSelectorProps) {
   const router = useRouter()
+  const canTopUp = useCanTopUp()
   const [selected, setSelected] = useState<InventoryPackage | null>(null)
   const cfg = MODE_CONFIG[mode]
 
@@ -132,7 +135,7 @@ function PackageSelectorInner({ mode, lockedAt = null }: PackageSelectorProps) {
             body: JSON.stringify({ package: selected }),
           })
           if (res.ok) return true
-          Swal.showValidationMessage(errorMessage(mode, res.status))
+          Swal.showValidationMessage(errorMessage(mode, res.status, canTopUp))
           return false
         } catch {
           Swal.showValidationMessage('เกิดข้อผิดพลาด กรุณาลองใหม่')

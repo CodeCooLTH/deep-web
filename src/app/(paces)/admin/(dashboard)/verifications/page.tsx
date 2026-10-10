@@ -10,6 +10,8 @@
  *   - Added a PENDING/ALL tab selector via ?status query param.
  *   - Rows click through to the detail page instead of opening a modal.
  */
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -53,6 +55,10 @@ function countDocs(documents: unknown): number {
 
 
 export default async function AdminVerificationsPage({ searchParams }: PageProps) {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const sp = await searchParams
   const activeStatus = sp.status ?? 'PENDING'
 

@@ -22,6 +22,10 @@ import {
 import { listHousekeepers } from '@/services/housekeeping.service'
 import BookingDetail from './components/BookingDetail'
 import { sellerContactOrNull } from '@/lib/seller-contact-display'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { moneyLevel } from '@/lib/shop-permissions'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'รายละเอียดการจอง' }
 
@@ -34,7 +38,19 @@ export default async function BookingDetailPage({
 }) {
   const { token } = await params
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การจอง" />
+        <NoPermissionCard capability="O1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
+  // 00071 P3 (S-15): ช่าง (เงิน NONE) ไม่ได้ยอด/มัดจำ/สลิป/ลิงก์ผู้จอง — ไม่ใส่คีย์เหล่านี้ลง payload เลย
+  const showMoney = gate.ok && moneyLevel(gate.roles) !== 'NONE'
 
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
@@ -77,15 +93,20 @@ export default async function BookingDetailPage({
           checkIn: b.checkIn ? toDateOnlyString(b.checkIn) : null,
           checkOut: b.checkOut ? toDateOnlyString(b.checkOut) : null,
           nights: b.checkIn && b.checkOut ? nightsBetween(b.checkIn, b.checkOut) : null,
-          totalAmount: b.totalAmount.toFixed(2),
-          depositAmount: b.depositAmount?.toFixed(2) ?? null,
-          slipFileId: b.slipFileId,
+          ...(showMoney
+            ? {
+                totalAmount: b.totalAmount.toFixed(2),
+                depositAmount: b.depositAmount?.toFixed(2) ?? null,
+                slipFileId: b.slipFileId,
+                publicUrl,
+              }
+            : {}),
           cancelReason: b.cancelReason,
           internalNote: b.internalNote,
-          publicUrl,
           housekeeperId: b.housekeeperId,
           housekeepingStatus: b.housekeepingStatus,
         }}
+        showMoney={showMoney}
         housekeepers={housekeepers.map((h) => ({ id: h.id, name: h.name }))}
       />
     </>

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireShopCapability } from "@/lib/shop-capability";
+import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { InviteShopMemberSchema } from "@/lib/validations";
 import { inviteShopMember, listInvites } from "@/services/shop-member.service";
-import { isShopMember } from "@/lib/shop-context";
 import { maskPhone } from "@/lib/phone-mask";
 
 /**
@@ -28,12 +29,11 @@ function maskInviteContact(contact: string, contactType: "PHONE" | "EMAIL"): str
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ shopId: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const ownerId = (session.user as any).id as string;
-  if (!ownerId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { shopId } = await params;
+  // 00071 T2: คงรหัส NOT_OWNER ที่ UI เดิมอ่าน
+  const gate = await requireShopCapability(session, "T2", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
+  const ownerId = gate.userId;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(InviteShopMemberSchema, body);
@@ -42,9 +42,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const invite = await inviteShopMember(ownerId, shopId, parsed.output.contact, parsed.output.contactType);
+    const invite = await inviteShopMember(ownerId, shopId, parsed.output.contact, parsed.output.contactType, parsed.output.roles);
     return NextResponse.json({ inviteId: invite.id, status: invite.status }, { status: 201 });
   } catch (e: unknown) {
+    if (e instanceof Error && (e.message === "INVALID_ROLES" || e.message === "BILLING_NOT_AVAILABLE")) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     if (e instanceof Error && e.message === "NOT_OWNER") {
       return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
     }
@@ -68,22 +71,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 /**
  * GET /api/business/shops/[shopId]/invites — list invite PENDING (owner management page)
  *
- * ทำไม guard ด้วย isShopMember แทน NOT_OWNER: endpoint นี้ member-scoped (Owner/Admin เข้าถึงเท่ากัน — API.md §2)
+ * 00071 มติ C-3: เจ้าของเท่านั้น (T2) — ผู้ดูแล/บทบาทอื่นได้ 403 NOT_OWNER
  *
  * API.md §4.11
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ shopId: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const userId = (session.user as any).id as string;
-  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { shopId } = await params;
-
-  if (!(await isShopMember(shopId, userId))) {
-    return NextResponse.json({ error: "NOT_MEMBER" }, { status: 403 });
-  }
+  // 00071 T2 (มติ C-3): รายการคำเชิญเห็นได้เฉพาะเจ้าของ — เดิมสมาชิกทุกคนเห็น (ผู้ดูแลได้รายชื่อที่เชิญ)
+  const gate = await requireShopCapability(session, "T2", { shopId });
+  if (!gate.ok) return keepErrorCode(gate.response, "NOT_OWNER");
 
   try {
     const invites = await listInvites(shopId);
@@ -93,6 +90,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         invitedContact: maskInviteContact(i.invitedContact, i.contactType as "PHONE" | "EMAIL"),
         contactType: i.contactType,
         status: i.status,
+        roles: i.roles,
         createdAt: i.createdAt,
       })),
     });

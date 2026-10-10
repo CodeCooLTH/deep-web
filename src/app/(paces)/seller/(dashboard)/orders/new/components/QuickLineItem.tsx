@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react'
-import LineCostField from './LineCostField'
+import { LineCostSlot } from './LineCostField'
 import { useController } from 'react-hook-form'
 import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -36,6 +36,8 @@ interface Props {
   unitLabel?: string
   /** เปิด ProductPickerSheet ที่ QuickForm สำหรับ line นี้ */
   onOpenPicker: () => void
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — ไม่ส่ง = false (fail-closed) */
+  showCost?: boolean
 }
 
 export default function QuickLineItem({
@@ -50,12 +52,12 @@ export default function QuickLineItem({
   productIcon = 'package',
   unitLabel = 'ชิ้น',
   onOpenPicker,
+  showCost = false,
 }: Props) {
   const [priceOpen, setPriceOpen] = useState(false)
   const { field: qtyField } = useController({ control, name: `items.${index}.qty`, defaultValue: 1 })
   const { field: priceField } = useController({ control, name: `items.${index}.price`, defaultValue: 0 })
   const { field: descField } = useController({ control, name: `items.${index}.description`, defaultValue: '' })
-  const { field: costField } = useController({ control, name: `items.${index}.cost`, defaultValue: null })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemErrors = (errors?.items as any)?.[index]
@@ -69,9 +71,6 @@ export default function QuickLineItem({
   const price = Number(priceField.value) || 0
   const hasProduct = Boolean(item.name?.trim())
   const catalogProduct = item.productId ? catalog.find((p) => p.id === item.productId) : undefined
-  // "รู้แน่ว่ายังไม่เคยตั้งต้นทุน" = สินค้าจากแคตตาล็อกที่ cost เป็น null เท่านั้น —
-  // รายการพิมพ์เองไม่มี "ค่าที่ควรจะมีแต่ขาด" ให้เทียบ จึงใช้คำเชิญกลาง ๆ แทน
-  const knownMissingCost = Boolean(catalogProduct && catalogProduct.cost == null)
   const stock = catalogProduct?.stockQty
   const overStock = inventoryEnabled && stock != null && qty > stock
   const setQty = (n: number) => qtyField.onChange(Math.max(1, n))
@@ -135,14 +134,9 @@ export default function QuickLineItem({
             />
             {/* ราคาทุนของบรรทัดนี้ (FR-EXP-17) — ไม่ render จนกว่าแถวจะมีชื่อ กันลิงก์ลอย
                 ในแถวเปล่าท้ายลิสต์ที่ยังไม่ได้เลือกสินค้า */}
-            {hasProduct && (
+            {showCost && hasProduct && (
               <div className="px-1.5">
-                <LineCostField
-                  cost={(costField.value as number | null) ?? null}
-                  price={Number(item.price) || 0}
-                  onChange={costField.onChange}
-                  knownMissing={knownMissingCost}
-                />
+                <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} />
               </div>
             )}
             {itemErrors?.name && <p className="mt-0.5 px-1.5 text-xs text-danger">{itemErrors.name.message}</p>}

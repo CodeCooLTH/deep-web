@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { requireActiveShop } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { setShopSlug } from '@/services/shop.service'
 import { ShopSlugSchema, ShopCategorySchema } from '@/lib/validations'
 
@@ -11,9 +11,9 @@ const Body = v.object({ slug: ShopSlugSchema, category: v.optional(ShopCategoryS
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  // session callback ใส่ id ผ่าน (session as any).user.id — ตาม src/lib/auth.ts session callback
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  // 00071 T1: ตั้ง URL ร้าน = เจ้าของ/ผู้ดูแล (เดิม "ทุกคน" 2026-08-07 — slug เปลี่ยนไม่ได้ จึงไม่ควรเปิดให้ทุกบทบาทจอง)
+  const gate = await requireShopCapability(session, 'T1')
+  if (!gate.ok) return gate.response
 
   const parsed = v.safeParse(Body, await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง' }, { status: 400 })
@@ -29,15 +29,11 @@ export async function POST(req: NextRequest) {
    * requireActiveShop ตรวจ membership ให้ในตัว (resolveActiveShopContext) — user ที่ไม่ได้เป็น
    * สมาชิกร้านนั้นจะ resolve ไม่ได้ตั้งแต่ต้นทาง จึงไม่ต้องเช็คสิทธิ์ซ้ำที่นี่
    *
-   * ไม่จำกัด role (user เคาะ 2026-08-07: "ทุกคน") — สมาชิกร้านคนไหนก็ตั้งได้
+   * สิทธิ์: T1 (เจ้าของ/ผู้ดูแล) — ปรับจาก "ทุกคน" (2026-08-07) ตามตารางสิทธิ์ 00071
    * [สำคัญ] slug เปลี่ยนไม่ได้หลังตั้ง (ไม่มีทางเข้าเขียนทับที่ไหนในระบบ) การเปิดให้ทุก role ตั้ง
    * จึงแปลว่าทีมงานคนหนึ่งจองชื่อผิดแล้วแก้ไม่ได้ — UI ต้องเตือนเรื่องนี้ก่อนยืนยันเสมอ
    */
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  if (!active) return NextResponse.json({ error: 'ไม่พบร้าน' }, { status: 404 })
-  const shop = active.shop
+  const shop = gate.active.shop
 
   try {
     await setShopSlug(shop.id, parsed.output.slug)

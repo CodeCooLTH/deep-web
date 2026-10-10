@@ -16,16 +16,19 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import type { OrderStatus } from './data'
 import { canEditOrder } from '@/lib/order-display'
+import { useViewerCan } from './OrderViewerRoles'
 
 interface OrderCardMenuProps {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ต้องตรงกับเมนู ⋮ ของหน้ารายละเอียด */
   orderNoun?: string
   token: string
   status: OrderStatus
+  /** BILLING แก้ใบนี้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ) */
+  editLocked?: boolean
   onCancelRequest: (token: string) => void
 }
 
-export default function OrderCardMenu({ token, status, onCancelRequest, orderNoun = 'คำสั่งซื้อ' }: OrderCardMenuProps) {
+export default function OrderCardMenu({ token, status, editLocked = false, onCancelRequest, orderNoun = 'คำสั่งซื้อ' }: OrderCardMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -38,8 +41,12 @@ export default function OrderCardMenu({ token, status, onCancelRequest, orderNou
   }, [open])
 
   const isTerminal = status === 'CONFIRMED' || status === 'CANCELLED'
-  const canEdit = canEditOrder(status)
-  const canCancel = status === 'PENDING' || status === 'SHIPPED'
+  // O3 แก้ไข · O6 ยกเลิก — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นรายการ (ตัวบังคับจริงอยู่ที่ route)
+  // hook เรียกครบทุกครั้งก่อน && (กฎของ hooks — ห้ามเรียกเป็นเงื่อนไข)
+  const viewerCanEdit = useViewerCan('O3')
+  const viewerCanCancel = useViewerCan('O6')
+  const canEdit = canEditOrder(status) && viewerCanEdit && !editLocked
+  const canCancel = (status === 'PENDING' || status === 'SHIPPED') && viewerCanCancel
 
   return (
     <div className="relative" ref={ref}>

@@ -14,14 +14,14 @@ import { AiChatbotConfigPatchSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const config = await getChatbotConfig(ctx.shopId)
   return NextResponse.json({ ...config, canEdit: ctx.canEdit }, { headers: AUTO_REPLY_NO_STORE })
 }
 
 export async function PATCH(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

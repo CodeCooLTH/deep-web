@@ -1,4 +1,5 @@
 import { NextAuthOptions, Account, User } from "next-auth";
+import { resolveSessionActiveShop, type ActiveShopMembership } from "@/lib/session-active-shop";
 import FacebookProvider from "next-auth/providers/facebook";
 import LineProvider from "next-auth/providers/line";
 import InstagramProvider from "next-auth/providers/instagram";
@@ -1036,12 +1037,12 @@ export const authOptions: NextAuthOptions = {
           // active-shop-context (feat 00008 TFR-012) — additive; re-verify membership ทุก render
           // (ไม่ trust JWT เพียงอย่างเดียว — JWT อายุ 30 วัน, admin อาจถูก remove ระหว่างทาง)
           // fail-closed: error ใด ๆ ระหว่าง resolve → fallback Personal (null ถ้าไม่มี Personal — ผู้ถูกเชิญ)
-          let resolvedActiveShopId: string | null = personal?.id ?? null; // Personal fallback
-          let activeShopRole: "OWNER" | "ADMIN" = "OWNER";
+          const personalId = personal?.id ?? null;
+          const tokenActiveShopId = (token as { activeShopId?: string | null }).activeShopId ?? null;
+          let membership: ActiveShopMembership = null;
           let hasBusinessMembership = false;
           try {
-            const tokenActiveShopId = (token as { activeShopId?: string | null }).activeShopId ?? null;
-            if (tokenActiveShopId && tokenActiveShopId !== resolvedActiveShopId) {
+            if (tokenActiveShopId && tokenActiveShopId !== personalId) {
               // filter shop.deletedAt/purgedAt ด้วย — กัน soft-deleted business ยัง resolve เป็น active
               // (สอดคล้องกับ resolveActiveShopContext + hasBusinessMembership count; ป้องกัน display drift
               // ที่ topbar/sidebar โชว์ชื่อ/โลโก้ร้านที่ถูกลบ — security review Low finding)
@@ -1051,13 +1052,9 @@ export const authOptions: NextAuthOptions = {
                   userId: user.id,
                   shop: { deletedAt: null, purgedAt: null },
                 },
-                select: { role: true },
+                select: { role: true, roles: true },
               });
-              if (m) {
-                resolvedActiveShopId = tokenActiveShopId;
-                activeShopRole = m.role as "OWNER" | "ADMIN";
-              }
-              // ไม่เจอ (ถูก remove/soft-delete ระหว่างทาง) → resolvedActiveShopId คง Personal fallback ที่ตั้งไว้ข้างบน
+              if (m) membership = { shopId: tokenActiveShopId, role: m.role as "OWNER" | "ADMIN", roles: m.roles };
             }
             hasBusinessMembership =
               (await prisma.shopMember.count({
@@ -1065,10 +1062,15 @@ export const authOptions: NextAuthOptions = {
               })) > 0;
           } catch (e) {
             console.error("[auth] session activeShopContext resolve failed — fallback Personal", e);
-            resolvedActiveShopId = personal?.id ?? null;
-            activeShopRole = "OWNER";
+            membership = "ERROR";
             hasBusinessMembership = false;
           }
+          // S-17: ไม่มี fallback OWNER — ไม่เจอ/ล้ม → ถอย Personal (null ถ้าไม่มี Personal) ดู lib/session-active-shop.ts
+          const { activeShopId: resolvedActiveShopId, role: activeShopRole, roles: activeShopRoles } = resolveSessionActiveShop({
+            personalShopId: personalId,
+            tokenActiveShopId,
+            membership,
+          });
 
           // active shop identity (FB switcher) — query เฉพาะเมื่อ active เป็น BUSINESS
           // (resolvedActiveShopId != Personal id). PERSONAL → null → consumer fallback avatar/displayName
@@ -1125,7 +1127,7 @@ export const authOptions: NextAuthOptions = {
             email: user.email, avatar: user.avatar, isShop: user.isShop,
             isAdmin: user.isAdmin, trustScore: user.trustScore,
             shopSlug, needsOnboarding, needsPhoneVerify,
-            activeShopId: resolvedActiveShopId, activeShopRole, hasBusinessMembership,
+            activeShopId: resolvedActiveShopId, activeShopRole, activeShopRoles, hasBusinessMembership,
             // FB switcher (origin/main): active shop identity สำหรับ topbar/sidebar
             activeShopKind, activeShopName, activeShopLogo, activeShopSlug,
             // feature 00012 (Lazy Personal shop): ให้ layout/choose-shop รู้ว่า user มีร้านของตัวเองไหม

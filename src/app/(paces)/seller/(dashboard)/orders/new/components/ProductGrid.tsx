@@ -26,9 +26,11 @@ interface Props {
   showFulfillmentBadge?: boolean
   /** ร้านเปิดระบบคลัง → แสดงสต็อกคงเหลือ + กันเพิ่มสินค้าที่หมด */
   inventoryEnabled?: boolean
+  /** 00071 P3 — บทบาทเปิดบิล: แคตตาล็อกถูกกรองเหลือบริการ → คำอธิบายตอนว่างเปลี่ยนเป็นคำของบริการ */
+  billingOnly?: boolean
 }
 
-export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false, productNoun = 'สินค้า', showFulfillmentBadge = true }: Props) {
+export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false, productNoun = 'สินค้า', showFulfillmentBadge = true, billingOnly = false }: Props) {
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -56,7 +58,9 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
       {catalog.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-default-400">
           <Icon icon="package" className="size-12 opacity-40" />
-          <p className="text-sm">ยังไม่มี{productNoun}ในแคตตาล็อก</p>
+          {/* บทบาทเปิดบิลเห็นเฉพาะบริการ — ว่าง ≠ ร้านไม่มีสินค้า จึงบอกทางต่อ (พิมพ์รายการเองได้) */}
+          <p className="text-sm">{billingOnly ? 'ยังไม่มีบริการในรายการ' : `ยังไม่มี${productNoun}ในแคตตาล็อก`}</p>
+          {billingOnly && <p className="text-xs">พิมพ์ชื่อรายการเองได้ หรือขอให้เจ้าของร้านหรือผู้ดูแลเพิ่มบริการให้</p>}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-default-400">

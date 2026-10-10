@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { sendPrivateReplyToCommentById } from "@/services/comment-private-reply.service";
 import { PrivateReplySchema } from "@/lib/validations";
 import { sessionUserId } from "@/lib/session-user";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * POST /api/chat/comments/[commentId]/private-reply — ปุ่มแมนนวล "ทักแชท" (feature 00038)
@@ -18,7 +19,7 @@ import { sessionUserId } from "@/lib/session-user";
  * resolveActiveShopContext/requireActiveShop ตรง ๆ) — คอมเมนต์ 1 อันอาจเป็นของร้านที่ไม่ใช่ร้าน
  * active ของผู้ใช้ (ผู้ใช้เข้าถึงได้หลายร้าน) การตรวจสิทธิ์ที่ถูกต้องคือไล่จากแถวข้อมูลเอง
  * (comment → post → channel → shop) ซึ่ง sendPrivateReplyToCommentById ทำให้แล้วผ่าน
- * canAccessShop(channel.shopId, actorUserId) ภายในตัวมันเอง (ดู docstring ข้อ 3 ของฟังก์ชันนั้น)
+ * canAccessShopWith(channel.shopId, actorUserId, cap) ภายในตัวมันเอง (ดู docstring ข้อ 3 ของฟังก์ชันนั้น)
  *
  * 🛑 ห้ามส่ง reservedLogId (เส้นทาง AUTO เท่านั้น — processCommentAutoReply เป็นคนจองแถวเอง)
  * ต้องส่ง trigger: 'MANUAL' + actorUserId จาก session เสมอ
@@ -54,6 +55,7 @@ export async function POST(
     text: parsed.output.message,
     trigger: "MANUAL",
     actorUserId: userId,
+    cap: "H2",
   });
 
   if (result.sent) {
@@ -72,10 +74,8 @@ export async function POST(
         { status: 404, headers: NO_STORE_HEADERS },
       );
     case "FORBIDDEN":
-      return NextResponse.json(
-        { error: "ไม่มีสิทธิ์ทักแชทจากความคิดเห็นนี้", code: "FORBIDDEN" },
-        { status: 403, headers: NO_STORE_HEADERS },
-      );
+      // 00071: ไม่ใช่สมาชิก/บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE มาตรฐาน
+      return forbiddenRoleResponse();
     case "ALREADY_SENT":
       return NextResponse.json(
         { error: "คอมเมนต์นี้ถูกทักไปแล้ว", code: "ALREADY_SENT" },

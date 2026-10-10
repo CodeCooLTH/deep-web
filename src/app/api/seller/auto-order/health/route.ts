@@ -20,7 +20,7 @@ const BodySchema = v.object({
  * ก่อนที่เราจะเพิ่ม field ใหม่จะไม่มีมันติดมาเอง และเงียบสนิทเหมือนไม่มีอะไรเกิดขึ้น
  */
 export async function POST(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(BodySchema, await request.json().catch(() => null))

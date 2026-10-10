@@ -14,7 +14,7 @@ import { NO_STORE_HEADERS, requireShopId, toErrorResponse } from "../_shared";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopId();
+  const ctx = await requireShopId("H3");
   if ("error" in ctx) return ctx.error;
 
   const parsed = v.safeParse(RichMenuChannelRefSchema, await request.json().catch(() => null));

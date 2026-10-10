@@ -2,10 +2,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // seller-push.service import prisma ที่ระดับ module — เทสนี้ไม่แตะฐานข้อมูลจริงเลย จึง mock ทิ้ง
 // (Hard Rule 13: เทสห้ามแตะฐานข้อมูลโดยไม่จำเป็น)
+// 00071 S-13: ผู้รับ push = คนที่ "ถือ H1" ในร้าน (userIdsHoldingCap → shop.findMany พร้อมแถวสมาชิก)
+// staffRef = ผู้ดูแลที่มีบทบาทตอบแชทของร้านทดสอบ (เจ้าของ owner1 อยู่เสมอ) — ตั้งต่อเทสด้วย setStaff
+const staffRef = vi.hoisted(() => ({ rows: [] as { userId: string; roles: string[] }[] }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    shop: { findUnique: vi.fn(async () => ({ userId: 'owner1' })) },
-    shopMember: { findMany: vi.fn(async () => []) },
+    shop: {
+      findMany: vi.fn(async (args: { where: { id: { in: string[] } } }) =>
+        args.where.id.in.map((id) => ({
+          id,
+          userId: 'owner1',
+          kind: 'BUSINESS',
+          vertical: 'ONLINE_SALES',
+          members: [
+            { userId: 'owner1', role: 'OWNER', roles: [] },
+            ...staffRef.rows.map((r) => ({ userId: r.userId, role: 'ADMIN', roles: r.roles })),
+          ],
+        })),
+      ),
+    },
     // ไม่มีแถว = ทุกคนเปิดแจ้งเตือนอยู่ (กติกา opt-out ของ ShopNotificationPref)
     shopNotificationPref: { findMany: vi.fn(async () => [] as { userId: string }[]) },
     // เสียงแจ้งเตือนที่ผู้ใช้เลือก (2026-10-09) — ไม่มีแถว = "chat" ค่าตั้งต้น
@@ -19,6 +34,9 @@ const { pageTitle, pushNewChatMessage } = await import('@/services/seller-push.s
 const { getConversationToastPreview } = await import('@/services/chat.service')
 const { pushToUsers } = await import('@/services/app-push.service')
 const { prisma } = await import('@/lib/prisma')
+beforeEach(() => {
+  staffRef.rows = []
+})
 
 /**
  * Prisma type ของ findMany อ้างอิง "แถวเต็ม" เสมอ แต่ service เรียกด้วย `select` จึงได้ subset
@@ -154,7 +172,7 @@ describe('pushNewChatMessage — ตั้งค่าแจ้งเตือ�
   beforeEach(() => {
     vi.mocked(pushToUsers).mockClear()
     vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([]))
-    vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([]))
+    staffRef.rows = []
   })
 
   it('ไม่มีแถวใน ShopNotificationPref = เปิดอยู่ → ยังได้รับตามปกติ', async () => {
@@ -179,7 +197,7 @@ describe('pushNewChatMessage — ตั้งค่าแจ้งเตือ�
 
   it('ปิดของคนหนึ่ง ต้องไม่กระทบพนักงานคนอื่นในร้านเดียวกัน', async () => {
     // เส้นแบ่งสำคัญ: ค่านี้เป็นความชอบของ "คน" ไม่ใช่การตั้งค่าของ "ร้าน"
-    vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([{ userId: 'staff1' }, { userId: 'staff2' }]))
+    staffRef.rows = [{ userId: 'staff1', roles: ['CHAT'] }, { userId: 'staff2', roles: ['CHAT'] }]
     vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([{ userId: 'staff1' }]))
     vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('c-pref-3'))
 
@@ -205,7 +223,7 @@ describe('[blocker] pushNewChatMessage — เสียงตามที่ผ�
   })
 
   it('ไม่มีใครตั้งค่า = ทุกคนได้เสียงแชท ยิงครั้งเดียว', async () => {
-    vi.mocked(prisma.shopMember.findMany).mockResolvedValueOnce(selected([{ userId: 'staff1' }]))
+    staffRef.rows = [{ userId: 'staff1', roles: ['CHAT'] }]
     vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('conv-sound-1') as never)
     await pushNewChatMessage({ shopId: 'shop1', conversationId: 'conv-sound-1' })
     expect(vi.mocked(pushToUsers).mock.calls).toHaveLength(1)
@@ -215,7 +233,7 @@ describe('[blocker] pushNewChatMessage — เสียงตามที่ผ�
   })
 
   it('คนที่เลือกเสียงมาตรฐานได้เสียงมาตรฐาน · คนอื่นยังได้เสียงแชท', async () => {
-    vi.mocked(prisma.shopMember.findMany).mockResolvedValueOnce(selected([{ userId: 'staff1' }]))
+    staffRef.rows = [{ userId: 'staff1', roles: ['CHAT'] }]
     vi.mocked(prisma.user.findMany).mockResolvedValueOnce(selected([{ id: 'staff1', chatPushSound: 'default' }]))
     vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('conv-sound-2') as never)
     await pushNewChatMessage({ shopId: 'shop1', conversationId: 'conv-sound-2' })

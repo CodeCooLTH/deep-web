@@ -326,8 +326,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | **Onboarding (บังคับ, needsOnboarding=true)** | **`/onboarding`** |
 | Dashboard | `/dashboard` |
 | Sales (analytics) | `/sales` |
-| **ผลงานแอดมิน (feature 00059)** | **`/reports/agents`** และ **`/reports/agents/[agentId]`** — `[agentId]` = `User.id` ของคนในร้าน · พนักงานที่ยังไม่ได้รับสิทธิ์ข้อมูลการเงิน (`Shop.staffCanViewFinance=false`) เปิดของคนอื่นไม่ได้ (เห็นจอปฏิเสธ ไม่ใช่ 404) และไม่เห็นคอลัมน์ยอดขาย |
-| **ยอดขายรายสินค้า (feature 00063)** | **`/reports/products`** — รายงานไทม์ซีรีส์รายเดือน รับ `?month=YYYY-MM` (ไม่ระบุ = เดือนปัจจุบันเวลาไทย · ผิดรูป/เกินขอบ = ถอยมาเดือนปัจจุบัน + แถบแจ้ง **ไม่ throw ไม่ 404**) · 🛑 **เห็นเฉพาะ `Shop.vertical='ONLINE_SALES'`** และด่านอยู่ที่ `resolveProductReportAccess()` ฝั่งเซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนเมนู — ร้านประเภทอื่นเข้า URL ตรงเห็นการ์ดข้อความ ไม่ redirect เงียบ และ **ไม่มี query ยอดขายเกิดขึ้นเลย** · สิทธิ์ใช้ธงเดิม `Shop.staffCanViewFinance` ตัวเดียวกับ `/expenses` และ `/reports/agents` (ไม่มีธงใหม่) · 🛑 นิยาม "ขายแล้ว" ของหน้านี้ = `OrderItem` ของ `Order.status != 'CANCELLED'` (ชุดเดียวกับ `getBestSellerProducts()`) **ไม่ใช่** `revenueOrderWhere` ของ `/sales` ⇒ ตัวเลขสองหน้าไม่เท่ากันโดยตั้งใจ และหน้าจอต้องแสดง `SALES_BASIS_NOTE` เสมอ (HR16) · **ไม่มี API endpoint ใหม่ ไม่มี migration ไม่มี index ใหม่** |
+| **ผลงานแอดมิน (feature 00059)** | **`/reports/agents`** และ **`/reports/agents/[agentId]`** — `[agentId]` = `User.id` ของคนในร้าน · ผู้ที่ไม่ใช่เจ้าของ (ไม่มี F1 — 00071 P1 แทนธง `staffCanViewFinance` ที่เลิกอ่านแล้ว) เปิดของคนอื่นไม่ได้ (เห็นจอปฏิเสธ ไม่ใช่ 404) และไม่เห็นคอลัมน์ยอดขาย |
+| **ยอดขายรายสินค้า (feature 00063)** | **`/reports/products`** — รายงานไทม์ซีรีส์รายเดือน รับ `?month=YYYY-MM` (ไม่ระบุ = เดือนปัจจุบันเวลาไทย · ผิดรูป/เกินขอบ = ถอยมาเดือนปัจจุบัน + แถบแจ้ง **ไม่ throw ไม่ 404**) · 🛑 **เห็นเฉพาะ `Shop.vertical='ONLINE_SALES'`** และด่านอยู่ที่ `resolveProductReportAccess()` ฝั่งเซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนเมนู — ร้านประเภทอื่นเข้า URL ตรงเห็นการ์ดข้อความ ไม่ redirect เงียบ และ **ไม่มี query ยอดขายเกิดขึ้นเลย** · สิทธิ์ตัดสินที่ `resolveProductReportAccess()` ด้วย F1 (เจ้าของเท่านั้น — 00071 P1 เลิกอ่านธง `Shop.staffCanViewFinance` แล้ว) · 🛑 นิยาม "ขายแล้ว" ของหน้านี้ = `OrderItem` ของ `Order.status != 'CANCELLED'` (ชุดเดียวกับ `getBestSellerProducts()`) **ไม่ใช่** `revenueOrderWhere` ของ `/sales` ⇒ ตัวเลขสองหน้าไม่เท่ากันโดยตั้งใจ และหน้าจอต้องแสดง `SALES_BASIS_NOTE` เสมอ (HR16) · **ไม่มี API endpoint ใหม่ ไม่มี migration ไม่มี index ใหม่** |
 | Products | `/products` |
 | Categories | `/categories` |
 | Customers | `/customers` |
@@ -1525,6 +1525,22 @@ erDiagram
 
 **Constraint / Index:** `@@unique([conversationId, productId, optionLabel])` (กันแปะซ้ำ · `productId` null หลังสินค้าถูกลบ → NULL ไม่ชนกัน ยอมรับ) · `@@index([shopId, conversationId])`
 
+### 6.71 บทบาทสมาชิกร้าน — `ShopMember.roles` + คอลัมน์ใน invite (feature 00071)
+
+> สถานะ: **P1 implement แล้ว (ไม่มี migration) · P2 implement แล้ว (migration `20261010120000_shop_member_roles` · additive ไม่มี DROP) · P3 implement แล้ว (ไม่มี migration — ตัดต้นทุนด้วย Prisma global `omit` ดูด้านล่าง)** · รายละเอียด: `docs/20 - Features/00071 - Shop Member Roles & Permissions/DATABASE.md`
+
+| ตาราง.คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `ShopMember.role` (เดิม) | String `'OWNER'\|'ADMIN'` | ความหมายคงเดิม = เจ้าของ vs พนักงาน — ไม่เปลี่ยนค่า |
+| `ShopMember.roles` (**P2 ✅**) | String[] NOT NULL default `[]` | หน้าที่ของพนักงาน 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · เจ้าของ = ว่าง · ถือ 3 บทบาทนับ 1 คนในโควตา `staffCountWhere()` · CHECK `ShopMember_roles_check` |
+| `ShopInvite.roles` (**P2 ✅**) | String[] NOT NULL default `["MANAGER"]` | เชิญเป็นเจ้าของไม่ได้ · CHECK `ShopInvite_roles_check` (1..4 ค่าในชุด) |
+| `ShopInviteLink.roles` (**P2 ✅**) | String[] NOT NULL default `["MANAGER"]` | เช่นเดียวกัน · CHECK `ShopInviteLink_roles_check` |
+| `Shop.staffCanViewFinance` | Boolean | **deprecated โดย 00071 P1 (implement แล้ว)** — ยังอยู่ใน schema แต่ไม่มีโค้ดอ่านเพื่อตัดสินสิทธิ์ (ตั้งเป็น `true` ก็ไม่มีผล) · ห้าม drop โดยไม่ขออนุมัติ user |
+
+**Prisma global `omit` (P3 · `src/lib/prisma.ts`):** `OrderItem.cost` และ `Product.cost` ไม่ติดมากับ query ปกติโดยค่าตั้งต้น (ไม่ใช่การเปลี่ยน schema) · query ของเจ้าของ/F1 ที่ต้องใช้ต้นทุน **opt-in เอง** ด้วย `select: { cost: true }` · `omit: { cost: false }` · `include: { items: { omit: { cost: false } } }` · ไม่ครอบ `$queryRaw` และ aggregate (`_sum` ที่อ้าง cost) — ด่านกันลืม opt-in ของหน้าคำนวณต้นทุน: `src/lib/__tests__/cost-optin-guard.test.ts` · ตรวจคีย์จริงในผลลัพธ์: `tests/integration/role-contract.test.ts`
+
+Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน์ → backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (คำเชิญ/ลิงก์ค้างได้ `['MANAGER']` จาก default) → `SET NOT NULL` → CHECK 3 ตัว (`NOT VALID` + `VALIDATE`) — CHECK เป็น **unmanaged SQL** (Prisma ประกาศไม่ได้) ห้าม `db pull`/`migrate dev` · invariant: `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1..4 ค่าในชุด · เขียน `role='OWNER'` ต้องส่ง `roles: []` คู่กัน
+
 ---
 
 ## §7 API Reference
@@ -1787,8 +1803,8 @@ erDiagram
 ### 7.13 Expenses & Cost — กำไรขาดทุน (feature 00016)
 
 > 🛑 ทั้งหมวดนี้ **เปิดฟรีทุกร้านตั้งแต่ 2026-08-07** (D-EXT-1) — เดิมต้องมี Business Package ที่ ACTIVE
-> gate ที่ยังเหลือคือ **สิทธิ์คน** เท่านั้น: owner เห็นเสมอ · staff (ShopMember ADMIN) เห็นเมื่อ `Shop.staffCanViewFinance = true` — **default เปลี่ยนเป็น `true` เมื่อ 2026-08-08** (user สั่ง "เปิดหมด"; migration `20260808220000` เปลี่ยนทั้ง DEFAULT และแถวเดิมทั้ง 12 ร้าน) กลไกยังเหมือนเดิมทุกบรรทัด — owner ปิดรายร้านได้ และ `resolveExpenseAccess()` ยัง fail-closed เมื่อปิด
-> จุดตัดสินสิทธิ์เดียวของทั้งหมวด = `resolveExpenseAccess()` (`src/services/expense-access.service.ts`) คืน `GRANTED` / `NO_SHOP` / `STAFF_NOT_ALLOWED`
+> gate ที่ยังเหลือคือ **สิทธิ์คน** เท่านั้น: **เจ้าของเท่านั้น (F1-F3) ตั้งแต่ 00071 P1** — ผู้ดูแล (ShopMember ADMIN) ได้ `403 { error: 'FORBIDDEN_ROLE' }` ทุก endpoint ในตารางนี้ (ยกเว้นแถว members/transfer ที่เป็นของ 00012) · ธง `Shop.staffCanViewFinance` **ไม่ถูกอ่านแล้ว** (ประวัติ: default `true` ตั้งแต่ 2026-08-08, migration `20260808220000`)
+> จุดตัดสินสิทธิ์เดียวของทั้งหมวด = `resolveExpenseAccess()` (`src/services/expense-access.service.ts`) คืน `GRANTED` / `NO_SHOP` / `STAFF_NOT_ALLOWED` (ค่าหลังคือ "ไม่ใช่เจ้าของ" — ชื่อคงเดิม)
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
@@ -1797,8 +1813,8 @@ erDiagram
 | PATCH | `/api/expenses/[id]` | Seller (`GRANTED`) | แก้ค่าใช้จ่าย | `expense.service` |
 | DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
 | GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` + **`coverage{soldItemCount,uncostedItemCount}`** (feature 00067 · additive) | `pnl.service` · `cost-coverage.service` |
-| PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
-| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ | `shop-member.service` |
+| ~~PATCH~~ | ~~`/api/business/shops/[shopId]/finance-visibility`~~ | — | 🛑 **ลบแล้ว (00071 P1)** — ไม่มีไฟล์ route (ตอบ 404 ตามปกติของ Next ไม่ใช่ 410) · สวิตช์ในหน้าสมาชิกถอดแล้ว | — |
+| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ · **00071 P2 ✅:** body `{ role?, roles?: StaffRole[] }` → `200 { role, roles }` · ผู้ไม่ใช่เจ้าของ `403 NOT_OWNER` · `400 INVALID_INPUT`/`INVALID_ROLES`/`BILLING_NOT_AVAILABLE` — ดู §7.27 | `shop-member.service` |
 | DELETE | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | ลบผู้ดูแล/เจ้าของร่วม — ห้ามลบเจ้าของหลักและตัวเอง (เดิม: เจ้าของหลักลบได้แค่ ADMIN) | `shop-member.service` |
 | POST | `/api/business/shops/[shopId]/transfer` | **เจ้าของหลักเท่านั้น** | `{ memberId }` โอน `Shop.userId` · ผู้รับต้องมีแพ็กเกจ ACTIVE ที่ร้าน/สมาชิกไม่เกินโควตา · เจ้าของเดิมคง role OWNER | `shop-member.service` |
 
@@ -1965,9 +1981,9 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 ร้านมาจาก session เท่านั้น (ต่างจากกติกา `?shopId=` ใน §7.17b โดยตั้งใจ: รายงานไม่ได้ถูกกดจากกล่องแชท
 และการเปิดช่องให้ระบุร้านในรายงาน = เปิดช่องอ่านตัวเลขข้ามร้านโดยไม่ได้อะไรกลับมา)
 
-🛑 **สิทธิ์ใช้ธงเดิม `Shop.staffCanViewFinance` ไม่ได้ตั้งธงใหม่** — `resolveAgentReportAccess()`
-คืน `FULL` (เจ้าของ หรือพนักงานที่เปิดสิทธิ์การเงินแล้ว) / `SELF` (พนักงานอื่น — เห็นเฉพาะของตัวเอง
-และ **ตัวเลขเงินถูกตัดออกจาก payload** ไม่ใช่แค่ไม่ render) / `NO_SHOP`
+🛑 **สิทธิ์ตัดสินด้วย F1 (เจ้าของเท่านั้น) ตั้งแต่ 00071 P1 — ไม่อ่านธง `Shop.staffCanViewFinance` แล้ว** — `resolveAgentReportAccess()`
+คืน `FULL` (เจ้าของ) / `SELF` (ผู้ที่ไม่ใช่เจ้าของทุกคน — เห็นเฉพาะของตัวเอง
+และ **`revenue` เป็น `null` ทุกชั้นของ payload** (`redactAgentRevenue` ใน `src/lib/agent-revenue-redact.ts` เดิน response ทั้งก้อน) ไม่ใช่แค่ไม่ render) / `NO_SHOP`
 
 ค่าตัวเลขทุกตัวเป็น `number | null` — **`null` = ไม่มีตัวอย่างให้คำนวณ ไม่ใช่ 0**
 นิยามของทุกตัวชี้วัดอยู่ที่ `src/lib/agent-performance.ts` (SSOT) — ดู
@@ -2272,6 +2288,54 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 **DELETE `…/interested-products/[rowId]`** → 204 · 404 ไม่ใช่แถวของร้านนี้ (ตรวจ `{id, shopId}`)
 
 ทุก route: Prisma error อื่น → 500 `{ error }` (log เฉพาะชนิด error ไม่ log เนื้อความจำ/ชื่อสินค้า)
+
+### 7.27 บทบาทและสิทธิ์สมาชิกร้าน (feature 00071 — **P1, P2, P3 implement แล้ว**)
+
+> เอกสารเต็ม: `docs/20 - Features/00071 - Shop Member Roles & Permissions/{BRD,SRS,SDS,API,DATABASE,TestCase}.md` · ตารางสิทธิ์ SSOT = **BRD §8.3**
+
+| Phase | การเปลี่ยน |
+|---|---|
+| P1 ✅ | ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` (ลบไฟล์ route · ไม่ใช่ 410) · ผิวการเงินเต็ม ตอบ `403 { error: 'FORBIDDEN_ROLE' }` (`forbiddenRoleResponse()` ใน `src/lib/forbidden-role.ts`) สำหรับผู้ที่ไม่ใช่เจ้าของ · ตัดฟิลด์เงินที่ต้นทาง — รายละเอียดสัญญาด้านล่าง |
+| P1 helper | `src/lib/shop-permissions.ts` (`can` · `moneyLevel` · `rolesFromMembership` · `CAPABILITY_ROLES`) · `src/lib/forbidden-role.ts` · `src/lib/shop-owner.ts` (`isShopOwnerRole` · `isShopOwnerOfShop`) · `src/lib/dashboard-money.ts` (`dashboardMoney` · `redactCommandCenterData`) · `src/lib/order-cost-redact.ts` (`stripOrderItemCost`) · `src/lib/agent-revenue-redact.ts` (`redactAgentRevenue`) · ด่านกันลืม: `src/lib/__tests__/finance-surface-guard.test.ts` (page/layout/route ที่เรียกแหล่งเงินต้องเรียกตัวตัดสินในไฟล์เดียวกัน หรืออยู่ใน ALLOW พร้อมเหตุผล) |
+| P2 ✅ | `PATCH …/members/[memberId]` รับ `{ role?: 'OWNER'\|'ADMIN', roles?: StaffRole[] }` → `200 { role, roles }` · `POST /api/business/shops/[shopId]/invites` (`{ contact, contactType, roles? }` → `201 { inviteId, status }`) และ `POST /api/shops/current/invite-links` (`{ expiryKey?, roles? }` → `201 { url, slug, expiresAt }`) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) · เฉพาะเจ้าของ → ผู้อื่น `403 NOT_OWNER` (ไม่ใช่ `FORBIDDEN_ROLE`) · `GET` invites/invite-links และ `POST /api/invites/[inviteId]/accept` คืน `roles` เพิ่ม · error: `INVALID_ROLES` / `BILLING_NOT_AVAILABLE` → 400 (`BILLING` เฉพาะร้าน `canUseAppointments`) · helper: `src/lib/shop-role-assignment.ts` · `src/lib/shop-member-errors.ts` · `src/lib/shop-role-picker.ts` · `src/lib/session-active-shop.ts` (อ่านสมาชิกล้ม ⇒ ไม่เป็นเจ้าของ) |
+| P3 ✅ | ทุก route/หน้าฝั่งร้านประกาศ capability ใน `src/lib/route-capabilities.ts` แล้วถามด่านกลาง `src/lib/shop-capability.ts` (ต่อ `can()` ของ `shop-permissions.ts` เข้ากับแถวสมาชิกสด) — รายละเอียดสัญญาด้านล่าง "สัญญา API ที่เพิ่มใน P3" |
+
+**สัญญา API ที่เปลี่ยนใน P1 (จากโค้ด):**
+
+| Endpoint | พฤติกรรมสำหรับผู้ที่ไม่ใช่เจ้าของ |
+|---|---|
+| `/api/expenses`, `/api/expenses/[id]`, `/api/expenses/report`, `/api/finance/receivables`, `/api/seller/sales-series` | `403 FORBIDDEN_ROLE` |
+| `/api/wallet`, `/api/wallet/topup`, `/api/wallet/events` | `403 FORBIDDEN_ROLE` (F3) · เส้นหักเครดิตภายในของ ADMIN (เช่น ส่ง SMS) ไม่โดนด่านนี้ |
+| `POST /api/products`, `PATCH /api/products/[id]` | `403 FORBIDDEN_ROLE` เมื่อ body มี `cost` |
+| `POST /api/inventory/csv/import` | `403 FORBIDDEN_ROLE` ทั้งคำขอ เมื่อแถวใดมี `cost` (ไม่ตัดทิ้งเงียบ — D-7) |
+| `GET /api/products` และ `SerializedProduct` | `cost` เป็น optional — **ไม่มีคีย์** สำหรับผู้ที่ไม่ใช่เจ้าของ (CSV export ก็ไม่มีคอลัมน์ต้นทุน) |
+| `GET/POST /api/orders`, `GET/PATCH /api/orders/[token]` | ตัด `items[].cost` (ไม่มีคีย์) ผ่าน `stripOrderItemCost` · PATCH: `cost` ใน body จากผู้ไม่ใช่เจ้าของถูกทิ้งเงียบ และต้นทุนเดิมของบรรทัดที่มีอยู่ถูกคงไว้ (`updateOrder` `keepLineCosts`) |
+| `GET /api/chat/ai-quota` | `balance: number \| null` — `null` สำหรับผู้ไม่ใช่เจ้าของ |
+| `POST …/ai-suggest` | `402 INSUFFICIENT_CREDIT` ไม่มี field `balance` สำหรับผู้ไม่ใช่เจ้าของ |
+| `GET /api/chat/shop-context` | คืน `canSeeCost` เพิ่ม (ฟอร์มออเดอร์ในแชทใช้ตัดสินว่าจะแสดง/ส่งต้นทุนไหม) |
+| `GET /api/seller/reports/agents*` | โหมด `SELF` (ผู้ไม่ใช่เจ้าของทุกคน): `revenue` เป็น `null` |
+| `PATCH …/finance-visibility` | **ลบแล้ว** |
+
+หน้า RSC (`/sales` `/expenses` `/reports/*` `/wallet` และแดชบอร์ด): ด่านเจ้าของก่อน query + `dashboardMoney(moneyLevel)` ตัดบล็อกเงินรวม · เมนูการเงินซ่อนด้วย `applyOwnerOnlyFinanceMenu` (`src/lib/seller-menu.ts`) — การซ่อนเมนูไม่ใช่ตัวกั้น
+
+**สัญญา API ที่เพิ่มใน P3 (จากโค้ด):**
+
+| หัวข้อ | สัญญา |
+|---|---|
+| ทะเบียน capability | `ROUTE_CAPABILITIES` ใน `src/lib/route-capabilities.ts`: path ของไฟล์ → เมธอด → capability (หรือ `{class, reason}` ต่อเมธอด เช่น `api/chat/conversations` GET = H1 · POST = BUYER) · cap เป็นอาร์เรย์ = ต้องผ่านทุกตัว (AND เช่น `housekeeping` PATCH = Q1+O4) · หน้า RSC ใช้คีย์ `page` · คลาสที่ไม่ใช่ cap: `MEMBER` (ทุกบทบาทเข้าได้โดยตั้งใจ) `SELF` `BUYER` `PUBLIC` `PLATFORM_ADMIN` `CRON` `WEBHOOK` (ต้องมี `reason`) · คำนำหน้า `api/admin/` `api/app/` `api/cron/` `api/webhooks/` ฯลฯ จัดคลาสด้วย `PREFIX_CLASSES` · ไม่มีสถานะ `PENDING` เหลือ (เทสบังคับ) · ทะเบียนแยกจากไฟล์ route เพราะ Next 16 ไม่ให้ `route.ts` export นอกจาก handler |
+| ตัวบังคับทะเบียน | `src/lib/__tests__/route-capability-inventory.test.ts` สแกนซอร์สจริง: ทุกไฟล์ที่ resolve ร้านต้องมีรายการ (ลืม = แดง) · key ต้องมีไฟล์จริง · handler ของเมธอดที่ประกาศ `DECLARED` ต้องเรียกด่านด้วย literal cap ตรงทะเบียน · คลาสที่ไม่ใช่ cap ห้ามเรียกตัวหาร้านดิบ · wrapper ใหม่ที่หาร้านต้องอยู่ allow-list |
+| ด่านกลาง | `requireShopCapability(session, cap, {shopId?})` → `401 {error:'unauthorized'}` · `404 {error:'NO_SHOP'}` · `403 {error:'FORBIDDEN'}` (ไม่ใช่สมาชิกร้านที่ระบุ · `reason:'NOT_MEMBER'`) · `403 {error:'FORBIDDEN_ROLE'}` (เป็นสมาชิกแต่ไม่มี cap) · ทุกตัวส่ง `Cache-Control: private, no-store` · อ่านสมาชิกสดทุกคำขอ ไม่เชื่อ JWT · ร้าน PERSONAL = เจ้าของ · T4 = `Shop.userId === userId` (เจ้าของร่วมไม่ผ่าน) · `BILLING` ถูกตัดทิ้งเมื่อร้านไม่ใช่ `canUseAppointments` (สมาชิก `[BILLING]` ล้วนในร้านทั่วไป = ไม่มีสิทธิ์อะไร) · ตัวช่วย: `gatePage` (RSC) · `canAccessShopWith(shopId,userId,cap)` · `listAccessibleShopIds(userId,cap)` (cap บังคับ) · `ForbiddenRoleError` (service โยน → route แปลงเป็น 403 `FORBIDDEN_ROLE`) |
+| ไม่ใช่สมาชิก = 404 | route ที่ระบุทรัพยากร (เช่น `orders/[token]`, `orders/[token]/cancel`, เธรดแชท) แปลง `reason:'NOT_MEMBER'` เป็น **404** ไม่เปิดเผยว่ามีอยู่ (สัญญา 00037 API ข้อ 3) · สมาชิกที่ไม่มีสิทธิ์ได้ **403 `FORBIDDEN_ROLE`** · route ที่ไม่ระบุทรัพยากรอาจได้ 403 `FORBIDDEN` จากด่านตรง ๆ |
+| `session.user.activeShopRoles` | **แสดงผลเท่านั้น** (ป้ายบทบาทในตัวสลับบัญชี) — ห้ามใช้ตัดสินสิทธิ์ · มาจาก `resolveSessionActiveShop` (`src/lib/session-active-shop.ts`): ร้านที่ token ชี้ + สมาชิกตรงกัน → `rolesFromMembership`; อ่านสมาชิกล้ม/ไม่พบ → ถอยไปร้านส่วนตัว (`['OWNER']`) หรือ `null` ถ้าไม่มีร้านส่วนตัว (ไม่มี fallback เป็น OWNER ของร้าน BUSINESS — S-17) · สิทธิ์จริงอ่านจากแถวสดที่ด่านกลางเสมอ |
+| `GET /api/business/context` | `businesses[]` มี `roles: ShopRole[]` ต่อร้านเพิ่ม (จาก `rolesFromMembership(role, roles)` · แสดงผลเท่านั้น) · class `SELF` ในทะเบียน |
+| `POST /api/orders` | ด่าน `O2s` (BILLING ผ่านได้) · **ถ้าผู้เรียกมี O2s แต่ไม่มี O2 (`isBillingOnly` ใน `order-role-rules.ts` — คือ BILLING โดยไม่ถือ CHAT/MANAGER/OWNER) service บังคับ `type = SERVICE` เสมอ** และปฏิเสธบรรทัดที่อ้าง `productId` ของสินค้าที่ไม่ใช่ SERVICE → `403 FORBIDDEN_ROLE` (`OrderRoleRestrictedError`) · `conversationId` ใน body **ถูกทิ้งเงียบถ้าผู้เรียกไม่มี H1** (กันดึงข้อมูลติดต่อจากเธรดแชทเข้าออเดอร์) · `items[].cost` ทิ้งเงียบถ้าไม่มี P3 (เหมือน P1) |
+| `PATCH /api/orders/[token]` | ด่าน `O3` · BILLING แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ (`isOrderUnpaid` ใน `src/lib/order-payment-state.ts`: `computeOrderMoney(...).unpaid` — แถว `OrderPayment` ที่ยังไม่ void · ∧ `paymentConfirmedAt` null ∧ `codReceivedAt` null) · "BILLING เท่านั้น" = `isBillingOnlyEditor` (`src/lib/order-role-rules.ts`): ถือ BILLING แล้วถ้าตัด BILLING ออกจะไม่มี O3 — ถือ CHAT/MANAGER ร่วมด้วยแก้ได้ไม่มีเงื่อนไข มิฉะนั้น `403 FORBIDDEN_ROLE` (`OrderLockedForRoleError`) · body 403 ไม่มี field บอกเหตุ (ชำระแล้ว vs ไม่ใช่บริการ แยกไม่ได้ที่ฝั่ง client) |
+| ออเดอร์ที่ช่าง (NONE) เห็น | `GET /api/orders` · `GET /api/orders/[token]` · นัดหมาย (`appointments`, `appointment-summary`) ผ่าน allow-list `toNoMoneyOrder` / `toNoMoneyAppointmentDay` / `filterOrderEventsForNoMoney` (`src/lib/order-view-by-level.ts`) — ไม่มีราคา ยอด การชำระ ต้นทุน |
+| ตัวอย่างการจัดหมวด | แชท `H1` อ่าน / `H2` เขียน / `H3` ตั้งค่า (+ `X2` เครื่องมือเสริม) · `ship`/`handover`/`shipment-evidence` = `S1` · ตั้งค่า/เชื่อม iShip = `S2` (GET connection/settings = S1) · ยกเลิก/คืนเงิน/ข้อพิพาท/void การชำระ = `O6` · บันทึกชำระ/COD = `O5` · ซื้อด้วยเครดิตกระเป๋า (`inventory/{subscribe,upgrade,reactivate}`, `seller/pin-slots/buy`) = `F4` · แพ็กเกจ/โอน/ลบร้าน/ตรวจสอบร้าน = `T4` · ดูตารางเต็มที่ทะเบียน (SSOT ของ "route ไหนใช้ cap อะไร") |
+| หน้าแอดมินแพลตฟอร์ม | `src/app/(paces)/admin/**/page.tsx` ทุกหน้า (ยกเว้น `admin/auth/`) **เรียก `requireAdmin()` ในหน้าเองก่อนดึงข้อมูลแรก** (ไม่พึ่ง layout — layout ถูกข้ามได้ตอน client navigation) · `api/admin/**` ทุก handler เรียก `requireAdmin`/`requireAdminActor` · cron = `CRON_SECRET` · webhook = ลายเซ็น/secret — เทส `route-capability-inventory.test.ts` (PREFIX_GUARDS) บังคับ |
+| การตัดต้นทุนระดับ Prisma | `OrderItem.cost` / `Product.cost` ถูกตัดโดยค่าตั้งต้น (global `omit`) · เจ้าของ opt-in เอง — ดู §6.71 |
+
+**Error ใหม่:** `403 { error: 'FORBIDDEN_ROLE' }` = เป็นสมาชิกแต่บทบาทไม่มีสิทธิ์ใน capability นั้น (capability ที่ยังไม่จัดหมวด = เจ้าของเท่านั้น) · หน้า RSC แสดงหน้าแจ้งไม่มีสิทธิ์ ไม่ใช่ 404 · error เดิมของ 00012 (`NOT_OWNER`/`PRIMARY_OWNER_LOCKED`/…) คงเดิม
 
 **เปลี่ยน endpoint เดิม:** `POST …/ai-suggest/auto` ต่อ `after()` เรียก `maybeUpdateMemory` หลัง READY (response ไม่เปลี่ยน · callback ต้อง `.catch(()=>{})`) · `POST …/ai-suggest` (Gemini) ต่อความจำ+สินค้าเข้า `contextBlock` · ความจำ/สินค้าเข้า prompt ทุก trigger ผ่าน `sanitizeForExternalAi` (ความจำ/สินค้าล้ม = ตัดหัวข้อนั้น ทำคำแนะนำต่อ)
 
@@ -2712,6 +2776,20 @@ HTTP ตามตาราง §7.21
 | ค่าคงที่ความจำ (`src/lib/chat-memory-types.ts`) | `CHAT_MEMORY_MAX=800` · `INTERESTED_PRODUCT_MAX=10` · `SELECTIONS_MAX=10` · `MEMORY_AI_MIN_NEW_MESSAGES=3` · `MEMORY_AI_FIRST_MIN_MESSAGES=4` (+ลูกค้า ≥ `MEMORY_AI_FIRST_MIN_BUYER=2`) · `MEMORY_AI_COOLDOWN_MS=120000` · `MEMORY_AI_WINDOW=40` · `MEMORY_RPM_SHARE=0.7` · `MEMORY_SLOT_WAIT_MS=2000` · `MEMORY_SHRINK_RATIO=0.5` (ฐาน ≥ `MEMORY_SHRINK_BASE_MIN=100`) |
 | `AutoSuggestReason` (ฝั่ง client · ใน response `NONE`) | outcome ทุกค่าที่ไม่ใช่ `OK` + `NO_RUN` (ยังไม่มีแถวของ anchor นี้) · `STALE_ANCHOR` (anchor ไม่ใช่ข้อความล่าสุดของห้อง) · `NOT_CONFIGURED` (อยู่ใน allow-list แต่ไม่มีกุญแจ) · `NOT_ENABLED` (ร้านใช้ Gemini) |
 
+### 8.14 บทบาทสมาชิกร้าน (feature 00071 — P1, P2, P3 implement แล้ว: `src/lib/shop-permissions.ts` เป็น SSOT ของตาราง/`can`/`moneyLevel`/`STAFF_ROLES` · ทุกค่าเก็บเป็น String + CHECK ที่ DB)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `ShopRole` (รหัสบทบาท) | `OWNER` (เจ้าของ) · `MANAGER` (ผู้ดูแล) · `CHAT` (ตอบแชท) · `BILLING` (เปิดบิล) · `TECHNICIAN` (ฝ่ายช่าง) |
+| `ShopMember.role` (เดิม คงไว้) | `OWNER` · `ADMIN` — **ประเภทสมาชิก** แสดงเป็น "เจ้าของ" / "พนักงาน" ("ผู้ดูแล" = บทบาท `MANAGER` ไม่ใช่ชื่อของ `ADMIN`) · `rolesFromMembership(role, roles)`: `OWNER`→`['OWNER']`, `ADMIN`→ `roles ∩ STAFF_ROLES` (ว่าง/แปลก = `[]` ไม่ fallback) |
+| `STAFF_ROLES` (P2 ✅) | `['MANAGER','CHAT','BILLING','TECHNICIAN']` — บทบาทที่มอบให้ ADMIN ได้ (ไม่มี `OWNER`) · `src/lib/shop-permissions.ts` · ตรงกับชุดใน CHECK 3 ตัว (ถ้าเพิ่มค่า ต้องแก้ migration ใหม่แบบ additive — `docs/conventions/migration-check-constraint-additive.md`) |
+| `ShopMember.roles` (P2 ✅) | 1-4 ค่าจาก `STAFF_ROLES` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ `canUseAppointments` (vertical `SERVICE_QUEUE`) |
+| error (P2 ✅) | `INVALID_ROLES` · `BILLING_NOT_AVAILABLE` (HTTP 400) |
+| `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
+| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
+| `RouteClass` (ทะเบียน `route-capabilities.ts`) | `MEMBER` · `SELF` · `BUYER` · `PUBLIC` · `PLATFORM_ADMIN` · `CRON` · `WEBHOOK` — route ที่ไม่ใช่ capability ของสมาชิกร้านต้องจัดคลาสพร้อม `reason` |
+| error | `FORBIDDEN_ROLE` (HTTP 403) |
+
 **ค่าคงที่:** `AUTO_SUGGEST_NOTE_MAX = 120` · ตัดผล ≤3 ประโยค/≤400 ตัวอักษร (`clampSuggestion`) · Typhoon timeout 8 วินาที ไม่ retry (`TYPHOON_TIMEOUT_MS`) · รอคิว pacing ≤5 วินาที (รอบละ 250 ms) แล้วทิ้ง `RATE_LIMITED` · pacing `AI_SUGGEST_RPS` 3 / `AI_SUGGEST_RPM` 100 / ต่อร้าน `floor(RPM/2)` · `THINKING` อายุ >30 วินาที ยึดต่อได้ · `SKIPPED_BOT` = มี `AutoReplyJob` ของ anchor สถานะ `PENDING`/`PROCESSING` และ `updatedAt` ภายใน 5 นาที · `manual` ≤15 ครั้ง/นาที/ผู้ใช้
 
 ---
@@ -2817,16 +2895,18 @@ HTTP ตามตาราง §7.21
 
 ### 9.7 Finance / Cost (feature 00016 — อัปเดต 2026-08-08)
 
-| Operation | Seller-owner | Staff (ShopMember ADMIN) + `staffCanViewFinance=true` (**ค่าเริ่มต้นตั้งแต่ 2026-08-08**) | Staff + toggle ปิด (owner ปิดเอง) |
-|---|---|---|---|
-| `/expenses` — CRUD ค่าใช้จ่าย + รายงาน P&L | ✅ | ✅ | ❌ locked "ยังไม่ได้รับสิทธิ์" |
-| กำไรสุทธิบน 3 surface หน้ายอดขาย | ✅ | ✅ | ❌ |
-| **กำไรรายออเดอร์ (`/orders/[token]`)** | ✅ | ✅ | ❌ **ต้องไม่อยู่ใน flight payload ด้วย** ไม่ใช่แค่ไม่ render |
-| toggle `staffCanViewFinance` | ✅ เท่านั้น | ❌ | ❌ |
-| ตั้ง `Product.cost` ในฟอร์มสินค้า | ✅ | ✅ | ⚠️ **✅ (KG-EXT-01)** |
-| เห็นต้นทุน/มาร์จิ้นในรายการสินค้า | ✅ | ✅ | ⚠️ **✅ (ตามหลัง KG-EXT-01 โดยตั้งใจ)** |
+> 🛑 **แทนที่โดย 00071 P1 (implement แล้ว):** ธง `staffCanViewFinance` เลิกอ่าน · การเงินเต็ม + ต้นทุนสินค้า = **เจ้าของเท่านั้น** (F1-F3, P3) · ผู้ดูแล (ADMIN) เห็นระดับ "รายใบ" (PER_ORDER) · ดู §9.11
 
-⚠️ **KG-EXT-01 — ช่องว่างที่รู้ตัวและเลือกไว้ก่อน (D-EXT-2):** `staffCanViewFinance` **ไม่ครอบ `Product.cost`** — `isCostEditAllowed()` ไม่เคยเช็ค role/toggle เลย (คอมเมนต์ในโค้ดยอมรับเอง) หลังเปิดฟรี 2026-08-07 ความเสี่ยงนี้ขยายจาก "เฉพาะร้านที่จ่ายเงิน" เป็น **ทุกร้านที่มี staff** — user รับทราบและเลือก defer ไว้ก่อน รายละเอียดที่ BRD ของ 00016 §11.2
+| Operation | Seller-owner | Staff (ShopMember ADMIN) |
+|---|---|---|
+| `/expenses` — CRUD ค่าใช้จ่าย + รายงาน P&L | ✅ | ❌ `403 FORBIDDEN_ROLE` / หน้าแจ้งไม่มีสิทธิ์ |
+| กำไรสุทธิบน 3 surface หน้ายอดขาย | ✅ | ❌ |
+| **กำไรรายออเดอร์ (`/orders/[token]`)** | ✅ | ❌ **ไม่อยู่ใน flight payload ด้วย** ไม่ใช่แค่ไม่ render |
+| ตั้ง/แก้ `Product.cost` (ฟอร์มสินค้า · CSV import) | ✅ | ❌ ส่ง `cost` = `403 FORBIDDEN_ROLE` |
+| เห็นต้นทุน/มาร์จิ้นในรายการสินค้า · `items[].cost` ของออเดอร์ | ✅ | ❌ ไม่มีคีย์ใน payload |
+| ยอดซื้อสะสมลูกค้า · กระเป๋า/เครดิต AI (ยอดคงเหลือ) | ✅ | ❌ |
+
+✅ **KG-EXT-01 (ช่องว่าง `Product.cost` ที่ `staffCanViewFinance` ไม่ครอบ) ปิดแล้วโดย 00071 P1** — route สินค้า/CSV ตัดสินด้วย capability P3 (`can(rolesFromMembership(role), 'P3')`) ไม่มีฟังก์ชัน `isCostEditAllowed` ในโค้ดแล้ว
 
 🛑 **ไม่มี gate ของ subscription ในหมวดนี้อีกแล้ว** — ถ้าเจอโค้ดที่เรียก `getSubscriptionStatus()` แล้วบล็อกการเข้าถึงต้นทุน/P&L แปลว่าตกหล่นจากรอบ D-EXT-1 ให้ถอด. `getSubscriptionStatus()` ที่เรียกจาก **AI quota / โควตาหลายร้าน / หน้าจัดการแพ็กเกจ** เป็นคนละเรื่อง — ห้ามแตะ
 
@@ -2881,6 +2961,23 @@ HTTP ตามตาราง §7.21
 - ทุก query ของ owner API scope ด้วย `ownerId` ที่ `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · เลือกร้านเข้ากลุ่มได้เฉพาะร้านที่ `userId=ownerId ∧ ไม่ลบ ∧ ไม่ purge ∧ ไม่ล็อกแพ็กเกจ` (ร้านที่อยู่ในกลุ่มเดิมแล้วถูกล็อกภายหลังคงไว้ได้ ไม่ลบเงียบ)
 - ผูกกลุ่ม LINE ที่ ACTIVE กับเจ้าของอื่น = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่เปิดเผยเจ้าของ · ไม่เผาโค้ด)
 - **[EXT] เทมเพลตข้อความ:** PUT/DELETE `…/template` เป็น **L2** — `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · `lockOwnedGroup` query `{id, ownerId}` ตั้งแต่แรก (ไม่ใช่ของตน/`REMOVED` = 404 `GROUP_NOT_FOUND`) · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` แต่ **GET (L1) ยังอ่าน `template` เดิมได้** และเทมเพลตถูกเก็บไว้ (กลับ ACTIVE ใช้ต่อ) · ปลายทางปุ่มในข้อความตายตัว (`sellerDashboardUrl()`) ไม่มีฟิลด์ URL ที่ผู้ใช้ตั้งได้ · ข้อความสุดท้ายตอนแพ็กเกจหยุด (`FINAL_NOTICE`) ไม่ผ่านเทมเพลต · เนื้อหาข้อความอิสระไม่ถูก log
+
+### 9.11 บทบาทสมาชิกร้าน (feature 00071 — P1 การเงินเต็ม/ต้นทุน = เจ้าของเท่านั้น · P2 มอบบทบาทได้ · P3 บังคับรายบทบาททุก route/หน้า implement แล้ว)
+
+> ตารางสิทธิ์ capability × 5 บทบาท (SSOT) อยู่ที่ **`docs/20 - Features/00071 - Shop Member Roles & Permissions/BRD.md` §8.3** — ไม่คัดลอกซ้ำที่นี่เพื่อกันตารางเพี้ยน · เมนูมือถือ §8.5 · ระดับเงิน §8.2
+
+- สิทธิ์ = union ของบทบาท · ระดับเงิน = สูงสุด · ร้าน `PERSONAL` = เจ้าของเสมอ · อ่านบทบาทสดจาก `ShopMember` ทุกคำขอ · อ่านล้ม/ไม่ใช่สมาชิก = ปฏิเสธ (fail-closed)
+- ผู้ดูแล (`MANAGER`) = สิทธิ์ ADMIN วันนี้ − การเงินเต็ม (F1-F3) − ต้นทุนสินค้า (P3)
+- ปฏิเสธ → `403 { error: 'FORBIDDEN_ROLE' }` (API) / หน้าแจ้งไม่มีสิทธิ์ (RSC)
+- กติกาเจ้าของ/เจ้าของหลัก/โควตา/โอน (00012 BR-MR-01..08) ไม่เปลี่ยน
+- `Shop.staffCanViewFinance` deprecated และไม่ถูกอ่านแล้ว (P1) — ดู §6.71, §9.7
+- `rolesFromMembership(role, roles)`: `OWNER`→`['OWNER']`, `ADMIN`→`roles ∩ STAFF_ROLES` (ว่าง/แปลก = `[]` fail-closed ไม่ fallback เป็น MANAGER) · `effectiveRoles(shop, role, roles)` เพิ่มกฎ PERSONAL = เจ้าของ และตัด BILLING เมื่อร้านไม่ใช่ `canUseAppointments`
+- **P3 — ทุก route/หน้าฝั่งร้านต้องประกาศ capability** ใน `src/lib/route-capabilities.ts` และเรียกด่านกลาง `src/lib/shop-capability.ts` (`requireShopCapability` / `gatePage` / `canAccessShopWith` / `listAccessibleShopIds`) ด้วย literal cap ตรงทะเบียน — เทส `route-capability-inventory.test.ts` แดงถ้าลืม (default-deny) · ที่ไม่ใช่ cap ต้องจัดคลาส `MEMBER`/`SELF`/`BUYER`/`PUBLIC`/`PLATFORM_ADMIN`/`CRON`/`WEBHOOK` พร้อมเหตุผล
+- ไม่มีสิทธิ์ = 403 `FORBIDDEN_ROLE` (no-store) · ไม่ใช่สมาชิกของร้านที่ระบุทรัพยากร = 404 · หน้า RSC = `NoPermissionCard`/`NoPermissionScreen` (หน้าเต็มจอมีทางกลับ)
+- `session.activeShopRoles` = แสดงผลเท่านั้น ไม่ใช่ตัวตัดสินสิทธิ์
+- ต้นทุน (`OrderItem.cost`/`Product.cost`) ถูก Prisma global `omit` ตัดโดยค่าตั้งต้น เจ้าของ opt-in เอง (§6.71)
+- หน้าแอดมินแพลตฟอร์ม: `requireAdmin()` ในหน้าเองทุกหน้า (layout ไม่นับ) — คนละระบบกับบทบาทสมาชิกร้าน
+- ด่านกันลืม: `route-capability-inventory.test.ts` (ทะเบียน + ด่านรายเมธอด + คำนำหน้า admin/cron/webhook) · `finance-surface-guard.test.ts` (ผิวเงิน) · `cost-optin-guard.test.ts` · `tests/integration/role-contract.test.ts` (คีย์ต้องห้ามใน JSON จริงต่อบทบาท × route ตัวแทน บน Postgres localhost)
 
 ---
 

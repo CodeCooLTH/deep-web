@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { UpdateShopPayoutSchema } from "@/lib/shop-payout";
 import {
   updateShopPayout,
@@ -29,13 +29,11 @@ import {
  */
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  ).catch(() => null);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!active || !userId) {
-    return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
-  }
+  // 00071 T3: บัญชีรับเงิน = เจ้าของร้าน · ด่านใน service (OWNER/vertical/reauth) คงเดิมเป็นด่านที่สอง
+  const gate = await requireShopCapability(session, "T3");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
+  const userId = gate.userId;
 
   const parsed = v.safeParse(UpdateShopPayoutSchema, await req.json().catch(() => null));
   if (!parsed.success) {

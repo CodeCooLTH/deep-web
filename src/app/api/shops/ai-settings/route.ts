@@ -4,11 +4,10 @@ import { canAskToBuy } from "@/lib/purchase-prompt";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { getAiSetting, upsertAiSetting, CONTEXT_GATE_PAID_PLAN_REQUIRED } from "@/services/ai-setting.service";
 import { isOwnerPaidPlan } from "@/services/ai-suggest-quota.service";
 import { ShopAiSettingSchema } from "@/lib/validations";
-import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET/PUT /api/shops/ai-settings — การตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านที่ active (feature 00019)
@@ -22,27 +21,19 @@ import { sessionUserId } from "@/lib/session-user";
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
 
-/** role ที่แก้ไขการตั้งค่าได้ (BR-AI-02) — STAFF อ่านได้อย่างเดียว */
-const EDITABLE_ROLES = ["OWNER", "ADMIN"] as const;
-
-async function requireShopContext() {
+/**
+ * 00071 S-13 — ตั้งค่าผู้ช่วย AI = H3 (เจ้าของ+ผู้ดูแล) ทั้งอ่านและแก้ ตัดสินผ่าน requireShopCapability
+ * (อ่านแถวสมาชิกสด) · ผ่านด่านแล้วแก้ได้ (canEdit true) — ผู้ตอบแชทใช้สถานะโควตาผ่าน /api/chat/ai-quota (H1) แทน
+ */
+async function requireShopContext(cap: "H3") {
   const session = await getServerSession(authOptions);
-  const userId = sessionUserId(session);
-  if (!session?.user || !userId) {
-    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  }
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
-    return { error: NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 }) };
-  }
-  const canEdit = (EDITABLE_ROLES as readonly string[]).includes(activeCtx.role);
-  return { userId, shopId: activeCtx.shopId, canEdit };
+  const g = await requireShopCapability(session, cap);
+  if (!g.ok) return { error: g.response };
+  return { userId: g.userId, shopId: g.shopId, canEdit: true };
 }
 
 export async function GET() {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
 
   const setting = await getAiSetting(ctx.shopId);
@@ -62,7 +53,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
 
   if (!ctx.canEdit) {

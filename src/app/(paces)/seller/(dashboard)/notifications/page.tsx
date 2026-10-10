@@ -18,6 +18,8 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { moneyLevel, rolesFromMembership } from '@/lib/shop-permissions'
+import { dashboardMoney } from '@/lib/dashboard-money'
 import { getRecentActivity } from '@/services/activity.service'
 import type { ActivityItem } from '@/services/activity.service'
 import NotificationFeed from './components/NotificationFeed'
@@ -45,7 +47,9 @@ export default async function NotificationsPage() {
     if (shop?.id) {
       // ครอบ try/catch แยก — getRecentActivity มี try/catch ใน service อยู่แล้ว
       // แต่ wrap อีกชั้นเพื่อกัน crash ถ้า service throw ในอนาคต
-      items = await getRecentActivity(shop.id, 20, { includeTopups: await shouldShowMoneyStatus(), vertical: shop.vertical })
+      // 00071: รายการ "เติมเงิน ฿X" คือข้อมูลกระเป๋า ⇒ เจ้าของเท่านั้น (ซ้อนกับเงื่อนไขแอป Android เดิม)
+      const canSeeTopups = dashboardMoney(active ? moneyLevel(rolesFromMembership(active.role, active.roles)) : 'NONE').topups
+      items = await getRecentActivity(shop.id, 20, { includeTopups: canSeeTopups && (await shouldShowMoneyStatus()), vertical: shop.vertical })
     }
     // ไม่มี shop → items = [] → NotificationFeed แสดง empty state
   } catch {

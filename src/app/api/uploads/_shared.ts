@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
+import type { Capability } from "@/lib/shop-permissions";
 
 /**
  * resolve ช่องทางของเธรด + เช็คสิทธิ์ว่า user นี้แตะเธรดนี้ได้จริง (ไม่ใช่แค่มี session)
@@ -15,6 +16,8 @@ export type ChatChannelResult =
 export async function resolveChatChannelForUser(
   conversationId: string,
   userId: string,
+  /** 00071 S-13: cap ที่ฝั่งร้านต้องถือ ('H2' = แนบไฟล์ส่งแชท) — ผู้ซื้อเจ้าของเธรด (buyerUserId) ไม่ใช้ */
+  cap: Capability,
 ): Promise<ChatChannelResult> {
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
@@ -22,8 +25,9 @@ export async function resolveChatChannelForUser(
   });
   if (!conv) return { ok: false, status: 404, error: "ไม่พบห้องแชทนี้" };
 
-  const allowed = conv.buyerUserId === userId || (await canAccessShop(conv.shopId, userId));
-  if (!allowed) return { ok: false, status: 403, error: "Forbidden" };
+  // สมาชิกร้านต้องถือ cap (อ่านแถวสมาชิกสด) — BILLING/TECHNICIAN ได้ FORBIDDEN_ROLE (ข้อความเดียวกับ forbiddenRoleResponse)
+  const allowed = conv.buyerUserId === userId || (await canAccessShopWith(conv.shopId, userId, cap));
+  if (!allowed) return { ok: false, status: 403, error: "FORBIDDEN_ROLE" };
 
   // shopId เพิ่ม 2026-08-20 (feature 00051 S-5, TFR-CMD-11) — additive: conv.shopId มีอยู่แล้วใน
   // ผลลัพธ์ query ด้านบนตั้งแต่แรก เพียงแต่ไม่เคยถูกส่งออกมาให้ผู้เรียกใช้

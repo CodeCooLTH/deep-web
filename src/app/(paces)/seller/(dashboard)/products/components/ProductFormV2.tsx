@@ -161,6 +161,8 @@ interface ProductFormV2Props {
   isProActive?: boolean
   /** เปิดจากในแอป iOS → ซ่อนคำเชิญให้ซื้อ (Guideline 3.1.1) — server เป็นคนตัดสิน */
   hidePayments?: boolean
+  /** 00071 P3: เจ้าของเท่านั้นเห็น/แก้ต้นทุน — ค่าตั้งต้น false (fail-closed) มาจาก server ตั้งแต่ render แรก */
+  canEditCost?: boolean
 }
 
 export default function ProductFormV2({
@@ -173,6 +175,7 @@ export default function ProductFormV2({
   entitlementActive = false,
   isProActive = false,
   hidePayments = false,
+  canEditCost = false,
 }: ProductFormV2Props) {
   const router = useRouter()
   const isEdit = !!product
@@ -273,8 +276,8 @@ export default function ProductFormV2({
           values.stockQty !== undefined
             ? (values.lowStockThreshold ?? null)
             : undefined,
-        // cost — ส่งเสมอ (D-EXT-1 2026-08-07): ไม่มีสถานะ "แก้ไม่ได้" อีกแล้ว
-        cost: values.cost ?? null,
+        // cost — เจ้าของส่งเสมอ (D-EXT-1 2026-08-07) · ผู้ไม่ใช่เจ้าของ "ไม่ส่งคีย์" (เซิร์ฟเวอร์ตอบ 403 ถ้าส่งมา)
+        ...(canEditCost ? { cost: values.cost ?? null } : {}),
       }
 
       const url = isEdit ? `/api/products/${product!.id}` : '/api/products'
@@ -390,10 +393,15 @@ export default function ProductFormV2({
             <div className="border-default-100 border-t" />
             <ProductPriceCardV2 register={register} errors={errors} setValue={setValue} watch={watch} />
 
-            {/* ProductCostCardV2 — Expense & Cost Tracking (feature 00016 Unit 5B): แสดงเสมอ
-                (ต่าง ProductStockCardV2 ที่ conditional render — D-9 "แสดงเสมอ ไม่ซ่อน") */}
-            <div className="border-default-100 border-t" />
-            <ProductCostCardV2 register={register} errors={errors} watch={watch} unitLabel={costUnit} />
+            {/* ProductCostCardV2 — Expense & Cost Tracking (feature 00016 Unit 5B): เดิม "แสดงเสมอ" (D-9)
+                ตั้งแต่ 00071 แสดงเฉพาะเจ้าของร้าน (ต้นทุน = การเงินเต็ม BR-RP-09) */}
+            {/* divider ไปคู่กับการ์ด — ไม่ render คู่กันเมื่อไม่ใช่เจ้าของ (กันเส้นซ้อน) */}
+            {canEditCost && (
+              <>
+                <div className="border-default-100 border-t" />
+                <ProductCostCardV2 register={register} errors={errors} watch={watch} unitLabel={costUnit} />
+              </>
+            )}
 
             <div className="border-default-100 border-t" />
             <ProductTypePickerCardV2

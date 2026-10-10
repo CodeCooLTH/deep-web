@@ -25,6 +25,7 @@ import { getServerSession } from 'next-auth'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { getT } from '@/i18n/server'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { customerBadges, hasBehaviorWarning } from '@/lib/customer-behavior'
 import {
@@ -50,6 +51,9 @@ import CustomerStatCard, { type CustomerStatItem } from './components/CustomerSt
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
 import CustomerTable from './components/CustomerTable'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'ลูกค้า' }
 
@@ -61,6 +65,16 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   const sp = await searchParams
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (C1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'C1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ร้านค้า" />
+        <NoPermissionCard capability="C1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   if (!session?.user) return null
 
   const active = await requireActiveShop(
@@ -84,6 +98,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
   }
 
   const shop = active.shop
+  // ยอดซื้อสะสมลูกค้า = F1 (เจ้าของเท่านั้น) · role มาจาก membership สด
+  const showSpend = can(rolesFromMembership(active.role, active.roles), 'F1')
   const t = await getT()
   const vocab = resolveOrderVocab(shop.vertical ?? '')
   /**
@@ -321,7 +337,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     isRegistered: e.isRegistered,
     username: e.username,
     totalOrders: e.totalOrders,
-    totalSpent: e.totalSpent,
+    // ตัดคีย์ทิ้งสำหรับผู้ไม่ใช่เจ้าของ (00071 S-3) — ไม่ใช่ null/0
+    ...(showSpend ? { totalSpent: e.totalSpent } : {}),
     lastOrderISO: e.lastOrderISO,
     badges,
     trust: e.customerId ? (reputations.get(e.customerId) ?? null) : null,
@@ -403,6 +420,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
         riskCounts={riskCounts}
         shopReturned={stats.returned}
         shopHasParcels={shopHasParcels}
+        showSpend={showSpend}
         showParcel={showParcel}
         vertical={shop.vertical ?? ''}
       />

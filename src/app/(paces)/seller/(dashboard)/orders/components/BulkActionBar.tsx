@@ -29,12 +29,13 @@
 import Icon from '@/components/wrappers/Icon'
 import type { Row as TableRow } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
-import { INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
+import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { INSUFFICIENT_CREDIT_TEXT, NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useEffect, useRef, useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
+import { useViewerCan } from './OrderViewerRoles'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface BulkActionBarProps {
@@ -69,6 +70,9 @@ export default function BulkActionBar({
   linkNoun = 'คำสั่งซื้อ',
   buyerNoun = 'ผู้ซื้อ',
 }: BulkActionBarProps) {
+  // O7 ส่ง SMS · S1 พิมพ์ใบปะหน้า (พัสดุ) — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นปุ่ม
+  const canSms = useViewerCan('O7')
+  const canShip = useViewerCan('S1')
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const [printing, setPrinting] = useState(false)
 
@@ -203,6 +207,7 @@ export default function BulkActionBar({
               คัดลอกลิงก์
             </button>
 
+            {canSms && (
             <button
               type="button"
               onClick={() => void handleSmsClick()}
@@ -213,13 +218,14 @@ export default function BulkActionBar({
               <Icon icon="message-forward" className="size-4.5" />
               ส่ง SMS
             </button>
+            )}
           </div>
 
           <span className="border-l border-white/20 self-stretch my-1.5" aria-hidden="true" />
 
           {/* zone 3: close */}
           <div className="ps-1 pe-2">
-            {ishipEnabled && (
+            {ishipEnabled && canShip && (
               <button
                 type="button"
                 onClick={handlePrintLabels}
@@ -273,6 +279,7 @@ interface BulkSmsProgressDialogProps {
 function BulkSmsProgressDialog({ open, eligibleRows, onComplete, orderWord }: BulkSmsProgressDialogProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
+  const canTopUp = useCanTopUp()
   const total = eligibleRows.length
   const [phase, setPhase] = useState<Phase>('sending')
   const [progress, setProgress] = useState({ sent: 0, failed: 0 })
@@ -417,7 +424,9 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete, orderWord }: Bu
                         สาเหตุว่าทำต่อไม่ได้ ผู้ขายเห็นยอดคงเหลือจากหน้าแรก/หน้ากระเป๋าเงินอยู่แล้ว */}
                     {creditError && (
                       <p className="mt-1 text-sm text-default-500">
-                        {hidePayments ? (
+                        {!canTopUp ? (
+                          NON_OWNER_INSUFFICIENT_CREDIT_TEXT
+                        ) : hidePayments ? (
                           INSUFFICIENT_CREDIT_TEXT
                         ) : (
                           <>

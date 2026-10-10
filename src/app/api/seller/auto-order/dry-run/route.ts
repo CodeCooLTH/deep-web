@@ -20,7 +20,7 @@ const BodySchema = v.object({ text: v.pipe(v.string(), v.maxLength(5000)) })
  * ตั้งแต่ webhook ถึงการ์ดทำงานจริงไหม"
  */
 export async function POST(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(BodySchema, await request.json().catch(() => null))

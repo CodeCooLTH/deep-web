@@ -30,13 +30,18 @@
  * bg-card (โทเคน Paces — ขาวโหมด light, การ์ดเข้มโหมด dark ตาม theme/paces/.../config/_root.css)
  * ไม่ hardcode ขาว ตามที่สั่ง "ต้องถูกทั้ง light และ dark mode"
  */
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { getCachedSession } from '@/lib/session-cache'
 import { redirect } from 'next/navigation'
+import { CanTopUpProvider } from '@/components/paces/PaymentRestrictionProvider'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
+import ChatNoPermission from './_components/ChatNoPermission'
+import { viewerRolesOf } from '@/lib/viewer-roles'
 import ChatNavRail from './_components/ChatNavRail'
 import ChatRailColumn from './_components/ChatRailColumn'
 import FollowUpBubble from './_components/FollowUpBubble'
@@ -64,7 +69,7 @@ import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/ord
  *    ทุกสินค้าทั้งที่ร้านตั้งทุนไว้แล้ว (ร้านแจ้ง 2026-10-08 · ตั้งแต่เพิ่มช่องทุนรายบรรทัด 00016)
  *    mapper ต้องมีที่เดียว ไม่งั้นฟิลด์ใหม่ที่เติมให้หน้าเต็มจะหายเงียบ ๆ ในแชทอีก
  */
-const toCatalog = (p: unknown): CatalogProduct => toCatalogProduct(p)
+const toCatalog = (p: unknown, canSeeCost: boolean): CatalogProduct => toCatalogProduct(p, { canSeeCost })
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const session = await getCachedSession()
@@ -77,7 +82,13 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // ของตัวเองที่ inbox/page.tsx อยู่แล้ว) — ห้าม redirect/throw ที่ layout เพราะจะพังทั้งหน้าแชท
   const scope = await resolveChatScope({
     user: { id: user.id, activeShopId: user.activeShopId ?? null }
-  })
+  }, 'H1')
+
+  // 00071 S-13 — ร้านที่ active ไม่ถือ H1 (ผู้ดูแลบิล/ฝ่ายช่าง): ทั้งเปลือกใช้ร้าน active เป็นฐาน (แคตตาล็อก/unread/เมนู)
+  // จึงไม่ render อะไรของแชทเลย — การ์ดไม่มีสิทธิ์ + ทางกลับ (ไม่ใช่ redirect เงียบ · BRD FR-RP-02)
+  if (scope && !scope.activeHasCap) {
+    return <ChatNoPermission capability='H1' viewerRoles={await viewerRolesOf({ user })} />
+  }
 
   // feature 00037 — ข้อมูลร้านในขอบเขต (badge ในแถว/หัวเธรด + ตัวเลือกร้านตอนกดสร้าง) และเพจของ
   // ทุกร้าน (ตัวกรอง "เพจ" จัดกลุ่มตามร้าน). resolve ที่นี่ที่เดียวแล้วส่งลงเป็น prop — rail เดิม
@@ -149,15 +160,17 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // ทั้งสองค่านี้เป็น input ของเมนู แต่ต้องรู้ก่อนเรียก resolveSellerMenuItems จึงยิงไปพร้อมชุดล่าง
   let unreadChatCount = 0
   let hidePayments = false
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — ร้านที่ preload = ร้าน active
+  const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole, scope.activeRoles), 'P3') : false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
-      getProductsByShop(shopId)
-        .then(ps => ps.map(toCatalog))
+      getProductsByShop(shopId, undefined, { withCost: canSeeCost })
+        .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
-      getBestSellerProducts(shopId, 8)
-        .then(ps => ps.map(toCatalog))
+      getBestSellerProducts(shopId, 8, { withCost: canSeeCost })
+        .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
         .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
@@ -185,6 +198,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       shopId,
       kind: scope.activeKind,
       role: scope.activeRole,
+      roles: scope.activeRoles,
       vertical: shopVertical,
       unreadChatCount,
       hidePayments,
@@ -234,7 +248,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // rail กับที่ว่างที่กันไว้ให้มันต้องมาจากเงื่อนไขเดียวกันเสมอ (ดูคอมเมนต์ที่ .chat-shell)
   const hasNavRail = navMenuItems.length > 0
 
+  // เติมเงินกระเป๋าได้เฉพาะเจ้าของร้าน active (00071 F3) — ไม่มีขอบเขต = false (fail-closed)
   const shell = (
+    <CanTopUpProvider canTopUp={scope ? isShopOwnerRole(scope.activeRole, scope.activeRoles) : false}>
     <ChatSearchProvider>
       {/**
        * ChatNavRail — แถบเมนูร้านแบบไอคอนล้วนที่ขอบซ้าย กางตอน hover (≥1024px)
@@ -329,6 +345,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           เพราะ fixed ต้องไม่ถูก overflow-hidden ของ shell ตัด · ไม่มีร้าน active = ไม่มีรายการให้ดึง */}
       {scope?.activeShopId && <FollowUpBubble unified={scope.mode === 'UNIFIED'} />}
     </ChatSearchProvider>
+    </CanTopUpProvider>
   )
 
   // ห่อด้วย DraftOrderProvider เมื่อมีร้าน active — โมดัลสร้างคำสั่งซื้อ (feature 00018) ค้างข้ามแชทได้
@@ -347,6 +364,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       serviceResources={serviceResources}
       appointmentGranularity={appointmentGranularity}
       ishipCreateMode={ishipCreateMode}
+      canSeeCost={canSeeCost}
     >
       {shell}
     </DraftOrderProvider>

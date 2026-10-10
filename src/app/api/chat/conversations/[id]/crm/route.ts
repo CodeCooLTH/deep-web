@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { getConversationCrm, updateConversationCrm } from "@/services/chat-crm.service";
 import { ChatCrmPatchSchema } from "@/lib/validations";
 import { sessionUserId } from "@/lib/session-user";
@@ -18,15 +19,18 @@ const IdParamSchema = v.pipe(v.string(), v.uuid());
  * (ในกล่องแชทรวม สองอย่างนี้ไม่ใช่สิ่งเดียวกัน) resolveConversationShopId scope สิทธิ์ใน WHERE
  * ตั้งแต่คำสั่งแรก และคืน null เหมือนกันทั้ง "ไม่มีเธรด" กับ "ไม่มีสิทธิ์"
  */
-async function resolveShop(conversationId: string) {
+async function requireShopContext(conversationId: string, cap: "H1" | "H2") {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!session?.user || !userId) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
     conversationId,
+    cap,
   );
   if (!resolved) return { error: NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 }) };
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ cap → 403 FORBIDDEN_ROLE
+  if ("denied" in resolved) return { error: forbiddenRoleResponse() };
   return { shopId: resolved.shopId };
 }
 
@@ -34,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveShop(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "H1");
   if ("error" in ctx) return ctx.error;
 
   const crm = await getConversationCrm(idCheck.output, ctx.shopId);
@@ -46,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveShop(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "H2");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

@@ -5,7 +5,7 @@ import { safeParse } from "valibot";
 import { authOptions } from "@/lib/auth";
 import { createTopUpRequest } from "@/services/topup.service";
 import { CreateTopUpRequestSchema } from "@/lib/validations";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 
 /**
  * POST /api/wallet/topup — seller ส่งคำขอเติมเงิน พร้อม slip
@@ -41,15 +41,13 @@ export async function POST(request: Request) {
 
   // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client (S-C7)
   // ไม่ gate locked — เติมเงินเข้า business ที่ locked ได้ (ใช้เพื่อ reactivate)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
+  const gate = await requireShopCapability(session, "F3");
+  if (!gate.ok) {
     // seller ยังไม่มีร้าน = ไม่สามารถเติมเงินได้ (TopUpRequest.shopId ต้องมีจริง)
-    return NextResponse.json(
-      { error: "ต้องมีร้านก่อนเติมเงิน" },
-      { status: 403 },
-    );
+    if (gate.reason === "NO_SHOP") return NextResponse.json({ error: "ต้องมีร้านก่อนเติมเงิน" }, { status: 403 });
+    return gate.response;
   }
-  const shop = active.shop;
+  const shop = gate.active.shop;
 
   // 3. parse + validate body ด้วย Valibot (CreateTopUpRequestSchema)
   let body: unknown;

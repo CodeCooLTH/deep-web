@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
 import { claimConversationControl } from "@/services/channel-chat.service";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * POST /api/chat/conversations/[id]/thread-control — ขอสิทธิ์คุมเธรดคืนจากเอเจนต์ AI ของ Meta
@@ -30,9 +32,10 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const result = await claimConversationControl({ conversationId: id, actorUserId: userId });
+    const result = await claimConversationControl({ conversationId: id, actorUserId: userId, cap: "X2" });
     return NextResponse.json(result);
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });

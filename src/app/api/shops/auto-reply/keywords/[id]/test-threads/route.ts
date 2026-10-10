@@ -23,7 +23,7 @@ async function findKeyword(id: string, shopId: string) {
 }
 
 export async function GET(_r: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const { id } = await params
 
@@ -66,7 +66,7 @@ export async function GET(_r: NextRequest, { params }: { params: Promise<{ id: s
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

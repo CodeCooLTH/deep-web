@@ -28,9 +28,12 @@ vi.mock('@/lib/prisma', () => {
   return { prisma: db }
 })
 
-vi.mock('@/lib/shop-context', () => ({
-  assertShopsAccessible: vi.fn().mockResolvedValue(undefined),
-  canAccessShop: vi.fn(),
+vi.mock('@/lib/chat-scope', () => ({
+  assertShopsHoldCap: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/lib/shop-capability', () => ({
+  canAccessShopWith: vi.fn(),
+  ForbiddenRoleError: class ForbiddenRoleError extends Error {},
 }))
 
 import { Prisma } from '@prisma/client'
@@ -53,7 +56,7 @@ describe('countUnansweredForShops() กับ counts.unanswered (listComments) �
   })
 
   it('ยิง $queryRaw ด้วย SQL template ข้อความเดียวกันไบต์ต่อไบต์ เมื่อ scope เดียวกัน — proof by construction', async () => {
-    await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1' })
+    await countUnansweredForShops({ shopIds: ['shop-1', 'shop-2'], actorUserId: 'user-1', cap: 'H1' })
     await countCommentStatesByShop({ shopIds: ['shop-1', 'shop-2'] })
 
     expect(calls).toHaveLength(2)
@@ -65,7 +68,7 @@ describe('countUnansweredForShops() กับ counts.unanswered (listComments) �
   })
 
   it('ตัวเลข unanswered ที่คืนออกมาเท่ากันเสมอ — countUnansweredForShops คือ .unanswered ของอีกฟังก์ชันตัวเดียวกัน', async () => {
-    const unanswered = await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    const unanswered = await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1', cap: 'H1' })
     const counts = await countCommentStatesByShop({ shopIds: ['shop-1'] })
     expect(unanswered).toBe(counts.unanswered)
     expect(unanswered).toBe(4)
@@ -140,7 +143,7 @@ describe('พิลล์ช่องทาง (provider) ต้องเข้�
   it('[blocker] listCommentPosts ต้องส่ง provider ตัวเดียวกันเข้า counts — ห้ามหลุด scope', async () => {
     // ถ้ามีใครลืมส่งต่อ params.provider ตัวนับกับรายการจะกลับไปพูดคนละเรื่องอีกครั้ง
     const { listCommentPosts } = await import('@/services/page-comment.service')
-    await listCommentPosts({ shopIds: ['s1'], actorUserId: 'u1', provider: 'INSTAGRAM' }).catch(() => {})
+    await listCommentPosts({ shopIds: ['s1'], actorUserId: 'u1', cap: 'H1', provider: 'INSTAGRAM' }).catch(() => {})
     const usedInstagram = calls.some((c) => c.values.some((v) => v === 'INSTAGRAM'))
     // ไม่มี channel ที่ provider=INSTAGRAM → listCommentPosts คืนก่อนถึง $queryRaw ได้ ซึ่งก็ถูกต้อง
     // (counts เป็น 0 ทั้งชุด) — ที่ห้ามเกิดคือ "ยิง SQL ด้วย MESSENGER" ทั้งที่ผู้ใช้เลือก Instagram

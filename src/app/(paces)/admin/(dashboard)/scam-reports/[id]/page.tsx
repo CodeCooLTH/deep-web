@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
+import { notFound, redirect } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
@@ -13,6 +14,10 @@ export const metadata: Metadata = { title: 'ตรวจสอบรายงา
 type PageProps = { params: Promise<{ id: string }> }
 
 export default async function ScamReportDetailPage({ params }: PageProps) {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const { id } = await params
 
   const report = await prisma.scamReport.findUnique({

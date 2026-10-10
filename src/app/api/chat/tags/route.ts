@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveChatScope, intersectScopedShopIds } from "@/lib/chat-scope";
 import { getShopTags } from "@/services/chat-crm.service";
 import { sessionUserId } from "@/lib/session-user";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 // feature 00018 CRM — รายการ tag ทั้งหมดของร้าน (autocomplete ตอนเพิ่ม tag)
 export const dynamic = "force-dynamic";
@@ -17,7 +18,9 @@ export async function GET(request: NextRequest) {
   // ต้องถูก intersect กับขอบเขตเสมอ; ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมของผู้ใช้ร้านเดียว)
   const scope = await resolveChatScope({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
+  }, "X2");
+  // 00071 S-13: มีร้านแต่ไม่ถือ X2 ในร้านใดเลย → 403 FORBIDDEN_ROLE (ไม่ใช่ 404/รายการว่าง)
+  if (scope && scope.shopIds.length === 0) return forbiddenRoleResponse();
   const ctx = scope
     ? { shopIds: intersectScopedShopIds(scope.shopIds, request.nextUrl.searchParams.get("shopId")) }
     : null;

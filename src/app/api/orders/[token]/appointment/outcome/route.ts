@@ -1,7 +1,10 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as v from "valibot";
 import { AppointmentOutcomeSchema } from "@/lib/validations";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { setAppointmentOutcome } from "@/services/appointment.service";
 
@@ -28,8 +31,9 @@ export async function POST(
    * `setAppointmentOutcome` จะหาออเดอร์ไม่เจอแล้วผู้ใช้ได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน
    * ไม่ส่งมา = พฤติกรรมเดิมทุกประการ (หน้า `/orders/[token]` และปฏิทินยังเรียกแบบเดิม)
    */
-  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get("shopId") });
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "O4", { shopId: request.nextUrl.searchParams.get("shopId") });
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(AppointmentOutcomeSchema, body ?? {});

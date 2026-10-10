@@ -19,8 +19,9 @@ import { NextRequest } from 'next/server'
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 
+// ด่านจริง (requireShopCapability) ทำงานเต็ม — mock แค่ตัว resolve ร้าน/สมาชิก
 const requireActiveShopMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/shop-context', () => ({ requireActiveShop: requireActiveShopMock }))
+vi.mock('@/lib/shop-context', () => ({ requireShopForRequest: requireActiveShopMock }))
 
 // vi.hoisted: vi.mock ถูก hoist ขึ้นก่อน const ปกติ — อ้าง const ธรรมดาใน factory จะชน TDZ
 const svc = vi.hoisted(() => ({
@@ -55,7 +56,10 @@ function putRequest(items: unknown) {
 
 function signedIn() {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: USER_ID } } as never)
-  requireActiveShopMock.mockResolvedValue({ shop: { id: SHOP_ID } })
+  requireActiveShopMock.mockResolvedValue({
+    ok: true,
+    target: { shop: { id: SHOP_ID, kind: 'PERSONAL', vertical: 'ONLINE_SALES', userId: USER_ID }, kind: 'PERSONAL', role: 'OWNER', roles: [], locked: false, lockReason: null },
+  })
 }
 
 beforeEach(() => {
@@ -155,7 +159,7 @@ describe('ขอบเขตสิทธิ์ (INT-5, INT-6)', () => {
 
   it('INT-5: ขอบเขตร้านมาจาก session เท่านั้น — ไม่มีร้าน active → 404', async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: USER_ID } } as never)
-    requireActiveShopMock.mockResolvedValue(null)
+    requireActiveShopMock.mockResolvedValue({ ok: false, reason: 'NO_SHOP' })
 
     const res = await PUT(putRequest([{ provider: 'FACEBOOK', videoId: 'fb-111' }]))
 

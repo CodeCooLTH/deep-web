@@ -9,10 +9,13 @@
  * Base (โครง guard + valibot + error mapping):
  *   src/app/api/orders/[token]/appointment/outcome/route.ts
  */
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { NextRequest } from 'next/server'
 import * as v from 'valibot'
 
-import { requireShopMember, jsonNoStore } from '@/lib/shop-api-guard'
+import { jsonNoStore } from '@/lib/shop-api-guard'
+import { requireShopCapability } from '@/lib/shop-capability'
 import {
   OrderPaymentError,
   listPayments,
@@ -57,8 +60,9 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  const ctx = await requireShopMember({ shopId: shopIdFromQuery(request) })
-  if ('error' in ctx) return ctx.error
+  const gate = await requireShopCapability(await getServerSession(authOptions), 'O5', { shopId: shopIdFromQuery(request) })
+  if (!gate.ok) return gate.response
+  const ctx = gate
 
   const parsed = v.safeParse(RecordPaymentSchema, await request.json().catch(() => null))
   if (!parsed.success) return jsonNoStore({ error: 'VALIDATION_ERROR' }, { status: 400 })
@@ -88,8 +92,9 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  const ctx = await requireShopMember({ shopId: shopIdFromQuery(request) })
-  if ('error' in ctx) return ctx.error
+  const gate = await requireShopCapability(await getServerSession(authOptions), 'O5', { shopId: shopIdFromQuery(request) })
+  if (!gate.ok) return gate.response
+  const ctx = gate
 
   try {
     return jsonNoStore({ payments: await listPayments({ shopId: ctx.shopId, orderToken: token }) })

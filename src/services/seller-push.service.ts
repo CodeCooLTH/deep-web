@@ -13,6 +13,7 @@ import { resolveChatChannel } from '@/lib/chat-channel'
 import { pushToUsers } from './app-push.service'
 import { groupUsersByChatPushSound } from './notification-pref.service'
 import { getConversationToastPreview } from './chat.service'
+import { userIdsHoldingCap } from '@/lib/chat-scope'
 
 /** เวลาที่ต้องเว้นก่อนยิง noti ของเธรดเดิมซ้ำ — ลูกค้าพิมพ์ 5 ข้อความรวดเดียวต้องได้เด้งเดียว */
 const THROTTLE_MS = 25_000
@@ -38,17 +39,15 @@ const THROTTLE_MS = 25_000
  * ทุกแถวมานับ — ตารางนี้จะมีข้อมูลน้อยมากโดยธรรมชาติ (เก็บเฉพาะคนที่กดปิดจริง ๆ)
  */
 async function shopAudience(shopId: string): Promise<string[]> {
-  const [shop, members, optedOut] = await Promise.all([
-    prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } }),
-    prisma.shopMember.findMany({ where: { shopId }, select: { userId: true } }),
+  // 00071 S-13: เฉพาะคนที่ถือ H1 (อ่านแชทได้) — BILLING/TECHNICIAN ไม่ได้เสียงเตือนที่เปิดอ่านไม่ได้
+  const [holders, optedOut] = await Promise.all([
+    userIdsHoldingCap([shopId], 'H1'),
     prisma.shopNotificationPref.findMany({
       where: { shopId, chatEnabled: false },
       select: { userId: true },
     }),
   ])
-  const ids = new Set<string>()
-  if (shop?.userId) ids.add(shop.userId)
-  for (const m of members) ids.add(m.userId)
+  const ids = new Set<string>(holders.get(shopId) ?? [])
   for (const p of optedOut) ids.delete(p.userId)
   return [...ids]
 }
@@ -266,14 +265,8 @@ export async function pushChatSendFailed(params: {
  * (เหรียญตรา/ประมูล) แก้ผิดชั้นแล้วจะพลอยเปลี่ยนของที่ไม่เกี่ยวกับร้านเลย
  */
 async function shopSystemAlertAudience(shopId: string): Promise<string[]> {
-  const [shop, members] = await Promise.all([
-    prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } }),
-    prisma.shopMember.findMany({ where: { shopId }, select: { userId: true } }),
-  ])
-  const ids = new Set<string>()
-  if (shop?.userId) ids.add(shop.userId)
-  for (const m of members) ids.add(m.userId)
-  return [...ids]
+  // 00071 S-13: ข่าวสถานะช่องทาง = คนที่ "แก้ได้" (H3 เจ้าของ+ผู้ดูแล) — ผู้ตอบแชทเปิดหน้าตั้งค่าช่องทางไม่ได้ การแตะเตือนจะเจอ 403
+  return [...((await userIdsHoldingCap([shopId], 'H3')).get(shopId) ?? [])]
 }
 
 /**

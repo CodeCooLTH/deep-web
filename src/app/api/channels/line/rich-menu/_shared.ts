@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { RichMenuError } from "@/services/line-rich-menu.service";
 
 /**
@@ -16,33 +16,12 @@ export const NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0, must-revalidate",
 };
 
-export async function requireShopId(): Promise<{ shopId: string; userId: string } | { error: NextResponse }> {
+export async function requireShopId(cap: "H3"): Promise<{ shopId: string; userId: string } | { error: NextResponse }> {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return {
-      error: NextResponse.json(
-        { error: "unauthorized", code: "UNAUTHORIZED" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  const ctx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId:
-        ((session?.user as { activeShopId?: string | null } | undefined)?.activeShopId) ?? null,
-    },
-  });
-  if (!ctx) {
-    return {
-      error: NextResponse.json(
-        { error: "ไม่พบร้านที่กำลังใช้งาน", code: "FORBIDDEN" },
-        { status: 403, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  return { shopId: ctx.shopId, userId };
+  // 00071 S-13: เมนูลัด LINE = H3 (เจ้าของ+ผู้ดูแล) — อ่านแถวสมาชิกสด (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE)
+  const g = await requireShopCapability(session, cap);
+  if (!g.ok) return { error: g.response };
+  return { shopId: g.shopId, userId: g.userId };
 }
 
 /**

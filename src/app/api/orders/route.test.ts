@@ -73,15 +73,16 @@ function makeRequest(payload: Record<string, unknown>) {
 }
 
 /** ร้านทุกใบเป็น BUSINESS ที่ user เป็นสมาชิก ยกเว้น SHOP_OUTSIDER */
+let memberRole = 'OWNER'
 function wireShops() {
   prismaMock.shop.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => {
     if (where.id === SHOP_OUTSIDER) {
       return { id: SHOP_OUTSIDER, kind: 'BUSINESS', userId: 'someone-else', packageLockedAt: null, packageLockReason: null, deletedAt: null }
     }
-    return { id: where.id, kind: 'BUSINESS', userId: 'owner-x', packageLockedAt: null, packageLockReason: null, deletedAt: null }
+    return { id: where.id, kind: 'BUSINESS', vertical: 'SERVICE_QUEUE', userId: 'owner-x', packageLockedAt: null, packageLockReason: null, deletedAt: null }
   })
   prismaMock.shopMember.findUnique.mockImplementation(async ({ where }: { where: { shopId_userId: { shopId: string } } }) => {
-    return where.shopId_userId.shopId === SHOP_OUTSIDER ? null : { role: 'OWNER' }
+    return where.shopId_userId.shopId === SHOP_OUTSIDER ? null : (memberRole === 'OWNER' ? { role: 'OWNER', roles: [] } : { role: 'ADMIN', roles: [memberRole] })
   })
   // listAccessibleShopIds — user เข้าถึงร้าน A/B (ไม่รวม SHOP_OUTSIDER)
   prismaMock.shop.findMany.mockResolvedValue([])
@@ -90,6 +91,7 @@ function wireShops() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  memberRole = 'OWNER'
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: USER_ID, activeShopId: SHOP_A } } as never)
   wireShops()
   prismaMock.conversation.findFirst.mockResolvedValue(null)
@@ -139,5 +141,20 @@ describe('[blocker] POST /api/orders — ร้านปลายทางต้
 
     expect(res.status).toBe(201)
     expect(createOrderMock.mock.calls[0]![0]).toBe(SHOP_B)
+  })
+})
+
+describe('[security] POST /api/orders — conversationId ต้องมี H1', () => {
+  it('BILLING (ไม่มี H1) ส่ง conversationId มา → สร้างได้ แต่ createOrder ไม่ได้รับ conversationId', async () => {
+    memberRole = 'BILLING'
+    const res = await POST(makeRequest(body({ conversationId: CONVERSATION_ID })))
+    expect(res.status).toBe(201)
+    expect(createOrderMock.mock.calls[0]![1].conversationId).toBeUndefined()
+  })
+
+  it('OWNER (มี H1) → conversationId ถูกส่งต่อ', async () => {
+    const res = await POST(makeRequest(body({ conversationId: CONVERSATION_ID })))
+    expect(res.status).toBe(201)
+    expect(createOrderMock.mock.calls[0]![1].conversationId).toBe(CONVERSATION_ID)
   })
 })

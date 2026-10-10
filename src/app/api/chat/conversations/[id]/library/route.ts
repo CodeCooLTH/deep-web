@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { sessionUserId } from "@/lib/session-user";
 import { LibrarySaveSchema, LibraryPatchSchema } from "@/lib/validations";
 import { LIBRARY_PAGE_TAKE, LIBRARY_PREVIEW_TAKE, resolveLibraryOwner } from "@/lib/customer-file-library";
@@ -42,7 +43,7 @@ type Ctx = {
 };
 
 /** resolve สิทธิ์ + เจ้าของคลังของเธรดนี้ในคำสั่งเดียว — ทุก method ต้องผ่านตัวนี้ก่อนเสมอ */
-async function resolveCtx(conversationId: string): Promise<{ error: NextResponse } | Ctx> {
+async function requireShopContext(conversationId: string, cap: "X2"): Promise<{ error: NextResponse } | Ctx> {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!session?.user || !userId) {
@@ -51,8 +52,11 @@ async function resolveCtx(conversationId: string): Promise<{ error: NextResponse
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
     conversationId,
+    cap,
   );
   if (!resolved) return { error: NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 }) };
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ X2 → 403 FORBIDDEN_ROLE
+  if ("denied" in resolved) return { error: forbiddenRoleResponse() };
 
   // externalContactId ตัดสินว่าคลังผูกกับ "คน" หรือ "เธรด" — อ่านหลังผ่านด่านสิทธิ์แล้วเท่านั้น
   const conv = await prisma.conversation.findFirst({
@@ -87,7 +91,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveCtx(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "X2");
   if ("error" in ctx) return ctx.error;
 
   const sp = request.nextUrl.searchParams;
@@ -129,7 +133,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveCtx(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "X2");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);
@@ -159,7 +163,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveCtx(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "X2");
   if ("error" in ctx) return ctx.error;
 
   const fileId = request.nextUrl.searchParams.get("fileId");
@@ -179,7 +183,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
-  const ctx = await resolveCtx(idCheck.output);
+  const ctx = await requireShopContext(idCheck.output, "X2");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

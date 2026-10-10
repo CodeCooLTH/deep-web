@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
-import { requireActiveShop } from '@/lib/shop-context'
-import { sessionUserId } from '@/lib/session-user'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { resolveShopVertical } from '@/lib/lodging'
 import {
   VerticalNotSupportedError,
@@ -17,35 +16,22 @@ import {
  * ด่านร่วมของทุก endpoint ใน `/api/seller/auto-order/*` (00061)
  *
  * 🛑 `shopId` มาจาก active shop ของ session เท่านั้น ห้ามรับจาก body/query —
- * membership guard ได้มาฟรีจาก `requireActiveShop`
+ * membership + บทบาท (X3) ตัดสินใน `requireShopCapability`
  *
  * 🛑 ด่าน vertical อยู่ **ที่นี่ด้วย** ไม่ใช่แค่ใน `setAutoOrderStatus()` — เพราะ endpoint
  * อ่าน/ตั้งค่าวลี/เพจ ก็ต้องปิดสำหรับร้านที่ไม่ใช่ ONLINE_SALES เหมือนกัน (AC-ACO-09
  * พูดถึง "route" ไม่ใช่ "ปุ่มเปิดใช้งาน") — ถ้ากันแค่จุดเปิด ร้านคิวงานจะตั้งวลีเก็บไว้ได้
  * แล้วเจอ 403 ตอนกดเปิดเท่านั้น ซึ่งเป็นประสบการณ์ที่เสียเวลาเปล่า
  */
-export async function requireAutoOrderShop(): Promise<
-  { ok: true; shopId: string; userId: string } | { ok: false; response: NextResponse }
-> {
+export async function requireAutoOrderShop(
+  cap: 'X3',
+): Promise<{ ok: true; shopId: string; userId: string } | { ok: false; response: NextResponse }> {
   const session = await getServerSession(authOptions)
-  // 🛑 "มี session" ≠ "รู้ว่าเป็นใคร" — ตรวจสิ่งที่จะเอาไปใช้จริง (id) ไม่ใช่กล่องที่ห่อมันอยู่
-  const userId = sessionUserId(session)
-  if (!userId) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้งาน' }, { status: 401 }),
-    }
-  }
-  const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  if (!active) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: 'ไม่พบร้านค้า กรุณาเปิดร้านก่อนใช้งาน' }, { status: 404 }),
-    }
-  }
-  if (resolveShopVertical(active.shop.vertical) !== 'ONLINE_SALES') {
+  // 00071 S-13: ตั้งค่าสร้างออเดอร์อัตโนมัติ = X3 (เจ้าของ+ผู้ดูแล) — อ่านแถวสมาชิกสดทุกคำขอ
+  // 401 ไม่รู้ตัวตน · 404 ไม่มีร้าน · 403 FORBIDDEN_ROLE ไม่ถือ cap (🛑 "มี session" ≠ "รู้ว่าเป็นใคร" อยู่ใน requireShopCapability)
+  const g = await requireShopCapability(session, cap)
+  if (!g.ok) return { ok: false, response: g.response }
+  if (resolveShopVertical(g.active.shop.vertical) !== 'ONLINE_SALES') {
     return {
       ok: false,
       response: NextResponse.json(
@@ -54,7 +40,7 @@ export async function requireAutoOrderShop(): Promise<
       ),
     }
   }
-  return { ok: true, shopId: active.shop.id, userId }
+  return { ok: true, shopId: g.shopId, userId: g.userId }
 }
 
 /**

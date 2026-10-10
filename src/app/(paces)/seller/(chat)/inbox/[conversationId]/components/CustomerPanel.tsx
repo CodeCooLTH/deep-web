@@ -144,6 +144,8 @@ export type CustomerPanelData = {
    *  (user สั่ง 2026-08-07 "ถ้า page มี logo ให้ใช้ logo page แทน") null = Deep/เพจไม่มีรูป */
   channelAvatarUrl: string | null
   vertical: ShopVertical
+  /** ผู้ดูยกเลิกรายการรับเงินได้ไหม (O6) ในร้านของเธรดนี้ — server คำนวณจากบทบาทจริงของร้านนั้น (BR-UNI-07) ไม่ใช่ร้านที่ active */
+  canVoidPayment: boolean
   /**
    * ร้านของเธรดนี้ (feature 00050) — ส่งต่อเป็น `?shopId=` ให้ API ที่ปุ่มบนการ์ดยิง
    *
@@ -163,7 +165,7 @@ export type CustomerPanelData = {
   customer: { id: string; phone: string } | null
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
-  customerStats: { orderCount: number; totalSpent: string; since: string } | null
+  customerStats: { orderCount: number; totalSpent?: string; since: string } | null
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -301,6 +303,7 @@ function OrderCard({
   pageAvatarUrl,
   vertical,
   shopId,
+  canVoidPayment,
   onCancelled,
 }: {
   o: CustomerPanelOrder
@@ -312,6 +315,8 @@ function OrderCard({
   vertical: ShopVertical
   /** ร้านของเธรด — ดูเหตุผลที่ `CustomerPanelData.shopId` */
   shopId: string
+  /** ดู `CustomerPanelData.canVoidPayment` */
+  canVoidPayment: boolean
   /** แจ้ง OrdersList อัปเดต status ใน local state — ไม่ router.refresh() เพราะจะรบกวน
    *  scroll/​state ของห้องแชทที่เปิดค้างอยู่ (pattern เดียวกับ CRM section ในไฟล์นี้) */
   onCancelled: (id: string) => void
@@ -663,6 +668,7 @@ function OrderCard({
         orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
         shopId={shopId}
         money={money}
+        canVoid={canVoidPayment}
         onChanged={() => router.refresh()}
       />
     )}
@@ -703,6 +709,7 @@ function OrdersList({
   pageAvatarUrl,
   vertical,
   shopId,
+  canVoidPayment,
 }: {
   conversationId: string
   initial: CustomerPanelOrder[]
@@ -713,6 +720,8 @@ function OrdersList({
   vertical: ShopVertical
   /** ร้านของเธรด — ดูเหตุผลที่ `CustomerPanelData.shopId` */
   shopId: string
+  /** ดู `CustomerPanelData.canVoidPayment` */
+  canVoidPayment: boolean
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
 
@@ -755,7 +764,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} shopId={shopId} onCancelled={markCancelled} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} shopId={shopId} canVoidPayment={canVoidPayment} onCancelled={markCancelled} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -1043,10 +1052,12 @@ export function CustomerPanelBody({
           {data.customerStats && (
             <div>
               <StatRow label={byVertical(t.inbox.customerPanel.statOrderCount, data.vertical)} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
-              <StatRow
-                label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
-                value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
-              />
+              {data.customerStats.totalSpent !== undefined && (
+                <StatRow
+                  label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
+                  value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
+                />
+              )}
               <StatRow
                 label={t.inbox.customerPanel.statCustomerSince}
                 value={relativeTimeTh(new Date(data.customerStats.since).getTime())}
@@ -1149,7 +1160,7 @@ export function CustomerPanelBody({
             <p className="text-default-700 mb-3 text-xs">
               {fmt(t.inbox.customerPanel.listScopeNote, { noun: tabNoun })}
             </p>
-            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} canVoidPayment={data.canVoidPayment} />
           </>
         ) : (
           <p className="text-default-700 mb-0 text-sm">

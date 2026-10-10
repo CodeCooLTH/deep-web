@@ -31,7 +31,7 @@ describe("ProductService capability flags", () => {
 
   it("creates PHYSICAL product with default capability flags (SHIPPED + ONE_TIME)", async () => {
     const created = await createProduct(shopId, { name: "Physical X", price: 199, type: "PHYSICAL" });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.fulfillmentMode).toBe("SHIPPED");
     expect(ser.billingMode).toBe("ONE_TIME");
     expect(ser.billingPeriod).toBeNull();
@@ -43,7 +43,7 @@ describe("ProductService capability flags", () => {
       name: "Digital X", price: 99, type: "DIGITAL",
       fulfillmentMode: "NO_SHIPPING", billingMode: "ONE_TIME",
     });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.fulfillmentMode).toBe("NO_SHIPPING");
     expect(ser.billingMode).toBe("ONE_TIME");
     expect(ser.billingPeriod).toBeNull();
@@ -54,7 +54,7 @@ describe("ProductService capability flags", () => {
       name: "Service X", price: 499, type: "SERVICE",
       fulfillmentMode: "NO_SHIPPING", billingMode: "ONE_TIME",
     });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.fulfillmentMode).toBe("NO_SHIPPING");
     expect(ser.billingMode).toBe("ONE_TIME");
   });
@@ -64,7 +64,7 @@ describe("ProductService capability flags", () => {
       name: "Sub Monthly", price: 299, type: "SUBSCRIPTION",
       fulfillmentMode: "NO_SHIPPING", billingMode: "RECURRING", billingPeriod: "MONTHLY",
     });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.billingMode).toBe("RECURRING");
     expect(ser.billingPeriod).toBe("MONTHLY");
     expect(ser.billingPeriodDays).toBeNull();
@@ -75,7 +75,7 @@ describe("ProductService capability flags", () => {
       name: "Sub Yearly", price: 2999, type: "SUBSCRIPTION",
       fulfillmentMode: "NO_SHIPPING", billingMode: "RECURRING", billingPeriod: "YEARLY",
     });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.billingPeriod).toBe("YEARLY");
   });
 
@@ -85,7 +85,7 @@ describe("ProductService capability flags", () => {
       fulfillmentMode: "SHIPPED", billingMode: "RECURRING",
       billingPeriod: "CUSTOM", billingPeriodDays: 14,
     });
-    const ser = serializeProduct({ ...created, tags: [] });
+    const ser = serializeProduct({ ...created, tags: [] }, { canSeeCost: true });
     expect(ser.fulfillmentMode).toBe("SHIPPED");
     expect(ser.billingMode).toBe("RECURRING");
     expect(ser.billingPeriod).toBe("CUSTOM");

@@ -10,8 +10,10 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate, thaiDayKey, localDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
-import { requireActiveShop } from '@/lib/shop-context'
+import NoPermissionCard from '../_shared/NoPermissionCard'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -84,9 +86,23 @@ export default async function SalesPage({
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect('/auth/sign-in')
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
-  if (!active) redirect('/shop')
-  const shop = active.shop
+  const sessionLike = session as unknown as { user: { id: string; activeShopId?: string | null } }
+
+  /**
+   * 00071 BR-RP-08: หน้านี้ทั้งหน้า (ทุกแท็บ) เป็นการเงินเต็ม = เจ้าของร้านเท่านั้น
+   * 🛑 ต้องตัดสินตรงนี้ ก่อน parse ช่วงเวลา/query ใด ๆ — ผู้ไม่ใช่เจ้าของต้องไม่ถูกดึงข้อมูลเลย
+   */
+  const gate = await gatePage(sessionLike, 'F1')
+  if (!gate.ok && gate.reason === 'NO_SHOP') redirect('/shop')
+  if (!gate.ok) {
+    return (
+      <>
+        <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
+        <NoPermissionCard capability="F1" viewerRoles={await viewerRolesOf(sessionLike)} detail={FINANCE_NO_PERMISSION_DETAIL} />
+      </>
+    )
+  }
+  const shop = gate.active.shop
 
   /**
    * ช่วงเวลา — **ชุดเดียวทุกแท็บ** (`?range=` + `start`/`end`) ผ่าน resolveRangeFromParams (2026-10-01)
@@ -113,14 +129,8 @@ export default async function SalesPage({
   const periodLabel = `${formatDate(rangeLabelDays.start)} – ${formatDate(rangeLabelDays.end)}`
   const rangeFilter = <SalesDateRange range={period.preset} customDates={period.custom} />
 
-  /**
-   * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
-   * และไม่ส่งฟิลด์ใด ๆ ลงไป (คอลัมน์/การ์ดหายทั้งอัน) ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าใช้จ่าย
-   */
-  const expenseAccess = await resolveExpenseAccess(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
-  )
-  const canSeeFinance = expenseAccess.kind === 'GRANTED'
+  /** ผ่านด่านเจ้าของร้านข้างบนแล้ว = เห็นการเงินเสมอ (ตัวแปรคงไว้ให้โค้ดเดิมด้านล่างอ่านง่าย) */
+  const canSeeFinance = true
 
   /**
    * ── การเงินร้าน 3 แท็บ (feature 00067) ─────────────────────────────────────
@@ -234,7 +244,8 @@ export default async function SalesPage({
   // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนผ่านตัวกลางเดียวกับ P&L และชีต (มติ 2026-10-01)
   // ร้านที่ไม่ใช่บริการ: ไม่ดึง/ไม่หักยอดคืน และไม่ตัดร่าง/คืนของ — ของเดิม (Map ว่าง ⇒ amountOf = totalAmount)
   const [shopOrders, returnAdj] = await Promise.all([
-    getOrdersByShop(shop.id),
+    // withCost: หน้านี้ผ่าน gatePage F1 ข้างบนแล้ว (ไม่ถึงบรรทัดนี้ถ้าไม่ใช่เจ้าของ/ผู้ดูแล) — ใช้คิด COGS
+    getOrdersByShop(shop.id, undefined, { withCost: true }),
     newRules ? getReturnAdjustments(shop.id) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
   /** ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้ */

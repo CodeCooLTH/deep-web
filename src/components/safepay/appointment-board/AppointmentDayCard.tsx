@@ -47,6 +47,7 @@ import {
   SALES_CHANNEL_LABELS,
 } from '@/app/(paces)/seller/(dashboard)/orders/components/data'
 import type { AppointmentDayApiItem } from './types'
+import { useAppointmentBoardCaps } from './AppointmentBoardCaps'
 import { toFileUrl } from '@/lib/file-url'
 
 type Props = {
@@ -126,11 +127,14 @@ function CustomerAvatar({
 function CardActionSheet({
   who,
   orderToken,
+  canReschedule,
   onNoShow,
   onClose,
 }: {
   who: string
   orderToken: string
+  /** เลื่อนนัด = O3 — ช่างไม่มี เหลือแต่ "ไม่มาตามนัด" (O4) */
+  canReschedule: boolean
   onNoShow: () => void
   onClose: () => void
 }) {
@@ -148,13 +152,15 @@ function CardActionSheet({
       <div className="bg-card relative w-full rounded-t-2xl p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"> {/* carve-out HR7: safe-area ไม่มี token — ชีตยึดขอบล่างจอ ต้องบวก inset เองไม่งั้นเนื้อหาไปนอนใต้ home indicator */}
         {/* carve-out HR7: safe-area ไม่มี token ในธีม */}
         <p className="text-default-500 mb-2 px-2 text-xs">{who}</p>
-        <Link
-          href={`/orders/${orderToken}`}
-          className="btn text-default-800 hover:bg-default-100 min-h-11 w-full justify-start gap-2.5 rounded-lg px-3"
-        >
-          <Icon icon="calendar-repeat" className="size-4" aria-hidden="true" />
-          เลื่อนนัด
-        </Link>
+        {canReschedule && (
+          <Link
+            href={`/orders/${orderToken}`}
+            className="btn text-default-800 hover:bg-default-100 min-h-11 w-full justify-start gap-2.5 rounded-lg px-3"
+          >
+            <Icon icon="calendar-repeat" className="size-4" aria-hidden="true" />
+            เลื่อนนัด
+          </Link>
+        )}
         <button
           type="button"
           onClick={onNoShow}
@@ -178,6 +184,7 @@ function CardActionSheet({
 export default function AppointmentDayCard({ item, showResourceName = false, now, onChanged }: Props) {
   const [busy, setBusy] = useState<AppointmentOutcome | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const { showMoney, canChat, canReschedule } = useAppointmentBoardCaps()
 
   const start = new Date(item.start)
   const end = new Date(item.end)
@@ -195,8 +202,9 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
 
   /* Decimal มาเป็น string จาก API — แปลงครั้งเดียวตรงนี้ ไม่ใช่ในกลาง JSX
      ค่าที่ parse ไม่ได้ตกเป็น 0 = "ไม่แสดง" ซึ่งปลอดภัยกว่าโชว์ NaN */
-  const totalNumber = Number(item.totalAmount) || 0
-  const depositNumber = Number(item.depositAmount) || 0
+  // ไม่เห็นเงิน = 0 ทั้งคู่ ⇒ ทั้งบรรทัดยอดและ aria-label ไม่มียอดเลย (server ก็ไม่ส่งคีย์มาอยู่แล้ว)
+  const totalNumber = showMoney ? Number(item.totalAmount) || 0 : 0
+  const depositNumber = showMoney ? Number(item.depositAmount) || 0 : 0
 
   /** เบอร์ที่โทรออกได้จริง — ค่าที่ไม่ใช่รูปเบอร์ไทย (อีเมล/ข้อความอิสระ) ยังแสดงแต่ไม่มีปุ่มโทร */
   const dialable = item.buyerContact ? normalizePhone(item.buyerContact) : null
@@ -386,7 +394,7 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
             </a>
           ) : null}
           {/* ไม่มีเธรด = ไม่มีปลายทาง — ปุ่มที่กดแล้วไปไม่ถึงไหนแย่กว่าไม่มีปุ่ม */}
-          {item.conversationId ? (
+          {canChat && item.conversationId ? (
             <Link
               href={`/inbox/${item.conversationId}`}
               aria-label={`ทักแชทหา ${who}`}
@@ -401,7 +409,10 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
       {/* แถวลงมือ — โผล่เฉพาะตอนกดได้จริง (BR-RSV-34) ไม่ใช่ปุ่มเทาเรียงกันทั้งลิสต์ */}
       {action !== 'none' ? (
         <div className="border-default-200 mt-2.5 flex items-center gap-2 border-t border-dashed pt-2.5">
-          {action === 'reschedule' ? (
+          {action === 'reschedule' && !canReschedule ? (
+            /* ช่างเลื่อนนัดไม่ได้ (O3) — บอกว่าต้องให้ใครทำ (ไม่ใช่ปล่อยแถวว่าง) และคงตำแหน่งปุ่ม ⋯ ไว้ท้ายแถว */
+            <p className="text-default-700 mb-0 flex-1 text-xs">ลูกค้าขอเลื่อนนัด ให้เจ้าของร้านหรือผู้ดูแลเลือกเวลาใหม่</p>
+          ) : action === 'reschedule' ? (
             /* ตัวเลือกเวลาใหม่อยู่ในหน้ารายละเอียดออเดอร์ (RescheduleAppointmentSheet ต้องการ
                resourceId + เหตุผลที่ลูกค้าฝากไว้ ซึ่ง payload ของจอนี้ไม่มีโดยตั้งใจ) — ปุ่มนี้
                จึงพาไปที่นั่น ไม่ใช่เปิดแผงครึ่ง ๆ กลาง ๆ ที่ข้อมูลไม่ครบ */
@@ -442,6 +453,7 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
         <CardActionSheet
           who={who}
           orderToken={item.orderToken}
+          canReschedule={canReschedule}
           onClose={() => setMenuOpen(false)}
           onNoShow={() => {
             setMenuOpen(false)

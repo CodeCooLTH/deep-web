@@ -1,7 +1,10 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import * as v from "valibot";
 import { UpdateRoomSchema } from "@/lib/validations";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import {
   getRoom,
   updateRoom,
@@ -27,8 +30,9 @@ export async function GET(
   { params }: { params: Promise<{ roomId: string }> },
 ) {
   const { roomId } = await params;
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q1");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   try {
     // getRoom scope shopId ใน where ตั้งแต่ query แรก — ห้องของร้านอื่นจะไม่ถูกอ่านขึ้นมาเลย
@@ -48,8 +52,9 @@ export async function PATCH(
   { params }: { params: Promise<{ roomId: string }> },
 ) {
   const { roomId } = await params;
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q2");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(UpdateRoomSchema, body ?? {});

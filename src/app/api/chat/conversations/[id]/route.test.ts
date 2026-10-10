@@ -14,7 +14,7 @@ const prismaMock = vi.hoisted(() => ({
   shopMember: { findUnique: vi.fn(), findMany: vi.fn() },
   // feature 00037 — resolveChatScope อ่านโหมดมุมมองจาก User และหาร้านของเธรดจาก Conversation
   user: { findUnique: vi.fn() },
-  conversation: { findFirst: vi.fn() },
+  conversation: { findFirst: vi.fn(), findUnique: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
@@ -48,6 +48,8 @@ beforeEach(() => {
   // เป็นของร้านที่ resolve ได้ — เคสที่ต้องการทดสอบอย่างอื่นค่อย override เอง
   prismaMock.user.findUnique.mockResolvedValue({ chatScopeMode: 'SINGLE' })
   prismaMock.conversation.findFirst.mockResolvedValue({ shopId: SHOP_A_PERSONAL })
+  // 00071: miss ใน scope → resolveConversationShopId ถามต่อว่าเธรดมีอยู่ในร้านที่ผู้ใช้เป็นสมาชิกไหม (แยก 403 บทบาท / 404) — ค่าตั้งต้น = ไม่มี
+  prismaMock.conversation.findUnique.mockResolvedValue(null)
 })
 
 describe('PATCH /api/chat/conversations/[id]', () => {
@@ -88,8 +90,11 @@ describe('PATCH /api/chat/conversations/[id]', () => {
     ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: USER_ID, activeShopId: null } })
     prismaMock.user.findUnique.mockResolvedValue({ chatScopeMode: 'UNIFIED' })
     prismaMock.shop.findFirst.mockResolvedValue({ id: SHOP_A_PERSONAL })
-    prismaMock.shop.findMany.mockResolvedValue([{ id: SHOP_A_PERSONAL }, { id: OTHER_SHOP }])
-    prismaMock.shopMember.findMany.mockResolvedValue([])
+    // 00071: listAccessibleShopIds(userId, cap) อ่านแถวสมาชิก+ชนิดร้านมาตัดสินบทบาท — ร้านที่สองผู้ใช้เป็นผู้ดูแลที่ตอบแชทได้
+    prismaMock.shop.findMany.mockResolvedValue([
+      { id: SHOP_A_PERSONAL, userId: USER_ID, kind: 'PERSONAL', vertical: 'ONLINE_SALES', members: [] },
+      { id: OTHER_SHOP, userId: 'owner-x', kind: 'BUSINESS', vertical: 'ONLINE_SALES', members: [{ role: 'ADMIN', roles: ['CHAT'] }] },
+    ])
     prismaMock.conversation.findFirst.mockResolvedValue({ shopId: OTHER_SHOP })
     updateConversationStateMock.mockResolvedValue(undefined)
 
@@ -151,7 +156,7 @@ describe('PATCH /api/chat/conversations/[id]', () => {
       id: SHOP_B_BUSINESS, kind: 'BUSINESS', userId: 'other-owner',
       packageLockedAt: null, packageLockReason: null, deletedAt: null,
     })
-    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'] })
     prismaMock.conversation.findFirst.mockResolvedValue({ shopId: SHOP_B_BUSINESS })
     updateConversationStateMock.mockResolvedValue(undefined)
 

@@ -16,7 +16,7 @@ import { AutoReplyTestThreadSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
 
   const rows = await prisma.aiChatbotTestThread.findMany({
@@ -53,7 +53,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

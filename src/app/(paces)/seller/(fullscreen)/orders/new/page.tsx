@@ -19,10 +19,15 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+import { can } from '@/lib/shop-permissions'
+import { isBillingOnly } from '@/lib/order-role-rules'
 import { toCatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/to-catalog'
 import Icon from '@/components/wrappers/Icon'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 /** feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request) */
 export async function generateMetadata(): Promise<Metadata> {
@@ -38,6 +43,11 @@ const FORM_ID = 'order-create-form'
 export default async function NewOrderPage() {
   // auth guard อยู่ใน (fullscreen)/layout.tsx แล้ว — ดึง session เพื่อใช้ userId เท่านั้น
   const session = await getServerSession(authOptions)
+  // 00071 P3 (O2s): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'O2s')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionScreen capability="O2s" viewerRoles={await viewerRolesOf(session)} />
+  }
 
   // Phase 4: resolve active shop (Personal หรือ Business ตาม context ที่สลับ) — membership guard ได้ฟรี
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
@@ -86,8 +96,11 @@ export default async function NewOrderPage() {
 
   // feature 00022 — โหมดสร้างพัสดุของร้าน ส่งลง form ตอน render (ไม่ต้องยิงถามฝั่ง client)
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะได้ 'OFF' → ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์
+  // billingOnly (C-6): ผู้เปิดบิลสร้างได้เฉพาะบิลบริการ ไม่มีพัสดุ ⇒ ไม่เปิดพัสดุอัตโนมัติเลย
+  const roles = gate.ok ? gate.roles : []
+  const billingOnly = isBillingOnly(roles)
   const ishipCreateMode =
-    shop.vertical === 'ONLINE_SALES'
+    shop.vertical === 'ONLINE_SALES' && !billingOnly
       ? await getConnection(shop.id)
           .then((c) => (c.connected && c.status === 'ACTIVE' ? c.createMode : 'OFF'))
           .catch(() => 'OFF' as const)
@@ -117,10 +130,13 @@ export default async function NewOrderPage() {
     : []
 
   // map Product → CatalogProduct: ใช้ toCatalogProduct กลาง (แชร์กับหน้าแก้ไขออเดอร์)
+  // ต้นทุนสินค้าเห็นเฉพาะเจ้าของ (00071 S-3) — role อ่านสดจาก requireActiveShop
+  const canSeeCost = can(roles, 'P3')
   let catalog: CatalogProduct[] = []
   try {
-    const products = await getProductsByShop(shop.id)
-    catalog = products.map(toCatalogProduct)
+    // P1 ของผู้เปิดบิล = เฉพาะบริการ — กรองที่ server ก่อนส่งลง client (ไม่ซ่อนแค่ในฟอร์ม)
+    const products = (await getProductsByShop(shop.id, undefined, { withCost: canSeeCost })).filter((p) => !billingOnly || p.type === 'SERVICE')
+    catalog = products.map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     catalog = []
   }
@@ -128,7 +144,7 @@ export default async function NewOrderPage() {
   // สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน ProductPickerSheet (quick create); ล้มก็ไม่พัง
   let bestSellers: CatalogProduct[] = []
   try {
-    bestSellers = (await getBestSellerProducts(shop.id, 8)).map(toCatalogProduct)
+    bestSellers = (await getBestSellerProducts(shop.id, 8, { withCost: canSeeCost })).filter((p) => !billingOnly || p.type === 'SERVICE').map((p) => toCatalogProduct(p, { canSeeCost }))
   } catch {
     bestSellers = []
   }
@@ -153,7 +169,7 @@ export default async function NewOrderPage() {
         backHref="/orders"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
+      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} showCost={canSeeCost} billingOnly={billingOnly} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

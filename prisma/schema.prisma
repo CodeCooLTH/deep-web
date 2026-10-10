@@ -273,16 +273,9 @@ model Shop {
   chatMetricsUpdatedAt   DateTime? // เวลาที่ cron เขียนล่าสุด, FR-RESP-07
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
-  // staffCanViewFinance: toggle owner เปิด/ปิดให้ ShopMember(role=ADMIN) เห็นข้อมูล Expense/P&L ของร้านนี้
-  // 🛑 default **true** ตั้งแต่ 2026-08-08 (user สั่ง "เปิดหมด" — กลับทิศจาก FR-EXP-10-AC-01 เดิม
-  // ที่ตั้งไว้ false ตาม BR §3.6 "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
-  // เหตุผล: ทีมงานที่ดูออเดอร์อยู่แล้วต้องเห็นต้นทุน/กำไรเพื่อทำงาน การตั้ง default ปิดแปลว่า
-  // ทุกร้านต้องรู้ว่ามีสวิตช์นี้อยู่ก่อนถึงจะใช้ได้ ซึ่งไม่มีใครรู้ → ฟีเจอร์ตายเงียบ ๆ ทั้งฟีเจอร์
-  // **สวิตช์ยังอยู่ครบ** — owner ปิดรายร้านได้เหมือนเดิมที่ /business/[shopId]/invites
-  // มีผลจริงเฉพาะ BUSINESS shop ในทางปฏิบัติ (PERSONAL shop ไม่มี ShopMember(ADMIN) อื่นอยู่แล้ว —
-  // 1 user = owner คนเดียว) แต่ประกาศไว้ทุกแถวเพื่อความสม่ำเสมอของ schema (PRD §4.2)
-  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle
-  // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
+  // 🛑 00071: ธงนี้ **ไม่มีผลแล้ว** (ไม่มีโค้ดอ่าน) — ข้อมูลการเงินตัดสินด้วยบทบาท (`can()` ใน
+  // src/lib/shop-permissions.ts): เจ้าของเท่านั้น ผู้ดูแลเห็นไม่ได้ไม่ว่าธงเป็นอะไร
+  // คงคอลัมน์ไว้เพื่อไม่ต้อง drop (ประวัติ: default true ตั้งแต่ 2026-08-08 · migration 20260808220000)
   staffCanViewFinance Boolean @default(true)
   // --- feature 00017: Lodging Vertical (Phase 1) → ขยายเป็น 3 ค่าโดย feature 00028 ---
   // vertical (ป้ายบนจอ "ประเภทร้านค้า") มี 3 ค่าเท่านั้น:
@@ -1380,6 +1373,10 @@ model ShopMember {
   userId    String
   // role: "OWNER" | "ADMIN" — String ตาม convention project (เทียบ Order.status/VerificationRecord.status)
   role      String
+  // roles: บทบาทย่อยของ ADMIN (feature 00071) — "MANAGER"|"CHAT"|"BILLING"|"TECHNICIAN"
+  // OWNER = [] เสมอ · ADMIN = 1..4 ค่า ไม่ซ้ำกันไม่บังคับ แต่ต้องอยู่ในชุด
+  // ⚠️ CHECK ShopMember_roles_check เป็น SQL ใน migration (Prisma ไม่รู้จัก) — ห้าม db pull / migrate dev
+  roles     String[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1503,6 +1500,8 @@ model ShopInvite {
   contactType      String
   // role: ปัจจุบันมีแค่ "ADMIN" — เก็บไว้ future-proof (Phase 2 RBAC granularity)
   role             String    @default("ADMIN")
+  // roles: บทบาทย่อยที่จะได้ตอน accept (00071) — 1..4 ค่า · CHECK ShopInvite_roles_check เป็น SQL ใน migration ห้าม db pull / migrate dev
+  roles            String[]  @default(["MANAGER"])
   // status: "PENDING" | "ACCEPTED" | "CANCELLED" — String มิเรอร์ TopUpRequest.status
   status           String    @default("PENDING")
   invitedByUserId  String
@@ -1529,6 +1528,8 @@ model ShopInviteLink {
   slug            String    @unique
   // role: ปัจจุบันมีแค่ "ADMIN" — เก็บไว้ future-proof (มิเรอร์ ShopInvite.role)
   role            String    @default("ADMIN")
+  // roles: บทบาทย่อยที่ผู้รับลิงก์จะได้ (00071) — CHECK ShopInviteLink_roles_check เป็น SQL ใน migration ห้าม db pull / migrate dev
+  roles           String[]  @default(["MANAGER"])
   createdByUserId String
   expiresAt       DateTime
   // revokedAt: NULL = ยังใช้งานได้ (ยัง valid ถ้า expiresAt ยังไม่ถึง); non-NULL = owner สั่งปิดใช้งานเอง

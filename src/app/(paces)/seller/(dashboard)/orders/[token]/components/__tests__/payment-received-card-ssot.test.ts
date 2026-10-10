@@ -58,7 +58,7 @@ describe('PaymentReceivedCard: badge ต้องมาจาก getPaymentBadge
 
   it('OrderDetailClient ต้องส่ง prop status เข้า PaymentReceivedCard เสมอ', () => {
     const src = stripComments(read(CLIENT))
-    const match = src.match(/<PaymentReceivedCard[\s\S]{0,400}?\/>/)
+    const match = src.match(/<PaymentReceivedCard[\s\S]{0,600}?\/>/)
     expect(match).not.toBeNull()
     expect(match?.[0]).toMatch(/status=\{status\}/)
   })

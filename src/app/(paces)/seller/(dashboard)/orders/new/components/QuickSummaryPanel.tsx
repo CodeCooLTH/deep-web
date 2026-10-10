@@ -27,9 +27,11 @@ interface Props {
   /** compact = ใช้ในโมดัลสร้างคำสั่งซื้อ (feature 00018): footer ติดล่างของโมดัล (sticky ในกล่อง scroll)
    *  แทน fixed viewport-bottom + แสดงทุกขนาดจอ (ไม่ lg:hidden) เพราะโมดัลบังคับ layout มือถือทุกจอ */
   compact?: boolean
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — ซ่อนตัวนับต้นทุน */
+  showCost?: boolean
 }
 
-export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ' }: Props) {
+export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ', showCost = false }: Props) {
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const costCoverage = countCostCoverage(watchedItems)
   const [expanded, setExpanded] = useState(false)
@@ -67,7 +69,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
             <span className="tabular-nums">{formatThb(subtotal)}</span>
           </div>
           {/* อยู่ในบล็อกที่ผู้ใช้กดกางเองเท่านั้น — ไม่รบกวน flow ปิดบิลเร็ว */}
-          {costCoverage.total > 0 && (
+          {showCost && costCoverage.total > 0 && (
             <div className="flex justify-between text-default-400">
               <span>ตั้งต้นทุนแล้ว</span>
               <span className="tabular-nums">

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
 import { resolveDispute, NoOpenDisputeError } from "@/services/order-dispute.service";
 
 /** ผลของการปิดเรื่อง — allow-list ไม่ใช่รับสตริงอะไรก็ได้ */
@@ -34,7 +34,7 @@ export async function POST(
   const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
   if (!sessionUserId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  if (!(await canAccessShop(order.shopId, sessionUserId))) {
+  if (!(await canAccessShopWith(order.shopId, sessionUserId, 'O6'))) {
     return NextResponse.json({ error: "ไม่มีสิทธิ์ปิดเรื่องนี้" }, { status: 403 });
   }
 

@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { GRAPH_VERSION, CONNECT_CONFIG_ID, CONNECT_SCOPES, PENDING_REVIEW_SCOPES } from '@/lib/facebook/constants'
 import { sessionUserId } from '@/lib/session-user'
+import { requireShopCapability } from '@/lib/shop-capability'
 
 // เริ่ม OAuth เชื่อม Facebook Page (feature 00018)
 //
@@ -33,9 +34,9 @@ export function connectAuthParam(userId: string | null): [string, string] {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  // 00071 S-13: เริ่มเชื่อมเพจ = H3 (เจ้าของ+ผู้ดูแล) — ตรวจก่อนพาไป Facebook ไม่ให้บทบาทที่เชื่อมไม่ได้เสียเที่ยว OAuth
+  const gate = await requireShopCapability(session, 'H3')
+  if (!gate.ok) return gate.response
 
   const appId = process.env.FB_CHAT_APP_ID
   if (!appId) {

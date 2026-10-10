@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 
 // GET /api/orders/customers?q=<term>
 // คืน list ลูกค้าที่เคยสั่งกับร้านนี้ — ใช้สำหรับ autocomplete ตอนสร้าง order ใหม่
@@ -14,10 +14,9 @@ export async function GET(request: NextRequest) {
   }
 
   // ดึง active shop ของ session — ถ้าไม่มีร้านคืน [] (ไม่ใช่ error)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json([]);
-  }
+  const gate = await requireShopCapability(session, "C1");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   const shop = active.shop;
 
   const { searchParams } = new URL(request.url);

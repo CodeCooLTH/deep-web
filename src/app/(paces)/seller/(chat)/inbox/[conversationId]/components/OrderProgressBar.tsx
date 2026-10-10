@@ -94,6 +94,7 @@ export default function OrderProgressBar({
   customerAvatar,
   pageAvatarUrl,
   shopId,
+  canVoidPayment,
   variant = 'bar',
 }: {
   orders: CustomerPanelOrder[]
@@ -117,6 +118,8 @@ export default function OrderProgressBar({
    * (BR-UNI-07) ⇒ ปุ่มจะ "หาไม่เจอ" แล้วกดกี่ครั้งก็ไม่ผ่าน (บทเรียน iShip retry 2026-08-06)
    */
   shopId: string | null
+  /** ผู้ดูยกเลิกรายการรับเงินได้ไหม (O6) ในร้านของเธรด — ดู `CustomerPanelData.canVoidPayment` */
+  canVoidPayment: boolean
   /**
    * 'bar' (เดิม) = แถบยุบ/กางของตัวเอง · 'detail' = เนื้อหาที่กางแล้วล้วน ๆ ไม่มีแถบ ไม่มีปุ่มย่อ
    *
@@ -258,6 +261,7 @@ export default function OrderProgressBar({
           orderLabel={payMoney.label}
           shopId={shopId}
           money={payMoney.money}
+          canVoid={canVoidPayment}
           onChanged={refresh}
         />
       )}

@@ -5,6 +5,7 @@ import { isReminderDue, groupReminders, buildReminderPush } from '@/lib/follow-u
 import { reminderFireAt } from '@/lib/follow-up-time'
 import { pushToUsersWithStatus } from '@/services/app-push.service'
 import { getConversationToastPreview } from '@/services/chat.service'
+import { userIdsHoldingCap } from '@/lib/chat-scope'
 
 const SCAN_MAX = 500
 const PRE_WINDOW_MS = 36 * 3600_000
@@ -61,17 +62,11 @@ export async function runFollowUpReminders(now: Date = new Date()): Promise<Remi
   r.reserved = reserved.length
   if (reserved.length === 0) return r
 
-  // สมาชิกปัจจุบัน ณ ตอนส่ง = เจ้าของร้าน ∪ ShopMember
+  // ผู้รับต้องยังถือ H1 ในร้านนั้น ณ ตอนส่ง (00071 S-13) — เดิม "เจ้าของ ∪ สมาชิก" ⇒ ผู้ถูกถอดบทบาทตอบแชท/เป็นผู้ดูแลบิล
+  // ยังได้เสียงเตือนงานที่เปิดไม่ได้ · query เดียวต่อรอบ (คัดตามบทบาทใน memory)
   const shopIds = [...new Set(reserved.map((x) => x.shopId))]
-  const [shops, members] = await Promise.all([
-    prisma.shop.findMany({ where: { id: { in: shopIds } }, select: { id: true, userId: true } }),
-    prisma.shopMember.findMany({ where: { shopId: { in: shopIds } }, select: { shopId: true, userId: true } }),
-  ])
-  const ok = new Set([
-    ...shops.map((s) => `${s.id}\u0000${s.userId}`),
-    ...members.map((m) => `${m.shopId}\u0000${m.userId}`),
-  ])
-  const eligible = reserved.filter((x) => ok.has(`${x.shopId}\u0000${x.assigneeUserId}`))
+  const holders = await userIdsHoldingCap(shopIds, 'H1')
+  const eligible = reserved.filter((x) => holders.get(x.shopId)?.has(x.assigneeUserId as string))
   r.droppedNonMember = reserved.length - eligible.length
 
   for (const g of groupReminders(eligible)) {

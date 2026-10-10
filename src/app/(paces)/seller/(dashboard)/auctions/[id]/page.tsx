@@ -17,6 +17,9 @@ import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import AuctionConsoleClient from './components/AuctionConsoleClient'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'รายละเอียดประมูล' }
 
@@ -28,6 +31,16 @@ export default async function AuctionDetailPage({ params }: PageProps) {
   const { id } = await params
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (X1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'X1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="รายละเอียดประมูล" />
+        <NoPermissionCard capability="X1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 

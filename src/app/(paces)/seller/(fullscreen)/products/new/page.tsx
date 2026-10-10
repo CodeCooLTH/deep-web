@@ -22,8 +22,12 @@ import Link from 'next/link'
 import { Icon } from '@iconify/react'
 import { productPageMetadata } from '@/lib/product-page-title'
 import ProductFormV2 from '@/app/(paces)/seller/(dashboard)/products/components/ProductFormV2'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('new')
@@ -32,6 +36,11 @@ const FORM_ID = 'product-form-v2'
 
 export default async function NewProductV2Page() {
   const session = await getServerSession(authOptions)
+  // 00071 P3 (P2): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'P2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return <NoPermissionScreen capability="P2" viewerRoles={await viewerRolesOf(session)} />
+  }
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
@@ -108,6 +117,7 @@ export default async function NewProductV2Page() {
         vertical={shop.vertical}
         shopId={shop.id}
         formId={FORM_ID}
+        canEditCost={can(rolesFromMembership(active.role, active.roles), 'P3')}
         entitlementActive={entitlementActive}
         isProActive={proActive}
         hidePayments={await shouldHidePayments()}

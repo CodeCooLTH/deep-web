@@ -25,6 +25,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '../../_shared/NoPermissionCard'
 import {
   listServiceResources,
   serializeServiceResource,
@@ -38,6 +41,16 @@ export default async function JobTypesPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user) return null
 
+  // 00071 Q2: ตั้งค่าประเภทงาน = เจ้าของ/ผู้ดูแลเท่านั้น — การ์ดบอกเหตุผล ไม่ใช่หน้าว่าง (BRD FR-RP-02)
+  const gate = await gatePage(session, 'Q2')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="ประเภทงาน" />
+        <NoPermissionCard capability="Q2" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
   )

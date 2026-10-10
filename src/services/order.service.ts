@@ -1,3 +1,5 @@
+import { ForbiddenRoleError, canAccessShopWith } from "@/lib/shop-capability";
+import { isOrderUnpaid } from "@/lib/order-payment-state";
 import { shopCompletedLabel } from "@/lib/shop-stat-vocab";
 import { randomBytes } from "node:crypto";
 import { ACTIVE_FORWARD_SHIPMENT, LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -108,6 +110,28 @@ export class OrderDateOutOfWindowError extends Error {
     super("ORDER_DATE_OUT_OF_WINDOW")
     this.name = "OrderDateOutOfWindowError"
   }
+}
+
+/**
+ * 00071 P3 (มติ C-6) — บทบาท "เปิดบิล" (O2s แต่ไม่มี O2) สร้าง/แก้ได้เฉพาะบิลบริการ:
+ * รายการที่อ้าง productId ของสินค้าที่ไม่ใช่ SERVICE ถูกปฏิเสธทั้งใบ
+ * extends ForbiddenRoleError ⇒ route ที่จับคลาสแม่ได้ 403 FORBIDDEN_ROLE เหมือนกัน
+ */
+export class OrderRoleRestrictedError extends ForbiddenRoleError {
+  constructor() { super(); this.name = "OrderRoleRestrictedError"; }
+}
+
+/** 00071 P3 (O3 เงื่อนไขต่อใบ) — BILLING แก้ได้เฉพาะบริการที่ยังไม่ชำระ; ใบที่รับเงินแล้ว/ไม่ใช่บริการล็อก */
+export class OrderLockedForRoleError extends ForbiddenRoleError {
+  constructor() { super(); this.name = "OrderLockedForRoleError"; }
+}
+
+/** เทียบ productId ของรายการกับแคตตาล็อกของร้าน — ไม่ใช่ SERVICE ⇒ ปฏิเสธ (สินค้าต่างร้านปล่อยให้ด่าน ProductNotInShopError จัดการต่อ) */
+async function assertBillingItemsAreService(shopId: string, items: { productId?: string }[]) {
+  const ids = items.map((i) => i.productId).filter((id): id is string => !!id);
+  if (ids.length === 0) return;
+  const rows = await prisma.product.findMany({ where: { id: { in: ids }, shopId }, select: { type: true } });
+  if (rows.some((r) => r.type !== "SERVICE")) throw new OrderRoleRestrictedError();
 }
 
 // charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
@@ -362,7 +386,17 @@ export async function createOrder(shopId: string, data: {
   detectionResolvedAt?: Date;
   /** ใบที่เกิดจากโหมด "ห้องทดสอบ" — มิติตั้งฉากกับ status */
   isDryRun?: boolean;
+}, opts?: {
+  /**
+   * 00071 P3 (C-6) — ผู้สร้างเป็นบทบาท "เปิดบิล" (O2s ไม่มี O2): บังคับ type=SERVICE และปฏิเสธบรรทัดที่อ้างสินค้าไม่ใช่ SERVICE
+   * route เป็นคนคำนวณจากบทบาทจริงของ session (isBillingOnly) — ห้ามรับจาก body; caller ภายในระบบ (auto-order/iship) ไม่ส่ง = ไม่จำกัด
+   */
+  billingOnly?: boolean;
 }) {
+  if (opts?.billingOnly) {
+    await assertBillingItemsAreService(shopId, data.items);
+    data = { ...data, type: "SERVICE" };
+  }
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
   const appointmentResource = data.appointment
@@ -1013,7 +1047,21 @@ export async function updateOrder(
   data: Parameters<typeof createOrder>[1],
   // feature 00031 — คนที่กดแก้ไข (optional เพื่อไม่ให้ผู้เรียกเดิมพัง; ไม่ส่ง = "ระบบ")
   actorUserId?: string | null,
+  /**
+   * 00071 D-4 — ผู้ไม่ใช่เจ้าของไม่เห็น/ไม่ส่งต้นทุน แต่การแก้ออเดอร์ลบ item แล้วสร้างใหม่:
+   * ถ้าไม่รักษา OrderItem.cost เดิม ต้นทุนของใบจะถูกแทนด้วย Product.cost ล่าสุดเงียบ ๆ (กำไรเปลี่ยนเอง)
+   * true = บรรทัดที่จับคู่กับ item เดิมได้ (productId ก่อน แล้วชื่อ) ใช้ cost เดิม · จับคู่ไม่ได้ = resolveLineCosts ตามปกติ
+   */
+  opts?: {
+    keepLineCosts?: boolean
+    /** 00071 P3 — ผู้แก้เป็นบทบาท "เปิดบิล": แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ + บังคับกฎรายการเดียวกับ createOrder */
+    billingOnly?: boolean
+  },
 ) {
+  if (opts?.billingOnly) {
+    await assertBillingItemsAreService(shopId, data.items);
+    data = { ...data, type: "SERVICE" };
+  }
   // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
   const editedAt = new Date();
 
@@ -1119,6 +1167,24 @@ export async function updateOrder(
       },
     });
     if (!existing) throw new OrderNotFoundError();
+    // 00071 P3 (O3 เงื่อนไขต่อใบ) — อ่านในธุรกรรมเดียวกับที่จะลบ+สร้างรายการใหม่ ไม่งั้นรับเงินคั่นระหว่างเช็คกับแก้ได้
+    if (opts?.billingOnly) {
+      const pay = await tx.order.findUniqueOrThrow({
+        where: { id: existing.id },
+        select: {
+          type: true, totalAmount: true, paymentConfirmedAt: true, codReceivedAt: true,
+          payments: { select: { kind: true, amount: true, voidedAt: true } },
+        },
+      });
+      if (pay.type !== "SERVICE" || !isOrderUnpaid(pay)) throw new OrderLockedForRoleError();
+    }
+    // อ่านต้นทุนเดิมก่อน deleteMany (D-4) — แยก query ไม่ยัดใน select ข้างบน กันกระทบ diff ของ ORDER_EDITED
+    const oldCostRows = opts?.keepLineCosts
+      ? await tx.orderItem.findMany({
+          where: { orderId: existing.id },
+          select: { productId: true, name: true, cost: true },
+        })
+      : [];
     // แก้ได้เฉพาะ PENDING — ตรงกับกฎที่ UI ใช้อยู่แล้วทุกที่ (OrderActions/OrderCardMenu: canEdit = PENDING)
     // เดิมบล็อกแค่ CANCELLED ทำให้โมดัลแก้ไขในแชท (ซึ่งไม่ได้ gate สถานะเลย) แก้ออเดอร์ที่
     // SHIPPED/CONFIRMED ได้ = รื้อ OrderItem ทิ้งสร้างใหม่ + reverse/deduct สต็อก ทั้งที่ผู้ซื้อ
@@ -1159,11 +1225,23 @@ export async function updateOrder(
 
     // 5) cost snapshot + write-back — ฟังก์ชันเดียวกับ createOrder (ห้ามเขียนแยก)
     const costMap = await resolveLineCosts(tx, shopId, resolvedItems);
-    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => ({
-      ...item,
-      stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
-      cost: typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null),
-    }));
+    // D-4: จับคู่บรรทัดใหม่กับ item เดิม (หนึ่งต่อหนึ่ง) ด้วย productId ก่อน แล้ว fallback ด้วยชื่อ
+    const pool = [...oldCostRows];
+    const takeOld = (it: { productId?: string; name: string }) => {
+      let i = it.productId ? pool.findIndex((o) => o.productId === it.productId) : -1;
+      if (i < 0) i = pool.findIndex((o) => o.name === it.name);
+      return i < 0 ? undefined : pool.splice(i, 1)[0];
+    };
+    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => {
+      const old = opts?.keepLineCosts ? takeOld(item) : undefined;
+      return {
+        ...item,
+        stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
+        cost: old
+          ? old.cost
+          : (typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null)),
+      };
+    });
 
     // 6) customer link — relink เฉพาะเมื่อมีเบอร์ (ไม่มีเบอร์ = ไม่แตะ customerId เดิม กัน unlink ไม่ตั้งใจ)
     //
@@ -1688,12 +1766,18 @@ export async function getOrderByToken(publicToken: string) {
 
 // DAL pattern: กรอง ownership ตั้งแต่ query layer เพื่อกัน RSC flight-data leak
 // (redirect-after-fetch ไม่เพียงพอเพราะ Next.js serialize object ก่อน redirect throw)
-export async function getOrderForShop(publicToken: string, shopId: string) {
+export async function getOrderForShop(
+  publicToken: string,
+  shopId: string,
+  // withCost — ส่ง true เฉพาะเมื่อผู้ดูผ่านด่านกำไร (resolveExpenseAccess GRANTED) · ค่าตั้งต้น = ไม่มีคีย์ cost
+  opts: { withCost?: boolean } = {},
+) {
   return prisma.order.findFirst({
     where: { publicToken, shopId },
     include: {
       // เพิ่ม product.images เพื่อ resolve imageUrl thumbnail → OrderSummary (theme fidelity)
       items: {
+        omit: { cost: !opts.withCost },
         include: {
           product: { select: { images: true } },
         },
@@ -2084,7 +2168,7 @@ export async function settleCodFromCarrier(input: {
  * 🛑 ห้ามก็อปไปเขียนซ้ำ: ถ้าสองที่ include ไม่ตรงกัน หน้าจอจะขาดข้อมูลบางฟิลด์เฉพาะเส้นทางเดียว
  * แล้วอาการจะออกมาเป็น "บางใบไม่มีเลขพัสดุ" ซึ่งไม่มีใครโยงกลับมาที่ include ได้
  */
-function orderListInclude(opts?: { withPayments?: boolean }) {
+function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean }) {
   return {
 
       /**
@@ -2098,6 +2182,8 @@ function orderListInclude(opts?: { withPayments?: boolean }) {
       // items: เพิ่ม product.images เพื่อ resolve imageUrl → /api/files/{id} ใน OrderCard (F2)
       // pattern เดียวกับ new/page.tsx L67 ที่ resolve image จาก p.images[0]
       items: {
+        // ต้นทุนรายบรรทัด (00071 T9) — opt-in เฉพาะผู้เรียกที่ผ่านด่าน F1 (sales: COGS) · ที่เหลือไม่ได้คีย์ cost
+        omit: { cost: !opts?.withCost },
         include: {
           product: { select: { images: true } },
         },
@@ -2231,7 +2317,11 @@ export async function getOrdersByShop(
    *
    * ผู้เรียกต้องกั้นด้วย `shop.vertical === 'SERVICE_QUEUE'` — ห้ามกั้นด้วย "ร้านนี้มีมัดจำไหม"
    */
-  opts?: { withPayments?: boolean },
+  opts?: {
+    withPayments?: boolean
+    /** ต้นทุนรายบรรทัด — ส่ง true เฉพาะหน้าที่ผ่าน gatePage F1 แล้ว (sales COGS) · ค่าตั้งต้น = ไม่มีคีย์ cost */
+    withCost?: boolean
+  },
 ) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
@@ -2416,14 +2506,15 @@ export async function attachSlip(publicToken: string, fileId: string) {
  * ผ่าน shopOwnerId โดยตรง แทนที่จะ duplicate findUnique + shop.userId check
  * ไม่มี status guard — seller ตั้งได้ทุก status (ตาม spec S-5)
  */
-export async function setAccessUrl(publicToken: string, url: string, shopOwnerId: string) {
+export async function setAccessUrl(publicToken: string, url: string, actorUserId: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
     include: { shop: true },
   });
   if (!order) throw new Error("Order not found");
-  // ownership guard — กัน seller อื่นมา set accessUrl ทับ
-  if (order.shop.userId !== shopOwnerId) throw new Error("Forbidden");
+  // ownership + capability guard (O7) — กัน seller อื่น/บทบาทที่ไม่มีสิทธิ์มา set accessUrl ทับ
+  // เดิมเทียบ shop.userId ตรง ๆ ⇒ ผู้ดูแลที่ O7 อนุญาตโดนปฏิเสธ (บั๊กคลาสเดียวกับ cancel/แชท)
+  if (!(await canAccessShopWith(order.shopId, actorUserId, "O7"))) throw new Error("Forbidden");
   return prisma.order.update({ where: { publicToken }, data: { accessUrl: url } });
 }
 
@@ -2545,7 +2636,9 @@ export async function getOrdersByBuyer(userId: string) {
   return prisma.order.findMany({
     where: { buyerUserId: userId },
     include: {
-      items: true,
+      // 🛑 ต้นทุนรายบรรทัดเป็นข้อมูลของร้าน — ผู้ซื้อห้ามเห็น (security review 00071 H2:
+      // /api/orders?role=buyer เคยคืน cost ดิบ · ผู้ดูแลร้านสร้างใบให้เบอร์ตัวเองแล้วดึงได้)
+      items: { omit: { cost: true } },
       shop: { include: { user: { select: { username: true, displayName: true } } } },
       review: true,
     },

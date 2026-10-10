@@ -16,9 +16,11 @@ vi.mock('next/link', () => ({
 import ShopQuickLinks from '@/app/(paces)/seller/(dashboard)/shop/components/ShopQuickLinks'
 
 const URL = 'href="/business/line-reports"'
+// เจ้าของหลักร้านธุรกิจเห็นเมนูครบ (visibleUrls = เมนูที่ผ่านตัวกรองบทบาทแล้ว · 00071 S-16)
+const ALL_URLS = new Set(['/verification', '/public-profile', '/subscriptions', '/business/line-reports', '/settings', '/admins'])
 const render = (p: Partial<React.ComponentProps<typeof ShopQuickLinks>>) =>
   renderToStaticMarkup(
-    <ShopQuickLinks shopKind="BUSINESS" shopRole="OWNER" hidePayments={false} offerIap={true} lineReports={null} {...p} />,
+    <ShopQuickLinks visibleUrls={ALL_URLS} hidePayments={false} offerIap={true} lineReports={null} {...p} />,
   )
 
 describe('ShopQuickLinks — แถวรายงานกลุ่ม LINE', () => {
@@ -55,7 +57,8 @@ describe('SellerBottomNav — จุดแดงที่ "ร้านค้า
   const nav = read('src/app/(paces)/seller/(dashboard)/_shared/SellerBottomNav.tsx')
   it('prop บังคับ + ใช้ aria จาก dictionary', () => {
     expect(nav).toMatch(/\n\s*shopAlert: boolean/)
-    expect(nav).toMatch(/\{shopAlert && \(/)
+    // 00071 T7: ช่องแท็บเป็น NavTabLink (ตามบทบาท) — จุดแดงยังเกาะ tab.badge === 'shopAlert' && shopAlert
+    expect(nav).toMatch(/tab\.badge === 'shopAlert' && shopAlert/)
     expect(nav).toContain('t.dashboard.navShopAlertAria')
   })
   it('dictionary ครบสองภาษา + layout ส่ง prop', () => {

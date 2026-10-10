@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { PnlReportQuerySchema } from "@/lib/validations";
-import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { resolveDateRange, isValidCustomRange } from "@/lib/date-range";
 import { getPnlReport } from "@/services/pnl.service";
 import { getCostCoverage } from "@/services/cost-coverage.service";
@@ -14,11 +14,9 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  const gate = await requireShopCapability(session, "F1");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   const { searchParams } = request.nextUrl;
   const parsed = v.safeParse(PnlReportQuerySchema, {
@@ -39,11 +37,11 @@ export async function GET(request: NextRequest) {
   // การ์ดแยกหมวด, การ์ดสรุปเร็ว และตัวรายการ จากก้อนนี้ก้อนเดียว จึงไม่มีทางที่ตัวเลขสองส่วนขัดกันเอง
   // (เดิม list ดึงทั้งหมดไม่ผูกช่วง แต่ P&L ผูกช่วง — คนละฐานกัน)
   const [report, expenses, coverage] = await Promise.all([
-    getPnlReport(decision.shop.id, range, decision.shop.vertical),
-    listExpenses(decision.shop.id, { range: range.expenseRange }),
+    getPnlReport(shop.id, range, shop.vertical),
+    listExpenses(shop.id, { range: range.expenseRange }),
     // feature 00067 — ตัวนับ "ยังไม่ได้ตั้งต้นทุน n จาก m รายการ" ของป้ายเตือนข้อมูลไม่ครบ
     // เพิ่มเป็นช่องใหม่ (additive) ผู้เรียกเดิมที่ไม่อ่านช่องนี้ไม่ได้รับผลกระทบ
-    getCostCoverage(decision.shop.id, range),
+    getCostCoverage(shop.id, range),
   ]);
 
   return NextResponse.json({ ...report, expenses: expenses.map(serializeExpense), coverage });

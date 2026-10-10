@@ -426,6 +426,16 @@ export const th = {
     checklistCategories: 'หมวดหมู่',
     checklistAddress: 'ที่อยู่',
     checklistMapPin: 'ปักพิกัด',
+
+    /** การ์ด "งานวันนี้" ของฝ่ายช่าง (00071 P3 · TodayJobs) — {n} = จำนวนนัด */
+    todayJobsTitle: 'งานวันนี้',
+    todayJobsTitleCount: 'งานวันนี้ · {n} งาน',
+    todayJobsSchedule: 'ดูตารางงาน',
+    todayJobsLoadFailed: 'โหลดงานวันนี้ไม่สำเร็จ',
+    todayJobsRetry: 'ลองอีกครั้ง',
+    todayJobsEmpty: 'วันนี้ยังไม่มีงาน',
+    todayJobsMonth: 'ดูตารางงานทั้งเดือน',
+    todayJobsAllToday: 'ดูทั้งหมดวันนี้ ({n})',
   },
 
   /**

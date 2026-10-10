@@ -12,7 +12,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
+  const guard = await requireGeneralShop({ cap: "S1", shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const { id } = await params;

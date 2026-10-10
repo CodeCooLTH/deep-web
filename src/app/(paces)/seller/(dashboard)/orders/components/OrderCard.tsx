@@ -125,6 +125,11 @@ interface OrderCardProps {
   matchedItemIndexes?: number[]
   /** คำของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) — ส่งต่อจาก OrdersList ลง QR/SMS · ไม่ส่ง = คำเดิม */
   serviceVocab?: { noun: string; buyerNoun: string }
+  /**
+   * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ไม่มี ฿ราคา/ยอดรวม/วิธีชำระ, ป้ายสถานะไม่อ่านแกนเงิน,
+   * ไม่มีปุ่ม action (00071 P3 · S-15) · ผู้เรียกที่ลืมส่ง = ปิดเงิน ไม่ใช่เปิด
+   */
+  showMoney?: boolean
 }
 
 export default function OrderCard({
@@ -135,6 +140,7 @@ export default function OrderCard({
   isExactSearchMatch = false,
   matchedItemIndexes,
   serviceVocab,
+  showMoney = false,
 }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -164,7 +170,7 @@ export default function OrderCard({
   /* ป้ายสถานะ — ร้านบริการอ่านจากแกนเงิน (จอง/รอชำระ/ชำระเงินแล้ว) ร้านอื่นใช้แกนเดิม
      `order.money` มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ผ่าน `hasMoneyStory` ที่ server (AC-SQ-07)
      ⇒ ไม่ต้องเช็ค vertical ซ้ำที่นี่ และร้านอื่นไม่มีทางเปลี่ยนป้ายโดยบังเอิญ */
-  const statusCfg = order.money
+  const statusCfg = showMoney && order.money
     ? resolveServiceOrderBadge({
         status: order.status,
         money: order.money,
@@ -180,7 +186,7 @@ export default function OrderCard({
   const hasChannel = Boolean(channel && SALES_CHANNEL_LABELS[channel])
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
   const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
-  const hasPayment = Boolean(order.paymentMethod)
+  const hasPayment = showMoney && Boolean(order.paymentMethod)
   /**
    * เบอร์ลูกค้า (D-13, 2026-08-24) — การ์ดนี้เคยมีเบอร์แล้วถูกถอดออกตอน v11 เพื่อเอาช่องทาง
    * กับวิธีชำระมาแทน ผลคือฝั่งมือถือเป็นจอเดียวในระบบที่ผู้ขายมองไม่เห็นเบอร์ลูกค้าตัวเองเลย
@@ -318,9 +324,11 @@ export default function OrderCard({
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xs text-default-400">x{item.qty}</p>
-                  <p className="text-xs font-semibold tabular-nums text-default-900">
-                    ฿{item.price.toLocaleString('th-TH')}
-                  </p>
+                  {showMoney && item.price !== undefined && (
+                    <p className="text-xs font-semibold tabular-nums text-default-900">
+                      ฿{item.price.toLocaleString('th-TH')}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -332,7 +340,7 @@ export default function OrderCard({
               type="button"
               onClick={() => setExpanded((v) => !v)}
               /* relative z-10: ต้องอยู่เหนือแผ่นลิงก์ที่ทับการ์ด ไม่งั้นกด "ดูเพิ่มเติม" แล้วเด้งไปหน้า detail */
-              className="relative z-10 mt-1 flex w-full items-center ju min-h-11 lg:min-h-0stify-center gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
+              className="relative z-10 mt-1 flex w-full items-center justify-center min-h-11 lg:min-h-0 gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
             >
               {expanded ? 'ย่อ' : `ดูเพิ่มเติม (อีก ${itemCount - 1} รายการ)`}
               <Icon
@@ -462,9 +470,11 @@ export default function OrderCard({
         {/* ── footer: ฿ยอดรวม + เวลาย่อ (ซ้าย) + OrderActions icon-only (ขวา) ── */}
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-dashed border-default-200 pt-2.5">
           <div className="min-w-0">
-            <span className="text-base font-bold tabular-nums text-default-900">
-              ฿{order.total.toLocaleString('th-TH')}
-            </span>
+            {showMoney && order.total !== undefined && (
+              <span className="text-base font-bold tabular-nums text-default-900">
+                ฿{order.total.toLocaleString('th-TH')}
+              </span>
+            )}
             <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
           </div>
 
@@ -472,7 +482,7 @@ export default function OrderCard({
               relative z-10: ยกทั้งกลุ่มขึ้นเหนือแผ่นลิงก์ — .btn ของ Paces มี z-index:10 ในตัวอยู่แล้ว
               แต่เมนู ⋮ กางออกมาเป็น panel ที่ไม่ใช่ .btn จึงต้องยกที่ระดับกลุ่ม ไม่ใช่รายปุ่ม */}
           <div className="relative z-10 shrink-0">
-            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" orderNoun={vocab.noun} serviceVocab={serviceVocab} />
+            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" orderNoun={vocab.noun} serviceVocab={serviceVocab} showMoney={showMoney} />
           </div>
         </div>
 

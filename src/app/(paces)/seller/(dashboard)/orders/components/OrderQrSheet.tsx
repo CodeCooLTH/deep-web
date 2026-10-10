@@ -116,8 +116,13 @@ export default function OrderQrSheet({ order, url, onClose, orderWord = 'ออ�
           {orderWord} <span className="font-semibold text-default-900">{cardId}</span>
           {' · '}
           {order.buyerName ?? 'ลูกค้า'}
-          {' · '}
-          <span className="font-semibold text-default-900">฿{order.total.toLocaleString('th-TH')}</span>
+          {/* ไม่มียอด = ผู้ดูระดับเงิน NONE (ช่าง) — ไม่ใช่ยอด 0 */}
+          {order.total !== undefined && (
+            <>
+              {' · '}
+              <span className="font-semibold text-default-900">฿{order.total.toLocaleString('th-TH')}</span>
+            </>
+          )}
         </p>
 
         {/* link + copy — reuse CopyLinkButton showPreview (แถบ URL + ปุ่มคัดลอก) */}

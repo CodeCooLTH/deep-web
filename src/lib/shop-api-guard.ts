@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
+import { effectiveRoles, requireShopCapability } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { can, PRIMARY_OWNER_ONLY, type Capability } from "@/lib/shop-permissions";
 
 // Guard ร่วมของ endpoint ใต้ /api/shops/current/** (feature 00017 ดึงออกมาตอน P2
 // เพราะเริ่มมีผู้เรียกหลายตัว — เดิม copy อยู่ใน rooms 2 ไฟล์)
@@ -50,22 +53,25 @@ export async function requireShopMember(opts?: { shopId?: string | null }): Prom
  * IMPORTANT: การซ่อนเมนูไม่ใช่การควบคุมสิทธิ์ (BR-LODG-03) — ทุก endpoint ของโดเมน
  * บ้านพักต้องผ่านด่านนี้ก่อนตรรกะอื่นเสมอ ร้าน GENERAL ที่ยิงตรงต้องได้ 403
  */
-export async function requireLodgingShop(): Promise<GuardResult> {
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx;
+export async function requireLodgingShop(cap: Capability | readonly Capability[]): Promise<GuardResult> {
+  // 00071 P3: ทุกตัวใน cap ต้องผ่าน (AND) — ตัวแรก resolve ร้าน ที่เหลือตัดสินจากชุดบทบาทเดียวกัน ไม่ query ซ้ำ
+  const caps = typeof cap === "string" ? [cap] : [...cap];
+  const gate = await requireShopCapability(await getServerSession(authOptions), caps[0]);
+  if (!gate.ok) return { error: gate.response };
+  if (!caps.every((c) => can(gate.roles, c))) return { error: forbiddenRoleResponse() };
   const shop = await prisma.shop.findUnique({
-    where: { id: ctx.shopId },
+    where: { id: gate.shopId },
     select: { vertical: true },
   });
   if (!shop || shop.vertical !== "LODGING") {
     return { error: jsonNoStore({ error: "NOT_LODGING_SHOP" }, { status: 403 }) };
   }
-  return { shopId: ctx.shopId, userId: ctx.userId };
+  return { shopId: gate.shopId, userId: gate.userId };
 }
 
 type GeneralGuardResult =
   | { error: NextResponse }
-  | { shopId: string; userId: string; role: "OWNER" | "ADMIN" };
+  | { shopId: string; userId: string; role: "OWNER" | "ADMIN"; roles: string[] };
 
 /**
  * ต้องเป็นสมาชิกร้าน + ร้านต้องเป็นประเภทขายออนไลน์ (feature 00022; ค่าที่เทียบเปลี่ยนเป็น
@@ -78,11 +84,12 @@ type GeneralGuardResult =
  * IMPORTANT: การซ่อนเมนูไม่ใช่การควบคุมสิทธิ์ — ร้าน SERVICE_QUEUE/LODGING ที่ยิงตรงต้องได้ 403
  * ทุก endpoint ของโดเมนขนส่งต้องผ่านด่านนี้ก่อนตรรกะอื่นเสมอ
  *
- * ownerOnly: คำสั่งกลุ่มตั้งค่า/วาง token เป็นสิทธิ์ของเจ้าของร้านเท่านั้น (BR-ISHIP-03)
- * พนักงานร้านใช้งานประจำวันได้ (เปิดพัสดุ/พิมพ์ใบปะหน้า) แต่แตะ token ไม่ได้และไม่เห็นค่า
+ * cap (00071 P3 · บังคับ): capability ที่ endpoint นี้ต้องมี — แทน `ownerOnly` เดิม
+ * ใช้งานประจำวัน (เปิดพัสดุ/พิมพ์ใบปะหน้า) = S1 (เจ้าของ/ผู้ดูแล/ตอบแชท) · ตั้งค่า/วาง token = S2 (เจ้าของ+ผู้ดูแล · มติ C-2)
+ * ตัดสินจากชุดบทบาทที่มีผลจริงของร้านนั้น ไม่ใช่ `role === 'OWNER'` อย่างเดียว
  */
-export async function requireGeneralShop(opts?: {
-  ownerOnly?: boolean;
+export async function requireGeneralShop(opts: {
+  cap: Capability;
   /**
    * ร้านที่คำขอนี้ทำงานด้วย (feature 00037) — ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมทุกประการ)
    *
@@ -92,7 +99,7 @@ export async function requireGeneralShop(opts?: {
    * "ลองใหม่" ที่**กดกี่ครั้งก็ไม่มีวันผ่าน** (คลาสเดียวกับบทเรียน iShip retry 2026-08-06)
    *
    * ด่านที่เหลือไม่ผ่อนสักข้อ: ต้องเป็นสมาชิกร้านนั้นจริง (`requireShopForRequest` re-verify
-   * membership) · ร้านต้องเป็น ONLINE_SALES · `ownerOnly` ยังบังคับเหมือนเดิม
+   * membership) · ร้านต้องเป็น ONLINE_SALES · ต้องมี `cap`
    */
   shopId?: string | null;
 }): Promise<GeneralGuardResult> {
@@ -104,7 +111,7 @@ export async function requireGeneralShop(opts?: {
 
   const resolved = await requireShopForRequest(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
-    opts?.shopId,
+    opts.shopId,
   );
   // ระบุร้านมาแล้วเข้าไม่ถึง = ปฏิเสธ ห้ามถอยไปใช้ร้านที่ active (จะกลายเป็นเปิดพัสดุผิดร้าน)
   if (!resolved.ok) {
@@ -129,21 +136,13 @@ export async function requireGeneralShop(opts?: {
     };
   }
 
-  if (opts?.ownerOnly && active.role !== "OWNER") {
-    return {
-      error: jsonNoStore(
-        {
-          error: {
-            code: "OWNER_ONLY",
-            message: "เฉพาะเจ้าของร้านเท่านั้นที่ตั้งค่าการเชื่อมต่อขนส่งได้",
-          },
-        },
-        { status: 403 },
-      ),
-    };
+  // capability — ชุดบทบาทเดียวกับ requireShopCapability (PERSONAL = เจ้าของ · BILLING ตัดทิ้งในร้านที่ไม่ใช่บริการ)
+  const eff = effectiveRoles(active.shop, active.role, active.roles);
+  if (!can(eff, opts.cap) || (PRIMARY_OWNER_ONLY.has(opts.cap) && active.shop.userId !== userId)) {
+    return { error: forbiddenRoleResponse() };
   }
 
-  return { shopId: active.shop.id, userId, role: active.role };
+  return { shopId: active.shop.id, userId, role: active.role, roles: active.roles };
 }
 
 /**

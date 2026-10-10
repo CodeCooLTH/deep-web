@@ -46,6 +46,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import FullCalendar from '@fullcalendar/react'
 import type { DatesSetArg, DateSelectArg, EventClickArg, EventInput } from '@fullcalendar/core'
 import Icon from '@/components/wrappers/Icon'
+import { useAppointmentBoardCaps } from '@/components/safepay/appointment-board/AppointmentBoardCaps'
 import { pacesToast } from '@/lib/paces-toast'
 import {
   APPOINTMENT_STATUS_LABEL,
@@ -161,6 +162,8 @@ function bookedAtSameTime(item: AppointmentItem, all: AppointmentItem[]): number
 
 export default function AppointmentCalendar({ resources, createLabelShort }: Props) {
   const router = useRouter()
+  // สร้างงานจากช่องวัน = O2s — ช่างกดช่องวัน/ปุ่ม + แล้วไม่ควรได้ฟอร์มที่ถูกปฏิเสธ
+  const { canCreate } = useAppointmentBoardCaps()
   const calendarRef = useRef<FullCalendar | null>(null)
   const dateParam = parseQueueDateParam(useSearchParams().get('date'))
   const [resourceId, setResourceId] = useState<string>(ALL)
@@ -245,6 +248,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
    */
   const onDateClick = useCallback(
     (arg: { date: Date }) => {
+      if (!canCreate) return
       const key = localDayKey(arg.date)
       if (totalCapacity > 0 && (bookedByDay.get(key) ?? 0) >= totalCapacity) {
         // เดิม return เปล่า ๆ — ผู้ใช้กดแล้วไม่มีอะไรเกิดขึ้น แล้วสรุปว่าเว็บพัง
@@ -254,7 +258,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
       }
       router.push(`/orders/new?appointmentDate=${key}`)
     },
-    [router, bookedByDay, totalCapacity],
+    [router, bookedByDay, totalCapacity, canCreate],
   )
 
   const events: EventInput[] = useMemo(
@@ -450,7 +454,7 @@ export default function AppointmentCalendar({ resources, createLabelShort }: Pro
               <div className="flex w-full items-center justify-between gap-2">
                 <span className={`appt-day-cap text-xs ${capClass}`}>{cap}</span>
                 <span className="flex items-center gap-1.5">
-                  {addButton}
+                  {canCreate && addButton}
                   <span
                     className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
                       arg.isToday ? 'bg-primary text-white' : 'text-default-700'

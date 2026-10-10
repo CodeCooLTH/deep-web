@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 /** GET /api/seller/auto-order — ชุดตั้งค่าทั้งหมดของร้าน (หน้า A) */
 export async function GET() {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const config = await getOrCreateAutoOrderConfig(guard.shopId)

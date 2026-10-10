@@ -3,7 +3,7 @@ import { rejectInAppPurchase } from "@/lib/app-purchase-guard";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { BuyPinSlotSchema } from "@/lib/validations";
 import {
   buyPinSlotAndPin,
@@ -26,10 +26,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบ", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า", code: "SHOP_NOT_FOUND" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "F4");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   // buy = spend action (หักเงิน + เพิ่ม slot) — ร้านที่ถูก lock ต้อง read-only (pattern เดียวกับ /pin)
   if (active.locked) {
     return NextResponse.json({ error: "ร้านถูกล็อก ไม่สามารถทำรายการนี้ได้", code: "SHOP_LOCKED" }, { status: 403 });

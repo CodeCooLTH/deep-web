@@ -23,12 +23,15 @@
 
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
+import { shopQuickLinks } from '@/lib/role-nav'
 
 interface ShopQuickLinksProps {
-  /** ประเภทร้านที่กำลังเปิดอยู่ — ใช้ตัดสินว่าจะโชว์เมนู "พนักงาน" ไหม */
-  shopKind: 'PERSONAL' | 'BUSINESS'
-  /** บทบาทใน active shop */
-  shopRole: 'OWNER' | 'ADMIN'
+  /**
+   * url ของเมนูที่ผู้ใช้เห็นจริง (flattenSellerMenu ของ resolveSellerMenuItems — กรองบทบาท/ประเภทร้าน/App Store แล้ว)
+   * แถวที่ไม่อยู่ในชุดนี้ไม่ render (00071 S-16) · `/account` แสดงเสมอ
+   * 🛑 บังคับส่ง ไม่มี default — ลืม = ไม่มีแถวเลย ให้ tsc บังคับทุก call site
+   */
+  visibleUrls: ReadonlySet<string>
   /**
    * เปิดจากในแอป iOS → ต้องไม่มีทางเข้าหน้าแพ็กเกจเลย (App Store Guideline 3.1.1)
    *
@@ -97,8 +100,7 @@ const PAYMENT_LINK_URLS = new Set<string>([])
  */
 const IAP_LINK_URLS = new Set<string>(['/subscriptions'])
 
-// เมนู "พนักงาน" เห็นเฉพาะ owner ของร้าน BUSINESS — เงื่อนไขเดียวกับ applyStaffMenu()
-// ใน _seller-menu.ts เป๊ะ (ซ่อน ไม่ใช่ disable เพราะ role อื่นไม่มี use-case ให้เห็นเลย)
+// เมนู "พนักงาน" — สิทธิ์ตัดสินที่ applyCapabilityMenu (เจ้าของร้านธุรกิจเท่านั้น) แถวนี้แค่ตามเมนู
 const STAFF_LINK: QuickLink = {
   url: '/admins',
   label: 'พนักงาน',
@@ -116,15 +118,18 @@ const LINE_REPORTS_LINK: QuickLink = {
   hint: 'สรุปยอดเข้ากลุ่ม LINE ของทีม',
 }
 
-export default function ShopQuickLinks({ shopKind, shopRole, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {
-  const base = hidePayments
-    ? LINKS.filter((l) => !PAYMENT_LINK_URLS.has(l.url) && (offerIap || !IAP_LINK_URLS.has(l.url)))
-    : LINKS
-  // แทรกก่อน "การจัดส่ง" (ต่อจากแพ็กเกจ — ของที่มากับแพ็กเกจธุรกิจ) · ไม่พึ่งว่า /subscriptions ยังอยู่หรือไม่
-  const withReports = lineReports
-    ? base.flatMap((l) => (l.url === '/settings' ? [LINE_REPORTS_LINK, l] : [l]))
-    : base
-  const links = shopKind === 'BUSINESS' && shopRole === 'OWNER' ? [...withReports, STAFF_LINK] : withReports
+const BY_URL = new Map<string, QuickLink>(
+  [...LINKS, LINE_REPORTS_LINK, STAFF_LINK].map((l) => [l.url, l]),
+)
+
+export default function ShopQuickLinks({ visibleUrls, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {
+  // ลำดับ + สิทธิ์มาจาก shopQuickLinks (เมนูที่เห็นจริง) · ชั้น App Store เดิมยังกรองซ้ำเป็นเข็มขัดนิรภัย
+  // แถวรายงาน LINE ต้องผ่านทั้งเมนูและ lineReports (ผู้เรียกบอกว่าเป็นเจ้าของ/มีกลุ่ม) — null = ซ่อน
+  const shown = shopQuickLinks(visibleUrls)
+    .filter((u) => u !== LINE_REPORTS_LINK.url || lineReports !== null)
+    .map((u) => BY_URL.get(u)!)
+    .filter((l) => !hidePayments || (!PAYMENT_LINK_URLS.has(l.url) && (offerIap || !IAP_LINK_URLS.has(l.url))))
+  const links = [LINKS[0], ...shown]
 
   return (
     /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)

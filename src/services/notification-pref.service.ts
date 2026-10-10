@@ -6,7 +6,7 @@
 // 🛑 "ไม่มีแถว = เปิด" ทั้งไฟล์นี้ยึดกติกาเดียวกัน — อย่าเปลี่ยนเป็น opt-in ภายหลังโดยไม่ backfill
 // ไม่งั้นทุกคนจะเงียบพร้อมกันโดยไม่มีอะไรบอก
 import { prisma } from '@/lib/prisma'
-import { listAccessibleShopIds } from '@/lib/shop-context'
+import { listAccessibleShopIds } from '@/lib/shop-capability'
 import type { PushSound } from '@/lib/expo-push'
 
 export interface ShopNotificationRow {
@@ -20,14 +20,15 @@ export interface ShopNotificationRow {
 /**
  * รายการร้านทั้งหมดที่ผู้ใช้เข้าถึงได้ พร้อมสถานะแจ้งเตือนของแต่ละร้าน
  *
- * ใช้ listAccessibleShopIds() ตัวเดียวกับที่ ChatShopAutoSwitch ใช้ (เจ้าของ + สมาชิก และกรอง
- * ร้านที่ถูกลบ/purge แล้วออก) — ไม่เขียน query สิทธิ์ขึ้นมาใหม่ให้นิยาม "ร้านของฉัน" แตกเป็นสองชุด
+ * ใช้ listAccessibleShopIds(userId, 'H1') ตัวเดียวกับตัวกำหนดขอบเขตแชท (00071 S-13) — สวิตช์นี้คือ "แจ้งเตือน
+ * ข้อความแชท" จึงโผล่เฉพาะร้านที่ผู้ใช้อ่านแชทได้จริง (H1): ผู้ถือ BILLING/ช่างเห็นสวิตช์ของร้านนั้นไม่ได้
+ * (เดิมใช้ชุดสมาชิกล้วน) · กรองร้านที่ถูกลบ/purge แล้วออกเหมือนเดิม
  *
  * เรียงตามชื่อร้านเพื่อให้ลำดับคงที่ทุกครั้งที่เปิดหน้า — ถ้าปล่อยให้ DB เลือกลำดับเอง สวิตช์จะสลับ
  * ตำแหน่งกันเองระหว่างรีเฟรช แล้วผู้ใช้อาจกดผิดร้าน
  */
 export async function listShopNotificationPrefs(userId: string): Promise<ShopNotificationRow[]> {
-  const shopIds = await listAccessibleShopIds(userId)
+  const shopIds = await listAccessibleShopIds(userId, 'H1')
   if (shopIds.length === 0) return []
 
   const [shops, prefs] = await Promise.all([
@@ -67,7 +68,7 @@ export async function setShopChatNotification(
   shopId: string,
   chatEnabled: boolean,
 ): Promise<boolean> {
-  const shopIds = await listAccessibleShopIds(userId)
+  const shopIds = await listAccessibleShopIds(userId, 'H1')
   if (!shopIds.includes(shopId)) return false
 
   await prisma.shopNotificationPref.upsert({

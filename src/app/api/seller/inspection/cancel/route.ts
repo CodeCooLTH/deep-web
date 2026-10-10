@@ -17,7 +17,7 @@ import { errorResponse, mapInspectionError, requireInspectionShop } from '../_sh
  *    สองที่เขียนเองจะกลายเป็นคำสัญญาสองแบบเรื่อง "คืนเงินไหม" ในจอเดียว
  */
 export async function POST(request: Request) {
-  const auth = await requireInspectionShop()
+  const auth = await requireInspectionShop('T4')
   if ('response' in auth) return auth.response
 
   const body = await request.json().catch(() => null)

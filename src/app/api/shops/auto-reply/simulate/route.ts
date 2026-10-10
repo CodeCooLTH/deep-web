@@ -24,7 +24,7 @@ import { getConfig } from '@/services/auto-reply-config.service'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
 
   const body = await request.json().catch(() => null)

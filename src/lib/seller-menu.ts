@@ -11,7 +11,8 @@
  */
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
-import type { ExpenseAccessDecision } from '@/services/expense-access.service'
+import { effectiveRoles } from '@/lib/shop-permissions'
+import { applyCapabilityMenu } from '@/lib/role-nav'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { byVertical } from '@/i18n/vertical'
 
@@ -132,7 +133,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00066 — หน้ารวมติดตามลูกค้า · เห็นทุก vertical (มติ Q14: ทุกร้านที่มีแชท) ⇒ ห้ามใส่ slug นี้ใน *_ONLY_SLUGS
       // ไม่ใส่ตัวเลขบนเมนู (BRD) · icon 'list-check' ตาม UX spec §Theme mapping
       { url: '/follow-ups', slug: 'seller:follow-ups', label: 'ติดตามลูกค้า', icon: 'list-check' },
-      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
+      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyCapabilityMenu (role-nav) + applyFinanceMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
@@ -197,7 +198,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'crown' verified มีจริงใน tabler (ใช้ซ้ำกับ UpgradeToProCard)
       { url: '/subscriptions', slug: 'seller:subscriptions', label: 'แพ็กเกจของฉัน', icon: 'crown' },
       // feature 00012 (Shop Staff Invite Links, Task 4.3) — เมนู "พนักงาน" จัดการลิงก์เชิญ + สมาชิก Business
-      // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
+      // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyCapabilityMenu (BUSINESS_ONLY_SLUGS) — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
       { url: '/admins', slug: 'seller:admins', label: 'พนักงาน', icon: 'users-group' },
       // feature 00070 — รายงานสรุปยอดเข้ากลุ่ม LINE · เฉพาะ owner (ซ่อนด้วย applyLineReportMenu)
@@ -306,28 +307,6 @@ export function applyChatBadge(items: MenuItemType[], unreadCount: number): Menu
 }
 
 /**
- * applyStaffMenu — runtime transform ของ sellerMenuItems ตาม active shop context (feature 00012, Task 4.3)
- *
- * ทำไม: เมนู "พนักงาน" (`/admins`) เป็นสิทธิ์ owner ของ Business shop เท่านั้น (mirror guard
- * ของหน้า /admins เอง + API /api/shops/current/invite-links) — ผู้ถูกเชิญ (ADMIN) และ Personal
- * shop ต้อง "ซ่อน" ไม่ใช่แค่ disable (ต่างจาก applyInventoryGate ที่ badge/disable แต่ยังโชว์เมนู)
- * เพราะไม่มี use-case ให้ role อื่นเห็นเมนูนี้เลย
- *
- * !(kind==='BUSINESS' && role==='OWNER') → กรอง child slug 'seller:admins' ออกจาก items ทั้งหมด
- */
-export function applyStaffMenu(
-  items: MenuItemType[],
-  ctx: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' },
-): MenuItemType[] {
-  if (ctx.kind === 'BUSINESS' && ctx.role === 'OWNER') return items
-
-  return items.map((group) => !group.children ? group : {
-    ...group,
-    children: group.children.filter((child) => child.slug !== 'seller:admins'),
-  })
-}
-
-/**
  * applyLineReportMenu — ซ่อนเมนูรายงานเข้ากลุ่ม LINE จากผู้ที่ไม่ใช่เจ้าของหลักของร้านใดเลย (feature 00070 TFR-LGS-03)
  *
  * ทำไมไม่ดู role: EXT 00012 (BR-MR-08) ทำให้ `ShopMember.role==='OWNER'` ไม่ได้แปลว่าเป็นเจ้าของจริง
@@ -350,34 +329,6 @@ export function applyLineReportMenu(
 }
 
 /**
- * applyExpenseMenu — runtime transform ของ sellerMenuItems ตาม ExpenseAccessDecision (feature 00016
- * Expense & Cost Tracking, Unit 5A) — pattern ผสมระหว่าง applyStaffMenu (ซ่อนทั้งเมนู) กับ
- * applyInventoryGate (badge upsell) ตาม UX-Design-Spec.md §A "เมนู sidebar ... conditional render"
- *
- * - GRANTED → แสดงปกติ ไม่มี badge
- * - STAFF_NOT_ALLOWED หรือ NO_SHOP → กรอง child ออกจาก items ทั้งหมด (ซ่อนสนิท — AC-04 "มองไม่เห็นเมนูเลย")
- *
- * [D-EXT-1 · 2026-08-07] สาขา PACKAGE_LOCKED (badge "อัปเกรด") ถูกลบทิ้ง — ไม่มีสถานะ
- * "ยังไม่จ่ายเงิน" อีกต่อไป เมนูนี้จึงเหลือแค่ 2 ทาง: เห็นปกติ หรือไม่เห็นเลยเพราะไม่มีสิทธิ์
- *
- * หมายเหตุ: นี่คือ UX hint เท่านั้น — enforcement จริงอยู่ที่ resolveExpenseAccess() ใน ExpensesPage (fail-closed)
- */
-export function applyExpenseMenu(
-  items: MenuItemType[],
-  decision: ExpenseAccessDecision,
-): MenuItemType[] {
-  if (decision.kind === 'STAFF_NOT_ALLOWED' || decision.kind === 'NO_SHOP') {
-    return items.map((group) => !group.children ? group : {
-      ...group,
-      children: group.children.filter((child) => child.slug !== 'seller:expenses'),
-    })
-  }
-
-  // GRANTED — ไม่มี badge, แสดงปกติ
-  return items
-}
-
-/**
  * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02;
  * ขยาย 2→3 ทางที่ feature 00028 BR-SBT-15/16 — ยุบ applyAppointmentMenu เดิมเข้ามารวมที่นี่
  * เพราะเงื่อนไขเปิดคิวงานเหลือเช็คแค่ vertical เงื่อนไขเดียวแล้ว (canUseAppointments เปลี่ยนไปตาม
@@ -394,7 +345,7 @@ export function applyExpenseMenu(
  * canUseAppointments/requireSellerShop) ที่ทั้ง API route และ page-level server component ด้วยเสมอ
  * ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา" ไม่ได้ทำหน้าที่ป้องกัน
  *
- * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
+ * pattern เดียวกับ applyCapabilityMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
  */
 const LODGING_ONLY_SLUGS = [
   'seller:rooms',
@@ -806,7 +757,7 @@ export function applyOrderLabel(items: MenuItemType[], vertical: string): MenuIt
  * เดิม 5 ตัว — applyAppointmentMenu ถูกยุบเข้า applyVerticalMenu แล้วที่ feature 00028 BR-SBT-16)
  *
  * ลำดับเดียวกับที่ layout.tsx compose อยู่เดิมเป๊ะ ๆ:
- *   applyInventoryGate → applyStaffMenu → applyExpenseMenu → applyVerticalMenu
+ *   applyInventoryGate → applyPaymentRestriction → applyCapabilityMenu (ตัวกรองบทบาท · ถอดอย่างเดียว) → applyVerticalMenu
  * (applyVerticalMenu อยู่ชั้นนอกสุดโดยตั้งใจ — กรองหลัง gate อื่นทุกตัว เพื่อไม่ให้ badge/disable
  *  ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว)
  *
@@ -818,9 +769,13 @@ export function resolveVisibleSellerMenu(
   items: MenuItemType[],
   ctx: {
     entitlement: { status: EntitlementStatus; package: InventoryPackage | null }
-    staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' }
-    expense: ExpenseAccessDecision
-    shop: { kind: string; vertical: string }
+    staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN'; roles: readonly string[] }
+    shop: {
+      kind: string
+      vertical: string
+      /** เป็นเจ้าของหลัก (`Shop.userId`) — T4 (แพ็กเกจ ฯลฯ) · บังคับส่ง: ลืมส่งแล้วเมนูแพ็กเกจโผล่ให้เจ้าของร่วมเงียบ ๆ */
+      isPrimaryOwner: boolean
+    }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
@@ -842,24 +797,26 @@ export function resolveVisibleSellerMenu(
   // applyPaymentRestriction อยู่ "ในสุด" (ทำก่อนใคร) โดยตั้งใจ: มันลบ badge ที่ applyInventoryGate
   // เพิ่งใส่ให้ไม่ได้ถ้ารันก่อน — จึงต้องรันทีหลัง แต่ต้องอยู่ก่อนตัวกรองอื่นที่อาจลบ item ทิ้ง
   // ไปแล้ว (ลบไปแล้วก็ไม่มีอะไรให้ถอด badge) → วางถัดจาก applyInventoryGate ทันที
+  //
+  // 🛑 applyCapabilityMenu (ตัวกรองบทบาท) ต้องอยู่ "หลัง" applyPaymentRestriction เสมอ และถอดอย่างเดียว —
+  // ลำดับกลับจะให้ตัวกรองบทบาทเห็นรายการที่ App Store ควรซ่อนอยู่แล้ว (ดู skill app-store-surfaces)
+  const roles = effectiveRoles({ kind: ctx.staff.kind, vertical: ctx.shop.vertical }, ctx.staff.role, ctx.staff.roles)
   return applyFinanceMenu(
     applyOrderLabel(
     applyVerticalMenu(
-      applyExpenseMenu(
         applyLineReportMenu(
-          applyStaffMenu(
+          applyCapabilityMenu(
             applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
               hidePayments: ctx.hidePayments ?? false,
               entitlementStatus: ctx.entitlement.status,
               hidePaidFeatures: ctx.hidePaidFeatures ?? false,
               offerIap: ctx.offerIap ?? true,
             }),
-            ctx.staff,
+            roles,
+            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner },
           ),
           { ownsShop: ctx.ownsShop },
         ),
-        ctx.expense,
-      ),
       ctx.shop.vertical,
     ),
     ctx.shop.vertical,
@@ -895,7 +852,7 @@ export const FINANCE_EXPENSE_TAB_URL = '/sales?tab=expense'
  * การชี้ใหม่แก้ได้ทั้งสองทางพร้อมกัน: เมนูลัดที่ผู้ใช้ตั้งไว้ยังกดได้และพาไปถูกแท็บ ·
  * ไม่มีรายการ "ไม่พร้อมใช้งาน" · และเมนูซ้ายยังพาไปหน้าเดียวกันทั้งคู่ (คนละแท็บ ไม่ใช่คนละเรื่อง)
  *
- * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyExpenseMenu` ซึ่งอาจถอด
+ * 🛑 อยู่นอกสุดของ pipeline โดยตั้งใจ — ต้องรันหลัง `applyCapabilityMenu` ซึ่งอาจถอด
  * `seller:expenses` ไปแล้วเมื่อไม่มีสิทธิ์ (ชี้ใหม่ให้รายการที่ถูกถอดไปแล้วไม่มีผล ถูกต้องแล้ว)
  *
  * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่เพี้ยนโดยไม่มีคนสั่ง)

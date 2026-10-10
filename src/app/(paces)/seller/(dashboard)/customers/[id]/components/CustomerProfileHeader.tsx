@@ -24,10 +24,12 @@ import {
   customerPageShowsParcels,
   resolveCustomerListVocab,
   type CustomerDirectoryEntry,
+  type WithoutCustomerSpend,
 } from '@/lib/customer-directory'
 
 type Props = {
-  entry: CustomerDirectoryEntry
+  /** ไม่มี totalSpent/revenueOrderCount (00071 S-3) — ยอดสะสมมาทาง `spend` เท่านั้น */
+  entry: WithoutCustomerSpend<CustomerDirectoryEntry>
   badges: CustomerBadge[]
   reputation: BuyerReputation | null
   latestConversationId: string | null
@@ -36,8 +38,11 @@ type Props = {
   showAddress: boolean
   /** ป้ายปุ่มสร้างรายการใหม่ ผันตาม vertical (`ORDER_VOCAB.createLabel`) */
   createLabel: string
-  /** ยอดเฉลี่ยต่อบิล — `null` = ยังไม่มีใบที่นับเป็นยอดขาย (ต้องแสดง `—` ไม่ใช่ ฿0) */
-  avg: number | null
+  /**
+   * ยอดสะสม + เฉลี่ยต่อบิล — มีเฉพาะเจ้าของ (F1) · `undefined` = ไม่ render ทั้งก้อน (ไม่ใช่ ฿0/—)
+   * `avg: null` = ยังไม่มีใบที่นับเป็นยอดขาย (ต้องแสดง `—` ไม่ใช่ ฿0)
+   */
+  spend?: { total: number; avg: number | null }
   /** Shop.vertical — ผันคำ + ซ่อนส่วนพัสดุในร้านที่ไม่มีพัสดุ (ว่าง = ONLINE_SALES เดิม) */
   vertical?: string
 }
@@ -74,7 +79,7 @@ export default function CustomerProfileHeader({
   latestAddress,
   showAddress,
   createLabel,
-  avg,
+  spend,
   vertical,
 }: Props) {
   // ร้านคิวงาน/ที่พักไม่มีพัสดุ — สถิติรับของ/ตีกลับอ่านเป็นความผิดปกติที่ไม่มีจริง (ตัดสินที่ SSOT เดียวกับหน้า /customers)
@@ -214,19 +219,22 @@ export default function CustomerProfileHeader({
 
       <div className="card">
         <div className="card-body flex flex-col gap-3">
+          {spend && (
           <div>
             <p className="text-default-500 mb-0 text-sm">{listVocab.spentLabel}</p>
             <p className="text-2xs text-default-400 mb-1">(นับเป็นยอดขายแล้ว)</p>
             {/* พระเอกของการ์ดนี้ — ไม่ใช่การ์ด 5 ใบน้ำหนักเท่ากัน */}
             <p className="text-default-900 mb-0 text-3xl font-bold tabular-nums">
-              {formatBaht(entry.totalSpent)}
+              {formatBaht(spend.total)}
             </p>
           </div>
-          <div className="border-default-100 flex flex-col gap-2 border-t pt-3">
+          )}
+          {/* เส้นคั่นอยู่คู่กับ hero — ไม่ใช่เจ้าของไม่มี hero จึงไม่มีเส้น */}
+          <div className={spend ? 'border-default-100 flex flex-col gap-2 border-t pt-3' : 'flex flex-col gap-2'}>
             <StatRow label={listVocab.profileTotalLabel} value={String(entry.totalOrders)} />
             {/* 🛑 `—` ไม่ใช่ ฿0 เมื่อไม่มีใบที่นับเป็นยอดขาย — "เฉลี่ยแล้วได้ศูนย์บาท" ไม่จริง
-                ความจริงคือ "ยังไม่มีอะไรให้เฉลี่ย" (สองอย่างนี้ผู้ใช้ตัดสินใจต่างกัน) */}
-            <StatRow label="เฉลี่ยต่อบิล" value={avg === null ? '—' : formatBaht(avg)} />
+                ความจริงคือ "ยังไม่มีอะไรให้เฉลี่ย" · ไม่มี `spend` = ไม่ render แถวเลย */}
+            {spend && <StatRow label="เฉลี่ยต่อบิล" value={spend.avg === null ? '—' : formatBaht(spend.avg)} />}
             {/* จำนวนยกเลิกเป็นตัวเลขของตัวเอง — ห้ามให้ผู้ใช้ลบ "ทั้งหมด − ที่นับเป็นยอดขาย" เอง
                 (ผลต่างนั้นไม่เท่ากับจำนวนที่ยกเลิก เพราะมี PENDING/SHIPPED ที่ยังไม่จบคั่นอยู่) */}
             <StatRow label="ยกเลิก" value={String(entry.behavior.cancelledTotal)} />

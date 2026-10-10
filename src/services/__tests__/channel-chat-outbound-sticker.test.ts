@@ -78,7 +78,7 @@ beforeEach(() => {
     shopChannel: { id: 'ch1', externalId: 'PAGE1', accessTokenEnc: 'enc', status: 'ACTIVE' },
     externalContact: { id: 'ec1', externalUserId: 'PSID_1', name: 'ลูกค้า' },
   })
-  db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+  db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน', kind: 'PERSONAL', vertical: 'ONLINE_SALES', deletedAt: null, members: [] })
   db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
   db.chatMessage.findUnique.mockResolvedValue(null)
   db.conversation.update.mockResolvedValue({})

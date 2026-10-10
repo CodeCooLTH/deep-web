@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const MAX_RANGE_DAYS = 92;
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireLodgingShop();
+  const ctx = await requireLodgingShop("Q1");
   if ("error" in ctx) return ctx.error;
 
   const sp = request.nextUrl.searchParams;

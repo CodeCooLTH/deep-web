@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { sessionUserId } from "@/lib/session-user";
 import { AutoSuggestPostSchema, AutoSuggestPatchSchema } from "@/lib/validations";
@@ -34,7 +35,7 @@ type Guard =
   | { userId: string; shopId: string; conversationId: string };
 
 /** session → id param → shop จากเธรด → ownership {id, shopId}; 🛑 ห้ามใช้ร้านที่ active (00037) */
-async function guard(ctx: Ctx): Promise<Guard> {
+async function requireShopContext(ctx: Ctx, cap: "H1" | "H2"): Promise<Guard> {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!session?.user || !userId) return { res: json({ error: "unauthorized" }, 401) };
@@ -46,8 +47,11 @@ async function guard(ctx: Ctx): Promise<Guard> {
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
     idCheck.output,
+    cap,
   );
   if (!resolved) return { res: json({ error: "ไม่พบบทสนทนานี้" }, 404) };
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ cap → 403 FORBIDDEN_ROLE
+  if ("denied" in resolved) return { res: forbiddenRoleResponse() };
 
   const conversation = await prisma.conversation.findFirst({
     where: { id: idCheck.output, shopId: resolved.shopId },
@@ -80,8 +84,11 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
     idCheck.output,
+    "H2",
   );
   if (!resolved) return json({ error: "ไม่พบบทสนทนานี้" }, 404);
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ("denied" in resolved) return forbiddenRoleResponse();
   const conversation = await prisma.conversation.findFirst({
     where: { id: idCheck.output, shopId: resolved.shopId },
     select: { id: true },
@@ -116,7 +123,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 }
 
 export async function GET(_request: NextRequest, ctx: Ctx) {
-  const g = await guard(ctx);
+  const g = await requireShopContext(ctx, "H1");
   if ("res" in g) return g.res;
   try {
     return json(await getLatestAutoSuggest(g.shopId, g.conversationId));
@@ -127,7 +134,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 }
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
-  const g = await guard(ctx);
+  const g = await requireShopContext(ctx, "H2");
   if ("res" in g) return g.res;
 
   const parsed = v.safeParse(AutoSuggestPatchSchema, await request.json().catch(() => null));

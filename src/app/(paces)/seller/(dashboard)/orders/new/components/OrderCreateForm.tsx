@@ -11,6 +11,7 @@
  */
 'use client'
 
+import { orderEditLockMessage } from '@/lib/order-role-rules'
 import { orderFormWords } from './order-form-words'
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -123,6 +124,13 @@ interface Props {
   /** compact = บังคับ layout มือถือ (QuickForm inline) ทุกขนาดจอ — ใช้ในโมดัลสร้างคำสั่งซื้อในแชท
    *  (POS 3-col เดสก์ท็อปแน่นเกินไปในโมดัล user report 2026-07-24); footer submit sticky ในโมดัล */
   compact?: boolean
+  /** เจ้าของร้านเท่านั้น (00071 S-3) — false = ซ่อนช่องต้นทุนรายบรรทัด + ไม่ส่ง cost ใน payload */
+  showCost?: boolean
+  /**
+   * 00071 P3 (C-6) — ผู้ใช้เป็นบทบาท "เปิดบิล" (มี O2s ไม่มี O2): ฟอร์มล็อกเป็นบิลบริการ (type = SERVICE เสมอ · พิมพ์รายการเองได้)
+   * ตัวบังคับจริงคือ server (createOrder opts.billingOnly) — prop นี้แค่ทำให้ฟอร์มไม่ส่งสิ่งที่ server จะปฏิเสธ · ค่าตั้งต้น false
+   */
+  billingOnly?: boolean
   /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (BUSINESS + GENERAL เท่านั้น, BR-RSV-01)
    *  false = ไม่ render บล็อกวันนัดเลย DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด */
   serviceResourcesEnabled?: boolean
@@ -328,6 +336,8 @@ export default function OrderCreateForm({
   conversationId,
   editOrderToken,
   compact = false,
+  showCost = false,
+  billingOnly = false,
   ishipCreateMode = 'OFF',
   serviceResourcesEnabled = false,
   serviceResources = [],
@@ -696,15 +706,18 @@ export default function OrderCreateForm({
       if (!item.productId) return true
       return catalog.find((p) => p.id === item.productId)?.type === 'PHYSICAL'
     })
-    const derivedType: string = hasPhysical
-      ? 'PHYSICAL'
-      : items.some(
-            (item) =>
-              item.productId &&
-              catalog.find((p) => p.id === item.productId)?.type === 'SERVICE',
-          )
-        ? 'SERVICE'
-        : 'DIGITAL'
+    // billingOnly (C-6): บทบาทเปิดบิลสร้างได้เฉพาะ SERVICE — server บังคับซ้ำ (OrderRoleRestrictedError)
+    const derivedType: string = billingOnly
+      ? 'SERVICE'
+      : hasPhysical
+        ? 'PHYSICAL'
+        : items.some(
+              (item) =>
+                item.productId &&
+                catalog.find((p) => p.id === item.productId)?.type === 'SERVICE',
+            )
+          ? 'SERVICE'
+          : 'DIGITAL'
 
     // ── needsShipping: มี item ที่ fulfillmentMode === 'SHIPPED' หรือ custom item ──
     // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
@@ -844,7 +857,7 @@ export default function OrderCreateForm({
         price: item.price,
         // ส่ง key เฉพาะตอนกรอกจริง — ไม่กรอก = ไม่ส่ง = fallback ไป Product.cost (FR-EXP-17-AC-01)
         // ห้ามส่ง null/0 แทนค่าว่าง (0 คือ "ต้นทุนศูนย์บาทจริง" คนละความหมาย)
-        ...(item.cost != null ? { cost: item.cost } : {}),
+        ...(showCost && item.cost != null ? { cost: item.cost } : {}),
       })),
       ...(buyerContact ? { buyerContact } : {}),
       ...(buyerName ? { buyerName } : {}),
@@ -907,6 +920,18 @@ export default function OrderCreateForm({
           editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`,
         )
         console.error('[order-submit] failed', { status: res.status, code: data?.error, message: data?.message })
+        // 403 FORBIDDEN_ROLE ของบทบาทเปิดบิล = กฎต่อใบ (ไม่ใช่ "ไม่มีสิทธิ์ทั้งหน้า") — บอกทางแก้แทนรหัส
+        if (billingOnly && res.status === 403 && data?.error === 'FORBIDDEN_ROLE') {
+          setSubmitError(
+            editOrderToken
+              ? // หน้าแก้ไขกรองบิลที่ไม่ใช่บริการออกไปก่อนแล้ว (orderEditLockReason) — มาถึงตรงนี้ได้ = เพิ่งถูกรับชำระระหว่างแก้
+                orderEditLockMessage('PAID', vocab.noun)
+              : 'บทบาทเปิดบิลสร้างได้เฉพาะบิลบริการ เอารายการที่ไม่ใช่บริการออกแล้วบันทึกอีกครั้ง',
+          )
+          setSubmitErrorCode(shown.code)
+          setSubmitStatus('error')
+          return
+        }
         setSubmitError(shown.text)
         setSubmitErrorCode(shown.code)
         setSubmitStatus('error')
@@ -1078,6 +1103,7 @@ export default function OrderCreateForm({
           orderDateMessageTooOld={effectivePrefillTooOld}
           orderDateLabel={vocab.dateLabel}
           showDeliveryToggle={showDeliveryToggle}
+          showCost={showCost}
         />
       </div>
 
@@ -1091,7 +1117,7 @@ export default function OrderCreateForm({
         {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
             (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
         <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} showFulfillmentBadge={showFulfillmentBadge} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} showFulfillmentBadge={showFulfillmentBadge} billingOnly={billingOnly} />
         </div>
         <div className="lg:h-full">
           <CartPanel
@@ -1113,6 +1139,7 @@ export default function OrderCreateForm({
             orderDateLabel={vocab.dateLabel}
             showDeliveryToggle={showDeliveryToggle}
             itemLabel={itemLabel}
+            showCost={showCost}
             cartTitle={vocab.cartTitle}
             addToCartLabel={vocab.addToCartLabel}
           />

@@ -21,7 +21,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ ruleId: string }> },
 ) {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
   const { ruleId } = await params;
 
@@ -43,7 +43,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ ruleId: string }> },
 ) {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
   const { ruleId } = await params;
 

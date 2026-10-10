@@ -310,7 +310,7 @@ export default async function OrderStatusBand({
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
           {shipping ? fmt(t.dashboard.statusBandTitle, { noun }) : nounTitle}
         </h4>
-        <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-c min-h-11 lg:min-h-0enter gap-0.5">
+        <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center min-h-11 lg:min-h-0 gap-0.5">
           {t.dashboard.viewAll}
           <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>

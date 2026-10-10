@@ -6,9 +6,12 @@
  *
  * Base (โครง guard + error mapping): src/app/api/orders/[token]/payments/route.ts
  */
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { NextRequest } from 'next/server'
 
-import { requireShopMember, jsonNoStore } from '@/lib/shop-api-guard'
+import { jsonNoStore } from '@/lib/shop-api-guard'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { ReceiptError, issueOrReadReceipt } from '@/services/receipt.service'
 
 export const dynamic = 'force-dynamic'
@@ -24,8 +27,9 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  const ctx = await requireShopMember({ shopId: request.nextUrl.searchParams.get('shopId') })
-  if ('error' in ctx) return ctx.error
+  const gate = await requireShopCapability(await getServerSession(authOptions), 'D1', { shopId: request.nextUrl.searchParams.get('shopId') })
+  if (!gate.ok) return gate.response
+  const ctx = gate
 
   try {
     const r = await issueOrReadReceipt({ shopId: ctx.shopId, orderToken: token, userId: ctx.userId })

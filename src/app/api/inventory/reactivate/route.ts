@@ -4,7 +4,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { reactivateInventoryEntitlement } from "@/services/inventory-entitlement.service";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { ReactivateInventorySchema } from "@/lib/validations";
 import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
@@ -31,10 +31,9 @@ export async function POST(request: NextRequest) {
 
   // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client
   // ไม่ gate locked — route นี้มีไว้เพื่อปลดล็อก shop ที่ locked อยู่แล้ว (service เองมี LOCKED guard)
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) {
-    return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
-  }
+  const gate = await requireShopCapability(session, "F4");
+  if (!gate.ok) return gate.response;
+  const active = gate.active;
   const shop = active.shop;
 
   // 2.4 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)

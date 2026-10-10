@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { disconnectChannel } from "@/services/shop-channel.service";
 import { sessionUserId } from "@/lib/session-user";
 
@@ -36,12 +36,10 @@ export async function DELETE(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
+  // 00071 S-13: ตั้งค่าช่องทางเชื่อมต่อ = H3 — ตัดสินผ่าน requireShopCapability (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE · อ่านแถวสมาชิกสด)
+  const gate = await requireShopCapability(session, "H3");
+  if (!gate.ok) return gate.response;
+  const activeCtx = { shopId: gate.shopId, kind: gate.active.kind, role: gate.active.role, roles: gate.active.roles, locked: gate.active.locked, lockReason: gate.active.lockReason, vertical: gate.active.shop.vertical };
 
   const { id: rawChannelId } = await params;
   const idCheck = v.safeParse(ChannelIdParamSchema, rawChannelId);

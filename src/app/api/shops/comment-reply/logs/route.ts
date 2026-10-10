@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { CommentReplyLogsQuerySchema } from "@/lib/validations";
 import { logStatusWhere, parseLogStatusFilter } from "@/lib/comment-reply-log-status";
 import { describeCommentReplyFailure, describeSkipReason } from "@/lib/comment-reply-reason";
@@ -35,25 +35,9 @@ function truncatePostMessage(message: string | null): string | null {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return NextResponse.json(
-      { error: "unauthorized", code: "UNAUTHORIZED" },
-      { status: 401, headers: NO_STORE_HEADERS },
-    );
-  }
-  const ctx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId: ((session?.user as { activeShopId?: string | null } | undefined)?.activeShopId) ?? null,
-    },
-  });
-  if (!ctx) {
-    return NextResponse.json(
-      { error: "ไม่พบร้านที่กำลังใช้งาน", code: "FORBIDDEN" },
-      { status: 403, headers: NO_STORE_HEADERS },
-    );
-  }
+  // 00071 S-13: ประวัติตอบคอมเมนต์ = H3 — อ่านแถวสมาชิกสด (401 / 404 / 403 FORBIDDEN_ROLE)
+  const ctx = await requireShopCapability(session, "H3");
+  if (!ctx.ok) return ctx.response;
 
   const { searchParams } = new URL(request.url);
   const takeRaw = searchParams.get("take");

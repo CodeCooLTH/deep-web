@@ -13,6 +13,8 @@
  * isAdmin is enforced by the parent (dashboard) layout (A1).
  */
 
+import { redirect } from 'next/navigation'
+import { requireAdmin } from '@/lib/auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 import { prisma } from '@/lib/prisma'
@@ -42,6 +44,10 @@ const resolveProfileUrl = (username: string): string => {
 }
 
 export default async function AdminUsersPage() {
+  // ด่านแอดมินในหน้าเอง — layout อาจถูกข้ามตอน client navigation (partial rendering) จึงพึ่ง layout อย่างเดียวไม่ได้
+  const admin = await requireAdmin()
+  if (!admin) redirect('/admin/auth/sign-in')
+
   const users = await prisma.user.findMany({
     include: {
       verifications: {

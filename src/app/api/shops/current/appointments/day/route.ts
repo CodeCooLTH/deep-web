@@ -1,8 +1,13 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { NextRequest } from "next/server";
-import { requireShopMember, jsonNoStore } from "@/lib/shop-api-guard";
+import { jsonNoStore } from "@/lib/shop-api-guard";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { thaiDateBounds } from "@/lib/appointment-day";
 import { listAppointmentsForDay } from "@/services/appointment.service";
+import { can, moneyLevel } from "@/lib/shop-permissions";
+import { toNoMoneyAppointmentDay } from "@/lib/order-view-by-level";
 
 /**
  * GET /api/shops/current/appointments/day — นัดของ "หนึ่งวัน" พร้อมข้อมูลติดต่อลูกค้า
@@ -25,8 +30,9 @@ import { listAppointmentsForDay } from "@/services/appointment.service";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopMember();
-  if ("error" in ctx) return ctx.error;
+  const gate = await requireShopCapability(await getServerSession(authOptions), "Q1");
+  if (!gate.ok) return gate.response;
+  const ctx = gate;
 
   const sp = request.nextUrl.searchParams;
   const date = sp.get("date");
@@ -47,13 +53,21 @@ export async function GET(request: NextRequest) {
       to: bounds.to,
       resourceId: sp.get("resourceId"),
     });
+    // ช่าง (ระดับเงิน NONE): ไม่ส่งยอด/มัดจำ · ห้องแชทเฉพาะผู้มี H1 (00071 P3 · S-15)
+    const noMoney = moneyLevel(gate.roles) === "NONE";
+    const canChat = can(gate.roles, "H1");
     return jsonNoStore({
-      items: items.map((i) => ({
-        ...i,
-        createdAt: i.createdAt.toISOString(),
-        start: i.start.toISOString(),
-        end: i.end.toISOString(),
-      })),
+      items: items.map((i) => {
+        const row = {
+          ...i,
+          createdAt: i.createdAt.toISOString(),
+          start: i.start.toISOString(),
+          end: i.end.toISOString(),
+        };
+        if (noMoney) return toNoMoneyAppointmentDay(row, { canChat });
+        // ไม่มี H1 = ไม่มีปุ่มทักแชท (BILLING ก็เช่นกัน) — null คือ "ไม่มีเธรดให้เปิด" ตาม type ฝั่งจอ
+        return canChat ? row : { ...row, conversationId: null };
+      }),
     });
   } catch (e: unknown) {
     const mapped = appointmentErrorResponse(e);

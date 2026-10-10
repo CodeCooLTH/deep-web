@@ -28,6 +28,9 @@ import AuctionStatStrip from './components/AuctionStatStrip'
 import AuctionListClient from './components/AuctionListClient'
 import AuctionLiveStrip, { type LiveStripItem } from './components/AuctionLiveStrip'
 import { STATUS_TABS, type AuctionStatus } from './components/data'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'การประมูล' }
 
@@ -54,6 +57,16 @@ export default async function AuctionsPage({ searchParams }: PageProps) {
   const sp = await searchParams
 
   const session = await getServerSession(authOptions)
+  // 00071 P3 (X1): บทบาทที่ไม่มีสิทธิ์เห็นการ์ดบอกเหตุผล ไม่ใช่หน้าว่าง/404 เงียบ — ตัดก่อน query ข้อมูลของหน้า
+  const gate = await gatePage(session, 'X1')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <PageBreadcrumb title="การประมูล" />
+        <NoPermissionCard capability="X1" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   const user = (session as any)?.user
   if (!user) return null
 

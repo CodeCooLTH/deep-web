@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateExpenseSchema } from "@/lib/validations";
-import { resolveExpenseAccess } from "@/services/expense-access.service";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { createExpense, listExpenses, serializeExpense } from "@/services/expense.service";
 import { resolveDateRange, parseIsoDateToUtcMidnight, todayThaiIsoDate } from "@/lib/date-range";
 
@@ -12,11 +12,9 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  const gate = await requireShopCapability(session, "F1");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   // start/end ทั้งคู่ optional — ต้องมาคู่กัน (ส่งมาแค่ตัวเดียว → ignore ทั้งคู่, ไม่ error, defensive)
   const { searchParams } = request.nextUrl;
@@ -30,7 +28,7 @@ export async function GET(request: NextRequest) {
   const range =
     start && end ? resolveDateRange("custom", start, end).expenseRange : undefined;
 
-  const expenses = await listExpenses(decision.shop.id, range ? { range } : undefined);
+  const expenses = await listExpenses(shop.id, range ? { range } : undefined);
   return NextResponse.json(expenses.map(serializeExpense));
 }
 
@@ -39,11 +37,9 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "STAFF_NOT_ALLOWED") {
-    return NextResponse.json({ error: decision.kind }, { status: 403 });
-  }
+  const gate = await requireShopCapability(session, "F2");
+  if (!gate.ok) return gate.response;
+  const shop = gate.active.shop;
 
   const body = await request.json();
   const parsed = v.safeParse(CreateExpenseSchema, body);
@@ -55,7 +51,7 @@ export async function POST(request: NextRequest) {
   const userId = (session.user as { id?: string }).id;
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const expense = await createExpense(decision.shop.id, userId, {
+  const expense = await createExpense(shop.id, userId, {
     category: parsed.output.category,
     amount: parsed.output.amount,
     expenseDate,

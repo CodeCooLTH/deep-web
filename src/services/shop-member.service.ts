@@ -1,5 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { planMemberRoleChange, validateAssignableRoles } from "@/lib/shop-role-assignment";
+import type { STAFF_ROLES } from "@/lib/shop-permissions";
+
+type StaffRole = (typeof STAFF_ROLES)[number];
 import { checkRemove, checkRoleChange, checkTransfer, staffCountWhere, type MemberRole } from "@/lib/shop-member-rules";
 import { recalculateShopTrustScore } from "@/services/trust-score.service";
 import {
@@ -15,9 +19,12 @@ export async function inviteShopMember(
   shopId: string,
   contact: string,
   contactType: "PHONE" | "EMAIL",
+  roles: StaffRole[] = ["MANAGER"],
 ) {
   return prisma.$transaction(async (tx) => {
     const shop = await requireOwnerMember(tx, shopId, ownerId);
+    const roleErr = validateAssignableRoles(roles, shop);
+    if (roleErr) throw new Error(roleErr);
     if (shop.packageLockedAt !== null) throw new Error("SHOP_LOCKED");
 
     // lookup tier ของเจ้าของหลัก (Shop.userId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์เชิญ
@@ -36,7 +43,7 @@ export async function inviteShopMember(
     if (duplicatePending) throw new Error("INVITE_ALREADY_PENDING");
 
     return tx.shopInvite.create({
-      data: { shopId, invitedContact: contact, contactType, invitedByUserId: ownerId, status: "PENDING" },
+      data: { shopId, invitedContact: contact, contactType, invitedByUserId: ownerId, status: "PENDING", roles },
     });
   });
 }
@@ -69,7 +76,7 @@ export async function acceptShopInvite(inviteId: string, currentUserId: string) 
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: invite.shopId, userId: currentUserId } },
-      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN" },
+      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN", roles: invite.roles }, // คัดลอกชุดที่เจ้าของเลือกตอนเชิญ
       update: {}, // idempotent กันกด accept ซ้ำ
     });
 
@@ -94,7 +101,7 @@ async function loadPair(tx: Prisma.TransactionClient, shopId: string, callerId: 
   if (!shop || shop.kind !== "BUSINESS") throw new Error("NOT_OWNER");
   const [caller, target] = await Promise.all([
     tx.shopMember.findUnique({ where: { shopId_userId: { shopId, userId: callerId } }, select: { userId: true, role: true } }),
-    tx.shopMember.findUnique({ where: { id: memberId }, select: { id: true, shopId: true, userId: true, role: true } }),
+    tx.shopMember.findUnique({ where: { id: memberId }, select: { id: true, shopId: true, userId: true, role: true, roles: true } }),
   ]);
   return { shop, caller, target: target && target.shopId === shopId ? target : null };
 }
@@ -128,13 +135,25 @@ export async function removeShopMember(callerId: string, shopId: string, memberI
 /** changeMemberRole — BR-MR-01/02: เจ้าของทุกคนสลับ เจ้าของ↔ผู้ดูแล ให้คนอื่นได้ (แตะเจ้าของหลักไม่ได้)
  *  ไม่กระทบโควตา เพราะโควตานับทุกคนยกเว้นเจ้าของหลักอยู่แล้ว (BR-MR-06)
  */
-export async function changeMemberRole(callerId: string, shopId: string, memberId: string, role: MemberRole) {
+export async function changeMemberRole(
+  callerId: string, shopId: string, memberId: string,
+  input: { role?: MemberRole; roles?: StaffRole[] },
+) {
   return prisma.$transaction(async (tx) => {
     const { shop, caller, target } = await loadPair(tx, shopId, callerId, memberId);
     const err = checkRoleChange(shop.userId, caller, target);
     if (err) throw new Error(err);
-    await tx.shopMember.update({ where: { id: memberId }, data: { role } });
-    return { role };
+    const plan = planMemberRoleChange({ current: target!, input }); // target ไม่ null แล้ว (checkRoleChange ผ่าน)
+    if ("error" in plan) throw new Error(plan.error);
+    // ตรวจเฉพาะเมื่อ "กำลังตั้งชุดใหม่" (ส่ง roles มา หรือเพิ่งลดจากเจ้าของ) — ชุดเดิมที่ไม่เปลี่ยน
+    // ห้ามถูกตีกลับ แม้ร้านเปลี่ยน vertical ทีหลังจน BILLING ใช้ไม่ได้แล้ว (มติ P2 0.2 · review T4)
+    const assigningRoles = input.roles !== undefined || target!.role !== "ADMIN";
+    if (plan.role === "ADMIN" && assigningRoles) {
+      const roleErr = validateAssignableRoles(plan.roles, shop);
+      if (roleErr) throw new Error(roleErr);
+    }
+    await tx.shopMember.update({ where: { id: memberId }, data: plan }); // CHECK ShopMember_roles_check: OWNER=[] / ADMIN=1..4
+    return plan;
   });
 }
 
@@ -162,7 +181,7 @@ export async function transferShopOwnership(callerId: string, shopId: string, me
     if (err) throw new Error(err);
 
     await tx.shop.update({ where: { id: shopId }, data: { userId: recipientId } });
-    await tx.shopMember.update({ where: { id: memberId }, data: { role: "OWNER" } });
+    await tx.shopMember.update({ where: { id: memberId }, data: { role: "OWNER", roles: [] } });
   });
   await recalculateShopTrustScore(shopId).catch((e) =>
     console.error("[transferShopOwnership] trust recalc failed", shopId, e),
@@ -188,7 +207,7 @@ export async function listMembers(shopId: string) {
   const rows = await prisma.shopMember.findMany({
     where: { shopId },
     select: {
-      id: true, role: true, userId: true, createdAt: true,
+      id: true, role: true, roles: true, userId: true, createdAt: true,
       // authAccounts: คอลัมน์ "ช่องทาง" ในหน้า /admins (เฉพาะชื่อ provider ไม่ดึง token)
       user: { select: { displayName: true, username: true, avatar: true, passwordHash: true, authAccounts: { select: { provider: true } } } },
     },

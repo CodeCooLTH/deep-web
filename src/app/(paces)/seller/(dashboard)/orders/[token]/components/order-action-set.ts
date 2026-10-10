@@ -64,6 +64,11 @@ export type GetOrderActionSetInput = {
    * เหมือน NO_SHIPPING เป๊ะ (ไม่แตะ — regression test เดิมยังต้องผ่าน)
    */
   isPickupHandedOver?: boolean
+  /**
+   * 00071 P3 — บิลที่ผู้เปิดบิล (BILLING) แก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ) ⇒ ไม่มี "แก้ไข{noun}" ในทุกสถานะ
+   * ตัดสินที่ server (canEditOrderAs) แล้วส่งมา — ไฟล์นี้บริสุทธิ์ ไม่รู้จักบทบาท/สถานะชำระ
+   */
+  editLocked?: boolean
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
@@ -120,6 +125,13 @@ const buildActions = (orderNoun: string) =>
  * ครอบคลุมทั้ง 'NO_SHIPPING' และ 'PICKUP' (G-1: จองที่พักไม่ใช่ NO_SHIPPING แต่ต้องไม่มี action พัสดุเหมือนกัน)
  */
 export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
+  const set = buildOrderActionSet(input)
+  if (!input.editLocked) return set
+  const keep = (a: ActionItem) => a.key !== 'edit-order'
+  return { primary: set.primary && keep(set.primary) ? set.primary : null, ghosts: set.ghosts.filter(keep), menu: set.menu.filter(keep) }
+}
+
+function buildOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
   const { status, fulfillmentMode, shipmentSource, isCodUnpaid } = input
   // optional โดยตั้งใจ — caller ที่ยังไม่รู้จัก vertical (และเทสเดิม) ได้คำของ ONLINE_SALES
   const ACTIONS = buildActions(input.orderNoun ?? 'คำสั่งซื้อ')
