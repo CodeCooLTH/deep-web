@@ -15,7 +15,6 @@ import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
-import ChatToastListener from './_shared/ChatToastListener'
 import IapRecoveryListener from './_shared/IapRecoveryListener'
 import { getOrderStatusCounts } from '@/services/order.service'
 import { getUnreadCountForShop } from '@/services/chat.service'
@@ -227,10 +226,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           'use client' component — import ตรงจาก RSC layout ได้ (Next.js 16) */}
       {/* 00071 F3: ผู้ไม่ใช่เจ้าของโดน 403 จาก /api/wallet/events อยู่แล้ว — ไม่ mount ให้ poll ฟรี ๆ */}
       {isShopOwnerRole(active.role, active.roles) && <TopUpCelebrationPoller />}
-      {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
-          เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
-      {/* 00071: เฉพาะบทบาทที่มี H1 — ช่าง/เปิดบิลไม่ควรได้ toast ข้อความลูกค้า (เนื้อแชทผ่าน realtime channel) */}
-      {canChat && <ChatToastListener shopId={shop?.id ?? null} />}
+      {/* ChatToastListener (S-7, toast "ข้อความใหม่" มุมขวาล่าง) ถอด mount ออกตามที่ user สั่ง
+          2026-10-10 — ไฟล์ยังอยู่ กลับมา mount ได้ทันทีถ้าเปลี่ยนใจ (ถ้าใส่คืนต้องคง `canChat &&` ของ 00071
+          ไว้ — ช่าง/เปิดบิลไม่ควรได้ toast ข้อความลูกค้า) · ตัวเลขยังไม่อ่านในเมนูแชทมาจาก DB ไม่ได้พึ่ง
+          ตัวนี้ และแจ้งเตือนเด้งเข้ามือถือ (seller-push.service) เป็นอีกเส้นทาง ไม่กระทบ */}
       {/* IapRecoveryListener (00064): รับธุรกรรม Apple ที่ค้างจากรอบก่อนแล้วเปิดสิทธิ์ให้เอง
           — mount ที่ layout เพราะคนที่จ่ายเงินแล้วสิทธิ์ไม่เปิดจะไม่เดินกลับไปหน้าแพ็กเกจเอง
           บนเบราว์เซอร์ปกติตัวนี้ไม่แขวน listener ใด ๆ (ไม่มี ReactNativeWebView) */}

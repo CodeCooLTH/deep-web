@@ -148,10 +148,11 @@ describe('layout/page: ตัดที่ต้นทาง ไม่ใช่�
   const page = read('dashboard/page.tsx')
   const cc = read('dashboard/components/CommandCenter.tsx')
 
-  it('unread แชทนับเฉพาะ can(H1) และ ChatToastListener mount เฉพาะ H1', () => {
+  it('unread แชทนับเฉพาะ can(H1) · ChatToastListener ไม่ถูก mount เลย (user สั่งถอด 2026-10-10)', () => {
     expect(layout).toMatch(/const canChat = can\(roles, 'H1'\)/)
     expect(layout).toMatch(/if \(shop\?\.id && canChat\) \{\s*try \{\s*unreadChatCount = await getUnreadCountForShop/)
-    expect(layout).toMatch(/\{canChat && <ChatToastListener/)
+    // ถ้าใส่คืน ต้องเป็น `{canChat && <ChatToastListener` (00071) แล้วแก้เทสนี้กลับ — ห้าม mount ให้ทุกบทบาท
+    expect(layout).not.toMatch(/<ChatToastListener/)
   })
   it('isPrimaryOwner มาจากแถวร้านที่ requireActiveShop อ่านแล้ว ไม่ใช่ query เพิ่ม', () => {
     expect(layout).toMatch(/isPrimaryOwner: active\.shop\.userId === user\.id/)
