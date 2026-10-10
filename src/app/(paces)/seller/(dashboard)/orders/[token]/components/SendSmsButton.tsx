@@ -14,7 +14,7 @@
  * ลบ 403-L2 error case ออก — route ไม่ return 403 L2 อีก (product decision 2026-05-17)
  */
 
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { insufficientCreditHtml } from '@/lib/payment-copy'
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
@@ -41,11 +41,11 @@ const SUCCESS_RESET_MS = 3000
 
 // map HTTP status → validation message (HTML; แสดงในกล่อง dialog ผ่าน showValidationMessage)
 // หมายเหตุ: ไม่มี case 403 (L2 gate) แล้ว — route ไม่ return 403 อีกตาม product decision 2026-05-17
-function smsErrorMessage(status: number, hidePayments: boolean, noun = 'คำสั่งซื้อ', buyerNoun = 'ผู้ซื้อ'): string {
+function smsErrorMessage(status: number, hidePayments: boolean, canTopUp: boolean, noun = 'คำสั่งซื้อ', buyerNoun = 'ผู้ซื้อ'): string {
   switch (status) {
     case 402:
       // 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน — ข้อความมาจาก SSOT ที่ lib/payment-copy
-      return insufficientCreditHtml(hidePayments, 'เติมเงิน')
+      return insufficientCreditHtml(hidePayments, 'เติมเงิน', canTopUp)
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
@@ -58,6 +58,7 @@ function smsErrorMessage(status: number, hidePayments: boolean, noun = 'คำ�
 export default function SendSmsButton({ publicToken, compact = false, iconOnly = false, className = '', emphasis = 'default', serviceVocab }: SendSmsButtonProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
+  const canTopUp = useCanTopUp()
   const [showSuccess, setShowSuccess] = useState(false)
 
   // useRef เพื่อ clear timeout ได้ทั้ง on unmount และ on state change — กัน leak
@@ -97,7 +98,7 @@ export default function SendSmsButton({ publicToken, compact = false, iconOnly =
             method: 'POST',
           })
           if (res.ok) return true
-          Swal.showValidationMessage(smsErrorMessage(res.status, hidePayments, serviceVocab?.noun, serviceVocab?.buyerNoun))
+          Swal.showValidationMessage(smsErrorMessage(res.status, hidePayments, canTopUp, serviceVocab?.noun, serviceVocab?.buyerNoun))
           return false
         } catch {
           Swal.showValidationMessage('ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่')

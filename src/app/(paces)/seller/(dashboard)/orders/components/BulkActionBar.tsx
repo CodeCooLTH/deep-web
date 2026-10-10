@@ -29,8 +29,8 @@
 import Icon from '@/components/wrappers/Icon'
 import type { Row as TableRow } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
-import { INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
+import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { INSUFFICIENT_CREDIT_TEXT, NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useEffect, useRef, useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -273,6 +273,7 @@ interface BulkSmsProgressDialogProps {
 function BulkSmsProgressDialog({ open, eligibleRows, onComplete, orderWord }: BulkSmsProgressDialogProps) {
   // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
   const hidePayments = useHidePayments()
+  const canTopUp = useCanTopUp()
   const total = eligibleRows.length
   const [phase, setPhase] = useState<Phase>('sending')
   const [progress, setProgress] = useState({ sent: 0, failed: 0 })
@@ -417,7 +418,9 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete, orderWord }: Bu
                         สาเหตุว่าทำต่อไม่ได้ ผู้ขายเห็นยอดคงเหลือจากหน้าแรก/หน้ากระเป๋าเงินอยู่แล้ว */}
                     {creditError && (
                       <p className="mt-1 text-sm text-default-500">
-                        {hidePayments ? (
+                        {!canTopUp ? (
+                          NON_OWNER_INSUFFICIENT_CREDIT_TEXT
+                        ) : hidePayments ? (
                           INSUFFICIENT_CREDIT_TEXT
                         ) : (
                           <>

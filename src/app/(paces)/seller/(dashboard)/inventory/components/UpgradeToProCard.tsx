@@ -16,7 +16,8 @@
  * - client component (มี Sweet Alerts state) ต่างจาก banner ต้นทางที่เป็น server component ล้วน
  */
 
-import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import Icon from '@/components/wrappers/Icon'
@@ -26,8 +27,9 @@ import { INVENTORY_PRO_PRICE } from '@/lib/inventory-addon'
 // map HTTP status → validation message — Base: SubscribeButton.tsx subscribeErrorMessage
 // (route /api/inventory/upgrade คืน data.error เป็นไทยอยู่แล้วสำหรับ 409/500 — ใช้ตรง ๆ,
 // 402 override เป็นข้อความมีลิงก์ /wallet ให้สอดคล้อง pattern เดียวกับ SubscribeButton/PackageSelector)
-function upgradeErrorMessage(status: number, apiError: string): string {
+function upgradeErrorMessage(status: number, apiError: string, canTopUp: boolean): string {
   if (status === 402) {
+    if (!canTopUp) return NON_OWNER_INSUFFICIENT_CREDIT_TEXT
     return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนอัพเกรด</a>'
   }
   if (status === 409) {
@@ -38,6 +40,7 @@ function upgradeErrorMessage(status: number, apiError: string): string {
 
 function UpgradeToProCardInner() {
   const router = useRouter()
+  const canTopUp = useCanTopUp()
 
   const handleUpgrade = async () => {
     // Base: SubscribeButton.tsx handleOpenDialog ทั้งฟังก์ชัน (confirm+fetch ใน flow เดียว,
@@ -62,7 +65,7 @@ function UpgradeToProCardInner() {
           const res = await fetch('/api/inventory/upgrade', { method: 'POST' })
           const data = await res.json().catch(() => ({}))
           if (res.ok) return true
-          Swal.showValidationMessage(upgradeErrorMessage(res.status, data?.error ?? ''))
+          Swal.showValidationMessage(upgradeErrorMessage(res.status, data?.error ?? '', canTopUp))
           return false
         } catch {
           Swal.showValidationMessage('เกิดข้อผิดพลาด กรุณาลองใหม่')

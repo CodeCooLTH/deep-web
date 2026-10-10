@@ -14,6 +14,7 @@ import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getChatbotConfig } from '@/services/ai-chatbot-config.service'
 import { listShopGuardrails } from '@/services/auto-reply-guardrail.service'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import ChatbotTabs from './ChatbotTabs'
@@ -33,6 +34,7 @@ export default async function ChatbotPage() {
   })
   if (!activeCtx) return null
 
+  const isOwner = isShopOwnerRole(activeCtx.role)
   const [config, guardrails, wallet, qnaCount] = await Promise.all([
     getChatbotConfig(activeCtx.shopId),
     listShopGuardrails(activeCtx.shopId),
@@ -48,7 +50,9 @@ export default async function ChatbotPage() {
         canEdit={EDITABLE_ROLES.includes(activeCtx.role)}
         initialConfig={config}
         initialGuardrails={guardrails}
-        walletBalance={wallet?.balance ?? 0}
+        // ผู้ไม่ใช่เจ้าของไม่ได้ตัวเลข (F3) แต่ยังได้ boolean เตือนเครดิตหมด
+        walletBalance={isOwner ? (wallet?.balance ?? 0) : null}
+        creditEmpty={(wallet?.balance ?? 0) <= 0}
         knowledgeCount={qnaCount}
         vertical={activeCtx.vertical}
       />

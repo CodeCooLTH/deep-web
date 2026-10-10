@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveScopedShopId } from "@/lib/chat-scope";
 import { getAiSuggestQuotaStatus } from "@/services/ai-suggest-quota.service";
 import { sessionUserId } from "@/lib/session-user";
+import { isShopOwnerOfShop } from "@/lib/shop-owner";
 
 /**
  * GET /api/chat/ai-quota — สถานะโควตาฟรี/ยอดเงิน/paid-plan ของ ai-suggest ล่วงหน้า (feature 00019 ext, 2026-07-29)
@@ -35,7 +36,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const status = await getAiSuggestQuotaStatus(activeCtx.shopId);
+    // 00071 F3: ตัวเลขกระเป๋าเฉพาะเจ้าของ "ของร้านที่ขอ" (ร้านของเธรด ไม่ใช่ร้าน active) — คนอื่นได้ balance:null
+    const canSeeBalance = await isShopOwnerOfShop(activeCtx.shopId, userId);
+    const status = await getAiSuggestQuotaStatus(activeCtx.shopId, { canSeeBalance });
     return NextResponse.json(status, { headers: NO_STORE_HEADERS });
   } catch (e) {
     // fail-closed (FR-AIQ-08/NFR-AIQ-Consistency) — query พังต้องตอบ error ทั่วไป ห้าม default เป็น unlimited/ฟรี

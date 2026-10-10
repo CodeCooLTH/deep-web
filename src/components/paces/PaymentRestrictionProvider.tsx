@@ -67,3 +67,21 @@ export function useShowMoneyStatus(): boolean {
   const { hidePayments, offerIap } = useContext(PaymentRestrictionContext)
   return canShowMoneyStatus(hidePayments, offerIap)
 }
+
+/**
+ * canTopUp — ผู้ใช้คนนี้เติมเงินกระเป๋าร้านได้ไหม (00071 F3: เจ้าของร้านเท่านั้น)
+ *
+ * แยก context จาก hidePayments เพราะ seller/layout.tsx (ชั้นนอกสุด) ไม่รู้จักร้าน — ค่านี้ถูกใส่โดย
+ * (dashboard)/layout ที่ resolve active shop แล้ว · (chat)/layout ยังไม่ใส่ (ปิดใน P1-T8 แล้วค่อยพลิก
+ * default เป็น false) · default true = พฤติกรรมเดิมของหน้านอก (dashboard)
+ * ผู้ไม่ใช่เจ้าของเห็นข้อความ "ติดต่อเจ้าของร้าน" แทนลิงก์ /wallet (ซึ่งเป็นทางตัน 403)
+ */
+const CanTopUpContext = createContext<boolean>(true)
+
+export function CanTopUpProvider({ canTopUp, children }: { canTopUp: boolean; children: React.ReactNode }) {
+  return <CanTopUpContext.Provider value={canTopUp}>{children}</CanTopUpContext.Provider>
+}
+
+export function useCanTopUp(): boolean {
+  return useContext(CanTopUpContext)
+}

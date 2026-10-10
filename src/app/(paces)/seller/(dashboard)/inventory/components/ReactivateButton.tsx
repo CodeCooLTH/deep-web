@@ -15,11 +15,14 @@ import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
+import { NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
+import { useCanTopUp } from '@/components/paces/PaymentRestrictionProvider'
 
 // map HTTP status → validation message (แสดงในกล่อง dialog ผ่าน showValidationMessage)
-function reactivateErrorMessage(status: number): string {
+function reactivateErrorMessage(status: number, canTopUp: boolean): string {
   switch (status) {
     case 402:
+      if (!canTopUp) return NON_OWNER_INSUFFICIENT_CREDIT_TEXT
       return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนเปิดใช้อีกครั้ง</a>'
     case 409:
       return 'บัญชีนี้ไม่ได้ถูกล็อก'
@@ -30,6 +33,7 @@ function reactivateErrorMessage(status: number): string {
 
 export default function ReactivateButton() {
   const router = useRouter()
+  const canTopUp = useCanTopUp()
 
   const handleOpenDialog = async () => {
     // Base: SendSmsButton.handleOpenDialog — confirm + fetch ใน flow เดียว, error ค้าง dialog ผ่าน showValidationMessage
@@ -54,7 +58,7 @@ export default function ReactivateButton() {
             method: 'POST',
           })
           if (res.ok) return true
-          Swal.showValidationMessage(reactivateErrorMessage(res.status))
+          Swal.showValidationMessage(reactivateErrorMessage(res.status, canTopUp))
           return false
         } catch {
           Swal.showValidationMessage('เกิดข้อผิดพลาด กรุณาลองใหม่')

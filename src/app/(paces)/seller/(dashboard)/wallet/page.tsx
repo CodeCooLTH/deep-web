@@ -22,6 +22,8 @@ import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { shouldHidePayments, shouldShowMoneyStatus } from '@/lib/app-shell-server'
+import { isShopOwnerRole } from '@/lib/shop-owner'
+import ExpenseLockedCard from '../expenses/components/ExpenseLockedCard'
 import WalletCard from './components/WalletCard'
 import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
@@ -48,11 +50,23 @@ export default async function WalletPage() {
   // ดึง active shop (Personal หรือ Business ตาม session.activeShopId) — layout auto-create Personal ให้แล้ว
   // แต่ทำ try/catch กัน edge case; Business มี wallet แยกต่อ shop.id (คนละอันกับ billing package)
   let shop: { id: string } | null = null
+  let isOwner = true
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
+    if (active) isOwner = isShopOwnerRole(active.role)
   } catch {
     shop = null
+  }
+
+  // 00071 F3: กระเป๋า = เจ้าของร้านเท่านั้น — ตัดก่อน getBalance/getTransactions (ไม่ query ยอดเลย)
+  if (!isOwner) {
+    return (
+      <>
+        <PageBreadcrumb title="กระเป๋าเงิน" trail={[{ label: 'การขาย' }]} />
+        <ExpenseLockedCard />
+      </>
+    )
   }
 
   /**

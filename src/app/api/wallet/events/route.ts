@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getBalance } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
 import { requireActiveShop } from "@/lib/shop-context";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { isShopOwnerRole } from "@/lib/shop-owner";
 
 /**
  * GET /api/wallet/events — poll หา TopUpRequest ที่ approved แต่ยังไม่แจ้ง seller
@@ -31,6 +33,7 @@ export async function GET() {
   if (!active) {
     return NextResponse.json({ approved: [], balance: 0 });
   }
+  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   try {
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
     // ไม่มีร้าน → ไม่มี record ที่ต้อง ack; คืน ok=true (idempotent)
     return NextResponse.json({ ok: true, marked: 0 });
   }
+  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   try {

@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getBalance, getTransactions } from "@/services/wallet.service";
 import { requireActiveShop } from "@/lib/shop-context";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { isShopOwnerRole } from "@/lib/shop-owner";
 
 /**
  * GET /api/wallet — ดึง balance + transactions ของ seller ที่ login อยู่
@@ -33,6 +35,8 @@ export async function GET() {
   if (!active) {
     return NextResponse.json({ balance: 0, transactions: [] });
   }
+  // 00071 F3: กระเป๋า = เจ้าของร้านเท่านั้น (ก่อน query ยอด)
+  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   // try/catch ตาม convention orders/route.ts (959b7cd) — ถ้า Prisma throw

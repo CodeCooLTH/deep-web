@@ -53,7 +53,8 @@ type AiQuotaStatus = {
   freeRemaining: number | null
   canUseCredit: boolean
   priceBaht: number
-  balance: number
+  /** null = ผู้ใช้ไม่ใช่เจ้าของร้านของเธรด (00071 F3) — ห้ามแปลงเป็น 0 */
+  balance: number | null
 }
 
 // fallback message เดียวกับที่ ai-suggest ใช้อยู่เดิม — ai-quota ใช้ pattern เดียวกัน (data.error ?? fallback)
@@ -153,6 +154,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
 
   // credit path — Base: SubscribeButton.tsx handleOpenDialog ทั้งฟังก์ชัน (confirm+fetch ใน flow เดียว,
   // error ค้าง dialog ผ่าน showValidationMessage) ต่างจาก Base ตรงที่ต้องส่ง body {confirmUseCredit:true}
+  const hideBalance = quota?.balance == null
   const handleUseCredit = useCallback(async () => {
     const balance = quota?.balance ?? 0
     const priceBaht = quota?.priceBaht ?? 1
@@ -161,7 +163,9 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
       buttonsStyling: false,
       icon: 'question',
       title: 'ใช้เงินในกระเป๋า ฿1 ขอร่างเพิ่ม?',
-      text: `ยอดคงเหลือในกระเป๋าเงิน ฿${balance}`,
+      text: hideBalance
+        ? `จะหักจากกระเป๋าเงินของร้าน ฿${priceBaht} ต่อครั้ง`
+        : `ยอดคงเหลือในกระเป๋าเงิน ฿${balance}`,
       showCancelButton: true,
       confirmButtonText: 'ใช้เงินในกระเป๋า ฿1',
       cancelButtonText: 'ยกเลิก',
@@ -183,7 +187,9 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
           if (res.status === 402 && data?.error === 'INSUFFICIENT_CREDIT') {
             // 🛑 ในแอป iOS ห้ามมีลิงก์ไปหน้าเติมเงินและห้ามใช้คำว่า "เติมเงิน" — บอกได้แค่สาเหตุ
             Swal.showValidationMessage(
-              hidePayments
+              hideBalance
+                ? 'เครดิตของร้านไม่พอสำหรับขอร่างเพิ่ม ติดต่อเจ้าของร้าน'
+                : hidePayments
                 ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม'
                 : 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>',
             )
@@ -205,10 +211,14 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
       setPhase('success')
       // API ไม่ส่ง balance หลังหักกลับมาตรง ๆ (contract response 200 มีแค่ suggestions/usedCredit/freeRemaining)
       // คำนวณจากยอดที่รู้ล่าสุด (จาก GET ai-quota) ลบราคาคงที่ ฿1 — ค่าประมาณที่ดีที่สุดที่ client มี
-      const newBalance = Math.max(0, balance - priceBaht)
-      pacesToast.success(`หักเงิน ฿1 แล้ว คงเหลือ ฿${newBalance}`)
+      if (hideBalance) {
+        pacesToast.success(`หักเงิน ฿${priceBaht} จากกระเป๋าร้านแล้ว`)
+      } else {
+        const newBalance = Math.max(0, balance - priceBaht)
+        pacesToast.success(`หักเงิน ฿1 แล้ว คงเหลือ ฿${newBalance}`)
+      }
     }
-  }, [conversationId, quota])
+  }, [conversationId, quota, hideBalance, hidePayments])
 
   // ซ่อนปุ่ม refresh เฉพาะสถานะ quota-blocked (credit-prompt/credit-block) — กดแล้วเจอ 402 ซ้ำไม่มีประโยชน์
   // และ quota-error (ยังไม่รู้โควตา — ใช้ปุ่ม "ลองใหม่" ในเนื้อหาแทน ซึ่งยิง GET ai-quota ไม่ใช่ POST)
@@ -300,14 +310,21 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePa
         ) : phase === 'credit-block' ? (
           <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <Icon icon="alert-circle" className="text-warning text-2xl" />
-            <span>
-              {hidePayments ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม' : 'ยอดเงินไม่พอ'} (คงเหลือ ฿
-              {quota?.balance ?? 0})
-            </span>
+            {hideBalance ? (
+              <>
+                <span className="font-medium">เครดิตของร้านไม่พอสำหรับขอร่างเพิ่ม</span>
+                <span>ติดต่อเจ้าของร้าน หรือรอโควตาฟรีพรุ่งนี้</span>
+              </>
+            ) : (
+              <span>
+                {hidePayments ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม' : 'ยอดเงินไม่พอ'} (คงเหลือ ฿
+                {quota?.balance ?? 0})
+              </span>
+            )}
             {/* 🛑 ปุ่มทั้งสองใบเป็นทางไปจ่ายเงินตรง ๆ — ในแอป iOS ต้องไม่มีเลย ห้ามแทนด้วย
                 ข้อความบอกให้ไปทำที่เว็บ (Apple ถือว่าผิดข้อเดียวกัน) เหลือแค่ยอดคงเหลือ
                 ซึ่งเป็นสถานะบัญชี บอกผู้ขายได้ว่าทำไมทำต่อไม่ได้ */}
-            {!hidePayments && (
+            {!hidePayments && !hideBalance && (
               <div className="flex items-center gap-2">
                 <Link href="/wallet" className="btn btn-sm border-default-300">
                   เติมเงิน

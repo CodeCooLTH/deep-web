@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { createTopUpRequest } from "@/services/topup.service";
 import { CreateTopUpRequestSchema } from "@/lib/validations";
 import { requireActiveShop } from "@/lib/shop-context";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { isShopOwnerRole } from "@/lib/shop-owner";
 
 /**
  * POST /api/wallet/topup — seller ส่งคำขอเติมเงิน พร้อม slip
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  if (!isShopOwnerRole(active.role)) return forbiddenRoleResponse();
   const shop = active.shop;
 
   // 3. parse + validate body ด้วย Valibot (CreateTopUpRequestSchema)

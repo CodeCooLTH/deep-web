@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
+import { CanTopUpProvider } from '@/components/paces/PaymentRestrictionProvider'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
@@ -158,7 +160,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
   const orderVocab = resolveOrderVocab(shop.vertical)
 
+  // 00071 F3: ผู้ไม่ใช่เจ้าของเติมเงินไม่ได้ — ปุ่ม/ข้อความ "เครดิตไม่พอ" ทั้งโซนอ่านจาก context นี้
   return (
+    <CanTopUpProvider canTopUp={isShopOwnerRole(active.role)}>
     <VerticalLayout
       menuItems={menuItems}
       shellClassName="seller-mobile-shell"
@@ -209,7 +213,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* TopUpCelebrationPoller: poll /api/wallet/events ทุก 20s
           mount ที่ layout เพื่อให้แจ้ง seller ทุก page ไม่ใช่แค่ wallet page
           'use client' component — import ตรงจาก RSC layout ได้ (Next.js 16) */}
-      <TopUpCelebrationPoller />
+      {/* 00071 F3: ผู้ไม่ใช่เจ้าของโดน 403 จาก /api/wallet/events อยู่แล้ว — ไม่ mount ให้ poll ฟรี ๆ */}
+      {isShopOwnerRole(active.role) && <TopUpCelebrationPoller />}
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       <ChatToastListener shopId={shop?.id ?? null} />
@@ -223,5 +228,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           (desktop) และ SellerBottomNav (mobile). ไฟล์ widget ยังอยู่ในโปรเจกต์ (SellerChatWidget /
           ChatWidgetList / ChatWidgetThreadPanel) — กลับมา mount ได้ทันทีถ้าเปลี่ยนใจ */}
     </VerticalLayout>
+    </CanTopUpProvider>
   )
 }

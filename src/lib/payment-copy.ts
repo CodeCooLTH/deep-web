@@ -22,10 +22,19 @@ const DEFAULT_LINK_LABEL = 'เติมเงิน'
  *   ผู้ขายยังเห็นยอดคงเหลือได้จากหน้ากระเป๋าเงิน/หน้าแรก จึงเข้าใจได้เองว่าเครดิตหมด
  * - บนเว็บ → เหมือนเดิมทุกอย่าง (Apple ไม่มีอำนาจกับเว็บ)
  */
-export function insufficientCreditHtml(hidePayments: boolean, linkLabel: string = DEFAULT_LINK_LABEL): string {
+export function insufficientCreditHtml(
+  hidePayments: boolean,
+  linkLabel: string = DEFAULT_LINK_LABEL,
+  canTopUp: boolean = true,
+): string {
+  // 00071 F3: ผู้ไม่ใช่เจ้าของเติมเงินไม่ได้ (/wallet = 403) → บอกทางออก ไม่มีลิงก์ ไม่มีตัวเลข
+  if (!canTopUp) return NON_OWNER_INSUFFICIENT_CREDIT_TEXT
   if (hidePayments) return INSUFFICIENT_CREDIT_TEXT
   return `ยอดเงินไม่พอ — <a href="/wallet" class="underline">${linkLabel}</a>`
 }
 
 /** ข้อความล้วนสำหรับที่ที่ render เป็น JSX เอง (ไม่ผ่าน HTML string) */
 export const INSUFFICIENT_CREDIT_TEXT = 'เครดิตไม่พอ'
+
+/** ผู้ไม่ใช่เจ้าของร้านเจอเครดิตไม่พอ — ไม่มีลิงก์ไปกระเป๋า (00071 F3) */
+export const NON_OWNER_INSUFFICIENT_CREDIT_TEXT = 'เครดิตของร้านไม่พอ ติดต่อเจ้าของร้าน'

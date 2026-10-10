@@ -30,6 +30,7 @@ import { authOptions } from '@/lib/auth'
 import { shouldHidePaidFeatures, shouldHidePayments } from '@/lib/app-shell-server'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import { getBalance } from '@/services/wallet.service'
 import {
   getEntitlementInfo,
@@ -61,9 +62,11 @@ export default async function InventoryPage() {
 
   // entitlement ผูก active shop.id (Personal หรือ Business ตาม session.activeShopId)
   let shop: { id: string } | null = null
+  let isOwner = false
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
+    isOwner = active ? isShopOwnerRole(active.role) : false
   } catch {
     shop = null
   }
@@ -153,7 +156,8 @@ export default async function InventoryPage() {
       where: { shopId: shop.id },
       select: { status: true, package: true, nextRenewalAt: true },
     }),
-    getBalance(shop.id).catch(() => 0),
+    // 00071 F3: ผู้ไม่ใช่เจ้าของไม่อ่านยอดกระเป๋าเลย (ไม่ใช่อ่านแล้วซ่อน)
+    isOwner ? getBalance(shop.id).catch(() => 0) : Promise.resolve(null),
     prisma.product.findMany({
       where: { shopId: shop.id, type: 'PHYSICAL', isActive: true },
       select: { id: true, name: true, images: true, stockQty: true, updatedAt: true },
@@ -166,7 +170,7 @@ export default async function InventoryPage() {
   const isPro = activePackage === 'PRO'
 
   // SDS §3.2 call-site: shouldWarnAdvance({status, package, nextRenewalAt}, balance)
-  const warn = shouldWarnAdvance(
+  const warn = balance != null && shouldWarnAdvance(
     entitlement
       ? { status: entitlement.status as EntitlementStatus, package: activePackage, nextRenewalAt: entitlement.nextRenewalAt }
       : null,
@@ -204,7 +208,7 @@ export default async function InventoryPage() {
       </div>
 
       {/* แถบเตือน "ยอดเงินไม่พอตัดรอบหน้า" — ในแอป iOS ซ่อน เพราะเนื้อหาคือการบอกให้ไปเติมเงิน */}
-      {warn && entitlement && !hidePayments && (
+      {balance != null && warn && entitlement && !hidePayments && (
         <AdvanceWarningBanner
           nextRenewalAt={formatDateTime(entitlement.nextRenewalAt)}
           shortfall={PACKAGE_PRICE[activePackage] - balance}

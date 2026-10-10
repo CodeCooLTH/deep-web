@@ -29,6 +29,7 @@ import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { resolveActiveShopContext } from '@/lib/shop-context'
+import { isShopOwnerRole } from '@/lib/shop-owner'
 import {
   BUSINESS_PACKAGE_TIER_CONFIG,
   BUSINESS_PACKAGE_ADVANCE_WARNING_DAYS,
@@ -122,7 +123,10 @@ function renderShopCard(shop: ShopSubscriptionRow, isActive: boolean, lockedAt: 
           <span className="text-default-500">
             ต่ออายุ: {shop.nextRenewalAt ? formatDate(shop.nextRenewalAt) : '—'}
           </span>
-          <span className="text-default-500">ยอดกระเป๋า: ฿{shop.walletBalance.toLocaleString('th-TH')}</span>
+          {/* walletBalance null = ผู้ไม่ใช่เจ้าของ (00071 F3) — ไม่แสดงทั้งแถว */}
+          {shop.walletBalance != null && (
+            <span className="text-default-500">ยอดกระเป๋า: ฿{shop.walletBalance.toLocaleString('th-TH')}</span>
+          )}
         </div>
 
         {shop.warnAdvance && shop.nextRenewalAt && (
@@ -198,7 +202,8 @@ export default async function SubscriptionsPage() {
 
   // ═══ BUSINESS CONTEXT ═══ เห็นแค่ Stock Pro ของ business นั้นใบเดียว (จัดการได้), ไม่มี Business Package
   if (activeCtx?.kind === 'BUSINESS') {
-    const shop = await getShopSubscriptionRow(activeCtx.shopId)
+    // ผู้ไม่ใช่เจ้าของไม่อ่านยอดกระเป๋าร้านเลย (ตัดที่ service ไม่ใช่ซ่อนใน JSX)
+    const shop = await getShopSubscriptionRow(activeCtx.shopId, { canSeeBalance: isShopOwnerRole(activeCtx.role) })
     const lockedAt = await getActiveLockedAt(shop ?? undefined)
     return (
       <>

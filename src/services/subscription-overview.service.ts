@@ -13,7 +13,8 @@ export interface ShopSubscriptionRow {
   entitlementStatus: 'NOT_SUBSCRIBED' | 'ACTIVE' | 'LOCKED'
   package: 'BASIC' | 'PRO' | null
   nextRenewalAt: Date | null
-  walletBalance: number
+  /** null = ผู้เรียกไม่ใช่เจ้าของร้าน (00071 F3) — ไม่อ่านยอดเลย */
+  walletBalance: number | null
   warnAdvance: boolean // shouldWarnAdvance ผลลัพธ์ (ACTIVE เท่านั้น)
   shortfall: number // PACKAGE_PRICE[pkg] - balance (>0 = ขาด); 0 ถ้าไม่ ACTIVE
 }
@@ -50,16 +51,17 @@ const SHOP_ROW_SELECT = {
 
 // buildShopRow — คำนวณ ShopSubscriptionRow 1 ร้าน (entitlement + balance + warnAdvance + shortfall)
 // ใช้ร่วมกันระหว่าง getSellerSubscriptionOverview (ทุกร้าน) และ getShopSubscriptionRow (ร้านเดียว)
-async function buildShopRow(s: ShopRecordForRow): Promise<ShopSubscriptionRow> {
+async function buildShopRow(s: ShopRecordForRow, canSeeBalance = true): Promise<ShopSubscriptionRow> {
   const ent = s.inventoryEntitlement
   const status: EntitlementStatus = ent ? (ent.status as EntitlementStatus) : 'NOT_SUBSCRIBED'
   const pkg = (ent?.package ?? null) as InventoryPackage | null
-  const balance = await getBalance(s.id)
+  // ผู้ไม่ใช่เจ้าของ: ไม่เรียก getBalance (ตัดที่ต้นทาง) → ไม่มีแถบเตือนยอดไม่พอ
+  const balance = canSeeBalance ? await getBalance(s.id) : null
   const warnAdvance =
-    status === 'ACTIVE' && pkg != null
+    balance != null && status === 'ACTIVE' && pkg != null
       ? shouldWarnAdvance({ status, package: pkg, nextRenewalAt: ent!.nextRenewalAt }, balance)
       : false
-  const shortfall = status === 'ACTIVE' && pkg != null ? Math.max(0, PACKAGE_PRICE[pkg] - balance) : 0
+  const shortfall = balance != null && status === 'ACTIVE' && pkg != null ? Math.max(0, PACKAGE_PRICE[pkg] - balance) : 0
   return {
     shopId: s.id,
     shopName: s.shopName,
@@ -79,13 +81,16 @@ async function buildShopRow(s: ShopRecordForRow): Promise<ShopSubscriptionRow> {
  * membership ก่อน; ในหน้า /subscriptions ใช้กับ activeShopId ที่ resolveActiveShopContext verify แล้ว)
  * ใช้ตอน active context = BUSINESS → แสดงเฉพาะ Stock Pro ของ business นั้น (S-18)
  */
-export async function getShopSubscriptionRow(shopId: string): Promise<ShopSubscriptionRow | null> {
+export async function getShopSubscriptionRow(
+  shopId: string,
+  opts: { canSeeBalance?: boolean } = {},
+): Promise<ShopSubscriptionRow | null> {
   const shop = await prisma.shop.findFirst({
     where: { id: shopId, deletedAt: null },
     select: SHOP_ROW_SELECT,
   })
   if (!shop) return null
-  return buildShopRow(shop)
+  return buildShopRow(shop, opts.canSeeBalance ?? true)
 }
 
 /**
@@ -107,7 +112,7 @@ export async function getSellerSubscriptionOverview(userId: string): Promise<Sel
     prisma.shop.count({ where: { userId, kind: 'BUSINESS', deletedAt: null } }),
   ])
 
-  const rows: ShopSubscriptionRow[] = await Promise.all(shops.map(buildShopRow))
+  const rows: ShopSubscriptionRow[] = await Promise.all(shops.map((s) => buildShopRow(s)))
 
   // Business Package หักจากกระเป๋าร้าน PERSONAL ของเจ้าของ — reuse balance ที่คำนวณใน rows
   // แล้ว (ร้าน PERSONAL อยู่ใน shops เสมอเพราะ userId ตรง) กัน getBalance ซ้ำ round-trip

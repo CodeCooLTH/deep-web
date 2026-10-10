@@ -51,7 +51,10 @@ type Props = {
   canEdit: boolean
   initialConfig: ChatbotConfig
   initialGuardrails: GuardrailRow[]
-  walletBalance: number
+  /** null = ผู้ไม่ใช่เจ้าของ (00071 F3) — ไม่ส่งยอดลง client */
+  walletBalance: number | null
+  /** เครดิตหมดไหม — คำนวณที่ server ทุกบทบาท เพื่อให้เตือนได้โดยไม่ต้องรู้ยอด */
+  creditEmpty: boolean
   /** จำนวนข้อในคลังความรู้ที่ใช้งานอยู่ — ChatBot อ่านจากคลังนี้ ถ้าว่างก็ตอบอะไรไม่ได้ */
   knowledgeCount: number
   /** ประเภทกิจการ — ผันคำ 'สินค้า' ในป้ายให้ร้านบริการ */
@@ -93,6 +96,7 @@ export default function ChatbotClient({
   initialConfig,
   initialGuardrails,
   walletBalance,
+  creditEmpty,
   knowledgeCount,
   vertical,
 }: Props) {
@@ -268,7 +272,7 @@ export default function ChatbotClient({
       </div>
 
       {/* เตือนสภาพที่ทำให้เปิดแล้วไม่ทำงาน — บอกตรง ๆ ดีกว่าให้ไปงงเองว่าทำไมเงียบ */}
-      {on && walletBalance <= 0 && (
+      {on && creditEmpty && (
         <div className="card">
           <div className="card-body flex items-start gap-3">
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
@@ -286,9 +290,11 @@ export default function ChatbotClient({
                   ยอดคงเหลือที่แสดงอยู่ท้ายหน้า **ไม่ต้องซ่อน** — เป็นสถานะบัญชี ไม่ใช่ช่องทางจ่าย
                   (มติเดิม 2026-08-10 เขียนไว้ที่ `useHidePayments`) */}
               <p className="text-default-700 mt-1">
-                {hidePayments
-                  ? 'ChatBot จะกลับมาตอบอัตโนมัติเมื่อมีเครดิตอีกครั้ง (เครดิตก้อนเดียวกับที่ใช้ส่ง SMS)'
-                  : 'เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'}
+                {walletBalance == null && !hidePayments
+                  ? 'ติดต่อเจ้าของร้านเพื่อเติมเงิน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'
+                  : hidePayments
+                    ? 'ChatBot จะกลับมาตอบอัตโนมัติเมื่อมีเครดิตอีกครั้ง (เครดิตก้อนเดียวกับที่ใช้ส่ง SMS)'
+                    : 'เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)'}
               </p>
             </div>
           </div>
@@ -427,7 +433,7 @@ export default function ChatbotClient({
               />
             </div>
             {/* Android (user สั่ง 2026-10-06): ไม่แสดงยอดเงิน · กฎ canShowMoneyStatus */}
-            {showMoneyStatus && (
+            {showMoneyStatus && walletBalance != null && (
               <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
             )}
           </div>
