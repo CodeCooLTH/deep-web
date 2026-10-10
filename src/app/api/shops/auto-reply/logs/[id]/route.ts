@@ -11,7 +11,7 @@ import { getLogDetail } from '@/services/auto-reply-log.service'
 export const dynamic = 'force-dynamic'
 
 export async function GET(_r: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const { id } = await params
   const log = await getLogDetail(ctx.shopId, id)

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 /** GET — สถานะจริง + ร่างล่าสุด (สถานะ derive สดจาก LINE ทุกครั้ง ไม่อ่านจากคอลัมน์) */
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopId();
+  const ctx = await requireShopId("H3");
   if ("error" in ctx) return ctx.error;
 
   const shopChannelId = request.nextUrl.searchParams.get("shopChannelId");
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
  * การยิงจริงเกิดที่ `/activate` เท่านั้น
  */
 export async function PUT(request: NextRequest) {
-  const ctx = await requireShopId();
+  const ctx = await requireShopId("H3");
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

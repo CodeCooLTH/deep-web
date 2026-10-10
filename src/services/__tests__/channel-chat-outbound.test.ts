@@ -53,7 +53,7 @@ describe('sendOutboundMessage', () => {
       shopChannel: { id: 'ch1', externalId: 'PAGE1', accessTokenEnc: 'enc', status: 'ACTIVE' },
       externalContact: { id: 'ec1', externalUserId: 'PSID_1', name: 'ลูกค้า' },
     })
-    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน', kind: 'PERSONAL', vertical: 'ONLINE_SALES', deletedAt: null, members: [] })
     db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
     db.chatMessage.findUnique.mockResolvedValue(null)
     db.conversation.update.mockResolvedValue({})
@@ -113,12 +113,20 @@ describe('sendOutboundMessage', () => {
   })
 
   it('BUSINESS admin (สมาชิก ไม่ใช่ owner) → ตอบแชทได้ ไม่ FORBIDDEN', async () => {
-    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
-    db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', shopId: 'shop1' })
+    // 00071: ผู้ดูแลต้องถือบทบาท "ตอบแชท" (CHAT) — อ่านแถวสมาชิกจาก shop.findUnique (canAccessShopWith)
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน', kind: 'BUSINESS', vertical: 'ONLINE_SALES', deletedAt: null, members: [{ role: 'ADMIN', roles: ['CHAT'] }] })
     ;(sendTextMessage as ReturnType<typeof vi.fn>).mockResolvedValue('mid.out.admin')
     const msg = await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'admin-user', text: 'สวัสดี' })
     expect(msg.id).toBe('m1')
     expect(sendTextMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('00071: ผู้ดูแลที่มีแต่บทบาทเปิดบิล (BILLING) → ForbiddenRoleError (message FORBIDDEN · code FORBIDDEN_ROLE) ไม่ยิง Graph', async () => {
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน', kind: 'BUSINESS', vertical: 'SERVICE_QUEUE', deletedAt: null, members: [{ role: 'ADMIN', roles: ['BILLING'] }] })
+    const err = await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'billing-user', text: 'hi' }).catch((e) => e)
+    expect(err.message).toBe('FORBIDDEN')
+    expect(err.code).toBe('FORBIDDEN_ROLE')
+    expect(sendTextMessage).not.toHaveBeenCalled()
   })
 
   it('เธรด DEEP → NOT_EXTERNAL_CHANNEL (ต้องไปทาง sendMessage เดิม)', async () => {

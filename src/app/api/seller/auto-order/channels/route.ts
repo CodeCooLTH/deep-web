@@ -10,7 +10,7 @@ const BodySchema = v.object({ shopChannelIds: v.array(v.string()) })
 
 /** PUT /api/seller/auto-order/channels — แทนที่ชุดเพจทั้งชุด */
 export async function PUT(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(BodySchema, await request.json().catch(() => null))

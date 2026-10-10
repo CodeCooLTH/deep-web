@@ -11,10 +11,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // seller-push.service import prisma ที่ระดับ module — เทสนี้ไม่แตะฐานข้อมูลจริงเลย จึง mock ทิ้ง
 // (Hard Rule 13)
+// 00071 S-13: ผู้รับ push = คนที่ "ถือ H1" ในร้าน (userIdsHoldingCap → shop.findMany พร้อมแถวสมาชิก)
+// staffRef = ผู้ดูแลที่มีบทบาทตอบแชทของร้านทดสอบ (เจ้าของ owner1 อยู่เสมอ) — ตั้งต่อเทสด้วย setStaff
+const staffRef = vi.hoisted(() => ({ rows: [] as { userId: string; roles: string[] }[] }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    shop: { findUnique: vi.fn(async () => ({ userId: 'owner1' })) },
-    shopMember: { findMany: vi.fn(async () => []) },
+    shop: {
+      findMany: vi.fn(async (args: { where: { id: { in: string[] } } }) =>
+        args.where.id.in.map((id) => ({
+          id,
+          userId: 'owner1',
+          kind: 'BUSINESS',
+          vertical: 'ONLINE_SALES',
+          members: [
+            { userId: 'owner1', role: 'OWNER', roles: [] },
+            ...staffRef.rows.map((r) => ({ userId: r.userId, role: 'ADMIN', roles: r.roles })),
+          ],
+        })),
+      ),
+    },
     // ไม่มีแถว = ทุกคนเปิดแจ้งเตือนอยู่ (กติกา opt-out ของ ShopNotificationPref)
     shopNotificationPref: { findMany: vi.fn(async () => [] as { userId: string }[]) },
     // เสียงแจ้งเตือนที่ผู้ใช้เลือก (2026-10-09) — ไม่มีแถว = "chat" ค่าตั้งต้น
@@ -28,6 +43,9 @@ const { pushChatSendFailed, pushNewChatMessage } = await import('@/services/sell
 const { getConversationToastPreview } = await import('@/services/chat.service')
 const { pushToUsers } = await import('@/services/app-push.service')
 const { prisma } = await import('@/lib/prisma')
+beforeEach(() => {
+  staffRef.rows = []
+})
 const { UNCERTAIN_SEND_REASON } = await import('@/lib/chat-send-queue')
 
 /** ดูเหตุผลเต็มที่ seller-push-page-title.test.ts — mock ของ Prisma มองไม่เห็น `select` */
@@ -52,7 +70,7 @@ beforeEach(() => {
     previewFor(conversationId),
   )
   vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([]))
-  vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([]))
+  staffRef.rows = []
 })
 
 describe('pushChatSendFailed — throttle', () => {
@@ -197,7 +215,7 @@ describe('pushChatSendFailed — ผู้รับ', () => {
    * (ต่างจาก `pushChannelDisconnected` ซึ่งเป็น "ข่าวสถานะระบบ" และตั้งใจข้ามสวิตช์ — D-CH-8)
    */
   it('[blocker] คนที่ปิดแจ้งเตือนของร้านนี้ ต้องถูกหักออกจากผู้รับ', async () => {
-    vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([{ userId: 'staff1' }, { userId: 'staff2' }]))
+    staffRef.rows = [{ userId: 'staff1', roles: ['CHAT'] }, { userId: 'staff2', roles: ['CHAT'] }]
     vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([{ userId: 'staff1' }]))
 
     await pushChatSendFailed({ shopId: 's1', conversationId: 'c-aud-1', failureReason: 'WINDOW_CLOSED' })

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
-import { resolveChatScope } from "@/lib/chat-scope";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { chatScopeOrDeny, resolveChatScope } from "@/lib/chat-scope";
 import { resolveAllExpiredComments, type CommentChannelFilter } from "@/services/page-comment.service";
 
 /**
@@ -30,18 +32,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized", code: "UNAUTHORIZED" }, { status: 401, headers: NO_STORE_HEADERS });
   }
 
-  const scope = await resolveChatScope({
-    user: {
-      id: userId,
-      activeShopId: ((session.user as { activeShopId?: string | null }).activeShopId ?? null) as string | null,
-    },
-  });
-  if (!scope) {
-    return NextResponse.json(
-      { error: "ไม่พบร้านที่กำลังใช้งาน", code: "NOT_FOUND" },
-      { status: 404, headers: NO_STORE_HEADERS },
-    );
-  }
+  const gate = chatScopeOrDeny(
+    await resolveChatScope(
+      {
+        user: {
+          id: userId,
+          activeShopId: ((session.user as { activeShopId?: string | null }).activeShopId ?? null) as string | null,
+        },
+      },
+      "H2",
+    ),
+  );
+  if ("response" in gate) return gate.response;
+  const { scope } = gate;
 
   const body = (await request.json().catch(() => null)) as
     | { channelId?: string | null; provider?: string | null }
@@ -59,11 +62,13 @@ export async function POST(request: NextRequest) {
       actorUserId: userId,
       shopChannelId,
       provider,
+      cap: "H2",
     });
     // คืนจำนวนที่ **แตะจริง** ไม่ใช่จำนวนที่หน้าจอเดาไว้ก่อนกด — ระหว่างที่ผู้ใช้อ่านกล่องยืนยัน
     // เพื่อนร่วมทีมอาจปิดไปแล้วบางใบ ตัวเลขใน toast ต้องเป็นของที่เกิดขึ้นจริง
     return NextResponse.json({ resolved }, { headers: NO_STORE_HEADERS });
   } catch (err) {
+    if (err instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const message = err instanceof Error ? err.message : String(err);
     if (message === "FORBIDDEN") {
       return NextResponse.json(

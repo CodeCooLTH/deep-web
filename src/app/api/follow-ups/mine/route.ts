@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
   const shopIds = intersectScopedShopIds(s.scope.shopIds, request.nextUrl.searchParams.get('shopId'))
   try {

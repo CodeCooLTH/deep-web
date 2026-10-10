@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from "@/lib/auto-order-message-type";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { isShopOwnerOfShop } from "@/lib/shop-owner";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
@@ -98,11 +99,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // ผู้ขายจะได้ร่างคำตอบที่อ้างสินค้าและน้ำเสียงของ "อีกร้าน" มาตอบลูกค้าร้านนี้
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: (session.user as { activeShopId?: string | null }).activeShopId ?? null } },
-    idCheck.output,
+    idCheck.output, "H2"
   );
   if (!resolved) {
     return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
   }
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
   const activeCtx = { shopId: resolved.shopId };
 
   // ownership อยู่ใน WHERE {id, shopId} — เธรดไม่ใช่ของร้านที่ active = 404 (ไม่ leak)

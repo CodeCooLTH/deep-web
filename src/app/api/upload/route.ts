@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { saveFile } from "@/lib/storage";
 
 /**
  * POST /api/upload — **legacy (2026-08-10): ห้ามใช้กับงานใหม่**
@@ -17,14 +14,9 @@ import { saveFile } from "@/lib/storage";
  * ยังเปิดไว้เพราะ client ที่แคชไว้อาจยิงเข้ามาระหว่างเปลี่ยนผ่าน; ไม่มีหน้าไหนในรีโปเรียกแล้ว
  * (มีเทส `[blocker]` `upload-no-multipart-callers.test.ts` กันการกลับไปใช้)
  */
-export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-
-  const fileId = await saveFile(file);
-  return NextResponse.json({ fileId }, { status: 201 });
+export async function POST() {
+  // 00071 S-13 — ปิดแล้ว (410): route นี้รับไฟล์ทุก purpose โดยไม่ผูกบทบาท และไม่มีหน้าไหนเรียกแล้ว
+  // ของใหม่ = /api/uploads/ticket|commit (CHAT → H2 · purpose อื่นตรวจ cap ที่ route ปลายทางซึ่งแนบ fileId)
+  // 410 ไม่ใช่ 404: บอก client เก่าที่แคชไว้ให้ชัดว่า "ถูกถอดแล้ว" ไม่ใช่ path ผิด
+  return NextResponse.json({ error: "เส้นทางอัปโหลดนี้ปิดแล้ว กรุณารีเฟรชหน้าแล้วลองใหม่" }, { status: 410 });
 }

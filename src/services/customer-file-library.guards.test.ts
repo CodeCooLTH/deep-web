@@ -112,12 +112,12 @@ describe('route guards', () => {
     expect(stripComments(ROUTE)).not.toMatch(/session\.user as \{\s*id:/)
   })
 
-  it('ทุก method ต้องผ่าน resolveCtx ก่อนแตะข้อมูล', () => {
+  it('ทุก method ต้องผ่าน requireShopContext ก่อนแตะข้อมูล', () => {
     for (const method of ['export async function GET', 'export async function POST', 'export async function DELETE', 'export async function PATCH']) {
       const at = ROUTE.indexOf(method)
       expect(at, `ไม่พบ ${method}`).toBeGreaterThan(-1)
       const body = ROUTE.slice(at, at + 1200)
-      expect(body, `${method} ไม่ได้เรียก resolveCtx`).toContain('await resolveCtx(')
+      expect(body, `${method} ไม่ได้เรียก requireShopContext`).toContain('await requireShopContext(')
     }
   })
 

@@ -13,6 +13,11 @@ import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import { SelectPagesClient } from './SelectPagesClient'
 import { getT } from '@/i18n/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT()
@@ -21,6 +26,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function SelectPagesPage() {
   const t = await getT()
+  // 00071 S-13 — เลือกเพจที่จะเชื่อม = H3: บทบาทไม่ถึงเห็นการ์ดไม่มีสิทธิ์ (ไม่มีร้าน = ปล่อยหน้าเดิม · layout ดูแล auth)
+  const session = await getServerSession(authOptions)
+  const gate = await gatePage(session, 'H3')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <div className="hidden lg:block">
+          <PageBreadcrumb title={t.channels.selectPageTitle} homeLabel={t.common.home} />
+        </div>
+        <NoPermissionCard capability="H3" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   return (
     <>
       <PageBreadcrumb

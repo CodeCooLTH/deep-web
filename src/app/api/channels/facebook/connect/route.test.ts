@@ -3,6 +3,18 @@ import { NextRequest } from 'next/server'
 
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
+// 00071 S-13: เริ่มเชื่อมเพจ = H3 — เทสไฟล์นี้ตรวจรูป URL/OAuth ไม่ใช่สิทธิ์ จึง mock ด่านตามผู้ใช้ (ตารางสิทธิ์จริงอยู่ที่ role-gate.test.ts)
+vi.mock('@/lib/shop-capability', async () => {
+  const { NextResponse } = await import('next/server')
+  return {
+    requireShopCapability: vi.fn(async (session: { user?: { id?: string } } | null) => {
+      const id = session?.user?.id
+      if (!id) return { ok: false, response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
+      if (id === 'chat-only') return { ok: false, response: NextResponse.json({ error: 'FORBIDDEN_ROLE' }, { status: 403 }) }
+      return { ok: true, userId: id, shopId: 'shop-1' }
+    }),
+  }
+})
 
 beforeAll(() => {
   process.env.FB_CHAT_APP_ID = '1570859340799126'
@@ -18,6 +30,13 @@ describe('GET /api/channels/facebook/connect', () => {
   it('ไม่ได้ login → 401', async () => {
     ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue(null)
     expect((await GET(req())).status).toBe(401)
+  })
+
+  it('[00071] บทบาทไม่ถึง H3 (เช่น ผู้ตอบแชท) → 403 ก่อนพาไป Facebook ไม่เสียเที่ยว OAuth', async () => {
+    ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: 'chat-only' } })
+    const res = await GET(req())
+    expect(res.status).toBe(403)
+    expect(res.headers.get('location')).toBeNull()
   })
 
   it('login แล้ว → 302 ไป facebook.com พร้อม scope และ state', async () => {

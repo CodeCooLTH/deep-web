@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { markRead, type SenderRole } from "@/services/chat.service";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * POST /api/chat/conversations/[id]/read — mark-read แยกฝั่ง buyer/shop
@@ -23,9 +25,11 @@ export async function POST(
   const role: SenderRole = getSubdomain(host) === "seller" ? "SHOP" : "BUYER";
 
   try {
-    await markRead(id, userId, role);
+    // 00071 S-13: ฝั่งร้านต้องถือ H1 (ผู้ซื้อ = buyerUserId ไม่ใช้ cap) — ไม่ส่ง cap = ฝั่งร้านถูกปฏิเสธ
+    await markRead(id, userId, role, role === "SHOP" ? "H1" : undefined);
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
     }

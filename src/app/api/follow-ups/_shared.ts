@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
 import { resolveChatScope, type ChatScope } from '@/lib/chat-scope'
+import { forbiddenRoleResponse } from '@/lib/forbidden-role'
 import {
   AssigneeNotMemberError,
   FollowUpNotFoundError,
@@ -37,9 +38,12 @@ export async function requireUser(): Promise<
 /** ขอบเขตร้านที่ผู้ใช้เข้าถึงได้ (โหมดร้านเดียว/รวม) — resolve ไม่ได้ = 404 ไม่ fallback ไป PERSONAL */
 export async function requireScope(
   u: { userId: string; activeShopId: string | null },
+  cap: 'X2',
 ): Promise<{ scope: ChatScope } | { res: NextResponse }> {
-  const scope = await resolveChatScope({ user: { id: u.userId, activeShopId: u.activeShopId } })
+  const scope = await resolveChatScope({ user: { id: u.userId, activeShopId: u.activeShopId } }, cap)
   if (!scope) return { res: fail(404, 'NOT_FOUND', 'ไม่พบร้านที่กำลังใช้งาน') }
+  // 00071 S-13: มีร้านแต่ไม่ถือ X2 ในร้านใดเลย → 403 FORBIDDEN_ROLE (shopIds มีเฉพาะร้านที่ถือ cap)
+  if (scope.shopIds.length === 0) return { res: forbiddenRoleResponse() }
   return { scope }
 }
 

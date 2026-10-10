@@ -18,6 +18,7 @@ import {
   uploadMaxSize,
 } from "@/lib/upload-policy";
 import { signUploadTicket, TICKET_TTL_SECONDS } from "@/lib/upload-ticket";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { resolveChatChannelForUser, safeStorageExt } from "../_shared";
 
 /**
@@ -71,8 +72,16 @@ export async function POST(request: NextRequest) {
   // conversationId เป็น optional โดยตั้งใจ — parity กับ `/api/chat/upload` เดิม: ส่งมา = ตรวจกฎ
   // เฉพาะช่องทางให้ด้วย (ผู้ใช้เห็นปัญหาตั้งแต่ตอนแนบ) ไม่ส่ง = ตรวจแค่กฎกลาง
   // (ตอบคอมเมนต์ Facebook แนบรูปโดยไม่มีเธรด — `CommentsClient.pickFile`)
+  //
+  // 00071 S-13 — cap แยกตาม purpose: CHAT = H2 (แนบไฟล์ส่งแชท/ตอบคอมเมนต์) ทั้งแบบมีเธรดและไม่มีเธรด
+  // IMAGE/DOCUMENT = ไม่ผูก cap ที่นี่ โดยตั้งใจ: purpose ไม่ได้บอกว่ามาจากหน้าไหน (สินค้า P2 / หน้าร้าน T1 /
+  // rich menu H3 / ผู้ตรวจ) — ไฟล์ที่อัปแล้วยังไม่มีผลอะไรจนกว่า route ปลายทางที่ "แนบ fileId" จะตรวจ cap ของตัวเอง
+  if (purpose === "CHAT" && !conversationId) {
+    const gate = await requireShopCapability(session, "H2");
+    if (!gate.ok) return gate.response;
+  }
   if (purpose === "CHAT" && conversationId) {
-    const resolved = await resolveChatChannelForUser(conversationId, userId);
+    const resolved = await resolveChatChannelForUser(conversationId, userId, "H2");
     if (!resolved.ok) {
       return NextResponse.json({ error: resolved.error }, { status: resolved.status });
     }

@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { updateConversationState } from "@/services/chat.service";
 import { setConversationGroup } from "@/services/chat-group.service";
 import { ConversationPatchSchema } from "@/lib/validations";
@@ -47,11 +48,13 @@ export async function PATCH(
   // count=0) แล้วโยน CONVERSATION_NOT_FOUND_OR_FORBIDDEN ทั้งที่ผู้ใช้มีสิทธิ์เต็ม
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
-    idCheck.output,
+    idCheck.output, "H2"
   );
   if (!resolved) {
     return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
   }
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
   const activeCtx = { shopId: resolved.shopId };
 
   const body = await request.json().catch(() => null);

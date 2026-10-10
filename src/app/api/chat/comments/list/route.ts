@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveChatScope } from "@/lib/chat-scope";
+import { chatScopeOrDeny, resolveChatScope } from "@/lib/chat-scope";
 import {
   listComments,
   type CommentChannelFilter,
   type CommentListStateFilter,
 } from "@/services/page-comment.service";
 import { sessionUserId } from "@/lib/session-user";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * GET /api/chat/comments/list — รายการ **คอมเมนต์** ของร้านที่ active
@@ -34,13 +36,19 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
   if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const scope = await resolveChatScope({
-    user: {
-      id: userId,
-      activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null,
-    },
-  });
-  if (!scope) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  const gate = chatScopeOrDeny(
+    await resolveChatScope(
+      {
+        user: {
+          id: userId,
+          activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null,
+        },
+      },
+      "H1",
+    ),
+  );
+  if ("response" in gate) return gate.response;
+  const { scope } = gate;
 
   try {
     const q = request.nextUrl.searchParams.get("q") ?? undefined;
@@ -67,9 +75,11 @@ export async function GET(request: NextRequest) {
       skip,
       state,
       provider,
+      cap: "H1",
     });
     return NextResponse.json({ comments, counts, rawCount }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
     console.error("[GET /api/chat/comments/list]", msg || e);

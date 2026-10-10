@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext, listAccessibleShopIds } from "@/lib/shop-context";
+import { requireShopCapability, listAccessibleShopIds } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { listChannels, resubscribeShopChannels } from "@/services/shop-channel.service";
 import { sessionUserId } from "@/lib/session-user";
 
@@ -28,17 +29,11 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
  */
 export async function GET() {
   const session = await getServerSession(authOptions);
-  const userId = sessionUserId(session);
-  if (!session?.user || !userId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
+  // 00071 S-13: รายการเพจ (ตัวกรอง "เพจ" ของกล่องแชท) = H1 — ผู้ตอบแชทเห็นเพจของร้านได้ แต่เชื่อม/ถอด/ซิงก์ = H3
+  // อ่านแถวสมาชิกสด: 401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE
+  const gate = await requireShopCapability(session, "H1");
+  if (!gate.ok) return gate.response;
+  const activeCtx = { shopId: gate.shopId };
 
   try {
     const channels = await listChannels(activeCtx.shopId);
@@ -71,15 +66,16 @@ export async function GET() {
  */
 export async function POST() {
   const session = await getServerSession(authOptions);
+  // "มี session" ≠ "รู้ว่าเป็นใคร" — ดึงตัวตนจริงก่อนถามรายชื่อร้าน
   const userId = sessionUserId(session);
-  if (!session?.user || !userId) {
+  if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const shopIds = await listAccessibleShopIds(userId);
-  if (shopIds.length === 0) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
+  // 00071 S-13: ซิงก์เพจ = H3 — เฉพาะร้านที่ผู้ใช้ถือ H3 (ผู้ตอบแชท/ผู้ดูแลบิล/ช่างไม่ถูกนับ)
+  // ว่าง = เป็นสมาชิกแต่ไม่มีร้านไหนที่ถือ H3 (ผู้ใช้ทุกคนมีร้านส่วนตัวเป็นเจ้าของ จึงว่างได้เฉพาะสมาชิกล้วน) → 403
+  const shopIds = await listAccessibleShopIds(userId, "H3");
+  if (shopIds.length === 0) return forbiddenRoleResponse();
 
   try {
     let ok = 0;

@@ -11,10 +11,28 @@
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import NewKeywordForm from './NewKeywordForm'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
 export const metadata: Metadata = { title: 'สร้างกลุ่มคำ' }
 
-export default function NewKeywordPage() {
+export default async function NewKeywordPage() {
+  // 00071 S-13 — สร้างกลุ่มคำ = H3: บทบาทไม่ถึงเห็นการ์ดไม่มีสิทธิ์ (ไม่มีร้าน = ปล่อยฟอร์มเดิม · layout ดูแล auth)
+  const session = await getServerSession(authOptions)
+  const gate = await gatePage(session, 'H3')
+  if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
+    return (
+      <>
+        <div className="hidden lg:block">
+          <PageBreadcrumb title="สร้างกลุ่มคำ" />
+        </div>
+        <NoPermissionCard capability="H3" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
   return (
     <>
       <PageBreadcrumb

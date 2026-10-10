@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cancelFailedOutboundMessage, sendOutboundReaction } from "@/services/channel-chat.service";
 import { GraphApiError } from "@/lib/facebook/graph";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
 /**
  * DELETE /api/chat/conversations/[id]/messages/[messageId]
@@ -31,9 +33,11 @@ export async function DELETE(
       conversationId: id,
       messageId,
       actorUserId: userId,
+      cap: "H2",
     });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
@@ -96,9 +100,11 @@ export async function POST(
       messageId,
       emoji,
       actorUserId: userId,
+      cap: "H2",
     });
     return NextResponse.json({ ok: true, emoji: result.emoji });
   } catch (e: unknown) {
+    if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
     if (msg === "CONVERSATION_NOT_FOUND") {
       return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });

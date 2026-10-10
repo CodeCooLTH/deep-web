@@ -13,6 +13,8 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import ChatNoPermission from '../../_components/ChatNoPermission'
 import {
   listComments,
   backfillPagePosts,
@@ -42,9 +44,13 @@ export default async function CommentsPage() {
   // feature 00037 — แท็บความคิดเห็นรวมทุกร้านตามโหมดเดียวกับแท็บข้อความ (D-4)
   const scope = await resolveChatScope({
     user: { id: user.id, activeShopId: user.activeShopId ?? null },
-  })
+  }, 'H1')
   if (!scope) {
     return <SellerErrorState title={t.comments.noShopTitle} message={t.comments.noShopMessage} />
+  }
+  // 00071 S-13 — ร้าน active ไม่ถือ H1 → การ์ดไม่มีสิทธิ์ (backfill/ดึงข้อมูลด้านล่างต้องไม่ถูกยิงให้ร้านที่ไม่มี cap)
+  if (!scope.activeHasCap) {
+    return <ChatNoPermission capability='H1' viewerRoles={await viewerRolesOf({ user })} />
   }
 
   /**
@@ -60,7 +66,7 @@ export default async function CommentsPage() {
     // ทุกร้านในขอบเขต — โหมดรวมต้องดึงโพสต์ย้อนหลังของทุกเพจที่ผู้ใช้กำลังดูอยู่
     // (throttle ต่อเพจ 10 นาทีอยู่ในตัว backfillPagePosts แล้ว จึงไม่ยิง Graph ถี่ขึ้นจริง)
     for (const shopId of backfillShopIds) {
-      await backfillPagePosts({ shopId, actorUserId: user.id })
+      await backfillPagePosts({ shopId, actorUserId: user.id, cap: 'H1' })
     }
     // เก็บตกรูปปกของโพสต์เก่าที่ยังไม่มีสำเนา ทีละไม่กี่ใบต่อการเปิดหน้า (2026-08-10)
     // โพสต์ที่ไม่มีใครกดเปิดจะไม่มีวันได้สำเนาเลยถ้าไม่มีตัวนี้ — URL ของ fbcdn หมดอายุ ~4 วัน
@@ -114,7 +120,7 @@ export default async function CommentsPage() {
     commentPrivateReplyText: privateTextByChannelId.get(c.id) ?? null,
   }))
   try {
-    const result = await listComments({ shopIds: scope.shopIds, actorUserId: user.id })
+    const result = await listComments({ shopIds: scope.shopIds, actorUserId: user.id, cap: 'H1' })
     comments = result.comments.map((c) => ({
       ...c,
       createdTime: c.createdTime.toISOString(),

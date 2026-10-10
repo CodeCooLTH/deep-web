@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { requireShopCapability } from "@/lib/shop-capability";
 import { CommentReplyRuleSchema } from "@/lib/validations";
 import {
   createCommentRule,
@@ -35,35 +35,14 @@ const ERROR_STATUS: Record<RuleWriteError, { status: number; message: string }> 
   NOT_FOUND: { status: 404, message: "ไม่พบกฎนี้" },
 };
 
-export async function requireShopContext(): Promise<
+export async function requireShopContext(cap: "H3"): Promise<
   { shopId: string; userId: string } | { error: NextResponse }
 > {
   const session = await getServerSession(authOptions);
-  const userId = sessionUserId(session);
-  if (!userId) {
-    return {
-      error: NextResponse.json(
-        { error: "unauthorized", code: "UNAUTHORIZED" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  const ctx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId:
-        (session?.user as { activeShopId?: string | null } | undefined)?.activeShopId ?? null,
-    },
-  });
-  if (!ctx) {
-    return {
-      error: NextResponse.json(
-        { error: "ไม่พบร้านที่กำลังใช้งาน", code: "FORBIDDEN" },
-        { status: 403, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  return { shopId: ctx.shopId, userId };
+  // 00071 S-13: กฎตอบคอมเมนต์ = H3 — อ่านแถวสมาชิกสด (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE)
+  const g = await requireShopCapability(session, cap);
+  if (!g.ok) return { error: g.response };
+  return { shopId: g.shopId, userId: g.userId };
 }
 
 export function ruleErrorResponse(error: RuleWriteError): NextResponse {
@@ -75,14 +54,14 @@ export function ruleErrorResponse(error: RuleWriteError): NextResponse {
 }
 
 export async function GET() {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
   const rules = await listCommentRules(ctx.shopId);
   return NextResponse.json({ rules }, { headers: NO_STORE_HEADERS });
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopContext();
+  const ctx = await requireShopContext('H3');
   if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);

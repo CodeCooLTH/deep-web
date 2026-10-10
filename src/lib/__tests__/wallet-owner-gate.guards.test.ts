@@ -46,7 +46,10 @@ describe('เส้นหักเครดิตของ ADMIN ต้องไ
   })
   it('ai-suggest route: เช็คเจ้าของเฉพาะหลัง INSUFFICIENT_CREDIT (หลัง deductCredit) เพื่อซ่อน balance', () => {
     const s = read('src/app/api/chat/conversations/[id]/ai-suggest/route.ts')
-    expect(s).not.toMatch(/forbiddenRoleResponse/)
+    // 00071 S-13: route นี้ใช้ forbiddenRoleResponse กับด่านบทบาท H2 ('denied' จาก resolveConversationShopId) ได้ —
+    // สิ่งที่ห้ามคือด่านเจ้าของ (isShopOwnerOfShop) ที่ทำให้ ADMIN ที่หักเครดิตเองได้ถูกปฏิเสธ
+    // ตำแหน่ง: forbiddenRoleResponse( ทุกที่ต้องอยู่ "ก่อน" deductCredit — หลังหักเครดิตห้ามปฏิเสธด้วยบทบาท (review T2)
+    expect(s.lastIndexOf('forbiddenRoleResponse(')).toBeLessThan(s.indexOf('await deductCredit('))
     expect(s.indexOf('isShopOwnerOfShop(shopId')).toBeGreaterThan(s.indexOf('await deductCredit('))
   })
 })

@@ -10,7 +10,7 @@ import { AutoReplyQnaCreateSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const search = new URL(request.url).searchParams.get('search') ?? undefined
   try {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

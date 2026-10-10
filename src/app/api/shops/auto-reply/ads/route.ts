@@ -22,7 +22,7 @@ const MAX_ADS = 200
 const METADATA_SAMPLE = 1000
 
 export async function GET() {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
 
   // scope ผ่าน conversation.shopId — referral ไม่มี shopId ตรง ๆ (ผูกกับเธรด)

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { countUnreadConversations } from "@/services/chat.service";
 import { countUnansweredForShops } from "@/services/page-comment.service";
 import { sessionUserId } from "@/lib/session-user";
@@ -29,13 +30,15 @@ export async function GET() {
       activeShopId:
         ((session.user as { activeShopId?: string | null }).activeShopId as string | null | undefined) ?? null,
     },
-  });
+  }, "H1");
   if (!scope) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  // 00071 S-13: มีร้านแต่ไม่ถือ cap ในร้านใดเลย → 403 FORBIDDEN_ROLE (ไม่ใช่รายการว่าง)
+  if (scope.shopIds.length === 0) return forbiddenRoleResponse();
 
   // ตัวใดตัวหนึ่งล้มไม่ควรทำให้อีกตัวหายไปจากจอ — badge เป็นข้อมูลเสริม ตกไปเป็น 0 ดีกว่า 500 ทั้งก้อน
   const [unread, unanswered] = await Promise.all([
     countUnreadConversations(scope.shopIds).catch(() => 0),
-    countUnansweredForShops({ shopIds: scope.shopIds, actorUserId: userId }).catch(() => 0),
+    countUnansweredForShops({ shopIds: scope.shopIds, actorUserId: userId, cap: "H1" }).catch(() => 0),
   ]);
 
   return NextResponse.json({ unread, unanswered }, { headers: NO_STORE_HEADERS });

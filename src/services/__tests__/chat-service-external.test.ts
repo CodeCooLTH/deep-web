@@ -21,7 +21,7 @@ describe('sendMessage — เธรดช่องทางนอก (buyerUserI
     tx.conversation.findUnique.mockResolvedValue({
       id: 'c1', shopId: 's1', buyerUserId: null, channel: 'MESSENGER',
     })
-    tx.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้านทดสอบ' })
+    tx.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้านทดสอบ', kind: 'PERSONAL', vertical: 'ONLINE_SALES', deletedAt: null, members: [] })
     tx.chatMessage.create.mockResolvedValue({
       id: 'm1', conversationId: 'c1', senderUserId: 'owner1', senderRole: 'SHOP',
       type: 'TEXT', body: 'สวัสดีครับ', imageUrl: null, productRefId: null,

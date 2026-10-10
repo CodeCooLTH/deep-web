@@ -29,7 +29,9 @@
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -54,11 +56,20 @@ export default async function CommentReplySettingsPage() {
   const user = (session as { user?: { id: string; activeShopId?: string | null } } | null)?.user
   if (!user) return null
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: user.id, activeShopId: user.activeShopId ?? null },
-  })
-  // defensive fallback เท่านั้น (ร้านถูกลบ/หลุดสิทธิ์กลางอากาศ) — auth guard เต็มอยู่ที่ layout
-  if (!activeCtx) return null
+  // 00071 S-13 — ด่านสิทธิ์หน้าตั้งค่า (H3): ไม่มีร้าน = ตกเงียบเหมือนเดิม · บทบาทไม่ถึง = การ์ดไม่มีสิทธิ์ (ไม่ใช่หน้าว่าง/404)
+  const gate = await gatePage(session, 'H3')
+  if (!gate.ok) {
+    if (gate.reason === 'NO_SHOP') return null
+    return (
+      <>
+        <div className="hidden lg:block">
+          <PageBreadcrumb title="ตอบกลับคอมเมนต์" />
+        </div>
+        <NoPermissionCard capability="H3" viewerRoles={await viewerRolesOf(session)} />
+      </>
+    )
+  }
+  const activeCtx = { shopId: gate.active.shop.id, role: gate.active.role, roles: gate.active.roles, vertical: gate.active.shop.vertical }
 
   // เพจ MESSENGER (การ์ดตั้งค่า) + INSTAGRAM (การ์ด static "เร็ว ๆ นี้") ในคำสั่งเดียว —
   // allow-list select ตรงกับ config/route.ts เป๊ะ (ห้ามคืนทั้งแถว — accessTokenEnc อยู่แถวเดียวกัน)

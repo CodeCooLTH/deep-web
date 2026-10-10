@@ -2,7 +2,9 @@ import { getServerSession } from 'next-auth'
 import { notFound, redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { gatePage } from '@/lib/shop-capability'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import ChatNoPermission from '@/app/(paces)/seller/(chat)/_components/ChatNoPermission'
 import { resolveShopVertical } from '@/lib/lodging'
 import { templatesFor, resolveTemplateButtons } from '@/lib/line/rich-menu-templates'
 import type { RichMenuButton } from '@/lib/line/rich-menu'
@@ -26,13 +28,13 @@ export default async function RichMenuPage({ params }: { params: Promise<{ chann
   const userId = (session?.user as { id?: string } | undefined)?.id
   if (!userId) redirect('/auth/sign-in')
 
-  const ctx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId: ((session?.user as { activeShopId?: string | null } | undefined)?.activeShopId) ?? null,
-    },
-  })
-  if (!ctx) notFound()
+  // 00071 S-13 — ตั้งค่าช่องทาง = H3: ไม่มีร้าน = 404 เหมือนเดิม · บทบาทไม่ถึง = การ์ดไม่มีสิทธิ์ + ทางกลับ (จอเต็มไม่มี sidebar)
+  const gate = await gatePage(session, 'H3')
+  if (!gate.ok) {
+    if (gate.reason === 'NO_SHOP') notFound()
+    return <ChatNoPermission capability="H3" viewerRoles={await viewerRolesOf(session)} />
+  }
+  const ctx = { shopId: gate.active.shop.id }
 
   // 🛑 scope ด้วย shopId ใน WHERE — นอกขอบเขต = ไม่มีอยู่ (404) ไม่ใช่ 403 (SRS §7.14)
   const channel = await prisma.shopChannel.findFirst({

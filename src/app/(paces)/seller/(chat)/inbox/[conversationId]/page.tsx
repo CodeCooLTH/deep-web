@@ -52,6 +52,8 @@ import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
+import { viewerRolesOf } from '@/lib/viewer-roles'
+import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
@@ -107,7 +109,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // feature 00037 — เธรดถูกหาในขอบเขต "ทุกร้านที่ผู้ใช้ดูอยู่" ไม่ใช่แค่ร้าน active
   const scope = await resolveChatScope({
     user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
-  })
+  }, 'H1')
   mark('resolveChatScope')
   if (!scope) {
     return (
@@ -117,6 +119,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         retryHref="/inbox"
       />
     )
+  }
+  // 00071 S-13 — ร้าน active ไม่ถือ H1 → การ์ดไม่มีสิทธิ์ ก่อน query เธรดใด ๆ
+  if (!scope.activeHasCap) {
+    return <ChatNoPermission capability='H1' viewerRoles={await viewerRolesOf({ user })} />
   }
   /**
    * 🛑 หาเธรด "ก่อน" ทุก query อื่นเสมอ — อย่าสลับลำดับ (perf, แก้ 2026-08-07)
@@ -216,7 +222,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
      */
     const ownerShop = switched
       ? null
-      : await findConversationShopForUser(conversationId, user.id as string)
+      : await findConversationShopForUser(conversationId, user.id as string, 'H1')
     // feature 00037: ในโหมดรวม เส้นนี้แทบไม่ถูกเรียกแล้ว (เธรดของทุกร้านอยู่ในขอบเขตตั้งแต่แรก)
     // แต่ยังต้องมีอยู่สำหรับโหมดร้านเดียว + ทางเข้าจาก push notification ของแอปมือถือ
     if (ownerShop && !scope.shopIds.includes(ownerShop.shopId)) {
@@ -495,6 +501,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     conversationId: conversation.id,
     userId: user.id as string,
     take: 30,
+    shopCap: 'H1', // 00071: ฝั่งร้านอ่านข้อความต้องถือ H1 (สดจากฐาน)
   }).catch(() => null)
 
   let linkedCustomer: { id: string; phone: string; createdAt: Date } | null = null

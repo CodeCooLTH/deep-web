@@ -9,7 +9,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!id) return badId()
   const u = await requireUser()
   if ('res' in u) return u.res
-  const s = await requireScope(u)
+  const s = await requireScope(u, 'X2')
   if ('res' in s) return s.res
   try {
     return json({ item: await reopenFollowUp(s.scope.shopIds, id) })

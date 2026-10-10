@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import * as v from 'valibot'
 import { authOptions } from '@/lib/auth'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { runLineChannelHealthCheck } from '@/services/line-channel-health.service'
 import { LineChannelServiceError } from '@/services/shop-channel.service'
 import { sessionUserId } from '@/lib/session-user'
@@ -36,15 +36,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 404, headers: NO_STORE_HEADERS })
   }
 
-  const activeCtx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null,
-    },
-  })
-  if (!activeCtx) {
-    return NextResponse.json({ error: 'ไม่พบร้านที่กำลังใช้งาน' }, { status: 404, headers: NO_STORE_HEADERS })
-  }
+  // 00071 S-13: ตั้งค่าช่องทางเชื่อมต่อ = H3 — ตัดสินผ่าน requireShopCapability (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE · อ่านแถวสมาชิกสด)
+  const gate = await requireShopCapability(session, 'H3')
+  if (!gate.ok) return gate.response
+  const activeCtx = { shopId: gate.shopId, kind: gate.active.kind, role: gate.active.role, roles: gate.active.roles, locked: gate.active.locked, lockReason: gate.active.lockReason, vertical: gate.active.shop.vertical }
 
   try {
     const report = await runLineChannelHealthCheck({

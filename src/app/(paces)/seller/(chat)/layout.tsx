@@ -40,6 +40,8 @@ import { resolveChatScope } from '@/lib/chat-scope'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
+import ChatNoPermission from './_components/ChatNoPermission'
+import { viewerRolesOf } from '@/lib/viewer-roles'
 import ChatNavRail from './_components/ChatNavRail'
 import ChatRailColumn from './_components/ChatRailColumn'
 import FollowUpBubble from './_components/FollowUpBubble'
@@ -80,7 +82,13 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // ของตัวเองที่ inbox/page.tsx อยู่แล้ว) — ห้าม redirect/throw ที่ layout เพราะจะพังทั้งหน้าแชท
   const scope = await resolveChatScope({
     user: { id: user.id, activeShopId: user.activeShopId ?? null }
-  })
+  }, 'H1')
+
+  // 00071 S-13 — ร้านที่ active ไม่ถือ H1 (ผู้ดูแลบิล/ฝ่ายช่าง): ทั้งเปลือกใช้ร้าน active เป็นฐาน (แคตตาล็อก/unread/เมนู)
+  // จึงไม่ render อะไรของแชทเลย — การ์ดไม่มีสิทธิ์ + ทางกลับ (ไม่ใช่ redirect เงียบ · BRD FR-RP-02)
+  if (scope && !scope.activeHasCap) {
+    return <ChatNoPermission capability='H1' viewerRoles={await viewerRolesOf({ user })} />
+  }
 
   // feature 00037 — ข้อมูลร้านในขอบเขต (badge ในแถว/หัวเธรด + ตัวเลือกร้านตอนกดสร้าง) และเพจของ
   // ทุกร้าน (ตัวกรอง "เพจ" จัดกลุ่มตามร้าน). resolve ที่นี่ที่เดียวแล้วส่งลงเป็น prop — rail เดิม

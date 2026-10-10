@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sessionUserId } from '@/lib/session-user'
 import { resolveChatScope } from '@/lib/chat-scope'
+import { forbiddenRoleResponse } from '@/lib/forbidden-role'
 import { INBOX_SORT_MODES, parseInboxSortMode } from '@/lib/inbox-sort'
 import { parseInboxFilterPreference } from '@/lib/inbox-filter-pref'
 import {
@@ -41,20 +42,22 @@ const UpdateChatPreferenceSchema = v.object({
 })
 
 /** ทั้ง GET และ PATCH ต้องการคำตอบเดียวกัน: "คนไหน ร้านไหน" — resolve ที่เดียว */
-async function resolveActor() {
+async function requireShopId(cap: 'X2') {
   const session = await getServerSession(authOptions)
   const userId = sessionUserId(session)
   if (!userId) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) } as const
   const scope = await resolveChatScope({
     user: { id: userId, activeShopId: (session?.user as { activeShopId?: string | null } | undefined)?.activeShopId ?? null },
-  })
+  }, cap)
   // ห้าม fallback เงียบ ๆ ไปร้านอื่น (กติกาเดียวกับ /api/chat/conversations)
   if (!scope) return { error: NextResponse.json({ error: 'ไม่พบร้านที่กำลังใช้งาน' }, { status: 404 }) } as const
+  // 00071 S-13: ค่าตั้งผูกกับ "ร้าน active" — ร้านนั้นไม่ถือ cap = ห้ามอ่าน/เขียน (ไม่ถอยไปร้านอื่น)
+  if (!scope.activeHasCap) return { error: forbiddenRoleResponse() } as const
   return { userId, shopId: scope.activeShopId } as const
 }
 
 export async function GET() {
-  const actor = await resolveActor()
+  const actor = await requireShopId('X2')
   if ('error' in actor) return actor.error
   const pref = await getInboxPreference(actor.userId, actor.shopId)
   // ค่าตั้งส่วนตัว ห้ามให้ CDN/เบราว์เซอร์แคชข้ามผู้ใช้ (docs: feedback_auth_api_cache_control)
@@ -66,7 +69,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const actor = await resolveActor()
+  const actor = await requireShopId('X2')
   if ('error' in actor) return actor.error
 
   const body = await request.json().catch(() => null)

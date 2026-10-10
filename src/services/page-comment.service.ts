@@ -4,7 +4,8 @@ import { resolveCommentProvider, type CommentChannelFilter } from '@/lib/comment
 import { resolveCommentParentId } from '@/lib/facebook-comment-parent'
 import { isWithinPrivateReplyWindow, privateReplyWindowCutoff } from '@/lib/private-reply-window'
 import { prisma } from '@/lib/prisma'
-import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
+import { canAccessShopWith, ForbiddenRoleError } from '@/lib/shop-capability'
+import { assertShopsHoldCap, type ChatCap } from '@/lib/chat-scope'
 import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
 import {
@@ -309,12 +310,14 @@ const PAGE_POSTS_COMMENTS_PER_RUN = 15
  *    แต่ **เติมค่า meta จากรายการที่ดึงมาแล้ว** ไม่ต้องยิง fetchPostMeta ต่อโพสต์อีกรอบ
  */
 export async function backfillPagePosts(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   shopId: string
   actorUserId: string
 }): Promise<{ postsAdded: number; commentsAdded: number }> {
   const result = { postsAdded: 0, commentsAdded: 0 }
   try {
-    if (!(await canAccessShop(params.shopId, params.actorUserId))) return result
+    if (!(await canAccessShopWith(params.shopId, params.actorUserId, params.cap))) return result
 
     const channels = await prisma.shopChannel.findMany({
       where: { shopId: params.shopId, provider: 'MESSENGER', status: 'ACTIVE' },
@@ -865,6 +868,8 @@ export function matchesCommentStateFilter(
 }
 
 export async function listComments(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   shopIds: string[]
   actorUserId: string
   q?: string
@@ -881,7 +886,7 @@ export async function listComments(params: {
   rawCount: number
 }> {
   if (params.shopIds.length === 0) return { comments: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
-  await assertShopsAccessible(params.shopIds, params.actorUserId)
+  await assertShopsHoldCap(params.shopIds, params.actorUserId, params.cap)
 
   const channels = await prisma.shopChannel.findMany({
     where: {
@@ -1290,6 +1295,8 @@ export async function repairCommentAttachmentsFromGraph(params: {
 }
 
 export async function listCommentPosts(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
   shopIds: string[]
   actorUserId: string
@@ -1329,7 +1336,7 @@ export async function listCommentPosts(params: {
   rawCount: number
 }> {
   if (params.shopIds.length === 0) return { posts: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
-  await assertShopsAccessible(params.shopIds, params.actorUserId)
+  await assertShopsHoldCap(params.shopIds, params.actorUserId, params.cap)
 
   const channels = await prisma.shopChannel.findMany({
     where: {
@@ -1580,6 +1587,8 @@ export interface CommentRow {
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
 export async function getPostComments(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   postId: string
   actorUserId: string
   skipBackfill?: boolean
@@ -1604,7 +1613,7 @@ export async function getPostComments(params: {
     include: { channel: { select: { id: true, shopId: true, name: true, avatarUrl: true, provider: true } } },
   })
   if (!post) throw new Error('POST_NOT_FOUND')
-  if (!(await canAccessShop(post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(post.channel.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
 
   if (!params.skipBackfill) {
     await backfillPostComments(post.id)
@@ -1784,6 +1793,8 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
  * ผู้ใช้ต้องเห็นผลทันที และถ้า webhook ตามมาทีหลังก็ upsert ทับค่าเดิม (idempotent)
  */
 export async function replyToComment(params: {
+  /** capability ของผู้ใช้จริง (00071 S-13) — เส้นทางระบบ (actorUserId=null) ไม่ใช้ · มี actor แต่ไม่ส่ง = ปฏิเสธ */
+  cap?: ChatCap
   commentId: string
   message: string
   /**
@@ -1804,7 +1815,7 @@ export async function replyToComment(params: {
   })
   if (!target) throw new Error('COMMENT_NOT_FOUND')
   if (params.actorUserId !== null) {
-    if (!(await canAccessShop(target.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+    if (!params.cap || !(await canAccessShopWith(target.post.channel.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
   }
   if (target.isDeleted) throw new Error('COMMENT_DELETED')
 
@@ -1867,6 +1878,8 @@ export async function replyToComment(params: {
  * post id แทน comment id — Graph รับทั้งสองแบบที่ edge เดียวกัน
  */
 export async function commentOnPost(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   postId: string
   message: string
   actorUserId: string
@@ -1877,7 +1890,7 @@ export async function commentOnPost(params: {
     include: { channel: { select: { shopId: true } } },
   })
   if (!post) throw new Error('POST_NOT_FOUND')
-  if (!(await canAccessShop(post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(post.channel.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
 
   const auth = await resolveChannelToken(post.shopChannelId)
   if (!auth) throw new Error('CHANNEL_INACTIVE')
@@ -1918,11 +1931,13 @@ export async function commentOnPost(params: {
  * client API เขียนตรง ๆ ไม่ได้ (ต้องดึงทั้งหมดมานับใน JS = สิ่งที่เรากำลังหนี)
  */
 export async function countUnansweredForShops(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   shopIds: string[]
   actorUserId: string
 }): Promise<number> {
   if (params.shopIds.length === 0) return 0
-  await assertShopsAccessible(params.shopIds, params.actorUserId)
+  await assertShopsHoldCap(params.shopIds, params.actorUserId, params.cap)
   /**
    * นับ **จำนวนคอมเมนต์** ที่ยังไม่ถูกตอบ (เปลี่ยนหน่วยจาก "โพสต์" เมื่อ 2026-08-15)
    *
@@ -1957,6 +1972,8 @@ export async function countUnansweredForShops(params: {
  * ร้าน active ของผู้ใช้ (ดู src/lib/chat-scope.ts)
  */
 export async function setCommentResolved(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   commentId: string
   actorUserId: string
   resolved: boolean
@@ -1974,7 +1991,7 @@ export async function setCommentResolved(params: {
     select: { id: true, post: { select: { channel: { select: { shopId: true } } } } },
   })
   if (!comment) throw new Error('COMMENT_NOT_FOUND')
-  if (!(await canAccessShop(comment.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(comment.post.channel.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
 
   /**
    * เขียนคู่ `resolvedAt`/`resolvedReason` พร้อมกันเสมอ — ฐานมี CHECK บังคับอีกชั้น
@@ -2036,13 +2053,15 @@ export async function markCommentRepliedExternally(commentId: string): Promise<v
  * ผู้ใช้กดจากจอที่กรองเพจเดียวแล้วไปโดนของเพจอื่นด้วย — หรือกดแล้วตัวเลขไม่ลงเป็นศูนย์
  */
 export async function resolveAllExpiredComments(params: {
+  /** capability ที่ผู้เรียกต้องถือในร้านของข้อมูล (00071 S-13 · route ส่ง literal ตามทะเบียน) */
+  cap: ChatCap
   shopIds: string[]
   actorUserId: string
   shopChannelId?: string
   provider?: CommentChannelFilter
 }): Promise<{ resolved: number }> {
   if (params.shopIds.length === 0) return { resolved: 0 }
-  await assertShopsAccessible(params.shopIds, params.actorUserId)
+  await assertShopsHoldCap(params.shopIds, params.actorUserId, params.cap)
 
   const channelFilter = params.shopChannelId ? Prisma.sql`AND sc.id = ${params.shopChannelId}` : Prisma.empty
 

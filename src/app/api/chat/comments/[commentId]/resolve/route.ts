@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
+import { ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { setCommentResolved } from "@/services/page-comment.service";
 
 /**
@@ -23,9 +25,10 @@ import { setCommentResolved } from "@/services/page-comment.service";
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
 
-async function handle(
+async function applyResolve(
   params: Promise<{ commentId: string }>,
   resolved: boolean,
+  cap: "H2",
 ): Promise<NextResponse> {
   const session = await getServerSession(authOptions);
   const userId = sessionUserId(session);
@@ -44,6 +47,7 @@ async function handle(
       actorUserId: userId,
       resolved,
       reason: "MANUAL",
+      cap,
     });
     return NextResponse.json(
       {
@@ -53,6 +57,7 @@ async function handle(
       { headers: NO_STORE_HEADERS },
     );
   } catch (err) {
+    if (err instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const message = err instanceof Error ? err.message : String(err);
     if (message === "COMMENT_NOT_FOUND") {
       return NextResponse.json(
@@ -75,7 +80,7 @@ async function handle(
 }
 
 export async function POST(_request: NextRequest, ctx: { params: Promise<{ commentId: string }> }) {
-  return handle(ctx.params, true);
+  return applyResolve(ctx.params, true, "H2");
 }
 
 /**
@@ -88,5 +93,5 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ comme
  * ซึ่งก็ยังไม่เป็นอันตราย — จอไม่ได้แสดงเวลานั้น)
  */
 export async function DELETE(_request: NextRequest, ctx: { params: Promise<{ commentId: string }> }) {
-  return handle(ctx.params, false);
+  return applyResolve(ctx.params, false, "H2");
 }

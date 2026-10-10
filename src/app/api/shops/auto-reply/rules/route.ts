@@ -8,7 +8,7 @@ import { AutoReplyRuleCreateSchema } from '@/lib/validations'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const sp = request.nextUrl.searchParams
   const items = await listRules(ctx.shopId, {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

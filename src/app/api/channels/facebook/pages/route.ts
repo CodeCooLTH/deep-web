@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { listManageablePages } from '@/lib/facebook/graph'
 import { readPendingUserToken } from '@/lib/facebook/pending-connect'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { describePageStates } from '@/services/shop-channel.service'
 import { sessionUserId } from '@/lib/session-user'
 
@@ -23,10 +23,10 @@ export async function GET(request: NextRequest) {
   const userId = sessionUserId(session)
   if (!session?.user || !userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  })
-  if (!activeCtx) return NextResponse.json({ error: 'no_shop' }, { status: 400 })
+  // 00071 S-13: ตั้งค่าช่องทางเชื่อมต่อ = H3 — ตัดสินผ่าน requireShopCapability (401 / 404 ไม่มีร้าน / 403 FORBIDDEN_ROLE · อ่านแถวสมาชิกสด)
+  const gate = await requireShopCapability(session, 'H3')
+  if (!gate.ok) return gate.response
+  const activeCtx = { shopId: gate.shopId, kind: gate.active.kind, role: gate.active.role, roles: gate.active.roles, locked: gate.active.locked, lockReason: gate.active.lockReason, vertical: gate.active.shop.vertical }
 
   // 410 Gone = "เคยมีแต่หมดอายุแล้ว" — client เอาไปแยกกับ error อื่นเพื่อชวนให้เริ่มเชื่อมใหม่
   // (ครอบทั้งกรณีเข้าหน้านี้ตรง ๆ โดยไม่ผ่าน OAuth ด้วย — ผลลัพธ์สำหรับผู้ใช้เหมือนกัน)

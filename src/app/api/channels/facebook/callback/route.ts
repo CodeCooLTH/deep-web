@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { exchangeCodeForToken, listManageablePages } from '@/lib/facebook/graph'
 import { encryptToken } from '@/lib/token-crypto'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { OAUTH_USER_TOKEN_COOKIE, PENDING_TOKEN_COOKIE_OPTIONS } from '@/lib/facebook/pending-connect'
 import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
 import { sessionUserId } from '@/lib/session-user'
@@ -55,10 +55,9 @@ export async function GET(request: NextRequest) {
   //
   // ยังต้อง resolve ตรงนี้แม้จะไม่เขียน DB แล้ว — เพื่อฟันธงตั้งแต่ต้นทางว่า user มีร้านให้เชื่อมจริง
   // (ไม่งั้นจะไปเด้ง error เอาตอนกดยืนยันหลังเลือกเพจไปแล้ว = เสียเที่ยว)
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  })
-  if (!activeCtx) return backToSettings(request, { status: 'no_shop' })
+  // 00071 S-13: เชื่อมเพจ = H3 — ไม่มีร้าน → กลับหน้าตั้งค่าพร้อมสถานะ no_shop (เดิม) · บทบาทไม่ถึง → 403 FORBIDDEN_ROLE
+  const gate = await requireShopCapability(session, 'H3')
+  if (!gate.ok) return gate.response.status === 404 ? backToSettings(request, { status: 'no_shop' }) : gate.response
 
   try {
     const userToken = await exchangeCodeForToken(code, callbackUrl(request))

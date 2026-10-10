@@ -10,7 +10,7 @@ const BodySchema = v.object({ status: v.picklist([...AUTO_ORDER_STATUSES]) })
 
 /** PATCH /api/seller/auto-order/status — เปลี่ยนสถานะ OFFLINE/TEST/LIVE */
 export async function PATCH(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(BodySchema, await request.json().catch(() => null))

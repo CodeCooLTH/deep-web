@@ -6,7 +6,7 @@ import { duplicateKeyword } from '@/services/auto-reply-rule.service'
 export const dynamic = 'force-dynamic'
 
 export async function POST(_r: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireShopContext()
+  const ctx = await requireShopContext('H3')
   if ('error' in ctx) return ctx.error
   const denied = forbidIfReadOnly(ctx)
   if (denied) return denied

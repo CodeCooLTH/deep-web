@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { chatCardPreview } from '@/lib/chat-vocab'
 import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import { getMessages } from '@/services/chat.service'
+import type { Capability } from '@/lib/shop-permissions'
 import { getProductsByIds } from '@/services/product.service'
 
 /**
@@ -45,10 +46,12 @@ export async function getThreadMessagesPage(params: {
   /** delta สองแกน (2026-09-14) — ดู src/lib/chat-delta-query.ts */
   afterSeq?: number
   afterUpdatedAt?: string
+  /** cap ที่ฝั่งร้านต้องถือ (00071 S-13 · 'H1') — ผู้ซื้อไม่ใช้; ไม่ส่ง = ฝั่งร้านถูกปฏิเสธ */
+  shopCap?: Capability
   /** ตัวจับเวลาของผู้เรียก (route มี Server-Timing, หน้า RSC ไม่มี) — ไม่ส่งมาก็ได้ */
   mark?: (label: string, detail?: string) => void
 }) {
-  const { conversationId, userId, cursor, take, afterSeq, afterUpdatedAt } = params
+  const { conversationId, userId, cursor, take, afterSeq, afterUpdatedAt, shopCap } = params
   const mark = params.mark ?? (() => {})
 
     /**
@@ -63,6 +66,7 @@ export async function getThreadMessagesPage(params: {
       take: take,
       afterSeq: afterSeq,
       afterUpdatedAt: afterUpdatedAt,
+      shopCap,
     });
     mark("msgs", `n=${result.items.length}`);
 

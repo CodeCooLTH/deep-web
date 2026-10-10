@@ -22,7 +22,7 @@ const AddSchema = v.object({
 })
 
 export async function GET() {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const config = await getOrCreateAutoOrderConfig(guard.shopId)
@@ -58,7 +58,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireAutoOrderShop()
+  const guard = await requireAutoOrderShop('X3')
   if (!guard.ok) return guard.response
 
   const parsed = v.safeParse(AddSchema, await request.json().catch(() => null))

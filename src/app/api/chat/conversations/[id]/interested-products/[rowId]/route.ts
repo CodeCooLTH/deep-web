@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { sessionUserId } from "@/lib/session-user";
 import { removeInterestedProduct } from "@/services/chat-interested-product.service";
 
@@ -25,9 +26,11 @@ export async function DELETE(_request: NextRequest, ctx: { params: Promise<{ id:
 
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
-    idCheck.output,
+    idCheck.output, "H2"
   );
   if (!resolved) return json({ error: "ไม่พบบทสนทนานี้" }, 404);
+  // 00071 S-13: เป็นสมาชิกแต่บทบาทไม่ถือ H2 → 403 FORBIDDEN_ROLE
+  if ('denied' in resolved) return forbiddenRoleResponse();
 
   try {
     const r = await removeInterestedProduct({

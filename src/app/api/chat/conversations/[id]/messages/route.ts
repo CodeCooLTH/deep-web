@@ -11,6 +11,8 @@ import { isDuplicateProductSend } from "@/lib/chat-product-resend";
 import { prisma } from "@/lib/prisma";
 import { AUTO_ORDER_RESULT_TYPE } from "@/lib/auto-order-message-type";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
+import { canAccessShopWith, ForbiddenRoleError } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import { syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
 // (CR 2026-08-23) เส้นทางช่องทางนอกของช่องพิมพ์ผู้ขายเขียนแถว QUEUED ก่อนตอบ client แล้วยิงทีหลัง
 // — `enqueueOutbound` เรียก `resolveOutboundContext` ให้เอง ด่านเดิมทุกตัวจึงยังโยน error ชื่อเดิม
@@ -112,6 +114,8 @@ function isAttachmentType(t: string): t is AttachmentKind {
  */
 function mapChatServiceError(e: unknown, context: string, channel?: ChatChannel) {
   const fail = (raw: string) => describeSendFailure(raw, { channel });
+  // 00071 S-13: บทบาทไม่ถือ cap → 403 FORBIDDEN_ROLE มาตรฐาน (ต้องมาก่อนสาขา FORBIDDEN เดิมที่ใช้ข้อความเดียวกัน)
+  if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
   if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND") {
     return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
   }
@@ -302,12 +306,10 @@ export async function GET(
      *    "X replied to an ad.") จะไม่มีวันโผล่เลย · hook ส่ง `sync=1` เฉพาะครั้งแรกหลังเปิดห้อง
      *    · ห้ามย้ายไป sync ในหน้า RSC — หน้านั้นถูก prefetch ให้ทุกแถวที่มองเห็นในรายการแชท
      */
-    if (!parsed.output.cursor && (!isDeltaRequest(parsed.output) || parsed.output.sync === '1')) {
-      after(syncMissingMessagesFromMeta(id));
-      timer.mark("sync", "deferred");
-    } else {
-      timer.mark("sync", "skipped");
-    }
+    // 00071 S-13: ตัดสินที่นี่ แต่ "ลงทะเบียน after()" หลังผ่านด่านสิทธิ์ (getThreadMessagesPage) เท่านั้น —
+    // ไม่งั้นคนที่ได้ 403 ยังสั่งให้เซิร์ฟเวอร์ไปคุย Meta แทนเธรดของร้านได้
+    const shouldSync = !parsed.output.cursor && (!isDeltaRequest(parsed.output) || parsed.output.sync === '1');
+    timer.mark("sync", shouldSync ? "deferred" : "skipped");
 
     /**
      * โค้ดตกแต่งข้อความ ~360 บรรทัดถูกยกไป `@/services/chat-thread-messages.service` แล้ว
@@ -322,8 +324,11 @@ export async function GET(
       take: parsed.output.take,
       afterSeq: parsed.output.afterSeq,
       afterUpdatedAt: parsed.output.afterUpdatedAt,
+      // 00071 S-13: ฝั่งร้านต้องถือ H1 (ผู้ซื้อ = buyerUserId ไม่ใช้ cap) · อ่านแถวสมาชิกสดทุกคำขอ
+      shopCap: "H1",
       mark: (label, detail) => timer.mark(label, detail),
     });
+    if (shouldSync) after(syncMissingMessagesFromMeta(id));
     return NextResponse.json(
       {
         items: page.items,
@@ -452,6 +457,12 @@ export async function POST(
       select: { channel: true, shopId: true },
     });
     if (conv) convChannel = resolveChatChannel(conv.channel);
+
+    // 00071 S-13: ฝั่งร้านส่งข้อความต้องถือ H2 — ปฏิเสธก่อนแตะข้อมูล/โควตาใด ๆ (อ่านแถวสมาชิกสด: ถอด CHAT แล้วส่งต่อ = 403)
+    // ผู้ซื้อ (senderRole BUYER) ไม่ผ่านด่านนี้ — ตรวจ buyerUserId ใน service เดิม · ด่านซ้ำใน service/outbox เป็นชั้นลึก
+    if (conv && senderRole === "SHOP" && !(await canAccessShopWith(conv.shopId, userId, "H2"))) {
+      return forbiddenRoleResponse();
+    }
 
     // แถวสินค้าที่ผ่านด่าน ownership แล้ว — ใช้ต่อตอนประกอบการ์ด Flex ให้ LINE (ไม่ query ซ้ำ)
     let productRow: Awaited<ReturnType<typeof getProductById>> = null;

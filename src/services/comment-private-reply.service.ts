@@ -9,7 +9,8 @@
  * เสมอ จึงตกทุกครั้ง — และ guard ตัวนั้นทำงานถูกอยู่แล้วสำหรับกรณีของมัน ห้ามไปแก้
  */
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith } from '@/lib/shop-capability'
+import type { ChatCap } from '@/lib/chat-scope'
 import { markCommentRepliedExternally, resolveChannelToken } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
 import { isAlreadyRepliedGraphError } from '@/lib/facebook/private-reply-error'
@@ -172,6 +173,8 @@ export async function sendPrivateReplyToCommentById(params: {
   text: string
   trigger: 'AUTO' | 'MANUAL'
   actorUserId?: string | null
+  /** capability ของผู้ใช้จริง (00071 S-13 · 'H2') — MANUAL ต้องส่ง ไม่ส่ง = FORBIDDEN · AUTO ไม่ใช้ */
+  cap?: ChatCap
   /**
    * id ของแถว CommentReplyLog ที่ **ผู้เรียกจองไว้แล้ว** (processCommentAutoReply เป็นคนจอง)
    *
@@ -208,7 +211,7 @@ export async function sendPrivateReplyToCommentById(params: {
     // สถานะของคอมเมนต์ ไม่งั้นคนนอกร้านเดา commentId แล้วอ่านสถานะร้านอื่นจาก reason ที่คืนออกไปได้
     // (ดู docstring ด้านบน + SRS §7.14)
     if (params.trigger === 'MANUAL') {
-      if (!params.actorUserId || !(await canAccessShop(channel.shopId, params.actorUserId))) {
+      if (!params.actorUserId || !params.cap || !(await canAccessShopWith(channel.shopId, params.actorUserId, params.cap))) {
         return { sent: false, reason: 'FORBIDDEN' }
       }
     }

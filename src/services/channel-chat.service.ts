@@ -4,7 +4,8 @@ import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-messa
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith, ForbiddenRoleError } from '@/lib/shop-capability'
+import type { Capability } from '@/lib/shop-permissions'
 import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessagesPage, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
@@ -2746,6 +2747,8 @@ export async function sendOutboundReaction(params: {
   /** null = ถอนรีแอ็กชัน */
   emoji: string | null
   actorUserId: string
+  /** cap ที่ผู้ใช้ต้องถือ (00071 S-13 · route ส่ง 'H2') */
+  cap: Capability
 }): Promise<{ emoji: string | null }> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
@@ -2753,7 +2756,7 @@ export async function sendOutboundReaction(params: {
   })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
   // authz ก่อนแตะข้อมูลข้อความ — เหมือน cancelFailedOutboundMessage
-  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(conversation.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
 
   const message = await prisma.chatMessage.findFirst({
     where: { id: params.messageId, conversationId: params.conversationId },
@@ -2980,7 +2983,10 @@ export type SendOutboundParams = {
  * error ที่เคยตอบ 4xx พร้อมเหตุผลจะกลายเป็น 500 เงียบ ๆ
  */
 export async function resolveOutboundContext(
-  params: Pick<SendOutboundParams, 'conversationId' | 'actorUserId' | 'systemShopId'>,
+  params: Pick<SendOutboundParams, 'conversationId' | 'actorUserId' | 'systemShopId'> & {
+    /** cap ที่ผู้ใช้จริงต้องถือ (00071 S-13) — ไม่ส่ง = 'H2' (ส่งออกช่องทางนอก) · เส้นทางระบบ (systemShopId) ไม่ใช้ */
+    cap?: Capability
+  },
 ): Promise<OutboundConversation> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
@@ -3001,7 +3007,8 @@ export async function resolveOutboundContext(
     // เช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่เจ้าของ — ไม่งั้น BUSINESS admin ตอบแชท
     // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
     if (!params.actorUserId) throw new Error('FORBIDDEN')
-    if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+    // 00071 S-13: ส่งออกช่องทางนอก = H2 (อ่านแถวสมาชิกสด — แถวที่รอคิวแล้วถูกถอด CHAT ระหว่างรอ จะล้มตอนยิงจริงด้วยรหัสเดิม)
+    if (!(await canAccessShopWith(conversation.shopId, params.actorUserId, params.cap ?? 'H2'))) throw new ForbiddenRoleError()
   }
 
   return conversation
@@ -3033,10 +3040,13 @@ export type ConversationControlResult =
 export async function claimConversationControl(params: {
   conversationId: string
   actorUserId: string
+  /** cap ที่ผู้ใช้ต้องถือ (00071 S-13 · route ส่ง 'X2') */
+  cap: Capability
 }): Promise<ConversationControlResult> {
   const conversation = await resolveOutboundContext({
     conversationId: params.conversationId,
     actorUserId: params.actorUserId,
+    cap: params.cap,
   })
 
   if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') {
@@ -3101,11 +3111,14 @@ function typingStore(): Map<string, number> {
 export async function notifyTyping(params: {
   conversationId: string
   actorUserId: string
+  /** cap ที่ผู้ใช้ต้องถือ (00071 S-13 · route ส่ง 'H2') — ไม่ผ่าน = false เงียบ ๆ (ของประดับ) */
+  cap: Capability
 }): Promise<boolean> {
   try {
     const conversation = await resolveOutboundContext({
       conversationId: params.conversationId,
       actorUserId: params.actorUserId,
+      cap: params.cap,
     })
     if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') return false
     if (conversation.shopChannel.status !== 'ACTIVE') return false
@@ -3157,13 +3170,15 @@ export async function saveIceBreakers(params: {
   shopChannelId: string
   actorUserId: string
   drafts: IceBreakerDraft[]
+  /** cap ที่ผู้ใช้ต้องถือ (00071 S-13 · route ส่ง 'H3') */
+  cap: Capability
 }): Promise<{ count: number }> {
   const channel = await prisma.shopChannel.findUnique({
     where: { id: params.shopChannelId },
     select: { id: true, shopId: true, provider: true, status: true, accessTokenEnc: true },
   })
   if (!channel) throw new Error('CHANNEL_NOT_FOUND')
-  if (!(await canAccessShop(channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(channel.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
   // Ice Breakers เป็นของ Meta เท่านั้น — LINE มี Rich Menu ซึ่งเป็นคนละเรื่องคนละ endpoint
   if (channel.provider !== 'MESSENGER' && channel.provider !== 'INSTAGRAM') {
     throw new Error('CHANNEL_NOT_SUPPORTED')
@@ -4347,6 +4362,8 @@ export async function cancelFailedOutboundMessage(params: {
   conversationId: string
   messageId: string
   actorUserId: string
+  /** cap ที่ผู้ใช้ต้องถือ (00071 S-13 · route ส่ง 'H2') */
+  cap: Capability
 }): Promise<void> {
   const message = await prisma.chatMessage.findFirst({
     where: { id: params.messageId, conversationId: params.conversationId },
@@ -4359,7 +4376,7 @@ export async function cancelFailedOutboundMessage(params: {
     select: { id: true, shopId: true, shop: { select: { vertical: true } } },
   })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
-  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (!(await canAccessShopWith(conversation.shopId, params.actorUserId, params.cap))) throw new ForbiddenRoleError()
   // สองเงื่อนไขนี้คือขอบเขตทั้งหมดของสิ่งที่ลบได้ — อย่าผ่อนโดยไม่คิดให้จบ
   if (message.deliveryStatus !== 'FAILED' || message.senderRole !== 'SHOP') {
     throw new Error('MESSAGE_NOT_CANCELLABLE')

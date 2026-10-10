@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { requireShopCapability } from '@/lib/shop-capability'
 import { shouldHidePayments, shouldOfferIap } from '@/lib/app-shell-server'
 import { canAskToBuy } from '@/lib/purchase-prompt'
 
@@ -15,17 +15,6 @@ import { canAskToBuy } from '@/lib/purchase-prompt'
  * WARNING: การตัดสินสิทธิ์อยู่ที่ชั้น route เท่านั้น (SDS §3.2) — service ห้ามรับ role
  * เข้าไปตัดสินเอง ถ้าย้ายไปตัดสินใน service เมื่อไหร่จะตรวจไม่ได้ว่าครบทุกเส้นทางหรือไม่
  */
-
-/**
- * role ที่แก้ไขการตั้งค่าได้ (AC-004-01)
- *
- * NOTE (2026-08-01): ระบบมีแค่ `OWNER` (คนสร้างร้าน) กับ `ADMIN` (ทุกคนที่ถูกเชิญเข้ามา
- * ทั้ง `shop-member.service` และ `invite-link.service` ใส่ `ADMIN` เสมอ) — **ไม่มี role
- * `STAFF` อยู่จริงในสคีมา** คอมเมนต์เดิมที่เขียนว่า "STAFF อ่านได้อย่างเดียว" จึงชวนเข้าใจผิด
- * ว่ามีทางเกิด 403 จาก role ซึ่งไม่มี — `canEdit` จาก role เป็น true เสมอสำหรับสมาชิกทุกคน
- * (user ยืนยัน 2026-08-01 ว่าไม่เปลี่ยนสิทธิ์ใคร แค่แก้เอกสาร/เทสให้ตรงความจริง)
- */
-const EDITABLE_ROLES = ['OWNER', 'ADMIN'] as const
 
 export const AUTO_REPLY_NO_STORE = {
   'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
@@ -45,28 +34,22 @@ export type ShopRouteContext = {
   askToBuy: boolean
 }
 
-export async function requireShopContext(): Promise<ShopRouteContext | { error: NextResponse }> {
+/**
+ * 00071 S-13 — cap บังคับ (ไม่มีค่าตั้งต้น): ตั้งค่าบอท/auto-reply/AI/ตอบคอมเมนต์ = H3 (เจ้าของ+ผู้ดูแล) ·
+ * สวิตช์ auto-reply ระดับห้องแชท = X2 · ตัดสินผ่าน requireShopCapability (อ่านแถวสมาชิกสดทุกคำขอ)
+ * ผ่านด่านแล้ว = แก้ได้ (`canEdit: true`) — ที่เหลือคือ package lock ที่ forbidIfReadOnly ตัดสินต่อ
+ * คำตอบ: 401 ไม่รู้ตัวตน · 404 ไม่มีร้าน · 403 FORBIDDEN_ROLE ไม่ถือ cap
+ */
+export async function requireShopContext(cap: 'H3' | 'X2'): Promise<ShopRouteContext | { error: NextResponse }> {
   const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return { error: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
-  }
-  const userId = (session.user as { id: string }).id
-  const activeCtx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId:
-        ((session.user as { activeShopId?: string | null }).activeShopId as string | null | undefined) ?? null,
-    },
-  })
-  if (!activeCtx) {
-    return { error: NextResponse.json({ error: 'ไม่พบร้านที่กำลังใช้งาน' }, { status: 404 }) }
-  }
+  const g = await requireShopCapability(session, cap)
+  if (!g.ok) return { error: g.response }
   return {
-    userId,
-    shopId: activeCtx.shopId,
-    canEdit: (EDITABLE_ROLES as readonly string[]).includes(activeCtx.role),
-    locked: activeCtx.locked,
-    lockReason: activeCtx.lockReason,
+    userId: g.userId,
+    shopId: g.shopId,
+    canEdit: true,
+    locked: g.active.locked,
+    lockReason: g.active.lockReason,
     askToBuy: canAskToBuy(await shouldHidePayments(), await shouldOfferIap()),
   }
 }

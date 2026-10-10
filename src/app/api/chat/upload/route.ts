@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { saveFile } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
-import { canAccessShop } from "@/lib/shop-context";
+import { canAccessShopWith } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 import {
   ATTACHMENT_MAX_SIZE,
   attachmentKind,
@@ -71,11 +72,10 @@ export async function POST(request: NextRequest) {
     if (!conv) {
       return NextResponse.json({ error: "ไม่พบห้องแชทนี้" }, { status: 404 });
     }
+    // 00071 S-13: ผู้ซื้อเจ้าของเธรด หรือสมาชิกร้านที่ถือ H2 (อ่านแถวสมาชิกสด) — BILLING/TECHNICIAN → 403 FORBIDDEN_ROLE
     const allowed =
-      conv.buyerUserId === userId || (await canAccessShop(conv.shopId, userId));
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+      conv.buyerUserId === userId || (await canAccessShopWith(conv.shopId, userId, "H2"));
+    if (!allowed) return forbiddenRoleResponse();
     channel = conv.channel;
   }
 

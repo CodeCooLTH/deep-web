@@ -16,13 +16,14 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-vi.mock('@/lib/shop-context', () => ({
-  canAccessShop: vi.fn(),
+vi.mock('@/lib/shop-capability', () => ({
+  canAccessShopWith: vi.fn(),
   listAccessibleShopIds: vi.fn(),
+  ForbiddenRoleError: class ForbiddenRoleError extends Error {},
 }))
 
 import { prisma } from '@/lib/prisma'
-import { listAccessibleShopIds } from '@/lib/shop-context'
+import { listAccessibleShopIds } from '@/lib/shop-capability'
 import { findConversationShopForUser } from '@/services/chat.service'
 
 const USER_ID = 'user-1'
@@ -41,7 +42,7 @@ describe('findConversationShopForUser', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
 
-    const result = await findConversationShopForUser(CONV_ID, USER_ID)
+    const result = await findConversationShopForUser(CONV_ID, USER_ID, 'H1')
 
     expect(result).toEqual({
       shopId: 'shop-b',
@@ -56,7 +57,7 @@ describe('findConversationShopForUser', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(prisma.conversation.findFirst).mockResolvedValue(null as any)
 
-    await findConversationShopForUser(CONV_ID, USER_ID)
+    await findConversationShopForUser(CONV_ID, USER_ID, 'H1')
 
     const where = vi.mocked(prisma.conversation.findFirst).mock.calls[0][0]?.where as {
       id: string
@@ -72,14 +73,20 @@ describe('findConversationShopForUser', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(prisma.conversation.findFirst).mockResolvedValue(null as any)
 
-    expect(await findConversationShopForUser(CONV_ID, USER_ID)).toBeNull()
+    expect(await findConversationShopForUser(CONV_ID, USER_ID, 'H1')).toBeNull()
   })
 
   it('ไม่มีร้านเลย → คืน null โดยไม่ยิง query ต่อ', async () => {
     vi.mocked(listAccessibleShopIds).mockResolvedValue([])
 
-    expect(await findConversationShopForUser(CONV_ID, USER_ID)).toBeNull()
+    expect(await findConversationShopForUser(CONV_ID, USER_ID, 'H1')).toBeNull()
     expect(prisma.conversation.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('00071: ถามเฉพาะร้านที่ผู้ใช้ถือ cap — ส่ง cap ต่อให้ listAccessibleShopIds (ไม่ใช่ทุกร้านที่เป็นสมาชิก)', async () => {
+    vi.mocked(listAccessibleShopIds).mockResolvedValue([])
+    await findConversationShopForUser(CONV_ID, USER_ID, 'H1')
+    expect(listAccessibleShopIds).toHaveBeenCalledWith(USER_ID, 'H1')
   })
 
   it('ร้าน PERSONAL ก็รองรับ — kind ส่งกลับตามจริง ไม่ hardcode BUSINESS', async () => {
@@ -90,7 +97,7 @@ describe('findConversationShopForUser', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
 
-    const result = await findConversationShopForUser(CONV_ID, USER_ID)
+    const result = await findConversationShopForUser(CONV_ID, USER_ID, 'H1')
 
     expect(result?.kind).toBe('PERSONAL')
     expect(result?.logo).toBeNull()

@@ -8,7 +8,8 @@ import {
   type InboxSortMode,
 } from '@/lib/inbox-sort'
 import { buildProblemHoldSql } from '@/lib/order-stage-sql'
-import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
+import { canAccessShopWith, listAccessibleShopIds, ForbiddenRoleError } from '@/lib/shop-capability'
+import type { Capability } from '@/lib/shop-permissions'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
@@ -657,9 +658,16 @@ function parseMessageCursor(raw?: string): { createdAt: Date; seq: number | null
 export async function getMessages(
   conversationId: string,
   actorUserId: string,
-  opts: { cursor?: string; take?: number; afterSeq?: number; afterUpdatedAt?: string } = {},
+  opts: {
+    cursor?: string
+    take?: number
+    afterSeq?: number
+    afterUpdatedAt?: string
+    /** cap ที่ฝั่งร้านต้องถือ (00071 S-13 · 'H1') — ผู้ซื้อ (buyerUserId) ไม่ใช้; ไม่ส่ง = ฝั่งร้านถูกปฏิเสธ */
+    shopCap?: Capability
+  } = {},
 ): Promise<{ items: ChatMessageView[]; nextCursor: string | null }> {
-  const conversation = await assertParticipant(conversationId, actorUserId)
+  const conversation = await assertParticipant(conversationId, actorUserId, opts.shopCap)
 
   /**
    * feature 00061 — ชั้นอ่าน: การ์ดผลลัพธ์เป็น "ข้อความภายใน" ที่ลูกค้าต้องไม่เห็นเด็ดขาด
@@ -834,10 +842,15 @@ export async function sendMessage(params: {
     // verify role vs. truth — กัน client ปลอม senderRole (FR-CHAT-04-AC-03)
     // เธรดช่องทางนอก (feature 00018) ไม่มี buyerUserId → ไม่มีใครอ้าง BUYER ได้เลย
     const isBuyerClaim = params.senderRole === 'BUYER'
-    const ownerMatch = isBuyerClaim
-      ? conversation.buyerUserId !== null && conversation.buyerUserId === params.senderUserId
-      : shop.userId === params.senderUserId
-    if (!ownerMatch) throw new Error('FORBIDDEN')
+    // ฝั่งร้าน (00071 S-13): เจ้าของร้าน (shop.userId = OWNER ถือทุก cap) หรือสมาชิกที่บทบาทถือ H2 ส่งได้
+    // (เดิมเจ้าของเท่านั้น → ผู้ดูแล/ตอบแชทส่งในเธรด Deep ไม่ได้)
+    // อ่านแถวสมาชิกสดทุกครั้ง · BILLING/TECHNICIAN → ForbiddenRoleError → 403 FORBIDDEN_ROLE
+    if (isBuyerClaim) {
+      const ownerMatch = conversation.buyerUserId !== null && conversation.buyerUserId === params.senderUserId
+      if (!ownerMatch) throw new Error('FORBIDDEN')
+    } else if (shop.userId !== params.senderUserId && !(await canAccessShopWith(conversation.shopId, params.senderUserId, 'H2'))) {
+      throw new ForbiddenRoleError()
+    }
 
     // ---- PRODUCT: verify cross-shop (FR-CTX-07) + idempotent-guard (BR-CTX-02) ----
     let productName: string | null = null
@@ -984,8 +997,9 @@ export async function markRead(
   conversationId: string,
   actorUserId: string,
   role: SenderRole,
+  shopCap?: Capability,
 ): Promise<void> {
-  const conversation = await assertParticipant(conversationId, actorUserId)
+  const conversation = await assertParticipant(conversationId, actorUserId, shopCap)
   const field = role === 'BUYER' ? 'buyerLastReadAt' : 'shopLastReadAt'
 
   // เดิมมี notification.updateMany sync แถว kind="chat_message" ให้เป็น read คู่กันด้วย —
@@ -1146,15 +1160,15 @@ export async function getConversationToastPreview(
 }
 
 // ---- internal: ownership guard ----
-async function assertParticipant(conversationId: string, actorUserId: string) {
+async function assertParticipant(conversationId: string, actorUserId: string, shopCap?: Capability) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
   if (conversation.buyerUserId === actorUserId) return conversation
-  // ฝั่งร้าน: ต้องเช็ค "เจ้าของ หรือ สมาชิก" (canAccessShop) ไม่ใช่แค่ shop.userId === actorUserId
-  // เดิมเช็คแค่เจ้าของ → BUSINESS admin (ไม่ใช่ owner) เปิดแชทของร้านตัวเองไม่ได้ ขึ้น 'ไม่พบบทสนทนา'
-  // (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
-  if (await canAccessShop(conversation.shopId, actorUserId)) return conversation
-  throw new Error('FORBIDDEN')
+  // ฝั่งร้าน: ต้องเป็น "สมาชิกที่บทบาทถือ cap" (00071 S-13) — อ่านแถวสมาชิกสดทุกครั้ง ถอดบทบาทแล้วมีผลทันที
+  // เดิมเช็คแค่ canAccessShop (เป็นสมาชิกก็พอ) ⇒ BILLING/TECHNICIAN อ่านแชทได้ · ไม่ส่ง cap = ปฏิเสธ (ไม่มีค่าตั้งต้นที่เปิด)
+  // โยน ForbiddenRoleError (message 'FORBIDDEN' เหมือนเดิม) ให้ mapper → 403 FORBIDDEN_ROLE
+  if (shopCap && (await canAccessShopWith(conversation.shopId, actorUserId, shopCap))) return conversation
+  throw new ForbiddenRoleError()
 }
 
 /**
@@ -1181,8 +1195,10 @@ async function assertParticipant(conversationId: string, actorUserId: string) {
 export async function findConversationShopForUser(
   conversationId: string,
   userId: string,
+  cap: Capability,
 ): Promise<{ shopId: string; shopName: string; logo: string | null; kind: string } | null> {
-  const accessibleShopIds = await listAccessibleShopIds(userId)
+  // 00071: เฉพาะร้านที่ผู้ใช้ถือ cap — ไม่งั้นหน้าเธรดจะพาสลับไปร้านที่ตัวเองเป็น BILLING/TECHNICIAN
+  const accessibleShopIds = await listAccessibleShopIds(userId, cap)
   if (accessibleShopIds.length === 0) return null
 
   const conversation = await prisma.conversation.findFirst({

@@ -83,7 +83,7 @@ describe('sendMessage — auto-unhide/reopen เมื่อ BUYER ทักม�
     db.conversation.findUnique.mockResolvedValue({
       id: 'conv1', shopId: 'shop1', buyerUserId: 'buyer1', channel: 'DEEP',
     })
-    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้านทดสอบ' })
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้านทดสอบ', kind: 'PERSONAL', vertical: 'ONLINE_SALES', deletedAt: null, members: [] })
     db.user.findUnique.mockResolvedValue({ displayName: 'ลูกค้า' })
     db.chatMessage.create.mockResolvedValue({
       id: 'm1', conversationId: 'conv1', senderUserId: 'buyer1', senderRole: 'BUYER',

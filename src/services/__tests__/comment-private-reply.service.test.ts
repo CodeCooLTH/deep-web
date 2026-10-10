@@ -54,7 +54,7 @@ vi.mock('@/lib/facebook/graph', async (importOriginal) => {
 // canAccessShop เดิมเรียก prisma.shop.findUnique จริง (shop-context.ts) ซึ่งไม่ได้อยู่ใน mock ของ
 // '@/lib/prisma' ข้างบน (ไม่มี key `shop`) — mock ที่ boundary ของ shop-context ตรง ๆ แทน ชัดเจนกว่า
 // การพยายามเติม key `shop` ให้ครบใน mock ของ prisma (ยังต้องคุมค่า userId เทียบ actorUserId เองอยู่ดี)
-vi.mock('@/lib/shop-context', () => ({ canAccessShop: vi.fn() }))
+vi.mock('@/lib/shop-capability', () => ({ canAccessShopWith: vi.fn() }))
 // resolveChannelToken (ของจริง) เรียก decryptToken() ซึ่งอ่าน CHANNEL_TOKEN_KEY จาก env — เวิร์กทรีนี้
 // ไม่มี .env จึง throw เสมอ (CHANNEL_TOKEN_KEY_MISSING) mock ที่ boundary ของโมดูลแทน เพื่อทดสอบ
 // เส้นทาง "ส่งสำเร็จ"/SEND_FAILED ได้จริง โดยไม่ผูกกับสถานะ env ของเครื่องที่รันเทส
@@ -70,7 +70,7 @@ vi.mock('@/services/page-comment.service', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShopWith as canAccessShop } from '@/lib/shop-capability'
 import { resolveChannelToken, markCommentRepliedExternally } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment, GraphApiError } from '@/lib/facebook/graph'
 import { sendPrivateReplyToCommentById, resolveSeedContactName } from '@/services/comment-private-reply.service'
@@ -165,7 +165,7 @@ describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต
     vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(
       { id: 'log-1', privateReplyStatus: 'SENT', conversationId: 'conv-1' } as never,
     )
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u1', cap: 'H2' })
     expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
     expect(graphSend).not.toHaveBeenCalled()
   })
@@ -177,7 +177,7 @@ describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต
     findComment.mockResolvedValue(okComment() as never)
     vi.mocked(canAccessShop).mockResolvedValue(false)
     vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue({ id: 'log-1', privateReplyStatus: 'SENT' } as never)
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'outsider' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'outsider', cap: 'H2' })
     expect(r).toMatchObject({ sent: false, reason: 'FORBIDDEN' })
     expect(graphSend).not.toHaveBeenCalled()
     // ยืนยันเพิ่มว่าไม่มีการ query สถานะ "เคยส่งแล้วหรือยัง" เลยด้วยซ้ำ — ตัดที่ด่านสิทธิ์ก่อนถึง
@@ -192,7 +192,7 @@ describe('sendPrivateReplyToCommentById — เส้นทางที่ยิ
     vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
     mockFullSuccessChain()
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u1', cap: 'H2' })
 
     expect(r).toMatchObject({ sent: true, conversationId: 'conv-1', messageId: 'mid-999' })
 
@@ -270,7 +270,7 @@ describe('sendPrivateReplyToCommentById — เส้นทางที่ยิ
     vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
     mockFullSuccessChain()
 
-    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u-1' })
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u-1', cap: 'H2' })
 
     const updates = vi.mocked(prisma.commentReplyLog.update).mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data)
     const sentUpdate = updates.find((d) => d.privateReplyStatus === 'SENT')
@@ -321,7 +321,7 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
     vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 1 } as never)
     mockFullSuccessChain()
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1', cap: 'H2' })
 
     expect(r).toMatchObject({ sent: true })
     expect(graphSend).toHaveBeenCalledTimes(1)
@@ -341,7 +341,7 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
     )
     vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 0 } as never)
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1', cap: 'H2' })
 
     expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
     expect(graphSend).not.toHaveBeenCalled()
@@ -708,7 +708,7 @@ describe('[blocker] #10900 — Facebook ปฏิเสธเพราะเพ�
     vi.mocked(prisma.externalContact.findUnique).mockResolvedValue(null as never)
     graphSend.mockRejectedValue(new GraphApiError('(#10900) Activity already replied to', 10900, null, 400))
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1', cap: 'H2' })
 
     // ถ้าตกไปเป็น SEND_FAILED จอจะขึ้น "ส่งไม่สำเร็จ ลองใหม่อีกครั้ง" = เชิญให้กดสิ่งที่ไม่มีวันผ่าน
     expect(r).toMatchObject({ sent: false, reason: 'ALREADY_REPLIED_EXTERNALLY' })
@@ -728,7 +728,7 @@ describe('[blocker] #10900 — Facebook ปฏิเสธเพราะเพ�
     vi.mocked(prisma.externalContact.findUnique).mockResolvedValue({ conversations: [{ id: 'conv-old' }] } as never)
     graphSend.mockRejectedValue(new GraphApiError('(#10900) Activity already replied to', 10900, null, 400))
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1', cap: 'H2' })
 
     expect(r).toMatchObject({ reason: 'ALREADY_REPLIED_EXTERNALLY', conversationId: 'conv-old' })
     // เทียบ id ตรง ๆ ในเพจเดียวกันเท่านั้น ห้าม heuristic (PSID/ASID แปลงกันไม่ได้)
@@ -745,7 +745,7 @@ describe('[blocker] #10900 — Facebook ปฏิเสธเพราะเพ�
     findComment.mockResolvedValue(okComment({ resolvedReason: 'ALREADY_REPLIED_EXTERNALLY' }) as never)
     vi.mocked(prisma.externalContact.findUnique).mockResolvedValue(null as never)
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1', cap: 'H2' })
 
     expect(r).toMatchObject({ sent: false, reason: 'ALREADY_REPLIED_EXTERNALLY' })
     expect(graphSend).not.toHaveBeenCalled()
@@ -757,7 +757,7 @@ describe('[blocker] #10900 — Facebook ปฏิเสธเพราะเพ�
     vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
     mockFullSuccessChain()
 
-    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1' })
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u-1', cap: 'H2' })
 
     expect(r).toMatchObject({ sent: true })
     expect(graphSend).toHaveBeenCalledTimes(1)
