@@ -259,8 +259,10 @@ describe('[blocker] Android ไม่แสดงสถานะเงิน', (
     expect(hero.lastIndexOf('{showMoneyStatus && (', chip), 'ชิปแพ็กเกจต้องอยู่ในกิ่ง showMoneyStatus').toBeGreaterThan(
       hero.lastIndexOf(')}', chip),
     )
-    const bal = hero.indexOf('walletBalance.toLocaleString')
-    expect(hero.lastIndexOf('{showMoneyStatus ? (', bal), 'ยอดเครดิตต้องอยู่ในกิ่ง showMoneyStatus').toBeGreaterThan(-1)
+    // 00071: ยอดอยู่ในกิ่ง showWallet ซึ่งต้องมี showMoneyStatus เป็นตัวตั้ง (และ walletBalance != null)
+    expect(hero).toMatch(/const walletText = showMoneyStatus && walletBalance != null \?/)
+    const bal = hero.indexOf('฿{walletText}')
+    expect(hero.lastIndexOf('{showWallet ? (', bal), 'ยอดเครดิตต้องอยู่ในกิ่ง showWallet (⊂ showMoneyStatus)').toBeGreaterThan(-1)
   })
 
   it('ฟีดกิจกรรม: ผู้เรียกทุกตัว (สแกนทั้ง src) ส่ง includeTopups', () => {
@@ -288,6 +290,6 @@ describe('[blocker] Android ไม่แสดงสถานะเงิน', (
     const D = 'src/app/(paces)/seller/(dashboard)'
     expect(read(`${D}/business/components/LockedStateBanner.tsx`)).toMatch(/const label = showMoneyStatus \?/)
     expect(read(`${D}/inspection/components/PlanStatusCard.tsx`)).toMatch(/\{inGrace && showMoneyStatus && \(/)
-    expect(read(`${D}/settings/chatbot/ChatbotClient.tsx`)).toMatch(/\{showMoneyStatus && \(\s*<p[^>]*>ยอดเงินคงเหลือ/)
+    expect(read(`${D}/settings/chatbot/ChatbotClient.tsx`)).toMatch(/\{showMoneyStatus && (?:walletBalance != null && )?\(\s*<p[^>]*>ยอดเงินคงเหลือ/)
   })
 })

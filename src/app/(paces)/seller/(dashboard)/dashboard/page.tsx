@@ -71,8 +71,9 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวันเดือนปัจจุบัน สำหรับการ์ด mini + full sheet
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
-// ค่าใช้จ่าย/กำไรสุทธิบนการ์ดยอดขาย (feature 00016) มี gate สิทธิ์ของตัวเอง — ต้องเช็คก่อนขอข้อมูล
-import { resolveExpenseAccess } from '@/services/expense-access.service'
+// 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
+import { moneyLevel, rolesFromMembership, type MoneyLevel } from '@/lib/shop-permissions'
+import { dashboardMoney, redactCommandCenterData } from '@/lib/dashboard-money'
 import { resolveShortcutState } from '@/services/shortcut.service'
 import type { ShortcutCatalogItemDto } from './_constants/command-center'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
@@ -174,7 +175,8 @@ export default async function SellerDashboardPage() {
   // อยู่ข้างใน ส่งทั้งก้อนข้ามเส้น server→client ไม่ได้ (พังจริงบน prod 2026-08-07)
   let shopVertical = 'ONLINE_SALES'
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
-  let walletBalance = 0
+  // 00071: ผู้ไม่ใช่เจ้าของไม่ query ยอดเลย ⇒ null (ไม่ใช่ 0 — 0 คือการโกหกว่ากระเป๋าว่าง)
+  let walletBalance: number | null = null
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
   let bestSellers: { id: string; name: string; price: number; image: string | null; soldCount: number }[] = []
   // v10: CompactHero — shop link (slug) + stats row (orders/reviews/rating); honest-zero ถ้าล้ม
@@ -210,6 +212,8 @@ export default async function SellerDashboardPage() {
   // ยอดรวมทุกธุรกิจของเดือนปัจจุบัน (รายวัน) — ผลก้อนเดียวใช้ทั้งการ์ดมือถือ (aggregate) และแผง desktop
   // null = ไม่เข้าเงื่อนไข หรือล้มทั้งก้อน → มือถือใช้ series ของร้าน Personal ตามเดิม · desktop ไม่ render ส่วนนี้
   let portfolio: PortfolioSeries | null = null
+  // 00071: ธงเงินของหน้านี้ — fail-closed (ไม่รู้บทบาท = NONE) · เปลี่ยนค่าหลัง requireActiveShop
+  let moneyLvl: MoneyLevel = 'NONE'
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -221,6 +225,10 @@ export default async function SellerDashboardPage() {
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
+      moneyLvl = active ? moneyLevel(rolesFromMembership(active.role)) : 'NONE'
+      const money = dashboardMoney(moneyLvl)
+      // เจ้าของ: ล้ม = 0 ตามเดิม (honest-zero) · ผู้ไม่ใช่เจ้าของ: คง null
+      if (money.walletHero) walletBalance = 0
       const portfolioUserId = sessionUserId(session)
       if (active?.kind === 'PERSONAL' && portfolioUserId) {
         try {
@@ -322,20 +330,11 @@ export default async function SellerDashboardPage() {
             ? new Date(rangeGte.getTime() + 24 * 60 * 60 * 1000)
             : new Date(Date.UTC(currentYear, currentMonth, 1) - TZ_MS)
 
-        // ต้องรู้ผลก่อนยิง getSalesSeries เพราะมันตัดสินว่าจะ query ค่าใช้จ่าย/ต้นทุนด้วยไหม
-        // (fail-closed ตั้งแต่ชั้น query — ไม่ใช่ query มาแล้วค่อยซ่อนตอน render)
-        const expenseGranted =
-          (
-            await resolveExpenseAccess(
-              session as unknown as { user: { id: string; activeShopId?: string | null } },
-            )
-          ).kind === 'GRANTED'
-
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
         // 00069 v1.1: ยิงขนานกับ query ชุดล่าง (เริ่มก่อน await) — .catch ในตัวกัน unhandled rejection ระหว่างรอ
         const portfolioPromise: Promise<PortfolioSeries | null> =
-          active?.kind === 'PERSONAL' && portfolioShops.length > 0
+          money.salesChartCard && active?.kind === 'PERSONAL' && portfolioShops.length > 0
             ? getPortfolioSeries(portfolioShops, shop, 'daily', currentYear, currentMonth).catch((err) => {
                 console.error('[portfolio-series] page', err)
                 return null
@@ -351,7 +350,8 @@ export default async function SellerDashboardPage() {
             canUseAppointments(shop) ? getTodayAppointmentCount(shop.id) : Promise.resolve(null),
             // ขั้นงานร้านบริการ — ตัวกั้นเดียวกับนัดวันนี้ (ร้านที่ใช้ระบบคิวงาน)
             canUseAppointments(shop) ? getServiceWorkStageCounts(shop.id) : Promise.resolve(null),
-            getBalance(shop.id),
+            // 00071: ผู้ไม่ใช่เจ้าของไม่ query ยอดกระเป๋า (ตัดที่ data ไม่ใช่ซ่อนใน JSX)
+            money.walletHero ? getBalance(shop.id) : Promise.resolve(null),
             // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
             // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
             // /notifications ยังเรียก service ตัวนี้เองแยกต่างหาก ข้อมูลจึงไม่หายไปจากระบบ
@@ -361,8 +361,11 @@ export default async function SellerDashboardPage() {
             prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
             // สินค้าขายดี (top 8) สำหรับ strip บน command center
             getBestSellerProducts(shop.id, 8),
-            // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
-            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted, shop.vertical),
+            // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน · เจ้าของเท่านั้น (F1) ⇒ รวมค่าใช้จ่าย/ต้นทุนเสมอ
+            // เท่ากับ expenseGranted เดิมของเจ้าของ (สูตรไม่เปลี่ยน — HR16)
+            money.salesChartCard
+              ? getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, true, shop.vertical)
+              : Promise.resolve(null),
             // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
             resolveShortcutState(
               session as unknown as { user: { id: string; activeShopId?: string | null } },
@@ -375,9 +378,9 @@ export default async function SellerDashboardPage() {
             // มีสองนิยามของคำว่า "เดือนนี้"
             getSalesChannelBreakdown(shop.id, rangePeriod),
             // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
-            getRecentActivity(shop.id, 6, { includeTopups: await shouldShowMoneyStatus(), vertical: shop.vertical }),
+            getRecentActivity(shop.id, 6, { includeTopups: money.topups && (await shouldShowMoneyStatus()), vertical: shop.vertical }),
             // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
-            shop.vertical === 'ONLINE_SALES'
+            money.provinceMap && shop.vertical === 'ONLINE_SALES'
               ? getProvinceSales(shop.id, rangePeriod)
               : Promise.resolve(null),
           ])
@@ -401,6 +404,7 @@ export default async function SellerDashboardPage() {
         else console.error('[dashboard] getServiceWorkStageCounts failed', serviceWorkRes.reason)
 
         // v8: walletBalance — fallback 0 ถ้าล้ม
+        // null = ไม่ได้ query (ไม่ใช่เจ้าของ) → คงเป็น null · fulfilled ที่เป็นตัวเลข = เจ้าของ
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
         else console.error('[dashboard] getBalance failed', balanceRes.reason)
 
@@ -490,9 +494,10 @@ export default async function SellerDashboardPage() {
         // (SSOT: lib/order-revenue.ts — ต้องตรงกับ P&L และกราฟยอดขาย ห้ามเขียนเกณฑ์ซ้ำที่นี่)
         // หาร 1000 เพราะ StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็นหน่วยพัน
         // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
-        const completedRevenueBaht = liveOrders
-          .filter((o) => countsAsRevenue(o))
-          .reduce((sum, o) => sum + netAmount(o), 0)
+        // 00071: ผู้ไม่ใช่เจ้าของไม่คำนวณยอดรวมเลย (ตัดที่ data) — ราคา/ยอดรายใบใน recentOrders คงไว้
+        const completedRevenueBaht = money.revenueStat
+          ? liveOrders.filter((o) => countsAsRevenue(o)).reduce((sum, o) => sum + netAmount(o), 0)
+          : 0
         revenueK = completedRevenueBaht / 1000
 
         // ─── stat card เดสก์ท็อปตาม filter วันนี้/เดือนนี้ ────────────────────
@@ -500,10 +505,11 @@ export default async function SellerDashboardPage() {
         // กับเลขกลางโดนัทในหน้าเดียวกันไม่เท่ากันทั้งที่ป้ายบอกช่วงเดียวกัน)
         const inRange = (o: { createdAt: Date }) => o.createdAt >= rangeGte && o.createdAt < rangeLt
         rangeOrderCount = liveOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
-        rangeRevenueK =
-          liveOrders
-            .filter((o) => inRange(o) && countsAsRevenue(o))
-            .reduce((sum, o) => sum + netAmount(o), 0) / 1000
+        rangeRevenueK = money.revenueStat
+          ? liveOrders
+              .filter((o) => inRange(o) && countsAsRevenue(o))
+              .reduce((sum, o) => sum + netAmount(o), 0) / 1000
+          : 0
 
         // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้
         // totalAmount เป็น Prisma Decimal → ต้อง Number() ก่อนส่งผ่าน RSC boundary
@@ -531,7 +537,8 @@ export default async function SellerDashboardPage() {
         // ร้านที่ไม่ใช่บริการ: ของเดิมทุกตัวอักษร — บวก totalAmount ทุกใบ · ตัดเดือนด้วย getMonth()
         // (ป้าย "ต.ค. 2569" ผ่านตัวกลาง THAI_MONTHS_ABBR/toBuddhistYear — ผลลัพธ์เท่ากับตารางเดิมทุกตัวอักษร)
         const monthMap = new Map<string, { revenue: number; orderCount: number; label: string }>()
-        for (const o of liveOrders) {
+        // 00071: กราฟรายเดือน/สรุป = ยอดขายรวม ⇒ เจ้าของเท่านั้น (ว่าง = ไม่มีอะไรให้ render)
+        for (const o of money.salesReport ? liveOrders : []) {
           if (newRules && o.status === 'CANCELLED') continue
           const d = o.createdAt
           const key = newRules
@@ -553,11 +560,13 @@ export default async function SellerDashboardPage() {
           .map(([, v]) => ({ label: v.label, revenue: v.revenue, orderCount: v.orderCount }))
 
         // summary — totalRevenue = countsAsRevenue ชุดเดียวกับแท่งรายเดือน · totalOrders = ไม่นับร่าง (รวมยกเลิก ตามความหมายเดิม "ตลอดชีพ")
-        salesSummary = {
-          totalRevenue: completedRevenueBaht,
-          totalOrders: orderCount,
-          // growth คำนวณไม่ได้เมื่อมีเพียง 1 เดือนหรือไม่มีข้อมูล — ซ่อน column (null)
-          growth: null,
+        if (money.salesReport) {
+          salesSummary = {
+            totalRevenue: completedRevenueBaht,
+            totalOrders: orderCount,
+            // growth คำนวณไม่ได้เมื่อมีเพียง 1 เดือนหรือไม่มีข้อมูล — ซ่อน column (null)
+            growth: null,
+          }
         }
       }
 
@@ -582,16 +591,41 @@ export default async function SellerDashboardPage() {
   // เพราะยังไม่มี prev period data — ไม่โชว์ "0%" หลอกตา
   // ออเดอร์/รายได้ ตาม filter วันนี้/เดือนนี้ (มี periodLabel กำกับ) — Trust Score ไม่ผูกช่วงเวลา
   // จึงไม่มีป้าย: การมี/ไม่มีป้ายคือตัวบอกว่าใบไหนตาม filter
+  const money = dashboardMoney(moneyLvl)
+  const canSeeRevenue = money.revenueStat
   const statData: StatType[] = [
     { // ร้านบริการเห็นคำของตัวเอง (ORDER_VOCAB.noun ผ่าน t.vocab) · ร้านอื่นคงคำเดิม "ออเดอร์"
       title: shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
-    { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' },
+    ...(canSeeRevenue
+      ? [{ title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' } satisfies StatType]
+      : []),
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
 
   // pendingOrderCount: single source จาก orderStatusCounts.PENDING (UX Q2 resolved)
   // ไม่ derive แยกจาก JS filter อีกต่อไป
   const pendingOrderCount = orderStatusCounts.PENDING
+
+  // ชุด props เดียวใช้ทั้งสองผัง (เจ้าของ/ไม่ใช่เจ้าของ) — ห้าม render RecentActivityFeed สองที่
+  const recentOrderEl = (
+    <RecentOrder
+      orders={recentOrders}
+      orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
+      serviceWords={shopVertical === 'SERVICE_QUEUE'
+        ? { buyerNoun: orderVocab.buyerNoun, shippedStatusLabel: orderVocab.shippedStatusLabel, itemSingular: resolveProductVocab(shopVertical).itemSingular }
+        : undefined}
+    />
+  )
+  const activityEl = <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />
+  const achievementEl = (
+    <AchievementLevel
+      score={score}
+      level={level}
+      levelColor={levelColor}
+      earnedBadges={earnedBadges}
+      topInProgress={topInProgress}
+    />
+  )
 
   return (
     <>
@@ -603,7 +637,7 @@ export default async function SellerDashboardPage() {
           promoBanner = PROMO_BANNER constant (null = ซ่อน section ตาม Q3) */}
       <div className="lg:hidden">
         <CommandCenter
-          data={{
+          data={redactCommandCenterData({
             pendingOrderCount,
             orderStatusCounts,
             shippingStageCounts,
@@ -617,7 +651,7 @@ export default async function SellerDashboardPage() {
             orderNounTitle: byVertical(t.vocab.orderNounTitle, shopVertical),
             shopVertical,
             promoBanner: PROMO_BANNER,
-            // v8: header card + wallet (S-6/S-8)
+            // v8: header card + wallet (S-6/S-8) · ผู้ไม่ใช่เจ้าของ: redact ตัดคีย์ walletBalance ทิ้ง (CompactHero ซ่อนแถวกระเป๋า)
             walletBalance,
             shopName,
             avatarUrl,
@@ -644,7 +678,7 @@ export default async function SellerDashboardPage() {
             packageCanManage,
             // เมนูลัดที่ผู้ใช้คนนี้เลือกไว้ (feature 00027)
             shortcutTiles,
-          }}
+          }, moneyLvl)}
         />
       </div>
 
@@ -682,9 +716,16 @@ export default async function SellerDashboardPage() {
           <div className="xl:col-span-5">
             <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
               <UserCard shopName={shopName} trustScore={score} />
-              {statData.map((stat, idx) => (
-                <StatisticCard stat={stat} key={idx} />
-              ))}
+              {/* ไม่มีการ์ดรายได้ ⇒ จำนวนการ์ด (UserCard + statData) เป็นคี่ ⇒ ใบสุดท้ายกินสองคอล กันช่องว่างครึ่งแถว */}
+              {statData.map((stat, idx) =>
+                (1 + statData.length) % 2 === 1 && idx === statData.length - 1 ? (
+                  <div key={idx} className="md:col-span-2">
+                    <StatisticCard stat={stat} />
+                  </div>
+                ) : (
+                  <StatisticCard stat={stat} key={idx} />
+                ),
+              )}
             </div>
           </div>
           <div className="xl:col-span-7">
@@ -709,52 +750,50 @@ export default async function SellerDashboardPage() {
           />
         </div>
 
-        {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
-        <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
-          <SalesReport series={salesSeries} summary={salesSummary} vertical={shopVertical}
-          />
-          <TopSellingProducts products={bestSellers} vertical={shopVertical} />
-        </div>
+        {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน)
+            00071: ยอดขายรวม = เจ้าของเท่านั้น (ผู้ไม่ใช่เจ้าของไม่ถูก query ตั้งแต่ต้น ไม่ใช่แค่ซ่อน) */}
+        {canSeeRevenue && (
+          <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
+            <SalesReport series={salesSeries} summary={salesSummary} vertical={shopVertical} />
+            <TopSellingProducts products={bestSellers} vertical={shopVertical} />
+          </div>
+        )}
 
-        {/* แถว 4: ออเดอร์ล่าสุด (5) | กิจกรรมล่าสุด (7)
-            RecentActivityFeed เขียนเสร็จมาตั้งแต่รอบ command center v7 แต่ไม่มีไฟล์ไหน import
-            หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
-        <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
-          <div className="xl:col-span-5">
-            <RecentOrder
-              orders={recentOrders}
-              orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
-              serviceWords={shopVertical === 'SERVICE_QUEUE'
-                ? { buyerNoun: orderVocab.buyerNoun, shippedStatusLabel: orderVocab.shippedStatusLabel, itemSingular: resolveProductVocab(shopVertical).itemSingular }
-                : undefined}
-            />
-          </div>
-          <div className="xl:col-span-7">
-            <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />
-          </div>
-        </div>
-
-        {/* แถว 5: ระดับความสำเร็จ (5) | ยอดขายตามจังหวัด (7)
-            จับคู่กันเพราะทั้งสองใบสูงพอ ๆ กัน (~400px) — ไม่มีใครถูก h-full ลากให้บวม
-            แผนที่แสดงเฉพาะร้านขายออนไลน์ (undefined = ไม่ render) ร้านคิวงาน/บ้านพักไม่มีพัสดุ
-            ส่งไปต่างจังหวัด การ์ดนี้จึงไม่มีความหมายกับเขา — กรณีนั้น AchievementLevel ยึด 5 คอล
-            ตามเดิม ไม่ถูกยืดเพราะไม่มีเพื่อนในแถว */}
-        <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mt-base">
-          <div className="xl:col-span-5">
-            <AchievementLevel
-              score={score}
-              level={level}
-              levelColor={levelColor}
-              earnedBadges={earnedBadges}
-              topInProgress={topInProgress}
-            />
-          </div>
-          {provinceSales && (
-            <div className="xl:col-span-7">
-              <ProvinceSalesMap {...provinceSales} rangeLabel={rangeLabel} />
+        {canSeeRevenue ? (
+          <>
+            {/* แถว 4: ออเดอร์ล่าสุด (5) | กิจกรรมล่าสุด (7)
+                RecentActivityFeed เขียนเสร็จมาตั้งแต่รอบ command center v7 แต่ไม่มีไฟล์ไหน import
+                หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
+            <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
+              <div className="xl:col-span-5">{recentOrderEl}</div>
+              <div className="xl:col-span-7">{activityEl}</div>
             </div>
-          )}
-        </div>
+
+            {/* แถว 5: ระดับความสำเร็จ (5) | ยอดขายตามจังหวัด (7)
+                จับคู่กันเพราะทั้งสองใบสูงพอ ๆ กัน (~400px) — ไม่มีใครถูก h-full ลากให้บวม
+                แผนที่แสดงเฉพาะร้านขายออนไลน์ (undefined = ไม่ render) ร้านคิวงาน/บ้านพักไม่มีพัสดุ
+                ส่งไปต่างจังหวัด การ์ดนี้จึงไม่มีความหมายกับเขา — กรณีนั้น AchievementLevel ยึด 5 คอล
+                ตามเดิม ไม่ถูกยืดเพราะไม่มีเพื่อนในแถว */}
+            <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mt-base">
+              <div className="xl:col-span-5">{achievementEl}</div>
+              {provinceSales && (
+                <div className="xl:col-span-7">
+                  <ProvinceSalesMap {...provinceSales} rangeLabel={rangeLabel} />
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          /* 00071 ผู้ไม่ใช่เจ้าของ: ไม่มีแถวกราฟ/แผนที่ ⇒ ออเดอร์ล่าสุดเต็มกว้าง แล้วระดับความสำเร็จ (5) | กิจกรรม (7)
+             — ไม่ปล่อยช่องว่างที่ SalesReport/ProvinceSalesMap เคยอยู่ (spec B1 §3) */
+          <>
+            <div className="mb-base">{recentOrderEl}</div>
+            <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
+              <div className="xl:col-span-5">{achievementEl}</div>
+              <div className="xl:col-span-7">{activityEl}</div>
+            </div>
+          </>
+        )}
           </DashboardRangeFade>
         </DashboardRangeProvider>
       </div>

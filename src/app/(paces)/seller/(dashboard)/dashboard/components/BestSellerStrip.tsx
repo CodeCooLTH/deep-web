@@ -37,7 +37,7 @@ interface Product {
   price: number
   image: string | null
   /** จำนวนสั่งซื้อรวม (sum qty; PENDING+SHIPPED+CONFIRMED — ไม่รวม CANCELLED) — โชว์ "สั่งซื้อแล้ว X ชิ้น" */
-  soldCount: number
+  soldCount?: number
 }
 
 interface Props {
@@ -93,7 +93,7 @@ export default function BestSellerStrip({ products, vertical }: Props) {
               key={p.id}
               type="button"
               onClick={() => router.push(`/orders/new?product=${p.id}`)}
-              aria-label={`${p.name} ${formatThb(p.price)} ${vocab.soldLine(String(p.soldCount))} — เพิ่มลง${orderNoun}ใหม่`}
+              aria-label={`${p.name} ${formatThb(p.price)}${p.soldCount != null ? ` ${vocab.soldLine(String(p.soldCount))}` : ''} — เพิ่มลง${orderNoun}ใหม่`}
               className={`${single ? 'flex w-full items-center gap-3 p-2.5' : 'w-28 shrink-0 snap-start overflow-hidden'} rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
             >
               {/* ProductThumb: สัดส่วนคุมที่กรอบ ไม่ใช่ที่ <img> (img เป็น replaced element มี intrinsic
@@ -115,10 +115,13 @@ export default function BestSellerStrip({ products, vertical }: Props) {
                 <p className={`line-clamp-2 font-medium text-dark ${single ? 'text-sm' : 'min-h-8 text-xs'}`}>{p.name}</p>
                 <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
                 {/* จำนวนสั่งซื้อ (ไม่รวมออเดอร์ที่ยกเลิก) — ลำดับซ้าย→ขวา = ขายดีสุดก่อน */}
-                <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">
-                  <Icon icon={vocab.soldIcon} className="size-3 shrink-0" />
-                  {vocab.soldLine(p.soldCount.toLocaleString('th-TH'))}
-                </p>
+                {/* 00071: ไม่มีคีย์ soldCount (ผู้ไม่ใช่เจ้าของ) = ไม่ render แถว ห้ามโชว์ "0 ชิ้น" */}
+                {p.soldCount != null && (
+                  <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">
+                    <Icon icon={vocab.soldIcon} className="size-3 shrink-0" />
+                    {vocab.soldLine(p.soldCount.toLocaleString('th-TH'))}
+                  </p>
+                )}
               </div>
             </button>
           ))}

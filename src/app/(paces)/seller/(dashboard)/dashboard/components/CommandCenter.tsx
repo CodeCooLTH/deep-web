@@ -40,7 +40,7 @@ export default function CommandCenter({ data }: Props) {
         shopName={data.shopName ?? ''}
         avatarUrl={data.avatarUrl ?? null}
         trustScore={data.trustScore ?? 0}
-        walletBalance={data.walletBalance ?? 0}
+        walletBalance={data.walletBalance ?? null}
         shopSlug={data.shopSlug ?? null}
         orderCount={data.orderCount ?? 0}
         orderNoun={data.orderNoun}

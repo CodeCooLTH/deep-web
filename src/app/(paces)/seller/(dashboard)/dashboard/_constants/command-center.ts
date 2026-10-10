@@ -78,7 +78,8 @@ export type CommandCenterData = {
    *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */
   promoBanner: PromoBanner | null
   // v8: ข้อมูลเพิ่มสำหรับ header + wallet
-  walletBalance?: number
+  // 00071: ไม่มีคีย์/null = ผู้ไม่ใช่เจ้าของ (ไม่ query ยอด) → hero ซ่อนแถวกระเป๋า · ห้ามแปลงเป็น 0
+  walletBalance?: number | null
   shopName?: string
   tierName?: string
   trustScore?: number
@@ -93,7 +94,7 @@ export type CommandCenterData = {
   // optional กัน tsc break ถ้า caller ยังไม่ wire (fallback undefined = ไม่แสดง badge)
   liveAuctionCount?: number
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=
-  bestSellers?: { id: string; name: string; price: number; image: string | null; soldCount: number }[]
+  bestSellers?: { id: string; name: string; price: number; image: string | null; soldCount?: number }[]
   // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
   // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
   salesSeries?: SalesSeries | null

@@ -43,7 +43,8 @@ export interface CompactHeroProps {
   shopName: string
   avatarUrl: string | null
   trustScore: number    // 0–100 → ring fill % + chip
-  walletBalance: number
+  /** null = ผู้ไม่ใช่เจ้าของ (ไม่มียอดให้แสดง) → ซ่อนแถวกระเป๋าทั้งชุด · ห้ามใส่ 0 แทน */
+  walletBalance: number | null
   shopSlug: string | null
   orderCount: number
   /**
@@ -91,6 +92,9 @@ export default async function CompactHero({
   /* 🛑 Android (user สั่ง 2026-10-06): ไม่แสดงสถานะเงิน — ชิปแพ็กเกจ ("ต่ออายุไม่สำเร็จ"/ชื่อแพ็กเกจ)
      และยอดเครดิต · ถามเองที่นี่ ไม่รับเป็น prop (บทเรียน LockedStateBanner 2026-10-05) */
   const showMoneyStatus = await shouldShowMoneyStatus()
+  // 00071: แถวกระเป๋า (ยอด + ปุ่มเติมเงิน + เส้นแบ่ง) ต้องมียอดจริงเท่านั้น — null = ผู้ไม่ใช่เจ้าของ ไม่ใช่ "0 บาท"
+  const walletText = showMoneyStatus && walletBalance != null ? walletBalance.toLocaleString('th-TH') : null
+  const showWallet = walletText != null
   // คำนามผันตามประเภทร้าน — ผู้เรียกส่งคำที่แปลแล้วมา; ไม่ส่ง = ถอยไปคำของร้านขายออนไลน์
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
@@ -331,15 +335,16 @@ export default async function CompactHero({
         </div>
 
         {/* Row 2: wallet balance + ปุ่มเติมเงิน + divider + ShopLinkButtons */}
+        {(showWallet || shopSlug) && (
         <div className="flex items-center gap-2.5 mt-3">
-          {showMoneyStatus ? (
+          {showWallet ? (
             <>
               {/* Wallet icon */}
               <Icon icon="solar:wallet-bold-duotone" className="text-lg text-white/95 flex-shrink-0" />
 
               {/* Wallet balance */}
               <span className="flex-1 text-sm font-bold text-white tabular-nums">
-                ฿{walletBalance.toLocaleString('th-TH')}
+                ฿{walletText}
               </span>
             </>
           ) : (
@@ -354,7 +359,7 @@ export default async function CompactHero({
            * 🛑 ไม่ render เลยในแอป iOS — ห้ามแทนด้วยปุ่ม disabled หรือข้อความบอกให้ไปเติมที่เว็บ
            * Apple ถือว่าการชี้ทางไปจ่ายเงินข้างนอกผิดข้อเดียวกับการมีช่องทางจ่ายในแอป
            */}
-          {!hidePayments && (
+          {showWallet && !hidePayments && (
             <Link
               href="/wallet"
               className="btn btn-sm bg-white text-primary rounded-full font-bold text-xs flex-shrink-0 inline-flex items-center gap-1"
@@ -364,20 +369,23 @@ export default async function CompactHero({
             </Link>
           )}
 
-          {/* divider บาง */}
-          <div
-            className="flex-shrink-0"
-            /*
-             * HR7 arbitrary: divider เส้นบาง rgba สีขาว
-             * Paces ไม่มี hero-divider token; ใช้ inline style เพื่อ opacity ตาม mockup
-             */
-            style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.28)' }}
-            aria-hidden="true"
-          />
+          {/* divider บาง — คั่นระหว่างกระเป๋ากับลิงก์ร้าน จึงมีเฉพาะเมื่อมีแถวกระเป๋า */}
+          {showWallet && (
+            <div
+              className="flex-shrink-0"
+              /*
+               * HR7 arbitrary: divider เส้นบาง rgba สีขาว
+               * Paces ไม่มี hero-divider token; ใช้ inline style เพื่อ opacity ตาม mockup
+               */
+              style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.28)' }}
+              aria-hidden="true"
+            />
+          )}
 
           {/* Copy + Share ปุ่ม (client component) */}
           <ShopLinkButtons shopSlug={shopSlug} />
         </div>
+        )}
 
         {/* Row 3 (แถบแพ็กเกจเต็มความกว้าง + เส้นคั่น) ถูกตัดออกทั้งหมด 2026-08-04 —
             ย้ายไปเป็นชิปท้ายบรรทัดสถิติใน Row 1b แล้ว (ดูคอมเมนต์ที่นั่น) hero เตี้ยลง ~69px */}

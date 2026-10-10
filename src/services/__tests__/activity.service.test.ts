@@ -229,6 +229,18 @@ describe('getRecentActivity', () => {
     expect(item!.label).toBe('เติมเงิน ฿200')
   })
 
+  it('includeTopups=false (ผู้ไม่ใช่เจ้าของ) → ไม่เรียก getTransactions และไม่มี TOPUP', async () => {
+    setupMocks({
+      transactions: [{
+        id: 'tx-3', type: 'TOPUP', amount: 500, balanceAfter: 500,
+        description: 'TopUp', refId: null, createdAt: dMinsAgo(30),
+      }],
+    })
+    const result = await getRecentActivity('shop-1', 10, { includeTopups: false })
+    expect(vi.mocked(getTransactions)).not.toHaveBeenCalled()
+    expect(result.some((i) => i.type === 'TOPUP')).toBe(false)
+  })
+
   it('transaction DEDUCT → ไม่ถูก include ใน activity', async () => {
     setupMocks({
       transactions: [{
