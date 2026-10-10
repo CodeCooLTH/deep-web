@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * MemberRoleControls — เลือกบทบาท (เจ้าของ ↔ ผู้ดูแล) + ปุ่มโอนเจ้าของหลัก ในแถวสมาชิก
+ * MemberRoleControls — เลือกประเภทสมาชิก (เจ้าของ ↔ พนักงาน) + ปุ่มโอนเจ้าของหลัก ในแถวสมาชิก
  * ส่วนขยาย 00012 (2026-10-05) — docs/20 - Features/00012 - Shop Staff Invite Links/EXTENSIONS-2026-10-05-member-roles.md
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (form-select)
@@ -20,9 +20,9 @@ import { memberErrorText } from './member-error-text'
 import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 type Role = 'OWNER' | 'ADMIN'
-const ROLE_LABEL: Record<Role, string> = { OWNER: 'เจ้าของ', ADMIN: 'ผู้ดูแล' }
+const ROLE_LABEL: Record<Role, string> = { OWNER: 'เจ้าของ', ADMIN: 'พนักงาน' }
 // error ที่แปลว่าจอที่เห็นอยู่ล้าสมัย — โหลดใหม่ให้เห็นสิทธิ์ปัจจุบัน
-const STALE = new Set(['NOT_OWNER', 'NOT_PRIMARY_OWNER', 'PRIMARY_OWNER_LOCKED'])
+const STALE = new Set(['NOT_OWNER', 'FORBIDDEN_ROLE', 'NOT_PRIMARY_OWNER', 'PRIMARY_OWNER_LOCKED'])
 
 interface Props {
   shopId: string
@@ -47,12 +47,12 @@ export default function MemberRoleControls({
   }
 
   const changeRole = async (next: Role) => {
-    // ลดตัวเองเป็นผู้ดูแล = หน้านี้กลายเป็น 404 ของตัวเอง และเปลี่ยนกลับเองไม่ได้ ⇒ ถามก่อน
+    // ลดตัวเองเป็นพนักงาน = หน้านี้กลายเป็น 404 ของตัวเอง และเปลี่ยนกลับเองไม่ได้ ⇒ ถามก่อน
     if (isSelf && next === 'ADMIN') {
       const ok = await pacesConfirm.danger(
-        'เปลี่ยนตัวเองเป็นผู้ดูแล?',
-        'คุณจะเข้าหน้านี้ไม่ได้อีก และเปลี่ยนกลับเองไม่ได้ ต้องให้เจ้าของคนอื่นเปลี่ยนให้',
-        { confirmButtonText: 'เปลี่ยนเป็นผู้ดูแล' },
+        'เปลี่ยนตัวเองเป็นพนักงาน?',
+        'คุณจะได้บทบาทผู้ดูแล เข้าหน้านี้และดูการเงินของร้านไม่ได้อีก และเปลี่ยนกลับเองไม่ได้ ต้องให้เจ้าของคนอื่นเปลี่ยนให้',
+        { confirmButtonText: 'เปลี่ยนเป็นพนักงาน' },
       )
       if (!ok) return
     }
@@ -61,7 +61,7 @@ export default function MemberRoleControls({
     if (!isSelf && next === 'OWNER') {
       const ok = await pacesConfirm.warning(
         `ตั้ง ${name} เป็นเจ้าของ?`,
-        `${name} จะเชิญ/ลบสมาชิก เปลี่ยนบทบาทคนอื่น และแก้บัญชีรับเงินของร้านได้เหมือนคุณ`,
+        `${name} จะเชิญ/ลบสมาชิก เปลี่ยนบทบาทคนอื่น แก้บัญชีรับเงิน และดูยอดขายกับกำไรของร้านได้เหมือนคุณ · บทบาทพนักงานเดิมของ ${name} จะถูกล้าง`,
         { confirmButtonText: 'ตั้งเป็นเจ้าของ' },
       )
       if (!ok) return
@@ -79,7 +79,11 @@ export default function MemberRoleControls({
         setValue(role)
         return fail(body.error ?? '')
       }
-      pacesToast.success(`เปลี่ยนบทบาทของ ${name} เป็น${ROLE_LABEL[next]}แล้ว`)
+      pacesToast.success(
+        next === 'OWNER'
+          ? `ตั้ง ${name} เป็นเจ้าของแล้ว`
+          : `เปลี่ยน ${name} เป็นพนักงานแล้ว ได้บทบาทผู้ดูแล ปรับได้ที่ปุ่ม “แก้ไขบทบาท”`,
+      )
       if (isSelf && next === 'ADMIN') router.push('/dashboard')
       else router.refresh()
     } catch {
@@ -96,7 +100,7 @@ export default function MemberRoleControls({
         className="form-select w-32"
         value={value}
         disabled={busy}
-        aria-label={`บทบาทของ ${name}`}
+        aria-label={`ประเภทสมาชิกของ ${name}`}
         onChange={(e) => changeRole(e.target.value as Role)}
       >
         <option value="OWNER">{ROLE_LABEL.OWNER}</option>

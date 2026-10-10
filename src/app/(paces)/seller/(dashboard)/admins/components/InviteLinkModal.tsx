@@ -32,15 +32,24 @@ import type { InviteExpiryKey } from '@/lib/invite-link'
 import CopyLinkButton from '../../orders/[token]/components/CopyLinkButton'
 import RowActionDeleteButton from '../../business/[shopId]/invites/components/RowActionDeleteButton'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import StaffRolePicker from '@/components/paces/StaffRolePicker'
+import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
+import { STAFF_ROLES } from '@/lib/shop-permissions'
+import { STAFF_ROLE_COPY, canSubmitRoles, rolesSummary, type StaffRole } from '@/lib/shop-role-picker'
+import { memberErrorText } from '../../business/[shopId]/invites/components/member-error-text'
 
 export interface InviteLinkRow {
   url: string
   slug: string
   expiresAt: string
+  /** บทบาทที่ลิงก์นี้ให้ (InviteLink.roles) */
+  roles: string[]
 }
 
 interface InviteLinkModalProps {
   links: InviteLinkRow[]
+  /** บังคับส่ง ไม่มีค่าตั้งต้น — ร้านเปิดบทบาทเปิดบิลได้ไหม (คำนวณฝั่ง server) */
+  billingAvailable: boolean
 }
 
 /**
@@ -56,19 +65,23 @@ const EXPIRY_CHOICES: { key: InviteExpiryKey; label: string; recommended?: boole
 ]
 
 // error code จาก POST /api/shops/current/invite-links (route.ts) → ข้อความไทย
+// รหัสที่ไม่อยู่ในตารางนี้ (NOT_OWNER, INVALID_ROLES, BILLING_NOT_AVAILABLE ฯลฯ) ใช้ memberErrorText กลาง
 const CREATE_ERROR_MESSAGE: Record<string, string> = {
-  NOT_OWNER: 'คุณไม่มีสิทธิ์สร้างลิงก์เชิญ',
   SHOP_LOCKED: 'ธุรกิจนี้ถูกล็อกอยู่ ไม่สามารถสร้างลิงก์เชิญได้',
   NO_ACTIVE_PACKAGE: 'ไม่มีแพ็กเกจที่ใช้งานอยู่',
   VALIDATION_ERROR: 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่',
 }
 
-export default function InviteLinkModal({ links }: InviteLinkModalProps) {
+export default function InviteLinkModal({ links, billingAvailable }: InviteLinkModalProps) {
   const router = useRouter()
+  const askToBuy = useCanAskToBuy()
   const [open, setOpen] = useState(false)
   // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
   useLockBodyScroll(open)
   const [expiryKey, setExpiryKey] = useState<InviteExpiryKey>('7d')
+  // ค่าตั้งต้น = ผู้ดูแล (เท่ากับพฤติกรรมเดิมก่อน P2) — เก็บค่าไว้หลังสร้างเพื่อสร้างลิงก์ชุดเดิมซ้ำได้
+  const [roles, setRoles] = useState<StaffRole[]>(['MANAGER'])
+  const canCreate = canSubmitRoles(roles, billingAvailable)
   const [creating, setCreating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -105,19 +118,20 @@ export default function InviteLinkModal({ links }: InviteLinkModalProps) {
       const res = await fetch('/api/shops/current/invite-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expiryKey }),
+        body: JSON.stringify({ expiryKey, roles }),
       })
       if (res.ok) {
-        pacesToast.success('สร้างลิงก์เชิญสำเร็จ')
+        pacesToast.success(`สร้างลิงก์เชิญแล้ว (${rolesSummary(roles)})`)
         // โมดัลเปิดค้างไว้ — router.refresh() ทำให้ RSC ส่ง links ชุดใหม่ลงมาทาง props
         // ผู้ใช้เห็นลิงก์ที่เพิ่งสร้างโผล่ในลิสต์ทันที ไม่ต้องปิดแล้วเปิดใหม่
         router.refresh()
         return
       }
       const data = await res.json().catch(() => ({}))
-      setErrorMsg(CREATE_ERROR_MESSAGE[data?.error as string] ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      const code = (data?.error as string) ?? ''
+      setErrorMsg(CREATE_ERROR_MESSAGE[code] ?? memberErrorText(code, '', 'เจ้าของหลัก', askToBuy, 'create'))
     } catch {
-      setErrorMsg('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setErrorMsg(memberErrorText('', '', 'เจ้าของหลัก', askToBuy, 'create'))
     } finally {
       setCreating(false)
     }
@@ -186,6 +200,15 @@ export default function InviteLinkModal({ links }: InviteLinkModalProps) {
                 )}
 
                 {/* ── สร้างลิงก์ใหม่ ─────────────────────────────────────── */}
+                <StaffRolePicker
+                  legend="บทบาทของคนที่เข้าผ่านลิงก์นี้"
+                  selected={roles}
+                  onChange={setRoles}
+                  billingAvailable={billingAvailable}
+                  action="create"
+                  disabled={creating}
+                />
+
                 <div>
                   <p className="form-label mb-2">อายุลิงก์</p>
                   {/* มือถือเรียงแนวตั้ง (แต่ละตัวเลือกกดง่ายเต็มความกว้าง) → sm ขึ้นไปเรียงแนวนอน 3 ช่อง */}
@@ -221,7 +244,7 @@ export default function InviteLinkModal({ links }: InviteLinkModalProps) {
                   <button
                     type="button"
                     onClick={handleCreate}
-                    disabled={creating}
+                    disabled={creating || !canCreate}
                     className="btn bg-primary text-white hover:bg-primary-hover mt-3 w-full py-3 font-semibold disabled:opacity-60"
                   >
                     {creating ? (
@@ -253,7 +276,7 @@ export default function InviteLinkModal({ links }: InviteLinkModalProps) {
                       <p className="text-default-500 font-semibold">
                         ยังไม่มีลิงก์เชิญที่ใช้งานอยู่
                         <br />
-                        เลือกอายุแล้วกดสร้างลิงก์ด้านบน
+                        เลือกบทบาทและอายุ แล้วกดสร้างลิงก์ด้านบน
                       </p>
                     </div>
                   ) : (
@@ -264,6 +287,14 @@ export default function InviteLinkModal({ links }: InviteLinkModalProps) {
                           className="flex flex-col gap-2 rounded-lg border border-default-300 border-dashed p-3 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div className="min-w-0 flex-1">
+                            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                              <span className="sr-only">บทบาทที่ลิงก์นี้ให้:</span>
+                              {STAFF_ROLES.filter((r) => link.roles.includes(r)).map((r) => (
+                                <span key={r} className="badge bg-default-100 text-default-700">
+                                  {STAFF_ROLE_COPY[r].label}
+                                </span>
+                              ))}
+                            </div>
                             <CopyLinkButton value={link.url} showPreview label="คัดลอก" />
                             <p className="text-default-500 text-2xs mt-1.5">
                               หมดอายุ {formatDate(link.expiresAt)} · ใช้ซ้ำได้จนหมดอายุ

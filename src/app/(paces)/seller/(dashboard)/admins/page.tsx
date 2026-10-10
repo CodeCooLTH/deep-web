@@ -28,6 +28,7 @@ import { buildInviteUrl } from '@/lib/invite-link'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
+import { canUseAppointments } from '@/lib/appointments'
 import CurrentMembersTable from '../business/[shopId]/invites/components/CurrentMembersTable'
 import InviteLinkModal from './components/InviteLinkModal'
 
@@ -43,6 +44,8 @@ export default async function AdminsPage() {
   if (!active || active.kind !== 'BUSINESS' || active.role !== 'OWNER') notFound()
 
   const shop = active.shop
+  // BILLING เลือกได้เฉพาะร้านบริการ — คำนวณฝั่ง server แล้วส่งลงไป (ไม่ให้ client เดาเอง)
+  const billingAvailable = canUseAppointments(shop)
 
   // owner's subscription tier — resolve โควตา maxAdminsPerBusiness (mirror invites/page.tsx)
   const sub = await prisma.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } })
@@ -65,6 +68,7 @@ export default async function AdminsPage() {
   const memberRows = members.map((m) => ({
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
+    roles: m.roles,
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     avatar: m.user.avatar,
     providers: [
@@ -80,19 +84,21 @@ export default async function AdminsPage() {
     url: buildInviteUrl(l.slug),
     slug: l.slug,
     expiresAt: l.expiresAt.toISOString(),
+    roles: l.roles,
   }))
 
   return (
     <>
       {/* ลิงก์เชิญย้ายจากการ์ดบนหน้า → โมดัลที่เรียกจากปุ่มระดับหน้า (feature 00012 ext)
           หน้าจึงเหลือเนื้อหาหลักอย่างเดียว = รายชื่อสมาชิก */}
-      <PageBreadcrumb title="พนักงาน" action={<InviteLinkModal links={linkRows} />} />
+      <PageBreadcrumb title="พนักงาน" action={<InviteLinkModal links={linkRows} billingAvailable={billingAvailable} />} />
 
       <div className="gap-5 grid grid-cols-1">
         <CurrentMembersTable
           members={memberRows}
           shopId={shop.id}
           canManage
+          billingAvailable={billingAvailable}
           title={`สมาชิกทั้งหมด (${members.length})`}
           headerRight={<span className="badge bg-default-100 text-default-600 text-2xs">{quotaLabel}</span>}
         />

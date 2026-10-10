@@ -1,18 +1,29 @@
+import { roleErrorText, type RoleAction } from '@/lib/shop-role-picker'
+
 /** ข้อความไทยของ error จากการจัดการสมาชิก (EXT 00012 2026-10-05) — copy จาก ux spec
  *  ทุกข้อบอกทางออก ไม่ชวนกดซ้ำสิ่งที่ไม่มีวันผ่าน
  *
  *  🛑 `askToBuy` บังคับ ไม่มีค่าตั้งต้น — 4 รหัสที่เกี่ยวกับแพ็กเกจเดิมบอกทุกเปลือกว่า "ให้ไปสมัคร /
  *  อัปเกรด / ต่ออายุแพ็กเกจ" ซึ่งบนแอป Android (ไม่มี Play Billing) = พาไปจ่ายนอก Play ผิดนโยบาย Google
  *  แม้ไม่มีลิงก์ (พบ 2026-10-05) ⇒ ไม่ชวนซื้อได้ ให้บอกทางออกที่ทำได้จริงแทน (ติดต่อเจ้าของ /
- *  เลือกคนอื่น / ลดผู้ดูแล) · ค่ามาจาก `canAskToBuy()` (`@/lib/purchase-prompt`) */
-export function memberErrorText(code: string, name: string, primaryOwnerName: string, askToBuy: boolean): string {
+ *  เลือกคนอื่น / ลดพนักงาน) · ค่ามาจาก `canAskToBuy()` (`@/lib/purchase-prompt`) */
+export function memberErrorText(
+  code: string,
+  name: string,
+  primaryOwnerName: string,
+  askToBuy: boolean,
+  action: RoleAction = 'save',
+): string {
+  const roleText = roleErrorText(code, action)
+  if (roleText) return roleText
   switch (code) {
+    case 'FORBIDDEN_ROLE':
     case 'NOT_OWNER':
       return 'การทำรายการนี้ต้องเป็นเจ้าของร้าน ถ้าบทบาทของคุณเพิ่งเปลี่ยน ให้โหลดหน้านี้ใหม่'
     case 'PRIMARY_OWNER_LOCKED':
       return `${name} เป็นเจ้าของหลัก เปลี่ยนบทบาทหรือลบไม่ได้ ถ้าอยากให้คนอื่นเป็นเจ้าของหลัก ให้เจ้าของหลักโอนความเป็นเจ้าของหลักก่อน`
     case 'CANNOT_REMOVE_SELF':
-      return 'ลบตัวเองออกจากร้านไม่ได้ ถ้าไม่ดูแลร้านนี้แล้ว ให้เจ้าของคนอื่นลบคุณออก หรือเปลี่ยนตัวเองเป็นผู้ดูแล'
+      return 'ลบตัวเองออกจากร้านไม่ได้ ถ้าไม่ดูแลร้านนี้แล้ว ให้เจ้าของคนอื่นลบคุณออก หรือเปลี่ยนตัวเองเป็นพนักงาน'
     case 'SHOP_LOCKED':
       return askToBuy
         ? 'ร้านนี้ถูกล็อกเพราะแพ็กเกจ จึงแก้ไขทีมไม่ได้ตอนนี้ ให้เจ้าของหลักต่ออายุหรืออัปเกรดแพ็กเกจก่อน แล้วลองใหม่'
@@ -27,8 +38,8 @@ export function memberErrorText(code: string, name: string, primaryOwnerName: st
         : `แพ็กเกจของ ${name} มีจำนวนร้านครบโควตาแล้ว จึงรับโอนร้านนี้ไม่ได้ — เลือกโอนให้สมาชิกคนอื่นแทน`
     case 'RECIPIENT_ADMIN_QUOTA':
       return askToBuy
-        ? `แพ็กเกจของ ${name} รองรับผู้ดูแลไม่พอสำหรับร้านนี้ ให้ ${name} อัปเกรดแพ็กเกจ หรือลดจำนวนผู้ดูแลของร้านนี้ก่อน แล้วลองโอนอีกครั้ง`
-        : `แพ็กเกจของ ${name} รองรับผู้ดูแลไม่พอสำหรับร้านนี้ — ลดจำนวนผู้ดูแลของร้านนี้ก่อน แล้วลองโอนอีกครั้ง`
+        ? `แพ็กเกจของ ${name} รองรับพนักงานไม่พอสำหรับร้านนี้ ให้ ${name} อัปเกรดแพ็กเกจ หรือลดจำนวนพนักงานของร้านนี้ก่อน แล้วลองโอนอีกครั้ง`
+        : `แพ็กเกจของ ${name} รองรับพนักงานไม่พอสำหรับร้านนี้ — ลดจำนวนพนักงานของร้านนี้ก่อน แล้วลองโอนอีกครั้ง`
     case 'NOT_PRIMARY_OWNER':
       return `เฉพาะเจ้าของหลักโอนความเป็นเจ้าของหลักได้ เจ้าของหลักของร้านนี้คือ ${primaryOwnerName}`
     case 'NOT_A_MEMBER':

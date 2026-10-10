@@ -164,7 +164,7 @@ describe('[blocker] ชวนซื้อได้เฉพาะเปลือ
     for (const code of ['SHOP_LOCKED', 'RECIPIENT_NO_PACKAGE', 'RECIPIENT_BUSINESS_QUOTA', 'RECIPIENT_ADMIN_QUOTA']) {
       const android = memberErrorText(code, 'บี', 'เอ', false)
       expect(android, code).not.toMatch(BUY_PROMPT)
-      expect(android, `${code} ต้องบอกทางออก`).toMatch(/ติดต่อ|เลือกโอนให้สมาชิกคนอื่น|ลดจำนวนผู้ดูแล/)
+      expect(android, `${code} ต้องบอกทางออก`).toMatch(/ติดต่อ|เลือกโอนให้สมาชิกคนอื่น|ลดจำนวนพนักงาน/)
       expect(memberErrorText(code, 'บี', 'เอ', true), code).toMatch(BUY_PROMPT)
     }
   })

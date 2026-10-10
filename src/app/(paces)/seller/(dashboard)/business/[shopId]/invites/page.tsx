@@ -1,5 +1,5 @@
 /**
- * /business/[shopId]/invites — จัดการคำเชิญผู้ดูแล + สมาชิกปัจจุบันของ Business shop (feat 00008 P3-5)
+ * /business/[shopId]/invites — จัดการคำเชิญพนักงาน + สมาชิกปัจจุบันของ Business shop (feat 00008 P3-5)
  *
  * Base (shell/card): theme/paces/Admin/TS/src/app/(admin)/pages/pricing/page.tsx card shell — chase ผ่าน
  *   src/app/(paces)/seller/(dashboard)/business/create/page.tsx (PageBreadcrumb + card grid pattern)
@@ -32,6 +32,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
 import { isLoginProvider } from '@/components/safepay/LoginProviderLogo'
 import CurrentMembersTable from './components/CurrentMembersTable'
+import { canUseAppointments } from '@/lib/appointments'
 import { listMutedUserIds } from '@/services/notification-pref.service'
 
 export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
@@ -59,7 +60,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
     select: {
-      id: true, shopName: true, userId: true, kind: true,
+      id: true, shopName: true, userId: true, kind: true, vertical: true,
       packageLockedAt: true, packageLockReason: true, deletedAt: true,
     },
   })
@@ -91,6 +92,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   const memberRows = members.map((m) => ({
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
+    roles: m.roles,
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     avatar: m.user.avatar,
     providers: [
@@ -125,7 +127,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
               <div>
                 <p className="text-default-600 text-sm mb-0">เชิญพนักงานเข้าร้านด้วย “ลิงก์เชิญ” ได้ที่เมนูพนักงาน</p>
                 <p className="text-default-700 text-sm mt-1 mb-0">
-                  ข้อมูลการเงินของร้าน (ยอดขาย กำไร ต้นทุน ค่าใช้จ่าย ยอดซื้อสะสมของลูกค้า และกระเป๋าเงินของร้าน) เห็นได้เฉพาะเจ้าของร้าน ผู้ดูแลจะไม่เห็นตัวเลขเหล่านี้
+                  ข้อมูลการเงินของร้าน (ยอดขาย กำไร ต้นทุน ค่าใช้จ่าย ยอดซื้อสะสมของลูกค้า และกระเป๋าเงินของร้าน) เห็นได้เฉพาะเจ้าของร้าน พนักงานทุกบทบาทจะไม่เห็นตัวเลขเหล่านี้
                 </p>
               </div>
               <Link href="/admins" className="btn btn-sm bg-primary text-white hover:bg-primary-hover">
@@ -134,7 +136,9 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
             </div>
           </div>
         )}
-        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')} />
+        <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')}
+          billingAvailable={canUseAppointments(shop)}
+        />
       </div>
     </>
   )
