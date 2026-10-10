@@ -53,7 +53,7 @@ type SessionUser = {
   avatar?: string | null
   hasBusinessMembership?: boolean
   activeShopId?: string | null
-  activeShopRole?: 'OWNER' | 'ADMIN'
+  activeShopRole?: 'OWNER' | 'ADMIN' | null
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
   activeShopName?: string | null
   activeShopLogo?: string | null
@@ -88,7 +88,9 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
   const activeRoleLabel = isBusiness
     ? user?.activeShopRole === 'ADMIN'
       ? t.accountSwitcher.roleAdmin
-      : t.accountSwitcher.roleOwner
+      : user?.activeShopRole === 'OWNER'
+        ? t.accountSwitcher.roleOwner
+        : null // role null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
     : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
@@ -238,7 +240,7 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
             <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
             <div className="min-w-0">
               <p className="text-body-color truncate text-sm font-semibold">{activeName}</p>
-              <p className="text-default-700 truncate text-xs">{activeRoleLabel}</p>
+              {activeRoleLabel && <p className="text-default-700 truncate text-xs">{activeRoleLabel}</p>}
             </div>
           </div>
 

@@ -48,7 +48,7 @@ type SessionUser = {
   username?: string
   avatar?: string | null
   activeShopId?: string | null
-  activeShopRole?: 'OWNER' | 'ADMIN'
+  activeShopRole?: 'OWNER' | 'ADMIN' | null
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
   activeShopName?: string | null
   activeShopLogo?: string | null
@@ -70,7 +70,9 @@ export default function AccountSwitcherSheet() {
   const activeRoleLabel = isBusiness
     ? user?.activeShopRole === 'ADMIN'
       ? t.accountSwitcher.roleAdmin
-      : t.accountSwitcher.roleOwner
+      : user?.activeShopRole === 'OWNER'
+        ? t.accountSwitcher.roleOwner
+        : null // role null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
     : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
@@ -170,7 +172,7 @@ export default function AccountSwitcherSheet() {
             <div className="flex w-full items-center gap-3 rounded-lg px-2 py-3">
               <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
               <span className="min-w-0 flex-1 truncate font-medium">{activeName}</span>
-              <span className="badge bg-default-100 text-default-500 shrink-0">{activeRoleLabel}</span>
+              {activeRoleLabel && <span className="badge bg-default-100 text-default-500 shrink-0">{activeRoleLabel}</span>}
               <Icon icon="circle-check" className="text-primary shrink-0" aria-hidden="true" />
             </div>
           )}

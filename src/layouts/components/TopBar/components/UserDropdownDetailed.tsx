@@ -67,7 +67,7 @@ const UserDropdown = () => {
         // feat 00008 — คำนวณแล้วใน lib/auth.ts session callback
         hasBusinessMembership?: boolean
         activeShopId?: string | null
-        activeShopRole?: 'OWNER' | 'ADMIN'
+        activeShopRole?: 'OWNER' | 'ADMIN' | null
         activeShopKind?: 'PERSONAL' | 'BUSINESS'
         activeShopName?: string | null
         activeShopLogo?: string | null
@@ -89,7 +89,9 @@ const UserDropdown = () => {
   const activeRoleLabel = isBusiness
     ? user?.activeShopRole === 'ADMIN'
       ? t.accountSwitcher.roleAdmin
-      : t.accountSwitcher.roleOwner
+      : user?.activeShopRole === 'OWNER'
+        ? t.accountSwitcher.roleOwner
+        : null // role null = อ่านสมาชิกไม่ได้ (S-17) ไม่แสดงป้าย
     : t.accountSwitcher.rolePersonal
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
@@ -150,7 +152,7 @@ const UserDropdown = () => {
         <div className="hidden lg:flex items-center gap-1.5">
           <span className="flex flex-col items-start">
             <h5 className="pro-username">{activeName}</h5>
-            <span className="text-xs/none mb-0.5">{activeRoleLabel}</span>
+            {activeRoleLabel && <span className="text-xs/none mb-0.5">{activeRoleLabel}</span>}
           </span>
           <Icon icon="chevron-down" className="align-middle" />
         </div>
@@ -161,7 +163,7 @@ const UserDropdown = () => {
           <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
           <div className="min-w-0">
             <p className="text-body-color truncate text-sm font-semibold">{activeName}</p>
-            <p className="text-default-400 truncate text-xs">{activeRoleLabel}</p>
+            {activeRoleLabel && <p className="text-default-400 truncate text-xs">{activeRoleLabel}</p>}
           </div>
         </div>
 
