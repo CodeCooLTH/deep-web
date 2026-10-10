@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { can, moneyLevel, rolesFromMembership, type Capability, type ShopRole } from './shop-permissions'
+import { can, moneyLevel, PRIMARY_OWNER_ONLY, rolesFromMembership, type Capability, type ShopRole } from './shop-permissions'
 
 // ตารางคาดหวังเขียนมือตรงจาก BRD 00071 §8.3 (คอลัมน์: OWNER MANAGER CHAT BILLING TECHNICIAN)
 // ห้าม derive จาก shop-permissions.ts — ไม่งั้นเทสกลายเป็นกระจกสะท้อนตัวเอง
@@ -18,7 +18,7 @@ const EXPECTED: Record<Capability, string> = {
   O7: 'YYYY-',
   D1: 'YYYY-',
   S1: 'YYY--',
-  S2: 'Y----',
+  S2: 'YY---',
   P1: 'YYYY-',
   P2: 'YY---',
   P3: 'Y----',
@@ -30,10 +30,16 @@ const EXPECTED: Record<Capability, string> = {
   F1: 'Y----',
   F2: 'Y----',
   F3: 'Y----',
+  F4: 'YY---',
   T1: 'YY---',
   T2: 'Y----',
   T3: 'Y----',
   T4: 'Y----',
+  X1: 'YY---',
+  X2: 'YYY--',
+  X3: 'YY---',
+  X4: 'YYY--',
+  X5: 'YY---',
 }
 
 describe('can() — ตารางสิทธิ์ครบทุกคู่ (บทบาท × capability)', () => {
@@ -44,8 +50,8 @@ describe('can() — ตารางสิทธิ์ครบทุกคู่
       })
     })
   }
-  it('ตารางคาดหวังครอบทุก capability (29 รหัส)', () => {
-    expect(Object.keys(EXPECTED)).toHaveLength(29)
+  it('ตารางคาดหวังครอบทุก capability (35 รหัส)', () => {
+    expect(Object.keys(EXPECTED)).toHaveLength(35)
   })
 })
 
@@ -109,5 +115,11 @@ describe('rolesFromMembership()', () => {
     for (const [cap, mask] of Object.entries(EXPECTED)) {
       expect(can(rolesFromMembership('ADMIN', ['MANAGER']), cap as Capability), cap).toBe(mask[1] === 'Y')
     }
+  })
+})
+
+describe('PRIMARY_OWNER_ONLY', () => {
+  it('มี T4 ตัวเดียว (BRD §8.3: เจ้าของหลักเท่านั้น)', () => {
+    expect([...PRIMARY_OWNER_ONLY]).toEqual(['T4'])
   })
 })

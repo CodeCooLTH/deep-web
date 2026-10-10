@@ -34,7 +34,7 @@ const TABLE = {
   O7: [O, M, C, B],
   D1: [O, M, C, B],
   S1: [O, M, C],
-  S2: [O],
+  S2: [O, M], // มติ C-2 (2026-10-10): คงสิทธิ์ผู้ดูแลที่เปิดไว้ 2026-07-29
   P1: [O, M, C, B], // BILLING: เฉพาะบริการ (D-6)
   P2: [O, M],
   P3: [O],
@@ -46,13 +46,23 @@ const TABLE = {
   F1: [O],
   F2: [O],
   F3: [O],
+  F4: [O, M], // มติ C-5: ใช้เครดิตกระเป๋าซื้อฟีเจอร์ร้าน — ไม่เห็นยอด
   T1: [O, M],
   T2: [O],
   T3: [O],
-  T4: [O],
+  T4: [O], // เจ้าของหลักเท่านั้น — ดู PRIMARY_OWNER_ONLY
+  // X1-X5: ฟีเจอร์ที่ตารางเดิมไม่มีแถว (มติ C-1) — ใส่ไว้กันผู้ดูแลเสียงานจาก BR-RP-11
+  X1: [O, M], // ประมูลผู้ขาย
+  X2: [O, M, C], // เครื่องมือแชทเสริม — อ่านตาม H1 เขียนตาม H2 (บทบาทชุดเดียวกัน)
+  X3: [O, M], // สร้างออเดอร์อัตโนมัติ (ตั้งค่า)
+  X4: [O, M, C], // ผลงานตัวเองในรายงานแอดมิน (SELF)
+  X5: [O, M], // โปรไฟล์ใบเสร็จของร้าน
 } as const satisfies Record<string, readonly ShopRole[]>
 
 export type Capability = keyof typeof TABLE
+
+/** capability ที่ต้องเป็นเจ้าของหลัก (`Shop.userId`) — เจ้าของร่วมไม่ผ่าน · ตัดสินที่ shop-capability.ts (ไฟล์นี้ไม่รู้จักแถวร้าน) */
+export const PRIMARY_OWNER_ONLY: ReadonlySet<Capability> = new Set<Capability>(['T4'])
 
 export const CAPABILITY_ROLES: Record<Capability, ReadonlySet<ShopRole>> = Object.fromEntries(
   Object.entries(TABLE).map(([k, v]) => [k, new Set<ShopRole>(v)]),

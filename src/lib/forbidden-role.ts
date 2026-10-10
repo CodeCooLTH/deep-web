@@ -4,5 +4,5 @@ import { NextResponse } from 'next/server'
 export const FORBIDDEN_ROLE_BODY = { error: 'FORBIDDEN_ROLE' } as const
 
 export function forbiddenRoleResponse() {
-  return NextResponse.json(FORBIDDEN_ROLE_BODY, { status: 403 })
+  return NextResponse.json(FORBIDDEN_ROLE_BODY, { status: 403, headers: { 'cache-control': 'private, no-store' } })
 }
