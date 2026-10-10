@@ -3410,6 +3410,34 @@ export async function resolveMetaCardImageUrl(fileId: string, opts: { shopId: st
   }
 }
 
+/**
+ * resolveMetaSendImageUrl — URL รูปที่ให้ Meta ดึงไปส่งใน Messenger/IG (bug 2026-10-10)
+ *
+ * ร้าน BT Premium ส่งรูปรถ 4 รูป รูปละ ~4MB → Meta ตอบ `(#-2) Timeout while uploading the message
+ * attachment` (สาเหตุอันดับ 1 ของ "ส่งไม่สำเร็จ" บน prod: 18 ครั้ง/14 วัน) และที่ส่งผ่านก็รอคิว ~40 วิ
+ * ⇒ รูปที่ใหญ่กว่า 1MB ย่อเป็น JPEG ≤1024px ก่อน (ตัวเดียวกับรูปตัวอย่างของ LINE) · cache ผ่าน sourceKey
+ * ย่อไม่ได้/พลาด = ถอยไปส่งต้นฉบับเหมือนเดิม (ไม่ทำให้รูปที่เคยส่งได้กลายเป็นส่งไม่ได้)
+ */
+export async function resolveMetaSendImageUrl(fileId: string, opts: { shopId: string }): Promise<string> {
+  const original = () => getFileUrl(fileId, { signed: true, expiresIn: 3600 })
+  try {
+    const meta = await getFileMeta(fileId)
+    if (!meta || meta.size <= LINE_PREVIEW_MAX_SIZE) return await original()
+    const sourceKey = `derived:metasend:${fileId}`
+    const cached = await findMediaAssetBySourceKey(opts.shopId, sourceKey).catch(() => null)
+    if (cached) return await getFileUrl(cached.fileId, { signed: true, expiresIn: 3600 })
+    const file = await getFile(fileId)
+    const jpeg = file ? await buildLinePreviewJpeg(file.buffer, LINE_PREVIEW_MAX_SIZE) : null
+    if (!jpeg) return await original()
+    const sendFileId = await writeDedupedFile(jpeg, 'image/jpeg', { shopId: opts.shopId, filenamePrefix: 'meta-send', sourceKey })
+    return await getFileUrl(sendFileId, { signed: true, expiresIn: 3600 })
+  } catch (err) {
+    // ไม่ log fileId (RC-8) — รูปของลูกค้าอาจมี PII
+    console.warn('[meta-send] ย่อรูปไม่สำเร็จ ส่งต้นฉบับ', { reason: err instanceof Error ? err.message : 'unknown' })
+    return await original()
+  }
+}
+
 export async function resolveLineFlexImageUrl(fileId: string, opts: { shopId: string }): Promise<string | null> {
   // feature 00051 (S-4, TFR-CMD-09): sourceKey-first เหมือน resolveMetaCardImageUrl ด้านบน แต่คน
   // ละ namespace (`derived:lineflex:`) เพราะ Flex ประกอบรูปคนละ crop/encode กับการ์ด Meta —
@@ -3994,7 +4022,11 @@ async function transmitMetaMessage(
       ).externalMessageId
     } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
-      const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+      // รูป >1MB ส่งฉบับย่อแทนต้นฉบับ — ดู resolveMetaSendImageUrl
+      const fileUrl =
+        attachment.kind === 'IMAGE'
+          ? await resolveMetaSendImageUrl(attachment.fileId, { shopId: conversation.shopId })
+          : await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
       mid = (
         await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
           { kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl },
