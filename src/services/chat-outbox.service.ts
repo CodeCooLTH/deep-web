@@ -35,6 +35,7 @@ import {
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { runAfterResponse } from '@/lib/run-after-response'
+import { chatCardPreview } from '@/lib/chat-vocab'
 import { pushChatSendFailed } from '@/services/seller-push.service'
 
 /** แถวที่คืนออกไปให้ผู้เรียก — `rawMessage` ถูก global omit ที่ `src/lib/prisma.ts` */
@@ -264,7 +265,7 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
       // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
       params.isAppointmentCard
       ? APPOINTMENT_CARD_PREVIEW
-      : '[คำสั่งซื้อ]'
+      : chatCardPreview('ORDER', conversation.shop?.vertical)
     : params.sticker
       ? '[สติกเกอร์]'
       : attachment

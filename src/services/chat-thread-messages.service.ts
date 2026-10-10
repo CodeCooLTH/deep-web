@@ -1,6 +1,7 @@
 import { isStickerRawMessage } from '@/lib/chat-sticker'
 import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { prisma } from '@/lib/prisma'
+import { chatCardPreview } from '@/lib/chat-vocab'
 import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import { getMessages } from '@/services/chat.service'
 import { getProductsByIds } from '@/services/product.service'
@@ -222,6 +223,15 @@ export async function getThreadMessagesPage(params: {
         imageUrl: string | null;
       }
     >();
+    // vertical ของร้านเจ้าของเธรด — ต้องใช้เฉพาะตอน quote เป็นการ์ดออเดอร์/สินค้าที่ไม่มี body เท่านั้น
+    // จึง query แบบ lazy ไม่ให้เธรดที่ไม่มี quote การ์ดจ่ายเพิ่ม
+    const needsVertical = repliedRows.some((r) => r.body == null && (r.type === "ORDER" || r.type === "PRODUCT"));
+    const shopVertical = needsVertical
+      ? ((await prisma.conversation.findUnique({
+          where: { id: conversationId },
+          select: { shop: { select: { vertical: true } } },
+        }))?.shop.vertical ?? null)
+      : null;
     for (const r of repliedRows) {
       // ข้อความสื่อ/การ์ด (body=null) → แสดง label แทนช่องว่างใน quote
       const label =
@@ -231,8 +241,8 @@ export async function getThreadMessagesPage(params: {
           VIDEO: "[วิดีโอ]",
           AUDIO: "[ข้อความเสียง]",
           FILE: "[ไฟล์แนบ]",
-          ORDER: "[คำสั่งซื้อ]",
-          PRODUCT: "[สินค้า]",
+          ORDER: chatCardPreview("ORDER", shopVertical),
+          PRODUCT: chatCardPreview("PRODUCT", shopVertical),
         }[r.type] ?? null);
       const entry = {
         id: r.id,

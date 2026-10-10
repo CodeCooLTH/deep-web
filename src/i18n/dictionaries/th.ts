@@ -130,11 +130,16 @@ export const th = {
     lineReports: 'รายงานเข้ากลุ่ม LINE',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     auctions: 'การประมูล',
-    products: 'สินค้า',
+    // ผันตาม vertical เหมือน orders — ค่าต้องตรง PRODUCT_VOCAB.productNoun (เทสใน seller-menu-product-label.test.ts)
+    products: {
+      ONLINE_SALES: 'สินค้า',
+      SERVICE_QUEUE: 'บริการและสินค้า',
+      LODGING: 'สินค้า',
+    },
     inventory: 'จัดการสต็อก',
     queues: 'ตารางงาน',
     rooms: 'ห้องพัก',
@@ -180,7 +185,7 @@ export const th = {
     /** ชื่อของ "หนึ่งใบ" — ORDER_VOCAB.noun */
     orderNoun: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     /**
@@ -189,7 +194,7 @@ export const th = {
      */
     orderNounTitle: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     /**
@@ -209,8 +214,20 @@ export const th = {
     /** ปุ่ม/ประโยคชวนสร้างใบใหม่ — ORDER_VOCAB.createLabel */
     createLabel: {
       ONLINE_SALES: 'สร้างคำสั่งซื้อ',
-      SERVICE_QUEUE: 'สร้างงาน',
+      SERVICE_QUEUE: 'สร้างงานบริการ',
       LODGING: 'สร้างบิลเข้าพัก',
+    },
+    /** ปุ่ม/pill เพิ่มของใหม่ใน /products — PRODUCT_VOCAB.createProductLabel */
+    createProductLabel: {
+      ONLINE_SALES: 'สร้างสินค้า',
+      SERVICE_QUEUE: 'เพิ่มบริการ',
+      LODGING: 'สร้างสินค้า',
+    },
+    /** ข้อ checklist ตั้งร้าน — PRODUCT_VOCAB.firstItemLabel */
+    firstItemLabel: {
+      ONLINE_SALES: 'สร้างสินค้าแรก',
+      SERVICE_QUEUE: 'เพิ่มบริการแรก',
+      LODGING: 'สร้างสินค้าแรก',
     },
     bestSellerTitle: {
       ONLINE_SALES: 'สินค้าขายดี',
@@ -229,7 +246,7 @@ export const th = {
     },
     bestSellerEmptyHint: {
       ONLINE_SALES: 'อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน',
-      SERVICE_QUEUE: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
+      SERVICE_QUEUE: 'อันดับจะขึ้นทันทีที่มีงานบริการเข้ามา ไม่ต้องรอยืนยัน',
       LODGING: 'อันดับจะขึ้นทันทีที่มีการเข้าพักเข้ามา ไม่ต้องรอยืนยัน',
     },
     /** หัวคอลัมน์ตาราง "ขายดี" — ชื่อสิ่งของ / จำนวน / ยอดเงินรวม */
@@ -390,7 +407,6 @@ export const th = {
     /** ร้าน SERVICE_QUEUE ใช้ตัวนี้แทน `navCreateCategory` — ร้านบริการไม่มี "หมวดหมู่สินค้า"
      *  แต่มี "ประเภทงาน" (`/settings/job-types`) ซึ่งเป็นของที่ต้องตั้งก่อนเปิดรับงาน */
     navCreateJobType: 'สร้างประเภทงาน',
-    navCreateProduct: 'สร้างสินค้า',
     /** {n} = จำนวน — ป้ายเสียงของช่องออเดอร์/แชทบน bottom nav */
     navPendingAria: '{n} รายการรอดำเนินการ',
     navUnreadAria: '{n} ข้อความยังไม่อ่าน',
@@ -403,7 +419,6 @@ export const th = {
     checklistCategories: 'หมวดหมู่',
     checklistAddress: 'ที่อยู่',
     checklistMapPin: 'ปักพิกัด',
-    checklistFirstProduct: 'สร้างสินค้าแรก',
   },
 
   /**
@@ -860,8 +875,17 @@ export const th = {
       tabCustomer: 'ข้อมูล',
       tabFiles: 'ไฟล์',
       tabFollowUp: 'ติดตาม',
-      statOrderCount: 'จำนวนออเดอร์',
-      statTotalSpent: 'รวมยอดซื้อ',
+      // ผันตาม vertical: ร้านบริการไม่มี "ออเดอร์/ยอดซื้อ" (SERVICE = ORDER_VOCAB.noun ต่อท้าย "จำนวน")
+      statOrderCount: {
+        ONLINE_SALES: 'จำนวนออเดอร์',
+        SERVICE_QUEUE: 'จำนวนงานบริการ',
+        LODGING: 'จำนวนออเดอร์',
+      },
+      statTotalSpent: {
+        ONLINE_SALES: 'รวมยอดซื้อ',
+        SERVICE_QUEUE: 'ยอดใช้บริการรวม',
+        LODGING: 'รวมยอดซื้อ',
+      },
       statCustomerSince: 'เป็นลูกค้ามา',
       linkStatusTitle: 'การเชื่อมกับลูกค้าในระบบ',
       /** คีย์ของตัวเอง ไม่ reuse `channels.connected` — คนละความหมาย (ผูกลูกค้า vs เชื่อมเพจ) */

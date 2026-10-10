@@ -492,6 +492,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
             summary={customerSummary}
             salesChannel={order.salesChannel ?? null}
             profileKey={customerProfileKey}
+            buyerNoun={vocab.buyerNoun}
             buyer={{
               buyerContact,
               buyerDisplayName: order.buyer?.displayName ?? null,

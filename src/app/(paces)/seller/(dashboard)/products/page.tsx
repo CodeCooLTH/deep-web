@@ -27,6 +27,7 @@ import ProductStats from './components/ProductStats'
 import type { ProductRow } from './components/data'
 import type { StatType } from './components/ProductStats'
 import { fileUrlOf } from '@/lib/file-url'
+import { resolveProductVocab } from '@/lib/seller-menu'
 
 export const metadata: Metadata = { title: 'สินค้า' }
 
@@ -59,6 +60,8 @@ export default async function ProductsPage() {
   }
 
   const shop = active.shop
+  // คำเรียก /products ผันตามประเภทกิจการ (ONLINE_SALES = "สินค้า" เหมือนเดิมทุกตัวอักษร)
+  const { productNoun, addProductLabel, itemSingular } = resolveProductVocab(shop.vertical)
 
   // --- Fetch products + orders + pin state แบบขนาน (Promise.allSettled — ล้มเหลวอันหนึ่งไม่กระทบอันอื่น) ---
   let products: any[] = []
@@ -124,7 +127,7 @@ export default async function ProductsPage() {
 
   const statData: StatType[] = [
     {
-      title: 'สินค้าทั้งหมด',
+      title: `${productNoun}ทั้งหมด`,
       value: productRows.length,
       change: 0,
       icon: 'package',
@@ -179,7 +182,7 @@ export default async function ProductsPage() {
     <>
       {/* breadcrumb + stat cards = desktop เท่านั้น; mobile = list สะอาดตาม mockup v10 (ไม่มี stat) */}
       <div className="hidden lg:block">
-        <PageBreadcrumb title="สินค้า" trail={[{ label: 'การขาย' }]} />
+        <PageBreadcrumb title={productNoun} trail={[{ label: 'การขาย' }]} />
 
         <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5">
           {statData.map((stat, idx) => (
@@ -188,7 +191,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} />
+      <ProductsListing products={productRows} pinSlots={pinState.pinSlots} pinnedCount={pinState.pinnedCount} productNoun={productNoun} addProductLabel={addProductLabel} itemSingular={itemSingular} />
     </>
   )
 }

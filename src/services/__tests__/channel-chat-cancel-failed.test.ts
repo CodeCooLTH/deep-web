@@ -32,7 +32,7 @@ describe('cancelFailedOutboundMessage', () => {
       deliveryStatus: 'FAILED',
       senderRole: 'SHOP',
     })
-    db.conversation.findUnique.mockResolvedValue({ id: 'conv1', shopId: 'shop1' })
+    db.conversation.findUnique.mockResolvedValue({ id: 'conv1', shopId: 'shop1', shop: { vertical: 'ONLINE_SALES' } })
     ;(canAccessShop as ReturnType<typeof vi.fn>).mockResolvedValue(true)
   })
 

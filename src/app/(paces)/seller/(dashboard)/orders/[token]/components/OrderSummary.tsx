@@ -23,7 +23,8 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
-import { getPaymentBadge } from '@/lib/order-display'
+import { getPaymentBadge, orderItemVocab } from '@/lib/order-display'
+import type { OrderVocab } from '@/lib/seller-menu'
 import { resolveOrderStatusBadge, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderStatusTone } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
@@ -94,6 +95,9 @@ export type OrderSummaryProps = {
   onAction: (key: string) => void
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
   orderNoun?: string
+  /** คำผันตามประเภทกิจการ — ร้านบริการเรียกรายการว่า "บริการ" หน่วย "ครั้ง" แถวยอดว่า "ยอดค่าบริการ" */
+  vocab: OrderVocab
+  vertical: string
 }
 
 export default function OrderSummary({
@@ -121,7 +125,10 @@ export default function OrderSummary({
   orderNoun = 'คำสั่งซื้อ',
   serviceBadge = null,
   serviceMoney = null,
+  vocab,
+  vertical,
 }: OrderSummaryProps) {
+  const itemVocab = orderItemVocab(vertical)
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
   const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage, carrierStatus)
@@ -135,6 +142,7 @@ export default function OrderSummary({
     vatAmount: toNum(vatAmount),
     vatPct: parseFloat((toNum(vatRate) * 100).toFixed(2)),
     total: toNum(totalAmount),
+    subtotalLabel: vocab.subtotalLabel,
   })
 
   return (
@@ -230,7 +238,7 @@ export default function OrderSummary({
         {/* ── มือถือ (<sm): รายการแบบ stacked — ธีมไม่มี ต้อง adapt เพราะร้านใช้มือถือเป็นหลัก ── */}
         <div className="sm:hidden">
           {items.length === 0 ? (
-            <p className="text-default-700 py-6 text-center">ยังไม่มีรายการสินค้า</p>
+            <p className="text-default-700 py-6 text-center">ยังไม่มีรายการ{itemVocab.itemColLabel}</p>
           ) : (
             <div className="divide-default-200 divide-y">
               {items.map((item) => (
@@ -282,8 +290,8 @@ export default function OrderSummary({
           <table className="table table-bordered">
             <thead className="thead-sm bg-light/25 text-2xs">
               <tr>
-                <th>ชื่อสินค้า</th>
-                <th>ราคา/ชิ้น</th>
+                <th>ชื่อ{itemVocab.itemColLabel}</th>
+                <th>ราคา/{itemVocab.unitLabel}</th>
                 <th>จำนวน</th>
                 <th className="text-end">รวม</th>
               </tr>
@@ -292,7 +300,7 @@ export default function OrderSummary({
               {items.length === 0 ? (
                 <tr>
                   <td className="text-default-700 py-6 text-center" colSpan={4}>
-                    ยังไม่มีรายการสินค้า
+                    ยังไม่มีรายการ{itemVocab.itemColLabel}
                   </td>
                 </tr>
               ) : (

@@ -31,9 +31,11 @@ type Props = {
   trustScore: number
   /** ป้ายของ /orders ตามประเภทกิจการ — ต้องตรงกับ sidebar และแถบล่าง (คำนวณที่ layout) */
   orderLabel: string
+  /** PRODUCT_VOCAB.productNoun — ชื่อหน้า /products ผันตามประเภทกิจการ */
+  productLabel: string
 }
 
-const SellerMobileHeader = ({ orderLabel }: Props) => {
+const SellerMobileHeader = ({ orderLabel, productLabel }: Props) => {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -52,7 +54,7 @@ const SellerMobileHeader = ({ orderLabel }: Props) => {
   }
 
   // ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
-  const pageTitle = getSellerPageTitle(pathname, orderLabel)
+  const pageTitle = getSellerPageTitle(pathname, orderLabel, productLabel)
 
   // แท็บหลักใน bottom nav (orders/products/shop) = top-level destination → ไม่มีปุ่ม back/noti
   // back ไม่มีความหมายบนหน้าหลัก (สลับแท็บผ่าน bottom nav); noti เข้าได้จาก bell หน้า dashboard

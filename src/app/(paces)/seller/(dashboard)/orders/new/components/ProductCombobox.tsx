@@ -30,9 +30,11 @@ interface Props {
   catalog: CatalogProduct[]
   onPick: (p: CatalogProduct) => void
   onCustom: (text: string) => void
+  /** คำเรียกของที่ขาย (สินค้า/บริการ) — ไม่ส่ง = "สินค้า" คำเดิม */
+  itemLabel?: string
 }
 
-export default function ProductCombobox({ value, catalog, onPick, onCustom }: Props) {
+export default function ProductCombobox({ value, catalog, onPick, onCustom, itemLabel = 'สินค้า' }: Props) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -115,12 +117,12 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
           type="text"
           autoComplete="off"
           role="combobox"
-          aria-label="ชื่อสินค้า"
+          aria-label={`ชื่อ${itemLabel}`}
           aria-expanded={open}
           aria-controls={listboxId}
           aria-autocomplete="list"
           aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-          placeholder="พิมพ์ชื่อสินค้า…"
+          placeholder={`พิมพ์ชื่อ${itemLabel}…`}
           className="form-input"
           value={q}
           onChange={(e) => {
@@ -147,7 +149,7 @@ export default function ProductCombobox({ value, catalog, onPick, onCustom }: Pr
           >
             {catalog.length === 0 && (
               <p className="px-4 py-4 text-center text-sm text-default-400">
-                ยังไม่มีสินค้าในร้าน — พิมพ์ชื่อเพื่อเพิ่มเป็นรายการเอง
+                ยังไม่มี{itemLabel}ในร้าน — พิมพ์ชื่อเพื่อเพิ่มเป็นรายการเอง
               </p>
             )}
             {catalog.length > 0 && filtered.length === 0 && typed && (

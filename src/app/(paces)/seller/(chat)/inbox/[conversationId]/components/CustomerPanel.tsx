@@ -63,6 +63,7 @@ import { ChannelBadge } from '../../components/ChannelBadge'
 // SSOT ของป้ายพฤติกรรมลูกค้า — ป้ายท้ายชื่อลูกค้าในตาราง /orders ใช้ตัวเดียวกัน (HR16)
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import { byVertical } from '@/i18n/vertical'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import FollowUpPanel from './FollowUpPanel'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
@@ -1040,9 +1041,9 @@ export function CustomerPanelBody({
               อธิบายอยู่แล้ว ตัวเลขมาจาก aggregate จริงทั้งหมด (ไม่ใช่ 20 แถวของ list) — show don't tell */}
           {data.customerStats && (
             <div>
-              <StatRow label={t.inbox.customerPanel.statOrderCount} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
+              <StatRow label={byVertical(t.inbox.customerPanel.statOrderCount, data.vertical)} value={data.customerStats.orderCount.toLocaleString('th-TH')} />
               <StatRow
-                label={t.inbox.customerPanel.statTotalSpent}
+                label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
                 value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
               />
               <StatRow

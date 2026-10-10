@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
-import { resolveOrderVocab } from '@/lib/seller-menu'
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
@@ -169,6 +169,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           tierName={tierName}
           trustScore={user.trustScore ?? 0}
           orderLabel={orderVocab.noun}
+          productLabel={resolveProductVocab(shop.vertical).productNoun}
         />
       }
       bottomNavSlot={
@@ -184,7 +185,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           shopKind={active.kind}
         />
       }
-      sidenavFooterSlot={<OnboardingGate />}
+      sidenavFooterSlot={<OnboardingGate vertical={shop.vertical} />}
       // การ์ดแพ็กเกจเป็นเรื่องของร้านแบบธุรกิจเท่านั้น — บัญชีส่วนตัวไม่มี Business Package
       // ให้พูดถึงจริง ๆ (schema ผูกกับ Business) การไม่แสดงจึงตรงความจริง ไม่ใช่การซ่อนของที่มีอยู่
       // (user เคาะ 2026-08-04). Sidenav/index.tsx เช็ค `headerSlot &&` อยู่แล้ว → ไม่มี div เปล่าค้าง

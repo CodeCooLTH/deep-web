@@ -16,7 +16,7 @@ import ChecklistSidebar from './ChecklistSidebar'
 
 const SHOWN_FLAG = 'onboarding_modal_shown_v1'
 
-export default function OnboardingGate({ facebookPrefill }: { facebookPrefill?: boolean }) {
+export default function OnboardingGate({ facebookPrefill, vertical }: { facebookPrefill?: boolean; vertical?: string }) {
   const [open, setOpen] = useState(false)
   const [initialStep, setInitialStep] = useState<ModalStep>('sales_channels')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -59,7 +59,7 @@ export default function OnboardingGate({ facebookPrefill }: { facebookPrefill?: 
   return (
     <>
       <ChecklistSidebar onOpenModal={openAt} refreshKey={refreshKey} />
-      <OnboardingModal open={open} initialStep={initialStep} facebookPrefill={facebookPrefill} onClose={close} />
+      <OnboardingModal vertical={vertical} open={open} initialStep={initialStep} facebookPrefill={facebookPrefill} onClose={close} />
     </>
   )
 }

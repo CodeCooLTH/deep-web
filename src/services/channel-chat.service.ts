@@ -51,6 +51,7 @@ import { getChannelLabel } from '@/lib/chat-channel'
 // SSOT ของ "ชื่อที่ Meta ส่งมาแทนการปฏิเสธ" — ห้ามเทียบสตริงเองที่นี่ (HR16)
 import { isMetaPlaceholderName } from '@/lib/meta-contact-name'
 import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
+import { chatCardPreview } from '@/lib/chat-vocab'
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 /**
@@ -2830,7 +2831,7 @@ export async function ingestMessageEdit(params: {
 // ══════════════════════════════════════════════════════════════════════════
 
 type ConversationWithChannelPayload = Prisma.ConversationGetPayload<{
-  include: { shopChannel: true; externalContact: true }
+  include: { shopChannel: true; externalContact: true; shop: { select: { vertical: true } } }
 }>
 
 /**
@@ -2968,7 +2969,8 @@ export async function resolveOutboundContext(
 ): Promise<OutboundConversation> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
-    include: { shopChannel: true, externalContact: true },
+    // shop.vertical: ให้ตัวยิงเลือกคำใน preview ('[คำสั่งซื้อ]' vs '[บริการ]') ตามประเภทกิจการ — แถวเดียวจาก PK
+    include: { shopChannel: true, externalContact: true, shop: { select: { vertical: true } } },
   })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
   if (!isOutboundConversation(conversation)) throw new Error('NOT_EXTERNAL_CHANNEL')
@@ -3517,7 +3519,7 @@ async function sendOutboundLineMessage(
   const preview = isOrder
     ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
       // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
-      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
+      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : chatCardPreview('ORDER', conversation.shop.vertical))
     : params.sticker
       ? '[สติกเกอร์]'
       : attachment
@@ -4152,7 +4154,7 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
   const preview = isOrder
     ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
       // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
-      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
+      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : chatCardPreview('ORDER', conversation.shop.vertical))
     : params.sticker
       ? '[สติกเกอร์]'
     : attachment
@@ -4275,13 +4277,9 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
  *  snapshot ใหม่หลังยกเลิกข้อความ) — ต้องให้ผลตรงกับที่เขียนตอน insert ไม่งั้นข้อความในกล่องขาเข้า
  *  จะไม่ตรงกับบับเบิลล่างสุดของเธรด. ชื่อไฟล์แนบไม่ได้ต่อท้ายเหมือนตอน insert เพราะ preview ใน
  *  list ต้องสั้น (user report 2026-07-25) และแถวเก่าก่อน 2026-08-02 ไม่มี attachmentName */
-const CANCEL_SNAPSHOT_PREVIEW: Record<string, string> = {
-  IMAGE: '[รูปภาพ]',
-  VIDEO: '[วิดีโอ]',
-  AUDIO: '[ข้อความเสียง]',
-  FILE: '[ไฟล์แนบ]',
-  ORDER: '[คำสั่งซื้อ]',
-  PRODUCT: '[สินค้า]',
+function cancelSnapshotPreview(type: string, vertical: string): string | undefined {
+  if (type === 'ORDER' || type === 'PRODUCT') return chatCardPreview(type, vertical)
+  return { IMAGE: '[รูปภาพ]', VIDEO: '[วิดีโอ]', AUDIO: '[ข้อความเสียง]', FILE: '[ไฟล์แนบ]' }[type]
 }
 
 /**
@@ -4311,7 +4309,7 @@ export async function cancelFailedOutboundMessage(params: {
   // เช็คก่อน authz ไม่ได้ — ต้องรู้ก่อนว่า user แตะเธรดนี้ได้ไหม ไม่งั้นสถานะของข้อความรั่วออกไป
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
-    select: { id: true, shopId: true },
+    select: { id: true, shopId: true, shop: { select: { vertical: true } } },
   })
   if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
   if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
@@ -4336,7 +4334,7 @@ export async function cancelFailedOutboundMessage(params: {
       data: newest
         ? {
             lastMessageAt: newest.createdAt,
-            lastMessagePreview: CANCEL_SNAPSHOT_PREVIEW[newest.type] ?? (newest.body ?? '').slice(0, 100),
+            lastMessagePreview: cancelSnapshotPreview(newest.type, conversation.shop.vertical) ?? (newest.body ?? '').slice(0, 100),
             lastSenderRole: newest.senderRole,
           }
         : // เธรดว่างเปล่า (ข้อความเดียวที่มีคือตัวที่เพิ่งยกเลิก) — ล้าง preview ไม่ใช่ปล่อยค้าง

@@ -6,6 +6,7 @@
  * การ์ดเขียนเอง สูตรคิดเงินจะเพี้ยนกันเองวันใดวันหนึ่งโดยไม่มีอะไรเตือน
  */
 
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { resolveBuyerCardNames } from '@/lib/buyer-name'
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
@@ -85,10 +86,12 @@ export function buildBreakdown(params: {
   vatAmount: number
   vatPct: number
   total: number
+  /** ป้ายแถวยอดรวมรายการ — ผู้เรียกส่ง `vocab.subtotalLabel` (ไม่ส่ง = คำเดิมของร้านขายของ) */
+  subtotalLabel?: string
 }): BreakdownRow[] {
-  const { subtotal, discount, vatAmount, vatPct, total } = params
+  const { subtotal, discount, vatAmount, vatPct, total, subtotalLabel = ORDER_VOCAB.ONLINE_SALES.subtotalLabel } = params
   return [
-    { key: 'subtotal', label: 'ยอดสินค้า', value: subtotal, show: true },
+    { key: 'subtotal', label: subtotalLabel, value: subtotal, show: true },
     { key: 'discount', label: 'ส่วนลด', value: discount, show: discount > 0, tone: 'danger' as const, prefix: '- ' },
     { key: 'vat', label: `VAT${vatPct > 0 ? ` ${vatPct}%` : ''}`, value: vatAmount, show: vatAmount > 0 },
     { key: 'total', label: 'ยอดรวมทั้งหมด', value: total, show: true, emphasis: true },

@@ -48,6 +48,11 @@ interface Props {
   orderNoun?: string
   /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
   productNoun?: string
+  /** คำเรียกของที่ขายในช่องค้นหาแถวสินค้า — ไม่ส่ง = "สินค้า" (ต่างจาก productNoun ที่ LODGING เป็น "ห้องพัก" อยู่แล้ว) */
+  itemLabel?: string
+  /** หัวพาเนล + ปุ่มเพิ่มเข้าพาเนล (`vocab.cartTitle` / `vocab.addToCartLabel`) — ไม่ส่ง = คำเดิม */
+  cartTitle?: string
+  addToCartLabel?: string
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>
@@ -86,6 +91,9 @@ interface Props {
 export default function CartPanel({
   orderNoun = 'คำสั่งซื้อ',
   productNoun = 'สินค้า',
+  itemLabel,
+  cartTitle = 'ตะกร้า',
+  addToCartLabel = 'เพิ่มลงตะกร้า',
   control,
   catalog,
   itemsCtl,
@@ -264,7 +272,7 @@ export default function CartPanel({
       {/* header */}
       <div className="card-header flex shrink-0 items-center gap-2">
         <Icon icon="shopping-cart" className="size-5 text-primary" />
-        <h4 className="card-title font-semibold text-dark">ตะกร้า</h4>
+        <h4 className="card-title font-semibold text-dark">{cartTitle}</h4>
         <span className="badge rounded-full bg-primary/15 text-primary">{count}</span>
         {itemsHasError && errorBadge}
       </div>
@@ -283,7 +291,7 @@ export default function CartPanel({
             <p className={`text-sm font-medium ${itemsHasError ? 'text-danger' : 'text-default-700'}`}>
               ยังไม่มีรายการ
             </p>
-            <p className="text-xs">เลือก{productNoun}จากรายการด้านซ้ายเพื่อเพิ่มลงตะกร้า</p>
+            <p className="text-xs">เลือก{productNoun}จากรายการด้านซ้ายเพื่อ{addToCartLabel}</p>
           </div>
         ) : (
           <div>
@@ -306,6 +314,7 @@ export default function CartPanel({
                 itemsCtl={itemsCtl}
                 errors={errors}
                 inventoryEnabled={inventoryEnabled}
+                itemLabel={itemLabel}
               />
             ))}
           </div>

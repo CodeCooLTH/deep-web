@@ -36,6 +36,7 @@ import SalesChannelPicker from './SalesChannelPicker'
 import CategoryMultiSelect from './CategoryMultiSelect'
 import ProductImageDropzone from './ProductImageDropzone'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 
 // ─── dynamic import สำหรับ MapPicker — ห้าม SSR (Leaflet ต้องการ window) ───────
 const MapPicker = dynamic(() => import('./MapPicker'), { ssr: false })
@@ -45,6 +46,8 @@ const MapPicker = dynamic(() => import('./MapPicker'), { ssr: false })
 export type ModalStep = 'sales_channels' | 'categories' | 'address' | 'first_product' | 'summary'
 
 export interface OnboardingModalProps {
+  /** `Shop.vertical` — ผันคำ "สินค้า/คำสั่งซื้อ" ตามประเภทกิจการ (ไม่ส่ง = ONLINE_SALES) */
+  vertical?: string
   open: boolean
   initialStep?: ModalStep
   facebookPrefill?: boolean
@@ -203,15 +206,17 @@ function reducer(state: ModalState, action: ModalAction): ModalState {
 function StepIndicator({
   currentIndex,
   completedSteps,
+  productNoun,
 }: {
   currentIndex: number
   completedSteps: Set<ModalStep>
+  productNoun: string
 }) {
   const STEP_LABELS: Record<ModalStep, string> = {
     sales_channels: 'ช่องทาง',
     categories: 'หมวดหมู่',
     address: 'ที่อยู่',
-    first_product: 'สินค้า',
+    first_product: productNoun,
     summary: 'สรุป',
   }
 
@@ -270,31 +275,37 @@ function StepIndicator({
 
 // ─── Step label mapping ───────────────────────────────────────────────────────
 
-const STEP_TITLES: Record<ModalStep, string> = {
+const buildStepTitles = (firstItemLabel: string): Record<ModalStep, string> => ({
   sales_channels: 'ช่องทางการขาย',
   categories: 'หมวดหมู่ร้านค้า',
   address: 'ที่อยู่ร้านและพิกัด',
-  first_product: 'สร้างสินค้าแรก',
+  first_product: firstItemLabel,
   summary: 'สรุปและ Achievement',
-}
+})
 
-const STEP_SUBTITLES: Record<ModalStep, string> = {
-  sales_channels: 'เลือกช่องทางที่ใช้ขายสินค้าจริงๆ ทั้งหมด เพื่อให้ลูกค้ารู้ว่าคุณขายผ่านไหนบ้าง',
+const buildStepSubtitles = (productNoun: string): Record<ModalStep, string> => ({
+  sales_channels: `เลือกช่องทางที่ใช้ขาย${productNoun}จริงๆ ทั้งหมด เพื่อให้ลูกค้ารู้ว่าคุณขายผ่านไหนบ้าง`,
   categories: 'เลือกหมวดหมู่ร้านได้สูงสุด 5 หมวด เพื่อช่วยให้ลูกค้าค้นหาร้านคุณได้ง่ายขึ้น',
   address: 'กรอกที่อยู่ร้านและ (ถ้าต้องการ) ปักหมุดตำแหน่งบนแผนที่',
-  first_product: 'เพิ่มสินค้าแรกพร้อมรูปภาพเพื่อให้ลูกค้าเห็นร้านคุณตั้งแต่วันแรก',
+  first_product: `เพิ่ม${productNoun}แรกพร้อมรูปภาพเพื่อให้ลูกค้าเห็นร้านคุณตั้งแต่วันแรก`,
   summary: 'สรุปสิ่งที่ตั้งค่าในครั้งนี้ พร้อม Achievement ที่ได้รับ',
-}
+})
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({
+  vertical = 'ONLINE_SALES',
   open,
   initialStep = 'sales_channels',
   facebookPrefill = false,
   onClose,
 }: OnboardingModalProps) {
   const router = useRouter()
+  // คำเรียกของที่ร้านขาย/ใบงานผันตาม vertical — อ่านจาก vocab กลาง ไม่ประกาศคำซ้ำที่นี่
+  const { productNoun, createProductLabel, firstItemLabel } = resolveProductVocab(vertical)
+  const orderCreateLabel = resolveOrderVocab(vertical).createLabel
+  const STEP_TITLES = buildStepTitles(firstItemLabel)
+  const STEP_SUBTITLES = buildStepSubtitles(productNoun)
 
   // ทำไม useReducer: state มีหลายมิติข้ามหลาย step — useReducer อ่านง่ายกว่า useState สิบกว่าตัว
   const [state, dispatch] = useReducer(reducer, undefined, () =>
@@ -521,12 +532,12 @@ export default function OnboardingModal({
   /** Step 4: POST /api/products */
   async function handleCreateProduct() {
     if (!state.productName.trim()) {
-      pacesToast.error('กรุณากรอกชื่อสินค้า')
+      pacesToast.error(`กรุณากรอกชื่อ${productNoun}`)
       return
     }
     const priceNum = Number(state.productPrice)
     if (!state.productPrice || isNaN(priceNum) || priceNum < 0.01) {
-      pacesToast.error('กรุณากรอกราคาสินค้า (ต่ำสุด ฿0.01)')
+      pacesToast.error(`กรุณากรอกราคา${productNoun} (ต่ำสุด ฿0.01)`)
       return
     }
     dispatch({ type: 'SET_LOADING', loading: true })
@@ -547,13 +558,13 @@ export default function OnboardingModal({
       })
       if (res.ok) {
         dispatch({ type: 'MARK_STEP_DONE', step: 'first_product' })
-        pacesToast.success('สร้างสินค้าแรกเรียบร้อย!')
+        pacesToast.success(`${firstItemLabel}เรียบร้อย!`)
         goNext()
       } else if (res.status === 429) {
         pacesToast.warning('คำขอบ่อยเกินไป กรุณารอสักครู่')
       } else {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error((data as { error?: string }).error ?? 'ไม่สามารถสร้างสินค้าได้ กรุณาลองใหม่')
+        pacesToast.error((data as { error?: string }).error ?? `ไม่สามารถ${createProductLabel}ได้ กรุณาลองใหม่`)
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -631,7 +642,7 @@ export default function OnboardingModal({
               </button>
             </div>
             {/* step indicator — numbered circles (Base: Steps() progress/page.tsx) */}
-            <StepIndicator currentIndex={currentIndex} completedSteps={state.completedSteps} />
+            <StepIndicator currentIndex={currentIndex} completedSteps={state.completedSteps} productNoun={productNoun} />
             {/* subtitle */}
             <p className="text-sm text-default-500">{STEP_SUBTITLES[state.currentStep]}</p>
           </div>
@@ -743,7 +754,7 @@ export default function OnboardingModal({
                   {/* ชื่อสินค้า (req) — Base: form-input / form-label จาก InputTextfieldType.tsx */}
                   <div>
                     <label className="form-label" htmlFor="ob-product-name">
-                      ชื่อสินค้า <span className="text-danger">*</span>
+                      ชื่อ{productNoun} <span className="text-danger">*</span>
                     </label>
                     <input
                       id="ob-product-name"
@@ -805,7 +816,7 @@ export default function OnboardingModal({
                     id="ob-product-desc"
                     rows={3}
                     className="form-input"
-                    placeholder="อธิบายสินค้าของคุณ..."
+                    placeholder={`อธิบาย${productNoun}ของคุณ...`}
                     value={state.productDescription}
                     onChange={(e) =>
                       dispatch({ type: 'SET_PRODUCT_DESCRIPTION', desc: e.target.value })
@@ -817,7 +828,7 @@ export default function OnboardingModal({
                 {/* ProductImageDropzone — prop contract ล็อคแล้ว */}
                 <div>
                   <label className="form-label">
-                    รูปสินค้า <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                    รูป{productNoun} <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
                   </label>
                   <ProductImageDropzone
                     value={state.productImageIds}
@@ -892,7 +903,7 @@ export default function OnboardingModal({
                     <li className="list-group-item flex items-center justify-between gap-2 text-sm">
                       <span className="flex items-center gap-1.5 text-default-500 shrink-0">
                         <Icon icon="tabler:package" className="size-4" />
-                        สินค้าแรก
+                        {productNoun}แรก
                       </span>
                       <span className="flex items-center gap-1.5 text-default-800">
                         {state.completedSteps.has('first_product') && state.productName
@@ -1071,7 +1082,7 @@ export default function OnboardingModal({
                     ? <Icon icon="loader-2" className="size-4 animate-spin" />
                     : <Icon icon="tabler:plus" className="size-4" />
                   }
-                  สร้างสินค้า
+                  {createProductLabel}
                 </button>
               )}
 
@@ -1086,7 +1097,7 @@ export default function OnboardingModal({
                     }}
                     className="btn bg-primary/15 text-primary hover:bg-primary hover:text-white text-sm inline-flex items-center gap-2"
                   >
-                    ไปหน้าสร้างคำสั่งซื้อ
+                    ไปหน้า{orderCreateLabel}
                   </button>
                   <button
                     type="button"

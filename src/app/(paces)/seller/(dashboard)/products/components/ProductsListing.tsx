@@ -59,9 +59,14 @@ type Props = {
   /** feature 00013 Pin Products — aggregate state ต่อร้าน (seed จาก server ครั้งเดียว) */
   pinSlots: number
   pinnedCount: number
+  /** PRODUCT_VOCAB.productNoun — ร้านบริการเรียก /products ว่า "บริการและสินค้า" */
+  productNoun: string
+  /** PRODUCT_VOCAB.addProductLabel / itemSingular — ปุ่มเพิ่ม + ประโยคเอกพจน์ */
+  addProductLabel: string
+  itemSingular: string
 }
 
-const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
+const ProductsListing = ({ products, pinSlots, pinnedCount, productNoun, addProductLabel, itemSingular }: Props) => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
@@ -145,19 +150,19 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
 
   // ─── delete (Swal confirm) — ใช้ร่วมกันทั้ง ⋮ มือถือ (ProductCardMenu) และปุ่มลบตารางเดสก์ท็อป ───
   const handleDeleteRequest = async (productId: string) => {
-    const ok = await pacesConfirm.danger('ลบสินค้านี้?', 'สินค้าจะถูกลบถาวร · ย้อนกลับไม่ได้', {
-      confirmButtonText: 'ลบสินค้า',
+    const ok = await pacesConfirm.danger(`ลบ${itemSingular}นี้?`, `${itemSingular}จะถูกลบถาวร · ย้อนกลับไม่ได้`, {
+      confirmButtonText: `ลบ${itemSingular}`,
     })
     if (!ok) return
     try {
       const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
-        pacesToast.error(errBody?.error ?? 'ลบสินค้าไม่สำเร็จ')
+        pacesToast.error(errBody?.error ?? `ลบ${itemSingular}ไม่สำเร็จ`)
         return
       }
       setData((prev) => prev.filter((p) => p.id !== productId))
-      pacesToast.success('ลบสินค้าแล้ว')
+      pacesToast.success(`ลบ${itemSingular}แล้ว`)
       router.refresh()
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -219,16 +224,16 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   // empty state — แยก 3 สาเหตุ (ไม่มีสินค้าเลย / กรองชิปแล้วไม่เจอ / ค้นหาไม่เจอ)
   const emptyState =
     data.length === 0
-      ? { title: 'ยังไม่มีสินค้าในร้าน', showCta: true }
+      ? { title: `ยังไม่มี${productNoun}ในร้าน`, showCta: true }
       : search.trim() !== '' && filtered.length === 0
-        ? { title: 'ไม่พบสินค้าที่ค้นหา', showCta: false }
+        ? { title: `ไม่พบ${productNoun}ที่ค้นหา`, showCta: false }
         : // กรอง "ยังไม่ตั้งต้นทุน" แล้วไม่เหลืออะไร = ข่าวดี ไม่ใช่ทางตัน — ต้องพูดให้ตรง
           // ไม่ใช่ "ไม่มีสินค้าในสถานะนี้" ซึ่งอ่านเหมือนกรองพลาด (คำค้นชนะเสมอ เพราะผู้ใช้
           // เพิ่งพิมพ์ ควรตอบเรื่องที่เพิ่งทำล่าสุดก่อน จึงอยู่หลังเงื่อนไข search ด้านบน)
           costMissingOnly && filtered.length === 0
-          ? { title: 'ตั้งต้นทุนครบทุกสินค้าแล้ว', showCta: false }
+          ? { title: `ตั้งต้นทุนครบทุก${itemSingular}แล้ว`, showCta: false }
           : filtered.length === 0
-            ? { title: 'ไม่มีสินค้าในสถานะนี้', showCta: false }
+            ? { title: `ไม่มี${productNoun}ในสถานะนี้`, showCta: false }
           : null
 
   return (
@@ -237,6 +242,8 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
       <div className="hidden lg:block">
         <ProductsTable
           initialCostMissing={costMissingOnly}
+          productNoun={productNoun}
+          addProductLabel={addProductLabel}
           products={data}
           pinSlots={pinState.pinSlots}
           pinnedCount={pinState.pinnedCount}
@@ -287,7 +294,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                 <input
                   type="text"
                   className="form-input w-full rounded-full bg-white !pl-9"
-                  placeholder="ค้นหาสินค้า..."
+                  placeholder={`ค้นหา${productNoun}...`}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -319,7 +326,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                   ซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย ถ้าไม่มีปุ่มนี้จะสร้างสินค้าไม่ได้เลยบนมือถือ */}
               <Link
                 href="/products/new"
-                aria-label="เพิ่มสินค้า"
+                aria-label={addProductLabel}
                 className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white"
               >
                 <Icon icon="plus" className="text-xl" />
@@ -395,7 +402,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                   compact
                   icon="tabler:package-off"
                   title={emptyState.title}
-                  action={emptyState.showCta ? { label: '+ เพิ่มสินค้าแรก', href: '/products/new' } : undefined}
+                  action={emptyState.showCta ? { label: `+ ${addProductLabel}แรก`, href: '/products/new' } : undefined}
                 />
               </div>
             </div>
@@ -420,7 +427,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                 </div>
               )}
               {!hasMore && filtered.length > PAGE && (
-                <p className="py-3 text-center text-xs text-default-400">ครบทุกสินค้าแล้ว ({filtered.length})</p>
+                <p className="py-3 text-center text-xs text-default-400">ครบทุก{itemSingular}แล้ว ({filtered.length})</p>
               )}
             </div>
           )}
@@ -445,7 +452,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
           {/* overscroll-contain: กล่อง scroll ในโมดัลที่เนื้อหายังไม่ล้นก็ chain ออกไปเลื่อนหน้า
               ข้างหลังได้ (บั๊กชัดที่สุดตอนเนื้อหาสั้น ซึ่งเป็นกรณีปกติของโมดัลนี้) */}
           <div className="flex-1 overflow-auto overscroll-contain p-4">
-            <p className="mb-2 text-sm font-medium text-default-900">ประเภทสินค้า</p>
+            <p className="mb-2 text-sm font-medium text-default-900">ประเภท{productNoun}</p>
             <div className="space-y-1">
               {TYPE_OPTIONS.map((opt) => {
                 const active = typeFilter === opt.value

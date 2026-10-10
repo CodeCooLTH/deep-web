@@ -69,7 +69,7 @@ import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
-import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
+import { isCODPayment, orderItemVocab, orderStatusMetaFor, orderWord } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from '../../_shared/ListBusyOverlay'
 // ป้ายพฤติกรรมลูกค้า — นิยามเดียวกับหัวแผงลูกค้าในกล่องแชท (HR16)
 import { customerBadges } from '@/lib/customer-behavior'
@@ -88,9 +88,10 @@ import { useT } from '@/i18n/LocaleProvider'
 
 // ตัวเลือกในดรอปดาวน์ "สถานะ" — สร้างจาก SSOT ตัวเดียวกับ badge ห้ามพิมพ์คำซ้ำมือ
 // (เดิมพิมพ์เอง จึงค้างคำว่า "จัดส่งแล้ว" อยู่ในตัวกรองทั้งที่ป้ายบนแถวเปลี่ยนคำไปแล้ว)
-const STATUS_FILTER_OPTIONS = [
+// ป้าย SHIPPED ผันตาม vocab (ร้านบริการไม่มีการจัดส่ง) จึงสร้างในคอมโพเนนต์ ไม่ใช่ค่าคงที่ระดับ module
+const buildStatusFilterOptions = (vocab: OrderVocab) => [
   { value: 'All', label: 'ทั้งหมด' },
-  ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
+  ...Object.entries(orderStatusMetaFor(vocab)).map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
 // ─── ตัวกรองพัสดุ (?stage=) — ลำดับ/ค่าเดียวกับ STAGE_CHIPS ใน OrdersList ────────
@@ -243,6 +244,11 @@ export default function OrdersTable({
 }: Props) {
   const t = useT()
   const router = useRouter()
+  const statusFilterOptions = useMemo(() => buildStatusFilterOptions(vocab), [vocab])
+  // คำเรียกของที่ขาย/หน่วยนับ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB ผ่าน orderItemVocab)
+  const itemVocab = orderItemVocab(vertical)
+  const isService = vertical === 'SERVICE_QUEUE'
+  const orderNoun = orderWord(vertical, vocab)
   const [sorting,        setSorting]        = useState<SortingState>([])
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
@@ -373,7 +379,7 @@ export default function OrdersTable({
     //   กางอยู่ตอน re-render) และ Ctrl+F ยังหาข้อความที่ยังไม่กางเจอ ต่างจาก panel ที่
     //   เนื้อหาไม่มีตัวตนจนกว่าจะเอาเมาส์ไปวาง
     columnHelper.accessor('items', {
-      header: 'รายการสินค้า',
+      header: vocab.itemsLabel,
       enableSorting: false,
       meta: { cellClassName: 'min-w-56 align-top' },
       cell: ({ row }) => {
@@ -413,7 +419,7 @@ export default function OrdersTable({
               </p>
               {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง */}
               <p className="mb-0 text-xs text-default-500">
-                ฿{it.price.toLocaleString('th-TH')} ต่อชิ้น
+                ฿{it.price.toLocaleString('th-TH')} ต่อ{itemVocab.unitLabel}
               </p>
               <p className="mb-0 text-xs text-default-500">x{it.qty}</p>
             </div>
@@ -802,7 +808,7 @@ export default function OrdersTable({
            * `o.money` มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ผ่าน `hasMoneyStory` ที่ server (AC-SQ-07)
            */
           ...(o.money ? [{ label: 'เก็บเงินครบ', done: o.money.outstanding <= 0 }] : []),
-          { label: 'ผู้ซื้อยืนยันรับของ', done: o.status === 'CONFIRMED' },
+          { label: vocab.buyerConfirmedStepLabel, done: o.status === 'CONFIRMED' },
         ]
         return (
           <ul className="mb-0 list-none space-y-1 p-0">
@@ -934,10 +940,10 @@ export default function OrdersTable({
               type="text"
               /* ข้อความเดียวกับมือถือ — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16) */
               className="form-input"
-              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์${isService ? '' : ' / เลขพัสดุ'} / ${itemVocab.itemColLabel}`}
               /* กันเคสที่ยืดกล่องแล้วยังไม่พอ (ร้านคิวงานมี vocab.noun ยาวกว่า) — tooltip
                  ของเบราว์เซอร์เอง ไม่ต้องสร้าง element ใหม่ให้แถบนี้สูงขึ้น */
-              title={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              title={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์${isService ? '' : ' / เลขพัสดุ'} / ${itemVocab.itemColLabel}`}
               value={search}
               /* onSearchChange อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
@@ -1000,7 +1006,7 @@ export default function OrdersTable({
             defaultLabel="สถานะ"
             resetValue="All"
             value={(filterColumn('status')?.getFilterValue() as string) ?? 'All'}
-            options={STATUS_FILTER_OPTIONS}
+            options={statusFilterOptions}
             onChange={(v) => {
               filterColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
               table.setPageIndex(0)
@@ -1173,9 +1179,9 @@ export default function OrdersTable({
               }
             />
           ) : isSpecificDay(dateFilterValue) ? (
-            `ไม่พบออเดอร์วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
+            `ไม่พบ${orderNoun}วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
           ) : (
-            'ไม่พบออเดอร์'
+            `ไม่พบ${orderNoun}`
           )
         }
         groupRow={(row) => (
@@ -1200,7 +1206,7 @@ export default function OrdersTable({
                 className="form-checkbox form-checkbox-light size-4.5"
                 checked={row.getIsSelected()}
                 onChange={row.getToggleSelectedHandler()}
-                aria-label="เลือกออเดอร์นี้"
+                aria-label={`เลือก${orderNoun}นี้`}
               />
             </span>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -1226,8 +1232,8 @@ export default function OrdersTable({
               {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ลิงก์ผู้ซื้อมีปุ่มของตัวเองในชุดดำเนินการแล้ว */}
               <CopyLinkButton
                 value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-                label="คัดลอกเลขออเดอร์"
-                successMessage="คัดลอกเลขออเดอร์แล้ว"
+                label={`คัดลอกเลข${orderNoun}`}
+                successMessage={`คัดลอกเลข${orderNoun}แล้ว`}
                 iconOnly
                 className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
               />
@@ -1265,7 +1271,7 @@ export default function OrdersTable({
             totalItems={totalItems}
             start={start}
             end={end}
-            itemsName="ออเดอร์"
+            itemsName={orderNoun}
             showInfo
             previousPage={table.previousPage}
             canPreviousPage={table.getCanPreviousPage()}

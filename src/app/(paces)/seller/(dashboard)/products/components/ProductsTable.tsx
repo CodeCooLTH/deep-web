@@ -49,6 +49,10 @@ type Props = {
   onDeleteRequest: (productId: string) => void
   /** มาจาก ?cost=missing (deep-link จาก badge "ต้นทุนไม่ครบ" บนการ์ดกำไรของหน้าออเดอร์) */
   initialCostMissing?: boolean
+  /** PRODUCT_VOCAB.productNoun */
+  productNoun: string
+  /** PRODUCT_VOCAB.addProductLabel */
+  addProductLabel: string
 }
 
 const ProductsTable = ({
@@ -58,6 +62,8 @@ const ProductsTable = ({
   onPinChange,
   onDeleteRequest,
   initialCostMissing = false,
+  productNoun,
+  addProductLabel,
 }: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
@@ -70,7 +76,7 @@ const ProductsTable = ({
 
   const columns: ColumnDef<ProductRow, any>[] = [
     columnHelper.accessor('name', {
-      header: 'สินค้า',
+      header: productNoun,
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="me-1 size-9 shrink-0">
@@ -297,7 +303,7 @@ const ProductsTable = ({
               onChange={(e) => setGlobalFilter(e.target.value)}
               type="text"
               className="form-input"
-              placeholder="ค้นหาชื่อสินค้า..."
+              placeholder={`ค้นหาชื่อ${productNoun}...`}
             />
           </div>
         </div>
@@ -353,12 +359,12 @@ const ProductsTable = ({
           </span>
           <Link href="/products/new" className="btn bg-primary text-white hover:bg-primary-hover">
             <Icon icon="plus" />
-            เพิ่มสินค้า
+            {addProductLabel}
           </Link>
         </div>
       </div>
 
-      <DataTable<ProductRow> table={table} emptyMessage="ไม่พบสินค้า" />
+      <DataTable<ProductRow> table={table} emptyMessage={`ไม่พบ${productNoun}`} />
 
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer">
@@ -366,7 +372,7 @@ const ProductsTable = ({
             totalItems={totalItems}
             start={start}
             end={end}
-            itemsName="สินค้า"
+            itemsName={productNoun}
             showInfo
             previousPage={table.previousPage}
             canPreviousPage={table.getCanPreviousPage()}

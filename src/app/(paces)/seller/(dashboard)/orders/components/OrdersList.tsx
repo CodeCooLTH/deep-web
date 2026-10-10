@@ -48,7 +48,7 @@ import {
   isAppointmentStatus,
 } from '@/lib/appointment-stage'
 import { appointmentOverlapsDay, isAppointmentDayKey } from '@/lib/appointment-day'
-import { ORDER_STATUS_META } from '@/lib/order-display'
+import { orderItemVocab, orderStatusMetaFor, orderWord } from '@/lib/order-display'
 import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
 import { formatDateTH } from '@/lib/format-date'
 
@@ -67,9 +67,10 @@ const STAGE_CHIPS = [
 
 // คำของแต่ละสถานะมาจาก SSOT ตัวเดียวกับ badge บนแถว/การ์ด (lib/order-display.ts) — ชิปกับป้าย
 // ที่อยู่ห่างกันไม่กี่สิบพิกเซลต้องพูดคำเดียวกันเสมอ ห้ามพิมพ์คำซ้ำไว้ที่นี่
-const STATUS_TABS: { value: string; label: string }[] = [
+// ป้าย SHIPPED ผันตาม vocab (ร้านบริการไม่มีการจัดส่ง) จึงสร้างในคอมโพเนนต์ ไม่ใช่ค่าคงที่ระดับ module
+const buildStatusTabs = (vocab: OrderVocab): { value: string; label: string }[] => [
   { value: 'all', label: 'ทั้งหมด' },
-  ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
+  ...Object.entries(orderStatusMetaFor(vocab)).map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
 // ─── order type options (ใช้ใน filter modal) ────────────────────────────────
@@ -119,6 +120,11 @@ export default function OrdersList({
   vertical,
   hasShippingAxis = true,
 }: Props) {
+  const STATUS_TABS = useMemo(() => buildStatusTabs(vocab), [vocab])
+  // คำเรียกของที่ขาย/คำว่าออเดอร์ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB/ORDER_VOCAB)
+  const itemVocab = orderItemVocab(vertical)
+  const isService = vertical === 'SERVICE_QUEUE'
+  const orderNoun = orderWord(vertical, vocab)
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -761,7 +767,7 @@ export default function OrdersList({
               className="form-input w-full rounded-full bg-white !pl-9 !pr-9"
               /* ข้อความเดียวกับเดสก์ท็อป — จอเดียวกันต้องสัญญาเรื่องเดียวกัน (HR16).
                  ของเดิมเขียนว่าค้นเบอร์ได้ทั้งที่โค้ดเทียบกับค่าที่ปิดบังไว้ = จอโกหกมาตลอด */
-              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า`}
+              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์${isService ? '' : ' / เลขพัสดุ'} / ${itemVocab.itemColLabel}`}
               value={search}
               /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
                  ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */
@@ -1019,7 +1025,7 @@ export default function OrdersList({
             </div>
           )}
           {!hasMore && filtered.length > PAGE && (
-            <p className="py-3 text-center text-xs text-default-400">ครบทุกออเดอร์แล้ว ({filtered.length})</p>
+            <p className="py-3 text-center text-xs text-default-400">ครบทุก{orderNoun}แล้ว ({filtered.length})</p>
           )}
         </div>
       )}
@@ -1116,7 +1122,7 @@ export default function OrdersList({
               </>
             )}
 
-            <p className="mb-2 text-sm font-medium text-default-900">ประเภทออเดอร์</p>
+            <p className="mb-2 text-sm font-medium text-default-900">ประเภท{orderNoun}</p>
             <div className="space-y-1">
               {TYPE_OPTIONS.map((opt) => {
                 const active = typeFilter === opt.value

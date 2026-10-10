@@ -107,7 +107,7 @@ describe('sellerMenuItems — slug contract', () => {
 describe('applyOrderLabel', () => {
   it.each([
     ['ONLINE_SALES', 'คำสั่งซื้อ'],
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ'],
+    ['SERVICE_QUEUE', 'งานบริการ'],
     ['LODGING', 'บิลเข้าพัก'],
   ])('%s → %s', (vertical, expected) => {
     expect(resolveOrderMenuLabel(vertical)).toBe(expected)
@@ -150,10 +150,11 @@ describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + date
     // 'วันที่สร้าง' ไม่ใช่ 'วันที่รับงาน' (user เคาะ 2026-08-07) — ร้านคิวงานเปิดบิลตอนลูกค้ามาถึง
     // createLabelShort 'เข้ารับบริการใหม่' → 'งานใหม่' (user สั่ง 2026-08-07) — ปุ่มท้ายแถบเครื่องมือ
     // แชทถูกตัดหายครึ่งคำบนจอ 390px จริง
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
+    // noun 'การเข้ารับบริการ' → 'งานบริการ' (user เคาะ 2026-10-10)
+    ['SERVICE_QUEUE', 'งานบริการ', 'บริการ', 'สร้างงานบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
     ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว', 'ต้นทุนต่อห้อง'],
   ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel, costNoun) => {
-    expect(resolveOrderVocab(vertical)).toEqual({
+    expect(resolveOrderVocab(vertical)).toMatchObject({
       noun,
       nounShort,
       createLabel,
@@ -166,6 +167,14 @@ describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + date
       stageOrderedLabel,
       costNoun,
     })
+  })
+
+  // ช่องที่เพิ่ม 2026-10-10 (clarify ร้านบริการ) — ONLINE_SALES ต้องเป็นคำเดิมของหน้าจอทุกตัวอักษร
+  it.each([
+    ['ONLINE_SALES', 'ผู้ซื้อ', 'กำลังจัดส่ง', 'ผู้ซื้อยืนยันรับของ', 'ยอดสินค้า', 'ตะกร้า', 'เพิ่มลงตะกร้า'],
+    ['SERVICE_QUEUE', 'ลูกค้า', 'เริ่มให้บริการแล้ว', 'ลูกค้ายืนยันรับบริการแล้ว', 'ยอดค่าบริการ', 'รายการที่เลือก', 'เพิ่มรายการ'],
+  ])('ช่องใหม่ %s', (vertical, buyerNoun, shippedStatusLabel, buyerConfirmedStepLabel, subtotalLabel, cartTitle, addToCartLabel) => {
+    expect(resolveOrderVocab(vertical)).toMatchObject({ buyerNoun, shippedStatusLabel, buyerConfirmedStepLabel, subtotalLabel, cartTitle, addToCartLabel })
   })
 
   it('vertical ที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe)', () => {

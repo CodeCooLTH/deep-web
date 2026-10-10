@@ -129,6 +129,7 @@ import { useSellerChatThread,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { chatCardPreview, chatItemLabel } from '@/lib/chat-vocab'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
@@ -1605,7 +1606,7 @@ export default function ChatThread({
     // LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped, ดู comment ที่ useSellerChatThread
     quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
-  } = useSellerChatThread(conversationId, shopId, false, initialMessages)
+  } = useSellerChatThread(conversationId, shopId, false, initialMessages, customerPanelData?.vertical)
 
   // ── แตะกล่อง quote แล้วเลื่อนไปหาข้อความต้นทาง (user report 2026-08-11) ──────────────
   //
@@ -3389,6 +3390,7 @@ export default function ChatThread({
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
             channel={channel}
+            vertical={customerPanelData?.vertical}
             onSendMany={async (ids) => {
               const res = await sendProductCards(ids)
               if (res.ok) setActivePanel(null)
@@ -3440,9 +3442,9 @@ export default function ChatThread({
             type="button"
             onClick={() => togglePanel('product')}
             disabled={composerDisabled}
-            aria-label="เลือกสินค้า"
+            aria-label={`เลือก${chatItemLabel(customerPanelData?.vertical)}`}
             aria-expanded={productOpen}
-            title="เลือกสินค้า"
+            title={`เลือก${chatItemLabel(customerPanelData?.vertical)}`}
             // เห็นทุก breakpoint (user สั่ง 2026-08-07 "ไม่ชอบการที่เอา shortcut ไปซ่อนไว้") — เมนู
             // "เพิ่มเติม" ที่เคยเก็บปุ่มพวกนี้ไว้ <768px ถูกถอดทิ้งแล้ว. ที่ว่างมาจากปุ่มสร้างออเดอร์
             // ที่ยุบเหลือไอคอนแทน (ดูปุ่มท้ายแถว) ไม่ใช่จากการซ่อนเครื่องมือ
@@ -3684,7 +3686,7 @@ export default function ChatThread({
                     : replyingTo.type === 'ORDER'
                       ? `[${vocab.nounShort}]`
                       : replyingTo.type === 'PRODUCT'
-                        ? '[สินค้า]'
+                        ? chatCardPreview('PRODUCT', customerPanelData?.vertical)
                         : '[สื่อ/ไฟล์แนบ]')}
               </p>
               {/* bugfix 2026-08-10 — บอกก่อนกดส่ง ไม่ใช่แค่ตอนดูประวัติย้อนหลัง (safepay-ux: ข้อความ

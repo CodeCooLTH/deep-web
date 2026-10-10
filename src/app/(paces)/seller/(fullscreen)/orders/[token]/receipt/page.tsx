@@ -19,6 +19,7 @@ import { toFileUrl } from '@/lib/file-url'
 import { thaiBahtText } from '@/lib/thai-baht-text'
 import { formatReceiptAmount, receiptPaymentMarks, resolveReceiptHeader } from '@/lib/receipt'
 import { getReceiptView } from '@/services/receipt.service'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { getAppShell } from '@/lib/app-shell-server'
 import { buildBreakdown } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-detail-shared'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
@@ -85,6 +86,8 @@ export default async function ReceiptPage({ params }: PageProps) {
     vatAmount: num(view.vatAmount),
     vatPct,
     total,
+    // ใบเสร็จออกได้เฉพาะร้านบริการ (receipt.service throw NOT_SERVICE_SHOP) — ใช้คำของร้านบริการ
+    subtotalLabel: ORDER_VOCAB.SERVICE_QUEUE.subtotalLabel,
   })
   // เงินที่บันทึกรับจริง (ไม่นับที่ยกเลิก) — ใบเสร็จออกได้ก่อนรับเงิน จึงต้องเตือนร้านบนจอ (ไม่พิมพ์)
   const received = view.payments.filter((p) => !p.voidedAt).reduce((s, p) => s + num(p.amount), 0)

@@ -13,8 +13,8 @@ describe('resolveOrderEventLabel', () => {
   })
 
   it('แก้ไข/ยกเลิก ผันเป็น กริยา+noun ตาม pattern เดียวกับ order-action-set', () => {
-    expect(resolveOrderEventLabel('ORDER_EDITED', ORDER_VOCAB.SERVICE_QUEUE)).toBe('แก้ไขการเข้ารับบริการ')
-    expect(resolveOrderEventLabel('ORDER_CANCELLED', ORDER_VOCAB.SERVICE_QUEUE)).toBe('ยกเลิกการเข้ารับบริการ')
+    expect(resolveOrderEventLabel('ORDER_EDITED', ORDER_VOCAB.SERVICE_QUEUE)).toBe('แก้ไขงานบริการ')
+    expect(resolveOrderEventLabel('ORDER_CANCELLED', ORDER_VOCAB.SERVICE_QUEUE)).toBe('ยกเลิกงานบริการ')
     expect(resolveOrderEventLabel('ORDER_CANCELLED', ORDER_VOCAB.LODGING)).toBe('ยกเลิกบิลเข้าพัก')
   })
 

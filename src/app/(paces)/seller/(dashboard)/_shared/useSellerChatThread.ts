@@ -36,6 +36,7 @@ import { uploadToStorage } from '@/lib/upload-client'
 import { firstPageReplacement, mergeMessages, resolveOpeningMessages } from '@/lib/chat-message-merge'
 import { readThread, saveThreadView } from '@/lib/chat-message-store'
 import { deltaAfterUpdatedAt } from '@/lib/chat-delta-query'
+import { chatCardPreview } from '@/lib/chat-vocab'
 import {
   canAutoLoadOlder,
   pickNewIncoming,
@@ -349,14 +350,18 @@ export function pendingKind(a: PendingAttachment): AttachmentKind {
 }
 
 /** ป้ายแทนเนื้อหาใน quote เมื่อข้อความที่ตอบทับไม่มี body (สื่อ/การ์ด) — TEXT ไม่มีในนี้โดยตั้งใจ
- *  เพราะ TEXT มี body เสมอจึงไม่เคยตกมาถึง fallback */
+ *  เพราะ TEXT มี body เสมอจึงไม่เคยตกมาถึง fallback
+ *  ORDER/PRODUCT ผันตามประเภทกิจการ จึงไม่อยู่ในตารางคงที่นี้ (ดู quoteLabel) */
 const QUOTE_LABEL: Record<string, string> = {
   IMAGE: '[รูปภาพ]',
   VIDEO: '[วิดีโอ]',
   AUDIO: '[ข้อความเสียง]',
   FILE: '[ไฟล์แนบ]',
-  ORDER: '[คำสั่งซื้อ]',
-  PRODUCT: '[สินค้า]',
+}
+
+function quoteLabel(type: string, vertical: string | null | undefined): string {
+  if (type === 'ORDER' || type === 'PRODUCT') return chatCardPreview(type, vertical)
+  return QUOTE_LABEL[type] ?? '[สื่อ/ไฟล์แนบ]'
 }
 
 /** เพดานของ delta ต่อคำขอ — คืนครบเพดานนี้ = อาจมีมากกว่านี้ที่ไม่ได้มา (R13) */
@@ -407,6 +412,8 @@ export function useSellerChatThread(
   shopId?: string | null,
   beepEnabled = true,
   initial?: InitialThreadMessages | null,
+  /** Shop.vertical ของร้านเจ้าของเธรด — ผันป้าย quote ของการ์ดออเดอร์/สินค้า (ไม่ส่ง = ONLINE_SALES) */
+  vertical?: string | null,
 ) {
   /**
    * cache ของห้องนี้ใน store (2026-09-14) — อ่านครั้งเดียวต่อ mount ผ่าน lazy initializer
@@ -1397,7 +1404,7 @@ export function useSellerChatThread(
           id: replyingTo.id,
           body:
             replyingTo.body ??
-            (QUOTE_LABEL[replyingTo.type] ?? '[สื่อ/ไฟล์แนบ]'),
+            quoteLabel(replyingTo.type, vertical),
           senderRole: replyingTo.senderRole,
           // รูปย่อต้องขึ้นตั้งแต่บับเบิล optimistic ไม่งั้นผู้ขายเห็น "[รูปภาพ]" วูบหนึ่งแล้วค่อย
           // กลายเป็นรูปตอน GET รอบถัดไป — ดูเหมือนระบบเปลี่ยนใจ
