@@ -122,10 +122,11 @@ export default function ShopReceiptProfileField({
             <label htmlFor="receipt-address" className="form-label">
               ที่อยู่บนใบเสร็จ
             </label>
+            {/* form-textarea ไม่ใช่ form-input — form-input ล็อกสูง 44px + py-0 ⇒ 3 บรรทัดอัดชิดขอบบน (2026-10-10) */}
             <textarea
               id="receipt-address"
               rows={3}
-              className="form-input"
+              className="form-textarea"
               placeholder="เลขที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด รหัสไปรษณีย์"
               value={address}
               onChange={(e) => setAddress(e.target.value)}

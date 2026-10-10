@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Icon from './wrappers/Icon'
+import { passwordStrength } from '@/lib/new-password-rules'
 
 type PasswordInputProps = {
   password: string
@@ -16,17 +17,8 @@ type PasswordInputProps = {
   hideHint?: boolean
 }
 
-const calculatePasswordStrength = (password: string): number => {
-  let strength = 0
-  if (password.length >= 8) strength++
-  if (/[A-Z]/.test(password)) strength++
-  if (/\d/.test(password)) strength++
-  if (/[\W_]/.test(password)) strength++
-  return strength
-}
-
 const PasswordInputWithStrength = ({ password, setPassword, id, label, name, placeholder, showIcon, hideHint = false, labelClassName = 'form-label', inputClassName = 'form-input' }: PasswordInputProps) => {
-  const strength = calculatePasswordStrength(password)
+  const strength = passwordStrength(password)
   const strengthBars = new Array(4).fill(0)
   // toggle เปิด/ปิดดูรหัสผ่าน (React-controlled — robust กว่า Preline data-hs-toggle-password)
   const [show, setShow] = useState(false)
