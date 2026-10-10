@@ -41,7 +41,11 @@ import { formatDateTime } from '@/lib/format-date'
 import { formatBaht } from '@/lib/format-money'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import type { CustomerListFilter, CustomerRiskFilter } from '@/lib/customer-directory'
+import {
+  resolveCustomerListVocab,
+  type CustomerListFilter,
+  type CustomerRiskFilter,
+} from '@/lib/customer-directory'
 import RiskTriageCard from './RiskTriageCard'
 import {
   createColumnHelper,
@@ -152,6 +156,12 @@ type CustomerTableProps = {
   filterCounts: Record<CustomerListFilter, number>
   /** จำนวนลูกค้าทั้งร้าน **ก่อนกรอง** — จอว่างต้องบอกได้ว่าของไม่ได้หาย แค่ถูกตัวกรองบังอยู่ */
   totalCustomers: number
+  /**
+   * false = ร้านไม่ใช่ขายของออนไลน์ → ซ่อนทุกอย่างที่เป็นเรื่องพัสดุ/ความเสี่ยงข้ามร้าน
+   * (decision อยู่ที่ `customerPageShowsParcels` ฝั่ง server) · vertical ใช้ผันคำเท่านั้น
+   */
+  showParcel: boolean
+  vertical: string
 }
 
 /**
@@ -219,6 +229,18 @@ const FILTER_CHIPS: { value: CustomerListFilter; label: string; tone?: 'warning'
   { value: 'repeat', label: 'ซื้อซ้ำ' },
 ]
 
+/** ป้ายชิปผันตาม vertical + ตัด `returned` (เรื่องพัสดุ) ออกเมื่อร้านไม่มีพัสดุ — ONLINE_SALES ได้ค่าเดิมเป๊ะ */
+function chipsFor(vertical: string, showParcel: boolean) {
+  const v = resolveCustomerListVocab(vertical)
+  return FILTER_CHIPS.filter((c) => showParcel || c.value !== 'returned').map((c) =>
+    c.value === 'repeat'
+      ? { ...c, label: v.repeatLabel }
+      : c.value === 'warn'
+        ? { ...c, label: v.warnLabel }
+        : c,
+  )
+}
+
 const CustomerTable = ({
   customers,
   hasAnyCustomer,
@@ -231,7 +253,11 @@ const CustomerTable = ({
   watchCount,
   filterCounts,
   totalCustomers,
+  showParcel,
+  vertical,
 }: CustomerTableProps) => {
+  const vocab = resolveCustomerListVocab(vertical)
+  const filterChips = chipsFor(vertical, showParcel)
   const router = useRouter()
   const pathname = usePathname()
   const busy = useListBusy()
@@ -344,6 +370,8 @@ const CustomerTable = ({
         </div>
       ),
     }),
+    ...(showParcel
+      ? [
     columnHelper.display({
       id: 'trust',
       /**
@@ -380,12 +408,14 @@ const CustomerTable = ({
       ),
       cell: ({ row }) => <ShopScopeCell row={row.original} />,
     }),
+        ]
+      : []),
     columnHelper.accessor('contact', {
       header: 'ติดต่อ',
       cell: ({ row }) => <ContactCell row={row.original} />,
     }),
     columnHelper.accessor('totalOrders', {
-      header: 'ออเดอร์ทั้งหมด',
+      header: vocab.totalCol,
       cell: ({ row }) => <span className="font-medium">{row.original.totalOrders}</span>,
     }),
     columnHelper.accessor('totalSpent', {
@@ -402,7 +432,7 @@ const CustomerTable = ({
       ),
     }),
     columnHelper.accessor('lastOrderISO', {
-      header: 'ออเดอร์ล่าสุด',
+      header: vocab.lastCol,
       cell: ({ row }) => (
         // แปลง ISO string → formatDateTime (พ.ศ., tz ไทย)
         <span className="text-default-500 text-sm">{formatDateTime(row.original.lastOrderISO)}</span>
@@ -439,7 +469,7 @@ const CustomerTable = ({
    * (impeccable critique จับได้ 2026-08-27 — ผมลืมแกน `?risk=` ที่เพิ่งเพิ่มเองรอบเดียวกัน)
    */
   const hasFilter = !!query || initialFilter !== 'all' || initialRisk !== 'all'
-  const filterLabel = FILTER_CHIPS.find((c) => c.value === initialFilter)?.label ?? ''
+  const filterLabel = filterChips.find((c) => c.value === initialFilter)?.label ?? ''
 
   /**
    * จอว่างมี 3 ความหมาย ไม่ใช่ 2 — และเดิมข้อความเดียวครอบทั้งสองแบบแรกด้วยคำว่า "ตัวกรอง"
@@ -494,7 +524,7 @@ const CustomerTable = ({
   return (
     <>
       {/* มือถือเท่านั้น — จอใหญ่ใช้การ์ดสถิติ 4 ใบใน page.tsx แทน (คนละพรีเซนต์ ข้อมูลชุดเดียวกัน) */}
-      {hasAnyCustomer && (
+      {hasAnyCustomer && showParcel && (
         <div className="mb-2.5 md:hidden">
           <RiskTriageCard
             rows={[
@@ -575,7 +605,7 @@ const CustomerTable = ({
             resetValue="all"
             align="right"
             value={initialFilter}
-            options={FILTER_CHIPS.map((c) => ({
+            options={filterChips.map((c) => ({
               value: c.value,
               label: c.label,
               // "ทั้งหมด" ไม่มี badge (ธรรมเนียมเดียวกับ /orders) · ตัวอื่นมีเสมอแม้เป็น 0
@@ -608,7 +638,7 @@ const CustomerTable = ({
         state/onChange ใช้ตัวเดียวกันทั้งสองพรีเซนต์ (`pushWith` + `?f=`) ห้ามแยกสอง state
       */}
       <div className="border-default-200 -mx-4 flex gap-2 overflow-x-auto border-b border-dashed px-4 pb-3 lg:hidden">
-        {FILTER_CHIPS.map((c) => {
+        {filterChips.map((c) => {
           const active = initialFilter === c.value
           return (
             <button
@@ -654,12 +684,14 @@ const CustomerTable = ({
                   <div className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-full text-sm font-semibold">
                     {c.initial}
                   </div>
+                  {showParcel && (
                   <span
                     className={`${RISK_TIER_TONE[c.tier]} ring-card bg-card absolute bottom-0 left-0 flex size-5 items-center justify-center rounded-full text-xs ring-2`}
                     role="img"
                     aria-label={RISK_TIER_LABEL[c.tier]}>
                     <Icon icon={RISK_TIER_ICON[c.tier]} aria-hidden="true" />
                   </span>
+                  )}
                 </div>
 
                 {/* 🛑 `min-w-0` ที่กล่อง + `max-w-full truncate` ที่ชื่อ + `shrink-0` ที่ป้าย —
@@ -671,7 +703,9 @@ const CustomerTable = ({
                     <CustomerBehaviorIcons badges={c.badges} />
                   </p>
                   {/* 🛑 บรรทัดนี้พูดขอบเขต **ทั้งระบบ** ต้องเขียนคำกำกับทุกครั้ง เพราะบรรทัด
-                      ถัดไป (ContactCell) กับยอดเงินขวามือเป็นเรื่องของร้านนี้ (HR16) */}
+                      ถัดไป (ContactCell) กับยอดเงินขวามือเป็นเรื่องของร้านนี้ (HR16)
+                      ร้านไม่มีพัสดุ → ไม่แสดงทั้งบรรทัด */}
+                  {showParcel && (
                   <p className="text-default-500 mb-0 truncate text-xs">
                     {(() => {
                       const sum = crossShopReturnSummary(c.trust)
@@ -688,6 +722,7 @@ const CustomerTable = ({
                       )
                     })()}
                   </p>
+                  )}
                   <span className="relative z-10 mt-1 inline-flex">
                     <ContactCell row={c} />
                   </span>
@@ -700,7 +735,7 @@ const CustomerTable = ({
                     {formatBaht(c.totalSpent)}
                   </p>
                   <p className="text-2xs text-default-400 mb-0 leading-tight">
-                    {c.totalOrders} ออเดอร์
+                    {c.totalOrders} {vocab.unit}
                   </p>
                   <p className="text-2xs text-default-400 mb-0 leading-tight">
                     {formatDateTime(c.lastOrderISO)}
