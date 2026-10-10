@@ -130,7 +130,7 @@ export const th = {
     lineReports: 'รายงานเข้ากลุ่ม LINE',
     orders: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     auctions: 'การประมูล',
@@ -180,7 +180,7 @@ export const th = {
     /** ชื่อของ "หนึ่งใบ" — ORDER_VOCAB.noun */
     orderNoun: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     /**
@@ -189,7 +189,7 @@ export const th = {
      */
     orderNounTitle: {
       ONLINE_SALES: 'คำสั่งซื้อ',
-      SERVICE_QUEUE: 'การเข้ารับบริการ',
+      SERVICE_QUEUE: 'งานบริการ',
       LODGING: 'บิลเข้าพัก',
     },
     /**
@@ -209,7 +209,7 @@ export const th = {
     /** ปุ่ม/ประโยคชวนสร้างใบใหม่ — ORDER_VOCAB.createLabel */
     createLabel: {
       ONLINE_SALES: 'สร้างคำสั่งซื้อ',
-      SERVICE_QUEUE: 'สร้างงาน',
+      SERVICE_QUEUE: 'สร้างงานบริการ',
       LODGING: 'สร้างบิลเข้าพัก',
     },
     bestSellerTitle: {
@@ -229,7 +229,7 @@ export const th = {
     },
     bestSellerEmptyHint: {
       ONLINE_SALES: 'อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน',
-      SERVICE_QUEUE: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
+      SERVICE_QUEUE: 'อันดับจะขึ้นทันทีที่มีงานบริการเข้ามา ไม่ต้องรอยืนยัน',
       LODGING: 'อันดับจะขึ้นทันทีที่มีการเข้าพักเข้ามา ไม่ต้องรอยืนยัน',
     },
     /** หัวคอลัมน์ตาราง "ขายดี" — ชื่อสิ่งของ / จำนวน / ยอดเงินรวม */

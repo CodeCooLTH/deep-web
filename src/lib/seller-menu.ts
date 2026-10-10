@@ -536,6 +536,20 @@ export type OrderVocab = {
    * โผล่ในช่องเดียวกันสลับกันได้ตามข้อมูล
    */
   stageOrderedLabel: string
+  /**
+   * คำเรียกอีกฝ่ายของใบ — "ผู้ซื้อ" ใช้กับร้านขายของเท่านั้น ร้านบริการเรียก "ลูกค้า" (user 2026-10-10)
+   * ใช้เป็นคำนามล้วน ("{buyerNoun}ยืนยันแล้ว") ห้ามต่อกริยาที่ผูกกับการส่งของ
+   */
+  buyerNoun: string
+  /** ป้ายสถานะ `SHIPPED` ในตัวกรอง/แท็บ/badge — ร้านบริการไม่มีการจัดส่ง */
+  shippedStatusLabel: string
+  /** ขั้น "อีกฝ่ายยืนยันแล้ว" ในเช็กลิสต์สถานะ (รูปบอกเล่า — buyerConfirmLabel เป็นรูปคำสั่งบนปุ่ม) */
+  buyerConfirmedStepLabel: string
+  /** แถวยอดรวมของรายการในใบ (ก่อนค่าส่ง/ส่วนลด) */
+  subtotalLabel: string
+  /** หัวพาเนลรายการที่เลือกในฟอร์มสร้างใบ + ปุ่มเพิ่มเข้าพาเนล */
+  cartTitle: string
+  addToCartLabel: string
 }
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
@@ -551,16 +565,24 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     buyerConfirmLabel: 'ยืนยันรับสินค้า',
     viewLabel: 'ดูคำสั่งซื้อ',
     stageOrderedLabel: 'สั่งซื้อแล้ว',
+    buyerNoun: 'ผู้ซื้อ',
+    shippedStatusLabel: 'กำลังจัดส่ง',
+    buyerConfirmedStepLabel: 'ผู้ซื้อยืนยันรับของ',
+    subtotalLabel: 'ยอดสินค้า',
+    cartTitle: 'ตะกร้า',
+    addToCartLabel: 'เพิ่มลงตะกร้า',
   },
   SERVICE_QUEUE: {
-    noun: 'การเข้ารับบริการ',
+    // 'การเข้ารับบริการ' → 'งานบริการ' (user เคาะ 2026-10-10: "การเข้ารับบริการ เปลี่ยนเป็นคำอื่นหน่อย")
+    // เข้าชุดกับ createLabelShort 'งานใหม่' และหน่วยนับ 'งาน' ในกราฟยอดขาย
+    noun: 'งานบริการ',
     // ร้านบริการซื้ออะไหล่/ของที่ใช้ไปกับงาน ไม่ได้ซื้อ 'สินค้า' มาขายต่อ
     costNoun: 'ต้นทุนอะไหล่',
     // 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05: "การเข้ารับบริการใหม่ ... ยาวไป")
     // ช่องนี้มีไว้สำหรับที่แคบโดยเฉพาะ — แท็บล่างมือถือและหัวหน้าต่างโมดัลในแชทที่มี avatar
     // ชื่อลูกค้า และปุ่มย่อ/ปิด เบียดกันอยู่แล้ว คำเต็มอยู่ที่ noun ตามเดิมไม่ได้หายไปไหน
     nounShort: 'บริการ',
-    createLabel: 'สร้างการเข้ารับบริการ',
+    createLabel: 'สร้างงานบริการ',
     // 'เข้ารับบริการใหม่' → 'งานใหม่' (user สั่ง 2026-08-07: "ปุ่มเข้ารับบริการใหม่ ควรเปลี่ยนชื่อ
     // ที่กระชับกว่านี้") ช่องนี้ลงในที่แคบทั้งหมด: ปุ่มท้ายแถบเครื่องมือแชท (ถูกตัดหายครึ่งคำบนจอ
     // 390px จริง), FAB pill ลอย, เมนูกดค้างข้อความ — คำเต็มยังอยู่ที่ createLabel ตามเดิม
@@ -589,6 +611,13 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     // "รับงานแล้ว" ไม่ใช่ "เริ่มให้บริการแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
     // (= APPOINTMENT_STATUS_LABEL.SCHEDULED ซึ่งมาแทนที่ป้ายนี้เมื่อใบนั้นมีนัด)
     stageOrderedLabel: 'รับงานแล้ว',
+    buyerNoun: 'ลูกค้า',
+    // ใช้คำเดียวกับ fulfillLabel — SHIPPED ของร้านบริการคือขั้นที่ร้านเริ่มลงมือ ไม่มีการส่งของ
+    shippedStatusLabel: 'เริ่มให้บริการแล้ว',
+    buyerConfirmedStepLabel: 'ลูกค้ายืนยันรับบริการแล้ว',
+    subtotalLabel: 'ยอดค่าบริการ',
+    cartTitle: 'รายการที่เลือก',
+    addToCartLabel: 'เพิ่มรายการ',
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
@@ -609,6 +638,13 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     viewLabel: 'ดูบิลเข้าพัก',
     // ไม่ใช่ "จองแล้ว" — ชนกับเมนู /bookings ซึ่งเป็นคนละสิ่งกับบิล (ดูหมายเหตุเหนือ ORDER_VOCAB)
     stageOrderedLabel: 'เปิดบิลแล้ว',
+    // ด้านล่าง = คำเดิมของหน้าจอ (ยังไม่ได้ทบทวนสำหรับที่พัก — นอกขอบเขตรอบ 2026-10-10)
+    buyerNoun: 'ผู้ซื้อ',
+    shippedStatusLabel: 'กำลังจัดส่ง',
+    buyerConfirmedStepLabel: 'ผู้ซื้อยืนยันรับของ',
+    subtotalLabel: 'ยอดสินค้า',
+    cartTitle: 'ตะกร้า',
+    addToCartLabel: 'เพิ่มลงตะกร้า',
   },
 }
 
@@ -659,6 +695,12 @@ export type ProductVocab = {
   itemColLabel: string
   countColLabel: string
   amountColLabel: string
+  /** ชื่อเมนู/หัวหน้า /products — ร้านบริการขายทั้งบริการและของเสริม */
+  productNoun: string
+  /** ปุ่มเพิ่มของใหม่ (FAB, หัวหน้า, empty state) */
+  createProductLabel: string
+  /** ข้อ checklist ตั้งร้าน "เพิ่มของชิ้นแรก" */
+  firstItemLabel: string
 }
 
 export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
@@ -673,6 +715,9 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     itemColLabel: 'สินค้า',
     countColLabel: 'สั่งซื้อ',
     amountColLabel: 'ยอดสั่งซื้อ',
+    productNoun: 'สินค้า',
+    createProductLabel: 'สร้างสินค้า',
+    firstItemLabel: 'สร้างสินค้าแรก',
   },
   SERVICE_QUEUE: {
     // "ขายดี" ใช้กับงานบริการแล้วฟังเป็นของที่ขายเป็นชิ้น — "ยอดนิยม" ตรงกว่า
@@ -683,10 +728,13 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     soldLine: (n) => `ใช้บริการแล้ว ${n} ครั้ง`,
     unitLabel: 'ครั้ง',
     emptyTitle: 'ยังไม่มีบริการยอดนิยม',
-    emptyHint: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
+    emptyHint: 'อันดับจะขึ้นทันทีที่มีงานบริการเข้ามา ไม่ต้องรอยืนยัน',
     itemColLabel: 'บริการ',
     countColLabel: 'ใช้บริการ',
     amountColLabel: 'ยอดใช้บริการ',
+    productNoun: 'บริการและสินค้า',
+    createProductLabel: 'เพิ่มบริการ',
+    firstItemLabel: 'เพิ่มบริการแรก',
   },
   LODGING: {
     bestSellerTitle: 'ห้องพักยอดนิยม',
@@ -700,6 +748,10 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     itemColLabel: 'ห้องพัก',
     countColLabel: 'เข้าพัก',
     amountColLabel: 'ยอดเข้าพัก',
+    // คำเดิมของหน้าจอ (ยังไม่ทบทวนสำหรับที่พัก)
+    productNoun: 'สินค้า',
+    createProductLabel: 'สร้างสินค้า',
+    firstItemLabel: 'สร้างสินค้าแรก',
   },
 }
 
