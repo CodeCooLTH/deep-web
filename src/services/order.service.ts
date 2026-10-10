@@ -2570,7 +2570,9 @@ export async function getOrdersByBuyer(userId: string) {
   return prisma.order.findMany({
     where: { buyerUserId: userId },
     include: {
-      items: true,
+      // 🛑 ต้นทุนรายบรรทัดเป็นข้อมูลของร้าน — ผู้ซื้อห้ามเห็น (security review 00071 H2:
+      // /api/orders?role=buyer เคยคืน cost ดิบ · ผู้ดูแลร้านสร้างใบให้เบอร์ตัวเองแล้วดึงได้)
+      items: { omit: { cost: true } },
       shop: { include: { user: { select: { username: true, displayName: true } } } },
       review: true,
     },

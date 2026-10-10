@@ -51,7 +51,8 @@ const SHOP_ROW_SELECT = {
 
 // buildShopRow — คำนวณ ShopSubscriptionRow 1 ร้าน (entitlement + balance + warnAdvance + shortfall)
 // ใช้ร่วมกันระหว่าง getSellerSubscriptionOverview (ทุกร้าน) และ getShopSubscriptionRow (ร้านเดียว)
-async function buildShopRow(s: ShopRecordForRow, canSeeBalance = true): Promise<ShopSubscriptionRow> {
+// canSeeBalance บังคับส่ง — ไม่มีค่าตั้งต้น เพราะลืมส่งแล้วได้ true = ยอดกระเป๋ารั่ว (security review 00071 L2)
+async function buildShopRow(s: ShopRecordForRow, canSeeBalance: boolean): Promise<ShopSubscriptionRow> {
   const ent = s.inventoryEntitlement
   const status: EntitlementStatus = ent ? (ent.status as EntitlementStatus) : 'NOT_SUBSCRIBED'
   const pkg = (ent?.package ?? null) as InventoryPackage | null
@@ -83,14 +84,14 @@ async function buildShopRow(s: ShopRecordForRow, canSeeBalance = true): Promise<
  */
 export async function getShopSubscriptionRow(
   shopId: string,
-  opts: { canSeeBalance?: boolean } = {},
+  opts: { canSeeBalance: boolean },
 ): Promise<ShopSubscriptionRow | null> {
   const shop = await prisma.shop.findFirst({
     where: { id: shopId, deletedAt: null },
     select: SHOP_ROW_SELECT,
   })
   if (!shop) return null
-  return buildShopRow(shop, opts.canSeeBalance ?? true)
+  return buildShopRow(shop, opts.canSeeBalance)
 }
 
 /**
@@ -112,7 +113,7 @@ export async function getSellerSubscriptionOverview(userId: string): Promise<Sel
     prisma.shop.count({ where: { userId, kind: 'BUSINESS', deletedAt: null } }),
   ])
 
-  const rows: ShopSubscriptionRow[] = await Promise.all(shops.map((s) => buildShopRow(s)))
+  const rows: ShopSubscriptionRow[] = await Promise.all(shops.map((s) => buildShopRow(s, true))) // ร้านที่ user เป็นเจ้าของหลัก (where userId) — เห็นยอดได้
 
   // Business Package หักจากกระเป๋าร้าน PERSONAL ของเจ้าของ — reuse balance ที่คำนวณใน rows
   // แล้ว (ร้าน PERSONAL อยู่ใน shops เสมอเพราะ userId ตรง) กัน getBalance ซ้ำ round-trip

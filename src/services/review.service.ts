@@ -101,7 +101,8 @@ export async function getReviewsByUsername(username: string, take = 10, skip = 0
         select: {
           publicToken: true,
           createdAt: true,
-          items: true,
+          // 🛑 ไม่ดึง items — เคยคืน OrderItem ทั้งแถว (รวม cost ต้นทุนรายบรรทัด) ให้หน้า/API สาธารณะ
+          // ทั้งที่ไม่มีผู้เรียกใช้ (security review 00071 H1)
           salesChannel: true,
           shopChannel: { select: { avatarUrl: true, provider: true } },
         },

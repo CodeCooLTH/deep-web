@@ -103,7 +103,7 @@ describe('getShopSubscriptionRow (S-18 — business context)', () => {
     })
     ;(getBalance as any).mockResolvedValue(120)
 
-    const row = await getShopSubscriptionRow('shopB')
+    const row = await getShopSubscriptionRow('shopB', { canSeeBalance: true })
     expect(row).not.toBeNull()
     expect(row!.shopId).toBe('shopB')
     expect(row!.kind).toBe('BUSINESS')
@@ -114,7 +114,7 @@ describe('getShopSubscriptionRow (S-18 — business context)', () => {
 
   it('คืน null เมื่อไม่พบร้าน (ถูกลบ)', async () => {
     anyPrisma.shop.findFirst.mockResolvedValue(null)
-    const row = await getShopSubscriptionRow('gone')
+    const row = await getShopSubscriptionRow('gone', { canSeeBalance: true })
     expect(row).toBeNull()
   })
 })

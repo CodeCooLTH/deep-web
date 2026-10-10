@@ -18,7 +18,7 @@ describe('getAiSuggestQuotaStatus — canSeeBalance', () => {
 
   it('เจ้าของ (default) → balance เป็นตัวเลข', async () => {
     getBalanceMock.mockResolvedValue(50)
-    expect((await getAiSuggestQuotaStatus('s1')).balance).toBe(50)
+    expect((await getAiSuggestQuotaStatus('s1', { canSeeBalance: true })).balance).toBe(50)
   })
 
   it('canSeeBalance=false → balance null แต่ canUseCredit ยัง true เมื่อยอดพอ', async () => {

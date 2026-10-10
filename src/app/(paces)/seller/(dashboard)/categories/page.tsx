@@ -13,6 +13,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { getProductsByShop } from '@/services/product.service'
 import { getOrdersByShop } from '@/services/order.service'
 import { redirect } from 'next/navigation'
@@ -54,6 +55,8 @@ export default async function CategoriesPage() {
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/shop')
   const shop = active.shop
+  // ยอดขายรายหมวด = การเงินเต็ม (00071 BR-RP-09) — ผู้ไม่ใช่เจ้าของไม่คำนวณ ไม่ส่งคีย์ (security review M1)
+  const showRevenue = can(rolesFromMembership(active.role), 'F1')
 
   const [products, orders] = await Promise.all([
     getProductsByShop(shop.id).catch(() => []),
@@ -67,7 +70,7 @@ export default async function CategoriesPage() {
       (o: any) =>
         Array.isArray(o.items) && o.items.some((i: any) => ofType.find((p: any) => p.id === i.productId)),
     )
-    const revenue = orders
+    const revenue = !showRevenue ? undefined : orders
       .filter((o: any) => o.status === 'CONFIRMED' && Array.isArray(o.items))
       .reduce((sum: number, o: any) => {
         const typed = o.items.filter((i: any) => ofType.find((p: any) => p.id === i.productId))
@@ -84,14 +87,14 @@ export default async function CategoriesPage() {
       productCount: ofType.length,
       activeCount: activeOfType.length,
       orderCount: orderMatches.length,
-      revenue,
+      ...(revenue !== undefined ? { revenue } : {}),
     }
   })
 
   return (
     <>
       <PageBreadcrumb title="หมวดหมู่สินค้า" trail={[{ label: 'การขาย' }]} />
-      <CategoryTable rows={rows} />
+      <CategoryTable rows={rows} showRevenue={showRevenue} />
     </>
   )
 }

@@ -58,9 +58,10 @@ async function getUsedTodayCount(shopId: string): Promise<number> {
  */
 export async function getAiSuggestQuotaStatus(
   shopId: string,
-  opts: { canSeeBalance?: boolean } = {},
+  // บังคับส่ง — ลืมส่งแล้วได้ true = ยอดกระเป๋ารั่ว (security review 00071 L2)
+  opts: { canSeeBalance: boolean },
 ): Promise<AiQuotaStatus> {
-  const canSeeBalance = opts.canSeeBalance ?? true
+  const canSeeBalance = opts.canSeeBalance
   const isPaidPlan = await isOwnerPaidPlan(shopId)
   // ยังต้องอ่านยอดจริงเพื่อตัดสิน canUseCredit (กฎหักเครดิตฝั่ง server ห้ามเปลี่ยน) — แต่ไม่คืนตัวเลขถ้าไม่ใช่เจ้าของ
   const realBalance = await getBalance(shopId)

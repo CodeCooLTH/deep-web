@@ -7,5 +7,6 @@ export type CategoryRow = {
   productCount: number
   activeCount: number
   orderCount: number
-  revenue: number
+  /** ไม่มีคีย์ = ผู้ดูไม่ใช่เจ้าของร้าน (00071) */
+  revenue?: number
 }
