@@ -61,6 +61,7 @@ unmanaged SQL ที่รู้จักตอนนี้ — ทั้งห�
 - `Shop_vertical_check` (CHECK constraint 3 ค่า — feature 00028)
 - `Shop_userId_personal_key` (partial unique index WHERE kind='PERSONAL' — feature 00008)
 - `page_comment_realtime_broadcast()` (trigger function — feature 00029)
+- `ShopMember_roles_check` · `ShopInvite_roles_check` · `ShopInviteLink_roles_check` (CHECK บน `roles` — feature 00071 · migration `20261010120000_shop_member_roles`)
 
 ## กับดักที่เจอจริงระหว่างทาง
 

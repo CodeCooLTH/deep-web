@@ -89,6 +89,11 @@ CHECK เหล่านี้เป็น **unmanaged SQL** ที่ Prisma DS
 | `OrderEvent` | `OrderEvent_type_check` | 13 (2026-08-06) |
 | `Shop` | `Shop_vertical_check` | 3 (2026-08-06) |
 | `Order` | `Order_cancel_reason` | 6 (2026-08-12) |
+| `ShopMember` | `ShopMember_roles_check` | 4 บทบาท (`MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN`) + กติกา OWNER=ว่าง · ADMIN=1..4 (00071 · 2026-10-10) |
+| `ShopInvite` | `ShopInvite_roles_check` | 4 บทบาท · 1..4 ค่า (00071 · 2026-10-10) |
+| `ShopInviteLink` | `ShopInviteLink_roles_check` | 4 บทบาท · 1..4 ค่า (00071 · 2026-10-10) |
+
+> 3 ตัวล่างเป็น CHECK แบบ `roles <@ ARRAY[...]` (ไม่ใช่ `IN`) — ถ้าเพิ่มบทบาทใหม่ ให้ทำ migration แบบอ่านของเดิมมาต่อท้ายตามกฎข้อ 1 (pattern regexp ข้างบนใช้กับ `IN`/`ANY(ARRAY[...])` ปรับให้ตรงรูป `<@`) · เทสกันค่าหลุดสองฝั่ง: `src/lib/__tests__/shop-roles-db-constraint.test.ts`
 
 ## รอยที่สอง: ค่าใหม่ในโค้ดที่ไม่มี migration ตามไปเลย (2026-08-12)
 

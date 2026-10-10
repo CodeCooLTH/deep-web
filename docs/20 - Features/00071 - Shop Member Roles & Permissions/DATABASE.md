@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[API]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** DATABASE Design
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (ไม่มี migration · ไม่แตะ schema) · P2 ยังเป็นการออกแบบ
+> **สถานะ:** P1 implement แล้ว (ไม่มี migration) · **P2 implement แล้ว** (migration `20261010120000_shop_member_roles` · คอลัมน์ `roles` + CHECK 3 ตัว) · P3 ไม่มี migration เพิ่ม
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # DATABASE: บทบาทและสิทธิ์สมาชิกร้าน
@@ -80,7 +80,9 @@ membership User↔Shop · `role` คงเดิม (`'OWNER'|'ADMIN'` = เจ�
 | **`roles`** | `String[]` | NO | `[]` | **ใหม่ P2** |
 | `createdAt` / `updatedAt` | `DateTime` | NO | now / updatedAt | - |
 
-invariant (บังคับที่ service เว้นแต่ตัดสินเพิ่ม CHECK ตอน implement P2): `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1-4 ค่าไม่ซ้ำใน {MANAGER, CHAT, BILLING, TECHNICIAN}
+invariant: `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1-4 ค่าใน {MANAGER, CHAT, BILLING, TECHNICIAN} — **บังคับที่ DB ด้วย CHECK `ShopMember_roles_check`** (§3.5) และที่ service (`planMemberRoleChange` / `validateAssignableRoles` ใน `src/lib/shop-role-assignment.ts`; ความไม่ซ้ำตรวจที่ service/valibot — CHECK ไม่ตรวจซ้ำ)
+
+> คำศัพท์ (มติ P2): `ShopMember.role` = **ประเภทสมาชิก** แสดงเป็น "เจ้าของ" / "พนักงาน" · "ผู้ดูแล" = บทบาท `MANAGER` ใน `roles` เท่านั้น (ไม่ใช่ชื่อของ `role='ADMIN'` อีกต่อไป)
 
 ### 3.2 `ShopInvite` (PostgreSQL / Prisma)
 
@@ -108,6 +110,20 @@ invariant (บังคับที่ service เว้นแต่ตัดส
 
 ---
 
+### 3.5 CHECK constraints (P2 · unmanaged SQL)
+
+อยู่ใน `prisma/migrations/20261010120000_shop_member_roles/migration.sql` เท่านั้น — Prisma DSL ประกาศไม่ได้ (schema.prisma มีคอมเมนต์กำกับ) 🛑 **ห้าม `prisma db pull` / `migrate dev`** (introspect ไม่เห็นแล้วจะสร้าง migration DROP ทิ้ง · HR14)
+
+| Constraint | ตาราง | เงื่อนไข |
+|---|---|---|
+| `ShopMember_roles_check` | `ShopMember` | `role='OWNER'` และ `cardinality(roles)=0` **หรือ** `role='ADMIN'` และ `cardinality(roles)` 1..4 และ `roles <@ {MANAGER,CHAT,BILLING,TECHNICIAN}` |
+| `ShopInvite_roles_check` | `ShopInvite` | `cardinality(roles)` 1..4 และ `roles <@ {MANAGER,CHAT,BILLING,TECHNICIAN}` |
+| `ShopInviteLink_roles_check` | `ShopInviteLink` | เช่นเดียวกับ `ShopInvite` |
+
+ผลต่อโค้ด: เขียน `role='OWNER'` ต้องส่ง `roles: []` คู่กันเสมอ (เลื่อนเป็นเจ้าของ/โอนเจ้าของหลักล้าง `roles`) · ค่านอกชุดหรือชุดว่างของ ADMIN → DB ปฏิเสธ `23514` · เทส: `src/lib/__tests__/shop-roles-db-constraint.test.ts` (source ของ migration + DB local เท่านั้น)
+
+---
+
 ## 4. Indexes
 
 | Table | Columns | Type | Rationale (query pattern ที่รองรับ) |
@@ -124,12 +140,12 @@ invariant (บังคับที่ service เว้นแต่ตัดส
 
 | ลำดับ | การเปลี่ยนแปลง | Submodule / Store | หมายเหตุ (dependency) |
 |-------|----------------|--------------------|------------------------|
-| 1 | `ALTER TABLE "ShopMember" ADD COLUMN "roles" TEXT[] NOT NULL DEFAULT '{}'` | Prisma migration → PostgreSQL | ไม่มี dependency |
-| 2 | `ALTER TABLE "ShopInvite" ADD COLUMN "roles" TEXT[] NOT NULL DEFAULT ARRAY['MANAGER']` | เช่นเดียวกัน | - |
-| 3 | `ALTER TABLE "ShopInviteLink" ADD COLUMN "roles" TEXT[] NOT NULL DEFAULT ARRAY['MANAGER']` | เช่นเดียวกัน | - |
-| 4 | Backfill: `UPDATE "ShopMember" SET "roles" = ARRAY['MANAGER'] WHERE "role" = 'ADMIN'` | เช่นเดียวกัน | ต้องหลังลำดับ 1 · `ShopInvite`/`ShopInviteLink` ได้ `['MANAGER']` จาก DEFAULT อยู่แล้ว (รวมแถวค้าง) |
+| 1 | `ADD COLUMN "roles" TEXT[] DEFAULT '{}'` (ShopMember) · `DEFAULT ARRAY['MANAGER']` (ShopInvite, ShopInviteLink) | `20261010120000_shop_member_roles` | เพิ่มแบบ nullable+default ก่อน |
+| 2 | Backfill: `UPDATE "ShopMember" SET "roles" = ARRAY['MANAGER'] WHERE "role" = 'ADMIN'` | เช่นเดียวกัน | หลังลำดับ 1 · `ShopInvite`/`ShopInviteLink` ได้ `['MANAGER']` จาก DEFAULT (รวมแถวค้าง) |
+| 3 | `ALTER COLUMN "roles" SET NOT NULL` ทั้ง 3 ตาราง | เช่นเดียวกัน | หลัง backfill |
+| 4 | `ADD CONSTRAINT … CHECK … NOT VALID` แล้ว `VALIDATE CONSTRAINT` (3 ตัว §3.5) | เช่นเดียวกัน | หลัง backfill — แถวเดิมต้องผ่านก่อน validate |
 
-SQL ข้างต้นเป็นแนวทาง — DEV เขียน migration จริงตอน implement P2 (S-8) ตามชื่อตารางจริงใน `schema.prisma` · ไม่มี DROP/TRUNCATE/DELETE
+ไฟล์เดียว ไม่มี DROP/TRUNCATE/DELETE (เทส source จับ) · preflight prod 2026-10-10: `ShopMember` role = ADMIN 19 / OWNER 16 เท่านั้น ⇒ ผ่าน CHECK ทุกแถว
 
 ### 5.2 Rollback
 
@@ -160,9 +176,9 @@ SQL ข้างต้นเป็นแนวทาง — DEV เขียน 
 
 | Table / Collection | SDS Component / Decision | สถานะ |
 |--------------------|--------------------------|-------|
-| `ShopMember.roles` | `shop-member.service` / TD-001 | Draft |
-| `ShopInvite.roles` | Invite services / TD-001 | Draft |
-| `ShopInviteLink.roles` | Invite services / TD-001 | Draft |
+| `ShopMember.roles` | `shop-member.service` / TD-001 | Implemented (P2) |
+| `ShopInvite.roles` | Invite services / TD-001 | Implemented (P2) |
+| `ShopInviteLink.roles` | Invite services / TD-001 | Implemented (P2) |
 | `Shop.staffCanViewFinance` (deprecated) | Finance access / TD-003 | Draft |
 
 ---
@@ -172,5 +188,5 @@ SQL ข้างต้นเป็นแนวทาง — DEV เขียน 
 เอกสาร DATABASE นี้กำหนด **โครงสร้างข้อมูล** ของ **บทบาทและสิทธิ์สมาชิกร้าน (00071)** ให้ DEV นำไปเขียน migration additive จริง QA ใช้เข้าใจ data model เพื่อวางแผนทดสอบ และทุกตาราง trace กลับ [[SDS]] ได้
 
 **Open Questions:**
-- เพิ่ม DB CHECK additive บังคับ invariant `roles` หรือบังคับที่ service อย่างเดียว — กำหนดตอน implement P2
+- ~~เพิ่ม DB CHECK~~ — ตัดสินแล้ว (P2 มติ 0.3): เพิ่ม 3 ตัว §3.5
 - ต้องมี GIN index บน `roles` หรือไม่ — กำหนดตอน implement P3 ถ้าพบ query ค้นตามบทบาท

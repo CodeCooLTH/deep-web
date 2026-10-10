@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** API Contract
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (§4.3-§4.4) · P2/P3 ยังเป็นสัญญาก่อน implement
+> **สถานะ:** P1 implement แล้ว (§4.3-§4.4) · **P2 implement แล้ว** (§4.1-§4.2 ตรงโค้ด) · P3 ยังเป็นสัญญาก่อน implement
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # API Contract: บทบาทและสิทธิ์สมาชิกร้าน
@@ -45,12 +45,12 @@ related: ["[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[TestCase]]"]
 
 | Method | Path | คำอธิบาย | Phase |
 |--------|------|----------|-------|
-| `PATCH` | `/api/business/shops/[shopId]/members/[memberId]` | เปลี่ยน `role` และ/หรือ `roles` ของสมาชิก (เจ้าของเท่านั้น) | P2 |
-| `POST` | invite create (path เดิมของ 00008) | สร้างคำเชิญอีเมล/เบอร์ พร้อม `roles` | P2 |
-| `POST` | invite-link create (path เดิมของ 00012) | สร้างลิงก์เชิญ พร้อม `roles` | P2 |
+| `PATCH` | `/api/business/shops/[shopId]/members/[memberId]` | เปลี่ยน `role` และ/หรือ `roles` ของสมาชิก (เจ้าของเท่านั้น) | P2 ✅ |
+| `POST` | `/api/business/shops/[shopId]/invites` | สร้างคำเชิญอีเมล/เบอร์ พร้อม `roles` (00008) | P2 ✅ |
+| `POST` | `/api/shops/current/invite-links` | สร้างลิงก์เชิญ พร้อม `roles` (00012) | P2 ✅ |
+| `GET` | `/api/business/shops/[shopId]/invites` · `/api/shops/current/invite-links` | คืน `roles` ต่อรายการเพิ่ม | P2 ✅ |
+| `POST` | `/api/invites/[inviteId]/accept` | คืน `roles` ที่ได้รับเพิ่ม | P2 ✅ |
 | `PATCH` | `/api/business/shops/[shopId]/finance-visibility` | **ลบแล้ว** (สวิตช์ `staffCanViewFinance` ถูกยกเลิก) | P1 ✅ |
-
-path ของสอง invite endpoint ยืนยันจากโค้ดจริงตอน implement P2 (ไม่ระบุที่นี่เพื่อไม่เดา)
 
 ---
 
@@ -69,15 +69,27 @@ path ของสอง invite endpoint ยืนยันจากโค้ด�
 | Body | `role` | `'OWNER' \| 'ADMIN'` | no | เจ้าของ vs พนักงาน (ความหมายเดิม) |
 | Body | `roles` | `ShopRole[]` | no | พนักงาน: 1-4 ค่าไม่ซ้ำจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · ต้องส่งอย่างน้อย `role` หรือ `roles` |
 
-กฎ: ตั้ง `role:'OWNER'` → ล้าง `roles` เป็น `[]` · ส่ง `roles` กับสมาชิกที่เป็น/กำลังเป็น OWNER → 400 · `BILLING` ในร้านที่ไม่มีบริการ → 400
+กฎ (`planMemberRoleChange` ใน `src/lib/shop-role-assignment.ts`):
+- ตั้ง `role:'OWNER'` → ล้าง `roles` เป็น `[]` · ส่ง `roles` ไม่ว่างพร้อมผลลัพธ์ OWNER → `INVALID_ROLES`
+- `OWNER → ADMIN` โดยไม่ส่ง `roles` → ค่าตั้งต้น `['MANAGER']`
+- ส่งเฉพาะ `role:'ADMIN'` กับพนักงานอยู่แล้ว → คง `roles` เดิม (idempotent · ชุดเดิมที่มี BILLING ไม่ถูกตีกลับถ้าไม่ได้ตั้งชุดใหม่)
+- `BILLING` ใช้ได้เฉพาะร้านที่ `canUseAppointments(shop)` (vertical `SERVICE_QUEUE`) → ไม่ใช่ = `BILLING_NOT_AVAILABLE`
 
 **Response — Success (200)**
 
-รูปเดิมของ endpoint (ไม่เปลี่ยน) — ยืนยันตอน implement P2
+```json
+{ "role": "ADMIN", "roles": ["CHAT", "TECHNICIAN"] }
+```
 
-**Response — Error**
+**Response — Error** (รูป `{ error: '<CODE>' }`)
 
-`403 FORBIDDEN_ROLE` (ไม่ใช่เจ้าของ) · `400` ชุดว่าง/เกิน 4/ซ้ำ/ค่าไม่รู้จัก/OWNER+roles/BILLING ร้านไม่มีบริการ (รหัสข้อความย่อยกำหนดตอน implement P2) · error เดิมของ 00012 (`PRIMARY_OWNER_LOCKED` · `NOT_A_MEMBER` 404 · อื่น ๆ 409) คงเดิม
+| HTTP | `error` | เมื่อ |
+|---|---|---|
+| 400 | `INVALID_INPUT` | body ไม่ผ่าน valibot (`ChangeMemberRoleSchema`: ไม่ส่ง `role`/`roles` สักตัว · `roles` ว่าง/เกิน 4/ซ้ำ/ค่าไม่รู้จัก) |
+| 400 | `INVALID_ROLES` | ชั้น service: ผลลัพธ์เป็น OWNER แต่ส่ง `roles` ไม่ว่าง |
+| 400 | `BILLING_NOT_AVAILABLE` | ตั้ง `BILLING` ในร้านที่ไม่ใช่ร้านบริการ |
+| 403 | `NOT_OWNER` | ผู้เรียกไม่ใช่เจ้าของ (**ไม่ใช่ `FORBIDDEN_ROLE`** — มติ P2 0.4: ใช้ `NOT_OWNER` เดิมของ 00012) |
+| 403 / 404 / 409 | `NOT_PRIMARY_OWNER` · `NOT_A_MEMBER` · `PRIMARY_OWNER_LOCKED` ฯลฯ | เดิมของ 00012 คงเดิม (ตาราง `src/lib/shop-member-errors.ts`) |
 
 **ตัวอย่าง JSON**
 
@@ -86,18 +98,25 @@ path ของสอง invite endpoint ยืนยันจากโค้ด�
 { "roles": ["CHAT", "TECHNICIAN"] }
 
 // Response 403 (ผู้เรียกไม่ใช่เจ้าของ)
-{ "error": "FORBIDDEN_ROLE" }
+{ "error": "NOT_OWNER" }
 ```
 
 ### 4.2 invite create และ invite-link create
 
-เพิ่ม body ฟิลด์ `roles` (optional) ใน 2 endpoint เดิม
+เพิ่ม body ฟิลด์ `roles` (optional) ใน 2 endpoint จริง:
 
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Body | `roles` | `ShopRole[]` | no | 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · ค่าตั้งต้น `["MANAGER"]` · ใส่ `OWNER` ไม่ได้ (เชิญเป็นเจ้าของไม่ได้) |
+| Endpoint | Body | Success |
+|---|---|---|
+| `POST /api/business/shops/[shopId]/invites` | `{ contact, contactType: 'PHONE'\|'EMAIL', roles? }` | `201 { inviteId, status }` |
+| `POST /api/shops/current/invite-links` (ร้าน active) | `{ expiryKey?: '24h'\|'7d'\|'30d', roles? }` | `201 { url, slug, expiresAt }` |
 
-ผู้ยอมรับคำเชิญได้ชุด `roles` ตามคำเชิญ (`role='ADMIN'`) · ฟิลด์ response เดิมคงไว้ — ถ้ามีการคืน `roles` เพิ่ม ยืนยันตอน implement P2 · error: `403 FORBIDDEN_ROLE` · `400` ชุดไม่ถูกต้อง/BILLING ร้านไม่มีบริการ
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|---|---|---|
+| `roles` | `StaffRole[]` | 1-4 ค่าไม่ซ้ำจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · ค่าตั้งต้น `["MANAGER"]` (ไม่ส่ง) · ใส่ `OWNER` ไม่ได้ (เชิญเป็นเจ้าของไม่ได้) · `BILLING` เฉพาะร้านที่ `canUseAppointments` |
+
+Error: `400 VALIDATION_ERROR` (valibot: ชุดว่าง/เกิน/ซ้ำ/ค่าไม่รู้จัก) · `400 INVALID_ROLES` / `400 BILLING_NOT_AVAILABLE` (ชั้น service — `validateAssignableRoles`) · `403 NOT_OWNER` (ไม่ใช่เจ้าของ — ลิงก์: ต้อง `kind=BUSINESS` และ `role=OWNER`) · error เดิมของ 00008/00012 (`NO_ACTIVE_PACKAGE` · `SHOP_LOCKED` · `ADMIN_QUOTA_EXCEEDED` 403 · `INVITE_ALREADY_PENDING` 409) คงเดิม
+
+ผู้ยอมรับ (ผ่าน `POST /api/invites/[inviteId]/accept` หรือเปิดลิงก์ `/i/<slug>`) ได้ `role='ADMIN'` + `roles` คัดลอกจากคำเชิญ/ลิงก์ตอนสร้าง · accept คืน `{ shopId, role: 'ADMIN', roles }` · สมาชิกเดิมที่เปิดลิงก์ซ้ำไม่ถูกเขียนทับ `roles` · `GET` รายการคำเชิญ/ลิงก์คืน `roles` ต่อรายการ
 
 ### 4.3 ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` (P1)
 
@@ -135,10 +154,12 @@ path ของสอง invite endpoint ยืนยันจากโค้ด�
 |------------|-------------|----------------------|
 | `FORBIDDEN_ROLE` | `403` | **ใหม่** — เป็นสมาชิกแต่บทบาทไม่มีสิทธิ์ใน capability นี้ (BR-RP-11) · capability ที่ยังไม่จัดหมวดก็ตอบรหัสนี้ |
 | `UNAUTHORIZED` | `401` | ไม่มี session |
-| `NOT_OWNER` / `NOT_PRIMARY_OWNER` | `403` | เดิมของ 00012 (ยังใช้กับกติกาเจ้าของ/เจ้าของหลัก) |
+| `NOT_OWNER` / `NOT_PRIMARY_OWNER` | `403` | เดิมของ 00012 — **P2: ใช้กับ PATCH members / สร้างคำเชิญ / สร้างลิงก์ เมื่อผู้เรียกไม่ใช่เจ้าของ** (ไม่ใช้ `FORBIDDEN_ROLE`) |
+| `INVALID_ROLES` | `400` | **P2** ผลลัพธ์เป็น OWNER แต่ส่ง `roles` ไม่ว่าง (ชั้น service) |
+| `BILLING_NOT_AVAILABLE` | `400` | **P2** `BILLING` ในร้านที่ไม่ใช่ร้านบริการ (`canUseAppointments` = false) |
+| `INVALID_INPUT` / `VALIDATION_ERROR` | `400` | **P2** schema ไม่ผ่าน (PATCH members ใช้ `INVALID_INPUT` · invites/invite-links ใช้ `VALIDATION_ERROR`) |
 | `PRIMARY_OWNER_LOCKED` | เดิม | เปลี่ยนบทบาท/ลบเจ้าของหลักไม่ได้ |
 | `NOT_A_MEMBER` | `404` | เดิม |
-| `VALIDATION` (รหัสย่อยกำหนดตอน implement P2) | `400` | `roles` ว่าง/เกิน 4/ซ้ำ/ไม่รู้จัก · OWNER+roles · BILLING ร้านไม่มีบริการ |
 
 **โครง error response มาตรฐาน (ตามที่ route ฝั่งร้านใช้อยู่)**
 
@@ -161,7 +182,7 @@ sequenceDiagram
     O->>R: { roles: ["CHAT","TECHNICIAN"] }
     R->>G: can(roles ของผู้เรียก, T2)
     alt ไม่ใช่เจ้าของ
-        G-->>O: 403 FORBIDDEN_ROLE
+        G-->>O: 403 NOT_OWNER
     else เจ้าของ
         R->>S: validate ชุด + กติกา 00012
         S->>DB: UPDATE ShopMember.roles
@@ -188,6 +209,6 @@ sequenceDiagram
 เอกสาร API Contract นี้กำหนด **สัญญาการเชื่อมต่อ** ของ **บทบาทและสิทธิ์สมาชิกร้าน (00071)** ให้ชัดพอที่ DEV นำไป implement ได้ QA ใช้ตารางข้อ 5 วางแผนทดสอบ negative case และทุก endpoint trace กลับ [[SDS]] ได้
 
 **Open Questions:**
-- path ที่แน่นอนของ invite create / invite-link create และรูป response — ยืนยันจากโค้ดตอน implement P2
+- ~~path ของ invite create / invite-link create และรูป response~~ — ยืนยันจากโค้ดแล้ว (§4.2)
 - ~~finance-visibility 404 หรือ 410~~ — ตัดสินแล้ว: ลบ route = 404
 - ~~รายการ path API การเงินเต็ม~~ — ตัดสินแล้ว (ตารางสัญญา P1 §4.4)

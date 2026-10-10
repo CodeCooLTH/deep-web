@@ -11,7 +11,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 > **ประเภทเอกสาร:** Software Requirements Specification (SRS) - TECHNICAL
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว (branch `feat/00071-member-roles`) · P2/P3 ยังเป็นสเปก (ยังไม่มีโค้ด)
+> **สถานะ:** P1 implement แล้ว (branch `feat/00071-member-roles`) · **P2 implement แล้ว** (branch `feat/00071-p2-roles` · P2+P3 ขึ้น main พร้อมกัน — มติ 0.1) · P3 ยังเป็นสเปก (ยังไม่มีโค้ด)
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SRS: บทบาทและสิทธิ์สมาชิกร้าน (Software Requirements Specification — Technical)
@@ -110,12 +110,13 @@ flowchart LR
 - **Postcondition:** `rg "staffCanViewFinance" src` ไม่เหลือที่ตัดสินสิทธิ์ · ธง `true` แล้ว ADMIN ยังถูกปฏิเสธ
 - **Error / Edge cases:** ผู้ใช้เก่าที่ยิง endpoint ที่ลบแล้ว → **ลบไฟล์ route ทิ้ง (ไม่ทำ 410)** จึงได้ 404 ตามปกติของ Next · **P1 implement แล้ว:** `resolveExpenseAccess` / `resolveAgentReportAccess` / `resolveProductReportAccess` ใช้ F1 (ผู้ไม่ใช่เจ้าของ → `STAFF_NOT_ALLOWED` / `SELF` / ปฏิเสธ) · เหลือ `staffCanViewFinance` ในโค้ดเฉพาะคอมเมนต์ · ด่านกันลืมผิวเงินใหม่: `src/lib/__tests__/finance-surface-guard.test.ts`
 
-### TFR-005: โมเดลข้อมูลบทบาท (P2)
+### TFR-005: โมเดลข้อมูลบทบาท (P2 — **implement แล้ว**)
 - **Trace to:** FR-RP-01, FR-RP-08, FR-RP-10, BR-RP-02, BR-RP-04, BR-RP-12, BR-RP-16
+- **สถานะจริง (P2):** migration `20261010120000_shop_member_roles` + DB CHECK 3 ตัว (`ShopMember_roles_check` · `ShopInvite_roles_check` · `ShopInviteLink_roles_check` — ดู [[DATABASE]] §3.5) · `STAFF_ROLES` + `rolesFromMembership(role, roles)` ใน `src/lib/shop-permissions.ts` · `validateAssignableRoles` / `planMemberRoleChange` ใน `src/lib/shop-role-assignment.ts` · `StaffRolesSchema` / `ChangeMemberRoleSchema` ใน `src/lib/validations.ts` · UI ตัวเลือกบทบาท `src/lib/shop-role-picker.ts` · ศัพท์: `role` = ประเภทสมาชิก (เจ้าของ/พนักงาน) · "ผู้ดูแล" = บทบาท MANAGER
 - **คำอธิบายเชิงเทคนิค:** เพิ่ม `ShopMember.roles String[] @default([])` · `ShopInvite.roles String[] @default(["MANAGER"])` · `ShopInviteLink.roles String[] @default(["MANAGER"])` · migration backfill แถว `role='ADMIN'` → `roles=['MANAGER']` (รวมคำเชิญ/ลิงก์ค้าง) · `ShopMember.role` ไม่เปลี่ยน · validation: 1-4 ค่า ไม่ซ้ำ ต้องอยู่ใน {MANAGER, CHAT, BILLING, TECHNICIAN} · เจ้าของ (`role='OWNER'`) → `roles=[]` (เลื่อนเป็นเจ้าของ = ล้างชุด) · เชิญเป็นเจ้าของผ่าน invite ไม่ได้ · ร้าน PERSONAL ไม่มีบทบาท
 - **Precondition:** ผู้เรียกเป็นเจ้าของ (T2)
 - **Postcondition:** ถือ 3 บทบาทนับเป็น 1 คนในโควตา `staffCountWhere()` เดิม
-- **Error / Edge cases:** `BILLING` ในร้านที่ไม่มีบริการ → ปฏิเสธ (BR-RP-07; เกณฑ์ "ร้านขายบริการได้" กำหนดตอน implement P2 S-10 โดยยืนยันกับ schema) · ชุดว่าง → 400
+- **Error / Edge cases:** `BILLING` ในร้านที่ไม่มีบริการ → 400 `BILLING_NOT_AVAILABLE` (BR-RP-07; **เกณฑ์ตัดสินแล้ว = `canUseAppointments(shop)`** คือ vertical `SERVICE_QUEUE`) · ชุดว่าง → 400
 
 ### TFR-006: บังคับรายบทบาท (P3)
 - **Trace to:** FR-RP-05, FR-RP-06, FR-RP-07, S-13, S-14, S-15
@@ -138,12 +139,12 @@ flowchart LR
 ### 4.1 API Endpoints
 | Method | Path | คำอธิบาย | Auth |
 |--------|------|----------|------|
-| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | (P2) body ขยายเป็น `{ role?: 'OWNER'\|'ADMIN', roles?: ShopRole[] }` | เจ้าของ (T2) |
-| POST | invite create (endpoint เดิมของ 00008/00012) | (P2) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) | เจ้าของ (T2) |
-| POST | invite-link create (endpoint เดิมของ 00012) | (P2) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) | เจ้าของ (T2) |
+| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | (P2 ✅) body ขยายเป็น `{ role?: 'OWNER'\|'ADMIN', roles?: StaffRole[] }` → `200 { role, roles }` | เจ้าของ |
+| POST | `/api/business/shops/[shopId]/invites` | (P2 ✅) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) | เจ้าของ |
+| POST | `/api/shops/current/invite-links` | (P2 ✅) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) | เจ้าของ |
 | PATCH | `/api/business/shops/[shopId]/finance-visibility` | **ลบใน P1** | — |
 
-path ของ invite create / invite-link create ยืนยันจากโค้ดตอน implement P2 — รายละเอียดเต็มใน [[API]]
+ผู้ไม่ใช่เจ้าของได้ `403 NOT_OWNER` (ไม่ใช่ `FORBIDDEN_ROLE`) — รายละเอียดเต็มใน [[API]]
 
 ### 4.2 รายละเอียดต่อ Endpoint
 
@@ -152,8 +153,8 @@ path ของ invite create / invite-link create ยืนยันจากโ
 ```json
 { "role": "OWNER | ADMIN (optional)", "roles": ["MANAGER", "CHAT", "BILLING", "TECHNICIAN"] }
 ```
-- **Response (success):** รูปเดิมของ endpoint (ไม่เปลี่ยน — ยืนยันตอน implement P2)
-- **Error codes:** `403 FORBIDDEN_ROLE` (ไม่ใช่เจ้าของ) · `400` (ชุดว่าง / เกิน 4 / ค่าไม่รู้จัก / OWNER+roles / BILLING ร้านไม่มีบริการ) · error เดิมของ 00012 (`PRIMARY_OWNER_LOCKED` ฯลฯ) คงเดิม
+- **Response (success):** `200 { "role": "ADMIN", "roles": [...] }`
+- **Error codes:** `403 NOT_OWNER` (ไม่ใช่เจ้าของ) · `400 INVALID_INPUT` (schema: ชุดว่าง / เกิน 4 / ซ้ำ / ค่าไม่รู้จัก / ไม่ส่งอะไรเลย) · `400 INVALID_ROLES` (OWNER+roles) · `400 BILLING_NOT_AVAILABLE` · error เดิมของ 00012 (`PRIMARY_OWNER_LOCKED` ฯลฯ) คงเดิม
 - **Idempotency / Rate limit:** ส่งซ้ำด้วยค่าเดิม = ผลเดิม
 
 ### 4.3 Events / Messaging (ถ้ามี)
@@ -263,16 +264,16 @@ P1 ไม่มี migration · P2 migration additive + backfill (ไม่ DROP
 
 | BRD FR-ID | SRS TFR-ID | Component | สถานะ |
 |-----------|------------|-----------|-------|
-| FR-RP-01 | TFR-005 | `shop-member.service` / validation | Draft |
+| FR-RP-01 | TFR-005 | `shop-member.service` / validation | Implemented (P2) |
 | FR-RP-02 | TFR-001, TFR-002 | `shop-permissions` + guard | Draft |
 | FR-RP-03 | TFR-003, TFR-004 | service/DAL | Draft |
 | FR-RP-04 | TFR-004 | `*-access` services | Draft |
 | FR-RP-05 | TFR-006 | chat routes | Draft |
 | FR-RP-06 | TFR-006 | order routes | Draft |
 | FR-RP-07 | TFR-006 | order/appointment routes | Draft |
-| FR-RP-08 | TFR-005 | invite + members UI/API | Draft |
+| FR-RP-08 | TFR-005 | invite + members UI/API | Implemented (P2) |
 | FR-RP-09 | TFR-007 | เมนู | Draft |
-| FR-RP-10 | TFR-005 | migration | Draft |
+| FR-RP-10 | TFR-005 | migration | Implemented (P2) |
 
 ---
 
@@ -288,4 +289,4 @@ P1 ไม่มี migration · P2 migration additive + backfill (ไม่ DROP
 **ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
 - ~~signature/ชนิด export ของ `shop-permissions`~~ — ตัดสินแล้วใน P1 (ดู TFR-001)
 - ~~endpoint เก่า finance-visibility ตอบ 404 หรือ 410~~ — ตัดสินแล้ว: ลบ route ทิ้ง = 404
-- เกณฑ์ "ร้านขายบริการได้" สำหรับ BILLING — กำหนดตอน implement P2
+- ~~เกณฑ์ "ร้านขายบริการได้" สำหรับ BILLING~~ — ตัดสินแล้ว: `canUseAppointments(shop)`

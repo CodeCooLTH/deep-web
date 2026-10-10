@@ -11,7 +11,7 @@ related: ["[[SRS]]", "[[API]]", "[[DATABASE]]", "[[TestCase]]"]
 > **ประเภทเอกสาร:** System Design Spec (SDS)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 implement แล้ว · P2/P3 ยังเป็นการออกแบบ
+> **สถานะ:** P1 implement แล้ว · **P2 implement แล้ว** (โมเดล `roles` + CHECK + มอบบทบาทตอนเชิญ/แก้สมาชิก) · P3 ยังเป็นการออกแบบ
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SDS: บทบาทและสิทธิ์สมาชิกร้าน (System Design Spec)
@@ -76,8 +76,9 @@ graph TD
 | **Guard (route/RSC)** | อ่านบทบาทสด → ถาม `can` → 403 `FORBIDDEN_ROLE` หรือหน้าแจ้งไม่มีสิทธิ์ | `resolveActiveShopContext` → Prisma `ShopMember` |
 | **Money-level slicing** | ตัดฟิลด์เงินใน service/DAL ตาม `moneyLevel` | `src/services/*` |
 | **Finance access (`expense/agent-report/product-report`)** | เลิกอ่าน `staffCanViewFinance` ใช้ "การเงินเต็ม = เจ้าของ" | `src/services/*-access.service` |
-| **`shop-member.service`** | เปลี่ยน `role`/`roles` (เจ้าของเท่านั้น) · validate ชุดบทบาท | Prisma `ShopMember` |
-| **Invite services** | เก็บ/ส่งต่อ `roles` จากคำเชิญ/ลิงก์ไปสู่ `ShopMember` ตอนยอมรับ | Prisma `ShopInvite`/`ShopInviteLink` |
+| **`shop-member.service`** ✅ P2 | `changeMemberRole` (เจ้าของเท่านั้น) · `inviteShopMember` เก็บ `roles` · `acceptShopInvite` คัดลอก `invite.roles` ลง `ShopMember` | Prisma `ShopMember` · `shop-role-assignment.ts` (pure) · `shop-member-errors.ts` |
+| **Invite services** ✅ P2 | `invite-link.service` (`createInviteLink` รับ `roles` · accept คัดลอก `link.roles`) | Prisma `ShopInvite`/`ShopInviteLink` |
+| **`shop-role-picker`** ✅ P2 | ตรรกะ+ข้อความตัวเลือกบทบาทใน UI (ซ่อน BILLING · ปุ่มบันทึกกดได้ไหม · ลำดับ) — pure, client-safe `src/lib/shop-role-picker.ts` | `STAFF_ROLES` |
 | **Menu layer** | คำนวณเมนู/FAB/หน้าแรกจาก union ของบทบาท | `src/lib/seller-menu.ts` และจุดเมนูมือถือ — กำหนดตอน implement P3 |
 | **Route inventory test** | แดงเมื่อพบ route ฝั่งร้านที่ไม่ประกาศ capability | Vitest (P3 S-12) |
 
@@ -140,7 +141,10 @@ sequenceDiagram
 - **ตัดสินใจ:** คง `ShopMember.role` = `'OWNER'|'ADMIN'` (เจ้าของ vs พนักงาน) เพิ่ม `roles` = หน้าที่ของพนักงาน
 - **เหตุผล:** กติกา 00012 (BR-MR-01..08), `staffCountWhere()`, `canAccessShop`, โค้ดที่เช็ค `role==='OWNER'` ใช้ต่อได้ · migration additive ย้อนกลับได้
 - **ทางเลือกที่ตัดทิ้ง:** แทนที่ `role` ด้วยรหัสบทบาทใหม่ — กระทบทุกที่ที่เช็ค role และ DROP/แก้ค่า ผิดกติกา additive
-- **ผลกระทบ:** ต้องรักษา invariant `role='OWNER' ⇒ roles=[]` และ `role='ADMIN' ⇒ 1-4 ค่า` ที่ service (ไม่มี DB constraint — กำหนดตอน implement P2 ว่าจะเพิ่ม CHECK additive หรือไม่)
+- **ผลกระทบ:** invariant `role='OWNER' ⇒ roles=[]` และ `role='ADMIN' ⇒ 1-4 ค่า` — **ตัดสินแล้ว (P2 มติ 0.3): เพิ่ม DB CHECK 3 ตัว** (`ShopMember_roles_check` · `ShopInvite_roles_check` · `ShopInviteLink_roles_check` ใน migration `20261010120000_shop_member_roles`) บังคับซ้ำที่ service (`src/lib/shop-role-assignment.ts`: `validateAssignableRoles` · `planMemberRoleChange`) · CHECK เป็น unmanaged SQL ห้าม `db pull`/`migrate dev`
+- **ศัพท์ (มติ P2):** `ShopMember.role` = ประเภทสมาชิก แสดง "เจ้าของ"/"พนักงาน" · "ผู้ดูแล" = บทบาท `MANAGER` ใน `roles`
+- **BILLING:** เลือกได้เฉพาะร้านที่ `canUseAppointments(shop)` (`src/lib/appointments.ts`, vertical `SERVICE_QUEUE`) — ใช้ฟังก์ชันนี้ ห้ามเขียนเทียบ vertical ซ้ำ · ร้านเปลี่ยน vertical ทีหลังแล้ว BILLING เดิมค้างได้ (service ตรวจเฉพาะตอนตั้งชุดใหม่)
+- **session (S-17):** `src/lib/session-active-shop.ts` — อ่านสมาชิกล้ม/ไม่เจอ ⇒ ถอยไปร้านส่วนตัว ไม่ถอยเป็นเจ้าของร้านที่ token ชี้ (ไม่มีร้านส่วนตัว ⇒ ไม่มีบทบาท)
 
 ### TD-002: ตารางสิทธิ์เป็นโมดูล pure ตัวเดียว
 - **ตัดสินใจ:** `src/lib/shop-permissions.ts` ไม่มี I/O · unknown cap = OWNER เท่านั้น
@@ -149,8 +153,8 @@ sequenceDiagram
 - **ผลกระทบ:** ทุก route ต้องประกาศ capability (P3) และมี inventory test
 
 ### TD-003: P1 ปิดการเงินก่อนมีโมเดลบทบาท
-- **ตัดสินใจ:** P1 ใช้ `rolesFromMembership('OWNER'|'ADMIN')` → `['OWNER']`|`['MANAGER']` โดยไม่แตะ schema
-- **เหตุผล:** แก้ "ทุกคนเห็นกำไรขาดทุน" ได้ทันทีโดยไม่ต้อง migrate · P2 แทนที่แหล่งบทบาทเป็น `roles` โดยผลต้องเท่าเดิม (S-9)
+- **ตัดสินใจ:** P1 ใช้ `rolesFromMembership('OWNER'|'ADMIN')` → `['OWNER']`|`['MANAGER']` โดยไม่แตะ schema · **P2: `rolesFromMembership(role, roles)` อ่านคอลัมน์ `roles`** (OWNER → `['OWNER']` ไม่สน roles · ADMIN → `roles ∩ STAFF_ROLES` เรียงตามลำดับมาตรฐาน · ADMIN ที่ roles ว่าง/แปลก = `[]` ไม่ fallback เป็น MANAGER — fail-closed)
+- **เหตุผล:** แก้ "ทุกคนเห็นกำไรขาดทุน" ได้ทันทีโดยไม่ต้อง migrate · P2 แทนที่แหล่งบทบาทเป็น `roles` โดยผลต้องเท่าเดิม (S-9: backfill ADMIN → `['MANAGER']`)
 - **ทางเลือกที่ตัดทิ้ง:** รอทำพร้อม P2 — เงินรั่วนานขึ้น
 - **ผลกระทบ:** ADMIN เสีย F1-F3/P3 ตั้งแต่ P1 (ผลข้างเคียงที่ตั้งใจ)
 
@@ -193,5 +197,5 @@ sequenceDiagram
 - P3: inventory + guard ทุก route (S-12) → แชท (S-13) → บิล/ออเดอร์ (S-14) → ฝ่ายช่าง (S-15) → เมนู (S-16) → fail-closed auth (S-17)
 
 **Open Questions:**
-- ต้องเพิ่ม DB CHECK additive เพื่อบังคับ invariant `roles` หรือไม่ — กำหนดตอน implement P2
+- ~~ต้องเพิ่ม DB CHECK หรือไม่~~ — ตัดสินแล้ว: เพิ่ม (TD-001)
 - ~~รายชื่อผิวการเงินที่ต้องตัด~~ — ตัดสินแล้วใน P1 (ดู TD-004 และ finance-surface-guard)

@@ -1527,17 +1527,17 @@ erDiagram
 
 ### 6.71 บทบาทสมาชิกร้าน — `ShopMember.roles` + คอลัมน์ใน invite (feature 00071)
 
-> สถานะ: **P1 implement แล้ว (ไม่มี migration · ไม่แตะ schema) · P2/P3 ยังเป็นสเปก** · P2 additive (ไม่มี DROP) · รายละเอียด: `docs/20 - Features/00071 - Shop Member Roles & Permissions/DATABASE.md`
+> สถานะ: **P1 implement แล้ว (ไม่มี migration) · P2 implement แล้ว (migration `20261010120000_shop_member_roles` · additive ไม่มี DROP) · P3 ยังเป็นสเปก** · รายละเอียด: `docs/20 - Features/00071 - Shop Member Roles & Permissions/DATABASE.md`
 
 | ตาราง.คอลัมน์ | ชนิด | หมายเหตุ |
 |---|---|---|
 | `ShopMember.role` (เดิม) | String `'OWNER'\|'ADMIN'` | ความหมายคงเดิม = เจ้าของ vs พนักงาน — ไม่เปลี่ยนค่า |
-| `ShopMember.roles` (**ใหม่ P2**) | String[] default `[]` | หน้าที่ของพนักงาน 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · เจ้าของ = ว่าง · ถือ 3 บทบาทนับ 1 คนในโควตา `staffCountWhere()` |
-| `ShopInvite.roles` (**ใหม่ P2**) | String[] default `["MANAGER"]` | เชิญเป็นเจ้าของไม่ได้ |
-| `ShopInviteLink.roles` (**ใหม่ P2**) | String[] default `["MANAGER"]` | เช่นเดียวกัน |
+| `ShopMember.roles` (**P2 ✅**) | String[] NOT NULL default `[]` | หน้าที่ของพนักงาน 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` · เจ้าของ = ว่าง · ถือ 3 บทบาทนับ 1 คนในโควตา `staffCountWhere()` · CHECK `ShopMember_roles_check` |
+| `ShopInvite.roles` (**P2 ✅**) | String[] NOT NULL default `["MANAGER"]` | เชิญเป็นเจ้าของไม่ได้ · CHECK `ShopInvite_roles_check` (1..4 ค่าในชุด) |
+| `ShopInviteLink.roles` (**P2 ✅**) | String[] NOT NULL default `["MANAGER"]` | เช่นเดียวกัน · CHECK `ShopInviteLink_roles_check` |
 | `Shop.staffCanViewFinance` | Boolean | **deprecated โดย 00071 P1 (implement แล้ว)** — ยังอยู่ใน schema แต่ไม่มีโค้ดอ่านเพื่อตัดสินสิทธิ์ (ตั้งเป็น `true` ก็ไม่มีผล) · ห้าม drop โดยไม่ขออนุมัติ user |
 
-Migration (P2): backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (คำเชิญ/ลิงก์ค้างได้ `['MANAGER']` จาก default)
+Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน์ → backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (คำเชิญ/ลิงก์ค้างได้ `['MANAGER']` จาก default) → `SET NOT NULL` → CHECK 3 ตัว (`NOT VALID` + `VALIDATE`) — CHECK เป็น **unmanaged SQL** (Prisma ประกาศไม่ได้) ห้าม `db pull`/`migrate dev` · invariant: `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1..4 ค่าในชุด · เขียน `role='OWNER'` ต้องส่ง `roles: []` คู่กัน
 
 ---
 
@@ -1812,7 +1812,7 @@ Migration (P2): backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (ค�
 | DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
 | GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` + **`coverage{soldItemCount,uncostedItemCount}`** (feature 00067 · additive) | `pnl.service` · `cost-coverage.service` |
 | ~~PATCH~~ | ~~`/api/business/shops/[shopId]/finance-visibility`~~ | — | 🛑 **ลบแล้ว (00071 P1)** — ไม่มีไฟล์ route (ตอบ 404 ตามปกติของ Next ไม่ใช่ 410) · สวิตช์ในหน้าสมาชิกถอดแล้ว | — |
-| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ · **00071 P2 (สเปก):** body ขยายเป็น `{ role?, roles?: ShopRole[] }` — ดู §7.27 | `shop-member.service` |
+| PATCH | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | **ส่วนขยาย 00012 (2026-10-05)** — `{ role: 'OWNER'\|'ADMIN' }` แตะเจ้าของหลัก (`Shop.userId`) ไม่ได้ · **00071 P2 ✅:** body `{ role?, roles?: StaffRole[] }` → `200 { role, roles }` · ผู้ไม่ใช่เจ้าของ `403 NOT_OWNER` · `400 INVALID_INPUT`/`INVALID_ROLES`/`BILLING_NOT_AVAILABLE` — ดู §7.27 | `shop-member.service` |
 | DELETE | `/api/business/shops/[shopId]/members/[memberId]` | เจ้าของ (หลัก/ร่วม) | ลบผู้ดูแล/เจ้าของร่วม — ห้ามลบเจ้าของหลักและตัวเอง (เดิม: เจ้าของหลักลบได้แค่ ADMIN) | `shop-member.service` |
 | POST | `/api/business/shops/[shopId]/transfer` | **เจ้าของหลักเท่านั้น** | `{ memberId }` โอน `Shop.userId` · ผู้รับต้องมีแพ็กเกจ ACTIVE ที่ร้าน/สมาชิกไม่เกินโควตา · เจ้าของเดิมคง role OWNER | `shop-member.service` |
 
@@ -2287,7 +2287,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 ทุก route: Prisma error อื่น → 500 `{ error }` (log เฉพาะชนิด error ไม่ log เนื้อความจำ/ชื่อสินค้า)
 
-### 7.27 บทบาทและสิทธิ์สมาชิกร้าน (feature 00071 — **P1 implement แล้ว** · P2/P3 ยังเป็นสเปก)
+### 7.27 บทบาทและสิทธิ์สมาชิกร้าน (feature 00071 — **P1, P2 implement แล้ว** · P3 ยังเป็นสเปก)
 
 > เอกสารเต็ม: `docs/20 - Features/00071 - Shop Member Roles & Permissions/{BRD,SRS,SDS,API,DATABASE,TestCase}.md` · ตารางสิทธิ์ SSOT = **BRD §8.3**
 
@@ -2295,7 +2295,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 |---|---|
 | P1 ✅ | ลบ `PATCH /api/business/shops/[shopId]/finance-visibility` (ลบไฟล์ route · ไม่ใช่ 410) · ผิวการเงินเต็ม ตอบ `403 { error: 'FORBIDDEN_ROLE' }` (`forbiddenRoleResponse()` ใน `src/lib/forbidden-role.ts`) สำหรับผู้ที่ไม่ใช่เจ้าของ · ตัดฟิลด์เงินที่ต้นทาง — รายละเอียดสัญญาด้านล่าง |
 | P1 helper | `src/lib/shop-permissions.ts` (`can` · `moneyLevel` · `rolesFromMembership` · `CAPABILITY_ROLES`) · `src/lib/forbidden-role.ts` · `src/lib/shop-owner.ts` (`isShopOwnerRole` · `isShopOwnerOfShop`) · `src/lib/dashboard-money.ts` (`dashboardMoney` · `redactCommandCenterData`) · `src/lib/order-cost-redact.ts` (`stripOrderItemCost`) · `src/lib/agent-revenue-redact.ts` (`redactAgentRevenue`) · ด่านกันลืม: `src/lib/__tests__/finance-surface-guard.test.ts` (page/layout/route ที่เรียกแหล่งเงินต้องเรียกตัวตัดสินในไฟล์เดียวกัน หรืออยู่ใน ALLOW พร้อมเหตุผล) |
-| P2 | `PATCH …/members/[memberId]` รับ `{ role?: 'OWNER'\|'ADMIN', roles?: ShopRole[] }` · invite create และ invite-link create รับ `roles` (ค่าตั้งต้น `['MANAGER']`) · เฉพาะเจ้าของ |
+| P2 ✅ | `PATCH …/members/[memberId]` รับ `{ role?: 'OWNER'\|'ADMIN', roles?: StaffRole[] }` → `200 { role, roles }` · `POST /api/business/shops/[shopId]/invites` (`{ contact, contactType, roles? }` → `201 { inviteId, status }`) และ `POST /api/shops/current/invite-links` (`{ expiryKey?, roles? }` → `201 { url, slug, expiresAt }`) รับ `roles` (ค่าตั้งต้น `['MANAGER']`) · เฉพาะเจ้าของ → ผู้อื่น `403 NOT_OWNER` (ไม่ใช่ `FORBIDDEN_ROLE`) · `GET` invites/invite-links และ `POST /api/invites/[inviteId]/accept` คืน `roles` เพิ่ม · error: `INVALID_ROLES` / `BILLING_NOT_AVAILABLE` → 400 (`BILLING` เฉพาะร้าน `canUseAppointments`) · helper: `src/lib/shop-role-assignment.ts` · `src/lib/shop-member-errors.ts` · `src/lib/shop-role-picker.ts` · `src/lib/session-active-shop.ts` (อ่านสมาชิกล้ม ⇒ ไม่เป็นเจ้าของ) |
 | P3 (สเปก) | ทุก route ฝั่งร้านประกาศ capability แล้วถามตัวตัดสินกลาง `src/lib/shop-permissions.ts` |
 
 **สัญญา API ที่เปลี่ยนใน P1 (จากโค้ด):**
@@ -2757,13 +2757,15 @@ HTTP ตามตาราง §7.21
 | ค่าคงที่ความจำ (`src/lib/chat-memory-types.ts`) | `CHAT_MEMORY_MAX=800` · `INTERESTED_PRODUCT_MAX=10` · `SELECTIONS_MAX=10` · `MEMORY_AI_MIN_NEW_MESSAGES=3` · `MEMORY_AI_FIRST_MIN_MESSAGES=4` (+ลูกค้า ≥ `MEMORY_AI_FIRST_MIN_BUYER=2`) · `MEMORY_AI_COOLDOWN_MS=120000` · `MEMORY_AI_WINDOW=40` · `MEMORY_RPM_SHARE=0.7` · `MEMORY_SLOT_WAIT_MS=2000` · `MEMORY_SHRINK_RATIO=0.5` (ฐาน ≥ `MEMORY_SHRINK_BASE_MIN=100`) |
 | `AutoSuggestReason` (ฝั่ง client · ใน response `NONE`) | outcome ทุกค่าที่ไม่ใช่ `OK` + `NO_RUN` (ยังไม่มีแถวของ anchor นี้) · `STALE_ANCHOR` (anchor ไม่ใช่ข้อความล่าสุดของห้อง) · `NOT_CONFIGURED` (อยู่ใน allow-list แต่ไม่มีกุญแจ) · `NOT_ENABLED` (ร้านใช้ Gemini) |
 
-### 8.14 บทบาทสมาชิกร้าน (feature 00071 — P1 implement แล้ว: `src/lib/shop-permissions.ts` เป็น SSOT ของตาราง/`can`/`moneyLevel` · `roles` ใน DB เป็นสเปก P2 · ทุกค่าเก็บเป็น String)
+### 8.14 บทบาทสมาชิกร้าน (feature 00071 — P1, P2 implement แล้ว: `src/lib/shop-permissions.ts` เป็น SSOT ของตาราง/`can`/`moneyLevel`/`STAFF_ROLES` · ทุกค่าเก็บเป็น String + CHECK ที่ DB)
 
 | enum / ค่าคงที่ | ค่า |
 |---|---|
 | `ShopRole` (รหัสบทบาท) | `OWNER` (เจ้าของ) · `MANAGER` (ผู้ดูแล) · `CHAT` (ตอบแชท) · `BILLING` (เปิดบิล) · `TECHNICIAN` (ฝ่ายช่าง) |
-| `ShopMember.role` (เดิม คงไว้) | `OWNER` · `ADMIN` — เจ้าของ vs พนักงาน · P1 map ผ่าน `rolesFromMembership`: `OWNER`→`['OWNER']`, `ADMIN`→`['MANAGER']` |
-| `ShopMember.roles` (ใหม่ P2) | 1-4 ค่าจาก `MANAGER`/`CHAT`/`BILLING`/`TECHNICIAN` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ขายบริการ |
+| `ShopMember.role` (เดิม คงไว้) | `OWNER` · `ADMIN` — **ประเภทสมาชิก** แสดงเป็น "เจ้าของ" / "พนักงาน" ("ผู้ดูแล" = บทบาท `MANAGER` ไม่ใช่ชื่อของ `ADMIN`) · `rolesFromMembership(role, roles)`: `OWNER`→`['OWNER']`, `ADMIN`→ `roles ∩ STAFF_ROLES` (ว่าง/แปลก = `[]` ไม่ fallback) |
+| `STAFF_ROLES` (P2 ✅) | `['MANAGER','CHAT','BILLING','TECHNICIAN']` — บทบาทที่มอบให้ ADMIN ได้ (ไม่มี `OWNER`) · `src/lib/shop-permissions.ts` · ตรงกับชุดใน CHECK 3 ตัว (ถ้าเพิ่มค่า ต้องแก้ migration ใหม่แบบ additive — `docs/conventions/migration-check-constraint-additive.md`) |
+| `ShopMember.roles` (P2 ✅) | 1-4 ค่าจาก `STAFF_ROLES` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ `canUseAppointments` (vertical `SERVICE_QUEUE`) |
+| error (P2 ✅) | `INVALID_ROLES` · `BILLING_NOT_AVAILABLE` (HTTP 400) |
 | `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
 | capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` · `T1` `T2` `T3` `T4` — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น |
 | error | `FORBIDDEN_ROLE` (HTTP 403) |
@@ -2940,7 +2942,7 @@ HTTP ตามตาราง §7.21
 - ผูกกลุ่ม LINE ที่ ACTIVE กับเจ้าของอื่น = ตอบข้อความ "ไม่ถูกต้อง" เดียวกับโค้ดผิด (ไม่เปิดเผยเจ้าของ · ไม่เผาโค้ด)
 - **[EXT] เทมเพลตข้อความ:** PUT/DELETE `…/template` เป็น **L2** — `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · `lockOwnedGroup` query `{id, ownerId}` ตั้งแต่แรก (ไม่ใช่ของตน/`REMOVED` = 404 `GROUP_NOT_FOUND`) · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` แต่ **GET (L1) ยังอ่าน `template` เดิมได้** และเทมเพลตถูกเก็บไว้ (กลับ ACTIVE ใช้ต่อ) · ปลายทางปุ่มในข้อความตายตัว (`sellerDashboardUrl()`) ไม่มีฟิลด์ URL ที่ผู้ใช้ตั้งได้ · ข้อความสุดท้ายตอนแพ็กเกจหยุด (`FINAL_NOTICE`) ไม่ผ่านเทมเพลต · เนื้อหาข้อความอิสระไม่ถูก log
 
-### 9.11 บทบาทสมาชิกร้าน (feature 00071 — P1 implement แล้ว: การเงินเต็ม/ต้นทุน = เจ้าของเท่านั้น · P2/P3 ยังเป็นสเปก)
+### 9.11 บทบาทสมาชิกร้าน (feature 00071 — P1 implement แล้ว: การเงินเต็ม/ต้นทุน = เจ้าของเท่านั้น · P2 มอบบทบาทได้แล้ว แต่การบังคับรายบทบาทอยู่ P3 ยังเป็นสเปก)
 
 > ตารางสิทธิ์ capability × 5 บทบาท (SSOT) อยู่ที่ **`docs/20 - Features/00071 - Shop Member Roles & Permissions/BRD.md` §8.3** — ไม่คัดลอกซ้ำที่นี่เพื่อกันตารางเพี้ยน · เมนูมือถือ §8.5 · ระดับเงิน §8.2
 

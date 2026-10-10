@@ -11,7 +11,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 > **ประเภทเอกสาร:** Test Case
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-10-10
-> **สถานะ:** P1 มีไฟล์เทสแล้ว (ดู §2.1) · P2/P3 ยังไม่มีโค้ด/เทส
+> **สถานะ:** P1 มีไฟล์เทสแล้ว (§2.1) · **P2 มีไฟล์เทสแล้ว (§2.2)** · P3 ยังไม่มีโค้ด/เทส
 > **เจ้าของเอกสาร:** QA (ดู [[Feature-Docs-Ownership]])
 
 # Test Case: บทบาทและสิทธิ์สมาชิกร้าน
@@ -183,7 +183,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
   3. เจ้าของแก้ชุดบทบาทในตารางสมาชิก
   4. ส่ง `roles=[]`, 5 ค่า, ค่าซ้ำ, `OWNER+MANAGER`, และตั้ง `role:'OWNER'`
   5. M/C เรียก PATCH members และ invite create
-- **Expected Result:** (1)(2) ได้ชุดที่เชิญ / ค่าตั้งต้น [MANAGER] (3) สำเร็จ + แสดงคำอธิบายบรรทัดเดียว (4) ชุดว่าง/เกิน/ซ้ำ/OWNER+อื่น = 400 · ตั้งเป็นเจ้าของ = ล้าง `roles` (5) 403 `FORBIDDEN_ROLE`
+- **Expected Result:** (1)(2) ได้ชุดที่เชิญ / ค่าตั้งต้น [MANAGER] (3) สำเร็จ + แสดงคำอธิบายบรรทัดเดียว (4) ชุดว่าง/เกิน/ซ้ำ = 400 (`INVALID_INPUT` ที่ PATCH · `VALIDATION_ERROR` ที่ invite) · เจ้าของ+roles = 400 `INVALID_ROLES` · ตั้งเป็นเจ้าของ = ล้าง `roles` (5) **403 `NOT_OWNER`** (มติ P2 0.4 — ไม่ใช่ `FORBIDDEN_ROLE`)
 
 ### TC-019: BILLING ในร้านที่ไม่มีบริการ
 - **Linked to:** FR-RP-01-c, BR-RP-07
@@ -191,7 +191,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 - **Steps:**
   1. เลือก "เปิดบิล" ใน UI เชิญ
   2. ยิง API ด้วย `roles=['BILLING']`
-- **Expected Result:** UI ซ่อนตัวเลือก · API ปฏิเสธ
+- **Expected Result:** UI ซ่อนตัวเลือก · API ปฏิเสธ 400 `BILLING_NOT_AVAILABLE` · เกณฑ์ "ร้านขายบริการ" = `canUseAppointments(shop)` (vertical `SERVICE_QUEUE`)
 
 ### TC-020: กติกา 00012 และโควตาไม่เปลี่ยน
 - **Linked to:** BR-RP-13, BR-RP-14, FR-RP-08-c
@@ -251,7 +251,22 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]"]
 | รายงานแอดมิน SELF ไม่มี `revenue` (TC-009) | `src/app/api/seller/reports/agents/route.test.ts` · `src/services/agent-report-access.service.test.ts` |
 | เมนูการเงินเจ้าของเท่านั้น (ส่วน P1 ของ TC-023) | `src/lib/seller-menu.test.ts` (`applyOwnerOnlyFinanceMenu`) |
 
-TC-005..007, TC-013..021, TC-022 (ส่วน P2/P3) ยังไม่มีเทส — เป็นของ P2/P3 · TC-023 (เมนูมือถือเต็ม) เป็นของ P3
+TC-005, TC-007, TC-013..017, TC-022 (ส่วน P3) ยังไม่มีเทส — เป็นของ P3 · TC-023 (เมนูมือถือเต็ม) เป็นของ P3
+
+### 2.2 ไฟล์เทส P2 (ที่มีอยู่จริงใน repo)
+
+| TC | ไฟล์เทส | ครอบคลุม |
+|----|---------|----------|
+| TC-018, TC-019 (กติกา pure) | `src/lib/__tests__/shop-role-assignment.test.ts` | `validateAssignableRoles` · `planMemberRoleChange` |
+| TC-018, TC-019, TC-020 (service) | `src/services/__tests__/shop-member-roles.service.test.ts` · `src/services/__tests__/invite-link.service.test.ts` | เลื่อนเป็น OWNER ล้าง roles · OWNER→ADMIN ไม่ส่ง roles = MANAGER · ชุดเดิมที่มี BILLING ไม่ถูกตีกลับ · เชิญ/ลิงก์เก็บ roles + ค่าตั้งต้น · accept คัดลอก roles · สมาชิกเดิมไม่ถูกเขียนทับ · non-owner = NOT_OWNER |
+| TC-018 (route) | `src/app/api/business/shops/[shopId]/members/[memberId]/roles.route.test.ts` | non-owner 403 `NOT_OWNER` · `INVALID_ROLES`/`BILLING_NOT_AVAILABLE` = 400 ไม่ใช่ 500 · schema ปัด roles ผิดรูป · ส่ง roles ต่อ service |
+| TC-018 (UI logic) | `src/lib/__tests__/shop-role-picker.test.ts` | ซ่อน BILLING · ปุ่มบันทึก · ลำดับมาตรฐาน · ข้อความ error |
+| TC-021 (migration) | `src/lib/__tests__/shop-roles-db-constraint.test.ts` | source: มี 4 role + 3 constraint + ไม่มี DROP/TRUNCATE/DELETE · DB local เท่านั้น (skip ถ้า URL ไม่ใช่ localhost:5434): CHECK ปฏิเสธ/รับตามกติกา |
+| TC-018 (roles ใน context) | `src/lib/__tests__/shop-context.roles.test.ts` · `src/lib/shop-permissions.test.ts` (`rolesFromMembership`) | select `roles` + ส่งต่อ · ADMIN ว่าง = `[]` |
+| TC-006 (ส่วน session, S-17 ที่ลงมาในรอบนี้) | `src/lib/__tests__/session-active-shop.test.ts` | อ่านสมาชิกล้ม ⇒ ไม่เป็น OWNER ของร้านนั้น |
+| TC-020 (กติกา 00012 เดิม) | `src/lib/__tests__/shop-member-rules.test.ts` | คงเดิม |
+
+ยังไม่ครอบคลุมใน P2: browser QA ตัวเลือกบทบาทใน UI (user ตรวจเอง) · การบังคับรายบทบาทที่ route (P3 — P2 ให้มอบบทบาทได้อย่างเดียว ผลบังคับจริงยังเท่า ADMIN เดิม)
 
 ---
 
@@ -312,7 +327,7 @@ flowchart TD
 
 | Run | วันที่ | ผล (Pass/Fail/Blocked) | ผู้ทดสอบ (Tester) |
 |-----|--------|--------------------------|---------------------|
-| - | - | P1: ไฟล์เทสเขียนแล้ว (§2.1) — ผลรันยังไม่บันทึกที่นี่ (ผู้เขียนเอกสารไม่ได้รัน) · P2/P3: ยังไม่มีโค้ด | - |
+| - | - | P1/P2: ไฟล์เทสเขียนแล้ว (§2.1, §2.2) — ผลรันยังไม่บันทึกที่นี่ (ผู้เขียนเอกสารไม่ได้รัน) · P3: ยังไม่มีโค้ด | - |
 
 ---
 
@@ -322,4 +337,4 @@ flowchart TD
 
 **Open Questions:**
 - ชื่อไฟล์เทสและตำแหน่งจริง — P1 ตัดสินแล้ว (§2.1) · P2/P3 กำหนดตอน implement
-- เกณฑ์ "ร้านขายบริการได้" ที่ TC-019 ใช้ — ยืนยันตอน implement P2
+- ~~เกณฑ์ "ร้านขายบริการได้" ที่ TC-019~~ — ตัดสินแล้ว: `canUseAppointments`
