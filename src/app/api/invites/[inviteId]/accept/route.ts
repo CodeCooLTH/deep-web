@@ -6,9 +6,7 @@ import { acceptShopInvite } from "@/services/shop-member.service";
 /**
  * POST /api/invites/[inviteId]/accept — ผู้ถูกเชิญ (login แล้ว) accept คำเชิญของตัวเอง
  *
- * ทำไม role hardcode "ADMIN" ในคำตอบ: schema ปัจจุบันเชิญได้เฉพาะ role ADMIN เท่านั้น
- * (ดู shop-member.service.ts inviteShopMember/acceptShopInvite — upsert role:"ADMIN" ตรง ๆ)
- * service คืน ShopInvite record (ไม่มี field role) — route ประกอบ response ตาม API.md §4.13
+ * ทำไม role hardcode "ADMIN": คำเชิญสร้างได้เฉพาะ ADMIN · บทบาทย่อยอยู่ใน invite.roles (00071 P2)
  *
  * API.md §4.13
  */
@@ -26,7 +24,7 @@ export async function POST(
 
   try {
     const invite = await acceptShopInvite(inviteId, userId);
-    return NextResponse.json({ shopId: invite.shopId, role: "ADMIN" });
+    return NextResponse.json({ shopId: invite.shopId, role: "ADMIN", roles: invite.roles });
   } catch (e: unknown) {
     if (e instanceof Error && e.message === "INVITE_NOT_PENDING") {
       return NextResponse.json({ error: "INVITE_NOT_PENDING" }, { status: 409 });

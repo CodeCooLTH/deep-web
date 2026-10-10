@@ -42,9 +42,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const invite = await inviteShopMember(ownerId, shopId, parsed.output.contact, parsed.output.contactType);
+    const invite = await inviteShopMember(ownerId, shopId, parsed.output.contact, parsed.output.contactType, parsed.output.roles);
     return NextResponse.json({ inviteId: invite.id, status: invite.status }, { status: 201 });
   } catch (e: unknown) {
+    if (e instanceof Error && (e.message === "INVALID_ROLES" || e.message === "BILLING_NOT_AVAILABLE")) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     if (e instanceof Error && e.message === "NOT_OWNER") {
       return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
     }
@@ -93,6 +96,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         invitedContact: maskInviteContact(i.invitedContact, i.contactType as "PHONE" | "EMAIL"),
         contactType: i.contactType,
         status: i.status,
+        roles: i.roles,
         createdAt: i.createdAt,
       })),
     });

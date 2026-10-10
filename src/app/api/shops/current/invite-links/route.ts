@@ -38,9 +38,12 @@ export async function POST(request: NextRequest) {
   const expiryKey: InviteExpiryKey = parsed.output.expiryKey ?? DEFAULT_INVITE_EXPIRY_KEY;
 
   try {
-    const { slug, expiresAt } = await createInviteLink(ownerId, active.shop.id, expiryKey);
+    const { slug, expiresAt } = await createInviteLink(ownerId, active.shop.id, expiryKey, parsed.output.roles);
     return NextResponse.json({ url: buildInviteUrl(slug), slug, expiresAt }, { status: 201 });
   } catch (e: unknown) {
+    if (e instanceof Error && (e.message === "INVALID_ROLES" || e.message === "BILLING_NOT_AVAILABLE")) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     if (e instanceof Error && e.message === "NOT_OWNER") {
       return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
     }
@@ -76,6 +79,7 @@ export async function GET(_request: NextRequest) {
         slug: l.slug,
         expiresAt: l.expiresAt,
         createdAt: l.createdAt,
+        roles: l.roles,
       })),
     });
   } catch (e: unknown) {

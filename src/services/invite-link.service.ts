@@ -10,6 +10,8 @@ import {
   type InviteExpiryKey,
 } from "@/lib/invite-link";
 import { staffCountWhere } from "@/lib/shop-member-rules";
+import { validateAssignableRoles } from "@/lib/shop-role-assignment";
+import type { STAFF_ROLES } from "@/lib/shop-permissions";
 
 /**
  * invite-link.service.ts — Shop Staff Invite Link (feature 00012, Task 1.3)
@@ -34,6 +36,7 @@ export async function createInviteLink(
   ownerId: string,
   shopId: string,
   expiryKey: InviteExpiryKey,
+  roles: (typeof STAFF_ROLES)[number][] = ["MANAGER"],
 ): Promise<{ slug: string; expiresAt: Date }> {
   const expiresAt = expiryKeyToDate(expiryKey);
 
@@ -49,6 +52,8 @@ export async function createInviteLink(
           throw new Error("NOT_OWNER");
         }
         if (shop.packageLockedAt !== null) throw new Error("SHOP_LOCKED");
+        const roleErr = validateAssignableRoles(roles, shop);
+        if (roleErr) throw new Error(roleErr);
 
         // lookup tier ของเจ้าของหลัก (Shop.userId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์สร้างลิงก์
         const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } });
@@ -60,6 +65,7 @@ export async function createInviteLink(
             shopId,
             slug,
             role: "ADMIN",
+            roles,
             createdByUserId: ownerId,
             expiresAt,
           },
@@ -81,10 +87,10 @@ export async function createInviteLink(
  */
 export async function listActiveInviteLinks(
   shopId: string,
-): Promise<{ slug: string; expiresAt: Date; createdAt: Date }[]> {
+): Promise<{ slug: string; expiresAt: Date; createdAt: Date; roles: string[] }[]> {
   return prisma.shopInviteLink.findMany({
     where: { shopId, revokedAt: null, expiresAt: { gt: new Date() } },
-    select: { slug: true, expiresAt: true, createdAt: true },
+    select: { slug: true, expiresAt: true, createdAt: true, roles: true },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -176,7 +182,7 @@ export async function acceptInviteLink(
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: link.shopId, userId } },
-      create: { shopId: link.shopId, userId, role: "ADMIN", roles: ["MANAGER"] }, // ชั่วคราว: T4 คัดลอก link.roles
+      create: { shopId: link.shopId, userId, role: "ADMIN", roles: link.roles }, // คัดลอกชุดที่เจ้าของเลือกตอนสร้างลิงก์
       update: {}, // idempotent กันกด accept ซ้อน (race ระหว่าง existingMember check กับที่นี่)
     });
 

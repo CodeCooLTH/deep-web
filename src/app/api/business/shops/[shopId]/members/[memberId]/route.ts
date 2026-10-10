@@ -9,7 +9,7 @@ import { changeMemberRole, removeShopMember } from "@/services/shop-member.servi
 
 /**
  * /api/business/shops/[shopId]/members/[memberId]
- * - PATCH  { role } — เจ้าของ (หลัก/ร่วม) เปลี่ยนบทบาทสมาชิก (EXT 2026-10-05 BR-MR-01/02)
+ * - PATCH  { role?, roles? } — เจ้าของ (หลัก/ร่วม) เปลี่ยนบทบาทสมาชิก (EXT 2026-10-05 BR-MR-01/02)
  * - DELETE — เจ้าของ (หลัก/ร่วม) ลบสมาชิก (BR-MR-07)
  *
  * ทำไม callerId derive จาก session เท่านั้น: ดู src/app/api/business/subscribe/route.ts
@@ -26,8 +26,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
 
   try {
-    await changeMemberRole(callerId, shopId, memberId, parsed.output.role);
-    return NextResponse.json({ role: parsed.output.role });
+    const { role, roles } = await changeMemberRole(callerId, shopId, memberId, parsed.output);
+    return NextResponse.json({ role, roles });
   } catch (e: unknown) {
     const res = memberErrorResponse(e);
     if (res) return res;
