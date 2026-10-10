@@ -2,7 +2,7 @@ import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { redactPii, restorePii } from '@/lib/pii-redact'
 import { SanitizeError, sanitizeForExternalAi, type SanitizedPayload } from '@/lib/ai-suggest-sanitize'
@@ -215,7 +215,7 @@ export async function claimRun(p: {
 
 async function latestMessage(conversationId: string) {
   return prisma.chatMessage.findFirst({
-    where: { conversationId, type: { not: AUTO_ORDER_RESULT_TYPE } },
+    where: { conversationId, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } },
     orderBy: { createdAt: 'desc' },
     select: { id: true, senderRole: true },
   })
@@ -223,7 +223,7 @@ async function latestMessage(conversationId: string) {
 
 async function loadPayload(p: RequestAutoSuggestParams, conv: { buyerUserId: string | null; externalContactId: string | null }) {
   const rowsDesc = await prisma.chatMessage.findMany({
-    where: { conversationId: p.conversationId, type: { not: AUTO_ORDER_RESULT_TYPE } },
+    where: { conversationId: p.conversationId, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } },
     orderBy: { createdAt: 'desc' },
     take: RECENT_LIMIT,
     select: { senderRole: true, type: true, body: true, productRefId: true, senderUserId: true },

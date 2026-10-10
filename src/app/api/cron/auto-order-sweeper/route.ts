@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { matchesTriggerPhrase } from '@/lib/auto-order-parser'
 import { DRAFT_EXPIRED_REASON } from '@/lib/cancel-reasons'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { writeProcessingFailedDraft } from '@/services/auto-order-detect.service'
 
 export const maxDuration = 60
@@ -95,7 +95,7 @@ async function runWatchdog() {
   const candidates = await prisma.chatMessage.findMany({
     where: {
       senderRole: 'SHOP',
-      type: { not: AUTO_ORDER_RESULT_TYPE },
+      type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE },
       // 🛑 บอทตอบอัตโนมัติเขียนแถว senderRole='SHOP' เหมือนกัน — watchdog ไม่ได้เรียก
       // `detectAutoOrderTrigger` (มันเขียนร่างเอง) จึงไม่ได้ด่านนั้นมาฟรี ต้องกันซ้ำที่นี่
       autoReplyKind: null,

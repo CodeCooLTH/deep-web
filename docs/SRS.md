@@ -620,6 +620,10 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 ไม่ได้** บังคับด้วยระบบชนิด: `SendableMessageType` (แคบ) vs `StoredMessageType` (กว้าง)
 ใน `chat.service.ts` ⇒ `tsc` ล้มตั้งแต่ compile ถ้ามีใครพยายาม
 
+**ชนิดข้อความ `ChatMessage.type = 'META_NOTICE'`** (2026-10-10, ส่วนขยาย 00018 `EXTENSIONS-2026-10-10-meta-notice-type.md`) —
+บันทึกภายในของ Meta ในนามเพจ ("replied to an ad" · "Lead stage set to …" ฯลฯ) ตัดสินตอนรับเข้าด้วย `isMetaInternalNote` ·
+แสดงกลางห้อง · ไม่แตะสรุปเธรด · ตัดออกจาก AI/ความจำ/เวลาตอบ/บอทคู่กับ `AUTO_ORDER_RESULT` · ส่งไม่ได้ (อยู่ใน `StoredMessageType` เท่านั้น)
+
 ### 6.2 Models
 
 #### User (`prisma/schema.prisma:11`)

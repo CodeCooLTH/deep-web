@@ -1,4 +1,6 @@
 import { Prisma, type ChatMessage } from '@prisma/client'
+import { isMetaInternalNote } from '@/lib/meta-system-notice'
+import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
@@ -280,6 +282,13 @@ async function insertMissingPage(
   // และตอนอัปเดต preview ไม่งั้นสองที่จะเขียนคนละเรื่องกับข้อความเดียวกัน
   // feature 00051 (S-3): shopId มาจาก conv.shopChannel.shopId ของเธรดจริง
   const contents = await resolveBackfillBatch(missing, shopId)
+  // ข้อความภายในของ Meta ในนามเพจ → META_NOTICE (แสดงกลางห้อง ไม่ใช่ร้านตอบ) และไม่นับเป็นใบล่าสุดของเธรด
+  const isNote = missing.map(
+    (m, i) => m.fromId === pageId && contents[i]!.type === 'TEXT' && !contents[i]!.imageUrl && isMetaInternalNote(contents[i]!.body),
+  )
+  isNote.forEach((n, i) => {
+    if (n) contents[i] = { ...contents[i]!, type: META_NOTICE_TYPE }
+  })
 
   // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
   // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
@@ -298,12 +307,15 @@ async function insertMissingPage(
     skipDuplicates: true,
   })
 
-  const newestIdx = missing.reduce((best, m, i) => (m.createdTime > missing[best]!.createdTime ? i : best), 0)
-  const newest = missing[newestIdx]!
+  const newestIdx = missing.reduce<number>(
+    (best, m, i) => (isNote[i] ? best : best < 0 || m.createdTime > missing[best]!.createdTime ? i : best),
+    -1,
+  )
+  const newest = newestIdx >= 0 ? missing[newestIdx]! : null
   const inbound = missing.filter((m) => m.fromId !== pageId)
   return {
     added: result.count,
-    newest: {
+    newest: newest && {
       createdTime: newest.createdTime,
       preview: backfillPreview(contents[newestIdx]!),
       senderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
@@ -1554,6 +1566,8 @@ export async function ingestInboundMessage(params: {
     aiGenerated: event.message?.ai_generated,
   })
   const body = mirroredFileId ? text : hasDisplayText ? displayText : hasAttachment ? attachmentFailedTextValue : emptyMessageTextValue
+  // ข้อความภายในของ Meta ในนามเพจ (ลูกค้าไม่เห็น) — เก็บไว้แสดงกลางห้อง แต่ไม่ใช่ "ร้านตอบ" (2026-10-10)
+  const isMetaNote = isEcho && type === 'TEXT' && !mirroredFileId && !cards && isMetaInternalNote(body)
   // diagnostic (2026-07-26): ข้อความที่ไม่มีทั้ง text และ attachment — ตอนนี้รู้แค่ว่าเคสหนึ่งคือ
   // การ์ด "ขอโทรกลับ" แต่ยังระบุไม่ได้ว่ามาทาง field ไหน. log "คีย์" ของ message + ของ event
   // (ไม่ log ค่า — กัน PII) ไว้ให้ครั้งหน้าที่เกิด จะได้รู้ว่ามีอะไรติดมาบ้างที่เรายังไม่ได้ parse
@@ -1647,7 +1661,7 @@ export async function ingestInboundMessage(params: {
         conversationId: conversation.id,
         senderUserId: null,
         senderRole,
-        type,
+        type: isMetaNote ? META_NOTICE_TYPE : type,
         body,
         // imageUrl ของ chat เดิมเก็บเป็น fileId ของ storage ไม่ใช่ URL —
         // รูปจาก Meta มี URL หมดอายุ mirror เข้า storage ไว้แล้วนอก transaction ด้านบน (Task 12)
@@ -1689,7 +1703,8 @@ export async function ingestInboundMessage(params: {
       })
     }
 
-    await tx.conversation.update({
+    // ข้อความภายในของ Meta ไม่แตะสรุปเธรด (preview/ผู้ส่งล่าสุด/ลำดับ/อ่านแล้ว) — ไม่ใช่การตอบของร้าน
+    if (!isMetaNote) await tx.conversation.update({
       where: { id: conversation.id },
       data: {
         // preview/senderRole อัปเดตเสมอ — seller ต้องเห็นข้อความล่าสุดจริงในรายการ
@@ -4325,7 +4340,8 @@ export async function cancelFailedOutboundMessage(params: {
     // จะโชว์ข้อความที่ไม่มีอยู่แล้ว. เรียงด้วย seq ร่วมด้วยตามที่ schema กำหนด (ตัวตัดสินเมื่อ
     // createdAt เท่ากัน) เขียนใน transaction เดียวกับการลบเสมอ (invariant M-2)
     const newest = await tx.chatMessage.findFirst({
-      where: { conversationId: params.conversationId },
+      // ข้อความภายใน (การ์ดออเดอร์อัตโนมัติ/บันทึกของ Meta) ไม่ใช่ใบล่าสุดของเธรด
+      where: { conversationId: params.conversationId, type: { notIn: INTERNAL_MESSAGE_TYPES } },
       orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
       select: { createdAt: true, body: true, type: true, senderRole: true },
     })

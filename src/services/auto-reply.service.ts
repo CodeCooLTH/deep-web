@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { getRuleSetCache, setRuleSetCache } from '@/lib/auto-reply-cache'
@@ -850,7 +850,7 @@ async function collectPendingCustomerText(
     where: {
       conversationId,
       senderRole: 'SHOP',
-      type: { not: AUTO_ORDER_RESULT_TYPE },
+      type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE },
       createdAt: { lte: upTo },
     },
     orderBy: { createdAt: 'desc' },

@@ -7,7 +7,7 @@ import { resolveConversationShopId } from "@/lib/chat-scope";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { sessionUserId } from "@/lib/session-user";
 import { resolveSuggestProvider } from "@/lib/reply-suggest-provider";
-import { AUTO_ORDER_RESULT_TYPE } from "@/lib/auto-order-message-type";
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from "@/lib/auto-order-message-type";
 import type { MemoryRefreshResponse } from "@/lib/chat-memory-types";
 import { maybeUpdateMemory } from "@/services/chat-memory-ai.service";
 
@@ -51,7 +51,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
 
   try {
     const latest = await prisma.chatMessage.findFirst({
-      where: { conversationId: conversation.id, type: { not: AUTO_ORDER_RESULT_TYPE } },
+      where: { conversationId: conversation.id, type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE } },
       orderBy: { createdAt: "desc" },
       select: { id: true },
     });

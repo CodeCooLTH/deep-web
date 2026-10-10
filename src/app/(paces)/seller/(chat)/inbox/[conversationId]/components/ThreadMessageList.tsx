@@ -27,7 +27,7 @@ import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
 import { isLibraryEligible } from '@/lib/customer-file-library'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { pacesConfirm } from '@/lib/paces-swal'
 import Swal from 'sweetalert2'
 import { useT } from '@/i18n/LocaleProvider'
@@ -607,10 +607,14 @@ function ThreadMessageListImpl({
                 // การ์ดชนิดอื่น (โทร/ปุ่ม) ยังตกไปเป็นบรรทัดระบบตามเดิม เพราะ parseMetaOrderCard
                 // แคบเฉพาะรูป "฿N order" เท่านั้น
                 const isMetaOrderCard = m.type === 'TEXT' && !!parseMetaOrderCard(m.body)
+                // META_NOTICE = ตัดสินแล้วตอนรับเข้าว่าเป็นข้อความภายในของ Meta — แสดงกลางห้องเสมอ
+                // แม้วันหนึ่ง parser จะไม่รู้จักคำนั้นแล้ว (ใช้ body ตรง ๆ)
                 const systemNotice =
-                  m.type === 'TEXT' && !hasGenericCards && !isMetaOrderCard
-                    ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body))
-                    : null
+                  m.type === META_NOTICE_TYPE
+                    ? (parseMetaSystemNotice(m.body) ?? { text: m.body ?? '', linkLabel: null, url: null })
+                    : m.type === 'TEXT' && !hasGenericCards && !isMetaOrderCard
+                      ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body))
+                      : null
                 if (systemNotice) {
                   return (
                     <div key={m.id} className="my-5 px-4 text-center">

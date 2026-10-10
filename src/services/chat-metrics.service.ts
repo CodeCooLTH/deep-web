@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import type { SenderRole } from '@/services/chat.service'
 
 // Response-rate / Response-time trust metric (feature 00011 ext #2 — response-rate-metric.md)
@@ -70,7 +70,7 @@ export async function computeShopChatMetrics(
       // ไฟล์นี้ query ตาราง `ChatMessage` ตรง ๆ ไม่ได้อยู่บนเส้นทางเขียนเลย
     where: {
       conversationId: { in: qualifyingConversationIds },
-      type: { not: AUTO_ORDER_RESULT_TYPE },
+      type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE },
     },
     select: { conversationId: true, senderRole: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
