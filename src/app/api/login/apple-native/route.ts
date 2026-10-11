@@ -12,9 +12,14 @@
  *    ความเสี่ยงไปวางไว้กลางทางเดินของทุกคน ทั้งที่กลไก "ตั๋วใช้ครั้งเดียว → session"
  *    (`mobile-ticket`) มีอยู่แล้วและถูกใช้งานจริง
  *
- * ## 🛑 ที่นี่ไม่สร้างบัญชีใหม่เด็ดขาด
+ * ## 🛑 สร้างบัญชีใหม่ **เฉพาะแอป iOS ที่เปิดการสมัครแล้ว** (≥ 1.0.3 · 2026-10-11)
  *
- * ต่างจากทางเว็บ (`signIn('apple')`) ที่ Apple ID ซึ่งไม่เคยผูกจะได้บัญชีใหม่ทันที
+ * เกณฑ์เดียวกับทุกจุด: `isSignUpRestricted(shell, appVersion)` — แอปรุ่นที่ยังห้ามสมัคร (≤ 1.0.2
+ * ที่อยู่บนสโตร์) ได้ `NO_ACCOUNT` เหมือนเดิมทุกประการ · รุ่นที่เปิดแล้วได้บัญชีใหม่ผ่าน
+ * `upsertAppleNativeUser` (ตัวสร้างเดียวกับทางเว็บ) พร้อมชื่อจากแผ่นของระบบ แล้ว proxy พาไป
+ * `/register` เหมือนสมัครด้วย Facebook/LINE
+ *
+ * เหตุผลเดิมที่ **รุ่นเก่ายังห้ามสร้าง** (ยังใช้อยู่):
  *
  * เหตุผล 2 ชั้น:
  *   - **Guideline 3.1.1** ห้ามให้สมัครบัญชีในแอปอยู่แล้ว (`shouldBlockAppRegistration`)
@@ -31,14 +36,24 @@ import { NextResponse } from 'next/server'
 import * as v from 'valibot'
 
 import { verifyAppleIdentityToken } from '@/lib/apple/identity-token'
+import { SHELL_COOKIE_NAME, isSignUpRestricted, parseAppVersion, resolveAppShell } from '@/lib/app-shell'
+import { upsertAppleNativeUser } from '@/lib/auth'
 import { isDeletedUser } from '@/lib/account-deletion'
 import { createMobileTicket } from '@/lib/mobile-ticket'
 import { prisma } from '@/lib/prisma'
 import { APPLE_NONCE_COOKIE, replyClearingAppleNonce } from '@/lib/apple/native-nonce'
 
+const NamePart = v.optional(v.pipe(v.string(), v.trim(), v.maxLength(60)))
+
 const BodySchema = v.object({
   /* JWT ของ Apple — 4096 พอสำหรับโทเคนจริง (ราว 900 ตัวอักษร) และกันของยาวผิดปกติ */
   identityToken: v.pipe(v.string(), v.minLength(1), v.maxLength(4096)),
+  /**
+   * ชื่อจากแผ่นของระบบ — Apple ส่งให้ **ครั้งแรกครั้งเดียว** ⇒ ต้องเก็บตอนสร้างบัญชี
+   * ไม่งั้นระบบต้องไปถามชื่อเอง = ข้อที่ Apple ตีกลับมาแล้ว 2 รอบ (Guideline 4)
+   * ใช้เป็น displayName เท่านั้น ไม่ใช่ตัวตน ⇒ รับจากหน้าเว็บได้ (ทางเว็บก็รับจาก form field)
+   */
+  fullName: v.optional(v.object({ givenName: NamePart, familyName: NamePart })),
 })
 
 export async function POST(request: Request) {
@@ -93,8 +108,30 @@ export async function POST(request: Request) {
    * ตอบ **200 ไม่ใช่ 404** เพราะนี่คือสถานะปกติที่หน้าจอต้องอธิบายให้ผู้ใช้เข้าใจ
    * ไม่ใช่ความผิดพลาดที่ต้องขึ้น "ลองใหม่อีกครั้ง"
    */
-  if (!account || isDeletedUser(account.user)) {
+  if (account && isDeletedUser(account.user)) {
     return replyClearingAppleNonce({ ok: false, reason: 'NO_ACCOUNT' })
+  }
+
+  let userId = account?.userId ?? null
+  if (!userId) {
+    /**
+     * ยังไม่เคยผูก Apple ID นี้ — สมัครได้ไหมขึ้นกับแอปรุ่นนี้ (เกณฑ์เดียวกับปุ่ม Facebook/LINE)
+     *
+     * 🛑 ห้ามสร้างให้แอปรุ่นที่ยังห้ามสมัคร — บัญชีจะถูก proxy ตัดทิ้งที่ด่าน 3.1.1 ทันที
+     * กลายเป็นบัญชีกำพร้าที่ Apple ID นั้นใช้กับ Deep ไม่ได้อีกเลย (ภาคผนวก 6)
+     */
+    const userAgent = request.headers.get('user-agent') ?? ''
+    const shell = resolveAppShell(jar.get(SHELL_COOKIE_NAME)?.value, userAgent)
+    if (isSignUpRestricted(shell, parseAppVersion(userAgent))) {
+      return replyClearingAppleNonce({ ok: false, reason: 'NO_ACCOUNT' })
+    }
+    const fn = parsed.output.fullName
+    const name = [fn?.givenName, fn?.familyName].filter(Boolean).join(' ').trim() || null
+    userId = await upsertAppleNativeUser({
+      sub: verified.claims.sub,
+      verifiedEmail: verified.claims.email ?? null,
+      name,
+    })
   }
 
   /**
@@ -103,6 +140,6 @@ export async function POST(request: Request) {
    * ให้ครบเหมือนทางเข้าอื่นทุกทาง (ห้าม mint JWT เองเพื่อกันธงหลุด — เหตุผลเดิมของ
    * provider `mobile-ticket` ที่เขียนไว้ใน `lib/auth.ts`)
    */
-  const ticket = await createMobileTicket(account.userId, 'enter')
+  const ticket = await createMobileTicket(userId, 'enter')
   return replyClearingAppleNonce({ ok: true, ticket })
 }

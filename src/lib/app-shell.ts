@@ -169,8 +169,53 @@ export function isPaymentRestricted(shell: AppShell): boolean {
  */
 const SIGNUP_RESTRICTED_SHELLS: readonly AppShell[] = ['ios']
 
-export function isSignUpRestricted(shell: AppShell): boolean {
-  return SIGNUP_RESTRICTED_SHELLS.includes(shell)
+/**
+ * ── เปิดการสมัครให้แอป iOS **ตั้งแต่ 1.0.3** (2026-10-11 · user สั่ง) ──────────────────
+ *
+ * เหตุผลที่ยื่นขอ Apple ใหม่: ข้อห้ามรอบ 2026-08-23 คือ *"การสมัครธุรกิจ = ทางไปซื้อนอกแอป"*
+ * แต่ตั้งแต่ feature 00064 (2026-09-01) แพ็กเกจธุรกิจ **ขายผ่าน IAP ในแอป** แล้ว และทุกช่องทาง
+ * จ่ายเงินนอกแอปยังปิดอยู่ (`isPaymentRestricted` ไม่เปลี่ยน) ⇒ สมัครฟรี · อัปเกรดผ่าน Apple เท่านั้น
+ *
+ * 🛑 **ทำไมต้องกั้นตามเวอร์ชัน ไม่ใช่ถอด 'ios' ออกจากลิสต์เฉย ๆ**
+ * แอปเป็น WebView ⇒ เปิดที่เว็บ = แอป **ทุกรุ่นที่อยู่บนเครื่องผู้ใช้** ได้ทันที รวม 1.0.2 ที่ Apple
+ * อนุมัติไปแล้ว *โดยไม่มี* การสมัคร ⇒ เท่ากับเปลี่ยนแอปที่ผ่านรีวิวไปแล้วโดยไม่ได้รับอนุมัติ
+ * ⇒ เปิดเฉพาะรุ่นที่ยื่นรีวิวพร้อมการสมัคร · ถ้า Apple ไม่ผ่าน ไม่มีใครได้รุ่นนั้น = ไม่เสียอะไร
+ *
+ * เวอร์ชันมาจาก User-Agent (`DeepSellerApp/<version>` — deep-seller-app `SellerWebView`)
+ * รุ่น ≤ 1.0.2 ส่ง `DeepSellerApp/1.0` ตายตัว · build ที่มีแต่คุกกี้ไม่มี marker = ไม่รู้รุ่น
+ * ⇒ ทั้งสองกรณี **ถูกจำกัดเหมือนเดิม** (fail-closed)
+ *
+ * 🛑 ถ้า Apple ตีกลับเรื่องนี้แล้วยื่นรุ่นถัดไปโดย *ไม่มี* การสมัคร ต้องขยับค่านี้ขึ้นไปพร้อมกัน
+ *    ไม่งั้นรุ่นนั้นจะได้การสมัครทั้งที่ไม่ได้ขอ
+ */
+export const IOS_SIGNUP_MIN_APP_VERSION = '1.0.3'
+
+/** `DeepSellerApp/1.0.3` → `'1.0.3'` · ไม่มี marker/รูปแบบผิด → `null` */
+export function parseAppVersion(userAgent: string): string | null {
+  const m = new RegExp(`${APP_UA_MARKER}/(\\d+(?:\\.\\d+){0,2})(?![\\d.])`).exec(userAgent)
+  return m ? m[1] : null
+}
+
+/** เทียบเวอร์ชันแบบตัวเลข (`1.0.10` > `1.0.9`) · ไม่รู้รุ่น = ไม่ถึงเสมอ */
+export function isAppVersionAtLeast(version: string | null | undefined, min: string): boolean {
+  if (!version) return false
+  const a = version.split('.').map(Number)
+  const b = min.split('.').map(Number)
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0
+    const y = b[i] ?? 0
+    if (x !== y) return x > y
+  }
+  return true
+}
+
+/**
+ * @param appVersion เวอร์ชันแอปจาก `parseAppVersion()` — `null` = ไม่รู้ (ถือว่าเป็นรุ่นเก่า)
+ *   🛑 บังคับส่งทุกครั้ง ไม่มีค่าตั้งต้น — ลืมส่ง = ด่านไม่รู้รุ่น ซึ่งต้องเป็นคอมไพล์ล้ม ไม่ใช่เงียบ
+ */
+export function isSignUpRestricted(shell: AppShell, appVersion: string | null): boolean {
+  if (!SIGNUP_RESTRICTED_SHELLS.includes(shell)) return false
+  return !isAppVersionAtLeast(appVersion, IOS_SIGNUP_MIN_APP_VERSION)
 }
 
 /**
@@ -197,10 +242,11 @@ export function shouldBlockOAuthSignup(
   shell: AppShell,
   alreadyLinked: boolean,
   callbackUrl: string | null,
+  appVersion: string | null,
 ): boolean {
   if (alreadyLinked) return false
   if (isInviteAcceptance(callbackUrl)) return false
-  return isSignUpRestricted(shell)
+  return isSignUpRestricted(shell, appVersion)
 }
 
 /**
@@ -294,7 +340,8 @@ export function isPaidFeatureRestricted(shell: AppShell): boolean {
 export function shouldBlockAppRegistration(
   shell: AppShell,
   gate: { needsRegistration?: boolean; needsOnboarding?: boolean } | null | undefined,
+  appVersion: string | null,
 ): boolean {
-  if (!isSignUpRestricted(shell)) return false
+  if (!isSignUpRestricted(shell, appVersion)) return false
   return Boolean(gate?.needsRegistration || gate?.needsOnboarding)
 }

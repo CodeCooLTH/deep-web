@@ -27,23 +27,25 @@ const IPAD = 'Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36'
 const DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
 const inApp = (ua: string) => resolveAppShell('app', ua)
+/** แอปรุ่นบนสโตร์ (≤ 1.0.2) ส่ง `DeepSellerApp/1.0` ⇒ ยังห้ามสมัคร */
+const OLD_APP = '1.0'
 
 describe('shouldBlockOAuthSignup — ใครถูกปฏิเสธก่อนสร้างบัญชี', () => {
   it('🛑 แอป iOS + ยังไม่เคยผูก = กำลังสมัคร → บล็อก', () => {
-    expect(shouldBlockOAuthSignup(inApp(IOS), false, null)).toBe(true)
-    expect(shouldBlockOAuthSignup(inApp(IPAD), false, null)).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, null, OLD_APP)).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), false, null, OLD_APP)).toBe(true)
   })
 
   it('🛑 ผูกไว้แล้ว = ล็อกอินของคนเดิม → ต้องผ่านเสมอ แม้อยู่ในแอป', () => {
     /* เป็นเงื่อนไขที่แยก "สมัคร" ออกจาก "ล็อกอิน" — พลาดข้อนี้ = ผู้ขายเดิมเข้าแอปไม่ได้ทั้งหมด */
-    expect(shouldBlockOAuthSignup(inApp(IOS), true, null)).toBe(false)
-    expect(shouldBlockOAuthSignup(inApp(IPAD), true, null)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IOS), true, null, OLD_APP)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), true, null, OLD_APP)).toBe(false)
   })
 
   it('เว็บ / Safari บนมือถือ / แอป Android → ไม่บล็อก (กฎของ Apple ใช้กับแอป iOS เท่านั้น)', () => {
-    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, IOS), false, null)).toBe(false)
-    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, DESKTOP), false, null)).toBe(false)
-    expect(shouldBlockOAuthSignup(inApp(ANDROID), false, null)).toBe(false)
+    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, IOS), false, null, OLD_APP)).toBe(false)
+    expect(shouldBlockOAuthSignup(resolveAppShell(undefined, DESKTOP), false, null, OLD_APP)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(ANDROID), false, null, OLD_APP)).toBe(false)
   })
 
   it('🛑 ปลายทางเป็นหน้ารับคำเชิญ `/i/{slug}` → ต้องผ่าน แม้อยู่ในแอปและยังไม่เคยผูก', () => {
@@ -53,26 +55,26 @@ describe('shouldBlockOAuthSignup — ใครถูกปฏิเสธก่�
      *
      * 🛑 เคสนี้คือ regression ที่ด่านรุ่นแรกทำไว้จริง (PR #82) — จับได้ตอนไล่ทั้งระบบ
      */
-    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/my-shop')).toBe(false)
-    expect(shouldBlockOAuthSignup(inApp(IPAD), false, 'https://seller.deepthailand.app/i/my-shop')).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/my-shop', OLD_APP)).toBe(false)
+    expect(shouldBlockOAuthSignup(inApp(IPAD), false, 'https://seller.deepthailand.app/i/my-shop', OLD_APP)).toBe(false)
   })
 
   it('🛑 ปลายทางอื่นยังต้องถูกบล็อกตามเดิม — ข้อยกเว้นต้องแคบ', () => {
     for (const cb of ['/dashboard', '/auth/sign-in', '/i', '/inbox', '/imaginary', null]) {
-      expect(shouldBlockOAuthSignup(inApp(IOS), false, cb), `หลุดที่ ${cb}`).toBe(true)
+      expect(shouldBlockOAuthSignup(inApp(IOS), false, cb, OLD_APP), `หลุดที่ ${cb}`).toBe(true)
     }
   })
 
   it('🛑 `/i` เปล่า ๆ ไม่ใช่คำเชิญของใคร — ต้องมี slug จริง', () => {
-    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i')).toBe(true)
-    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/')).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i', OLD_APP)).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, '/i/', OLD_APP)).toBe(true)
   })
 
   it('ปลายทางพิลึกต้องไม่ทำให้พัง (ไม่ throw) และไม่ถูกตีเป็นคำเชิญ', () => {
     for (const cb of ['ไม่ใช่ url', 'javascript:alert(1)', '//evil.com/i/x', '']) {
-      expect(() => shouldBlockOAuthSignup(inApp(IOS), false, cb)).not.toThrow()
+      expect(() => shouldBlockOAuthSignup(inApp(IOS), false, cb, OLD_APP)).not.toThrow()
     }
-    expect(shouldBlockOAuthSignup(inApp(IOS), false, 'ไม่ใช่ url')).toBe(true)
+    expect(shouldBlockOAuthSignup(inApp(IOS), false, 'ไม่ใช่ url', OLD_APP)).toBe(true)
   })
 
   it('🛑 ต้องใช้เกณฑ์ของ "การสมัคร" ไม่ใช่เกณฑ์ของ "การจ่ายเงิน"', () => {
@@ -113,7 +115,7 @@ describe('[blocker] `signIn` callback ต้องบังคับด่าน
   it('🛑 ต้องเด้งไปหน้าล็อกอินด้วยธงเดียวกับด่าน 3.1.1 ใน proxy (HR16)', () => {
     /* คนละธง = คนละข้อความ = ผู้ใช้เห็นคำอธิบายคนละอย่างสำหรับสถานการณ์เดียวกัน */
     const at = auth.indexOf('shouldBlockOAuthSignup(')
-    expect(auth.slice(at, at + 220)).toMatch(/app_no_account=1/)
+    expect(auth.slice(at, at + 300), 'เพิ่มอาร์กิวเมนต์ appVersion แล้ว (2026-10-11) จึงขยายช่วงค้น').toMatch(/app_no_account=1/)
     expect(code(PROXY), 'proxy เลิกใช้ธงนี้แล้ว = สองที่หลุดจากกัน').toMatch(/app_no_account/)
   })
 

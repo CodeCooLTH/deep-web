@@ -50,32 +50,34 @@ const IPAD = 'Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36'
 const DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
 const inApp = (ua: string) => resolveAppShell('app', ua)
+/** แอปรุ่นบนสโตร์ (≤ 1.0.2) ส่ง `DeepSellerApp/1.0` ⇒ ยังห้ามสมัคร */
+const OLD_APP = '1.0'
 
 describe('shouldBlockAppRegistration — ใครต้องถูกตัดจบ', () => {
   it('🛑 แอป iOS + ยังไม่ลงทะเบียน (เฟส 1) → บล็อก', () => {
-    expect(shouldBlockAppRegistration(inApp(IOS), { needsRegistration: true })).toBe(true)
+    expect(shouldBlockAppRegistration(inApp(IOS), { needsRegistration: true }, OLD_APP)).toBe(true)
   })
 
   it('🛑 แอป iOS + ยังไม่ setup ร้าน (เฟส 2) → บล็อก — เปิดร้านแรก = สมัครธุรกิจเหมือนกัน', () => {
-    expect(shouldBlockAppRegistration(inApp(IOS), { needsOnboarding: true })).toBe(true)
+    expect(shouldBlockAppRegistration(inApp(IOS), { needsOnboarding: true }, OLD_APP)).toBe(true)
   })
 
   it('🛑 iPad ก็ต้องบล็อก — Apple ตรวจบน iPad Air M3 และรายงานบั๊กมาจากเครื่องนั้น', () => {
-    expect(shouldBlockAppRegistration(inApp(IPAD), { needsRegistration: true })).toBe(true)
+    expect(shouldBlockAppRegistration(inApp(IPAD), { needsRegistration: true }, OLD_APP)).toBe(true)
   })
 
   it('ผู้ขายที่ลงทะเบียนครบแล้ว → ผ่านตามปกติ ไม่แตะ', () => {
-    expect(shouldBlockAppRegistration(inApp(IOS), {})).toBe(false)
-    expect(shouldBlockAppRegistration(inApp(IOS), null)).toBe(false)
+    expect(shouldBlockAppRegistration(inApp(IOS), {}, OLD_APP)).toBe(false)
+    expect(shouldBlockAppRegistration(inApp(IOS), null, OLD_APP)).toBe(false)
   })
 
   it('เว็บบน Safari ของ iPhone → **ไม่บล็อก** (กฎของ Apple ใช้กับในแอปเท่านั้น)', () => {
-    expect(shouldBlockAppRegistration(resolveAppShell(undefined, IOS), { needsRegistration: true })).toBe(false)
+    expect(shouldBlockAppRegistration(resolveAppShell(undefined, IOS), { needsRegistration: true }, OLD_APP)).toBe(false)
   })
 
   it('เดสก์ท็อป และ แอป Android → ไม่บล็อก', () => {
-    expect(shouldBlockAppRegistration(resolveAppShell(undefined, DESKTOP), { needsRegistration: true })).toBe(false)
-    expect(shouldBlockAppRegistration(inApp(ANDROID), { needsRegistration: true })).toBe(false)
+    expect(shouldBlockAppRegistration(resolveAppShell(undefined, DESKTOP), { needsRegistration: true }, OLD_APP)).toBe(false)
+    expect(shouldBlockAppRegistration(inApp(ANDROID), { needsRegistration: true }, OLD_APP)).toBe(false)
   })
 })
 

@@ -74,7 +74,7 @@ describe('[blocker] คำขอแรกหลังติดตั้ง — �
 
   it('🛑 จอแรกหลังติดตั้งต้องซ่อนทั้งปุ่มสมัครและช่องทางจ่ายเงิน', () => {
     const shell = resolveAppShell(undefined, APP_UA.ipad)
-    expect(isSignUpRestricted(shell), 'ลิงก์สมัครสมาชิก = สิ่งที่ Apple สั่งให้เอาออก').toBe(true)
+    expect(isSignUpRestricted(shell, null), 'ลิงก์สมัครสมาชิก = สิ่งที่ Apple สั่งให้เอาออก (รุ่นที่ไม่รู้เวอร์ชัน)').toBe(true)
     expect(isPaymentRestricted(shell)).toBe(true)
   })
 

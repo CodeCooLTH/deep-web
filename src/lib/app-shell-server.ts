@@ -10,6 +10,7 @@ import {
   isPaidFeatureRestricted,
   isPaymentRestricted,
   isSignUpRestricted,
+  parseAppVersion,
   resolveAppShell,
   type AppShell,
 } from '@/lib/app-shell'
@@ -35,14 +36,19 @@ export const getAppShell = cache(async (): Promise<AppShell> => {
   return resolveAppShell(cookieStore.get(SHELL_COOKIE_NAME)?.value, headerList.get('user-agent') ?? '')
 })
 
+/** เวอร์ชันแอปผู้ขายของ request ปัจจุบัน — `null` = ไม่ได้เปิดจากแอป หรือแอปรุ่นที่ไม่ส่งเลขรุ่นจริง */
+export const getAppVersion = cache(async (): Promise<string | null> => {
+  return parseAppVersion((await headers()).get('user-agent') ?? '')
+})
+
 /** ต้องซ่อนทุกอย่างที่เกี่ยวกับการจ่ายเงินไหม — ดูนิยาม "ทุกอย่าง" ที่ isPaymentRestricted */
 export async function shouldHidePayments(): Promise<boolean> {
   return isPaymentRestricted(await getAppShell())
 }
 
-/** ต้องซ่อนการสมัครบัญชีไหม — ดูเหตุผลที่ `isSignUpRestricted` (Apple สั่ง 2026-08-23) */
+/** ต้องซ่อนการสมัครบัญชีไหม — ดูเหตุผลที่ `isSignUpRestricted` (Apple สั่ง 2026-08-23 · เปิดคืนตั้งแต่แอป iOS 1.0.3) */
 export async function shouldHideSignUp(): Promise<boolean> {
-  return isSignUpRestricted(await getAppShell())
+  return isSignUpRestricted(await getAppShell(), await getAppVersion())
 }
 
 /**
