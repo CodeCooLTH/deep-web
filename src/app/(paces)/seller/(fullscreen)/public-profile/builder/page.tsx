@@ -157,6 +157,10 @@ export default async function ShopPageBuilderPage() {
     hasServices: services.length > 0,
     hasItems: !isLodging && pinnedProducts.length + otherProducts.length > 0,
     hasReviews: stats.ratingDistribution != null && stats.avgRating != null,
+    // แท็บที่ร้านซ่อนไว้ไม่โผล่ใน canvas — canvas คือภาพแทนหน้าร้านจริง · ponytail: กดบันทึกตัวจัด
+    // หน้าร้านระหว่างซ่อน = tabOrder ใหม่ไม่มีแท็บนั้น เปิดกลับแล้วไปต่อท้าย (applyTabOrder ข้อ 2)
+    // จัดลำดับใหม่ได้เอง — ถ้าร้านบ่นค่อยให้ save รวม hidden key เดิมกลับเข้า tabOrder
+    hiddenTabs: layout.hiddenTabs,
   })
   const orderedTabKeys = applyTabOrder(visibleTabKeys, layout.tabOrder)
 

@@ -117,6 +117,8 @@ export type ShopProfileData = {
    * ไปต่อท้าย ไม่ได้หายไป (แท็บปิดไม่ได้ — guardrail บังคับใน applyTabOrder)
    */
   tabOrder?: readonly string[]
+  /** CR 00053 2026-10-10 — แท็บที่ร้านสั่งซ่อน (ShopPageLayout.hiddenTabs) */
+  hiddenTabs?: readonly string[]
   /** feature 00035 — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (listShopPageBlocks) ไม่ส่งมา/ว่าง = ไม่มีบล็อก */
   blocks?: PageBlockItem[]
   /**
@@ -311,6 +313,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
        "หน้านี้ไม่มีเรื่องรีวิว" ไม่ใช่ "ร้านนี้ยังไม่มีใครรีวิว" · สองอย่างนี้ต่างกันมากสำหรับคนที่
        กำลังตัดสินใจโอนเงิน และเคสร้านที่ปิดออเดอร์ไปหลายร้อยครั้งแต่ 0 รีวิว เกิดจริงบน prod */
     hasReviews: true,
+    hiddenTabs: data.hiddenTabs,
   })
 
   // label/content ของแต่ละแท็บ — ยกมาจากของเดิมทั้งหมด ไม่แก้ถ้อยคำ

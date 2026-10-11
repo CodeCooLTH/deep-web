@@ -88,7 +88,7 @@ export default async function PublicProfilePage({ params }: Props) {
     ? await getShopPageLayout(user.shop.id)
     : // 🛑 fallback ของบัญชีที่ไม่มีร้านต้องตรงกับ fallback ใน getShopPageLayout ทุกช่อง — รวม
       // `showPrices:false` ที่กลับทิศกับ `isPublished:true` (feature 00053 · ดูคอมเมนต์ในบริการนั้น)
-      { isPublished: true, tabOrder: [] as string[], showPrices: false }
+      { isPublished: true, tabOrder: [] as string[], showPrices: false, hiddenTabs: [] as string[] }
   // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี) ยังต้องเห็นหน้าปกติแม้ปิดเผยแพร่อยู่
   // — คนละตัวกับ isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
   const canManagePage = user.shop && viewerId ? await canAccessShop(user.shop.id, viewerId) : false
@@ -403,6 +403,7 @@ export default async function PublicProfilePage({ params }: Props) {
             isOwnShop,
             itemKind: profileTab.itemKind,
             tabOrder: pageLayout.tabOrder,
+            hiddenTabs: pageLayout.hiddenTabs,
             blocks: pageBlocks,
             inspection: inspectionView,
           }}

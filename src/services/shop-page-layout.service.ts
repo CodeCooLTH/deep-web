@@ -4,7 +4,7 @@ import { canAccessShop } from '@/lib/shop-context'
 import { mirrorRemoteImage } from '@/services/channel-chat.service'
 import { getFileUrl } from '@/lib/storage'
 import { variantUrlOf } from '@/lib/file-url'
-import { PROFILE_TAB_KEYS } from '@/lib/profile-tab-keys'
+import { PROFILE_TAB_KEYS, isHideableTabKey } from '@/lib/profile-tab-keys'
 
 /**
  * shop-page-layout.service — ตัวจัดหน้าร้าน (feature 00035)
@@ -24,6 +24,8 @@ export type ShopPageLayoutView = {
   tabOrder: string[]
   /** feature 00053 — หน้าร้านสาธารณะพิมพ์ราคาไหม (ค่าเดียวคุมทั้งร้าน) */
   showPrices: boolean
+  /** CR 00053 2026-10-10 — แท็บที่ร้านสั่งซ่อน (ส่งเข้า computeVisibleTabKeys) */
+  hiddenTabs: string[]
 }
 
 export type ShopPageBadgeHighlightBlock = {
@@ -146,7 +148,7 @@ async function resolveBadgeOwnershipWhere(shopId: string): Promise<Prisma.UserBa
 export async function getShopPageLayout(shopId: string): Promise<ShopPageLayoutView> {
   const row = await prisma.shopPageLayout.findUnique({
     where: { shopId },
-    select: { isPublished: true, tabOrder: true, showPrices: true },
+    select: { isPublished: true, tabOrder: true, showPrices: true, hiddenTabs: true },
   })
   /* 🛑 fallback สองค่านี้ "กลับทิศกัน" โดยตั้งใจ — ห้ามแก้ให้เหมือนกันเพราะเห็นว่าไม่สม่ำเสมอ
      (feature 00053 DATABASE.md §3.1):
@@ -154,8 +156,13 @@ export async function getShopPageLayout(shopId: string): Promise<ShopPageLayoutV
                            ทุกร้านที่ไม่มีแถวนี้
        showPrices:false  — ค่าตั้งต้นที่ผู้ใช้เคาะคือ "ซ่อนราคา" (2026-08-23) ร้านส่วนใหญ่ไม่มีแถวนี้เลย
                            fallback true = ฟีเจอร์ไม่มีผลกับกลุ่มใหญ่ที่สุดที่มันถูกสร้างมาเพื่อ */
-  if (!row) return { isPublished: true, tabOrder: [], showPrices: false }
-  return { isPublished: row.isPublished, tabOrder: row.tabOrder, showPrices: row.showPrices }
+  if (!row) return { isPublished: true, tabOrder: [], showPrices: false, hiddenTabs: [] }
+  return {
+    isPublished: row.isPublished,
+    tabOrder: row.tabOrder,
+    showPrices: row.showPrices,
+    hiddenTabs: row.hiddenTabs,
+  }
 }
 
 /**
@@ -530,4 +537,28 @@ export async function setShopPageShowPrices(
     select: { showPrices: true },
   })
   return { showPrices: row.showPrices }
+}
+
+/**
+ * setShopPageHiddenTabs — แทนที่ชุดแท็บที่ซ่อนทั้งชุด (CR 00053 2026-10-10 hide-tabs)
+ *
+ * มิเรอร์ setShopPageShowPrices — สวิตช์ atomic แยกจาก draft ของตัวจัดหน้าร้าน · `create` ไม่ส่ง
+ * isPublished ด้วยเหตุผลเดียวกัน · กรองให้เหลือเฉพาะ HIDEABLE_TAB_KEYS ก่อนเขียน (ด่านที่สองคือ
+ * computeVisibleTabKeys ตอนอ่าน — แถวที่หลุดมาก่อนหน้านี้ก็ยังซ่อนรีวิว/เกี่ยวกับร้านไม่ได้)
+ */
+export async function setShopPageHiddenTabs(
+  shopId: string,
+  actorUserId: string,
+  hiddenTabs: string[],
+): Promise<{ hiddenTabs: string[] }> {
+  if (!(await canAccessShop(shopId, actorUserId))) throw new Error('FORBIDDEN')
+
+  const safe = [...new Set(hiddenTabs.filter(isHideableTabKey))]
+  const row = await prisma.shopPageLayout.upsert({
+    where: { shopId },
+    create: { shopId, hiddenTabs: safe },
+    update: { hiddenTabs: safe },
+    select: { hiddenTabs: true },
+  })
+  return { hiddenTabs: row.hiddenTabs }
 }

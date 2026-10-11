@@ -76,6 +76,7 @@ describe('[blocker] getShopPageLayout — fallback ของสองค่า�
       isPublished: true,
       tabOrder: [],
       showPrices: false,
+      hiddenTabs: [],
     })
   })
 
@@ -84,11 +85,13 @@ describe('[blocker] getShopPageLayout — fallback ของสองค่า�
       isPublished: false,
       tabOrder: ['items'],
       showPrices: true,
+      hiddenTabs: ['services'],
     })
     await expect(getShopPageLayout(SHOP)).resolves.toEqual({
       isPublished: false,
       tabOrder: ['items'],
       showPrices: true,
+      hiddenTabs: ['services'],
     })
   })
 
