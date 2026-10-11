@@ -22,6 +22,7 @@
  */
 import { createAppleNativeClient } from '@/lib/apple-native-client'
 import { createWindowAppleTransport, nativeSupportsAppleSignIn } from '@/lib/apple-native-transport'
+import type { AppleFullName } from '@/lib/apple-bridge-protocol'
 
 export type AppleNativeOutcome =
   /** ผ่านแล้ว — เอาตั๋วไปเรียก `signIn('mobile-ticket')` ต่อ */
@@ -113,7 +114,14 @@ export function canUseAppleNative(win: Window | undefined): boolean {
 
 /** ผลของขั้น "ขอโทเคนจากแผ่นของระบบ" — ส่วนที่ผู้เรียกทั้งสองรายใช้ร่วมกัน */
 type TokenStep =
-  | { kind: 'token'; identityToken: string; doFetch: typeof fetch; apiTimeoutMs: number }
+  | {
+      kind: 'token'
+      identityToken: string
+      /** ชื่อจากแผ่นของระบบ — มีเฉพาะการอนุญาตครั้งแรก (ใช้ตอนสมัคร ดู `/api/login/apple-native`) */
+      fullName?: AppleFullName
+      doFetch: typeof fetch
+      apiTimeoutMs: number
+    }
   | { kind: 'cancelled' }
   | { kind: 'fallback-to-web' }
 
@@ -160,7 +168,7 @@ async function obtainAppleToken(deps: AppleNativeSignInDeps): Promise<TokenStep>
     return result.reason === 'CANCELLED' ? { kind: 'cancelled' } : { kind: 'fallback-to-web' }
   }
 
-  return { kind: 'token', identityToken: result.identityToken, doFetch, apiTimeoutMs }
+  return { kind: 'token', identityToken: result.identityToken, fullName: result.fullName, doFetch, apiTimeoutMs }
 }
 
 export async function runAppleNativeSignIn(
@@ -168,7 +176,7 @@ export async function runAppleNativeSignIn(
 ): Promise<AppleNativeOutcome> {
   const step = await obtainAppleToken(deps)
   if (step.kind !== 'token') return step
-  const { identityToken, doFetch, apiTimeoutMs } = step
+  const { identityToken, fullName, doFetch, apiTimeoutMs } = step
 
   /* ไม่มีคำตอบ (เน็ตหลุด/หมดเวลา) — ทางเว็บใช้เครือข่ายเดียวกันและน่าจะล้มเหมือนกัน
      แต่อย่างน้อยผู้ใช้จะได้เห็นข้อความจากที่นั่น ไม่ใช่ปุ่มที่กดแล้วเงียบ */
@@ -182,8 +190,11 @@ export async function runAppleNativeSignIn(
       /**
        * 🛑 **ไม่ส่ง nonce ไปด้วย** — เซิร์ฟเวอร์อ่านจากคุกกี้ httpOnly ที่ตัวเองตั้งไว้
        * ค่าที่ client ส่งมาจะถูกเมินทั้งหมด ซึ่งเป็นเหตุผลทั้งหมดที่ด่านนี้กันอะไรได้จริง
+       *
+       * 🛑 **ต้องส่งชื่อไปด้วย** — Apple ให้ชื่อครั้งเดียว ถ้าเซิร์ฟเวอร์สร้างบัญชีใหม่แล้วไม่มีชื่อ
+       * ระบบต้องไปถามเอง = Guideline 4 ที่เคยโดนตีกลับ 2 รอบ (ใช้เฉพาะตอนสร้างบัญชี)
        */
-      body: JSON.stringify({ identityToken }),
+      body: JSON.stringify(fullName ? { identityToken, fullName } : { identityToken }),
     },
     apiTimeoutMs,
   )

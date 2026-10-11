@@ -3,7 +3,7 @@ import { getToken } from 'next-auth/jwt'
 import { getSubdomain } from '@/lib/subdomain'
 import { isAllowedOrigin } from '@/lib/csrf-origin'
 import { checkApiRateLimit, clientIp } from '@/lib/api-rate-limit'
-import { SHELL_COOKIE_NAME, resolveAppShell, shouldBlockAppRegistration } from '@/lib/app-shell'
+import { SHELL_COOKIE_NAME, parseAppVersion, resolveAppShell, shouldBlockAppRegistration } from '@/lib/app-shell'
 import { expireCookies } from '@/lib/expire-cookie'
 
 /**
@@ -272,6 +272,7 @@ export async function proxy(request: NextRequest) {
           request.headers.get('user-agent') ?? '',
         ),
         t,
+        parseAppVersion(request.headers.get('user-agent') ?? ''),
       )
     ) {
       /**

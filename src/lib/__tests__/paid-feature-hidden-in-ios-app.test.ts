@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { isPaidFeatureRestricted, isPaymentRestricted, isSignUpRestricted } from '@/lib/app-shell'
+import { isPaidFeatureRestricted, isPaymentRestricted, isSignUpRestricted, type AppShell } from '@/lib/app-shell'
 
 const ROOT = process.cwd()
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8')
@@ -43,14 +43,15 @@ describe('[blocker] Deep Stock ต้องไม่โผล่ในแอป 
   it('🛑 กฎ 3 ข้อของเปลือกแอปต้องแยกกัน — ห้ามยุบเป็นตัวเดียว', () => {
     /* วันนี้ทั้งสามคืน true บน ios เหมือนกัน แต่มาจากจดหมายคนละรอบและจะถูกผ่อนคนละเวลา
        ถ้ายุบรวม วันที่ผ่อนข้อหนึ่งจะพลอยเปิดอีกสองข้อโดยไม่มีใครตั้งใจ */
-    for (const fn of [isPaymentRestricted, isSignUpRestricted, isPaidFeatureRestricted]) {
+    /* isSignUpRestricted ต้องรู้รุ่นแอปด้วย (เปิดสมัครตั้งแต่ iOS 1.0.3) — ส่งรุ่นบนสโตร์ '1.0' */
+    for (const fn of [isPaymentRestricted, (s: AppShell) => isSignUpRestricted(s, '1.0'), isPaidFeatureRestricted]) {
       expect(fn('ios')).toBe(true)
       expect(fn('web')).toBe(false)
     }
     /* Android (2026-10-01) — หลักฐานว่าแยกกันจริง: ห้ามจ่ายเงิน **แต่** ยังใช้ของที่ซื้อจากเว็บได้
        (Google ห้ามแค่การพาไปจ่ายนอก Play ไม่ห้ามใช้ของที่ซื้อแล้ว) และการสมัครเป็นกฎของ Apple */
     expect(isPaymentRestricted('android')).toBe(true)
-    expect(isSignUpRestricted('android')).toBe(false)
+    expect(isSignUpRestricted('android', '1.0')).toBe(false)
     expect(isPaidFeatureRestricted('android')).toBe(false)
     /* ทั้งสามต้องเป็นฟังก์ชันคนละตัวจริง ๆ ไม่ใช่ alias ของกันและกัน */
     const src = strip(read('src/lib/app-shell.ts'))

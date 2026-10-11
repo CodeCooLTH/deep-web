@@ -11,6 +11,7 @@ import bcrypt from "bcryptjs";
 import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 import {
   SHELL_COOKIE_NAME,
+  parseAppVersion,
   resolveAppShell,
   shouldBlockOAuthSignup,
   type AppShell,
@@ -78,6 +79,16 @@ async function pendingCallbackUrl(): Promise<string | null> {
     /* ไม่มี request context — ถือว่าไม่รู้ปลายทาง */
   }
   return null;
+}
+
+/** เวอร์ชันแอปผู้ขายจาก User-Agent — `null` = ไม่รู้ (ดู `isSignUpRestricted`) */
+async function currentAppVersion(): Promise<string | null> {
+  try {
+    const { headers } = await import("next/headers");
+    return parseAppVersion((await headers()).get("user-agent") ?? "");
+  } catch {
+    return null;
+  }
 }
 
 async function currentAppShell(): Promise<AppShell> {
@@ -229,6 +240,31 @@ async function upsertOAuthUser(
     await prisma.user.update({ where: { id: dbUser.id }, data: { avatar: user.image } });
   }
   return dbUser.id;
+}
+
+/**
+ * สมัคร/ล็อกอินด้วย Apple **จากแผ่นของระบบในแอป iOS** (`/api/login/apple-native`) — 2026-10-11
+ *
+ * ใช้ `upsertOAuthUser` **ตัวเดียวกับทางเว็บ** (`signIn('apple')`) ไม่เขียนการสร้างบัญชีซ้ำ (HR16)
+ * ⇒ ได้กติกาเดียวกันทุกข้อ: ชนคอลัมน์ unique · ทิ้งอีเมลซ่อนของ Apple · ผูกประวัติผู้ซื้อ · badge
+ *
+ * 🛑 **ชื่อต้องมาจาก Apple แล้วเก็บเลย ห้ามถามซ้ำ** (Guideline 4 · ตีกลับ 2026-08-19 และ 08-21)
+ * แผ่นของระบบส่งชื่อมา **ครั้งแรกครั้งเดียว** ⇒ ผู้เรียกต้องส่ง `fullName` ที่ได้จากแอปมาด้วยเสมอ
+ *
+ * 🛑 **อีเมลต้องมาจากโทเคนที่ตรวจแล้ว** ไม่ใช่จากหน้าเว็บ — ค่าจากหน้าเว็บแก้ได้
+ *
+ * ผู้เรียกต้องตัดสินเรื่อง "อนุญาตให้สมัครไหม" (`isSignUpRestricted`) และ "บัญชีถูกลบไหม" มาก่อนแล้ว
+ * — ฟังก์ชันนี้แค่สร้าง/หาบัญชี
+ */
+export async function upsertAppleNativeUser(input: {
+  sub: string;
+  verifiedEmail: string | null;
+  name: string | null;
+}): Promise<string> {
+  const account = { provider: "apple", type: "oauth", providerAccountId: input.sub } as Account;
+  const user = { id: input.sub, name: input.name, email: input.verifiedEmail } as User;
+  const trustEmail = !isApplePrivateRelayEmail(input.verifiedEmail ?? undefined);
+  return upsertOAuthUser(account, user, "APPLE", "apple", trustEmail);
 }
 
 /**
@@ -833,6 +869,7 @@ export const authOptions: NextAuthOptions = {
             await currentAppShell(),
             Boolean(linkedAccount),
             await pendingCallbackUrl(),
+            await currentAppVersion(),
           )
         ) {
           return "/auth/sign-in?app_no_account=1";

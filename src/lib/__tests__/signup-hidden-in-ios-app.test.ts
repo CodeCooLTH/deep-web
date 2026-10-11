@@ -60,14 +60,14 @@ describe('เกณฑ์ "อยู่ในแอป iOS ไหม"', () => {
     const ios = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15'
     const android = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36'
 
-    expect(isSignUpRestricted(resolveAppShell('app', ios)), 'ในแอป iOS = ซ่อน').toBe(true)
-    expect(isSignUpRestricted(resolveAppShell(undefined, ios)), 'Safari บน iPhone = ไม่ซ่อน').toBe(
+    expect(isSignUpRestricted(resolveAppShell('app', ios), '1.0'), 'ในแอป iOS = ซ่อน').toBe(true)
+    expect(isSignUpRestricted(resolveAppShell(undefined, ios), '1.0'), 'Safari บน iPhone = ไม่ซ่อน').toBe(
       false,
     )
-    expect(isSignUpRestricted(resolveAppShell('app', android)), 'แอป Android = ยังไม่ซ่อน').toBe(
+    expect(isSignUpRestricted(resolveAppShell('app', android), '1.0'), 'แอป Android = ยังไม่ซ่อน').toBe(
       false,
     )
-    expect(isSignUpRestricted(resolveAppShell(undefined, 'Mozilla/5.0 (Macintosh)')), 'เว็บ').toBe(
+    expect(isSignUpRestricted(resolveAppShell(undefined, 'Mozilla/5.0 (Macintosh)'), '1.0'), 'เว็บ').toBe(
       false,
     )
   })
