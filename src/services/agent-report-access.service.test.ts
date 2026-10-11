@@ -51,7 +51,7 @@ describe('resolveAgentReportAccess', () => {
   })
 
   it('[blocker] ADMIN ธง true → ยัง SELF · ไม่เห็นเงิน (พิสูจน์ว่าธงไม่มีผล)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'] })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['CHAT'] })
     const d = await resolveAgentReportAccess(session)
     expect(d.kind).toBe('SELF')
     expect(d.kind === 'SELF' && d.scopeToAgentUserId).toBe('u1')
@@ -59,7 +59,7 @@ describe('resolveAgentReportAccess', () => {
   })
 
   it('[blocker] ADMIN ธง false → SELF', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'] })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['CHAT'] })
     expect((await resolveAgentReportAccess(session)).kind).toBe('SELF')
   })
 })
@@ -74,7 +74,7 @@ describe('redactRevenue', () => {
   })
 
   it('[blocker] SELF → ตัวเลขเงินต้องเป็น null ไม่ใช่ 0', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'] })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['CHAT'] })
     const access = await resolveAgentReportAccess(session)
     // 🛑 0 แปลว่า "ขายไม่ได้เลย" ซึ่งเป็นคำโกหก · null = "คุณไม่มีสิทธิ์เห็น" ⇒ จอซ่อนคอลัมน์ได้
     expect(redactRevenue(rows, access)[0].revenue).toBeNull()

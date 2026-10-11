@@ -440,9 +440,11 @@ describe('applyOwnerOnlyFinanceMenu — เมนูการเงินเฉ�
       staff: { kind, role, roles: role === 'ADMIN' ? ['MANAGER'] : [] },
     })))
 
-  it('[blocker] ADMIN ไม่เห็น 4 เมนูการเงิน แต่ยังเห็น reports-agents', () => {
+  // F1/F2 คืนให้ผู้ดูแล (2026-10-10) — กระเป๋าเงิน (F3) ยังเจ้าของเท่านั้น
+  it('[blocker] ADMIN (MANAGER) เห็น 3 เมนูการเงิน F1 + reports-agents แต่ไม่เห็นกระเป๋าเงิน', () => {
     const v = visible('ADMIN')
-    for (const s of FOUR) expect(v, s).not.toContain(s)
+    for (const s of FOUR.filter((x) => x !== 'seller:wallet')) expect(v, s).toContain(s)
+    expect(v).not.toContain('seller:wallet')
     expect(v).toContain('seller:reports-agents')
   })
 

@@ -442,6 +442,10 @@ describe('บทบาท × route (บนฐานจริง)', () => {
         }
         const level = LEVEL[role]
         if (level === 'FULL') return
+        // route การเงินเต็ม (F1) — ผ่านด่านแล้ว = เห็นยอด/กำไรได้โดยตั้งใจ (MANAGER ได้ F1 คืน 2026-10-10)
+        if (caps.includes('F1')) return
+        // รายงานแอดมิน: ด่าน X4 แต่ระดับ FULL (เห็นยอดขาย) ตัดสินด้วย F1 ข้างใน (resolveAgentReportAccess)
+        if (m.name.startsWith('reports agents') && can([role], 'F1')) return
         const found = forbiddenIn(r.json, level === 'NONE' ? NONE_FORBIDDEN : PER_ORDER_FORBIDDEN)
         // ช่องว่างที่รู้: ต้องรั่ว "เท่านี้พอดี" — ถ้าแก้แล้วเทสแดงให้ลบ knownLeaks ออก
         expect(found, `${m.name}/${role}`).toEqual(m.knownLeaks?.keys ?? [])

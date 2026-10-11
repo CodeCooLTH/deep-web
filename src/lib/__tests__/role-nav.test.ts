@@ -99,8 +99,8 @@ describe('canSeePage — ตามทะเบียนเดียวกับ 
     ['/queues', ALL],
     ['/products', ['OWNER', 'MANAGER', 'CHAT', 'BILLING']],
     ['/customers', ['OWNER', 'MANAGER', 'CHAT', 'BILLING']],
-    ['/sales', ['OWNER']],
-    ['/sales?tab=expense', ['OWNER']],
+    ['/sales', ['OWNER', 'MANAGER']],
+    ['/sales?tab=expense', ['OWNER', 'MANAGER']],
     ['/wallet', ['OWNER']],
     ['/settings', ['OWNER', 'MANAGER']],
     ['/settings/channels', ['OWNER', 'MANAGER']],
@@ -170,10 +170,10 @@ describe('เมนู sidebar ตามบทบาท (resolveVisibleSellerMen
     expect(s).not.toContain('seller:inbox')
   })
 
-  it('MANAGER เห็นตั้งค่า/ระดับร้าน แต่ไม่เห็นการเงินเจ้าของ/พนักงาน/แพ็กเกจ', () => {
+  it('MANAGER เห็นตั้งค่า/ระดับร้าน + ยอดขาย/ค่าใช้จ่าย (F1) แต่ไม่เห็นกระเป๋าเงิน/พนักงาน/แพ็กเกจ', () => {
     const s = slugs({ role: 'ADMIN', roles: ['MANAGER'] })
-    expect(s).toEqual(expect.arrayContaining(['seller:inbox', 'seller:verification', 'seller:settings-channels']))
-    for (const bad of ['seller:sales', 'seller:expenses', 'seller:wallet', 'seller:admins', 'seller:subscriptions'])
+    expect(s).toEqual(expect.arrayContaining(['seller:inbox', 'seller:verification', 'seller:settings-channels', 'seller:sales', 'seller:expenses']))
+    for (const bad of ['seller:wallet', 'seller:admins', 'seller:subscriptions'])
       expect(s, bad).not.toContain(bad)
   })
 
