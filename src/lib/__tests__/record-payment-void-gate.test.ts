@@ -50,7 +50,9 @@ describe('RecordPaymentSheet — canVoid (O6)', () => {
 
   it('ฝั่งแชท: page คำนวณด้วย O6 ของร้านเธรด แล้วลง customerPanelData', () => {
     const page = readFileSync(join(ROOT, 'src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx'), 'utf8')
-    expect(page).toMatch(/canVoidPayment\s*=\s*await canAccessShopWith\(\s*threadShopId\s*,[^)]*['"]O6['"]\s*\)/)
+    // ยิงล่วงหน้าคู่กับ query อื่น (2026-10-12) แล้ว await ทีหลัง — กฎเดิม: O6 ของร้านเธรด
+    expect(page).toMatch(/canVoidPaymentPromise\s*=\s*settle\(canAccessShopWith\(\s*threadShopId\s*,[^)]*['"]O6['"]\s*\)\)/)
+    expect(page).toMatch(/canVoidPayment\s*=\s*await canVoidPaymentPromise\b/)
     expect(page).toMatch(/customerPanelData: CustomerPanelData = \{[\s\S]*?\n\s+canVoidPayment,/)
   })
 
