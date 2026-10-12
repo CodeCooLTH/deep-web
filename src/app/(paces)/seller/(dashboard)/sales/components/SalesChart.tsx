@@ -61,6 +61,8 @@ type Props = {
     jobCount: boolean
     /** มัดจำรับล่วงหน้า — null = ปิดในตั้งค่า */
     advance: { amount: number; jobs: number } | null
+    /** 00073 ภาคต่อ (FR-014) — งานยังไม่ปิด ตามวันเปิดบิลในช่วงนี้ (ไม่ใช่ยอดขาย) · null/0 งาน = ไม่แสดง */
+    unclosed?: { amount: number; jobs: number } | null
     /** ป้ายยอดขายของร้านบริการ (ORDER_VOCAB.revenueLabel) */
     revenueLabel: string
     /** กราฟเดิมถูกแทนด้วยกราฟใหม่ที่ผู้เรียกวางเอง */
@@ -272,6 +274,21 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
                 bulletClass="text-info"
                 metric="จาก"
                 metricValue={`${serviceOpts.advance.jobs.toLocaleString('th-TH')} ${noun}`}
+              />
+            )}
+            {/* 00073 ภาคต่อ (FR-014) — ยอดที่ยังไม่ปิดงาน: ไม่ปนยอดขาย แต่ต้องเห็นว่ามีเงินรอนับ (เคส "ยอดหาย" 2026-10-12) */}
+            {serviceOpts?.unclosed && serviceOpts.unclosed.jobs > 0 && (
+              <PacesStatCard
+                icon="clock"
+                iconClass="bg-warning/15 text-warning-ink"
+                title="ยังไม่ปิดงาน"
+                note="งานที่เปิดบิลในช่วงนี้แต่ยังไม่กดปิดงาน — ยังไม่นับเป็นยอดขาย นับเมื่อกดปิดงาน"
+                text={formatBaht(serviceOpts.unclosed.amount)}
+                valueClass="text-default-800"
+                changePercent={null}
+                bulletClass="text-warning"
+                metric="จาก"
+                metricValue={`${serviceOpts.unclosed.jobs.toLocaleString('th-TH')} ${noun}`}
               />
             )}
             {jobCountOn && (<>

@@ -111,6 +111,23 @@ export function serviceRevenueOrderWhere(closedIn?: DateWindow) {
 }
 
 /**
+ * 00073 ภาคต่อ (FR-014) — งานบริการที่ **ยังไม่ปิดงาน** (ไม่ใช่ยอดขาย · แสดงเป็นสีเหลือง) ตัดช่วงด้วย **วันเปิดบิล**
+ * สถานะที่ตัดทิ้งชุดเดียวกับ serviceRevenueOrderWhere — ปิดแล้ว (รวมไม่มาตามนัด) มี serviceClosedAt เสมอ จึงไม่ซ้อนกัน
+ */
+export function serviceUnclosedOrderWhere(createdIn?: DateWindow) {
+  return {
+    serviceClosedAt: null,
+    status: { notIn: [...SERVICE_NON_REVENUE_STATUSES] },
+    ...(createdIn ? { createdAt: { gte: createdIn.gte, lt: createdIn.lt } } : {}),
+  }
+}
+
+/** งานบริการใบนี้ "ยังไม่ปิดงาน" ไหม — คู่ในหน่วยความจำของ `serviceUnclosedOrderWhere` (FR-014) */
+export function isServiceUnclosed(order: { status: string; serviceClosedAt: Date | string | null }): boolean {
+  return order.serviceClosedAt == null && !(SERVICE_NON_REVENUE_STATUSES as readonly string[]).includes(order.status)
+}
+
+/**
  * where ของ "ใบที่นับเป็นยอดขายในช่วงนี้" ครบทั้งเงื่อนไขและแกนวันที่ — ตัวเดียวที่รายงานควรใช้
  * - ร้านบริการ: งานที่ปิดแล้ว ตัดช่วงด้วยวันปิดงาน
  * - ร้านอื่น: `revenueOrderWhere` ตัดช่วงด้วย createdAt (ของเดิม)

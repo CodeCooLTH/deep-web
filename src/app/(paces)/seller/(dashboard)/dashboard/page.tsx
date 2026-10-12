@@ -34,7 +34,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts, getServiceWorkStageCounts } from '@/services/order.service'
-import { countsAsRevenueFor, isServiceNoShow, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
+import { countsAsRevenueFor, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { getBestSellerProducts } from '@/services/product.service'
 // คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
@@ -567,9 +567,14 @@ export default async function SellerDashboardPage() {
         }
         rangeOrderCount = liveOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
         rangeRevenueK = money.revenueStat
-          ? liveOrders
+          ? (liveOrders
               .filter((o) => revenueInRange(o) && isRevenue(o))
-              .reduce((sum, o) => sum + netAmount(o), 0) / 1000
+              .reduce((sum, o) => sum + netAmount(o), 0) +
+              /* 00073 ภาคต่อ (FR-014) — ร้านบริการ: + งานที่ยังไม่ปิด ตามวันเปิดบิล = ตัวเลขเดียวกับการ์ดมือถือ (เขียว+เหลือง)
+                 ร้านอื่นไม่บวกอะไร (newRules = false) */
+              (newRules
+                ? liveOrders.filter((o) => inRange(o) && isServiceUnclosed(o)).reduce((sum, o) => sum + netAmount(o), 0)
+                : 0)) / 1000
           : 0
 
         // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้

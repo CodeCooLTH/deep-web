@@ -870,6 +870,21 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           </div>
           )}
 
+          {/* 00073 ภาคต่อ (FR-014) — งานที่ยังไม่ปิด ตามวันเปิดบิล: ไม่อยู่ในยอดขาย/สมการข้างบน แต่ต้องเห็นว่ามีเงินรอนับอยู่
+              ใช้ไอคอนนาฬิกา ไม่ใช่จุดเหลือง — ในชีตนี้สีเหลือง = ค้างรับ (ซีรีส์ในกราฟ) ห้ามมีสองความหมาย */}
+          {isService && financeTab === 'collect' && (series.unclosedTotal ?? 0) > 0 && (
+            <div className="mb-4 flex items-start justify-between gap-3 rounded-md bg-default-100 px-3 py-2 text-xs">
+              <span className="inline-flex items-start gap-1.5 text-default-800">
+                <Icon icon="clock" className="mt-0.5 size-3.5 shrink-0 text-default-600" aria-hidden="true" />
+                <span>
+                  ยังไม่ปิดงาน {(series.unclosedCount ?? 0).toLocaleString('th-TH')} งาน
+                  <span className="block text-default-600">ยังไม่นับเป็นยอดขาย — นับเมื่อกดปิดงาน</span>
+                </span>
+              </span>
+              <b className="shrink-0 tabular-nums text-default-900">{formatNumberNoSymbol(series.unclosedTotal ?? 0)}</b>
+            </div>
+          )}
+
           {/**
             * แถวสถานะงาน — เฉพาะร้านบริการ (user สั่ง 2026-08-23)
             *

@@ -24,7 +24,7 @@ import type { DailyRow, SummaryData } from './components/data'
 import { resolveRangeFromParams, thaiMidnightUtc } from '@/lib/date-range'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
-import { countsAsServiceRevenue, isServiceNoShow, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
+import { countsAsServiceRevenue, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveShopVertical } from '@/lib/lodging'
@@ -502,6 +502,16 @@ export default async function SalesPage({
       : null
   /** มัดจำรับล่วงหน้า (เฟส B) — ภาพ ณ ตอนนี้ของงานที่ยังไม่ปิด · เปิดในตั้งค่าเท่านั้น (ปิด = ไม่ query) */
   const advance = isServiceQueue && reportSettings.advanceDeposit ? await getAdvanceDeposits(shop.id) : null
+  /**
+   * 00073 ภาคต่อ (FR-014) — งานที่ยังไม่ปิด ตามวันเปิดบิล ในช่วงที่เลือก (ไม่ใช่ยอดขาย · ไม่อยู่ในการ์ด/กราฟ/ตารางอื่น)
+   * จากรายการที่โหลดแล้ว (getOrdersByShop ทั้งร้าน) ไม่ query เพิ่ม · หักคืนด้วย amountOf ตัวเดียวกับยอดขาย
+   */
+  const unclosedInRange = isServiceQueue
+    ? shopOrders.filter((o) => isServiceUnclosed(o) && new Date(o.createdAt) >= from && new Date(o.createdAt) < toExcl)
+    : []
+  const unclosed = isServiceQueue
+    ? { amount: unclosedInRange.reduce((s, o) => s + amountOf(o), 0), jobs: unclosedInRange.length }
+    : null
 
   /**
    * แกนเงินของร้านบริการ: เติม "รับจริง" รายวันจาก receivable.service (แถวชุดเดียวกับ summary)
@@ -538,6 +548,7 @@ export default async function SalesPage({
                 receivables: reportSettings.receivables,
                 jobCount: reportSettings.jobCount,
                 advance: advance,
+                unclosed,
                 revenueLabel: vocab.revenueLabel,
                 hideChart: true,
               }

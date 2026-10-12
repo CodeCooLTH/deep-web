@@ -165,6 +165,12 @@ export type SalesSeries = {
    *  🛑 `undefined` = ไม่ใช่ร้านบริการ · ศูนย์ทั้งชุด = เป็นร้านบริการแต่ยังไม่มีเงินเข้า
    *  สองอย่างนี้คนละความหมาย และตารางใช้ตัวนี้ตัดสินว่าจะโชว์คอลัมน์ชุดไหน */
   receivedValues?: number[]
+  /** 00073 ภาคต่อ (FR-014) — ร้านบริการ: งานยังไม่ปิด ตามวันเปิดบิล (สีเหลือง · ไม่อยู่ใน values/total) · ดู dashboard.service */
+  unclosedValues?: number[]
+  unclosedTotal?: number
+  unclosedCount?: number
+  prevUnclosedToDate?: number
+  last14Unclosed?: number[]
   /** ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — แยก "ค้างจริง" ออกจาก "ไม่รู้" (เหตุผลเต็มที่ service) */
   unrecordedValues?: number[]
   /** นับงานตามสถานะทั้งช่วง — **รวมใบที่ยกเลิก** (ต่างจากตัวเลขอื่นทั้งหมดในชุดนี้)

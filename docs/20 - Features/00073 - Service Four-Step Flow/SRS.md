@@ -131,6 +131,13 @@ evidence มี `appointmentStatus` (บังคับ) · NO_SHOW (ไม่�
 3. **hydration ของจุดสี legend** (`SalesChannelDonut` + `ProvinceSalesMap`): `getColor` บนเซิร์ฟเวอร์คืนสีสำรอง ⇒ style ใน JSX ใช้ `colorVar()` (`var(--color-…)`) · alpha ใช้ `opacity` · ด่านสแกน `no-getcolor-in-jsx-style.test.ts`
 4. **รายงานกลุ่ม LINE**: คำอธิบายสีแท่งยอดขายผ่าน `reportSalesLegend(shops)` — ร้านบริการล้วน = "ปิดงานแล้ว" ไม่มี "รอยืนยัน" (ยอด = งานที่ปิดแล้ว ก้อนรอเป็น 0 เสมอ) · ร้านอื่น/ผสม คำเดิม · ตัวเลขไม่เปลี่ยน
 
+### TFR-015: ยอด "ยังไม่ปิดงาน" + ทางเข้าตั้งค่ารายงานบนมือถือ (ภาคต่อ 2026-10-12 · FR-014/015)
+- นิยามเดียว: `serviceUnclosedOrderWhere` (query) / `isServiceUnclosed` (หน่วยความจำ) — `serviceClosedAt` ว่าง + สถานะไม่ใช่ CANCELLED/RETURNED/DRAFTED · วันที่ = createdAt · หักคืนด้วย returnAdj ตัวเดียวกับยอดขาย
+- `getSalesSeries` (ร้านบริการเท่านั้น): `unclosedValues/unclosedTotal/unclosedCount/prevUnclosedToDate/last14Unclosed` — **ไม่อยู่ใน values/total** (นิยามยอดขาย/กำไร/LINE/P&L ไม่เปลี่ยน) · ร้านอื่น undefined + ไม่ query
+- การ์ดมือถือ: ก้อนเหลือง = ยังไม่ปิดงาน (`chartUnclosed`) · ตัวเลขใหญ่/% = ปิดแล้ว + ยังไม่ปิด · ร้านอื่นใช้ unconfirmed/total เดิม · การ์ด "รายได้" คอม = ตัวเลขเดียวกัน · ชีต (แท็บยอดเก็บเงิน) แถว "ยังไม่ปิดงาน N งาน ฿X" (ไอคอนนาฬิกา — สีเหลืองในชีต = ค้างรับ) · /sales การ์ด "ยังไม่ปิดงาน" (แท็บยอดเก็บเงิน)
+- มือถือ: `/settings/reports` ใน `QUICK_LINK_URLS` + แถวใน ShopQuickLinks (กรองด้วยเมนูจริง)
+- ที่มา: prod 2026-10-12 บิลไม่มีนัดที่ไม่เคยปิดหลุดจากการปิดย้อนหลัง (2 ร้าน 124 บิล ≈ ฿1 ล้าน) — **ไม่แก้ข้อมูล** (มติทีม)
+
 ## 4. ข้อกำหนดส่วนต่อประสาน
 ดู [[API]]
 

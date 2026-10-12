@@ -17,6 +17,7 @@ import {
   revenueDateFor,
   serviceNoShowRevenue,
   serviceRevenueOrderWhere,
+  serviceUnclosedOrderWhere,
 } from '@/lib/order-revenue'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
@@ -75,6 +76,18 @@ export interface SalesSeries {
   confirmedValues: number[]
   /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
   unconfirmedValues: number[]
+  /**
+   * 00073 ภาคต่อ (FR-014) — ร้านบริการเท่านั้น: งาน **ยังไม่ปิดงาน** ตามวันเปิดบิล (สีเหลืองบนการ์ด)
+   * 🛑 ไม่ใช่ยอดขาย และ **ไม่อยู่ใน values/total** — ผู้ใช้ที่ต้องการยอดรวมต้องบวกเอง (การ์ด/คอม)
+   * ร้านอื่น undefined เสมอ
+   */
+  unclosedValues?: number[]
+  unclosedTotal?: number
+  unclosedCount?: number
+  /** ช่วงก่อนหน้า ถึง bucket เดียวกับวันนี้ — คู่กับ prevTotalToDate (เทียบ % แบบเดียวกัน) */
+  prevUnclosedToDate?: number
+  /** 14 วันล่าสุด — คู่กับ last14Confirmed (โหมดวันนี้ของการ์ด) */
+  last14Unclosed?: number[]
   /**
    * จำนวนคำสั่งซื้อต่อ bucket (ใบ) — เส้นบนกราฟการ์ดยอดขาย (user สั่ง 2026-08-05)
    *
@@ -279,7 +292,7 @@ export async function getSalesSeries(
   }
 
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
-  const [rows, jobStatusRows, returnAdj] = await Promise.all([
+  const [rows, jobStatusRows, returnAdj, unclosedRows] = await Promise.all([
     prisma.order.findMany({
       // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
       // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว ไม่ใช่ยอดรอยืนยัน/ค้างรับ (มติ 2026-10-01
@@ -376,6 +389,13 @@ export async function getSalesSeries(
     // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนแบบเดียวกับ P&L และ /sales (ตัวกลาง return-adjustment)
     // ร้านที่ไม่ใช่บริการ: Map ว่าง ⇒ netOfReturns/costNetOfReturns คืนค่าเดิม (ของเดิมไม่หักคืน)
     newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+    // 00073 ภาคต่อ (FR-014) — ร้านบริการ: งานที่ยังไม่ปิด ตามวันเปิดบิล (สีเหลือง · ไม่ใช่ยอดขาย) · ร้านอื่นไม่ query
+    isServiceShop
+      ? prisma.order.findMany({
+          where: { shopId, ...serviceUnclosedOrderWhere({ gte: prevGte, lt }) },
+          select: { id: true, totalAmount: true, createdAt: true },
+        })
+      : Promise.resolve(null),
   ])
 
   const values = new Array<number>(bucketCount).fill(0)
@@ -556,6 +576,44 @@ export async function getSalesSeries(
     }
   }
 
+  /**
+   * 00073 ภาคต่อ (FR-014) — ยอดงานที่ยังไม่ปิด ตามวันเปิดบิล (ร้านบริการเท่านั้น · ไม่ใช่ยอดขาย)
+   * แยก bucket/ช่วงก่อนหน้า/14 วัน ด้วยกติกาเดียวกับลูปยอดขายข้างบน ⇒ ยอดรวม (เขียว+เหลือง) เทียบ % ได้ชุดเดียวกัน
+   * หักคืนบางส่วนด้วย returnAdj ตัวเดียวกัน (ทั้งร้าน)
+   */
+  let unclosed: Pick<SalesSeries, 'unclosedValues' | 'unclosedTotal' | 'unclosedCount' | 'prevUnclosedToDate' | 'last14Unclosed'> = {}
+  if (unclosedRows) {
+    const uValues = new Array<number>(bucketCount).fill(0)
+    const u14 = isCurrentDaily ? new Array<number>(RECENT_DAYS).fill(0) : undefined
+    let uTotal = 0
+    let uCount = 0
+    let uPrevToDate = 0
+    for (const r of unclosedRows) {
+      const amt = netOfReturns(Number(r.totalAmount), returnAdj.get(r.id))
+      const c = r.createdAt
+      if (u14) {
+        const off = Math.floor((c.getTime() - recentStartMs) / DAY_MS)
+        if (off >= 0 && off < RECENT_DAYS) u14[off] += amt
+      }
+      const shifted = new Date(c.getTime() + TZ_OFFSET_MS)
+      if (c >= gte && c < lt) {
+        const idx = bucketOf(shifted)
+        if (idx >= 0 && idx < bucketCount) uValues[idx] += amt
+        uTotal += amt
+        uCount += 1
+      } else if (c >= prevGte && c < gte && bucketOf(shifted) < futureFromIndex) {
+        uPrevToDate += amt
+      }
+    }
+    unclosed = {
+      unclosedValues: uValues,
+      unclosedTotal: uTotal,
+      unclosedCount: uCount,
+      prevUnclosedToDate: uPrevToDate,
+      ...(u14 ? { last14Unclosed: u14 } : {}),
+    }
+  }
+
   /** label ของ 14 วันล่าสุด — ใส่ชื่อเดือนเฉพาะตัวแรกกับวันที่ข้ามเดือน (ที่เหลือรกโดยไม่ได้ข้อมูลเพิ่ม) */
   const last14Labels = last14Confirmed
     ? Array.from({ length: RECENT_DAYS }, (_, i) => {
@@ -598,6 +656,7 @@ export async function getSalesSeries(
       : {}),
     ...(receivedValues && unrecordedValues ? { receivedValues, unrecordedValues } : {}),
     ...(jobStatusCounts ? { jobStatusCounts } : {}),
+    ...unclosed,
   }
   if (!includeFinance) return base
 
