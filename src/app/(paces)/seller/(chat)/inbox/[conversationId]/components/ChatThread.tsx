@@ -1333,7 +1333,10 @@ export default function ChatThread({
       setSheetOpen(true)
     }
   }, [searchParams])
-  // ดูรูปเต็มจอ — index ของรูปที่เปิดอยู่ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
+  // ดูรูปเต็มจอ — index ของรูปที่ "กำลังดูอยู่" ใน imageSlides (-1 = ปิด) ตาม Base Gallery.tsx:58
+  // 🛑 ต้องตามสไลด์ที่ดูอยู่ (on.view) ไม่ใช่แค่จุดเริ่ม: imageSlides สร้างใหม่ทุก render และ YARL
+  // รีเซ็ตกลับไปที่ prop `index` ทุกครั้งที่ slides เปลี่ยน identity → ถ้า index ค้างที่จุดเริ่ม
+  // ปัดไปใบถัดไปแล้วเด้งกลับใบเดิมทุกครั้ง (บั๊ก "สไลด์รูปเดิมซ้ำ ๆ")
   // (ต้องประกาศตรงนี้กับ hook ตัวอื่น ห้ามย้ายลงไปหลัง early return ของ errorState/loadingInitial)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
 
@@ -1348,17 +1351,6 @@ export default function ChatThread({
    */
   const [savedFiles, setSavedFiles] = useState<Set<string>>(() => new Set(savedFileIds))
   const [savingFileId, setSavingFileId] = useState<string | null>(null)
-  /**
-   * สไลด์ที่กำลังดูอยู่ใน Lightbox — ต่างจาก lightboxIndex ที่เป็นแค่ "จุดเริ่ม" ตอนเปิด
-   *
-   * 🛑 ต้อง sync ตอนเปิดทุกครั้ง ไม่ใช่รอ `on.view` อย่างเดียว: ถ้าไม่ sync ค่าจะค้างจากรอบก่อน
-   * แล้วปุ่ม "เก็บเข้าคลัง" ในแถบเครื่องมือจะสะท้อนสถานะของ **รูปคนละใบ** ในเสี้ยววินาทีแรก
-   * ซึ่งเป็นความผิดที่ tsc/build มองไม่เห็นเพราะชนิดถูกทุกตัว
-   */
-  const [lightboxViewIndex, setLightboxViewIndex] = useState(0)
-  useEffect(() => {
-    if (lightboxIndex >= 0) setLightboxViewIndex(lightboxIndex)
-  }, [lightboxIndex])
 
   async function toggleLibrary(m: { id: string; imageUrl?: string | null }) {
     const fileId = m.imageUrl
@@ -2115,6 +2107,67 @@ export default function ChatThread({
   const jumpToMessageStable = useStableCallback(jumpToMessage)
   const openSlide = useStableCallback((key: string) => setLightboxIndex(slideIndexByMessageId.get(key) ?? -1))
 
+  // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
+  // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
+  // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
+  // download: ตั้งชื่อไฟล์ตอนบันทึกจาก storage key (ไม่งั้นได้ชื่อเป็น path ของ /api/files)
+  /**
+   * feature 00048 — สไลด์ต้องพก `libraryFileId`/`libraryMessageId` ไปด้วย ไม่ใช่แค่ src/download
+   *
+   * 🛑 เพราะชุดสไลด์นี้ **ปนของสองชนิด**: รูปที่ลูกค้า/ร้านส่ง (เก็บเข้าคลังได้) กับรูปในการ์ด
+   * carousel ของ Facebook (เก็บไม่ได้ — มติ D-4) ถ้าไม่แยกให้ออกต่อสไลด์ ปุ่ม "เก็บเข้าคลัง"
+   * จะโผล่บนการ์ดสินค้า/คำขอชำระเงินของ Meta ด้วย ทั้งที่กฎห้ามไว้ — และไม่มี gate ไหนจับได้
+   * เพราะทุกอย่างเป็นสตริงที่ถูกต้องตามชนิด
+   */
+  type ImageSlide = {
+    src: string
+    download: { url: string; filename: string }
+    libraryFileId?: string
+    libraryMessageId?: string
+  }
+  // 🛑 useMemo ตาม messages: YARL รีเซ็ตไปที่ prop `index` ทุกครั้งที่ slides เปลี่ยน identity
+  // ถ้าสร้าง array ใหม่ทุก render → ทุกการปัด (on.view → setState → render) เด้งกลับใบเดิม
+  const { imageSlides, slideIndexByMessageId } = useMemo(() => {
+    const imageSlides: ImageSlide[] = []
+    const slideIndexByMessageId = new Map<string, number>()
+    for (const m of messages) {
+      if (m.type === 'IMAGE' && m.imageUrl) {
+        slideIndexByMessageId.set(m.id, imageSlides.length)
+        const url = mediaSrc(m.imageUrl)
+        const eligible = isLibraryEligible({
+          type: m.type,
+          isSticker: m.isSticker,
+          fromCard: false,
+          hasFile: true,
+          storageKey: m.imageUrl,
+        })
+        imageSlides.push({
+          src: url,
+          download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
+          // ไม่เข้าเกณฑ์ (สติกเกอร์) → ไม่ใส่คีย์เลย = ปุ่มไม่ render บนสไลด์นั้น
+          ...(eligible ? { libraryFileId: m.imageUrl, libraryMessageId: m.id } : {}),
+        })
+      }
+      // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — หลายรูปต่อ 1 ข้อความ คีย์ด้วย
+      // `${messageId}:${elementIndex}` ไม่ใช่ messageId เดียว (สมมติเดิมของ map นี้คือ 1 ข้อความ = 1
+      // รูป) ไม่งั้นคลิกใบที่ 2 เป็นต้นไปแล้วเปิด Lightbox ผิดใบ/ทับใบแรก
+      if (m.cards && m.cards.length > 0) {
+        m.cards.forEach((c, i) => {
+          const fileId = c.imageFileId
+          if (!fileId) return
+          slideIndexByMessageId.set(`${m.id}:${i}`, imageSlides.length)
+          const url = mediaSrc(fileId)
+          imageSlides.push({
+            src: url,
+            download: { url, filename: fileId.split('/').filter(Boolean).pop() || 'image' },
+          })
+        })
+      }
+    }
+    return { imageSlides, slideIndexByMessageId }
+  }, [messages])
+
+
 
   // ── 00019-ext คำแนะนำอัตโนมัติ (Typhoon) ─────────────────────────────────────
   // 🛑 อยู่เหนือ early return (errorState/loadingInitial) ทั้งหมด — hook ใต้ return = จอขาวเมื่อสถานะเปลี่ยน
@@ -2264,62 +2317,8 @@ export default function ChatThread({
     supportsDeliveryReceipt && externalDeliveredAt ? new Date(externalDeliveredAt).getTime() : 0
 
 
-  // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
-  // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ
-  // แยกกัน) — เฉพาะ type='IMAGE'; VIDEO/AUDIO มี control ของตัวเอง, FILE เปิดแท็บใหม่อยู่แล้ว
-  // download: ตั้งชื่อไฟล์ตอนบันทึกจาก storage key (ไม่งั้นได้ชื่อเป็น path ของ /api/files)
-  /**
-   * feature 00048 — สไลด์ต้องพก `libraryFileId`/`libraryMessageId` ไปด้วย ไม่ใช่แค่ src/download
-   *
-   * 🛑 เพราะชุดสไลด์นี้ **ปนของสองชนิด**: รูปที่ลูกค้า/ร้านส่ง (เก็บเข้าคลังได้) กับรูปในการ์ด
-   * carousel ของ Facebook (เก็บไม่ได้ — มติ D-4) ถ้าไม่แยกให้ออกต่อสไลด์ ปุ่ม "เก็บเข้าคลัง"
-   * จะโผล่บนการ์ดสินค้า/คำขอชำระเงินของ Meta ด้วย ทั้งที่กฎห้ามไว้ — และไม่มี gate ไหนจับได้
-   * เพราะทุกอย่างเป็นสตริงที่ถูกต้องตามชนิด
-   */
-  const imageSlides: {
-    src: string
-    download: { url: string; filename: string }
-    libraryFileId?: string
-    libraryMessageId?: string
-  }[] = []
-  const slideIndexByMessageId = new Map<string, number>()
-  for (const m of messages) {
-    if (m.type === 'IMAGE' && m.imageUrl) {
-      slideIndexByMessageId.set(m.id, imageSlides.length)
-      const url = mediaSrc(m.imageUrl)
-      const eligible = isLibraryEligible({
-        type: m.type,
-        isSticker: m.isSticker,
-        fromCard: false,
-        hasFile: true,
-        storageKey: m.imageUrl,
-      })
-      imageSlides.push({
-        src: url,
-        download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
-        // ไม่เข้าเกณฑ์ (สติกเกอร์) → ไม่ใส่คีย์เลย = ปุ่มไม่ render บนสไลด์นั้น
-        ...(eligible ? { libraryFileId: m.imageUrl, libraryMessageId: m.id } : {}),
-      })
-    }
-    // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — หลายรูปต่อ 1 ข้อความ คีย์ด้วย
-    // `${messageId}:${elementIndex}` ไม่ใช่ messageId เดียว (สมมติเดิมของ map นี้คือ 1 ข้อความ = 1
-    // รูป) ไม่งั้นคลิกใบที่ 2 เป็นต้นไปแล้วเปิด Lightbox ผิดใบ/ทับใบแรก
-    if (m.cards && m.cards.length > 0) {
-      m.cards.forEach((c, i) => {
-        const fileId = c.imageFileId
-        if (!fileId) return
-        slideIndexByMessageId.set(`${m.id}:${i}`, imageSlides.length)
-        const url = mediaSrc(fileId)
-        imageSlides.push({
-          src: url,
-          download: { url, filename: fileId.split('/').filter(Boolean).pop() || 'image' },
-        })
-      })
-    }
-  }
-
   /** สไลด์ที่กำลังแสดงอยู่จริง (อาจ undefined ระหว่างที่ยังไม่เปิด — ผู้เรียกเช็คด้วย ?.) */
-  const lightboxSlide = imageSlides[lightboxViewIndex]
+  const lightboxSlide = imageSlides[lightboxIndex]
 
   // ── สถานะห้อง (user report 2026-08-02: alert box ซ้อนกันรกจอ) ───────────────────────
   // ประกอบเป็นรายการเดียวเรียงตามความสำคัญ แล้วให้ ThreadStatusBar ตัดสินใจเรื่องการแสดงผล
@@ -3982,7 +3981,7 @@ export default function ChatThread({
       plugins={[Zoom, LightboxDownload]}
       /* feature 00048 — ต้องรู้ว่ากำลังดูสไลด์ไหนอยู่ "ตอนนี้" ไม่ใช่สไลด์ที่เปิดมาตอนแรก
          ไม่งั้นเลื่อนไปรูปถัดไปแล้วปุ่มยังสะท้อนสถานะของรูปแรกอยู่ */
-      on={{ view: ({ index }) => setLightboxViewIndex(index) }}
+      on={{ view: ({ index }) => setLightboxIndex(index) }}
       toolbar={{
         buttons: [
           // ปุ่มโผล่เฉพาะสไลด์ที่เก็บเข้าคลังได้ (ไม่ใช่สติกเกอร์/รูปการ์ด carousel)

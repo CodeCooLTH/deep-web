@@ -410,6 +410,32 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // ข้อมูลมีอยู่ครบแล้วในฐาน ไม่ต้องยิง Graph ใหม่ — CommentReplyLog ผูก conversationId ↔ commentId
   // ไว้ตั้งแต่ตอนสร้างห้อง และ PageComment เก็บทั้งข้อความ/ชื่อ/เวลา/ไฟล์แนบ
   mark('shop+chatbot+keyword')
+  /**
+   * 🛑 ยิงทุกตัวที่ขึ้นกับแค่ conversation/user/ร้านของเธรด **พร้อมกันตรงนี้** แล้ว await ตรงจุดที่ใช้
+   * (2026-10-12 user report "เข้าห้องแล้วว่าง 1-2 วิก่อนข้อความขึ้น") — เดิมแต่ละตัว await ต่อคิว
+   * ทีละรอบ (commentReplyLog → lineQuota → customer → orders → threadCtx → count → O6 → hidePayments)
+   * จอค้างที่ loading.tsx จนครบทุกรอบ · บทเรียนเดียวกับ S6 ด้านล่าง: เวลาอยู่ที่ "จำนวนรอบ" ไม่ใช่ SQL
+   * `.catch(noop)` กัน unhandled rejection ถ้ามี throw ก่อนถึงจุด await (promise ตัวเดิมยัง reject ตามปกติ)
+   */
+  const settle = <T,>(p: Promise<T>) => (p.catch(() => {}), p)
+  const lineQuotaPromise = settle(
+    isLineThread && conversation.shopChannel?.id
+      ? getLineQuotaByChannelId(conversation.shopChannel.id)
+      : Promise.resolve(null),
+  )
+  const deepCustomerPromise = settle(
+    conversation.channel === 'DEEP' && conversation.buyerUserId
+      ? prisma.customer.findUnique({
+          where: { userId: conversation.buyerUserId },
+          select: { id: true, phone: true, createdAt: true },
+        })
+      : Promise.resolve(null),
+  )
+  const threadCtxPromise = settle(
+    resolveActiveShopContext({ user: { id: user.id as string, activeShopId: threadShopId } }),
+  )
+  const canVoidPaymentPromise = settle(canAccessShopWith(threadShopId, user.id as string, 'O6'))
+  const hidePaymentsPromise = settle(shouldHidePayments())
   const commentOriginLog = await prisma.commentReplyLog.findFirst({
     where: { conversationId: conversation.id },
     select: {
@@ -470,10 +496,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // เมื่อหมดอายุ) service เป็นคน decrypt token เองภายในตัวมัน ที่นี่ได้แต่ตัวเลขกลับมา
   // อ่านไม่สำเร็จ = ได้ snapshot ที่ `stale: true` ไม่ใช่ throw — หน้าเธรดต้องเปิดได้เสมอแม้ LINE ล่ม
   // ส่งลง prop `lineQuota` ของ ChatThread — null สำหรับทุกช่องทางที่ไม่ใช่ LINE (ไม่มีแนวคิดนี้)
-  const lineQuota =
-    isLineThread && conversation.shopChannel?.id
-      ? await getLineQuotaByChannelId(conversation.shopChannel.id)
-      : null
+  const lineQuota = await lineQuotaPromise
   mark('lineQuota')
 
   // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
@@ -512,11 +535,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     if (conversation.externalContact?.customer) {
       linkedCustomer = conversation.externalContact.customer
     }
-  } else if (conversation.buyerUserId) {
-    linkedCustomer = await prisma.customer.findUnique({
-      where: { userId: conversation.buyerUserId },
-      select: { id: true, phone: true, createdAt: true },
-    })
+  } else {
+    linkedCustomer = await deepCustomerPromise
   }
 
   // T5 — ประวัติออเดอร์/การจอง (Booking = Order type='BOOKING' ตาม BR-LODG-08 ไม่ใช่ตารางแยก
@@ -530,8 +550,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     customerId: linkedCustomer?.id ?? null,
     conversationId: conversation.id,
   })
-  const orderRows = threadOrderFilter
-    ? await prisma.order.findMany({
+  // ยิงคู่กับ count/aggregate ของ customerStats ข้างล่าง (await หลังก้อนนั้น) — ขึ้นกับ linkedCustomer เหมือนกัน
+  const orderRowsPromise = threadOrderFilter
+    ? prisma.order.findMany({
         where: {
           shopId: shop.id,
           ...threadOrderFilter,
@@ -595,8 +616,55 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           },
         },
       })
-    : []
+    : Promise.resolve([])
+  settle(orderRowsPromise)
 
+  // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)
+  // — aggregate จริงทั้งหมด ไม่ใช่ 20 แถวที่ list ใช้ (panelOrders cap 20) จึงถูกต้องแม้ลูกค้าซื้อเยอะ
+  //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
+  const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
+  let customerStats: { orderCount: number; totalSpent?: string; since: string } | null = null
+  if (linkedCustomer) {
+    // 🛑 2026-08-27: เดิมก้อนนี้มี `behaviorRows` (order.findMany ทุกใบของลูกค้า) + `getBuyerReputation`
+    // ต่อท้ายด้วย — ทั้งคู่มีผู้ใช้แค่ป้ายพฤติกรรม/แถบ "ทั้งระบบ" ในแผงขวา ซึ่ง user สั่งถอดออกแล้ว
+    // จึงถอดคิวรีตามไปด้วย (คิวรีที่ไม่มีใครอ่านผลคือค่าที่จ่ายทุกครั้งที่เปิดเธรด)
+    // ตัวป้าย/สถิติเองยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ที่นั่นมีคิวรีของตัวเอง
+    // 00071 S-3: ยอดซื้อสะสม = F1 (เจ้าของเท่านั้น) ตามบทบาทใน "ร้านของเธรด" (BR-UNI-07) ไม่ใช่ร้านที่ active
+    // resolve ไม่ได้/ไม่ใช่สมาชิก = ไม่เห็น (fail-closed) · ไม่ aggregate เลยเมื่อไม่มีสิทธิ์ ไม่ใช่ aggregate แล้วซ่อน
+    // 🛑 ห้ามตั้ง customerStats = null แทน — null แปลว่า "ยังไม่ผูกลูกค้า" แถวอื่นจะหายตามไปด้วย
+    const threadCtx = await threadCtxPromise
+    const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role, threadCtx.roles), 'F1')
+    const [orderCount, spentAgg] = await Promise.all([
+      // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
+      // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ
+      prisma.order.count({
+        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, ...excludeDraftedWhere },
+      }),
+      // feature 00073 — ร้านบริการ: ยอดซื้อรวม = ยอดสะสมสูตรเดียวกับหน้าลูกค้า (งานที่ร้านปิดแล้ว)
+      // เดิมรวมทุกบิลที่ไม่ยกเลิก ⇒ แชทกับหน้าลูกค้าคนเดียวกันขึ้นคนละตัวเลข · ร้านอื่น aggregate เดิม
+      canSeeSpend && usesServiceFinanceRules(shop.vertical)
+        ? getServiceCustomerSpend(shop.id, linkedCustomer.id, orderTypeFilter).then((n) => n.toFixed(2))
+        : canSeeSpend
+          ? prisma.order.aggregate({
+              where: {
+                shopId: shop.id,
+                customerId: linkedCustomer.id,
+                ...orderTypeFilter,
+                ...withoutDrafted('CANCELLED'),
+              },
+              _sum: { totalAmount: true },
+            }).then((agg) => (agg._sum.totalAmount ? agg._sum.totalAmount.toFixed(2) : '0.00'))
+          : Promise.resolve(null),
+    ])
+    customerStats = {
+      orderCount,
+      // ไม่มีสิทธิ์ = ไม่มีคีย์ (ไม่ใช่ '0.00')
+      ...(spentAgg != null ? { totalSpent: spentAgg } : {}),
+      since: linkedCustomer.createdAt.toISOString(),
+    }
+  }
+
+  const orderRows = await orderRowsPromise
   const panelOrders: CustomerPanelOrder[] = orderRows.map((o) => ({
     id: o.id,
     token: o.publicToken,
@@ -638,51 +706,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       : null,
   }))
 
-  // สถิติลูกค้า (user สั่ง 2026-07-24: แถว จำนวนออเดอร์/รวมยอดซื้อ/เป็นลูกค้ามา ในแท็บข้อมูลลูกค้า)
-  // — aggregate จริงทั้งหมด ไม่ใช่ 20 แถวที่ list ใช้ (panelOrders cap 20) จึงถูกต้องแม้ลูกค้าซื้อเยอะ
-  //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
-  const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
-  let customerStats: { orderCount: number; totalSpent?: string; since: string } | null = null
-  if (linkedCustomer) {
-    // 🛑 2026-08-27: เดิมก้อนนี้มี `behaviorRows` (order.findMany ทุกใบของลูกค้า) + `getBuyerReputation`
-    // ต่อท้ายด้วย — ทั้งคู่มีผู้ใช้แค่ป้ายพฤติกรรม/แถบ "ทั้งระบบ" ในแผงขวา ซึ่ง user สั่งถอดออกแล้ว
-    // จึงถอดคิวรีตามไปด้วย (คิวรีที่ไม่มีใครอ่านผลคือค่าที่จ่ายทุกครั้งที่เปิดเธรด)
-    // ตัวป้าย/สถิติเองยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ที่นั่นมีคิวรีของตัวเอง
-    // 00071 S-3: ยอดซื้อสะสม = F1 (เจ้าของเท่านั้น) ตามบทบาทใน "ร้านของเธรด" (BR-UNI-07) ไม่ใช่ร้านที่ active
-    // resolve ไม่ได้/ไม่ใช่สมาชิก = ไม่เห็น (fail-closed) · ไม่ aggregate เลยเมื่อไม่มีสิทธิ์ ไม่ใช่ aggregate แล้วซ่อน
-    // 🛑 ห้ามตั้ง customerStats = null แทน — null แปลว่า "ยังไม่ผูกลูกค้า" แถวอื่นจะหายตามไปด้วย
-    const threadCtx = await resolveActiveShopContext({ user: { id: user.id as string, activeShopId: threadShopId } })
-    const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role, threadCtx.roles), 'F1')
-    const [orderCount, spentAgg] = await Promise.all([
-      // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
-      // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ
-      prisma.order.count({
-        where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, ...excludeDraftedWhere },
-      }),
-      // feature 00073 — ร้านบริการ: ยอดซื้อรวม = ยอดสะสมสูตรเดียวกับหน้าลูกค้า (งานที่ร้านปิดแล้ว)
-      // เดิมรวมทุกบิลที่ไม่ยกเลิก ⇒ แชทกับหน้าลูกค้าคนเดียวกันขึ้นคนละตัวเลข · ร้านอื่น aggregate เดิม
-      canSeeSpend && usesServiceFinanceRules(shop.vertical)
-        ? getServiceCustomerSpend(shop.id, linkedCustomer.id, orderTypeFilter).then((n) => n.toFixed(2))
-        : canSeeSpend
-          ? prisma.order.aggregate({
-              where: {
-                shopId: shop.id,
-                customerId: linkedCustomer.id,
-                ...orderTypeFilter,
-                ...withoutDrafted('CANCELLED'),
-              },
-              _sum: { totalAmount: true },
-            }).then((agg) => (agg._sum.totalAmount ? agg._sum.totalAmount.toFixed(2) : '0.00'))
-          : Promise.resolve(null),
-    ])
-    customerStats = {
-      orderCount,
-      // ไม่มีสิทธิ์ = ไม่มีคีย์ (ไม่ใช่ '0.00')
-      ...(spentAgg != null ? { totalSpent: spentAgg } : {}),
-      since: linkedCustomer.createdAt.toISOString(),
-    }
-  }
-
   /**
    * feature 00048 — fileId ที่อยู่ในคลังของลูกค้ารายนี้แล้ว (query เดียว ไม่มี N+1)
    *
@@ -695,7 +718,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
   // ยกเลิกรายการรับเงิน = O6 ตามบทบาทของผู้ดูใน "ร้านของเธรด" (BR-UNI-07 · effectiveRoles ของร้านนั้น) ไม่ใช่ร้านที่ active —
   // ซ่อนปุ่มอย่างเดียวไม่พอ: ตัวบังคับจริงคือ DELETE /api/orders/[token]/payments/[paymentId] (O6) · ค่านี้แค่ไม่ให้ UI เสนอปุ่มที่กดแล้ว 403
-  const canVoidPayment = await canAccessShopWith(threadShopId, user.id as string, 'O6')
+  const canVoidPayment = await canVoidPaymentPromise
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
     canVoidPayment,
@@ -810,7 +833,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         }
         neverInbound={neverInbound}
         isCommentReplyThread={isCommentReplyThread}
-        hidePayments={await shouldHidePayments()}
+        hidePayments={await hidePaymentsPromise}
         commentOrigin={commentOrigin}
         customerPanelData={customerPanelData}
         savedFileIds={savedFileIds}
