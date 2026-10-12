@@ -393,6 +393,8 @@ export const th = {
     chartConfirmed: 'ยืนยันแล้ว',
     chartUnconfirmed: 'รอยืนยัน',
     chartClosed: 'ปิดงานแล้ว',
+    /** 00073 ภาคต่อ — ร้านบริการ: งานที่ยังไม่ปิด (สีเหลือง · ยังไม่นับเป็นยอดขาย) */
+    chartUnclosed: 'ยังไม่ปิดงาน',
     chartToday: 'วันนี้',
     chartAvg: 'เฉลี่ย {n}',
     compareAvgDays: 'จากค่าเฉลี่ย {n} วัน',
@@ -400,7 +402,7 @@ export const th = {
     /** ป้ายเสียงของการ์ดยอดขายทั้งใบ — {range}/{amount}/{count}/{noun}/{confirmed}/{unconfirmed} */
     // feature 00073 — ร้านบริการ: ยอด = งานที่ปิดแล้ว (ไม่มีก้อนรอยืนยัน)
     salesCardAriaService:
-      'ยอดขาย{range} {amount} บาท จาก {count} {noun} ปิดงานแล้ว {confirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
+      'ยอดขาย{range} {amount} บาท ปิดงานแล้ว {confirmed} บาท จาก {count} {noun} ยังไม่ปิดงาน {unconfirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
     salesCardAria:
       'ยอดขาย{range} {amount} บาท จาก {count} {noun} ยืนยันแล้ว {confirmed} บาท รอยืนยัน {unconfirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
 

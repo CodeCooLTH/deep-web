@@ -311,12 +311,13 @@ export const en: Dictionary = {
     chartConfirmed: 'Confirmed',
     chartUnconfirmed: 'Awaiting confirmation',
     chartClosed: 'Jobs closed',
+    chartUnclosed: 'Not closed yet',
     chartToday: 'Today',
     chartAvg: 'Avg {n}',
     compareAvgDays: 'vs {n}-day average',
     compareLastMonth: 'vs last month',
     salesCardAriaService:
-      'Sales {range} {amount} baht from {count} {noun}, jobs closed {confirmed} baht. Tap to open the full report',
+      'Sales {range} {amount} baht, jobs closed {confirmed} baht from {count} {noun}, not closed yet {unconfirmed} baht. Tap to open the full report',
     salesCardAria:
       'Sales {range}: {amount} baht from {count} {noun} — {confirmed} baht confirmed, {unconfirmed} baht awaiting confirmation. Tap to open the full report.',
 

@@ -265,13 +265,15 @@ export function bottomNavHiddenPages(roles: readonly ShopRole[]): { orderDetail:
 /**
  * แถวที่หน้า "ร้านค้า" แสดงจากเมนูที่ผ่านตัวกรองทุกชั้นแล้ว (`visibleUrls`) — ไม่ตัดสินสิทธิ์ซ้ำ
  * `/account` แสดงเสมอ (ไม่อยู่ในนี้) · ทุกแถวต้องอยู่ในเมนูที่ผู้ใช้เห็นจริง ⇒ iOS/ผู้ดูแล/บทบาทอื่นหายตามอัตโนมัติ
- * ลำดับ = ลำดับแสดงผล (ระดับร้าน · หน้าร้าน · แพ็กเกจ · รายงาน LINE · จัดส่ง · พนักงาน)
+ * ลำดับ = ลำดับแสดงผล (ระดับร้าน · หน้าร้าน · แพ็กเกจ · รายงาน LINE · ตั้งค่ารายงาน · จัดส่ง · พนักงาน)
+ * `/settings/reports` (00073 ภาคต่อ FR-015) — มือถือไม่มีเมนูซ้าย แถวนี้คือทางเข้าเดียว · เห็นตามเมนูจริง (เจ้าของร้านบริการ)
  */
 const QUICK_LINK_URLS = [
   '/verification',
   '/public-profile',
   '/subscriptions',
   '/business/line-reports',
+  '/settings/reports',
   '/settings',
   '/admins',
 ] as const

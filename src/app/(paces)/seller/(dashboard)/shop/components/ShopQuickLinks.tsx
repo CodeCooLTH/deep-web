@@ -118,8 +118,17 @@ const LINE_REPORTS_LINK: QuickLink = {
   hint: 'สรุปยอดเข้ากลุ่ม LINE ของทีม',
 }
 
+// 00073 ภาคต่อ (FR-015) — label/icon/url ตรง seller-menu.ts slug `seller:settings-reports` เป๊ะ (คำเดียวกับเมนูคอม)
+// ไม่มีทางจ่ายเงิน ⇒ ไม่อยู่ในชุดกรอง App Store · การมี/ไม่มีแถวตัดสินจาก visibleUrls (เมนูจริง) ที่ shopQuickLinks
+const REPORT_SETTINGS_LINK: QuickLink = {
+  url: '/settings/reports',
+  label: 'ตั้งค่ารายงาน',
+  icon: 'adjustments-horizontal',
+  hint: 'เลือกตัวเลขที่แสดงบนการ์ดและรายงานการเงิน',
+}
+
 const BY_URL = new Map<string, QuickLink>(
-  [...LINKS, LINE_REPORTS_LINK, STAFF_LINK].map((l) => [l.url, l]),
+  [...LINKS, LINE_REPORTS_LINK, REPORT_SETTINGS_LINK, STAFF_LINK].map((l) => [l.url, l]),
 )
 
 export default function ShopQuickLinks({ visibleUrls, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {

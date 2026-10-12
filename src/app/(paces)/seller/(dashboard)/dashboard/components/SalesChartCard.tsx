@@ -99,10 +99,22 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
     prevTotalToDate, futureFromIndex, last14Confirmed, last14Unconfirmed, last14Labels,
   } = initialSeries
 
+  /**
+   * 00073 ภาคต่อ (FR-014) — ร้านบริการ: ก้อนสีเหลือง = งาน **ยังไม่ปิดงาน** (ตามวันเปิดบิล · ไม่ใช่ยอดขาย)
+   * series ของร้านบริการไม่มีก้อนรอยืนยัน (unconfirmedValues = 0 เสมอ) ⇒ ใช้ unclosed* แทนในตำแหน่งเดียวกัน
+   * ร้านอื่น: unconfirmed* เดิมทุกตัว
+   */
+  const isServiceSeries = initialSeries.receivedValues != null
+  const pendingValues = isServiceSeries ? (initialSeries.unclosedValues ?? unconfirmedValues.map(() => 0)) : unconfirmedValues
+  const pending14 = isServiceSeries ? (initialSeries.last14Unclosed ?? last14Unconfirmed) : last14Unconfirmed
+  /** ร้านบริการ: total = ปิดงานแล้วเท่านั้น ⇒ บวกยังไม่ปิดงานเพื่อได้ยอดรวม · ร้านอื่น total รวมรอยืนยันอยู่แล้ว */
+  const grandTotal = isServiceSeries ? total + (initialSeries.unclosedTotal ?? 0) : total
+  const grandPrevToDate = isServiceSeries ? prevTotalToDate + (initialSeries.prevUnclosedToDate ?? 0) : prevTotalToDate
+
   /** ยอดรวมรายวันของหน้าต่าง 14 วัน (ซ้อน 2 ก้อน) — ใช้คิดค่าเฉลี่ยและเช็คว่ามีข้อมูลพอวาดไหม */
   const last14Totals =
-    last14Confirmed && last14Unconfirmed && last14Confirmed.length === RECENT_DAYS
-      ? last14Confirmed.map((v, i) => v + (last14Unconfirmed[i] ?? 0))
+    last14Confirmed && pending14 && last14Confirmed.length === RECENT_DAYS
+      ? last14Confirmed.map((v, i) => v + (pending14[i] ?? 0))
       : null
 
   const bucketCount = labels.length
@@ -111,13 +123,14 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
   const isToday = period === 'today'
 
   const todayConfirmed = confirmedValues[todayIndex] ?? 0
-  const todayUnconfirmed = unconfirmedValues[todayIndex] ?? 0
+  const todayUnconfirmed = pendingValues[todayIndex] ?? 0
 
   /** ตัวเลขหลัก — ยอดขาย (เดิม) หรือ ตามที่ร้านบริการเลือก (รับเงินแล้ว/กำไรสุทธิ) ช่วงเดียวกับปุ่มวันนี้/เดือนนี้ */
-  const heroValue = headline ? (isToday ? headline.today : headline.month) : isToday ? todayConfirmed + todayUnconfirmed : total
+  // ร้านบริการ: ยอดรวม = ปิดงานแล้ว + ยังไม่ปิดงาน (FR-014) · ร้านอื่น grandTotal = total เดิม
+  const heroValue = headline ? (isToday ? headline.today : headline.month) : isToday ? todayConfirmed + todayUnconfirmed : grandTotal
   const heroLabel = headline ? (headline.kind === 'RECEIVED' ? 'รับเงินแล้ว' : headline.note ? 'กำไร (หักไม่ครบ)' : 'กำไรสุทธิ') : null
   const legendConfirmed = isToday ? todayConfirmed : confirmedValues.reduce((s, v) => s + v, 0)
-  const legendUnconfirmed = isToday ? todayUnconfirmed : unconfirmedValues.reduce((s, v) => s + v, 0)
+  const legendUnconfirmed = isToday ? todayUnconfirmed : pendingValues.reduce((s, v) => s + v, 0)
   /**
    * feature 00073 — ร้านบริการ (series มี `receivedValues`): ยอดในการ์ด = งานที่ร้านปิดแล้ว ตามวันปิดงาน
    * ⇒ ก้อนเขียวคือ "ปิดงานแล้ว" ไม่ใช่ "ยืนยันแล้ว" (ลูกค้าไม่ได้ยืนยันอะไร) · ก้อน "รอยืนยัน" เป็น 0 เสมอ ⇒ ซ่อน
@@ -125,6 +138,8 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
    */
   const isServiceCard = initialSeries.receivedValues != null
   const confirmedLabel = isServiceCard ? t.dashboard.chartClosed : t.dashboard.chartConfirmed
+  /** ก้อนสีเหลือง — ร้านบริการ "ยังไม่ปิดงาน" (FR-014) · ร้านอื่น "รอยืนยัน" เดิม */
+  const pendingLabel = isServiceCard ? t.dashboard.chartUnclosed : t.dashboard.chartUnconfirmed
   /** feature 00073 เฟส B — ร้านบริการปิด "จำนวนงาน" ในตั้งค่ารายงาน ⇒ ไม่มีเส้น/ตัวเลขจำนวนงานบนการ์ด */
   const showCount = !(isServiceCard && reportSettings?.jobCount === false)
   const legendOrderCount = orderCounts.reduce((s, v) => s + v, 0)
@@ -139,7 +154,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
 
   // pctChangeVsPrev คืน null เมื่อฐาน ≤ 0 (หารไม่ได้/อ่านกลับหัว) → ซ่อน badge ทั้งก้อน
   // ตัวเลขหลักที่ไม่ใช่ยอดขาย = ไม่มีฐานเทียบชุดเดียวกัน ⇒ ไม่มี % (BRD FR-010a)
-  const chgRaw = headline ? null : isToday ? pctChangeVsPrev(heroValue, avgRecent) : pctChangeVsPrev(total, prevTotalToDate)
+  const chgRaw = headline ? null : isToday ? pctChangeVsPrev(heroValue, avgRecent) : pctChangeVsPrev(grandTotal, grandPrevToDate)
   const chg = chgRaw != null ? Math.round(chgRaw) : null
   const compareWord = isToday
     ? fmt(t.dashboard.compareAvgDays, { n: RECENT_DAYS })
@@ -183,7 +198,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
    */
   const monthSeries = [
     { name: confirmedLabel, type: 'column', data: maskFuture(confirmedValues) },
-    { name: t.dashboard.chartUnconfirmed, type: 'column', data: maskFuture(unconfirmedValues) },
+    { name: pendingLabel, type: 'column', data: maskFuture(pendingValues) },
     // ชื่อซีรีส์นี้ถูกอ้างซ้ำที่ yaxis[2].seriesName — ต้องมาจากตัวแปรเดียวกัน ไม่งั้นร้านที่ผันคำ
     // แล้วสองที่ไม่ตรงกัน ApexCharts จะผูกเส้นเข้าแกนผิด (เส้นแบนติดพื้น) โดยไม่มี error
     // ปิดจำนวนงาน = ซีรีส์ยังอยู่ (yaxis[2].seriesName ผูกชื่อนี้) แต่ไม่มีจุดให้วาด
@@ -193,7 +208,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
    *  หมายถึงคนละสถานะ (แถว legend ใต้เลขฮีโร่เป็นตัวเดียวกันทั้งสองโหมด ไม่ได้เปลี่ยนตามแท็บ) */
   const todaySeries = [
     { name: confirmedLabel, data: last14Confirmed ?? [] },
-    { name: t.dashboard.chartUnconfirmed, data: last14Unconfirmed ?? [] },
+    { name: pendingLabel, data: pending14 ?? [] },
   ]
 
   const axisLabelStyle = { fontSize: '10px', colors: getColor('default-700') }
@@ -542,12 +557,11 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
                 {confirmedLabel} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendConfirmed)}</b>
               </span>
-              {!isServiceCard && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />
-                  {t.dashboard.chartUnconfirmed} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendUnconfirmed)}</b>
-                </span>
-              )}
+              {/* ก้อนเหลือง: ร้านอื่น "รอยืนยัน" · ร้านบริการ "ยังไม่ปิดงาน" (FR-014 — เดิมร้านบริการซ่อนเพราะเป็น 0 เสมอ) */}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                {pendingLabel} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendUnconfirmed)}</b>
+              </span>
               {/* legend ของเส้น — ใช้ขีดไม่ใช่จุดกลม เพราะบนกราฟมันเป็นเส้น ไม่ใช่แท่ง
                   โชว์เฉพาะโหมดเดือนที่มีเส้นจริง (โหมดวันนี้เป็นกราฟ 7 วันไม่มีเส้น) */}
               {!isToday && showCount && (
