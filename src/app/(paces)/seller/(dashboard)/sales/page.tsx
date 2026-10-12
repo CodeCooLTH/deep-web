@@ -40,7 +40,7 @@ import ReceivableList from './components/ReceivableList'
 import PnlReportCard from '../expenses/components/PnlReportCard'
 import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
 import ServiceFinanceChart from './components/ServiceFinanceChart'
-import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, visibleFinanceTabs } from '@/lib/report-settings'
+import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
 import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
 
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
@@ -509,17 +509,28 @@ export default async function SalesPage({
   const unclosedInRange = isServiceQueue
     ? shopOrders.filter((o) => isServiceUnclosed(o) && new Date(o.createdAt) >= from && new Date(o.createdAt) < toExcl)
     : []
-  const unclosed = isServiceQueue
+  // FR-016 — ตั้งค่า "งานที่ยังไม่ปิด" = ไม่แสดง ⇒ ไม่มีการ์ดสรุป
+  const unclosed = isServiceQueue && showsUnclosedSummary(reportSettings)
     ? { amount: unclosedInRange.reduce((s, o) => s + amountOf(o), 0), jobs: unclosedInRange.length }
     : null
+  /** FR-016 — คอลัมน์ "ยังไม่ปิด" รายวัน (ตั้งค่า ทุกจอ) · วันที่ = วันเปิดบิล ปฏิทินไทย (ชุดเดียวกับ eachDay) */
+  const unclosedCols = isServiceQueue && showsUnclosedInCharts(reportSettings)
+  const unclosedPerDay: Record<string, number> = {}
+  if (unclosedCols) {
+    for (const o of unclosedInRange) {
+      const key = thaiDayKey(new Date(o.createdAt)) // ตัวเดียวกับ eachDay/ordersPerDay
+      unclosedPerDay[key] = (unclosedPerDay[key] ?? 0) + amountOf(o)
+    }
+  }
 
   /**
    * แกนเงินของร้านบริการ: เติม "รับจริง" รายวันจาก receivable.service (แถวชุดเดียวกับ summary)
    * ⇒ กราฟ/ตารางแยก รับจริง | ค้างรับ ได้ทุกวัน เหมือนชีตหน้าหลัก (เดิมแท่งเดียวเพราะไม่มีข้อมูลนี้)
    */
-  const dailyView: DailyRow[] = receivables
+  const dailyView: DailyRow[] = (receivables
     ? daily.map((d) => ({ ...d, received: receivables.daily[d.date]?.received ?? 0 }))
     : daily
+  ).map((d) => (unclosedCols ? { ...d, unclosed: unclosedPerDay[d.date] ?? 0 } : d))
 
   return (
     <>
@@ -575,7 +586,7 @@ export default async function SalesPage({
           showFinance={canSeeFinance && !isServiceQueue}
           countNoun={isServiceQueue ? 'งาน' : 'ออเดอร์'}
           moneyAxis={isServiceQueue && receivables != null}
-          moneyOpts={isServiceQueue ? { receivables: reportSettings.receivables, jobCount: reportSettings.jobCount } : undefined}
+          moneyOpts={isServiceQueue ? { receivables: reportSettings.receivables, jobCount: reportSettings.jobCount, unclosed: unclosedCols } : undefined}
           profitCapped={summary.hasMissingCost === true}
         />
       </div>

@@ -25,8 +25,10 @@ describe('ยังไม่ปิดงาน — นิยามเดีย�
 describe('การ์ดมือถือ — ร้านอื่นไม่เปลี่ยน', () => {
   const card = read('src/app/(paces)/seller/(dashboard)/dashboard/components/SalesChartCard.tsx')
   it('[blocker] ก้อนเหลือง/ยอดรวม ผันเฉพาะร้านบริการ — ร้านอื่นใช้ unconfirmed/total เดิม', () => {
-    expect(card).toMatch(/const pendingValues = isServiceSeries \? \(initialSeries\.unclosedValues \?\? unconfirmedValues\.map\(\(\) => 0\)\) : unconfirmedValues/)
-    expect(card).toMatch(/const grandTotal = isServiceSeries \? total \+ \(initialSeries\.unclosedTotal \?\? 0\) : total/)
+    // FR-016: ร้านบริการผันตามตั้งค่า (unclosedOn) · ร้านอื่น unconfirmedValues/total เดิม
+    expect(card).toMatch(/const unclosedOn = isServiceSeries && showsUnclosedOnCard\(/)
+    expect(card).toMatch(/const pendingValues = isServiceSeries \? \(unclosedOn \? \(initialSeries\.unclosedValues \?\? zeros\) : zeros\) : unconfirmedValues/)
+    expect(card).toMatch(/const grandTotal = unclosedOn \? total \+ \(initialSeries\.unclosedTotal \?\? 0\) : total/)
     expect(card).toMatch(/const pendingLabel = isServiceCard \? t\.dashboard\.chartUnclosed : t\.dashboard\.chartUnconfirmed/)
   })
 })

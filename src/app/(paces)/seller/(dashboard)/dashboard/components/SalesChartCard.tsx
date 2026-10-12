@@ -36,7 +36,8 @@ import { PORTFOLIO_CARD_TITLE } from '@/lib/portfolio-display'
 import type { PortfolioSeries } from '@/services/business-overview.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
-import type { ReportSettings } from '@/lib/report-settings'
+import { DEFAULT_REPORT_SETTINGS, showsUnclosedOnCard, type ReportSettings } from '@/lib/report-settings'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 
 type Props = {
   /** null/undefined = fetch เดือนนี้ล้มตอน SSR → ซ่อนการ์ดทั้งหมด (honest-hide) */
@@ -105,11 +106,16 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
    * ร้านอื่น: unconfirmed* เดิมทุกตัว
    */
   const isServiceSeries = initialSeries.receivedValues != null
-  const pendingValues = isServiceSeries ? (initialSeries.unclosedValues ?? unconfirmedValues.map(() => 0)) : unconfirmedValues
-  const pending14 = isServiceSeries ? (initialSeries.last14Unclosed ?? last14Unconfirmed) : last14Unconfirmed
+  /** FR-016 — ตั้งค่า "งานที่ยังไม่ปิด" = ไม่แสดง ⇒ การ์ดร้านบริการกลับเป็นงานที่ปิดแล้วอย่างเดียว (ไม่มีก้อนเหลือง/ไม่บวกยอด) */
+  const unclosedOn = isServiceSeries && showsUnclosedOnCard(reportSettings ?? DEFAULT_REPORT_SETTINGS)
+  const zeros = unconfirmedValues.map(() => 0)
+  const pendingValues = isServiceSeries ? (unclosedOn ? (initialSeries.unclosedValues ?? zeros) : zeros) : unconfirmedValues
+  const pending14 = isServiceSeries
+    ? (unclosedOn ? (initialSeries.last14Unclosed ?? last14Unconfirmed) : last14Unconfirmed?.map(() => 0))
+    : last14Unconfirmed
   /** ร้านบริการ: total = ปิดงานแล้วเท่านั้น ⇒ บวกยังไม่ปิดงานเพื่อได้ยอดรวม · ร้านอื่น total รวมรอยืนยันอยู่แล้ว */
-  const grandTotal = isServiceSeries ? total + (initialSeries.unclosedTotal ?? 0) : total
-  const grandPrevToDate = isServiceSeries ? prevTotalToDate + (initialSeries.prevUnclosedToDate ?? 0) : prevTotalToDate
+  const grandTotal = unclosedOn ? total + (initialSeries.unclosedTotal ?? 0) : total
+  const grandPrevToDate = unclosedOn ? prevTotalToDate + (initialSeries.prevUnclosedToDate ?? 0) : prevTotalToDate
 
   /** ยอดรวมรายวันของหน้าต่าง 14 วัน (ซ้อน 2 ก้อน) — ใช้คิดค่าเฉลี่ยและเช็คว่ามีข้อมูลพอวาดไหม */
   const last14Totals =
@@ -270,7 +276,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
     plotOptions: { bar: { columnWidth: '92%', borderRadius: 1 } },
     /** เขียว = ยืนยันแล้ว ให้ตรงกับ OrderStatusBand ที่อยู่ติดกันข้างล่างบนจอเดียวกัน (ทา CONFIRMED
      *  เป็น text-success) — เดิมการ์ดนี้ใช้น้ำเงิน สถานะเดียวกันจึงมีสองสีในจอเดียว */
-    colors: [getColor('success'), getColor('warning'), getColor('primary')],
+    colors: [getColor(FINANCE_COLORS.counted.token), getColor(FINANCE_COLORS.notCounted.token), getColor(FINANCE_COLORS.count.token)],
     /**
      * ไม่มีขอบทั้งสองแท่ง (user เคาะ 2026-08-05 หลังดู mockup: "รอยืนยันมีขอบ ยืนยันแล้วไม่มี
      * ทำให้ดูต่างกัน ลองตัดขอบออก")
@@ -411,7 +417,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
      *  2 ซีรีส์ไม่ได้ (สีจะไปตามลำดับแท่ง ไม่ใช่ตามสถานะ) ผลข้างเคียงที่ยอมรับ: แท่ง "วันนี้"
      *  ไม่ได้เข้มกว่าเพื่อนอีกต่อไป — ป้าย "วันนี้" ใต้แกน x ยังชี้ตำแหน่งอยู่
      *  สีชุดเดียวกับกราฟเดือน: เขียว = ยืนยันแล้ว, เหลือง = รอยืนยัน */
-    colors: [getColor('success'), getColor('warning')],
+    colors: [getColor(FINANCE_COLORS.counted.token), getColor(FINANCE_COLORS.notCounted.token)],
     stroke: { show: false },
     dataLabels: { enabled: false },
     legend: { show: false },
@@ -554,14 +560,16 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
                 </span>
               )}
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                <span className={`size-2 shrink-0 rounded-full ${FINANCE_COLORS.counted.dot}`} aria-hidden="true" />
                 {confirmedLabel} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendConfirmed)}</b>
               </span>
               {/* ก้อนเหลือง: ร้านอื่น "รอยืนยัน" · ร้านบริการ "ยังไม่ปิดงาน" (FR-014 — เดิมร้านบริการซ่อนเพราะเป็น 0 เสมอ) */}
+              {(!isServiceCard || unclosedOn) && (
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                <span className={`size-2 shrink-0 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
                 {pendingLabel} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendUnconfirmed)}</b>
               </span>
+              )}
               {/* legend ของเส้น — ใช้ขีดไม่ใช่จุดกลม เพราะบนกราฟมันเป็นเส้น ไม่ใช่แท่ง
                   โชว์เฉพาะโหมดเดือนที่มีเส้นจริง (โหมดวันนี้เป็นกราฟ 7 วันไม่มีเส้น) */}
               {!isToday && showCount && (

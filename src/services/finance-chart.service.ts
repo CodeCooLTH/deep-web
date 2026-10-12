@@ -30,6 +30,8 @@ export interface FinanceChartBucket {
   outstanding: number
   /** ส่วนของค้างรับที่ "ไม่เคยบันทึกรับเงินเลย" — ไม่รู้ ไม่ใช่ค้างแน่ (ดู SalesSeries.unrecordedValues) */
   unrecorded: number
+  /** 00073 FR-016 — งานที่ยังไม่ปิด ตามวันเปิดบิล (SalesSeries.unclosedValues) · **ไม่ใช่ยอดขาย ไม่อยู่ใน sales** */
+  unclosed: number
   jobs: number
   /** ต้นทุนอะไหล่ของงานที่ปิดในช่องนี้ */
   cost: number
@@ -193,6 +195,7 @@ export async function getFinanceChartData(
         received,
         outstanding: Math.max(0, sales - received),
         unrecorded: series.unrecordedValues?.[i] ?? 0,
+        unclosed: series.unclosedValues?.[i] ?? 0,
         jobs: series.orderCounts[i] ?? 0,
         cost: series.cogsValues?.[i] ?? 0,
         expense: series.shippingValues?.[i] ?? 0,
@@ -241,6 +244,7 @@ export async function getFinanceChartData(
     b.received = round2(b.received)
     b.outstanding = round2(b.outstanding)
     b.unrecorded = round2(b.unrecorded)
+    b.unclosed = round2(b.unclosed)
     b.cost = round2(b.cost)
     b.expense = round2(b.expense)
   }
@@ -256,6 +260,7 @@ export async function getFinanceChartData(
       received: sum('received'),
       outstanding: sum('outstanding'),
       unrecorded: sum('unrecorded'),
+      unclosed: sum('unclosed'),
       jobs: buckets.reduce((s, b) => s + b.jobs, 0),
       cost: sum('cost'),
       expense: sum('expense'),

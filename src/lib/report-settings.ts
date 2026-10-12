@@ -30,6 +30,14 @@ export type ReportRange = (typeof REPORT_RANGES)[number]
 export const REPORT_HEADLINES = ['SALES', 'RECEIVED', 'NET_PROFIT'] as const
 export type ReportHeadline = (typeof REPORT_HEADLINES)[number]
 
+/**
+ * งานที่ยังไม่ปิด (สีเหลือง) แสดงที่ไหน — 00073 ภาคต่อ FR-016 (user 2026-10-12)
+ * OFF = ไม่แสดงเลย · CARD = การ์ดหน้าแรก/คอม + แถวสรุปข้างใน (ค่าตั้งต้น = หน้าตาหลัง #156) · ALL = + ก้อนในกราฟ/คอลัมน์ในตารางข้างใน
+ * ไม่เปลี่ยนวิธีนับ — ยังไม่ปิดงานไม่ใช่ยอดขายในทุกโหมด
+ */
+export const REPORT_UNCLOSED_DISPLAYS = ['OFF', 'CARD', 'ALL'] as const
+export type ReportUnclosedDisplay = (typeof REPORT_UNCLOSED_DISPLAYS)[number]
+
 export interface ReportSettings {
   /** รับเงินแล้ว / ค้างรับ */
   receivables: boolean
@@ -47,6 +55,8 @@ export interface ReportSettings {
   defaultRange: ReportRange
   /** ตัวเลขหลักบนการ์ด — ใช้ผ่าน `resolveHeadline` เสมอ (ถอยเป็นยอดขายเมื่อสวิตช์ต้นทางปิด) */
   headline: ReportHeadline
+  /** งานที่ยังไม่ปิด (สีเหลือง) — ใช้ผ่าน showsUnclosedOnCard / showsUnclosedSummary / showsUnclosedInCharts เสมอ */
+  unclosedDisplay: ReportUnclosedDisplay
 }
 
 /** ยังไม่เคยตั้ง = เหมือนวันนี้ (มัดจำล่วงหน้าปิด · กราฟแท่งซ้อน · รายวันของเดือนนี้) */
@@ -60,6 +70,7 @@ export const DEFAULT_REPORT_SETTINGS: Readonly<ReportSettings> = Object.freeze({
   chartStyle: 'STACKED',
   defaultRange: 'MONTH',
   headline: 'SALES',
+  unclosedDisplay: 'CARD',
 })
 
 /** schema ของคำขอบันทึก — ทุกช่อง optional (ส่งเฉพาะที่เปลี่ยน) · ช่องที่ไม่รู้จักถูกตัดทิ้ง */
@@ -73,6 +84,7 @@ export const UpdateReportSettingsSchema = v.object({
   chartStyle: v.optional(v.picklist(REPORT_CHART_STYLES)),
   defaultRange: v.optional(v.picklist(REPORT_RANGES)),
   headline: v.optional(v.picklist(REPORT_HEADLINES)),
+  unclosedDisplay: v.optional(v.picklist(REPORT_UNCLOSED_DISPLAYS)),
 })
 export type UpdateReportSettingsInput = v.InferOutput<typeof UpdateReportSettingsSchema>
 
@@ -104,6 +116,9 @@ export function resolveReportSettings(raw: unknown, vertical: string | null | un
     headline: (REPORT_HEADLINES as readonly string[]).includes(r.headline as string)
       ? (r.headline as ReportHeadline)
       : base.headline,
+    unclosedDisplay: (REPORT_UNCLOSED_DISPLAYS as readonly string[]).includes(r.unclosedDisplay as string)
+      ? (r.unclosedDisplay as ReportUnclosedDisplay)
+      : base.unclosedDisplay,
   }
 }
 
@@ -195,4 +210,19 @@ export function resolveHeadline(s: ReportSettings): ReportHeadline {
   if (s.headline === 'RECEIVED' && !s.receivables) return 'SALES'
   if (s.headline === 'NET_PROFIT' && !s.pnl) return 'SALES'
   return s.headline
+}
+
+// ─── งานที่ยังไม่ปิด (สีเหลือง) — 00073 ภาคต่อ FR-016 ─────────────────────────────────────
+
+/** การ์ดยอดขายหน้าแรก (มือถือ) + การ์ด "รายได้" (คอม): ก้อนเหลือง + ยอดรวม */
+export function showsUnclosedOnCard(s: ReportSettings): boolean {
+  return s.unclosedDisplay !== 'OFF'
+}
+/** แถว/การ์ดสรุป "ยังไม่ปิดงาน ฿X · N งาน" ในชีตมือถือและ /sales */
+export function showsUnclosedSummary(s: ReportSettings): boolean {
+  return s.unclosedDisplay !== 'OFF'
+}
+/** ก้อนเหลืองในกราฟ + คอลัมน์ "ยังไม่ปิด" ในตาราง ของจอข้างใน (ชีตมือถือ · /sales) */
+export function showsUnclosedInCharts(s: ReportSettings): boolean {
+  return s.unclosedDisplay === 'ALL'
 }

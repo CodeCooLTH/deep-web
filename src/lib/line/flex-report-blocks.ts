@@ -13,6 +13,7 @@ import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
 import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 export const ACCENT = '#236dc9'
@@ -22,11 +23,11 @@ export const SLATE = '#707380'
 export const DANGER = '#d92d20'
 /** แท่งกราฟ: น้ำเงิน (= ปุ่ม "ดูภาพรวม") = ยืนยันแล้ว · เหลือง = รอยืนยัน (มติ user 2026-10-08 — เดิมเขียว) */
 export const CONFIRMED_BAR = ACCENT
-export const PENDING_YELLOW = '#f5b400'
+export const PENDING_YELLOW = FINANCE_COLORS.notCounted.lineHex
 /** แท่งค่าใช้จ่าย — แดงอิฐเข้ม แยกจาก DANGER (ข้อความข้อผิดพลาด) และแยกจากแท่งน้ำเงินชัด */
 export const EXPENSE_RED = '#b42318'
 /** ตัวอักษรเตือน "รอยืนยัน" บนพื้นขาว — เหลืองเข้มเฉดเดียวกับแท่งให้อ่านได้ (≥4.5:1) */
-export const PENDING_TEXT = '#92400e'
+export const PENDING_TEXT = FINANCE_COLORS.notCounted.lineInkHex
 /** ให้พรีวิวในหน้าตั้งค่าอ้างสีชุดเดียวกัน (flex-preview-tokens) — เปลี่ยนสีที่นี่แล้วเทสพรีวิวจะฟ้อง */
 export const GRID_GRAY = '#D9DBE0'
 export const FLEX_COLORS = { ACCENT, INK, SLATE, DANGER, GRID_GRAY, CONFIRMED_BAR, PENDING_YELLOW, PENDING_TEXT, EXPENSE_RED } as const
@@ -119,6 +120,8 @@ export const section = (contents: Node[]): Node => ({ type: 'box', layout: 'vert
 
 /** เตือนยอดที่ยังไม่กดยืนยัน — รวมอยู่ในยอดขายแล้ว */
 const pendingNote = (amount: number): Node => note(`รอยืนยัน ${money(amount)}`, { color: PENDING_TEXT, weight: 'bold' })
+/** 00073 FR-016 — ร้านบริการ: งานยังไม่ปิด (ไม่ใช่ยอดขาย · ไม่อยู่ในตัวเลขด้านบน) · สีเหลืองชุดเดียวกับ "รอยืนยัน" (FINANCE_COLORS) */
+const unclosedNote = (amount: number): Node => note(`ยังไม่ปิดงาน ${money(amount)} (ยังไม่นับเป็นยอดขาย)`, { color: PENDING_TEXT, weight: 'bold' })
 
 function profitRow(p: { netProfit: number; capped: boolean }): Node {
   const d = profitDisplay(p.netProfit, { capped: p.capped })
@@ -347,6 +350,7 @@ function renderHero(c: Ctx): Node | null {
     note('ยอดขาย'),
     text(money(salesTotal(c.t)), { size: 'xxl', weight: 'bold', wrap: false }),
     ...(c.t.unconfirmed > 0 ? [pendingNote(c.t.unconfirmed)] : []),
+    ...((c.t.unclosed ?? 0) > 0 ? [unclosedNote(c.t.unclosed ?? 0)] : []),
   ])
 }
 

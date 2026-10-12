@@ -118,7 +118,12 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
   const title = `${titleOf(kind, summary, input.titleOverride || templateOf(input).title)} ${rangeText(summary.window.startIso, summary.window.endIso)}`
   // จอล็อก/รายการแชทตัดราว 40–60 ตัวอักษร → ยอดขายต้องมาก่อนชื่อรายงาน (critique 2026-10-08)
   const parts = f.showSales
-    ? [`ยอดขาย ${money(salesTotal(t))}`, ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []), title]
+    ? [
+        `ยอดขาย ${money(salesTotal(t))}`,
+        ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []),
+        ...((t.unclosed ?? 0) > 0 ? [`ยังไม่ปิดงาน ${money(t.unclosed ?? 0)}`] : []),
+        title,
+      ]
     : [title]
   if (kind === 'TEST') parts[0] = `[ทดสอบ] ${parts[0]}`
   if (f.showOrders) parts.push(`${ow.word} ${formatNumberNoSymbol(t.orders)}${ow.mixed ? '' : ' รายการ'}`)

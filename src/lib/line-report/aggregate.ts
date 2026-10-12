@@ -87,6 +87,8 @@ export function combineTotals(shops: readonly ShopSummary[]): Totals {
     t.confirmed += s.confirmed
     t.unconfirmed += s.unconfirmed
     t.cancelled += s.cancelled
+    // FR-016 — ร้านบริการเท่านั้นมีค่า · ไม่มีร้านไหนมี = ไม่ใส่คีย์ (ข้อความของกลุ่มร้านอื่นเหมือนเดิมทุกไบต์)
+    if (s.unclosed != null) t.unclosed = (t.unclosed ?? 0) + s.unclosed
   }
   return t
 }

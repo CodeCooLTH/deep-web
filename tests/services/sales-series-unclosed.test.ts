@@ -13,6 +13,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { deleteTestData, prisma } from '../setup'
 import { getSalesSeries } from '@/services/dashboard.service'
+import { getFinanceChartData } from '@/services/finance-chart.service'
 
 const userIds: string[] = []
 const shopIds: string[] = []
@@ -73,5 +74,13 @@ describe('getSalesSeries — ยังไม่ปิดงาน (FR-014)', () 
     expect(s.unclosedValues).toBeUndefined()
     expect(s.unclosedTotal).toBeUndefined()
     expect(s.total).toBe(2000)
+  })
+
+  it('[blocker] กราฟการเงิน (FR-016): ช่อง unclosed ตามวันเปิดบิล · ยอดขาย/รับ/ค้างไม่เปลี่ยน', async () => {
+    const d = await getFinanceChartData(svcShop, 'SERVICE_QUEUE', 'MONTH', { year: 2026, month: 10 })
+    expect(d.totals.sales).toBe(3000)
+    expect(d.totals.unclosed).toBe(8000)
+    expect(d.buckets[6].unclosed).toBe(8000)
+    expect(d.buckets[5].sales).toBe(3000)
   })
 })

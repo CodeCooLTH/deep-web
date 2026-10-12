@@ -73,7 +73,7 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 import { getSalesSeries } from '@/services/dashboard.service'
 // 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
 import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
-import { DEFAULT_REPORT_SETTINGS, profitExclusionNote, profitShown, resolveHeadline, resolveReportSettings, type ReportSettings } from '@/lib/report-settings'
+import { DEFAULT_REPORT_SETTINGS, profitExclusionNote, profitShown, resolveHeadline, resolveReportSettings, showsUnclosedOnCard, type ReportSettings } from '@/lib/report-settings'
 import { getPnlReport } from '@/services/pnl.service'
 import { resolveDateRange } from '@/lib/date-range'
 import { getAdvanceDeposits } from '@/services/finance-chart.service'
@@ -572,7 +572,7 @@ export default async function SellerDashboardPage() {
               .reduce((sum, o) => sum + netAmount(o), 0) +
               /* 00073 ภาคต่อ (FR-014) — ร้านบริการ: + งานที่ยังไม่ปิด ตามวันเปิดบิล = ตัวเลขเดียวกับการ์ดมือถือ (เขียว+เหลือง)
                  ร้านอื่นไม่บวกอะไร (newRules = false) */
-              (newRules
+              (newRules && showsUnclosedOnCard(reportSettings)
                 ? liveOrders.filter((o) => inRange(o) && isServiceUnclosed(o)).reduce((sum, o) => sum + netAmount(o), 0)
                 : 0)) / 1000
           : 0
@@ -638,10 +638,31 @@ export default async function SellerDashboardPage() {
             monthMap.set(key, { revenue: amt, orderCount: 1, label })
           }
         }
+        /* 00073 FR-016 — ร้านบริการ + ตั้งค่าแสดงงานยังไม่ปิด (การ์ด/ทุกจอ): เส้นเหลืองรายเดือน (ตามเดือนเปิดบิล) + ช่องสรุป
+           ไม่ใช่ยอดขาย — ไม่บวกใน revenue · ร้านอื่น/ตั้งค่า ไม่แสดง: ไม่มีคีย์ unclosed เลย (กราฟ/คลาสเดิม) */
+        const reportUnclosed = newRules && money.salesReport && showsUnclosedOnCard(reportSettings)
+        const unclosedByMonth = new Map<string, { amount: number; label: string }>()
+        let unclosedLifetime = 0
+        if (reportUnclosed) {
+          for (const o of liveOrders) {
+            if (!isServiceUnclosed(o)) continue
+            const key = thaiDayKey(o.createdAt).slice(0, 7)
+            const cur = unclosedByMonth.get(key) ?? { amount: 0, label: formatMonthYearTH(o.createdAt) }
+            cur.amount += netAmount(o)
+            unclosedByMonth.set(key, cur)
+            unclosedLifetime += netAmount(o)
+            if (!monthMap.has(key)) monthMap.set(key, { revenue: 0, orderCount: 0, label: cur.label })
+          }
+        }
         // เรียง key chronologically แล้ว build series array
         salesSeries = Array.from(monthMap.entries())
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([, v]) => ({ label: v.label, revenue: v.revenue, orderCount: v.orderCount }))
+          .map(([k, v]) => ({
+            label: v.label,
+            revenue: v.revenue,
+            orderCount: v.orderCount,
+            ...(reportUnclosed ? { unclosed: unclosedByMonth.get(k)?.amount ?? 0 } : {}),
+          }))
 
         // summary — totalRevenue = countsAsRevenue ชุดเดียวกับแท่งรายเดือน · totalOrders = ไม่นับร่าง (รวมยกเลิก ตามความหมายเดิม "ตลอดชีพ")
         if (money.salesReport) {
@@ -650,6 +671,7 @@ export default async function SellerDashboardPage() {
             totalOrders: orderCount,
             // growth คำนวณไม่ได้เมื่อมีเพียง 1 เดือนหรือไม่มีข้อมูล — ซ่อน column (null)
             growth: null,
+            ...(reportUnclosed ? { unclosedTotal: unclosedLifetime } : {}),
           }
         }
       }

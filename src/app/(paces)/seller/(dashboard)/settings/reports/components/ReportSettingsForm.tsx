@@ -20,7 +20,9 @@ import {
   type ReportHeadline,
   type ReportRange,
   type ReportSettings,
+  type ReportUnclosedDisplay,
 } from '@/lib/report-settings'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 
 type BoolKey = 'receivables' | 'advanceDeposit' | 'jobCount' | 'partCost' | 'shopExpense' | 'pnl'
 
@@ -35,6 +37,13 @@ const HEADLINE_OPTIONS: { key: ReportHeadline; label: string; needs?: 'receivabl
   { key: 'SALES', label: 'ยอดขาย' },
   { key: 'RECEIVED', label: 'รับเงินแล้ว', needs: 'receivables', needsLabel: 'ต้องเปิด "รับเงินแล้ว / ค้างรับ" ก่อน' },
   { key: 'NET_PROFIT', label: 'กำไรสุทธิ', needs: 'pnl', needsLabel: 'ต้องเปิด "กำไรขาดทุน" ก่อน' },
+]
+
+/** งานที่ยังไม่ปิด (สีเหลือง) แสดงที่ไหน — 00073 ภาคต่อ FR-016 · คำอธิบายต้องบอกว่า "ไม่นับเป็นยอดขาย" ทุกตัวเลือก */
+const UNCLOSED_OPTIONS: { key: ReportUnclosedDisplay; label: string; hint: string }[] = [
+  { key: 'OFF', label: 'ไม่แสดง', hint: 'การ์ดและกราฟแสดงเฉพาะงานที่ปิดแล้ว' },
+  { key: 'CARD', label: 'การ์ดหน้าแรก', hint: 'การ์ดยอดขายมีก้อนเหลือง + ตัวเลขรวม · หน้าการเงินบอกยอดรวมเป็นบรรทัดเดียว' },
+  { key: 'ALL', label: 'ทุกจอ', hint: 'เพิ่มก้อนเหลืองในกราฟและคอลัมน์ "ยังไม่ปิด" ในตารางของหน้าการเงินด้วย' },
 ]
 
 const RANGE_LABEL: Record<ReportRange, string> = {
@@ -196,6 +205,31 @@ export default function ReportSettingsForm({ initial, costNoun }: { initial: Rep
               </p>
             </fieldset>
             <fieldset>
+              <legend className="text-default-900 mb-2 flex items-center gap-1.5 text-sm font-medium">
+                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
+                งานที่ยังไม่ปิด (สีเหลือง)
+              </legend>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="งานที่ยังไม่ปิด แสดงที่ไหน">
+                {UNCLOSED_OPTIONS.map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={s.unclosedDisplay === o.key}
+                    disabled={pending !== null}
+                    onClick={() => s.unclosedDisplay !== o.key && void save({ unclosedDisplay: o.key }, 'unclosedDisplay')}
+                    className={`btn min-h-11 ${s.unclosedDisplay === o.key ? 'bg-primary text-white' : 'border-default-300 text-default-700 hover:bg-default-100'}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-default-600 mt-1.5 text-xs">
+                {UNCLOSED_OPTIONS.find((o) => o.key === s.unclosedDisplay)?.hint} · งานที่เปิดบิลแล้วแต่ยังไม่กดปิดงาน
+                ยังไม่นับเป็นยอดขาย — กดปิดงานเมื่อไรจะเป็นสีเขียว
+              </p>
+            </fieldset>
+            <fieldset>
               <legend className="text-default-900 mb-2 text-sm font-medium">รูปแบบกราฟ</legend>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="รูปแบบกราฟ">
                 {(Object.keys(CHART_STYLE_LABEL) as ReportChartStyle[]).map((k) => (
@@ -247,6 +281,26 @@ export default function ReportSettingsForm({ initial, costNoun }: { initial: Rep
               <li>ปิด = ซ่อนจากจอของร้าน ไม่ลบข้อมูล เปิดกลับมาได้ครบ</li>
               <li>เปลี่ยนแค่ “แสดงอะไร แบบไหน” — วิธีนับเงินไม่เปลี่ยน (ยอดขายนับตอนร้านปิดงาน)</li>
               <li>รายงานเข้ากลุ่ม LINE ไม่เปลี่ยน — แต่ละกลุ่มตั้งของตัวเองแยก</li>
+            </ul>
+            {/* สีในกราฟ — จาก FINANCE_COLORS ตัวกลาง (ทุกจอใช้ชุดนี้) · ร้านงงเรื่องสีบ่อย จึงอธิบายไว้ที่เดียวกับตั้งค่า */}
+            <p className="text-default-900 mt-4 mb-2 text-sm font-medium">สีในกราฟ</p>
+            <ul className="text-default-700 space-y-1.5 text-sm">
+              <li className="flex items-center gap-2">
+                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.counted.dot}`} aria-hidden="true" />
+                เขียว — ปิดงานแล้ว / รับเงินแล้ว (นับเป็นยอดขาย)
+              </li>
+              <li className="flex items-center gap-2">
+                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.outstanding.dot}`} aria-hidden="true" />
+                ฟ้า — ค้างรับ (ปิดงานแล้ว ยังเก็บเงินไม่ครบ)
+              </li>
+              <li className="flex items-center gap-2">
+                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
+                เหลือง — ยังไม่ปิดงาน (ยังไม่นับเป็นยอดขาย)
+              </li>
+              <li className="flex items-center gap-2">
+                <span className={`h-0.5 w-3 shrink-0 ${FINANCE_COLORS.count.dot}`} aria-hidden="true" />
+                เส้นน้ำเงิน — จำนวนงาน
+              </li>
             </ul>
             <button
               type="button"

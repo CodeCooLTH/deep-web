@@ -18,12 +18,15 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { dashboardOrderWords } from './order-words'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 
 /** แต่ละ data point ต่อเดือน — ส่งผ่าน RSC boundary เป็น plain object */
 export type SalesSeriesPoint = {
   label: string    // e.g. "ม.ค.", "ก.พ."
   revenue: number  // บาท
   orderCount: number
+  /** 00073 FR-016 — ร้านบริการ: งานที่ยังไม่ปิด (ตามเดือนเปิดบิล · ไม่ใช่ยอดขาย) · ไม่มีคีย์ = ไม่แสดง (ร้านอื่น/ตั้งค่า ไม่แสดง) */
+  unclosed?: number
 }
 
 export type SalesSummary = {
@@ -31,6 +34,8 @@ export type SalesSummary = {
   totalOrders: number
   /** growth percentage เทียบ period ก่อน — null เมื่อคำนวณไม่ได้ */
   growth: number | null
+  /** 00073 FR-016 — ยอดงานที่ยังไม่ปิดรวม (ไม่ใช่ยอดขาย) · undefined = ไม่แสดงช่องนี้ */
+  unclosedTotal?: number
 }
 
 type SalesReportProps = {
@@ -49,7 +54,12 @@ type SalesReportProps = {
 export const buildSalesReportChart = (
   series: SalesSeriesPoint[],
   seriesNames: { revenue: string; orders: string },
-): ApexOptions => ({
+  /** 00073 FR-016 — ร้านบริการ: สีจากตัวกลาง FINANCE_COLORS (รายได้ เขียว · จำนวนงาน น้ำเงิน) · ร้านอื่นสีธีมเดิม */
+  financePalette = false,
+): ApexOptions => {
+  /** 00073 FR-016 — มีคีย์ unclosed = ร้านบริการเปิดแสดงงานยังไม่ปิด ⇒ เส้นเหลืองเพิ่ม (ซีรีส์ท้ายสุด ดัชนีเดิมไม่เลื่อน) */
+  const withUnclosed = series.some((s) => s.unclosed !== undefined)
+  return {
   series: [
     {
       name: seriesNames.revenue,
@@ -61,6 +71,9 @@ export const buildSalesReportChart = (
       type: 'line',
       data: series.map((s) => s.orderCount),
     },
+    ...(withUnclosed
+      ? [{ name: 'ยังไม่ปิดงาน', type: 'line', data: series.map((s) => Math.round((s.unclosed ?? 0) / 1000)) }]
+      : []),
   ],
   chart: {
     type: 'line',
@@ -69,11 +82,15 @@ export const buildSalesReportChart = (
     offsetX: 0,
   },
   stroke: {
-    width: [3, 2],
+    width: withUnclosed ? [3, 2, 3] : [3, 2],
     curve: 'smooth',
-    dashArray: [0, 8],
+    dashArray: withUnclosed ? [0, 8, 0] : [0, 8],
   },
-  colors: [getColor('chart-secondary'), getColor('chart-alpha')],
+  colors: [
+    getColor(financePalette ? FINANCE_COLORS.counted.token : 'chart-secondary'),
+    getColor(financePalette ? FINANCE_COLORS.count.token : 'chart-alpha'),
+    ...(withUnclosed ? [getColor(FINANCE_COLORS.notCounted.token)] : []),
+  ],
   grid: { strokeDashArray: 7 },
   xaxis: {
     categories: series.map((s) => s.label),
@@ -99,8 +116,8 @@ export const buildSalesReportChart = (
     },
   },
   fill: {
-    opacity: [1, 0.5],
-    type: ['gradient', 'solid'],
+    opacity: withUnclosed ? [1, 0.5, 1] : [1, 0.5],
+    type: withUnclosed ? ['gradient', 'solid', 'solid'] : ['gradient', 'solid'],
     gradient: {
       type: 'vertical',
       inverseColors: false,
@@ -110,7 +127,8 @@ export const buildSalesReportChart = (
     },
   },
   legend: { offsetY: 15 },
-})
+  }
+}
 
 const SalesReport = ({ series, summary, vertical }: SalesReportProps) => {
   const t = useT()
@@ -143,7 +161,8 @@ const SalesReport = ({ series, summary, vertical }: SalesReportProps) => {
         <div>
           {/* Headline summary — real data จาก orders */}
           <div className="bg-light/25 border-b border-default-300 border-dashed">
-            <div className={`grid ${summary.growth != null ? 'md:grid-cols-3' : 'md:grid-cols-2'} grid-cols-2 md:gap-base text-center`}>
+            {/* คอลัมน์: รายได้ · จำนวน · (ยังไม่ปิดงาน FR-016) · (เติบโต) — ร้านอื่นคลาสเดิมทุกตัวอักษร */}
+            <div className={`grid ${(summary.growth != null ? 1 : 0) + (summary.unclosedTotal !== undefined ? 1 : 0) >= 1 ? 'md:grid-cols-3' : 'md:grid-cols-2'} grid-cols-2 md:gap-base text-center`}>
               <div>
                 <p className="text-default-400 mt-5 mb-1.25">{t.dashboard.salesSummaryRevenue}</p>
                 <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
@@ -156,12 +175,24 @@ const SalesReport = ({ series, summary, vertical }: SalesReportProps) => {
               <div>
                 <p className="text-default-400 mt-5 mb-1.25">{words.title}</p>
                 <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
-                  <Icon icon="basket" className="text-success me-2" />
+                  {/* จำนวนงาน = น้ำเงิน (FINANCE_COLORS.count) สำหรับร้านบริการ · ร้านอื่นสีเดิม */}
+                  <Icon icon="basket" className={`${vertical === 'SERVICE_QUEUE' ? 'text-primary' : 'text-success'} me-2`} />
                   <span>
                     <CountUp start={0} end={summary.totalOrders} duration={1} />
                   </span>
                 </h4>
               </div>
+              {summary.unclosedTotal !== undefined && (
+                <div>
+                  <p className="text-default-400 mt-5 mb-1.25">ยังไม่ปิดงาน</p>
+                  <h4 className="flex justify-center items-center mb-4 text-lg font-semibold">
+                    <span className={`me-2 inline-block size-2.5 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
+                    <span>
+                      <CountUp start={0} end={summary.unclosedTotal} prefix="฿" duration={1} decimals={2} />
+                    </span>
+                  </h4>
+                </div>
+              )}
               {/* ซ่อน growth column เมื่อคำนวณไม่ได้ (ไม่มี prev period) */}
               {summary.growth != null && (
                 <div>
@@ -180,8 +211,8 @@ const SalesReport = ({ series, summary, vertical }: SalesReportProps) => {
             <div>
               <div className="apex-charts">
                 <ApexChart
-                  getOptions={() => buildSalesReportChart(series, seriesNames)}
-                  series={buildSalesReportChart(series, seriesNames).series}
+                  getOptions={() => buildSalesReportChart(series, seriesNames, vertical === 'SERVICE_QUEUE')}
+                  series={buildSalesReportChart(series, seriesNames, vertical === 'SERVICE_QUEUE').series}
                   type="line"
                   height={359}
                 />

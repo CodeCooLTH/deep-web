@@ -24,6 +24,7 @@ import { useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { formatBaht } from '@/lib/format-money'
 import type { DailyRow } from './data'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 
 type Props = {
   rows: DailyRow[]
@@ -36,7 +37,7 @@ type Props = {
   /** ต้นทุนยังตั้งไม่ครบ — คอลัมน์กำไรเป็นเพดานบน: สีเตือน + "(ไม่เกิน)" ให้ตรงกับการ์ดข้างบน */
   profitCapped?: boolean
   /** feature 00073 เฟส B — ร้านบริการ: ตามตั้งค่ารายงาน · ไม่ส่ง = แสดงครบ (เหมือนเดิม) */
-  moneyOpts?: { receivables: boolean; jobCount: boolean }
+  moneyOpts?: { receivables: boolean; jobCount: boolean; unclosed?: boolean }
 }
 
 const columnHelper = createColumnHelper<DailyRow>()
@@ -105,7 +106,7 @@ const buildFinanceColumns = (capped: boolean) => [
 ]
 
 /** feature 00073 เฟส B — ร้านบริการ: คอลัมน์ตามตั้งค่ารายงาน (จำนวนงาน · รับจริง/ค้างรับ) */
-const buildMoneyColumns = (noun: string, opts: { receivables: boolean; jobCount: boolean }) => [
+const buildMoneyColumns = (noun: string, opts: { receivables: boolean; jobCount: boolean; unclosed?: boolean }) => [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
@@ -136,11 +137,21 @@ const buildMoneyColumns = (noun: string, opts: { receivables: boolean; jobCount:
       // ติดลบ = บันทึกรับเกินบิล (คีย์ผิด/รวมบิลอื่น) — บอกด้วยคำ "เกิน" ไม่ใช่เครื่องหมายลบ
       // (นโยบาย format-money: ทิศทางเป็นหน้าที่ของคำ + สี) · ไม่ซ่อนเป็น 0 เพราะร้านต้องเห็นเพื่อแก้
       return (
-        <span className={v > 0 ? 'text-warning-ink' : 'text-default-700'}>
+        // ค้างรับ = ฟ้า (FINANCE_COLORS ตัวกลาง — เหลืองสงวนให้ "ยังไม่ปิดงาน" · FR-016)
+        <span className={v > 0 ? FINANCE_COLORS.outstanding.ink : 'text-default-700'}>
           {v < 0 ? `รับเกิน ${formatBaht(v)}` : formatBaht(v)}
         </span>
       )
     },
+  })] : []),
+  // FR-016 — ยังไม่ปิดงาน (ตามวันเปิดบิล) · ไม่ใช่ยอดขาย ไม่อยู่ในยอดขาย/รับจริง/ค้างรับของแถว
+  ...(opts.unclosed ? [columnHelper.accessor((r) => r.unclosed ?? 0, {
+    id: 'unclosed',
+    header: 'ยังไม่ปิด',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => (
+      <span className={getValue() > 0 ? FINANCE_COLORS.notCounted.ink : 'text-default-700'}>{formatBaht(getValue())}</span>
+    ),
   })] : []),
 ]
 
@@ -148,10 +159,10 @@ const SalesTable = ({ rows, showFinance = false, countNoun = 'ออเดอร
   const receivablesOn = moneyOpts?.receivables ?? true
   const jobCountOn = moneyOpts?.jobCount ?? true
   const columns = useMemo(() => {
-    if (moneyAxis) return buildMoneyColumns(countNoun, { receivables: receivablesOn, jobCount: jobCountOn })
+    if (moneyAxis) return buildMoneyColumns(countNoun, { receivables: receivablesOn, jobCount: jobCountOn, unclosed: moneyOpts?.unclosed === true })
     const base = buildBaseColumns(countNoun)
     return showFinance ? [...base, ...buildFinanceColumns(profitCapped)] : base
-  }, [showFinance, countNoun, moneyAxis, profitCapped, receivablesOn, jobCountOn])
+  }, [showFinance, countNoun, moneyAxis, profitCapped, receivablesOn, jobCountOn, moneyOpts?.unclosed])
 
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])

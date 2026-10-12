@@ -103,7 +103,7 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
 
   it('ตารางร้านบริการเป็นแกนเงิน (งาน | ยอดขาย) ไม่ใช่ สำเร็จ/ยืนยันแล้ว', () => {
     expect(page).toMatch(/moneyAxis=\{isServiceQueue && receivables != null\}/)
-    expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun, \{ receivables: receivablesOn, jobCount: jobCountOn \}\)/)
+    expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun, \{ receivables: receivablesOn, jobCount: jobCountOn, unclosed: moneyOpts\?\.unclosed === true \}\)/)
   })
 
   it('ร่าง (DRAFTED) + คืนของครบใบ (RETURNED) ไม่ถูกนับ — ชุดแถวเดียวกับ receivable.service และชีต', () => {
