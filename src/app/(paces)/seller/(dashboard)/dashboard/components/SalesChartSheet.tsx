@@ -144,7 +144,8 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import FinancePanels from './FinancePanels'
 import ReceivablesPanel from './ReceivablesPanel'
 import type { FinanceTab } from '@/lib/finance-tabs'
-import { DEFAULT_REPORT_SETTINGS, collectTabLabel, resolveHeadline, visibleFinanceTabs, type ReportSettings } from '@/lib/report-settings'
+import { DEFAULT_REPORT_SETTINGS, collectTabLabel, resolveHeadline, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs, type ReportSettings } from '@/lib/report-settings'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 import ServiceFinanceChart from '../../sales/components/ServiceFinanceChart'
 
 /**
@@ -195,7 +196,8 @@ type Props = {
  * ApexCharts ซอยความกว้าง 92% ออกเป็นสองแท่งผอมต่อวัน — user เลือกแท่งเดียวหนา ๆ แทน (2026-08-07)
  * โดยรับข้อแลกเปลี่ยนเรื่องการอ่านความสูงรวมไว้แล้ว
  */
-export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
+/** opts.unclosed — ร้านบริการตั้ง "งานที่ยังไม่ปิด = ทุกจอ" (FR-016) ⇒ ก้อนเหลืองซ้อนบนแท่ง · ไม่ส่ง = เดิม */
+export const buildSalesChartOptions = (series: SalesSeries, mode: Mode, opts: { unclosed?: boolean } = {}): ApexOptions => {
   const { labels, confirmedValues, unconfirmedValues, orderCounts, futureFromIndex } = series
   /* ร้านบริการอ่านกราฟด้วยแกนเงิน — ตัวเดียวกับที่ตารางกับแถบสมการใช้ (ดู v9 หัวไฟล์) */
   const isServiceChart = series.receivedValues != null
@@ -220,6 +222,13 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
    * (สีของเส้นไปตกที่แท่ง · tooltip อ่านซีรีส์ผิดตัว) โดยไม่มี tsc/เทสตัวไหนฟ้อง
    */
   const showExpense = shippingValues != null && series.receivedValues == null
+  /** ก้อนเหลือง "ยังไม่ปิดงาน" — ร้านบริการ + ตั้งค่า ทุกจอ เท่านั้น (ไม่ใช่ยอดขาย · ไม่อยู่ในยอดขายรวมของ tooltip) */
+  const withUnclosed = isServiceChart && opts.unclosed === true
+  /** ตำแหน่งซีรีส์ — นับต่อกันตามที่ใส่จริง (ซีรีส์ที่เพิ่มต้องไม่ทำให้สี/แกน/tooltip เลื่อนผิดตัว) */
+  const idxUnclosed = withUnclosed ? 2 : -1
+  const idxExpense = showExpense ? 2 + (withUnclosed ? 1 : 0) : -1
+  const idxCount = 2 + (withUnclosed ? 1 : 0) + (showExpense ? 1 : 0)
+  const barCount = idxCount
   const bucketCount = labels.length
 
   /**
@@ -258,6 +267,9 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
             { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
             { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
           ]),
+      ...(withUnclosed
+        ? [{ name: 'ยังไม่ปิดงาน', type: 'column', data: maskFuture(series.unclosedValues ?? labels.map(() => 0)) }]
+        : []),
       ...(showExpense
         ? [{ name: 'ค่าส่ง', type: 'column', data: maskFuture(shippingValues) }]
         : []),
@@ -285,16 +297,25 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     dataLabels: { enabled: false },
     /** เขียว = ยืนยันแล้ว (ตรงกับ OrderStatusBand ที่ทา CONFIRMED เป็น text-success — เดิมที่นี่ใช้
      *  น้ำเงิน สถานะเดียวกันจึงมีสองสีในแอปเดียว), เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด */
-    colors: showExpense
-      ? [getColor('success'), getColor('warning'), getColor('chart-beta'), getColor('primary')]
-      : [getColor('success'), getColor('warning'), getColor('primary')],
+    // สีจากตัวกลาง FINANCE_COLORS — ร้านบริการ: รับจริง เขียว · ค้างรับ ฟ้า · ยังไม่ปิดงาน เหลือง (FR-016)
+    // ร้านอื่น: ยืนยันแล้ว เขียว · รอยืนยัน เหลือง (ค่าเดิม)
+    colors: [
+      getColor(FINANCE_COLORS.counted.token),
+      getColor(isServiceChart ? FINANCE_COLORS.outstanding.token : FINANCE_COLORS.notCounted.token),
+      ...(withUnclosed ? [getColor(FINANCE_COLORS.notCounted.token)] : []),
+      ...(showExpense ? [getColor('chart-beta')] : []),
+      getColor(FINANCE_COLORS.count.token),
+    ],
     /**
      * ไม่มีขอบทั้งแท่ง (user เคาะ 2026-08-05 บนการ์ด: "รอยืนยันมีขอบ ยืนยันแล้วไม่มี ทำให้ดูต่างกัน")
      * ตัวสุดท้าย = ความหนาเส้นจำนวนคำสั่งซื้อ
      */
-    stroke: showExpense
-      ? { show: true, width: [0, 0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', 'transparent', getColor('primary')] }
-      : { show: true, width: [0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', getColor('primary')] },
+    stroke: {
+      show: true,
+      width: [...Array(barCount).fill(0), 2],
+      curve: 'straight',
+      colors: [...Array(barCount).fill('transparent'), getColor('primary')],
+    },
     markers: { size: 2, strokeWidth: 0, colors: [getColor('primary')] },
     xaxis: {
       categories: labels,
@@ -323,6 +344,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     yaxis: [
       { show: false, tickAmount: 3, seriesName: barAxisName },
       { show: false, tickAmount: 3, seriesName: barAxisName },
+      ...(withUnclosed ? [{ show: false, tickAmount: 3, seriesName: barAxisName }] : []),
       ...(showExpense ? [{ show: false, tickAmount: 3, seriesName: barAxisName }] : []),
       { show: false, opposite: true, seriesName: countNoun, min: 0 },
     ],
@@ -361,8 +383,9 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       custom: ({ series, dataPointIndex, w }: { series: number[][]; dataPointIndex: number; w: { globals: { labels: string[] } } }) => {
         const conf = Number(series?.[0]?.[dataPointIndex] ?? 0)
         const unconf = Number(series?.[1]?.[dataPointIndex] ?? 0)
-        const exp = showExpense ? Number(series?.[2]?.[dataPointIndex] ?? 0) : null
-        const orders = Number(series?.[showExpense ? 3 : 2]?.[dataPointIndex] ?? 0)
+        const unc = withUnclosed ? Number(series?.[idxUnclosed]?.[dataPointIndex] ?? 0) : null
+        const exp = showExpense ? Number(series?.[idxExpense]?.[dataPointIndex] ?? 0) : null
+        const orders = Number(series?.[idxCount]?.[dataPointIndex] ?? 0)
         const label = w?.globals?.labels?.[dataPointIndex] ?? ''
         const dot = (c: string) =>
           `<span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${c};margin-right:6px"></span>`
@@ -376,10 +399,12 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
              ไม่ใช่ ยืนยันแล้ว/รอยืนยัน · ถ้าลืมตรงนี้ tooltip จะอ่านเลขถูกแต่เรียกชื่อผิด
              ซึ่งแย่กว่าไม่มี tooltip เพราะผู้ขายจะเชื่อชื่อ (HR16) */
           `<div style="font-weight:600;margin-bottom:2px">${label} · ${formatNumberNoSymbol(orders)} ${countNoun}</div>` +
-          `<div>${dot(getColor('success'))}${isServiceChart ? 'รับจริง' : 'ยืนยันแล้ว'} ${formatNumberNoSymbol(conf)}</div>` +
-          `<div>${dot(getColor('warning'))}${isServiceChart ? 'ค้างรับ' : 'รอยืนยัน'} ${formatNumberNoSymbol(unconf)}</div>` +
+          `<div>${dot(getColor(FINANCE_COLORS.counted.token))}${isServiceChart ? 'รับจริง' : 'ยืนยันแล้ว'} ${formatNumberNoSymbol(conf)}</div>` +
+          `<div>${dot(getColor(isServiceChart ? FINANCE_COLORS.outstanding.token : FINANCE_COLORS.notCounted.token))}${isServiceChart ? 'ค้างรับ' : 'รอยืนยัน'} ${formatNumberNoSymbol(unconf)}</div>` +
           (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าส่ง ${formatNumberNoSymbol(exp)}</div>` : '') +
           `<div style="font-weight:600;margin-top:4px">ยอดขายรวม ${formatNumberNoSymbol(conf + unconf)}</div>` +
+          // ยังไม่ปิดงาน อยู่ใต้ยอดขายรวม — ไม่ใช่ยอดขาย จึงไม่บวกเข้า (FR-016)
+          (unc != null ? `<div>${dot(getColor(FINANCE_COLORS.notCounted.token))}ยังไม่ปิดงาน ${formatNumberNoSymbol(unc)}</div>` : '') +
           `</div>`
         )
       },
@@ -553,6 +578,8 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
       : `${year}-12-31`
 
   const isService = series.receivedValues != null
+  /** FR-016 — คอลัมน์ "ยังไม่ปิด" ในตาราง (ร้านบริการ + ตั้งค่า ทุกจอ + แท็บยอดเก็บเงิน) */
+  const unclosedCols = isService && financeTab === 'collect' && showsUnclosedInCharts(rs)
   /** กราฟในชีตตามช่วงของชีต (ไม่มีตัวเลือกช่วงซ้อนอีกชุด) — รายวัน = เดือนที่เลือก · รายเดือน = ทั้งปี */
   const chartPeriod = mode === 'daily'
     ? { range: 'MONTH' as const, year, month }
@@ -655,13 +682,16 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
       received: series.receivedValues?.[i] ?? 0,
       /* ยอดขายของใบที่ยังไม่เคยบันทึกรับเงินเลยในช่องนั้น — ตัวแยก "ค้างจริง" ออกจาก "ไม่รู้" */
       unrecorded: series.unrecordedValues?.[i] ?? 0,
+      /* FR-016 — งานที่ยังไม่ปิด (ตามวันเปิดบิล) ของช่องนั้น · ร้านบริการเท่านั้น · ไม่ใช่ยอดขาย */
+      unclosed: series.unclosedValues?.[i] ?? 0,
     }))
     /* 🛑 ไม่ต้องนับ `received` เข้าเงื่อนไข "แถวนี้มีอะไรไหม" — เงินทุกก้อนลงแถวตาม *วันที่ขาย*
        ของออเดอร์ที่มันสังกัด (ดูประกาศ `receivedValues` ใน dashboard.service.ts) ⇒ แถวที่มี
        `received > 0` ต้องมี `value > 0` เสมอโดยโครงสร้าง · เงื่อนไขเพิ่มจึงเป็นโค้ดตายที่
        ชวนให้เข้าใจผิดว่ามีแถวชนิดที่ไม่มีอยู่จริง
        (คอมเมนต์เดิมตรงนี้อธิบายแกน `receivedAt` ซึ่งเป็นร่างแรกที่ถูกเปลี่ยนไปแล้ว) */
-    .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0)
+    // แถวที่มีแต่งานยังไม่ปิด ต้องขึ้นเมื่อแสดงคอลัมน์นั้น (ไม่งั้นยอดในคอลัมน์รวมไม่ได้เท่าแถวสรุป)
+    .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0 || (unclosedCols && r.unclosed > 0))
     // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
     // ไม่ใช่ต้องเลื่อนผ่านทั้งเดือนไปหาแถวล่างสุด
     .reverse()
@@ -841,9 +871,9 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             {/* 00073 เฟส B — ปิดรับเงิน/ค้างรับ: ตัวเลขใหญ่คือยอดขายอยู่แล้ว ไม่มีสมการให้แตก ⇒ ทั้งแถบถูกซ่อนข้างบน */}
             {isService ? (
               <>
-                <LegendCell color="bg-success" label="รับจริง" value={receivedTotal} />
+                <LegendCell color={FINANCE_COLORS.counted.dot} label="รับจริง" value={receivedTotal} />
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
-                <LegendCell color="bg-warning" label="ค้างรับ" value={outstandingTotal} />
+                <LegendCell color={FINANCE_COLORS.outstanding.dot} label="ค้างรับ" value={outstandingTotal} />
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">=</span>
                 <LegendCell label="ยอดขาย" value={series.total} />
               </>
@@ -872,7 +902,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
 
           {/* 00073 ภาคต่อ (FR-014) — งานที่ยังไม่ปิด ตามวันเปิดบิล: ไม่อยู่ในยอดขาย/สมการข้างบน แต่ต้องเห็นว่ามีเงินรอนับอยู่
               ใช้ไอคอนนาฬิกา ไม่ใช่จุดเหลือง — ในชีตนี้สีเหลือง = ค้างรับ (ซีรีส์ในกราฟ) ห้ามมีสองความหมาย */}
-          {isService && financeTab === 'collect' && (series.unclosedTotal ?? 0) > 0 && (
+          {isService && financeTab === 'collect' && showsUnclosedSummary(rs) && (series.unclosedTotal ?? 0) > 0 && (
             <div className="mb-4 flex items-start justify-between gap-3 rounded-md bg-default-100 px-3 py-2 text-xs">
               <span className="inline-flex items-start gap-1.5 text-default-800">
                 <Icon icon="clock" className="mt-0.5 size-3.5 shrink-0 text-default-600" aria-hidden="true" />
@@ -955,8 +985,8 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                options จะถูกทิ้งเงียบ ๆ โดยไม่มี error (บทเรียน 2026-08-05 เรื่อง height) */
             <>
               <ApexChart
-                getOptions={() => buildSalesChartOptions(series, mode)}
-                series={buildSalesChartOptions(series, mode).series}
+                getOptions={() => buildSalesChartOptions(series, mode, { unclosed: isService && showsUnclosedInCharts(rs) })}
+                series={buildSalesChartOptions(series, mode, { unclosed: isService && showsUnclosedInCharts(rs) }).series}
                 type="line"
                 height={220}
               />
@@ -1041,6 +1071,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                     {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
                   </>
                 )}
+                {unclosedCols && <span className="min-w-14 flex-1 basis-0 text-end">ยังไม่ปิด</span>}
               </div>
               <div className="divide-y divide-default-100">
                 {detailRows.map((r) => {
@@ -1084,7 +1115,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                           <span
                             className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${
                               r.value - r.received > 0 && r.received > 0
-                                ? 'text-warning-ink'
+                                ? FINANCE_COLORS.outstanding.ink
                                 : 'text-default-700'
                             }`}
                           >
@@ -1120,6 +1151,11 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                           className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${rowProfit < 0 ? 'text-danger-ink' : 'text-dark'}`}
                         >
                           {formatNumberNoSymbol(rowProfit)}
+                        </span>
+                      )}
+                      {unclosedCols && (
+                        <span className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.unclosed > 0 ? FINANCE_COLORS.notCounted.ink : 'text-default-700'}`}>
+                          {r.unclosed > 0 ? formatNumberNoSymbol(r.unclosed) : '—'}
                         </span>
                       )}
                     </div>

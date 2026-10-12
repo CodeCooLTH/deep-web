@@ -145,6 +145,8 @@ async function summarizeShop(
       out.orders += sumDays(s.orderCounts, months[i], startIso, endIso)
       out.confirmed += sumDays(s.confirmedValues, months[i], startIso, endIso)
       out.unconfirmed += sumDays(s.unconfirmedValues, months[i], startIso, endIso)
+      // FR-016 — ร้านบริการ: งานที่ยังไม่ปิด (ตามวันเปิดบิล) · ร้านอื่น unclosedValues ไม่มี ⇒ ไม่ใส่คีย์
+      if (s.unclosedValues) out.unclosed = (out.unclosed ?? 0) + sumDays(s.unclosedValues, months[i], startIso, endIso)
     })
   }
 

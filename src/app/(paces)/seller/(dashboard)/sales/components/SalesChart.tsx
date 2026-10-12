@@ -34,6 +34,7 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 import type { ReceivableSummary } from '@/services/receivable.service'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 
 type Props = {
   daily: DailyRow[]
@@ -162,7 +163,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       legend: { show: false },
       // token เท่านั้น (Hard Rule 10) — เขียว=ยืนยันแล้ว เหลือง=รอยืนยัน แดง=ค่าส่ง (ชุดเดียวกับชีตหน้าหลัก)
       colors: moneyAxis
-        ? [getColor('success'), getColor('warning')]
+        ? [getColor(FINANCE_COLORS.counted.token), getColor(FINANCE_COLORS.outstanding.token)]
         : showFinance
           ? [getColor(legacyWords ? 'chart-primary' : 'success'), getColor('warning'), getColor('chart-beta')]
           : [getColor(legacyWords ? 'chart-primary' : 'success'), getColor('warning')],
@@ -250,13 +251,13 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
             />
             <PacesStatCard
               icon="clock"
-              iconClass="bg-warning/15 text-warning-ink"
+              iconClass={`${FINANCE_COLORS.outstanding.soft} ${FINANCE_COLORS.outstanding.ink}`}
               title="ค้างรับ"
               note="ยอดที่ยังไม่ได้บันทึกการรับเงิน ไม่ได้แปลว่าลูกค้าไม่จ่าย"
               text={formatBaht(collect.outstandingTotal)}
-              valueClass="text-warning-ink"
+              valueClass={FINANCE_COLORS.outstanding.ink}
               changePercent={null}
-              bulletClass="text-warning"
+              bulletClass="text-info"
               metric="ค้างอยู่"
               metricValue={`${collect.outstandingCount.toLocaleString('th-TH')} ${noun}`}
             />
@@ -265,13 +266,13 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
             {serviceOpts?.advance && (
               <PacesStatCard
                 icon="wallet"
-                iconClass="bg-info/15 text-info-ink"
+                iconClass={`${FINANCE_COLORS.neutral.soft} ${FINANCE_COLORS.neutral.ink}`}
                 title="มัดจำรับล่วงหน้า"
                 note="เงินที่รับไว้แล้วของงานที่ยังไม่ปิด — ยังไม่นับเป็นยอดขาย"
                 text={formatBaht(serviceOpts.advance.amount)}
                 valueClass="text-default-800"
                 changePercent={null}
-                bulletClass="text-info"
+                bulletClass={FINANCE_COLORS.neutral.bullet}
                 metric="จาก"
                 metricValue={`${serviceOpts.advance.jobs.toLocaleString('th-TH')} ${noun}`}
               />
@@ -280,7 +281,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
             {serviceOpts?.unclosed && serviceOpts.unclosed.jobs > 0 && (
               <PacesStatCard
                 icon="clock"
-                iconClass="bg-warning/15 text-warning-ink"
+                iconClass={`${FINANCE_COLORS.notCounted.soft} ${FINANCE_COLORS.notCounted.ink}`}
                 title="ยังไม่ปิดงาน"
                 note="งานที่เปิดบิลในช่วงนี้แต่ยังไม่กดปิดงาน — ยังไม่นับเป็นยอดขาย นับเมื่อกดปิดงาน"
                 text={formatBaht(serviceOpts.unclosed.amount)}
@@ -305,12 +306,12 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
             />
             <PacesStatCard
               icon="calculator"
-              iconClass="bg-info/15 text-info-ink"
+              iconClass={`${FINANCE_COLORS.neutral.soft} ${FINANCE_COLORS.neutral.ink}`}
               title={`เฉลี่ย/${noun}`}
               text={formatBaht(collect.orderCount > 0 ? collect.salesTotal / collect.orderCount : 0)}
               valueClass="text-default-800"
               changePercent={null}
-              bulletClass="text-info"
+              bulletClass={FINANCE_COLORS.neutral.bullet}
               metric="ยอดขายรวม"
               metricValue={formatBaht(collect.salesTotal)}
             />
@@ -442,7 +443,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
               <>
                 <LegendItem dot="bg-success" label="รับจริง" value={collect.receivedTotal} />
                 <span className="text-default-700 text-xs" aria-hidden="true">+</span>
-                <LegendItem dot="bg-warning" label="ค้างรับ" value={collect.outstandingTotal} />
+                <LegendItem dot={FINANCE_COLORS.outstanding.dot} label="ค้างรับ" value={collect.outstandingTotal} />
                 <span className="text-default-700 text-xs" aria-hidden="true">=</span>
                 <LegendItem label="ยอดขาย" value={collect.salesTotal} />
               </>

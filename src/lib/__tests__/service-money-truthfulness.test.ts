@@ -283,7 +283,8 @@ describe('ตารางรายวันห้ามยืนยันสิ�
      */
     const code = stripComments(read(SHEET))
     expect(code, 'ต้องมีเงื่อนไข received > 0 คู่กับสีเตือน').toMatch(
-      /r\.value - r\.received > 0 && r\.received > 0[\s\S]{0,80}text-warning-ink/,
+      // FR-016: สีค้างรับมาจากตัวกลาง FINANCE_COLORS.outstanding (ฟ้า) — เงื่อนไข received > 0 ยังต้องคู่กันเหมือนเดิม
+      /r\.value - r\.received > 0 && r\.received > 0[\s\S]{0,80}FINANCE_COLORS\.outstanding\.ink/,
     )
   })
 

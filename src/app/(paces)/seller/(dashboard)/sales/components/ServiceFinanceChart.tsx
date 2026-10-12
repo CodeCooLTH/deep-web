@@ -20,7 +20,8 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
 import { formatBaht, formatBahtCompact } from '@/lib/format-money'
-import { profitExclusionNote, profitShown, type ReportRange, type ReportSettings } from '@/lib/report-settings'
+import { profitExclusionNote, profitShown, showsUnclosedInCharts, type ReportRange, type ReportSettings } from '@/lib/report-settings'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 import type { FinanceChartData } from '@/services/finance-chart.service'
 
 export type FinanceChartKind = 'sales' | 'expense' | 'overview'
@@ -104,30 +105,41 @@ export default function ServiceFinanceChart({ kind, settings, costNoun, initial,
   const outflow = (b: { cost: number; expense: number }) =>
     (settings.partCost ? b.cost : 0) + (settings.shopExpense ? b.expense : 0)
 
-  /** ซีรีส์ตามแท็บ + ตั้งค่า — ชื่อกับสีต้องตรงกับแถบ legend/กล่องยอดด้านล่าง 1:1 */
+  /** FR-016 — ตั้งค่า "งานที่ยังไม่ปิด = ทุกจอ" ⇒ ก้อนเหลืองในกราฟยอดขาย (ไม่ใช่ยอดขาย · ไม่อยู่ในยอดขายรวม) */
+  const withUnclosed = kind === 'sales' && showsUnclosedInCharts(settings)
+  const C = FINANCE_COLORS
+  const unclosedDef = { name: 'ยังไม่ปิดงาน', color: getColor(C.notCounted.token), dot: C.notCounted.dot, data: buckets.map((b) => b.unclosed) }
+
+  /** ซีรีส์ตามแท็บ + ตั้งค่า — ชื่อกับสีต้องตรงกับแถบ legend/กล่องยอดด้านล่าง 1:1 · สีจาก FINANCE_COLORS ตัวกลาง */
   const seriesDefs: { name: string; color: string; data: number[]; dot: string }[] = (() => {
     if (kind === 'sales') {
       if (!settings.receivables) {
-        return [{ name: 'ยอดขาย', color: getColor('success'), dot: 'bg-success', data: buckets.map((b) => b.sales) }]
+        return [
+          { name: 'ยอดขาย', color: getColor(C.counted.token), dot: C.counted.dot, data: buckets.map((b) => b.sales) },
+          ...(withUnclosed ? [unclosedDef] : []),
+        ]
       }
       return [
-        { name: 'รับแล้ว', color: getColor('success'), dot: 'bg-success', data: buckets.map((b) => b.received) },
-        { name: 'ค้างรับ', color: getColor('warning'), dot: 'bg-warning', data: buckets.map((b) => b.outstanding) },
+        { name: 'รับแล้ว', color: getColor(C.counted.token), dot: C.counted.dot, data: buckets.map((b) => b.received) },
+        // ค้างรับ = ฟ้า (เดิมเหลือง — เหลืองสงวนให้ "ยังไม่ปิดงาน/ยังไม่นับ" ทั้งระบบ · FR-016)
+        { name: 'ค้างรับ', color: getColor(C.outstanding.token), dot: C.outstanding.dot, data: buckets.map((b) => b.outstanding) },
+        ...(withUnclosed ? [unclosedDef] : []),
       ]
     }
     if (kind === 'expense') {
       return [
         ...(settings.shopExpense
-          ? [{ name: 'ค่าใช้จ่ายร้าน', color: getColor('danger'), dot: 'bg-danger', data: buckets.map((b) => b.expense) }]
+          ? [{ name: 'ค่าใช้จ่ายร้าน', color: getColor(C.outflow.token), dot: C.outflow.dot, data: buckets.map((b) => b.expense) }]
           : []),
         ...(settings.partCost
-          ? [{ name: costNoun, color: getColor('chart-beta'), dot: 'bg-warning', data: buckets.map((b) => b.cost) }]
+          ? [{ name: costNoun, color: getColor(C.cost.token), dot: '', data: buckets.map((b) => b.cost) }]
           : []),
       ]
     }
     return [
-      { name: 'ยอดขาย', color: getColor('primary'), dot: 'bg-primary', data: buckets.map((b) => b.sales) },
-      { name: 'รายจ่าย', color: getColor('danger'), dot: 'bg-danger', data: buckets.map((b) => outflow(b)) },
+      // ยอดขาย = เขียว (นับเป็นยอดขาย) — เดิมน้ำเงินซึ่งตอนนี้ = จำนวนงาน (FINANCE_COLORS) · รายจ่าย = แดง
+      { name: 'ยอดขาย', color: getColor(C.counted.token), dot: C.counted.dot, data: buckets.map((b) => b.sales) },
+      { name: 'รายจ่าย', color: getColor(C.outflow.token), dot: C.outflow.dot, data: buckets.map((b) => outflow(b)) },
     ]
   })()
 
@@ -333,6 +345,7 @@ export default function ServiceFinanceChart({ kind, settings, costNoun, initial,
                 {settings.receivables && <Row label="ค้างรับ" value={formatBaht(selB.outstanding)} warn={selB.outstanding > 0} />}
                 <Row label="ยอดขาย" value={formatBaht(selB.sales)} strong />
                 {settings.jobCount && <Row label="จำนวนงาน" value={`${selB.jobs} งาน`} />}
+                {withUnclosed && <Row label="ยังไม่ปิดงาน (ไม่นับ)" value={formatBaht(selB.unclosed)} />}
               </>
             )}
             {kind === 'expense' && (
@@ -367,14 +380,14 @@ export default function ServiceFinanceChart({ kind, settings, costNoun, initial,
               </div>
               {settings.receivables && t.sales > 0 && (
                 <>
-                  <div className="bg-warning/30 mt-2 flex h-2 overflow-hidden rounded-full" aria-hidden="true">
-                    <div className="bg-success h-full" style={{ width: `${Math.min(100, (t.received / t.sales) * 100)}%` }} />
+                  <div className={`${C.outstanding.soft} mt-2 flex h-2 overflow-hidden rounded-full`} aria-hidden="true">
+                    <div className={`${C.counted.dot} h-full`} style={{ width: `${Math.min(100, (t.received / t.sales) * 100)}%` }} />
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="text-default-700">
-                      <span className="bg-success me-1 inline-block size-2 rounded-full" aria-hidden="true" />
+                      <span className={`${C.counted.dot} me-1 inline-block size-2 rounded-full`} aria-hidden="true" />
                       รับแล้ว {formatBaht(t.received)}
-                      <span className="bg-warning ms-3 me-1 inline-block size-2 rounded-full" aria-hidden="true" />
+                      <span className={`${C.outstanding.dot} ms-3 me-1 inline-block size-2 rounded-full`} aria-hidden="true" />
                       ค้างรับ {formatBaht(t.outstanding)}
                     </span>
                     {receivablesHref && t.outstanding > 0 && (
@@ -383,6 +396,12 @@ export default function ServiceFinanceChart({ kind, settings, costNoun, initial,
                       </a>
                     )}
                   </div>
+                  {withUnclosed && t.unclosed > 0 && (
+                    <p className="text-default-700 mt-1 text-xs">
+                      <span className={`${C.notCounted.dot} me-1 inline-block size-2 rounded-full`} aria-hidden="true" />
+                      ยังไม่ปิดงาน {formatBaht(t.unclosed)} — ยังไม่นับเป็นยอดขาย นับเมื่อกดปิดงาน
+                    </p>
+                  )}
                   {t.unrecorded > 0 && (
                     <p className="text-default-600 mt-1 text-xs">
                       ในค้างรับมี {formatBaht(t.unrecorded)} จากงานที่ยังไม่เคยบันทึกรับเงิน — อาจรับแล้วแต่ยังไม่ได้กดบันทึก

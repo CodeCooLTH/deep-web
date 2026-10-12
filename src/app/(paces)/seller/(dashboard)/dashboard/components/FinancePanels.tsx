@@ -19,6 +19,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
+import { colorVar } from '@/utils/helpers'
+import { FINANCE_COLORS } from '@/lib/finance-colors'
 import { formatNumberNoSymbol, profitDisplay, netProfitFormula } from '@/lib/format-money'
 import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
 import { resolveDataCompleteness, shouldOfferCostSetup, shouldOfferExpenseSetup } from '@/lib/finance-tabs'
@@ -166,10 +168,11 @@ function PnlPanel({
       {/* แถบสมการ — ผู้ขายเอานิ้วไล่ลบตามได้จริง (แพตเทิร์นเดียวกับแถบ legend ของแท็บยอดเก็บเงิน) */}
       <div className="border-default-200 mb-3 flex rounded border border-dashed">
         {/* แผงนี้ render เฉพาะร้านบริการ (SalesChartSheet: `isService &&`) — ยอดขายนับตอนร้านปิดงาน (00073) */}
-        <Cell label={ORDER_VOCAB.SERVICE_QUEUE.revenueLabel} value={data.revenue} dot="bg-success" />
-        {settings.partCost && <Cell label={costNoun} value={-data.cogs} dot="bg-warning" />}
+        {/* สีจาก FINANCE_COLORS — ต้นทุนเดิมเป็นจุดเหลือง (ชนกับ "ยังไม่ปิดงาน") และไม่ตรงสีแท่งต้นทุนในกราฟ */}
+        <Cell label={ORDER_VOCAB.SERVICE_QUEUE.revenueLabel} value={data.revenue} dot={FINANCE_COLORS.counted.dot} />
+        {settings.partCost && <Cell label={costNoun} value={-data.cogs} dotToken={FINANCE_COLORS.cost.token} />}
         {/* "ค่าใช้จ่าย" ไม่ใช่ "ค่าใช้จ่ายร้าน" — ตัวเลขนี้รวมค่าส่งที่จ่ายขนส่งด้วย (D-EXT-10 · แก้ 2026-10-01) */}
-        {settings.shopExpense && <Cell label="ค่าใช้จ่าย" value={-data.totalExpense} dot="bg-danger" />}
+        {settings.shopExpense && <Cell label="ค่าใช้จ่าย" value={-data.totalExpense} dot={FINANCE_COLORS.outflow.dot} />}
       </div>
 
       <p className="text-default-700 mb-4 text-center text-xs leading-relaxed">
@@ -238,8 +241,8 @@ function ExpensePanel({ data, costNoun, partCost }: { data: ReportPayload; costN
       </div>
 
       <div className="border-default-200 mb-4 flex rounded border border-dashed">
-        {partCost && <Cell label={costNoun} value={data.cogs} dot="bg-warning" />}
-        <Cell label="ค่าใช้จ่าย" value={data.totalExpense} dot="bg-danger" />
+        {partCost && <Cell label={costNoun} value={data.cogs} dotToken={FINANCE_COLORS.cost.token} />}
+        <Cell label="ค่าใช้จ่าย" value={data.totalExpense} dot={FINANCE_COLORS.outflow.dot} />
       </div>
 
       {byCategory.length > 0 || systemRows.length > 0 ? (
@@ -289,11 +292,12 @@ function ExpensePanel({ data, costNoun, partCost }: { data: ReportPayload; costN
 }
 
 /** ช่องหนึ่งของแถบสมการ — มิเรอร์ LegendCell ของชีต (จุดสี + ป้าย + ตัวเลข) */
-function Cell({ label, value, dot }: { label: string; value: number; dot: string }) {
+/** dot = คลาสสีของธีม · dotToken = token สีที่ไม่มีคลาส (เช่น ต้นทุน chart-beta) — ผ่าน colorVar (SSR ไม่เพี้ยน) */
+function Cell({ label, value, dot = '', dotToken }: { label: string; value: number; dot?: string; dotToken?: string }) {
   return (
     <div className="border-default-300 flex-1 border-e border-dashed px-1 py-2.5 text-center last:border-e-0">
       <p className="text-default-700 flex items-start justify-center gap-1 text-xs leading-tight">
-        <span className={`mt-1 size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+        <span className={`mt-1 size-2 shrink-0 rounded-full ${dot}`} style={dotToken ? { backgroundColor: colorVar(dotToken) } : undefined} aria-hidden="true" />
         <span className="text-balance">{label}</span>
       </p>
       <p className="text-default-800 mt-0.5 font-bold tabular-nums">{formatNumberNoSymbol(value)}</p>

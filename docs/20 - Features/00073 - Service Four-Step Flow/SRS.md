@@ -138,6 +138,16 @@ evidence มี `appointmentStatus` (บังคับ) · NO_SHOW (ไม่�
 - มือถือ: `/settings/reports` ใน `QUICK_LINK_URLS` + แถวใน ShopQuickLinks (กรองด้วยเมนูจริง)
 - ที่มา: prod 2026-10-12 บิลไม่มีนัดที่ไม่เคยปิดหลุดจากการปิดย้อนหลัง (2 ร้าน 124 บิล ≈ ฿1 ล้าน) — **ไม่แก้ข้อมูล** (มติทีม)
 
+### TFR-016: ตั้งค่างานที่ยังไม่ปิด + สีตัวกลาง + LINE (ภาคต่อ 2 · FR-016)
+- `ReportSettings.unclosedDisplay` ('OFF'|'CARD'|'ALL', ค่าตั้งต้น CARD) · ตัวตัดสิน `showsUnclosedOnCard` / `showsUnclosedSummary` / `showsUnclosedInCharts`
+- การ์ด/คอม อ่าน OnCard · ชีตแถวสรุป + /sales การ์ด อ่าน Summary · ชีตกราฟ (`buildSalesChartOptions(..., { unclosed })` — ดัชนีซีรีส์นับไดนามิก) + คอลัมน์ "ยังไม่ปิด" + `ServiceFinanceChart` (kind sales) + SalesTable คอลัมน์ อ่าน InCharts
+- `getFinanceChartData`: `bucket.unclosed` / `totals.unclosed` จาก `SalesSeries.unclosedValues` (ไม่อยู่ใน sales)
+- สี: `src/lib/finance-colors.ts` (`FINANCE_COLORS`) — counted success · notCounted warning (+lineHex) · outstanding info · count primary · neutral default · LINE `PENDING_YELLOW/PENDING_TEXT` อ้างตัวกลาง (ค่าเดิม)
+- LINE: `ShopSummary.unclosed` / `Totals.unclosed` (optional — ร้านอื่นไม่มีคีย์) · `renderHero` + altText บรรทัด "ยังไม่ปิดงาน"
+- รายงานยอดขาย (คอม): `SalesSeriesPoint.unclosed` / `SalesSummary.unclosedTotal` (ร้านบริการ + เห็นเงินเต็ม + OnCard) — เส้นเหลืองรายเดือนตามเดือนเปิดบิล + ช่องสรุป · สีร้านบริการจากตัวกลาง (รายได้ เขียว · จำนวนงาน น้ำเงิน) · ร้านอื่นสีธีมเดิม
+- สีจอข้างในร้านบริการผ่านตัวกลางทั้งหมด: กราฟสรุปภาพรวม ยอดขาย เขียว (เดิมน้ำเงิน) · รายจ่าย `outflow` · ต้นทุน `cost` (แผงการเงิน เดิมจุดเหลือง) · การ์ดเฉลี่ย/งาน + มัดจำล่วงหน้า `neutral` (เดิมฟ้า)
+- ไม่มี migration (reportSettings เป็น JSON)
+
 ## 4. ข้อกำหนดส่วนต่อประสาน
 ดู [[API]]
 
