@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { confirmOrder, OrderOwnershipError, BookingConfirmViaShopError } from "@/services/order.service";
 import { sessionUserId } from "@/lib/session-user";
+import { ServiceJobNoShowConfirmError, SERVICE_JOB_ERROR_MESSAGE } from "@/lib/service-job";
 
 // POST /api/orders/[token]/confirm
 //
@@ -32,6 +33,10 @@ export async function POST(
         { error: "เจ้าของที่พักจะยืนยันการจองให้หลังตรวจสลิปแล้ว" },
         { status: 403 },
       );
+    }
+    // feature 00073 — ร้านบันทึกว่าไม่ได้เข้ารับบริการ ⇒ ยืนยันรับบริการไม่ได้
+    if (err instanceof ServiceJobNoShowConfirmError) {
+      return NextResponse.json({ error: SERVICE_JOB_ERROR_MESSAGE.SERVICE_JOB_NO_SHOW_CONFIRM }, { status: 409 });
     }
     if (err instanceof OrderOwnershipError) {
       return NextResponse.json({ error: "ไม่มีสิทธิ์ยืนยันคำสั่งซื้อนี้" }, { status: 403 });

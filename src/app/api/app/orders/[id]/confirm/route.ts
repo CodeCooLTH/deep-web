@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAppUser } from '@/lib/app-auth'
 import { getOrderTokenForBuyer } from '@/services/app-order.service'
 import { confirmOrder } from '@/services/order.service'
+import { ServiceJobNoShowConfirmError, SERVICE_JOB_ERROR_MESSAGE } from '@/lib/service-job'
 
 // POST /api/app/orders/[id]/confirm — buyer กดยืนยันรับของ → CONFIRMED (escrow)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await confirmOrder(token, auth.user.id)
     return NextResponse.json({ ok: true })
   } catch (e) {
+    // feature 00073 — งานบริการที่ร้านปิดแบบไม่มาตามนัด ยืนยันรับบริการไม่ได้
+    if (e instanceof ServiceJobNoShowConfirmError) {
+      return NextResponse.json({ error: SERVICE_JOB_ERROR_MESSAGE.SERVICE_JOB_NO_SHOW_CONFIRM }, { status: 409 })
+    }
     const msg = e instanceof Error ? e.message : 'ยืนยันไม่สำเร็จ'
     // assertTransition ผิดสถานะ → 409
     if (/transition|status|already/i.test(msg)) {

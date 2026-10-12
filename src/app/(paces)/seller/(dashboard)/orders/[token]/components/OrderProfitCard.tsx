@@ -33,10 +33,12 @@ type Props = {
   profit: OrderProfit | null
   /** คำเรียกออเดอร์ตาม vertical ของร้าน (ORDER_VOCAB.noun) — "คำสั่งซื้อ"/"งาน"/"การเข้าพัก" */
   orderNoun: string
+  /** feature 00073 — ร้านบริการ: ยอดนับตอนร้านปิดงาน (คำอธิบายตอนยังไม่นับ) */
+  serviceRules?: boolean
 }
 
-export default function OrderProfitCard({ profit, orderNoun }: Props) {
-  const p = presentOrderProfit(profit, orderNoun)
+export default function OrderProfitCard({ profit, orderNoun, serviceRules = false }: Props) {
+  const p = presentOrderProfit(profit, orderNoun, serviceRules)
   const tone = PROFIT_TONE[p.tone]
 
   return (

@@ -13,6 +13,7 @@ import { formatDayMonthTH, formatTimeHM, formatYearTH } from '@/lib/format-date'
 import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, profitDisplay } from '@/lib/format-money'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 export const ACCENT = '#236dc9'
 export const INK = '#2F2B3D'
@@ -61,6 +62,22 @@ export function reportOrderWord(shops: readonly Pick<ShopSummary, 'shop' | 'stat
   const verticals = new Set((counted.length > 0 ? counted : shops).map((s) => resolveShopVertical(s.shop.vertical)))
   if (verticals.size > 1) return { word: MIXED_ORDER_WORD, mixed: true }
   return { word: resolveOrderVocab([...verticals][0] ?? 'ONLINE_SALES').nounShort, mixed: false }
+}
+
+/**
+ * คำอธิบายสีแท่งยอดขาย (น้ำเงิน/เหลือง) ผันตาม vertical — กติกาเลือกกลุ่มเดียวกับ reportOrderWord
+ * ร้านบริการ (00073): ยอดขาย = งานที่ร้านปิดแล้ว ⇒ น้ำเงิน = "ปิดงานแล้ว" · ไม่มีก้อนรอยืนยัน (เป็น 0 เสมอ) จึงไม่ขึ้นเหลือง
+ * ร้านอื่น/กลุ่มผสม → คำเดิม "ยืนยันแล้ว / รอยืนยัน"
+ */
+export type SalesLegendWords = { counted: string; pending: string | null }
+export const GENERIC_SALES_LEGEND: SalesLegendWords = { counted: 'ยืนยันแล้ว', pending: 'รอยืนยัน' }
+export const SERVICE_SALES_LEGEND: SalesLegendWords = { counted: 'ปิดงานแล้ว', pending: null }
+export function reportSalesLegend(shops: readonly Pick<ShopSummary, 'shop' | 'state'>[]): SalesLegendWords {
+  const counted = shops.filter((s) => s.state !== 'EXCLUDED')
+  const pool = counted.length > 0 ? counted : shops
+  return pool.length > 0 && pool.every((s) => usesServiceFinanceRules(resolveShopVertical(s.shop.vertical)))
+    ? SERVICE_SALES_LEGEND
+    : GENERIC_SALES_LEGEND
 }
 
 /** "ต้นทุน…" ของยอดขายหลังหักค่าใช้จ่าย ผันตาม vertical จาก ORDER_VOCAB.costNoun · ผสม → "ต้นทุน" (กลางสุด) */
@@ -124,6 +141,8 @@ type Ctx = {
   t: Totals
   multi: boolean
   ow: { word: string; mixed: boolean }
+  /** คำอธิบายสีแท่งยอดขาย (reportSalesLegend) */
+  legend: SalesLegendWords
   has: (type: Block['type']) => boolean
   skipped: Skipped[]
   /** จำนวนกราฟที่ "จะแสดง" (ระดับ 2 ขึ้นไปแสดงหมายเหตุแทน) — fitToLimits ใช้ข้ามระดับตัดกราฟเมื่อไม่มีกราฟ (EXT-08) */
@@ -178,6 +197,7 @@ export function makeCtx(
     t: combineTotals(summary.shops),
     multi: listed.length > 1,
     ow: reportOrderWord(shops),
+    legend: reportSalesLegend(shops),
     has: (type) => template.blocks.some((b) => b.type === type),
     skipped,
     charts: { n: 0 },
@@ -471,9 +491,9 @@ function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }
     // แท่งวันนี้นับถึงเวลาส่ง — เวลาของข้อความใน LINE บอกอยู่แล้ว ไม่ติดหมายเหตุ
     // แท่งค่าใช้จ่าย: เฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่าย ∧ รวมค่าใช้จ่ายได้ (กฎเดียวกับแถวค่าใช้จ่าย — totalFinance)
     const showExpense = (c.has('expense') || c.has('net_sales')) && !!totalFinance(c) && !!tr.expense
-    node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })
+    node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, legend: c.legend, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })
   } else {
-    node = compareChart(c.shops, b.measure, c.ow.word)
+    node = compareChart(c.shops, b.measure, c.ow.word, c.legend)
     if (!node) {
       c.skipped.push({ label, reason: 'ต้องมีร้านที่ดึงข้อมูลได้อย่างน้อย 2 ร้าน' })
       return null

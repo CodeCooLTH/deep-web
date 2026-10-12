@@ -6,16 +6,19 @@ import { AppointmentOutcomeSchema } from "@/lib/validations";
 import { jsonNoStore } from "@/lib/shop-api-guard";
 import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
-import { setAppointmentOutcome } from "@/services/appointment.service";
+import { serviceJobErrorResponse } from "@/lib/service-job-api";
+import { closeServiceJob } from "@/services/service-job.service";
 
 /**
  * POST /api/orders/[token]/appointment/outcome — ทำเครื่องหมาย "ให้บริการแล้ว" / "ไม่มาตามนัด"
  *
  * feature 00024 Service Appointment Booking (API.md §4.8 / FR-RSV-09)
  *
- * IMPORTANT: endpoint นี้ห้ามแตะ Order.status (BR-RSV-33) และห้ามกระทบ Trust Score
- * (BR-RSV-35) — การไม่มาตามนัดถูกบันทึกเป็นข้อมูลเฉย ๆ ไม่หักคะแนนลูกค้า
- * ถ้าร้านต้องการยกเลิกออเดอร์ด้วย ต้องกดยกเลิกออเดอร์แยกต่างหากตามนโยบายร้าน
+ * IMPORTANT: endpoint นี้ห้ามแตะ Order.status (BR-RSV-33) และห้ามกระทบ Trust Score (BR-RSV-35)
+ *
+ * feature 00073 — ตั้งแต่นี้ = "ปิดงาน" แบบไม่บันทึกเงิน (ปุ่มเดิมในหน้างาน/บอร์ดนัด/แชท ยังยิงที่นี่)
+ * ⇒ ได้วันปิดงานเหมือนกด "ปิดงาน" ทุกประการ · ไม่มาตามนัด = เก็บมัดจำ (ค่าตั้งต้น มติ D1)
+ * ทางเต็ม (รับเงิน/คืนมัดจำ) อยู่ที่ POST /api/orders/[token]/close
  */
 
 export const dynamic = "force-dynamic";
@@ -42,14 +45,16 @@ export async function POST(
   }
 
   try {
-    const result = await setAppointmentOutcome({
+    const result = await closeServiceJob({
       shopId: ctx.shopId,
       orderToken: token,
-      outcome: parsed.output.outcome,
+      actorUserId: ctx.userId,
+      outcome: parsed.output.outcome === "NO_SHOW" ? "NO_SHOW" : "SERVED",
+      deposit: "KEEP",
     });
-    return jsonNoStore({ appointmentStatus: result.appointmentStatus });
+    return jsonNoStore({ appointmentStatus: result.appointmentStatus, serviceClosedAt: result.serviceClosedAt });
   } catch (e: unknown) {
-    const mapped = appointmentErrorResponse(e);
+    const mapped = serviceJobErrorResponse(e) ?? appointmentErrorResponse(e);
     if (mapped) return mapped;
     console.error(
       "[POST /api/orders/[token]/appointment/outcome] shopId:",

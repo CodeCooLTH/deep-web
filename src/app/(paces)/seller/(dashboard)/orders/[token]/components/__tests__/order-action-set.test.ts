@@ -412,3 +412,20 @@ describe('getOrderActionSet — editLocked', () => {
     }
   })
 })
+
+// feature 00073 — งานร้านบริการที่ร้านปิดแล้ว: ไม่มีแก้ไข/ยกเลิก (server ล็อก 409) · ไม่ส่งธง = ชุดเดิมเป๊ะ
+describe('getOrderActionSet — serviceClosed', () => {
+  const all = (r: ReturnType<typeof getOrderActionSet>) => [r.primary?.key, ...r.ghosts.map((g) => g.key), ...r.menu.map((m) => m.key)]
+  it.each(['PENDING', 'SHIPPED', 'CONFIRMED'] as const)('%s: ปิดแล้ว ⇒ ไม่มี edit-order/cancel-order · ปุ่มอื่นคงเดิม', (status) => {
+    const base = getOrderActionSet({ status, fulfillmentMode: 'NO_SHIPPING', shipmentSource: null })
+    const closed = getOrderActionSet({ status, fulfillmentMode: 'NO_SHIPPING', shipmentSource: null, serviceClosed: true })
+    expect(all(closed)).not.toContain('edit-order')
+    expect(all(closed)).not.toContain('cancel-order')
+    expect(all(closed)).toEqual(all(base).filter((k) => k !== 'edit-order' && k !== 'cancel-order'))
+  })
+  it('[blocker] ไม่ส่ง/false = ชุดเดิม (ร้านอื่น)', () => {
+    const base = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: null })
+    expect(getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: null, serviceClosed: false })).toEqual(base)
+    expect(all(base)).toContain('cancel-order')
+  })
+})

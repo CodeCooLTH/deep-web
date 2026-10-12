@@ -67,8 +67,9 @@ export const formatNumberNoSymbol = (n: number): string => {
  * ที่พักอ่านว่า "ต้นทุนต่อห้อง" ⇒ ผู้เรียกต้องส่ง `ORDER_VOCAB[vertical].costNoun` เข้ามา
  * ห้ามพิมพ์คำเอง (Hard Rule 16 — คำเดียวกันสองที่ที่เขียนแยกกันจะ drift โดยไม่มี gate ฟ้อง)
  */
-export const netProfitFormula = (costNoun: string) =>
-  `กำไรสุทธิ = ยอดขายที่ยืนยันแล้ว − ${costNoun} − ค่าใช้จ่าย`
+export const netProfitFormula = (costNoun: string, revenueLabel = 'ยอดขายที่ยืนยันแล้ว') =>
+  `กำไรสุทธิ = ${revenueLabel} − ${costNoun} − ค่าใช้จ่าย`
+// ↑ feature 00073 — `revenueLabel` = ORDER_VOCAB.revenueLabel (ร้านบริการนับตอนปิดงาน) · ไม่ส่ง = คำเดิมทุกตัวอักษร
 
 /**
  * รูปเดิมของสูตรข้างบน (ร้านขายของออนไลน์) — คงไว้ให้ผู้เรียกเดิมไม่พัง

@@ -90,9 +90,12 @@ import { useT } from '@/i18n/LocaleProvider'
 // ตัวเลือกในดรอปดาวน์ "สถานะ" — สร้างจาก SSOT ตัวเดียวกับ badge ห้ามพิมพ์คำซ้ำมือ
 // (เดิมพิมพ์เอง จึงค้างคำว่า "จัดส่งแล้ว" อยู่ในตัวกรองทั้งที่ป้ายบนแถวเปลี่ยนคำไปแล้ว)
 // ป้าย SHIPPED ผันตาม vocab (ร้านบริการไม่มีการจัดส่ง) จึงสร้างในคอมโพเนนต์ ไม่ใช่ค่าคงที่ระดับ module
+// feature 00073 — ร้านบริการไม่มีขั้น SHIPPED แล้ว (vocab.hasShippedStatus = false) ⇒ ไม่มีตัวเลือกนี้
 const buildStatusFilterOptions = (vocab: OrderVocab) => [
   { value: 'All', label: 'ทั้งหมด' },
-  ...Object.entries(orderStatusMetaFor(vocab)).map(([value, meta]) => ({ value, label: meta.label })),
+  ...Object.entries(orderStatusMetaFor(vocab))
+    .filter(([value]) => vocab.hasShippedStatus || value !== 'SHIPPED')
+    .map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
 // ─── ตัวกรองพัสดุ (?stage=) — ลำดับ/ค่าเดียวกับ STAGE_CHIPS ใน OrdersList ────────
@@ -814,7 +817,10 @@ export default function OrdersTable({
            */
           o.pickupStage
             ? { label: 'มอบสินค้า', done: o.pickupStage !== 'AWAITING_HANDOVER' }
-            : { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
+            : o.serviceClosedAtISO !== undefined
+              ? // feature 00073 — ร้านบริการ: ขั้นที่ร้านลงมือ = "ปิดงานแล้ว" (Order.serviceClosedAt)
+                { label: vocab.fulfillLabel, done: o.serviceClosedAtISO !== null }
+              : { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(showMoney && isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
             : []),

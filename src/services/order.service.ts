@@ -12,6 +12,8 @@ import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
+import { usesServiceFinanceRules } from "@/lib/finance-rules";
+import { ServiceJobClosedLockedError, ServiceJobNoShowConfirmError } from "@/lib/service-job";
 import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
 import { deriveShippingStage, type ShippingStageKey } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
@@ -1163,10 +1165,15 @@ export async function updateOrder(
         // feature 00062 (U11) — fulfillmentMode/handedOverAt ตัดสิน "ต้องล้าง handedOver ไหม"
         // (TFR-001 error/edge cases); payoutSnapshot ตัดสิน "เขียนครั้งแรกไหม" (ห้ามเขียนทับของเดิม)
         fulfillmentMode: true, handedOverAt: true, payoutSnapshot: true,
+        // feature 00073 (มติ D3) — งานบริการที่ร้านปิดแล้วถูกล็อก
+        serviceClosedAt: true,
         items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
       },
     });
     if (!existing) throw new OrderNotFoundError();
+    // ค่านี้มีได้เฉพาะงานร้านบริการ (ตั้งผ่าน closeServiceJob เท่านั้น) ⇒ ร้านอื่นไม่เข้ากิ่งนี้
+    // ปิดแล้วแก้รายการ/ราคาไม่ได้ — ยอดขายของวันปิดงานต้องนิ่ง · ต้อง "เปิดงานอีกครั้ง" ก่อน
+    if (existing.serviceClosedAt != null) throw new ServiceJobClosedLockedError();
     // 00071 P3 (O3 เงื่อนไขต่อใบ) — อ่านในธุรกรรมเดียวกับที่จะลบ+สร้างรายการใหม่ ไม่งั้นรับเงินคั่นระหว่างเช็คกับแก้ได้
     if (opts?.billingOnly) {
       const pay = await tx.order.findUniqueOrThrow({
@@ -1464,6 +1471,12 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   }
   // CONFIRMED รับจาก PENDING หรือ SHIPPED (VALID_TRANSITIONS ครอบคลุมทั้งสอง)
   assertTransition(order.status, "CONFIRMED");
+  // feature 00073 — ร้านบริการปิดงานแบบ "ไม่มาตามนัด" แล้ว ลูกค้ายืนยันรับบริการไม่ได้
+  // (ไม่งั้นงานที่ไม่ได้ให้บริการไปนับเป็น "งานสำเร็จ" บนโปรไฟล์สาธารณะ = โปรไฟล์ไม่จริง)
+  // อยู่ที่นี่ ไม่ใช่ที่ route — มี 2 ทางเข้า (เว็บ + api/app/orders/[id]/confirm)
+  if (usesServiceFinanceRules(order.shop.vertical) && order.appointmentStatus === "NO_SHOW") {
+    throw new ServiceJobNoShowConfirmError();
+  }
   // ไม่เขียน buyerContact/buyerUserId ที่นี่อีกต่อไป — ทั้งคู่ถูก set ที่ต้นทาง
   // (createOrder) หรือ claim-time (guaranteeOrderLink) แล้วก่อนหน้านี้
   // feature 00031 — BUYER_CONFIRMED ใน tx เดียวกับการ mark CONFIRMED
@@ -1662,14 +1675,24 @@ export async function cancelOrder(
   }
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
+  // feature 00073 — ร้านบริการ: งานที่ร้านปิดแล้วยกเลิกไม่ได้ (ทั้งร้านและลูกค้า) — กันลบประวัติ
+  // งานที่ให้บริการไปแล้ว/ไม่มาตามนัด · ร้านปิดผิดต้อง "เปิดงานอีกครั้ง" ก่อน (มติ D2)
+  const serviceShop = usesServiceFinanceRules(order.shop?.vertical);
+  if (serviceShop && order.serviceClosedAt != null) throw new ServiceJobClosedLockedError();
   // Inventory Add-on hook — restock ตามประวัติจริงของ order (stockDeducted != null)
   // ไม่เช็คสถานะ entitlement ปัจจุบันเลย (BR-INV-12: order ที่ตัดสต็อกไปตอน entitlement ยัง
   // ACTIVE ต้องได้คืนสต็อกตอน cancel แม้ entitlement จะหลุด ACTIVE ไปแล้วก็ตาม)
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.order.update({
-      where: { publicToken },
-      data: { status: "CANCELLED", cancelInitiator: initiator, cancelReason },
-    });
+    const data = { status: "CANCELLED", cancelInitiator: initiator, cancelReason };
+    let updated;
+    if (serviceShop) {
+      // ร้านปิดงานแทรกระหว่างที่เราอ่าน = ยกเลิกไม่ได้แล้ว (เงื่อนไขซ้ำใน where กันแข่งกัน)
+      const res = await tx.order.updateMany({ where: { publicToken, serviceClosedAt: null }, data });
+      if (res.count === 0) throw new ServiceJobClosedLockedError();
+      updated = await tx.order.findUniqueOrThrow({ where: { publicToken } });
+    } else {
+      updated = await tx.order.update({ where: { publicToken }, data });
+    }
     // BREAKING (00009 S-3/S-5) — restockFromCancelledOrder เพิ่ม param shopId (สำหรับ StockMovement.shopId)
     await restockFromCancelledOrder(tx, order.shopId, order.id);
     // feature 00031 — ORDER_CANCELLED ใน tx เดียวกัน; initiatorRole ไว้แสดง "ยกเลิกโดยฝั่งไหน"
@@ -2365,6 +2388,8 @@ export async function getThreadPanelOrders(
     serviceStart: string | null;
     serviceEnd: string | null;
     appointmentStatus: string | null;
+    /** feature 00073 — วันปิดงาน (ISO) · null = ยังไม่ปิด */
+    serviceClosedAt: string | null;
     depositAmount: string | null;
     /** เงินที่ได้รับจริง (feature 00050) — ว่าง = ยังไม่มีใครกดยืนยันรับเงิน */
     payments: { kind: string; amount: string; voidedAt: string | null }[];
@@ -2407,6 +2432,7 @@ export async function getThreadPanelOrders(
       serviceStart: true,
       serviceEnd: true,
       appointmentStatus: true,
+      serviceClosedAt: true,
       depositAmount: true,
       // feature 00050 — เงินที่ได้รับจริง (คนละเรื่องกับ depositAmount ซึ่งเป็นข้อตกลง)
       // ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ (ใบที่ 21 ขึ้นไปโหลดผ่านนี่)
@@ -2449,6 +2475,7 @@ export async function getThreadPanelOrders(
       serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
       serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
       appointmentStatus: o.appointmentStatus,
+      serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
       depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
       payments: o.payments.map((p) => ({
         kind: p.kind,
@@ -2621,7 +2648,7 @@ export async function getShippingStageCounts(
 export async function getServiceWorkStageCounts(shopId: string): Promise<Record<ServiceWorkStage, number>> {
   const rows = await prisma.order.findMany({
     where: { shopId, ...withoutDrafted("CANCELLED") },
-    select: { status: true, appointmentStatus: true, serviceEnd: true },
+    select: { status: true, appointmentStatus: true, serviceEnd: true, serviceClosedAt: true },
   });
   const counts: Record<ServiceWorkStage, number> = { AWAITING_SERVICE: 0, APPT_CONFIRMED: 0, AWAITING_CLOSE: 0, AWAITING_BUYER: 0 };
   const now = new Date();

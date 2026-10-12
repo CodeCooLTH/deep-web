@@ -21,9 +21,11 @@ export type AppointmentBoardCaps = {
   canReschedule: boolean
   /** ปุ่มสร้างงานของวันที่เลือก (O2s) */
   canCreate: boolean
+  /** feature 00073 — คืนมัดจำในชีตปิดงาน (O6) */
+  canRefundDeposit: boolean
 }
 
-const CLOSED: AppointmentBoardCaps = { showMoney: false, canChat: false, canReschedule: false, canCreate: false }
+const CLOSED: AppointmentBoardCaps = { showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false }
 
 const Ctx = createContext<AppointmentBoardCaps>(CLOSED)
 

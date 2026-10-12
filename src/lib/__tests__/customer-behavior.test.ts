@@ -18,6 +18,7 @@ const order = (o: Partial<CustomerOrderEvidence> = {}): CustomerOrderEvidence =>
   cancelInitiator: null,
   cancelReason: null,
   activeShipmentCarrierStatus: null,
+  appointmentStatus: null,
   ...o,
 })
 
@@ -212,5 +213,20 @@ describe('customerBadges', () => {
   it('ลูกค้าปกติที่ไม่เข้าเงื่อนไขไหนเลย → ไม่มีป้าย (ค่าเริ่มต้นของระบบ)', () => {
     expect(customerBadges(behavior({ orders: 2, completed: 2 }), { hasHistory: true, orderNoun: noun, copy })).toEqual([])
     expect(hasBehaviorWarning([])).toBe(false)
+  })
+})
+
+
+describe('[blocker] feature 00073 — ไม่มาตามนัดผ่านการปิดงาน', () => {
+  it('นับเหมือนยกเลิกด้วย BUYER_NO_SHOW เดิมทุกถัง (ป้ายของร้านไม่ขยับ)', () => {
+    const viaClose = summarizeCustomerBehavior([order({ status: 'PENDING', appointmentStatus: 'NO_SHOW' })])
+    const viaLegacy = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelReason: 'BUYER_NO_SHOW' })])
+    expect(viaClose).toEqual(viaLegacy)
+    expect(viaClose.cancelledByBuyer).toBe(1)
+    expect(viaClose.completed).toBe(0)
+  })
+
+  it('ให้บริการแล้วนับเป็นงานที่สำเร็จตามเดิม', () => {
+    expect(summarizeCustomerBehavior([order({ status: 'PENDING', appointmentStatus: 'COMPLETED' })]).completed).toBe(1)
   })
 })

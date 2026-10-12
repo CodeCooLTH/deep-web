@@ -33,6 +33,7 @@ import { resolveProductVocab } from '@/lib/seller-menu'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import { countsAsSoldFor } from '@/lib/order-revenue'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('list')
@@ -102,8 +103,9 @@ export default async function ProductsPage() {
   // --- Derive ProductRow data ---
   // createdAt แปลงเป็น ISO string ที่ server boundary — ห้ามส่ง Date object ข้าม RSC→client
   const productRows: ProductRow[] = products.map((p: any) => {
+    // ร้านบริการ = งานที่ปิดแล้วและได้ให้บริการ (00073) · ร้านอื่น status === 'CONFIRMED' เดิม
     const soldEntries = orders
-      .filter((o: any) => o.status === 'CONFIRMED')
+      .filter((o: any) => countsAsSoldFor(o, shop.vertical))
       .flatMap((o: any) => (Array.isArray(o.items) ? o.items : []))
       .filter((i: any) => i.productId === p.id)
     const totalSold = soldEntries.reduce((s: number, i: any) => s + (i.qty ?? 1), 0)

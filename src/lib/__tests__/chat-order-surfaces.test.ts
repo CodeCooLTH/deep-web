@@ -92,7 +92,8 @@ describe('ปุ่มบนการ์ดงานบริการในแ�
        * จะได้ปุ่มที่กดกี่ครั้งก็ไม่ผ่าน (บทเรียน iShip retry 2026-08-06)
        */
       expect(code, 'ต้องส่ง shopId ให้ชีตรับเงิน').toMatch(/shopId=\{shopId\}/)
-      expect(code, 'ต้องส่ง shopId ให้ตัวปิดผลนัด').toMatch(/markServedFlow\([\s\S]{0,200}shopId/)
+      // 00073: ปิดงานเปิดชีต ServiceCloseSheet (แทน markServedFlow) — ต้องส่ง shopId ของเธรดเหมือนกัน
+      expect(code, 'ต้องส่ง shopId ให้ชีตปิดงาน').toMatch(/<ServiceCloseSheet\b[\s\S]{0,400}shopId=\{shopId\}/)
     })
   }
 
@@ -104,7 +105,7 @@ describe('ปุ่มบนการ์ดงานบริการในแ�
      */
     for (const s of SURFACES) {
       const code = stripComments(read(s.path))
-      for (const sheet of ['RecordPaymentSheet', 'StartWalkInSheet', 'AppointmentSummarySheet']) {
+      for (const sheet of ['RecordPaymentSheet', 'StartWalkInSheet', 'AppointmentSummarySheet', 'ServiceCloseSheet']) {
         /**
          * 🛑 ต้องเป็น regex ที่มี `\b` **ห้าม `toContain`** — `toContain('<StartWalkInSheet')`
          * ผ่านกับ `<StartWalkInSheetX` ด้วย (substring) ⇒ ด่านที่พิสูจน์ด้วย mutation แล้วเขียว

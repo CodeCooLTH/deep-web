@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { resolveOnboardingGate } from './onboarding-gate'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { resolveOnboardingGate, showsPersonalSetupChecklist } from './onboarding-gate'
 
 /**
  * กฎนี้คุมว่า proxy.ts จะ "ขัง" user ไว้ที่ /register หรือ /onboarding หรือไม่ — พังแล้วมี 2 ทิศ
@@ -94,3 +96,23 @@ describe('resolveOnboardingGate', () => {
     ).toEqual({ needsRegistration: false, needsOnboarding: false })
   })
 })
+
+describe("showsPersonalSetupChecklist — เช็กลิสต์ร้านส่วนตัวที่แถบซ้าย (00073)", () => {
+  it("[blocker] ร้านบริการแบบธุรกิจ → ไม่แสดง (เดิมขึ้น \"สร้างสินค้าแรก\" ของร้านส่วนตัว)", () => {
+    expect(showsPersonalSetupChecklist({ kind: "BUSINESS", vertical: "SERVICE_QUEUE" })).toBe(false);
+  });
+  it("[blocker] ร้านส่วนตัว ทุก vertical → แสดงเหมือนเดิม", () => {
+    for (const vertical of ["ONLINE_SALES", "SERVICE_QUEUE", "LODGING", null]) {
+      expect(showsPersonalSetupChecklist({ kind: "PERSONAL", vertical })).toBe(true);
+    }
+  });
+  it("[blocker] ร้านธุรกิจ vertical อื่น → พฤติกรรมเดิม (แสดง)", () => {
+    for (const vertical of ["ONLINE_SALES", "LODGING", null, "SOMETHING_NEW"]) {
+      expect(showsPersonalSetupChecklist({ kind: "BUSINESS", vertical })).toBe(true);
+    }
+  });
+  it("layout ใช้ตัวตัดสินนี้คุม OnboardingGate (ไม่ mount = ไม่ fetch/ไม่เปิดโมดัลเขียนร้านส่วนตัว)", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/(paces)/seller/(dashboard)/layout.tsx"), "utf8");
+    expect(src).toMatch(/showsPersonalSetupChecklist\(\{ kind: active\.kind, vertical: shop\.vertical \}\) \? <OnboardingGate/);
+  });
+});

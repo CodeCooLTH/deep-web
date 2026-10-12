@@ -47,15 +47,18 @@ type PwFormValues = Yup.InferType<typeof pwSchema>
 
 // Schema โหมด OTP (toggle)
 const phoneSchema = Yup.object({
+  // ช่อง "ใครเข้าระบบได้" = `isLoginPhone` (เท่า MOBILE_PHONE_RE บน production · นอก production รับบัญชีทดสอบ
+  // 000000000X ด้วย) — ตัวเดียวกับฟอร์มล็อกอินฝั่งร้านและ /api/otp/send (เดิมใช้ MOBILE_PHONE_RE ⇒ บัญชีทดสอบ
+  // ล็อกอินฝั่งผู้ซื้อไม่ได้เลยบนเครื่อง dev — user เจอ 2026-10-11)
   phone: Yup.string()
-    .matches(MOBILE_PHONE_RE, MOBILE_RULE_TEXT)
-    .required('กรุณากรอกเบอร์โทร'),
+    .required('กรุณากรอกเบอร์โทร')
+    .test('login-phone', MOBILE_RULE_TEXT, (v) => isLoginPhone(v ?? '')),
 })
 type PhoneFormValues = Yup.InferType<typeof phoneSchema>
 
 /** สรุปออเดอร์แบบ public-safe จาก getOrderSummaryForSignIn (ไม่มี PII ของคน) */
 import OrderLinkShell, { type OrderLinkShopContext } from './OrderLinkShell'
-import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
+import { MOBILE_RULE_TEXT, isLoginPhone } from '@/lib/phone'
 import { VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 
 export type SignInOrderContext = OrderLinkShopContext
@@ -71,9 +74,9 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
 
   // feature 00015 (Order Claim & Forced Login) FR-OCL-03: SMS-link ส่ง ?prefillPhone= มาช่วย
   // เลือกโหมด OTP ให้อัตโนมัติ + เติมเบอร์ล่วงหน้า (field ยังแก้ได้ — pre-fill ไม่ใช่ approval)
-  // รูปแบบไม่ตรง MOBILE_PHONE_RE → เพิกเฉยเงียบ ๆ ตกกลับไปโหมด password ปกติ (ไม่ crash)
+  // รูปแบบไม่ตรง isLoginPhone → เพิกเฉยเงียบ ๆ ตกกลับไปโหมด password ปกติ (ไม่ crash)
   const rawPrefillPhone = searchParams.get('prefillPhone')
-  const prefillPhone = rawPrefillPhone && MOBILE_PHONE_RE.test(rawPrefillPhone) ? rawPrefillPhone : null
+  const prefillPhone = rawPrefillPhone && isLoginPhone(rawPrefillPhone) ? rawPrefillPhone : null
 
   // โหมด login:
   //   channels = หน้าเลือกช่องทาง (ใช้เฉพาะตอนมาจากลิงก์ออเดอร์) — ผู้ซื้อจากแชทส่วนใหญ่ยังไม่มี

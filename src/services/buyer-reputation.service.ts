@@ -35,6 +35,7 @@ export async function getBuyerReputation(customerId: string): Promise<BuyerReput
       status: true,
       cancelInitiator: true,
       cancelReason: true,
+      appointmentStatus: true,
       shipments: ACTIVE_SHIPMENT,
     },
   })
@@ -48,6 +49,7 @@ export async function getBuyerReputation(customerId: string): Promise<BuyerReput
       cancelReason: r.cancelReason ?? null,
       activeShipmentCarrierStatus: r.shipments[0]?.carrierStatus ?? null,
       hasShipment: r.shipments.length > 0,
+      appointmentStatus: r.appointmentStatus ?? null,
     })),
   )
 }
@@ -72,6 +74,7 @@ export async function getBuyerReputations(
       status: true,
       cancelInitiator: true,
       cancelReason: true,
+      appointmentStatus: true,
       shipments: ACTIVE_SHIPMENT,
     },
   })
@@ -86,6 +89,7 @@ export async function getBuyerReputations(
       cancelReason: r.cancelReason ?? null,
       activeShipmentCarrierStatus: r.shipments[0]?.carrierStatus ?? null,
       hasShipment: r.shipments.length > 0,
+      appointmentStatus: r.appointmentStatus ?? null,
     })
     byCustomer.set(r.customerId, list)
   }

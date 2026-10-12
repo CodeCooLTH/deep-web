@@ -22,6 +22,8 @@ import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { orderCardTapAction } from '@/lib/order-display'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 export type OrderCardViewData = {
   token: string
@@ -53,6 +55,8 @@ export type OrderCardViewData = {
   serviceStart?: string | null
   serviceEnd?: string | null
   appointmentStatus?: string | null
+  /** feature 00073 — Order.serviceClosedAt (ISO) · ร้านบริการปิดงานแล้ว ⇒ ป้ายชุดเดียว (service-status.ts) */
+  serviceClosedAt?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง จึงแสดงได้แค่จำนวน ห้ามทำเป็นสถานะ */
   depositAmount?: string | null
   paymentMethod?: string | null
@@ -79,7 +83,24 @@ export type OrderCardViewData = {
  *
  * Base: src/components/safepay/iship/ShipmentStatusView.tsx (โครง head + handleCopy)
  */
-function ShipmentSection({ data }: { data: OrderCardViewData }) {
+function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'seller' | 'buyer' }) {
+  /**
+   * feature 00073 — ร้านบริการ: ป้ายชุดเดียวของงานบริการ (service-status.ts) แทนป้ายนัด/ป้ายออเดอร์กลาง
+   * (ชิปนัดเดิมค้าง "ลูกค้ายืนยันแล้ว" แม้งานสำเร็จ · walk-in ปิดแล้วยังขึ้น "รับงานแล้ว")
+   * ไม่บอกยอดเงิน — การ์ดในแชทไม่ใช่ที่ตัดสินเรื่องเงิน (outstanding: null) · ร้านอื่น = null (ป้ายเดิม)
+   */
+  const serviceBadge = usesServiceFinanceRules(data.vertical)
+    ? resolveServiceStatusBadge(
+        {
+          status: data.status,
+          appointmentStatus: data.appointmentStatus ?? null,
+          hasAppointment: Boolean(data.serviceStart),
+          serviceClosedAt: data.serviceClosedAt ?? null,
+          outstanding: null,
+        },
+        side,
+      )
+    : null
   // ชิปสถานะออเดอร์ — label/icon/cls ชุดเดียวกับป้ายในรายการแชท (ORDER_STAGE_META) แต่ปิด
   // age-decay ด้วยการล็อก now = statusAt: ป้ายในลิสต์หายได้ (กันรก) แต่ชิปในการ์ดหายแล้ว
   // เหลือช่องว่างเปล่า — statusAt ไม่มี (caller เก่า) age = 0 เหมือนกัน จึงไม่มีทางโดนซ่อน
@@ -96,10 +117,11 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
     },
     Date.parse(statusAt),
   )
-  const stageChip = stage && (
-    <span className={`${stage.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}>
-      <Icon icon={stage.icon} className="text-sm" aria-hidden="true" />
-      {stage.label}
+  const chip = serviceBadge ?? stage
+  const stageChip = chip && (
+    <span className={`${chip.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}>
+      <Icon icon={chip.icon} className="text-sm" aria-hidden="true" />
+      {chip.label}
     </span>
   )
 
@@ -124,7 +146,7 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
     appointmentStatus: data.appointmentStatus ?? null,
   })
   if (apptStage && data.serviceStart) {
-    const meta = APPOINTMENT_STAGE_META[apptStage]
+    const meta = serviceBadge ?? APPOINTMENT_STAGE_META[apptStage]
     const s = new Date(data.serviceStart)
     const e = data.serviceEnd ? new Date(data.serviceEnd) : null
     const when =
@@ -285,8 +307,11 @@ export default function OrderCardView({
   onEdit,
   footer,
   className = '',
+  side = 'seller',
 }: {
   data: OrderCardViewData
+  /** ฝั่งผู้ดู — ผันคำของป้ายงานบริการ (ร้าน "ลูกค้ายืนยันนัด" · ลูกค้า "ยืนยันนัดแล้ว") · ค่าตั้งต้น = ร้าน */
+  side?: 'seller' | 'buyer'
   /** แตะ body → เปิดโมดัลแก้ไข (ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer) */
   onEdit?: () => void
   /** action ท้ายการ์ด — ส่งเข้าแชท / เปิดดูใบนี้ (caller ใส่เอง; คำมาจาก ORDER_VOCAB.viewLabel) */
@@ -372,7 +397,7 @@ export default function OrderCardView({
       )}
       {/* section พัสดุอยู่นอกปุ่มแก้ไขโดยเจตนา — ข้างในมีปุ่มคัดลอกเลขพัสดุ ถ้าอยู่ใต้ <button>
           จะเป็น nested interactive (invalid HTML + focus พัง) */}
-      <ShipmentSection data={data} />
+      <ShipmentSection data={data} side={side} />
       {footer}
     </div>
   )

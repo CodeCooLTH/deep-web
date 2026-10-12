@@ -8,7 +8,7 @@ import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/ord
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { round2 } from '@/lib/round2'
-import { revenueOrderWhere } from '@/lib/order-revenue'
+import { isServiceNoShow, revenueWindowWhere, serviceNoShowRevenue } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
@@ -72,6 +72,17 @@ const ORDER_SELECT = {
     take: 1,
     select: { carrierPrice: true, estimatedPrice: true, codFee: true },
   },
+  // feature 00073 — ร้านบริการ: งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (ร้านอื่นไม่มีค่าเหล่านี้ ⇒ ไม่เข้ากิ่ง)
+  appointmentStatus: true,
+} as const
+
+/**
+ * ร้านบริการเท่านั้นที่ต้องอ่านเงินรายการ (ยอดงานไม่มาตามนัด) — ร้านอื่นไม่ดึง relation นี้เลย
+ * (audit 2026-10-11: เดิมทุกร้านจ่าย query relation เพิ่มทุกครั้งที่เปิด /sales /expenses รายงาน LINE)
+ */
+const SERVICE_ORDER_SELECT = {
+  ...ORDER_SELECT,
+  payments: { select: { amount: true, voidedAt: true } },
 } as const
 
 type PnlOrder = {
@@ -79,15 +90,24 @@ type PnlOrder = {
   totalAmount: unknown
   items: { cost: unknown; qty: number }[]
   shipments: { carrierPrice: unknown; estimatedPrice: unknown; codFee: unknown }[]
+  appointmentStatus: string | null
+  /** มีเฉพาะร้านบริการ (SERVICE_ORDER_SELECT) */
+  payments?: { amount: unknown; voidedAt: Date | null }[]
 }
 
 /** รวมยอดจากออเดอร์ที่นับเป็นยอดขายแล้ว — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
 function sumOrders(
   orders: PnlOrder[],
   returns: Map<string, ReturnAdjustment>,
+  isServiceShop: boolean,
 ): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number } {
   let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0
   for (const o of orders) {
+    // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ)
+    if (isServiceShop && isServiceNoShow(o)) {
+      revenue += serviceNoShowRevenue(o.payments ?? [])
+      continue
+    }
     const adj = returns.get(o.id)
     // คืนบางส่วนที่รับของแล้ว: หักยอดคืน + ต้นทุนชิ้นที่คืน (มติ 2026-10-01 · ตัวกลาง return-adjustment)
     revenue += netOfReturns(Number(o.totalAmount), adj)
@@ -121,9 +141,10 @@ export async function getPnlReport(
   const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows, returnAdj] =
     await Promise.all([
     prisma.order.findMany({
-      // ยอดขายนับ CONFIRMED + ใบที่ขนส่งรับของไปแล้วจริง (SSOT: lib/order-revenue.ts)
-      where: { shopId, ...revenueOrderWhere, createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt } },
-      select: ORDER_SELECT,
+      // ยอดขาย (SSOT: lib/order-revenue.ts) — ร้านบริการ: งานที่ปิดแล้ว ตัดช่วงด้วยวันปิดงาน (00073)
+      // ร้านอื่น: CONFIRMED + ใบที่ขนส่งรับของไปแล้วจริง ตัดช่วงด้วย createdAt (ของเดิม)
+      where: { shopId, ...revenueWindowWhere(vertical, range.orderRange) },
+      select: newRules ? SERVICE_ORDER_SELECT : ORDER_SELECT,
     }),
     prisma.expense.aggregate({
       where: { shopId, expenseDate: { gte: range.expenseRange.gte, lt: range.expenseRange.lt } },
@@ -131,11 +152,8 @@ export async function getPnlReport(
     }),
     // ช่วงก่อนหน้า — ใช้คำนวณ %เปลี่ยนแปลงเท่านั้น ไม่ได้ส่งตัวเลขดิบออกไป
     prisma.order.findMany({
-      where: {
-        shopId, ...revenueOrderWhere,
-        createdAt: { gte: range.prevRange.orderRange.gte, lt: range.prevRange.orderRange.lt },
-      },
-      select: ORDER_SELECT,
+      where: { shopId, ...revenueWindowWhere(vertical, range.prevRange.orderRange) },
+      select: newRules ? SERVICE_ORDER_SELECT : ORDER_SELECT,
     }),
     prisma.expense.aggregate({
       where: {
@@ -182,7 +200,7 @@ export async function getPnlReport(
     newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
 
-  const { revenue, cogs, hasMissingCost, shipping, shippingPending } = sumOrders(orders, returnAdj)
+  const { revenue, cogs, hasMissingCost, shipping, shippingPending } = sumOrders(orders, returnAdj, newRules)
   const grossProfit = round2(revenue - cogs)
 
   /**
@@ -215,7 +233,7 @@ export async function getPnlReport(
   const netProfit = round2(grossProfit - totalExpense)
 
   // ไม่มีทั้งออเดอร์และค่าใช้จ่ายในช่วงก่อนหน้า = ไม่มีฐานให้เทียบ (ไม่ใช่ "กำไร 0")
-  const prevSums = sumOrders(prevOrders, returnAdj)
+  const prevSums = sumOrders(prevOrders, returnAdj, newRules)
   // ช่วงก่อนหน้าต้องนับด้วยเกณฑ์เดียวกันเป๊ะ (รวมค่าส่งขาไป) ไม่งั้น %เทียบเทียบของคนละชนิด
   const prevExpense = round2(
     Number(prevExpenseAgg._sum.amount ?? 0) + (newRules ? prevSums.shipping : 0) + prevReturnCost.total,

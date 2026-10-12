@@ -34,7 +34,8 @@ const svc = vi.hoisted(() => ({
   voidPayment: vi.fn(),
   updateProduct: vi.fn(),
   deleteProduct: vi.fn(),
-  setAppointmentOutcome: vi.fn(),
+  closeServiceJob: vi.fn(),
+  reopenServiceJob: vi.fn(),
   setOrRescheduleAppointment: vi.fn(),
   shipOrder: vi.fn(),
   retryAutoOrderDraft: vi.fn(),
@@ -44,8 +45,10 @@ const svc = vi.hoisted(() => ({
 vi.mock('@/services/order-payment.service', async (orig) => ({ ...(await orig<object>()), recordPayment: svc.recordPayment, voidPayment: svc.voidPayment }))
 vi.mock('@/services/product.service', async (orig) => ({ ...(await orig<object>()), updateProduct: svc.updateProduct, deleteProduct: svc.deleteProduct, serializeProduct: (p: unknown) => p }))
 vi.mock('@/services/appointment.service', async (orig) => ({
-  ...(await orig<object>()), setAppointmentOutcome: svc.setAppointmentOutcome, setOrRescheduleAppointment: svc.setOrRescheduleAppointment,
+  ...(await orig<object>()), setOrRescheduleAppointment: svc.setOrRescheduleAppointment,
 }))
+// feature 00073 — ปุ่มผลนัดเดิม = ปิดงาน (closeServiceJob) · /close = ปิดงานเต็ม + เปิดงานอีกครั้ง
+vi.mock('@/services/service-job.service', () => ({ closeServiceJob: svc.closeServiceJob, reopenServiceJob: svc.reopenServiceJob }))
 vi.mock('@/services/order.service', async (orig) => ({ ...(await orig<object>()), shipOrder: svc.shipOrder }))
 vi.mock('@/services/auto-order-validate.service', async (orig) => ({ ...(await orig<object>()), retryAutoOrderDraft: svc.retryAutoOrderDraft }))
 vi.mock('@/services/booking.service', async (orig) => ({ ...(await orig<object>()), createBooking: svc.createBooking }))
@@ -56,6 +59,7 @@ import { POST as createOrderRoute } from '../route'
 import { PATCH as patchOrderRoute } from '../[token]/route'
 import { POST as paymentsPost } from '../[token]/payments/route'
 import { POST as outcomePost } from '../[token]/appointment/outcome/route'
+import { POST as closePost, DELETE as reopenDelete } from '../[token]/close/route'
 import { PATCH as reschedulePatch } from '../[token]/appointment/route'
 import { DELETE as voidDelete } from '../[token]/payments/[paymentId]/route'
 import { PATCH as productPatch, DELETE as productDelete } from '@/app/api/products/[id]/route'
@@ -104,7 +108,8 @@ beforeEach(() => {
   db.user.findUnique.mockResolvedValue(null)
   db.customer.findUnique.mockResolvedValue(null)
   svc.recordPayment.mockResolvedValue({ ok: true })
-  svc.setAppointmentOutcome.mockResolvedValue({ appointmentStatus: 'COMPLETED' })
+  svc.closeServiceJob.mockResolvedValue({ appointmentStatus: 'COMPLETED', serviceClosedAt: new Date(), money: {} })
+  svc.reopenServiceJob.mockResolvedValue({ serviceClosedAt: null })
 })
 
 describe('POST /api/orders — BILLING (มี O2s ไม่มี O2) สร้างได้เฉพาะบิลบริการ (C-6)', () => {
@@ -272,7 +277,46 @@ describe('สิทธิ์แยกราย action', () => {
     asRole(['TECHNICIAN'])
     const res = await outcomePost(json(`/api/orders/${TOKEN}/appointment/outcome`, 'POST', { outcome: 'COMPLETED' }), params)
     expect(res.status).toBe(200)
-    expect(svc.setAppointmentOutcome).toHaveBeenCalled()
+    expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'SERVED', deposit: 'KEEP' }))
+  })
+
+  // ── feature 00073 — ปิดงาน: O4 ด่านหลัก · เงินต้อง O5 · คืนมัดจำต้อง O6 · เปิดงานอีกครั้งต้อง O6 ──
+  it('[00073] TECHNICIAN ปิดงานไม่มีเงิน → 200 และไม่ได้ยอดเงินกลับไป', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED' }), params)
+    expect(res.status).toBe(200)
+    expect(await res.json()).not.toHaveProperty('money')
+  })
+  it('[00073] TECHNICIAN ปิดงานพร้อมรับเงิน (ไม่มี O5) → 403', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED', payment: { amount: 500 } }), params)
+    expect(res.status).toBe(403)
+    expect(svc.closeServiceJob).not.toHaveBeenCalled()
+  })
+  it('[00073] BILLING (O5 ไม่มี O4) ปิดงานไม่ได้ → 403', async () => {
+    asRole(['BILLING'])
+    const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED' }), params)
+    expect(res.status).toBe(403)
+  })
+  it('[00073] CHAT (O4+O5 ไม่มี O6) ปิดไม่มาตามนัดแบบคืนมัดจำ → 403 · เก็บมัดจำ → 200', async () => {
+    asRole(['CHAT'])
+    const refund = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'NO_SHOW', deposit: 'REFUND' }), params)
+    expect(refund.status).toBe(403)
+    const keep = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'NO_SHOW', deposit: 'KEEP' }), params)
+    expect(keep.status).toBe(200)
+  })
+  it('[00073] MANAGER ปิดงาน + รับเงิน → 200 · เปิดงานอีกครั้ง → 200', async () => {
+    asRole(['MANAGER'])
+    const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED', payment: { amount: 500, method: 'CASH' } }), params)
+    expect(res.status).toBe(200)
+    expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({ amount: 500, method: 'CASH' }) }))
+    expect((await reopenDelete(json(`/api/orders/${TOKEN}/close`, 'DELETE', {}), params)).status).toBe(200)
+  })
+  it('[00073] TECHNICIAN เปิดงานอีกครั้ง (ไม่มี O6) → 403', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await reopenDelete(json(`/api/orders/${TOKEN}/close`, 'DELETE', {}), params)
+    expect(res.status).toBe(403)
+    expect(svc.reopenServiceJob).not.toHaveBeenCalled()
   })
 
   it('TECHNICIAN เลื่อนนัด (O3) → 403', async () => {

@@ -11,7 +11,8 @@ const read = (p: string) => readFileSync(p, 'utf8')
 describe('cost opt-in ของหน้าที่คำนวณต้นทุน', () => {
   it('/sales: getOrdersByShop ต้อง withCost: true (COGS รายวัน)', () => {
     const s = read('src/app/(paces)/seller/(dashboard)/sales/page.tsx')
-    expect(s).toMatch(/getOrdersByShop\([^)]*\{\s*withCost:\s*true\s*\}\)/)
+    // withPayments เพิ่มได้ (00073 ร้านบริการ: งานไม่มาตามนัด = มัดจำที่เก็บ) — ที่ต้องคงไว้คือ withCost: true
+    expect(s).toMatch(/getOrdersByShop\([^)]*\{\s*withCost:\s*true\b/)
   })
   it('/orders/[token]: getOrderForShop ต้อง withCost ตามสิทธิ์ดูกำไร (computeOrderProfit)', () => {
     const s = read('src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx')

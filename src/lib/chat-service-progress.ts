@@ -22,7 +22,7 @@
 
 import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from "./appointment-stage";
 import { isTerminalAppointmentStatus, type AppointmentStatus } from "./appointments";
-import { ORDER_STATUS_META } from "./order-display";
+import { SERVICE_STATUS_META } from "./service-status";
 
 /**
  * กองของออเดอร์บริการ 1 ใบ
@@ -38,18 +38,26 @@ import { ORDER_STATUS_META } from "./order-display";
 export type ServiceProgressStageKey =
   | Exclude<AppointmentStatus, "COMPLETED" | "NO_SHOW">
   | "PENDING"
+  /** feature 00073 — ลูกค้ายืนยันรับบริการแล้ว แต่ร้านยังไม่ปิดงาน (ยอดยังไม่เข้า) */
+  | "AWAITING_CLOSE"
   | "DONE";
 
 export interface ServiceProgressOrderInput {
   status: string;
   serviceStart?: string | Date | null;
   appointmentStatus?: string | null;
+  /** feature 00073 — ร้านปิดงานแล้ว = จบจากมุมของร้าน (หายจากรายการงานค้าง) */
+  serviceClosedAt?: string | Date | null;
 }
 
 export function serviceProgressStage(
   o: ServiceProgressOrderInput,
 ): ServiceProgressStageKey {
   if (o.status === "CANCELLED") return "DONE";
+  // feature 00073 — ร้านปิดงานแล้ว = งานของร้านจบ (ไม่ว่าลูกค้าจะยืนยันหรือยัง)
+  if (o.serviceClosedAt) return "DONE";
+  // ลูกค้ายืนยันไปก่อนแต่ร้านยังไม่ปิด — ยังเป็นงานค้างของร้าน (ต้องปิดเพื่อให้ยอดเข้า)
+  if (o.status === "CONFIRMED") return "AWAITING_CLOSE";
   const stage = deriveAppointmentStage({
     serviceStart: o.serviceStart ?? null,
     appointmentStatus: o.appointmentStatus ?? null,
@@ -61,8 +69,7 @@ export function serviceProgressStage(
     // เขียนรายชื่อสถานะซ้ำ (รายชื่อต้องอยู่ที่ TERMINAL_APPOINTMENT_STATUSES ที่เดียว)
     return stage as Exclude<AppointmentStatus, "COMPLETED" | "NO_SHOW">;
   }
-  // ไม่มีนัดผูก (walk-in) — ตกกลับไปใช้สถานะออเดอร์ตามปกติ
-  if (o.status === "CONFIRMED") return "DONE";
+  // ไม่มีนัดผูก (walk-in) ที่ยังไม่ปิด
   return "PENDING";
 }
 
@@ -76,8 +83,8 @@ export function filterActiveServiceOrders<T extends ServiceProgressOrderInput>(
 /**
  * ป้าย/สี/ไอคอนของแต่ละกอง — ยกจาก SSOT ที่มีอยู่แล้วทั้งหมด ไม่ประกาศคำหรือสีใหม่แม้แต่ช่องเดียว
  *
- * PENDING ใช้ ORDER_STATUS_META.PENDING (ของ Order.status) เพราะใบ walk-in ไม่มีสถานะนัด
- * ให้อ้าง — เป็นการ reuse SSOT อีกตัว ไม่ใช่การตั้งคำใหม่
+ * PENDING/AWAITING_CLOSE ใช้ป้ายชุดเดียวของงานบริการ (service-status.ts · feature 00073) — ใบ walk-in
+ * ไม่มีสถานะนัดให้อ้าง · reuse SSOT ไม่ใช่ตั้งคำใหม่
  */
 export const SERVICE_STAGE_CHIP_META: Record<
   Exclude<ServiceProgressStageKey, "DONE">,
@@ -86,9 +93,15 @@ export const SERVICE_STAGE_CHIP_META: Record<
   SCHEDULED: APPOINTMENT_STAGE_META.SCHEDULED,
   CONFIRMED_BY_BUYER: APPOINTMENT_STAGE_META.CONFIRMED_BY_BUYER,
   RESCHEDULE_REQUESTED: APPOINTMENT_STAGE_META.RESCHEDULE_REQUESTED,
+  // feature 00073 — walk-in ใช้คำของงานบริการ "รับงานแล้ว" (เดิม "รอดำเนินการ" ของ Order.status = คำกลาง)
   PENDING: {
-    label: ORDER_STATUS_META.PENDING.label,
-    cls: ORDER_STATUS_META.PENDING.cls,
-    icon: ORDER_STATUS_META.PENDING.icon,
+    label: SERVICE_STATUS_META.WALK_IN.seller,
+    cls: SERVICE_STATUS_META.WALK_IN.cls,
+    icon: SERVICE_STATUS_META.WALK_IN.icon,
+  },
+  AWAITING_CLOSE: {
+    label: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.seller,
+    cls: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.cls,
+    icon: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.icon,
   },
 };

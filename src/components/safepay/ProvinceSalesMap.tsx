@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import EChart from '@/components/wrappers/EChart'
 import Icon from '@/components/wrappers/Icon'
-import { getColor } from '@/utils/helpers'
+import { colorVar, getColor } from '@/utils/helpers'
 import { type EChartsOption, registerMap } from 'echarts'
 import { MapChart } from 'echarts/charts'
 import { GeoComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
@@ -183,10 +183,10 @@ const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount, r
                       className="inline-block size-2.5 shrink-0 rounded-full"
                       style={{
                         // ความเข้มตามสัดส่วนของจังหวัดอันดับหนึ่ง — จุดสีจึงเล่าเรื่องเดียวกับแผนที่
-                        backgroundColor: getColor(
-                          'chart-primary',
-                          maxRevenue > 0 ? Math.max(0.2, r.revenue / maxRevenue) : 1,
-                        ),
+                        // colorVar + opacity แทน getColor แบบมี alpha — getColor ให้ค่าคนละตัวบนเซิร์ฟเวอร์ ⇒ hydration mismatch
+                        // (จุดไม่มีลูก opacity ทั้งก้อน = rgba alpha เดียวกัน)
+                        backgroundColor: colorVar('chart-primary'),
+                        opacity: maxRevenue > 0 ? Math.max(0.2, r.revenue / maxRevenue) : 1,
                       }}
                       aria-hidden="true"
                     />

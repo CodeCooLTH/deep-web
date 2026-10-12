@@ -28,18 +28,12 @@ import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/component
 import { generateInitials } from '@/utils/helpers'
 import { normalizePhone } from '@/lib/phone'
 import { formatBaht } from '@/lib/format-money'
-import { pacesConfirm } from '@/lib/paces-swal'
-import { pacesToast } from '@/lib/paces-toast'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { formatDateTH, formatDateTimeTH } from '@/lib/format-date'
-import { isAllDayAppointment, APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
+import { APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
 import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import { appointmentCardAction, isClosedAppointment } from '@/lib/appointment-day-view'
-import {
-  appointmentOutcomeErrorMessage,
-  appointmentOutcomeSuccessMessage,
-  type AppointmentOutcome,
-} from '@/lib/appointment-outcome'
+import type { ServiceCloseOutcome } from '@/lib/service-job'
+import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
 import { getChannelLabel } from '@/lib/chat-channel'
 // คำ + ไอคอนของ "ช่องทางการขาย" — SSOT เดียวกับที่คอลัมน์ "ที่มา" ของ /orders ใช้ (HR16)
 import {
@@ -182,13 +176,10 @@ function CardActionSheet({
 }
 
 export default function AppointmentDayCard({ item, showResourceName = false, now, onChanged }: Props) {
-  const [busy, setBusy] = useState<AppointmentOutcome | null>(null)
+  const [closeSheet, setCloseSheet] = useState<ServiceCloseOutcome | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const { showMoney, canChat, canReschedule } = useAppointmentBoardCaps()
+  const { showMoney, canChat, canReschedule, canRefundDeposit } = useAppointmentBoardCaps()
 
-  const start = new Date(item.start)
-  const end = new Date(item.end)
-  const allDay = isAllDayAppointment(start, end)
   const status = (item.appointmentStatus ?? 'SCHEDULED') as AppointmentStatus
   const meta = APPOINTMENT_STAGE_META[status] ?? APPOINTMENT_STAGE_META.SCHEDULED
   const statusLabel = APPOINTMENT_STATUS_LABEL[status] ?? APPOINTMENT_STATUS_LABEL.SCHEDULED
@@ -232,47 +223,12 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
       : // คำเดียวกับที่ /orders ใช้กับฟิลด์เดียวกัน (OrderSourceLogo) — ไม่ตั้งคำที่สอง
         'ไม่ระบุช่องทาง'
 
-  const submit = async (outcome: AppointmentOutcome) => {
-    const whenText = allDay ? formatDateTH(item.start) : formatDateTimeTH(item.start)
-    const prefix = item.buyerName ? `${item.buyerName} ` : ''
-    /* confirmSemantic ต้องตรงกับสีของปุ่มที่กดมา และคำต้องเหมือนหน้ารายละเอียดออเดอร์เป๊ะ
-       (การกระทำเดียวกันสองจอ — ผู้ขายต้องอ่านแล้วรู้ว่าเป็นเรื่องเดียวกัน) */
-    const ok =
-      outcome === 'COMPLETED'
-        ? await pacesConfirm({
-            confirmSemantic: 'success',
-            icon: 'warning',
-            title: 'ทำเครื่องหมายว่าให้บริการแล้ว?',
-            text: `ให้บริการ ${prefix}ตามนัด ${whenText} แล้ว · ย้อนกลับไม่ได้`,
-            confirmButtonText: 'ให้บริการแล้ว',
-            cancelButtonText: 'ยังไม่ใช่ตอนนี้',
-          })
-        : await pacesConfirm.danger(
-            'บันทึกว่าลูกค้าไม่มาตามนัด?',
-            `${prefix}ไม่มาตามนัด ${whenText} · ย้อนกลับไม่ได้`,
-            { confirmButtonText: 'ไม่มาตามนัด', cancelButtonText: 'ยังไม่ใช่ตอนนี้' },
-          )
-    if (!ok) return
-
-    setBusy(outcome)
-    try {
-      const res = await fetch(`/api/orders/${item.orderToken}/appointment/outcome`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome }),
-      })
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(appointmentOutcomeErrorMessage(data.error, whenText))
-      }
-      pacesToast.success(appointmentOutcomeSuccessMessage(outcome))
-      onChanged()
-    } catch (err: unknown) {
-      pacesToast.error(err instanceof Error ? err.message : 'บันทึกผลนัดไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setBusy(null)
-    }
-  }
+  /**
+   * feature 00073 — "ให้บริการแล้ว / ไม่มาตามนัด" = เปิดชีต "ปิดงาน" ตัวเดียวกับหน้างาน (ผล + เงิน + วันปิดงาน)
+   * เดิมยิง /appointment/outcome ตรงจากกล่องยืนยัน ซึ่งไม่มีช่องรับเงินที่เหลือ/เลือกเก็บหรือคืนมัดจำ
+   * ชีตโหลดยอดรับแล้ว/ค้างเอง (รายการคิวไม่ได้ถือยอดเหล่านั้น) · ผู้ไม่มี O5 ไม่มีส่วนรับเงิน
+   */
+  const openClose = (outcome: ServiceCloseOutcome) => setCloseSheet(outcome)
 
   return (
     /* ปิดผลแล้ว = พื้นจางลงเล็กน้อย — ห้ามใช้ opacity ทั้งใบ ป้ายสถานะจะตกคอนทราสต์ */
@@ -426,16 +382,11 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           ) : (
             <button
               type="button"
-              disabled={busy !== null}
-              onClick={() => submit('COMPLETED')}
+              onClick={() => openClose('SERVED')}
               className="btn border-success text-success-ink hover:bg-success/10 min-h-11 flex-1 gap-1.5 border"
             >
-              <Icon
-                icon={busy === 'COMPLETED' ? 'loader-2' : 'circle-check-filled'}
-                className={`size-4 ${busy === 'COMPLETED' ? 'animate-spin motion-reduce:animate-none' : ''}`}
-                aria-hidden="true"
-              />
-              ให้บริการแล้ว
+              <Icon icon="clipboard-check" className="size-4" aria-hidden="true" />
+              ปิดงาน
             </button>
           )}
           <button
@@ -457,10 +408,21 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           onClose={() => setMenuOpen(false)}
           onNoShow={() => {
             setMenuOpen(false)
-            void submit('NO_SHOW')
+            openClose('NO_SHOW')
           }}
         />
       ) : null}
+
+      <ServiceCloseSheet
+        open={closeSheet !== null}
+        onClose={() => setCloseSheet(null)}
+        orderToken={item.orderToken}
+        orderLabel={item.orderNo ?? who}
+        hasAppointment
+        canRefundDeposit={canRefundDeposit}
+        initialOutcome={closeSheet ?? 'SERVED'}
+        onClosed={onChanged}
+      />
     </div>
   )
 }

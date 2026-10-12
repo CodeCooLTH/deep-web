@@ -6,38 +6,27 @@
  * Base: โครงการ์ด + แถวข้อมูลไอคอนวงกลม ยกจาก CustomerDetails.tsx ในโฟลเดอร์เดียวกัน
  * (`.card` > `.card-body` > `ul.space-y-2.5` > `span.btn.btn-icon.bg-light...size-6!.rounded-full`)
  *
- * ทำไมการ์ดนี้ถึงสำคัญกว่าที่หน้าตาบอก: service `setAppointmentOutcome` และ route
- * `POST /api/orders/[token]/appointment/outcome` มีมาตั้งแต่ feature 00024 และทำงานได้จริง
- * แต่ไม่มีผู้เรียกฝั่ง UI เลยสักราย (ปฏิทินคิวงานยิงแค่ GET) — แปลว่าสถานะ COMPLETED/NO_SHOW
- * เกิดขึ้นจริงในฐานไม่ได้เลยตั้งแต่วันแรก นัดทุกใบค้างที่ SCHEDULED/CONFIRMED_BY_BUYER ตลอดกาล
- * ปุ่มสองปุ่มในไฟล์นี้คือสิ่งเดียวที่ปิดวงจรนั้น
+ * feature 00073 — ปุ่ม "ให้บริการแล้ว / ไม่มาตามนัด" ย้ายไปการ์ด "งานนี้" (ServiceJobCard) เป็น "ปิดงาน"
+ * กดครั้งเดียว (ผล + เงิน + วันปิดงาน) ซึ่งแสดงกับงาน walk-in ด้วย — การ์ดนี้เหลือข้อมูลนัด + เลื่อนนัด + ส่งสรุป
  *
  * fetch/toast/refresh เองแบบเดียวกับ ShippingAddress.tsx / ShippingCard.tsx — ไม่ผ่าน
  * OrderDetailClient.handleAction เพราะการ์ดกลุ่มนี้ทุกใบจัดการ action ของตัวเองอยู่แล้ว
  */
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 // import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน CustomerPanel.tsx — ชีตเดียวใช้ร่วม 3 จุดเรียก
 // (คนละ route group แต่เป็นของชิ้นเดียวกัน; ก็อปไปไว้ทั้งสองที่ = คำบนการ์ดจะเพี้ยนจากกัน)
 import AppointmentSummarySheet from '@/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet'
 import Icon from '@/components/wrappers/Icon'
-import { pacesConfirm } from '@/lib/paces-swal'
-import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
 import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
 import {
   formatDateTH,
-  formatDateTimeTH,
   formatDayMonthTimeRangeTH,
   formatDayMonthTimeTH,
 } from '@/lib/format-date'
 import RescheduleAppointmentSheet from './RescheduleAppointmentSheet'
 import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
-import {
-  appointmentOutcomeErrorMessage,
-  appointmentOutcomeSuccessMessage,
-} from '@/lib/appointment-outcome'
 import { isTerminalAppointmentStatus, type AppointmentStatus } from '@/lib/appointments'
 
 type Props = {
@@ -59,11 +48,6 @@ type Props = {
   /** เหตุผลที่ลูกค้าขอเลื่อน (Order.rescheduleRequestNote) — null = ขอเลื่อนโดยไม่ระบุเหตุผล */
   rescheduleRequestNote: string | null
   /**
-   * ชื่อลูกค้าสำหรับข้อความยืนยัน — กดผิดใบแล้วย้อนไม่ได้ ต้องระบุให้ชัดว่ากำลังปิดผลของใคร
-   * null = ใบที่ไม่รู้ชื่อ (ผู้ซื้อ guest ที่ร้านไม่ได้กรอกชื่อ) → ตัดวลีชื่อออกจากประโยคทั้งก้อน
-   */
-  buyerLabel: string | null
-  /**
    * เวลาที่เปิดบิล — ใช้ derive "วิธีเข้ารับบริการ" (หัวหน้าถาม 2026-08-15)
    *
    * 🛑 ต้องรับ `createdAt` เข้ามา ไม่ใช่คำนวณจาก `startISO` อย่างเดียว — ตัวที่แยก
@@ -72,11 +56,10 @@ type Props = {
    */
   createdAtISO: string
   /**
-   * 00071 P3 — เลื่อนนัด = O3 · ปิดผล (ให้บริการแล้ว/ไม่มา) = O4 (ช่างทำได้แต่เลื่อนนัดไม่ได้ · เปิดบิลทำได้ตรงข้าม)
-   * ซ่อนปุ่มที่บทบาทไม่มีสิทธิ์ (ตัวบังคับจริงอยู่ที่ route) · ค่าตั้งต้น true = พฤติกรรมเดิมของผู้เรียกเก่า
+   * 00071 P3 — เลื่อนนัด = O3 · ซ่อนปุ่มที่บทบาทไม่มีสิทธิ์ (ตัวบังคับจริงอยู่ที่ route)
+   * (ปิดผล/ปิดงาน O4 ย้ายไป ServiceJobCard แล้ว — feature 00073)
    */
   canReschedule?: boolean
-  canOutcome?: boolean
   /**
    * ส่งสรุปนัดเข้าแชท = H1 (ต้องมีห้องแชทให้ส่ง · และสรุปนัดมียอด/มัดจำ จึงไม่ให้ผู้ไม่เห็นเงินเปิดชีตนี้)
    * ค่าตั้งต้น false — ผู้เรียกต้องส่ง `can(roles,'H1')` เอง (00071 P3 · S-15)
@@ -94,14 +77,10 @@ export default function AppointmentCard({
   stage,
   rescheduleCount,
   rescheduleRequestNote,
-  buyerLabel,
   createdAtISO,
   canReschedule = true,
-  canOutcome = true,
   canSendSummary = false,
 }: Props) {
-  const router = useRouter()
-  const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
   /** ชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — ชีตขอข้อมูลเองจาก token ไม่รับ prop
    *  (สรุปนัดมีเบอร์ลูกค้า ส่งเป็น prop = โยน PII ลง flight payload ทุกครั้งที่เปิดหน้า) */
@@ -111,86 +90,6 @@ export default function AppointmentCard({
   const terminal = isTerminalAppointmentStatus(stage)
   /** ลูกค้าขอเลื่อนแล้วรออยู่ — การ์ดต้องชี้ทางแก้ ไม่ใช่แค่ติดป้ายบอกว่ามีปัญหา */
   const awaitingReschedule = stage === 'RESCHEDULE_REQUESTED'
-
-  /**
-   * ยังไม่ถึงเวลานัด = ปิดผลไม่ได้ (BR-RSV-34) — server บังคับด้วย 409 อยู่แล้ว ที่นี่สะท้อน
-   * ล่วงหน้าเพื่อไม่ให้ผู้ใช้ต้องกดเพื่อค้นพบว่าทำไม่ได้ (BR-SOV-05)
-   *
-   * [สำคัญ] ต้องปลดล็อกเองเมื่อถึงเวลา ห้ามคำนวณครั้งเดียวตอน render — พฤติกรรมปกติที่สุดของ
-   * งานนี้คือผู้ขาย "เปิดใบค้างไว้รอลูกค้ามาถึง" ถ้าปุ่มไม่ปลดเอง พอถึงเวลานัดจริงเขาจะเจอปุ่มเทา
-   * ที่กดไม่ได้โดยไม่มี error ไม่มีคำอธิบาย ซึ่งอ่านเป็น "ระบบพัง" ไม่ใช่ "ต้องรีเฟรช"
-   * ตั้ง timer นัดเดียวไปที่ขอบเวลาพอดี (ไม่ tick ทุกวินาที) และ clamp เพดานเพราะ setTimeout
-   * ที่เกิน ~24.8 วัน (int32 ms) จะ overflow แล้วยิงทันที — นัดล่วงหน้าเกินนั้นค่อยว่ากันตอนเปิดใหม่
-   */
-  const [notStarted, setNotStarted] = useState(() => new Date(startISO).getTime() > Date.now())
-  useEffect(() => {
-    const msLeft = new Date(startISO).getTime() - Date.now()
-    if (msLeft <= 0) {
-      setNotStarted(false)
-      return
-    }
-    setNotStarted(true)
-    const MAX_TIMEOUT_MS = 24 * 60 * 60 * 1000
-    if (msLeft > MAX_TIMEOUT_MS) return
-    const t = setTimeout(() => setNotStarted(false), msLeft)
-    return () => clearTimeout(t)
-  }, [startISO])
-
-  const submit = async (outcome: 'COMPLETED' | 'NO_SHOW') => {
-    const whenText = allDay ? formatDateTH(startISO) : formatDateTimeTH(startISO)
-    /**
-     * ชื่อลูกค้าเป็นตัวเลือก ไม่ใช่การเติมคำว่า "ลูกค้า" ลงไปแทน — ประโยค "ให้บริการ ลูกค้า
-     * ตามนัด …" อ่านสะดุดกว่าไม่มีชื่อเลย ใบที่ไม่รู้ชื่อจึงตัดวลีนั้นทิ้งทั้งก้อน
-     */
-    const who = buyerLabel ? `${buyerLabel} ` : ''
-    /**
-     * confirmSemantic ต้องตรงกับสีของปุ่มที่กดมา — ผู้ใช้อ่านสีก่อนอ่านคำ ถ้ากดปุ่มเขียวแล้ว
-     * เจอปุ่มยืนยันน้ำเงินพร้อมไอคอน "?" กล่องจะอ่านเป็น "ถามเฉย ๆ ไม่ซีเรียส" ซึ่งขัดกับคำว่า
-     * "ย้อนกลับไม่ได้" ที่เขียนอยู่บรรทัดล่างพอดี · ทั้งสองทางใช้ icon 'warning' เท่ากันเพราะ
-     * ทั้งคู่เป็น terminal เหมือนกัน ต่างกันแค่ผลลัพธ์ ไม่ใช่ต่างกันที่ความหนัก
-     */
-    const ok =
-      outcome === 'COMPLETED'
-        ? await pacesConfirm({
-            confirmSemantic: 'success',
-            icon: 'warning',
-            title: 'ทำเครื่องหมายว่าให้บริการแล้ว?',
-            text: `ให้บริการ ${who}ตามนัด ${whenText} แล้ว · ย้อนกลับไม่ได้`,
-            confirmButtonText: 'ให้บริการแล้ว',
-            cancelButtonText: 'ยังไม่ใช่ตอนนี้',
-          })
-        : await pacesConfirm.danger(
-            'บันทึกว่าลูกค้าไม่มาตามนัด?',
-            `${who}ไม่มาตามนัด ${whenText} · ย้อนกลับไม่ได้`,
-            { confirmButtonText: 'ไม่มาตามนัด', cancelButtonText: 'ยังไม่ใช่ตอนนี้' },
-          )
-    if (!ok) return
-
-    setLoading(outcome)
-    try {
-      const res = await fetch(`/api/orders/${publicToken}/appointment/outcome`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome }),
-      })
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
-        // แปล error code เป็นไทยที่บอกทางออก ห้ามโยนรหัสดิบขึ้นจอ (BR-SOV-05)
-        // อีก 2 เคสที่ server โยนได้คือ 403 (ร้านไม่เข้าเงื่อนไข) และ 404 (ใบนี้ไม่มีนัด)
-        // ซึ่งไม่มีทางเกิดจากหน้านี้ เพราะการ์ดจะไม่ถูก render เลย — ตกไปที่ข้อความกลาง
-        //
-        // 🛑 คำพูดย้ายไป src/lib/appointment-outcome.ts ตั้งแต่ 2026-08-11 เพราะการ์ดคิวงานรายวัน
-        // ปิดผลได้จากลิสต์ด้วยแล้ว = การกระทำเดียวกันมี 2 จอ (HR16 — ห้ามพิมพ์ข้อความซ้ำที่นั่น)
-        throw new Error(appointmentOutcomeErrorMessage(data.error, whenText))
-      }
-      pacesToast.success(appointmentOutcomeSuccessMessage(outcome))
-      router.refresh()
-    } catch (err: unknown) {
-      pacesToast.error(err instanceof Error ? err.message : 'บันทึกผลนัดไม่สำเร็จ กรุณาลองใหม่')
-    } finally {
-      setLoading(null)
-    }
-  }
 
   const arrival = resolveArrivalMode({ serviceStart: startISO, createdAt: createdAtISO })
 
@@ -268,9 +167,6 @@ export default function AppointmentCard({
           )}
         </ul>
 
-        {/* ปุ่มปิดผล — หายทั้งคู่เมื่อนัดจบแล้ว (terminal) เหลือแค่ป้ายสถานะบนหัวการ์ด
-            สองปุ่มน้ำหนักเท่ากันโดยตั้งใจ: ผลลัพธ์ทั้งสองทางเกิดจริงพอ ๆ กันในธุรกิจ
-            การชู "ให้บริการแล้ว" เป็น primary จะอ่านเป็นระบบชี้นำว่าอยากได้คำตอบไหน */}
         {/* ข้อความที่ลูกค้าฝากไว้ตอนขอเลื่อน — เป็นข้อมูลที่ตัดทิ้งไม่ได้ จึง wrap ไม่ truncate */}
         {awaitingReschedule && (
           <div className="bg-info/10 border-info/30 mt-4 rounded-lg border p-3">
@@ -297,7 +193,7 @@ export default function AppointmentCard({
         )}
 
         {/* ไม่มีปุ่มสักอัน = ไม่ต้องมีเส้นประโดดเดี่ยว */}
-        {!terminal && (canSendSummary || canReschedule || canOutcome) && (
+        {!terminal && (canSendSummary || canReschedule) && (
           <div className="border-default-200 mt-4 border-t border-dashed pt-4">
             {/* เลื่อนนัดอยู่บนสุดเพราะก่อนถึงเวลานัด ปุ่มปิดผลถูกปิดอยู่ — ตัวนี้เป็น action
                 เดียวที่กดได้จริง · น้ำหนัก tonal ไม่ใช่ outline semantic เพราะเบากว่าการปิดผล
@@ -337,47 +233,6 @@ export default function AppointmentCard({
                 <Icon icon="calendar-repeat" className="text-sm" aria-hidden="true" />
                 {awaitingReschedule ? 'เลือกเวลาใหม่ให้ลูกค้า' : 'เลื่อนนัด'}
               </button>
-            )}
-            {/* gap-3 + min-h-11 (44px) ไม่ใช่ค่าตั้งต้นของ .btn (36px, gap-2): ปุ่มสองตัวนี้
-                ย้อนกลับไม่ได้ทั้งคู่และให้ผลตรงข้ามกัน — กดพลาดปุ่มข้าง ๆ คือกดผลที่ตรงข้าม
-                โดยไม่มีทางแก้ ผู้ใช้กลุ่มเป้าหมายถือมือถือมือเดียวกลางร้าน (design.json
-                ประกาศเกณฑ์ tap target ≥44px ไว้เอง) */}
-            {canOutcome && (
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  disabled={notStarted || loading !== null}
-                  onClick={() => submit('COMPLETED')}
-                  className="btn border-success text-success-ink hover:bg-success/10 min-h-11 w-full sm:flex-1"
-                >
-                  <Icon
-                    icon={loading === 'COMPLETED' ? 'mdi:loading' : 'circle-check-filled'}
-                    className={cn('text-sm', loading === 'COMPLETED' && 'animate-spin')}
-                    aria-hidden="true"
-                  />
-                  ให้บริการแล้ว
-                </button>
-                <button
-                  type="button"
-                  disabled={notStarted || loading !== null}
-                  onClick={() => submit('NO_SHOW')}
-                  className="btn border-danger text-danger-ink hover:bg-danger/10 min-h-11 w-full sm:flex-1"
-                >
-                  <Icon
-                    icon={loading === 'NO_SHOW' ? 'mdi:loading' : 'clock-off'}
-                    className={cn('text-sm', loading === 'NO_SHOW' && 'animate-spin')}
-                    aria-hidden="true"
-                  />
-                  ไม่มาตามนัด
-                </button>
-              </div>
-            )}
-            {/* ข้อความนี้เป็นข้อมูลที่จำเป็นที่สุดในสถานะนี้ (อธิบายว่าทำไมปุ่มกดไม่ได้) จึงใช้
-                น้ำหนักเดียวกับข้อความปกติ ไม่ใช่ default-500 แบบหมายเหตุประกอบ */}
-            {canOutcome && notStarted && (
-              <p className="text-default-700 mb-0 mt-2 text-xs">
-                ปิดผลได้ตั้งแต่ {allDay ? formatDateTH(startISO) : formatDateTimeTH(startISO)}
-              </p>
             )}
           </div>
         )}

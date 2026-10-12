@@ -65,7 +65,7 @@ const OrdersStatCard = ({ item }: { item: OrderStatCardData }) => {
         </div>
         <div className="my-5 flex items-center gap-2.5">
           <div className={cn('flex size-9 items-center justify-center rounded-full', visual.iconClass)}>
-            <Icon icon={visual.icon} className="size-5.5 text-2xl" />
+            <Icon icon={item.icon ?? visual.icon} className="size-5.5 text-2xl" />
           </div>
           {/* tabular-nums: ตัวเลขไม่ขยับตำแหน่งตอน CountUp ไล่เลข และการ์ด 4 ใบเรียงตรงกัน */}
           <h3 className="text-xl tabular-nums">

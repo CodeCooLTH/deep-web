@@ -173,9 +173,10 @@ describe('ทั้งหน้าของร้านบริการต้�
      */
     const code = stripComments(read(SHEET))
     expect(code, 'hero ต้องเป็น receivedTotal เมื่อเป็นร้านบริการ').toMatch(
-      /heroValue = isService \? receivedTotal/,
+      // 00073 เฟส B — ค่าตั้งต้น (เปิดรับเงิน/ค้างรับ) ยังเป็นเงินที่รับจริง · ปิดในตั้งค่าแล้วเป็นยอดขาย (ไม่ใช่กำไร)
+      /heroValue = isService \? \(rs\.receivables \? receivedTotal : series\.total\)/,
     )
-    expect(code, 'ป้ายต้องเป็น "เงินที่รับจริง"').toMatch(/heroLabel = isService \? 'เงินที่รับจริง'/)
+    expect(code, 'ป้ายต้องเป็น "เงินที่รับจริง"').toMatch(/heroLabel = isService \? \(rs\.receivables \? 'เงินที่รับจริง' : 'ยอดขาย'\)/)
     /**
      * ชื่อหน้าของร้านบริการต้องไม่พูดถึง "กำไร"
      *
@@ -231,8 +232,9 @@ describe('ทั้งหน้าของร้านบริการต้�
     expect(code, 'ไม่มาตามนัดต้องมีเงื่อนไข > 0').toMatch(/jobs\.noShow > 0/)
 
     const svc = stripComments(read(SERVICE))
-    expect(svc, 'groupBy ของสถานะงานต้อง **ไม่** ตัด CANCELLED ทิ้ง').toMatch(
-      /by: \['status', 'appointmentStatus'\],\s*where: \{ shopId, createdAt: \{ gte, lt \} \}/,
+    // 00073: groupBy → findMany 3 คอลัมน์ (ต้องรู้ serviceClosedAt) — ตัดแค่ร่าง ห้ามตัด CANCELLED
+    expect(svc, 'ตัวนับสถานะงานต้อง **ไม่** ตัด CANCELLED ทิ้ง').toMatch(
+      /where: \{ shopId, \.\.\.withoutDrafted\(\), createdAt: \{ gte, lt \} \},\s*select: \{ status: true, appointmentStatus: true, serviceClosedAt: true \}/,
     )
   })
 
@@ -240,13 +242,14 @@ describe('ทั้งหน้าของร้านบริการต้�
     /* ลำดับ if/else คือสิ่งที่ทำให้ไม่ทับกัน — ยกเลิกต้องชนะก่อนเสมอ ไม่งั้นใบที่
        `CANCELLED` + `COMPLETED` (มีจริงบนฐาน) จะถูกนับสองรอบแล้วผลรวมเกิน total */
     const svc = stripComments(read(SERVICE))
-    const at = svc.indexOf('acc.total += n')
+    const at = svc.indexOf('acc.total += 1')
     expect(at, 'ต้องมีตัวรวมสถานะงาน').toBeGreaterThan(-1)
     const body = svc.slice(at, at + 400)
-    const order = ["status === 'CANCELLED'", "'COMPLETED'", "'NO_SHOW'", 'acc.upcoming']
+    /* 00073: ไม่มาตามนัด "ปิดงานแล้ว" ด้วย (มี serviceClosedAt) ⇒ ต้องเช็คก่อนกองเสร็จ ไม่งั้นถูกนับเป็นเสร็จ */
+    const order = ["status === 'CANCELLED'", "'NO_SHOW'", 'serviceClosedAt != null', 'acc.upcoming']
       .map((t) => body.indexOf(t))
     expect(order.every((x) => x > -1), 'ต้องมีครบทั้ง 4 สาขา').toBe(true)
-    expect([...order].sort((a, b) => a - b), 'ยกเลิกต้องถูกเช็คก่อน แล้วค่อยเสร็จ/ไม่มา/ที่เหลือ').toEqual(
+    expect([...order].sort((a, b) => a - b), 'ยกเลิกต้องถูกเช็คก่อน แล้วค่อยไม่มา/เสร็จ/ที่เหลือ').toEqual(
       order,
     )
   })
@@ -308,7 +311,8 @@ describe('ตารางรายวันห้ามยืนยันสิ�
 
     const at = code.search(/รับจริง&rdquo; \+ &ldquo;ค้างรับ/)
     const before = code.slice(Math.max(0, at - 700), at)
-    expect(before, 'หมายเหตุต้องอยู่ใต้เงื่อนไข isService').toContain('{isService && (')
+    // 00073 เฟส B — ยังอยู่ใต้ isService (+ ตามสวิตช์รับเงิน/ค้างรับ ที่ค่าตั้งต้นเปิด)
+    expect(before, 'หมายเหตุต้องอยู่ใต้เงื่อนไข isService').toContain('{isService && rs.receivables && (')
 
     /* ประโยคที่สองต้องขึ้นเฉพาะเมื่อมีใบแบบนั้นจริง — ขึ้นตลอดเวลาจะกลายเป็นข้อความประจำ
        ที่ไม่มีใครอ่าน แล้ววันที่มันสำคัญจริงก็จะถูกมองข้ามไปด้วย */

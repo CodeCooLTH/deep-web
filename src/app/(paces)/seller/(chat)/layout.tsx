@@ -164,7 +164,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole, scope.activeRoles), 'P3') : false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
-    let shopRow: { vertical: string; appointmentGranularity: string } | null = null
+    let shopRow: { vertical: string; appointmentGranularity: string; reportSettings: unknown } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
       getProductsByShop(shopId, undefined, { withCost: canSeeCost })
         .then(ps => ps.map(p => toCatalog(p, canSeeCost)))
@@ -182,7 +182,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         })
         .catch(() => false),
       prisma.shop
-        .findUnique({ where: { id: shopId }, select: { vertical: true, appointmentGranularity: true } })
+        .findUnique({ where: { id: shopId }, select: { vertical: true, appointmentGranularity: true, reportSettings: true } })
         .catch(() => null),
       // badge เมนู "ข้อความ" — fail-closed เป็น 0 (ไม่มี badge) เหมือน (dashboard)/layout.tsx
       getUnreadCountForShop(shopId).catch(() => 0),
@@ -202,6 +202,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       vertical: shopVertical,
       unreadChatCount,
       hidePayments,
+      reportSettings: shopRow?.reportSettings ?? null,
       hidePaidFeatures: await shouldHidePaidFeatures(),
     offerIap: await shouldOfferIap(),
     })

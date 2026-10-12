@@ -28,6 +28,7 @@ import PnlReportCard from './PnlReportCard'
 import ExpenseBreakdownCard from './ExpenseBreakdownCard'
 import ExpenseList from './ExpenseList'
 import ExpenseFormModal from './ExpenseFormModal'
+import type { ReportSettings } from '@/lib/report-settings'
 
 const RANGE_LABEL: Record<DateRangePreset, string> = {
   today: 'วันนี้',
@@ -66,6 +67,10 @@ type Props = {
    * กติกาการเงินชุดใหม่ (00067): การ์ด "ไม่เกิน" + แถวค่าส่งในรายการค่าใช้จ่าย — ร้านบริการเท่านั้น
    * หน้า /expenses (ร้านที่ไม่ใช่บริการ) ไม่ส่ง = ของเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
    */
+  /** feature 00073 — ป้าย/ฐานยอดขายจาก ORDER_VOCAB (ส่งต่อให้ PnlReportCard) · ไม่ส่ง = คำเดิม */
+  /** feature 00073 เฟส B — ตั้งค่ารายงาน (ส่งต่อให้ PnlReportCard) · ไม่ส่ง = เหมือนเดิม */
+  settings?: ReportSettings
+  revenue?: { label: string; basis: string; countMetric: string }
   serviceRules?: boolean
 }
 
@@ -79,6 +84,8 @@ export default function ExpenseWorkspace({
   costNoun = 'ต้นทุนสินค้า',
   itemNoun = 'สินค้า',
   serviceRules = false,
+  revenue,
+  settings,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -229,6 +236,8 @@ export default function ExpenseWorkspace({
         /* ข้อมูลไม่ครบ (ต้นทุนหาย/ยังไม่มีค่าใช้จ่าย) = เพดานบน — นิยามเดียวกับแท็บกำไรขาดทุน
            (resolveDataCompleteness) เดิมไม่ส่ง capped การ์ดนี้จึงเขียวพร้อม % ขณะที่การ์ดข้าง ๆ เตือน (review 2026-10-01) */
         serviceRules={serviceRules}
+        revenue={revenue}
+        settings={settings}
         capped={serviceRules && !resolveDataCompleteness({
           hasMissingCost: report.hasMissingCost,
           expenseCount: expenses.length,

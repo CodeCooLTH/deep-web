@@ -57,6 +57,7 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
       status: true,
       cancelInitiator: true,
       cancelReason: true,
+      appointmentStatus: true,
       shipments: {
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: 'desc' },
@@ -76,6 +77,7 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
       cancelInitiator: r.cancelInitiator ?? null,
       cancelReason: r.cancelReason ?? null,
       activeShipmentCarrierStatus: r.shipments[0]?.carrierStatus ?? null,
+      appointmentStatus: r.appointmentStatus ?? null,
     })
     evidenceByKey.set(k, list)
   }

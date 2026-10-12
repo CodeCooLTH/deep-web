@@ -52,9 +52,25 @@ type Props = {
    * undefined = ไม่มีสิทธิ์ดูการเงิน → ถอยไปแกนเดิม
    */
   collect?: ReceivableSummary
+  /**
+   * feature 00073 เฟส B — ร้านบริการ: การ์ดตามตั้งค่ารายงาน + กราฟใหม่ (ServiceFinanceChart) แทนกราฟรายวัน
+   * ไม่ส่ง = หน้าตาเดิมทุกอย่าง (ร้านอื่นไม่เคยส่ง)
+   */
+  serviceOpts?: {
+    receivables: boolean
+    jobCount: boolean
+    /** มัดจำรับล่วงหน้า — null = ปิดในตั้งค่า */
+    advance: { amount: number; jobs: number } | null
+    /** ป้ายยอดขายของร้านบริการ (ORDER_VOCAB.revenueLabel) */
+    revenueLabel: string
+    /** กราฟเดิมถูกแทนด้วยกราฟใหม่ที่ผู้เรียกวางเอง */
+    hideChart: boolean
+  }
 }
 
-const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, collect }: Props) => {
+const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, collect, serviceOpts }: Props) => {
+  const receivablesOn = serviceOpts?.receivables ?? true
+  const jobCountOn = serviceOpts?.jobCount ?? true
   const moneyAxis = isServiceQueue && collect != null
   /**
    * ถ้อยคำ/สีชุดเดิม (ก่อน 00067) สำหรับร้านที่ไม่ใช่บริการ — มติ user 2026-10-02 "กลับเป็นคำเดิมด้วย"
@@ -204,6 +220,21 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
       <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3' : 'xl:grid-cols-4'}`}>
         {moneyAxis && collect ? (
           <>
+            {/* 00073 เฟส B — ปิด "รับเงินแล้ว/ค้างรับ" ⇒ เหลือการ์ดยอดขายใบเดียวแทนสองใบ */}
+            {!receivablesOn && (
+              <PacesStatCard
+                icon="cash"
+                iconClass="bg-success/15 text-success-ink"
+                title={serviceOpts?.revenueLabel ?? 'ยอดขาย'}
+                text={formatBaht(collect.salesTotal)}
+                valueClass="text-success-ink"
+                changePercent={null}
+                bulletClass="text-success"
+                metric="เฉลี่ยต่อวัน"
+                metricValue={summary.days > 0 ? formatBaht(collect.salesTotal / summary.days) : '—'}
+              />
+            )}
+            {receivablesOn && (<>
             <PacesStatCard
               icon="cash"
               iconClass="bg-success/15 text-success-ink"
@@ -227,6 +258,23 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
               metric="ค้างอยู่"
               metricValue={`${collect.outstandingCount.toLocaleString('th-TH')} ${noun}`}
             />
+            </>)}
+            {/* 00073 เฟส B — มัดจำของงานที่ยังไม่ปิด (ไม่ปนยอดขาย) · เปิดในตั้งค่ารายงานเท่านั้น */}
+            {serviceOpts?.advance && (
+              <PacesStatCard
+                icon="wallet"
+                iconClass="bg-info/15 text-info-ink"
+                title="มัดจำรับล่วงหน้า"
+                note="เงินที่รับไว้แล้วของงานที่ยังไม่ปิด — ยังไม่นับเป็นยอดขาย"
+                text={formatBaht(serviceOpts.advance.amount)}
+                valueClass="text-default-800"
+                changePercent={null}
+                bulletClass="text-info"
+                metric="จาก"
+                metricValue={`${serviceOpts.advance.jobs.toLocaleString('th-TH')} ${noun}`}
+              />
+            )}
+            {jobCountOn && (<>
             <PacesStatCard
               icon="receipt-2"
               iconClass="bg-primary/15 text-primary"
@@ -249,6 +297,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
               metric="ยอดขายรวม"
               metricValue={formatBaht(collect.salesTotal)}
             />
+            </>)}
           </>
         ) : (
           <>
@@ -360,6 +409,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
         )}
       </div>
 
+      {!serviceOpts?.hideChart && (
       <div className="card">
         <div className="card-header flex-nowrap gap-2">
           <h5 className="card-title min-w-0 truncate">{weekly ? 'ยอดขายรายสัปดาห์' : 'ยอดขายรายวัน'}</h5>
@@ -396,6 +446,7 @@ const SalesChart = ({ daily, summary, periodLabel, isServiceQueue = false, colle
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

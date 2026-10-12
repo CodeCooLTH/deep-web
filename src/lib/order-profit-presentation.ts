@@ -31,7 +31,12 @@ export const PROFIT_TONE: Record<ProfitPresentation['tone'], { plate: string; te
   neutral: { plate: 'bg-default-100', text: 'text-default-800' },
 }
 
-export function presentOrderProfit(profit: OrderProfit | null, orderNoun: string): ProfitPresentation {
+export function presentOrderProfit(
+  profit: OrderProfit | null,
+  orderNoun: string,
+  /** feature 00073 — ร้านบริการ: ยอดนับตอนร้าน "ปิดงาน" ไม่ใช่ตอนลูกค้ายืนยัน · ไม่ส่ง = คำเดิม */
+  serviceRules = false,
+): ProfitPresentation {
   // สถานะ ค — ยังไม่นับเป็นยอดขาย: ไม่แสดงตัวเลขเลย ไม่ใช่แสดง 0
   // (ตัวเลขที่คำนวณตอนนี้อาจกลายเป็นเท็จถ้าออเดอร์ถูกยกเลิกทีหลัง)
   if (profit === null) {
@@ -39,7 +44,9 @@ export function presentOrderProfit(profit: OrderProfit | null, orderNoun: string
       icon: 'clock',
       label: 'ยังไม่นับเป็นยอดขาย',
       amount: null,
-      note: `กำไรจะคำนวณเมื่อลูกค้ายืนยันรับ${orderNoun}แล้ว`,
+      note: serviceRules
+        ? `กำไรจะคำนวณเมื่อร้านปิด${orderNoun}แล้ว`
+        : `กำไรจะคำนวณเมื่อลูกค้ายืนยันรับ${orderNoun}แล้ว`,
       tone: 'neutral',
     }
   }

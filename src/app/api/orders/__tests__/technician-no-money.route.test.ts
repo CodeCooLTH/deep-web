@@ -21,13 +21,13 @@ const db = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 
-const appt = vi.hoisted(() => ({ listAppointmentsForDay: vi.fn(), listAppointments: vi.fn(), setAppointmentOutcome: vi.fn() }))
+const appt = vi.hoisted(() => ({ listAppointmentsForDay: vi.fn(), listAppointments: vi.fn(), closeServiceJob: vi.fn() }))
 vi.mock('@/services/appointment.service', async (orig) => ({
   ...(await orig<object>()),
   listAppointmentsForDay: appt.listAppointmentsForDay,
   listAppointments: appt.listAppointments,
-  setAppointmentOutcome: appt.setAppointmentOutcome,
 }))
+vi.mock('@/services/service-job.service', () => ({ closeServiceJob: appt.closeServiceJob, reopenServiceJob: vi.fn() }))
 
 import { getServerSession } from 'next-auth'
 import { GET as listOrders } from '../route'
@@ -232,7 +232,7 @@ describe('ของที่ช่างต้องไม่ได้ / ต้�
 
   it('POST appointment/outcome — TECHNICIAN (O4) ปิดผลนัดได้ → 200', async () => {
     asRole(['TECHNICIAN'])
-    appt.setAppointmentOutcome.mockResolvedValue({ appointmentStatus: 'COMPLETED' })
+    appt.closeServiceJob.mockResolvedValue({ appointmentStatus: 'COMPLETED', serviceClosedAt: new Date(), money: { totalAmount: 1 } })
     const res = await outcomePost(
       new NextRequest('http://seller.deepth.local/api/orders/tok-1/appointment/outcome', { method: 'POST', body: JSON.stringify({ outcome: 'COMPLETED' }) }),
       params,

@@ -18,6 +18,8 @@ export const NO_MONEY_ORDER_KEYS = [
   'auctionId', 'internalNote', 'shippingAddress',
   // นัดหมาย
   'serviceStart', 'serviceEnd', 'serviceResourceId', 'appointmentStatus', 'rescheduleRequestNote',
+  // feature 00073 — วันปิดงาน (สถานะงาน ไม่ใช่เงิน) · ช่างปิดงานได้ (O4) จึงต้องเห็นว่าปิดแล้วหรือยัง
+  'serviceClosedAt',
   // นัดรับ/ข้อพิพาท (สถานะงาน ไม่ใช่เงิน)
   'handedOverAt', 'disputeOpenedAt', 'disputeResolvedAt', 'accessUrl',
 ] as const

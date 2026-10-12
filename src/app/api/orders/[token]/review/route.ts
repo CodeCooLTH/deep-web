@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CreateReviewSchema, UpdateReviewSchema } from "@/lib/validations";
 import { sessionUserId } from "@/lib/session-user";
+import { usesServiceFinanceRules } from "@/lib/finance-rules";
 import {
   createReview,
   updateReview,
@@ -45,7 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // ซึ่งผู้ซื้อจะเห็นตรง ๆ ในแผ่นรีวิว
     const msg = err instanceof Error ? err.message : "";
     if (msg.startsWith("Cannot review order")) {
-      return NextResponse.json({ error: "รีวิวได้หลังยืนยันรับแล้วเท่านั้น" }, { status: 409 });
+      // feature 00073 — ร้านบริการให้คะแนนได้ตั้งแต่ร้านปิดงาน (ส่งคะแนน = ยืนยัน) ⇒ คำต้องบอกเงื่อนไขของร้านบริการ
+      const notYet = usesServiceFinanceRules(order.shop.vertical) ? "ให้คะแนนได้หลังร้านปิดงานแล้ว" : "รีวิวได้หลังยืนยันรับแล้วเท่านั้น";
+      return NextResponse.json({ error: notYet }, { status: 409 });
     }
     if (msg.startsWith("Review already exists")) {
       return NextResponse.json({ error: `${orderNounFor(order.shop.vertical)}นี้รีวิวไปแล้ว` }, { status: 409 });

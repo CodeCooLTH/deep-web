@@ -150,7 +150,7 @@ describe('AppointmentDayCard (คิวรายวัน)', () => {
   const render = (caps: object, it = item) =>
     renderToStaticMarkup(
       h(AppointmentBoardCapsProvider, {
-        value: { showMoney: false, canChat: false, canReschedule: false, canCreate: false, ...caps },
+        value: { showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false, ...caps },
         children: h(AppointmentDayCard, { item: it, now: new Date('2099-10-12T03:30:00.000Z'), onChanged: noop }),
       }),
     )

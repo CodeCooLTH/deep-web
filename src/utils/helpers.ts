@@ -37,6 +37,15 @@ export const formatBytes = (bytes: number, decimals: number = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 }
 
+/**
+ * สีจาก token ของธีมสำหรับ **style ใน DOM ที่ render บนเซิร์ฟเวอร์ด้วย** (จุด legend ฯลฯ)
+ *
+ * ห้ามใช้ getColor ใน style ของ JSX: บนเซิร์ฟเวอร์ getColor คืนสีสำรอง rgba(0,0,0,0.2) (ไม่มี CSS ให้อ่าน)
+ * แต่ในเบราว์เซอร์คืนสีจริง ⇒ hydration mismatch (เจอบนแดชบอร์ดคอม 2026-10-12) · var() เป็นสตริงเดียวกัน
+ * ทั้งสองฝั่ง แล้วเบราว์เซอร์แปลงเป็นสีเดียวกับที่ getColor อ่าน (`--color-${v}`) · getColor ยังใช้กับ option ของกราฟ
+ */
+export const colorVar = (v: string): string => `var(--color-${v}, rgba(0,0,0,0.2))`
+
 export function getColor(v: string, a: number = 1): string {
   if (typeof window === 'undefined') return 'rgba(0,0,0,0.2)'
 

@@ -49,6 +49,7 @@ import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
 import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
+import ShopLogoImg from './ShopLogoImg'
 
 
 /**
@@ -98,14 +99,20 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   /* แกนสถานะออเดอร์ (ดีล) กับแกนสถานะพัสดุ (กล่อง) เป็นคนละแกน — ตัวตัดสินว่าจะโชว์ทั้งคู่
      หรือตัวเดียว อยู่ใน src/lib/order-status-headline.ts พร้อมเทส [blocker] ไม่ใช่เทอร์นารีใน JSX
      (ui-boolean-needs-a-testable-home.md: เกณฑ์คือ "เขียนกลับด้านแล้วมีอะไรจับได้ไหม") */
-  const statusHeadline = resolveOrderStatusHeadline({
+  const genericHeadline = resolveOrderStatusHeadline({
     status: order.status,
     stage,
     hasShipment: !!order.shipmentTracking,
     carrierStatus: order.carrierStatus,
   })
+  // feature 00073 — ร้านบริการ: หัวข้อ = ป้ายชุดเดียวคำฝั่งลูกค้า (ไม่มีแกนพัสดุให้คู่) · ร้านอื่นหัวข้อเดิม
+  const statusHeadline = order.serviceStatus
+    ? { ...genericHeadline, headline: order.serviceStatus.label, statusPill: null }
+    : genericHeadline
   const statusColor =
-    ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status, stage, order.carrierStatus).tone]
+    ORDER_STATUS_TONE_TO_MUI[
+      order.serviceStatus?.tone ?? resolveOrderStatusBadge(order.status, stage, order.carrierStatus).tone
+    ]
 
   /**
    * feature 00062 (UX-Design-Spec §B8) — badge สถานะการชำระเงิน จาก SSOT เดียวกับฝั่งร้าน
@@ -198,12 +205,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               overflow: 'hidden',
             }}
           >
-            {order.shop.user.avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={order.shop.user.avatar} alt='' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              order.shop.shopName.slice(0, 1)
-            )}
+            <ShopLogoImg src={order.shop.user.avatar} shopName={order.shop.shopName} />
           </Box>
 
           {/* 🛑 เป็น <h1> จริง — ทั้งหน้าเดิมไม่มี heading สักตัว (ชื่อร้านเป็น <a> จาก

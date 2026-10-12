@@ -62,7 +62,7 @@ import { isRenderableChannel } from '@/views/pages/user-profile/v2/OfficialChann
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatBaht } from '@/lib/format-money'
-import type { OrderStatus, TimelineState, TimelineStep } from '@/lib/order-display'
+import type { OrderStatus, OrderStatusTone, TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
@@ -255,6 +255,17 @@ export type PublicOrderData = {
    * — ผูกคำไว้กับเงินคือบั๊กที่รอเกิด
    */
   isServiceShop: boolean
+  /**
+   * feature 00073 — ป้ายชุดเดียวของงานบริการ คำฝั่งลูกค้า (service-status.ts) · null = ร้านอื่น (ป้ายเดิม)
+   * derive ที่ server — ไม่บอกยอดเงิน (ลูกค้าดูยอดที่การ์ดเงินอยู่แล้ว)
+   */
+  serviceStatus?: { label: string; cls: string; icon: string; tone: OrderStatusTone } | null
+  /** feature 00073 — ร้านปิดงานเมื่อไร (ISO) · null = ยังไม่ปิด */
+  serviceClosedAtIso?: string | null
+  /** feature 00073 — ร้านปิดงานแบบ "ไม่มาตามนัด" ⇒ ลูกค้ายืนยันรับบริการไม่ได้ (server ปฏิเสธเหมือนกัน) */
+  serviceNoShow?: boolean
+  /** feature 00073 FR-013 — ลูกค้าเปิดใบเสร็จเองได้ (ปิดงานแล้ว · ไม่ใช่ไม่มาตามนัด · ค้าง 0) · server ตรวจซ้ำ */
+  receiptAvailable?: boolean
   /**
    * feature 00062 (TFR-009/TFR-010) — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้าง/แก้ไขออเดอร์ล่าสุด
    * (freeze) — ไม่ใช่ PII ของผู้ซื้อ ชุดเดียวกับที่ `GuestOrderData` ส่งให้ก่อนล็อกอิน (parity)
@@ -837,6 +848,8 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [deletingReview, setDeletingReview] = useState(false)
   const [deleteReviewDialogOpen, setDeleteReviewDialogOpen] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  // feature 00073 FR-013 — กำลังเปิดใบเสร็จ (ครั้งแรกอาจออกเลข) กันกดซ้ำ
+  const [receiptBusy, setReceiptBusy] = useState(false)
 
   /**
    * ความสูงจริงของแถบ CTA ล่างจอ — เอาไปกันที่ให้ท้ายหน้าเลื่อนพ้นแถบได้
@@ -918,7 +931,8 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const slipInputRef = useRef<HTMLInputElement>(null)
 
   // confirm เมื่อ PENDING หรือ SHIPPED (ผู้ซื้อกดรับ = terminal CONFIRMED)
-  const canConfirm = order.status === 'PENDING' || order.status === 'SHIPPED'
+  // feature 00073 — งานบริการที่ร้านปิดแบบไม่มาตามนัด ยืนยันรับบริการไม่ได้ (ด่านเดียวกับ confirmOrder)
+  const canConfirm = (order.status === 'PENDING' || order.status === 'SHIPPED') && !order.serviceNoShow
 
   /* ResizeObserver ไม่ใช่วัดครั้งเดียวตอน mount: ปุ่มยกเลิกเปลี่ยนจากไอคอนเป็นข้อความตอน
      หมุนจอ/ย่อหน้าต่าง แล้วแถบสูงขึ้น — ถ้าวัดครั้งเดียวที่ว่างจะขาดไปเงียบ ๆ */
@@ -937,12 +951,21 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
   // รีวิวได้หลังยืนยันรับแล้วเท่านั้น (2026-10-04 "ย้ายรีวิวไปหลังยืนยัน เหมือน Grab")
   // server บังคับชุดเดียวกันที่ review.service.ts::createReview
-  const canReview = !order.hasReview && order.status === 'CONFIRMED'
+  /**
+   * feature 00073 FR-012 (มติ user 2026-10-11 รอบ 2) — ร้านปิดงาน "ให้บริการแล้ว" ⇒ ให้คะแนนได้ทันที
+   * และการส่งคะแนน = ยืนยันรับบริการ (server ยืนยันให้ใน `createReview`) — กติกาเดียวกับ
+   * `reviewConfirmsServiceJob` ฝั่ง server · ร้านอื่น/ยังไม่ปิด/ไม่มาตามนัด = false (หน้าเดิม)
+   */
+  const reviewConfirms =
+    order.isServiceShop && Boolean(order.serviceClosedAtIso) && !order.serviceNoShow && canConfirm && !order.hasReview
+  const canReview = !order.hasReview && (order.status === 'CONFIRMED' || reviewConfirms)
   /**
    * ป้ายสถานะที่จะแสดง — ร้านบริการได้ป้ายจากเงิน ที่เหลือได้ป้ายเดิม
    * (คำ/สี/โทน มาจาก SSOT ตัวเดียวทั้งคู่ ห้ามประกอบเองที่นี่ — HR16)
    */
-  const statusBadge = order.money
+  const statusBadge = order.serviceStatus
+    ? order.serviceStatus
+    : order.money
     ? resolveServiceOrderBadge({
         status: order.status,
         money: order.money,
@@ -970,8 +993,17 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
   const isCancelled = order.status === 'CANCELLED'
 
+  /**
+   * feature 00073 (critique 2026-10-12) — งานร้านบริการที่ "ชำระครบแล้ว" ไม่มีอะไรให้โอนหรือแนบสลิปอีก
+   * เดิมยังขึ้นการ์ด "แนบสลิป" + "ช่องทางชำระเงิน · ยอดที่ต้องโอน ฿0 · ร้านยังไม่ได้แจ้งบัญชี" ⇒ ลูกค้างงว่าต้องจ่ายอีกไหม
+   * ร้านอื่น (ไม่มี serviceMoney) = false เสมอ ⇒ หน้าเดิมทุกพิกเซล
+   */
+  const serviceFullyPaid =
+    order.isServiceShop && order.serviceMoney != null && order.serviceMoney.totalAmount > 0 && order.serviceMoney.outstanding <= 0
+
   // แสดง cancel button เฉพาะ PENDING + onCancel มีค่า (parent ตัดสิน)
-  const showCancel = order.status === 'PENDING' && !!onCancel
+  // feature 00073 — งานบริการที่ร้านปิดแล้วยกเลิกไม่ได้ (server ปฏิเสธ) ⇒ ไม่แสดงปุ่มที่กดแล้วพัง
+  const showCancel = order.status === 'PENDING' && !!onCancel && !order.serviceClosedAtIso
 
   const handleConfirm = async () => {
     setSubmitting(true)
@@ -985,6 +1017,24 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       toast.error(message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  /** feature 00073 FR-013 — ออกเลข/อ่านใบเดิมก่อน แล้วค่อยไปหน้าใบเสร็จ (หน้าใบเสร็จไม่ออกเลขเอง) */
+  const handleOpenReceipt = async () => {
+    setReceiptBusy(true)
+    try {
+      const res = await fetch(`/api/orders/${order.publicToken}/receipt/buyer`, { method: 'POST' })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error ?? 'เปิดใบเสร็จไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+        return
+      }
+      router.push(`/o/${order.publicToken}/receipt`)
+    } catch {
+      toast.error('เปิดใบเสร็จไม่สำเร็จ กรุณาตรวจสัญญาณแล้วลองใหม่')
+    } finally {
+      setReceiptBusy(false)
     }
   }
 
@@ -1096,6 +1146,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            ถ้าเดาจากเวลา ขั้น "ลูกค้ายืนยันนัด" จะไปค้างรอในใบที่ไม่มีนัดให้ยืนยัน */
         hasAppointment: order.appointment !== null,
         buyerConfirmedAt: order.appointment?.buyerConfirmedAt ?? null,
+        serviceClosedAt: order.serviceClosedAtIso ?? null,
       })
     : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
 
@@ -2192,6 +2243,29 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            * null = ไม่มีเรื่องเงินให้พูดถึง (ออเดอร์ขายออนไลน์ทั่วไป) → DOM เหมือนเดิมทุก node
            */}
           {order.money && <PaymentSummaryCard money={order.money} paymentMethod={order.paymentMethod} />}
+          {/* feature 00073 FR-013 — ใบเสร็จของลูกค้า: ขึ้นเมื่อร้านปิดงานและชำระครบเท่านั้น
+              (ใบเสร็จ = หลักฐานว่าร้านได้เงินครบ) · ใบเดียวกับที่ร้านพิมพ์ เลขเดียวกัน */}
+          {order.receiptAvailable && (
+            <Card>
+              <Box sx={cardBodySx}>
+                <SectionTitle icon='tabler-receipt'>ใบเสร็จรับเงิน</SectionTitle>
+                <Typography variant='body2' color='text.secondary' sx={{ mb: 1.75, lineHeight: 1.7 }}>
+                  ร้านปิดงานและได้รับชำระครบแล้ว ดูหรือบันทึกใบเสร็จของ{noun}นี้ได้
+                </Typography>
+                <Button
+                  fullWidth
+                  variant='tonal'
+                  color='primary'
+                  disabled={receiptBusy}
+                  onClick={() => void handleOpenReceipt()}
+                  startIcon={<Icon icon='tabler-receipt' fontSize={18} />}
+                  sx={{ minHeight: 44, fontWeight: 500 }}
+                >
+                  {receiptBusy ? 'กำลังเปิดใบเสร็จ...' : 'ดูใบเสร็จ'}
+                </Button>
+              </Box>
+            </Card>
+          )}
           </Box>
 
           {/**
@@ -2203,7 +2277,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
            * (การ์ดเดียวกับที่จอ guest เรียก — `sibling-surface-parity`)
            */}
           <Box sx={{ order: 5, display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, '&:empty': { display: 'none' } }}>
-          {needsPayoutAccount(order.paymentMethod) && (
+          {needsPayoutAccount(order.paymentMethod) && !serviceFullyPaid && (
             <PayoutAccountCard
               amountDue={resolveTransferAmount({
                 totalAmount: order.totalAmount,
@@ -2252,7 +2326,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               มันยังอยู่ใต้การ์ดรายการ/วิธีชำระ/เลขพัสดุ ห่างจากการ์ดเงินราว 130 บรรทัด
               ขณะที่**การ์ดเงินเป็นตัวที่เขียนว่า "แนบสลิปไว้ได้เลย"** ⇒ ประโยคชวนให้ทำ
               กับตัวที่ให้ทำ อยู่คนละหน้าจอกัน · ยังอยู่ก่อนโซนรีวิวตาม FR-010 เหมือนเดิม ── */}
-          {showSlipZone(order.status, order.paymentMethod) && (
+          {showSlipZone(order.status, order.paymentMethod) && !serviceFullyPaid && (
             <>
               <input
                 ref={slipInputRef}
@@ -2595,7 +2669,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 <Typography variant='body2' color='text.secondary' sx={{ lineHeight: 1.7 }}>
                   {/* อ้างคำบนปุ่มจริง ไม่พิมพ์ซ้ำ — วันที่คำบนปุ่มเปลี่ยน ประโยคนี้ต้องเปลี่ยนตาม
                       ไม่งั้นจะบอกให้กดปุ่มที่ไม่มีอยู่ (HR16 · เหตุผลเดียวกับกล่องอธิบายบนราง) */}
-                  เขียนรีวิวได้หลังกด &ldquo;{ctaLabel}&rdquo;
+                  {order.isServiceShop ? (
+                    // feature 00073 FR-012 — ร้านบริการให้คะแนนได้ตั้งแต่ร้านปิดงาน (ไม่ต้องรอกดยืนยันเอง)
+                    <>ให้คะแนนได้เมื่อร้านปิดงาน หรือหลังกด &ldquo;{ctaLabel}&rdquo;</>
+                  ) : (
+                    <>เขียนรีวิวได้หลังกด &ldquo;{ctaLabel}&rdquo;</>
+                  )}
                 </Typography>
                   </Box>
                   <Typography
@@ -2618,12 +2697,15 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 {/* คำผันตามประเภทร้าน — ร้านบริการไม่มี "สินค้า" ให้ "ถึงมือ"
                     (คลาสเดียวกับหัวข้อ "รายการบริการ" ที่แก้ไปแล้วเหนือขึ้นไป) */}
                 <Typography variant='subtitle1' sx={{ fontWeight: 700, mb: 0.25 }}>
-                  {order.isServiceShop ? 'รับบริการเรียบร้อยแล้ว' : 'สินค้าถึงมือคุณแล้ว'}
+                  {reviewConfirms ? 'ร้านปิดงานแล้ว' : order.isServiceShop ? 'รับบริการเรียบร้อยแล้ว' : 'สินค้าถึงมือคุณแล้ว'}
                 </Typography>
                 <Typography variant='body2' color='text.secondary' sx={{ mb: 1.75 }}>
-                  ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น
+                  {/* FR-012 — บอกผลที่ย้อนไม่ได้ก่อนกดส่ง (การส่งคะแนน = ยืนยันรับบริการ) */}
+                  {reviewConfirms
+                    ? 'ให้คะแนนร้านนี้ได้เลย — ส่งคะแนนแล้วถือว่าคุณยืนยันว่ารับบริการแล้ว (ย้อนไม่ได้)'
+                    : 'ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น'}
                 </Typography>
-                <ReviewForm token={order.publicToken} />
+                <ReviewForm token={order.publicToken} confirmsOnSubmit={reviewConfirms} />
               </Box>
             </Card>
           )}
@@ -2838,10 +2920,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                 variant={ctaReady ? 'contained' : 'tonal'}
                 color='primary'
                 disabled={submitting}
-                onClick={() => setConfirmDialogOpen(true)}
+                // FR-012 — ร้านปิดงานแล้ว: ปุ่มหลักเปิดแผ่นให้คะแนนเลย (ส่งคะแนน = ยืนยัน) ไม่ต้องกดสองขั้น
+                onClick={() => (reviewConfirms ? setReviewSheetOpen(true) : setConfirmDialogOpen(true))}
+                startIcon={reviewConfirms ? <Icon icon='tabler-star' fontSize={18} /> : undefined}
                 sx={{ minHeight: 44, [ORDER_TWO_COL_MQ]: { maxWidth: 420, marginInlineStart: 'auto' } }}
               >
-                {ctaLabel}
+                {reviewConfirms && !submitting ? 'ให้คะแนนบริการ' : ctaLabel}
               </Button>
 
               {/**
@@ -2889,8 +2973,25 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             </Box>
             {/* เตือนก่อนนิ้วแตะ (ม็อกอัพ v5) — dialog กันได้หลังแตะ ประโยคนี้กันได้ก่อน (critique 2026-10-05 P1) */}
             <Typography variant='caption' color='text.secondary' sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
-              {order.isServiceShop ? 'กดเมื่อได้รับบริการครบแล้วเท่านั้น' : 'กดเมื่อได้ของครบแล้วเท่านั้น'}
+              {reviewConfirms
+                ? 'ส่งคะแนนแล้วถือว่ายืนยันรับบริการ'
+                : order.isServiceShop
+                  ? 'กดเมื่อได้รับบริการครบแล้วเท่านั้น'
+                  : 'กดเมื่อได้ของครบแล้วเท่านั้น'}
             </Typography>
+            {/* FR-012 — ทางสำหรับคนที่ไม่อยากให้คะแนน: กล่องยืนยันเดิมทุกอย่าง */}
+            {reviewConfirms && (
+              <Button
+                variant='text'
+                color='secondary'
+                size='small'
+                disabled={submitting}
+                onClick={() => setConfirmDialogOpen(true)}
+                sx={{ alignSelf: 'center', minHeight: 44 }}
+              >
+                ยืนยันรับบริการโดยไม่ให้คะแนน
+              </Button>
+            )}
 
 
             {/* คำอธิบายใต้ปุ่มถูกถอดออก: ของเดิมเขียนว่า "แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว"
@@ -2957,8 +3058,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         token={order.publicToken}
         shopName={order.shop.shopName}
         shopAvatar={order.shop.user.avatar}
+        confirmsOnSubmit={reviewConfirms}
         headline={
-          order.isServiceShop
+          reviewConfirms
+            ? 'ร้านปิดงานแล้ว'
+            : order.isServiceShop
             ? `${vocab.buyerConfirmLabel}แล้ว`
             : order.fulfillmentMode !== 'SHIPPED'
               ? 'ยืนยันว่าได้รับแล้ว'

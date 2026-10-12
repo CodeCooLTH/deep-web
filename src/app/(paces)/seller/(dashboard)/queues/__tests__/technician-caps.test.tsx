@@ -48,12 +48,12 @@ describe('WorkSchedulePage — สิทธิ์ที่ส่งลงปฏ�
   it('TECHNICIAN: ไม่เห็นเงิน/แชท/เลื่อนนัด/สร้างงาน', async () => {
     asRole(['TECHNICIAN'])
     const tree = await WorkSchedulePage()
-    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: false, canChat: false, canReschedule: false, canCreate: false })
+    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false })
   })
   it('MANAGER: ครบ', async () => {
     asRole(['MANAGER'])
     const tree = await WorkSchedulePage()
-    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: true, canChat: true, canReschedule: true, canCreate: true })
+    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: true, canChat: true, canReschedule: true, canCreate: true, canRefundDeposit: true })
   })
   it('TECHNICIAN+CHAT: union — เห็นเงิน ทักแชท และเลื่อนนัดได้ (CHAT มี O3)', async () => {
     asRole(['TECHNICIAN', 'CHAT'])

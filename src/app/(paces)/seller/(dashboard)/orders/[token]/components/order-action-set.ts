@@ -69,6 +69,12 @@ export type GetOrderActionSetInput = {
    * ตัดสินที่ server (canEditOrderAs) แล้วส่งมา — ไฟล์นี้บริสุทธิ์ ไม่รู้จักบทบาท/สถานะชำระ
    */
   editLocked?: boolean
+  /**
+   * feature 00073 — งานร้านบริการที่ร้านปิดแล้ว (serviceClosedAt != null) ⇒ ไม่มี "แก้ไข/ยกเลิก{noun}"
+   * (server ล็อกไว้แล้ว 409 — ซ่อนปุ่มให้ตรงกัน · ต้องการแก้ = "เปิดงานอีกครั้ง" ที่การ์ดงานก่อน)
+   * ร้านอื่นไม่มีวันปิดงาน ⇒ ส่ง false/ไม่ส่ง = ชุดเดิมเป๊ะ
+   */
+  serviceClosed?: boolean
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
@@ -126,8 +132,9 @@ const buildActions = (orderNoun: string) =>
  */
 export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
   const set = buildOrderActionSet(input)
-  if (!input.editLocked) return set
-  const keep = (a: ActionItem) => a.key !== 'edit-order'
+  if (!input.editLocked && !input.serviceClosed) return set
+  const keep = (a: ActionItem) =>
+    !(a.key === 'edit-order' && (input.editLocked || input.serviceClosed)) && !(a.key === 'cancel-order' && input.serviceClosed)
   return { primary: set.primary && keep(set.primary) ? set.primary : null, ghosts: set.ghosts.filter(keep), menu: set.menu.filter(keep) }
 }
 

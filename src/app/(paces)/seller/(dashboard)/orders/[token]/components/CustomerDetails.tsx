@@ -36,6 +36,7 @@ export default function CustomerDetails({
   salesChannel,
   profileKey,
   buyerNoun,
+  repeatCountLabel,
 }: {
   buyer: OrderFactsBuyer
   /** ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ — null = ออเดอร์ยังไม่ผูก Customer (ไม่มีเบอร์) */
@@ -50,6 +51,8 @@ export default function CustomerDetails({
   profileKey: string | null
   /** คำเรียกอีกฝ่ายตามประเภทกิจการ (`vocab.buyerNoun`) — ร้านบริการเรียก "ลูกค้า" */
   buyerNoun: string
+  /** `vocab.repeatCountLabel` — ร้านบริการ "ใช้บริการร้านนี้" · ร้านอื่นคำเดิม "สั่งกับร้านนี้" */
+  repeatCountLabel: string
 }) {
   const { displayName, subLabel, hasBuyerInfo } = resolveBuyerNames(buyer)
   const channelLabel = salesChannel ? getSalesChannelDisplay(salesChannel).label : null
@@ -131,7 +134,7 @@ export default function CustomerDetails({
                         <Icon icon="shopping-bag" className="text-sm" aria-hidden="true" />
                       </span>
                       <span className="text-default-800 text-sm font-medium">
-                        สั่งกับร้านนี้ {summary.orderCount} ครั้ง
+                        {repeatCountLabel} {summary.orderCount} ครั้ง
                       </span>
                     </div>
                   </li>

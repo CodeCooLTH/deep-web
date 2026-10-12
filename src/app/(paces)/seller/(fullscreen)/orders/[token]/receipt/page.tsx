@@ -17,19 +17,16 @@ import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionScreen from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionScreen'
 import { requireActiveShop } from '@/lib/shop-context'
-import { formatDateTH } from '@/lib/format-date'
-import { toFileUrl } from '@/lib/file-url'
-import { thaiBahtText } from '@/lib/thai-baht-text'
-import { formatReceiptAmount, receiptPaymentMarks, resolveReceiptHeader } from '@/lib/receipt'
+import { formatReceiptAmount, resolveReceiptHeader } from '@/lib/receipt'
 import { getReceiptView } from '@/services/receipt.service'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { getAppShell } from '@/lib/app-shell-server'
-import { buildBreakdown } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-detail-shared'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import Icon from '@/components/wrappers/Icon'
 
 import PrintButton from './PrintButton'
-import ReceiptSheet, { type ReceiptSheetData } from './ReceiptSheet'
+import ReceiptSheet from './ReceiptSheet'
+import { buildReceiptSheet } from './receipt-data'
 import styles from './receipt.module.css'
 
 type PageProps = { params: Promise<{ token: string }> }
@@ -55,17 +52,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: { absolute: [name, view.receipt.receiptNo, view.buyerName].filter(Boolean).join('_') } }
 }
 
-/**
- * ป้ายของใบเสร็จตามใบจริงของร้าน — ตัวเลขมาจาก `buildBreakdown` ตัวเดียวกับหน้าออเดอร์ (HR16)
- * เปลี่ยนแค่คำเรียกของแถวแรก/แถวสุดท้าย
- */
-const RECEIPT_LABEL: Record<string, string> = {
-  subtotal: 'รวมเป็นเงิน',
-  total: 'จำนวนเงินรวมทั้งสิ้น',
-}
-/** VAT บนเอกสารไทยใช้คำเต็ม — อัตราอ่านจากออเดอร์ ไม่ hardcode 7 */
-const vatLabel = (pct: number) => `ภาษีมูลค่าเพิ่ม${pct > 0 ? ` ${pct}%` : ''}`
-
 export default async function ReceiptPage({ params }: PageProps) {
   const { token } = await params
   // 00071 P3 (D1): ใบเสร็จ = เจ้าของ/ผู้ดูแล/ตอบแชท/เปิดบิล — ช่างและบทบาทอื่นเห็นการ์ดบอกเหตุผล
@@ -79,47 +65,7 @@ export default async function ReceiptPage({ params }: PageProps) {
   // แอปผู้ขาย (WebView) ไม่มี window.print — ปุ่มที่กดแล้วเงียบแย่กว่าบอกตรง ๆ
   const inApp = (await getAppShell()) !== 'web'
 
-  const num = (v: unknown) => Number(v ?? 0)
-  const items = view.items.map((it) => ({
-    name: it.name,
-    description: it.description,
-    qty: it.qty,
-    unitPrice: formatReceiptAmount(num(it.price)),
-    lineTotal: formatReceiptAmount(num(it.price) * it.qty),
-  }))
-  const total = num(view.totalAmount)
-  const vatPct = parseFloat((num(view.vatRate) * 100).toFixed(2))
-  const rows = buildBreakdown({
-    subtotal: view.items.reduce((s, it) => s + num(it.price) * it.qty, 0),
-    discount: num(view.discount),
-    vatAmount: num(view.vatAmount),
-    vatPct,
-    total,
-    // ใบเสร็จออกได้เฉพาะร้านบริการ (receipt.service throw NOT_SERVICE_SHOP) — ใช้คำของร้านบริการ
-    subtotalLabel: ORDER_VOCAB.SERVICE_QUEUE.subtotalLabel,
-  })
-  // เงินที่บันทึกรับจริง (ไม่นับที่ยกเลิก) — ใบเสร็จออกได้ก่อนรับเงิน จึงต้องเตือนร้านบนจอ (ไม่พิมพ์)
-  const received = view.payments.filter((p) => !p.voidedAt).reduce((s, p) => s + num(p.amount), 0)
-  const outstanding = Math.max(0, total - received)
-  const header = resolveReceiptHeader(view.shop, view.shop.receiptProfile)
-
-  const data: ReceiptSheetData = {
-    receiptNo: view.receipt.receiptNo,
-    issuedDateLabel: formatDateTH(view.receipt.issuedAt),
-    sellerName: view.createdBy?.displayName ?? '',
-    header: { ...header, logoUrl: toFileUrl(view.shop.logo) },
-    stampUrl: toFileUrl(view.shop.receiptProfile?.stamp),
-    customer: { name: view.buyerName ?? '', contact: view.buyerContact },
-    items,
-    breakdown: rows
-      .filter((r) => r.key !== 'total')
-      .map((r) => ({ key: r.key, label: r.key === 'vat' ? vatLabel(vatPct) : (RECEIPT_LABEL[r.key] ?? r.label), value: `${r.prefix ?? ''}${formatReceiptAmount(r.value)}` })),
-    totalLabel: RECEIPT_LABEL.total,
-    totalValue: formatReceiptAmount(total),
-    totalWords: thaiBahtText(total),
-    marks: receiptPaymentMarks({ paymentMethod: view.paymentMethod, payments: view.payments }),
-    cancelled: view.status === 'CANCELLED',
-  }
+  const { data, outstanding, header } = buildReceiptSheet(view)
 
   return (
     <>

@@ -21,6 +21,7 @@ import { gatePage } from '@/lib/shop-capability'
 import { isBillingOnlyFor } from '@/lib/order-role-rules'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import { countsAsSoldFor } from '@/lib/order-revenue'
 
 // ชื่อแท็บผันตามประเภทกิจการ (ร้านบริการ = 'บริการและสินค้า') — ดู lib/product-page-title.ts
 export const generateMetadata = () => productPageMetadata('detail')
@@ -65,19 +66,24 @@ export default async function ProductDetailPage({
   let totalSold = 0
   const reviewRows: ReviewRow[] = []
 
+  // ขายได้: ร้านบริการ = งานที่ปิดแล้วและได้ให้บริการ (00073) · ร้านอื่น status === 'CONFIRMED' เดิม
+  // รีวิวยังผูกกับลูกค้ายืนยัน (รีวิวมีได้เฉพาะใบ CONFIRMED อยู่แล้ว — review.service)
+  // ร้านอื่น: สองเงื่อนไขนี้คือ CONFIRMED ตัวเดียวกัน ⇒ ผลเดิมทุกประการ
   orders
-    .filter((o: any) => o.status === 'CONFIRMED')
+    .filter((o: any) => countsAsSoldFor(o, shop.vertical) || o.status === 'CONFIRMED')
     .forEach((o: any) => {
       if (!Array.isArray(o.items)) return
       const hasThisProduct = o.items.some((item: any) => item.productId === id)
       if (!hasThisProduct) return
 
       // นับจำนวนที่ขายได้สำหรับ product นี้
-      o.items.forEach((item: any) => {
-        if (item.productId === id) {
-          totalSold += item.qty ?? 1
-        }
-      })
+      if (countsAsSoldFor(o, shop.vertical)) {
+        o.items.forEach((item: any) => {
+          if (item.productId === id) {
+            totalSold += item.qty ?? 1
+          }
+        })
+      }
 
       // เก็บ review ของ order นี้
       if (o.review) {

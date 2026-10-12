@@ -227,7 +227,11 @@ describe('หน้ารายละเอียดออเดอร์ (/orde
     expect(events.map((e) => e.type)).toEqual(['ORDER_CREATED'])
 
     const appt = find(tree as ReactNode, 'AppointmentCard')!
-    expect(appt.props).toMatchObject({ canOutcome: true, canReschedule: false, canSendSummary: false })
+    expect(appt.props).toMatchObject({ canReschedule: false, canSendSummary: false })
+    // feature 00073 — ช่างปิดงานได้ (O4) ที่การ์ด "งานนี้" · ไม่มีเงิน (ไม่มีคีย์ money) · เปิดงานอีกครั้ง/คืนมัดจำไม่ได้ (O6)
+    const job = find(tree as ReactNode, 'ServiceJobCard')!
+    expect(job.props).toMatchObject({ canClose: true, canManage: false })
+    expect(job.props).not.toHaveProperty('money')
   })
 
   it('MANAGER: ยังได้หน้าเต็ม (OrderDetailClient พร้อมยอด) ไม่ใช่หน้าของช่าง', async () => {

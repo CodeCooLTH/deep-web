@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { canEditReview } from "@/lib/review-window";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { canAccessShop } from "@/lib/shop-context";
+import { reviewConfirmsServiceJob } from "@/lib/service-status";
+import { confirmOrder } from "@/services/order.service";
 
 export async function createReview(orderToken: string, data: {
   rating: number;
@@ -23,8 +25,26 @@ export async function createReview(orderToken: string, data: {
   // 2026-10-04 (user สั่ง "ย้ายรีวิวไปหลังยืนยัน เหมือน Grab"): ตัด SHIPPED ออก — เดิมรีวิวได้
   // ตั้งแต่ร้านกดส่งของ ซึ่งแปลว่าผู้ซื้อให้ดาวร้านได้ทั้งที่ยังไม่ได้ยืนยันว่าได้ของ
   // รีวิวเก่าที่เขียนตอน SHIPPED ไปแล้วยังอยู่ตามเดิม (ด่านนี้กันเฉพาะการเขียนใหม่)
-  if (order.status !== "CONFIRMED") {
-    throw new Error(`Cannot review order in status ${order.status} (must be CONFIRMED)`);
+  // feature 00073 (FR-012 · มติ user 2026-10-11 รอบ 2) — ร้านบริการปิดงาน "ให้บริการแล้ว" แล้ว
+  // ลูกค้าให้คะแนนได้ทันที และการส่งคะแนน = ยืนยันรับบริการ (ขั้น 4) ในคำขอเดียว
+  // ยืนยันผ่าน `confirmOrder` ตัวเดิม (ด่านเจ้าของงาน + event BUYER_CONFIRMED + คำนวณ badge ครบ)
+  // ไม่ใช่เขียนสถานะเองที่นี่ ⇒ โปรไฟล์สาธารณะยังนับ "ตอนลูกค้ายืนยัน" ตามมติขั้น 4 เป๊ะ
+  // อยู่ใน service ไม่ใช่ route — มี 2 ทางเข้า (เว็บ + api/app/orders/[id]/review)
+  // ร้านอื่น/ยังไม่ปิด/ไม่มาตามนัด ⇒ `reviewConfirmsServiceJob` = false ⇒ ด่านเดิมด้านล่างทำงานเหมือนเดิม
+  let status = order.status;
+  if (
+    status !== "CONFIRMED" &&
+    reviewConfirmsServiceJob({
+      vertical: order.shop.vertical,
+      status,
+      serviceClosedAt: order.serviceClosedAt,
+      appointmentStatus: order.appointmentStatus,
+    })
+  ) {
+    status = (await confirmOrder(orderToken, data.reviewerUserId)).status;
+  }
+  if (status !== "CONFIRMED") {
+    throw new Error(`Cannot review order in status ${status} (must be CONFIRMED)`);
   }
 
   const review = await prisma.review.create({

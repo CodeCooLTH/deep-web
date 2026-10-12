@@ -37,7 +37,7 @@ import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { ORDER_STATUS_TONE_BORDER, resolveServiceOrderBadge } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
@@ -167,15 +167,11 @@ export default function OrderCard({
   const itemCount = order.items.length
   const visibleItems = expanded ? order.items : order.items.slice(0, 1)
 
-  /* ป้ายสถานะ — ร้านบริการอ่านจากแกนเงิน (จอง/รอชำระ/ชำระเงินแล้ว) ร้านอื่นใช้แกนเดิม
-     `order.money` มีค่าเฉพาะร้าน SERVICE_QUEUE ที่ผ่าน `hasMoneyStory` ที่ server (AC-SQ-07)
-     ⇒ ไม่ต้องเช็ค vertical ซ้ำที่นี่ และร้านอื่นไม่มีทางเปลี่ยนป้ายโดยบังเอิญ */
-  const statusCfg = showMoney && order.money
-    ? resolveServiceOrderBadge({
-        status: order.status,
-        money: order.money,
-        hasAppointment: Boolean(order.appointment),
-      })
+  /* ป้ายสถานะ — ร้านบริการ: ป้ายชุดเดียว (feature 00073 · service-status.ts) ที่ server derive มาแล้ว
+     `order.serviceStatus` มีค่าเฉพาะร้านบริการ ⇒ ไม่ต้องเช็ค vertical ซ้ำที่นี่ และร้านอื่นไม่มีทางเปลี่ยนป้าย
+     (ยอดค้างในป้ายใส่มาเฉพาะผู้เห็นเงิน — คิดที่ server) */
+  const statusCfg = order.serviceStatus
+    ? order.serviceStatus
     : // ส่ง carrierStatus ด้วย เพื่อให้กอง PROBLEM แยกได้ว่า "ยังติดปัญหา" หรือ "เคยมีปัญหา ส่งใหม่"
       // — ในการ์ดใบเดียวกันมีแถบไทม์ไลน์ที่พูดความจริงสด ๆ อยู่ข้างล่าง ต้องไม่ขัดกันเอง
       resolveOrderStatusBadge(order.status, order.shippingStage, order.shipment?.carrierStatus ?? null)

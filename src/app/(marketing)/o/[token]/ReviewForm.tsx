@@ -64,6 +64,11 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void
   /** แจ้งว่ากำลังส่ง — แผ่นใช้ล็อกปุ่ม "ไว้ทีหลัง" ระหว่างส่ง */
   onBusyChange?: (busy: boolean) => void
+  /**
+   * feature 00073 FR-012 — งานร้านบริการที่ร้านปิดแล้ว: ส่งคะแนน = ยืนยันรับบริการ (server ทำใน createReview)
+   * มีผลแค่คำบนปุ่ม/ข้อความสำเร็จ — การตัดสินจริงอยู่ที่ server
+   */
+  confirmsOnSubmit?: boolean
 }
 
 export default function ReviewForm({
@@ -75,6 +80,7 @@ export default function ReviewForm({
   onSubmitted,
   onDirtyChange,
   onBusyChange,
+  confirmsOnSubmit = false,
 }: Props) {
   const isSheet = variant === 'sheet'
   const router = useRouter()
@@ -146,7 +152,13 @@ export default function ReviewForm({
         return
       }
       // บอกผลที่เกิดขึ้นจริง ไม่ใช่คำขอบคุณลอย ๆ — คำเดียวกันทั้งการ์ดและแผ่น (HR16)
-      toast.success(mode === 'edit' ? 'แก้ไขรีวิวแล้ว' : 'ส่งรีวิวแล้ว · แก้ไขหรือลบได้ภายใน 24 ชม.')
+      toast.success(
+        mode === 'edit'
+          ? 'แก้ไขรีวิวแล้ว'
+          : confirmsOnSubmit
+            ? 'ยืนยันรับบริการและส่งคะแนนแล้ว · แก้ไขหรือลบรีวิวได้ภายใน 24 ชม.'
+            : 'ส่งรีวิวแล้ว · แก้ไขหรือลบได้ภายใน 24 ชม.',
+      )
       onSubmitted?.()
       onCancel?.()
       // invalidate RSC cache ให้ server re-render การ์ดรีวิวใหม่โดยไม่ต้อง full reload
@@ -291,7 +303,7 @@ export default function ReviewForm({
           </Button>
         )}
         <Button type='submit' fullWidth variant='contained' disabled={loading || uploading || !rating}>
-          {loading ? 'กำลังบันทึก…' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'ส่งรีวิว'}
+          {loading ? 'กำลังบันทึก…' : mode === 'edit' ? 'บันทึกการแก้ไข' : confirmsOnSubmit ? 'ส่งคะแนนและยืนยันรับบริการ' : 'ส่งรีวิว'}
         </Button>
       </Box>
 
@@ -376,7 +388,7 @@ function LabeledStars({
       <Box component='span' aria-live='polite' sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
         {value ? STAR_LABELS[value - 1] : ''}
       </Box>
-      <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: 1.5, minHeight: 22, visibility: value ? 'hidden' : 'visible' }}>
+      <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: 1.5, minHeight: 22, visibility: value ? 'hidden' : 'visible' }}>{/* ข้อความใบ้ ไม่ใช่เป้ากด — minHeight จองบรรทัดกันหน้ากระตุกตอนซ่อน */}
         แตะดาวเพื่อให้คะแนน
       </Typography>
     </Box>

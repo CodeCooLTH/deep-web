@@ -21,6 +21,30 @@ export function canIssueReceipt(order: { vertical: string; status: string }): bo
   return order.vertical === 'SERVICE_QUEUE' && order.status !== 'CANCELLED' && order.status !== 'DRAFTED'
 }
 
+/**
+ * feature 00073 (FR-013 · มติ user 2026-10-11 รอบ 2) — ลูกค้าเปิดใบเสร็จของงานตัวเองได้ไหม
+ *
+ * ฝั่งร้านไม่ผ่านฟังก์ชันนี้ (กติกาเดิม `canIssueReceipt`) — ฝั่งลูกค้าเข้มกว่าโดยตั้งใจ:
+ * ใบเสร็จ = หลักฐานว่าร้าน **ได้เงินครบแล้ว** ⇒ ต้องปิดงานแล้ว (ให้บริการจริง) และไม่ค้างสักบาท
+ * - ไม่มาตามนัด = ไม่ได้รับบริการ ⇒ ไม่มีใบเสร็จค่าบริการ
+ * - ยกเลิก/คืน/ร่าง ⇒ ไม่มี
+ * ตรวจสดทุกครั้ง (ไม่ใช่ "เคยออกแล้วเปิดได้ตลอด" แบบฝั่งร้าน) — ร้านเปิดงานอีกครั้ง/ยกเลิกเงิน
+ * ภายหลัง ลูกค้าต้องเลิกเห็นใบที่ไม่ตรงความจริงแล้ว
+ */
+export function canBuyerViewReceipt(order: {
+  vertical: string
+  status: string
+  serviceClosedAt: Date | string | null
+  appointmentStatus: string | null
+  outstanding: number
+}): boolean {
+  if (order.vertical !== 'SERVICE_QUEUE') return false
+  if (order.serviceClosedAt == null) return false
+  if (order.appointmentStatus === 'NO_SHOW') return false
+  if (order.status === 'CANCELLED' || order.status === 'RETURNED' || order.status === 'DRAFTED') return false
+  return order.outstanding <= 0
+}
+
 /** ปุ่มในหน้าออเดอร์: ออกใหม่ได้ หรือเคยออกแล้ว (เปิดดูซ้ำ) */
 export function showReceiptButton(order: { vertical: string; status: string; hasReceipt: boolean }): boolean {
   return order.hasReceipt || canIssueReceipt(order)

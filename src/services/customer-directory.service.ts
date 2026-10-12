@@ -12,10 +12,19 @@
  * 🛑 ผลลัพธ์เป็น **unmasked** — ผู้เรียกที่จะส่งข้ามไป client component ต้อง map เป็น
  * `CustomerRow` (masked) ก่อนเสมอ (`feedback_rsc_pii_neutralize_at_source`)
  */
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { makeCustomerRowKey } from '@/lib/customer-row-key'
-import { countsAsRevenue } from '@/lib/order-revenue'
+import {
+  countsAsRevenue,
+  countsAsServiceRevenue,
+  isServiceNoShow,
+  serviceNoShowRevenue,
+  SERVICE_REVENUE_SELECT,
+  serviceRevenueOrderWhere,
+} from '@/lib/order-revenue'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -48,7 +57,8 @@ type Accumulator = Omit<CustomerDirectoryEntry, 'behavior' | 'shopReputation'> &
 export async function aggregateShopCustomers(shopId: string): Promise<CustomerDirectoryEntry[]> {
   // คืนบางส่วนที่รับของแล้ว — ยอดซื้อสะสมของลูกค้าหักส่วนที่คืน (ตัวกลางเดียวกับทุกจอ · มติ 2026-10-01)
   // กติกาใหม่ (หักคืนบางส่วน) — ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02)
-  const returnAdjPromise = shopUsesServiceFinanceRules(shopId).then((newRules) =>
+  const newRulesPromise = shopUsesServiceFinanceRules(shopId)
+  const returnAdjPromise = newRulesPromise.then((newRules) =>
     newRules ? getReturnAdjustments(shopId) : new Map<string, ReturnAdjustment>(),
   )
   const orders = await prisma.order.findMany({
@@ -68,6 +78,9 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       buyerName: true,
       cancelInitiator: true,
       cancelReason: true,
+      // feature 00073 — ร้านบริการ: ยอดสะสมนับงานที่ร้านปิดแล้ว · ไม่มาตามนัด = มัดจำที่เก็บไว้
+      ...SERVICE_REVENUE_SELECT,
+      serviceStart: true,
       /**
        * 🛑 ดึงพัสดุ "ทุกใบ" ของออเดอร์ ไม่ใช่ take 1 — เพราะที่นี่ต้องตอบ 2 คำถามที่ใช้ชุดพัสดุ
        * ต่างกัน จาก query เดียว:
@@ -90,12 +103,15 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
 
   const map = new Map<string, Accumulator>()
 
-  const returnAdj = await returnAdjPromise
+  const [returnAdj, isServiceShop] = await Promise.all([returnAdjPromise, newRulesPromise])
   for (const o of orders) {
     const key = makeCustomerRowKey(o.customerId, o.buyerUserId, o.buyerContact)
     const createdAtRaw = o.createdAt.getTime()
-    const isRevenue = countsAsRevenue(o)
-    const amount = netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
+    // ร้านบริการ = งานที่ร้านปิดแล้ว (00073) · ร้านอื่น = เกณฑ์เดิมเป๊ะ
+    const isRevenue = isServiceShop ? countsAsServiceRevenue(o) : countsAsRevenue(o)
+    const amount = isServiceShop && isServiceNoShow(o)
+      ? serviceNoShowRevenue(o.payments)
+      : netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
 
     /**
      * "พัสดุของใบนี้" สำหรับตัดสินพฤติกรรมลูกค้า = ใบล่าสุดที่ยังไม่ถูกยกเลิก **และเป็นขาไป**
@@ -141,6 +157,20 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       conversationId: o.conversationId,
       isRevenue,
       shippingAddress: o.shippingAddress ?? null,
+      ...(isServiceShop
+        ? {
+            serviceStatus: resolveServiceStatusBadge(
+              {
+                status: o.status,
+                appointmentStatus: o.appointmentStatus ?? null,
+                hasAppointment: Boolean(o.serviceStart),
+                serviceClosedAt: o.serviceClosedAt ?? null,
+                outstanding: null,
+              },
+              'seller',
+            ),
+          }
+        : {}),
     }
 
     const evidenceRow: CustomerOrderEvidence = {
@@ -148,6 +178,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       cancelInitiator: o.cancelInitiator ?? null,
       cancelReason: o.cancelReason ?? null,
       activeShipmentCarrierStatus: activeShipment?.carrierStatus ?? null,
+      appointmentStatus: o.appointmentStatus ?? null,
     }
 
     const reputationRow: BuyerOrderEvidence = {
@@ -158,6 +189,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       // `hasShipment` = ตัวหารของอัตรา — ใบที่ไม่เคยเปิดพัสดุ (รับหน้าร้าน/ดิจิทัล/บริการ)
       // ไม่มีทางตีกลับได้ จึงต้องไม่อยู่ในตัวหาร (BR-BR-05)
       hasShipment: reputationShipment !== null,
+      appointmentStatus: o.appointmentStatus ?? null,
     }
 
     const existing = map.get(key)
@@ -256,4 +288,28 @@ export async function resolveCustomerByKey(
   const entry = findEntryByKey(entries, key)
   if (!entry) return { ok: false, reason: 'NOT_FOUND' }
   return { ok: true, entry }
+}
+
+/**
+ * ยอดซื้อสะสมของลูกค้าหนึ่งคนในร้านบริการ — สูตรเดียวกับ `aggregateShopCustomers` (feature 00073)
+ * งานที่ร้านปิดแล้ว · หักคืนบางส่วน · ไม่มาตามนัด = มัดจำที่เก็บ — ใช้ที่แผงลูกค้าในแชท ให้ตัวเลขตรงกับหน้าลูกค้า
+ * 🛑 ร้านบริการเท่านั้น — ร้านอื่นใช้ aggregate เดิมของผู้เรียก
+ */
+export async function getServiceCustomerSpend(
+  shopId: string,
+  customerId: string,
+  extraWhere: Prisma.OrderWhereInput = {},
+): Promise<number> {
+  const [rows, returnAdj] = await Promise.all([
+    prisma.order.findMany({
+      where: { shopId, customerId, ...extraWhere, ...serviceRevenueOrderWhere() },
+      select: { id: true, totalAmount: true, ...SERVICE_REVENUE_SELECT },
+    }),
+    getReturnAdjustments(shopId),
+  ])
+  let sum = 0
+  for (const o of rows) {
+    sum += isServiceNoShow(o) ? serviceNoShowRevenue(o.payments) : netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
+  }
+  return sum
 }

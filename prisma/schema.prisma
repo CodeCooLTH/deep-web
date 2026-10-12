@@ -312,6 +312,12 @@ model Shop {
   // CHECK: appointmentGranularity IN ('DAY','TIME')
   appointmentGranularity String @default("DAY")
 
+  /// feature 00073 เฟส B — ตั้งค่ารายงานการเงิน (ร้านบริการเท่านั้น · เจ้าของแก้ได้คนเดียว F1)
+  /// null = ยังไม่เคยตั้ง = ค่าตั้งต้น (เหมือนก่อนมีฟีเจอร์) · โครงสร้าง/ค่าตั้งต้น/การอ่าน → src/lib/report-settings.ts
+  /// เก็บบนแถว Shop (ไม่ใช่ตารางแยก) เพราะ layout โหลดแถวนี้อยู่แล้วทุกหน้า — เมนูอ่านได้โดยไม่เพิ่ม query
+  /// เปลี่ยนแค่ "แสดงอะไร" ไม่เปลี่ยนวิธีนับเงิน · รายงานกลุ่ม LINE ไม่อ่านค่านี้
+  reportSettings Json?
+
   /// feature 00062 — บัญชีรับเงินของร้าน (FR-BANK-01) · 1 ชุดต่อร้าน (MVP ไม่รองรับหลายบัญชี)
   ///
   /// 🛑 **แก้ได้เฉพาะ OWNER** (user เคาะ 2026-08-28) และต้องยืนยันตัวตนซ้ำทุกครั้งที่ *เปลี่ยน*
@@ -862,6 +868,13 @@ model Order {
   buyerConfirmedAt      DateTime? // ลูกค้ากดยืนยันนัดเมื่อไร (BR-RSV-26) — NULL = ยังไม่ยืนยัน
   rescheduleRequestNote String?   @db.Text // เหตุผลที่ลูกค้าขอเลื่อน (ไม่บังคับกรอก)
 
+  /// feature 00073 — ร้านบริการ "ปิดงาน" เมื่อไร (ขั้น 3 ของ flow 4 ขั้น) · NULL = ยังไม่ปิด
+  /// 🛑 เงินภายในร้านบริการทุกจอนับที่ค่านี้ และใช้เป็น "วันที่ของยอด" แทน createdAt
+  ///    (ตัวตัดสินเดียว: src/lib/order-revenue.ts `serviceRevenueOrderWhere`) — ร้านประเภทอื่นไม่อ่านค่านี้
+  /// หน้าร้านสาธารณะ (งานสำเร็จ/Trust Score/รีวิว) ยังนับที่ลูกค้ายืนยัน (Order.status=CONFIRMED) เหมือนเดิม
+  /// ตั้ง/ล้างผ่าน closeServiceJob / reopenServiceJob เท่านั้น (src/services/appointment.service.ts)
+  serviceClosedAt DateTime? @db.Timestamptz(3)
+
   /// คนที่กดสร้างออเดอร์นี้ (2026-08-04) — เจ้าของร้านหรือพนักงานที่ถูกเชิญ (feature 00012)
   ///
   /// nullable โดยตั้งใจ 2 เหตุผล ห้ามเปลี่ยนเป็น required:
@@ -1107,6 +1120,7 @@ model Order {
   @@index([serviceResourceId, serviceStart], map: "Order_serviceResourceId_start_idx") // feat 00024 — ปฏิทินของทรัพยากร + หาที่ว่าง
   @@index([shopId, type, serviceStart], map: "Order_shopId_type_serviceStart_idx") // feat 00024 — ปฏิทินคิวรวมของร้าน
   @@index([shopId, appointmentStatus], map: "Order_shopId_appointmentStatus_idx") // feat 00024 — นัดที่รอร้านตัดสิน
+  @@index([shopId, serviceClosedAt], map: "Order_shopId_serviceClosedAt_idx") // feat 00073 — ยอดขายร้านบริการตามวันปิดงาน
   @@index([shopChannelId], map: "Order_shopChannelId_idx") // 2026-08-10 — หารูป/ชื่อช่องทางต้นทางของออเดอร์ (หน้า /orders คอลัมน์ "ที่มา")
   @@index([conversationId], map: "Order_conversationId_idx") // 2026-08-12 — ปุ่ม "เปิดแชท" หาเธรดต้นทางของออเดอร์นี้ตรง ๆ (แทนการเดาจาก Customer)
   @@index([shopId, createdAt(sort: Desc), id(sort: Desc)], map: "Order_shopId_createdAt_id_idx") // CR 2026-08-25 — keyset pagination ของหน้า /orders

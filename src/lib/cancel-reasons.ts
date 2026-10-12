@@ -54,8 +54,13 @@ export const CANCEL_REASONS_BY_VERTICAL: Record<ShopVertical, readonly CancelRea
     { value: 'SHOP_ISSUE', label: 'สินค้ามีปัญหา หรือเหตุผลของร้าน' },
     { value: 'MUTUAL', label: 'ตกลงกันได้' },
   ],
+  /**
+   * feature 00073 (มติ user 2026-10-11) — ถอด `BUYER_NO_SHOW` ออกจากตัวเลือก: ร้านบริการบันทึก
+   * "ไม่มาตามนัด" ผ่าน **ปิดงาน → ไม่มาตามนัด** ทางเดียว (เลือกเก็บ/คืนมัดจำได้ + คะแนนลูกค้านับจากตรงนั้น)
+   * ถ้ายังให้เลือกที่นี่ด้วย งานเดียวจะบันทึกได้สองทางที่ให้ผลต่างกัน (ยกเลิก = ไม่มียอด · ปิดงาน = มัดจำเป็นยอด)
+   * งานเก่าที่ยกเลิกด้วยเหตุผลนี้ยังแสดงป้ายได้ — ดู LEGACY_CANCEL_REASON_LABELS
+   */
   SERVICE_QUEUE: [
-    { value: 'BUYER_NO_SHOW', label: 'ลูกค้าไม่มาตามนัด' },
     { value: 'BUYER_REQUESTED', label: 'ลูกค้าขอยกเลิก' },
     { value: 'SHOP_ISSUE', label: 'ร้านติดปัญหา ให้บริการไม่ได้' },
     { value: 'MUTUAL', label: 'ตกลงกันได้' },
@@ -109,6 +114,14 @@ export function isDraftLifecycleCancelReason(reason?: string | null): boolean {
   return reason === DRAFT_DISCARD_REASON || reason === DRAFT_EXPIRED_REASON
 }
 
+/**
+ * ป้ายของเหตุผลที่ **เลิกให้เลือกแล้ว** แต่ยังมีอยู่ในงานเก่า — แสดงได้ แต่ `isValidCancelReason` ไม่รับค่าใหม่
+ * (docs/conventions/enum-value-removal.md: ถอดตัวเลือกต้องไม่ทำให้ป้ายของแถวเก่าหาย)
+ */
+export const LEGACY_CANCEL_REASON_LABELS: Partial<Record<ShopVertical, Record<string, string>>> = {
+  SERVICE_QUEUE: { BUYER_NO_SHOW: 'ลูกค้าไม่มาตามนัด' },
+}
+
 /** ป้ายภาษาไทยของเหตุผล — null เมื่อไม่รู้จัก (ออเดอร์เก่าที่ไม่เคยเก็บเหตุผล)
  *
  *  ต้องถอยไปดู SYSTEM_CANCEL_REASONS ด้วยเสมอ ไม่งั้นแถวที่ระบบปิดเองจะขึ้น "—" บนหน้าจอ
@@ -118,6 +131,7 @@ export function cancelReasonLabel(vertical: ShopVertical, value: string | null):
   if (!value) return null
   return (
     CANCEL_REASONS_BY_VERTICAL[vertical].find((o) => o.value === value)?.label ??
+    LEGACY_CANCEL_REASON_LABELS[vertical]?.[value] ??
     SYSTEM_CANCEL_REASONS[value] ??
     null
   )

@@ -1,3 +1,4 @@
+import { ServiceJobClosedLockedError, SERVICE_JOB_ERROR_MESSAGE } from "@/lib/service-job";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -67,6 +68,10 @@ export async function POST(
       // feature 00039 — ข้อความเดิมเขียนว่า "การจอง" เพราะตอนนั้นบังคับเหตุผลเฉพาะ BOOKING
       // ตอนนี้บังคับทุกประเภทแล้ว จึงต้องเป็นคำกลาง ไม่งั้นร้านขายของจะเห็นคำว่า "การจอง"
       return NextResponse.json({ error: "เลือกเหตุผลก่อนยกเลิก" }, { status: 400 });
+    }
+    // feature 00073 — งานบริการที่ร้านปิดแล้วยกเลิกไม่ได้ (ต้องเปิดงานอีกครั้งก่อน)
+    if (err instanceof ServiceJobClosedLockedError) {
+      return NextResponse.json({ error: SERVICE_JOB_ERROR_MESSAGE.SERVICE_JOB_CLOSED_LOCKED }, { status: 409 });
     }
     if (err instanceof InvalidCancelReasonError) {
       return NextResponse.json({ error: "เหตุผลที่เลือกไม่อยู่ในรายการ" }, { status: 400 });

@@ -425,6 +425,16 @@ async function upsertVerifiedPhoneUser(credentials: PhoneUserCredentials) {
         // Auto-link any orders/reviews placed as a guest with this phone (PRD FR-8, B-4)
         const { linkBuyerHistory } = await import("@/services/user.service");
         await linkBuyerHistory(user.id, credentials.phone);
+        // feature 00073 — ผู้ใช้ไม่ได้ตั้งชื่อเอง ⇒ ใช้ชื่อที่ร้านบริการกรอกไว้ในงาน (แทน User_xxxx) · best-effort
+        if (!credentials.displayName?.trim()) {
+          try {
+            const { nameAccountFromServiceJob } = await import("@/services/account-name.service");
+            const named = await nameAccountFromServiceJob(user.id);
+            if (named) user = { ...user, displayName: named };
+          } catch (e) {
+            console.error("[auth] nameAccountFromServiceJob failed", e instanceof Error ? e.message : e);
+          }
+        }
 
         // สร้าง Shop ทันทีที่ signup seller ถ้า shopName ถูกส่งมา
         // (mode=signup + shopName ไม่ว่าง) — ป้องกัน layout fallback override ชื่อที่ผู้ใช้ตั้ง.
@@ -744,6 +754,15 @@ export const authOptions: NextAuthOptions = {
 
         const { guaranteeOrderLink } = await import("@/services/order-access.service");
         await guaranteeOrderLink({ orderId: order.id, userId: user.id, phone });
+        // feature 00073 — บัญชีใหม่จากลิงก์งานร้านบริการ: ใช้ชื่อที่ร้านกรอกในงาน (ต้องหลัง guaranteeOrderLink
+        // เพราะงานใบนี้อาจเพิ่งผูกตรงนี้ — buyerContact อาจไม่ตรงกับที่ linkBuyerHistory หาเจอ) · best-effort
+        try {
+          const { nameAccountFromServiceJob } = await import("@/services/account-name.service");
+          const named = await nameAccountFromServiceJob(user.id);
+          if (named) return { ...user, displayName: named };
+        } catch (e) {
+          console.error("[auth] nameAccountFromServiceJob failed", e instanceof Error ? e.message : e);
+        }
         return user;
       },
     }),

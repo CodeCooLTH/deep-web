@@ -150,6 +150,13 @@ describe('[blocker] แถบช่องทางต้องติดป้า
  * ด่านชุดนี้กัน **การหายไปเงียบ ๆ** ของบล็อกที่ v5 เพิ่มเข้ามา — ทุกตัวเป็นของที่ผู้ซื้อ
  * ใช้จริง ไม่ใช่ของประดับ และไม่มี type ไหนบังคับให้มันอยู่
  */
+/**
+ * ปุ่มหลักของแถบล่าง — feature 00073 FR-012: งานร้านบริการที่ร้านปิดแล้วเปิดแผ่นให้คะแนน (ส่งคะแนน = ยืนยัน)
+ * ที่เหลือเปิด dialog ยืนยันเหมือนเดิม · ปุ่มรอง "ยืนยันรับบริการโดยไม่ให้คะแนน" ใช้ `setConfirmDialogOpen(true)` ตรง ๆ
+ * จึงต้องยึดสตริงของปุ่มหลักแทน (ไม่งั้นด่านไปจับปุ่มรองที่อยู่ใต้ปุ่มยกเลิก)
+ */
+const PRIMARY_CTA_ONCLICK = 'onClick={() => (reviewConfirms ? setReviewSheetOpen(true) : setConfirmDialogOpen(true))}'
+
 describe('[blocker] โครงหน้าออเดอร์ตามม็อกอัพ v5', () => {
   it('ปุ่มบนปก (ช่วยเหลือ + แชร์) ต้องมีทั้งสองจอ', () => {
     for (const f of ['OrderDetailMobile.tsx', 'GuestOrderView.tsx']) {
@@ -200,7 +207,7 @@ describe('[blocker] โครงหน้าออเดอร์ตามม็
      * ถูกถอดออกแล้ว ⇒ ห้ามกลับมา ไม่งั้นกลายเป็นทางเข้าที่สองของการกระทำที่ย้อนไม่ได้
      */
     expect(odm, 'ห้ามมีกล่องยกเลิกในการ์ดช่วยเหลือ').not.toContain('ต้องการยกเลิกคำสั่งซื้อ?')
-    const bar = odm.indexOf('onClick={() => setConfirmDialogOpen(true)}')
+    const bar = odm.indexOf(PRIMARY_CTA_ONCLICK)
     expect(bar, 'ต้องมีปุ่มยืนยันในแถบล่าง').toBeGreaterThan(-1)
     const barCancel = odm.indexOf('setCancelDialogOpen(true)', bar)
     expect(barCancel, 'แถบล่างต้องมีปุ่มยกเลิกต่อจากปุ่มยืนยัน').toBeGreaterThan(bar)
@@ -214,7 +221,7 @@ describe('[blocker] โครงหน้าออเดอร์ตามม็
 
   it('แถบล่างต้องแสดงยอดเงินคู่กับปุ่มยืนยัน (v5 `.sticky-total`)', () => {
     const odm = ODM()
-    const cta = odm.indexOf('onClick={() => setConfirmDialogOpen(true)}')
+    const cta = odm.indexOf(PRIMARY_CTA_ONCLICK)
     expect(cta).toBeGreaterThan(-1)
     /* ยอดต้องอยู่ **ก่อน** ปุ่มในแถบเดียวกัน — ตัวเลขที่ผู้ซื้อต้องเห็นตอนนิ้วอยู่บนปุ่ม */
     const total = odm.lastIndexOf('{formatBaht(order.totalAmount)}', cta)

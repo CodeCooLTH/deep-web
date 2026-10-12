@@ -18,7 +18,7 @@
  *    `order-revenue.ts` (ฉบับ Prisma) และฉบับ SQL อยู่ข้างล่างนี้ซึ่ง derive จากค่าคงที่ตัวเดียวกัน
  */
 
-import { REVENUE_CARRIER_STATUSES } from './order-revenue'
+import { REVENUE_CARRIER_STATUSES, SERVICE_NON_REVENUE_STATUSES } from './order-revenue'
 
 /** ใส่ quote ให้ literal สตริงแบบปลอดภัย — ใช้กับค่าคงที่ในโค้ดเท่านั้น ไม่ใช่ input ผู้ใช้ */
 function lit(value: string): string {
@@ -73,6 +73,28 @@ export function revenueOrderSql(o: string): string {
       )
     )
   )`
+}
+
+/**
+ * feature 00073 — คู่แฝด SQL ของ `serviceRevenueOrderSql`/`countsAsServiceRevenue` (ร้านบริการ)
+ * งานที่ร้านปิดแล้ว และไม่ใช่ ยกเลิก/คืนทั้งใบ/ร่าง — สถานะมาจาก `SERVICE_NON_REVENUE_STATUSES` ตัวเดียวกัน
+ */
+export function serviceRevenueOrderSql(o: string): string {
+  const excluded = SERVICE_NON_REVENUE_STATUSES.map(lit).join(', ')
+  return `(${o}."serviceClosedAt" IS NOT NULL AND ${o}."status" NOT IN (${excluded}))`
+}
+
+/** เลือกสูตรตามประเภทกิจการ — ร้านอื่นได้ `revenueOrderSql` เดิมเป๊ะ */
+export function revenueOrderSqlFor(o: string, isServiceShop: boolean): string {
+  return isServiceShop ? serviceRevenueOrderSql(o) : revenueOrderSql(o)
+}
+
+/**
+ * ยอดของงานบริการที่ปิดแบบไม่มาตามนัด = เงินที่รับไว้และไม่ถูก void (คู่แฝดของ `serviceNoShowRevenue`)
+ * ใช้ใน CASE: `CASE WHEN o."appointmentStatus" = 'NO_SHOW' THEN <นี่> ELSE <ยอดปกติ> END`
+ */
+export function serviceNoShowRevenueSql(o: string): string {
+  return `COALESCE((SELECT SUM(p."amount") FROM "OrderPayment" p WHERE p."orderId" = ${o}."id" AND p."voidedAt" IS NULL), 0)`
 }
 
 /**

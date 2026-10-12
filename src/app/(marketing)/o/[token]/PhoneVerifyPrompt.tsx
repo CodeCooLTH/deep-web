@@ -42,7 +42,7 @@ import AuthIllustrationWrapper from '@/views/pages/auth/AuthIllustrationWrapper'
 import OtpSlots from '@/app/(marketing)/_components/OtpSlots'
 import { META_DATA } from '@/config/constants'
 import { formatYearTH } from '@/lib/format-date'
-import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
+import { MOBILE_RULE_TEXT, isLoginPhone } from '@/lib/phone'
 
 type Stage = 'phone' | 'otp'
 
@@ -61,7 +61,8 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
   const [linkTicket, setLinkTicket] = useState<string | null>(null)
   const [linking, setLinking] = useState(false)
 
-  const phoneValid = MOBILE_PHONE_RE.test(phone)
+  // ตัวเดียวกับ /api/otp/send (`isLoginPhone`) — นอก production รับบัญชีทดสอบ 000000000X ด้วย
+  const phoneValid = isLoginPhone(phone)
 
   const handleSend = async () => {
     setError(null)

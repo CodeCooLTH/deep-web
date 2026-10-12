@@ -9,7 +9,8 @@ import { thaiDayKey } from '@/lib/format-date'
 import {
   buildResponsePairsSql,
   humanAgentReplySql,
-  revenueOrderSql,
+  revenueOrderSqlFor,
+  serviceNoShowRevenueSql,
   unattributedShopReplySql,
   customerMessageSql,
 } from '@/lib/agent-performance-sql'
@@ -226,6 +227,10 @@ async function fetchOrders(shopId: string, f: ReportFilters): Promise<OrderRow[]
         WHERE r."orderId" = o."id" AND r."status" = 'RECEIVED'
       ), 0))`
     : Prisma.sql`o."totalAmount"`
+  // feature 00073 — ร้านบริการ: งานไม่มาตามนัดมียอด = มัดจำที่เก็บไว้ (คืนมัดจำ = void ⇒ 0)
+  const revenueAmountSql = newRules
+    ? Prisma.sql`(CASE WHEN o."appointmentStatus" = 'NO_SHOW' THEN ${Prisma.raw(serviceNoShowRevenueSql('o'))} ELSE ${amountSql} END)`
+    : amountSql
   return prisma.$queryRaw<OrderRow[]>(Prisma.sql`
     WITH ${convCte(shopId, f)}
     SELECT
@@ -236,8 +241,9 @@ async function fetchOrders(shopId: string, f: ReportFilters): Promise<OrderRow[]
       o."createdByUserId"   AS "createdByUserId",
       -- หักคืนบางส่วนที่รับของแล้ว (มติ 2026-10-01 · กติกาเดียวกับ return-adjustment.service ฝั่ง TS)
       -- ใบ RETURNED ทั้งใบไม่นับเป็นยอดขายอยู่แล้ว (revenueOrderSql) จึงไม่ต้องกรองซ้ำในซับคิวรี
-      ${amountSql}          AS "amount",
-      ${Prisma.raw(revenueOrderSql('o'))} AS "isRevenue",
+      ${revenueAmountSql}   AS "amount",
+      -- ร้านบริการ = งานที่ร้านปิดแล้ว (feature 00073) · ร้านอื่น = เกณฑ์เดิม
+      ${Prisma.raw(revenueOrderSqlFor('o', newRules))} AS "isRevenue",
       (o."status" = 'CANCELLED') AS "isCancelled",
       own.owner_user_id     AS "ownerUserId"
     FROM "Order" o

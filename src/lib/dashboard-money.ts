@@ -28,6 +28,10 @@ type Redactable = {
   salesSeries?: unknown
   portfolio?: unknown
   bestSellers?: { soldCount?: number }[]
+  /** feature 00073 เฟส B — มัดจำรับล่วงหน้า (เงิน) */
+  advanceDeposit?: unknown
+  /** feature 00073 — ตัวเลขหลักบนการ์ด (เงิน) */
+  headline?: unknown
 }
 
 /**
@@ -40,6 +44,8 @@ export function redactCommandCenterData<T extends Redactable>(data: T, level: Mo
   delete out.walletBalance
   delete out.salesSeries
   delete out.portfolio
+  delete out.advanceDeposit
+  delete out.headline
   if (out.bestSellers) {
     out.bestSellers = out.bestSellers.map((b) => {
       const { soldCount: _omit, ...rest } = b

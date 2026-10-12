@@ -51,7 +51,8 @@ const GATED: { name: string; path: string; must: RegExp }[] = [
      */
     name: 'ชุดเงินรายวัน — ตัวคิดเลขของชีตยอดขาย',
     path: 'src/services/dashboard.service.ts',
-    must: /vertical === 'SERVICE_QUEUE'/,
+    // 00073: ผ่านตัวตัดสินกลาง usesServiceFinanceRules (finance-rules.ts ห้ามเทียบสตริงดิบ) แทน `=== 'SERVICE_QUEUE'`
+    must: /const newRules = usesServiceFinanceRules\(vertical\)[\s\S]*const isServiceShop = newRules\b/,
   },
   {
     /**
@@ -90,9 +91,10 @@ describe('AC-SQ-07 — ทุกจอของฟีเจอร์ร้าน
      */
     const code = stripComments(read('src/services/dashboard.service.ts'))
 
-    // ธงต้องมาจากการเทียบ vertical ตรง ๆ ไม่ใช่รับ boolean มาจากผู้เรียก (ซึ่งโกหกได้)
+    // ธงต้องมาจาก vertical ในไฟล์นี้ ไม่ใช่รับ boolean มาจากผู้เรียก (ซึ่งโกหกได้)
+    // 00073: ผ่านตัวตัดสินกลาง usesServiceFinanceRules(vertical) — ยังคำนวณจาก vertical ในไฟล์นี้เหมือนเดิม
     expect(code, 'ต้อง derive ธงจาก vertical ในไฟล์นี้').toMatch(
-      /isServiceShop\s*=\s*vertical === 'SERVICE_QUEUE'/,
+      /const newRules = usesServiceFinanceRules\(vertical\)[\s\S]*const isServiceShop = newRules\b/,
     )
 
     const at = code.indexOf('payments:')

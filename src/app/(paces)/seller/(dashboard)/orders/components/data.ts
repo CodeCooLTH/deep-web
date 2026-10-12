@@ -139,6 +139,13 @@ export type OrderRow = {
    * ขึ้น "รอดำเนินการ" ในรายการ แล้วขึ้น "ชำระเงินแล้ว" เมื่อกดเข้าไป** ห่างกันหนึ่งคลิก
    */
   money?: { totalAmount: number; totalReceived: number; outstanding: number }
+  /**
+   * feature 00073 — ป้ายสถานะชุดเดียวของงานร้านบริการ (src/lib/service-status.ts) · undefined = ร้านอื่น
+   * ยอดค้างอยู่ในป้ายเฉพาะผู้เห็นเงิน — ผู้อื่นได้ "ปิดงานแล้ว" เฉย ๆ
+   */
+  serviceStatus?: { key: string; label: string; cls: string; icon: string; tone: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }
+  /** feature 00073 — ร้านปิดงานเมื่อไร (ISO) · null = ยังไม่ปิด · undefined = ร้านอื่น */
+  serviceClosedAtISO?: string | null
   /** BILLING แก้ใบนี้ไม่ได้ (รับเงินแล้ว/ไม่ใช่บริการ) — คำนวณที่ server ด้วย canEditOrderAs ตัวเดียวกับหน้ารายละเอียด/หน้าแก้ไข · ซ่อนปุ่มแก้ไขในรายการ */
   editLocked?: boolean
   id: string            // publicToken short (8-char)
@@ -271,4 +278,6 @@ export type OrderStatCardData = {
   totalCount: number                                         // ยอดรวมทั้งหมดของ status (headline h3)
   changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)  /** จำนวนใน 30 วันล่าสุด — บรรทัดล่างของการ์ด (โครงเดียวกับ ProductStats) */
   recentCount: number
+  /** feature 00073 — ไอคอนแทนของสถานะ (ร้านบริการ "ปิดงานแล้ว" ใช้ช่อง SHIPPED แต่ไม่ใช่รถส่งของ) */
+  icon?: string
 }

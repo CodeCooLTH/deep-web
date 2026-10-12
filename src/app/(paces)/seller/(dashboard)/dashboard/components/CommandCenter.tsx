@@ -67,6 +67,9 @@ export default function CommandCenter({ data, blocks }: Props) {
         portfolio={data.portfolio ?? null}
         orderNoun={data.orderNoun}
         costNoun={resolveOrderVocab(data.shopVertical ?? '').costNoun}
+        reportSettings={data.reportSettings}
+        advance={data.advanceDeposit ?? null}
+        headline={data.headline ?? null}
       />
 
       {/* งานวันนี้ — ฝ่ายช่างล้วนในร้านที่รับนัดเท่านั้น (00071 S-15) · ไม่ mount ให้บทบาทอื่น (endpoint คืนเบอร์ลูกค้า) */}

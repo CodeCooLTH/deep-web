@@ -46,12 +46,17 @@ const read = (f: string) => strip(readFileSync(f, 'utf8'))
 describe('[blocker] รีวิวได้หลังยืนยันรับเท่านั้น (แบบ Grab — 2026-10-04)', () => {
   it('service ปฏิเสธทุกสถานะที่ไม่ใช่ CONFIRMED (รวม SHIPPED)', () => {
     const svc = read('src/services/review.service.ts')
-    expect(svc).toMatch(/if \(order\.status !== "CONFIRMED"\)/)
+    expect(svc).toMatch(/if \(status !== "CONFIRMED"\)/)
     expect(svc).not.toMatch(/\["CONFIRMED", "SHIPPED"\]/)
+    // feature 00073 FR-012 — ทางเดียวที่ข้าม "ต้องยืนยันก่อน" ได้คือร้านบริการปิดงานแล้ว และต้อง *ยืนยันจริง* ผ่าน
+    // confirmOrder ก่อนเขียนรีวิว (ไม่ใช่ปล่อยรีวิวโดยไม่ยืนยัน) — กติกาอยู่ใน reviewConfirmsServiceJob ที่เดียว
+    expect(svc).toMatch(/reviewConfirmsServiceJob\([\s\S]{0,200}\)\s*\)\s*\{\s*status = \(await confirmOrder\(/)
   })
-  it('หน้าออเดอร์เปิดการ์ดรีวิวเฉพาะ CONFIRMED', () => {
+  it('หน้าออเดอร์เปิดการ์ดรีวิวเฉพาะ CONFIRMED (หรือร้านบริการที่ปิดงานแล้ว — ส่งคะแนน = ยืนยัน)', () => {
     const ui = strip(readBuyerOrderFile('OrderDetailMobile.tsx'))
-    expect(ui).toMatch(/const canReview = !order\.hasReview && order\.status === 'CONFIRMED'/)
+    expect(ui).toMatch(/const canReview = !order\.hasReview && \(order\.status === 'CONFIRMED' \|\| reviewConfirms\)/)
+    // reviewConfirms ต้องผูกกับร้านบริการ + ปิดงานแล้ว + ไม่ใช่ไม่มาตามนัด — ร้านอื่นไม่มีทางเปิดก่อนยืนยัน
+    expect(ui).toMatch(/const reviewConfirms =\s*order\.isServiceShop && Boolean\(order\.serviceClosedAtIso\) && !order\.serviceNoShow/)
   })
 })
 

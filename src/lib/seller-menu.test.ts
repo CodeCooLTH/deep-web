@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyFinanceMenu,
+  applyMenuLocale,
   applyOrderLabel,
   FINANCE_MENU_LABEL,
   FINANCE_EXPENSE_TAB_URL,
@@ -24,6 +25,8 @@ import {
   resolveVisibleSellerMenu,
   sellerMenuItems,
 } from './seller-menu'
+import { th } from '@/i18n/dictionaries/th'
+import { en } from '@/i18n/dictionaries/en'
 
 /** ctx กลาง ๆ ที่เปิดทุกอย่างเท่าที่เปิดได้ — เทสแต่ละอันค่อย override เฉพาะที่สนใจ */
 function ctx(vertical: string) {
@@ -82,6 +85,8 @@ describe('sellerMenuItems — slug contract', () => {
         // slug ที่เคยมี ห้ามแก้บรรทัดในเทสนี้เฉย ๆ ต้องมี migration ล้าง slug นั้นออกจาก
         // SellerShortcutPreference.slugs ก่อน ไม่งั้นทางลัดของร้านจะชี้ไปเมนูที่ไม่มีอยู่จริง
         'seller:settings-job-types',
+        // 00073 เฟส B — ตั้งค่ารายงาน (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:settings-reports',
         'seller:settings-chatbot',
         'seller:settings-order-agent',
         // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่
@@ -150,7 +155,8 @@ describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + date
     // createLabelShort 'เข้ารับบริการใหม่' → 'งานใหม่' (user สั่ง 2026-08-07) — ปุ่มท้ายแถบเครื่องมือ
     // แชทถูกตัดหายครึ่งคำบนจอ 390px จริง
     // noun 'การเข้ารับบริการ' → 'งานบริการ' (user เคาะ 2026-10-10)
-    ['SERVICE_QUEUE', 'งานบริการ', 'บริการ', 'สร้างงานบริการ', 'งานใหม่', 'วันที่สร้าง', 'เริ่มให้บริการแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
+    // 00073: ขั้นที่ร้านลงมือ = ปิดงาน (Order.serviceClosedAt) — ไม่มีขั้น SHIPPED "เริ่มให้บริการแล้ว" อีก
+    ['SERVICE_QUEUE', 'งานบริการ', 'บริการ', 'สร้างงานบริการ', 'งานใหม่', 'วันที่สร้าง', 'ปิดงานแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
     ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว', 'ต้นทุนต่อห้อง'],
   ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel, costNoun) => {
     expect(resolveOrderVocab(vertical)).toMatchObject({
@@ -171,7 +177,7 @@ describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + date
   // ช่องที่เพิ่ม 2026-10-10 (clarify ร้านบริการ) — ONLINE_SALES ต้องเป็นคำเดิมของหน้าจอทุกตัวอักษร
   it.each([
     ['ONLINE_SALES', 'ผู้ซื้อ', 'กำลังจัดส่ง', 'ผู้ซื้อยืนยันรับของ', 'ยอดสินค้า', 'ตะกร้า', 'เพิ่มลงตะกร้า'],
-    ['SERVICE_QUEUE', 'ลูกค้า', 'เริ่มให้บริการแล้ว', 'ลูกค้ายืนยันรับบริการแล้ว', 'ยอดค่าบริการ', 'รายการที่เลือก', 'เพิ่มรายการ'],
+    ['SERVICE_QUEUE', 'ลูกค้า', 'ปิดงานแล้ว', 'ลูกค้ายืนยันรับบริการแล้ว', 'ยอดค่าบริการ', 'รายการที่เลือก', 'เพิ่มรายการ'],
   ])('ช่องใหม่ %s', (vertical, buyerNoun, shippedStatusLabel, buyerConfirmedStepLabel, subtotalLabel, cartTitle, addToCartLabel) => {
     expect(resolveOrderVocab(vertical)).toMatchObject({ buyerNoun, shippedStatusLabel, buyerConfirmedStepLabel, subtotalLabel, cartTitle, addToCartLabel })
   })
@@ -373,6 +379,21 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
     const out = applyFinanceMenu(menu(), 'SOMETHING_NEW')
     expect(slugs(out)).toContain('seller:expenses')
     expect(urlOf(out, 'seller:expenses')).toBe('/expenses')
+  })
+
+  it('[blocker] หลังแปลภาษา (applyMenuLocale รันนอกสุด) ร้านบริการยังเป็น "การเงินร้าน" — ตรงหัวหน้า /sales', () => {
+    // บั๊กเดิม: applyMenuLocale แปล seller:sales ทับกลับเป็น "ภาพรวมกำไร/ขาดทุน" ⇒ เมนูกับหัวหน้าไม่ตรงกัน
+    expect(th.menu.salesFinance).toBe(FINANCE_MENU_LABEL)
+    const out = applyMenuLocale(applyFinanceMenu(menu(), 'SERVICE_QUEUE'), th, 'SERVICE_QUEUE')
+    expect(labelOf(out, 'seller:sales')).toBe(FINANCE_MENU_LABEL)
+    expect(labelOf(applyMenuLocale(applyFinanceMenu(menu(), 'SERVICE_QUEUE'), en, 'SERVICE_QUEUE'), 'seller:sales')).toBe(en.menu.salesFinance)
+  })
+
+  it('[blocker] หลังแปลภาษา ร้านขายของ/ที่พัก ป้ายเดิม "ภาพรวมกำไร/ขาดทุน"', () => {
+    for (const vertical of ['ONLINE_SALES', 'LODGING']) {
+      const out = applyMenuLocale(applyFinanceMenu(menu(), vertical), th, vertical)
+      expect(labelOf(out, 'seller:sales')).toBe(th.menu.sales)
+    }
   })
 
   it('ไม่แตะรายการอื่นในกลุ่มเดียวกัน', () => {

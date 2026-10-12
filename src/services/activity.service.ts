@@ -18,7 +18,8 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 // NOTE: type นี้เป็น source of truth หลังจาก T6 re-home
 // _constants/command-center.ts import type จากที่นี่
 export type ActivityItem = {
-  type: 'ORDER_CREATED' | 'ORDER_CONFIRMED' | 'SMS_SENT' | 'REVIEW_RECEIVED' | 'TOPUP' | 'LOW_STOCK_ALERT'
+  /** SERVICE_CLOSED = ร้านบริการกดปิดงาน (feature 00073) — ร้านอื่นไม่มีวันเกิด */
+  type: 'ORDER_CREATED' | 'ORDER_CONFIRMED' | 'SERVICE_CLOSED' | 'SMS_SENT' | 'REVIEW_RECEIVED' | 'TOPUP' | 'LOW_STOCK_ALERT'
   label: string  // Thai copy, PII masked แล้วก่อนส่งออก
   at: Date
   href?: string  // short path (/orders/[token]) ถ้ามี; ไม่มี /seller prefix ตาม Paces convention
@@ -90,6 +91,29 @@ export async function getRecentActivity(
           label: `${confirmedWord} ${shortToken}`,
           // updatedAt น่าเชื่อถือกว่า createdAt สำหรับ CONFIRMED event
           at: o.updatedAt,
+          href: `/orders/${o.publicToken}`,
+        })
+      }
+    }
+
+    // ─── Source 1b: ร้านบริการปิดงาน (feature 00073 · ไอคอน ✓ ในวงกลม — user เลือก 2026-10-11) ───
+    // query แยก (ไม่ใช่จากชุดออเดอร์ล่าสุดข้างบน) — งานที่ปิดวันนี้อาจสร้างไว้นานแล้ว
+    // ใช้ index (shopId, serviceClosedAt) · ร้านอื่นไม่ query เลย
+    const closedItems: ActivityItem[] = []
+    if (svc) {
+      const closed = await prisma.order.findMany({
+        where: { shopId, serviceClosedAt: { not: null } },
+        orderBy: { serviceClosedAt: 'desc' },
+        take,
+        select: { publicToken: true, serviceClosedAt: true, appointmentStatus: true },
+      })
+      for (const o of closed) {
+        if (!o.serviceClosedAt) continue
+        const shortToken = o.publicToken.slice(0, 8).toUpperCase()
+        closedItems.push({
+          type: 'SERVICE_CLOSED',
+          label: o.appointmentStatus === 'NO_SHOW' ? `ปิดงาน · ไม่มาตามนัด ${shortToken}` : `ปิดงาน ${shortToken}`,
+          at: o.serviceClosedAt,
           href: `/orders/${o.publicToken}`,
         })
       }
@@ -189,6 +213,7 @@ export async function getRecentActivity(
     // ─── Merge + sort + slice ──────────────────────────────────────────────
     const all: ActivityItem[] = [
       ...orderItems,
+      ...closedItems,
       ...smsItems,
       ...reviewItems,
       ...topupItems,

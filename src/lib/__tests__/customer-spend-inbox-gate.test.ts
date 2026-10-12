@@ -27,6 +27,14 @@ describe('inbox customerStats spend gate', () => {
     }
   })
 
+  it('[00073] ยอดสะสมร้านบริการ (getServiceCustomerSpend) อยู่ใต้ canSeeSpend && เหมือนกัน', () => {
+    const calls = [...SRC.matchAll(/getServiceCustomerSpend\(shop/g)]
+    expect(calls.length).toBe(1)
+    for (const m of calls) {
+      expect(SRC.slice(Math.max(0, m.index! - 120), m.index!)).toMatch(/canSeeSpend && usesServiceFinanceRules\(shop\.vertical\)\s*\?\s*$/)
+    }
+  })
+
   it('ไม่ตั้ง customerStats = null เพื่อซ่อนยอด', () => {
     expect(SRC).not.toMatch(/canSeeSpend[^\n]*customerStats = null/)
   })

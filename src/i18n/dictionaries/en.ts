@@ -88,6 +88,8 @@ export const en: Dictionary = {
     // "ภาพรวมกำไร/ขาดทุน" — ใช้ P&L ซึ่งเป็นศัพท์บัญชีสากล สั้นกว่า "Profit and loss" มาก
     // และเมนูซ้ายกว้างคงที่ 245px (BR-I18N-17)
     sales: 'P&L overview',
+    // ร้านบริการ — หน้า "การเงินร้าน" (กำไรขาดทุน · ยอดเก็บเงิน · ค่าใช้จ่าย)
+    salesFinance: 'Shop finances',
     reportsAgents: 'Agent Chat Response',
     reportsProducts: 'Sales by Product',
     followUps: 'Customer follow-ups',
@@ -133,6 +135,7 @@ export const en: Dictionary = {
     settings: 'Shipping',
     settingsChannels: 'Sales channels',
     settingsJobTypes: 'Service types',
+    settingsReports: 'Report settings',
     badgeLocked: 'Locked',
     badgeChoosePlan: 'Choose a plan',
   },
@@ -264,7 +267,7 @@ export const en: Dictionary = {
     stageReturned: 'Returned',
     appointmentToday: 'Today’s appointments',
     workAwaitingService: 'Awaiting service',
-    workApptConfirmed: 'Confirmed',
+    workApptConfirmed: 'Customer confirmed',
     workAwaitingClose: 'To close',
     workAwaitingBuyer: 'Awaiting customer',
 
@@ -307,10 +310,13 @@ export const en: Dictionary = {
     salesCardRangeAria: 'Time range',
     chartConfirmed: 'Confirmed',
     chartUnconfirmed: 'Awaiting confirmation',
+    chartClosed: 'Jobs closed',
     chartToday: 'Today',
     chartAvg: 'Avg {n}',
     compareAvgDays: 'vs {n}-day average',
     compareLastMonth: 'vs last month',
+    salesCardAriaService:
+      'Sales {range} {amount} baht from {count} {noun}, jobs closed {confirmed} baht. Tap to open the full report',
     salesCardAria:
       'Sales {range}: {amount} baht from {count} {noun} — {confirmed} baht confirmed, {unconfirmed} baht awaiting confirmation. Tap to open the full report.',
 

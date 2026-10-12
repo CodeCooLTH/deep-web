@@ -66,6 +66,8 @@ export default async function WorkSchedulePage() {
     canChat: can(viewerRoles, 'H1'),
     canReschedule: can(viewerRoles, 'O3'),
     canCreate: can(viewerRoles, 'O2s'),
+    // feature 00073 — ชีตปิดงาน: คืนมัดจำตอนไม่มาตามนัด = O6 (เจ้าของ/ผู้จัดการ)
+    canRefundDeposit: can(viewerRoles, 'O6'),
   }
   // ตั้งประเภทงาน = Q2 (เจ้าของ+ผู้ดูแล) — ผู้ไม่มี Q2 ไม่เห็นปุ่มไปหน้าตั้งค่า
   const canSetupJobTypes = can(viewerRoles, 'Q2')

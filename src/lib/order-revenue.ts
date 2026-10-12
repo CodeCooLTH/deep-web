@@ -21,6 +21,7 @@
  * ตรงกับ status_code ของ iShip (ยืนยันกับ GET /api/order_statuses ของบัญชีจริง 2026-08-04)
  */
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 export const REVENUE_CARRIER_STATUSES = [
   "picked_up", // พัสดุเข้าระบบ
@@ -82,4 +83,140 @@ export function countsAsRevenue(order: {
       s.carrierStatus != null &&
       (REVENUE_CARRIER_STATUSES as readonly string[]).includes(s.carrierStatus),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// feature 00073 — ร้านบริการ (SERVICE_QUEUE): ยอดขายนับตอน "ร้านปิดงาน" (Order.serviceClosedAt)
+//
+// มติ user 2026-10-10/11: เงินภายในร้านบริการทุกจอนับที่ขั้น 3 (ร้านปิดงาน) และใช้ **วันปิดงาน**
+// เป็นวันที่ของยอด · หน้าร้านสาธารณะ (งานสำเร็จ/Trust Score/รีวิว) ยังนับที่ลูกค้ายืนยันเหมือนเดิม
+// ร้านขายของ/ที่พัก = กติกาข้างบนเป๊ะ (ค่าตั้งต้นถาวร) — ฟังก์ชัน `...For(vertical)` ข้างล่าง
+// คืนของเดิมทุกตัวเมื่อไม่ใช่ร้านบริการ
+//
+// 🛑 ทุกจุดที่คิดเงินของร้านบริการต้องผ่านชุดนี้ — ห้ามเขียน `serviceClosedAt: { not: null }` เอง
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+/** สถานะที่ไม่ใช่ "งานที่ปิดแล้ว" แม้จะมีวันปิดงาน — ยกเลิก/คืนทั้งใบ/ร่าง */
+export const SERVICE_NON_REVENUE_STATUSES = ['CANCELLED', 'RETURNED', 'DRAFTED'] as const
+
+type DateWindow = { gte: Date; lt: Date }
+
+/** where ของ "งานบริการที่ปิดแล้ว" — ส่ง window = ตัดช่วงด้วยวันปิดงาน */
+export function serviceRevenueOrderWhere(closedIn?: DateWindow) {
+  return {
+    serviceClosedAt: closedIn ? { gte: closedIn.gte, lt: closedIn.lt } : { not: null },
+    status: { notIn: [...SERVICE_NON_REVENUE_STATUSES] },
+  }
+}
+
+/**
+ * where ของ "ใบที่นับเป็นยอดขายในช่วงนี้" ครบทั้งเงื่อนไขและแกนวันที่ — ตัวเดียวที่รายงานควรใช้
+ * - ร้านบริการ: งานที่ปิดแล้ว ตัดช่วงด้วยวันปิดงาน
+ * - ร้านอื่น: `revenueOrderWhere` ตัดช่วงด้วย createdAt (ของเดิม)
+ */
+export function revenueWindowWhere(vertical: string | null | undefined, window: DateWindow) {
+  if (usesServiceFinanceRules(vertical)) return serviceRevenueOrderWhere(window)
+  return { ...revenueOrderWhere, createdAt: { gte: window.gte, lt: window.lt } }
+}
+
+/** งานบริการใบนี้ปิดแล้ว (นับเป็นยอดขาย) หรือยัง — คู่ในหน่วยความจำของ `serviceRevenueOrderWhere` */
+export function countsAsServiceRevenue(order: {
+  status: string
+  serviceClosedAt: Date | string | null
+}): boolean {
+  return (
+    order.serviceClosedAt != null &&
+    !(SERVICE_NON_REVENUE_STATUSES as readonly string[]).includes(order.status)
+  )
+}
+
+/**
+ * countsAsRevenue ที่รู้ประเภทกิจการ — `serviceClosedAt` เป็น field **บังคับ** โดยเจตนา
+ * (ลืม select แล้ว compile ไม่ผ่าน · ถ้า optional ยอดร้านบริการจะเป็น 0 เงียบ ๆ ทั้งร้าน)
+ */
+export function countsAsRevenueFor(
+  order: Parameters<typeof countsAsRevenue>[0] & { serviceClosedAt: Date | string | null },
+  vertical: string | null | undefined,
+): boolean {
+  return usesServiceFinanceRules(vertical) ? countsAsServiceRevenue(order) : countsAsRevenue(order)
+}
+
+/** วันที่ของยอด — ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ของเดิม) */
+export function revenueDateFor(
+  order: { createdAt: Date | string; serviceClosedAt: Date | string | null },
+  vertical: string | null | undefined,
+): Date {
+  const d = usesServiceFinanceRules(vertical) && order.serviceClosedAt != null
+    ? order.serviceClosedAt
+    : order.createdAt
+  return d instanceof Date ? d : new Date(d)
+}
+
+/**
+ * งานที่ปิดแบบ "ไม่มาตามนัด" — ยอดขาย = มัดจำที่เก็บไว้ (เงินที่รับแล้วและไม่ถูก void) · ต้นทุน 0
+ * (ไม่ได้ให้บริการ จึงไม่มีต้นทุนอะไหล่/ไม่มีของขายออก) · คืนมัดจำ = void ⇒ ยอด 0 (มติ D1 2026-10-11)
+ */
+export function isServiceNoShow(order: { appointmentStatus: string | null }): boolean {
+  return order.appointmentStatus === 'NO_SHOW'
+}
+
+/** ยอดขายของงานไม่มาตามนัด = เงินที่รับไว้และยังไม่ถูกยกเลิกรายการ */
+export function serviceNoShowRevenue(
+  payments: readonly { amount: unknown; voidedAt: Date | string | null }[],
+): number {
+  let sum = 0
+  for (const p of payments) if (p.voidedAt == null) sum += Number(p.amount)
+  return sum
+}
+
+/** select ขั้นต่ำที่ต้องมีเพื่อคิดยอดงานไม่มาตามนัด — ใช้ร่วมกันทุก query ของร้านบริการ */
+export const SERVICE_REVENUE_SELECT = {
+  serviceClosedAt: true,
+  appointmentStatus: true,
+  payments: { select: { amount: true, voidedAt: true } },
+} as const
+
+/**
+ * งานบริการที่ปิดแล้ว **และได้ให้บริการจริง** (ไม่รวมไม่มาตามนัด) — ใช้กับ "ของที่ขายออก/ต้นทุน"
+ * (ไม่มาตามนัดมียอด = มัดจำ แต่ไม่ได้ขายบริการ/อะไหล่ชิ้นไหนออกไป)
+ * 🛑 ต้องเขียน OR null ชัด ๆ — `appointmentStatus: { not: 'NO_SHOW' }` เฉย ๆ ตัดงาน walk-in (NULL) ทิ้งเงียบ ๆ
+ */
+export function serviceDeliveredOrderWhere(closedIn?: DateWindow) {
+  return {
+    ...serviceRevenueOrderWhere(closedIn),
+    OR: [{ appointmentStatus: null }, { appointmentStatus: { not: 'NO_SHOW' } }],
+  }
+}
+
+/** where ของ "ออเดอร์ที่นับว่าขายของ/บริการออกไปแล้วในช่วงนี้" — ร้านอื่น = revenueOrderWhere + createdAt เดิม */
+export function soldItemsWindowWhere(vertical: string | null | undefined, window: DateWindow) {
+  if (usesServiceFinanceRules(vertical)) return serviceDeliveredOrderWhere(window)
+  return { ...revenueOrderWhere, createdAt: { gte: window.gte, lt: window.lt } }
+}
+
+/** งานบริการที่ปิดแล้วและได้ให้บริการจริง (ไม่รวมไม่มาตามนัด) — คู่ในหน่วยความจำของ serviceDeliveredOrderWhere */
+export function countsAsServiceDelivered(order: {
+  status: string
+  serviceClosedAt: Date | string | null
+  appointmentStatus: string | null
+}): boolean {
+  return countsAsServiceRevenue(order) && !isServiceNoShow(order)
+}
+
+/**
+ * "ใบนี้ขายของ/บริการออกไปแล้ว" สำหรับจอสินค้า/หมวด (จำนวนที่ขายได้ · รายได้ต่อหมวด)
+ * ร้านบริการ = งานที่ปิดแล้วและได้ให้บริการ (00073) · ร้านอื่น = `status === 'CONFIRMED'` **ของเดิมของจอพวกนี้เป๊ะ**
+ * (จอพวกนี้ไม่เคยใช้ countsAsRevenue — ห้ามเปลี่ยนให้ร้านขายของ)
+ */
+export function countsAsSoldFor(
+  order: { status: string; serviceClosedAt?: Date | string | null; appointmentStatus?: string | null },
+  vertical: string | null | undefined,
+): boolean {
+  if (!usesServiceFinanceRules(vertical)) return order.status === 'CONFIRMED'
+  return countsAsServiceDelivered({
+    status: order.status,
+    serviceClosedAt: order.serviceClosedAt ?? null,
+    appointmentStatus: order.appointmentStatus ?? null,
+  })
 }

@@ -137,8 +137,9 @@ export default function OrderSummary({
   const itemVocab = orderItemVocab(vertical)
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
-  // ไม่เห็นเงิน: ป้ายอ่านแกนสถานะ/พัสดุล้วน ไม่ใช่แกนเงิน (จอง/รอชำระ/ชำระเงินแล้ว)
-  const serviceBadge = showMoney ? serviceBadgeProp : null
+  // feature 00073 — ป้ายร้านบริการเป็นสถานะงาน (service-status.ts) ไม่ใช่แกนเงินแล้ว ⇒ ผู้ไม่เห็นเงินก็ได้ป้ายนี้
+  // ส่วนที่เป็นเงิน (ยอดค้างใน "ปิดงานแล้ว · ค้าง ฿") ผู้เรียกใส่เฉพาะผู้มี O5 — ที่นี่ไม่ต้องกั้นซ้ำ
+  const serviceBadge = serviceBadgeProp
   const meta = serviceBadge ?? resolveOrderStatusBadge(status, shippingStage, carrierStatus)
   const paymentBadge = showMoney
     ? getPaymentBadge(status, paymentMethod, slipFileId, paymentConfirmedAt, serviceMoney ?? undefined)

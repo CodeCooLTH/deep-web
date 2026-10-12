@@ -1,3 +1,4 @@
+import { ServiceJobClosedLockedError, SERVICE_JOB_ERROR_MESSAGE } from "@/lib/service-job";
 import { stripOrderItemCost } from "@/lib/order-cost-redact";
 import { orderNounFor, itemNounFor } from "@/lib/api-error-vocab";
 import { NextRequest, NextResponse } from "next/server";
@@ -153,6 +154,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // OrderLockedForRoleError / OrderRoleRestrictedError ⊂ ForbiddenRoleError → 403 FORBIDDEN_ROLE
     if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     if (e instanceof OrderNotFoundError) return NextResponse.json({ error: `ไม่พบ${orderNoun}นี้` }, { status: 404 });
+    if (e instanceof ServiceJobClosedLockedError) {
+      return NextResponse.json({ error: SERVICE_JOB_ERROR_MESSAGE.SERVICE_JOB_CLOSED_LOCKED }, { status: 409 });
+    }
     if (e instanceof OrderNotEditableError) {
       return NextResponse.json({ error: `แก้ไขได้เฉพาะ${orderNoun}ที่ยังรอดำเนินการเท่านั้น` }, { status: 400 });
     }

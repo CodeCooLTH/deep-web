@@ -38,9 +38,12 @@ describe('[blocker] แท็บการเงินในชีต — โผ�
     expect(sheet).toMatch(/\{isService && financeTab !== 'collect' && \(/)
   })
 
-  it('แท็บเริ่มต้นของชีตคือ collect ไม่ใช่ pnl', () => {
-    // ผู้ใช้กดการ์ด "ยอดขาย" เข้ามา — สลับเนื้อหาใต้นิ้วทันทีคือการตอบคำถามที่เขาไม่ได้ถาม
-    expect(sheet).toMatch(/useState<FinanceTab>\('collect'\)/)
+  it('แท็บเริ่มต้นของชีตคือ collect — pnl เฉพาะเมื่อการ์ดแสดงกำไรสุทธิ (00073 FR-010a)', () => {
+    // ผู้ใช้กดการ์ดเข้ามา — ชีตต้องเปิดที่เรื่องเดียวกับตัวเลขที่เพิ่งเห็น ไม่สลับเนื้อหาใต้นิ้ว
+    const init = sheet.match(/useState<FinanceTab>\(([\s\S]*?)\n  \)/)?.[1] ?? ''
+    expect(init).toMatch(/resolveHeadline\(rs\) === 'NET_PROFIT' \? 'pnl' : 'collect'/)
+    // ร้านอื่น (ไม่มี receivedValues) ไม่มีวันเปิดที่ pnl
+    expect(init).toMatch(/receivedValues != null &&/)
   })
 
   it('ป้ายแท็บต้องเป็นคำชุดเดียวกับหน้า /sales', () => {
@@ -89,7 +92,8 @@ describe('[blocker] ตัวเลขกำไรในชีตต้องม
   it('โหลดเฉพาะตอนเปิดแท็บ — แผงถูก render ใต้เงื่อนไข financeTab', () => {
     const at = sheet.indexOf('<FinancePanels')
     expect(at).toBeGreaterThan(-1)
-    expect(sheet.slice(Math.max(0, at - 300), at)).toMatch(/financeTab !== 'collect'/)
+    // 00073 เฟส B — มีกราฟของแท็บวางก่อนแผงใต้เงื่อนไขเดียวกัน (ระยะจากเงื่อนไขถึงแผงจึงยาวขึ้น)
+    expect(sheet.slice(Math.max(0, at - 800), at)).toMatch(/financeTab !== 'collect'/)
   })
 })
 

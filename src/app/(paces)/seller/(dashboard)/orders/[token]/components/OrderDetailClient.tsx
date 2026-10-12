@@ -168,6 +168,8 @@ export interface OrderDetailClientProps {
   appointmentStatus?: string | null
   /** ใบนี้มีนัดผูกอยู่ไหม (`serviceStart != null`) — false = walk-in */
   hasAppointment?: boolean
+  /** feature 00073 — ร้านปิดงานแล้วหรือยัง (ป้อน `chatOrderActions()`) */
+  serviceClosed?: boolean
   /** ป้ายที่ผู้ใช้เห็นบนชีตรับเงิน — กันกดผิดใบ */
   orderLabel?: string
 
@@ -245,6 +247,7 @@ export default function OrderDetailClient({
   serviceMoney = null,
   appointmentStatus = null,
   hasAppointment = false,
+  serviceClosed = false,
   orderLabel,
   shippingActivity,
   customerCard,
@@ -290,6 +293,7 @@ export default function OrderDetailClient({
     isPickupPaymentUnpaid,
     isPickupHandedOver,
     editLocked,
+    serviceClosed,
   })
 
   /**
@@ -302,8 +306,8 @@ export default function OrderDetailClient({
    * การ์ด "เงินที่รับแล้ว" บนจอนี้ถึงกับต้องเขียนบอกผู้ใช้ว่า "กดได้ที่การ์ดงานในแชท"
    *
    * 🛑 เอาเฉพาะ `RECORD_PAYMENT` — อีก 3 ตัวที่ `chatOrderActions()` คืนมาไม่เอา และไม่ใช่เพราะลืม:
-   *   - `REQUEST_DEPOSIT` / `MARK_SERVED` — `AppointmentCard` บนหน้านี้มีปุ่มเดียวกันอยู่แล้ว
-   *     (ส่งการ์ดสรุปนัด / เข้ารับบริการ-ไม่มาตามนัด) ใส่อีกชุด = ปุ่มคำเดียวกัน 2 ใบในจอเดียว
+   *   - `REQUEST_DEPOSIT` / `MARK_SERVED` — การ์ดบนหน้านี้มีปุ่มเดียวกันอยู่แล้ว
+   *     (AppointmentCard ส่งสรุปนัด · ServiceJobCard ปิดงาน — 00073) ใส่อีกชุด = ปุ่มคำเดียวกัน 2 ใบในจอเดียว
    *   - `START_WALK_IN` — **หัวหน้าสั่งให้คงไว้ในแชทเท่านั้น** (2026-08-31)
    * ตัวตัดสิน *ว่าเห็นปุ่มไหม* ยังมาจากไลบรารีตัวเดียวกับแชทเสมอ ไม่ได้เขียนเงื่อนไขใหม่ที่นี่
    */
@@ -312,6 +316,7 @@ export default function OrderDetailClient({
         orderStatus: status,
         appointmentStatus,
         hasAppointment,
+        serviceClosed,
         money: serviceMoney,
       }).find((a) => a.key === 'RECORD_PAYMENT')
     : undefined

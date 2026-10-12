@@ -42,7 +42,9 @@ describe('[blocker] อัตรากำไรห้ามเป็นตัว
 
   it('การ์ด P&L: อัตรากำไรสุทธิ/ขั้นต้น ต้องไม่เป็น % เมื่อ capped / ต้นทุนไม่ครบ', () => {
     // % ได้ก็ต่อเมื่อไม่ capped · capped แล้วต้องบอกว่าขาดอะไร (ทางแก้) ไม่ใช่คำกลาง ๆ
-    expect(pnl).toMatch(/!capped\s*\?\s*pct\(\(report\.netProfit/)
+    // 00073 เฟส B — ตัวตั้งคือกำไรที่แสดง (หักครบ = report.netProfit เป๊ะ · ดู shownProfit) · ด่าน !capped ยังอยู่
+    expect(pnl).toMatch(/!capped\s*\?\s*pct\(\(shownProfit/)
+    expect(pnl).toMatch(/exclusions\.length === 0\s*\?\s*report\.netProfit/)
     expect(pnl).toContain("'ยังไม่บันทึกค่าใช้จ่าย'")
     expect(pnl).toMatch(/report\.hasMissingCost\s*\?\s*'ตั้งต้นทุนไม่ครบ'/)
   })
@@ -75,7 +77,7 @@ describe('[blocker] ยอดค้างรับอยู่ในชีตก
   const sheet = read('dashboard/components/SalesChartSheet.tsx')
 
   it('ติดตั้งเฉพาะร้านบริการที่ดูการเงินได้ ด้วยช่วงเดียวกับที่ชีตแสดง', () => {
-    expect(sheet).toMatch(/\{isService && hasFinance && <ReceivablesPanel start=\{financeStart\} end=\{financeEnd\} \/>\}/)
+    expect(sheet).toMatch(/\{isService && hasFinance && rs\.receivables && <ReceivablesPanel start=\{financeStart\} end=\{financeEnd\} \/>\}/)
   })
 
   it('ใช้ ReceivableList ตัวเดียวกับ /sales และข้อความนิยามชุดเดียว', () => {
@@ -101,13 +103,16 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
 
   it('ตารางร้านบริการเป็นแกนเงิน (งาน | ยอดขาย) ไม่ใช่ สำเร็จ/ยืนยันแล้ว', () => {
     expect(page).toMatch(/moneyAxis=\{isServiceQueue && receivables != null\}/)
-    expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun\)/)
+    expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun, \{ receivables: receivablesOn, jobCount: jobCountOn \}\)/)
   })
 
   it('ร่าง (DRAFTED) + คืนของครบใบ (RETURNED) ไม่ถูกนับ — ชุดแถวเดียวกับ receivable.service และชีต', () => {
     expect(page).toMatch(/o\.status !== DRAFTED_STATUS && o\.status !== 'RETURNED'/)
     const recv = readFileSync(join(process.cwd(), 'src/services/receivable.service.ts'), 'utf8')
-    expect(recv).toMatch(/withoutDrafted\(\['CANCELLED', 'RETURNED'\]\)/)
+    // 00073: ค้างรับ = งานที่ร้านปิดแล้ว (serviceRevenueOrderWhere ตัด DRAFTED/CANCELLED/RETURNED ในตัว — SERVICE_NON_REVENUE_STATUSES)
+    expect(recv).toMatch(/\.\.\.serviceRevenueOrderWhere\(range\.orderRange\)/)
+    const rev = readFileSync(join(process.cwd(), 'src/lib/order-revenue.ts'), 'utf8')
+    expect(rev).toMatch(/SERVICE_NON_REVENUE_STATUSES = \['CANCELLED', 'RETURNED', 'DRAFTED'\]/)
     const dash = readFileSync(join(process.cwd(), 'src/services/dashboard.service.ts'), 'utf8')
     // ร้านบริการเท่านั้นที่ตัด RETURNED (ร้านอื่นของเดิม — มติ user 2026-10-02)
     expect(dash).toMatch(/withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/)

@@ -17,12 +17,12 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { completionWarning, computeOrderMoneyFromSerialized } from '@/lib/order-payment'
+import { computeOrderMoneyFromSerialized } from '@/lib/order-payment'
 import { chatMoneySummary, chatOrderActions } from '@/lib/chat-order-actions'
 import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
 import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
 import StartWalkInSheet from '../../../_components/StartWalkInSheet'
-import { markServedFlow } from '../../../_components/mark-served'
+import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
 import { formatDateTime } from '@/lib/format-date'
 import { courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -136,7 +136,8 @@ export default function OrderProgressBar({
   /** token ของใบที่กำลังเปิดชีตรับเงิน (feature 00050) — เหตุผลเดียวกับ apptToken */
   const [payToken, setPayToken] = useState<string | null>(null)
   /** token ของใบที่กำลังบันทึกผลนัด — ปิดปุ่มเฉพาะใบนั้น ไม่ใช่ทั้งแถบ */
-  const [markingToken, setMarkingToken] = useState<string | null>(null)
+  /** token ของใบที่กำลังเปิดชีตปิดงาน (feature 00073) */
+  const [closeToken, setCloseToken] = useState<string | null>(null)
   /** token ของใบที่กำลังเปิดชีต "เริ่มงานเลย" (feature 00050) */
   const [walkInToken, setWalkInToken] = useState<string | null>(null)
   const { openDraft } = useDraftOrders()
@@ -148,17 +149,11 @@ export default function OrderProgressBar({
   /** ข้อมูลเงินเปลี่ยน → ให้ server ส่งออเดอร์ชุดใหม่ลงมา (ตัวเลขบนการ์ดมาจาก server เสมอ) */
   const refresh = () => startTransition(() => router.refresh())
 
-  /** ปิดผลนัด — ตรรกะ/คำ/การแปล error อยู่ที่ `markServedFlow` ที่เดียว (ใช้ร่วมกับแผงขวา) */
-  async function markServed(token: string, label: string, warning: string | null) {
-    setMarkingToken(token)
-    try {
-      if (await markServedFlow({ orderToken: token, shopId, label, outstandingWarning: warning })) {
-        refresh()
-      }
-    } finally {
-      setMarkingToken(null)
-    }
-  }
+  /**
+   * feature 00073 — "ปิดงาน" เปิดชีตปิดงานตัวเดียวกับหน้างาน/บอร์ดคิว (ผล + เงิน + วันปิดงาน)
+   * เดิม markServedFlow ยืนยันแล้วยิง /appointment/outcome — ไม่มีช่องรับเงินที่เหลือ และใช้กับ walk-in ไม่ได้
+   */
+
 
   /**
    * "ยังไม่จบงาน" — คนละเกณฑ์ตามแกนของร้าน ห้ามเขียนเงื่อนไขซ้ำที่นี่ทั้งสองทาง
@@ -184,6 +179,7 @@ export default function OrderProgressBar({
    * บนชีตไม่ตรงกับบนการ์ดในจอเดียวกัน (`stored-flag-vs-owner-truth.md` — ภาพนิ่ง ≠ ความจริงปัจจุบัน)
    */
   const walkInOrder = walkInToken ? active.find((o) => o.token === walkInToken) : undefined
+  const closeOrder = closeToken ? active.find((o) => o.token === closeToken) : undefined
   const payOrder = payToken ? active.find((o) => o.token === payToken) : undefined
   const payMoney = payOrder
     ? {
@@ -253,6 +249,23 @@ export default function OrderProgressBar({
           onStarted={refresh}
         />
       )}
+      {closeOrder && (
+        <ServiceCloseSheet
+          open
+          onClose={() => setCloseToken(null)}
+          orderToken={closeOrder.token}
+          orderLabel={displayNo(closeOrder)}
+          shopId={shopId}
+          hasAppointment={Boolean(closeOrder.serviceStart)}
+          money={computeOrderMoneyFromSerialized({
+            totalAmount: closeOrder.totalAmount,
+            depositAmount: closeOrder.depositAmount ?? null,
+            payments: closeOrder.payments,
+          })}
+          canRefundDeposit={canVoidPayment}
+          onClosed={refresh}
+        />
+      )}
       {payMoney && (
         <RecordPaymentSheet
           open
@@ -302,6 +315,7 @@ export default function OrderProgressBar({
                       orderStatus: o.status,
                       appointmentStatus: o.appointmentStatus ?? null,
                       hasAppointment: Boolean(o.serviceStart),
+                      serviceClosed: Boolean(o.serviceClosedAt),
                       money,
                     })
                   : []
@@ -468,20 +482,13 @@ export default function OrderProgressBar({
                               START_WALK_IN: () => setWalkInToken(o.token),
                               REQUEST_DEPOSIT: () => setApptToken(o.token),
                               RECORD_PAYMENT: () => setPayToken(o.token),
-                              MARK_SERVED: () =>
-                                void markServed(
-                                  o.token,
-                                  displayNo(o),
-                                  money ? completionWarning(money) : null,
-                                ),
+                              MARK_SERVED: () => setCloseToken(o.token),
                             }
-                            const busy = a.key === 'MARK_SERVED' && markingToken === o.token
                             return (
                               <button
                                 key={a.key}
                                 type="button"
                                 onClick={HANDLER[a.key]}
-                                disabled={busy}
                                 aria-label={`${a.label} — ${displayNo(o)}`}
                                 className={`btn min-h-11 flex-1 basis-32 items-center justify-center gap-1 disabled:opacity-60 ${
                                   a.primary
@@ -490,8 +497,8 @@ export default function OrderProgressBar({
                                 }`}
                               >
                                 <Icon
-                                  icon={busy ? 'loader-2' : a.icon}
-                                  className={`text-sm ${busy ? 'animate-spin' : ''}`}
+                                  icon={a.icon}
+                                  className="text-sm"
                                   aria-hidden="true"
                                 />
                                 {a.label}

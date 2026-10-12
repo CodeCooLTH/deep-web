@@ -36,6 +36,7 @@ import { PORTFOLIO_CARD_TITLE } from '@/lib/portfolio-display'
 import type { PortfolioSeries } from '@/services/business-overview.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import type { ReportSettings } from '@/lib/report-settings'
 
 type Props = {
   /** null/undefined = fetch เดือนนี้ล้มตอน SSR → ซ่อนการ์ดทั้งหมด (honest-hide) */
@@ -44,6 +45,11 @@ type Props = {
   orderNoun?: string
   /** คำเรียกต้นทุนผันตาม vertical (ORDER_VOCAB.costNoun) — ใช้ในแท็บการเงินของชีต (00067) */
   costNoun?: string
+  /** feature 00073 เฟส B — ส่งต่อให้ชีตการเงิน · ไม่ส่ง = ค่าตั้งต้น */
+  reportSettings?: ReportSettings
+  advance?: { amount: number; jobs: number } | null
+  /** ตัวเลขหลักบนการ์ด (00073 · มติ user 2026-10-12) — null = ยอดขาย (หน้าตาเดิมทุกพิกเซล) */
+  headline?: { kind: 'RECEIVED' | 'NET_PROFIT'; today: number; month: number; note: string | null } | null
   /**
    * โหมด "ยอดขายทุกธุรกิจ" (00069 v1.1 · บริบท Personal ที่มีร้านธุรกิจจ่ายแล้ว) — initialSeries ต้องเป็นยอดรวมของชุดเดียวกัน
    * (`initial.aggregate`) · มีค่า = หัวการ์ดเปลี่ยนชื่อ + กดแล้วเปิด PortfolioSheet แทน SalesChartSheet
@@ -80,7 +86,7 @@ const RECENT_DAYS = 14
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
 
-export default function SalesChartCard({ initialSeries, orderNoun, costNoun, portfolio }: Props) {
+export default function SalesChartCard({ initialSeries, orderNoun, costNoun, portfolio, reportSettings, advance, headline = null }: Props) {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [open, setOpen] = useState(false)
@@ -107,9 +113,20 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
   const todayConfirmed = confirmedValues[todayIndex] ?? 0
   const todayUnconfirmed = unconfirmedValues[todayIndex] ?? 0
 
-  const heroValue = isToday ? todayConfirmed + todayUnconfirmed : total
+  /** ตัวเลขหลัก — ยอดขาย (เดิม) หรือ ตามที่ร้านบริการเลือก (รับเงินแล้ว/กำไรสุทธิ) ช่วงเดียวกับปุ่มวันนี้/เดือนนี้ */
+  const heroValue = headline ? (isToday ? headline.today : headline.month) : isToday ? todayConfirmed + todayUnconfirmed : total
+  const heroLabel = headline ? (headline.kind === 'RECEIVED' ? 'รับเงินแล้ว' : headline.note ? 'กำไร (หักไม่ครบ)' : 'กำไรสุทธิ') : null
   const legendConfirmed = isToday ? todayConfirmed : confirmedValues.reduce((s, v) => s + v, 0)
   const legendUnconfirmed = isToday ? todayUnconfirmed : unconfirmedValues.reduce((s, v) => s + v, 0)
+  /**
+   * feature 00073 — ร้านบริการ (series มี `receivedValues`): ยอดในการ์ด = งานที่ร้านปิดแล้ว ตามวันปิดงาน
+   * ⇒ ก้อนเขียวคือ "ปิดงานแล้ว" ไม่ใช่ "ยืนยันแล้ว" (ลูกค้าไม่ได้ยืนยันอะไร) · ก้อน "รอยืนยัน" เป็น 0 เสมอ ⇒ ซ่อน
+   * ร้านอื่น: คำ/legend เดิมทุกตัวอักษร
+   */
+  const isServiceCard = initialSeries.receivedValues != null
+  const confirmedLabel = isServiceCard ? t.dashboard.chartClosed : t.dashboard.chartConfirmed
+  /** feature 00073 เฟส B — ร้านบริการปิด "จำนวนงาน" ในตั้งค่ารายงาน ⇒ ไม่มีเส้น/ตัวเลขจำนวนงานบนการ์ด */
+  const showCount = !(isServiceCard && reportSettings?.jobCount === false)
   const legendOrderCount = orderCounts.reduce((s, v) => s + v, 0)
   const todayOrderCount = orderCounts[todayIndex] ?? 0
 
@@ -121,7 +138,8 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
     : null
 
   // pctChangeVsPrev คืน null เมื่อฐาน ≤ 0 (หารไม่ได้/อ่านกลับหัว) → ซ่อน badge ทั้งก้อน
-  const chgRaw = isToday ? pctChangeVsPrev(heroValue, avgRecent) : pctChangeVsPrev(total, prevTotalToDate)
+  // ตัวเลขหลักที่ไม่ใช่ยอดขาย = ไม่มีฐานเทียบชุดเดียวกัน ⇒ ไม่มี % (BRD FR-010a)
+  const chgRaw = headline ? null : isToday ? pctChangeVsPrev(heroValue, avgRecent) : pctChangeVsPrev(total, prevTotalToDate)
   const chg = chgRaw != null ? Math.round(chgRaw) : null
   const compareWord = isToday
     ? fmt(t.dashboard.compareAvgDays, { n: RECENT_DAYS })
@@ -164,16 +182,17 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
    * เพราะเลขหลักหน่วยเทียบกับหลักพัน. `stackOnlyBar` กันไม่ให้ ApexCharts เอาเส้นไปซ้อนยอดสะสม
    */
   const monthSeries = [
-    { name: t.dashboard.chartConfirmed, type: 'column', data: maskFuture(confirmedValues) },
+    { name: confirmedLabel, type: 'column', data: maskFuture(confirmedValues) },
     { name: t.dashboard.chartUnconfirmed, type: 'column', data: maskFuture(unconfirmedValues) },
     // ชื่อซีรีส์นี้ถูกอ้างซ้ำที่ yaxis[2].seriesName — ต้องมาจากตัวแปรเดียวกัน ไม่งั้นร้านที่ผันคำ
     // แล้วสองที่ไม่ตรงกัน ApexCharts จะผูกเส้นเข้าแกนผิด (เส้นแบนติดพื้น) โดยไม่มี error
-    { name: orderNoun, type: 'line', data: maskFuture(orderCounts) },
+    // ปิดจำนวนงาน = ซีรีส์ยังอยู่ (yaxis[2].seriesName ผูกชื่อนี้) แต่ไม่มีจุดให้วาด
+    { name: orderNoun, type: 'line', data: showCount ? maskFuture(orderCounts) : orderCounts.map(() => null) },
   ]
   /** ซ้อน 2 ก้อนเหมือนกราฟเดือนเป๊ะ — ชื่อ/ลำดับ/สีต้องตรงกัน ไม่งั้นสลับแท็บแล้วสีเดียวกัน
    *  หมายถึงคนละสถานะ (แถว legend ใต้เลขฮีโร่เป็นตัวเดียวกันทั้งสองโหมด ไม่ได้เปลี่ยนตามแท็บ) */
   const todaySeries = [
-    { name: t.dashboard.chartConfirmed, data: last14Confirmed ?? [] },
+    { name: confirmedLabel, data: last14Confirmed ?? [] },
     { name: t.dashboard.chartUnconfirmed, data: last14Unconfirmed ?? [] },
   ]
 
@@ -208,7 +227,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
     let prevIndex = -Infinity
     let tier: 0 | 1 = 0
     orderCounts.forEach((v, i) => {
-      if (v <= 0 || i >= futureFromIndex) return
+      if (!showCount || v <= 0 || i >= futureFromIndex) return
       tier = i - prevIndex === 1 ? ((1 - tier) as 0 | 1) : 0
       out.push({ index: i, tier })
       prevIndex = i
@@ -284,8 +303,8 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
      * 2 ตัวแรกผูก seriesName เดียวกันเพื่อให้แท่งซ้อนใช้สเกลร่วมกัน
      */
     yaxis: [
-      { show: false, tickAmount: 2, seriesName: t.dashboard.chartConfirmed },
-      { show: false, tickAmount: 2, seriesName: t.dashboard.chartConfirmed },
+      { show: false, tickAmount: 2, seriesName: confirmedLabel },
+      { show: false, tickAmount: 2, seriesName: confirmedLabel },
       /** max เผื่อหัว 30% ตั้งแต่มีป้ายตัวเลขบนจุด (2026-08-06): ป้ายอยู่ "เหนือ" จุด ถ้าจุดสูงสุด
        *  แตะเพดานกราฟพอดี ป้ายของวันที่ขายดีที่สุด — ใบที่คนอยากอ่านที่สุด — จะถูกขอบบนตัดหาย
        *  เผื่อเป็น 45% เมื่อเดือนนั้นมีป้ายชั้นที่สอง (2026-08-07): ป้ายชั้นบนสูงกว่าอีก 11px
@@ -465,7 +484,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
             type="button"
             onClick={() => setOpen(true)}
             className="block w-full text-start"
-            aria-label={fmt(t.dashboard.salesCardAria, {
+            aria-label={fmt(isServiceCard ? t.dashboard.salesCardAriaService : t.dashboard.salesCardAria, {
               range: isToday ? t.dashboard.rangeTodayInline : t.dashboard.rangeMonthInline,
               amount: formatNumberNoSymbol(heroValue),
               count: isToday ? todayOrderCount : legendOrderCount,
@@ -479,9 +498,13 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
                   "แค่ตัวเลขก็เพียงพอ") ตัวเลขนี้ติดลบไม่ได้อยู่แล้วเพราะนับเฉพาะออเดอร์ที่ไม่ถูกยกเลิก */}
               {/* ramp "Metric" ของ DESIGN.md (ตัวเลขที่ทำหน้าที่เป็นภาพ ไม่ใช่ข้อความ): 800 + tabular-nums
                   + letter-spacing ติดลบ — user บอกว่าเดิม (text-3xl/700) ยังไม่เด่นพอ */}
-              <p className="text-4xl font-extrabold tracking-tight tabular-nums text-dark">
-                {formatNumberNoSymbol(heroValue)}
-              </p>
+              <div className="min-w-0">
+                {/* ป้ายเฉพาะเมื่อไม่ใช่ยอดขาย — ยอดขายคงหน้าตาเดิม (user สั่งเดิม "แค่ตัวเลขก็เพียงพอ") */}
+                {heroLabel && <p className="mb-0 text-xs font-medium text-default-700">{heroLabel}</p>}
+                <p className={`text-4xl font-extrabold tracking-tight tabular-nums ${headline?.kind === 'NET_PROFIT' && heroValue < 0 ? 'text-danger-ink' : 'text-dark'}`}>
+                  {formatNumberNoSymbol(heroValue)}
+                </p>
+              </div>
               <Icon icon="chevron-right" className="size-4 shrink-0 text-default-500" aria-hidden="true" />
             </div>
 
@@ -509,7 +532,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
               {/* จำนวนคำสั่งซื้อวันนี้ (user ขอ 2026-08-05: ดูยอดแล้วไม่รู้ว่ามาจากกี่ใบ)
                   ใช้ icon แทนจุดสี — จุดสีในแถวนี้ = legend ของ series บนกราฟ 1:1
                   ซึ่งกราฟ 7 วันของโหมดวันนี้ไม่มี series จำนวนออเดอร์ จุดสีจะโกหก */}
-              {isToday && (
+              {isToday && showCount && (
                 <span className="inline-flex items-center gap-1.5">
                   <Icon icon="receipt-2" className="size-3.5 shrink-0 text-default-500" aria-hidden="true" />
                   <b className="font-semibold text-default-800">{todayOrderCount}</b> {noun}
@@ -517,15 +540,17 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
               )}
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
-                {t.dashboard.chartConfirmed} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendConfirmed)}</b>
+                {confirmedLabel} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendConfirmed)}</b>
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />
-                {t.dashboard.chartUnconfirmed} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendUnconfirmed)}</b>
-              </span>
+              {!isServiceCard && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                  {t.dashboard.chartUnconfirmed} <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendUnconfirmed)}</b>
+                </span>
+              )}
               {/* legend ของเส้น — ใช้ขีดไม่ใช่จุดกลม เพราะบนกราฟมันเป็นเส้น ไม่ใช่แท่ง
                   โชว์เฉพาะโหมดเดือนที่มีเส้นจริง (โหมดวันนี้เป็นกราฟ 7 วันไม่มีเส้น) */}
-              {!isToday && (
+              {!isToday && showCount && (
                 <span className="inline-flex items-center gap-1.5">
                   <span className="bg-primary h-0.5 w-3 shrink-0" aria-hidden="true" />
                   {noun} <b className="font-semibold text-default-800">{legendOrderCount}</b>
@@ -555,7 +580,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
         (portfolio ? (
           <PortfolioSheet initial={portfolio.initial} onClose={() => setOpen(false)} />
         ) : (
-          <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} costNoun={costNoun} />
+          <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} costNoun={costNoun} reportSettings={reportSettings} advance={advance} />
         ))}
     </>
   )

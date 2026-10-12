@@ -23,6 +23,7 @@ import type { CategoryRow } from './components/data'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import { countsAsSoldFor } from '@/lib/order-revenue'
 
 export const metadata: Metadata = { title: 'หมวดหมู่สินค้า' }
 
@@ -84,7 +85,8 @@ export default async function CategoriesPage() {
         Array.isArray(o.items) && o.items.some((i: any) => ofType.find((p: any) => p.id === i.productId)),
     )
     const revenue = !showRevenue ? undefined : orders
-      .filter((o: any) => o.status === 'CONFIRMED' && Array.isArray(o.items))
+      // ร้านบริการ = งานที่ปิดแล้วและได้ให้บริการ (00073) · ร้านอื่น status === 'CONFIRMED' เดิม
+      .filter((o: any) => countsAsSoldFor(o, shop.vertical) && Array.isArray(o.items))
       .reduce((sum: number, o: any) => {
         const typed = o.items.filter((i: any) => ofType.find((p: any) => p.id === i.productId))
         const add = typed.reduce((s: number, i: any) => s + Number(i.price ?? 0) * (i.qty ?? 1), 0)

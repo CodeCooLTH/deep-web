@@ -24,6 +24,8 @@ import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expens
 import { resolveDataCompleteness, shouldOfferCostSetup, shouldOfferExpenseSetup } from '@/lib/finance-tabs'
 import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
+import { DEFAULT_REPORT_SETTINGS, profitExclusionNote, profitShown, type ReportSettings } from '@/lib/report-settings'
 
 type ReportPayload = PnlReport & {
   expenses: SerializedExpense[]
@@ -37,9 +39,11 @@ type Props = {
   end: string
   /** คำเรียกต้นทุนของประเภทกิจการนี้ (ORDER_VOCAB.costNoun) */
   costNoun: string
+  /** feature 00073 เฟส B — ตั้งค่ารายงาน (ปิดต้นทุน/ค่าใช้จ่าย ⇒ ไม่แสดง/ไม่หัก) · ไม่ส่ง = ค่าตั้งต้น */
+  settings?: ReportSettings
 }
 
-export default function FinancePanels({ tab, start, end, costNoun }: Props) {
+export default function FinancePanels({ tab, start, end, costNoun, settings = DEFAULT_REPORT_SETTINGS }: Props) {
   const [data, setData] = useState<ReportPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -106,9 +110,9 @@ export default function FinancePanels({ tab, start, end, costNoun }: Props) {
   })
 
   return tab === 'pnl' ? (
-    <PnlPanel data={data} completeness={completeness} costNoun={costNoun} />
+    <PnlPanel data={data} completeness={completeness} costNoun={costNoun} settings={settings} />
   ) : (
-    <ExpensePanel data={data} costNoun={costNoun} />
+    <ExpensePanel data={data} costNoun={costNoun} partCost={settings.partCost} />
   )
 }
 
@@ -116,24 +120,35 @@ function PnlPanel({
   data,
   completeness,
   costNoun,
+  settings,
 }: {
   data: ReportPayload
   completeness: ReturnType<typeof resolveDataCompleteness>
   costNoun: string
+  settings: ReportSettings
 }) {
-  const capped = !completeness.complete
-  const profit = profitDisplay(data.netProfit, { capped })
-  const margin = data.revenue > 0 ? (data.netProfit / data.revenue) * 100 : null
+  /** 00073 เฟส B — หักเฉพาะที่เปิดไว้ในตั้งค่า · หักครบ = netProfit ของ pnl.service เป๊ะ (ไม่คำนวณซ้ำ) */
+  const exclusionNote = profitExclusionNote(settings, costNoun)
+  const shown = exclusionNote
+    ? profitShown(settings, { revenue: data.revenue, cogs: data.cogs, expense: data.totalExpense })
+    : data.netProfit
+  // ปิดต้นทุน/ค่าใช้จ่าย = เลือกไม่หัก ⇒ ไม่นับเป็น "ข้อมูลไม่ครบ"
+  const capped =
+    !completeness.complete &&
+    ((settings.partCost && completeness.missingCost) || (settings.shopExpense && completeness.missingExpense))
+  const profit = profitDisplay(shown, { capped })
+  const margin = data.revenue > 0 ? (shown / data.revenue) * 100 : null
 
   return (
     <>
       {/* ตัวเลขใหญ่ — โครงเดียวกับ hero เดิมของชีต (ข้อความเล็กบน + เลข text-3xl ล่าง) */}
       <div className="mb-3 text-center">
-        <p className="text-default-700 text-xs">{profit.label}</p>
+        <p className="text-default-700 text-xs">{exclusionNote ? (profit.positive ? 'กำไร (หักไม่ครบ)' : 'ขาดทุน (หักไม่ครบ)') : profit.label}</p>
         <p className={`text-3xl font-bold tabular-nums ${profit.toneClass}`}>
           {capped ? '≤ ' : ''}
-          {formatNumberNoSymbol(Math.abs(data.netProfit))}
+          {formatNumberNoSymbol(Math.abs(shown))}
         </p>
+        {exclusionNote && <p className="text-warning-ink mt-0.5 text-xs">{exclusionNote}</p>}
         {margin != null && !capped && (
           <p className="text-default-700 mt-0.5 text-sm">อัตรากำไรสุทธิ {margin.toFixed(1)}%</p>
         )}
@@ -150,15 +165,16 @@ function PnlPanel({
 
       {/* แถบสมการ — ผู้ขายเอานิ้วไล่ลบตามได้จริง (แพตเทิร์นเดียวกับแถบ legend ของแท็บยอดเก็บเงิน) */}
       <div className="border-default-200 mb-3 flex rounded border border-dashed">
-        <Cell label="ยอดขายที่ยืนยันแล้ว" value={data.revenue} dot="bg-success" />
-        <Cell label={costNoun} value={-data.cogs} dot="bg-warning" />
+        {/* แผงนี้ render เฉพาะร้านบริการ (SalesChartSheet: `isService &&`) — ยอดขายนับตอนร้านปิดงาน (00073) */}
+        <Cell label={ORDER_VOCAB.SERVICE_QUEUE.revenueLabel} value={data.revenue} dot="bg-success" />
+        {settings.partCost && <Cell label={costNoun} value={-data.cogs} dot="bg-warning" />}
         {/* "ค่าใช้จ่าย" ไม่ใช่ "ค่าใช้จ่ายร้าน" — ตัวเลขนี้รวมค่าส่งที่จ่ายขนส่งด้วย (D-EXT-10 · แก้ 2026-10-01) */}
-        <Cell label="ค่าใช้จ่าย" value={-data.totalExpense} dot="bg-danger" />
+        {settings.shopExpense && <Cell label="ค่าใช้จ่าย" value={-data.totalExpense} dot="bg-danger" />}
       </div>
 
       <p className="text-default-700 mb-4 text-center text-xs leading-relaxed">
-        {netProfitFormula(costNoun)}
-        {data.shippingCost > 0 && (
+        {!exclusionNote && netProfitFormula(costNoun, ORDER_VOCAB.SERVICE_QUEUE.revenueLabel)}
+        {settings.shopExpense && data.shippingCost > 0 && (
           <>
             <br />
             ค่าใช้จ่ายรวมค่าส่งที่จ่ายขนส่ง {formatNumberNoSymbol(data.shippingCost)}
@@ -167,9 +183,9 @@ function PnlPanel({
         )}
       </p>
 
-      {(shouldOfferCostSetup(completeness) || shouldOfferExpenseSetup(completeness)) && (
+      {((settings.partCost && shouldOfferCostSetup(completeness)) || (settings.shopExpense && shouldOfferExpenseSetup(completeness))) && (
         <div className="mb-4 flex flex-col gap-2">
-          {shouldOfferCostSetup(completeness) && (
+          {settings.partCost && shouldOfferCostSetup(completeness) && (
             <SetupLink
               href="/products?cost=missing"
               icon="box"
@@ -178,7 +194,7 @@ function PnlPanel({
               sub={`ยังไม่ได้ตั้ง ${completeness.uncostedItemCount} จาก ${completeness.soldItemCount} รายการ`}
             />
           )}
-          {shouldOfferExpenseSetup(completeness) && (
+          {settings.shopExpense && shouldOfferExpenseSetup(completeness) && (
             <SetupLink
               href="/sales?tab=expense"
               icon="receipt"
@@ -201,9 +217,10 @@ function PnlPanel({
   )
 }
 
-function ExpensePanel({ data, costNoun }: { data: ReportPayload; costNoun: string }) {
+function ExpensePanel({ data, costNoun, partCost }: { data: ReportPayload; costNoun: string; partCost: boolean }) {
   const byCategory = groupExpensesByCategory(data.expenses)
-  const outflow = data.cogs + data.totalExpense
+  // 00073 เฟส B — ปิดต้นทุนอะไหล่ในตั้งค่า ⇒ ไม่รวม/ไม่แสดงต้นทุนในแท็บนี้
+  const outflow = (partCost ? data.cogs : 0) + data.totalExpense
   /**
    * ก้อนที่ระบบคิดให้ (ไม่ใช่แถว Expense) — ต้องอยู่ในรายการด้วย ไม่งั้นผลรวมรายการไม่เท่ากับ "ค่าใช้จ่าย"
    * ข้างบน (D-EXT-10 ค่าส่งขาไป · 00056 ค่าส่งขากลับ) audit 2026-10-01
@@ -221,7 +238,7 @@ function ExpensePanel({ data, costNoun }: { data: ReportPayload; costNoun: strin
       </div>
 
       <div className="border-default-200 mb-4 flex rounded border border-dashed">
-        <Cell label={costNoun} value={data.cogs} dot="bg-warning" />
+        {partCost && <Cell label={costNoun} value={data.cogs} dot="bg-warning" />}
         <Cell label="ค่าใช้จ่าย" value={data.totalExpense} dot="bg-danger" />
       </div>
 

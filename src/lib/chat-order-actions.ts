@@ -49,6 +49,11 @@ export interface ChatOrderContext {
    * — คลาสเดียวกับปุ่ม "ลองใหม่" ของ iShip ที่เชิญให้กดสิ่งที่ไม่มีวันสำเร็จ
    */
   hasAppointment: boolean
+  /**
+   * feature 00073 — ร้านปิดงานแล้วหรือยัง (Order.serviceClosedAt) · **บังคับ**
+   * ปิดแล้ว = ไม่มีปุ่ม "ปิดงาน"/"เริ่มงาน"/"แจ้งมัดจำ" อีก (เหลือ "รับเงินแล้ว" ถ้ายังค้าง)
+   */
+  serviceClosed: boolean
   money: OrderMoney
 }
 
@@ -75,7 +80,8 @@ export function chatOrderActions(ctx: ChatOrderContext): ChatOrderAction[] {
   if (isClosed(ctx)) return []
 
   const actions: ChatOrderAction[] = []
-  const served = ctx.appointmentStatus === 'COMPLETED' || ctx.appointmentStatus === 'NO_SHOW'
+  const served =
+    ctx.serviceClosed || ctx.appointmentStatus === 'COMPLETED' || ctx.appointmentStatus === 'NO_SHOW'
   const { money } = ctx
 
   /**
@@ -112,12 +118,15 @@ export function chatOrderActions(ctx: ChatOrderContext): ChatOrderAction[] {
     })
   }
 
-  // ปิดผลนัด — ต้องมีนัดจริงถึงจะปิดได้ (ดูเหตุผลที่ `hasAppointment`)
-  if (ctx.hasAppointment && !served) {
+  /**
+   * ปิดงาน (feature 00073) — ทุกงานที่ยังไม่ปิด **รวม walk-in** · ปลายทางคือชีตปิดงาน (POST /close)
+   * ซึ่งรองรับงานไม่มีนัดแล้ว (เดิมยิง /appointment/outcome ที่ 404 กับ walk-in จึงต้องกั้นด้วย hasAppointment)
+   */
+  if (!served) {
     actions.push({
       key: 'MARK_SERVED',
-      label: 'เข้ารับบริการ',
-      icon: 'circle-check',
+      label: 'ปิดงาน',
+      icon: 'clipboard-check',
       primary: actions.length === 0,
     })
   }

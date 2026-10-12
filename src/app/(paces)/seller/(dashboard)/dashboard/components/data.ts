@@ -16,4 +16,6 @@ export type OrderType = {
   type: string
   /** สถานะออเดอร์ (ตรงกับ Prisma enum ที่ใช้ใน schema) */
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
+  /** feature 00073 — ป้ายชุดเดียวของงานบริการ (service-status.ts) · ไม่มีคีย์ = ร้านอื่น (ป้ายเดิม) */
+  serviceStatus?: { label: string; cls: string }
 }

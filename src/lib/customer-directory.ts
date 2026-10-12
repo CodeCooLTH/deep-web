@@ -35,8 +35,10 @@ export type CustomerDirectoryOrder = {
    * (ปุ่มเพิ่มรายการติดตาม 00066 ใช้กฎเดียวกัน; อ่านรายการผ่าน FK ExternalContact.customerId ได้ ไม่นับเป็นการเดา)
    */
   conversationId: string | null
-  /** ใบนี้นับเป็นยอดขายไหม (`countsAsRevenue` — SSOT เดียวกับ dashboard/รายงาน) */
+  /** ใบนี้นับเป็นยอดขายไหม (`countsAsRevenue` — SSOT เดียวกับ dashboard/รายงาน · ร้านบริการ = งานที่ปิดแล้ว 00073) */
   isRevenue: boolean
+  /** feature 00073 — ป้ายชุดเดียวของงานบริการ (service-status.ts) · ไม่มีคีย์ = ร้านอื่น (ป้ายตาม Order.status เดิม) */
+  serviceStatus?: { label: string; cls: string; icon: string }
   /** ที่อยู่จัดส่งของใบนี้ (Json ดิบจาก Prisma) — null = ใบนี้ไม่มีที่อยู่ */
   shippingAddress: unknown
 }

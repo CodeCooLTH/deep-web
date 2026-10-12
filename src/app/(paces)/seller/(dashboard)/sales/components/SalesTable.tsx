@@ -35,6 +35,8 @@ type Props = {
   moneyAxis?: boolean
   /** ต้นทุนยังตั้งไม่ครบ — คอลัมน์กำไรเป็นเพดานบน: สีเตือน + "(ไม่เกิน)" ให้ตรงกับการ์ดข้างบน */
   profitCapped?: boolean
+  /** feature 00073 เฟส B — ร้านบริการ: ตามตั้งค่ารายงาน · ไม่ส่ง = แสดงครบ (เหมือนเดิม) */
+  moneyOpts?: { receivables: boolean; jobCount: boolean }
 }
 
 const columnHelper = createColumnHelper<DailyRow>()
@@ -102,14 +104,15 @@ const buildFinanceColumns = (capped: boolean) => [
   }),
 ]
 
-const buildMoneyColumns = (noun: string) => [
+/** feature 00073 เฟส B — ร้านบริการ: คอลัมน์ตามตั้งค่ารายงาน (จำนวนงาน · รับจริง/ค้างรับ) */
+const buildMoneyColumns = (noun: string, opts: { receivables: boolean; jobCount: boolean }) => [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
     cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
     sortingFn: (a, b) => a.original.date.localeCompare(b.original.date),
   }),
-  columnHelper.accessor('billCount', { header: noun, enableColumnFilter: false }),
+  ...(opts.jobCount ? [columnHelper.accessor('billCount', { header: noun, enableColumnFilter: false })] : []),
   columnHelper.accessor((r) => r.revenue + r.unconfirmedRevenue, {
     id: 'billTotal',
     header: 'ยอดขาย',
@@ -117,11 +120,12 @@ const buildMoneyColumns = (noun: string) => [
     cell: ({ getValue }) => formatBaht(getValue()),
   }),
   // เรียงตามเส้นทางของเงิน ยอดขาย → รับจริง → ค้างรับ (ชุดเดียวกับตารางในชีตหน้าหลัก) · ทุกแถว รับจริง + ค้างรับ = ยอดขาย
-  columnHelper.accessor((r) => r.received ?? 0, {
+  ...(opts.receivables ? [columnHelper.accessor((r) => r.received ?? 0, {
     id: 'received',
     header: 'รับจริง',
     enableColumnFilter: false,
-    cell: ({ getValue }) => <span className="text-success-ink">{formatBaht(getValue())}</span>,
+    // เขียวเฉพาะเมื่อมีเงินเข้าจริง — ฿0 สีเขียวอ่านว่า "รับแล้ว" (Verified-Means-Green · critique 2026-10-12)
+    cell: ({ getValue }) => <span className={getValue() > 0 ? 'text-success-ink' : 'text-default-700'}>{formatBaht(getValue())}</span>,
   }),
   columnHelper.accessor((r) => r.revenue + r.unconfirmedRevenue - (r.received ?? 0), {
     id: 'outstanding',
@@ -137,15 +141,17 @@ const buildMoneyColumns = (noun: string) => [
         </span>
       )
     },
-  }),
+  })] : []),
 ]
 
-const SalesTable = ({ rows, showFinance = false, countNoun = 'ออเดอร์', moneyAxis = false, profitCapped = false }: Props) => {
+const SalesTable = ({ rows, showFinance = false, countNoun = 'ออเดอร์', moneyAxis = false, profitCapped = false, moneyOpts }: Props) => {
+  const receivablesOn = moneyOpts?.receivables ?? true
+  const jobCountOn = moneyOpts?.jobCount ?? true
   const columns = useMemo(() => {
-    if (moneyAxis) return buildMoneyColumns(countNoun)
+    if (moneyAxis) return buildMoneyColumns(countNoun, { receivables: receivablesOn, jobCount: jobCountOn })
     const base = buildBaseColumns(countNoun)
     return showFinance ? [...base, ...buildFinanceColumns(profitCapped)] : base
-  }, [showFinance, countNoun, moneyAxis, profitCapped])
+  }, [showFinance, countNoun, moneyAxis, profitCapped, receivablesOn, jobCountOn])
 
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
