@@ -388,7 +388,7 @@ function LabeledStars({
       <Box component='span' aria-live='polite' sx={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
         {value ? STAR_LABELS[value - 1] : ''}
       </Box>
-      <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: 1.5, minHeight: 22, visibility: value ? 'hidden' : 'visible' }}>
+      <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', mt: 1.5, minHeight: 22, visibility: value ? 'hidden' : 'visible' }}>{/* ข้อความใบ้ ไม่ใช่เป้ากด — minHeight จองบรรทัดกันหน้ากระตุกตอนซ่อน */}
         แตะดาวเพื่อให้คะแนน
       </Typography>
     </Box>

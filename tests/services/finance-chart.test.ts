@@ -25,12 +25,18 @@ async function seed() {
   return { owner, shop, resource }
 }
 const HOUR = 3600_000
+/**
+ * ที่นั่งไม่ซ้ำต่องาน — ทุกงานในไฟล์นี้เริ่มเวลาเดียวกัน (2 ชม. ก่อน) บนคิวเดียวกัน
+ * ⇒ ที่นั่งเดียวกันชน EXCLUDE "Order_service_seat_no_overlap" (CI ล้ม 23P01 · 2026-10-12)
+ * ขยับเวลาไม่ได้เพราะเทสตรวจยอดรายวัน — ใช้คนละที่นั่งแทน (ความจุบังคับที่ service ไม่ใช่ DB)
+ */
+let seatSeq = 0
 async function job(ctx: Awaited<ReturnType<typeof seed>>, total: number, cost: number | null, opts: { deposit?: number } = {}) {
   const start = new Date(Date.now() - 2 * HOUR)
   const o = await prisma.order.create({
     data: {
       shopId: ctx.shop.id, type: 'SERVICE', fulfillmentMode: 'NO_SHIPPING', status: 'PENDING', totalAmount: total,
-      serviceResourceId: ctx.resource.id, serviceSeat: 1, serviceStart: start, serviceEnd: new Date(start.getTime() + HOUR),
+      serviceResourceId: ctx.resource.id, serviceSeat: ++seatSeq, serviceStart: start, serviceEnd: new Date(start.getTime() + HOUR),
       appointmentStatus: 'SCHEDULED',
       items: { create: [{ name: 'ล้างแอร์ (ค่าบริการ)', qty: 1, price: total, cost }] },
     },

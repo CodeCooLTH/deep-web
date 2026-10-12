@@ -43,6 +43,8 @@ async function seed(vertical: 'SERVICE_QUEUE' | 'ONLINE_SALES' = 'SERVICE_QUEUE'
 }
 
 const HOUR = 60 * 60 * 1000
+/** ที่นั่งไม่ซ้ำต่องาน — งานหลายใบเวลาทับกันบนคิวเดียวกันชน EXCLUDE "Order_service_seat_no_overlap" (CI ล้ม 23P01 · 2026-10-12) */
+let seatSeq = 0
 async function job(
   ctx: Awaited<ReturnType<typeof seed>>,
   opts: { appointment?: boolean; startOffsetH?: number; total?: number; deposit?: number; status?: string } = {},
@@ -60,7 +62,7 @@ async function job(
         ? {}
         : {
             serviceResourceId: ctx.resource.id,
-            serviceSeat: 1,
+            serviceSeat: ++seatSeq,
             serviceStart: start,
             serviceEnd: new Date(start.getTime() + HOUR),
             appointmentStatus: 'SCHEDULED',
