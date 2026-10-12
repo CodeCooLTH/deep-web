@@ -156,13 +156,12 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
       return
     }
 
-    // ไม่ได้ติ๊กแจ้ง — ต้องอยู่ที่หน้าสถานะต่อ ไม่ใช่ปิดแผงทิ้ง
-    // เพราะปุ่ม "แจ้งเลขในแชท" อยู่ในนั้น ปิดไปแล้วร้านจะไม่มีทางกดส่งเองได้จากตรงนี้
-    // อยู่หน้าสถานะต่อ → เลขพัสดุอยู่ตัวใหญ่กลางจอแล้ว ไม่ต้องย้ำใน toast ถ้ามีเรื่องเงินต้องบอก
-    if (!toastPaymentNotice(shipment.paymentNotice))
+    // ไม่ได้ติ๊กแจ้ง — ปิดแผงเหมือนเคสแจ้งแล้ว (user สั่ง 2026-10-12: "สร้างเสร็จอยากให้ปิดไปเลย")
+    // เดิมค้างที่หน้าสถานะเพื่อให้กด "แจ้งเลขในแชท" ได้ — ตอนนี้ toast คือหลักฐานเดียวที่เหลือ
+    // จึงต้องมีเลขพัสดุในประโยค · แจ้งเลขทีหลังได้จากการ์ดออเดอร์ (เปิดหน้าต่างพัสดุใหม่)
+    if (!toastPaymentNotice(shipment.paymentNotice, `สร้างพัสดุแล้ว (${shipment.trackingNo})`))
       pacesToast.success(`สร้างพัสดุแล้ว (${shipment.trackingNo})`)
-    setCtx((c) => (c ? { ...c, shipment } : c))
-    setForceForm(false)
+    onDone()
   }
 
   async function handleNotifyNow() {

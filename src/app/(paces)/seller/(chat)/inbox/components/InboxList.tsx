@@ -1682,8 +1682,14 @@ export default function InboxList({
         // card-body: เส้นประเทาบางๆ (divide-dashed) แบ่งระหว่างแชท — user request 2026-07-23 เดิมดูไม่ออก
         // handlers ของกดค้างอยู่ที่ container ตัวเดียว (hook เรียกในลูปไม่ได้) — ตัวที่ถูกกดหาย้อนกลับ
         // จาก data-conversation-id ของแถว
+        //
+        // 🛑 overflow-anchor:none (user report 2026-10-12, จำลองซ้ำบน dev ได้): เลื่อนลงไปหน้าลึก ๆ →
+        // เปิดห้อง → ส่งข้อความ → refresh ย้ายห้องนั้นขึ้นบนสุด ⇒ scroll กระโดดกลับ 0 โดยไม่มีโค้ดเราตั้ง
+        // scrollTop เลย. ต้นเหตุคือ scroll anchoring ของเบราว์เซอร์: React ย้ายแถว 0..N-1 ไปต่อหลังแถว N
+        // (แถวที่ถูกดันขึ้นเป็นแถวเดียวที่ไม่ถูกย้าย DOM) เบราว์เซอร์จึงเกาะแถวนั้นแล้วตามมันขึ้นไปบนสุด.
+        // ปิด anchoring ในรายการ = ตำแหน่ง scroll คงพิกเซลเดิม (แลกกับแถวบนจอขยับลงหนึ่งแถว ถ้าห้องที่ย้ายมาจากใต้จอ)
         <div
-          className={`card-body divide-y divide-dashed divide-default-300 !p-0${restoring ? ' invisible' : ''}`}
+          className={`card-body divide-y divide-dashed divide-default-300 !p-0 [overflow-anchor:none]${restoring ? ' invisible' : ''}`} // [overflow-anchor:none] — Tailwind ไม่มี utility (HR7 carve-out)
           {...longPress.handlers}
           // กดค้างครบแล้วปล่อยนิ้ว เบราว์เซอร์ยังยิง click ตามมา → จะเด้งเข้าห้องแชททับเมนูที่เพิ่งเปิด
           // ต้องกลืนใน capture (ก่อนถึง <Link> และก่อน onClickCapture ของ SwipeableRow)
