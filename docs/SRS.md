@@ -247,6 +247,31 @@
 - **Buyer-cancel rule:** buyer ยกเลิกได้เฉพาะ status = `PENDING` เท่านั้น; เมื่อ SHIPPED แล้ว buyer ยกเลิกไม่ได้ (เหลือแค่ "ยืนยันรับของ"); CONFIRMED/CANCELLED = terminal
 - ยกเลิกหลัง CONFIRMED ไม่ได้ (terminal). MVP **ไม่มี dispute system** (Phase 2)
 - SUBSCRIPTION: แต่ละรอบบิล (cycle) สร้าง order ย่อยที่เดิน PENDING→CONFIRMED ของตัวเอง
+- 🛑 **แก้ข้อความที่ไม่ตรงโค้ด (พบระหว่าง 00073 · 2026-10-11):** โค้ด `cancelOrder` **ไม่มี** กติกาแยกฝั่งผู้ซื้อ — `VALID_TRANSITIONS.SHIPPED` มี `CANCELLED` ⇒ ผู้ซื้อยกเลิกใบ SHIPPED ได้ในโค้ดปัจจุบัน (ข้อ "Buyer-cancel rule" ด้านบนจึงเป็นเจตนา ไม่ใช่พฤติกรรมจริง — งานแยก ไม่แตะในรอบนี้)
+
+### 2.2 ร้านบริการ (SERVICE_QUEUE) — flow 4 ขั้น (feature 00073 · 2026-10-11)
+
+`Order.status` ของร้านบริการเดินแค่ `PENDING → CONFIRMED` (ไม่มี SHIPPED — บังคับ `NO_SHIPPING` ตั้งแต่สร้าง) แต่ **"ร้านปิดงาน" เป็นสถานะแยก** ที่ `Order.serviceClosedAt`:
+
+```mermaid
+flowchart LR
+  A[1 ร้านสร้างงาน<br/>PENDING · appointmentStatus SCHEDULED/null] --> B[2 ลูกค้ายืนยันนัด/ขอเลื่อน<br/>ไม่บังคับ]
+  A --> C
+  B --> C[3 ร้านปิดงาน<br/>serviceClosedAt + COMPLETED/NO_SHOW + เงิน<br/>เงินภายในนับ]
+  C --> D[4 ลูกค้ายืนยัน<br/>status CONFIRMED · รีวิว<br/>โปรไฟล์สาธารณะนับ]
+  A -. ลูกค้ายืนยันก่อน .-> E[CONFIRMED · ยังไม่ปิด] --> C
+  C -. เปิดงานอีกครั้ง O6 ก่อนลูกค้ายืนยัน .-> A
+```
+
+- **ยอดขาย/เงินภายในร้านบริการทุกจอ** = งานที่ `serviceClosedAt IS NOT NULL` และ `status NOT IN (CANCELLED, RETURNED, DRAFTED)` ตัดช่วงด้วย **วันปิดงาน** (`src/lib/order-revenue.ts` `revenueWindowWhere`/`countsAsRevenueFor`/`serviceRevenueOrderWhere` · SQL `revenueOrderSqlFor`) — ร้านอื่นใช้ `revenueOrderWhere` + `createdAt` เดิมเป๊ะ
+- ไม่มาตามนัด: ยอด = มัดจำที่รับไว้และไม่ถูก void (เก็บมัดจำ) · คืนมัดจำ = void รายการพร้อมเหตุผล ⇒ ยอด 0 · ไม่มีต้นทุน
+- **หน้าร้านสาธารณะ** (งานสำเร็จ · Trust Score · รีวิว) ยังนับที่ `status = CONFIRMED` เท่านั้น
+- ด่าน: ลูกค้ายืนยันงาน NO_SHOW ไม่ได้ (`ServiceJobNoShowConfirmError`) · ยกเลิกงานที่ปิดแล้วไม่ได้ · แก้ไข/เลื่อนนัดงานที่ปิดแล้วไม่ได้ (`ServiceJobClosedLockedError`) · ต้องเปิดงานอีกครั้งก่อน
+- cron ยืนยันอัตโนมัติ 3 ตัวไม่แตะร้านบริการโดยโครงสร้าง (ต้องมีพัสดุ/PICKUP ของ ONLINE_SALES) — ไม่ได้แก้ cron
+- หลังร้านปิดงาน (มติ 2026-10-11 รอบ 2): ส่งคะแนน = ยืนยันรับบริการ (`createReview` → `confirmOrder` เมื่อ `reviewConfirmsServiceJob`) · ลูกค้าดูใบเสร็จเองได้เมื่อปิดงาน + ชำระครบ (`canBuyerViewReceipt`) · "ขายแล้ว/ขายดี" ของร้านบริการนับเฉพาะงานที่ปิดแล้วว่าให้บริการจริง (`serviceDeliveredOrderWhere`) · ฟีดกิจกรรมมีเหตุการณ์ `SERVICE_CLOSED` (ไอคอน ✓ ในวงกลม)
+- **ตั้งค่ารายงาน (เฟส B)**: `Shop.reportSettings Json?` (null = ค่าตั้งต้น = เหมือนก่อนมีฟีเจอร์) · ร้านบริการ + เจ้าของเท่านั้น (F1) · `src/lib/report-settings.ts` เป็นตัวตัดสินเดียว (สวิตช์ รับเงิน/ค้างรับ · มัดจำล่วงหน้า · จำนวนงาน · ต้นทุนอะไหล่ · ค่าใช้จ่ายร้าน · กำไรขาดทุน · รูปแบบกราฟ · ช่วงเริ่มต้น) · เปลี่ยนแค่การแสดงผล ไม่เปลี่ยนวิธีนับเงิน · รายงานกลุ่ม LINE ไม่อ่าน · ร้านอื่น `resolveReportSettings` คืนค่าตั้งต้นเสมอ
+- **กราฟการเงิน 3 แบบ (เฟส B)**: `GET /api/seller/finance-chart` (`finance-chart.service` ต่อจาก `getSalesSeries` + Expense + ค่าส่งคืน — ผลรวมเท่า `getPnlReport` มีเทส parity) · ช่วง MONTH/M3/M6/M12/YEAR
+- รายละเอียด: `docs/20 - Features/00073 - Service Four-Step Flow/`
 
 ### 2.2 Data Visibility — Order Link (`/o/{token}`)
 
@@ -761,11 +786,12 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `vatAmount` | Decimal(12,2)? | Phase B — ≥0 |
 | `slipFileId` | String? | Phase 2 OOS-1 — fileId ของสลิปโอนเงิน; null = ยังไม่แนบ |
 | `accessUrl` | String? | Phase 2 OOS-2 — URL ส่งมอบ digital order |
+| `serviceClosedAt` | DateTime? `@db.Timestamptz(3)` | **feature 00073** — ร้านบริการ "ปิดงาน" เมื่อไร (ขั้น 3) · NULL = ยังไม่ปิด · ตั้ง/ล้างผ่าน `closeServiceJob`/`reopenServiceJob` เท่านั้น · **วันที่ของยอดขายร้านบริการ** (แทน createdAt) · index `Order_shopId_serviceClosedAt_idx` · ร้านอื่นไม่อ่านค่านี้ · migration `20261011120000_service_closed_at` (+ ปิดย้อนหลังงานเก่าของร้านบริการ) |
 | `serviceResourceId` / `serviceSeat` / `serviceStart` / `serviceEnd` / `appointmentStatus` / `buyerConfirmedAt` / `rescheduleRequestNote` / `depositAmount` | nullable ทั้งหมด | **feature 00024 (Service Appointment Booking)** — ฟิลด์นัดหมายบริการ (ร้าน `Shop.vertical='SERVICE_QUEUE'` เท่านั้น; NULL เสมอสำหรับร้านอื่น) ยังไม่เคย sync เข้าเอกสารนี้มาก่อน (หนี้เดิม — รายละเอียดเต็ม: constraint EXCLUDE `Order_service_seat_no_overlap`, state machine ของ `appointmentStatus`, กฎมัดจำ อยู่ที่ `docs/20 - Features/00024 - Service Appointment Booking/{SRS,DATABASE}.md`). 🛑 ตั้งแต่ 2026-08-08: `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` ถูก select เพิ่มใน `getThreadPanelOrders()` (ชื่อเดิม `getOrdersByCustomer` — เปลี่ยน 2026-09-05, `src/services/order.service.ts`) **และ** `inbox/[conversationId]/page.tsx` เพื่อป้อนแกนสถานะนัดในห้องแชท (`src/lib/chat-service-progress.ts` — ดูด้านล่าง) — สอง select ต้อง sync ฟิลด์ชุดนี้เสมอ ไม่งั้นออเดอร์ที่โหลดทีหลัง (lazy-load) จะกลายเป็น walk-in เงียบ ๆ |
 
 **Index:** `[slipFileId]` — รองรับ `/api/files` order-slip gate
 
-**`src/lib/chat-service-progress.ts` (ใหม่ 2026-08-08, feature 00024/00018/00036):** adapter pure module ที่แปล `serviceStart`/`serviceEnd`/`appointmentStatus`/`Order.status` เป็นแกน "นัดถึงขั้นไหน" สำหรับแถบสถานะออเดอร์ในห้องแชทของร้าน `SERVICE_QUEUE` (คู่ขนานกับ `chat-order-progress.ts` ของแกนขนส่งที่ร้านอื่นใช้) — walk-in (ไม่มี `serviceStart`) ที่ยังไม่ปิดการขาย = `PENDING` เสมอ, `COMPLETED`/`NO_SHOW`/`CANCELLED` = หลุดจากรายการงานค้างทันที
+**`src/lib/chat-service-progress.ts` (ใหม่ 2026-08-08, feature 00024/00018/00036):** adapter pure module ที่แปล `serviceStart`/`serviceEnd`/`appointmentStatus`/`Order.status` เป็นแกน "นัดถึงขั้นไหน" สำหรับแถบสถานะออเดอร์ในห้องแชทของร้าน `SERVICE_QUEUE` (คู่ขนานกับ `chat-order-progress.ts` ของแกนขนส่งที่ร้านอื่นใช้) — walk-in (ไม่มี `serviceStart`) ที่ยังไม่ปิดงาน = `PENDING` ("รับงานแล้ว"), `COMPLETED`/`NO_SHOW`/`CANCELLED`/**ปิดงานแล้ว (`serviceClosedAt`)** = หลุดจากรายการงานค้างทันที · **00073:** ลูกค้ายืนยันก่อนร้านปิด = `AWAITING_CLOSE` (ยังค้าง) · ป้ายมาจาก `src/lib/service-status.ts` (ป้ายชุดเดียว 10 ตัวของงานบริการ — ฝั่งร้าน/ฝั่งลูกค้า)
 
 #### OrderItem (`prisma/schema.prisma:183`)
 
@@ -785,7 +811,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `orderId` | String FK → Order | cascade delete |
-| `type` | String | **13 ค่า** — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) |
+| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) |
 | `actorUserId` | String? FK → User | `SetNull` เมื่อลบ user — ห้าม fallback เป็นเจ้าของร้าน |
 | `meta` | Json default `{}` | โครงต่างกันตาม `type` — **ห้ามมี PII ผู้ซื้อดิบ** (เบอร์/อีเมล/ที่อยู่) เด็ดขาด |
 | `occurredAt` | DateTime (ไม่มี default) | 🛑 **เวลาจริงที่เหตุการณ์เกิด เสมอ — ห้ามย้อนตามวันที่ที่ผู้ใช้กรอก** (เช่น `Order.createdAt` ที่ backdate ได้ตาม feature 00033). วันที่สั่งซื้อที่ผู้ขายเลือกอยู่ใน `meta.orderedAt`/`orderedAtFrom`/`orderedAtTo` เท่านั้น — ประวัติคือหลักฐาน |
@@ -1663,9 +1689,13 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | GET | `/api/seller/customers/{key}/contact` | Seller-owner | **เปิดเผยข้อมูลติดต่อเต็ม (unmasked) ของลูกค้า 1 คน** — `key` = opaque row key เดียวกับ `/customers/[id]` · คืน `{ contact }` · `cache-control: private, no-store` · 🛑 `INVALID_KEY` กับ `NOT_FOUND` ตอบ **404 เหมือนกันโดยตั้งใจ** (กัน cross-shop enumeration) · authorization อยู่ที่ `where: { shopId }` ตั้งแต่ SELECT ไม่ใช่กรองทีหลัง (feature 00057) | `customer-directory.service` |
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
-| POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) | `order.service` |
-| POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session | `order.service` |
+| POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) · **00073:** งานร้านบริการที่ปิดแบบไม่มาตามนัด → 409 (`SERVICE_JOB_NO_SHOW_CONFIRM` — ทั้งเว็บและ `/api/app/orders/[id]/confirm`) | `order.service` |
+| POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session · **00073:** งานร้านบริการที่ปิดแล้ว → 409 (`SERVICE_JOB_CLOSED_LOCKED`) · ร้านบริการไม่รับเหตุผล `BUYER_NO_SHOW` แล้ว (ไม่มาตามนัด = ปิดงาน) | `order.service` |
 | POST | `/api/orders/[token]/ship` | Seller-owner | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) | `order.service` |
+| GET | `/api/orders/[token]/close` | Seller **O4** | **feature 00073** — สถานะเงินของงานสำหรับชีตปิดงาน (บอร์ดคิว/แชทไม่ถือยอดไว้) · คืน `{ money }` เฉพาะผู้มี O5 · ผู้อื่นได้ `{ money: null }` · `?shopId=` optional | `order-payment.service` |
+| POST | `/api/orders/[token]/close` | Seller **O4** (+O5 เมื่อส่ง `payment` · +O6 เมื่อ `deposit=REFUND`) | **feature 00073** — ร้านบริการ "ปิดงาน" กดครั้งเดียว: body `CloseServiceJobSchema` `{ outcome: SERVED\|NO_SHOW, payment?: {amount, method, slipFileId?, note?} \| null, deposit?: KEEP\|REFUND }` → ตั้ง `serviceClosedAt` + `appointmentStatus` + บันทึกเงิน BALANCE + (คืนมัดจำ = void) + event `SERVICE_CLOSED` ในทรานแซกชันเดียว · 409 `SERVICE_JOB_ALREADY_CLOSED`/`NOT_CLOSABLE` · 400 `NO_SHOW_WITHOUT_APPOINTMENT` · 409 `APPOINTMENT_NOT_STARTED` · ร้านอื่น 403 `FEATURE_NOT_AVAILABLE` | `service-job.service` |
+| DELETE | `/api/orders/[token]/close` | Seller **O6** | **feature 00073** — เปิดงานอีกครั้ง (ก่อนลูกค้ายืนยัน) · ล้าง `serviceClosedAt` · event `SERVICE_REOPENED` · ไม่ย้อน void มัดจำอัตโนมัติ · 409 `SERVICE_JOB_NOT_REOPENABLE` | `service-job.service` |
+| POST | `/api/orders/[token]/appointment/outcome` | Seller O4 | **00073:** เท่ากับ "ปิดงาน" แบบไม่บันทึกเงิน (`COMPLETED`→SERVED · `NO_SHOW` เก็บมัดจำ) — ได้วันปิดงานเหมือนกัน (ปุ่มเดิมยังเรียกได้) | `service-job.service` |
 | POST | `/api/orders/[token]/review` | Buyer (phone parity) | เขียน review 1-5 ดาว + รูปแนบ ≤4 | `review.service` |
 | PATCH | `/api/orders/[token]/review` | Buyer เจ้าของรีวิว | **feature 00041** — แก้ไขรีวิวของตัวเองภายใน 24 ชม. นับจาก `createdAt` (BR-BOE-17) | `review.service` |
 | DELETE | `/api/orders/[token]/review` | Buyer เจ้าของรีวิว | **feature 00041** — ลบรีวิว (soft) ภายในหน้าต่างเดียวกัน — ลบแล้วเขียนใหม่ไม่ได้ (BR-BOE-18) | `review.service` |
@@ -1820,6 +1850,8 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 > 🛑 **ส่วนขยาย 00012 (2026-10-05): "OWNER" มีสองความหมายแล้ว** — `ShopMember.role='OWNER'` = เจ้าของ (หลายคนได้, สิทธิ์จัดการร้าน/ทีม) · `Shop.userId` = **เจ้าของหลัก** (คนเดียว, แพ็กเกจของเขากำหนดโควตา, L1 ของร้านตาม FR-2.7) — **เปลี่ยนได้ผ่านการโอน** ไม่ใช่ owner-at-creation อีกต่อไป. คำถามเรื่องเงิน ("ร้านที่ฉันจ่าย", โควตาจำนวนร้าน, ปุ่มจัดการแพ็กเกจ) ต้องใช้ `Shop.userId` ห้ามใช้ `role`. โควตาแอดมินนับ **ทุกคนยกเว้นเจ้าของหลัก** (`staffCountWhere()` ใน `src/lib/shop-member-rules.ts`). เอกสาร: `docs/20 - Features/00012 - Shop Staff Invite Links/EXTENSIONS-2026-10-05-member-roles.md`
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
+| GET | `/api/seller/finance-chart` | F1 (เจ้าของ) · ร้านบริการ (อื่น 404) | **00073 เฟส B** กราฟการเงินรายช่อง `?range=MONTH\|M3\|M6\|M12\|YEAR&year&month[&advance=1]` → buckets {sales, received, outstanding, unrecorded, jobs, cost, expense} + totals (เท่า P&L) + มัดจำล่วงหน้า | `finance-chart.service` |
+| GET/PATCH | `/api/shops/current/report-settings` | F1 (เจ้าของ) · ร้านบริการ (อื่น 403) | **00073 เฟส B** อ่าน/บันทึกตั้งค่ารายงาน (PATCH ส่งเฉพาะช่องที่เปลี่ยน · `UpdateReportSettingsSchema`) | `report-settings.service` |
 | GET | `/api/seller/portfolio-series` | Seller (บริบท Personal) | **00069** ยอดรวมทุกร้าน BUSINESS ที่ผู้ใช้เป็น OWNER และจ่ายแล้ว + แท่งซ้อนตามร้าน + ตารางเทียบ (ยอดขาย = `getSalesSeries.total` · กำไร = `getPnlReport`) · 403 เมื่อร้านที่เลือกอยู่ไม่ใช่ Personal | `business-overview.service` |
 
 **🛑 COGS ใน `sales-series` มี 2 ชุด และจะไม่มีวันเท่ากัน (HR16 — วางติดกันใน `dashboard.service.ts`):**
@@ -2071,6 +2103,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/api/orders/[token]/receipt` | `requireShopMember()` | ออกเลขใบเสร็จครั้งแรก หรือคืนเลขเดิมถ้าเคยออกแล้ว (idempotent) — ไม่มี body |
+| POST | `/api/orders/[token]/receipt/buyer` | session ผู้ซื้อ + เจ้าของงาน (`buyerUserId` ใน WHERE) | **00073 FR-013** ลูกค้าเปิดใบเสร็จของงานตัวเอง — ได้เมื่อ `canBuyerViewReceipt` (ร้านบริการ · ปิดงานแล้ว · ไม่ใช่ `NO_SHOW` · ไม่ CANCELLED/RETURNED/DRAFTED · ค้าง 0) · ใบ/เลขเดียวกับฝั่งร้าน · ยังไม่เคยออก = ออกเลขให้ (`issuedByUserId` = ลูกค้า) · error `ORDER_NOT_FOUND`(404) `ORDER_NOT_ISSUABLE`(409) · หน้า `/o/[token]/receipt` (ต้นฉบับอย่างเดียว ไม่ออกเลขเอง) |
 | PATCH | `/api/shops/receipt-profile` | `requireShopMember()` | บันทึกข้อมูลออกใบเสร็จของร้าน active — ช่องที่ไม่ส่งไม่เปลี่ยนค่าเดิม, ส่งค่าว่าง `""` = ล้างเป็น `null` |
 
 error: `ORDER_NOT_FOUND`(404, scope `shopId` ใน `WHERE`) · `NOT_SERVICE_SHOP`(403) ·
@@ -2429,7 +2462,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 ### 8.1b OrderEvent Type (`src/lib/order-event.ts::ORDER_EVENT_TYPES`)
 
-> **17 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
+> **27 ค่า** (ณ 00073 — เดิมเขียน 17 ซึ่งค้าง: ขาด RETURN_* 4 ค่าของ 00056 และ HANDED_OVER/PAYMENT_CONFIRM* 4 ค่าของ 00062 ที่ตารางนี้ไม่เคยเติม) — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
 
 | ค่า | ความหมาย |
 |-----|---------|
@@ -2450,8 +2483,15 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 | `ORDER_DISPUTE_RESOLVED` | **feature 00041** — ปัญหาถูกปิด |
 | `AUTH_FLOW_STARTED` | **feature 00041** — guest กดปุ่มเข้าสู่ระบบจากหน้าออเดอร์สาธารณะ (ครึ่งแรกของ Login Completion Rate) |
 | `AUTH_FLOW_COMPLETED` | **feature 00041** — ยืนยันตัวตนสำเร็จและเข้าถึงออเดอร์ได้ (ครึ่งหลัง) |
+| `RETURN_REQUESTED` / `RETURN_SHIPPED` / `RETURN_RECEIVED` / `RETURN_CANCELLED` | **feature 00056** — ระบบคืนของ (ประวัติอยู่บนใบเดิม) |
+| `HANDED_OVER` / `HANDOVER_REVERTED` | **feature 00062** — มอบสินค้า (นัดรับ) / ยกเลิกการยืนยันมอบ |
+| `PAYMENT_CONFIRMED` / `PAYMENT_CONFIRM_REVERTED` | **feature 00062** — ร้านยืนยันรับเงินโอน / ยกเลิก |
+| `SERVICE_CLOSED` | **feature 00073** — ร้านบริการปิดงาน · `meta.outcome` = `SERVED`\|`NO_SHOW` · `meta.amount` = เงินที่รับตอนปิด · `meta.deposit` = `KEPT`\|`REFUNDED` (ไม่มาตามนัด) · `meta.backfilled` = ปิดย้อนหลังตอน migrate |
+| `SERVICE_REOPENED` | **feature 00073** — เปิดงานอีกครั้ง (O6 · ก่อนลูกค้ายืนยัน) |
 
-🛑 **สองค่าท้ายเป็น instrumentation ไม่ใช่เหตุการณ์ของออเดอร์** — ถูกกรองออกจากไทม์ไลน์ที่ผู้ใช้เห็น
+> ลำดับคำสองค่าท้ายของ instrumentation ด้านล่างอ้างถึง `AUTH_FLOW_*` (ไม่ใช่สองแถวสุดท้ายของตาราง)
+
+🛑 **`AUTH_FLOW_STARTED`/`AUTH_FLOW_COMPLETED` เป็น instrumentation ไม่ใช่เหตุการณ์ของออเดอร์** — ถูกกรองออกจากไทม์ไลน์ที่ผู้ใช้เห็น
 ผ่าน `INSTRUMENTATION_EVENT_TYPES` ใน `order-event.service.ts` ถ้ามีคนเอาออกจากรายการนั้น
 ประวัติออเดอร์ของลูกค้าจะรกขึ้นทันทีโดยไม่มีอะไรฟ้อง (มันยังเป็น event ที่ถูกต้องทุกประการ)
 

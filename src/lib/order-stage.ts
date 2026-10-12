@@ -30,6 +30,8 @@ import {
 import { ORDER_STATUS_META, isCODPayment as isCodPayment, type OrderStatusTone } from './order-display'
 // คลังคำตามประเภทกิจการ — SSOT เดียวของคำเหล่านี้ (HR16) ห้ามพิมพ์คำของ vertical ไว้ในไฟล์นี้เอง
 import { resolveOrderVocab } from './seller-menu'
+import { usesServiceFinanceRules } from './finance-rules'
+import { SERVICE_STATUS_META } from './service-status'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -506,6 +508,11 @@ export interface OrderStageInput {
    */
   vertical?: string | null
   /**
+   * feature 00073 — Order.serviceClosedAt (ร้านบริการปิดงานแล้ว) · ไม่ส่ง = ไม่รู้ ⇒ ป้ายเดิม
+   * ร้านบริการที่ปิดแล้วต้องขึ้น "ปิดงานแล้ว" ไม่ใช่ "รับงานแล้ว"/"กำลังจัดส่ง" (คำของขั้นก่อน/คำร้านขายของ)
+   */
+  serviceClosedAt?: Date | string | null
+  /**
    * จำนวนออเดอร์ "ที่ยังไม่ถูกยกเลิก" ของลูกค้าคนนี้ในร้านนี้ ที่พัสดุมีปัญหาอยู่ — **นับทุกใบ
    * ไม่ใช่แค่ใบล่าสุด** (user สั่ง 2026-08-20)
    *
@@ -649,7 +656,7 @@ export function deriveOrderStage(
   return {
     key,
     // ลำดับ: นัดหมาย (เจาะจงที่สุด) → คำตามประเภทกิจการ → คำกลางของระบบ
-    ...(appointmentFace(key, order) ?? verticalFace(key, order) ?? ORDER_STAGE_META[key]),
+    ...(serviceClosedFace(key, order) ?? appointmentFace(key, order) ?? verticalFace(key, order) ?? ORDER_STAGE_META[key]),
     ...(printCount > 0 ? { printCount } : {}),
     // ใบเดียวไม่ต้องบอกจำนวน — "พัสดุมีปัญหา ×1" อ่านแล้วชวนสงสัยว่าอีกใบอยู่ไหน
     ...(key === 'PARCEL_PROBLEM' && problemOrders >= 2 ? { problemCount: problemOrders } : {}),
@@ -680,6 +687,24 @@ export function orderStageChipLabel(stage: {
     return `${stage.label} ×${stage.problemCount}`
   }
   return stage.label
+}
+
+/**
+ * serviceClosedFace — feature 00073: งานร้านบริการที่ร้าน "ปิดงาน" แล้ว (และลูกค้ายังไม่ยืนยัน)
+ *
+ * Order.status ยังเป็น PENDING หลังปิดงาน (BR-RSV-33) ⇒ key ค้างที่ ORDERED → ป้ายเดิมจะพูด "รับงานแล้ว"
+ * (walk-in) ทั้งที่งานจบไปแล้ว · ข้อมูลเก่าที่ค้าง SHIPPED (ปิดย้อนหลังแล้ว) จะพูด "กำลังจัดส่ง" = คำร้านขายของ
+ * ไม่มาตามนัดปล่อยให้ appointmentFace พูด "ไม่มาตามนัด" ตามเดิม · เปลี่ยนแค่หน้าตา key คงเดิม (เหตุผลเดียวกับด้านล่าง)
+ * คำ/สี/ไอคอนมาจากป้ายชุดเดียว (service-status.ts) — ไม่บอกเรื่องเงิน (แถวแชทไม่ถือยอด)
+ */
+function serviceClosedFace(
+  key: OrderStageKey,
+  order: OrderStageInput,
+): { label: string; cls: string; icon: string } | null {
+  if (key !== 'ORDERED' && key !== 'SHIPPING') return null
+  if (!usesServiceFinanceRules(order.vertical) || !order.serviceClosedAt) return null
+  if (order.appointmentStatus === 'NO_SHOW') return null
+  return { label: 'ปิดงานแล้ว', cls: 'bg-info/15 text-info-ink', icon: SERVICE_STATUS_META.CLOSED_PAID.icon }
 }
 
 /**

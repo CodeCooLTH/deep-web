@@ -67,7 +67,8 @@ describe('P1-3 ช่างเจอคำขอเลื่อนนัดต�
     const src = read('src/app/(paces)/seller/(dashboard)/orders/[token]/components/AppointmentCard.tsx')
     expect(src).toContain(HINT)
     expect(src).toMatch(/awaitingReschedule && !canReschedule && !terminal/)
-    expect(src).toMatch(/!terminal && \(canSendSummary \|\| canReschedule \|\| canOutcome\)/)
+    // 00073: ปุ่มปิดผล (canOutcome) ย้ายไปการ์ด "งานนี้" (ServiceJobCard) ⇒ เหลือส่งสรุป/เลื่อนนัด
+    expect(src).toMatch(/!terminal && \(canSendSummary \|\| canReschedule\)/)
   })
 })
 

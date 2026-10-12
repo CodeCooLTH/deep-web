@@ -30,6 +30,7 @@ const ord = (o: Partial<BuyerOrderEvidence> = {}): BuyerOrderEvidence => ({
   cancelReason: null,
   activeShipmentCarrierStatus: 'delivered',
   hasShipment: true,
+  appointmentStatus: null,
   ...o,
 })
 
@@ -264,5 +265,33 @@ describe('[blocker] classifyCustomerRiskTier', () => {
   it('🛑 ส่งใบเดียวแล้วถึงมือ = new ไม่ใช่ ok — เขียวสงวนให้สิ่งที่ยืนยันแล้วจริง', () => {
     expect(classifyCustomerRiskTier(rep({ shipped: 1, received: 1 }))).toBe('new')
     expect(classifyCustomerRiskTier(rep({ shipped: MIN_SHIPPED_FOR_RATE, received: 3 }))).toBe('ok')
+  })
+})
+
+
+describe('[blocker] feature 00073 — ร้านบริการปิดงานแบบไม่มาตามนัด', () => {
+  it('ไม่มาตามนัด (ปิดงาน ไม่ใช่ยกเลิก) นับเป็นต้นเรื่องจากลูกค้า เท่ากับ BUYER_NO_SHOW เดิม', () => {
+    const viaClose = summarizeBuyerReputation([
+      ord({ status: 'PENDING', appointmentStatus: 'NO_SHOW', activeShipmentCarrierStatus: null, hasShipment: false }),
+    ])
+    const viaLegacyCancel = summarizeBuyerReputation([
+      ord({ status: 'CANCELLED', cancelReason: 'BUYER_NO_SHOW', activeShipmentCarrierStatus: null, hasShipment: false }),
+    ])
+    expect(viaClose.cancelledByBuyer).toBe(1)
+    expect(viaClose).toEqual(viaLegacyCancel)
+  })
+
+  it('ให้บริการแล้ว (COMPLETED) ไม่ถูกนับเป็นความผิดลูกค้า', () => {
+    const r = summarizeBuyerReputation([
+      ord({ status: 'PENDING', appointmentStatus: 'COMPLETED', activeShipmentCarrierStatus: null, hasShipment: false }),
+    ])
+    expect(r.cancelledByBuyer).toBe(0)
+  })
+
+  it('งานที่ยกเลิกแล้วไม่ถูกนับซ้ำจากสถานะนัด', () => {
+    const r = summarizeBuyerReputation([
+      ord({ status: 'CANCELLED', cancelReason: 'SHOP_ISSUE', appointmentStatus: 'NO_SHOW', activeShipmentCarrierStatus: null, hasShipment: false }),
+    ])
+    expect(r.cancelledByBuyer).toBe(0)
   })
 })

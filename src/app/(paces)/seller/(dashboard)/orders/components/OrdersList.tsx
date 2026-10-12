@@ -71,9 +71,12 @@ const STAGE_CHIPS = [
 // คำของแต่ละสถานะมาจาก SSOT ตัวเดียวกับ badge บนแถว/การ์ด (lib/order-display.ts) — ชิปกับป้าย
 // ที่อยู่ห่างกันไม่กี่สิบพิกเซลต้องพูดคำเดียวกันเสมอ ห้ามพิมพ์คำซ้ำไว้ที่นี่
 // ป้าย SHIPPED ผันตาม vocab (ร้านบริการไม่มีการจัดส่ง) จึงสร้างในคอมโพเนนต์ ไม่ใช่ค่าคงที่ระดับ module
+// feature 00073 — ร้านบริการไม่มีขั้น SHIPPED แล้ว (vocab.hasShippedStatus = false) ⇒ ไม่มีแท็บนี้
 const buildStatusTabs = (vocab: OrderVocab): { value: string; label: string }[] => [
   { value: 'all', label: 'ทั้งหมด' },
-  ...Object.entries(orderStatusMetaFor(vocab)).map(([value, meta]) => ({ value, label: meta.label })),
+  ...Object.entries(orderStatusMetaFor(vocab))
+    .filter(([value]) => vocab.hasShippedStatus || value !== 'SHIPPED')
+    .map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
 // ─── order type options (ใช้ใน filter modal) ────────────────────────────────

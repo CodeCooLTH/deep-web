@@ -44,8 +44,13 @@ describe('serviceProgressStage', () => {
     expect(serviceProgressStage(base)).toBe('PENDING')
   })
 
-  it('walk-in ที่ปิดการขายแล้ว = DONE', () => {
-    expect(serviceProgressStage({ ...base, status: 'CONFIRMED' })).toBe('DONE')
+  it('[00073] walk-in ที่ร้านปิดงานแล้ว = DONE (ไม่ว่าลูกค้ายืนยันหรือยัง)', () => {
+    expect(serviceProgressStage({ ...base, serviceClosedAt: '2026-10-11T07:00:00Z' })).toBe('DONE')
+    expect(serviceProgressStage({ ...base, status: 'CONFIRMED', serviceClosedAt: '2026-10-11T07:00:00Z' })).toBe('DONE')
+  })
+
+  it('[00073] ลูกค้ายืนยันก่อนแต่ร้านยังไม่ปิด = AWAITING_CLOSE (ยังเป็นงานค้างของร้าน)', () => {
+    expect(serviceProgressStage({ ...base, status: 'CONFIRMED' })).toBe('AWAITING_CLOSE')
   })
 
   /**

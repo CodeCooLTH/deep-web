@@ -40,10 +40,11 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
     //    ⇒ ทุกไฟล์ต้องมีจุดที่เอาผลไปหักจริง (regex ตัวที่สองของแต่ละคู่)
     const uses: [string, RegExp][] = [
       ['src/services/pnl.service.ts', /netOfReturns\(Number\(o\.totalAmount\), adj\)/],
-      ['src/services/dashboard.service.ts', /const amt = netOfReturns\(Number\(r\.totalAmount\), adj\)/],
+      // 00073: ร้านบริการไม่มาตามนัดใช้มัดจำที่เก็บแทน (กิ่ง noShow) — กิ่งปกติยังต้องหักคืนจริง
+      ['src/services/dashboard.service.ts', /: netOfReturns\(Number\(r\.totalAmount\), adj\)/],
       ['src/services/receivable.service.ts', /totalAmount: netOfReturns\(Number\(r\.totalAmount\), returnAdj\.get\(r\.id\)\)/],
       ['src/services/product-sales-series.service.ts', /it\.qty - \(returnAdj\.get\(it\.orderId\)\?\.returnedQtyByItem\[it\.id\]/],
-      ['src/services/customer-directory.service.ts', /const amount = netOfReturns\(Number\(o\.totalAmount\), returnAdj\.get\(o\.id\)\)/],
+      ['src/services/customer-directory.service.ts', /: netOfReturns\(Number\(o\.totalAmount\), returnAdj\.get\(o\.id\)\)/],
       [D + 'sales/page.tsx', /netOfReturns\(Number\(o\.totalAmount \?\? 0\), returnAdj\.get\(o\.id\)\)/],
       [D + 'dashboard/page.tsx', /netOfReturns\(Number\(o\.totalAmount\), returnAdj\.get\(o\.id\)\)/],
       [D + 'orders/[token]/page.tsx', /\(await getReturnAdjustments\(shop\.id\)\)\.get\(order\.id\)/],
@@ -68,13 +69,16 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
  * src/services/__tests__/finance-rules-by-vertical.test.ts — ไฟล์นี้ปักหมุดว่าทุกจุด "แยกตามประเภทร้าน" จริง
  */
 describe('[blocker] นิยามใหม่ใช้กับร้านบริการ — ร้านอื่นได้ของเดิม', () => {
-  it('/sales: ร้านบริการนับ countsAsRevenue · ร้านอื่นนับ status === CONFIRMED ตามเดิม', () => {
+  it('/sales: ร้านบริการนับงานที่ปิดแล้วตามวันปิดงาน (00073) · ร้านอื่นนับ status === CONFIRMED ตามเดิม', () => {
     const page = read(D + 'sales/page.tsx')
     expect(page).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
-    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? countsAsRevenue\(o\) : o\.status === 'CONFIRMED'\)/)
+    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? countsAsServiceRevenue\(o\) : o\.status === 'CONFIRMED'\)/)
     expect(page).toMatch(/o\.status !== 'CANCELLED' && isSale\(o\)/)
-    // ห้ามมีที่ไหนเรียก countsAsRevenue ตรง ๆ แบบไม่ผ่าน isSale (จะหลุดไปใช้กับร้านขายของ)
-    expect(page.match(/countsAsRevenue\(o\)/g)?.length).toBe(1)
+    // แกนวันที่: ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ตัวตัดสินเดียว revenueDateFor)
+    expect(page).toMatch(/const dateOf = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? revenueDateFor\(o, shop\.vertical\) : new Date\(o\.createdAt\)\)/)
+    // ห้ามมีที่ไหนเรียกตัวตัดสินตรง ๆ แบบไม่ผ่าน isSale (จะหลุดไปใช้กับร้านขายของ)
+    expect(page.match(/countsAsServiceRevenue\(o\)/g)?.length).toBe(1)
+    expect(page).not.toMatch(/countsAsRevenue\(o\)/)
   })
 
   it('ชีตหน้าหลัก: ร้านบริการ = ยืนยันแล้ว − … · ร้านอื่น = ยอดทุกบิล − ต้นทุนทุกบิล − ค่าส่งทุกบิล (สูตรเดิม)', () => {
@@ -118,12 +122,17 @@ describe('[blocker] นิยามใหม่ใช้กับร้านบ
     const home = read(D + 'dashboard/page.tsx')
     expect(home).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
     expect(home).toMatch(/const liveOrders = newRules \? rawOrders\.filter\(\(o\) => o\.status !== DRAFTED_STATUS\) : rawOrders/)
-    expect(home).toMatch(/const amt = newRules \? \(countsAsRevenue\(o\) \? netAmount\(o\) : 0\) : Number\(o\.totalAmount\)/)
+    // 00073: isRevenue = countsAsRevenueFor(o, shop.vertical) — ร้านบริการ = งานที่ปิดแล้ว · ร้านอื่น = countsAsRevenue เดิม
+    expect(home).toMatch(/const isRevenue = \(o: \(typeof rawOrders\)\[number\]\) => countsAsRevenueFor\(o, shop\.vertical\)/)
+    expect(home).toMatch(/const amt = newRules \? \(isRevenue\(o\) \? netAmount\(o\) : 0\) : Number\(o\.totalAmount\)/)
   })
 
   it('สินค้าขายดี / รายงานรายสินค้า / หน้าร้าน / ลูกค้า / รายงานแอดมิน / กำไรรายใบ — ถามประเภทร้านก่อนใช้กติกาใหม่', () => {
     const prod = read('src/services/product.service.ts')
-    expect(prod.match(/withoutDrafted\(newRules \? \["CANCELLED", "RETURNED"\] : "CANCELLED"\)/g)?.length).toBe(2)
+    // feature 00073 (มติ user 2026-10-11) — ร้านบริการนับ "ขายแล้ว/ขายดี" เฉพาะงานที่ปิดแล้วว่าให้บริการจริง
+    // (serviceDeliveredOrderWhere ตัวกลางเดียวกับรายงานรายสินค้า) · ร้านอื่นเกณฑ์เดิม withoutDrafted("CANCELLED") ทั้งสองจุด
+    expect(prod.match(/newRules \? \{ shopId, \.\.\.serviceDeliveredOrderWhere\(\) \} : \{ shopId, \.\.\.withoutDrafted\("CANCELLED"\) \}/g)?.length).toBe(1)
+    expect(prod.match(/newRules \? serviceDeliveredOrderWhere\(\) : withoutDrafted\("CANCELLED"\)/g)?.length).toBe(1)
     expect(read('src/services/product-sales-series.service.ts')).toMatch(
       /withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/,
     )

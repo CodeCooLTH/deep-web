@@ -124,6 +124,8 @@ export const th = {
   menu: {
     dashboard: 'ภาพรวมร้านค้า',
     sales: 'ภาพรวมกำไร/ขาดทุน',
+    /** ร้านบริการ: `/sales` ถูกรวมเป็นหน้า "การเงินร้าน" 3 แท็บ (00067) — ต้องตรง FINANCE_MENU_LABEL (เทสคุม) */
+    salesFinance: 'การเงินร้าน',
     reportsAgents: 'การตอบแชทของแอดมิน',
     reportsProducts: 'ยอดขายรายสินค้า',
     followUps: 'ติดตามลูกค้า',
@@ -165,6 +167,7 @@ export const th = {
     settings: 'การจัดส่ง',
     settingsChannels: 'ช่องทางการขาย',
     settingsJobTypes: 'ประเภทงาน',
+    settingsReports: 'ตั้งค่ารายงาน',
     /** ป้ายบน badge ของเมนู — คนละฟิลด์กับ label จึงไม่ถูกแปลไปพร้อมชื่อเมนู (user เจอบน prod) */
     badgeLocked: 'ถูกล็อก',
     badgeChoosePlan: 'เลือกแพ็กเกจ',
@@ -341,7 +344,7 @@ export const th = {
     appointmentToday: 'นัดวันนี้',
     // ไทล์ขั้นงานของร้านบริการ (src/lib/service-work-stage.ts)
     workAwaitingService: 'รอเข้ารับบริการ',
-    workApptConfirmed: 'ยืนยันแล้ว',
+    workApptConfirmed: 'ลูกค้ายืนยันนัด',
     workAwaitingClose: 'รอปิดงาน',
     workAwaitingBuyer: 'รอลูกค้ายืนยัน',
 
@@ -389,11 +392,15 @@ export const th = {
     salesCardRangeAria: 'ช่วงเวลา',
     chartConfirmed: 'ยืนยันแล้ว',
     chartUnconfirmed: 'รอยืนยัน',
+    chartClosed: 'ปิดงานแล้ว',
     chartToday: 'วันนี้',
     chartAvg: 'เฉลี่ย {n}',
     compareAvgDays: 'จากค่าเฉลี่ย {n} วัน',
     compareLastMonth: 'จากเดือนก่อน',
     /** ป้ายเสียงของการ์ดยอดขายทั้งใบ — {range}/{amount}/{count}/{noun}/{confirmed}/{unconfirmed} */
+    // feature 00073 — ร้านบริการ: ยอด = งานที่ปิดแล้ว (ไม่มีก้อนรอยืนยัน)
+    salesCardAriaService:
+      'ยอดขาย{range} {amount} บาท จาก {count} {noun} ปิดงานแล้ว {confirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
     salesCardAria:
       'ยอดขาย{range} {amount} บาท จาก {count} {noun} ยืนยันแล้ว {confirmed} บาท รอยืนยัน {unconfirmed} บาท กดเพื่อดูรายงานฉบับเต็ม',
 

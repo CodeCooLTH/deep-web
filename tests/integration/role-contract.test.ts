@@ -158,6 +158,8 @@ async function seed(): Promise<Ctx> {
       shopId: shop1.id, buyerUserId: buyer.id, customerId: cust.id, conversationId: conv.id, type: 'PHYSICAL', status: 'CONFIRMED',
       totalAmount: 1234, discount: 10, vatAmount: 5, depositAmount: 100, buyerName: 'ลูกค้า RC', buyerContact: `08${n}`,
       paymentMethod: 'TRANSFER', paymentConfirmedAt: new Date(), buyerConfirmedAt: new Date(),
+      // 00073 — งานร้านบริการที่จบแล้วต้องมีวันปิดงาน (ข้อมูลจริงหลัง migration ปิดย้อนหลังให้แล้ว)
+      serviceClosedAt: new Date(),
       items: { create: [{ productId: prodSvc.id, name: 'รายการ A', qty: 2, price: 600, cost: 40 }] },
       shipmentTracking: { create: { provider: 'KERRY', trackingNo: `RC${n}` } },
     },
@@ -315,6 +317,8 @@ const MATRIX: Entry[] = [
  * ใช้คำนำหน้า path (ลงท้าย /) หรือ path เต็ม
  */
 const COVERED: Record<string, string> = {
+  'src/app/api/shops/current/report-settings/': 'ตั้งค่ารายงานการเงิน (F1 เจ้าของเท่านั้น · 00073 เฟส B) — config ล้วน ไม่มีแถวเงิน/ต้นทุน',
+  'src/app/api/seller/finance-chart/': 'กราฟการเงินร้านบริการ (F1 เจ้าของเท่านั้น · 00073 เฟส B) — ยอดรวมรายช่อง ไม่มี cost รายใบ · ด่าน F1 = ชุดเดียวกับ sales-series ที่อยู่ใน MATRIX',
   'src/app/api/shops/auto-reply/': 'ตั้งค่าบอท/กฎตอบอัตโนมัติ (H3) — ไม่มีแถวออเดอร์/เงิน/ต้นทุน · ขอบเขตคือ OWNER+MANAGER (ไม่ใช่ระดับเงิน)',
   'src/app/api/shops/comment-reply/': 'กฎตอบคอมเมนต์ (H3) — config ล้วน ไม่มีเงิน',
   'src/app/api/shops/ai-settings/': 'ตั้งค่า AI ร้าน (H3) — config ล้วน',
@@ -355,6 +359,8 @@ const COVERED: Record<string, string> = {
   'src/app/api/shops/current/invite-links/': 'ลิงก์เชิญ (T2 เจ้าของ)',
   'src/app/api/shops/current/page-builder/': 'ตัวจัดหน้าร้าน (T1)',
   'src/app/api/shops/current/videos/': 'วิดีโอร้าน (T1)',
+  // feature 00073 — GET สถานะเงินให้ชีตปิดงาน: O4 เข้าได้ แต่ money คืนเฉพาะ O5 (ชุด computeOrderMoney เดียวกับ payments ที่อยู่ใน MATRIX) · บทบาทครอบที่ role-gates.route.test
+  'src/app/api/orders/[token]/close/': 'ชีตปิดงาน (O4) — money เฉพาะ O5 · ไม่มีต้นทุนสินค้า · ชุดเงินเดียวกับ payments (อยู่ใน MATRIX)',
   'src/app/api/orders/[token]/shipment-evidence/': 'หลักฐานพัสดุ (S1) — รูป/ไฟล์',
   'src/app/api/shops/current/customers/lookup/': 'เฉพาะร้านบ้านพัก (requireLodgingShop) — ร้านขายบริการ/ออนไลน์ได้ 403 NOT_LODGING_SHOP · ฟิลด์ลูกค้าไม่มีเงิน',
   'src/app/api/seller/portfolio-series/': 'เฉพาะบัญชีส่วนตัว (PERSONAL) + F1 เจ้าของ — ร้านธุรกิจได้ 403 · อยู่ในกลุ่มเดียวกับ sales-series (อยู่ใน MATRIX)',

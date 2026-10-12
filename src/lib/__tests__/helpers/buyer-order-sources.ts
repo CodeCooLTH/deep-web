@@ -45,6 +45,7 @@ export const BUYER_ORDER_EXCLUDED: Readonly<Record<string, string>> = {
   'AuthPingLink.tsx': 'ใช้เฉพาะ GuestOrderView (ยังไม่ล็อกอิน)',
   'BookingGuestView.tsx': 'จอ guest ของการจอง ไม่ใช่หน้าคำสั่งซื้อของผู้ที่ล็อกอิน',
   'BrandHomeLink.tsx': 'ลิงก์โลโก้ใน BookingGuestView/ShopCover — ไม่มีตรรกะของหน้าคำสั่งซื้อ',
+  'ShopLogoImg.tsx': 'รูปโลโก้ร้านถอยเป็นอักษรแรกเมื่อโหลดไม่ได้ (00073) — ไม่มีตรรกะของหน้าคำสั่งซื้อ',
   'ClaimOtpPrompt.tsx': 'จอกั้น (OTP) ก่อนเข้าหน้า — มีเทส order-access-screens-parity ดูแลอยู่',
   'GuestOrderView.tsx': 'จอฝั่ง guest — เทสที่เกี่ยวอ่านไฟล์นี้ตรง ๆ เพื่อเทียบ parity',
   'OrderAccessBlock.tsx': 'จอกั้นสิทธิ์ — order-access-screens-parity ดูแลอยู่',

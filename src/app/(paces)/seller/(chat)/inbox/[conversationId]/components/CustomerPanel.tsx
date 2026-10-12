@@ -46,14 +46,13 @@ import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
 import { type OrderStatus } from '@/lib/order-display'
 import type { ShopVertical } from '@/lib/lodging'
 import {
-  completionWarning,
   computeOrderMoneyFromSerialized,
   type SerializedPaymentRow,
 } from '@/lib/order-payment'
 import { chatOrderActions } from '@/lib/chat-order-actions'
 import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
 import StartWalkInSheet from '../../../_components/StartWalkInSheet'
-import { markServedFlow } from '../../../_components/mark-served'
+import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
 // import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน OrderActionBar.tsx — reuse ⋮ + SSOT ของ action
 // เดียวกับหน้า order detail แทนประดิษฐ์ dropdown/เงื่อนไขสถานะใหม่ (sibling-surface-parity)
 import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
@@ -97,6 +96,8 @@ export type CustomerPanelOrder = {
   serviceEnd?: string | null // ISO
   /** SCHEDULED | CONFIRMED_BY_BUYER | RESCHEDULE_REQUESTED | COMPLETED | NO_SHOW */
   appointmentStatus?: string | null
+  /** feature 00073 — วันปิดงาน (ISO) · null = ยังไม่ปิด */
+  serviceClosedAt?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — snapshot ตอนสร้าง ไม่ใช่สูตรสด (BR-RSV-46/47)
    *  IMPORTANT: ค่านี้คือ **ข้อตกลง** ไม่ใช่เงินที่เข้าแล้ว — ห้ามแสดงเป็นสถานะที่สื่อว่า
    *  "เก็บแล้ว" (BR-SQ-02) · เงินที่รับจริงอยู่ที่ตาราง `OrderPayment` ตั้งแต่ feature 00050
@@ -345,7 +346,8 @@ function OrderCard({
   const [walkInOpen, setWalkInOpen] = useState(false)
   // ชีตคืนของของออเดอร์ใบนี้ (feature 00056) — เปิดจากเมนู ⋮
   const [returnOpen, setReturnOpen] = useState(false)
-  const [marking, setMarking] = useState(false)
+  /** ชีตปิดงาน (feature 00073) */
+  const [closeOpen, setCloseOpen] = useState(false)
   /**
    * เงินของใบนี้ — คำนวณจาก SSOT ตัวเดียวกับแถบมือถือ (HR16)
    * เฉพาะร้านบริการ: ร้านอื่นยังไม่มีปุ่มเรื่องเงินในแชท (AC-SQ-07)
@@ -363,6 +365,7 @@ function OrderCard({
         orderStatus: o.status,
         appointmentStatus: o.appointmentStatus ?? null,
         hasAppointment: Boolean(o.serviceStart),
+        serviceClosed: Boolean(o.serviceClosedAt),
         money,
       })
     : []
@@ -386,6 +389,7 @@ function OrderCard({
           fulfillmentMode: o.fulfillmentMode,
           shipmentSource: null,
           orderNoun: noun,
+          serviceClosed: Boolean(o.serviceClosedAt),
         }).menu.filter((i) => i.key === 'cancel-order')
 
   /**
@@ -503,6 +507,7 @@ function OrderCard({
         serviceStart: o.serviceStart,
         serviceEnd: o.serviceEnd,
         appointmentStatus: o.appointmentStatus,
+        serviceClosedAt: o.serviceClosedAt ?? null,
         depositAmount: o.depositAmount,
       }}
       onEdit={openEdit}
@@ -526,21 +531,9 @@ function OrderCard({
                 START_WALK_IN: () => setWalkInOpen(true),
                 REQUEST_DEPOSIT: () => setApptOpen(true),
                 RECORD_PAYMENT: () => setPayOpen(true),
-                MARK_SERVED: () => {
-                  setMarking(true)
-                  void markServedFlow({
-                    orderToken: o.token,
-                    shopId,
-                    label: o.orderNo || o.token.slice(0, 8).toUpperCase(),
-                    outstandingWarning: money ? completionWarning(money) : null,
-                  })
-                    .then((done) => {
-                      if (done) router.refresh()
-                    })
-                    .finally(() => setMarking(false))
-                },
+                // feature 00073 — ชีตปิดงานตัวเดียวกับหน้างาน/บอร์ดคิว (ผล + เงิน + วันปิดงาน)
+                MARK_SERVED: () => setCloseOpen(true),
               }
-              const busy = a.key === 'MARK_SERVED' && marking
               return (
                 <button
                   key={a.key}
@@ -551,7 +544,7 @@ function OrderCard({
                     e.stopPropagation()
                     HANDLER[a.key]()
                   }}
-                  disabled={busy || cancelling}
+                  disabled={cancelling}
                   aria-label={`${a.label} — ${o.orderNo || o.token.slice(0, 8).toUpperCase()}`}
                   className={`btn btn-sm min-h-11 flex-1 basis-28 items-center justify-center gap-1 disabled:opacity-60 ${
                     a.primary
@@ -560,8 +553,8 @@ function OrderCard({
                   }`}
                 >
                   <Icon
-                    icon={busy ? 'loader-2' : a.icon}
-                    className={`text-sm ${busy ? 'animate-spin' : ''}`}
+                    icon={a.icon}
+                    className="text-sm"
                     aria-hidden="true"
                   />
                   {a.label}
@@ -658,6 +651,19 @@ function OrderCard({
         orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
         shopId={shopId}
         onStarted={() => router.refresh()}
+      />
+    )}
+    {money && (
+      <ServiceCloseSheet
+        open={closeOpen}
+        onClose={() => setCloseOpen(false)}
+        orderToken={o.token}
+        orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
+        shopId={shopId}
+        hasAppointment={Boolean(o.serviceStart)}
+        money={money}
+        canRefundDeposit={canVoidPayment}
+        onClosed={() => router.refresh()}
       />
     )}
     {money && (

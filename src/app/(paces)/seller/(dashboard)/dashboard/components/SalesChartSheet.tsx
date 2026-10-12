@@ -143,7 +143,9 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import FinancePanels from './FinancePanels'
 import ReceivablesPanel from './ReceivablesPanel'
-import { FINANCE_TABS, type FinanceTab } from '@/lib/finance-tabs'
+import type { FinanceTab } from '@/lib/finance-tabs'
+import { DEFAULT_REPORT_SETTINGS, collectTabLabel, resolveHeadline, visibleFinanceTabs, type ReportSettings } from '@/lib/report-settings'
+import ServiceFinanceChart from '../../sales/components/ServiceFinanceChart'
 
 /**
  * คำนามของ "จำนวนใบ" — ร้านบริการเรียกว่า "งาน"
@@ -173,6 +175,13 @@ type Props = {
   costNoun?: string
   initialSeries: SalesSeries
   onClose: () => void
+  /**
+   * feature 00073 เฟส B — ตั้งค่ารายงานของร้านบริการ (แท็บ · รับเงิน/ค้างรับ · จำนวนงาน · กราฟ)
+   * ไม่ส่ง = ค่าตั้งต้น = หน้าตาเดิม · ร้านอื่นไม่มีแถบแท็บ/แกนเงินอยู่แล้ว จึงไม่ได้รับผล
+   */
+  reportSettings?: ReportSettings
+  /** มัดจำรับล่วงหน้า (เปิดในตั้งค่าเท่านั้น) — null/ไม่ส่ง = ไม่แสดง */
+  advance?: { amount: number; jobs: number } | null
 }
 
 /**
@@ -378,7 +387,8 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
   }
 }
 
-export default function SalesChartSheet({ initialSeries, onClose, costNoun = 'ต้นทุนสินค้า' }: Props) {
+export default function SalesChartSheet({ initialSeries, onClose, costNoun = 'ต้นทุนสินค้า', reportSettings, advance = null }: Props) {
+  const rs = reportSettings ?? DEFAULT_REPORT_SETTINGS
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
@@ -405,15 +415,24 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
    * การ์ด "ยอดขาย" บนหน้าหลัก สิ่งที่เขาเพิ่งกดคือยอดขาย การสลับเนื้อหาใต้นิ้วทันทีที่เปิด
    * คือการตอบคำถามที่เขาไม่ได้ถาม (หน้า /sales มาจากเมนู "การเงินร้าน" จึงเริ่มที่กำไรถูกแล้ว)
    */
-  const [financeTab, setFinanceTab] = useState<FinanceTab>('collect')
-  const [mode, setMode] = useState<Mode>('daily')
+  // 00073 — ร้านบริการเลือก "กำไรสุทธิ" เป็นตัวเลขหลักบนการ์ด ⇒ กดการ์ดแล้วเปิดที่แท็บกำไรขาดทุน (ตัวเลขที่เพิ่งเห็นบนการ์ด)
+  const [financeTab, setFinanceTab] = useState<FinanceTab>(
+    initialSeries.receivedValues != null && resolveHeadline(rs) === 'NET_PROFIT' ? 'pnl' : 'collect',
+  )
+  /**
+   * feature 00073 เฟส B — ช่วงเริ่มต้นตามตั้งค่ารายงานของร้านบริการ: "เดือนนี้" = รายวัน · ที่เหลือ = รายเดือน (ทั้งปี)
+   * (ชีตมีแค่สองโหมด — 3/6/12 เดือนใช้ได้ที่หน้า /sales) · ร้านอื่น/ค่าตั้งต้น = รายวันเหมือนเดิม
+   */
+  const startMonthly = initialSeries.receivedValues != null && rs.defaultRange !== 'MONTH'
+  const [mode, setMode] = useState<Mode>(startMonthly ? 'monthly' : 'daily')
   const [year, setYear] = useState(nowYear)
   const [month, setMonth] = useState(nowMonth)
   const [series, setSeries] = useState<SalesSeries>(initialSeries)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  // เปิดครั้งแรกใช้ initialSeries ที่มีอยู่แล้ว — ข้าม fetch รอบแรก
-  const isFirstRun = useRef(true)
+  // เปิดครั้งแรกใช้ initialSeries ที่มีอยู่แล้ว (รายวันของเดือนนี้) — ข้าม fetch รอบแรก
+  // เริ่มที่รายเดือนตามตั้งค่า = initialSeries ไม่ตรงโหมด ⇒ ต้อง fetch ตั้งแต่รอบแรก
+  const isFirstRun = useRef(!startMonthly)
 
   useEffect(() => {
     if (isFirstRun.current) {
@@ -534,6 +553,10 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
       : `${year}-12-31`
 
   const isService = series.receivedValues != null
+  /** กราฟในชีตตามช่วงของชีต (ไม่มีตัวเลือกช่วงซ้อนอีกชุด) — รายวัน = เดือนที่เลือก · รายเดือน = ทั้งปี */
+  const chartPeriod = mode === 'daily'
+    ? { range: 'MONTH' as const, year, month }
+    : { range: 'YEAR' as const, year, month: 12 }
 
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalShipping != null
@@ -577,10 +600,11 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
    *
    * 🛑 invariant ยังอยู่: ผลรวมคอลัมน์ "รับจริง" ในตารางทุกแถว = ตัวเลขใหญ่ตัวนี้พอดี
    */
-  const heroValue = isService ? receivedTotal : hasFinance ? profit : series.total
+  // 00073 เฟส B — ปิด "รับเงินแล้ว/ค้างรับ" ⇒ ตัวเลขใหญ่ = ยอดขาย (ไม่มีแกนรับเงินให้พูดถึง)
+  const heroValue = isService ? (rs.receivables ? receivedTotal : series.total) : hasFinance ? profit : series.total
   // ร้านที่ไม่ใช่บริการ: คำ/สีเดิม (ถอน v10 "กำไรจากการขาย(ไม่เกิน)" 2026-10-02)
   // ร้านบริการไม่เคยโชว์กำไรตรงนี้ (ตัวเลขใหญ่ = เงินที่รับจริง) จึงไม่ต้องมีชุดคำ v10
-  const heroLabel = isService ? 'เงินที่รับจริง' : hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'
+  const heroLabel = isService ? (rs.receivables ? 'เงินที่รับจริง' : 'ยอดขาย') : hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'
   const heroTone = isService
     ? 'text-dark'
     : !hasFinance
@@ -691,7 +715,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           role="tablist"
           aria-label="มุมมองการเงินของร้าน"
         >
-          {FINANCE_TABS.map((tabKey) => {
+          {visibleFinanceTabs(rs).map((tabKey) => {
             const selected = financeTab === tabKey
             return (
               <button
@@ -712,7 +736,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                     selected ? 'border-primary text-primary font-semibold' : 'border-transparent'
                   }`}
                 >
-                  {FINANCE_TAB_LABEL[tabKey]}
+                  {(tabKey === 'collect' ? collectTabLabel(rs) : FINANCE_TAB_LABEL[tabKey])}
                 </span>
               </button>
             )
@@ -753,7 +777,17 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           {/* แท็บกำไรขาดทุน / ค่าใช้จ่าย — โหลดตอนเปิดแท็บเท่านั้น
               คนที่เปิดชีตมาดูยอดเก็บเงินอย่างเดียวไม่ต้องจ่ายค่า query ของแท็บอื่น */}
           {isService && financeTab !== 'collect' && (
-            <FinancePanels tab={financeTab} start={financeStart} end={financeEnd} costNoun={costNoun} />
+            <>
+              {/* 00073 เฟส B — กราฟของแท็บ (ช่วงเวลาของตัวเอง · ค่าเริ่มต้นตามตั้งค่าร้าน) */}
+              <ServiceFinanceChart
+                key={`${financeTab}-${mode}-${year}-${month}`}
+                kind={financeTab === 'pnl' ? 'overview' : 'expense'}
+                settings={rs}
+                costNoun={costNoun}
+                period={chartPeriod}
+              />
+              <FinancePanels tab={financeTab} start={financeStart} end={financeEnd} costNoun={costNoun} settings={rs} />
+            </>
           )}
 
           {(!isService || financeTab === 'collect') && (
@@ -790,6 +824,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               สีตรง token กราฟเป๊ะ: bg-warning=warning, bg-success=success, bg-danger=chart-beta
               "ต้นทุนสินค้า" ไม่มีจุดสีเพราะไม่มีซีรีส์ในกราฟ (ดู v5 หัวไฟล์) — ใส่จุดให้ของที่ไม่ได้
               อยู่ในกราฟจะทำให้จุดสีเลิกแปลว่า "แท่งไหนคือช่องไหน" ทั้งแถบ */}
+          {!(isService && !rs.receivables) && (
           <div className="mb-4 flex items-stretch border-y border-dashed border-default-300">
             {/**
               * 🛑 ร้านบริการอ่านแถบนี้ด้วย **แกนเงิน** — `รับจริง + ค้างรับ = ยอดขาย`
@@ -803,6 +838,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               * และช่องสุดท้าย "ยอดขาย" ไม่มีจุดสีเพราะเป็น **ผลรวมของสองแท่ง** ไม่ใช่ซีรีส์
               * (กติกาเดียวกับ "ต้นทุนสินค้า" ของร้านขายของ — ดู v5 หัวไฟล์)
               */}
+            {/* 00073 เฟส B — ปิดรับเงิน/ค้างรับ: ตัวเลขใหญ่คือยอดขายอยู่แล้ว ไม่มีสมการให้แตก ⇒ ทั้งแถบถูกซ่อนข้างบน */}
             {isService ? (
               <>
                 <LegendCell color="bg-success" label="รับจริง" value={receivedTotal} />
@@ -832,6 +868,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               </>
             )}
           </div>
+          )}
 
           {/**
             * แถวสถานะงาน — เฉพาะร้านบริการ (user สั่ง 2026-08-23)
@@ -846,7 +883,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             * 4 กลุ่มไม่ทับกันและบวกกันได้ `total` พอดี — เกณฑ์อยู่ที่ `dashboard.service.ts`
             * ที่เดียว (ยกเลิกชนะทุกอย่าง → เสร็จแล้ว → ไม่มาตามนัด → ที่เหลือ)
             */}
-          {jobs && (
+          {jobs && rs.jobCount && (
             <div className="mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-default-700">
               <span>
                 งานทั้งหมด <b className="text-dark tabular-nums">{jobs.total}</b>
@@ -874,7 +911,17 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             </div>
           )}
 
-          {error ? (
+          {/* 00073 เฟส B — มัดจำของงานที่ยังไม่ปิด (ไม่ปนยอดขาย) · เปิดในตั้งค่าเท่านั้น */}
+          {isService && advance && (
+            <p className="mb-3 text-center text-xs text-default-700">
+              มัดจำรับล่วงหน้า (งานที่ยังไม่ปิด){' '}
+              <b className="text-dark tabular-nums">{formatNumberNoSymbol(advance.amount)}</b> · {advance.jobs} งาน
+            </p>
+          )}
+          {isService ? (
+            /* 00073 เฟส B — กราฟยอดขายแบบใหม่ (รายวัน/รายเดือน · กดแท่งดูยอด · ตามตั้งค่าร้าน) แทนกราฟผสมเดิม */
+            <ServiceFinanceChart key={`sales-${mode}-${year}-${month}`} kind="sales" settings={rs} costNoun={costNoun} period={chartPeriod} />
+          ) : error ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <p className="text-sm text-default-700">โหลดข้อมูลไม่สำเร็จ</p>
               <button type="button" onClick={retry} className="btn btn-sm border-default-300">
@@ -948,14 +995,14 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                 {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
                     ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
                 <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
-                <span className="w-11 shrink-0 text-center">{countNounOf(isService)}</span>
+                {(!isService || rs.jobCount) && <span className="w-11 shrink-0 text-center">{countNounOf(isService)}</span>}
                 <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
                 {/* 🛑 ร้านบริการได้คอลัมน์เงินแทน "ต้นทุน/ค่าส่ง/กำไร" ซึ่ง**ว่างเปล่าเสมอ**สำหรับ
                     ร้านประเภทนี้: `SERVICE_QUEUE` ถูกล็อกเป็น `NO_SHIPPING` ตายตัว ⇒ ไม่มีทาง
                     มีค่าส่งได้เลย และเมื่อทั้งต้นทุนและค่าส่งเป็น 0 คอลัมน์ "กำไร" ก็เท่ากับ
                     "ยอดขาย" ทุกแถวเป๊ะ = คอลัมน์ที่ไม่ให้ข้อมูลอะไร (user ทัก 2026-08-23)
                     สิ่งที่ร้านบริการต้องรู้จริงคือ "วันนั้นเก็บเงินเข้ามาได้เท่าไหร่" */}
-                {isService ? (
+                {isService ? (rs.receivables && (
                   <>
                     {/**
                       * เรียงตาม **เส้นทางของเงิน** ซ้าย→ขวา ให้อ่านเป็นเรื่องเดียวกัน:
@@ -972,7 +1019,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                     <span className="min-w-14 flex-1 basis-0 text-end">รับจริง</span>
                     <span className="min-w-14 flex-1 basis-0 text-end">ค้างรับ</span>
                   </>
-                ) : (
+                )) : (
                   <>
                     {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ต้นทุน</span>}
                     {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าส่ง</span>}
@@ -987,13 +1034,15 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                   return (
                     <div key={r.label} className="flex items-center gap-1.5 py-2.5 text-xs">
                       <span className="w-8 shrink-0 text-center text-default-800">{r.label}</span>
+                      {(!isService || rs.jobCount) && (
                       <span className="w-11 shrink-0 text-center text-default-800 tabular-nums">
                         {r.orders > 0 ? formatNumberNoSymbol(r.orders) : '—'}
                       </span>
+                      )}
                       <span className="min-w-14 flex-1 basis-0 text-end font-semibold text-dark tabular-nums">
                         {formatNumberNoSymbol(r.value)}
                       </span>
-                      {isService && (
+                      {isService && rs.receivables && (
                         <>
                           {/* รับจริง = เงินที่เข้ามาแล้วของงานที่ขายวันนั้น (รวมเงินที่เก็บทีหลัง)
                               🛑 คอลัมน์ "มัดจำ" กับ "ยืนยันแล้ว/ยังไม่ยืนยัน" ถูกถอดออก 2026-08-23
@@ -1081,7 +1130,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                 * ประโยคที่ 2 ขึ้นเฉพาะเมื่อมีใบแบบนั้นจริงในช่วงที่ดูอยู่ — ขึ้นตลอดเวลาจะกลายเป็น
                 * ข้อความประจำที่ไม่มีใครอ่าน แล้ววันที่มันสำคัญจริงก็จะถูกมองข้ามไปด้วย
                 */}
-              {isService && (
+              {isService && rs.receivables && (
               <div className="border-t border-dashed border-default-300 px-4 py-2.5 lg:px-5">
                 <p className="text-2xs leading-relaxed text-default-700">
                   &ldquo;รับจริง&rdquo; + &ldquo;ค้างรับ&rdquo; = &ldquo;ยอดขาย&rdquo; ทุกแถว
@@ -1099,7 +1148,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           )}
           {/* ต้องตามเก็บ — เฉพาะร้านบริการที่ดูการเงินได้ ช่วงเดียวกับที่ชีตแสดง (2026-10-01)
               เดิมมีแค่หน้า /sales ซึ่งแถบล่างของแอปไปไม่ถึง */}
-          {isService && hasFinance && <ReceivablesPanel start={financeStart} end={financeEnd} />}
+          {isService && hasFinance && rs.receivables && <ReceivablesPanel start={financeStart} end={financeEnd} />}
           </>
           )}
         </div>

@@ -17,6 +17,7 @@ import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // Utils
 import { formatDateTimeTH } from '@/lib/format-date'
+import type { OrderStatusTone } from '@/lib/order-display'
 
 /**
  * Buyer "My Orders" list — server-rendered card list (เชื่อมสไตล์กับ dashboard Orders widget).
@@ -33,6 +34,8 @@ export type BuyerOrderRow = {
   totalAmount: number | string
   createdAt: Date | string
   items: { id: string; name: string }[]
+  /** feature 00073 — ป้ายงานร้านบริการคำฝั่งลูกค้า (service-status.ts) · ไม่มี = ร้านอื่น (ป้ายตาม Order.status) */
+  serviceStatus?: { label: string; tone: OrderStatusTone; icon: string } | null
   shop: {
     id: string
     shopName: string
@@ -116,7 +119,9 @@ const OrderList = ({
             {orderData.map(order => {
               const first = order.items[0]
               const extra = order.items.length - 1
-              const color = statusColor(order.status)
+              const color = order.serviceStatus
+                ? ORDER_STATUS_TONE_TO_MUI[order.serviceStatus.tone]
+                : statusColor(order.status)
 
               return (
                 <Link
@@ -125,7 +130,9 @@ const OrderList = ({
                   className='flex items-center gap-4 pli-5 plb-4 no-underline border-b border-[var(--mui-palette-divider)] last:border-b-0 hover:bg-[var(--mui-palette-action-hover)] transition-colors'
                 >
                   <CustomAvatar skin='light' variant='rounded' color={color} size={44}>
-                    <i className={`${STATUS_ICON[order.status] ?? 'tabler-package'} text-[24px]`} />
+                    <i
+                      className={`${order.serviceStatus ? `tabler-${order.serviceStatus.icon}` : (STATUS_ICON[order.status] ?? 'tabler-package')} text-[24px]`}
+                    />
                   </CustomAvatar>
 
                   <div className='flex flex-col min-w-0 grow'>
@@ -151,7 +158,7 @@ const OrderList = ({
                       size='small'
                       variant='tonal'
                       color={color}
-                      label={statusLabel(order.status)}
+                      label={order.serviceStatus?.label ?? statusLabel(order.status)}
                     />
                   </div>
                 </Link>

@@ -152,6 +152,7 @@ describe('[blocker] ทุกจอส่งประเภทร้านเข
     expect(read(D + '[token]/components/CustomerDetails.tsx')).toMatch(/\{subLabel\}/)
     const page = read(D + '[token]/page.tsx')
     expect(page).toMatch(/typedNameFirst: usesTypedBuyerName\(shop\.vertical\),/)
-    expect(page).toMatch(/buyerLabel=\{resolveOrderBuyerNameForShop\(shop\.vertical,/)
+    // 00073: กล่องยืนยันผลนัดที่ใช้ชื่อลูกค้าถูกแทนด้วยชีตปิดงาน (หัวชีตใช้เลขงาน) ⇒ AppointmentCard ไม่รับ buyerLabel แล้ว
+    expect(page).not.toMatch(/buyerLabel=\{/)
   })
 })

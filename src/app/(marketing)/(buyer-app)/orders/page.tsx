@@ -10,6 +10,8 @@ import OrderList, { type BuyerOrderRow } from '@views/apps/ecommerce/orders/list
 import PageHeader from '../_components/PageHeader'
 import SearchBox from '../_components/SearchBox'
 import { sessionUserId } from '@/lib/session-user'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 /**
  * Buyer "My Orders" list.
@@ -57,6 +59,21 @@ export default async function MyOrdersPage({
     totalAmount: Number(o.totalAmount),
     createdAt: o.createdAt.toISOString(),
     items: o.items.map(it => ({ id: it.id, name: it.name })),
+    // feature 00073 — งานของร้านบริการ: ป้ายชุดเดียวคำฝั่งลูกค้า (ตัดสินรายแถวตามร้านเจ้าของใบ)
+    serviceStatus: usesServiceFinanceRules(o.shop.vertical)
+      ? (({ label, tone, icon }) => ({ label, tone, icon }))(
+          resolveServiceStatusBadge(
+            {
+              status: o.status,
+              appointmentStatus: o.appointmentStatus ?? null,
+              hasAppointment: Boolean(o.serviceStart),
+              serviceClosedAt: o.serviceClosedAt ?? null,
+              outstanding: null,
+            },
+            'buyer',
+          ),
+        )
+      : null,
     shop: {
       id: o.shop.id,
       shopName: o.shop.shopName,

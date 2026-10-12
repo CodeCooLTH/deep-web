@@ -1916,6 +1916,22 @@ export const AppointmentOutcomeSchema = v.object({
   outcome: v.picklist(["COMPLETED", "NO_SHOW"]),
 })
 
+// feature 00073 — ปิดงานร้านบริการ (ผล + เงินที่เหลือ + มัดจำตอนไม่มาตามนัด) · กติกายอดเงินเดียวกับ /payments
+export const CloseServiceJobSchema = v.object({
+  outcome: v.picklist(["SERVED", "NO_SHOW"]),
+  payment: v.optional(
+    v.nullable(
+      v.object({
+        amount: v.pipe(v.number(), v.minValue(0.01), v.maxValue(99_999_999)),
+        method: v.optional(v.picklist(["TRANSFER", "CASH", "OTHER"]), "TRANSFER"),
+        slipFileId: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(200)))),
+        note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+      }),
+    ),
+  ),
+  deposit: v.optional(v.picklist(["KEEP", "REFUND"]), "KEEP"),
+})
+
 // ขอเลื่อนนัด — ฝั่งลูกค้า (ขอได้อย่างเดียว เปลี่ยนเวลาเองไม่ได้ BR-RSV-23)
 export const RequestRescheduleSchema = v.object({
   note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),

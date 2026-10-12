@@ -24,12 +24,12 @@ import type { DailyRow, SummaryData } from './components/data'
 import { resolveRangeFromParams, thaiMidnightUtc } from '@/lib/date-range'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
-import { countsAsRevenue } from '@/lib/order-revenue'
+import { countsAsServiceRevenue, isServiceNoShow, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
-import { resolveFinanceTab, resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
+import { resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
 import { getPnlReport } from '@/services/pnl.service'
 import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getCostCoverage } from '@/services/cost-coverage.service'
@@ -39,6 +39,9 @@ import IncompleteDataNotice from './components/IncompleteDataNotice'
 import ReceivableList from './components/ReceivableList'
 import PnlReportCard from '../expenses/components/PnlReportCard'
 import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
+import ServiceFinanceChart from './components/ServiceFinanceChart'
+import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, visibleFinanceTabs } from '@/lib/report-settings'
+import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
 
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
 
@@ -143,8 +146,18 @@ export default async function SalesPage({
    * และไม่มีการ import คอมโพเนนต์แท็บเข้ามาในเส้นทางนั้น
    */
   const isServiceQueue = resolveShopVertical(shop.vertical) === 'SERVICE_QUEUE'
-  const tab = isServiceQueue ? resolveFinanceTab(sp[FINANCE_TAB_PARAM]) : 'collect'
+  /**
+   * feature 00073 เฟส B — ตั้งค่ารายงานของร้านบริการ (ร้านอื่น = ค่าตั้งต้นเสมอ และไม่ถูกอ่านในเส้นทางนั้น)
+   * แท็บที่ถูกปิด/URL ที่ไม่รู้จัก ถอยไปแท็บที่มองเห็น (resolveVisibleFinanceTab — fail-closed)
+   */
+  const reportSettings = resolveReportSettings(shop.reportSettings, shop.vertical)
+  const financeTabs = visibleFinanceTabs(reportSettings)
+  const tab = isServiceQueue ? resolveVisibleFinanceTab(sp[FINANCE_TAB_PARAM], reportSettings) : 'collect'
   const vocab = resolveOrderVocab(shop.vertical)
+  /** กราฟการเงิน (เฟส B) — เริ่มโหลดตั้งแต่ตรงนี้ขนานกับ query ของแต่ละแท็บ · ล้ม = ให้ client โหลดเอง */
+  const chartInitialP = isServiceQueue
+    ? getFinanceChartData(shop.id, shop.vertical, reportSettings.defaultRange, {}).catch(() => null)
+    : Promise.resolve(null)
 
   if (isServiceQueue && canSeeFinance && tab !== 'collect') {
     const range = period.resolved
@@ -165,8 +178,9 @@ export default async function SalesPage({
       return (
         <>
           <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
-          <FinanceTabs active={tab} panelId="finance-panel" />
+          <FinanceTabs active={tab} panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />
           <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
+            <ServiceFinanceChart kind="expense" settings={reportSettings} costNoun={vocab.costNoun} initial={await chartInitialP} />
             <ExpenseWorkspace
               initialRange={period.preset}
               initialCustom={period.custom}
@@ -176,6 +190,8 @@ export default async function SalesPage({
               orderNoun={vocab.noun}
               costNoun={vocab.costNoun}
               serviceRules
+              settings={reportSettings}
+              revenue={{ label: vocab.revenueLabel, basis: vocab.revenueBasis, countMetric: vocab.revenueCountMetric }}
             />
           </div>
         </>
@@ -186,12 +202,13 @@ export default async function SalesPage({
     const [report, expenses, coverage] = await Promise.all([
       getPnlReport(shop.id, range, shop.vertical),
       listExpenses(shop.id, { range: range.expenseRange }),
-      getCostCoverage(shop.id, range),
+      getCostCoverage(shop.id, range, shop.vertical),
     ])
     const completeness = resolveDataCompleteness({
       // ธงมาจาก pnl.service ตัวเดียว ห้ามคำนวณซ้ำที่นี่ (สูตรเดียวต้องอยู่ที่เดียว)
-      hasMissingCost: report.hasMissingCost,
-      expenseCount: expenses.length,
+      // feature 00073 เฟส B — ปิดต้นทุน/ค่าใช้จ่ายในตั้งค่า = ไม่ได้หัก ⇒ ไม่นับว่า "ขาดข้อมูล" (ไม่เตือนเรื่องที่ร้านเลือกไม่ใช้)
+      hasMissingCost: reportSettings.partCost && report.hasMissingCost,
+      expenseCount: reportSettings.shopExpense ? expenses.length : 1,
       uncostedItemCount: coverage.uncostedItemCount,
       soldItemCount: coverage.soldItemCount,
     })
@@ -199,8 +216,9 @@ export default async function SalesPage({
     return (
       <>
         <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
-        <FinanceTabs active={tab} panelId="finance-panel" />
+        <FinanceTabs active={tab} panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />
         <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
+          <ServiceFinanceChart kind="overview" settings={reportSettings} costNoun={vocab.costNoun} initial={await chartInitialP} />
           {/* แท็บนี้เคยไม่มีตัวเลือกช่วงเวลาเลย — เปลี่ยนได้ทาง URL อย่างเดียว (พบ 2026-10-01) */}
           <div className="mb-1.25 flex min-w-0 justify-start sm:justify-end">{rangeFilter}</div>
           <IncompleteDataNotice
@@ -217,6 +235,8 @@ export default async function SalesPage({
             costNoun={vocab.costNoun}
             capped={!completeness.complete}
             serviceRules
+            settings={reportSettings}
+            revenue={{ label: vocab.revenueLabel, basis: vocab.revenueBasis, countMetric: vocab.revenueCountMetric }}
           />
         </div>
       </>
@@ -245,27 +265,41 @@ export default async function SalesPage({
   // ร้านที่ไม่ใช่บริการ: ไม่ดึง/ไม่หักยอดคืน และไม่ตัดร่าง/คืนของ — ของเดิม (Map ว่าง ⇒ amountOf = totalAmount)
   const [shopOrders, returnAdj] = await Promise.all([
     // withCost: หน้านี้ผ่าน gatePage F1 ข้างบนแล้ว (ไม่ถึงบรรทัดนี้ถ้าไม่ใช่เจ้าของ/ผู้ดูแล) — ใช้คิด COGS
-    getOrdersByShop(shop.id, undefined, { withCost: true }),
+    // withPayments เฉพาะร้านบริการ — งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (00073) · ร้านอื่น query เดิม
+    getOrdersByShop(shop.id, undefined, { withCost: true, withPayments: newRules }),
     newRules ? getReturnAdjustments(shop.id) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
-  /** ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้ */
-  const amountOf = (o: { id: string; totalAmount: unknown }) =>
-    netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
+  /**
+   * ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้
+   * feature 00073 — ร้านบริการปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ (คืนมัดจำ = 0)
+   */
+  const amountOf = (o: (typeof shopOrders)[number]) =>
+    newRules && isServiceNoShow(o)
+      ? serviceNoShowRevenue(o.payments ?? [])
+      : netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
   const allOrders = newRules
     ? shopOrders.filter((o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED')
     : shopOrders
-  /** นับเป็นยอดขายไหม — ร้านบริการ: countsAsRevenue (SSOT) · ร้านอื่น: status === 'CONFIRMED' ตามเดิม */
-  const isSale = (o: (typeof shopOrders)[number]) => (newRules ? countsAsRevenue(o) : o.status === 'CONFIRMED')
+  /**
+   * นับเป็นยอดขายไหม — ร้านบริการ: งานที่ร้านปิดแล้ว (feature 00073 · SSOT order-revenue.ts)
+   * ร้านอื่น: status === 'CONFIRMED' ตามเดิม
+   */
+  const isSale = (o: (typeof shopOrders)[number]) => (newRules ? countsAsServiceRevenue(o) : o.status === 'CONFIRMED')
+  /**
+   * วันที่ของแถว — ร้านบริการ: งานที่ปิดแล้วอยู่วันปิดงาน · งานที่ยังไม่ปิดอยู่วันที่สร้าง (ยังไม่มีวันปิด)
+   * ร้านอื่น: createdAt ตามเดิม · 🛑 ช่วงเวลา/ตาราง/กราฟใช้ตัวนี้ตัวเดียว ไม่งั้นแถวกับยอดคนละวัน
+   */
+  const dateOf = (o: (typeof shopOrders)[number]) => (newRules ? revenueDateFor(o, shop.vertical) : new Date(o.createdAt))
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
 
   const inRange = allOrders.filter((o: OrderItem) => {
-    const t = new Date(o.createdAt).getTime()
+    const t = dateOf(o).getTime()
     return t >= from.getTime() && t < toExcl.getTime()
   })
   const inPrevRange = allOrders.filter((o: OrderItem) => {
-    const t = new Date(o.createdAt).getTime()
+    const t = dateOf(o).getTime()
     return t >= prevFrom.getTime() && t < from.getTime()
   })
 
@@ -273,6 +307,8 @@ export default async function SalesPage({
   const sumWindow = (rows: OrderItem[]) => {
     let revenue = 0, unconfirmed = 0, completed = 0, cancelled = 0
     for (const o of rows) {
+      // feature 00073 — ร้านบริการ: งานที่ยังไม่ปิดไม่ใช่ยอดขายและไม่ใช่ "รอยืนยัน" (ชุดเดียวกับชีต/ค้างรับ)
+      if (newRules && o.status !== 'CANCELLED' && !isSale(o)) continue
       // 🛑 countsAsRevenue (SSOT order-revenue.ts) ไม่ใช่ status==='CONFIRMED' — ดูหมายเหตุที่ลูปรายวัน
       if (o.status === 'CANCELLED') cancelled++
       else if (isSale(o)) { revenue += amountOf(o); completed++ }
@@ -320,7 +356,13 @@ export default async function SalesPage({
   for (const o of inRange) {
     // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
     // ไม่งั้นค่าใน map นี้จะไม่ตรงกับวันที่ eachDay ไล่มา แล้วกราฟกลายเป็น 0 ทั้งแถบโดยไม่มี error
-    const day = thaiDayKey(o.createdAt)
+    const day = thaiDayKey(dateOf(o))
+    /**
+     * feature 00073 — ร้านบริการ: งานที่ยังไม่ปิดไม่เข้าตาราง/กราฟยอดขายเลย (ไม่ใช่ยอดขาย ไม่มีวันปิดให้ลงแถว)
+     * 🛑 ถ้าปล่อยเข้า unconfirmed กราฟแกนเงินจะบวกงานค้างเข้าแท่ง "ค้างรับ" แต่แถบสมการ (receivables)
+     * นับเฉพาะงานที่ปิด ⇒ แท่งกับตัวเลขบนการ์ดเดียวกันไม่ตรงกัน
+     */
+    if (newRules && o.status !== 'CANCELLED' && !isSale(o)) continue
     if (o.status !== 'CANCELLED') {
       // "ออเดอร์" ของวันไม่นับใบยกเลิก — นิยามเดียวกับชีตหน้าหลัก (orderCounts) · ใบยกเลิกนับแยกที่การ์ด
       ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
@@ -340,6 +382,8 @@ export default async function SalesPage({
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + amountOf(o)
       // ต้นทุนของชิ้นที่คืนบางส่วน — หักครั้งเดียวต่อใบ (ตัวกลาง return-adjustment)
+      // ไม่มาตามนัด (ร้านบริการ) — ไม่ได้ให้บริการ จึงไม่มีต้นทุน/ค่าส่ง · ยอด = มัดจำที่เก็บ (amountOf)
+      if (newRules && isServiceNoShow(o)) continue
       const returnedCost = returnAdj.get(o.id)?.returnedCost ?? 0
       if (returnedCost) cogsPerDay[day] = (cogsPerDay[day] ?? 0) - returnedCost
       for (const item of o.items) {
@@ -456,6 +500,8 @@ export default async function SalesPage({
           },
         })
       : null
+  /** มัดจำรับล่วงหน้า (เฟส B) — ภาพ ณ ตอนนี้ของงานที่ยังไม่ปิด · เปิดในตั้งค่าเท่านั้น (ปิด = ไม่ query) */
+  const advance = isServiceQueue && reportSettings.advanceDeposit ? await getAdvanceDeposits(shop.id) : null
 
   /**
    * แกนเงินของร้านบริการ: เติม "รับจริง" รายวันจาก receivable.service (แถวชุดเดียวกับ summary)
@@ -471,7 +517,7 @@ export default async function SalesPage({
         title={isServiceQueue ? FINANCE_MENU_LABEL : 'ภาพรวมยอดขาย'}
         trail={[{ label: 'ภาพรวม' }]}
       />
-      {isServiceQueue && canSeeFinance && <FinanceTabs active="collect" panelId="finance-panel" />}
+      {isServiceQueue && canSeeFinance && <FinanceTabs active="collect" panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />}
       <div id="finance-panel" role={isServiceQueue && canSeeFinance ? 'tabpanel' : undefined} aria-labelledby={isServiceQueue && canSeeFinance ? 'finance-tab-collect' : undefined}>
 
       {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
@@ -486,7 +532,31 @@ export default async function SalesPage({
         periodLabel={periodLabel}
         isServiceQueue={isServiceQueue}
         collect={receivables?.summary}
+        serviceOpts={
+          isServiceQueue
+            ? {
+                receivables: reportSettings.receivables,
+                jobCount: reportSettings.jobCount,
+                advance: advance,
+                revenueLabel: vocab.revenueLabel,
+                hideChart: true,
+              }
+            : undefined
+        }
       />
+
+      {/* feature 00073 เฟส B — กราฟยอดขายแบบใหม่ (ช่วงรายวัน/รายเดือน · กดแท่งดูยอด) แทนกราฟรายวันเดิม */}
+      {isServiceQueue && (
+        <div className="mt-1.25">
+          <ServiceFinanceChart
+            kind="sales"
+            settings={reportSettings}
+            costNoun={vocab.costNoun}
+            initial={await chartInitialP}
+            receivablesHref={reportSettings.receivables ? '#receivables' : undefined}
+          />
+        </div>
+      )}
 
       <div className="card mt-1.25">
         <SalesTable
@@ -494,12 +564,14 @@ export default async function SalesPage({
           showFinance={canSeeFinance && !isServiceQueue}
           countNoun={isServiceQueue ? 'งาน' : 'ออเดอร์'}
           moneyAxis={isServiceQueue && receivables != null}
+          moneyOpts={isServiceQueue ? { receivables: reportSettings.receivables, jobCount: reportSettings.jobCount } : undefined}
           profitCapped={summary.hasMissingCost === true}
         />
       </div>
 
-      {receivables && (
-        <div className="mt-1.25">
+      {/* 00073 เฟส B — ปิด "รับเงินแล้ว/ค้างรับ" ⇒ รายการต้องตามเก็บหาย */}
+      {receivables && reportSettings.receivables && (
+        <div className="mt-1.25" id="receivables">
           <ReceivableList
             /* key = ช่วงเวลา — ReceivableList ก๊อป initialItems/cursor ลง useState และ Next 16 คง state ของ
                client component ข้ามการเปลี่ยน search params ⇒ ไม่มี key จะค้างรายการของช่วงเก่า แล้ว

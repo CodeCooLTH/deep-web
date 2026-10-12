@@ -56,6 +56,11 @@ export type CustomerOrderEvidence = {
    * (เกณฑ์เดียวกับ `CancellationEvidence` ใน order-stats.ts — ห้ามนิยามคำว่า "พัสดุของใบนี้" ใหม่)
    */
   activeShipmentCarrierStatus: string | null
+  /**
+   * feature 00073 — สถานะนัด (ร้านบริการเท่านั้นที่มีค่า) · 'NO_SHOW' = ร้านปิดงานแบบลูกค้าไม่มาตามนัด
+   * นับเหมือนการยกเลิกด้วยเหตุผล `BUYER_NO_SHOW` เดิมเป๊ะ (ทางนั้นถูกถอดจากร้านบริการแล้ว) ⇒ ตัวเลขเดิมไม่หาย ไม่ซ้ำ
+   */
+  appointmentStatus: string | null
 }
 
 export type CustomerBehavior = {
@@ -109,6 +114,13 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
     if (returned) {
       // ตีกลับชนะเสมอ — ใบนี้ถูกนับไปแล้ว ห้ามนับซ้ำในถังยกเลิก (ดูหัวไฟล์)
       returnedParcels += 1
+      continue
+    }
+    // ร้านบริการปิดงานแบบไม่มาตามนัด (00073) — นับเหมือนยกเลิกด้วย BUYER_NO_SHOW เดิมเป๊ะ
+    // (ทั้งถังยกเลิกรวมและถังต้นเรื่องจากลูกค้า) ป้าย "ยกเลิก N รายการ" ของร้านเดิมจึงไม่ขยับ
+    if (o.status !== 'CANCELLED' && o.appointmentStatus === 'NO_SHOW') {
+      cancelledTotal += 1
+      cancelledByBuyer += 1
       continue
     }
     if (o.status === 'CANCELLED') {

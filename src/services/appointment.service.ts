@@ -3,12 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { withoutDrafted } from "@/lib/order-visibility";
 import { isExclusionViolation } from "@/lib/prisma-errors";
 import { appointmentDayWhere } from "@/lib/appointment-day";
+import { ServiceJobClosedLockedError } from "@/lib/service-job";
 import {
   APPOINTMENT_ORDER_TYPE,
   APPOINTMENT_STATUS,
   AppointmentFeatureUnavailableError,
   AppointmentNotFoundError,
-  AppointmentNotStartedError,
   AppointmentPastError,
   AppointmentSlotFullError,
   AppointmentTerminalError,
@@ -17,7 +17,6 @@ import {
   ServiceResourceNotFoundError,
   canUseAppointments,
   isTerminalAppointmentStatus,
-  type AppointmentStatus,
 } from "@/lib/appointments";
 
 // ระบบนัดหมายวันเข้าใช้บริการ (feature 00024)
@@ -247,12 +246,15 @@ export async function setOrRescheduleAppointment(args: {
         serviceStart: true,
         serviceEnd: true,
         appointmentStatus: true,
+        serviceClosedAt: true,
       },
     });
     if (!current) throw new AppointmentNotFoundError();
     if (isTerminalAppointmentStatus(current.appointmentStatus)) {
       throw new AppointmentTerminalError();
     }
+    // feature 00073 (มติ D3) — งานที่ปิดแล้วถูกล็อก (รวม walk-in ที่ไม่มีสถานะนัดให้เช็กข้างบน)
+    if (current.serviceClosedAt != null) throw new ServiceJobClosedLockedError();
 
     const hadAppointment = !!current.serviceStart && !!current.serviceEnd;
     if (hadAppointment) {
@@ -341,42 +343,11 @@ export async function resolveResourceForOrder(shopId: string, resourceId: string
   return loadActiveResource(shopId, resourceId);
 }
 
-/**
- * ทำเครื่องหมายผลของนัด (FR-RSV-09)
- *
- * IMPORTANT: ห้ามแตะ Order.status ในฟังก์ชันนี้ (BR-RSV-33)
- * และห้ามให้กระทบ Trust Score (BR-RSV-35) — no-show บันทึกไว้เฉย ๆ ไม่หักคะแนน
+/*
+ * ทำเครื่องหมายผลของนัด (FR-RSV-09) — ย้ายไปเป็น "ปิดงาน" แล้ว (feature 00073)
+ * ⇒ `closeServiceJob` ใน src/services/service-job.service.ts (ผล + เงิน + วันปิดงาน ในทรานแซกชันเดียว)
+ * เดิมฟังก์ชันนี้ตั้งแค่ appointmentStatus ⇒ ไม่มีวันปิดงาน ยอดร้านบริการจึงไม่เข้า (ต้นเหตุยอดสะสม ฿0)
  */
-export async function setAppointmentOutcome(args: {
-  shopId: string;
-  orderToken: string;
-  outcome: Extract<AppointmentStatus, "COMPLETED" | "NO_SHOW">;
-  now?: Date;
-}) {
-  const { shopId, orderToken, outcome } = args;
-  const now = args.now ?? new Date();
-
-  await assertShopCanUseAppointments(shopId);
-
-  const order = await prisma.order.findFirst({
-    where: { publicToken: orderToken, shopId },
-    select: { id: true, serviceStart: true, appointmentStatus: true },
-  });
-  if (!order?.serviceStart) throw new AppointmentNotFoundError();
-  if (isTerminalAppointmentStatus(order.appointmentStatus)) {
-    throw new AppointmentTerminalError();
-  }
-  // ทำเครื่องหมายได้ตั้งแต่ถึงเวลาเริ่มนัดเป็นต้นไปเท่านั้น (BR-RSV-34)
-  if (now.getTime() < order.serviceStart.getTime()) {
-    throw new AppointmentNotStartedError();
-  }
-
-  return prisma.order.update({
-    where: { id: order.id },
-    data: { appointmentStatus: outcome },
-    select: { appointmentStatus: true },
-  });
-}
 
 /**
  * ลูกค้ายืนยันนัด (FR-RSV-06) — idempotent (BR-RSV-26)

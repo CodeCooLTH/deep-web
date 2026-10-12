@@ -26,6 +26,7 @@ import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import { fileUrlOf } from '@/lib/file-url'
 import { withoutDrafted } from '@/lib/order-visibility'
+import { serviceDeliveredOrderWhere } from '@/lib/order-revenue'
 import {
   CUSTOM_ITEM_KEY,
   CUSTOM_ITEM_LABEL,
@@ -114,11 +115,14 @@ export async function getProductSalesMonth(
         // แต่ตัวกรองต้องพูดจากกฎ ไม่ใช่จากสภาพข้อมูลชั่วคราวของวันนี้
         // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว (มติ 2026-10-01 ชุดเดียวกับ /sales · ชีต · receivable)
         //   ต้องคู่กับ getBestSellerProducts เสมอ (SALES_BASIS_DETAIL อ้างว่าเกณฑ์เดียวกัน)
-        order: {
-          shopId,
-          ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
-          createdAt: { gte, lt },
-        },
+        // feature 00073 — ร้านบริการ: งานที่ปิดแล้วและได้ให้บริการ ตัดช่วงด้วยวันปิดงาน (Top 3 ในรายงานกลุ่ม LINE)
+        order: newRules
+          ? { shopId, ...serviceDeliveredOrderWhere({ gte, lt }) }
+          : {
+              shopId,
+              ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+              createdAt: { gte, lt },
+            },
       },
       select: {
         id: true,
@@ -127,7 +131,7 @@ export async function getProductSalesMonth(
         qty: true,
         price: true,
         orderId: true,
-        order: { select: { createdAt: true } },
+        order: { select: { createdAt: true, serviceClosedAt: true } },
       },
       take: MAX_ITEM_ROWS + 1,
     }),
@@ -166,7 +170,8 @@ export async function getProductSalesMonth(
   const orderIds = new Set<string>()
 
   for (const it of rowsIn) {
-    const idx = dayIndexByKey.get(thaiDayKey(it.order.createdAt))
+    // แกนวัน: ร้านบริการ = วันปิดงาน (00073) · ร้านอื่น = createdAt เดิม
+    const idx = dayIndexByKey.get(thaiDayKey(newRules ? (it.order.serviceClosedAt ?? it.order.createdAt) : it.order.createdAt))
     // ออเดอร์ที่หลุดขอบเขตวัน (ไม่ควรเกิดเพราะกรองใน where แล้ว) — ข้าม ไม่ยัดลงวันที่ 1
     if (idx === undefined) continue
 

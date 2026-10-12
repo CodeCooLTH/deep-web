@@ -24,6 +24,12 @@ export type ReceiptSheetData = {
   totalWords: string
   marks: { cash: boolean; transfer: boolean }
   cancelled: boolean
+  /**
+   * feature 00073 — ช่อง "วันที่/จำนวนเงิน" ใต้ช่องติ๊กวิธีชำระ เติมจากบันทึกรับเงินจริง (การโอน)
+   * null = ไม่มีการโอน (เงินสดล้วน) หรือไม่รู้ ⇒ ปล่อยเป็นช่องเขียนมือเหมือนเดิม
+   * ธนาคาร/เลขที่ ไม่เติม — ระบบไม่รู้ธนาคารผู้โอนหรือเลขอ้างอิง (เติมเดา = เอกสารเท็จ)
+   */
+  transfer?: { dateLabel: string; amount: string } | null
 }
 
 function Box({ checked, label }: { checked: boolean; label: string }) {
@@ -35,6 +41,17 @@ function Box({ checked, label }: { checked: boolean; label: string }) {
       </span>
       {label}
       {checked ? <span className="sr-only"> (เลือก)</span> : null}
+    </span>
+  )
+}
+
+/** ช่องกรอก: มีค่า = ค่าอยู่บนเส้นประ · ไม่มีค่า = ช่องเขียนมือ (หน้าตาเดิม) */
+function FillCell({ label, value }: { label: string; value?: string }) {
+  if (!value) return <span className={styles.fill}>{label}</span>
+  return (
+    <span className={`${styles.fill} ${styles.filled}`}>
+      {label}
+      <span className={styles.fillValue}>{value}</span>
     </span>
   )
 }
@@ -150,8 +167,8 @@ export default function ReceiptSheet({
         <div className={styles.fillRow}>
           <span className={styles.fill}>ธนาคาร</span>
           <span className={styles.fill}>เลขที่</span>
-          <span className={styles.fill}>วันที่</span>
-          <span className={styles.fill}>จำนวนเงิน</span>
+          <FillCell label="วันที่" value={data.transfer?.dateLabel} />
+          <FillCell label="จำนวนเงิน" value={data.transfer ? `${data.transfer.amount} บาท` : undefined} />
         </div>
 
         <div className={styles.signArea}>

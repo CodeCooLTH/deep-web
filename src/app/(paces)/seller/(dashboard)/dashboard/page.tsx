@@ -34,7 +34,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts, getServiceWorkStageCounts } from '@/services/order.service'
-import { countsAsRevenue } from '@/lib/order-revenue'
+import { countsAsRevenueFor, isServiceNoShow, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { getBestSellerProducts } from '@/services/product.service'
 // คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
@@ -73,6 +73,10 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 import { getSalesSeries } from '@/services/dashboard.service'
 // 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
 import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
+import { DEFAULT_REPORT_SETTINGS, profitExclusionNote, profitShown, resolveHeadline, resolveReportSettings, type ReportSettings } from '@/lib/report-settings'
+import { getPnlReport } from '@/services/pnl.service'
+import { resolveDateRange } from '@/lib/date-range'
+import { getAdvanceDeposits } from '@/services/finance-chart.service'
 import { dashboardMoney, homeBlocks, redactCommandCenterData } from '@/lib/dashboard-money'
 import TodayJobs from './components/TodayJobs'
 import { resolveShortcutState } from '@/services/shortcut.service'
@@ -98,6 +102,7 @@ import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -175,6 +180,14 @@ export default async function SellerDashboardPage() {
   // ส่ง vertical ดิบลงไปให้ BestSellerStrip ('use client') resolve เอง — ProductVocab มีฟังก์ชัน
   // อยู่ข้างใน ส่งทั้งก้อนข้ามเส้น server→client ไม่ได้ (พังจริงบน prod 2026-08-07)
   let shopVertical = 'ONLINE_SALES'
+  /** feature 00073 เฟส B — ตั้งค่ารายงานของร้าน (ร้านอื่น = ค่าตั้งต้นเสมอ) + มัดจำรับล่วงหน้า (เปิดในตั้งค่า + เห็นเงินเต็มเท่านั้น) */
+  let reportSettings: ReportSettings = { ...DEFAULT_REPORT_SETTINGS }
+  let advanceDeposit: { amount: number; jobs: number } | null = null
+  /**
+   * ตัวเลขหลักบนการ์ด (มติ user 2026-10-12) — ร้านบริการ + เห็นเงินเต็มเท่านั้น · null = ยอดขาย (หน้าตาเดิม)
+   * today/month = ช่วงเดียวกับปุ่ม วันนี้/เดือนนี้ ของการ์ด (มือถือ) และ filter ของภาพรวมร้าน (คอม)
+   */
+  let headlineData: { kind: 'RECEIVED' | 'NET_PROFIT'; today: number; month: number; note: string | null } | null = null
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   // 00071: ผู้ไม่ใช่เจ้าของไม่ query ยอดเลย ⇒ null (ไม่ใช่ 0 — 0 คือการโกหกว่ากระเป๋าว่าง)
   let walletBalance: number | null = null
@@ -272,6 +285,10 @@ export default async function SellerDashboardPage() {
         orderVocab = resolveOrderVocab(shop.vertical)
         orderNoun = orderVocab.noun
         shopVertical = shop.vertical
+        reportSettings = resolveReportSettings(shop.reportSettings, shop.vertical)
+        if (reportSettings.advanceDeposit && moneyLvl === 'FULL') {
+          advanceDeposit = await getAdvanceDeposits(shop.id).catch(() => null)
+        }
 
         packageCanManage = shop.userId === user?.id // เจ้าของหลักเท่านั้น (EXT 00012 BR-MR-08)
         try {
@@ -361,7 +378,8 @@ export default async function SellerDashboardPage() {
             // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
             // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
             // /notifications ยังเรียก service ตัวนี้เองแยกต่างหาก ข้อมูลจึงไม่หายไปจากระบบ
-            getOrdersByShop(shop.id),
+            // ร้านบริการดึงเงินรับมาด้วย — งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (00073) · ร้านอื่น query เดิม
+            getOrdersByShop(shop.id, undefined, usesServiceFinanceRules(shop.vertical) ? { withPayments: true } : undefined),
             getAvgRatingByUsername(owner?.username ?? ''),
             // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
             prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
@@ -453,6 +471,31 @@ export default async function SellerDashboardPage() {
         if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
         else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
 
+        // ตัวเลขหลักบนการ์ด — รับเงินแล้ว = ชุดเดียวกับกราฟ (receivedValues ของงานที่ปิดตามวันปิดงาน)
+        // กำไรสุทธิ = getPnlReport ช่วงเดียวกัน หักตามสวิตช์ (นิยามเดียวกับแท็บกำไรขาดทุน — HR16)
+        const headlineKind = usesServiceFinanceRules(shop.vertical) && moneyLvl === 'FULL' ? resolveHeadline(reportSettings) : 'SALES'
+        if (headlineKind === 'RECEIVED' && salesSeriesRes.status === 'fulfilled' && salesSeriesRes.value?.receivedValues) {
+          const rv = salesSeriesRes.value.receivedValues
+          headlineData = { kind: 'RECEIVED', today: rv[currentDay - 1] ?? 0, month: rv.reduce((s, v) => s + v, 0), note: null }
+        } else if (headlineKind === 'NET_PROFIT') {
+          try {
+            const [dayRep, monthRep] = await Promise.all([
+              getPnlReport(shop.id, resolveDateRange('today'), shop.vertical),
+              getPnlReport(shop.id, resolveDateRange('month'), shop.vertical),
+            ])
+            const shown = (r: typeof dayRep) => profitShown(reportSettings, { revenue: r.revenue, cogs: r.cogs, expense: r.totalExpense })
+            headlineData = {
+              kind: 'NET_PROFIT',
+              today: shown(dayRep),
+              month: shown(monthRep),
+              note: profitExclusionNote(reportSettings, resolveOrderVocab(shop.vertical).costNoun),
+            }
+          } catch (e) {
+            // ล้ม = ถอยเป็นยอดขาย (ตัวเลขที่มีแน่) ดีกว่าโชว์กำไร 0 ที่ไม่จริง
+            console.error('[dashboard] headline pnl failed', e)
+          }
+        }
+
         // 00069 v1.1: การ์ดมือถือ = ยอดรวมทุกธุรกิจ (ชุดเดียวกับแผง desktop) · aggregate ว่าง (ทุกร้านธุรกิจล้ม) = ไม่มีกราฟให้วาด
         // → คงการ์ดของร้าน Personal ไว้ แต่แผง desktop ยังแสดงแถว ERROR ให้ผู้ใช้เห็นว่าดึงอะไรไม่ได้
         portfolio = await portfolioPromise
@@ -493,8 +536,13 @@ export default async function SellerDashboardPage() {
               return new Map<string, ReturnAdjustment>()
             })
           : new Map<string, ReturnAdjustment>()
-        const netAmount = (o: { id: string; totalAmount: unknown }) =>
-          netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
+        /** ยอดของใบ — ร้านบริการปิดแบบไม่มาตามนัด = มัดจำที่เก็บ (00073) · ที่เหลือหักคืนบางส่วนตามเดิม */
+        const netAmount = (o: (typeof rawOrders)[number]) =>
+          newRules && isServiceNoShow(o)
+            ? serviceNoShowRevenue(o.payments ?? [])
+            : netOfReturns(Number(o.totalAmount), returnAdj.get(o.id))
+        /** นับเป็นยอดขายไหม — ร้านบริการ = งานที่ร้านปิดแล้ว (00073) · ร้านอื่น = countsAsRevenue เดิม */
+        const isRevenue = (o: (typeof rawOrders)[number]) => countsAsRevenueFor(o, shop.vertical)
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
         orderCount = liveOrders.length
@@ -504,7 +552,7 @@ export default async function SellerDashboardPage() {
         // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
         // 00071: ผู้ไม่ใช่เจ้าของไม่คำนวณยอดรวมเลย (ตัดที่ data) — ราคา/ยอดรายใบใน recentOrders คงไว้
         const completedRevenueBaht = money.revenueStat
-          ? liveOrders.filter((o) => countsAsRevenue(o)).reduce((sum, o) => sum + netAmount(o), 0)
+          ? liveOrders.filter((o) => isRevenue(o)).reduce((sum, o) => sum + netAmount(o), 0)
           : 0
         revenueK = completedRevenueBaht / 1000
 
@@ -512,10 +560,15 @@ export default async function SellerDashboardPage() {
         // นับใบไม่รวม CANCELLED ให้ตรงนิยามเดียวกับโดนัทช่องทางการขาย (ไม่งั้นเลขบนการ์ด
         // กับเลขกลางโดนัทในหน้าเดียวกันไม่เท่ากันทั้งที่ป้ายบอกช่วงเดียวกัน)
         const inRange = (o: { createdAt: Date }) => o.createdAt >= rangeGte && o.createdAt < rangeLt
+        /** ยอดของช่วงใช้วันที่ของยอด — ร้านบริการ = วันปิดงาน (00073) · ร้านอื่น = createdAt เดิม */
+        const revenueInRange = (o: (typeof rawOrders)[number]) => {
+          const d = revenueDateFor(o, shop.vertical)
+          return d >= rangeGte && d < rangeLt
+        }
         rangeOrderCount = liveOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
         rangeRevenueK = money.revenueStat
           ? liveOrders
-              .filter((o) => inRange(o) && countsAsRevenue(o))
+              .filter((o) => revenueInRange(o) && isRevenue(o))
               .reduce((sum, o) => sum + netAmount(o), 0) / 1000
           : 0
 
@@ -533,6 +586,21 @@ export default async function SellerDashboardPage() {
           ...(blocks.recentOrderAmount ? { totalAmount: Number(o.totalAmount) } : {}),
           type: o.type,
           status: o.status as OrderType['status'],
+          // feature 00073 — ร้านบริการ: ป้ายชุดเดียว (ไม่บอกยอดค้าง — รายการนี้ไม่ใช่ที่ตัดสินเรื่องเงิน)
+          ...(newRules
+            ? {
+                serviceStatus: resolveServiceStatusBadge(
+                  {
+                    status: o.status,
+                    appointmentStatus: o.appointmentStatus ?? null,
+                    hasAppointment: Boolean(o.serviceStart),
+                    serviceClosedAt: o.serviceClosedAt ?? null,
+                    outstanding: null,
+                  },
+                  'seller',
+                ),
+              }
+            : {}),
         }))
 
         // ─── monthly series สำหรับ SalesReport chart ─────────────────────────
@@ -549,12 +617,14 @@ export default async function SellerDashboardPage() {
         // 00071: กราฟรายเดือน/สรุป = ยอดขายรวม ⇒ เจ้าของเท่านั้น (ว่าง = ไม่มีอะไรให้ render)
         for (const o of money.salesReport ? liveOrders : []) {
           if (newRules && o.status === 'CANCELLED') continue
-          const d = o.createdAt
+          // ร้านบริการ: กราฟรายเดือน = งานที่ปิดแล้ว ตามเดือนที่ปิด (00073) — งานยังไม่ปิดไม่ใช่ยอดขาย
+          if (newRules && !isRevenue(o)) continue
+          const d = newRules ? revenueDateFor(o, shop.vertical) : o.createdAt
           const key = newRules
             ? thaiDayKey(d).slice(0, 7)
             : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
           const label = newRules ? formatMonthYearTH(d) : `${THAI_MONTHS_ABBR[d.getMonth()]} ${toBuddhistYear(d.getFullYear())}`
-          const amt = newRules ? (countsAsRevenue(o) ? netAmount(o) : 0) : Number(o.totalAmount)
+          const amt = newRules ? (isRevenue(o) ? netAmount(o) : 0) : Number(o.totalAmount)
           const existing = monthMap.get(key)
           if (existing) {
             existing.revenue += amt
@@ -603,10 +673,25 @@ export default async function SellerDashboardPage() {
   const money = dashboardMoney(moneyLvl)
   const canSeeRevenue = money.revenueStat
   const statData: StatType[] = [
-    { // ร้านบริการเห็นคำของตัวเอง (ORDER_VOCAB.noun ผ่าน t.vocab) · ร้านอื่นคงคำเดิม "ออเดอร์"
-      title: shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
+    // feature 00073 เฟส B — ร้านบริการปิด "จำนวนงาน" ในตั้งค่ารายงาน ⇒ ไม่มีการ์ดจำนวนงาน (ร้านอื่น: ค่าตั้งต้น = มีเสมอ)
+    ...(reportSettings.jobCount
+      ? [{ // ร้านบริการเห็นคำของตัวเอง (ORDER_VOCAB.noun ผ่าน t.vocab) · ร้านอื่นคงคำเดิม "ออเดอร์"
+          title: shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' } satisfies StatType]
+      : []),
     ...(canSeeRevenue
-      ? [{ title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' } satisfies StatType]
+      ? [
+          // ตัวเลขหลักบนการ์ด (00073 · มติ user 2026-10-12) — ร้านบริการเลือกได้ · null = ยอดขายเดิม
+          (headlineData
+            ? {
+                title: headlineData.kind === 'RECEIVED' ? 'รับเงินแล้ว' : headlineData.note ? 'กำไร (หักไม่ครบ)' : 'กำไรสุทธิ',
+                value: (range === 'today' ? headlineData.today : headlineData.month) / 1000,
+                prefix: '฿',
+                suffix: 'k',
+                periodLabel: rangeLabel,
+                icon: headlineData.kind === 'RECEIVED' ? 'cash' : 'chart-line',
+              }
+            : { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' }) satisfies StatType,
+        ]
       : []),
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
@@ -661,6 +746,9 @@ export default async function SellerDashboardPage() {
             orderNoun: byVertical(t.vocab.orderNoun, shopVertical),
             orderNounTitle: byVertical(t.vocab.orderNounTitle, shopVertical),
             shopVertical,
+            reportSettings,
+            advanceDeposit,
+            headline: headlineData,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8) · ผู้ไม่ใช่เจ้าของ: redact ตัดคีย์ walletBalance ทิ้ง (CompactHero ซ่อนแถวกระเป๋า)
             walletBalance,

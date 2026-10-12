@@ -10,7 +10,14 @@ import { prisma } from '@/lib/prisma'
 import { withoutDrafted } from '@/lib/order-visibility'
 import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { THAI_MONTHS_ABBR } from '@/lib/format-date'
-import { countsAsRevenue } from '@/lib/order-revenue'
+import {
+  countsAsRevenue,
+  countsAsRevenueFor,
+  isServiceNoShow,
+  revenueDateFor,
+  serviceNoShowRevenue,
+  serviceRevenueOrderWhere,
+} from '@/lib/order-revenue'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
@@ -223,13 +230,16 @@ export async function getSalesSeries(
    *  ไม่ส่งมา = ไม่คิดชุดนั้นเลย (ไม่เสีย query ให้ร้านที่ไม่ได้ใช้) */
   vertical?: string,
 ): Promise<SalesSeries> {
-  /** ร้านบริการไหม — ตัวเดียวที่เปิดคอลัมน์เงินรับจริง (ไม่ใช่ร้านบริการ = ไม่เสีย query ให้เลย) */
-  const isServiceShop = vertical === 'SERVICE_QUEUE'
   /**
    * กติกาการเงินชุดใหม่ (00067) — ตัด RETURNED · หักคืนบางส่วน · ค่าส่งเฉพาะขาไป
    * 🛑 ร้านที่ไม่ใช่บริการได้ของเดิม (มติ user 2026-10-02 — ดู src/lib/finance-rules.ts)
    */
   const newRules = usesServiceFinanceRules(vertical)
+  /**
+   * ร้านบริการไหม — เปิดคอลัมน์เงินรับจริง + **ยอดขาย = งานที่ร้านปิดแล้ว ตามวันปิดงาน** (feature 00073)
+   * ตัวตัดสินเดียวกับ newRules (เดิมเทียบสตริงดิบ `vertical === 'SERVICE_QUEUE'`)
+   */
+  const isServiceShop = newRules
 
   // "ตอนนี้" ตามเวลาไทย — ใช้ตัดสินว่า bucket ไหนเป็นอนาคต
   const thaiNow = new Date(Date.now() + TZ_OFFSET_MS)
@@ -274,16 +284,26 @@ export async function getSalesSeries(
       // 00061: `notIn` ตัวเดียว — เขียนแยก 2 key `status` ไม่ได้ (ตัวหลังทับตัวหน้าเงียบ ๆ)
       // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว ไม่ใช่ยอดรอยืนยัน/ค้างรับ (มติ 2026-10-01
       // หลักใบลดหนี้) ชุดเดียวกับ /sales และ receivable.service ไม่งั้นชีตกับหน้า /sales เลขไม่ตรงกัน
-      where: {
-        shopId,
-        ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
-        createdAt: { gte: prevGte, lt },
-      },
+      /**
+       * 🛑 feature 00073 — ร้านบริการ: เฉพาะ **งานที่ร้านปิดแล้ว** ตัดช่วงด้วย **วันปิดงาน**
+       * (งานที่สร้างเดือนก่อนแต่ปิดเดือนนี้ = ยอดเดือนนี้ · งานที่ยังไม่ปิดไม่ใช่ยอดขาย)
+       * ร้านอื่น: ทุกบิลที่ไม่ยกเลิก ตัดด้วย createdAt (ของเดิมเป๊ะ)
+       */
+      where: isServiceShop
+        ? { shopId, ...serviceRevenueOrderWhere({ gte: prevGte, lt }) }
+        : {
+            shopId,
+            ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+            createdAt: { gte: prevGte, lt },
+          },
       select: {
         id: true,
         totalAmount: true,
         createdAt: true,
         status: true,
+        // feature 00073 — วันที่ของยอดร้านบริการ + งานไม่มาตามนัด (ยอด = มัดจำที่เก็บ)
+        serviceClosedAt: true,
+        appointmentStatus: true,
         // ไทล์ "รอเงิน COD" ต้องรู้ว่าใบนี้เก็บเงินปลายทางไหม และร้านกดว่าได้เงินแล้วหรือยัง
         // (ชุดเดียวกับที่ getShippingStageCounts ส่งเข้า deriveShippingStage — ขาดช่องใดช่องหนึ่ง
         //  แล้วตัวเลขบนชีตกับไทล์หน้าแรกจะไม่ตรงกันทั้งที่เรียกฟังก์ชันเดียวกัน)
@@ -344,11 +364,13 @@ export async function getSalesSeries(
      * และเป็น `groupBy` (ฐานข้อมูลนับให้) ไม่ดึงแถวมานับในแอป · ช่วงแคบ (≤1 เดือน/1 ปี)
      * และ where ขึ้นต้นด้วย `shopId` ตรงกับ index ที่มีอยู่
      */
+    // feature 00073 — "ให้บริการแล้ว" = ร้านปิดงานแล้ว (serviceClosedAt) ไม่ใช่แค่ COMPLETED
+    // (งาน walk-in ที่ปิดแล้วไม่มีสถานะนัด เดิมตกไปกอง "รอให้บริการ") ⇒ groupBy ด้วยคอลัมน์ไม่พอ
+    // ดึงคอลัมน์แคบ 3 ตัวมานับใน TS แทน (ช่วง ≤1 เดือน/1 ปีของร้านเดียว · ขนานกับ query หลักเหมือนเดิม)
     isServiceShop
-      ? prisma.order.groupBy({
-          by: ['status', 'appointmentStatus'],
-          where: { shopId, createdAt: { gte, lt } },
-          _count: { _all: true },
+      ? prisma.order.findMany({
+          where: { shopId, ...withoutDrafted(), createdAt: { gte, lt } },
+          select: { status: true, appointmentStatus: true, serviceClosedAt: true },
         })
       : Promise.resolve(null),
     // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนแบบเดียวกับ P&L และ /sales (ตัวกลาง return-adjustment)
@@ -398,9 +420,16 @@ export async function getSalesSeries(
 
   for (const r of rows) {
     const adj = returnAdj.get(r.id)
+    /** feature 00073 — ร้านบริการปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน */
+    const noShow = isServiceShop && isServiceNoShow(r)
+    const livePayments = (r as { payments?: { amount: unknown }[] }).payments ?? []
     // Prisma Decimal → number · หักยอดคืนบางส่วน (มติ 2026-10-01 หลักใบลดหนี้ — ตัวกลางเดียวกับ P&L/sales)
-    const amt = netOfReturns(Number(r.totalAmount), adj)
-    const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)
+    const amt = noShow
+      ? serviceNoShowRevenue(livePayments.map((p) => ({ amount: p.amount, voidedAt: null })))
+      : netOfReturns(Number(r.totalAmount), adj)
+    /** แกนเวลา — ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ชื่อตัวแปรคงเดิม ใช้ทั้งลูป) */
+    const created = revenueDateFor(r, vertical)
+    const isRevenue = countsAsRevenueFor(r, vertical)
 
     // นับแยกจากบล็อกช่วงปัจจุบัน/ก่อนหน้าด้านล่าง เพราะหน้าต่าง 14 วันคาบเกี่ยวสองเดือนได้
     if (last14Confirmed && last14Unconfirmed) {
@@ -408,7 +437,7 @@ export async function getSalesSeries(
       // ใช้ countsAsRevenue ตัวเดียวกับกราฟเดือน — ถ้าแยกนิยามกัน สองกราฟบนการ์ดใบเดียวกัน
       // จะบอกว่าออเดอร์เดียวกันอยู่คนละก้อน
       if (off >= 0 && off < RECENT_DAYS) {
-        if (countsAsRevenue(r)) last14Confirmed[off] += amt
+        if (isRevenue) last14Confirmed[off] += amt
         else last14Unconfirmed[off] += amt
       }
     }
@@ -437,7 +466,8 @@ export async function getSalesSeries(
          * ถ้าเก็บเฉพาะใบที่ยืนยัน คอลัมน์ "ต้นทุนสินค้า" บนชีตจะว่างในวันที่ยังไม่มีใครยืนยัน
          * ทั้งที่คอลัมน์ "ยอดขาย" บรรทัดเดียวกันมีตัวเลข → กำไรของแถวนั้นจะสูงเกินจริง
          */
-        const items = (r as { items?: { cost: unknown; qty: number }[] }).items
+        // ไม่มาตามนัด = ไม่ได้ให้บริการ ⇒ ไม่มีต้นทุนอะไหล่/บริการที่ขายออก
+        const items = noShow ? [] : (r as { items?: { cost: unknown; qty: number }[] }).items
         let rowCogs = 0
         let rowMissingCost = false
         for (const item of items ?? []) {
@@ -452,7 +482,7 @@ export async function getSalesSeries(
         cogsValues[idx] += rowCogs
         if (rowMissingCost) {
           hasMissingCost = true
-          if (countsAsRevenue(r)) hasMissingCostConfirmed = true
+          if (isRevenue) hasMissingCostConfirmed = true
         }
 
         /**
@@ -501,7 +531,7 @@ export async function getSalesSeries(
         }
 
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
-        if (countsAsRevenue(r)) {
+        if (isRevenue) {
           confirmedValues[idx] += amt
           cogsConfirmedValues[idx] += rowCogs
           shippingConfirmedValues[idx] += rowShipping
@@ -548,12 +578,12 @@ export async function getSalesSeries(
   const jobStatusCounts = jobStatusRows
     ? jobStatusRows.reduce(
         (acc, r) => {
-          const n = r._count._all
-          acc.total += n
-          if (r.status === 'CANCELLED') acc.cancelled += n
-          else if (r.appointmentStatus === 'COMPLETED') acc.completed += n
-          else if (r.appointmentStatus === 'NO_SHOW') acc.noShow += n
-          else acc.upcoming += n
+          acc.total += 1
+          if (r.status === 'CANCELLED') acc.cancelled += 1
+          else if (r.appointmentStatus === 'NO_SHOW') acc.noShow += 1
+          // 00073: ปิดงานแล้ว (รวม walk-in ที่ไม่มีสถานะนัด) หรือข้อมูลเก่าที่ลงผลแล้ว
+          else if (r.serviceClosedAt != null || r.appointmentStatus === 'COMPLETED') acc.completed += 1
+          else acc.upcoming += 1
           return acc
         },
         { total: 0, completed: 0, noShow: 0, cancelled: 0, upcoming: 0 },

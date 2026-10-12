@@ -80,7 +80,9 @@ describe('[blocker] overlay ใน sidenav slot ต้อง portal ออก bo
     const layout = blankComments(read(LAYOUT))
 
     // ชื่อ component ที่ถูกส่งเข้า slot → หา import ของชื่อนั้นในไฟล์ layout
-    const slotted = [...layout.matchAll(/sidenav(?:Footer|Header)Slot=\{<(\w+)/g)].map((m) => m[1])
+    // รองรับทั้ง `Slot={<X` และแบบมีเงื่อนไข `Slot={cond ? <X` / `cond ? (<X` (00073: เช็กลิสต์ร้านส่วนตัวมีเงื่อนไขแล้ว)
+    const slotted = [...layout.matchAll(/sidenav(?:Footer|Header)Slot=\{\s*(?:[^<]*?\?\s*\(?\s*)?<(\w+)/g)].map((m) => m[1])
+    expect(slotted, 'OnboardingGate (มีโมดัลล็อก scroll) ต้องถูกตรวจเสมอ').toContain('OnboardingGate')
     expect(slotted.length, 'ต้องเจออย่างน้อย 1 ตัว ไม่งั้นด่านนี้ไม่ได้ตรวจอะไรเลย').toBeGreaterThan(0)
 
     const offenders: string[] = []

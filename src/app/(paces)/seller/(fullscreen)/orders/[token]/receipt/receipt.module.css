@@ -202,3 +202,15 @@
   font-weight: 700;
   transform: rotate(-30deg);
 }
+
+/* feature 00073 — แถบหัวหน้าใบเสร็จฝั่งลูกค้า (ปุ่มกลับ/หัวเรื่อง/ปุ่มพิมพ์) กว้างเท่ากระดาษพอดีทุกจอ
+   ใช้ตัวคูณ zoom ชุดเดียวกับ .sheet ข้างบน — ไม่ zoom ตัวหนังสือ (ไม่งั้นมือถือตัวเล็กอ่านไม่ออก) แค่ล็อกความกว้าง */
+.chrome { width: 210mm; max-width: 100%; margin-inline: auto; }
+@media screen and (max-width: 860px) { .chrome { width: calc(210mm * 0.62); } }
+@media screen and (max-width: 540px) { .chrome { width: calc(210mm * 0.52); } }
+@media screen and (max-width: 420px) { .chrome { width: calc(210mm * 0.42); } }
+@media screen and (max-width: 380px) { .chrome { width: calc(210mm * 0.36); } }
+
+/* ช่องกรอกที่ระบบเติมให้จากบันทึกรับเงิน — ค่าอยู่บนเส้นประ (เหมือนเขียนลงช่อง) ไม่ใช่ต่อท้ายเส้น */
+.fillValue { flex: 1; text-align: center; border-bottom: 0.3mm dotted var(--ink-soft); }
+.filled::after { display: none; }

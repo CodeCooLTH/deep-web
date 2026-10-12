@@ -25,10 +25,12 @@ interface OrderCardMenuProps {
   status: OrderStatus
   /** BILLING แก้ใบนี้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ) */
   editLocked?: boolean
+  /** feature 00073 — งานร้านบริการที่ปิดแล้ว: ไม่มีแก้ไข/ยกเลิก (server ล็อก 409 — ซ่อนให้ตรงกัน) */
+  serviceClosed?: boolean
   onCancelRequest: (token: string) => void
 }
 
-export default function OrderCardMenu({ token, status, editLocked = false, onCancelRequest, orderNoun = 'คำสั่งซื้อ' }: OrderCardMenuProps) {
+export default function OrderCardMenu({ token, status, editLocked = false, serviceClosed = false, onCancelRequest, orderNoun = 'คำสั่งซื้อ' }: OrderCardMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -45,8 +47,8 @@ export default function OrderCardMenu({ token, status, editLocked = false, onCan
   // hook เรียกครบทุกครั้งก่อน && (กฎของ hooks — ห้ามเรียกเป็นเงื่อนไข)
   const viewerCanEdit = useViewerCan('O3')
   const viewerCanCancel = useViewerCan('O6')
-  const canEdit = canEditOrder(status) && viewerCanEdit && !editLocked
-  const canCancel = (status === 'PENDING' || status === 'SHIPPED') && viewerCanCancel
+  const canEdit = canEditOrder(status) && viewerCanEdit && !editLocked && !serviceClosed
+  const canCancel = (status === 'PENDING' || status === 'SHIPPED') && viewerCanCancel && !serviceClosed
 
   return (
     <div className="relative" ref={ref}>

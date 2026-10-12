@@ -7,7 +7,7 @@
  *      จำนวนใบ = ACCENT (วันรายงาน/อันดับ 1) + GRID_GRAY เหมือนเดิม
  * ⚠️ import วนกับ flex-report-blocks (helper/สี) — ใช้ตอนเรียกฟังก์ชันเท่านั้น ไม่มีการใช้ที่ top-level
  */
-import { ACCENT, CONFIRMED_BAR, EXPENSE_RED, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, type Node } from '@/lib/line/flex-report-blocks'
+import { ACCENT, CONFIRMED_BAR, EXPENSE_RED, GRID_GRAY, DANGER, INK, PENDING_YELLOW, SLATE, note, salesTotal, section, text, GENERIC_SALES_LEGEND, type Node, type SalesLegendWords } from '@/lib/line/flex-report-blocks'
 import { weekdayShortTH } from '@/lib/format-date'
 import { formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import type { ShopSummary, Trend } from '@/lib/line-report/types'
@@ -47,8 +47,14 @@ const legendItem = (color: string, label: string, h?: string): Node[] => [
 ]
 const legendRow = (items: Node[][]): Node => ({ type: 'box', layout: 'horizontal', spacing: 'xs', alignItems: 'center', margin: 'sm', contents: items.flat() })
 
+/** คำอธิบายสีแท่งยอดขาย (ผันตาม vertical — reportSalesLegend) · ไม่มีก้อนรอ (ร้านบริการ) = ไม่มีป้ายเหลือง */
+const salesLegendItems = (w: SalesLegendWords): Node[][] => [
+  legendItem(CONFIRMED_BAR, w.counted),
+  ...(w.pending ? [legendItem(PENDING_YELLOW, w.pending)] : []),
+]
+
 /** คำอธิบายสีแท่ง (กราฟเทียบรายร้าน) — บรรทัดเดียว */
-export const salesLegend = (): Node => legendRow([legendItem(CONFIRMED_BAR, 'ยืนยันแล้ว'), legendItem(PENDING_YELLOW, 'รอยืนยัน')])
+export const salesLegend = (w: SalesLegendWords = GENERIC_SALES_LEGEND): Node => legendRow(salesLegendItems(w))
 
 /** ความหนาเส้น — px คงที่ (ความกว้าง/สูงของช่วงเป็น %) */
 const LINE_W = '3px'
@@ -79,6 +85,8 @@ export type TrendChartInput = {
   measure: ChartMeasure
   /** คำเรียก "ใบ" (reportOrderWord) — ใช้เมื่อ measure=orders */
   word: string
+  /** คำอธิบายสีแท่งยอดขาย (reportSalesLegend) — ไม่ส่ง = คำเดิม */
+  legend?: SalesLegendWords
   /** ค่าใช้จ่ายรายวัน — ส่งมาเมื่อรายงานเปิดเผยค่าใช้จ่ายและรวมได้ → แท่งแดงข้าง ๆ + เส้น = ยอดขาย − ค่าใช้จ่าย */
   expense?: number[]
   /** มีร้านดึงไม่สำเร็จ → ยอดรวมไม่ครบ ต้องบอก (partial-data convention) */
@@ -89,7 +97,7 @@ const bar = (h: string, color: string, flex?: number): Node => ({
   type: 'box', layout: 'vertical', height: h, backgroundColor: color, cornerRadius: '2px', ...(flex ? { flex } : {}), contents: [fill()],
 })
 
-export function trendChart({ trend, measure, word, expense, incomplete }: TrendChartInput): Node {
+export function trendChart({ trend, measure, word, legend = GENERIC_SALES_LEGEND, expense, incomplete }: TrendChartInput): Node {
   const sales = measure === 'sales'
   const conf = trend.confirmed.map((v) => Math.max(0, v))
   const pend = trend.unconfirmed.map((v) => Math.max(0, v))
@@ -171,11 +179,7 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
     })
     if (sales) {
       rows.push(
-        legendRow([
-          legendItem(CONFIRMED_BAR, 'ยืนยันแล้ว'),
-          legendItem(PENDING_YELLOW, 'รอยืนยัน'),
-          ...(exp ? [legendItem(EXPENSE_RED, 'ค่าใช้จ่าย')] : []),
-        ]),
+        legendRow([...salesLegendItems(legend), ...(exp ? [legendItem(EXPENSE_RED, 'ค่าใช้จ่าย')] : [])]),
         ...(exp ? [legendRow([legendItem(INK, 'ยอดขายหลังหักค่าใช้จ่าย', '3px')])] : []),
       )
     }
@@ -185,7 +189,7 @@ export function trendChart({ trend, measure, word, expense, incomplete }: TrendC
 }
 
 /** null = ข้ามบล็อก (ร้านสถานะ OK น้อยกว่า 2 ที่เวลาส่ง) — ผู้เรียกบันทึก skipped */
-export function compareChart(shops: readonly ShopSummary[], measure: ChartMeasure, word: string): Node | null {
+export function compareChart(shops: readonly ShopSummary[], measure: ChartMeasure, word: string, legend: SalesLegendWords = GENERIC_SALES_LEGEND): Node | null {
   const ok = shops.filter((s) => s.state === 'OK')
   if (ok.length < 2) return null
   const val = (s: ShopSummary) => (measure === 'sales' ? salesTotal(s) : s.orders)
@@ -228,6 +232,6 @@ export function compareChart(shops: readonly ShopSummary[], measure: ChartMeasur
     })
   })
   if (sorted.length > shown.length) rows.push(note(`…และอีก ${sorted.length - shown.length} ร้าน`, { margin: 'sm' }))
-  if (measure === 'sales' && max > 0) rows.push(salesLegend())
+  if (measure === 'sales' && max > 0) rows.push(salesLegend(legend))
   return section(rows)
 }

@@ -15,6 +15,9 @@ import { toFileUrl } from '@/lib/file-url'
 import { maskPhoneForGuest, maskShippingAddressForGuest, type MaskedShippingAddress } from '@/lib/order-pii-mask'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import type { PayoutSnapshot } from '@/lib/shop-payout'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
+import type { OrderStatusTone } from '@/lib/order-display'
 
 export type GuestOrderData = {
   publicToken: string
@@ -103,6 +106,12 @@ export type GuestOrderData = {
   serviceStartIso: string | null
   serviceEndIso: string | null
   /**
+   * feature 00073 — หัวข้อสถานะของงานบริการ คำฝั่งลูกค้า (service-status.ts) เช่น "จองบริการแล้ว" · "ร้านให้บริการแล้ว"
+   * แทน "รอดำเนินการ"/"กำลังจัดส่ง" ซึ่งเป็นคำกลาง/คำร้านขายของ · null = ร้านอื่น (หัวข้อเดิม)
+   * ไม่ใช่ PII — เป็นคำสถานะล้วน ไม่มียอดเงินหรือชื่อ
+   */
+  serviceStatus: { label: string; tone: OrderStatusTone } | null
+  /**
    * feature 00062 (TFR-010) — สำเนาบัญชีรับเงินของร้าน ณ เวลาสร้าง/แก้ไขออเดอร์ล่าสุด (freeze)
    *
    * 🛑 เพิ่มเข้า allow-list อย่างตั้งใจ — ไม่ใช่ PII ของผู้ซื้อ เป็นข้อมูลที่ **ร้านเป็นเจ้าของ**
@@ -153,6 +162,9 @@ type OrderLike = {
   /** งานบริการ: ช่วงเวลานัด (scalar ของ Order — มากับ findUnique อยู่แล้ว ไม่เพิ่ม query) */
   serviceStart: Date | null
   serviceEnd: Date | null
+  /** feature 00073 — scalar ของ Order (มากับ findUnique อยู่แล้ว) ป้อนหัวข้อสถานะงานบริการ */
+  appointmentStatus: string | null
+  serviceClosedAt: Date | null
   /** feature 00062 — scalar ของ Order (JSONB) มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
   payoutSnapshot: unknown
   /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
@@ -325,6 +337,20 @@ export function buildGuestOrderData(
     // ด่าน vertical มาก่อนเสมอ — เหตุผลเต็มอยู่ที่ประกาศฟิลด์ใน GuestOrderData
     serviceStartIso: isServiceShop && order.serviceStart ? order.serviceStart.toISOString() : null,
     serviceEndIso: isServiceShop && order.serviceEnd ? order.serviceEnd.toISOString() : null,
+    serviceStatus: usesServiceFinanceRules(order.shop.vertical)
+      ? (({ label, tone }) => ({ label, tone }))(
+          resolveServiceStatusBadge(
+            {
+              status: order.status,
+              appointmentStatus: order.appointmentStatus,
+              hasAppointment: Boolean(order.serviceStart),
+              serviceClosedAt: order.serviceClosedAt,
+              outstanding: null,
+            },
+            'buyer',
+          ),
+        )
+      : null,
     // feature 00062 — freeze ตอน create/update เท่านั้น (ไม่ live-read) ต่างจาก QR ที่คำนวณ
     // ยอดสดจาก totalAmount เสมอ (DATABASE.md §7.3) — null = ร้านยังไม่ได้ตั้งบัญชี
     payoutSnapshot: (order.payoutSnapshot as PayoutSnapshot | null | undefined) ?? null,

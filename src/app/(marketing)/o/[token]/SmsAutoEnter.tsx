@@ -35,6 +35,7 @@ import Logo from '@components/layout/shared/Logo'
 import { goAfterLogin } from '@/lib/go-after-login'
 import { VERIFY_LEVEL_MAX, resolveVerifyBadge } from '@/lib/verify-badge'
 import TrustPill from './TrustPill'
+import ShopLogoImg from './ShopLogoImg'
 
 type Props = {
   code: string
@@ -166,12 +167,7 @@ export default function SmsAutoEnter(props: Props) {
                 overflow: 'hidden',
               }}
             >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt='' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                shopName.slice(0, 1)
-              )}
+              <ShopLogoImg src={avatarUrl} shopName={shopName} />
             </Box>
             {/* ชื่อร้านเด่น (user สั่ง 2026-10-04) — 24px Strong · ชื่อยาวสุดในระบบ ~38 ตัวอักษร ตัด 2 บรรทัด */}
             <Typography

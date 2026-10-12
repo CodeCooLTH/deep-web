@@ -36,6 +36,7 @@ const LOAD_MORE = 6       // เพิ่มทีละ 6 รายการ (s
 const ICON_MAP: Record<ActivityItem['type'], string> = {
   ORDER_CREATED:    'solar:bag-check-bold-duotone',
   ORDER_CONFIRMED:  'solar:check-circle-bold-duotone',
+  SERVICE_CLOSED:   'solar:check-circle-bold-duotone', // 00073 — ✓ ในวงกลม (user เลือก) สีน้ำเงิน
   SMS_SENT:         'solar:letter-bold-duotone',
   REVIEW_RECEIVED:  'solar:star-bold-duotone',
   TOPUP:            'solar:wallet-bold-duotone',
@@ -46,6 +47,7 @@ const ICON_MAP: Record<ActivityItem['type'], string> = {
 const ICON_COLOR_MAP: Record<ActivityItem['type'], string> = {
   ORDER_CREATED:    'text-primary',
   ORDER_CONFIRMED:  'text-success',
+  SERVICE_CLOSED:   'text-primary',
   SMS_SENT:         'text-info',
   REVIEW_RECEIVED:  'text-warning',
   TOPUP:            'text-success',

@@ -18,7 +18,7 @@
 import ApexChart from '@/components/wrappers/ApexChart'
 import Icon from '@/components/wrappers/Icon'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
-import { getColor } from '@/utils/helpers'
+import { colorVar, getColor } from '@/utils/helpers'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesChannelSlice } from '@/services/dashboard.service'
 import { useT } from '@/i18n/LocaleProvider'
@@ -54,7 +54,9 @@ const CHANNEL_COLOR_TOKEN: Record<string, string> = {
   OTHER: 'chart-gray',
 }
 
-const colorOf = (channel: string) => getColor(CHANNEL_COLOR_TOKEN[channel] ?? 'chart-gray')
+const tokenOf = (channel: string) => CHANNEL_COLOR_TOKEN[channel] ?? 'chart-gray'
+/** option ของกราฟ (วาดฝั่ง client เท่านั้น) */
+const colorOf = (channel: string) => getColor(tokenOf(channel))
 
 const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline, vertical }: Props) => {
   const t = useT()
@@ -120,7 +122,7 @@ const SalesChannelDonut = ({ slices, rangeLabel, rangeLabelInline, vertical }: P
                   <div className="flex items-center gap-2.5 text-sm" key={s.channel}>
                     <span
                       className="inline-block rounded-full size-2.5 shrink-0"
-                      style={{ backgroundColor: colorOf(s.channel) }}
+                      style={{ backgroundColor: colorVar(tokenOf(s.channel)) }}
                       aria-hidden="true"
                     />
                     <SalesChannelLogo channel={s.channel} size={16} />

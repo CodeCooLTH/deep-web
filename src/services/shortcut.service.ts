@@ -154,7 +154,7 @@ async function buildEligibleCatalog(
     entitlement,
     staff: { kind: active.kind, role: active.role, roles: active.roles },
     ownsShop,
-    shop: { kind: active.kind, vertical: shop.vertical, isPrimaryOwner: active.shop.userId === userId },
+    shop: { kind: active.kind, vertical: shop.vertical, isPrimaryOwner: active.shop.userId === userId, reportSettings: shop.reportSettings },
     hidePayments: shell.hidePayments,
     hidePaidFeatures: shell.hidePaidFeatures,
     offerIap: shell.offerIap,

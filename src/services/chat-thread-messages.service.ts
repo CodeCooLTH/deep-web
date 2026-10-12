@@ -115,6 +115,8 @@ export async function getThreadMessagesPage(params: {
             serviceStart: true,
             serviceEnd: true,
             appointmentStatus: true,
+            // feature 00073 — ป้ายชุดเดียวของงานบริการ (ปิดงานแล้วหรือยัง)
+            serviceClosedAt: true,
             depositAmount: true,
             // ผันคำของการ์ดตามประเภทกิจการ — อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์
             shop: { select: { vertical: true } },
@@ -152,6 +154,7 @@ export async function getThreadMessagesPage(params: {
           serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
           serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
           appointmentStatus: o.appointmentStatus,
+          serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
           depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
           items: o.items.map((it) => ({
             name: it.name,

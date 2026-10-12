@@ -15,6 +15,7 @@ import { effectiveRoles } from '@/lib/shop-permissions'
 import { applyCapabilityMenu } from '@/lib/role-nav'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import { byVertical } from '@/i18n/vertical'
+import { resolveReportSettings, showsExpenseTab } from './report-settings'
 
 /**
  * ข้อความบน badge ของเมนู (feature 00047)
@@ -231,6 +232,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'category' ใช้อยู่แล้วในโปรเจกต์ — "การแบ่งประเภท" ตรงกับแก่นของเมนูนี้ที่สุด
       // และไม่ชนกับไอคอนของเมนูอื่นในกลุ่มเดียวกัน (truck-delivery / plug-connected)
       { url: '/settings/job-types', slug: 'seller:settings-job-types', label: 'ประเภทงาน', icon: 'category' },
+      // feature 00073 เฟส B — ร้านบริการเท่านั้น (SERVICE_QUEUE_ONLY_SLUGS) · เจ้าของเท่านั้น (F1 ผ่าน route-capabilities)
+      // icon 'adjustments-horizontal' ใช้อยู่แล้วในโปรเจกต์ (= ปรับตั้งค่า) · ไม่ใช้ 'report-money' ที่เป็นของเมนูค่าใช้จ่าย
+      { url: '/settings/reports', slug: 'seller:settings-reports', label: 'ตั้งค่ารายงาน', icon: 'adjustments-horizontal' },
       // เคยมีรายการ "โปรไฟล์" (ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ) ต่อจากนี้ — user ให้เอาออก
       // 2026-08-04 ทางเข้าหน้าร้านจริงเหลือที่ dropdown มุมขวาบน (desktop) กับแผงบัญชีในหน้าแรก
       // (มือถือ) ซึ่งเป็นที่ของ "ตัวคน" อยู่แล้ว ไม่ใช่เมนูตั้งค่าร้าน
@@ -371,7 +375,7 @@ const ONLINE_SALES_ONLY_SLUGS = [
   // กดเข้าไปเจอ empty state "ยังไม่มีการตั้งค่าการจัดส่ง" จึงซ่อนเมนูให้ตรงกับหน้า
   'seller:settings',
 ]
-const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types']
+const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues', 'seller:settings-job-types', 'seller:settings-reports']
 // seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
 const SHARED_PRODUCT_SLUGS = ['seller:products']
 
@@ -472,6 +476,16 @@ export type OrderVocab = {
    * สองช่องนี้ผูกกับคนละคน คนละปุ่ม คนละจอ — ห้ามยุบรวมกันเพราะคำมันคล้ายกัน
    */
   buyerConfirmLabel: string
+  /** การ์ดลูกค้าในหน้ารายละเอียด: "{repeatCountLabel} N ครั้ง" (feature 00073 — คำต้องตรงประเภทร้าน) */
+  repeatCountLabel: string
+  /**
+   * ป้ายยอดขายบนจอการเงิน + ฐานการนับ (feature 00073) — ร้านบริการนับตอน "ร้านปิดงาน"
+   * ร้านอื่นนับตอนลูกค้ายืนยัน (คำเดิมทุกตัวอักษร) · ห้ามพิมพ์คำเองที่จอ (HR16)
+   */
+  revenueLabel: string
+  revenueBasis: string
+  /** แถวรองใต้ยอดขาย: "{revenueCountMetric} N {noun}" */
+  revenueCountMetric: string
   /**
    * ป้ายลิงก์ "เปิดดูใบนี้" ท้ายการ์ดในแชท — ใช้ทั้งฝั่งร้าน (OrderCardView footer) และ
    * **ฝั่งลูกค้า** (การ์ดในแอป Deep + ปุ่มบน LINE Flex)
@@ -498,6 +512,11 @@ export type OrderVocab = {
   buyerNoun: string
   /** ป้ายสถานะ `SHIPPED` ในตัวกรอง/แท็บ/badge — ร้านบริการไม่มีการจัดส่ง */
   shippedStatusLabel: string
+  /**
+   * feature 00073 — มีขั้น `SHIPPED` ให้เลือก/กรอง/นับไหม · ร้านบริการ = false (ตัดขั้น "เริ่มให้บริการแล้ว"
+   * มติ user 2026-10-11 — งานไปจากขั้น 1–2 ถึงปิดงานตรง ๆ) · ร้านขายของ/ที่พัก = true (ของเดิม)
+   */
+  hasShippedStatus: boolean
   /** ขั้น "อีกฝ่ายยืนยันแล้ว" ในเช็กลิสต์สถานะ (รูปบอกเล่า — buyerConfirmLabel เป็นรูปคำสั่งบนปุ่ม) */
   buyerConfirmedStepLabel: string
   /** แถวยอดรวมของรายการในใบ (ก่อนค่าส่ง/ส่วนลด) */
@@ -518,10 +537,15 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     fulfillLabel: 'ยืนยันการจัดส่ง',
     itemsLabel: 'รายการสินค้า',
     buyerConfirmLabel: 'ยืนยันรับสินค้า',
+    repeatCountLabel: 'สั่งกับร้านนี้',
+    revenueLabel: 'ยอดขายที่ยืนยันแล้ว',
+    revenueBasis: 'คิดจากคำสั่งซื้อที่ลูกค้ายืนยันแล้วเท่านั้น',
+    revenueCountMetric: 'จากคำสั่งซื้อสำเร็จ',
     viewLabel: 'ดูคำสั่งซื้อ',
     stageOrderedLabel: 'สั่งซื้อแล้ว',
     buyerNoun: 'ผู้ซื้อ',
     shippedStatusLabel: 'กำลังจัดส่ง',
+    hasShippedStatus: true,
     buyerConfirmedStepLabel: 'ผู้ซื้อยืนยันรับของ',
     subtotalLabel: 'ยอดสินค้า',
     cartTitle: 'ตะกร้า',
@@ -553,22 +577,26 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
      */
     dateLabel: 'วันที่สร้าง',
     /**
-     * "เริ่ม" นำหน้าโดยตั้งใจ เพื่อไม่ให้ชนกับ APPOINTMENT_STATUS_LABEL.COMPLETED ที่เป็น
-     * "ให้บริการแล้ว" เป๊ะ ๆ — ป้ายนั้นผูกกับ Order.appointmentStatus (ผู้ขายกดปิดผลนัด)
-     * ส่วนช่องนี้ผูกกับ Order.status ซึ่งเดินคนละเส้น ใบหนึ่งติ๊กถูกได้โดยที่อีกอันยังไม่ติ๊ก
+     * feature 00073 — ขั้นที่ร้านลงมือของงานบริการคือ "ปิดงาน" (Order.serviceClosedAt) ไม่ใช่ SHIPPED
+     * (เดิม 'เริ่มให้บริการแล้ว' ผูกกับ Order.status=SHIPPED ซึ่งร้านบริการไปไม่ถึงตั้งแต่บังคับ NO_SHIPPING)
      */
-    fulfillLabel: 'เริ่มให้บริการแล้ว',
+    fulfillLabel: 'ปิดงานแล้ว',
     itemsLabel: 'รายการบริการ',
     // "รับบริการ" ไม่ใช่ "ให้บริการ" — ผู้ซื้อเป็นคนกด ไม่ใช่ร้าน (เทียบ fulfillLabel ข้างบน)
     buyerConfirmLabel: 'ยืนยันรับบริการ',
+    repeatCountLabel: 'ใช้บริการร้านนี้',
+    revenueLabel: 'ยอดขายจากงานที่ปิดแล้ว',
+    revenueBasis: 'คิดจากงานที่ร้านปิดแล้ว นับตามวันปิดงาน',
+    revenueCountMetric: 'จากงานที่ปิดแล้ว',
     // 18 ตัวอักษร — ใต้เพดาน 20 ของ action.label บน LINE (ดูคอมเมนต์ของช่องนี้)
     viewLabel: 'ดูรายละเอียดบริการ',
-    // "รับงานแล้ว" ไม่ใช่ "เริ่มให้บริการแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
+    // "รับงานแล้ว" ไม่ใช่ "ปิดงานแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
     // (= APPOINTMENT_STATUS_LABEL.SCHEDULED ซึ่งมาแทนที่ป้ายนี้เมื่อใบนั้นมีนัด)
     stageOrderedLabel: 'รับงานแล้ว',
     buyerNoun: 'ลูกค้า',
-    // ใช้คำเดียวกับ fulfillLabel — SHIPPED ของร้านบริการคือขั้นที่ร้านเริ่มลงมือ ไม่มีการส่งของ
-    shippedStatusLabel: 'เริ่มให้บริการแล้ว',
+    // ข้อมูลเก่าที่ค้าง SHIPPED ถูกปิดงานย้อนหลังแล้ว (migration 00073) ⇒ คำเดียวกับ fulfillLabel
+    shippedStatusLabel: 'ปิดงานแล้ว',
+    hasShippedStatus: false,
     buyerConfirmedStepLabel: 'ลูกค้ายืนยันรับบริการแล้ว',
     subtotalLabel: 'ยอดค่าบริการ',
     cartTitle: 'รายการที่เลือก',
@@ -590,12 +618,17 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     // "เข้าพักแล้ว" ไม่ใช่ "รับเข้าพักแล้ว" — ผู้ซื้อยืนยันว่าตัวเองได้เข้าพักจริง ส่วน fulfillLabel
     // คือร้านกดว่ารับคนเข้าพักแล้ว คนละคนคนละปุ่ม
     buyerConfirmLabel: 'ยืนยันเข้าพักแล้ว',
+    repeatCountLabel: 'สั่งกับร้านนี้',
+    revenueLabel: 'ยอดขายที่ยืนยันแล้ว',
+    revenueBasis: 'คิดจากบิลเข้าพักที่ลูกค้ายืนยันแล้วเท่านั้น',
+    revenueCountMetric: 'จากบิลเข้าพักสำเร็จ',
     viewLabel: 'ดูบิลเข้าพัก',
     // ไม่ใช่ "จองแล้ว" — ชนกับเมนู /bookings ซึ่งเป็นคนละสิ่งกับบิล (ดูหมายเหตุเหนือ ORDER_VOCAB)
     stageOrderedLabel: 'เปิดบิลแล้ว',
     // ด้านล่าง = คำเดิมของหน้าจอ (ยังไม่ได้ทบทวนสำหรับที่พัก — นอกขอบเขตรอบ 2026-10-10)
     buyerNoun: 'ผู้ซื้อ',
     shippedStatusLabel: 'กำลังจัดส่ง',
+    hasShippedStatus: true,
     buyerConfirmedStepLabel: 'ผู้ซื้อยืนยันรับของ',
     subtotalLabel: 'ยอดสินค้า',
     cartTitle: 'ตะกร้า',
@@ -775,6 +808,11 @@ export function resolveVisibleSellerMenu(
       vertical: string
       /** เป็นเจ้าของหลัก (`Shop.userId`) — T4 (แพ็กเกจ ฯลฯ) · บังคับส่ง: ลืมส่งแล้วเมนูแพ็กเกจโผล่ให้เจ้าของร่วมเงียบ ๆ */
       isPrimaryOwner: boolean
+      /**
+       * feature 00073 เฟส B — `Shop.reportSettings` ดิบ (ร้านบริการปิด "ค่าใช้จ่ายร้าน" ⇒ เมนูค่าใช้จ่ายหาย)
+       * ไม่ส่ง/null = ค่าตั้งต้น (เมนูเดิม) · ร้านอื่นไม่มีผลเสมอ (resolveReportSettings)
+       */
+      reportSettings?: unknown
     }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
@@ -822,6 +860,7 @@ export function resolveVisibleSellerMenu(
     ctx.shop.vertical,
     ),
     ctx.shop.vertical,
+    ctx.shop.reportSettings,
   )
 }
 
@@ -830,6 +869,12 @@ export const FINANCE_MENU_SLUGS = { sales: 'seller:sales', expenses: 'seller:exp
 
 /** ป้ายของเมนูเรื่องเงินเมื่อสองหน้าถูกรวมเป็นหน้าเดียว (feature 00067) */
 export const FINANCE_MENU_LABEL = 'การเงินร้าน'
+
+/**
+ * ร้านไหนเมนูเรื่องเงินถูกรวมเป็น "การเงินร้าน" — ตัวตัดสินเดียวของ applyFinanceMenu และ applyMenuLocale
+ * (เดิม applyMenuLocale รันทีหลังแล้วแปลป้ายทับกลับเป็น "ภาพรวมกำไร/ขาดทุน" ⇒ เมนูไม่ตรงหัวหน้า)
+ */
+export const mergesFinanceMenu = (vertical: string) => vertical === 'SERVICE_QUEUE'
 
 /** ปลายทางของเมนู "ค่าใช้จ่าย" เมื่อหน้านั้นถูกยกไปเป็นแท็บแล้ว */
 export const FINANCE_EXPENSE_TAB_URL = '/sales?tab=expense'
@@ -857,14 +902,16 @@ export const FINANCE_EXPENSE_TAB_URL = '/sales?tab=expense'
  *
  * vertical ที่ไม่รู้จัก → ไม่แตะอะไรเลย (fail-safe: เมนูเดิมครบดีกว่าเมนูที่เพี้ยนโดยไม่มีคนสั่ง)
  */
-export function applyFinanceMenu(items: MenuItemType[], vertical: string): MenuItemType[] {
-  if (vertical !== 'SERVICE_QUEUE') return items
+export function applyFinanceMenu(items: MenuItemType[], vertical: string, reportSettings?: unknown): MenuItemType[] {
+  if (!mergesFinanceMenu(vertical)) return items
+  // feature 00073 เฟส B — เจ้าของปิด "ค่าใช้จ่ายร้าน" ในตั้งค่ารายงาน ⇒ เมนูค่าใช้จ่ายหาย (ข้อมูลไม่ถูกลบ · ดีไซน์บอร์ด 8)
+  const hideExpenses = !showsExpenseTab(resolveReportSettings(reportSettings ?? null, vertical))
   return items.map((group) =>
     !group.children
       ? group
       : {
           ...group,
-          children: group.children.map((child) => {
+          children: group.children.filter((child) => !(hideExpenses && child.slug === FINANCE_MENU_SLUGS.expenses)).map((child) => {
             if (child.slug === FINANCE_MENU_SLUGS.sales) return { ...child, label: FINANCE_MENU_LABEL }
             if (child.slug === FINANCE_MENU_SLUGS.expenses)
               return { ...child, url: FINANCE_EXPENSE_TAB_URL }
@@ -988,7 +1035,8 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
 
   const BY_SLUG: Record<string, string> = {
     'seller:dashboard': m.dashboard,
-    'seller:sales': m.sales,
+    // ร้านบริการ = "การเงินร้าน" ตาม applyFinanceMenu — ห้ามแปลทับกลับเป็น "ภาพรวมกำไร/ขาดทุน"
+    'seller:sales': mergesFinanceMenu(vertical) ? m.salesFinance : m.sales,
     'seller:reports-agents': m.reportsAgents,
     'seller:reports-products': m.reportsProducts,
     'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
@@ -1021,6 +1069,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings': m.settings,
     'seller:settings-channels': m.settingsChannels,
     'seller:settings-job-types': m.settingsJobTypes,
+    'seller:settings-reports': m.settingsReports,
   }
 
   /**

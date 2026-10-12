@@ -37,9 +37,10 @@ const pay = (kind: 'DEPOSIT' | 'BALANCE', amount: number): PaymentRow => ({
  * 🛑 ห้าม derive จาก `appointmentStatus != null` เป็นอันขาด: ใบ walk-in ที่ร้านเคยกดปิดผลไว้
  * ก็มีสถานะนัดได้ และค่าที่ derive จากกันเองจะทำให้เทสพิสูจน์อะไรไม่ได้เลยตอนตัวใดตัวหนึ่งเพี้ยน
  */
-const keys = (ctx: Omit<Parameters<typeof chatOrderActions>[0], 'hasAppointment'> & {
+const keys = (ctx: Omit<Parameters<typeof chatOrderActions>[0], 'hasAppointment' | 'serviceClosed'> & {
   hasAppointment?: boolean
-}) => chatOrderActions({ hasAppointment: true, ...ctx }).map((a) => a.key)
+  serviceClosed?: boolean
+}) => chatOrderActions({ hasAppointment: true, serviceClosed: false, ...ctx }).map((a) => a.key)
 
 describe('chatOrderActions', () => {
   it('[blocker] ตกลงมัดจำไว้ ยังไม่ได้รับ → เห็นทั้งแจ้งมัดจำ รับเงิน และเข้ารับบริการ', () => {
@@ -132,19 +133,16 @@ describe('chatOrderActions', () => {
       { orderStatus: 'PENDING', appointmentStatus: 'SCHEDULED', money: money({ total: 1000, deposit: 0 }) },
       { orderStatus: 'PENDING', appointmentStatus: 'COMPLETED', money: money({ total: 1000, deposit: 0, paid: [pay('BALANCE', 1000)] }) },
     ]) {
-      const primaries = chatOrderActions({ hasAppointment: true, ...ctx }).filter((a) => a.primary)
+      const primaries = chatOrderActions({ hasAppointment: true, serviceClosed: false, ...ctx }).filter((a) => a.primary)
       expect(primaries.length, `ปุ่มหลักต้อง ≤ 1 (${JSON.stringify(ctx.appointmentStatus)})`).toBeLessThanOrEqual(1)
     }
   })
 
-  it('[blocker] walk-in (ไม่มีนัด) ต้องไม่มีปุ่มเข้ารับบริการ — ปลายทาง 404', () => {
+  it('[blocker] 00073 walk-in (ไม่มีนัด) ปิดงานได้ — ปลายทางคือชีตปิดงาน (POST /close รองรับงานไม่มีนัด)', () => {
     /**
-     * 🛑 เทสข้อนี้เคยเขียนกลับด้าน (ยืนยันว่า walk-in "ยังกดเข้ารับบริการได้") และเขียวมาตลอด
-     * ทั้งที่ `POST /api/orders/[token]/appointment/outcome` **404 เมื่อใบนั้นไม่มีนัด** —
-     * เทสยืนยันได้แค่ว่าโค้ดทำตามที่คนเขียนเทสคิด ไม่ใช่ว่าคนเขียนคิดถูก
-     * (บทเรียนเดียวกับ `external-payload-schema.md` และเทส generic-card 2 ข้อเมื่อ 2026-08-09)
-     *
-     * ยังเก็บเงินได้ตามปกติ — walk-in จ่ายเงินได้ แค่ไม่มีนัดให้ปิดผล (BR-RSV-04)
+     * เดิมเทสข้อนี้ยืนยันว่า walk-in **ไม่มี** ปุ่ม เพราะปลายทางเก่า `/appointment/outcome` 404 กับใบไม่มีนัด
+     * feature 00073 เปลี่ยนปลายทางเป็น `POST /api/orders/[token]/close` ซึ่งปิด walk-in ได้ (ไม่มีตัวเลือกไม่มาตามนัด)
+     * ⇒ walk-in ต้องปิดงานได้ ไม่งั้นยอดของงาน walk-in ไม่มีวันเข้าการเงินร้าน
      */
     const k = keys({
       orderStatus: 'PENDING',
@@ -152,8 +150,19 @@ describe('chatOrderActions', () => {
       hasAppointment: false,
       money: money({ total: 500, deposit: 0 }),
     })
-    expect(k).not.toContain('MARK_SERVED')
+    expect(k).toContain('MARK_SERVED')
     expect(k).toContain('RECORD_PAYMENT')
+  })
+
+  it('[blocker] 00073 ปิดงานแล้ว → ไม่มีปุ่มปิดงาน/เริ่มงาน/แจ้งมัดจำ · ยังรับเงินที่ค้างได้', () => {
+    const k = keys({
+      orderStatus: 'PENDING',
+      appointmentStatus: null,
+      hasAppointment: false,
+      serviceClosed: true,
+      money: money({ total: 1000, deposit: 300 }),
+    })
+    expect(k).toEqual(['RECORD_PAYMENT'])
   })
 
   it('[blocker] walk-in ที่ตกลงมัดจำไว้ ต้องไม่มีปุ่มแจ้งมัดจำ — ไม่มีนัดให้สรุปส่ง', () => {
@@ -165,8 +174,8 @@ describe('chatOrderActions', () => {
       money: money({ total: 1000, deposit: 300 }),
     })
     expect(k).not.toContain('REQUEST_DEPOSIT')
-    // ปุ่มแรกคือ "เริ่มงานเลย" — ใบที่ยังไม่มีเวลาเริ่มยังไม่มีที่ยืนในตารางงานเลย
-    expect(k).toEqual(['START_WALK_IN', 'RECORD_PAYMENT'])
+    // ปุ่มแรกคือ "เริ่มงานเลย" — ใบที่ยังไม่มีเวลาเริ่มยังไม่มีที่ยืนในตารางงานเลย · ปิดงานได้ (00073)
+    expect(k).toEqual(['START_WALK_IN', 'RECORD_PAYMENT', 'MARK_SERVED'])
   })
 
   it('[blocker] walk-in ต้องได้ปุ่ม "เริ่มงานเลย" เป็นปุ่มหลัก (BR-SQ-21)', () => {
@@ -179,6 +188,7 @@ describe('chatOrderActions', () => {
       orderStatus: 'PENDING',
       appointmentStatus: null,
       hasAppointment: false,
+      serviceClosed: false,
       money: money({ total: 500 }),
     })
     expect(list[0].key).toBe('START_WALK_IN')

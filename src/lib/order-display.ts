@@ -721,10 +721,17 @@ export function getServiceTimeline(input: {
    * ใส่บนรางด้วยคือค่าเดียวกันสองที่บนจอเดียว (`sibling-surface-parity.md`)
    */
   buyerConfirmedAt?: string | Date | null;
+  /**
+   * feature 00073 — ร้านปิดงานเมื่อไร (`Order.serviceClosedAt`) · ปิดแบบให้บริการ = ขั้น 3 จบ
+   * (งาน walk-in ที่ปิดแล้วไม่มีสถานะนัดให้อ่าน ⇒ ต้องดูจากค่านี้) · ไม่ส่ง = พฤติกรรมเดิม
+   */
+  serviceClosedAt?: string | Date | null;
   now?: Date;
 }): TimelineStep[] {
   const confirmed = input.status === "CONFIRMED";
-  const served = input.appointmentStatus === "COMPLETED";
+  const served =
+    input.appointmentStatus === "COMPLETED" ||
+    (input.serviceClosedAt != null && input.appointmentStatus !== "NO_SHOW");
   const noShow = input.appointmentStatus === "NO_SHOW";
   /**
    * มีนัดไหม — ผู้เรียกที่ยังไม่ส่ง `hasAppointment` ถอยไปเดาจากสัญญาณของนัดที่มี

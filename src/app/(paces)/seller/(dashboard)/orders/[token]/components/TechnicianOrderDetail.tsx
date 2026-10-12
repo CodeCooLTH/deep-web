@@ -17,7 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrderEvents } from '@/services/order-event.service'
 import { filterOrderEventsForNoMoney } from '@/lib/order-view-by-level'
 import { resolveOrderSource } from '@/lib/order-source-channel'
-import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
+import { usesTypedBuyerName } from '@/lib/buyer-name'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { isAllDayAppointment } from '@/lib/appointments'
 import { toFileUrl } from '@/lib/file-url'
@@ -28,6 +28,9 @@ import OrderSummary from './OrderSummary'
 import ShippingActivity from './ShippingActivity'
 import CustomerDetails from './CustomerDetails'
 import AppointmentCard from './AppointmentCard'
+import ServiceJobCard from './ServiceJobCard'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import type { ShippingAddressData } from './order-detail-shared'
 
 type Props = {
@@ -57,6 +60,20 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
     rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some((v) => v && String(v).trim())
       ? (rawAddr as ShippingAddressData)
       : null
+
+  // feature 00073 — สถานะชุดเดียวของงานบริการ (ไม่มียอดเงิน: ช่างไม่เห็นเงิน) · ร้านอื่น = null (ป้ายเดิม)
+  const serviceBadge = usesServiceFinanceRules(shop.vertical)
+    ? resolveServiceStatusBadge(
+        {
+          status: order.status,
+          appointmentStatus: order.appointmentStatus ?? null,
+          hasAppointment: Boolean(order.serviceStart),
+          serviceClosedAt: order.serviceClosedAt ?? null,
+          outstanding: null,
+        },
+        'seller',
+      )
+    : null
 
   const items = (order.items ?? []).map((item: any) => {
     const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
@@ -89,6 +106,7 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
             orderNoun={vocab.noun}
             vocab={vocab}
             vertical={resolveShopVertical(shop.vertical)}
+            serviceBadge={serviceBadge}
           />
           <ShippingActivity
             events={events}
@@ -105,6 +123,7 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
             salesChannel={order.salesChannel ?? null}
             profileKey={null}
             buyerNoun={vocab.buyerNoun}
+            repeatCountLabel={vocab.repeatCountLabel}
             buyer={{
               buyerContact: order.buyerContact ?? null,
               buyerDisplayName: order.buyer?.displayName ?? null,
@@ -115,11 +134,31 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
               shippingAddr,
             }}
           />
+          {/* feature 00073 — ช่างปิดงานได้ (O4) แต่ไม่เห็นเงิน: ไม่มีส่วนรับเงิน · คืนมัดจำ/เปิดงานอีกครั้งตามสิทธิ์ O6 */}
+          {serviceBadge && (
+            <ServiceJobCard
+              publicToken={order.publicToken}
+              orderLabel={order.orderNo ?? String(order.publicToken).slice(0, 8).toUpperCase()}
+              status={order.status}
+              closedAtISO={order.serviceClosedAt ? new Date(order.serviceClosedAt).toISOString() : null}
+              badge={serviceBadge}
+              hasAppointment={Boolean(order.serviceStart)}
+              startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}
+              allDay={
+                order.serviceStart && order.serviceEnd
+                  ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
+                  : false
+              }
+              canClose={can(viewerRoles, 'O4')}
+              canManage={can(viewerRoles, 'O6')}
+              editHref={null}
+            />
+          )}
           {order.serviceStart && (
             <AppointmentCard
-              // ช่าง: ปิดผลได้ (O4) · เลื่อนนัด (O3) กับส่งสรุปนัด (H1) ไม่ได้ — สิทธิ์อ่านจากบทบาทจริง ไม่ฮาร์ดโค้ด
-              canReschedule={can(viewerRoles, 'O3')}
-              canOutcome={can(viewerRoles, 'O4')}
+              // ช่าง: เลื่อนนัด (O3) กับส่งสรุปนัด (H1) ไม่ได้ — สิทธิ์อ่านจากบทบาทจริง ไม่ฮาร์ดโค้ด
+              // ปิดงาน (O4) อยู่ที่การ์ด "งานนี้" ข้างบน (feature 00073)
+              canReschedule={can(viewerRoles, 'O3') && !order.serviceClosedAt}
               canSendSummary={can(viewerRoles, 'H1')}
               publicToken={order.publicToken}
               startISO={new Date(order.serviceStart).toISOString()}
@@ -137,12 +176,6 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
                   serviceStart: order.serviceStart,
                   appointmentStatus: order.appointmentStatus,
                 }) ?? 'SCHEDULED'
-              }
-              buyerLabel={
-                resolveOrderBuyerNameForShop(shop.vertical, {
-                  typedName: order.buyerName,
-                  accountName: order.buyer?.displayName,
-                }).name
               }
             />
           )}

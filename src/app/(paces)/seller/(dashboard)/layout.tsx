@@ -22,6 +22,7 @@ import { getUnreadCountForShop } from '@/services/chat.service'
 import { countUnackedAlerts } from '@/services/line-report-access.service'
 import { sessionUserId } from '@/lib/session-user'
 import OnboardingGate from './dashboard/components/OnboardingGate'
+import { showsPersonalSetupChecklist } from '@/lib/onboarding-gate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
 import { shouldHidePaidFeatures, shouldOfferIap, shouldHidePayments } from '@/lib/app-shell-server'
@@ -171,6 +172,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     hidePayments,
     // เจ้าของหลักของร้านนี้ (T4) — requireActiveShop อ่านแถวร้านมาแล้ว ไม่ต้อง query ซ้ำในตัวประกอบเมนู
     isPrimaryOwner: active.shop.userId === user.id,
+    // feature 00073 เฟส B — แถวร้านโหลดมาครบแล้ว (requireActiveShop ไม่มี select) ⇒ ไม่มี query เพิ่ม
+    reportSettings: active.shop.reportSettings,
     hidePaidFeatures: await shouldHidePaidFeatures(),
     offerIap: await shouldOfferIap(),
   })
@@ -201,7 +204,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           hideOnQueues={navHidden.queues}
         />
       }
-      sidenavFooterSlot={<OnboardingGate vertical={shop.vertical} />}
+      // เช็กลิสต์เป็นของร้านส่วนตัว — ร้านบริการแบบธุรกิจไม่แสดง (ตัวตัดสิน showsPersonalSetupChecklist)
+      sidenavFooterSlot={
+        showsPersonalSetupChecklist({ kind: active.kind, vertical: shop.vertical }) ? <OnboardingGate vertical={shop.vertical} /> : undefined
+      }
       // การ์ดแพ็กเกจเป็นเรื่องของร้านแบบธุรกิจเท่านั้น — บัญชีส่วนตัวไม่มี Business Package
       // ให้พูดถึงจริง ๆ (schema ผูกกับ Business) การไม่แสดงจึงตรงความจริง ไม่ใช่การซ่อนของที่มีอยู่
       // (user เคาะ 2026-08-04). Sidenav/index.tsx เช็ค `headerSlot &&` อยู่แล้ว → ไม่มี div เปล่าค้าง

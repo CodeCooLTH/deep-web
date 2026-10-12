@@ -42,6 +42,11 @@ const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
     icon: 'solar:check-circle-bold-duotone',
     colorClass: 'text-success',
   },
+  // feature 00073 — ร้านบริการปิดงาน · ✓ ในวงกลม (user เลือก 2026-10-11) · น้ำเงิน แยกจาก "ลูกค้ายืนยัน" (เขียว) ด้วยคำบนบรรทัด
+  SERVICE_CLOSED: {
+    icon: 'solar:check-circle-bold-duotone',
+    colorClass: 'text-primary',
+  },
   SMS_SENT: {
     icon: 'solar:letter-bold-duotone',
     colorClass: 'text-info',

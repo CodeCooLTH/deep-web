@@ -387,3 +387,19 @@
   - สัญญา: ไม่ใช่สมาชิก = 404 · สมาชิกไม่มีสิทธิ์ = 403 `FORBIDDEN_ROLE` no-store · BILLING มีผลเฉพาะร้าน SERVICE_QUEUE และสร้างได้แต่บิล SERVICE · `session.activeShopRoles` = แสดงผลเท่านั้น · หน้า admin ทุกหน้า `requireAdmin()` ในหน้าเอง (layout ไม่นับ)
   - มติ C-1..C-15 ในแผน P3 · KPI ผู้ดูแลเดิมเสียสิทธิ์งาน = 0 (audit `docs/superpowers/plans/2026-10-10-00071-kpi-admin-entitlement.md`)
   - **carry:** 🛑 browser QA ยังไม่ทำ (รายการใน retro `2026-10-10-00071-p2-p3-roles-enforcement-retrospective.md`) · หนี้ security (a)–(j) ในแผน P3 · ตรวจ `STORAGE_DRIVER=s3` บน prod · `signup-achievement` แดงเดิมบน base
+
+## 2026-10-11 — แอป iOS ผู้ขาย 1.0.3 (build 18) รอรีวิว · freeze main
+
+- ส่งรีวิว 2026-10-11 16:08 · Automatically release · prod ตอนกดส่ง = `b3cb74e9` (#153 เปิดการสมัครในแอป iOS ≥1.0.3 · `IOS_SIGNUP_MIN_APP_VERSION`)
+- ความเสี่ยง: Guideline 3.1.1 (Apple เคยสั่งเอาการสมัครธุรกิจออก 2026-08-23) — เหตุผลที่ยื่น: แพ็กเกจขายผ่าน IAP เท่านั้นแล้ว · ทางจ่ายนอกแอปปิดหมด · มีลบบัญชี + SIWA
+- 🛑 ห้าม merge/deploy main จนผลรีวิวออก · ถ้าตีกลับแล้วยื่นรุ่นถัดไปแบบไม่มีการสมัคร ต้องขยับ `IOS_SIGNUP_MIN_APP_VERSION` พร้อมกัน
+- รายละเอียด/ข้อความที่ส่ง Apple: deep-seller-app `docs/RELEASES.md`
+
+## 2026-10-11 — ร้านบริการ: flow 4 ขั้น + ตั้งค่ารายงานการเงิน (ดีไซน์ · ยังไม่มีโค้ด)
+
+- มติ user ครบ (ปิดงานโดยร้าน = เงินภายใน · ลูกค้ายืนยัน = หน้าร้านสาธารณะ · มัดจำ/ไม่มา/ขอเลื่อน/walk-in/ปิดย้อนหลัง) — spec `docs/superpowers/specs/2026-10-11-service-four-step-flow-spec.md`
+- ผลตรวจโค้ด: ต้องปรับตาม 00071 (เงิน = เจ้าของ · ปิดงาน O4+O5) · #141 ไทล์ 4 ขั้นมีแล้วแต่ป้ายไม่ตรง · ช่องโหว่ confirm NO_SHOW / ยกเลิกหลังปิดงาน / ผลนัดบนงานยกเลิก · ~60–70 ไฟล์
+- มติ 2026-10-11 (ตามแนะนำ): ตัด SHIPPED ออกจากร้านบริการ · ไม่มาตามนัดผ่านปิดงานทางเดียว · ปิด auto-confirm 3 ทางเฉพาะร้านบริการ · ยังไม่ทำค้างจ่าย · ไม่กระทบร้านอื่น (spec §6.1)
+- carry: PRD/BRD ให้หัวหน้าอนุมัติ → agent team
+
+- **2026-10-11 — 00073 งานบริการ 4 ขั้น เฟส A ลงโค้ดแล้ว (ยังไม่ commit · รอ user รีวิว)** — branch `feat/00073-service-four-step-flow` · `Order.serviceClosedAt` + migration `20261011120000_service_closed_at` (ปิดย้อนหลังเฉพาะร้านบริการ · ร้านอื่น hash เท่าเดิม) · ปิดงาน/เปิดงานอีกครั้ง `POST/DELETE /api/orders/[token]/close` · ยอดขายร้านบริการทุกจอนับตามวันปิดงาน (`order-revenue.ts` ตัวตัดสินเดียว) · ป้ายชุดเดียว `service-status.ts` ทั้งฝั่งร้าน/ลูกค้า · ด่าน: ยืนยัน NO_SHOW / ยกเลิก-แก้ไขงานที่ปิด · คะแนนลูกค้านับไม่มาตามนัด · ชื่อบัญชีจาก OTP · รอบ 2 (มติ user เดียวกัน): ส่งคะแนน = ยืนยันรับบริการ (FR-012) + ลูกค้าดูใบเสร็จเองเมื่อปิดงาน+ชำระครบ (FR-013 · `/o/[token]/receipt`) · ปุ่มแก้ไข/ยกเลิกหายเมื่อปิดงาน · รอบ 3: เฟส B ตั้งค่ารายงาน (`Shop.reportSettings` + migration `20261012090000_shop_report_settings` · `/settings/reports` · กราฟ `ServiceFinanceChart` + `/api/seller/finance-chart` เท่า P&L) · ขายดี/ขายแล้วร้านบริการนับงานที่ให้บริการจริง · ฟีดกิจกรรม "ปิดงาน" · เทส 9,752 ผ่าน · 🛑 ห้าม merge ระหว่างแอป iOS 1.0.3 รอรีวิว · `(paces)/**` แจ้งหัวหน้าก่อน · ค้าง: ฟีดกิจกรรม "ปิดงาน" (ไอคอน) · คำรายงาน LINE · เฟส B

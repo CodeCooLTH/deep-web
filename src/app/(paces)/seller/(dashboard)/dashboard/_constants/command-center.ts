@@ -23,6 +23,7 @@ import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/busine
 // 🛑 ตัวนับกองพัสดุต้องพิมพ์จาก ShippingStageKey เสมอ ห้ามไล่ชื่อช่องเอง — object ที่ "มีช่องเกิน"
 // assign ได้ปกติ ⇒ วันที่เพิ่มกองใหม่ ไทล์จะขาดไปหนึ่งช่องโดย tsc ไม่ฟ้อง (2026-08-24 เพิ่ม RETURNED)
 import type { ShippingStageKey } from '@/lib/order-stage'
+import type { ReportSettings } from '@/lib/report-settings'
 export type { BusinessPackageStatusApp, BusinessPackageTier }
 
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
@@ -73,6 +74,12 @@ export type CommandCenterData = {
   /** คำเดียวกันแต่ใช้ยืนเดี่ยวเป็นหัวการ์ด — อังกฤษต้องเป็นพหูพจน์ตัวใหญ่ ("Orders" ไม่ใช่ "order") */
   orderNounTitle?: string
   shopVertical?: string
+  /** feature 00073 เฟส B — ตั้งค่ารายงาน (ไม่ใช่ข้อมูลเงิน — แค่บอกว่าจะแสดงอะไร) */
+  reportSettings?: ReportSettings
+  /** มัดจำรับล่วงหน้า — เงิน ⇒ redact ตัดทิ้งสำหรับผู้ไม่เห็นเงินเต็ม */
+  advanceDeposit?: { amount: number; jobs: number } | null
+  /** ตัวเลขหลักบนการ์ด (00073) — เงิน ⇒ redact · null/ไม่มี = ยอดขาย (เดิม) */
+  headline?: { kind: 'RECEIVED' | 'NET_PROFIT'; today: number; month: number; note: string | null } | null
 
   /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")
    *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */

@@ -73,6 +73,7 @@ type LatestOrderRow = {
   hasShipment: boolean
   serviceStart: Date | null
   appointmentStatus: string | null
+  serviceClosedAt: Date | null
   vertical: string
   /** จำนวนออเดอร์ (ทุกใบ ไม่ใช่แค่ใบล่าสุด) ของลูกค้าคนนี้ในร้านนี้ที่พัสดุยังติดปัญหาอยู่ */
   problemOrderCount: number
@@ -143,6 +144,8 @@ export async function enrichWithOrderStage<T extends Linkable>(
       -- serviceStart คือตัวนิยามว่าใบนี้เป็นนัด (ไม่ได้ดูจาก Shop.vertical) ดู appointmentFace()
       o."serviceStart"      AS "serviceStart",
       o."appointmentStatus" AS "appointmentStatus",
+      -- feature 00073 — ร้านบริการปิดงานแล้ว ⇒ ป้าย "ปิดงานแล้ว" (serviceClosedFace)
+      o."serviceClosedAt"   AS "serviceClosedAt",
       -- ผันคำของขั้น ORDERED ตามประเภทกิจการ (ร้านคิวงานไม่เรียกใบของตัวเองว่า "สั่งซื้อแล้ว")
       -- อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์ — INNER JOIN ปลอดภัยเพราะ Order.shopId บังคับ NOT NULL
       sp."vertical"         AS "vertical",
@@ -192,6 +195,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         hasShipment: r.hasShipment,
         serviceStart: r.serviceStart,
         appointmentStatus: r.appointmentStatus,
+        serviceClosedAt: r.serviceClosedAt,
         vertical: r.vertical,
         problemOrderCount: r.problemOrderCount,
       },

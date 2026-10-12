@@ -10,6 +10,9 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
 import { MPageTitle, MEmpty, MChip, type SemColor } from '../_components/ui'
 import { sessionUserId } from '@/lib/session-user'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
+import type { OrderStatusTone } from '@/lib/order-display'
 
 export const metadata: Metadata = { title: 'คำสั่งซื้อของฉัน' }
 
@@ -22,6 +25,15 @@ const STATUS: Record<string, { label: string; color: SemColor; icon: string }> =
   SHIPPED: { label: resolveOrderStatusBadge('SHIPPED').label, color: 'info', icon: 'tabler-truck-delivery' },
   CONFIRMED: { label: resolveOrderStatusBadge('CONFIRMED').label, color: 'success', icon: 'tabler-circle-check' },
   CANCELLED: { label: resolveOrderStatusBadge('CANCELLED').label, color: 'error', icon: 'tabler-x' }
+}
+
+/** feature 00073 — โทนของป้ายงานบริการ → สีของ MChip (ชุดเดียวกับ STATUS ข้างบน) */
+const TONE_TO_SEM: Record<OrderStatusTone, SemColor> = {
+  warning: 'warning',
+  info: 'info',
+  success: 'success',
+  danger: 'error',
+  neutral: 'secondary',
 }
 
 const FILTERS: Array<{ key: string; label: string }> = [
@@ -100,7 +112,23 @@ export default async function MobileOrdersPage({
       ) : (
         <div className='flex flex-col gap-2.5'>
           {orders.map(o => {
-            const st = STATUS[o.status] ?? { label: o.status, color: 'secondary' as SemColor, icon: 'tabler-package' }
+            // feature 00073 — งานของร้านบริการ: ป้ายชุดเดียวคำฝั่งลูกค้า (ไม่ใช่ "รอดำเนินการ/กำลังจัดส่ง")
+            // รายการนี้รวมหลายร้านหลายประเภท ⇒ ตัดสินรายแถวจาก vertical ของร้านเจ้าของใบ · ร้านอื่นป้ายเดิม
+            const svc = usesServiceFinanceRules(o.shop.vertical)
+              ? resolveServiceStatusBadge(
+                  {
+                    status: o.status,
+                    appointmentStatus: o.appointmentStatus ?? null,
+                    hasAppointment: Boolean(o.serviceStart),
+                    serviceClosedAt: o.serviceClosedAt ?? null,
+                    outstanding: null,
+                  },
+                  'buyer',
+                )
+              : null
+            const st = svc
+              ? { label: svc.label, color: TONE_TO_SEM[svc.tone], icon: `tabler-${svc.icon}` }
+              : STATUS[o.status] ?? { label: o.status, color: 'secondary' as SemColor, icon: 'tabler-package' }
             const first = o.items[0]
             const extra = o.items.length - 1
             return (

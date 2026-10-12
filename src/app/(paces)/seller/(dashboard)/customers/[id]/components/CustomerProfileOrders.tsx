@@ -35,7 +35,8 @@ export default function CustomerProfileOrders({ orders, vocabNoun, shippedStatus
       </div>
       <div className="flex flex-col">
         {orders.map((o) => {
-          const meta = statusMeta[o.status]
+          // feature 00073 — ร้านบริการ: ป้ายชุดเดียวที่ server derive มา · ร้านอื่นป้ายตาม Order.status เดิม
+          const meta = o.serviceStatus ?? statusMeta[o.status]
           return (
             <div
               key={o.publicToken}

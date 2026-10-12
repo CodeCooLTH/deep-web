@@ -51,6 +51,9 @@ import BookingGuestView from './BookingGuestView'
 import GuestOrderView from './GuestOrderView'
 import { buildGuestOrderData } from './guest-order-data'
 import { sessionUserId } from '@/lib/session-user'
+import { canBuyerViewReceipt } from '@/lib/receipt'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ sms?: string }> }
 
@@ -556,6 +559,32 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
         : null,
       // คำบนจอผันตามประเภทร้าน — แยกจากด่าน `money` ที่ตอบคนละคำถาม
       isServiceShop: order.shop.vertical === 'SERVICE_QUEUE',
+      // feature 00073 — ป้ายชุดเดียว (คำฝั่งลูกค้า) + วันปิดงาน + ไม่มาตามนัด · ร้านอื่น = null/false (หน้าเดิม)
+      serviceStatus: usesServiceFinanceRules(order.shop.vertical)
+        ? resolveServiceStatusBadge(
+            {
+              status: order.status,
+              appointmentStatus: order.appointmentStatus ?? null,
+              hasAppointment: Boolean(order.serviceStart),
+              serviceClosedAt: order.serviceClosedAt ?? null,
+              outstanding: null,
+            },
+            'buyer',
+          )
+        : null,
+      serviceClosedAtIso: order.serviceClosedAt ? order.serviceClosedAt.toISOString() : null,
+      serviceNoShow: usesServiceFinanceRules(order.shop.vertical) && order.appointmentStatus === 'NO_SHOW',
+      // feature 00073 FR-013 — ปุ่ม "ดูใบเสร็จ" ของลูกค้า: ปิดงานแล้ว · ไม่ใช่ไม่มาตามนัด · ค้าง 0
+      // กติกาตัวเดียวกับที่ API ตรวจซ้ำ (`canBuyerViewReceipt`) — จอกับ server ตัดสินไม่ต่างกัน
+      receiptAvailable: serviceMoney
+        ? canBuyerViewReceipt({
+            vertical: order.shop.vertical,
+            status: order.status,
+            serviceClosedAt: order.serviceClosedAt ?? null,
+            appointmentStatus: order.appointmentStatus ?? null,
+            outstanding: serviceMoney.outstanding,
+          })
+        : false,
       originPage: order.shopChannel
         ? {
             channel: order.shopChannel.provider,

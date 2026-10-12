@@ -9,12 +9,17 @@
  *     เงินที่เป็นของร้านจริงแล้วเท่านั้น
  * ⇒ **ตัวเลขสองแท็บนี้ไม่มีวันเท่ากัน และหน้าจอทั้งสองแท็บต้องเขียนนิยามของตัวเองกำกับเสมอ**
  * (มิเรอร์เหตุผลเดียวกับ `SALES_BASIS_NOTE` ใน product-sales-month.ts)
+ *
+ * 🛑 feature 00073 (มติ user 2026-10-10/11) — นิยามข้างบนถูกแทนแล้ว: ยอดขายร้านบริการ = **งานที่ร้านปิดแล้ว**
+ * ตามวันปิดงาน (`serviceRevenueOrderWhere`) ชุดเดียวกับ pnl/ชีต/ยอดสะสมลูกค้า ⇒ "ค้างรับ" = งานที่ทำเสร็จแล้ว
+ * แต่ยังเก็บเงินไม่ครบ (ตามเก็บได้จริง) · งานที่ยังไม่ปิดไม่ใช่หนี้ (มัดจำของมันคือ "มัดจำรับล่วงหน้า")
+ * ผู้เรียกทุกรายเป็นร้านบริการเท่านั้น (sales/page.tsx · api/finance/receivables — isServiceQueue)
  */
 import { prisma } from '@/lib/prisma'
 import { round2 } from '@/lib/round2'
 import { formatOrderNo } from '@/lib/order-no'
 import { thaiDayKey } from '@/lib/format-date'
-import { withoutDrafted } from '@/lib/order-visibility'
+import { isServiceNoShow, serviceNoShowRevenue, serviceRevenueOrderWhere } from '@/lib/order-revenue'
 import { netOfReturns } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import type { ResolvedDateRange } from '@/lib/date-range'
@@ -60,7 +65,7 @@ export interface ReceivableResult {
   items: ReceivableItem[]
   nextCursor: string | null
   /**
-   * ยอดขาย/รับจริงรายวัน (คีย์ = thaiDayKey ของวันเปิดบิล) — คิดจาก **แถวชุดเดียวกับ summary**
+   * ยอดขาย/รับจริงรายวัน (คีย์ = thaiDayKey ของ **วันปิดงาน** — feature 00073) — คิดจาก **แถวชุดเดียวกับ summary**
    * จึงรวมกันได้ summary พอดี · ใช้แยกแท่ง "รับจริง/ค้างรับ" ในกราฟรายวันของ /sales
    * (bucket ตามวันเปิดบิล เหมือนชีตหน้าหลัก `dashboard.service` — ไม่ใช่วันที่รับเงิน)
    */
@@ -76,6 +81,8 @@ const ORDER_SELECT = {
   publicToken: true,
   orderNo: true,
   createdAt: true,
+  serviceClosedAt: true,
+  appointmentStatus: true,
   totalAmount: true,
   buyerName: true,
   conversationId: true,
@@ -105,6 +112,8 @@ type OrderRow = {
   publicToken: string
   orderNo: string | null
   createdAt: Date
+  serviceClosedAt: Date | null
+  appointmentStatus: string | null
   totalAmount: unknown
   buyerName: string | null
   conversationId: string | null
@@ -129,7 +138,10 @@ export function receivableDisplayName(row: { buyerName: string | null }): string
 }
 
 function toItem(row: OrderRow, now: Date): ReceivableItem {
-  const totalAmount = round2(Number(row.totalAmount))
+  // ไม่มาตามนัด: ยอด = มัดจำที่เก็บไว้ = เงินที่รับแล้ว ⇒ ไม่มียอดค้าง (ไม่มีค่าบริการให้ตามเก็บ)
+  const totalAmount = isServiceNoShow(row)
+    ? round2(serviceNoShowRevenue(row.payments.map((p) => ({ amount: p.amount, voidedAt: null }))))
+    : round2(Number(row.totalAmount))
   const receivedAmount = round2(row.payments.reduce((s, p) => s + Number(p.amount), 0))
   return {
     orderId: row.id,
@@ -142,7 +154,8 @@ function toItem(row: OrderRow, now: Date): ReceivableItem {
     totalAmount,
     receivedAmount,
     outstandingAmount: round2(totalAmount - receivedAmount),
-    daysOutstanding: daysOutstandingTH(row.createdAt, now),
+    // ค้างนับจากวันปิดงาน (00073) — ก่อนปิดยังไม่ใช่หนี้
+    daysOutstanding: daysOutstandingTH(row.serviceClosedAt ?? row.createdAt, now),
   }
 }
 
@@ -168,29 +181,20 @@ export async function getReceivables(
   const rows = (await prisma.order.findMany({
     where: {
       shopId,
-      /**
-       * 🛑 ต้องใช้ `withoutDrafted('CANCELLED')` ไม่ใช่ `status: { not: 'CANCELLED' }`
-       * ร่างออเดอร์ (00061) อยู่ในตารางเดียวกันด้วย `status='DRAFTED'` — เขียนแค่ not CANCELLED
-       * จะนับร่างเป็นยอดค้างรับ แล้วร้านไปทวงเงินจากบิลที่ยังไม่เคยเปิดจริง
-       * (Prisma รับ key `status` ได้ครั้งเดียว ⇒ เขียนสองบรรทัดจะทับกันเงียบ ๆ ต้องรวมเป็น notIn)
-       */
-      /**
-       * 🛑 `RETURNED` (คืนของครบทั้งใบ, feature 00056) ตัดออกด้วย — การขายถูกยกเลิกไปแล้ว
-       * หลักเดียวกับใบลดหนี้ในระบบบัญชี: คืนของ = ไม่มีหนี้ให้ตามเก็บ และ P&L (revenueOrderWhere)
-       * กับยอดออเดอร์บนโปรไฟล์ (public-order-count) ก็ไม่นับใบนี้อยู่แล้ว (มติ 2026-10-01)
-       * คืน **บางส่วน** ไม่เปลี่ยน Order.status ⇒ ยังนับเต็มใบ (ตรงกับ P&L ปัจจุบัน)
-       */
-      ...withoutDrafted(['CANCELLED', 'RETURNED']),
-      createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt },
+      // ร่าง (00061) · ยกเลิก · คืนทั้งใบ (00056 หลักใบลดหนี้) ถูกตัดใน serviceRevenueOrderWhere แล้ว
+      // คืน **บางส่วน** ไม่เปลี่ยน Order.status ⇒ ยังนับเต็มใบแล้วหักผ่าน netOfReturns ข้างล่าง
+      // feature 00073 — งานที่ร้านปิดแล้ว ตัดช่วงด้วยวันปิดงาน (ไม่ใช่ร่าง/ยกเลิก/คืนทั้งใบ — อยู่ในตัวตัดสินแล้ว)
+      ...serviceRevenueOrderWhere(range.orderRange),
     },
     select: ORDER_SELECT,
-    orderBy: { createdAt: 'asc' },
+    orderBy: { serviceClosedAt: 'asc' },
   })) as unknown as OrderRow[]
 
   const returnAdj = await returnAdjPromise
   const all = rows.map((r) =>
     toItem({ ...r, totalAmount: netOfReturns(Number(r.totalAmount), returnAdj.get(r.id)) }, now),
   )
+  const closedDayOf = new Map(rows.map((r) => [r.id, thaiDayKey(r.serviceClosedAt ?? r.createdAt)]))
 
   let salesTotal = 0
   let receivedTotal = 0
@@ -198,7 +202,8 @@ export async function getReceivables(
   for (const it of all) {
     salesTotal += it.totalAmount
     receivedTotal += it.receivedAmount
-    const day = thaiDayKey(it.createdAt)
+    // แกนเวลา = วันปิดงาน (ชุดเดียวกับชีตหน้าหลัก getSalesSeries) — ไม่ใช่วันเปิดบิล
+    const day = closedDayOf.get(it.orderId) ?? thaiDayKey(it.createdAt)
     const d = (daily[day] ??= { sales: 0, received: 0 })
     d.sales = round2(d.sales + it.totalAmount)
     d.received = round2(d.received + it.receivedAmount)
@@ -213,7 +218,7 @@ export async function getReceivables(
    */
   const outstanding = all.filter((it) => it.outstandingAmount > 0)
 
-  // เรียงจากบิลเก่าสุดก่อน = ใบที่ค้างนานที่สุดอยู่บนสุด (เรียงตาม createdAt asc อยู่แล้ว)
+  // เรียงจากงานที่ปิดนานสุดก่อน = ใบที่ค้างนานที่สุดอยู่บนสุด (เรียงตาม serviceClosedAt asc อยู่แล้ว)
   const start = opts.cursor ? outstanding.findIndex((it) => it.orderId === opts.cursor) + 1 : 0
   // cursor ที่หาไม่เจอ → findIndex คืน -1 → start = 0 (เริ่มหน้าแรกใหม่ ไม่ throw ไม่คืนลิสต์ว่าง)
   const page = outstanding.slice(start, start + limit)

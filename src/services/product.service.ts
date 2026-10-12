@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getReturnedQtyByProduct } from "@/services/return-adjustment.service";
 import { shopUsesServiceFinanceRules, productsUseServiceFinanceRules } from "@/services/finance-rules.service";
+import { serviceDeliveredOrderWhere } from "@/lib/order-revenue";
 import { withoutDrafted } from "@/lib/order-visibility";
 import { COUNTABLE_CARRIER_STATUSES } from "@/lib/public-order-count";
 import { Prisma } from "@prisma/client";
@@ -507,7 +508,10 @@ export async function getBestSellerProducts(shopId: string, take = 8, opts: Prod
     // + RETURNED (คืนของครบทั้งใบ = การขายถูกยกเลิก · มติ 2026-10-01) — คู่กับรายงานยอดขายรายสินค้าเสมอ
     where: {
       productId: { not: null },
-      order: { shopId, ...withoutDrafted(newRules ? ["CANCELLED", "RETURNED"] : "CANCELLED") },
+      // feature 00073 (มติ user 2026-10-11) — ร้านบริการ: นับเฉพาะงานที่ร้านปิดแล้วว่าให้บริการจริง
+      // (ไม่นับงานที่ยังไม่ทำ/ไม่มาตามนัด) — ตัวกลางเดียวกับรายงานรายสินค้า (serviceDeliveredOrderWhere)
+      // ร้านอื่น: เกณฑ์เดิมทุกตัวอักษร
+      order: newRules ? { shopId, ...serviceDeliveredOrderWhere() } : { shopId, ...withoutDrafted("CANCELLED") },
     },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
@@ -577,7 +581,8 @@ export async function getConfirmedOrderCountByProduct(
     where: {
       productId: { in: productIds },
       // เกณฑ์เดียวกับ getBestSellerProducts เป๊ะ (user สั่ง 2026-08-11) — + RETURNED + หักคืนบางส่วน (2026-10-01)
-      order: { ...withoutDrafted(newRules ? ["CANCELLED", "RETURNED"] : "CANCELLED") },
+      // feature 00073 — ร้านบริการ: งานที่ปิดแล้วว่าให้บริการจริงเท่านั้น (ตัวเดียวกับหลังร้าน — มติ 2026-08-11 ยังคงอยู่)
+      order: newRules ? serviceDeliveredOrderWhere() : withoutDrafted("CANCELLED"),
     },
     _sum: { qty: true },
   });

@@ -8,8 +8,7 @@ import {
   formatReceiptNo,
   receiptPaymentMarks,
   resolveReceiptHeader,
-  showReceiptButton,
-} from '../receipt'
+  showReceiptButton, canBuyerViewReceipt } from '../receipt'
 
 describe('[blocker] thaiBahtText — คำอ่านยอดเงินบนใบเสร็จ (AC-RCP-20/22/23)', () => {
   it.each([
@@ -116,5 +115,51 @@ describe('resolveReceiptHeader (AC-RCP-06/07/08)', () => {
   it('ช่องที่ตั้งไว้ชนะ ช่องว่างถอยไปใช้ของร้าน', () => {
     const h = resolveReceiptHeader(shop, { legalName: 'บจก. เอ', address: null, taxId: '1102003093351', phone: '0842492878' })
     expect(h).toEqual({ name: 'บจก. เอ', address: 'ที่อยู่ร้าน', taxId: '1102003093351', phone: '0842492878', isFallback: false })
+  })
+})
+
+// feature 00073 FR-013 — ลูกค้าเปิดใบเสร็จเอง: ปิดงานแล้ว · ไม่ใช่ไม่มาตามนัด · ค้าง 0 (ฝั่งร้านไม่ผ่านฟังก์ชันนี้)
+describe('canBuyerViewReceipt', () => {
+  const base = { vertical: 'SERVICE_QUEUE', status: 'PENDING', serviceClosedAt: new Date(), appointmentStatus: 'COMPLETED', outstanding: 0 }
+  it('ปิดงานแล้ว + ชำระครบ → true (ทั้งก่อนและหลังลูกค้ายืนยัน · walk-in)', () => {
+    expect(canBuyerViewReceipt(base)).toBe(true)
+    expect(canBuyerViewReceipt({ ...base, status: 'CONFIRMED' })).toBe(true)
+    expect(canBuyerViewReceipt({ ...base, appointmentStatus: null })).toBe(true)
+  })
+  it('ค้างเงิน · ยังไม่ปิด · ไม่มาตามนัด → false', () => {
+    expect(canBuyerViewReceipt({ ...base, outstanding: 1 })).toBe(false)
+    expect(canBuyerViewReceipt({ ...base, serviceClosedAt: null })).toBe(false)
+    expect(canBuyerViewReceipt({ ...base, appointmentStatus: 'NO_SHOW' })).toBe(false)
+  })
+  it('ยกเลิก · คืน · ร่าง → false', () => {
+    for (const status of ['CANCELLED', 'RETURNED', 'DRAFTED']) expect(canBuyerViewReceipt({ ...base, status })).toBe(false)
+  })
+  it('[blocker] ร้านที่ไม่ใช่ร้านบริการ → false เสมอ', () => {
+    expect(canBuyerViewReceipt({ ...base, vertical: 'ONLINE_SALES' })).toBe(false)
+    expect(canBuyerViewReceipt({ ...base, vertical: 'LODGING' })).toBe(false)
+  })
+})
+
+// feature 00073 — ช่อง วันที่/จำนวนเงิน บนใบเสร็จเติมจากบันทึกรับเงิน "โอน" ที่ไม่ถูกยกเลิกเท่านั้น
+describe('buildReceiptSheet — เติมช่องการโอน', () => {
+  it('โอน 2 ครั้ง (1 ครั้งถูกยกเลิก) + เงินสด → วันที่ = โอนล่าสุดที่ยังใช้ได้ · จำนวน = ผลรวมโอนที่ยังใช้ได้ · เงินสดล้วน = ไม่เติม', async () => {
+    const { buildReceiptSheet } = await import('@/app/(paces)/seller/(fullscreen)/orders/[token]/receipt/receipt-data')
+    const base = {
+      status: 'PENDING', buyerName: 'ลูกค้า', buyerContact: '0800000000', paymentMethod: null, discount: 0, vatRate: 0, vatAmount: 0,
+      totalAmount: 1500, items: [{ name: 'ล้างแอร์ (ค่าบริการ)', description: null, qty: 1, price: 1500 }], createdBy: null,
+      receipt: { receiptNo: 'CA2026100001', issuedAt: new Date('2026-10-11T03:00:00Z') },
+      shop: { shopName: 'ร้านล้างแอร์', address: null, logo: null, receiptProfile: null },
+    }
+    const pays = [
+      { method: 'TRANSFER', amount: 500, voidedAt: null, receivedAt: new Date('2026-10-01T03:00:00Z') },
+      { method: 'TRANSFER', amount: 700, voidedAt: new Date(), receivedAt: new Date('2026-10-09T03:00:00Z') },
+      { method: 'TRANSFER', amount: 600, voidedAt: null, receivedAt: new Date('2026-10-05T03:00:00Z') },
+      { method: 'CASH', amount: 400, voidedAt: null, receivedAt: new Date('2026-10-10T03:00:00Z') },
+    ]
+    const { data } = buildReceiptSheet({ ...base, payments: pays } as never)
+    expect(data.transfer?.amount).toBe('1,100.00')
+    expect(data.transfer?.dateLabel).toContain('5')
+    const cashOnly = buildReceiptSheet({ ...base, payments: [pays[3]] } as never)
+    expect(cashOnly.data.transfer).toBeNull()
   })
 })

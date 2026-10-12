@@ -24,6 +24,7 @@ import { Icon } from '@iconify/react'
 
 import ReviewForm from './ReviewForm'
 import { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
+import ShopLogoImg from './ShopLogoImg'
 
 type Props = {
   open: boolean
@@ -34,9 +35,15 @@ type Props = {
   shopAvatar: string | null
   /** หัวผลการยืนยัน — ผันคำชุดเดียวกับ ctaLabel ของปุ่มที่เพิ่งกด (ส่งมาจากผู้เรียก ห้ามต่อสตริงเอง) */
   headline: string
+  /**
+   * feature 00073 FR-012 — เปิดจากปุ่ม "ให้คะแนนบริการ" ของงานที่ร้านปิดแล้ว (ลูกค้ายังไม่ได้ยืนยัน)
+   * หัวแผ่นต้องไม่อ้างว่า "บันทึกแล้ว" + ไม่ใช้เขียว (ยังไม่มีหลักฐานจากลูกค้า — Verified-Means-Green)
+   * และต้องบอกว่าการส่งคะแนน = ยืนยันรับบริการ (ย้อนไม่ได้) ก่อนนิ้วแตะ
+   */
+  confirmsOnSubmit?: boolean
 }
 
-export default function ReviewSheet({ open, onClose, token, shopName, shopAvatar, headline }: Props) {
+export default function ReviewSheet({ open, onClose, token, shopName, shopAvatar, headline, confirmsOnSubmit = false }: Props) {
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -86,16 +93,28 @@ export default function ReviewSheet({ open, onClose, token, shopName, shopAvatar
             เขียวอยู่ที่แผ่นกลมของไอคอนเท่านั้น ตัวหนังสือเป็นหมึกปกติ (#28C76F บนขาว 2.21:1 ตก AA) */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box
-            sx={{ width: 40, height: 40, borderRadius: '50%', bgcolor: VERIFIED_BG, display: 'grid', placeItems: 'center', flexShrink: 0 }}
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              bgcolor: confirmsOnSubmit ? 'action.hover' : VERIFIED_BG,
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
           >
-            <Icon icon='tabler-check' fontSize={22} style={{ color: VERIFIED_INK }} />
+            {confirmsOnSubmit ? (
+              <Icon icon='tabler-star' fontSize={22} style={{ color: 'var(--mui-palette-text-secondary)' }} />
+            ) : (
+              <Icon icon='tabler-check' fontSize={22} style={{ color: VERIFIED_INK }} />
+            )}
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography id='review-sheet-title' variant='h6' sx={{ fontWeight: 700 }}>
               {headline}
             </Typography>
             <Typography variant='body2' color='text.secondary'>
-              บันทึกลงประวัติของร้านเรียบร้อย
+              {confirmsOnSubmit ? 'ส่งคะแนนแล้วถือว่าคุณยืนยันว่ารับบริการแล้ว (ย้อนไม่ได้)' : 'บันทึกลงประวัติของร้านเรียบร้อย'}
             </Typography>
           </Box>
         </Box>
@@ -123,12 +142,7 @@ export default function ReviewSheet({ open, onClose, token, shopName, shopAvatar
               color: 'text.secondary',
             }}
           >
-            {shopAvatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={shopAvatar} alt='' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              shopName.slice(0, 1)
-            )}
+            <ShopLogoImg src={shopAvatar} shopName={shopName} />
           </Box>
           {/* ชื่อร้านจริงยาวได้ ~38 ตัวอักษร — ตัด 2 บรรทัด ไม่ดันความกว้างแผ่น */}
           <Typography
@@ -153,6 +167,7 @@ export default function ReviewSheet({ open, onClose, token, shopName, shopAvatar
           onSubmitted={close}
           onDirtyChange={setDirty}
           onBusyChange={setBusy}
+          confirmsOnSubmit={confirmsOnSubmit}
         />
 
         <Button fullWidth color='secondary' onClick={close} disabled={busy} sx={{ mt: 1, minHeight: 44 }}>

@@ -28,9 +28,13 @@ type Props = {
   active: FinanceTab
   /** id สำหรับผูก aria-controls กับแผงเนื้อหา — ผู้เรียกต้องใส่ id นี้ที่กล่องเนื้อหาด้วย */
   panelId: string
+  /** feature 00073 เฟส B — แท็บที่มองเห็นตามตั้งค่ารายงาน (visibleFinanceTabs) · ไม่ส่ง = ครบ 3 แท็บ (เหมือนเดิม) */
+  tabs?: readonly FinanceTab[]
+  /** feature 00073 เฟส B — ป้ายแท็บยอดเก็บเงินตามตั้งค่า (collectTabLabel) · ไม่ส่ง = คำเดิม */
+  collectLabel?: string
 }
 
-export default function FinanceTabs({ active, panelId }: Props) {
+export default function FinanceTabs({ active, panelId, tabs = FINANCE_TABS, collectLabel }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -58,16 +62,16 @@ export default function FinanceTabs({ active, panelId }: Props) {
     (e: React.KeyboardEvent<HTMLElement>) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
       e.preventDefault()
-      const i = FINANCE_TABS.indexOf(active)
+      const i = tabs.indexOf(active)
       const next =
         e.key === 'ArrowRight'
-          ? FINANCE_TABS[(i + 1) % FINANCE_TABS.length]
-          : FINANCE_TABS[(i - 1 + FINANCE_TABS.length) % FINANCE_TABS.length]
+          ? tabs[(i + 1) % tabs.length]
+          : tabs[(i - 1 + tabs.length) % tabs.length]
       go(next)
       // ย้ายโฟกัสตามไปด้วย ไม่งั้นลูกศรครั้งที่สองจะเดินจากตัวเดิมตลอด
       navRef.current?.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus()
     },
-    [active, go],
+    [active, go, tabs],
   )
 
   return (
@@ -78,7 +82,7 @@ export default function FinanceTabs({ active, panelId }: Props) {
       aria-label="มุมมองการเงินของร้าน"
       onKeyDown={onKeyDown}
     >
-      {FINANCE_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const selected = tab === active
         return (
           <button
@@ -104,7 +108,7 @@ export default function FinanceTabs({ active, panelId }: Props) {
                 selected ? 'border-primary text-primary font-semibold' : 'border-transparent'
               }`}
             >
-              {TAB_LABEL[tab]}
+              {tab === 'collect' && collectLabel ? collectLabel : TAB_LABEL[tab]}
             </span>
           </button>
         )

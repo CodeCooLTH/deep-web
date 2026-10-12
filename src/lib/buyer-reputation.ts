@@ -29,6 +29,11 @@ export type BuyerOrderEvidence = {
   activeShipmentCarrierStatus: string | null
   /** ใบนี้เคยเปิดพัสดุจริงไหม — ตัวหารของอัตราตีกลับใช้ค่านี้ ไม่ใช่จำนวนออเดอร์ทั้งหมด */
   hasShipment: boolean
+  /**
+   * feature 00073 — สถานะนัด (ร้านบริการเท่านั้นที่มีค่า) · 'NO_SHOW' = ร้านปิดงานแบบลูกค้าไม่มาตามนัด
+   * นับเหมือนการยกเลิกด้วยเหตุผล `BUYER_NO_SHOW` เดิมเป๊ะ (ทางนั้นถูกถอดจากร้านบริการแล้ว) ⇒ ตัวเลขเดิมไม่หาย ไม่ซ้ำ
+   */
+  appointmentStatus: string | null
 }
 
 export type BuyerRiskLevel = 'NONE' | 'WATCH' | 'HIGH'
@@ -97,6 +102,12 @@ export function summarizeBuyerReputation(orders: BuyerOrderEvidence[]): BuyerRep
      */
     if (isReturnedCarrierStatus(o.activeShipmentCarrierStatus)) {
       returned += 1
+      continue
+    }
+
+    // ร้านบริการปิดงานแบบไม่มาตามนัด (00073) = เท่ากับยกเลิกด้วย BUYER_NO_SHOW เดิม
+    if (o.status !== 'CANCELLED' && o.appointmentStatus === 'NO_SHOW') {
+      cancelledByBuyer += 1
       continue
     }
 

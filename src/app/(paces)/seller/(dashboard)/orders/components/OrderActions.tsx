@@ -52,7 +52,9 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   // O3 แก้ไข · O7 ส่ง SMS — ผู้ดูที่ไม่มีสิทธิ์ไม่เห็นปุ่ม (ผู้เปิดบิล: ปุ่มแก้ไขแสดงเฉพาะบิลบริการ — หน้าแก้ไขเช็คสถานะชำระเป็นรายใบอีกชั้น)
   const viewerCanEdit = useViewerCan('O3')
   const canSms = useViewerCan('O7')
-  const canEdit = canEditOrder(order.status) && viewerCanEdit && !order.editLocked
+  // feature 00073 — งานร้านบริการที่ปิดแล้ว (serviceClosedAtISO มีเฉพาะร้านบริการ) แก้ไข/ยกเลิกไม่ได้
+  const serviceClosed = Boolean(order.serviceClosedAtISO)
+  const canEdit = canEditOrder(order.status) && viewerCanEdit && !order.editLocked && !serviceClosed
 
   // copy link: ใช้ shortCode (สั้น) fallback publicToken; ลิงก์ภายใน /orders/ คงใช้ publicToken
   const copyCode = order.shortCode || order.publicToken
@@ -150,6 +152,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
         token={order.publicToken}
         status={order.status}
         editLocked={order.editLocked}
+        serviceClosed={serviceClosed}
         onCancelRequest={onCancelRequest}
         orderNoun={orderNoun}
       />

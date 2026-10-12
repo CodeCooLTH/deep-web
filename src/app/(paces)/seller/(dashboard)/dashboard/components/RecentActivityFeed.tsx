@@ -45,6 +45,11 @@ const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
     icon: 'user-check',
     nodeClass: 'bg-success',
   },
+  // feature 00073 — ร้านบริการปิดงาน · ✓ ในวงกลม (user เลือก 2026-10-11)
+  SERVICE_CLOSED: {
+    icon: 'circle-check',
+    nodeClass: 'bg-primary',
+  },
   SMS_SENT: {
     icon: 'message-2',
     nodeClass: 'bg-info',

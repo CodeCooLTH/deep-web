@@ -17,6 +17,8 @@
  *   ออกไม่ได้จนกว่าจะตั้ง slug เสร็จ
  */
 
+import { resolveShopVertical } from "./lodging";
+
 export interface OnboardingGateInput {
   /** id ของ PERSONAL shop ของ user — null = ยังไม่เคยเปิดร้านของตัวเอง (ผู้ถูกเชิญ/nobody) */
   personalShopId: string | null;
@@ -84,4 +86,21 @@ export function resolveDefaultActiveShopId({
   if (firstBusinessShopId !== null) return firstBusinessShopId;
   // ไม่มีร้านธุรกิจเลย → ร้านส่วนตัว (แม้ยังไม่มี slug) เพื่อให้เดินเข้า /onboarding ตามเดิม
   return personalShopId;
+}
+
+/**
+ * แสดงเช็กลิสต์ "ตั้งค่าร้านให้ครบ" (OnboardingGate ที่แถบซ้าย + โมดัลเปิดเองครั้งแรก) ไหม
+ *
+ * เช็กลิสต์ทั้งชุดเป็นของ **ร้านส่วนตัว** ทั้งอ่านและเขียน — `GET /api/account/onboarding-checklist`
+ * และปุ่มบันทึกในโมดัล (`/api/account/sales-channels` · `/api/account/categories` · `/api/shops/update`)
+ * หาแถว `kind: "PERSONAL"` เสมอ (กติกาเดียวกับ resolveOnboardingGate: เรื่องตั้งค่าร้านส่วนตัว
+ * ผูกกับ "ยืนอยู่ในร้านส่วนตัว")
+ *
+ * บั๊ก 2026-10-12: ยืนอยู่ในร้านบริการแบบธุรกิจ แต่แถบซ้ายขึ้นเช็กลิสต์ของร้านส่วนตัว ("สร้างสินค้าแรก")
+ * ⇒ ห้ามแก้ด้วยการให้ API อ่านร้านที่สลับอยู่ — ปุ่มบันทึกยังเขียนร้านส่วนตัว ติ๊กแล้วจะไม่มีวันครบ
+ *
+ * 00073: ปิดเฉพาะร้านบริการแบบธุรกิจ — ร้านธุรกิจ vertical อื่นคงพฤติกรรมเดิม (ทำเฉพาะร้านบริการเป็นค่าตั้งต้น)
+ */
+export function showsPersonalSetupChecklist(active: { kind: string; vertical: string | null | undefined }): boolean {
+  return !(active.kind === "BUSINESS" && resolveShopVertical(active.vertical) === "SERVICE_QUEUE");
 }

@@ -49,6 +49,8 @@ import { can, moneyLevel } from '@/lib/shop-permissions'
 import { toNoMoneyOrder } from '@/lib/order-view-by-level'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -354,8 +356,40 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           status: o.status,
           appointmentStatus: o.appointmentStatus,
           serviceEnd: o.serviceEnd,
+          serviceClosedAt: o.serviceClosedAt,
           now: workNow,
         }),
+    /**
+     * feature 00073 — ป้ายสถานะชุดเดียว (service-status.ts) — ตัวเดียวกับหน้ารายละเอียด/การ์ด "งานนี้"
+     * ยอดค้างในป้ายเฉพาะผู้เห็นเงิน (showMoney) — คิดจาก computeOrderMoney ตัวเดียวกับทุกจอ (HR16)
+     */
+    ...(isServiceQueue
+      ? {
+          serviceClosedAtISO: o.serviceClosedAt ? new Date(o.serviceClosedAt).toISOString() : null,
+          serviceStatus: resolveServiceStatusBadge(
+            {
+              status: o.status,
+              appointmentStatus: o.appointmentStatus ?? null,
+              hasAppointment: Boolean(o.serviceStart),
+              serviceClosedAt: o.serviceClosedAt ?? null,
+              outstanding: showMoney
+                ? computeOrderMoneyFromSerialized({
+                    totalAmount: o.totalAmount.toFixed(2),
+                    depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+                    payments: (o.payments ?? []).map(
+                      (p: { kind: string; amount: { toFixed: (n: number) => string }; voidedAt: Date | null }) => ({
+                        kind: p.kind,
+                        amount: p.amount.toFixed(2),
+                        voidedAt: p.voidedAt ? p.voidedAt.toISOString() : null,
+                      }),
+                    ),
+                  }).outstanding
+                : null,
+            },
+            'seller',
+          ),
+        }
+      : {}),
     /**
      * เงินของใบนี้ (feature 00050 · AC-SQ-07) — undefined = ร้านที่ไม่ใช่ SERVICE_QUEUE
      *
@@ -525,8 +559,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const buildStatCard = (
     title: string,
     status: StatusKey,
+    /** feature 00073 — ร้านบริการนับตามสถานะงาน (ปิดงานแล้ว/ยัง) ไม่ใช่ Order.status ล้วน */
+    opts?: { match?: (o: (typeof orders)[number]) => boolean; icon?: string },
   ): OrderStatCardData => {
-    const forStatus = orders.filter((o) => o.status === status)
+    const forStatus = orders.filter(opts?.match ?? ((o) => o.status === status))
 
     // totalCount = ทุก order ของ status นี้ (ทุกช่วงเวลา)
     const totalCount = forStatus.length
@@ -547,7 +583,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ? current > 0 ? 100 : 0
         : Math.round(((current - prev) / prev) * 100)
 
-    return { title, status, totalCount, changePct, recentCount: current }
+    return { title, status, totalCount, changePct, recentCount: current, ...(opts?.icon ? { icon: opts.icon } : {}) }
   }
 
   /**
@@ -564,13 +600,33 @@ export default async function OrdersPage({ searchParams }: PageProps) {
    * ไม่แตะ ORDER_STATUS_META — ดรอปดาวน์ตัวกรองกับป้ายบนแถวยังคงคำเดิมทุกตัวอักษร
    */
   const vocab = resolveOrderVocab(shop.vertical)
-  const orderStatData: OrderStatCardData[] = [
-    buildStatCard('รอดำเนินการ', 'PENDING'),
-    // ร้านบริการไม่มีการส่งของ — การ์ดนี้นับ status=SHIPPED ชุดเดียวกับขั้น fulfillLabel ในเช็กลิสต์ จึงใช้คำเดียวกัน
-    buildStatCard(shop.vertical === 'SERVICE_QUEUE' ? vocab.fulfillLabel : 'ส่งแล้ว', 'SHIPPED'),
-    buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
-    buildStatCard('ยกเลิก',      'CANCELLED'),
-  ]
+  /**
+   * feature 00073 — ร้านบริการ: 4 การ์ดตามสถานะงาน (flow 4 ขั้น) ไม่ใช่ Order.status
+   *   รอปิดงาน = ยังไม่ปิด (รวมลูกค้ายืนยันก่อน) · ปิดงานแล้ว = ปิดแล้ว รอลูกค้ายืนยัน/ไม่มาตามนัด
+   *   สำเร็จแล้ว = ปิดแล้ว + ลูกค้ายืนยัน · ยกเลิก
+   * ตัดสินด้วยป้ายชุดเดียว (row.serviceStatus.key) — ไม่มี "เริ่มให้บริการแล้ว" (SHIPPED) อีก
+   * ร้านอื่น: การ์ดเดิมทุกตัวอักษร
+   */
+  const isServiceShop = usesServiceFinanceRules(shop.vertical)
+  const serviceKey = (o: (typeof orders)[number]) => (o as { serviceStatus?: { key: string } }).serviceStatus?.key
+  const SERVICE_OPEN_KEYS = new Set(['BOOKED', 'WALK_IN', 'RESCHEDULE_REQUESTED', 'APPOINTMENT_CONFIRMED', 'BUYER_CONFIRMED_AWAITING_CLOSE'])
+  const SERVICE_CLOSED_KEYS = new Set(['CLOSED_PAID', 'CLOSED_OUTSTANDING', 'NO_SHOW'])
+  const orderStatData: OrderStatCardData[] = isServiceShop
+    ? [
+        buildStatCard('รอปิดงาน', 'PENDING', { match: (o) => SERVICE_OPEN_KEYS.has(serviceKey(o) ?? '') }),
+        buildStatCard('ปิดงานแล้ว', 'SHIPPED', {
+          match: (o) => SERVICE_CLOSED_KEYS.has(serviceKey(o) ?? ''),
+          icon: 'clipboard-check',
+        }),
+        buildStatCard('สำเร็จแล้ว', 'CONFIRMED', { match: (o) => serviceKey(o) === 'DONE' }),
+        buildStatCard('ยกเลิก', 'CANCELLED'),
+      ]
+    : [
+        buildStatCard('รอดำเนินการ', 'PENDING'),
+        buildStatCard('ส่งแล้ว', 'SHIPPED'),
+        buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
+        buildStatCard('ยกเลิก',      'CANCELLED'),
+      ]
 
   const activeStatus = sp.status ?? 'all'
 

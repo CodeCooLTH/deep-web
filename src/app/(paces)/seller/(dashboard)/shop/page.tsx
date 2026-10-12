@@ -100,6 +100,7 @@ export default async function ShopSettingsPage() {
         role: shopRole,
         roles: shopRoles,
         vertical: shop?.vertical ?? '',
+        reportSettings: shop?.reportSettings ?? null,
         unreadChatCount: 0,
         hidePayments: await shouldHidePayments(),
         hidePaidFeatures: await shouldHidePaidFeatures(),

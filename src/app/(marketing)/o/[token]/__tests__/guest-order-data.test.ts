@@ -129,6 +129,8 @@ describe('buildGuestOrderData', () => {
         // เวลานัดของงานบริการ — เพิ่มเข้า allow-list โดยตั้งใจ (เหตุผลที่ guest-order-data.ts)
         'serviceStartIso',
         'serviceEndIso',
+        // feature 00073 — หัวข้อสถานะงานบริการคำฝั่งลูกค้า (คำสถานะล้วน ไม่มีเงิน/ชื่อ) · null สำหรับร้านอื่น
+        'serviceStatus',
         /**
          * เงินที่ร้านรับจริงของ **บิลใบนี้** (2026-08-31) — เพิ่มเข้า allow-list โดยตั้งใจ
          * (user เคาะเอง · ทางเลือก ก)
@@ -394,5 +396,28 @@ describe('[blocker] เวลานัดบนจอ guest ต้องกั�
     )
     expect(out.serviceStartIso).toBe(START.toISOString())
     expect(out.serviceEndIso).toBeNull()
+  })
+})
+
+
+describe('[blocker] feature 00073 — หัวข้อสถานะงานบริการ (ก่อนล็อกอิน)', () => {
+  const START = new Date('2026-10-14T07:00:00.000Z')
+  it('ร้านบริการ: คำฝั่งลูกค้า · ร้านปิดงานแล้ว = "ร้านให้บริการแล้ว"', () => {
+    const out = buildGuestOrderData(
+      makeOrder({
+        status: 'PENDING',
+        shop: { ...(makeOrder() as unknown as { shop: object }).shop, vertical: 'SERVICE_QUEUE' },
+        serviceStart: START,
+        serviceEnd: START,
+        appointmentStatus: 'COMPLETED',
+        serviceClosedAt: START,
+      }),
+      1,
+    )
+    expect(out.serviceStatus?.label).toBe('ร้านให้บริการแล้ว')
+  })
+  it('ร้านขายของ: null (หัวข้อเดิม)', () => {
+    const out = buildGuestOrderData(makeOrder({ shop: { ...(makeOrder() as unknown as { shop: object }).shop, vertical: 'ONLINE_SALES' } }), 1)
+    expect(out.serviceStatus).toBeNull()
   })
 })

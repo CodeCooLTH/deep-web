@@ -21,6 +21,7 @@ describe('redactCommandCenterData', () => {
     salesSeries: { total: 1 },
     portfolio: { initial: {} },
     bestSellers: [{ id: 'a', name: 'x', price: 10, soldCount: 7 }],
+    headline: { kind: 'NET_PROFIT', today: 100, month: 900, note: null },
   }
   it('PER_ORDER/NONE: ไม่เหลือคีย์เงินสักตัว (absent ไม่ใช่ null/0)', () => {
     for (const lvl of ['PER_ORDER', 'NONE'] as const) {
@@ -28,6 +29,7 @@ describe('redactCommandCenterData', () => {
       expect('walletBalance' in r).toBe(false)
       expect('salesSeries' in r).toBe(false)
       expect('portfolio' in r).toBe(false)
+      expect('headline' in r).toBe(false) // ตัวเลขหลักบนการ์ด (00073 FR-010a) = เงินเต็ม เห็นเฉพาะ FULL
       expect(r.shopName).toBe('ร้าน')
       const b = (r.bestSellers as Record<string, unknown>[])[0]
       expect('soldCount' in b).toBe(false)

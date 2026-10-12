@@ -55,6 +55,8 @@ export type SellerMenuContext = {
   hidePaidFeatures: boolean
   /** มีหน้าซื้อในแอป (IAP) ไหม — iOS ใช่ · Android ไม่ใช่ (`shouldOfferIap()`) */
   offerIap: boolean
+  /** feature 00073 เฟส B — `Shop.reportSettings` ดิบ · ไม่ส่ง = ค่าตั้งต้น (เมนูเดิม) */
+  reportSettings?: unknown
 }
 
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
@@ -102,7 +104,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
         entitlement,
         staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
         ownsShop,
-        shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner },
+        shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner, reportSettings: ctx.reportSettings },
         hidePayments: ctx.hidePayments,
         hidePaidFeatures: ctx.hidePaidFeatures,
         offerIap: ctx.offerIap,

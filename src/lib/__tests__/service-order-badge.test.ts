@@ -103,11 +103,16 @@ describe('ต่อสายจริง — ป้ายต้องเปล�
      * แล้ว ⇒ ป้ายเดิมไม่ขยับแม้แต่ตัวอักษรเดียว · ถ้าจอไหนเรียก `resolveServiceOrderBadge()`
      * โดยไม่ผ่านตัวกั้นนี้ ร้านขายออนไลน์จะได้ป้าย "รอชำระ" ทันทีทั้งระบบ
      */
+    // 00073: หน้าร้านใช้ป้ายชุดเดียว (resolveServiceStatusBadge) ผ่าน `serviceJob` ซึ่งเป็น null เมื่อ serviceMoney เป็น null
+    // (serviceMoney กั้นด้วย vertical ที่จุดคำนวณ) ⇒ ร้านอื่นได้ serviceBadge = null = ป้ายเดิม
     const seller = read('src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx')
-    expect(seller).toMatch(/orderMoney\s*\n?\s*\?\s*resolveServiceOrderBadge\(/)
-    expect(seller).toMatch(/:\s*null\s*\n?\s*\}/)
+    expect(seller).toMatch(/if \(shop\.vertical !== 'SERVICE_QUEUE'\) return null/)
+    expect(seller).toMatch(/const serviceJob = serviceMoney\s*\n?\s*\?/)
+    expect(seller).toMatch(/serviceBadge=\{serviceJob\?\.badge \?\? null\}/)
 
     const buyer = readBuyerOrderSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    // 00073: ร้านบริการได้ป้ายชุดเดียวคำฝั่งลูกค้าจาก server (order.serviceStatus — null เมื่อไม่ใช่ร้านบริการ)
+    expect(buyer).toMatch(/order\.serviceStatus\s*\n?\s*\?\s*order\.serviceStatus/)
     expect(buyer).toMatch(/order\.money\s*\n?\s*\?\s*resolveServiceOrderBadge\(/)
     expect(buyer, 'ไม่ใช่ร้านบริการต้องตกไปใช้ป้ายเดิม').toMatch(
       /:\s*resolveOrderStatusBadge\(order\.status\)/,

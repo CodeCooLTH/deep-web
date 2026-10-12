@@ -40,7 +40,6 @@ import { getOrderForShop } from '@/services/order.service'
 import { getReceiptNoForOrder } from '@/services/receipt.service'
 import { getActiveReturnForTimeline } from '@/services/order-return.service'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
-import { resolveServiceOrderBadge } from '@/lib/order-display'
 import { getShipmentPanel } from '@/services/iship.service'
 import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
@@ -60,6 +59,8 @@ import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
 import AppointmentCard from './components/AppointmentCard'
+import ServiceJobCard from './components/ServiceJobCard'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { isAllDayAppointment } from '@/lib/appointments'
 import BillingDetails from './components/BillingDetails'
@@ -74,13 +75,14 @@ import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
 import OrderProfitCard from './components/OrderProfitCard'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
-import { countsAsRevenue } from '@/lib/order-revenue'
+import { countsAsRevenueFor, isServiceNoShow } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveReportSettings } from '@/lib/report-settings'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
-import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
+import { usesTypedBuyerName } from '@/lib/buyer-name'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
@@ -223,6 +225,26 @@ export default async function OrderDetailPage({ params }: PageProps) {
     }
   })()
 
+  /**
+   * feature 00073 — สถานะชุดเดียวของงานบริการ (service-status.ts) · ป้ายหัวหน้า + การ์ด "งานนี้"
+   * ยอดค้างใส่ในป้ายเฉพาะผู้ที่เห็นเงิน (O5) — ผู้อื่นได้ "ปิดงานแล้ว" เฉย ๆ · ร้านอื่น = null (ป้ายเดิม)
+   */
+  const serviceJob = serviceMoney
+    ? {
+        closedAtISO: order.serviceClosedAt ? new Date(order.serviceClosedAt).toISOString() : null,
+        badge: resolveServiceStatusBadge(
+          {
+            status: order.status,
+            appointmentStatus: order.appointmentStatus ?? null,
+            hasAppointment: Boolean(order.serviceStart),
+            serviceClosedAt: order.serviceClosedAt ?? null,
+            outstanding: can(viewerRoles, 'O5') ? serviceMoney.outstanding : null,
+          },
+          'seller',
+        ),
+      }
+    : null
+
   // ที่มาของออเดอร์ (หัวหน้า order detail — user 2026-08-06 + ต่อสาย shopChannel 2026-08-10):
   // รูป+badge ต้องมาจากแหล่งเดียวกันเสมอ (resolveOrderSource) ห้ามผสม pageLogoUrl จาก shopChannel
   // กับ badge จาก salesChannel ดิบ — ดูคอมเมนต์เต็มที่ไฟล์ lib/order-source-channel.ts
@@ -292,8 +314,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // อยู่ในหน้าเลยแม้แต่ใน view-source (FR-EXP-14-AC-04)
   // countsAsRevenue ต้องได้ shipments มาด้วย — getOrderForShop include ไว้แล้ว (select แคบ 3 field)
   // คืนบางส่วนที่รับของแล้วของใบนี้ — หักในกำไรรายใบด้วย ชุดเดียวกับทุกจอ (มติ 2026-10-01)
+  // feature 00073 — ร้านบริการ: งานที่ร้านปิดแล้ว (ไม่ต้องรอลูกค้ายืนยัน) · ไม่มาตามนัดไม่มีการ์ดกำไร
+  // (ไม่ได้ให้บริการ — ยอดเป็นแค่มัดจำที่เก็บ ไม่มีต้นทุนให้หัก) · ร้านอื่น countsAsRevenue เดิม
   const orderProfit =
-    canSeeProfit && countsAsRevenue(order)
+    canSeeProfit &&
+    countsAsRevenueFor(order, shop.vertical) &&
+    !(usesServiceFinanceRules(shop.vertical) && isServiceNoShow(order))
       ? computeOrderProfit(
           { totalAmount: order.totalAmount, items: order.items },
           // หักคืนบางส่วน — กติกาใหม่ ร้านบริการเท่านั้น · ร้านอื่นของเดิม (มติ user 2026-10-02 · finance-rules.ts)
@@ -447,21 +473,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
         vocab={vocab}
         /* ป้ายสถานะของร้านบริการ — derive จากเงินที่รับจริง (จอง/รอชำระ/ชำระเงินแล้ว)
            `orderMoney` เป็น null สำหรับ vertical อื่นเสมอ ⇒ ป้ายเดิมไม่ขยับ (AC-SQ-07) */
-        serviceBadge={
-          orderMoney
-            ? resolveServiceOrderBadge({
-                status: order.status,
-                money: orderMoney,
-                hasAppointment: Boolean(order.serviceStart),
-              })
-            : null
-        }
+        serviceBadge={serviceJob?.badge ?? null}
         vertical={resolveShopVertical(shop.vertical)}
         /* feature 00050 — ปุ่ม "รับเงินแล้ว" บนหน้านี้ (เดิมมีที่แชทที่เดียว)
            `serviceMoney` ไม่ผ่าน `hasMoneyStory()` โดยตั้งใจ — ดูคอมเมนต์ที่จุดคำนวณด้านบน */
         serviceMoney={serviceMoney}
         appointmentStatus={order.appointmentStatus ?? null}
         hasAppointment={Boolean(order.serviceStart)}
+        serviceClosed={Boolean(order.serviceClosedAt)}
         orderLabel={order.orderNo ?? order.publicToken.slice(0, 8).toUpperCase()}
         hasDeductedStock={hasDeductedStock}
         publicToken={order.publicToken}
@@ -527,6 +546,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
             salesChannel={order.salesChannel ?? null}
             profileKey={customerProfileKey}
             buyerNoun={vocab.buyerNoun}
+            repeatCountLabel={vocab.repeatCountLabel}
             buyer={{
               buyerContact,
               buyerDisplayName: order.buyer?.displayName ?? null,
@@ -540,10 +560,39 @@ export default async function OrderDetailPage({ params }: PageProps) {
           />
         }
         profitCard={
-          canSeeProfit ? <OrderProfitCard profit={orderProfit} orderNoun={vocab.noun} /> : null
+          // feature 00073 — ร้านบริการไม่มาตามนัด: ไม่มีกำไรให้คิด (ไม่ได้ให้บริการ) ⇒ ไม่มีการ์ดนี้
+          // feature 00073 เฟส B — เจ้าของปิด "กำไรขาดทุน" หรือ "ต้นทุนอะไหล่" ในตั้งค่ารายงาน ⇒ ไม่มีการ์ดกำไรรายใบ
+          // (การ์ดนี้ = ราคา − ต้นทุน ไม่มีต้นทุนก็ไม่มีความหมาย) · ร้านอื่นได้ค่าตั้งต้น = เหมือนเดิม
+          canSeeProfit &&
+          !(serviceJob && order.appointmentStatus === 'NO_SHOW') &&
+          (({ pnl, partCost }) => pnl && partCost)(resolveReportSettings(shop.reportSettings, shop.vertical))
+            ? <OrderProfitCard profit={orderProfit} orderNoun={vocab.noun} serviceRules={serviceJob != null} />
+            : null
         }
         sideCards={
           <>
+            {/* feature 00073 — การ์ด "งานนี้" (ปิดงาน/เปิดงานอีกครั้ง) ของร้านบริการทุกงาน รวม walk-in
+                วางบนสุด: เป็น action หลักของงานบริการ · ร้านอื่นไม่ render (serviceJob = null) */}
+            {serviceJob && (
+              <ServiceJobCard
+                publicToken={order.publicToken}
+                orderLabel={order.orderNo ?? order.publicToken.slice(0, 8).toUpperCase()}
+                status={order.status}
+                closedAtISO={serviceJob.closedAtISO}
+                badge={serviceJob.badge}
+                hasAppointment={Boolean(order.serviceStart)}
+                startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}
+                allDay={
+                  order.serviceStart && order.serviceEnd
+                    ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
+                    : false
+                }
+                {...(can(viewerRoles, 'O5') && serviceMoney ? { money: serviceMoney } : {})}
+                canClose={can(viewerRoles, 'O4')}
+                canManage={can(viewerRoles, 'O6')}
+                editHref={`/orders/${order.publicToken}/edit`}
+              />
+            )}
             {/* การนัดหมาย (feature 00036) — วางเป็นการ์ดแรกของคอลัมน์ข้าง เพราะสำหรับออเดอร์
                 งานบริการนี่คือสิ่งเดียวในคอลัมน์นี้ที่มี action ให้ทำ (ที่อยู่จัดส่ง/พัสดุจะ
                 return null เกือบทุกครั้ง) · เงื่อนไข render = มี serviceStart เท่านั้น ตรงกับ
@@ -551,8 +600,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 เพราะสองอย่างนั้นเปลี่ยนได้ภายหลังโดยที่ข้อมูลนัดยังอยู่ */}
             {order.serviceStart && (
               <AppointmentCard
-                canReschedule={can(viewerRoles, 'O3') && !editLocked}
-                canOutcome={can(viewerRoles, 'O4')}
+                canReschedule={can(viewerRoles, 'O3') && !editLocked && !order.serviceClosedAt}
                 canSendSummary={can(viewerRoles, 'H1')}
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
@@ -574,8 +622,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
                     appointmentStatus: order.appointmentStatus,
                   }) ?? 'SCHEDULED'
                 }
-                // ชื่อในกล่องยืนยัน — ร้านบริการใช้ชื่อที่ร้านกรอกก่อน · ร้านอื่นแบบเดิม (lib/buyer-name.ts)
-                buyerLabel={resolveOrderBuyerNameForShop(shop.vertical, { typedName: order.buyerName, accountName: order.buyer?.displayName }).name}
               />
             )}
             <ShippingAddressCard

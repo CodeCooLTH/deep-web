@@ -81,6 +81,8 @@ import { resolveThreadOrderFilter } from '@/lib/chat-thread-orders'
 import { resolveLibraryOwner } from '@/lib/customer-file-library'
 import { listSavedFileIds } from '@/services/customer-file-library.service'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { getServiceCustomerSpend } from '@/services/customer-directory.service'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -561,6 +563,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           serviceStart: true,
           serviceEnd: true,
           appointmentStatus: true,
+          // feature 00073 — ปิดงานแล้วหรือยัง (ปุ่ม "ปิดงาน" ในแชท + ป้ายสถานะ)
+          serviceClosedAt: true,
           depositAmount: true,
           /**
            * เงินที่ **ได้รับจริง** ของออเดอร์ใบนี้ (feature 00050) — `depositAmount` ข้างบนคือ
@@ -607,6 +611,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
     serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
     appointmentStatus: o.appointmentStatus,
+    serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
     depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
     payments: o.payments.map((p) => ({
       kind: p.kind,
@@ -654,24 +659,26 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       prisma.order.count({
         where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter, ...excludeDraftedWhere },
       }),
-      canSeeSpend
-        ? prisma.order.aggregate({
-            where: {
-              shopId: shop.id,
-              customerId: linkedCustomer.id,
-              ...orderTypeFilter,
-              ...withoutDrafted('CANCELLED'),
-            },
-            _sum: { totalAmount: true },
-          })
-        : Promise.resolve(null),
+      // feature 00073 — ร้านบริการ: ยอดซื้อรวม = ยอดสะสมสูตรเดียวกับหน้าลูกค้า (งานที่ร้านปิดแล้ว)
+      // เดิมรวมทุกบิลที่ไม่ยกเลิก ⇒ แชทกับหน้าลูกค้าคนเดียวกันขึ้นคนละตัวเลข · ร้านอื่น aggregate เดิม
+      canSeeSpend && usesServiceFinanceRules(shop.vertical)
+        ? getServiceCustomerSpend(shop.id, linkedCustomer.id, orderTypeFilter).then((n) => n.toFixed(2))
+        : canSeeSpend
+          ? prisma.order.aggregate({
+              where: {
+                shopId: shop.id,
+                customerId: linkedCustomer.id,
+                ...orderTypeFilter,
+                ...withoutDrafted('CANCELLED'),
+              },
+              _sum: { totalAmount: true },
+            }).then((agg) => (agg._sum.totalAmount ? agg._sum.totalAmount.toFixed(2) : '0.00'))
+          : Promise.resolve(null),
     ])
     customerStats = {
       orderCount,
       // ไม่มีสิทธิ์ = ไม่มีคีย์ (ไม่ใช่ '0.00')
-      ...(spentAgg
-        ? { totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00' }
-        : {}),
+      ...(spentAgg != null ? { totalSpent: spentAgg } : {}),
       since: linkedCustomer.createdAt.toISOString(),
     }
   }

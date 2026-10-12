@@ -41,7 +41,7 @@ export class OrderPaymentError extends Error {
  * ไม่ดึง `include: { payments: true }` ทั้งก้อนเพราะแถวเงินโตได้เรื่อย ๆ ตามอายุร้าน
  * และเราต้องการแค่ 3 คอลัมน์ต่อแถวเพื่อบวกเลข
  */
-const MONEY_SELECT = {
+export const MONEY_SELECT = {
   id: true,
   shopId: true,
   totalAmount: true,
@@ -63,7 +63,7 @@ interface MoneyRow {
 }
 
 /** แปลงแถวจาก Prisma (Decimal) เป็น input ของตัวคำนวณ (number) */
-function toMoney(row: MoneyRow): OrderMoney {
+export function toMoney(row: MoneyRow): OrderMoney {
   return computeOrderMoney({
     totalAmount: Number(row.totalAmount.toString()),
     depositAgreed: row.depositAmount === null ? null : Number(row.depositAmount.toString()),

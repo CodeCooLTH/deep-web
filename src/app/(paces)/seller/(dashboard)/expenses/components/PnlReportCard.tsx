@@ -23,14 +23,17 @@ import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expens
 import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
 import PacesStatCard from '../../_shared/PacesStatCard'
+import { profitExclusionNote, profitExclusions, profitShown, type ReportSettings } from '@/lib/report-settings'
 
 /**
  * "ยืนยันแล้ว" ไม่ใช่ "ยืนยันรับของแล้ว" (2026-08-07) — ร้านคิวงาน/บ้านพักไม่มีของให้รับ
  * คำนี้ถูกกับทุก vertical จึงไม่ต้องแตกประโยคเป็นชุด ๆ และไม่ต้องมีสาขาที่เทียบสตริง
  * (ตรรกะ `noun === 'ออเดอร์' ? A : B` จะเงียบเมื่อมีประเภทร้านที่สี่ — บทเรียน 00028)
  */
-const calcNote = (orderNoun: string, costNoun: string) =>
-  `คิดจาก${orderNoun}ที่ลูกค้ายืนยันแล้วเท่านั้น · ${netProfitFormula(costNoun)}`
+const calcNote = (orderNoun: string, costNoun: string, revenue?: { label: string; basis: string }) =>
+  revenue
+    ? `${revenue.basis} · ${netProfitFormula(costNoun, revenue.label)}`
+    : `คิดจาก${orderNoun}ที่ลูกค้ายืนยันแล้วเท่านั้น · ${netProfitFormula(costNoun)}`
 
 type Props = {
   report: PnlReport
@@ -59,6 +62,16 @@ type Props = {
    * default 'ต้นทุนสินค้า' = คำเดิม จึงไม่กระทบผู้เรียกที่ยังไม่ส่งค่านี้มา
    */
   costNoun?: string
+  /**
+   * feature 00073 — ป้าย/ฐานการนับยอดขายจาก ORDER_VOCAB (ร้านบริการ = "งานที่ปิดแล้ว")
+   * ไม่ส่ง = คำเดิมทุกตัวอักษร ("ยอดขายที่ยืนยันแล้ว" · "คิดจาก…ที่ลูกค้ายืนยันแล้วเท่านั้น")
+   */
+  revenue?: { label: string; basis: string; countMetric: string }
+  /**
+   * feature 00073 เฟส B — ตั้งค่ารายงานของร้านบริการ: ปิดต้นทุน/ค่าใช้จ่าย ⇒ ซ่อนการ์ดนั้น + กำไรไม่หักตัวนั้น
+   * (ป้ายบอกเสมอว่าไม่ได้หักอะไร — ตัวเลขนั้นไม่ใช่ "กำไรสุทธิ" ตามนิยามระบบแล้ว HR16) · ไม่ส่ง = เหมือนเดิม
+   */
+  settings?: ReportSettings
 }
 
 export default function PnlReportCard({
@@ -70,10 +83,20 @@ export default function PnlReportCard({
   capped = false,
   costNoun = 'ต้นทุนสินค้า',
   serviceRules = false,
+  revenue,
+  settings,
 }: Props) {
   /** ต้นทุนไม่ครบ → เตือนบนการ์ดกำไรขั้นต้น — กติกาใหม่ ร้านบริการเท่านั้น */
   const costWarn = serviceRules && report.hasMissingCost
-  const profit = profitDisplay(report.netProfit, { capped })
+  const partCostOn = settings?.partCost ?? true
+  const shopExpenseOn = settings?.shopExpense ?? true
+  const exclusions = settings ? profitExclusions(settings, costNoun) : []
+  /** กำไรที่แสดง — หักครบ = netProfit ของ pnl.service เป๊ะ (ไม่คำนวณซ้ำ) · หักไม่ครบ = ตามตั้งค่า */
+  const shownProfit =
+    exclusions.length === 0
+      ? report.netProfit
+      : profitShown(settings!, { revenue: report.revenue, cogs: report.cogs, expense: report.totalExpense })
+  const profit = profitDisplay(shownProfit, { capped })
   const topCategory = groupExpensesByCategory(expenses)[0]
   const pct = (v: number) => `${v.toFixed(1)}%`
 
@@ -99,11 +122,20 @@ export default function PnlReportCard({
               ? 'bg-success/15 text-success-ink'
               : 'bg-danger/15 text-danger-ink'
         }
-        title={`${profit.label} · ${rangeLabel}`}
-        note={calcNote(orderNoun, costNoun)}
+        title={
+          exclusions.length === 0
+            ? `${profit.label} · ${rangeLabel}`
+            : `${profit.positive ? 'กำไร' : 'ขาดทุน'}ก่อนหัก${exclusions.join('และ')} · ${rangeLabel}`
+        }
+        note={
+          exclusions.length === 0
+            ? calcNote(orderNoun, costNoun, revenue)
+            : `${profitExclusionNote(settings!, costNoun)} · ${revenue?.basis ?? ''}`
+        }
         text={profit.text}
         valueClass={profit.toneClass}
-        changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
+        // หักไม่ครบ = คนละฐานกับ prevNetProfit ⇒ ไม่เทียบ % (เทียบของคนละชนิด)
+        changePercent={exclusions.length === 0 ? pctChangeVsPrev(report.netProfit, report.prevNetProfit) : null}
         bulletClass={capped ? (profit.positive ? 'text-warning' : 'text-danger') : profit.positive ? 'text-success' : 'text-danger'}
         metric="อัตรากำไรสุทธิ"
         /* ข้อมูลไม่ครบ = อัตราเป็นตัวเลขไม่ได้ — ร้านที่ไม่เคยตั้งต้นทุนเคยเห็น "100%" (user ทัก 2026-10-01) */
@@ -111,7 +143,7 @@ export default function PnlReportCard({
           report.revenue <= 0
             ? 'ยังไม่มียอดขาย'
             : !capped
-              ? pct((report.netProfit / report.revenue) * 100)
+              ? pct((shownProfit / report.revenue) * 100)
               : // บอกว่าขาดอะไร = บอกทางแก้ (ต้นทุนมาก่อน เพราะกระทบทั้งกำไรขั้นต้นและสุทธิ)
                 report.hasMissingCost
                 ? 'ตั้งต้นทุนไม่ครบ'
@@ -121,14 +153,15 @@ export default function PnlReportCard({
       <PacesStatCard
         icon="cash"
         iconClass="bg-success/15 text-success-ink"
-        title="ยอดขายที่ยืนยันแล้ว"
+        title={revenue?.label ?? 'ยอดขายที่ยืนยันแล้ว'}
         text={formatBaht(report.revenue)}
         valueClass="text-success-ink"
         changePercent={pctChangeVsPrev(report.revenue, report.prevRevenue)}
         bulletClass="text-success"
-        metric={`จาก${orderNoun}สำเร็จ`}
+        metric={revenue?.countMetric ?? `จาก${orderNoun}สำเร็จ`}
         metricValue={`${report.orderCount.toLocaleString('th-TH')} ${orderNoun}`}
       />
+      {partCostOn && (<>
       <PacesStatCard
         icon="package"
         iconClass="bg-default-200 text-default-700"
@@ -161,6 +194,8 @@ export default function PnlReportCard({
               : pct((report.grossProfit / report.revenue) * 100)
         }
       />
+      </>)}
+      {shopExpenseOn && (
       <PacesStatCard
         icon="receipt"
         iconClass="bg-danger/15 text-danger-ink"
@@ -174,10 +209,11 @@ export default function PnlReportCard({
         metric="หมวดที่จ่ายมากสุด"
         metricValue={topCategory ? EXPENSE_CATEGORY_LABEL_TH[topCategory.category] : 'ยังไม่มีรายการ'}
       />
+      )}
 
       {/* ค่าส่งขาไปที่จ่ายขนส่งจริง (D-EXT-10) — อยู่ใน "ค่าใช้จ่าย" แล้ว แต่ไม่ใช่แถวที่ร้านบันทึกเอง
           ต้องบอกที่มา ไม่งั้นร้านบวกรายการในตารางแล้วไม่เท่าการ์ด · ราคาประมาณต้องบอกว่ายังไม่ครบ */}
-      {report.shippingCost > 0 && (
+      {shopExpenseOn && report.shippingCost > 0 && (
         <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
           <Icon icon="truck" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
           <span>
@@ -196,7 +232,7 @@ export default function PnlReportCard({
           รายการที่ /expenses แสดง (มันคิดสดจากใบคืน ไม่ใช่แถว Expense) ⇒ ถ้าไม่บอกตรงนี้
           ร้านจะบวกรายการในตารางแล้วได้ไม่เท่ากับการ์ด แล้วเลิกเชื่อทั้งหน้า
           ขึ้นเฉพาะเมื่อมีจริง — ค่าตั้งต้นของระบบคือเงียบ */}
-      {(report.returnShippingCost > 0 || report.returnShippingUnknownCount > 0) && (
+      {shopExpenseOn && (report.returnShippingCost > 0 || report.returnShippingUnknownCount > 0) && (
         <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
           <Icon icon="arrow-back-up" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
           <span>

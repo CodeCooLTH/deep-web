@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     listExpenses(shop.id, { range: range.expenseRange }),
     // feature 00067 — ตัวนับ "ยังไม่ได้ตั้งต้นทุน n จาก m รายการ" ของป้ายเตือนข้อมูลไม่ครบ
     // เพิ่มเป็นช่องใหม่ (additive) ผู้เรียกเดิมที่ไม่อ่านช่องนี้ไม่ได้รับผลกระทบ
-    getCostCoverage(shop.id, range),
+    getCostCoverage(shop.id, range, shop.vertical),
   ]);
 
   return NextResponse.json({ ...report, expenses: expenses.map(serializeExpense), coverage });

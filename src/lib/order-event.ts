@@ -8,7 +8,7 @@
 import { formatDateTimeTH } from './format-date'
 import type { OrderVocab } from './seller-menu'
 
-/** 17 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+/** ประเภทเหตุการณ์ทั้งหมด — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -43,6 +43,10 @@ export const ORDER_EVENT_TYPES = [
   'HANDOVER_REVERTED',
   'PAYMENT_CONFIRMED',
   'PAYMENT_CONFIRM_REVERTED',
+  // feature 00073 — ร้านบริการปิดงาน / เปิดงานอีกครั้ง (ขั้น 3 ของ flow 4 ขั้น)
+  // DB CHECK ขยายที่ migration 20261011120000_service_closed_at
+  'SERVICE_CLOSED',
+  'SERVICE_REOPENED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -100,6 +104,10 @@ export const ORDER_EVENT_META: Record<
   // (BRD §4.2/SRS TFR-007) — ห้าม mirror สีเขียวของ CodCard.tsx ที่จุดนี้
   PAYMENT_CONFIRMED: { label: 'ร้านยืนยันได้รับเงินแล้ว', icon: 'coin', tone: 'neutral' },
   PAYMENT_CONFIRM_REVERTED: { label: 'ยกเลิกการยืนยันรับเงิน', icon: 'coin', tone: 'neutral' },
+  // feature 00073 — neutral ไม่ใช่ success: ร้านปิดงานเป็นการรายงานของร้านเอง (นับเงินภายใน)
+  // เขียวสงวนให้ลูกค้ายืนยันรับบริการ (BUYER_CONFIRMED) ซึ่งเป็นหลักฐานบนโปรไฟล์สาธารณะ
+  SERVICE_CLOSED: { label: 'ร้านปิดงาน', icon: 'clipboard-check', tone: 'neutral' },
+  SERVICE_REOPENED: { label: 'เปิดงานอีกครั้ง', icon: 'clipboard-x', tone: 'neutral' },
 }
 
 /**
@@ -182,8 +190,11 @@ export type OrderEventMeta = {
   reason?: string
   /** feature 00039 — เวลาที่ขนส่งรายงานว่าส่งถึง (SYSTEM_CONFIRMED แบบ AUTO_CONFIRM_DELIVERED) */
   deliveredAt?: string | null
-  /** feature 00039 — ผลของการปิดข้อพิพาท (ORDER_DISPUTE_RESOLVED) */
+  /** feature 00039 — ผลของการปิดข้อพิพาท (ORDER_DISPUTE_RESOLVED)
+   *  feature 00073 — ผลของการปิดงาน (SERVICE_CLOSED): 'SERVED' | 'NO_SHOW' */
   outcome?: string
+  /** feature 00073 — มัดจำตอนปิดงานแบบไม่มาตามนัด (SERVICE_CLOSED): 'KEPT' | 'REFUNDED' */
+  deposit?: string
 }
 
 export type OrderEventView = {
@@ -241,6 +252,22 @@ export function describeOrderEvent(
         return e.meta.initiatorRole === 'buyer' ? `ยกเลิกโดย${service ? service.buyerNoun : 'ผู้ซื้อ'}` : 'ยกเลิกโดยร้าน'
       }
       return null
+    case 'SERVICE_CLOSED': {
+      // บอกผล + มัดจำ + ยอดที่รับตอนปิด — ร้านตรวจย้อนหลังได้ว่าปิดแบบไหน (ไม่ใช่แค่ "ปิดงาน" ลอย ๆ)
+      const parts: string[] = []
+      if (e.meta.outcome === 'NO_SHOW') {
+        parts.push('ไม่มาตามนัด')
+        if (e.meta.deposit === 'KEPT') parts.push('เก็บมัดจำ')
+        if (e.meta.deposit === 'REFUNDED') parts.push('คืนมัดจำ')
+      } else if (e.meta.outcome === 'SERVED') {
+        parts.push('ให้บริการแล้ว')
+      }
+      if (typeof e.meta.amount === 'number' && e.meta.amount > 0) {
+        parts.push(`รับเงิน ฿${e.meta.amount.toLocaleString('th-TH')}`)
+      }
+      if (e.meta.backfilled) parts.push('บันทึกย้อนหลัง')
+      return parts.length ? parts.join(' · ') : null
+    }
     default:
       return null
   }

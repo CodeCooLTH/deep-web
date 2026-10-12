@@ -6,7 +6,7 @@
  * หน้า /expenses ใช้อยู่ ห้ามเปลี่ยนรูป
  */
 import { prisma } from '@/lib/prisma'
-import { revenueOrderWhere } from '@/lib/order-revenue'
+import { soldItemsWindowWhere } from '@/lib/order-revenue'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
 export interface CostCoverage {
@@ -24,18 +24,19 @@ export interface CostCoverage {
  * `cost = null` เสมอตาม 00016 และไม่มีหน้าไหนให้ไปตั้งราคาทุน ถ้านับรวมจะได้ปุ่มที่กดแล้ว
  * เจอหน้าว่าง (ธง `hasMissingCost` ของ pnl.service ยังเป็น true อยู่ ป้ายเตือนจึงยังขึ้นถูก)
  *
- * ใช้ `revenueOrderWhere` ชุดเดียวกับ `pnl.service` — ตัวหารต้องเป็นแถวชุดเดียวกับที่ใช้คิดกำไร
+ * ใช้ชุดเดียวกับ `pnl.service` (`soldItemsWindowWhere` — ร้านบริการ = งานที่ปิดแล้ว · ร้านอื่น = `revenueOrderWhere`) — ตัวหารต้องเป็นแถวชุดเดียวกับที่ใช้คิดกำไร
  * ไม่งั้นจะบอกว่า "ยังไม่ได้ตั้ง 12 จาก 14" โดยที่ 14 นั้นมาจากออเดอร์คนละชุดกับตัวเลขกำไร
  */
-export async function getCostCoverage(shopId: string, range: ResolvedDateRange): Promise<CostCoverage> {
+export async function getCostCoverage(
+  shopId: string,
+  range: ResolvedDateRange,
+  /** ประเภทกิจการ — บังคับ: ร้านบริการนับงานที่ปิดแล้ว (ตามวันปิด · ไม่รวมไม่มาตามนัด) ตามชุดเดียวกับ pnl (00073) */
+  vertical: string | null | undefined,
+): Promise<CostCoverage> {
   const items = await prisma.orderItem.findMany({
     where: {
       productId: { not: null },
-      order: {
-        shopId,
-        ...revenueOrderWhere,
-        createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt },
-      },
+      order: { shopId, ...soldItemsWindowWhere(vertical, range.orderRange) },
     },
     select: { productId: true, cost: true },
   })

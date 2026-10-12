@@ -85,6 +85,9 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
               totalAmount: 100 + seq,
               status,
               createdAt: at(iso, h, m),
+              // feature 00073 — ร้านบริการนับยอดที่ "ร้านปิดงาน" ⇒ ฟิกซ์เจอร์ต้องมีวันปิดงาน (วันเดียวกับที่สร้าง
+              // = parity เดิมทุกช่อง) ไม่งั้นร้านบริการไม่มียอดเลยแล้ว parity เขียวแบบว่างเปล่า
+              ...(v === 'SERVICE_QUEUE' ? { serviceClosedAt: at(iso, h, m) } : {}),
               // ใบ CANCELLED ที่ "เปิดเมื่อวาน ยกเลิกวันนี้" — updatedAt วันนี้ ต้องไม่ถูกนับในวันนี้
               updatedAt: at(TODAY, 12, 0),
               items: { create: [{ name: `สินค้า ${seq}`, qty: 1 + (seq % 3), price: 100 + seq, cost: seq % 2 ? 40 : null }] },
@@ -205,7 +208,7 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
       const orderIds: string[] = []
       for (const [i, st] of (['CONFIRMED', 'RETURNED'] as const).entries()) {
         const o = await prisma.order.create({
-          data: { publicToken: `par-${run}-exp-${v}-${i}`, shopId: id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }, { name: 'b', qty: 1, price: 100, cost: null }] } },
+          data: { publicToken: `par-${run}-exp-${v}-${i}`, shopId: id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), ...(v === 'SERVICE_QUEUE' ? { serviceClosedAt: at('2026-09-02', 12, 0) } : {}), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }, { name: 'b', qty: 1, price: 100, cost: null }] } },
           select: { id: true, items: { select: { id: true } } },
         })
         ids.orders.push(o.id)
@@ -237,7 +240,7 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
       ids.shops.push(s.id)
       for (const [i, st] of (['CONFIRMED', 'RETURNED'] as const).entries()) {
         const o = await prisma.order.create({
-          data: { publicToken: `par-${run}-itm-${v}-${i}`, shopId: s.id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }] } },
+          data: { publicToken: `par-${run}-itm-${v}-${i}`, shopId: s.id, totalAmount: 300, status: st, createdAt: at('2026-09-02', 12, 0), ...(v === 'SERVICE_QUEUE' ? { serviceClosedAt: at('2026-09-02', 12, 0) } : {}), items: { create: [{ name: 'a', qty: 2, price: 100, cost: 40 }] } },
           select: { id: true, items: { select: { id: true } } },
         })
         ids.orders.push(o.id)

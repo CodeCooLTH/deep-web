@@ -134,6 +134,9 @@ const RecentOrder = ({
       header: t.dashboard.colStatus,
       cell: ({ row }) => {
         const s = row.original.status
+        // feature 00073 — ร้านบริการ: ป้ายชุดเดียวที่ server derive มาแล้ว (ไม่มีคำ "รอดำเนินการ"/"กำลังจัดส่ง")
+        const svc = row.original.serviceStatus
+        if (svc) return <span className={cn('badge', svc.cls)}>{svc.label}</span>
         return (
           <span
             className={cn('badge', {
