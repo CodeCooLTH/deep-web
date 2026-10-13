@@ -181,7 +181,8 @@ export default function QuickLineItem({
             โชว์ราคาต่อหน่วยเสมอ ไม่ใช่ยอดรวมบรรทัด — ยอดรวมไปรวมที่ด้านล่างทีเดียว
             (เดิมยอดรวมตัวหนา + "฿x/ชิ้น" ใต้มัน = เลขซ้ำกันตอนจำนวน 1 — user 2026-10-13) */}
         <div className="mt-2 flex items-end justify-between gap-2">
-          <div className="min-w-0">
+          {/* px-1.5 = เยื้องเท่าชื่อ/รายละเอียด/ต้นทุนด้านบน (พวกนั้นมี px-1.5 เผื่อพื้น hover) ให้ขอบซ้ายตรงกันทั้งคอลัมน์ */}
+          <div className="min-w-0 px-1.5">
             {/* แถวที่ยังไม่เลือกสินค้า: ราคา + stepper เป็นเทาเดียวกับ "เลือกสินค้า หรือพิมพ์ชื่อเอง"
                 ให้ดูออกทันทีว่าแถวนี้ยังว่าง (เดิมเข้มเท่าแถวที่กรอกแล้ว — user 2026-10-13) */}
             <div className={`text-base font-bold tabular-nums ${hasProduct ? 'text-dark' : 'text-default-400'}`}>

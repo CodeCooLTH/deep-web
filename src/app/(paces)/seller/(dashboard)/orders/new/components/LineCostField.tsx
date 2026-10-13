@@ -55,7 +55,6 @@ export default function LineCostField({ cost, price, onChange, knownMissing, nam
         onClick={() => setSheetOpen(true)}
         className="text-default-400 hover:text-primary -my-1 inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 py-1.5 text-left text-2xs"
       >
-        <Icon icon="calculator" className="size-3.5 shrink-0" aria-hidden="true" />
         {costNum == null ? (
           knownMissing ? 'ยังไม่ตั้งต้นทุน' : 'ตั้งต้นทุน'
         ) : (
