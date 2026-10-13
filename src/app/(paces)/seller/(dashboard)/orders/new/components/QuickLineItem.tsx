@@ -137,7 +137,7 @@ export default function QuickLineItem({
                 ในแถวเปล่าท้ายลิสต์ที่ยังไม่ได้เลือกสินค้า */}
             {showCost && hasProduct && (
               <div className="px-1.5">
-                <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} />
+                <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} name={item.name} />
               </div>
             )}
             {itemErrors?.name && <p className="mt-0.5 px-1.5 text-xs text-danger">{itemErrors.name.message}</p>}
@@ -181,8 +181,11 @@ export default function QuickLineItem({
             โชว์ราคาต่อหน่วยเสมอ ไม่ใช่ยอดรวมบรรทัด — ยอดรวมไปรวมที่ด้านล่างทีเดียว
             (เดิมยอดรวมตัวหนา + "฿x/ชิ้น" ใต้มัน = เลขซ้ำกันตอนจำนวน 1 — user 2026-10-13) */}
         <div className="mt-2 flex items-end justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-base font-bold text-dark tabular-nums">
+          {/* px-1.5 = เยื้องเท่าชื่อ/รายละเอียด/ต้นทุนด้านบน (พวกนั้นมี px-1.5 เผื่อพื้น hover) ให้ขอบซ้ายตรงกันทั้งคอลัมน์ */}
+          <div className="min-w-0 px-1.5">
+            {/* แถวที่ยังไม่เลือกสินค้า: ราคา + stepper เป็นเทาเดียวกับ "เลือกสินค้า หรือพิมพ์ชื่อเอง"
+                ให้ดูออกทันทีว่าแถวนี้ยังว่าง (เดิมเข้มเท่าแถวที่กรอกแล้ว — user 2026-10-13) */}
+            <div className={`text-base font-bold tabular-nums ${hasProduct ? 'text-dark' : 'text-default-400'}`}>
               {formatThb(price)}
               <span className="text-xs font-normal text-default-400">/{unitLabel}</span>
             </div>
@@ -193,8 +196,12 @@ export default function QuickLineItem({
             )}
           </div>
           {/* stepper qty ±1 */}
-          <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-default-300">
-            <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
+          <div
+            className={`flex shrink-0 items-center overflow-hidden rounded-lg border ${
+              hasProduct ? 'border-default-300' : 'border-default-200 bg-default-50'
+            }`}
+          >
+            <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className={`inline-flex size-11 items-center justify-center lg:size-9 ${hasProduct ? 'text-primary' : 'text-default-400'}`}>
               <Icon icon="minus" className="size-4" />
             </button>
             {/* type="text" + กรองเลขเอง ไม่ใช่ type="number": Chrome เดสก์ท็อปวาดลูกศรขึ้น/ลงในช่อง
@@ -204,7 +211,9 @@ export default function QuickLineItem({
               type="text"
               inputMode="numeric"
               aria-label={item.name ? `จำนวน ${item.name}` : 'จำนวน'}
-              className="h-11 w-12 border-x border-default-200 px-0 py-1.5 text-center text-sm font-bold tabular-nums lg:h-9"
+              className={`h-11 w-12 border-x border-default-200 px-0 py-1.5 text-center text-sm font-bold tabular-nums lg:h-9 ${
+                hasProduct ? '' : 'bg-default-50 text-default-400'
+              }`}
               value={qtyField.value ?? 1}
               onChange={(e) => qtyField.onChange(parseIntInput(e.target.value))}
               onFocus={(e) => e.currentTarget.select()}
@@ -215,7 +224,7 @@ export default function QuickLineItem({
                 qtyField.onBlur()
               }}
             />
-            <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
+            <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className={`inline-flex size-11 items-center justify-center lg:size-9 ${hasProduct ? 'text-primary' : 'text-default-400'}`}>
               <Icon icon="plus" className="size-4" />
             </button>
           </div>
