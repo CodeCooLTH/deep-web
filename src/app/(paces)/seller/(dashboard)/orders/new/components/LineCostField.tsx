@@ -25,13 +25,15 @@ import { useController } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import { productMargin } from '@/lib/order-profit'
+import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
 
 type Props = {
-  /** ต้นทุนของบรรทัดนี้ — null = ยังไม่กรอก (ต่างจาก 0 ที่แปลว่าไม่มีต้นทุนจริง) */
-  cost: number | null
+  /** ต้นทุนของบรรทัดนี้ — null = ยังไม่กรอก (ต่างจาก 0 ที่แปลว่าไม่มีต้นทุนจริง)
+   *  string = ทศนิยมที่ยังพิมพ์ไม่จบ ("12.") ค้างระหว่างพิมพ์ แปลงกลับเป็น number ตอน blur */
+  cost: number | string | null
   /** ราคาขายของบรรทัดนี้ — ใช้คำนวณ % กำไร */
   price: number
-  onChange: (v: number | null) => void
+  onChange: (v: number | string | null) => void
   /** true = สินค้าจากแคตตาล็อกที่รู้แน่ว่ายังไม่เคยตั้งต้นทุน (คำต่างจากรายการพิมพ์เอง) */
   knownMissing?: boolean
 }
@@ -66,7 +68,9 @@ export default function LineCostField({ cost, price, onChange, knownMissing }: P
         <input
           type="text"
           inputMode="decimal"
-          autoFocus
+          // โฟกัสเฉพาะตอนผู้ใช้กด "ตั้งต้นทุน" เอง (ช่องว่าง) — ช่องที่กางเพราะสินค้ามีต้นทุนติดมา
+          // ห้ามแย่งโฟกัส ไม่งั้นเลือกสินค้าทีไรเคอร์เซอร์กระโดดมาช่องต้นทุนทุกรอบ (user report 2026-10-13)
+          autoFocus={cost == null}
           className="form-input text-2xs py-1"
           placeholder="0.00"
           aria-label="ราคาทุนต่อชิ้น"
@@ -74,12 +78,14 @@ export default function LineCostField({ cost, price, onChange, knownMissing }: P
           onChange={(e) => {
             // sanitize ที่ input แทน validation error — ค่าติดลบพิมพ์ไม่ได้ตั้งแต่แรก
             // จึงไม่ต้องมี error state ที่จะไปบล็อกการบันทึก (D-EXT-4)
-            const raw = e.target.value.replace(/[^\d.]/g, '')
-            onChange(raw === '' ? null : Number(raw))
+            // parseDecimalInput: เดิม Number() ทุกตัวอักษร → พิมพ์ "12." แล้วจุดหาย พิมพ์ทศนิยมไม่ได้
+            const v = parseDecimalInput(e.target.value)
+            onChange(v === '' ? null : v)
           }}
           onBlur={() => {
             // ล้างจนว่างแล้วออก → ยุบกลับ ไม่ทิ้งช่องเปล่าค้างจอ
             if (cost == null) setOpen(false)
+            else onChange(finishDecimalInput(cost))
           }}
         />
       </div>
@@ -129,7 +135,7 @@ export function LineCostSlot({
   const { field } = useController({ control, name: `items.${index}.cost`, defaultValue: null })
   return (
     <LineCostField
-      cost={(field.value as number | null) ?? null}
+      cost={(field.value as number | string | null) ?? null}
       price={price}
       onChange={field.onChange}
       knownMissing={Boolean(catalogProduct && catalogProduct.cost == null)}

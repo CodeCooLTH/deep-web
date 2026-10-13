@@ -13,6 +13,7 @@ import Icon from '@/components/wrappers/Icon'
 import ProductThumb from './ProductThumb'
 import ProductCombobox from './ProductCombobox'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
+import { finishDecimalInput, parseDecimalInput, parseIntInput } from '@/lib/numeric-input'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -87,30 +88,35 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
           w-14/shrink-0 ย้ายมาอยู่ที่ wrapper (div ธรรมดา ไม่ชนกับ unlayered rule) แทน — ห้ามย้ายกลับไปที่ input ตรง ๆ */}
       <div className="input-group w-14 shrink-0">
         <input
-          type="number"
+          type="text" /* ไม่ใช่ number: ลูกศรขึ้น/ลงของ Chrome กินช่องแคบจนเลขหาย — src/lib/numeric-input.ts */
           inputMode="numeric"
-          min={1}
-          step={1}
           aria-label="จำนวน"
           className="form-input px-1 py-1.5 text-center text-sm"
           value={qtyField.value ?? 1}
-          onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-          onBlur={qtyField.onBlur}
+          onChange={(e) => qtyField.onChange(parseIntInput(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={() => {
+            // ว่าง/0 → 1 (เหตุผลเดียวกับ QuickLineItem)
+            if (!(Number(qtyField.value) >= 1)) qtyField.onChange(1)
+            qtyField.onBlur()
+          }}
         />
       </div>
       {/* ราคาต่อหน่วย */}
       <div className="input-group w-24 shrink-0">
         <span className="input-group-text px-2">฿</span>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          min={0}
-          step={0.01}
           aria-label="ราคาต่อหน่วย"
           className="form-input px-1.5 py-1.5 text-sm"
           value={priceField.value ?? 0}
-          onChange={(e) => priceField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-          onBlur={priceField.onBlur}
+          onChange={(e) => priceField.onChange(parseDecimalInput(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={() => {
+            priceField.onChange(finishDecimalInput(priceField.value))
+            priceField.onBlur()
+          }}
         />
       </div>
       {/* รวม */}

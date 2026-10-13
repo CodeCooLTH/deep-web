@@ -531,7 +531,7 @@ export default function OrderCreateForm({
 
   const inc = (product: CatalogProduct) => {
     const idx = watchedItems.findIndex((i) => i.productId === product.id)
-    if (idx >= 0) update(idx, { ...watchedItems[idx], qty: watchedItems[idx].qty + 1 })
+    if (idx >= 0) update(idx, { ...watchedItems[idx], qty: (Number(watchedItems[idx].qty) || 0) + 1 }) // Number(): ช่องจำนวนว่างเก็บเป็น '' → '' + 1 = "1" แล้วกลายเป็น "11"
     else
       append({
         productId: product.id,
