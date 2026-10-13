@@ -550,6 +550,19 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     customerId: linkedCustomer?.id ?? null,
     conversationId: conversation.id,
   })
+  // เลขบนแท็บคำสั่งซื้อ — where เดียวกับรายการ (take 20) แต่ count ทั้งหมด · เดิมแท็บนับจาก
+  // customerStats (เฉพาะ customerId) ⇒ ใบที่เข้ามาทาง conversationId แต่ผูกลูกค้าคนอื่น/ไม่ผูก
+  // ทำให้แท็บบอก 1 แต่ข้างในมี 2 (user report prod 2026-10-13)
+  const threadOrderCountPromise = threadOrderFilter
+    ? prisma.order.count({
+        where: {
+          shopId: shop.id,
+          ...threadOrderFilter,
+          ...(vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}),
+          ...excludeDraftedWhere,
+        },
+      })
+    : Promise.resolve(0)
   // ยิงคู่กับ count/aggregate ของ customerStats ข้างล่าง (await หลังก้อนนั้น) — ขึ้นกับ linkedCustomer เหมือนกัน
   const orderRowsPromise = threadOrderFilter
     ? prisma.order.findMany({
@@ -738,6 +751,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
     adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,
     orders: panelOrders,
+    threadOrderCount: await threadOrderCountPromise,
   }
 
   /**
