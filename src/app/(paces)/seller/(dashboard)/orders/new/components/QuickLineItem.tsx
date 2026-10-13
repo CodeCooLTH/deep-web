@@ -177,13 +177,18 @@ export default function QuickLineItem({
           </button>
         </div>
 
-        {/* bottom: ยอดรวม + แก้ราคา (ซ้าย) · stepper (ขวา) */}
+        {/* bottom: ราคาต่อหน่วย + แก้ราคา (ซ้าย) · stepper (ขวา)
+            โชว์ราคาต่อหน่วยเสมอ ไม่ใช่ยอดรวมบรรทัด — ยอดรวมไปรวมที่ด้านล่างทีเดียว
+            (เดิมยอดรวมตัวหนา + "฿x/ชิ้น" ใต้มัน = เลขซ้ำกันตอนจำนวน 1 — user 2026-10-13) */}
         <div className="mt-2 flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-base font-bold text-dark tabular-nums">{formatThb(qty * price)}</div>
+            <div className="text-base font-bold text-dark tabular-nums">
+              {formatThb(price)}
+              <span className="text-xs font-normal text-default-400">/{unitLabel}</span>
+            </div>
             {hasProduct && (
-              <button type="button" onClick={() => setPriceOpen(true)} className="mt-0.5 text-2xs text-default-400">
-                {formatThb(price)}/{unitLabel} · <span className="font-semibold text-primary">แก้ราคา</span>
+              <button type="button" onClick={() => setPriceOpen(true)} className="mt-0.5 text-2xs font-semibold text-primary">
+                แก้ราคา
               </button>
             )}
           </div>
@@ -199,10 +204,16 @@ export default function QuickLineItem({
               type="text"
               inputMode="numeric"
               aria-label={item.name ? `จำนวน ${item.name}` : 'จำนวน'}
-              className="w-12 border-x border-default-200 px-0 py-1.5 text-center text-sm font-bold tabular-nums"
+              className="h-11 w-12 border-x border-default-200 px-0 py-1.5 text-center text-sm font-bold tabular-nums lg:h-9"
               value={qtyField.value ?? 1}
               onChange={(e) => qtyField.onChange(parseIntInput(e.target.value))}
-              onBlur={qtyField.onBlur}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={() => {
+                // ล้างว่าง/พิมพ์ 0 แล้วออก → กลับเป็น 1 (ปุ่ม − ก็หยุดที่ 1) — ไม่งั้นยอดเป็น ฿0
+                // แล้วไปตก Yup ตอนบันทึกโดยแถวนี้ไม่มีที่โชว์ error ของจำนวน
+                if (!(Number(qtyField.value) >= 1)) qtyField.onChange(1)
+                qtyField.onBlur()
+              }}
             />
             <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
               <Icon icon="plus" className="size-4" />

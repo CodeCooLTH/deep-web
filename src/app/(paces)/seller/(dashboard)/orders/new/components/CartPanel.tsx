@@ -609,6 +609,7 @@ export default function CartPanel({
               type="text" /* ไม่ใช่ number — src/lib/numeric-input.ts */
               inputMode="decimal"
               placeholder="0.00"
+              aria-label="ส่วนลด (บาท)"
               className="form-input text-sm"
               value={discountField.value ?? ''}
               onChange={(e) => discountField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}
@@ -626,6 +627,7 @@ export default function CartPanel({
               type="text"
               inputMode="decimal"
               placeholder="0"
+              aria-label="VAT (เปอร์เซ็นต์)"
               className="form-input text-sm"
               value={vatField.value ?? ''}
               onChange={(e) => vatField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}

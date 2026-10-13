@@ -94,7 +94,12 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
           className="form-input px-1 py-1.5 text-center text-sm"
           value={qtyField.value ?? 1}
           onChange={(e) => qtyField.onChange(parseIntInput(e.target.value))}
-          onBlur={qtyField.onBlur}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={() => {
+            // ว่าง/0 → 1 (เหตุผลเดียวกับ QuickLineItem)
+            if (!(Number(qtyField.value) >= 1)) qtyField.onChange(1)
+            qtyField.onBlur()
+          }}
         />
       </div>
       {/* ราคาต่อหน่วย */}
@@ -107,6 +112,7 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
           className="form-input px-1.5 py-1.5 text-sm"
           value={priceField.value ?? 0}
           onChange={(e) => priceField.onChange(parseDecimalInput(e.target.value))}
+          onFocus={(e) => e.currentTarget.select()}
           onBlur={() => {
             priceField.onChange(finishDecimalInput(priceField.value))
             priceField.onBlur()

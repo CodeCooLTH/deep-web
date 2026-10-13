@@ -6,9 +6,12 @@
  * ที่โฟกัสอยู่แล้วค่าเปลี่ยนเงียบ ๆ · ใช้คู่กับ inputMode="numeric" / "decimal" ให้มือถือเด้งแป้นตัวเลข
  */
 
-/** จำนวนเต็มบวก: เก็บเฉพาะเลข · ว่าง → '' */
+/** เลขไทย ๐-๙ → 0-9 (คีย์บอร์ดไทยบางแบบ/วางจากแชท) */
+const toArabicDigits = (s: string) => s.replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50))
+
+/** จำนวนเต็มบวก: เก็บเฉพาะเลข · ตัดตั้งแต่จุดทศนิยม (วาง "12.5" → 12 ไม่ใช่ 125) · ว่าง → '' */
 export function parseIntInput(raw: string): number | '' {
-  const digits = raw.replace(/\D/g, '')
+  const digits = toArabicDigits(raw).split('.')[0].replace(/\D/g, '')
   return digits === '' ? '' : Number(digits)
 }
 
@@ -19,7 +22,7 @@ export function parseIntInput(raw: string): number | '' {
  * จะหายจากช่องระหว่างพิมพ์ จนพิมพ์ทศนิยมไม่ได้เลย · ให้ caller แปลงกลับด้วย `finishDecimalInput` ตอน blur
  */
 export function parseDecimalInput(raw: string, maxDecimals = 2): number | string | '' {
-  const cleaned = raw.replace(/[^\d.]/g, '')
+  const cleaned = toArabicDigits(raw).replace(/[^\d.]/g, '')
   const dot = cleaned.indexOf('.')
   let s =
     dot === -1

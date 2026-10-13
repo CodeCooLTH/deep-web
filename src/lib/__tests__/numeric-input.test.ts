@@ -5,7 +5,11 @@ describe('parseIntInput', () => {
   it('เก็บเฉพาะเลข', () => {
     expect(parseIntInput('12')).toBe(12)
     expect(parseIntInput('1a2-')).toBe(12)
-    expect(parseIntInput('1.5')).toBe(15)
+  })
+  it('ตัดที่จุดทศนิยม · แปลงเลขไทย', () => {
+    expect(parseIntInput('12.5')).toBe(12)
+    expect(parseIntInput('๑๒')).toBe(12)
+    expect(parseDecimalInput('๙๙.๕')).toBe(99.5)
   })
   it('ว่าง → ""', () => {
     expect(parseIntInput('')).toBe('')
