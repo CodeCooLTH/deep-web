@@ -167,6 +167,9 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent?: string; since: string } | null
+  /** จำนวนใบในแท็บคำสั่งซื้อ (count จริง เกณฑ์เดียวกับ `orders`) — เลขบนแท็บ; ต่างจาก customerStats.orderCount
+   *  ที่นับเฉพาะลูกค้าที่ผูก (แถว "เคยสั่ง" ในแท็บข้อมูล) */
+  threadOrderCount: number
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -980,9 +983,10 @@ export function CustomerPanelBody({
             {/* truncate = ตาข่ายกันเหนียวสำหรับคำยาว (เช่น "การเข้ารับบริการ") — ชื่อเต็มอยู่ใน title */}
             <span className="truncate">{tabDef.label}</span>
             {/* จำนวนออเดอร์บนแท็บ — เดิมต้องคลิกเข้าไปถึงจะรู้ว่ามี 0 (critique P1-C)
-                ใช้ customerStats (aggregate จริง) แทน summary.count (cap 20) ให้ตรงกับแถวสถิติในแท็บ */}
-            {tabDef.key === 'orders' && (data.customerStats?.orderCount ?? 0) > 0 && (
-              <span className="badge bg-default-100 text-default-700 text-2xs">{data.customerStats!.orderCount}</span>
+                นับด้วยเกณฑ์เดียวกับรายการในแท็บ (customerId OR conversationId) แบบ count จริง ไม่ใช่ 20 ใบที่โหลด
+                — เดิมใช้ customerStats ซึ่งนับเฉพาะ customerId ⇒ แท็บบอก 1 ข้างในมี 2 (user report 2026-10-13) */}
+            {tabDef.key === 'orders' && data.threadOrderCount > 0 && (
+              <span className="badge bg-default-100 text-default-700 text-2xs">{data.threadOrderCount}</span>
             )}
             {/* ตัวเลขค้าง — แดงเมื่อมีเลยกำหนด (แทน "กางเองเมื่อเลยกำหนด" ของแถวพับเดิม) */}
             {tabDef.key === 'followup' && followUpCounts.open > 0 && (
