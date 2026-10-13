@@ -35,6 +35,7 @@ import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
 import { DEFAULT_ORDER_FORM_WORDS, type OrderFormWords } from './order-form-words'
+import { emptyToUndefined, finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -605,15 +606,16 @@ export default function CartPanel({
           <div className="input-group w-28">
             <span className="input-group-text">฿</span>
             <input
-              type="number"
+              type="text" /* ไม่ใช่ number — src/lib/numeric-input.ts */
               inputMode="decimal"
-              min={0}
-              step={0.01}
               placeholder="0.00"
               className="form-input text-sm"
               value={discountField.value ?? ''}
-              onChange={(e) => discountField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-              onBlur={discountField.onBlur}
+              onChange={(e) => discountField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}
+              onBlur={() => {
+                discountField.onChange(finishDecimalInput(discountField.value))
+                discountField.onBlur()
+              }}
             />
           </div>
         </div>
@@ -621,16 +623,16 @@ export default function CartPanel({
           <span className="text-default-600">VAT (%)</span>
           <div className="input-group w-28">
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              max={100}
-              step={0.01}
               placeholder="0"
               className="form-input text-sm"
               value={vatField.value ?? ''}
-              onChange={(e) => vatField.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-              onBlur={vatField.onBlur}
+              onChange={(e) => vatField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}
+              onBlur={() => {
+                vatField.onChange(finishDecimalInput(vatField.value))
+                vatField.onBlur()
+              }}
             />
             <span className="input-group-text">%</span>
           </div>

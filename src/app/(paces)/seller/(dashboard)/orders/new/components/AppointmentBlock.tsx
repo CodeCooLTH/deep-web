@@ -28,6 +28,7 @@ import { formatDateTH } from '@/lib/format-date'
 import AppointmentDateSheet from './AppointmentDateSheet'
 import type { FormValues } from './OrderCreateForm'
 import { combineDateTime, type AppointmentGranularity } from '@/lib/appointments'
+import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
 
 export type ServiceResourceOption = {
   id: string
@@ -457,12 +458,16 @@ export default function AppointmentBlock({
                   render={({ field }) => (
                     <input
                       id={`${idPrefix}-appt-deposit`}
-                      type="number"
+                      type="text" /* ไม่ใช่ number — src/lib/numeric-input.ts */
                       inputMode="decimal"
-                      min={0}
                       className="form-input"
                       {...field}
                       value={field.value ?? 0}
+                      onChange={(e) => field.onChange(parseDecimalInput(e.target.value))}
+                      onBlur={() => {
+                        field.onChange(finishDecimalInput(field.value))
+                        field.onBlur()
+                      }}
                     />
                   )}
                 />

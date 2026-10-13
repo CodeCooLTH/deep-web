@@ -9,6 +9,7 @@
 import { useController } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import type { FormValues } from './OrderCreateForm'
+import { emptyToUndefined, finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
 
 interface Props {
   control: Control<FormValues>
@@ -19,9 +20,10 @@ export default function MoreOptions({ control }: Props) {
   const { field: vatRate } = useController({ control, name: 'vatRate' })
   const { field: note } = useController({ control, name: 'internalNote', defaultValue: '' })
 
+  // type="text" ไม่ใช่ number — src/lib/numeric-input.ts
   const numChange =
-    (onChange: (v: number | undefined) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      onChange(e.target.value === '' ? undefined : Number(e.target.value))
+    (onChange: (v: number | string | undefined) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange(emptyToUndefined(parseDecimalInput(e.target.value)))
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -29,29 +31,32 @@ export default function MoreOptions({ control }: Props) {
         <label htmlFor="mo-discount" className="form-label">ส่วนลด (บาท)</label>
         <input
           id="mo-discount"
-          type="number"
+          type="text"
           inputMode="decimal"
-          min={0}
           placeholder="0"
           className="form-input"
           value={discount.value ?? ''}
           onChange={numChange(discount.onChange)}
-          onBlur={discount.onBlur}
+          onBlur={() => {
+            discount.onChange(finishDecimalInput(discount.value))
+            discount.onBlur()
+          }}
         />
       </div>
       <div>
         <label htmlFor="mo-vat" className="form-label">VAT (%)</label>
         <input
           id="mo-vat"
-          type="number"
+          type="text"
           inputMode="decimal"
-          min={0}
-          max={100}
           placeholder="0"
           className="form-input"
           value={vatRate.value ?? ''}
           onChange={numChange(vatRate.onChange)}
-          onBlur={vatRate.onBlur}
+          onBlur={() => {
+            vatRate.onChange(finishDecimalInput(vatRate.value))
+            vatRate.onBlur()
+          }}
         />
       </div>
       <div className="sm:col-span-2">

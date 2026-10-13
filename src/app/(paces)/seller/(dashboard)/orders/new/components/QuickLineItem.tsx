@@ -16,6 +16,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import ProductThumb from './ProductThumb'
 import QuickPriceSheet from './QuickPriceSheet'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
+import { parseIntInput } from '@/lib/numeric-input'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -191,14 +192,16 @@ export default function QuickLineItem({
             <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">
               <Icon icon="minus" className="size-4" />
             </button>
+            {/* type="text" + กรองเลขเอง ไม่ใช่ type="number": Chrome เดสก์ท็อปวาดลูกศรขึ้น/ลงในช่อง
+                กินพื้นที่จนเลขจำนวนโดนตัดมองไม่เห็น (มือถือไม่มีลูกศรจึงไม่เจอ — user report 2026-10-13)
+                px-0: padding 12px สองข้างจาก global input style เหลือที่ให้เลขแค่ ~14px */}
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={1}
               aria-label={item.name ? `จำนวน ${item.name}` : 'จำนวน'}
-              className="w-10 border-x border-default-200 py-1.5 text-center text-sm font-bold"
+              className="w-12 border-x border-default-200 px-0 py-1.5 text-center text-sm font-bold tabular-nums"
               value={qtyField.value ?? 1}
-              onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(e) => qtyField.onChange(parseIntInput(e.target.value))}
               onBlur={qtyField.onBlur}
             />
             <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-11 items-center lg:size-9 justify-center text-primary">

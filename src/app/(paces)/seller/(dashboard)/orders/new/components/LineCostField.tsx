@@ -66,7 +66,9 @@ export default function LineCostField({ cost, price, onChange, knownMissing }: P
         <input
           type="text"
           inputMode="decimal"
-          autoFocus
+          // โฟกัสเฉพาะตอนผู้ใช้กด "ตั้งต้นทุน" เอง (ช่องว่าง) — ช่องที่กางเพราะสินค้ามีต้นทุนติดมา
+          // ห้ามแย่งโฟกัส ไม่งั้นเลือกสินค้าทีไรเคอร์เซอร์กระโดดมาช่องต้นทุนทุกรอบ (user report 2026-10-13)
+          autoFocus={cost == null}
           className="form-input text-2xs py-1"
           placeholder="0.00"
           aria-label="ราคาทุนต่อชิ้น"
