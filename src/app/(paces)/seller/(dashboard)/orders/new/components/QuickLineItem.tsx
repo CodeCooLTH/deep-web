@@ -137,7 +137,7 @@ export default function QuickLineItem({
                 ในแถวเปล่าท้ายลิสต์ที่ยังไม่ได้เลือกสินค้า */}
             {showCost && hasProduct && (
               <div className="px-1.5">
-                <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} />
+                <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} name={item.name} />
               </div>
             )}
             {itemErrors?.name && <p className="mt-0.5 px-1.5 text-xs text-danger">{itemErrors.name.message}</p>}

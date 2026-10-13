@@ -25,7 +25,7 @@ import { useController } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import { productMargin } from '@/lib/order-profit'
-import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
+import QuickPriceSheet from './QuickPriceSheet'
 
 type Props = {
   /** ต้นทุนของบรรทัดนี้ — null = ยังไม่กรอก (ต่างจาก 0 ที่แปลว่าไม่มีต้นทุนจริง)
@@ -36,67 +36,66 @@ type Props = {
   onChange: (v: number | string | null) => void
   /** true = สินค้าจากแคตตาล็อกที่รู้แน่ว่ายังไม่เคยตั้งต้นทุน (คำต่างจากรายการพิมพ์เอง) */
   knownMissing?: boolean
+  /** ชื่อสินค้า — แสดงใต้หัวชีตแก้ต้นทุน */
+  name?: string
 }
 
-export default function LineCostField({ cost, price, onChange, knownMissing }: Props) {
-  // เริ่มกางถ้ามีค่าอยู่แล้ว (prefill จากสินค้า/จากออเดอร์เดิม) — ไม่งั้นเริ่มยุบ
-  const [open, setOpen] = useState(cost != null)
-
-  const margin = productMargin({ price, cost })
-  const isLoss = margin !== null && margin < 0
-
-  if (!open) {
-    return (
-      // py-1.5 -my-1 = ขยายพื้นที่กดให้ผ่านเกณฑ์สัมผัสโดยไม่ดันความสูงของแถว
-      // (ตัวอักษร 11px เล็กเกินกว่าจะใช้ขนาดตัวเองเป็น hit-area)
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-default-400 hover:text-primary -my-1 inline-flex items-center gap-1 py-1.5 text-2xs"
-      >
-        <Icon icon="calculator" className="size-3.5 shrink-0" aria-hidden="true" />
-        {knownMissing ? 'ยังไม่ตั้งต้นทุน' : 'ตั้งต้นทุน'}
-      </button>
-    )
-  }
+export default function LineCostField({ cost, price, onChange, knownMissing, name }: Props) {
+  // ต้นทุนไม่ใช่ช่องกรอกในบรรทัดแล้ว — แสดงเป็นข้อความ แตะเองถึงเปิดชีตแก้ (user 2026-10-13)
+  // เดิมสินค้าที่มีต้นทุนติดมาทำให้ช่อง input กางเองทุกครั้งที่เลือกสินค้า: แย่งโฟกัส + ดันแถวสูงขึ้น
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const costNum = cost == null ? null : Number(cost)
 
   return (
-    // flex-wrap: ที่ 1024px คอลัมน์นี้ถูกบีบแคบมาก ปล่อยให้ badge ตกบรรทัดได้ดีกว่าตัดคำ
-    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-      <div className="input-group w-28">
-        <span className="input-group-text text-2xs">฿</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          // โฟกัสเฉพาะตอนผู้ใช้กด "ตั้งต้นทุน" เอง (ช่องว่าง) — ช่องที่กางเพราะสินค้ามีต้นทุนติดมา
-          // ห้ามแย่งโฟกัส ไม่งั้นเลือกสินค้าทีไรเคอร์เซอร์กระโดดมาช่องต้นทุนทุกรอบ (user report 2026-10-13)
-          autoFocus={cost == null}
-          className="form-input text-2xs py-1"
-          placeholder="0.00"
-          aria-label="ราคาทุนต่อชิ้น"
-          value={cost ?? ''}
-          onChange={(e) => {
-            // sanitize ที่ input แทน validation error — ค่าติดลบพิมพ์ไม่ได้ตั้งแต่แรก
-            // จึงไม่ต้องมี error state ที่จะไปบล็อกการบันทึก (D-EXT-4)
-            // parseDecimalInput: เดิม Number() ทุกตัวอักษร → พิมพ์ "12." แล้วจุดหาย พิมพ์ทศนิยมไม่ได้
-            const v = parseDecimalInput(e.target.value)
-            onChange(v === '' ? null : v)
-          }}
-          onBlur={() => {
-            // ล้างจนว่างแล้วออก → ยุบกลับ ไม่ทิ้งช่องเปล่าค้างจอ
-            if (cost == null) setOpen(false)
-            else onChange(finishDecimalInput(cost))
-          }}
-        />
-      </div>
-      {margin !== null && (
-        <span
-          className={`badge text-2xs font-semibold ${isLoss ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
-        >
-          กำไร {margin.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
-        </span>
-      )}
-    </div>
+    <>
+      {/* py-1.5 -my-1 = ขยายพื้นที่กดให้ผ่านเกณฑ์สัมผัสโดยไม่ดันความสูงของแถว
+          (ตัวอักษร 11px เล็กเกินกว่าจะใช้ขนาดตัวเองเป็น hit-area) */}
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        className="text-default-400 hover:text-primary -my-1 inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 py-1.5 text-left text-2xs"
+      >
+        <Icon icon="calculator" className="size-3.5 shrink-0" aria-hidden="true" />
+        {costNum == null ? (
+          knownMissing ? 'ยังไม่ตั้งต้นทุน' : 'ตั้งต้นทุน'
+        ) : (
+          <>
+            <span className="text-default-600 tabular-nums">ต้นทุน ฿{costNum.toLocaleString('th-TH', { maximumFractionDigits: 2 })}</span>
+            <MarginBadge price={price} cost={costNum} />
+            <Icon icon="pencil" className="size-3.5 shrink-0" aria-hidden="true" />
+          </>
+        )}
+      </button>
+
+      <QuickPriceSheet
+        open={sheetOpen}
+        price={costNum}
+        name={name}
+        title="ต้นทุน"
+        inputLabel="ราคาทุนต่อชิ้น"
+        preview={(v) => <MarginBadge price={price} cost={v} />}
+        onApply={(v) => {
+          onChange(v)
+          setSheetOpen(false)
+        }}
+        onClear={() => {
+          onChange(null)
+          setSheetOpen(false)
+        }}
+        onClose={() => setSheetOpen(false)}
+      />
+    </>
+  )
+}
+
+/** ป้าย % กำไร — ราคาขาย ≤ 0 คำนวณไม่ได้ = ไม่โชว์ */
+function MarginBadge({ price, cost }: { price: number; cost: number }) {
+  const margin = productMargin({ price, cost })
+  if (margin === null) return null
+  return (
+    <span className={`badge text-2xs font-semibold ${margin < 0 ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}>
+      กำไร {margin.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
+    </span>
   )
 }
 
@@ -124,6 +123,7 @@ export function LineCostSlot({
   index,
   price,
   catalogProduct,
+  name,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>
@@ -131,6 +131,7 @@ export function LineCostSlot({
   price: number
   /** สินค้าจากแคตตาล็อก (ถ้ามี) — cost == null = รู้แน่ว่ายังไม่เคยตั้งต้นทุน */
   catalogProduct?: { cost?: number | null }
+  name?: string
 }) {
   const { field } = useController({ control, name: `items.${index}.cost`, defaultValue: null })
   return (
@@ -139,6 +140,7 @@ export function LineCostSlot({
       price={price}
       onChange={field.onChange}
       knownMissing={Boolean(catalogProduct && catalogProduct.cost == null)}
+      name={name}
     />
   )
 }

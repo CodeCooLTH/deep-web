@@ -72,7 +72,7 @@ export default function CartLineItem({ index, item, control, catalog, itemsCtl, 
         {/* ราคาทุนของบรรทัดนี้ (FR-EXP-17) — อยู่ในคอลัมน์ชื่อซึ่งเป็นพื้นที่ยืดหด
             ไม่ใช่คอลัมน์ที่ 5 (ตะกร้าล้นงบอยู่แล้วที่ 1024px — ดู LineCostField) */}
         {showCost && Boolean(item.name?.trim()) && (
-          <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} />
+          <LineCostSlot control={control} index={index} price={Number(item.price) || 0} catalogProduct={catalogProduct} name={item.name} />
         )}
         {itemErrors?.name && <p className="mt-0.5 text-xs text-danger">{itemErrors.name.message}</p>}
         {overStock && (
