@@ -161,3 +161,56 @@ export async function revokeDevicePushToken(): Promise<void> {
     /* เงียบโดยตั้งใจ — ดูเหตุผลหัวฟังก์ชัน */
   }
 }
+
+/**
+ * แอปมีช่องแจ้งเตือน Android `chat_silent` (แชทใหม่แบบไม่มีเสียง) — 00018 ส่วนขยาย 2026-10-14
+ * 🛑 ต้องตรงกับ `SILENT_CHAT_CHANNEL_FEATURE` ใน deep-seller-app `src/core/push/notifications.ts`
+ */
+export const NATIVE_FEATURE_SILENT_CHAT_CHANNEL = 'silent-chat-channel'
+
+/**
+ * ค่า "ปิดเสียงแจ้งเตือนแชทใหม่" ที่จะบอกเซิร์ฟเวอร์สำหรับเครื่องนี้ — ตรรกะล้วน (มีเทส)
+ *
+ * iOS: ตามปุ่มเสมอ (push ที่ไม่มี `sound` = เงียบ · ใช้ได้ทุกรุ่นของแอป)
+ * Android: ตามปุ่มได้ก็ต่อเมื่อแอปมีช่อง `chat_silent` — รุ่นเก่าไม่มีช่องนี้ ถ้าบอกเซิร์ฟเวอร์ว่า "ปิด"
+ * push จะถูกส่งเข้าช่องที่ไม่มีอยู่ แล้วแจ้งเตือนอาจไม่ขึ้นเลย ⇒ **ยอมให้ยังมีเสียงดีกว่าให้แชทหาย**
+ * (ส่ง false ไม่ใช่ข้ามการส่ง — ล้างค่าที่อาจค้างอยู่ให้ตรงกับที่เครื่องทำได้จริง)
+ */
+export function resolveDeviceChatMute(input: {
+  muted: boolean
+  isAndroid: boolean
+  hasSilentChannel: boolean
+}): boolean {
+  if (!input.muted) return false
+  return input.isAndroid ? input.hasSilentChannel : true
+}
+
+/**
+ * บอกเซิร์ฟเวอร์ว่าปุ่มลำโพงหน้าแชทของ **เครื่องนี้** เปิด/ปิดอยู่ ⇒ แจ้งเตือนแชทใหม่ที่เด้งบนเครื่องนี้
+ * มี/ไม่มีเสียงตามปุ่ม (00018 ส่วนขยาย 2026-10-14)
+ *
+ * - ไม่ได้อยู่ในแอป (ไม่มี `__DEEP_PUSH_TOKEN__`) ⇒ ไม่ทำอะไร: คอม/เบราว์เซอร์ไม่มีแจ้งเตือนเด้ง
+ * - **ค่าใน localStorage คือตัวจริง** ⇒ ผู้เรียกส่งซ้ำได้ทุกเมื่อ (เปิดหน้าแชท / แอปฝาก token ทีหลัง)
+ *   แก้ทุกกรณีที่ค่าไม่ตรง: กดตอนเน็ตหลุด · กดไว้ก่อนฟีเจอร์นี้ขึ้น · token ถูกสร้างใหม่
+ * - ล้มเงียบ: ปุ่มเปลี่ยนสถานะทันทีเสมอ ไม่รอเน็ต (รอบหน้าที่เปิดหน้าแชทจะส่งให้อีก)
+ */
+export function syncDeviceChatMute(muted: boolean): void {
+  if (typeof window === 'undefined') return
+  const token = (window as NativeWindow).__DEEP_PUSH_TOKEN__
+  if (!token) return
+  const chatSoundMuted = resolveDeviceChatMute({
+    muted,
+    isAndroid: /Android/i.test(window.navigator.userAgent),
+    hasSilentChannel: hasNativeFeature(NATIVE_FEATURE_SILENT_CHAT_CHANNEL),
+  })
+  try {
+    void fetch('/api/seller/push-token', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, chatSoundMuted }),
+    }).catch(() => {})
+  } catch {
+    /* เงียบโดยตั้งใจ — ดูหัวฟังก์ชัน */
+  }
+}
