@@ -166,7 +166,9 @@ export async function pushNewChatMessage(params: {
             channel: preview.channel,
             channelName: preview.channelName,
           },
-          { subtitle: preview.senderName, sound },
+          // respectChatMute: เครื่องที่กดปุ่มลำโพงหน้าแชทเป็น "ปิด" ได้ใบนี้แบบเงียบ (ยังเด้ง) — 2026-10-14
+          // ใบนี้ใบเดียว: ป้ายปุ่มคือ "ปิดเสียงแจ้งเตือนข้อความใหม่" แจ้งเตือนอื่นต้องยังมีเสียง
+          { subtitle: preview.senderName, sound, respectChatMute: true },
         ),
       ),
     )

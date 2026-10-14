@@ -17,6 +17,8 @@
  * ไม่ใช่ของบัญชี) + ยิง event ให้ทุก component ที่ subscribe อัปเดตพร้อมกันในแท็บเดียวกัน
  */
 
+import { syncDeviceChatMute } from '@/lib/native-bridge'
+
 const GLOBAL_KEY = 'deep.chat.sound.muted'
 const CONV_PREFIX = 'deep.chat.sound.muted.'
 export const CHAT_SOUND_EVENT = 'deep:chat-sound-changed'
@@ -41,7 +43,14 @@ function writeFlag(key: string, value: boolean) {
 }
 
 export const isChatSoundMuted = () => readFlag(GLOBAL_KEY)
-export const setChatSoundMuted = (muted: boolean) => writeFlag(GLOBAL_KEY, muted)
+/**
+ * ปิด/เปิดเสียงระดับแอป — 2026-10-14: บอกเซิร์ฟเวอร์ด้วย ⇒ แจ้งเตือนแชทใหม่ที่เด้งบน **เครื่องนี้** เงียบตาม
+ * (ป้ายปุ่มคือ "ปิดเสียงแจ้งเตือนข้อความใหม่" · อยู่นอกแอปไม่มีผลอะไรเพิ่ม · รายเธรดไม่ส่ง — ยังไม่ทำ)
+ */
+export const setChatSoundMuted = (muted: boolean) => {
+  writeFlag(GLOBAL_KEY, muted)
+  syncDeviceChatMute(muted)
+}
 
 export const isConversationMuted = (conversationId: string) => readFlag(CONV_PREFIX + conversationId)
 export const setConversationMuted = (conversationId: string, muted: boolean) =>

@@ -40,8 +40,12 @@ type ExpoTicket = { status?: string; details?: { error?: string } }
 
 export const isExpoToken = (t: string) => t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken')
 
-/** ผู้รับหนึ่งเครื่อง — สตริงเปล่า = ไม่รู้ platform (ถือเป็น iOS ดู composeForPlatform) */
-export type PushTarget = string | { token: string; platform?: string | null }
+/**
+ * ผู้รับหนึ่งเครื่อง — สตริงเปล่า = ไม่รู้ platform (ถือเป็น iOS ดู composeForPlatform)
+ * `chatSoundMuted` = เครื่องนี้กดปุ่มลำโพงหน้าแชทเป็น "ปิด" (`PushToken.chatSoundMuted`) — มีผลเฉพาะเมื่อ
+ * ผู้เรียกส่ง `respectChatMute: true` (แชทใหม่เท่านั้น ดู `pushNewChatMessage`)
+ */
+export type PushTarget = string | { token: string; platform?: string | null; chatSoundMuted?: boolean }
 
 /**
  * เสียงแจ้งเตือน — ชุดที่แอปผู้ขายรู้จัก (2026-10-09 · user เลือก: แอปผู้ขาย · เฉพาะแชทใหม่)
@@ -65,6 +69,18 @@ const PUSH_SOUNDS: Record<PushSound, { sound: string; channelId: string }> = {
 export function resolvePushSound(sound: PushSound | undefined): { sound: string; channelId: string } {
   return PUSH_SOUNDS[sound ?? 'default']
 }
+
+/**
+ * แชทใหม่ที่ส่งไปเครื่องที่ปิดเสียง (00018 ส่วนขยาย 2026-10-14) — ยังเด้งขึ้นจอ แค่ไม่มีเสียง
+ *
+ * - iOS: **ไม่ใส่ `sound` เลย** = ไม่มีเสียง (APNs เล่นเสียงก็ต่อเมื่อ payload มี sound)
+ * - Android: เสียงอยู่ที่ channel ⇒ ต้องส่งเข้าช่อง `chat_silent` ที่แอปสร้างไว้แบบไม่มีเสียง
+ *
+ * 🛑 ชื่อ `chat_silent` ต้องตรงกับ deep-seller-app `ensureAndroidChannels()` ทุกตัวอักษร
+ * 🛑 แอป Android รุ่นที่ยังไม่มีช่องนี้ จะไม่ถูกตั้ง `chatSoundMuted` เลย (เว็บเช็ก feature
+ *    `silent-chat-channel` ก่อนส่ง — ดู `resolveDeviceChatMute` ใน native-bridge) ⇒ ไม่มี push เข้าช่องที่ไม่มีอยู่
+ */
+export const SILENT_CHAT_CHANNEL_ID = 'chat_silent'
 
 type PushLines = { title: string; subtitle?: string; body: string }
 
@@ -94,16 +110,18 @@ export async function sendExpoPushWithStatus(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string; sound?: PushSound },
+  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
 ): Promise<{ invalid: string[]; delivered: boolean }> {
   const tone = resolvePushSound(options?.sound)
   const targets = tokens
-    .map((t) => (typeof t === 'string' ? { token: t, platform: null } : t))
+    .map((t) => (typeof t === 'string' ? { token: t, platform: null, chatSoundMuted: false } : t))
     .filter((t) => isExpoToken(t.token))
   const valid = targets.map((t) => t.token)
   if (valid.length === 0) return { invalid: [], delivered: false }
   const messages: ExpoMessage[] = targets.map((t) => {
     const lines = composeForPlatform(t.platform, { title, subtitle: options?.subtitle, body })
+    // เงียบเฉพาะเมื่อผู้เรียกขอ (แชทใหม่) และเครื่องนี้กดปิดเสียงไว้ — นอกนั้นเหมือนเดิมทุกตัวอักษร
+    const silent = options?.respectChatMute === true && t.chatSoundMuted === true
     return {
       to: t.token,
       title: lines.title,
@@ -111,9 +129,10 @@ export async function sendExpoPushWithStatus(
       subtitle: lines.subtitle,
       body: lines.body,
       data,
-      sound: tone.sound,
+      // undefined ⇒ JSON.stringify ตัดทิ้ง ⇒ iOS ไม่มีเสียง
+      sound: silent ? undefined : tone.sound,
       priority: 'high',
-      channelId: tone.channelId,
+      channelId: silent ? SILENT_CHAT_CHANNEL_ID : tone.channelId,
     }
   })
   try {
@@ -143,7 +162,7 @@ export async function sendExpoPush(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string; sound?: PushSound },
+  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
 ): Promise<string[]> {
   return (await sendExpoPushWithStatus(tokens, title, body, data, options)).invalid
 }

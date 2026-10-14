@@ -1704,6 +1704,10 @@ model PushToken {
   // — ถ้าแยกเครื่องไม่ได้ ก็ประกอบข้อความให้เหมาะกับแต่ละแพลตฟอร์มไม่ได้ (ดู lib/expo-push.ts)
   // nullable เพราะแถวเดิมที่ลงทะเบียนก่อนคอลัมน์นี้จะไม่มีค่า — ห้ามเดาว่าเป็น ios
   platform  String?
+  // ปุ่มลำโพงหน้าแชท "ปิดเสียงแจ้งเตือนข้อความใหม่" ของ **เครื่องนี้** (00018 ส่วนขยาย 2026-10-14)
+  // ผูกกับ token ไม่ใช่ User: ปิดบนมือถือเครื่องหนึ่งต้องไม่ทำให้อีกเครื่องเงียบ · ค่าจริงอยู่ใน localStorage
+  // ของเครื่อง ที่นี่เป็นสำเนาให้ pushNewChatMessage ใช้ (เว็บส่งซ้ำทุกครั้งที่เปิดหน้าแชท)
+  chatSoundMuted Boolean @default(false)
   createdAt DateTime @default(now())
 
   user User @relation("UserPushTokens", fields: [userId], references: [id], onDelete: Cascade)

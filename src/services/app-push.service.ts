@@ -17,7 +17,8 @@ export async function pushToUsers(
   body: string,
   data?: Record<string, unknown>,
   /** subtitle = บรรทัดกลาง — iOS เป็นบรรทัดแยก · Android ยกไปนำหน้า body (composeForPlatform) */
-  options?: { subtitle?: string; sound?: PushSound },
+  /** respectChatMute = เครื่องที่กดปิดเสียงหน้าแชทได้ push แบบเงียบ — **แชทใหม่เท่านั้น** (2026-10-14) */
+  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
 ): Promise<void> {
   await pushToUsersWithStatus(userIds, title, body, data, options)
 }
@@ -31,14 +32,16 @@ export async function pushToUsersWithStatus(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string; sound?: PushSound },
+  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
 ): Promise<'SENT' | 'NO_TOKEN' | 'FAILED'> {
   if (userIds.length === 0) return 'NO_TOKEN'
   try {
     const rows = await prisma.pushToken.findMany({
       where: { userId: { in: userIds } },
       // platform ต้องมาด้วย — Android ไม่มีบรรทัด subtitle ต้องประกอบข้อความต่างจาก iOS
-      select: { token: true, platform: true },
+      // chatSoundMuted = ปุ่มปิดเสียงหน้าแชทของเครื่องนั้น — ส่งต่อทุกครั้ง แต่ sendExpoPush ใช้ก็ต่อเมื่อ
+      // respectChatMute (แชทใหม่) ⇒ แจ้งเตือนอื่นไม่ได้รับผล
+      select: { token: true, platform: true, chatSoundMuted: true },
     })
     const tokens = rows.filter((r) => isExpoToken(r.token))
     if (tokens.length === 0) return 'NO_TOKEN'

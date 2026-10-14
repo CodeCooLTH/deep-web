@@ -19,6 +19,7 @@ import * as v from 'valibot'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sessionUserId } from '@/lib/session-user'
 
 // รูปแบบ token ของ Expo — กันคนยิงสตริงมั่วมาถมตาราง (sendExpoPush จะ error ทีหลังอยู่ดี)
 const Body = v.object({
@@ -59,5 +60,32 @@ export async function DELETE(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'token ไม่ถูกต้อง' }, { status: 400 })
 
   await prisma.pushToken.deleteMany({ where: { token: parsed.output.token, userId } })
+  return NextResponse.json({ ok: true })
+}
+
+// PATCH — ปุ่มลำโพงหน้าแชท "ปิดเสียงแจ้งเตือนข้อความใหม่" ของเครื่องนี้ (00018 ส่วนขยาย 2026-10-14)
+// เว็บในแอปส่งค่าปุ่มมาพร้อม token ของเครื่อง (native-bridge `syncDeviceChatMute`)
+//
+// 🛑 updateMany + where { token, userId } — แก้ได้เฉพาะ token ของตัวเอง (กันคนปิด/เปิดเสียงเครื่องคนอื่น)
+// 🛑 ไม่สร้างแถว: การลงทะเบียน token ยังเป็นหน้าที่ของ POST เท่านั้น · ไม่พบแถว (token ยังไม่ลง
+//    ทะเบียน/ถูกถอนไปแล้ว) = 200 เงียบ ๆ — เว็บส่งค่าซ้ำทุกครั้งที่เปิดหน้าแชทอยู่แล้ว
+// วางใต้ /api/seller/* ด้วยเหตุผลเดียวกับ POST (auth คุกกี้ ⇒ ต้องได้ CSRF Origin-check ของ proxy)
+const MuteBody = v.object({
+  token: v.pipe(v.string(), v.regex(/^Expo(nent)?PushToken\[[^\]]+\]$/)),
+  chatSoundMuted: v.boolean(),
+})
+
+export async function PATCH(req: NextRequest) {
+  // sessionUserId ไม่ใช่ cast (docs/conventions/session-exists-is-not-identity)
+  const userId = sessionUserId(await getServerSession(authOptions))
+  if (!userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const parsed = v.safeParse(MuteBody, await req.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง' }, { status: 400 })
+
+  await prisma.pushToken.updateMany({
+    where: { token: parsed.output.token, userId },
+    data: { chatSoundMuted: parsed.output.chatSoundMuted },
+  })
   return NextResponse.json({ ok: true })
 }

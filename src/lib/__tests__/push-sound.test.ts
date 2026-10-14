@@ -46,7 +46,7 @@ describe('[blocker] เสียงแจ้งเตือน', () => {
     const chatFn = src.slice(start, next === -1 ? undefined : next)
     // เสียงมาจากที่ผู้รับแต่ละคนเลือก (User.chatPushSound) — ค่าตั้งต้น "chat" (2026-10-09)
     expect(chatFn).toMatch(/groupUsersByChatPushSound\(audience\)/)
-    expect(chatFn).toMatch(/\{ subtitle: preview\.senderName, sound \}/)
+    expect(chatFn).toMatch(/\{ subtitle: preview\.senderName, sound, respectChatMute: true \}/)
     // นอกฟังก์ชันแชทใหม่ ห้ามมีการกำหนดเสียง (user เลือก "เฉพาะแชทใหม่") — แจ้งเตือนอื่นใช้เสียงมาตรฐาน
     const rest = src.slice(0, start) + (next === -1 ? '' : src.slice(next))
     expect(rest.match(/sound: 'chat'|, sound \}|groupUsersByChatPushSound\(/g)).toBeNull()

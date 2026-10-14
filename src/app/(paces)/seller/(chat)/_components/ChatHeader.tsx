@@ -42,6 +42,7 @@ import ChatSearchBox from '@/layouts/components/TopBar/components/ChatSearchBox'
 import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleToggler'
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, primeChatSound, setChatSoundMuted } from '@/lib/chat-sound'
+import { subscribePushPermission, syncDeviceChatMute } from '@/lib/native-bridge'
 import { useT } from '@/i18n/LocaleProvider'
 
 export default function ChatHeader({
@@ -82,9 +83,16 @@ export default function ChatHeader({
     window.addEventListener(CHAT_SOUND_EVENT, sync)
     // ปลดล็อก AudioContext ตอน gesture แรก — เบราว์เซอร์ห้ามเล่นเสียงก่อนผู้ใช้ interact
     const stopPriming = primeChatSound()
+    // ส่งค่าปุ่มของเครื่องนี้ให้เซิร์ฟเวอร์ซ้ำทุกครั้งที่เปิดหน้าแชท (2026-10-14) — localStorage เป็นตัวจริง
+    // แอปฝาก token หลังหน้าโหลดเสร็จ (อาจช้ากว่า mount) ⇒ ส่งอีกรอบเมื่อแอปยิง event มาพร้อม token
+    // นอกแอปไม่มี token ⇒ ไม่ยิงอะไร
+    const pushMute = () => syncDeviceChatMute(isChatSoundMuted())
+    pushMute()
+    const stopPermission = subscribePushPermission(pushMute)
     return () => {
       window.removeEventListener(CHAT_SOUND_EVENT, sync)
       stopPriming()
+      stopPermission()
     }
   }, [])
 
