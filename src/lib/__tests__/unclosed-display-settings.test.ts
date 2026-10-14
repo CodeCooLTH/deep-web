@@ -60,7 +60,7 @@ describe('สีตัวกลาง FINANCE_COLORS — สีเดียว �
   })
 })
 
-describe('รายงานกลุ่ม LINE — บรรทัด ยังไม่ปิดงาน', () => {
+describe('รายงานกลุ่ม LINE — ร้านบริการนับยอดแบบร้านทั่วไป', () => {
   const win = { startIso: '2026-10-05', endIso: '2026-10-05', computedAt: '2026-10-05T11:00:00.000Z' }
   const shop = (o: Partial<ShopSummary>, vertical: string): ShopSummary => ({
     shop: { id: vertical, name: vertical, vertical }, state: 'OK', orders: 5, confirmed: 1000, unconfirmed: 0, cancelled: 0, ...o,
@@ -76,16 +76,12 @@ describe('รายงานกลุ่ม LINE — บรรทัด ยั�
   const run = (s: GroupSummary) =>
     buildSummaryReportFlex({ summary: s, kind: 'DAILY', template: { v: 1, button: { show: false, label: '' }, blocks: [{ id: 's', type: 'sales' }] } })
 
-  it('[blocker] ร้านบริการมีงานยังไม่ปิด → มีบรรทัด "ยังไม่ปิดงาน" · ยอดขายไม่รวม', () => {
-    const m = run(summary([shop({ unclosed: 8000 }, 'SERVICE_QUEUE')]))
-    const t = texts(m)
-    expect(t.some((x) => x.startsWith('ยังไม่ปิดงาน 8,000'))).toBe(true)
-    expect(t).toContain('1,000') // ยอดขาย = ปิดแล้วเท่านั้น
-  })
-  it('[blocker] ร้านขายของ (ไม่มีคีย์ unclosed) → ไม่มีบรรทัดนี้ · combineTotals ไม่ใส่คีย์', () => {
-    const s = summary([shop({}, 'ONLINE_SALES')])
-    expect('unclosed' in combineTotals(s.shops)).toBe(false)
-    expect(texts(run(s)).some((x) => x.includes('ยังไม่ปิดงาน'))).toBe(false)
+  // user 2026-10-14: ร้านบริการในกลุ่ม LINE ไม่รอปิดงาน — ยอดขาย = ยืนยันแล้ว + รอยืนยัน · เหลืองใช้คำ "รอยืนยัน"
+  it('[blocker] ร้านบริการ: ยอดขายรวมรอยืนยัน · ป้ายเหลือง "รอยืนยัน" · ไม่มีบรรทัด "ยังไม่ปิดงาน"', () => {
+    const t = texts(run(summary([shop({ confirmed: 30300, unconfirmed: 18900 }, 'SERVICE_QUEUE')])))
+    expect(t).toContain('49,200')
+    expect(t.some((x) => x.startsWith('รอยืนยัน 18,900'))).toBe(true)
+    expect(t.some((x) => x.includes('ยังไม่ปิดงาน'))).toBe(false)
   })
 })
 

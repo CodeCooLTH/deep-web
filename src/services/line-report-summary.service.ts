@@ -101,13 +101,15 @@ async function summarizeShop(
   cache: SweepCache,
 ): Promise<ShopSummary> {
   const out: ShopSummary = { shop, state: 'OK', orders: 0, confirmed: 0, unconfirmed: 0, cancelled: 0 }
-  const vertical = shop.vertical ?? undefined
 
   // series ผ่าน memo เดียวกันทั้งยอดช่วงและกราฟ (key = ร้าน+เดือน) ⇒ เดือนซ้อนกันยิงครั้งเดียว
   const loadSeries = (m: Month) =>
     memo(cache.series, `${shop.id}:${m.year}:${m.month0}`, async () => {
       // รูป `= await getSalesSeries(` ตั้งใจ — เทสสแกน AC-14-1 ตรวจว่าผลถูกนำไปใช้จริง
-      const series = await getSalesSeries(shop.id, 'daily', { year: m.year, month: m.month0 + 1 }, false, vertical)
+      // ไม่ส่ง vertical โดยเจตนา (user 2026-10-14): ร้านบริการในกลุ่ม LINE นับยอดทุกใบที่ไม่ยกเลิก ตามวันเปิดบิล
+      // แยกยืนยันแล้ว/รอยืนยัน แบบร้านทั่วไป — ไม่ต้องรอ "ปิดงาน" (00073) · หน้าในแอปยังนับตามปิดงานเหมือนเดิม
+      // shortcut: ร้านบริการเลยไม่ได้กติกา 00067 (ตัด RETURNED/หักคืนบางส่วน) และใบไม่มาตามนัดนับเต็มบิล — ถ้าเริ่มมีคืนเงินจริงให้เพิ่มโหมดนี้ใน getSalesSeries
+      const series = await getSalesSeries(shop.id, 'daily', { year: m.year, month: m.month0 + 1 }, false)
       return series
     })
 
@@ -145,8 +147,6 @@ async function summarizeShop(
       out.orders += sumDays(s.orderCounts, months[i], startIso, endIso)
       out.confirmed += sumDays(s.confirmedValues, months[i], startIso, endIso)
       out.unconfirmed += sumDays(s.unconfirmedValues, months[i], startIso, endIso)
-      // FR-016 — ร้านบริการ: งานที่ยังไม่ปิด (ตามวันเปิดบิล) · ร้านอื่น unclosedValues ไม่มี ⇒ ไม่ใส่คีย์
-      if (s.unclosedValues) out.unclosed = (out.unclosed ?? 0) + sumDays(s.unclosedValues, months[i], startIso, endIso)
     })
   }
 

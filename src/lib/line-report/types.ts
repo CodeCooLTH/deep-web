@@ -87,8 +87,6 @@ export type ShopSummary = {
   confirmed: number
   unconfirmed: number
   cancelled: number
-  /** 00073 FR-016 — ร้านบริการ: งานที่ยังไม่ปิด (ตามวันเปิดบิล) ในช่วงรายงาน · ไม่ใช่ยอดขาย · ร้านอื่นไม่มี */
-  unclosed?: number
   top3?: Top3Row[]
   /** getProductSalesMonth ตัดข้อมูลเพราะชนเพดาน (เดือนใดเดือนหนึ่งในช่วง) — อันดับคำนวณจากข้อมูลบางส่วน ต้องมีหมายเหตุ */
   top3Truncated?: boolean
@@ -99,7 +97,7 @@ export type ShopSummary = {
   trend?: Trend
 }
 
-export type Totals = { orders: number; confirmed: number; unconfirmed: number; cancelled: number; unclosed?: number }
+export type Totals = { orders: number; confirmed: number; unconfirmed: number; cancelled: number }
 
 export type GroupSummary = {
   window: Window

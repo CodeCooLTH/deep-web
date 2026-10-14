@@ -14,7 +14,6 @@ import { expenseDisplay, formatBaht, formatNumberNoSymbol, netSalesDisplay, prof
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import { FINANCE_COLORS } from '@/lib/finance-colors'
-import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 export const ACCENT = '#236dc9'
 export const INK = '#2F2B3D'
@@ -66,20 +65,11 @@ export function reportOrderWord(shops: readonly Pick<ShopSummary, 'shop' | 'stat
 }
 
 /**
- * คำอธิบายสีแท่งยอดขาย (น้ำเงิน/เหลือง) ผันตาม vertical — กติกาเลือกกลุ่มเดียวกับ reportOrderWord
- * ร้านบริการ (00073): ยอดขาย = งานที่ร้านปิดแล้ว ⇒ น้ำเงิน = "ปิดงานแล้ว" · ไม่มีก้อนรอยืนยัน (เป็น 0 เสมอ) จึงไม่ขึ้นเหลือง
- * ร้านอื่น/กลุ่มผสม → คำเดิม "ยืนยันแล้ว / รอยืนยัน"
+ * คำอธิบายสีแท่งยอดขาย (น้ำเงิน/เหลือง) — ทุกร้านรวมร้านบริการใช้ชุดเดียว เพราะรายงาน LINE นับยอดแบบเดียวกันทุกร้าน
+ * (ร้านบริการไม่รอปิดงาน — user 2026-10-14 · ดู line-report-summary.service)
  */
 export type SalesLegendWords = { counted: string; pending: string | null }
 export const GENERIC_SALES_LEGEND: SalesLegendWords = { counted: 'ยืนยันแล้ว', pending: 'รอยืนยัน' }
-export const SERVICE_SALES_LEGEND: SalesLegendWords = { counted: 'ปิดงานแล้ว', pending: null }
-export function reportSalesLegend(shops: readonly Pick<ShopSummary, 'shop' | 'state'>[]): SalesLegendWords {
-  const counted = shops.filter((s) => s.state !== 'EXCLUDED')
-  const pool = counted.length > 0 ? counted : shops
-  return pool.length > 0 && pool.every((s) => usesServiceFinanceRules(resolveShopVertical(s.shop.vertical)))
-    ? SERVICE_SALES_LEGEND
-    : GENERIC_SALES_LEGEND
-}
 
 /** "ต้นทุน…" ของยอดขายหลังหักค่าใช้จ่าย ผันตาม vertical จาก ORDER_VOCAB.costNoun · ผสม → "ต้นทุน" (กลางสุด) */
 export const MIXED_COST_NOUN = 'ต้นทุน'
@@ -121,7 +111,6 @@ export const section = (contents: Node[]): Node => ({ type: 'box', layout: 'vert
 /** เตือนยอดที่ยังไม่กดยืนยัน — รวมอยู่ในยอดขายแล้ว */
 const pendingNote = (amount: number): Node => note(`รอยืนยัน ${money(amount)}`, { color: PENDING_TEXT, weight: 'bold' })
 /** 00073 FR-016 — ร้านบริการ: งานยังไม่ปิด (ไม่ใช่ยอดขาย · ไม่อยู่ในตัวเลขด้านบน) · สีเหลืองชุดเดียวกับ "รอยืนยัน" (FINANCE_COLORS) */
-const unclosedNote = (amount: number): Node => note(`ยังไม่ปิดงาน ${money(amount)} (ยังไม่นับเป็นยอดขาย)`, { color: PENDING_TEXT, weight: 'bold' })
 
 function profitRow(p: { netProfit: number; capped: boolean }): Node {
   const d = profitDisplay(p.netProfit, { capped: p.capped })
@@ -144,8 +133,6 @@ type Ctx = {
   t: Totals
   multi: boolean
   ow: { word: string; mixed: boolean }
-  /** คำอธิบายสีแท่งยอดขาย (reportSalesLegend) */
-  legend: SalesLegendWords
   has: (type: Block['type']) => boolean
   skipped: Skipped[]
   /** จำนวนกราฟที่ "จะแสดง" (ระดับ 2 ขึ้นไปแสดงหมายเหตุแทน) — fitToLimits ใช้ข้ามระดับตัดกราฟเมื่อไม่มีกราฟ (EXT-08) */
@@ -200,7 +187,6 @@ export function makeCtx(
     t: combineTotals(summary.shops),
     multi: listed.length > 1,
     ow: reportOrderWord(shops),
-    legend: reportSalesLegend(shops),
     has: (type) => template.blocks.some((b) => b.type === type),
     skipped,
     charts: { n: 0 },
@@ -350,7 +336,6 @@ function renderHero(c: Ctx): Node | null {
     note('ยอดขาย'),
     text(money(salesTotal(c.t)), { size: 'xxl', weight: 'bold', wrap: false }),
     ...(c.t.unconfirmed > 0 ? [pendingNote(c.t.unconfirmed)] : []),
-    ...((c.t.unclosed ?? 0) > 0 ? [unclosedNote(c.t.unclosed ?? 0)] : []),
   ])
 }
 
@@ -495,9 +480,9 @@ function renderChart(b: Extract<Block, { type: 'chart_trend' | 'chart_compare' }
     // แท่งวันนี้นับถึงเวลาส่ง — เวลาของข้อความใน LINE บอกอยู่แล้ว ไม่ติดหมายเหตุ
     // แท่งค่าใช้จ่าย: เฉพาะเทมเพลตที่เปิดเผยค่าใช้จ่าย ∧ รวมค่าใช้จ่ายได้ (กฎเดียวกับแถวค่าใช้จ่าย — totalFinance)
     const showExpense = (c.has('expense') || c.has('net_sales')) && !!totalFinance(c) && !!tr.expense
-    node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, legend: c.legend, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })
+    node = trendChart({ trend: tr, measure: b.measure, word: c.ow.word, expense: showExpense ? tr.expense : undefined, incomplete: c.summary.trendPartial })
   } else {
-    node = compareChart(c.shops, b.measure, c.ow.word, c.legend)
+    node = compareChart(c.shops, b.measure, c.ow.word)
     if (!node) {
       c.skipped.push({ label, reason: 'ต้องมีร้านที่ดึงข้อมูลได้อย่างน้อย 2 ร้าน' })
       return null
