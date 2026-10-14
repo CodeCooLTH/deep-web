@@ -61,7 +61,7 @@ related: ["[[BRD]]", "[[SRS]]"]
 | TC-038 | เช็กลิสต์: `showsPersonalSetupChecklist` ร้านบริการธุรกิจ=false · ส่วนตัว/ธุรกิจอื่น=true · layout ใช้ตัวตัดสิน · จอจริง: ร้านบริการไม่ fetch checklist ไม่มีเช็กลิสต์ · ร้านขายของธุรกิจยังขึ้น | `onboarding-gate.test.ts` · Playwright |
 | TC-039 | ป้ายเมนู: หลัง applyMenuLocale ร้านบริการ = "การเงินร้าน" (th/en) · ร้านขายของ/ที่พัก ป้ายเดิม · จอจริง เมนู = หัวหน้า /sales | `seller-menu.test.ts` (mutation แดง) · Playwright |
 | TC-040 | hydration: ไม่มี getColor ใน style ของ JSX · จุด legend = var(--color-chart-gray) → #edeff3 · console ไม่มี hydration | `no-getcolor-in-jsx-style.test.ts` · Playwright |
-| TC-041 | LINE: กลุ่มร้านบริการล้วน legend "ปิดงานแล้ว" (ทั้งกราฟ 7 วัน + เทียบรายร้าน) ไม่มี "ยืนยันแล้ว/รอยืนยัน" · ร้านขายของ/ที่พัก/ผสม คำเดิม | `flex-report-charts.test.ts` (mutation แดง) |
+| TC-041 | (แก้ 2026-10-14) LINE: ทุก vertical รวมร้านบริการ legend "ยืนยันแล้ว/รอยืนยัน" ไม่มี "ปิดงานแล้ว" — ร้านบริการไม่รอปิดงานในรายงาน LINE | `flex-report-charts.test.ts` (mutation แดง) |
 | TC-042 | ยังไม่ปิดงาน (ฐานจริง): เขียวเท่าเดิม · เหลืองตามวันเปิดบิล · ยกเลิก/ร่างไม่นับ · ช่วงก่อนหน้า · ร้านขายของไม่มีฟิลด์ (mutation แดง) | `tests/services/sales-series-unclosed.test.ts` |
 | TC-043 | นิยามเดียว query/หน่วยความจำ · การ์ดร้านอื่นใช้ unconfirmed/total เดิม · แถวตั้งค่ารายงานในแท็บร้านค้า | `src/lib/__tests__/service-unclosed.test.ts` |
 | TC-044 | จอจริง: ร้านสินค้าเหมือนเดิม 100% (ข้อความทุกจอ + API เทียบ main) · ร้านบริการ การ์ด 3,500→6,900 (เขียว 3,500 + เหลือง 3,400) · คอม ฿6.90k · ชีต ส.ค. "ยังไม่ปิดงาน 27 งาน 60,900" · /sales การ์ด ฿60,900 · แท็บร้านค้ามีตั้งค่ารายงาน | Playwright (Chromium + iPhone WebKit) |

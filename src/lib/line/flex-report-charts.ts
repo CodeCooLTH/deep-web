@@ -47,7 +47,7 @@ const legendItem = (color: string, label: string, h?: string): Node[] => [
 ]
 const legendRow = (items: Node[][]): Node => ({ type: 'box', layout: 'horizontal', spacing: 'xs', alignItems: 'center', margin: 'sm', contents: items.flat() })
 
-/** คำอธิบายสีแท่งยอดขาย (ผันตาม vertical — reportSalesLegend) · ไม่มีก้อนรอ (ร้านบริการ) = ไม่มีป้ายเหลือง */
+/** คำอธิบายสีแท่งยอดขาย */
 const salesLegendItems = (w: SalesLegendWords): Node[][] => [
   legendItem(CONFIRMED_BAR, w.counted),
   ...(w.pending ? [legendItem(PENDING_YELLOW, w.pending)] : []),
@@ -85,7 +85,7 @@ export type TrendChartInput = {
   measure: ChartMeasure
   /** คำเรียก "ใบ" (reportOrderWord) — ใช้เมื่อ measure=orders */
   word: string
-  /** คำอธิบายสีแท่งยอดขาย (reportSalesLegend) — ไม่ส่ง = คำเดิม */
+  /** คำอธิบายสีแท่งยอดขาย — ไม่ส่ง = คำเดิม */
   legend?: SalesLegendWords
   /** ค่าใช้จ่ายรายวัน — ส่งมาเมื่อรายงานเปิดเผยค่าใช้จ่ายและรวมได้ → แท่งแดงข้าง ๆ + เส้น = ยอดขาย − ค่าใช้จ่าย */
   expense?: number[]

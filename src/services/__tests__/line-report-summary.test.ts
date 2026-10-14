@@ -51,7 +51,8 @@ describe('buildGroupSummary', () => {
   it('showProfit=true: ส่ง vertical ของร้าน + ป้ายเพดานเมื่อไม่มีค่าใช้จ่าย (capped)', async () => {
     const s = await buildGroupSummary({ shops: [mk('a', 'ก', 'SERVICE_QUEUE')], excluded: [], window: win, flags: all, cache: createSweepCache() })
     expect(pnl.mock.calls[0][2]).toBe('SERVICE_QUEUE')
-    expect(series.mock.calls[0][4]).toBe('SERVICE_QUEUE')
+    // ยอดขายใน LINE ไม่ส่ง vertical — ร้านบริการไม่รอปิดงาน (user 2026-10-14) · กำไรยังส่ง vertical
+    expect(series.mock.calls[0][4]).toBeUndefined()
     expect(s.shops[0].profit).toEqual({ netProfit: 120, capped: true })
   })
 

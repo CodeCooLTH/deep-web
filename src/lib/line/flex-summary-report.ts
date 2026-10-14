@@ -121,7 +121,6 @@ function renderAltText(input: SummaryReportInput, summary: GroupSummary, kind: R
     ? [
         `ยอดขาย ${money(salesTotal(t))}`,
         ...(t.unconfirmed > 0 ? [`รอยืนยัน ${money(t.unconfirmed)}`] : []),
-        ...((t.unclosed ?? 0) > 0 ? [`ยังไม่ปิดงาน ${money(t.unclosed ?? 0)}`] : []),
         title,
       ]
     : [title]

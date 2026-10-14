@@ -225,18 +225,14 @@ describe('ต่อเข้า composer', () => {
     expect(word('LODGING', 'LODGING')).toBe('บิลเข้าพัก 7 วัน')
     expect(word('ONLINE_SALES', 'LODGING')).toBe('รายการ 7 วัน')
   })
-  it('[blocker] คำอธิบายสีแท่งยอดขาย: ร้านบริการล้วน = "ปิดงานแล้ว" ไม่มี "ยืนยันแล้ว/รอยืนยัน" (00073) · ร้านอื่น/ผสม คำเดิม', () => {
+  it('[blocker] คำอธิบายสีแท่งยอดขาย: ทุก vertical รวมร้านบริการ = "ยืนยันแล้ว/รอยืนยัน" (ร้านบริการไม่รอปิดงาน — user 2026-10-14)', () => {
     const legend = (v1: string, v2: string) => {
       const s = withTrend([shop('ก', {}, v1), shop('ข', {}, v2)])
       return texts(run(T([orders, block('chart_trend'), block('chart_compare')]), s)[0].contents)
     }
-    const svc = legend('SERVICE_QUEUE', 'SERVICE_QUEUE')
-    expect(svc.filter((x) => x === 'ปิดงานแล้ว')).toHaveLength(2) // กราฟ 7 วัน + กราฟเทียบรายร้าน
-    expect(svc).not.toContain('ยืนยันแล้ว')
-    expect(svc).not.toContain('รอยืนยัน')
-    for (const [v1, v2] of [['ONLINE_SALES', 'ONLINE_SALES'], ['LODGING', 'LODGING'], ['SERVICE_QUEUE', 'ONLINE_SALES']]) {
+    for (const [v1, v2] of [['SERVICE_QUEUE', 'SERVICE_QUEUE'], ['ONLINE_SALES', 'ONLINE_SALES'], ['LODGING', 'LODGING'], ['SERVICE_QUEUE', 'ONLINE_SALES']]) {
       const t = legend(v1, v2)
-      expect(t.filter((x) => x === 'ยืนยันแล้ว')).toHaveLength(2)
+      expect(t.filter((x) => x === 'ยืนยันแล้ว')).toHaveLength(2) // กราฟ 7 วัน + กราฟเทียบรายร้าน
       expect(t.filter((x) => x === 'รอยืนยัน')).toHaveLength(2)
       expect(t).not.toContain('ปิดงานแล้ว')
     }
