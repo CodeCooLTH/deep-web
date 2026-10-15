@@ -262,6 +262,7 @@ stateDiagram-v2
 | GET | `/api/cron/line-report-sweep` | `CRON_SECRET` | 19–21,23 |
 | PUT | `/api/line-report/groups/{id}/template` | L2 | EXT-02,07,08,10 (§13) |
 | DELETE | `/api/line-report/groups/{id}/template` | L2 | EXT-10 (§13) |
+| GET (หน้า RSC ไม่ใช่ JSON API) | `/lr/{token}` บน `seller.*` | **public — ไม่มี session** (token ใน URL = กุญแจ) | LINK-05 (§14) |
 
 ### 4.2 LINE API ที่เรียก (ทั้งหมดผ่าน `lineApiRequest` ด้วย token ของ OA นี้)
 `POST /v2/bot/message/push` (retry key) · `POST /v2/bot/message/reply` · `GET /v2/bot/group/{id}/summary` · `GET /v2/bot/group/{id}/members/count` · `POST /v2/bot/group/{id}/leave` — timeout 10s (ค่า default ของ client) · ไม่ใช้ `/members/ids`
@@ -279,6 +280,8 @@ stateDiagram-v2
 | `INVALID_SETTINGS` / `PROFIT_CONFIRM_REQUIRED` | 400 | `line-report-group.service.updateSettings` · **EXT:** `updateTemplate` (ผ่าน `mergeSettings`) | PATCH · PUT template |
 | `TEMPLATE_INVALID` (+`details.rule`/`blockId?`) · `TEMPLATE_TOO_LARGE` | 400 | **EXT:** `updateTemplate` (`validateTemplate` · `assertTemplateSize`) · route PUT (body >64KB → `TEMPLATE_TOO_LARGE`+`reason:'BODY'`) | PUT template |
 | `TEMPLATE_STALE` | 409 | **EXT:** `updateTemplate` (เทียบ `templateVersion` ใน tx) | PUT template |
+| `DETAIL_LINK_CONFIRM_REQUIRED` | 400 | **EXT-LINK:** `updateTemplate` (`needsDetailLinkConfirm(เทมเพลตที่บันทึก, ใหม่)` โดยไม่มี `confirmDetailLink:true`) | PUT template |
+| `INVALID_SETTINGS{rule:'DETAIL_NEEDS_METRIC'}` | 400 | **EXT-LINK:** `updateTemplate` (`target==='DETAIL'` ∧ `detailLinkBlocked`) ผ่าน `invalid()` | PUT template |
 | `FLAGS_DERIVED_FROM_TEMPLATE` | 409 | **EXT:** `updateSettings` (มี `template` ∧ patch มี flag) | PATCH |
 | `GROUP_NOT_FOUND` | 404 | group/bind/send service (query `{id, ownerId}`) | ทุก route `groups/[id]` |
 | `GROUP_LIMIT_REACHED` | 409 | `bind.service.createBindCode` | POST bind-code |
@@ -293,7 +296,7 @@ stateDiagram-v2
 
 ## 5. ข้อมูล
 ### 5.1 โมเดล/enum
-ตาม [[DATABASE]] เป๊ะ (5 โมเดล: `LineReportGroup` · `LineReportGroupShop` · `LineReportBindCode` · `LineReportRateEvent` · `LineReportDelivery`) — SRS นี้ไม่เพิ่ม/เปลี่ยนคอลัมน์ · **EXT 2026-10-05:** `LineReportGroup` เพิ่ม `template Json?` + `templateVersion Int` (ดู §13 และ [[DATABASE]] §3.1)
+ตาม [[DATABASE]] เป๊ะ (5 โมเดล: `LineReportGroup` · `LineReportGroupShop` · `LineReportBindCode` · `LineReportRateEvent` · `LineReportDelivery`) — SRS นี้ไม่เพิ่ม/เปลี่ยนคอลัมน์ · **EXT 2026-10-05:** `LineReportGroup` เพิ่ม `template Json?` + `templateVersion Int` (ดู §13 และ [[DATABASE]] §3.1) · **EXT 2026-10-14:** เพิ่มโมเดลที่ 6 `LineReportSnapshot` (สำเนาหน้าสรุปสาธารณะ — ดู §14 และ [[DATABASE]] §3.7) · ไม่เพิ่ม enum (ใช้ `LineReportDeliveryKind` เดิม)
 
 ### 5.2 slotKey
 `D:<YYYY-MM-DD>@<HH:MM>` · `M:<วันสุดท้ายของรอบ>` · `T:<uuid>` · `C:<webhookEventId>` · `F:<lockedAt ISO | YYYY-MM-DD>`
@@ -484,7 +487,8 @@ stateDiagram-v2
 | PUT / DELETE `…/template` | **L2** | `requireAccess('PAID')` ที่ route + `isOwnerPaidForReports` ซ้ำที่ service · แพ็กเกจหยุด = 403 `PACKAGE_REQUIRED` และเทมเพลตเดิมถูกเก็บไว้ · เจ้าของ = `Shop.userId` ของร้านใดร้านหนึ่ง · ทุก query `{id, ownerId}` ตั้งแต่แรก → ไม่ใช่ของตน/`REMOVED`/id เพี้ยน = 404 `GROUP_NOT_FOUND` |
 | ข้อความสุดท้าย (`FINAL_NOTICE`) | — | ไม่ผ่านเทมเพลต (`buildPlainNotice` เดิม) |
 
-### 13.9 UI route (สถานะ: **กำลังสร้าง — ยังไม่ commit**)
+### 13.9 UI route (สถานะ: **กำลังสร้าง — ยังไม่ commit** — ข้อความนี้เขียน 2026-10-05)
+> **[sync 2026-10-15]** ข้อความด้านล่างล้าสมัยบางส่วน: ในโค้ดตอนนี้มี `page.tsx` + `TemplateBuilderClient.tsx` + `components/*` (เช่น `CanvasList.tsx`) ใต้ `…/template/` แล้ว และสวิตช์ปุ่มหน้าสรุป (EXT 2026-10-14) ต่อเข้ากับหน้านี้ — ยังไม่ได้ตรวจสถานะ commit/พฤติกรรมครบทุกข้อของ FR-LGS-EXT-11/12 ในรอบนี้ จึงไม่ได้เขียนทับเนื้อหาข้างล่าง
 - route เป้าหมาย: `src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/page.tsx` (URL `/business/line-reports/[groupId]/template`) — ชื่อ segment ต้องเป็น `[groupId]` และห้ามมีไฟล์ชื่อ `template.tsx` ใน `src/app` (ชื่อสงวน Next)
 - ณ วันที่เขียน: มีเฉพาะ helper pure ใต้ `…/template/lib/` (ยังไม่ commit) — ยังไม่มี `page.tsx`/client component ที่ยืนยันได้จากโค้ด · รายละเอียดหน้าจอ (layout 3 ช่อง ฯลฯ) ดูมติใน EXT §4 FR-LGS-EXT-11/12 และ UX spec — **ยังไม่ใช่พฤติกรรมที่ตรวจจากโค้ดแล้ว**
 - การ์ด "ข้อความที่ส่งเข้ากลุ่ม" แทน `MetricsCard`+`PreviewCard` ในหน้า `[groupId]`: **ยังไม่ทำ** (ไฟล์เดิมยังอยู่ ไม่ลบจนกว่า user ตอบ)
@@ -502,3 +506,71 @@ stateDiagram-v2
 | 10 API | `groups/[id]/template/route.ts` · `updateTemplate/resetTemplate` |
 | 11, 12 หน้าจัดข้อความ + การ์ด | **รอ UI** (§13.9) |
 | 15 สิทธิ์ | §13.8 · `routes.test.ts` (สแกน route จริง) |
+
+---
+
+## 14. ส่วนต่อขยาย EXT 2026-10-14 — หน้า "สรุปรายละเอียด" สาธารณะ (สำเนา + ลิงก์ถือแล้วเปิดได้)
+
+> ต้นทาง: [[EXTENSIONS-2026-10-14-public-detail-link]] (AC ฉบับเต็ม) · **เขียนจากโค้ดใน worktree 2026-10-15** — สิ่งที่โค้ดไม่ได้ทำไม่ถูกอ้าง · ไม่แก้ความหมาย TFR-LGS-01..24 และ §13 · สถานะรายข้อ: EXT §16 · ส่วน "ต่อเข้า 3 เส้นทางส่ง" (TFR-LGS-LINK-02) เขียนตามสเปก AC-LINK-01 — งานต่อสายยังไม่ปิด
+
+### 14.1 สัญญาข้อมูล
+
+| รายการ | ข้อกำหนดเชิงเทคนิค | จุดบังคับ |
+|---|---|---|
+| `TemplateV1.button.target?` | `'DASHBOARD' \| 'DETAIL'` เพิ่มแบบ additive (ไม่ใส่ = DASHBOARD) · `strictObject` ปฏิเสธค่าอื่น (`BUTTON_TARGET`) · `defaultTemplateFromFlags` ไม่ปล่อย `target` · `deriveFlags` **ไม่เพิ่ม key** (key แปลก = `prisma.update` ล้ม) | `template.ts` · `validations.ts` (`TemplateRule` + `KNOWN_RULES`) |
+| `SummaryReportInput.detailUrl?` / `monthlyDetailUrl?` | มี = footer.uri ชี้ลิงก์นั้น · ไม่มี = `sellerDashboardUrl()` เดิม (golden ไม่เปลี่ยนไบต์) · `monthlyDetailUrl` ใช้กับใบรายเดือนที่ติดมาใน push เดียวกัน | `flex-summary-report.ts` |
+| `DetailSnapshotV1` | Valibot `strictObject` ทุกชั้น · เก็บใน `LineReportSnapshot.payload` · parse ก่อนเขียนและหลังอ่าน · ฟิลด์ตัวเลขที่ `exposure` ปิดเป็น optional และ **ไม่อยู่ใน payload** (ไม่ใช่แค่ซ่อน) · ไม่มีฟิลด์ buyerContact/ที่อยู่/เลขออเดอร์/`publicToken`/ต้นทุน/กำไร โดยโครงสร้าง · รูปเต็มดู EXT §4 (สัญญาข้อมูล, รูปที่ sync แล้ว) | `detail-snapshot.ts` (`DetailSnapshotSchema` · `parseSnapshot` · `fitToBudget`) |
+| ค่าคงที่ | แถวสั่งซื้อ ≤150/ร้าน · แถวค่าใช้จ่าย ≤100/ร้าน · โน้ต ≤200 · ชื่องาน ≤80 · ชื่อลูกค้า ≤60 · payload ≤400KB (DB CHECK 512KB) | `MAX_*` ใน `detail-snapshot.ts` |
+
+### 14.2 TFR
+
+**TFR-LGS-LINK-01 token + อายุ (FR-LINK-01, 08-1)** — `newDetailToken()` = `randomBytes(16)` base64url (22 ตัว, 128 บิต) + `hashDetailToken` = sha256 hex · DB เก็บเฉพาะ hash · `isWellFormedToken` = `/^[A-Za-z0-9_-]{22}$/` · ไม่ใช้ `Math.random` · `detailExpiresAt(createdAt)` = `thaiMidnightUtc` ของ `shiftIsoDate(todayThaiIsoDate(createdAt), 2)` ⇒ 00:00 ไทยของวันที่ 2 นับจากวันสร้าง (อายุนานสุด 48 ชม.) · `detailLinkUrl(token)` = `${NEXT_PUBLIC_SELLER_URL}/lr/${token}` เมื่อฐานขึ้นต้น `https://` มิฉะนั้น `null` · **ไม่ใส่ `openExternalBrowser`** (หน้านี้ต้องเปิดใน in-app browser ของ LINE ได้)
+
+**TFR-LGS-LINK-02 สร้างสำเนาก่อนส่ง (FR-LINK-01)** — `createDetailSnapshot({groupId, deliveryId, kind, template, summary, title, window, now, cache})` คืน `{url}` หรือ `null` (ไม่ใช่ DETAIL · `button.show=false` · ไม่มีฐาน https ⇒ ไม่เขียนแถว) · ลำดับ: เช็คเงื่อนไข → `buildDetailSnapshot` → สร้าง token → `lineReportSnapshot.create` → คืน URL · error อื่น throw ให้ผู้เรียกจับ
+- **ผู้เรียก 3 จุด (ล้ม = ปุ่มเดิม, log เฉพาะ `ErrorName`, ไม่มี token/ยอด/ชื่อ):**
+  - `runSlot` — หลังกรองข้อความ `live` ก่อน build/`savePendingPayload` · 1 ข้อความ = 1 สำเนา (D+M = 2 สำเนา: `detailUrl` + `monthlyDetailUrl`) · `deliveryId` = แถวที่ claim · retry ส่ง raw เดิมจึงใช้ URL เดิม
+  - `sendTest` — ก่อน build ข้อความ อยู่ใน try ชั้นใน (catch ชั้นนอกแปลงทุก error เป็น `INTERNAL` ซึ่งไม่ควรเกิดเพราะลิงก์สรุปล้ม)
+  - ทางคำสั่ง (`composeAndReply`) — **งบเวลา 5 วินาที**: `min(5000, baseMs + REPLY_WINDOW_MS − now − 5000)` ms · `≤ 0` = ไม่เรียกสร้าง · เกินงบ = `Promise.race` ได้ `null` → ปุ่มเดิม (แถวที่ตามมาเป็นแถวกำพร้า หมดอายุ/ถูก purge เอง)
+- `FINAL_NOTICE` ไม่ผ่านเส้นทางนี้ (ไม่มี footer)
+
+**TFR-LGS-LINK-03 ประกอบสำเนา (FR-LINK-03, 04, 07)** — `buildDetailSnapshot({summary, template, kind, title, window, now, cache})`:
+- `exposure` = `{orders: showOrders, sales: showSales, cancelled: showCancelled, expense: deriveExposure(template).expense}` (คัดลอก ณ ตอนส่ง) · ตัวเลขหัว (`total`, `shop.orders/sales/cancelled`) **อ่านจาก `GroupSummary` ที่สร้างการ์ดใบเดียวกัน** ไม่คำนวณใหม่ (`combineTotals` · `salesTotal`)
+- ต่อร้าน OK (ถ้า `exposure.orders ∨ exposure.sales`): query A = ชุดใบเดียวกับการ์ด (`cardOrderSetWhere` = `shopId` + `withoutDrafted('CANCELLED')` + `createdAt` ในช่วงวันไทย ใหม่→เก่า) · เทียบ `count`/`Σ totalAmount` กับ `ShopSummary` — ไม่เท่า → ลองใหม่ 1 ครั้ง → ยังไม่เท่าติด `parity:'MISMATCH'` + `console.error('[line-report] detail parity mismatch')` (ไม่มียอด) หัวยังเป็นเลขการ์ด
+- แบ่งก้อนด้วย `classifyBucket`: ร้านบริการ `serviceClosedAt != null ? 0 : 1` (CLOSED/UNCLOSED) · ร้านอื่น `countsAsRevenue ? 0 : 1` (COUNTED/PENDING) — 🛑 ห้ามใช้ `countsAsServiceRevenue`/`serviceUnclosedOrderWhere` (ตัด RETURNED ผลรวมไม่เท่าการ์ด) · ยอดก้อนมาจากชุดเต็ม A ไม่ใช่แถวที่ตัดเพดาน
+- query B = รายละเอียดเฉพาะ id ใน A ที่อยู่ในเพดาน 150 (จำกัด `shopId` ซ้ำ) · รูปสินค้า = รูปแรกของ item แรกที่มี `productId` ผ่าน `lineProductImageUrl` (route `/api/line-report/product-image` เซ็นลายเซ็น) query สินค้าจำกัด `shopId` · ช่องทางขาย = `resolveOrderSource` (ไม่ select `avatarUrl` เพราะเป็น URL ภายนอก)
+- ค่าใช้จ่าย (เมื่อ `exposure.expense`): `loadPnl` (memo เดียวกับการ์ด) + `expenseDetailRows` — บรรทัดค่าส่งระบบ (ขาไป → ขากลับ) นำหน้า แล้วรายการที่บันทึกใหม่→เก่า · `Σ rows (ก่อนตัดเพดาน) = ShopFinance.expense` · `expenseItems` เดิมไม่ถูกแก้ (ไม่อ่านโน้ต)
+- ร้าน `ERROR`/`EXCLUDED` เก็บสถานะ + เหตุผล (`excludedReason`) ไม่มีตัวเลข
+- ปิดท้าย `fitToBudget` (ลดเพดานแถวต่อร้านครึ่งหนึ่งซ้ำจน ≤400KB · ไม่แตะยอด) → `parseSnapshot` ไม่ผ่าน = throw `DETAIL_SNAPSHOT_INVALID` (ผู้เรียกใช้ปุ่มเดิม)
+
+**TFR-LGS-LINK-04 PII ที่จุดเขียน (FR-LINK-03)** — `toOrderRow`: `customerName` trim ≤60, `null` เมื่อว่าง/มี `@`/มีตัวเลขรวม ≥7 หลัก · `phoneMasked = maskPhoneForGuest(buyerContact)` (`•••-•••-891`; ไม่ใช่เบอร์ไทย 10 หลัก → `null`) · `title` = ชื่อ item แรก (+ " และอีก n รายการ") → ชื่อห้อง → "รายการ" · ไม่ใช้ `description` · `OrderRowInput` มี `buyerContact` แต่ `OrderRow` ไม่มีฟิลด์นั้น · `axis` = `RETURNED` ก่อน แล้ว `countsAsRevenue ? CONFIRMED : PENDING`
+
+**TFR-LGS-LINK-05 อ่านสำเนา (FR-LINK-05)** — `getSnapshotView(token, now)` คืน union ไม่ throw ตามโดเมน: `hashDetailToken` ทุกครั้ง (แม้รูปแบบผิด) → `isWellFormedToken` ผิด = `NOT_FOUND` → `findUnique({tokenHash})` พร้อม `group.status` สด → ไม่มีแถว/กลุ่ม `REMOVED` = `NOT_FOUND` · `now >= expiresAt` **หรือ** `payload == null` = `EXPIRED {expiresAt, reportKind}` (ไม่ส่ง payload) · `parseSnapshot` ไม่ผ่าน = `NOT_FOUND` + `console.error('[line-report] detail snapshot unreadable')` · มิฉะนั้น `OK {snapshot}` · คีย์ค้นหาเดียวคือ hash (ไม่มี IDOR ด้วย id)
+
+**TFR-LGS-LINK-06 proxy (FR-LINK-05)** — สาขาใน `src/proxy.ts` `subdomain==='seller' && pathname.startsWith('/lr/')` **ก่อน `getToken`**: ใส่ `Cache-Control: no-store` · `X-Robots-Tag: noindex, nofollow` · `Referrer-Policy: no-referrer` ทุกการตอบของสาขา · `checkApiRateLimit('lr:'+clientIp, 30, 15 นาที)` นับทุก request — เกิน = 429 HTML เล็ก (ไม่มีสคริปต์/ลิงก์ภายนอก) · ผ่าน = `NextResponse.rewrite` ไป `/seller/lr/{token}` ⇒ ไม่ผ่านด่าน onboarding/registration/iOS shell ไม่ว่าผู้เปิดล็อกอินแบบไหน · host หลัก (`deepth.local`) ไม่เข้าสาขา · `public/robots.txt` = `User-agent: *` + `Disallow: /lr/`
+
+**TFR-LGS-LINK-07 หน้า (FR-LINK-06)** — `src/app/(public-report)/seller/lr/[token]/page.tsx`: `await connection()` (ห้าม cache) · `cache()` ครอบ `getSnapshotView` ให้ `generateMetadata` กับ page อ่านฐานครั้งเดียว · `<title>` มีชื่อรายงานเฉพาะ `OK` · `NOT_FOUND` → `notFound()` · `EXPIRED` → `StateCard` หมดอายุ (200) · `OK` → `ReportView` · root layout `(public-report)/layout.tsx`: `robots {index:false, follow:false}` · `referrer: no-referrer` · viewport ซูมได้ · ไม่มี Analytics/SpeedInsights/provider session · ไม่มี `fetch(`/`dangerouslySetInnerHTML`/`react-toastify`/emoji (เทสสแกนซอร์ส) · รูปโหลดเฉพาะ route first-party ที่เซ็นแล้ว (`safeImageUrl`)
+
+**TFR-LGS-LINK-08 สิทธิ์เปิดสวิตช์ (FR-LINK-02)** — `updateTemplate` (L2 เดิม): หลังตรวจ `expectedVersion` และด่านค่าใช้จ่าย ใน tx เดียวกับล็อกกลุ่ม: `target==='DETAIL' ∧ detailLinkBlocked` → `INVALID_SETTINGS{DETAIL_NEEDS_METRIC}` · `!confirmDetailLink ∧ needsDetailLinkConfirm(เทมเพลตที่บันทึกไว้ (พัง/ไม่มี = null), ใหม่)` → `DETAIL_LINK_CONFIRM_REQUIRED` · `needsDetailLinkConfirm` = (`next.target==='DETAIL'`) ∧ (`prev.target !== 'DETAIL'` ∨ ค่าใช้จ่ายเพิ่งถูกเปิดเผย) · route PUT `strictObject` รับ `confirmDetailLink?: boolean` เพิ่ม (ลืม = ทุก PUT ที่มีฟิลด์นี้ได้ `VALIDATION` 400) · reset (DELETE) กลับ DASHBOARD เพราะ `template=NULL`
+
+**TFR-LGS-LINK-09 ล้างสำเนา (FR-LINK-08)** — `purgeExpiredSnapshots(now, groupIds?)` ใน `sweep` **ทุก tick**: `updateMany` ที่ `payload` ไม่เป็น `DbNull` ∧ (`expiresAt <= now` ∨ `group.status='REMOVED'`) → `payload=DbNull, purgedAt=now` (ครอบ try/catch แยก) · `runCleanup` (หน้าต่าง 03:00 ไทย) ลบแถวที่ `expiresAt < now − 30 วัน` (มี predicate เวลาเสมอ — HR13) · ผลคืน sweep เพิ่ม `snapshotsPurged` · ผลคืน `runCleanup` เพิ่ม `snapshotsDeleted`
+
+### 14.3 NFR ที่เกี่ยวกับส่วนขยายนี้
+
+| ด้าน | ข้อกำหนด |
+|---|---|
+| ความเป็นส่วนตัว | log ใหม่ prefix `[line-report]` ไม่มี token/ยอด/ชื่อ/เบอร์/โน้ต (ทดสอบ: spy console + scan ซอร์ส) · `LineReportDelivery.summary` ไม่เพิ่มข้อมูลลิงก์ · หน้าไม่ใช้ analytics/สคริปต์ภายนอก |
+| ประสิทธิภาพ | ต่อร้าน +2 query (A แคบทั้งชุด · B เฉพาะ id ในเพดาน) + 1 query สินค้า (ถ้ามีรูป) · ค่าใช้จ่ายใช้ `loadPnl` memo เดียวกับการ์ด · ทางคำสั่งจำกัด 5 วินาที · การวัดเวลา sweep กลุ่ม 10 ร้านยังไม่มีหลักฐาน |
+| ความเข้ากันได้ | กลุ่ม/เทมเพลตเดิมไม่เปลี่ยนไบต์ (golden ไม่ส่ง `detailUrl`) · โค้ดเก่าไม่อ่านตารางใหม่ → ถอยโค้ดได้โดยทิ้งตาราง · เทมเพลตที่มี `button.target` ถูกโค้ดเก่า validate ไม่ผ่านแล้วตกแบบมาตรฐานตามพฤติกรรมเดิม |
+| Rate limit | in-memory ต่อ instance (ด่านหลักคือ entropy 128 บิต) |
+
+### 14.4 Traceability (EXT-LINK)
+
+| FR-LGS-LINK | TFR | จุดบังคับหลัก |
+|---|---|---|
+| 01 | 01, 02 | `detail-token.ts` · `line-report-snapshot.service.ts` · `line-report-send.service.ts` · `line-report-command.service.ts` · `flex-summary-report.ts` |
+| 02 | 08 | `template.ts` · `line-report-group.service.ts` · `groups/[id]/template/route.ts` · `errors.ts` |
+| 03, 04, 07 | 03, 04 | `detail-snapshot.ts` · `detail-snapshot-rows.ts` · `line-report-detail.service.ts` |
+| 05 | 05, 06 | `line-report-snapshot.service.ts` · `src/proxy.ts` · `public/robots.txt` |
+| 06 | 07 | `src/app/(public-report)/**` |
+| 08 | 01, 09 | `detail-expiry.ts` · `line-report-sweep.service.ts` · migration `20261015090000` |
+| 09 | 08 | `…/template/lib/confirm-detail-link.ts` · `reducer.ts` · `CanvasList.tsx` · `TemplateBuilderClient.tsx` |

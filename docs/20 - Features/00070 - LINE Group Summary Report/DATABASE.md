@@ -306,6 +306,78 @@ enum LineReportRateKind      { BIND_ATTEMPT COMMAND }
 - `PENDING`/`INACTIVE` ของกลุ่ม ≠ "แพ็กเกจหยุด": **การหยุดเพราะแพ็กเกจไม่เป็น enum ค่า** (BRD §4.3 note) — อ่านสดจาก `BusinessPackageSubscription.status` ของเจ้าของ (stored-flag-vs-owner-truth) ⇒ ไม่มี `PAUSED` ใน `LineReportGroupStatus` และไม่มี `PACKAGE_PAUSED` ใน `LineReportAlertKind` (หน้าตั้งค่าแสดงแบนเนอร์ "หยุดชั่วคราว" จากสถานะแพ็กเกจสด — AC-LGS-21-7)
 - ไม่มีสถานะ delivery แยกสำหรับ `TOKEN_INVALID` — ใช้ `RETRY_PENDING` + `reason='TOKEN_INVALID'` โดย **ไม่เพิ่ม `attempt`** (ไม่เผา retry — AC-LGS-20-7) และหมดหน้าต่าง 60 นาที → `MISSED`; `BOT_NOT_IN_GROUP`/ลบกลุ่ม → `FAILED` + reason (AC-LGS-20-6) — SRS ต้องล็อก state machine นี้
 
+### 3.7 `LineReportSnapshot` — สำเนาหน้า "สรุปรายละเอียด" สาธารณะ [EXT 2026-10-14]
+
+> ต้นทาง: [[EXTENSIONS-2026-10-14-public-detail-link]] §7 · เขียนจาก `prisma/schema.prisma` + `prisma/migrations/20261015090000_line_report_detail_snapshot/migration.sql` จริง · **ตารางใหม่ล้วน ไม่แตะตารางเดิม ไม่เพิ่ม enum** (ใช้ `LineReportDeliveryKind` เดิม)
+
+```prisma
+model LineReportSnapshot {
+  id          String                 @id @default(uuid())
+  groupId     String
+  deliveryId  String?
+  kind        LineReportDeliveryKind
+  tokenHash   String                 @unique
+  windowStart String
+  windowEnd   String
+  computedAt  DateTime
+  expiresAt   DateTime
+  payload     Json?
+  purgedAt    DateTime?
+  createdAt   DateTime               @default(now())
+
+  group    LineReportGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  delivery LineReportDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+  @@index([expiresAt])
+  @@index([deliveryId])
+}
+```
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | String PK (uuid) | |
+| `groupId` | String FK → `LineReportGroup` | **Cascade** (กลุ่มไม่ถูก hard delete ในแอป — REMOVED เป็น soft; Cascade เกิดจริงเฉพาะกรณีลบแถวกลุ่มจริง เช่น fixture เทส) |
+| `deliveryId` | String? FK → `LineReportDelivery` | **SetNull** — ไว้สืบย้อนเวลาแก้ปัญหา ไม่ใช่เส้นทางอ่านของหน้าสาธารณะ · ผูกกับแถว delivery ที่ claim (D+M = ผูกคนละแถว) |
+| `kind` | `LineReportDeliveryKind` | `DAILY`/`MONTHLY`/`TEST`/`COMMAND` (ไม่เคยเป็น `FINAL_NOTICE`) — หน้าใช้เลือกคำสั่งในหน้าหมดอายุ ("สรุปเดือนนี้" เมื่อ MONTHLY) |
+| `tokenHash` | String **UNIQUE** | sha256(token) hex 64 ตัว — **ไม่เก็บ token ดิบ** · เป็นคีย์ค้นหาเดียวของหน้าสาธารณะ (ไม่มีทางอ่านด้วย id) |
+| `windowStart` / `windowEnd` | String `YYYY-MM-DD` (ไทย) | ช่วงวันของรายงาน — ไว้ตรวจ/ล้างโดยไม่ต้องอ่าน payload |
+| `computedAt` | DateTime | เวลาคำนวณจริง (= "ข้อมูล ณ" บนหน้า) |
+| `expiresAt` | DateTime | 00:00 ไทยของวันที่ 2 นับจากวันสร้าง (อายุนานสุด 48 ชม.) · หน้าตัดสินที่ server ด้วย `now >= expiresAt` |
+| `payload` | Json? | `DetailSnapshotV1` (Valibot `strictObject`) · **NULL = ล้าง PII แล้ว (แถวโครงเปล่า)** ⇒ หน้าถือเป็น "หมดอายุ" |
+| `purgedAt` | DateTime? | เวลาที่ล้าง payload |
+| `createdAt` | DateTime default now | |
+
+**Index:** `tokenHash` UNIQUE (อ่านหน้า) · `(groupId, createdAt)` · `(expiresAt)` (purge/ลบแถวเก่า) · `(deliveryId)` (FK)
+
+**Unmanaged SQL (เขียนมือใน migration — Prisma ประกาศไม่ได้ ⇒ ห้าม `db pull`/`migrate dev` ทับ):**
+
+```sql
+ALTER TABLE "LineReportSnapshot"
+  ADD CONSTRAINT "LineReportSnapshot_payload_size_chk" CHECK ("payload" IS NULL OR octet_length("payload"::text) <= 524288),
+  ADD CONSTRAINT "LineReportSnapshot_expiry_chk"       CHECK ("expiresAt" > "createdAt");
+```
+
+- CHECK ขนาดเป็นตาข่ายชั้นสอง: ด่านแรกคือ `fitToBudget` (≤400KB) ที่ service · เพดาน CHECK 512KB กว้างกว่าเพดาน service 400KB โดยตั้งใจ (ตาม EXT §7)
+- ทั้งสอง CHECK อยู่บน **ตารางที่สร้างใหม่ใน migration เดียวกัน** ⇒ ไม่มีแถวเดิมให้ชน (additive)
+- **เนื้อหา payload:** ชื่อลูกค้า + เบอร์ปิดบาง + ชื่องาน + ยอดรายใบ + ค่าใช้จ่ายพร้อมโน้ต (เฉพาะส่วนที่เทมเพลตเปิด) — **ไม่มี** เบอร์ดิบ/อีเมล/ที่อยู่/เลขออเดอร์/ต้นทุน/กำไร ⇒ ตารางนี้เป็นตารางเดียวของ 00070 ที่มี PII ลูกค้า (แต่ละแถวชั่วคราว — retention ด้านล่าง)
+
+**Retention (ทุกคำสั่งมี predicate เวลา — ห้าม `deleteMany()` เปล่า):**
+
+| ข้อมูล | เมื่อไร | การกระทำ | จุดบังคับ |
+|---|---|---|---|
+| `payload` | **ทุก tick ของ sweep (`*/30`)** เมื่อ `payload` ยังอยู่ ∧ (`expiresAt <= now` ∨ กลุ่ม `REMOVED`) | `UPDATE … SET payload=NULL, purgedAt=now` (คงแถวโครงไว้) | `purgeExpiredSnapshots` |
+| แถวโครงเปล่า | cleanup 03:00 ไทย เมื่อ `expiresAt < now − 30 วัน` | `DELETE` (predicate เวลา) | `runCleanup` |
+
+- เหตุที่คงแถวโครง 30 วัน: ให้หน้าแยก "หมดอายุ" (บอกวิธีขอลิงก์ใหม่) ออกจาก "ไม่พบ" โดยไม่ต้องเก็บ PII ต่อ
+- ⚠️ ต่างจากที่ user อนุมัติ (Q-4 = ล้างใน cleanup 03:00): Controller ตัดสิน 2026-10-15 ให้ล้างทุก tick เพราะหน้าต่าง 03:00–03:30 มี tick เดียว ถ้าพลาดรอบนั้น PII ค้าง ~27 ชม. — **ไม่แตะข้อมูลออเดอร์/ค่าใช้จ่ายจริงของร้าน (snapshot เป็นสำเนา)**
+- ลิงก์ของกลุ่มที่ `REMOVED`: หน้าตอบ 404 ทันที (อ่านสถานะกลุ่มสด) และ payload ถูกล้างที่ tick ถัดไป — ไม่ได้เพิ่ม `updateMany` ล้างทันทีใน `removeGroup`/account-deletion
+
+**Query ที่ใช้ (ห้าม `select *`):**
+- อ่านหน้า: `findUnique({where:{tokenHash}, select:{kind, expiresAt, payload, group:{select:{status}}}})`
+- เขียน: `create` เดียวหลัง `buildDetailSnapshot` สำเร็จ (ล้ม = ไม่มีแถว ผู้เรียกใช้ปุ่มเดิม)
+- purge: `updateMany({where:{payload:{not:DbNull}, OR:[{expiresAt:{lte:now}},{group:{status:'REMOVED'}}]}, data:{payload:DbNull, purgedAt:now}})`
+
 ---
 
 ## 4. ความสัมพันธ์และ `onDelete`
@@ -318,6 +390,8 @@ enum LineReportRateKind      { BIND_ATTEMPT COMMAND }
 | `LineReportGroupShop.shopId → Shop` | Cascade | `Shop` ก็ soft-delete/purge (แถวไม่หาย — AC-LGS-09-3 ต้องเห็นร้านพร้อมป้ายสถานะ); Cascade มีผลเฉพาะ hard-delete ร้านซึ่งไม่เกิดในแอป |
 | `LineReportBindCode.ownerId → User` / `.groupId → LineReportGroup` | Cascade | ข้อมูลชั่วคราว (หมดอายุ 10 นาที) — ไม่มีค่าหลักฐาน |
 | `LineReportRateEvent` | — (ไม่มี FK) | อ้าง `lineGroupId` ดิบ ตั้งใจให้นับกลุ่มที่ยังไม่ผูกได้ |
+| `LineReportSnapshot.groupId → LineReportGroup` **[EXT-LINK]** | Cascade | สำเนาชั่วคราวที่มี PII ไม่ควรอยู่เกินกลุ่ม (กลุ่ม REMOVED เป็น soft จึงไม่ cascade ในแอป — ล้างด้วย purge ทุก tick) |
+| `LineReportSnapshot.deliveryId → LineReportDelivery` **[EXT-LINK]** | SetNull | `deliveryId` ใช้สืบย้อนเท่านั้น ไม่ใช่เส้นทางอ่านของหน้าสาธารณะ ⇒ ลบ delivery แล้วสำเนายังอยู่ (เทส `line-report-snapshot-constraints.db.test.ts`) |
 
 **Account purge:** `src/services/account-deletion.service.ts` ต้องเพิ่มขั้น (งาน DEV/ติดตามใน SRS): ทุกกลุ่มของ user → `status='REMOVED'`, `removedAt=now()`, ล้าง `groupName`, **ล้างค่า `lineGroupId` (set NULL)** เพราะเป็นตัวระบุภายนอก, พยายามให้บอท `leave` (best-effort — AC-LGS-08-2) และ revoke โค้ดค้างทั้งหมด; log (`LineReportDelivery`) **คงไว้ตามอายุ 90 วัน** (ไม่มี PII — มีแต่ id/ตัวเลขต้นทุน/ข้อความสาเหตุ) การ test ที่ต้องล้างข้อมูลต้องลบตามลำดับ Delivery → BindCode/GroupShop → Group → User **scope ด้วย id ที่เทสสร้าง** (HR13) — Restrict จะทำให้ลบผิดลำดับล้มเสียงดัง ซึ่งตั้งใจ
 
@@ -342,6 +416,10 @@ enum LineReportRateKind      { BIND_ATTEMPT COMMAND }
 | `LineReportDelivery` | `(groupId, createdAt)` | BTREE | "10 ล่าสุดต่อกลุ่ม" (`orderBy createdAt desc take 10`) และนับส่งทดสอบวันนี้ (range `createdAt ≥ ต้นวันไทย` + กรอง `kind='TEST'` ในผลเล็กมาก) |
 | `LineReportDelivery` | `(status, createdAt)` | BTREE | sweep หยิบ `RETRY_PENDING`/`CLAIMED` ค้าง |
 | `LineReportDelivery` | `(createdAt)` | BTREE | cleanup 90 วัน + ops: `SUM(pushMessageCount)` ต่อวัน (join `LineReportGroup.ownerId` ต่อเจ้าของ) |
+| `LineReportSnapshot` **[EXT-LINK]** | `(tokenHash)` | **UNIQUE** | อ่านหน้าสาธารณะ (คีย์ค้นหาเดียว) |
+| `LineReportSnapshot` **[EXT-LINK]** | `(groupId, createdAt)` | BTREE | FK + สืบย้อนต่อกลุ่ม |
+| `LineReportSnapshot` **[EXT-LINK]** | `(expiresAt)` | BTREE | purge payload / ลบแถวโครงเก่า |
+| `LineReportSnapshot` **[EXT-LINK]** | `(deliveryId)` | BTREE | FK (SetNull) |
 
 ไม่ทำ index แยกสำหรับ "นับส่งทดสอบ" (`(groupId, kind, createdAt)`): ต่อกลุ่มต่อวันมีแถวไม่เกินหลักสิบ → `(groupId, createdAt)` พอ (ไม่ over-index ตารางที่เขียนบ่อย)
 
@@ -439,7 +517,7 @@ ALTER TABLE "LineReportGroup"
 | `LineReportGroup` ที่ `PENDING` ไม่เคยผูก | 7 วันหลังโค้ดสุดท้ายหมดอายุ | ตั้ง `REMOVED` (ไม่ลบแถว) — คืนโควตา 10 กลุ่ม (ข้อ 2 ใน §9) |
 
 - แถว `REMOVED` คงอยู่ (ไม่มี purge ในรอบนี้) — เก็บ `lineGroupId`/`groupName` ของกลุ่มที่เจ้าของลบเอง จนกว่าจะมีนโยบาย purge (ข้อ 6 ใน §9)
-- **PII:** ไม่มีคอลัมน์ PII ของสมาชิกกลุ่ม/ลูกค้า (AC-LGS-06-5: ไม่มี LINE userId, ไม่มีเนื้อข้อความ); `lineGroupId`/`groupName` เป็นตัวระบุกลุ่มของเจ้าของ — ล้างตอน account purge (§4); `pendingPayload` มียอดขายระดับร้าน → ชั่วคราว (ข้างบน)
+- **PII:** ไม่มีคอลัมน์ PII ของสมาชิกกลุ่ม/ลูกค้า (AC-LGS-06-5: ไม่มี LINE userId, ไม่มีเนื้อข้อความ) **— ยกเว้น [EXT-LINK] `LineReportSnapshot.payload` ที่มีชื่อลูกค้า + เบอร์ปิดบางส่วน (ชั่วคราว ดู §3.7) · ไม่ใช่คอลัมน์ ผูกกับ JSON ที่ล้างด้วย purge ทุก tick**; `lineGroupId`/`groupName` เป็นตัวระบุกลุ่มของเจ้าของ — ล้างตอน account purge (§4); `pendingPayload` มียอดขายระดับร้าน → ชั่วคราว (ข้างบน)
 
 ---
 
@@ -505,6 +583,15 @@ rollback note ของ enum: `ALTER TYPE … ADD VALUE` ที่เพิ่�
 - **Rollback:** โค้ดเก่าไม่อ่านคอลัมน์ใหม่ → ทิ้งคอลัมน์ไว้ได้ปลอดภัย · ล้างค่าเทมเพลต = `UPDATE "LineReportGroup" SET "template" = NULL` (หรือปุ่ม reset ใน UI) · ⚠️ กลุ่มที่บันทึกเทมเพลตแล้วจะส่งตาม flag ที่ derive ไว้ในคอลัมน์หลังถอยโค้ด (ใกล้เคียงแต่ไม่เท่ากับเทมเพลต)
 - HR14/HR15 ใช้เหมือนเดิม: ปักหมุด `localhost:5434` ในคำสั่ง · push `main` = `migrate deploy` บน prod ในตัว · migrate ล้ม = deploy ไม่ขึ้น
 
+### 8.7 [EXT 2026-10-14] migration ที่สาม — `20261015090000_line_report_detail_snapshot`
+
+- ไฟล์เดียว เขียนมือ (`CREATE TABLE "LineReportSnapshot"` + UNIQUE index `tokenHash` + index ×3 + FK ×2 + CHECK ×2 — ดู §3.7) · **ตารางใหม่ล้วน** ไม่ `ALTER`/`DROP` ตารางหรือ enum เดิม · ไม่มี backfill · ไม่มีแถวเดิมให้ CHECK ชน
+- ลำดับ SQL: `CREATE TABLE` → `CREATE UNIQUE INDEX "LineReportSnapshot_tokenHash_key"` → index `(groupId, createdAt)` / `(expiresAt)` / `(deliveryId)` → FK `groupId` (`ON DELETE CASCADE`) และ `deliveryId` (`ON DELETE SET NULL`) → `ALTER TABLE … ADD CONSTRAINT` ×2 (`payload_size_chk`, `expiry_chk`)
+- **Rollback:** ไม่มีโค้ดอื่นอ้างตารางนี้นอกฟีเจอร์ — ถอยโค้ดแล้วทิ้งตารางไว้ได้ปลอดภัย · **ห้ามรัน `DROP` เอง** (รอ Controller สั่ง — ตามคอมเมนต์หัว migration) · ปิดฟีเจอร์ที่ชั้นแอปได้โดยให้กลุ่มตั้งปุ่มกลับ DASHBOARD
+- 🛑 **HR15 (ต้องบอก user ก่อน push `main`):** (1) prod ไม่ต้องสั่ง migrate เอง — push `main` = `migrate deploy` ในตัว (2) ฐาน local (5434) ต้อง apply เองด้วย URL localhost ปักหมุดในคำสั่ง (3) migrate ล้ม = deploy ไม่ขึ้น — พิสูจน์ SQL บน local ก่อน merge
+- 🛑 **HR14:** `prisma generate` + `migrate deploy` ที่ปักหมุด `localhost:5434` · ห้าม `migrate dev`/`db pull` (CHECK ×2 ไม่อยู่ใน Prisma DSL — มีคอมเมนต์ 🛑 บนหัวไฟล์ migration)
+- Sync: `docs/SRS.md` §6.67 (โมเดล + CHECK) · §7.24 (error ใหม่ + หน้า `/lr/{token}`)
+
 ---
 
 ## 9. ข้อที่ไม่แน่ใจ / ต้องให้ Controller ตัดสิน
@@ -539,6 +626,7 @@ rollback note ของ enum: `ALTER TYPE … ADD VALUE` ที่เพิ่�
 | `LineReportBindCode` | FR-LGS-04, 05, 06 · BR-LGS-03 | Draft |
 | `LineReportRateEvent` | AC-LGS-06-1, AC-LGS-22-8/9 (OQ-4) | Draft |
 | `LineReportDelivery` | FR-LGS-13, 19, 20, 21, 22, 23 · BR-LGS-12/13/17/18 · LINE-API-Facts §3/§5 | Draft |
+| `LineReportSnapshot` | **EXT-LINK:** FR-LGS-LINK-01, 03, 05, 08 · BR-LGS-37/38/40/43/45 · [[BRD]] §11 · [[SRS]] §14 | ทำแล้วตามโค้ด (schema + migration `20261015090000`) — ยังไม่มีหลักฐาน apply local/prod |
 
 ---
 

@@ -44,6 +44,7 @@ API ชุดนี้ให้บริการ 3 กลุ่ม: **owner API
 | 11 | GET | `/api/cron/line-report-sweep` | `CRON_SECRET` | sweep ทุก 30 นาที |
 | 12 | PUT | `/api/line-report/groups/{id}/template` | L2 | **[EXT]** บันทึกเทมเพลตข้อความรายงาน (optimistic lock) |
 | 13 | DELETE | `/api/line-report/groups/{id}/template` | L2 | **[EXT]** คืนเป็นแบบมาตรฐาน |
+| 14 | GET (หน้า RSC) | `/lr/{token}` บน `seller.*` | **public (ไม่มี session)** | **[EXT-LINK]** หน้า "สรุปรายละเอียด" (สำเนา) — ไม่ใช่ JSON API (ดู §4.14) |
 
 ## 4. Endpoint Detail
 
@@ -236,6 +237,10 @@ Vercel Cron `*/30 * * * *` · `maxDuration = 300` · เริ่มกลุ่
 | Body | `template` | `TemplateV1` (ดู [[SRS]] ส่วน EXT) | ✅ | ตรวจด้วย `TemplateSchema` (`strictObject` — ฟิลด์เกินถูกปฏิเสธ) ที่ service (`validateTemplate`) — route ไม่ตรวจโครงเอง เพื่อให้ได้ `rule`/`blockId` กลับไป |
 | Body | `expectedVersion` | `integer ≥ 0` | ✅ | ค่า `group.templateVersion` ที่ client โหลดไว้ |
 | Body | `confirmProfit` | `boolean` | ไม่ | ต้อง `true` เมื่อเทมเพลตทำให้ `showProfit` เปลี่ยน false→true (บล็อกกำไร · ตัวเลือก "กำไรต่อร้าน" · โทเคน `{กำไร}`) |
+| Body | `confirmExpense` | `boolean` | ไม่ | **[EXT ค่าใช้จ่าย]** ต้อง `true` เมื่อเปิดบล็อก `expense`/`net_sales` ครั้งแรก |
+| Body | `confirmDetailLink` | `boolean` | ไม่ | **[EXT-LINK]** ต้อง `true` เมื่อ `template.button.target` เปลี่ยนเป็น `'DETAIL'` (เทียบเทมเพลตที่บันทึกไว้ — `null`/พัง = ยังไม่เคยเปิด) **หรือ** `'DETAIL'` เปิดอยู่แล้วแต่ค่าใช้จ่าย (`expense`/`net_sales`) เพิ่งถูกเปิดเผย · ปิดหรือคงอยู่โดยค่าใช้จ่ายไม่เพิ่ม = ไม่ต้องส่ง · `PutSchema` เป็น `strictObject` ดังนั้นฟิลด์นี้ต้องประกาศใน schema ของ route (ประกาศแล้ว `confirmDetailLink: v.optional(v.boolean())`) |
+
+**[EXT-LINK] `template.button`** (ภายใน `template`): `{ show: boolean; label: string; target?: 'DASHBOARD' | 'DETAIL' }` — `target` เป็น optional (ไม่ใส่ = `DASHBOARD` = เปิด Deep เหมือนเดิม) · ค่านอกชุด = `TEMPLATE_INVALID` `details.rule = 'BUTTON_TARGET'` · `DETAIL` ทำให้ปุ่มบนการ์ดชี้ `/lr/{token}` ของสำเนาที่สร้างตอนส่งรายงานแต่ละใบ (ดู §4.14) · ป้ายปุ่ม (`label`) ไม่เปลี่ยนเอง
 
 `PutSchema` เป็น `strictObject` (คีย์แปลกในชั้น body = 400 `VALIDATION`) · body ต้อง ≤ 64 KB (ตรวจทั้ง `content-length` และความยาวจริง) → เกิน = **400** `TEMPLATE_TOO_LARGE` + `details.reason = 'BODY'` (ไม่ใช่ 413)
 
@@ -256,9 +261,11 @@ Vercel Cron `*/30 * * * *` · `maxDuration = 300` · เริ่มกลุ่
 | `size.bytes` | ไบต์ UTF-8 ของ `JSON.stringify(message)` ใบที่ใหญ่สุด ที่ **ระดับ 3** ด้วยข้อมูลกรณีเลวร้ายสุด (`measureTemplate`) — เกิน `limit` = บันทึกไม่ได้ |
 | `size.limit` | `30000` (`TEMPLATE_BYTES_LIMIT` = เพดาน bubble ของ composer) |
 
-Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `TEMPLATE_INVALID` (`details.rule` + `details.blockId?` — เช่น `TYPE_LIMIT` · `TOTAL_LIMIT` · `TEXT_EMPTY` · `TOKEN`) · 400 `TEMPLATE_TOO_LARGE` (`details.bytes`/`details.limit` เมื่อเกิน 30KB · `details.reason='BODY'` เมื่อ body >64KB) · 400 `INVALID_SETTINGS` (`METRIC_REQUIRED` — เทมเพลตไม่มีตัวเลขเลย กราฟ/ข้อความอย่างเดียวไม่นับ) · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404 `GROUP_NOT_FOUND` · **409 `TEMPLATE_STALE`** (`details.currentVersion` — เปิดสองแท็บ/สองเครื่อง: หนึ่งสำเร็จ อีกอันถูกปฏิเสธ ไม่เขียนทับ)
+**[EXT-LINK] ลำดับด่านเพิ่มใน tx (หลังด่านค่าใช้จ่าย):** `target==='DETAIL'` ∧ ไม่มีบล็อก `orders`/`sales` → `INVALID_SETTINGS` `details.rule = 'DETAIL_NEEDS_METRIC'` (ก่อน) → ไม่มี `confirmDetailLink` ∧ `needsDetailLinkConfirm` → `DETAIL_LINK_CONFIRM_REQUIRED` (หลัง) — ทั้งคู่ก่อนเขียนอะไร
 
-`details.rule` ของ `TEMPLATE_INVALID` (ชุดจาก `TemplateRule` ใน `validations.ts`): `SHAPE` · `EXTRA_FIELD` · `BLOCK_TYPE` · `TYPE_LIMIT` · `TOTAL_LIMIT` · `DUPLICATE_ID` · `STYLE` · `MEASURE` · `TOKEN` · `RUN_SHAPE` · `TEXT_TOO_LONG` · `TEXT_EMPTY` · `TEXT_NEWLINE` · `TITLE` · `BUTTON_LABEL`
+Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `DETAIL_LINK_CONFIRM_REQUIRED` **[EXT-LINK]** · 400 `INVALID_SETTINGS` `rule=DETAIL_NEEDS_METRIC` **[EXT-LINK]** · 400 `EXPENSE_CONFIRM_REQUIRED` · 400 `TEMPLATE_INVALID` (`details.rule` + `details.blockId?` — เช่น `TYPE_LIMIT` · `TOTAL_LIMIT` · `TEXT_EMPTY` · `TOKEN`) · 400 `TEMPLATE_TOO_LARGE` (`details.bytes`/`details.limit` เมื่อเกิน 30KB · `details.reason='BODY'` เมื่อ body >64KB) · 400 `INVALID_SETTINGS` (`METRIC_REQUIRED` — เทมเพลตไม่มีตัวเลขเลย กราฟ/ข้อความอย่างเดียวไม่นับ) · 400 `PROFIT_CONFIRM_REQUIRED` · 403 `PACKAGE_REQUIRED` · 404 `GROUP_NOT_FOUND` · **409 `TEMPLATE_STALE`** (`details.currentVersion` — เปิดสองแท็บ/สองเครื่อง: หนึ่งสำเร็จ อีกอันถูกปฏิเสธ ไม่เขียนทับ)
+
+`details.rule` ของ `TEMPLATE_INVALID` (ชุดจาก `TemplateRule` ใน `validations.ts`): `SHAPE` · `EXTRA_FIELD` · `BLOCK_TYPE` · `TYPE_LIMIT` · `TOTAL_LIMIT` · `DUPLICATE_ID` · `STYLE` · `MEASURE` · `TOKEN` · `RUN_SHAPE` · `TEXT_TOO_LONG` · `TEXT_EMPTY` · `TEXT_NEWLINE` · `TITLE` · `BUTTON_LABEL` · `BUTTON_TARGET` **[EXT-LINK]**
 
 ### 4.13 `DELETE /api/line-report/groups/{id}/template` — [EXT 2026-10-05]
 คืนเป็นแบบมาตรฐาน (L2 — `requireAccess('PAID')` + service ตรวจแพ็กเกจซ้ำ) · ไม่มี body · ใน transaction เดียว: `template = NULL` · `templateVersion + 1` · flag กลับค่าตั้งต้นคอลัมน์ (`showOrders/showSales/showCancelled/showTopProducts = true` · `showProfit = false` · `profitEnabledAt = NULL`) · `attachCycleToDaily` คงเดิมเฉพาะเมื่อ `monthlyEnabled` ยังเปิด (ไม่งั้น `false`)
@@ -269,6 +276,54 @@ Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `TEM
 **200** `{ "group": { …รูปเดียวกับ §4.4 } }` · Errors: 403 `PACKAGE_REQUIRED` · 404 `GROUP_NOT_FOUND`
 
 > การแพ็กเกจหยุด: GET ยังอ่านได้ (L1) และคืน `template` เดิม · PUT/DELETE = 403 · เทมเพลตเดิม **เก็บไว้** กลับ ACTIVE แล้วใช้ต่อ
+
+### 4.14 `GET /lr/{token}` — หน้า "สรุปรายละเอียด" สาธารณะ — [EXT 2026-10-14]
+
+หน้า RSC (ไม่ใช่ JSON API · **ไม่มี endpoint สาธารณะใหม่ใต้ `/api`**) บน `seller.<โดเมน>` (dev `seller.deepth.local:4000`) · ไฟล์ `src/app/(public-report)/seller/lr/[token]/page.tsx` เข้าถึงผ่าน rewrite ของ `src/proxy.ts` (`/lr/{token}` → `/seller/lr/{token}`) · อ่านข้อมูลผ่าน service `getSnapshotView(token, now)` โดยตรง
+
+| รายการ | ค่า |
+|---|---|
+| Auth | **ไม่มี** — ลิงก์ = ใครถือก็เปิดได้ (BR-LGS-37) · ไม่ใช้ session แม้ผู้เปิดล็อกอินอยู่/ติด onboarding/อยู่ใน shell แอป iOS (proxy ไม่เรียก `getToken` ในสาขานี้) |
+| `token` | base64url 22 ตัว (`/^[A-Za-z0-9_-]{22}$/`) · รูปแบบผิดก็ hash แล้วตอบ 404 หน้าเดียวกัน |
+| คีย์ค้นหา | `sha256(token)` hex เท่านั้น — ไม่มีทางอ่านด้วย id (ไม่มี IDOR) |
+| Cache | `Cache-Control: no-store` + `await connection()` ในหน้า (ห้าม cache ทั้งหน้า) |
+
+**Response ตามสถานะ (header ชุดเดียวกันทุกสถานะที่ผ่าน proxy):**
+
+| เงื่อนไข | HTTP | หน้า | ส่ง payload? |
+|---|---|---|---|
+| `getSnapshotView` = `OK` | 200 | รายงาน (`ReportView`) | ใช่ (render เป็น HTML — ไม่มี JSON) |
+| `EXPIRED` (`now >= expiresAt` หรือ `payload` ถูกล้างแล้ว) | **200** (ไม่ใช่ 410) | "ลิงก์สรุปนี้หมดอายุแล้ว" + วันหมดอายุ + คำแนะนำพิมพ์ "สรุปวันนี้"/"สรุปเดือนนี้" ในกลุ่ม | **ไม่** |
+| `NOT_FOUND` (ไม่มีแถว / รูปแบบผิด / กลุ่ม `REMOVED` / payload อ่านไม่ได้) | 404 (`notFound()`) | "ไม่พบหน้าสรุปนี้" — ข้อความเดียวไม่แยกเหตุ | ไม่ |
+| เกินโควตา 30 ครั้ง/15 นาที/IP | 429 | HTML เล็กจาก proxy "เปิดหน้านี้ถี่เกินไป" (ไม่มีสคริปต์/ลิงก์ภายนอก) | ไม่ |
+| error ที่ไม่คาด | — | `error.tsx` "เปิดหน้าสรุปไม่สำเร็จ" (ไม่แสดง stack/digest) + ปุ่มโหลดซ้ำ | ไม่ |
+
+**Header (ตั้งที่ proxy สาขา `/lr/` — ติดทุกการตอบของสาขา รวม 429):** `Cache-Control: no-store` · `X-Robots-Tag: noindex, nofollow` · `Referrer-Policy: no-referrer` · ใน HTML: `<meta robots noindex,nofollow>` + `referrer no-referrer` · `public/robots.txt` = `Disallow: /lr/`
+
+**Rate limit:** key `lr:${clientIp}` · 30 ครั้ง/15 นาที · นับทุก request (รวมที่ผ่าน) · in-memory ต่อ instance (`checkApiRateLimit`) — ด่านหลักคือ entropy 128 บิต
+
+**ข้อมูลที่หน้าแสดง** (รูปเต็มของ payload: [[EXTENSIONS-2026-10-14-public-detail-link]] §4 สัญญาข้อมูล): ชื่อรายงาน · ช่วงวันที่ · ตัวเลขใหญ่ (= การ์ด) · ยอดแบ่งสองก้อนตามชนิดร้าน (บริการ: ปิดงานแล้ว/รอปิดงาน · อื่น: ยืนยันแล้ว/รอยืนยัน) · รายการสั่งซื้อ (เวลา · ชื่อลูกค้า · เบอร์ `•••-•••-891` · ชื่องาน · รูปสินค้า · ช่องทางขาย · ป้ายสถานะ · ยอด) ≤150/ร้าน · ค่าใช้จ่ายพร้อมโน้ต ≤100/ร้าน (เฉพาะที่เทมเพลตเปิด — ส่วนที่ปิดไม่อยู่ในข้อมูลเลย) · ไม่มี: เลขออเดอร์ ลิงก์ `/o/…` ที่อยู่ เบอร์เต็ม ต้นทุน กำไร Top 3 กราฟ
+
+**รูปสินค้า:** โหลดจาก route เดิม `GET /api/line-report/product-image?k=…&s=…` (HMAC ลายเซ็น — route เดิมของ 00070 ไม่ใช่ของใหม่) · หน้าไม่โหลดทรัพยากรภายนอก first-party อื่น (`safeImageUrl` ทิ้ง URL ที่ไม่ใช่ route นี้)
+
+**การลบ/ล้าง:** payload ถูกล้างเป็น NULL ทุก tick ของ `GET /api/cron/line-report-sweep` เมื่อหมดอายุหรือกลุ่ม REMOVED (§4.11) · ผลคืนของ cron เพิ่ม `snapshotsPurged` (sweep) และ `snapshotsDeleted` (ผลของ `runCleanup` เมื่อ tick ตกหน้าต่าง 03:00) — เป็นจำนวนล้วน ไม่มียอด/ข้อมูลลูกค้า
+
+```mermaid
+sequenceDiagram
+    participant U as ผู้ถือลิงก์
+    participant P as proxy.ts
+    participant R as /lr/{token} (RSC)
+    participant S as getSnapshotView
+    U->>P: GET /lr/{token}
+    alt เกิน 30 ครั้ง/15 นาที/IP
+        P-->>U: 429 HTML เล็ก
+    else
+        P->>R: rewrite + header ความเป็นส่วนตัว
+        R->>S: hash(token) → อ่านแถว + group.status
+        S-->>R: OK / EXPIRED / NOT_FOUND
+        R-->>U: 200 รายงาน / 200 หมดอายุ / 404 ไม่พบ
+    end
+```
 
 ## 5. Error Code Table
 รูป error มาตรฐานของโมดูล (ตามธรรมเนียม repo: `error` = รหัส string + `message` ไทยสำหรับ UI):
@@ -288,6 +343,8 @@ Errors: 400 `VALIDATION` (body ผิดรูป/JSON เสีย) · 400 `TEM
 | `TEMPLATE_INVALID` | 400 | ข้อความรายงานไม่ถูกต้อง (`details.rule`, `details.blockId?`) — **[EXT]** | 12 |
 | `TEMPLATE_TOO_LARGE` | 400 | ข้อความรายงานยาวเกินที่ LINE รับได้ ลดบล็อกหรือข้อความลง (`details.bytes`/`limit` หรือ `details.reason='BODY'`) — **[EXT]** | 12 |
 | `EXPENSE_CONFIRM_REQUIRED` | 400 | แสดงค่าใช้จ่ายในกลุ่มต้องยืนยันก่อน — **[EXT ค่าใช้จ่าย]** | 12 |
+| `DETAIL_LINK_CONFIRM_REQUIRED` | 400 | ต้องยืนยันก่อนเปิดลิงก์หน้าสรุปรายละเอียดให้ทุกคนในกลุ่ม — **[EXT-LINK]** (ข้อความจาก `LINE_REPORT_ERROR_MESSAGE`) | 12 |
+| `INVALID_SETTINGS` `rule=DETAIL_NEEDS_METRIC` | 400 | เปิดหน้าสรุปรายละเอียดได้เมื่อมีจำนวนรายการหรือยอดขายในข้อความ — **[EXT-LINK]** (ชุด `details.rule` ของ `INVALID_SETTINGS` ตอนนี้ = `NEEDS_TIME` · `METRIC_REQUIRED` · `DETAIL_NEEDS_METRIC`) | 12 |
 | `TEMPLATE_STALE` | 409 | มีการแก้ข้อความจากที่อื่นแล้ว โหลดใหม่ก่อนบันทึก (`details.currentVersion`) — **[EXT]** | 12 |
 | `FLAGS_DERIVED_FROM_TEMPLATE` | 409 | กลุ่มนี้ตั้งข้อความเอง ตัวเลขที่แสดงจึงแก้ที่หน้าจัดข้อความ — **[EXT]** | 5 |
 | `GROUP_NOT_FOUND` | 404 | ไม่พบกลุ่มนี้ | 3–9, 12, 13 |
@@ -348,7 +405,8 @@ sequenceDiagram
 | POST `/bind-code`, `/groups/{id}/bind-code` | bind.service · §4.2 · TD-002/004 | 04, 07 |
 | GET `/groups/{id}` | group.service · delivery.listRecent | 05, 23 |
 | PATCH `/groups/{id}` | group.service.updateSettings | 10, 11, 12 · EXT-07 |
-| PUT/DELETE `/groups/{id}/template` | group.service.updateTemplate / resetTemplate · `template-size.measureTemplate` | EXT-02, 07, 08, 10 |
+| PUT/DELETE `/groups/{id}/template` | group.service.updateTemplate / resetTemplate · `template-size.measureTemplate` | EXT-02, 07, 08, 10 · **EXT-LINK-02** (`confirmDetailLink` · `DETAIL_LINK_CONFIRM_REQUIRED` · `DETAIL_NEEDS_METRIC`) |
+| GET `/lr/{token}` (หน้า) | SDS §16 · `getSnapshotView` · `src/proxy.ts` สาขา `/lr/` | **EXT-LINK-05, 06, 08** |
 | PUT `/groups/{id}/shops` | shop.service.replaceGroupShops | 09 |
 | POST `/groups/{id}/test` | send.service.sendTest · §4.4 | 13 |
 | DELETE / POST ack | group.service | 08, 24 |

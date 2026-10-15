@@ -436,5 +436,125 @@ sequenceDiagram
 | EXT-TD-6 | คอลัมน์ `show*` | cache ที่ derive เขียนคู่เทมเพลตใน tx เดียว · ตัวตัดสินตอนส่ง = `resolveReportConfig` · PATCH ที่แตะ flag ขณะมีเทมเพลต = 409 | `updateTemplate` · `updateSettings` |
 | EXT-TD-7 | `FlexBubbleView` (พรีวิว) | รองรับ `span` (`weight`/`color`) · `box` ที่มี `height`/`width` เป็น px/% · `backgroundColor`/`cornerRadius` แล้ว (ค่าจากข้อมูลกราฟใส่ผ่าน `style` — HR7 carve-out) · `flex-preview-tokens.ts` มี `GRID_GRAY` → `default-300` (โทนใกล้สุดใน ramp ของ Paces — สีพรีวิวจึงไม่เท่า `#D9DBE0` ทุกพิกเซล) | `FlexBubbleView.tsx` · `flex-preview-tokens.ts` · `flex-preview-tokens.test.ts` |
 
-### 15.5 UI (สถานะ: กำลังสร้าง)
+### 15.5 UI (สถานะ: กำลังสร้าง — เขียน 2026-10-05)
+> **[sync 2026-10-15]** ล้าสมัยบางส่วน: ปัจจุบันมี `page.tsx` + `TemplateBuilderClient.tsx` + `components/*` ใต้ `…/template/` แล้ว (ดู §16.1 สำหรับสวิตช์ปุ่มหน้าสรุป) — ไม่ได้เขียนทับเนื้อหาข้างล่างเพราะไม่ได้ตรวจโครง component ทั้งหมด
 route เป้าหมาย `src/app/(paces)/seller/(fullscreen)/business/line-reports/[groupId]/template/**` · ณ วันที่เขียนมีเฉพาะ helper pure ใต้ `…/template/lib/` (`reducer` · `primary-action` · `gauge-state` · `markup-edit` · `confirm-profit` · `block-meta` · `draft-issues` · `preview-data` + เทส) ที่ยังไม่ commit · ไม่ระบุโครง component จนกว่าโค้ดจะเข้า
+
+---
+
+## 16. ส่วนต่อขยาย EXT 2026-10-14 — หน้า "สรุปรายละเอียด" สาธารณะ
+
+> ต้นทาง: [[EXTENSIONS-2026-10-14-public-detail-link]] · ข้อกำหนดเชิงเทคนิค → [[SRS]] §14 · เขียนจากโค้ดใน worktree 2026-10-15 (ไม่ได้รันเทส/ไม่ได้ตรวจ commit) · ส่วน "ต่อเข้า 3 เส้นทางส่ง" เขียนตามสเปก AC-LINK-01 — dev ที่ต่อสายยังไม่ปิดงาน · **ไม่เปลี่ยน** §3–§15 เดิม (builder ยังเป็น pure และ golden ไม่เปลี่ยนไบต์)
+
+### 16.1 โมดูลที่เพิ่ม/เปลี่ยน
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `src/lib/line-report/detail-snapshot.ts` (ใหม่ · pure) | `DetailSnapshotSchema` (Valibot `strictObject`) · `parseSnapshot` (ไม่ผ่าน = `null`) · `fitToBudget` (ลดเพดานแถวครึ่งหนึ่งซ้ำจน ≤400KB ไม่แตะยอด) · ค่าคงที่เพดาน |
+| `src/lib/line-report/detail-snapshot-rows.ts` (ใหม่ · pure) | `toOrderRow` · `toExpenseRow` · `classifyBucket` · `axisOf` · `bucketLabels` · `ruleOf` — **จุดตัด PII จุดเดียว** (`OrderRowInput` มี `buyerContact` ดิบ, `OrderRow` ไม่มี) |
+| `src/lib/line-report/detail-token.ts` (ใหม่ · pure) | `newDetailToken` · `hashDetailToken` · `isWellFormedToken` |
+| `src/lib/line-report/detail-expiry.ts` (ใหม่ · pure) | `detailExpiresAt(createdAt)` — ใช้ `todayThaiIsoDate`/`shiftIsoDate`/`thaiMidnightUtc` กลาง ไม่คำนวณ offset เอง |
+| `src/lib/line-report/template.ts` (แก้) | `button.target?` · `needsDetailLinkConfirm` · `detailLinkBlocked` |
+| `src/lib/line-report/{validations,errors,config}.ts` (แก้) | `BUTTON_TARGET` · `DETAIL_LINK_CONFIRM_REQUIRED` (400) · rule `DETAIL_NEEDS_METRIC` · `detailLinkUrl(token)` |
+| `src/lib/line/flex-summary-report.ts` (แก้) | `detailUrl?` · `monthlyDetailUrl?` · export `titleOf` |
+| `src/services/line-report-detail.service.ts` (ใหม่) | `cardOrderSetWhere` · `buildDetailSnapshot` · `expenseDetailRows` (query A/B + parity + exposure) |
+| `src/services/line-report-snapshot.service.ts` (ใหม่) | `createDetailSnapshot` · `getSnapshotView` |
+| `src/services/line-report-summary.service.ts` (แก้) | ยก `pnlFor` เป็น `loadPnl` ระดับ module (memo เดียวกับการ์ด) |
+| `src/services/line-report-send.service.ts`, `…command.service.ts` (แก้) | `detailUrlFor` / `detailUrlWithinBudget` — ผู้เรียก 3 จุด |
+| `src/services/line-report-group.service.ts` + `groups/[id]/template/route.ts` (แก้) | ด่านยืนยัน + `DETAIL_NEEDS_METRIC` + `confirmDetailLink` |
+| `src/services/line-report-sweep.service.ts` (แก้) | `purgeExpiredSnapshots` (ทุก tick) · `runCleanup` ลบแถวโครงเปล่า |
+| `src/proxy.ts` (แก้) + `public/robots.txt` (ใหม่) | สาขา `/lr/` (header · rate limit · rewrite) |
+| `src/app/(public-report)/{layout.tsx, seller/lr/[token]/*}` (ใหม่) | root layout แยก · `page` · `loading` · `error` · `not-found` · `ReportView` · `StateCard` · `view-model` |
+| `…/line-reports/[groupId]/template/**` (แก้) | `lib/confirm-detail-link.ts` (ใหม่) · `reducer.ts` (`setDetailLink`) · `CanvasList.tsx` · `TemplateBuilderClient.tsx` |
+| `prisma/schema.prisma` + `prisma/migrations/20261015090000_line_report_detail_snapshot/` | โมเดล `LineReportSnapshot` + CHECK ×2 เขียนมือ ([[DATABASE]] §3.7) |
+
+### 16.2 Flow: สร้างสำเนา + ลิงก์ก่อนส่ง (ทุกเส้นทาง)
+
+```mermaid
+flowchart TD
+    A["runSlot / sendTest / composeAndReply<br/>(GroupSummary + template พร้อมแล้ว)"] --> B{"template.button.target = DETAIL<br/>∧ button.show ∧ NEXT_PUBLIC_SELLER_URL เป็น https?"}
+    B -- ไม่ --> Z["detailUrl = undefined → ปุ่มเดิม (sellerDashboardUrl)"]
+    B -- ใช่ --> C["buildDetailSnapshot<br/>query A (ชุดใบเดียวกับการ์ด) + B (รายละเอียด ≤150) + loadPnl (ถ้า exposure.expense)<br/>parseSnapshot(fitToBudget(...))"]
+    C --> D["newDetailToken → INSERT LineReportSnapshot (tokenHash, payload, expiresAt)"]
+    D --> E["detailUrl = /lr/{token}"]
+    C -- throw --> F["จับที่ผู้เรียก: log ErrorName → detailUrl = undefined"]
+    D -- throw --> F
+    F --> Z
+    E --> G["buildSummaryReportFlex({..., detailUrl, monthlyDetailUrl})"]
+    Z --> G
+    G --> H["fitToLimits → savePendingPayload (raw มี URL) → push / reply"]
+```
+
+ข้อบังคับ: สร้างสำเนา **ก่อน** `savePendingPayload` ⇒ retry ส่ง raw เดิม (URL เดิม) โดยไม่สร้างแถวใหม่ · ทางคำสั่งห่อด้วยงบเวลา 5 วินาที (`Promise.race`) · `runSlot` ทำเฉพาะข้อความที่ยัง `live` หลังกรอง `skipWhenNoOrders` · D+M ใน push เดียว = เรียก 2 ครั้งขนาน (`Promise.all`) ได้ 2 URL
+
+### 16.3 Flow: เปิดหน้าสาธารณะ
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as สมาชิกกลุ่ม (in-app browser ของ LINE)
+    participant P as proxy.ts (สาขา /lr/)
+    participant R as page.tsx (RSC)
+    participant S as getSnapshotView
+    participant DB as LineReportSnapshot
+
+    U->>P: GET seller.*/lr/{token}
+    P->>P: checkApiRateLimit('lr:ip', 30/15 นาที) นับทุก request
+    alt เกินโควตา
+        P-->>U: 429 HTML เล็ก + 3 header
+    else ผ่าน (ไม่เรียก getToken)
+        P->>R: rewrite /seller/lr/{token} + Cache-Control no-store / X-Robots-Tag / Referrer-Policy
+        R->>S: getSnapshotView(token, now)
+        S->>S: sha256(token) ทุกครั้ง · รูปแบบผิด = NOT_FOUND
+        S->>DB: findUnique({tokenHash}) + group.status
+        DB-->>S: แถว / ไม่มี
+        alt ไม่มีแถว หรือ group REMOVED
+            S-->>R: NOT_FOUND → notFound() → "ไม่พบหน้าสรุปนี้" (404)
+        else now >= expiresAt หรือ payload เป็น NULL
+            S-->>R: EXPIRED (ไม่มี payload) → หน้า "ลิงก์สรุปนี้หมดอายุแล้ว" (200)
+        else parseSnapshot ไม่ผ่าน
+            S-->>R: NOT_FOUND (+ log เป็นกลาง)
+        else
+            S-->>R: OK {snapshot} → ReportView
+        end
+    end
+```
+
+### 16.4 Flow: ชีวิตของสำเนา
+
+```mermaid
+stateDiagram-v2
+    [*] --> Live: createDetailSnapshot (payload เต็ม)
+    Live --> Expired: now >= expiresAt (หน้าไม่ส่ง payload ทันที)
+    Live --> Dead: กลุ่ม REMOVED (หน้า 404 ทันที ตัดสินตอนอ่าน)
+    Expired --> Skeleton: purgeExpiredSnapshots ทุก tick (payload = NULL, purgedAt)
+    Dead --> Skeleton: purgeExpiredSnapshots ทุก tick
+    Skeleton --> [*]: runCleanup 03:00 ไทย ลบแถว expiresAt เกิน 30 วัน
+```
+
+### 16.5 การตัดสินใจเชิงออกแบบที่ผูกกับโค้ด
+
+| # | เรื่อง | ตัดสิน | จุดบังคับ |
+|---|---|---|---|
+| LINK-TD-1 | ยอดต้องเท่าการ์ด | ตัวเลขหัวอ่านจาก `GroupSummary` ที่สร้างการ์ดใบเดียวกัน ไม่คำนวณใหม่ · query A เทียบกลับ (parity) แล้วติดป้ายถ้าไม่เท่า ไม่เปลี่ยนหัว · ไม่ extract where จาก `dashboard.service` (OOS-13) ใช้เทส parity ฐานจริงเป็นด่านที่จับถ้าสองฝั่งเบี่ยง | `buildDetailSnapshot` · `line-report-detail.parity.test.ts` |
+| LINK-TD-2 | partition ของร้านบริการ | `serviceClosedAt` ตรง ๆ บนชุดใบของการ์ด — ห้าม `countsAsServiceRevenue` (ตัด RETURNED) | `classifyBucket` |
+| LINK-TD-3 | ตัดข้อมูลที่จุดเขียน | exposure ปิด = ฟิลด์ไม่อยู่ใน payload · PII ตัดใน `toOrderRow` ที่เดียว · `strictObject` กันฟิลด์เกิน | `detail-snapshot*.ts` |
+| LINK-TD-4 | ตัดสินสถานะตอนอ่าน ไม่ใช่ธงที่เขียนไว้ | `group.status` join สด (REMOVED → 404) · `now >= expiresAt` ตัดสินที่ server (รับ `now` ให้เทสคุมนาฬิกา) | `getSnapshotView` (`stored-flag-vs-owner-truth`) |
+| LINK-TD-5 | หมดอายุ = 200 ไม่ใช่ 410 | Next 16.1.1 ไม่มี 410 built-in · `notFound()` ได้ 404 · เลือก render หน้าสถานะ + noindex ไม่ส่ง payload (มติ Controller 2026-10-15) | `page.tsx` |
+| LINK-TD-6 | ด่านป้องกันอยู่ proxy | header ติดทุกสถานะแม้ 429/RSC stream · เทสได้โดยเรียก `proxy()` ตรง · สาขาเดียวก่อน `getToken` แทนแก้ `isExempt` + ด่านแอป iOS | `src/proxy.ts` · `lr-proxy.test.ts` |
+| LINK-TD-7 | root layout แยก | `(public-report)` ไม่ใช่ลูกของ `(paces)` — ไม่มี Analytics/SpeedInsights (token อยู่ใน path) · ซูมได้ · ไม่มี splash ของ seller | `(public-report)/layout.tsx` |
+| LINK-TD-8 | purge ทุก tick | cleanup มีหน้าต่าง 03:00–03:30 เพียง tick เดียว/วัน ถ้าพลาด PII ค้าง ~27 ชม. → เรียก `purgeExpiredSnapshots` ทุก tick (updateMany ถูก index `expiresAt` + ล้มไม่ทำให้ sweep ล้ม) · การลบแถวยังอยู่ใน cleanup 03:00 | `line-report-sweep.service.ts` |
+| LINK-TD-9 | ปุ่มพรีวิวไม่สร้างลิงก์จริง | `preview-data.ts` ไม่ส่ง `detailUrl` ⇒ พรีวิวยังเป็นการ์ดเดิม ไม่สร้างแถว | `preview-data.test.ts` |
+| LINK-TD-10 | ใช้ `<details>` แทน Preline accordion | `hs-accordion` พึ่ง JS ที่ WebView ของ LINE อาจไม่รัน | `ReportView.tsx` |
+
+### 16.6 Theme-source mapping (UI — commit ต้องมีบรรทัด `Base:`)
+
+| ส่วน | Base (อ่านจากคอมเมนต์หัวไฟล์) |
+|---|---|
+| โครงการ์ด | `theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx` |
+| แท่งสัดส่วน + legend เส้นประ | `…/(admin)/dashboard/ecommerce/components/RevenueByLocation.tsx` |
+| โครง 2 คอลัมน์ lg | `…/(admin)/apps/ecommerce/(orders)/order-details/page.tsx` |
+| ตารางรายการ md+ | `…/order-details/components/OrderSummary.tsx` |
+| chip | `…/(admin)/ui/badges/page.tsx` |
+| หัวพับ | `…/(admin)/ui/accordions/page.tsx` (ลุคเท่านั้น — ใช้ `<details>`) |
+| state เต็มหน้า (404 ฯลฯ) | `…/error/404/page.tsx` |

@@ -941,6 +941,54 @@ flowchart TD
 
 ---
 
+## 11. ส่วนต่อขยาย EXT 2026-10-14 — หน้า "สรุปรายละเอียด" สาธารณะ (FR-LGS-LINK-01..09)
+
+> ต้นทาง: [[EXTENSIONS-2026-10-14-public-detail-link]] (PRD+BRD ฉบับเต็ม — AC ทุกข้อ จุดบังคับ และเทสที่แดงถ้าถอดอยู่ที่นั่น) · เนื้อหาด้านล่างเป็นสรุประดับ BRD ที่ sync จากโค้ด 2026-10-15 · **ไม่แก้ความหมาย FR-LGS-01..24 และ BR-LGS-01..21 ข้างบน** · สถานะรายข้อ: EXT §16
+> ⚠️ BR-LGS-22..36 (ส่วนขยายเทมเพลต/ค่าใช้จ่าย) ถูกกำหนดในเอกสาร EXT ของแต่ละรอบ ยังไม่ถูกคัดลง §8 ของ BRD นี้ — ส่วนนี้จึงต่อเลขที่ BR-LGS-37
+
+### 11.1 Functional Requirements
+
+| FR | ชื่อ | สรุป (Must ทุกข้อ) | AC ฉบับเต็ม |
+|---|---|---|---|
+| **FR-LGS-LINK-01** | สร้างสำเนา + ลิงก์ต่อ 1 ข้อความรายงาน | ปุ่มบนการ์ดเปลี่ยนเฉพาะปลายทางเป็น `/lr/{token}` (ป้ายปุ่มเดิม · ไม่มี `openExternalBrowser`) · 1 ข้อความ = 1 สำเนา = 1 token (D+M ใน push เดียว = 2 ลิงก์) · **สร้างสำเนาก่อน build ข้อความ/บันทึก payload** เพื่อให้ retry ส่ง URL เดิม · **สร้างล้ม = ใช้ปุ่มเดิม** รายงานไม่ล้ม · ทางคำสั่งมี **งบเวลา 5 วินาที** เกินแล้วใช้ปุ่มเดิม · `FINAL_NOTICE` และ `show:false` ไม่สร้าง | AC-LINK-01-1..6 |
+| **FR-LGS-LINK-02** | สวิตช์ปลายทางปุ่ม + ด่านยืนยัน | เจ้าของกลุ่มเลือกเปิดเอง (`button.target = 'DETAIL'`, ค่าตั้งต้น DASHBOARD) · server เทียบกับเทมเพลตที่บันทึกไว้ — เปิดใหม่ (หรือ DETAIL เปิดอยู่แล้วแต่ค่าใช้จ่ายเพิ่งถูกเปิดเผย) ต้องมี `confirmDetailLink:true` ไม่งั้น 400 `DETAIL_LINK_CONFIRM_REQUIRED` · เปิดได้เมื่อมีบล็อกจำนวนรายการหรือยอดขาย ไม่งั้น 400 `INVALID_SETTINGS:DETAIL_NEEDS_METRIC` | AC-LINK-02-1..5 |
+| **FR-LGS-LINK-03** | เนื้อหาสำเนา · PII · ขนาด | เปิดเผยไม่เกินเทมเพลต (ส่วนที่ปิดไม่อยู่ใน payload) · PII ตัดที่จุดเขียน: ชื่อลูกค้า (ทิ้งชื่อที่มีเบอร์/อีเมลปน) + เบอร์ปิดบางส่วน · เพดาน 150 แถว/ร้าน, 100 ค่าใช้จ่าย/ร้าน, โน้ต 200 ตัว, payload 400KB — ยอดนับจากชุดเต็มเสมอ | AC-LINK-03-1..6 |
+| **FR-LGS-LINK-04** | ยอดขายแบ่งตามสถานะ + parity กับการ์ด | ร้านบริการ ปิดงานแล้ว/รอปิดงาน (`serviceClosedAt`) · ร้านอื่น ยืนยันแล้ว/รอยืนยัน (`countsAsRevenue`) · เป็น partition ของชุดใบเดียวกับการ์ด ผลรวมเท่ายอดรวมบนการ์ดเสมอ · ผลรวมแถวไม่เท่า = ติด `parity:'MISMATCH'` หัวยังเป็นเลขการ์ด · ยกเลิกแสดงเป็นจำนวน | AC-LINK-04-1..5 |
+| **FR-LGS-LINK-05** | หน้าสาธารณะ: เส้นทาง การอ่าน ด่านป้องกัน | `seller.*/lr/{token}` ไม่มี session · ค้นด้วย `sha256(token)` · ไม่พบ/รูปแบบผิด/กลุ่ม REMOVED = 404 หน้าเดียวกัน · หมดอายุ = หน้าสถานะ (200) ไม่ส่งข้อมูล · header ปิด cache/ดัชนี/Referer · rate limit 30/15 นาที/IP (429) · ไม่ log token · ไม่ถูกด่าน onboarding/iOS | AC-LINK-05-1..7 |
+| **FR-LGS-LINK-06** | หน้าจอมือถือ | อ่านง่ายที่ 375px · state ครบ (กำลังโหลด · ปกติ · ว่าง · ร้านดึงข้อมูลล้ม · ร้านถูกตัดออก · หมดอายุ · ไม่พบ · ถูกจำกัดอัตรา · error) · ข้อความผู้ใช้แสดงเป็นข้อความธรรมดา · อ่านอย่างเดียว | AC-LINK-06-1..5 |
+| **FR-LGS-LINK-07** | ค่าใช้จ่ายทุกรายการ (เมื่อเทมเพลตเปิด) | หมวด + ยอด + โน้ต + บรรทัดค่าส่งของระบบ · Σ แถว = ค่าใช้จ่ายบนการ์ด · "ยังไม่มีบันทึก" ไม่ใช่ ฿0 · การ์ดใน LINE ยังไม่แสดงโน้ต | AC-LINK-07-1..5 |
+| **FR-LGS-LINK-08** | อายุลิงก์ การล้าง PII การลบ | หมดอายุ 00:00 ไทยของวันที่ 2 นับจากวันที่ส่ง · ล้าง payload ทุก tick ของ sweep หลังหมดอายุหรือกลุ่ม REMOVED · ลบแถวโครงเปล่าหลัง 30 วัน · DB CHECK ขนาด payload และ `expiresAt > createdAt` | AC-LINK-08-1..4 |
+| **FR-LGS-LINK-09** | หน้าตั้งค่าเทมเพลต (สวิตช์ + ยืนยัน + พรีวิว) | สวิตช์ "ปุ่มเปิดหน้าสรุปรายละเอียด" · Swal ยืนยันบอกว่าจะเปิดเผยอะไร (โฟกัสที่ปุ่มยกเลิก ห้ามคลิกนอกกล่อง) · พรีวิวยังเป็นการ์ดเดิม ไม่สร้างลิงก์จริง · เสนอเปลี่ยนป้ายปุ่มจาก "เปิด Deep" เป็น "ดูสรุปรายละเอียด" (ไม่เปลี่ยนเอง) | AC-LINK-09-1..5 |
+
+### 11.2 Business Rules ใหม่ (BR-LGS-37..45)
+
+| BR | กฎ | FR |
+|---|---|---|
+| **BR-LGS-37** | ลิงก์ = ใครถือก็เปิดได้ ไม่ผูกตัวตน/สมาชิกกลุ่ม/session · ความปลอดภัยมาจาก token 128 บิต + อายุสั้น + ข้อมูลที่ลดทอนตั้งแต่จุดเขียน · ส่งต่อได้ (ต้องบอกเจ้าของตอนเปิด) | 01, 02, 05 |
+| **BR-LGS-38** | ตัวเลขบนหน้า = สำเนา ณ ตอนสร้างรายงาน ไม่ query สดตอนเปิด · หน้าบอกเวลาของสำเนา | 03, 06 |
+| **BR-LGS-39** | ยอดรวมบนหน้า = ตัวเลขใหญ่บนการ์ด (นิยามเดียว) · การแบ่งสถานะเป็น partition ของชุดใบเดียวกับการ์ด · ห้ามใช้ SSOT ที่กรองชุดใบต่างจากการ์ด (เช่น `countsAsServiceRevenue`) | 04 |
+| **BR-LGS-40** | PII จำกัดที่ชื่อลูกค้า + เบอร์ปิดบางส่วน (`maskPhoneForGuest`) ตัดที่จุดเขียน · ห้ามเก็บ/แสดงเบอร์ดิบ อีเมล ไอดีช่องทาง ที่อยู่ เลขออเดอร์ ลิงก์ออเดอร์ ต้นทุน กำไร | 03 |
+| **BR-LGS-41** | หน้าเปิดเผยไม่เกินที่เทมเพลตของกลุ่มเปิดไว้ (ยอดเงิน ← `showSales` · ยกเลิก ← `showCancelled` · ค่าใช้จ่าย ← `deriveExposure`) · ส่วนที่ปิดต้องไม่อยู่ใน payload | 03, 07 |
+| **BR-LGS-42** | ค่าใช้จ่ายบนหน้าแสดงโน้ตได้ แต่การ์ดใน LINE ยังไม่แสดงโน้ต · "ยังไม่มีบันทึก" ไม่ใช่ ฿0 (BR-LGS-32) · ยอดรวมข้ามร้านตาม BR-LGS-33 | 07 |
+| **BR-LGS-43** | ลิงก์หมดอายุ 00:00 ไทยของวันที่ 2 นับจากวันที่ส่ง · หลังหมดอายุหน้าไม่ส่งข้อมูลใด ๆ (ตัดสินที่ server ณ เวลาอ่าน) · payload ถูกล้างทุก tick ของ sweep · แถวโครงเปล่าถูกลบหลัง 30 วัน | 08 |
+| **BR-LGS-44** | การเปลี่ยนปลายทางปุ่มเป็นหน้ารายละเอียดเป็นการตัดสินใจของเจ้าของกลุ่ม ต้องยืนยัน (server เทียบกับเทมเพลตที่บันทึก ไม่เชื่อ client) · สร้างสำเนาล้ม → ปุ่มเดิม ไม่ทำให้รายงานล้ม | 01, 02 |
+| **BR-LGS-45** | กลุ่มที่ถูกนำออก (REMOVED) ทำให้ลิงก์ของกลุ่มนั้นใช้ไม่ได้ทันที (ตัดสิน ณ เวลาอ่าน) · ร้านที่ถูกล็อก/ลบหลังส่ง **ไม่** เพิกถอนลิงก์ (สำเนาคือบันทึกสิ่งที่ส่งไปแล้ว หมดอายุเองภายใน ≤48 ชม. — สร้าง 00:00 ไทย → หมด 00:00 ไทยของอีก 2 วัน) | 05 |
+
+### 11.3 Traceability (FR → จุดบังคับในโค้ด → เทส)
+
+| FR | จุดบังคับ | เทส |
+|---|---|---|
+| 01 | `line-report-snapshot.service.ts` `createDetailSnapshot` · `line-report-send.service.ts` `detailUrlFor` · `line-report-command.service.ts` `detailUrlWithinBudget` · `flex-summary-report.ts` `detailUrl`/`monthlyDetailUrl` | `flex-summary-report.detail-url.test.ts` · `line-report-send-sweep.db.test.ts` (บล็อก "ลิงก์หน้าสรุปรายละเอียด") · `line-report-snapshot.db.test.ts` · `detail-token.test.ts` |
+| 02 | `template.ts` `needsDetailLinkConfirm`/`detailLinkBlocked` · `validations.ts` · `errors.ts` · `line-report-group.service.ts` `updateTemplate` | `template.test.ts` · `template-schema.test.ts` · `line-report-template-service.db.test.ts` · `routes.test.ts` |
+| 03 | `detail-snapshot.ts` · `detail-snapshot-rows.ts` · `line-report-detail.service.ts` | `detail-snapshot.test.ts` · `detail-snapshot-rows.test.ts` · `line-report-detail.test.ts` |
+| 04, 07 | `line-report-detail.service.ts` (`shopDetail` · `expenseDetailRows`) · `loadPnl` | `line-report-detail.parity.test.ts` (ฐานจริง) · `line-report-detail.test.ts` |
+| 05 | `src/proxy.ts` · `line-report-snapshot.service.ts` `getSnapshotView` · `src/app/(public-report)/**` | `lr-proxy.test.ts` · `line-report-snapshot.db.test.ts` · `lr/[token]/__tests__/page.test.tsx` |
+| 06 | `src/app/(public-report)/seller/lr/[token]/components/*` | `page.test.tsx` (ระดับ render) — Playwright 3 จอยังไม่มีหลักฐาน |
+| 08 | `detail-expiry.ts` · `line-report-sweep.service.ts` · migration `20261015090000` | `detail-expiry.test.ts` · `line-report-send-sweep.db.test.ts` (บล็อก purge) · `line-report-snapshot-constraints.db.test.ts` |
+| 09 | `…/template/lib/confirm-detail-link.ts` · `reducer.ts` · `CanvasList.tsx` · `TemplateBuilderClient.tsx` | `confirm-detail-link.test.ts` · `reducer.test.ts` · `preview-data.test.ts` |
+
+---
+
 **หมายเหตุ:**
 สำหรับความต้องการทางธุรกิจระดับภาพรวม/personas/KPI/Open Questions ดู [[PRD]] ของโมดูลนี้
 สำหรับ technical specification (architecture/API/data/NFR) ดู [[SRS]] ของโมดูลนี้ (ยังไม่จัดทำ — ต้องทำหลัง PRD+BRD ผ่าน review และ sync `docs/SRS.md`)

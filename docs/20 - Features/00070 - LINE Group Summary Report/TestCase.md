@@ -647,3 +647,95 @@ flowchart TD
 | TC-EXT-710 | เปลี่ยน `confirmedValues` เป็น `orderCounts` ในกราฟ | TC-EXT-024 |
 
 > ผล mutation ยังไม่ถูกบันทึกใน §5 — ห้ามติ๊กว่าปิดจนกว่าจะรันจริงและมีหลักฐาน (`mutation-silence-means-weak-corpus`)
+
+---
+
+## 8. ส่วนต่อขยาย EXT 2026-10-14 — หน้า "สรุปรายละเอียด" สาธารณะ (TC-LNK-*)
+
+> ต้นทาง AC: [[EXTENSIONS-2026-10-14-public-detail-link]] §4 · **ตารางนี้อ้างไฟล์เทส/ชื่อเคสที่พบในโค้ดใน worktree 2026-10-15** — คอลัมน์ "สถานะ" = "มีเคส" (พบไฟล์ + ชื่อเคสตรงกับ AC) / "ไม่พบเคส" (ไม่พบเคสที่ชื่อชัดเจน — ยังไม่ได้อ่านทั้งไฟล์) / "รอ" (ไม่มีหลักฐานในโค้ด) · **ไม่ได้รันเทสในรอบ sync เอกสาร จึงไม่บันทึกผล Pass/Fail** · รัน DB test ต้องปักหมุด `DATABASE_URL`/`DIRECT_URL` เป็น `localhost:5434` ในคำสั่งตรง ๆ (HR14) และดูจำนวน skipped = 0 (เทส DB ใช้ `describe.skipIf(!isLocal)` — env ผิดจะ SKIP เงียบดูเหมือนเขียว) · ทุกเคส DB scope ด้วย id ที่เทสสร้าง (HR13)
+> ส่วน "ต่อเข้า 3 เส้นทางส่ง" (TC-LNK-020..) เขียนตามสเปก AC-LINK-01 — งานต่อสายของ dev ยังไม่ปิด ต้องอ่านเคสซ้ำเมื่อปิด
+
+### 8.1 สัญญาข้อมูล / token / อายุ (U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-LNK-001 | AC-LINK-03-1, 03-3 | `src/lib/line-report/__tests__/detail-snapshot.test.ts` — `parseSnapshot`: fixture ผ่าน · serialize ไม่มีเบอร์/`@` · exposure ปิด (ไม่มี `amount`/`bucket`/`buckets`) ผ่าน | มีเคส |
+| TC-LNK-002 | AC-LINK-03-5 | `detail-snapshot.test.ts` — `fitToBudget`: เล็กอยู่แล้ว = เท่าเดิม · 12 ร้าน × 400 แถว × โน้ต 200 ตัว ≤400KB ยอดไม่เปลี่ยน ติดป้ายตัดทอน | มีเคส |
+| TC-LNK-003 | AC-LINK-03-2, 03-6, 04-2 (ส่วน pure) | `detail-snapshot-rows.test.ts` — เบอร์ลูกค้า (ไม่มีเบอร์ดิบ/อีเมลใน serialize) · ชื่อ (ปกติ/ว่าง/ยาวเกิน 60 · มีเบอร์/อีเมล → null) · ชื่องาน 0/1/3 items และห้อง · `classifyBucket` (SERVICE แบ่งด้วย `serviceClosedAt` รวม RETURNED ทั้งสองก้อน · GENERAL CONFIRMED / SHIPPED+carrier รับแล้ว = 0) · ป้ายและ rule · `toOrderRow` ใส่ `bucket`/`axis` · `toExpenseRow` (โน้ต ≤200 ต่อ … · ว่าง = null · หมวดไทย) | มีเคส |
+| TC-LNK-004 | AC-LINK-01-4 | `detail-token.test.ts` — 22 ตัว base64url · hash sha256 hex 64 ตัวตรง token · ไม่ซ้ำใน 10,000 ครั้ง · `isWellFormedToken` ปฏิเสธรูปผิด · ซอร์สไม่ใช้ `Math.random` | มีเคส |
+| TC-LNK-005 | AC-LINK-08-1 | `detail-expiry.test.ts` — 00:00:00 ไทย · 23:59:59 วันเดียวกัน · 00:00:01 วันถัดไป · สิ้นเดือน/สิ้นปี | มีเคส (retry ข้ามเที่ยงคืน = ยึดวันสร้าง: ไม่พบเคสชื่อชัดเจน) |
+| TC-LNK-006 | AC-LINK-02-1 | `template-schema.test.ts` — `DASHBOARD`/`DETAIL`/ไม่ใส่ ผ่าน · `target:'X'` ไม่ผ่าน = `BUTTON_TARGET` | มีเคส (property "fixture เทมเพลตเดิมทุกชุดยัง valid": ไม่พบเคสชื่อชัดเจน) |
+| TC-LNK-007 | AC-LINK-02-2, 02-3 (pure), 02-5 (pure) | `template.test.ts` — `deriveFlags` ไม่รั่ว key เมื่อ `target:'DETAIL'` · `defaultTemplateFromFlags` ไม่ปล่อย `target` · `needsDetailLinkConfirm` (เปิดใหม่ถาม · ค้างเปิดไม่ถามซ้ำ · ปิด/ไม่ใช่ DETAIL ไม่ถาม · DETAIL เปิดอยู่แล้วเพิ่งเปิดค่าใช้จ่าย = ถาม) · `detailLinkBlocked` ต้องมี orders หรือ sales | มีเคส |
+| TC-LNK-008 | AC-LINK-01-1 (URL) | `src/lib/line-report/__tests__/misc.test.ts` — `detailLinkUrl` เฉพาะ https · ไม่มี `openExternalBrowser` | มีเคส |
+
+### 8.2 Builder (U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-LNK-010 | AC-LINK-01-1 | `src/lib/line/__tests__/flex-summary-report.detail-url.test.ts` — `detailUrl` ติดทุกระดับตัดทอน 0..4 · DAILY+MONTHLY push เดียว → ใบแรก `detailUrl` ใบสอง `monthlyDetailUrl` · ไม่ส่ง → `sellerDashboardUrl()` และใบสองไม่ได้ `detailUrl` · `button.show=false` → ไม่มี footer · builder ไม่เติม `openExternalBrowser` | มีเคส |
+| TC-LNK-011 | AC-LINK-01-1 (golden) | `flex-summary-report.golden.test.ts` + `__golden__/` **ต้องไม่ถูกแก้ไฟล์** — ตรวจด้วย `git diff --stat` ว่างทุก PR และเทสเดิมเขียว | ไม่มีหลักฐานการตรวจ (ยังไม่ได้รัน/ไม่ได้ diff) |
+
+### 8.3 Service / DB (I — ฐาน 5434)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-LNK-020 | AC-LINK-03-4, 03-2 (service) | `src/services/__tests__/line-report-detail.test.ts` — exposure ตัดที่จุดเขียน: `showSales=false` → ไม่มี amount/bucket/buckets/sales/total.sales · `expense=false` → ไม่มี key `expense` และไม่แตะ `loadPnl` · เปิดครบ → มีทุกส่วน · ปิดทั้งจำนวนและยอดขาย → ไม่ query ออเดอร์ · PII serialize ไม่มีเบอร์ดิบ/`@` | มีเคส (mock Prisma) |
+| TC-LNK-021 | AC-LINK-04-3 | `line-report-detail.test.ts` — drift ครั้งแรกแล้วเท่ากันในการลองซ้ำ → ไม่ติด MISMATCH · ยังไม่เท่า → `MISMATCH` หัวยังเป็นเลขการ์ด log ไม่มียอด | มีเคส |
+| TC-LNK-022 | AC-LINK-03-5 | `line-report-detail.test.ts` — 400 ใบ → rows 150 · `rowsTotal` 400 · ยอดก้อนจากชุดเต็ม | มีเคส |
+| TC-LNK-023 | AC-LINK-07-2 | `line-report-detail.test.ts` — `expenseDetailRows`: ใหม่→เก่า · บรรทัดระบบอยู่หน้า · Σ = ยอดรวมก่อนตัด | มีเคส |
+| TC-LNK-024 | (ต่อเนื่องจากคำขอ 2026-10-15) | `line-report-detail.test.ts` — รูปสินค้า (คีย์ในบัคเก็ต → `imageUrl` first-party · คีย์ภายนอก/ไม่มีสินค้า → ไม่มี key · query สินค้าจำกัดร้าน · สินค้าร้านอื่นไม่ได้รูป) + ช่องทางขาย (`shopChannel` ชนะ `salesChannel` · ไม่มีทั้งคู่ = ไม่มี key · query B ไม่ขอ `avatarUrl` · payload ไม่มี URL นอกโดเมน) | มีเคส |
+| TC-LNK-025 | AC-LINK-04-1, 04-2, 07-2, 07-1 | `line-report-detail.parity.test.ts` (ฐานจริง) — ผลรวมก้อน = ยอด/จำนวนบนการ์ดต่อร้านและตรงค่าที่เขียนมือจากฟิกซ์เจอร์ · ตัวเลขใหญ่ = `salesTotal(combineTotals)` และร้านถูกตัดออก/ล้มไม่มีตัวเลข · ร้านเดี่ยว total.sales = ยอดการ์ด · ค่าใช้จ่าย Σ แถว (ก่อนตัด) = `ShopFinance.expense` ร้านบริการมีค่าส่ง+ใบคืนจากระบบ · exposure ปิดค่าใช้จ่าย ไม่มี key `expense` | มีเคส — ⚠️ แผน planner ระบุว่า `line-report-summary.parity.test.ts` เดิม (ส่ง `vertical` เข้า `getSalesSeries`) น่าจะแดงอยู่แล้วที่ SERVICE_QUEUE ต้องให้ T1 ตัดสิน (Controller ระบุว่าแก้แล้วใน commit แยก — ยังไม่ได้ตรวจ) |
+| TC-LNK-026 | AC-LINK-05-1, 05-2 | `line-report-snapshot.db.test.ts` — สร้างแล้วอ่านได้จนก่อน `expiresAt` 1ms · ที่ `expiresAt` พอดี = EXPIRED (ไม่ส่ง payload) · token ผิดรูปแบบ/ไม่มี/กลุ่ม REMOVED → NOT_FOUND เหมือนกัน · payload ถูกล้างแล้ว → EXPIRED แม้ยังไม่ถึงเวลา | มีเคส |
+| TC-LNK-027 | AC-LINK-01-4, 05-5 | `line-report-snapshot.db.test.ts` — คอลัมน์ไม่มี token ดิบ · log ไม่มี token | มีเคส |
+| TC-LNK-028 | AC-LINK-01-5 | `line-report-snapshot.db.test.ts` — ปุ่ม DASHBOARD / `show=false` / ไม่มีฐาน https → `null` ไม่มีแถวใหม่ | มีเคส |
+| TC-LNK-029 | AC-LINK-08-3, 08-4 | `line-report-snapshot-constraints.db.test.ts` — payload เกิน 512KB → 23514 (ขอบ 512KB ผ่าน) · `expiresAt <= createdAt` → 23514 · payload NULL ผ่าน · ลบกลุ่ม → snapshot หาย (Cascade) · ลบ delivery → `deliveryId` เป็น null (SetNull) แต่ snapshot อยู่ | มีเคส |
+| TC-LNK-030 | AC-LINK-01-1/2/3/5/6 | `line-report-send-sweep.db.test.ts` บล็อก "ลิงก์หน้าสรุปรายละเอียด (00070 EXT-LINK U11 · FR-01)" — DETAIL: uri ปุ่ม = `/lr/<token>` และ hash ตรงแถว snapshot (`deliveryId` = แถวที่ claim) · DASHBOARD: ไม่มีแถว snapshot ใหม่ uri เดิม · `createDetailSnapshot` throw → ส่งสำเร็จด้วย uri เดิม log มีแต่ชื่อ error · push ล้ม 503 → แถว snapshot มีแล้ว retry ส่ง raw เดิมไบต์เดิม ไม่สร้างแถวใหม่ · `sendTest` DETAIL: kind TEST ผูกแถวทดสอบ snapshot ล้ม → ยังส่งสำเร็จ (ไม่กลายเป็น INTERNAL) · คำสั่ง: kind COMMAND ผูกแถวคำสั่ง ช้าเกินงบ → ปุ่มเดิมทันที เหลือเวลาไม่พอ → ไม่เรียกสร้าง | มีเคส (ผูกกับงานต่อสายที่ dev ยังเปิดอยู่) |
+| TC-LNK-031 | AC-LINK-08-2 | `line-report-send-sweep.db.test.ts` บล็อก "purge snapshot สาธารณะ (U9)" — หมดอายุ → payload null + `purgedAt` · สดไม่เปลี่ยน · กลุ่ม REMOVED → null · แถวโครงยังอยู่ · และเคส cleanup "ลบ/ล้างเฉพาะที่เกินเวลา" ครอบการลบแถวเก่า | มีเคส (แถวเก่า 31 วันถูกลบ: ยังไม่ได้อ่านเนื้อเคส cleanup ว่าครอบ `snapshotsDeleted`) |
+| TC-LNK-032 | AC-LINK-02-3, 02-4, 02-5 (service) | `line-report-template-service.db.test.ts` — "ลิงก์หน้าสรุป (FR-02)": เปิดใหม่ต้อง `confirmDetailLink` · ค้างอยู่แก้อื่นผ่าน · เปิดค่าใช้จ่ายเพิ่มต้องยืนยัน · reset แล้วเปิดใหม่ต้องยืนยัน · ไม่มี orders/sales = `DETAIL_NEEDS_METRIC` | มีเคส (ไฟล์ที่ EXT เดิมอ้างคือ `line-report-services.db.test.ts` — ไม่ใช่ไฟล์นี้) |
+| TC-LNK-033 | AC-LINK-02-4 | `src/app/api/line-report/routes.test.ts` — วนทุกค่า `LINE_REPORT_ERROR_CODES` ยืนยันมี status (รวม `DETAIL_LINK_CONFIRM_REQUIRED`) | มีเคส (ครอบอัตโนมัติ) |
+
+### 8.4 Proxy / หน้าสาธารณะ (R / U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-LNK-040 | AC-LINK-05-3, 05-6 | `src/__tests__/lr-proxy.test.ts` — 5 สถานะ (guest · authed ปกติ · needsOnboarding · needsRegistration · shell iOS): rewrite ไป `/seller/lr/<token>` ไม่ redirect · `getToken` ไม่ถูกเรียก · header ครบ 3 ตัว | มีเคส |
+| TC-LNK-041 | AC-LINK-05-4 | `lr-proxy.test.ts` — ครั้งที่ 31 ต่อ IP → 429 HTML ไทย + header ครบ ไม่มีสคริปต์/ลิงก์ภายนอก · IP อื่นไม่โดน | มีเคส |
+| TC-LNK-042 | (ขอบเขต) | `lr-proxy.test.ts` — host หลัก (`deepth.local`) `/lr/` ไม่เข้าสาขา: ไม่มี header · ไม่นับโควตา | มีเคส |
+| TC-LNK-043 | AC-LINK-05-5 | `lr-proxy.test.ts` — ไม่ log token ทั้ง rewrite และ 429 | มีเคส |
+| TC-LNK-044 | AC-LINK-06-1..4, 07-x (render) | `src/app/(public-report)/seller/lr/[token]/__tests__/page.test.tsx` — ร้านบริการ: ตัวเลขตรง fixture + ป้ายก้อน + stamp + วันหมดอายุแบบสิ้นวัน · แท่งเขียว(ปิดงาน)+เหลือง(รอปิดงาน) ไม่ใช่น้ำเงิน · ร้านทั่วไป ยืนยันแล้ว = น้ำเงินตามการ์ด · หลายร้าน: หัวกลุ่ม + `<details>` ต่อร้าน + ร้านที่ถูกล็อก · ไม่เปิดค่าใช้จ่าย/ยอดขาย: ไม่มีการ์ดค่าใช้จ่าย ไม่มีคอลัมน์ยอด · ชื่อ/ชื่องาน/ชื่อร้านที่มี `<script>` ถูก escape · รูปสินค้าโหลดเฉพาะ route first-party ที่เซ็นแล้ว | มีเคส |
+| TC-LNK-045 | AC-LINK-05-1, 05-2 (หน้า) | `page.test.tsx` — EXPIRED: หน้าแจ้งหมดอายุ ไม่มีตัวเลข/ชื่อลูกค้า คำสั่งตาม `reportKind` · NOT_FOUND เรียก `notFound()` | มีเคส |
+| TC-LNK-046 | AC-LINK-05-7, 06-5 | `page.test.tsx` "ซอร์สของหน้า" — ไม่มี `fetch(` / `dangerouslySetInnerHTML` / `react-toastify` / emoji / hex / `text-[..]` · ไม่ import อะไรที่อ่าน session/cookies | มีเคส |
+| TC-LNK-047 | AC-LINK-06-2 (state ครบ), 06-1 (3 จอ) | Playwright `seller.deepth.local:4000` ที่ 375/768/1180 ทุก state (loading · ปกติ · ว่าง · ร้าน ERROR · ร้าน EXCLUDED · หมดอายุ · ไม่พบ · 429 · error) + ไม่มี horizontal scroll + tap target ≥44px | **รอ — ไม่พบหลักฐานในโค้ด/เอกสาร** |
+| TC-LNK-048 | AC-LINK-06-4 | reviewer grep: วันที่ผ่าน `formatDate*` เท่านั้น เงินผ่าน `money`/`formatBaht` | รอ (ยังไม่มีบันทึกผล grep) |
+
+### 8.5 หน้าตั้งค่า (U)
+| ID | AC | ไฟล์เทส · เคส | สถานะ |
+|----|----|---------------|-------|
+| TC-LNK-050 | AC-LINK-09-2 | `…/template/lib/__tests__/confirm-detail-link.test.ts` — `confirmDetailLinkExposure`: เปิดครั้งแรก = ถาม (focusCancel + ห้ามคลิกนอก; ยกเลิก = false ยืนยัน = true) · ยืนยันแล้วในเซสชัน/บันทึกเป็น DETAIL อยู่แล้ว/ปิด/ไม่ใช่ DETAIL = ไม่ถาม · DETAIL บันทึกแล้วแต่ค่าใช้จ่ายเพิ่งเปิดเผย = ถามอีกครั้ง · `detailExposureLines` ประกอบตามที่เปิดจริง | มีเคส |
+| TC-LNK-051 | AC-LINK-09-3, 02-5 (UI) | `confirm-detail-link.test.ts` — `detailSwitchState`: ปกติ/readOnly/ซ่อนปุ่ม/ไม่มี orders-sales (disabled หรือยังกดปิดได้) · `shouldSuggestDetailLabel` เสนอเฉพาะ DETAIL + ป้ายยังเป็นค่าตั้งต้น | มีเคส |
+| TC-LNK-052 | AC-LINK-09-1 | `reducer.test.ts` — `setDetailLink`: เปิด = `target:'DETAIL'` (dirty) · ปิด = ลบ key กลับเท่าเดิมไม่ dirty | มีเคส |
+| TC-LNK-053 | AC-LINK-09-4 | `preview-data.test.ts` — `target: DETAIL`: พรีวิวไม่ build ลิงก์ (ไม่มี `/lr/` ใน JSON) | มีเคส |
+| TC-LNK-054 | AC-LINK-09-2, 09-5 | Playwright: สวิตช์ → Swal ยืนยัน/ยกเลิก · `/impeccable critique` + `clarify` · `rg` HR5/7/9/12 | **รอ — ไม่พบหลักฐาน** |
+
+### 8.6 Mutation ที่ต้องแดง (บังคับตอนปิดงาน — **ยังไม่มีบันทึกผล**)
+| ID | mutation | ต้องแดงที่ |
+|----|----------|-----------|
+| TC-LNK-701 | ฮาร์ดโค้ด `sellerDashboardUrl()` กลับใน `renderBubble` | TC-LNK-010 |
+| TC-LNK-702 | ย้ายการเขียน snapshot ไปหลัง push | TC-LNK-030 (เคส push ล้ม 503) |
+| TC-LNK-703 | ปล่อย throw จาก `createDetailSnapshot` ที่ผู้เรียก | TC-LNK-030 (เคส throw) |
+| TC-LNK-704 | เก็บ token ดิบลงคอลัมน์ | TC-LNK-027 |
+| TC-LNK-705 | ใส่ `buyerContact` ดิบใน `OrderRow` | TC-LNK-003 / 020 |
+| TC-LNK-706 | ใส่ expense เสมอ ไม่ตาม exposure | TC-LNK-020 |
+| TC-LNK-707 | รวมยอดจากแถวที่ตัดเพดานแทนชุดเต็ม | TC-LNK-022 |
+| TC-LNK-708 | เปลี่ยนก้อนร้านบริการเป็น `countsAsServiceRevenue` | TC-LNK-025 |
+| TC-LNK-709 | ใช้ผลรวมแถวเป็นหัวเมื่อ parity ไม่เท่า | TC-LNK-021 |
+| TC-LNK-710 | `+1` วันแทน `+2` ใน `detailExpiresAt` | TC-LNK-005 |
+| TC-LNK-711 | ถอดเงื่อนไขเวลา `now < expiresAt` | TC-LNK-026 |
+| TC-LNK-712 | แยกข้อความ REMOVED ออกจาก NOT_FOUND | TC-LNK-026 |
+| TC-LNK-713 | ถอดสาขา `/lr/` ใน proxy | TC-LNK-040 |
+| TC-LNK-714 | ถอด header ตัวใดตัวหนึ่ง / ถอดการตรวจ rate limit | TC-LNK-040 / 041 |
+| TC-LNK-715 | ข้ามการเทียบเทมเพลตเดิมใน `needsDetailLinkConfirm` (เคส "คงอยู่") | TC-LNK-007 / 032 |
+| TC-LNK-716 | เพิ่ม `detailLink` ใน `deriveFlags` | TC-LNK-007 |
+| TC-LNK-717 | ถอด purge ทุก tick | TC-LNK-031 |
+| TC-LNK-718 | แก้ `expenseItems` ให้อ่าน `note` | เทสเดิมของ `expenseItems` ("ไม่อ่าน note") ต้องแดงโดยไม่แก้ assertion |
+
+### 8.7 AC ที่ยังไม่พบเคสในโค้ด (ช่องว่างที่รู้)
+- AC-LINK-07-3 (โน้ต `<img onerror>` ไม่เป็น element) · AC-LINK-07-4 (3 สถานะค่าใช้จ่าย: บันทึกแล้ว / ไม่มีบันทึก+0 / ไม่มีบันทึก+ค่าส่ง) · AC-LINK-07-5 (ยอดรวมค่าใช้จ่ายข้ามร้านกลุ่มผสมกติกา/มีร้าน ERROR) — `page.test.tsx` มีเคส "ไม่เปิดค่าใช้จ่าย" แต่ไม่พบเคสที่ชื่อครอบข้อเหล่านี้
+- AC-LINK-03-4 ตาราง 4×flags เต็ม · AC-LINK-04-4 (ไม่มีแถว CANCELLED ใน `rows` ทุก fixture) — ครอบบางส่วนโดยเคสด้านบน ไม่ครบตามตาราง
+- NFR-LNK-1 วัดเวลา sweep กลุ่ม 10 ร้านก่อน/หลัง · ส่งทดสอบเข้า OA ทดสอบด้วยเส้นทาง `pushToGroup` จริงแล้วให้ user ดูจอ LINE มือถือ · security review (T8) — ไม่พบหลักฐาน
