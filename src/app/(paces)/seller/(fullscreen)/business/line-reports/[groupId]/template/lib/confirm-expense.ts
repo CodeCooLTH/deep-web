@@ -7,11 +7,15 @@
 import { pacesConfirm } from '@/lib/paces-swal'
 import { needsExpenseConfirm } from '@/lib/line-report/template'
 import type { TemplateV1 } from '@/lib/line-report/template'
+import { EXPENSE_DETAIL_NOTE } from './confirm-detail-link'
 
 /** true = ไปต่อได้ (ไม่ต้องถาม หรือผู้ใช้ยืนยัน) · false = ผู้ใช้ยกเลิก ห้ามลง */
 export async function confirmExpenseExposure(prev: TemplateV1, next: TemplateV1, alreadyConfirmed: boolean): Promise<boolean> {
   if (alreadyConfirmed || !needsExpenseConfirm(prev, next)) return true
-  return pacesConfirm.warning('แสดงค่าใช้จ่ายในกลุ่ม LINE?', 'ทุกคนในกลุ่มนี้จะเห็นค่าใช้จ่ายและยอดขายหลังหักค่าใช้จ่ายของร้านที่เลือก ปิดได้ทุกเมื่อ', {
+  const base = 'ทุกคนในกลุ่มนี้จะเห็นค่าใช้จ่ายและยอดขายหลังหักค่าใช้จ่ายของร้านที่เลือก ปิดได้ทุกเมื่อ'
+  // ปุ่มชี้หน้าสรุป → โน้ตอิสระของแต่ละรายการขึ้นหน้าสาธารณะด้วย ต้องบอกก่อนยืนยัน
+  const text = next.button.target === 'DETAIL' ? `${base} ${EXPENSE_DETAIL_NOTE}` : base
+  return pacesConfirm.warning('แสดงค่าใช้จ่ายในกลุ่ม LINE?', text, {
     confirmButtonText: 'แสดงค่าใช้จ่าย',
     cancelButtonText: 'ยกเลิก',
   })

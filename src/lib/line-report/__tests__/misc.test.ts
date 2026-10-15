@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import * as v from 'valibot'
 import { BIND_CODE_TTL_MS, BIND_CODE_PATTERN, formatBindCode, generateBindCode, hashBindCode, normalizeBindCode } from '../bind-code'
-import { addFriendUrl, getReportBotConfig, isReportBotReady, sellerDashboardUrl } from '../config'
+import { addFriendUrl, getReportBotConfig, isReportBotReady, sellerDashboardUrl, detailLinkUrl } from '../config'
 import { describeReason, FIXED_DELIVERY_REASONS, httpReason } from '../delivery-reasons'
 import {
   INVALID_SETTINGS_RULE_MESSAGE,
@@ -49,7 +49,7 @@ describe('errors — exhaustive', () => {
     expect(e).toBeInstanceOf(Error)
     expect(e.code).toBe('INVALID_SETTINGS')
     expect(e.details).toEqual({ rule: 'NEEDS_TIME' })
-    expect(Object.keys(INVALID_SETTINGS_RULE_MESSAGE)).toEqual(['NEEDS_TIME', 'METRIC_REQUIRED'])
+    expect(Object.keys(INVALID_SETTINGS_RULE_MESSAGE)).toEqual(['NEEDS_TIME', 'METRIC_REQUIRED', 'DETAIL_NEEDS_METRIC'])
   })
 })
 
@@ -130,6 +130,12 @@ describe('config', () => {
     expect(sellerDashboardUrl()).toBeNull()
     process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.deepthailand.app/'
     expect(sellerDashboardUrl()).toBe('https://seller.deepthailand.app/dashboard?openExternalBrowser=1')
+  })
+  it('detailLinkUrl เฉพาะ https · ไม่มี openExternalBrowser', () => {
+    process.env.NEXT_PUBLIC_SELLER_URL = 'http://seller.deepth.local:4000'
+    expect(detailLinkUrl('abc')).toBeNull()
+    process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.deepthailand.app/'
+    expect(detailLinkUrl('abc')).toBe('https://seller.deepthailand.app/lr/abc')
   })
 })
 

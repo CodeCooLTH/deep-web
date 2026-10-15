@@ -22,4 +22,12 @@ describe('confirmExpenseExposure', () => {
     expect(await confirmExpenseExposure(t(), t('profit'), false)).toBe(true)
     expect(warning).not.toHaveBeenCalled()
   })
+  it('ปุ่มชี้หน้าสรุป: ข้อความต่อท้ายเรื่องโน้ตขึ้นหน้าสาธารณะ · ไม่ชี้ = ไม่มี', async () => {
+    warning.mockResolvedValue(true)
+    const d = { ...t('expense'), button: { show: true, label: 'x', target: 'DETAIL' } } as unknown as TemplateV1
+    await confirmExpenseExposure(t(), d, false)
+    await confirmExpenseExposure(t(), t('expense'), false)
+    expect(warning.mock.calls[0][1]).toContain('โน้ตของแต่ละรายการ')
+    expect(warning.mock.calls[1][1]).not.toContain('โน้ต')
+  })
 })

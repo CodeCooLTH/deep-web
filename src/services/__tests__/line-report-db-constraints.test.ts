@@ -140,7 +140,7 @@ describe('00070 schema ไม่มีคอลัมน์ PII ของสม�
     const schema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8')
     const models = [...schema.matchAll(/^model (LineReport\w+) \{([\s\S]*?)^\}/gm)]
     expect(models.map((m) => m[1]).sort()).toEqual(
-      ['LineReportBindCode', 'LineReportDelivery', 'LineReportGroup', 'LineReportGroupShop', 'LineReportRateEvent'],
+      ['LineReportBindCode', 'LineReportDelivery', 'LineReportGroup', 'LineReportGroupShop', 'LineReportRateEvent', 'LineReportSnapshot'],
     )
     for (const [, name, body] of models) {
       const fields = body.split('\n').map((l) => l.trim().split(/\s+/)[0]).filter((f) => f && !f.startsWith('@') && !f.startsWith('//'))

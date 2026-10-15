@@ -26,6 +26,8 @@ import {
   EXPENSE_CATEGORY_ICON,
   EXPENSE_BAR_STEPS,
   groupExpensesByCategory,
+  SYSTEM_SHIPPING_LABEL_TH,
+  SYSTEM_RETURN_SHIPPING_LABEL_TH,
 } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 
@@ -132,7 +134,7 @@ export default function ExpenseBreakdownCard({
           <p className="border-default-300 text-default-800 mt-2.5 mb-0 flex items-center justify-between gap-2 border-t border-dashed pt-2.5 text-xs">
             <span className="flex min-w-0 items-center gap-2.5">
               <Icon icon="truck" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
-              <span className="truncate">ค่าส่ง (จ่ายขนส่ง)</span>
+              <span className="truncate">{SYSTEM_SHIPPING_LABEL_TH}</span>
             </span>
             <span className="text-default-900 font-semibold">{formatBaht(shippingCost)}</span>
           </p>
@@ -141,7 +143,7 @@ export default function ExpenseBreakdownCard({
           <p className="border-default-300 text-default-800 mt-2.5 mb-0 flex items-center justify-between gap-2 border-t border-dashed pt-2.5 text-xs">
             <span className="flex min-w-0 items-center gap-2.5">
               <Icon icon="truck-return" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
-              <span className="truncate">ค่าส่งคืนสินค้า</span>
+              <span className="truncate">{SYSTEM_RETURN_SHIPPING_LABEL_TH}</span>
             </span>
             <span className="text-default-900 font-semibold">{formatBaht(returnShippingCost)}</span>
           </p>

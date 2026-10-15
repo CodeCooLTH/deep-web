@@ -16,11 +16,12 @@ import type { Dispatch, ReactNode } from 'react'
 import { Draggable, Droppable, type DraggableProvided, type DraggableStateSnapshot } from '@hello-pangea/dnd'
 import Icon from '@/components/wrappers/Icon'
 import CardHead, { GroupLabel, ROUND_CARD } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/CardHead'
-import { CheckRow } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/Rows'
+import { CheckRow, SwitchRow } from '@/app/(paces)/seller/(dashboard)/business/line-reports/_components/detail/Rows'
 import { type Availability, type AvailabilityContext } from '@/lib/line-report/availability'
-import { MAX_BUTTON_LABEL, MAX_TITLE_LENGTH, type Block, type TemplateV1 } from '@/lib/line-report/template'
+import { DEFAULT_BUTTON_LABEL, MAX_BUTTON_LABEL, MAX_TITLE_LENGTH, type Block, type TemplateV1 } from '@/lib/line-report/template'
 import { cn } from '@/utils/helpers'
 import { blockSummary, blockTitle, measureLabel, rowWarning } from '../lib/block-meta'
+import { DETAIL_LINK_DRAFT_REASON, DETAIL_SUGGESTED_LABEL, detailSwitchState, EXPENSE_DETAIL_NOTE, shouldSuggestDetailLabel } from '../lib/confirm-detail-link'
 import type { Action } from '../lib/reducer'
 import SegControl from './SegControl'
 import TextBlockEditor from './TextBlockEditor'
@@ -38,10 +39,11 @@ const EXPOSURE_NOTE: Record<'profit' | 'expense' | 'net_sales', string> = {
   net_sales: 'ทุกคนในกลุ่ม LINE จะเห็นยอดขายหลังหักค่าใช้จ่าย รวมถึงคนที่ไม่ได้มีสิทธิ์ดูการเงินในร้าน ยังไม่หักต้นทุน',
 }
 
-function ProfitBody({ kind }: { kind: 'profit' | 'expense' | 'net_sales' }) {
+function ProfitBody({ kind, detail = false }: { kind: 'profit' | 'expense' | 'net_sales'; detail?: boolean }) {
   return (
     <p role="status" className="bg-warning/15 text-warning-ink mb-0 rounded-lg px-3 py-2 text-sm">
       {EXPOSURE_NOTE[kind]}
+      {detail && kind === 'expense' && ` ${EXPENSE_DETAIL_NOTE}`}
     </p>
   )
 }
@@ -190,6 +192,10 @@ export type CanvasListProps = {
   onShopsProfit: (id: string, next: boolean) => void
   onConfirmProfit: () => void
   onRemove: (id: string) => void
+  /** สลับปลายทางปุ่ม (เปิดต้องผ่าน Swal ยืนยันที่ผู้เรียก) */
+  onDetailLink: (on: boolean) => void
+  /** เปิดหน้าสรุปไว้แต่ไม่มีบล็อกจำนวนรายการ/ยอดขาย */
+  detailNeedsMetric: boolean
 }
 
 export default function CanvasList(p: CanvasListProps) {
@@ -197,6 +203,7 @@ export default function CanvasList(p: CanvasListProps) {
   const titleLen = draft.title === undefined ? 0 : Array.from(draft.title).length
   const labelLen = Array.from(draft.button.label).length
   // ซ่อนปุ่มอยู่ (show=false) = ป้ายไม่บล็อกการบันทึก จึงไม่แดง
+  const detail = detailSwitchState(draft, readOnly)
   const labelBad = draft.button.show && (labelLen > MAX_BUTTON_LABEL || draft.button.label.trim() === '')
   const onToggle = (id: string) => dispatch({ type: 'open', id: p.openId === id ? null : id })
 
@@ -205,7 +212,7 @@ export default function CanvasList(p: CanvasListProps) {
       case 'expense':
         return (
           <div>
-            <ProfitBody kind="expense" />
+            <ProfitBody kind="expense" detail={draft.button.target === 'DETAIL'} />
             <CheckRow
               checked={!!b.items}
               disabled={readOnly}
@@ -217,7 +224,7 @@ export default function CanvasList(p: CanvasListProps) {
         )
       case 'profit':
       case 'net_sales':
-        return <ProfitBody kind={b.type} />
+        return <ProfitBody kind={b.type} detail={draft.button.target === 'DETAIL'} />
       case 'shops':
         return <ShopsBody block={b} top3Avail={p.top3Avail} readOnly={readOnly} dispatch={dispatch} onShopsProfit={p.onShopsProfit} />
       case 'chart_trend':
@@ -335,7 +342,7 @@ export default function CanvasList(p: CanvasListProps) {
           </div>
         </div>
 
-        {/* ปุ่มเปิด Deep — ไม่อยู่ใน blocks (อยู่ใน template.button) ลากไม่ได้ */}
+        {/* ปุ่มท้ายข้อความ (ปลายทาง Deep หรือหน้าสรุป) — ไม่อยู่ใน blocks (อยู่ใน template.button) ลากไม่ได้ */}
         <div className="rounded-b-xl">
           <button
             type="button"
@@ -348,8 +355,10 @@ export default function CanvasList(p: CanvasListProps) {
               <Icon icon="external-link" className="text-default-500 size-4" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="text-default-900 block text-sm font-medium">ปุ่มเปิด Deep</span>
-              <span className="text-default-700 block truncate text-xs">{draft.button.show ? `“${draft.button.label}” · แสดง` : 'ซ่อนอยู่'}</span>
+              <span className="text-default-900 block text-sm font-medium">ปุ่มท้ายข้อความ</span>
+              <span className={cn('block truncate text-xs', p.detailNeedsMetric ? 'text-warning-ink' : 'text-default-700')}>
+                {p.detailNeedsMetric ? DETAIL_LINK_DRAFT_REASON : draft.button.show ? `“${draft.button.label}” · แสดง${detail.checked ? ' · เปิดหน้าสรุป' : ''}` : 'ซ่อนอยู่'}
+              </span>
             </span>
             <Icon icon="chevron-down" className={cn('text-default-500 mx-4 size-4 shrink-0', p.openId === 'button' && 'rotate-180')} aria-hidden="true" />
           </button>
@@ -370,8 +379,27 @@ export default function CanvasList(p: CanvasListProps) {
               />
               <p id="template-button-help" className="text-default-700 mt-1 mb-0 text-xs">
                 <span className={cn('tabular-nums', labelBad && 'text-danger-ink')}>{draft.button.label.trim() === '' ? 'พิมพ์ป้ายปุ่มก่อนบันทึก' : labelLen > MAX_BUTTON_LABEL ? `เกิน ${labelLen - MAX_BUTTON_LABEL} ตัวอักษร` : `เหลือ ${MAX_BUTTON_LABEL - labelLen} ตัวอักษร`}</span>
-                {' · '}ปุ่มนี้เปิดหน้า Deep ของคุณเสมอ แก้ได้เฉพาะข้อความบนปุ่ม
+                {' · '}
+                {detail.checked ? 'ปุ่มนี้เปิดหน้าสรุปรายละเอียดของรอบที่ส่ง' : 'ปุ่มนี้เปิดหน้า Deep ของคุณเสมอ'} แก้ได้เฉพาะข้อความบนปุ่ม
               </p>
+              <div className="border-default-300 mt-4 border-t border-dashed pt-3">
+                <SwitchRow checked={detail.checked} disabled={detail.disabled} onChange={p.onDetailLink} label="ปุ่มเปิดหน้าสรุปรายละเอียด" sub={detail.sub} />
+                {detail.checked && (
+                  <div className="mt-2 flex flex-col items-start gap-2">
+                    <p role="status" className="bg-warning/15 text-warning-ink mb-0 rounded-lg px-3 py-2 text-sm">
+                      ทุกคนที่ได้ลิงก์จะเห็นชื่อลูกค้า เบอร์ที่ปิดบางส่วน ชื่องาน/สินค้า และยอดเงินรายใบ{p.draft.blocks.some((b) => b.type === 'expense' || b.type === 'net_sales') && ' ค่าใช้จ่ายพร้อมโน้ตจะขึ้นด้วย'}
+                    </p>
+                    {shouldSuggestDetailLabel(draft, DEFAULT_BUTTON_LABEL) && (
+                      <div className="text-default-700 text-xs">
+                        <p className="mb-1">ป้ายปุ่มตอนนี้คือ “{DEFAULT_BUTTON_LABEL}” แต่ปุ่มจะเปิดหน้าสรุป</p>
+                        <button type="button" disabled={readOnly} className="btn btn-sm bg-primary/15 text-primary hover:bg-primary min-h-11 hover:text-white lg:min-h-0" onClick={() => dispatch({ type: 'setButton', patch: { label: DETAIL_SUGGESTED_LABEL } })}>
+                          ใช้ป้าย “{DETAIL_SUGGESTED_LABEL}”
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

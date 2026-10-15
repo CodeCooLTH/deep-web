@@ -41,7 +41,9 @@ async function direct(shopId: string, vertical: string, dates: string[]) {
   const t = { orders: 0, confirmed: 0, unconfirmed: 0 }
   for (const d of dates) {
     const [y, m, day] = ymd(d)
-    const s = await getSalesSeries(shopId, 'daily', { year: y, month: m }, false, vertical)
+    // รายงาน LINE ไม่ส่ง vertical เข้า getSalesSeries (ร้านบริการไม่รอปิดงาน — user 2026-10-14 · PR #165) ⇒ ค่าอ้างอิงต้องเรียกแบบเดียวกัน
+    void vertical
+    const s = await getSalesSeries(shopId, 'daily', { year: y, month: m }, false)
     t.orders += s.orderCounts[day - 1]
     t.confirmed += s.confirmedValues[day - 1]
     t.unconfirmed += s.unconfirmedValues[day - 1]
@@ -146,7 +148,8 @@ describe.skipIf(!isLocal)('00070 parity: buildGroupSummary vs SSOT', () => {
         // AC-14-4: กำไร = getPnlReport ช่วงเดียวกัน · pnl.revenue = ยอดขายนับแล้วของร้านเดียวกัน
         const pnl = await getPnlReport(shop.id, resolveDateRange('custom', startIso, endIso), v)
         expect(got.profit?.netProfit).toBe(pnl.netProfit)
-        expect(pnl.revenue).toBe(got.confirmed)
+        // ร้านบริการ: P&L นับตามปิดงาน แต่ยอดการ์ด LINE นับตามลูกค้ายืนยัน (PR #165) — คนละแกนโดยตั้งใจ
+        if (v !== 'SERVICE_QUEUE') expect(pnl.revenue).toBe(got.confirmed)
       })
     }
   }

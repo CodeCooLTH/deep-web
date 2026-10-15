@@ -10,7 +10,7 @@ import { shiftIsoDate, todayThaiIsoDate } from '@/lib/date-range'
 import { LineReportError, type InvalidSettingsRule } from '@/lib/line-report/errors'
 import { isReportBotReady } from '@/lib/line-report/config'
 import { resolveReportConfig } from '@/lib/line-report/report-config'
-import { deriveFlags, needsExpenseConfirm, type TemplateV1 } from '@/lib/line-report/template'
+import { deriveFlags, detailLinkBlocked, needsDetailLinkConfirm, needsExpenseConfirm, type TemplateV1 } from '@/lib/line-report/template'
 import { measureTemplate, type TemplateMeasure } from '@/lib/line-report/template-size'
 import { nextSendAt } from '@/lib/line-report/schedule'
 import { cycleContaining, nextMonthlyFireAt } from '@/lib/line-report/cycle'
@@ -244,7 +244,7 @@ function assertTemplateSize(template: TemplateV1): TemplateMeasure {
   return m
 }
 
-export type UpdateTemplateInput = { template: unknown; expectedVersion: number; confirmProfit?: boolean; confirmExpense?: boolean }
+export type UpdateTemplateInput = { template: unknown; expectedVersion: number; confirmProfit?: boolean; confirmExpense?: boolean; confirmDetailLink?: boolean }
 
 /**
  * บันทึกเทมเพลต (PUT) — validate → ล็อกกลุ่ม → เทียบ version → derive flag → mergeSettings เดิม → เขียนทั้งก้อนใน tx เดียว
@@ -272,6 +272,9 @@ export async function updateTemplate(ownerId: string, groupId: string, input: Up
     // ค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่าย: เปิดเพิ่มต้องยืนยัน (FR-EXP-05) — เทียบกับของที่บันทึกไว้ตอนล็อก; ของเดิมพัง/ไม่มี = ถือว่าไม่เคยมี
     const prevParsed = prevRaw == null ? null : validateTemplate(prevRaw)
     if (!input.confirmExpense && needsExpenseConfirm(prevParsed?.ok ? prevParsed.template : null, template)) throw new LineReportError('EXPENSE_CONFIRM_REQUIRED')
+    // ลิงก์หน้าสรุป: ไม่มีตัวเลขให้แสดง = ปฏิเสธ · เปิดใหม่/เปิดบล็อกค่าใช้จ่ายเพิ่มต้องยืนยัน (FR-02) — เทียบกับของที่บันทึกไว้
+    if (template.button.target === 'DETAIL' && detailLinkBlocked(template)) throw invalid('DETAIL_NEEDS_METRIC')
+    if (!input.confirmDetailLink && needsDetailLinkConfirm(prevParsed?.ok ? prevParsed.template : null, template)) throw new LineReportError('DETAIL_LINK_CONFIRM_REQUIRED')
     // กำไร/ไม่มีตัวเลขเลย/ล้าง attachCycle เมื่อปิดรายเดือน = กฎเดียวกับ PATCH (ไม่เขียนซ้ำ)
     const next = mergeSettings(state, { ...deriveFlags(template), confirmProfit: input.confirmProfit }, new Date())
     await tx.lineReportGroup.update({

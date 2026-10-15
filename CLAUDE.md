@@ -175,6 +175,7 @@ theme/
 ประวัติทั้งหมด (มติที่ห้ามกลับ · กับดัก · carry ของแต่ละรอบ) → [[docs/claude/state-snapshots]] — 🛑 ก่อนแตะฟีเจอร์ไหนให้ grep ชื่อฟีเจอร์/เลข feature ในไฟล์นั้นก่อน · snapshot ใหม่ต่อท้ายไฟล์นั้น แล้วเพิ่มบรรทัดเดียวที่นี่
 
 - **2026-09-14 (00018-ext):** ห้องแชท delta + client store — branch `feat/chat-instant-render-delta` ยังไม่ merge · browser QA ยังไม่ทำ
+- **2026-10-15 (00070 ext):** ปุ่มบนการ์ด LINE เปิดหน้าสรุปรายละเอียดสาธารณะ `/lr/{token}` (เปิดเองต่อกลุ่ม · หมดอายุ ≤48 ชม. · สำเนาตอนส่ง) — route group `(public-report)` root layout แยก · ดู [[docs/claude/state-snapshots]]
 - **2026-09-30 (00067):** แท็บการเงินร้านบริการ 3 แท็บ — prod (PR #87/#88) · 2026-10-02 ถอนกติกาออกจากร้านที่ไม่ใช่บริการ · 🛑 `npm test` ในเครื่องชี้ Supabase prod ต้อง override `DATABASE_URL` เป็น 5434
 - **2026-10-09 (00019-ext-mem):** ความจำของแชท + สินค้าที่สนใจ (Typhoon ร้านนำร่องเท่านั้น) — PR นี้ · 🛑 browser QA ยังไม่ทำ (checklist ใน retro) · ไม่มี retention (R-M2)
 - **2026-10-10 (00071 P1):** การเงินเต็มเห็นเฉพาะเจ้าของร้าน — SSOT `src/lib/shop-permissions.ts` · ธง `staffCanViewFinance` ไม่มีผลแล้ว · ไม่มี migration · 🛑 browser QA ยังไม่ทำ

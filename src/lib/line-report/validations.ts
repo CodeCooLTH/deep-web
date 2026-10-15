@@ -64,7 +64,7 @@ export type ReplaceShopsInput = v.InferOutput<typeof ReplaceShopsSchema>
 
 export type TemplateRule =
   | 'SHAPE' | 'EXTRA_FIELD' | 'BLOCK_TYPE' | 'TYPE_LIMIT' | 'TOTAL_LIMIT' | 'DUPLICATE_ID' | 'STYLE' | 'MEASURE'
-  | 'TOKEN' | 'RUN_SHAPE' | 'TEXT_TOO_LONG' | 'TEXT_EMPTY' | 'TEXT_NEWLINE' | 'TITLE' | 'BUTTON_LABEL'
+  | 'TOKEN' | 'RUN_SHAPE' | 'TEXT_TOO_LONG' | 'TEXT_EMPTY' | 'TEXT_NEWLINE' | 'TITLE' | 'BUTTON_LABEL' | 'BUTTON_TARGET'
 
 const cpLen = (s: string) => Array.from(s).length
 const IdSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(64))
@@ -123,7 +123,9 @@ const nonEmptyMax = (max: number, code: TemplateRule) =>
 export const TemplateSchema = v.strictObject({
   v: v.literal(1),
   title: v.optional(nonEmptyMax(MAX_TITLE_LENGTH, 'TITLE')),
-  button: v.strictObject({ show: v.boolean(), label: nonEmptyMax(MAX_BUTTON_LABEL, 'BUTTON_LABEL') }),
+  button: v.strictObject({ show: v.boolean(), label: nonEmptyMax(MAX_BUTTON_LABEL, 'BUTTON_LABEL'),
+    target: v.optional(v.picklist(['DASHBOARD', 'DETAIL'], 'BUTTON_TARGET')),
+  }),
   blocks: v.pipe(
     v.array(BlockSchema),
     v.maxLength(MAX_BLOCKS, 'TOTAL_LIMIT'),
@@ -140,7 +142,7 @@ export type TemplateValidation = { ok: true; template: TemplateV1 } | { ok: fals
 
 const KNOWN_RULES = new Set<string>([
   'TYPE_LIMIT', 'TOTAL_LIMIT', 'DUPLICATE_ID', 'STYLE', 'MEASURE', 'TOKEN', 'RUN_SHAPE', 'TEXT_TOO_LONG', 'TEXT_EMPTY',
-  'TEXT_NEWLINE', 'TITLE', 'BUTTON_LABEL', 'BLOCK_TYPE',
+  'TEXT_NEWLINE', 'TITLE', 'BUTTON_LABEL', 'BUTTON_TARGET', 'BLOCK_TYPE',
 ])
 
 /** ตัวเดียวกันทั้ง client (ปุ่มบันทึก) และ server (ตรวจซ้ำ) — รายงาน issue แรก + id บล็อกที่ผิด (ถ้าอยู่ในบล็อก) */

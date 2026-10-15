@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes">
+<title>สรุปรายละเอียด · รายงานยอดรายวัน | Deep ผู้ขาย (mockup 00070)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<!-- token ยกจาก src/assets/css/config/_root.css (skin default — ไม่ใช่ saas) -->
+<style type="text/tailwindcss">
+@theme {
+  --font-sans: "Anuphan", system-ui, sans-serif;
+  --color-body-bg: #f6f7fb;
+  --color-body-color: #4c4c5c;
+  --color-card: #fff;
+  --color-primary: #236dc9;
+  --color-primary-hover: #1e5dab;
+  --color-success: #02bc9c;
+  --color-warning: #f9bf59;
+  --color-warning-hover: #d4a24c;
+  --color-danger: #f7577e;
+  --color-light: #eef2f7;
+  --color-dark: #313a46;
+  --color-warning-ink: #92400e;
+  --color-success-ink: #065f46;
+  --color-danger-ink: #7f1d1d;
+  --color-primary-ink: #1e3a8a;
+  --color-default-100: #f6f7fb;
+  --color-default-200: #eef2f7;
+  --color-default-300: #e7e9eb;
+  --color-default-400: #627189;
+  --color-default-500: #58626b;
+  --color-default-700: #40454a;
+  --color-default-800: #343a40;
+  --color-default-900: #313a46;
+  --text-2xs: 11px;
+  --text-md: 15px;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.5;
+  --text-sm--line-height: 1.5;
+  --text-md--line-height: 1.5;
+  --text-lg--line-height: 1.5;
+  --text-xl--line-height: 1.5;
+  --text-3xl--line-height: 1.5;
+  --spacing-base: 20px;
+  --radius: 4px;
+  --shadow: 0px 1px 4px 0px rgba(130, 143, 163, 0.15);
+}
+/* จำลอง custom/_card.css · _badge.css · _table.css · _buttons.css · _forms.css(.form-switch) */
+@layer components {
+  body { @apply bg-body-bg text-body-color font-sans text-sm; }
+  .card { @apply bg-card relative flex h-fit flex-col rounded break-words shadow-[var(--shadow)]; }
+  .card-header { @apply border-default-300 flex flex-wrap items-center justify-between gap-3 border-b border-dashed px-5 py-[15px]; }
+  .card-footer { @apply border-light flex flex-wrap items-center justify-between gap-3 border-t px-5 py-[15px]; }
+  .card-body { @apply flex-auto p-5; }
+  .card-title { @apply text-md text-body-color m-0 leading-normal font-medium; }
+  .badge { @apply inline-flex items-center justify-center gap-1 rounded px-[0.5em] py-[0.15em] align-middle text-[0.75em] font-semibold; }
+  .table-wrapper { @apply relative w-full overflow-x-auto; }
+  .table { @apply text-body-color w-full border-collapse; }
+  .table tr { @apply border-light border-b; }
+  .table thead th { @apply text-body-color px-2.5 py-3 text-start align-middle font-bold; }
+  .table .thead-sm th { @apply p-2; }
+  .table th:first-child, .table td:first-child { @apply ps-[18px]; }
+  .table th:last-child, .table td:last-child { @apply pe-[18px]; }
+  .table tbody tr:last-child { @apply border-0; }
+  .table tbody td { @apply px-2.5 py-3 align-top; }
+  .btn { @apply inline-flex cursor-pointer items-center justify-center gap-x-2 rounded border border-transparent px-4 py-[7px] text-sm font-medium; }
+  .btn-sm { @apply px-2.5 py-1 text-xs; }
+  .form-input { @apply border-default-300 text-default-900 block w-full rounded border bg-white px-3 py-2 text-sm; }
+  .form-switch { @apply bg-default-200 border-default-300 relative inline-flex h-5 w-[30px] shrink-0 cursor-pointer appearance-none rounded-full border; }
+  .form-switch::before { content: ""; @apply bg-dark/30 absolute start-0 top-1/2 block size-3 translate-x-1 -translate-y-1/2 rounded-full transition-transform; }
+  .form-switch:checked { @apply bg-primary border-primary; }
+  .form-switch:checked::before { @apply translate-x-3.5 bg-white; }
+  .form-checkbox { @apply accent-primary size-4; }
+  iconify-icon { display: inline-block; flex-shrink: 0; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ---------- ข้อมูลตัวอย่าง §A1 ----------
+const DATE = '14 ต.ค. 2569'
+const EXPIRES = '15 ต.ค. 2569'
+const BT = {
+  name: 'BT Premium สุขสวัสดิ์', service: true, word: 'บริการ', itemCol: 'บริการ', cancelled: 0,
+  rows: [
+    { t: '20:31', n: 'คุณปรีชา วงศ์ทอง', p: '•••-•••-318', job: 'ติดตั้งกล้องหน้ารถ', amt: 11000, closed: false, axis: 'PENDING' },
+    { t: '19:36', n: 'คุณนภัส รุ่งเรือง', p: '•••-•••-772', job: 'เปลี่ยนยางหน้า-หลัง', amt: 7400, closed: false, axis: 'CONFIRMED' },
+    { t: '18:55', n: 'คุณสุดา แก้วใส', p: '•••-•••-536', job: 'ตั้งศูนย์ล้อ และอีก 1 รายการ', amt: 7900, closed: true, axis: 'CONFIRMED' },
+    { t: '17:30', n: 'คุณธนากร ศรีสุข', p: '•••-•••-204', job: 'เปลี่ยนโช้คหลัง', amt: 15000, closed: true, axis: 'CONFIRMED' },
+    { t: '11:23', n: 'คุณวิชัย มั่นคง', p: '•••-•••-891', job: 'ติดตั้งไฟหน้า', amt: 7900, closed: false, axis: 'PENDING' },
+  ],
+  expense: { recorded: true, rows: [
+    { l: 'ค่าจ้างพนักงาน', a: 3500 },
+    { l: 'อื่นๆ', a: 2000, note: 'ค่าน้ำมัน' },
+    { l: 'อื่นๆ', a: 500 },
+    { l: 'ค่าส่ง (จ่ายขนส่ง)', a: 394, note: 'ระบบคิดให้' },
+  ] },
+}
+const SHOP2 = {
+  name: 'ร้านอะไหล่ BT ออนไลน์', service: false, word: 'คำสั่งซื้อ', itemCol: 'สินค้า', cancelled: 1,
+  rows: [
+    { t: '16:10', n: 'คุณมาลี ใจดี', p: '•••-•••-145', job: 'ผ้าเบรกหน้า ชุด 2 ชิ้น', amt: 4200, axis: 'CONFIRMED' },
+    { t: '14:02', n: 'คุณอนันต์ ทองดี', p: '•••-•••-660', job: 'น้ำมันเครื่องสังเคราะห์ 4 ลิตร', amt: 5300, axis: 'CONFIRMED' },
+    { t: '10:45', n: null, p: null, job: 'หลอดไฟหน้า LED', amt: 3300, axis: 'PENDING' },
+  ],
+  expense: { recorded: false, rows: [] },
+}
+const EMPTY = { ...BT, rows: [], expense: { recorded: false, rows: [] } }
+
+// ---------- helpers ----------
+const money = (n) => n.toLocaleString('en-US') // money() = noBaht(formatBaht(n))
+const sum = (a) => a.reduce((s, x) => s + x, 0)
+const ic = (name, cls = 'size-4') => `<iconify-icon icon="tabler:${name}" class="${cls}" aria-hidden="true" width="1em" height="1em"></iconify-icon>`
+
+function partition(shop) {
+  if (shop.service) {
+    const a = shop.rows.filter((r) => r.closed), b = shop.rows.filter((r) => !r.closed)
+    return [
+      { label: 'ปิดงานแล้ว', c: 'success', amt: sum(a.map((r) => r.amt)), n: a.length },
+      { label: 'รอปิดงาน', c: 'warning', amt: sum(b.map((r) => r.amt)), n: b.length },
+    ]
+  }
+  const a = shop.rows.filter((r) => r.axis === 'CONFIRMED'), b = shop.rows.filter((r) => r.axis !== 'CONFIRMED')
+  return [
+    { label: 'ยืนยันแล้ว', c: 'primary', amt: sum(a.map((r) => r.amt)), n: a.length },
+    { label: 'รอยืนยัน', c: 'warning', amt: sum(b.map((r) => r.amt)), n: b.length },
+  ]
+}
+
+function bar(parts) {
+  const total = sum(parts.map((p) => p.amt))
+  const segs = total === 0 ? '' : parts.filter((p) => p.amt > 0).map((p) => `<div class="bg-${p.c} h-full" style="width:${(p.amt / total * 100).toFixed(1)}%"></div>`).join('')
+  return `<div class="bg-default-200 flex h-2 w-full overflow-hidden rounded-full" role="img" aria-label="${parts.map((p) => `${p.label} ${money(p.amt)}`).join(' ')}">${segs}</div>
+  <div class="border-default-300 mt-3 flex rounded border border-dashed">
+    ${parts.map((p) => `<div class="border-default-300 flex-1 border-e border-dashed px-3 py-2.5 last:border-e-0">
+      <div class="text-default-700 flex items-center gap-1.5 text-xs"><span class="bg-${p.c} size-2 shrink-0 rounded-full"></span>${p.label}</div>
+      <div class="text-md text-default-900 font-bold tabular-nums">${money(p.amt)}</div>
+      <div class="text-default-700 text-xs">${p.n} รายการ</div>
+    </div>`).join('')}
+  </div>`
+}
+
+const stamp = () => `<div class="card-footer"><p class="text-default-700 m-0 flex items-start gap-1.5 text-xs">${ic('clock', 'size-4 mt-px')}<span>ข้อมูล ณ 21:01 น. ตอนส่งรายงาน — ตัวเลขนี้ไม่อัปเดตเอง</span></p></div>`
+
+function heroCard(shop, extraCls) {
+  const total = sum(shop.rows.map((r) => r.amt))
+  return `<section class="card ${extraCls}" aria-labelledby="h1">
+    <div class="card-header"><h1 id="h1" class="text-default-900 m-0 text-lg font-semibold text-balance">รายงานยอดรายวัน</h1></div>
+    <div class="card-body">
+      <p class="text-default-700 m-0 text-sm">${shop.name}</p>
+      <p class="text-primary m-0 mt-0.5 flex items-center gap-1.5 text-sm font-semibold">${ic('calendar')}${DATE}</p>
+      <p class="text-default-700 m-0 mt-4 text-sm">ยอดขาย</p>
+      <p class="m-0 flex flex-wrap items-baseline gap-x-1.5"><span class="text-default-900 text-3xl font-bold tabular-nums">${money(total)}</span><span class="text-default-700 text-base">บาท</span></p>
+      <p class="text-default-700 m-0 mb-4 text-sm">${shop.word} ${shop.rows.length} รายการ · ยกเลิก ${shop.cancelled} ใบ</p>
+      ${bar(partition(shop))}
+    </div>
+    ${stamp()}
+  </section>`
+}
+
+function chips(shop, r) {
+  const marker = r.axis === 'CONFIRMED'
+    ? `<span class="text-primary inline-flex items-center gap-1 text-xs">${ic('circle-check', 'size-3.5')}ยืนยันแล้ว</span>`
+    : r.axis === 'RETURNED'
+      ? `<span class="text-warning-ink inline-flex items-center gap-1 text-xs">${ic('arrow-back-up', 'size-3.5')}คืนของแล้ว</span>`
+      : `<span class="text-warning-ink inline-flex items-center gap-1 text-xs">${ic('clock', 'size-3.5')}รอยืนยัน</span>`
+  if (shop.service) {
+    const chip = r.closed ? '<span class="badge bg-success/15 text-success-ink text-xs">ปิดงานแล้ว</span>' : '<span class="badge bg-warning/15 text-warning-ink text-xs">รอปิดงาน</span>'
+    return `<span class="flex flex-wrap items-center gap-x-2 gap-y-1">${chip}${marker}</span>`
+  }
+  return r.axis === 'CONFIRMED' ? '<span class="badge bg-primary/15 text-primary-ink text-xs">ยืนยันแล้ว</span>' : '<span class="badge bg-warning/15 text-warning-ink text-xs">รอยืนยัน</span>'
+}
+
+function listCard(shop, extraCls) {
+  const desc = `เรียงจากล่าสุด · เวลาคือเวลาที่เปิดบิล${shop.cancelled ? ' · ไม่รวมใบที่ยกเลิก' : ''}`
+  const name = (r) => r.n ?? 'ลูกค้าไม่ระบุชื่อ'
+  const body = shop.rows.length === 0
+    ? `<div class="flex flex-col items-center px-5 pt-4 pb-8 text-center">
+        <span class="bg-default-200 text-default-700 mb-3 flex size-14 items-center justify-center rounded-full">${ic('receipt-2', 'text-2xl')}</span>
+        <p class="text-default-900 m-0 text-md font-semibold">ไม่มีรายการในช่วงนี้</p>
+        <p class="text-default-700 m-0 mt-1 max-w-sm text-sm text-balance">ไม่มีบิลที่เปิดในวันที่ ${DATE} ก่อนเวลา 21:01 น. บิลที่เปิดหลังจากนั้นจะไม่อยู่ในหน้านี้</p>
+      </div>`
+    : `<ul class="divide-default-200 m-0 list-none divide-y p-0 md:hidden">
+        ${shop.rows.map((r) => `<li class="flex gap-3 px-5 py-3">
+          <span class="text-default-900 w-12 shrink-0 text-sm tabular-nums">${r.t}</span>
+          <div class="min-w-0 flex-1 break-words">
+            <div class="flex items-start justify-between gap-3">
+              <span class="text-default-900 min-w-0 text-sm font-medium">${name(r)}</span>
+              <span class="text-default-900 shrink-0 text-sm font-semibold tabular-nums">${money(r.amt)}</span>
+            </div>
+            <p class="text-default-800 m-0 text-sm">${r.job}</p>
+            ${r.p ? `<p class="text-default-700 m-0 text-xs tabular-nums">${r.p}</p>` : ''}
+            <div class="mt-1.5">${chips(shop, r)}</div>
+          </div>
+        </li>`).join('')}
+      </ul>
+      <div class="table-wrapper hidden md:block">
+        <table class="table text-sm">
+          <thead class="thead-sm bg-light/25"><tr><th>เวลา</th><th>ลูกค้า</th><th>${shop.itemCol}</th><th>สถานะ</th><th class="text-end">ยอด</th></tr></thead>
+          <tbody>
+            ${shop.rows.map((r) => `<tr>
+              <td class="text-default-900 tabular-nums">${r.t}</td>
+              <td class="min-w-0 break-words"><span class="text-default-900 block font-medium">${name(r)}</span>${r.p ? `<span class="text-default-700 block text-xs tabular-nums">${r.p}</span>` : ''}</td>
+              <td class="text-default-800 break-words">${r.job}</td>
+              <td>${chips(shop, r)}</td>
+              <td class="text-default-900 text-end font-semibold tabular-nums">${money(r.amt)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`
+  return `<section class="card ${extraCls}" aria-labelledby="list-${shop.name.length}">
+    <div class="card-header"><h2 id="list-${shop.name.length}" class="card-title">รายการทั้งหมด</h2><span class="badge bg-default-200 text-default-800 text-xs tabular-nums">${shop.rows.length}</span></div>
+    <p class="text-default-700 m-0 px-5 pt-3 pb-1 text-xs">${desc}</p>
+    ${body}
+  </section>`
+}
+
+function expenseCard(shop, extraCls) {
+  const e = shop.expense
+  const total = sum(e.rows.map((r) => r.a))
+  return `<section class="card ${extraCls}">
+    <div class="card-header"><h2 class="card-title flex items-center gap-2"><span class="bg-danger size-2 shrink-0 rounded-full"></span>ค่าใช้จ่าย</h2>${e.recorded ? `<span class="text-default-900 text-md font-semibold tabular-nums">${money(total)}</span>` : ''}</div>
+    <div class="card-body py-3">
+      ${e.recorded ? `<ul class="m-0 list-none p-0">${e.rows.map((r) => `<li class="py-1.5">
+          <div class="flex items-baseline justify-between gap-3"><span class="text-default-900 text-sm">${r.l}</span><span class="text-default-900 text-sm tabular-nums">${money(r.a)}</span></div>
+          ${r.note ? `<p class="text-default-700 m-0 text-xs break-words">${r.note}</p>` : ''}
+        </li>`).join('')}</ul>` : '<p class="text-default-700 m-0 py-1.5 text-sm">ร้านยังไม่ได้บันทึกค่าใช้จ่ายในช่วงนี้</p>'}
+    </div>
+    <div class="card-footer"><p class="text-default-700 m-0 text-xs">รายการที่ร้านบันทึกไว้ในช่วงนี้ และค่าส่งที่ระบบคิดให้</p></div>
+  </section>`
+}
+
+const brand = () => `<header class="mx-auto flex w-full max-w-3xl items-center px-4 py-3 md:px-6 lg:max-w-6xl"><img src="assets/logo-deep-wordmark.png" alt="Deep" class="h-6 w-auto"></header>`
+
+const pageFooter = () => `<footer class="mx-auto w-full max-w-3xl px-4 pt-5 pb-6 md:px-6 lg:max-w-6xl">
+  <p class="text-default-700 m-0 text-xs">ลิงก์นี้ใช้ได้ถึงสิ้นวันที่ ${EXPIRES} เปิดได้โดยไม่ต้องเข้าสู่ระบบ ควรแชร์เฉพาะคนในทีม</p>
+  <p class="text-default-700 m-0 flex flex-wrap items-center gap-x-1 text-xs">ต้องการตัวเลขล่าสุด? เจ้าของร้านดูได้ใน Deep <a href="#" class="text-primary inline-flex min-h-11 items-center font-medium">เปิด Deep</a></p>
+</footer>`
+
+// ร้านเดี่ยว: §A7
+const MAIN = 'mx-auto flex w-full max-w-3xl flex-col gap-base px-4 md:px-6 lg:grid lg:max-w-6xl lg:grid-cols-12 lg:items-start'
+const shopGrid = (shop, hero) => `
+  <div class="contents md:grid md:grid-cols-2 md:gap-base lg:col-span-4 lg:flex lg:flex-col">
+    ${hero}
+    ${expenseCard(shop, 'order-3 md:h-full lg:h-fit')}
+  </div>
+  ${listCard(shop, 'order-2 lg:col-span-8')}`
+
+function single(shop) {
+  return `<div class="min-h-screen">${brand()}<main class="${MAIN}">${shopGrid(shop, heroCard(shop, 'order-1 md:h-full lg:h-fit'))}</main>${pageFooter()}</div>`
+}
+
+function shopSummary(shop) {
+  const total = sum(shop.rows.map((r) => r.amt))
+  return `<section class="card order-1 md:h-full lg:h-fit"><div class="card-body">
+    <p class="text-default-700 m-0 text-sm">ยอดขายร้านนี้</p>
+    <p class="m-0 flex flex-wrap items-baseline gap-x-1.5"><span class="text-default-900 text-xl font-bold tabular-nums">${money(total)}</span><span class="text-default-700 text-sm">บาท</span></p>
+    <p class="text-default-700 m-0 mb-4 text-sm">${shop.word} ${shop.rows.length} รายการ · ยกเลิก ${shop.cancelled} ใบ</p>
+    ${bar(partition(shop))}
+  </div></section>`
+}
+
+function multi() {
+  const shops = [BT, SHOP2]
+  const total = sum(shops.flatMap((s) => s.rows.map((r) => r.amt)))
+  const n = sum(shops.map((s) => s.rows.length)), c = sum(shops.map((s) => s.cancelled))
+  const hero = `<section class="card" aria-labelledby="h1">
+    <div class="card-header"><h1 id="h1" class="text-default-900 m-0 text-lg font-semibold text-balance">รายงานยอดรายวัน</h1></div>
+    <div class="card-body md:grid md:grid-cols-2 md:gap-base">
+      <div>
+        <p class="text-default-700 m-0 text-sm">รวม ${shops.length} ร้าน</p>
+        <p class="text-primary m-0 mt-0.5 flex items-center gap-1.5 text-sm font-semibold">${ic('calendar')}${DATE}</p>
+        <p class="text-default-700 m-0 mt-4 text-sm">ยอดขาย</p>
+        <p class="m-0 flex flex-wrap items-baseline gap-x-1.5"><span class="text-default-900 text-3xl font-bold tabular-nums">${money(total)}</span><span class="text-default-700 text-base">บาท</span></p>
+      </div>
+      <div class="md:border-default-300 md:self-end md:border-s md:border-dashed md:ps-5">
+        <p class="text-default-700 m-0 text-sm">รายการ ${n} · ยกเลิก ${c} ใบ</p>
+        <p class="text-default-700 m-0 mt-1 text-xs">ยอดแต่ละร้านคิดตามกติกาของประเภทธุรกิจ</p>
+      </div>
+    </div>
+    ${stamp()}
+  </section>`
+  const shopBlock = (s) => `<details open class="group">
+    <summary class="border-default-300 flex min-h-11 cursor-pointer items-center justify-between gap-3 border-b border-dashed py-2">
+      <span class="flex min-w-0 items-center gap-2">${ic('chevron-down', 'size-4 text-default-700 transition-transform -rotate-90 group-open:rotate-0')}<span class="text-md text-default-900 font-semibold break-words">${s.name}</span></span>
+      <span class="text-default-900 text-md shrink-0 font-bold tabular-nums">${money(sum(s.rows.map((r) => r.amt)))}</span>
+    </summary>
+    <div class="mt-base flex flex-col gap-base lg:grid lg:grid-cols-12 lg:items-start">${shopGrid(s, shopSummary(s))}</div>
+  </details>`
+  const excluded = `<div class="bg-default-200 text-default-700 flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm">${ic('lock', 'size-4 mt-0.5')}<span>ไม่รวมร้าน BT สาขาบางนา (ถูกล็อก) · ร้านนี้ไม่อยู่ในยอดรวม</span></div>`
+  return `<div class="min-h-screen">${brand()}<main class="mx-auto flex w-full max-w-3xl flex-col gap-base px-4 md:px-6 lg:max-w-6xl">${hero}${shops.map(shopBlock).join('')}${excluded}</main>${pageFooter()}</div>`
+}
+
+function fullState({ icon, plate, title, body, box }) {
+  return `<div class="flex min-h-screen flex-col">${brand()}
+    <main class="flex flex-1 items-start justify-center px-4 pt-6 pb-10 md:items-center">
+      <section class="card w-full max-w-md"><div class="card-body flex flex-col items-center px-6 py-8 text-center">
+        <span class="${plate} mb-4 flex size-14 items-center justify-center rounded-full">${ic(icon, 'text-2xl')}</span>
+        <h1 class="text-default-900 m-0 text-lg font-semibold text-balance">${title}</h1>
+        <p class="text-default-700 m-0 mt-2 text-sm text-balance">${body}</p>
+        ${box ? `<div class="bg-default-100 text-default-800 mt-4 w-full rounded-lg p-3 text-sm">${box}</div>` : ''}
+      </div></section>
+    </main></div>`
+}
+
+// ---------- ส่วน B: หน้าตั้งค่าเทมเพลต ----------
+function settings() {
+  const row = (icon, title, sub) => `<div class="border-default-200 flex min-h-12 items-center border-b py-2">
+    <span class="flex w-11 shrink-0 justify-center">${ic(icon, 'size-4 text-default-500')}</span>
+    <span class="min-w-0 flex-1"><span class="text-default-900 block text-sm font-medium">${title}</span><span class="text-default-700 block truncate text-xs">${sub}</span></span>
+    ${ic('chevron-down', 'size-4 text-default-500 mx-4')}</div>`
+  const canvas = `<section class="card">
+    <div class="card-header"><h2 class="card-title">ข้อความในกลุ่ม</h2><span class="text-default-700 text-xs">ลากเพื่อเรียงลำดับ</span></div>
+    <div>
+      ${row('grip-vertical', 'ยอดขาย', 'แท่งรายวัน · แยกยืนยันแล้ว/รอยืนยัน')}
+      ${row('grip-vertical', 'จำนวนรายการ', 'รวมยกเลิก')}
+      ${row('grip-vertical', 'ค่าใช้จ่าย', 'แสดงในกลุ่ม')}
+      <div class="border-default-200 bg-default-100 flex items-start border-b py-3"><span class="flex w-11 shrink-0 justify-center pt-0.5">${ic('lock', 'size-4 text-default-500')}</span><div class="min-w-0 flex-1 pe-4"><span class="text-default-900 block text-sm font-medium">หมายเหตุอัตโนมัติ</span><span class="text-default-700 block text-xs">ระบบใส่ให้เมื่อมีร้านที่ไม่ถูกรวมหรือข้อมูลไม่ครบ · เอาออกไม่ได้</span></div></div>
+      <div>
+        <button type="button" aria-expanded="true" class="flex min-h-12 w-full items-center py-2 text-start">
+          <span class="flex w-11 shrink-0 justify-center">${ic('external-link', 'size-4 text-default-500')}</span>
+          <span class="min-w-0 flex-1"><span class="text-default-900 block text-sm font-medium">ปุ่มท้ายข้อความ</span><span class="text-default-700 block truncate text-xs">“เปิด Deep” · แสดง · เปิดหน้าสรุป</span></span>
+          ${ic('chevron-down', 'size-4 text-default-500 mx-4 rotate-180')}
+        </button>
+        <div class="pe-4 pb-4 ps-11">
+          <label class="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" class="form-checkbox" checked><span class="text-default-900">แสดงปุ่มนี้</span></label>
+          <label class="text-default-900 mb-1 block text-sm font-medium" for="lbl">ป้ายปุ่ม</label>
+          <input id="lbl" class="form-input" value="เปิด Deep">
+          <p class="text-default-700 mt-1 mb-0 text-xs"><span class="tabular-nums">เหลือ 11 ตัวอักษร</span> · ปุ่มนี้เปิดหน้าสรุปรายละเอียดของรอบที่ส่ง แก้ได้เฉพาะข้อความบนปุ่ม</p>
+          <div class="border-default-300 mt-4 border-t border-dashed pt-3">
+            <label class="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+              <span class="min-w-0"><span class="text-default-800 block text-sm font-semibold">ปุ่มเปิดหน้าสรุปรายละเอียด</span><span class="text-default-700 block text-xs">กดแล้วเห็นรายการ ยอดแยกตามสถานะ โดยไม่ต้องเข้าสู่ระบบ</span></span>
+              <input type="checkbox" role="switch" class="form-switch" checked>
+            </label>
+            <p role="status" class="bg-warning/15 text-warning-ink mt-2 mb-0 rounded-lg px-3 py-2 text-sm">ทุกคนที่ได้ลิงก์จะเห็นชื่อลูกค้า เบอร์ที่ปิดบางส่วน ชื่องาน/สินค้า และยอดเงินรายใบ ค่าใช้จ่ายพร้อมโน้ตจะขึ้นด้วย (เมื่อเปิดค่าใช้จ่าย)</p>
+            <div class="border-default-300 mt-3 flex flex-col items-start gap-2 rounded-lg sm:flex-row sm:items-center border border-dashed px-3 py-2">
+              <p class="text-default-800 m-0 min-w-0 flex-1 text-sm">ป้ายปุ่มตอนนี้คือ “เปิด Deep” แต่ปุ่มจะเปิดหน้าสรุป</p>
+              <button type="button" class="btn btn-sm bg-primary/15 text-primary min-h-11 lg:min-h-0">ใช้ป้าย “ดูสรุปรายละเอียด”</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>`
+  const preview = `<section class="card">
+    <div class="card-header"><h2 class="card-title">ตัวอย่างในกลุ่ม LINE</h2></div>
+    <div class="card-body bg-default-100">
+      <div class="mx-auto max-w-xs overflow-hidden rounded-xl bg-white shadow-[var(--shadow)]">
+        <div class="px-4 pt-4"><p class="text-default-900 m-0 text-sm font-semibold">รายงานยอดรายวัน</p><p class="text-primary m-0 text-xs">${DATE}</p>
+          <p class="text-default-700 m-0 mt-3 text-xs">ยอดขาย</p><p class="text-default-900 m-0 text-2xl font-bold tabular-nums">49,200</p>
+          <div class="mt-2 flex h-2 overflow-hidden rounded-full"><div class="bg-primary" style="width:61.6%"></div><div class="bg-warning" style="width:38.4%"></div></div>
+          <p class="text-default-700 m-0 mt-3 text-xs">ค่าใช้จ่าย 6,394</p></div>
+        <div class="p-4"><div class="bg-primary rounded-lg py-2 text-center text-sm font-medium text-white">เปิด Deep</div></div>
+      </div>
+      <p class="text-default-700 m-0 mt-3 text-center text-xs">ตัวอย่างใช้ยอดจริงของวันนี้ ปุ่มในตัวอย่างกดไม่ได้ ลิงก์จริงสร้างตอนส่ง ใช้ “ส่งทดสอบ” เพื่อลองกดดูหน้าสรุป</p>
+    </div>
+  </section>`
+  const swal = `<div class="absolute inset-0 z-50 flex items-start justify-center bg-black/40 p-3 pt-24 lg:items-center lg:pt-3"><!-- mockup: absolute ให้ backdrop คลุมทั้งภาพ fullPage; ของจริง Swal = fixed -->
+    <div role="dialog" aria-modal="true" aria-labelledby="swal-t" class="bg-card w-full max-w-[28em] rounded p-8 text-center"><!-- swal2-popup 28em p-2rem -->
+      <div class="border-warning text-warning mx-auto mb-4 flex size-16 items-center justify-center rounded-full border-4 text-5xl font-semibold">!</div>
+      <h2 id="swal-t" class="text-body-color m-0 text-xl font-medium">เปิดหน้าสรุปรายละเอียดให้ทุกคนที่ได้รับลิงก์?</h2>
+      <div class="text-body-color mt-3 text-start text-base">
+        <p class="m-0">ใครก็ตามที่ได้ลิงก์จากกลุ่มนี้เปิดดูได้โดยไม่ต้องเข้าสู่ระบบ เขาจะเห็น</p>
+        <ul class="my-2 list-disc ps-5">
+          <li>รายการทั้งหมดของรอบนั้น พร้อมชื่อลูกค้าและเบอร์ที่ปิดบางส่วน (•••-•••-891)</li>
+          <li>ชื่องานหรือสินค้า และยอดเงินรายใบ</li>
+          <li>ค่าใช้จ่ายทุกรายการ พร้อมโน้ตที่คุณบันทึกไว้</li>
+        </ul>
+        <p class="text-default-700 m-0 text-sm">ลิงก์ใช้ได้จนสิ้นวันถัดไปและส่งต่อได้ ปิดตัวเลือกนี้ได้ทุกเมื่อ แต่ลิงก์ที่ส่งไปแล้วจะยังเปิดได้จนหมดอายุ</p>
+      </div>
+      <div class="mt-5 flex flex-wrap justify-center gap-2">
+        <button class="btn bg-warning hover:bg-warning-hover text-white">เปิดหน้าสรุป</button>
+        <button class="btn bg-light text-default-800 ring-default-300 ring-2 ring-offset-2" autofocus>ยกเลิก</button><!-- focusCancel -->
+      </div>
+    </div>
+  </div>`
+  return `<div class="relative min-h-screen">
+    <header class="border-default-300 flex min-h-14 items-center gap-3 border-b bg-white px-4">${ic('arrow-left', 'size-5 text-default-700')}<h1 class="text-default-900 m-0 text-md font-semibold">ตั้งค่าข้อความรายงาน · ทีมหน้าร้าน BT</h1></header>
+    <main class="mx-auto grid max-w-6xl gap-base p-4 lg:grid-cols-12 lg:p-6"><div class="lg:col-span-7">${canvas}</div><div class="lg:col-span-5">${preview}</div></main>
+    ${swal}
+  </div>`
+}
+
+// ---------- router ----------
+const state = new URLSearchParams(location.search).get('state') || 'normal'
+const views = {
+  normal: () => single(BT),
+  multi,
+  empty: () => single(EMPTY),
+  expired: () => fullState({ icon: 'history', plate: 'bg-default-200 text-default-700', title: 'ลิงก์สรุปนี้หมดอายุแล้ว',
+    body: `ลิงก์ใช้ได้ถึงสิ้นวันที่ ${EXPIRES} เพื่อไม่ให้ข้อมูลลูกค้าค้างอยู่นาน`,
+    box: 'พิมพ์ “สรุปวันนี้” ในกลุ่ม LINE เพื่อรับสรุปใหม่ แล้วกดปุ่มบนการ์ดอีกครั้ง' }),
+  notfound: () => fullState({ icon: 'file-alert', plate: 'bg-default-200 text-default-700', title: 'ไม่พบหน้าสรุปนี้',
+    body: 'ลิงก์อาจพิมพ์ไม่ครบ หรือไม่ได้ใช้งานแล้ว ลองกดปุ่มบนการ์ดรายงานล่าสุดในกลุ่ม LINE อีกครั้ง' }),
+  settings,
+}
+document.getElementById('app').innerHTML = (views[state] || views.normal)()
+</script>
+</body>
+</html>

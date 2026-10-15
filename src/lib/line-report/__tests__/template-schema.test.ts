@@ -108,3 +108,18 @@ describe('ITEMS §17: expense.items', () => {
     expect(validateTemplate(base([{ id: 'a', type: 'expense', items: 'x' }])).ok).toBe(false)
   })
 })
+
+describe('button.target', () => {
+  const withTarget = (target: unknown) => base([{ id: 'o', type: 'orders' }], { button: { show: true, label: 'x', target } })
+  it('DASHBOARD/DETAIL/ไม่ใส่ ผ่าน', () => {
+    expect(validateTemplate(withTarget('DETAIL')).ok).toBe(true)
+    expect(validateTemplate(withTarget('DASHBOARD')).ok).toBe(true)
+    expect(validateTemplate(base()).ok).toBe(true)
+  })
+  it("target 'X' ไม่ผ่าน = BUTTON_TARGET", () => {
+    expect(validateTemplate(withTarget('X'))).toEqual({ ok: false, rule: 'BUTTON_TARGET' })
+  })
+  it('ฟิลด์เกินในปุ่มไม่ผ่าน = EXTRA_FIELD', () => {
+    expect(validateTemplate(base([{ id: 'o', type: 'orders' }], { button: { show: true, label: 'x', url: 'y' } }))).toEqual({ ok: false, rule: 'EXTRA_FIELD' })
+  })
+})

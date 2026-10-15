@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultTemplateFromFlags, type TemplateV1 } from '@/lib/line-report/template'
 import { METRIC_REQUIRED_HELPER } from '@/lib/line-report/settings-guards'
 import { analyzeDraft, EMPTY_TEXT_HINT, PROFIT_TOKEN_HINT } from '../draft-issues'
+import { DETAIL_LINK_DRAFT_REASON } from '../confirm-detail-link'
 import { initState, reducer } from '../reducer'
 
 const saved = (): TemplateV1 => defaultTemplateFromFlags({ showOrders: true, showSales: true, showCancelled: false, showTopProducts: false, showProfit: false, attachCycleToDaily: false, monthlyEnabled: false })
@@ -45,5 +46,11 @@ describe('analyzeDraft', () => {
     const r = run(s.draft, s.markupById)
     expect(r.firstReason).toBe(EMPTY_TEXT_HINT)
     expect(s.touched.t1).toBeUndefined()
+  })
+  it('เปิดปุ่มหน้าสรุปแต่ไม่มี orders/sales → บล็อกบันทึกด้วยเหตุเฉพาะ · มี orders → ผ่าน', () => {
+    const base = saved()
+    const onlyCancelled: TemplateV1 = { v: 1, button: { ...base.button, target: 'DETAIL' }, blocks: [{ id: 'c', type: 'cancelled' }] } as unknown as TemplateV1
+    expect(run(onlyCancelled)).toMatchObject({ detailNeedsMetric: true, firstReason: DETAIL_LINK_DRAFT_REASON })
+    expect(run({ ...base, button: { ...base.button, target: 'DETAIL' } })).toMatchObject({ detailNeedsMetric: false, firstReason: null })
   })
 })

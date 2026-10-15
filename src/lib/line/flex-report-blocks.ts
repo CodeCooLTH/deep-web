@@ -49,7 +49,7 @@ export const dayText = (iso: string) => `${formatDayMonthTH(`${iso}T00:00:00+07:
 export const rangeText = (startIso: string, endIso: string) =>
   startIso === endIso ? dayText(startIso) : `${formatDayMonthTH(`${startIso}T00:00:00+07:00`)} – ${dayText(endIso)}`
 
-const EXCLUDED_REASON: Record<string, string> = { LOCKED: 'ถูกล็อก', DELETED: 'ถูกลบ', PURGED: 'ถูกลบ' }
+export const EXCLUDED_REASON: Record<string, string> = { LOCKED: 'ถูกล็อก', DELETED: 'ถูกลบ', PURGED: 'ถูกลบ' }
 
 /**
  * คำเรียก "ใบ" ของรายงานนี้ ผันตาม vertical จาก SSOT `ORDER_VOCAB.nounShort` (Q31)
