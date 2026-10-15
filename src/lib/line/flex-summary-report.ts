@@ -69,6 +69,10 @@ export type SummaryReportInput = {
   monthly?: GroupSummary
   /** ชนะ `template.title` (พฤติกรรมเดิม) · ใช้กับข้อความแรกเท่านั้น */
   titleOverride?: string
+  /** ลิงก์ปุ่มท้ายการ์ด (หน้าสรุปรายละเอียดสาธารณะ) — ไม่ส่ง = ไปแดชบอร์ดผู้ขายตามเดิม · builder ไม่เติมพารามิเตอร์เอง */
+  detailUrl?: string
+  /** ลิงก์ของข้อความที่ 2 (รายเดือน) ใน push เดียวกัน */
+  monthlyDetailUrl?: string
 }
 
 /** แบบมาตรฐานจาก flag — ยอดสะสมรอบเปิดตาม showSales เหมือนเดิม (ตัวตัดสินจริงคือ cycleToDate ที่ผู้เรียกส่งมา) */
@@ -84,7 +88,7 @@ export const BASE_TITLE: Record<string, string> = {
   COMMAND: 'รายงานสรุปยอด',
 }
 
-function titleOf(kind: ReportKind, s: GroupSummary, override?: string): string {
+export function titleOf(kind: ReportKind, s: GroupSummary, override?: string): string {
   if (override) return override
   if (s.window.fullDay) return `สรุปวันที่ ${dayText(s.window.startIso)} (ครบทั้งวัน)`
   return BASE_TITLE[kind] ?? 'รายงานสรุปยอด'
@@ -98,7 +102,7 @@ function renderBubble(input: SummaryReportInput, summary: GroupSummary, kind: Re
   const head = renderHead(titleOf(kind, summary, input.titleOverride || template.title), c)
   const bubble: Node = { type: 'bubble', size: 'mega', body: { type: 'box', layout: 'vertical', contents: [head, ...composeBody(template, c)] } }
   meta.charts = c.charts.n
-  const url = sellerDashboardUrl()
+  const url = input.detailUrl ?? sellerDashboardUrl()
   if (url && template.button.show) {
     bubble.footer = {
       type: 'box',
@@ -178,7 +182,7 @@ function build(input: SummaryReportInput, summary: GroupSummary, kind: ReportKin
 
 export function buildSummaryReportFlex(input: SummaryReportInput): ReportFlexMessage[] {
   const out = [build(input, input.summary, input.kind)]
-  if (input.monthly) out.push(build({ ...input, titleOverride: undefined, template: input.template && { ...input.template, title: undefined }, cycleToDate: undefined }, input.monthly, 'MONTHLY'))
+  if (input.monthly) out.push(build({ ...input, titleOverride: undefined, detailUrl: input.monthlyDetailUrl, template: input.template && { ...input.template, title: undefined }, cycleToDate: undefined }, input.monthly, 'MONTHLY'))
   return out
 }
 
