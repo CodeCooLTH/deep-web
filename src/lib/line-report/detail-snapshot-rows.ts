@@ -1,0 +1,123 @@
+/**
+ * detail-snapshot-rows.ts — pure: แปลงใบสั่งซื้อ/ค่าใช้จ่าย → แถวใน snapshot (00070 EXT-LINK FR-03/04)
+ *
+ * PII ถูกตัดที่นี่ที่เดียว: input มี buyerContact ดิบ แต่ OrderRow ไม่มีฟิลด์นั้น (BR-LGS-40)
+ */
+import { GENERIC_SALES_LEGEND } from '@/lib/line/flex-report-blocks'
+import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
+import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
+import { maskPhoneForGuest } from '@/lib/order-pii-mask'
+import { countsAsRevenue } from '@/lib/order-revenue'
+import { resolveServiceStatusBadge } from '@/lib/service-status'
+import {
+  MAX_CUSTOMER_NAME_LEN,
+  MAX_NOTE_LEN,
+  MAX_TITLE_LEN,
+  type ExpenseRow,
+  type OrderRow,
+} from './detail-snapshot'
+
+export type DetailRule = 'SERVICE' | 'GENERAL'
+
+export const ruleOf = (vertical: string | null | undefined): DetailRule =>
+  usesServiceFinanceRules(vertical) ? 'SERVICE' : 'GENERAL'
+
+export interface OrderRowInput {
+  createdAt: Date | string
+  status: string
+  appointmentStatus: string | null
+  serviceStart: Date | string | null
+  serviceClosedAt: Date | string | null
+  totalAmount: number
+  buyerName: string | null
+  buyerContact: string | null
+  items: { name: string; qty: number }[]
+  room: { name: string } | null
+  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[] | null
+}
+
+/**
+ * partition ของชุดใบเดียวกับการ์ด (BR-LGS-39) — SERVICE แบ่งด้วย serviceClosedAt ตรง ๆ
+ * 🛑 ห้ามใช้ countsAsServiceRevenue: มันตัด RETURNED/CANCELLED/DRAFTED ผลรวมจะไม่เท่าการ์ด (F-6)
+ * 0 = ก้อนแรก (ปิดงานแล้ว/ยืนยันแล้ว) · 1 = ก้อนสอง
+ */
+export function classifyBucket(
+  order: Pick<OrderRowInput, 'status' | 'serviceClosedAt' | 'shipments'>,
+  rule: DetailRule,
+): 0 | 1 {
+  if (rule === 'SERVICE') return order.serviceClosedAt != null ? 0 : 1
+  return countsAsRevenue({ status: order.status, shipments: order.shipments }) ? 0 : 1
+}
+
+export function bucketLabels(rule: DetailRule): [string, string] {
+  return rule === 'SERVICE'
+    ? ['ปิดงานแล้ว', 'รอปิดงาน']
+    : [GENERIC_SALES_LEGEND.counted, GENERIC_SALES_LEGEND.pending]
+}
+
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
+
+/** ชื่อที่ผู้ขายพิมพ์เบอร์/อีเมลมาในช่องชื่อ → ทิ้งทั้งชื่อ (maskPhoneForGuest ไม่ครอบชื่อ) */
+function safeCustomerName(name: string | null): string | null {
+  const t = (name ?? '').trim()
+  if (!t || t.includes('@') || (t.match(/\d/g)?.length ?? 0) >= 7) return null
+  return clip(t, MAX_CUSTOMER_NAME_LEN)
+}
+
+// ไม่มี item/ห้อง: ป้ายกลาง "รายการ" — ไม่ผันตาม vertical เพราะ input ไม่รู้ vertical (ORDER_VOCAB.noun ผันต่อ vertical ได้ถ้าต้องการ)
+const FALLBACK_TITLE = 'รายการ'
+
+function titleOf(i: OrderRowInput): string {
+  // shortcut: OrderItem ไม่มีฟิลด์เรียง "ชิ้นแรก" ไม่ deterministic — ยอมรับได้ ถ้าต้องนิ่งให้เพิ่ม orderBy ที่ query
+  const first = i.items[0]
+  if (first) {
+    const more = i.items.length - 1
+    const base = more > 0 ? `${first.name} และอีก ${more} รายการ` : first.name
+    return clip(base, MAX_TITLE_LEN)
+  }
+  if (i.room) return clip(i.room.name, MAX_TITLE_LEN)
+  return FALLBACK_TITLE
+}
+
+export function toOrderRow(i: OrderRowInput, rule: DetailRule): OrderRow {
+  const label =
+    rule === 'SERVICE'
+      ? resolveServiceStatusBadge(
+          {
+            status: i.status,
+            appointmentStatus: i.appointmentStatus,
+            hasAppointment: i.serviceStart != null,
+            serviceClosedAt: i.serviceClosedAt,
+          },
+          'seller',
+        ).label
+      : resolveOrderStatusBadge(i.status).label
+  return {
+    at: new Date(i.createdAt).toISOString(),
+    customerName: safeCustomerName(i.buyerName),
+    phoneMasked: maskPhoneForGuest(i.buyerContact),
+    title: titleOf(i),
+    amount: i.totalAmount,
+    status: label,
+    bucket: classifyBucket(i, rule),
+  }
+}
+
+export function toExpenseRow(i: {
+  date: Date | string
+  category: string
+  amount: number
+  note: string | null
+  system?: boolean
+}): ExpenseRow {
+  const note = (i.note ?? '').trim()
+  return {
+    date: new Date(i.date).toISOString(),
+    category: EXPENSE_CATEGORY_LABEL_TH[i.category as ExpenseCategory] ?? i.category,
+    amount: i.amount,
+    // ตัดที่ 200 ตัวแล้วต่อ … (รวม 201)
+    note: note ? (note.length > MAX_NOTE_LEN ? `${note.slice(0, MAX_NOTE_LEN)}…` : note) : null,
+    ...(i.system ? { system: true as const } : {}),
+  }
+}
