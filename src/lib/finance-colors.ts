@@ -16,6 +16,8 @@
  */
 export const FINANCE_COLORS = {
   counted: { token: 'success', dot: 'bg-success', soft: 'bg-success/15', ink: 'text-success-ink' },
+  /** "ยืนยันแล้ว" ของหน้าสรุปรายละเอียด /lr = น้ำเงิน ตรงแท่ง CONFIRMED_BAR บนการ์ด LINE (มติ Controller 2026-10-15) — ต่างจาก counted (เขียว) ที่ใช้ในแอป */
+  confirmed: { token: 'primary', dot: 'bg-primary', soft: 'bg-primary/15', ink: 'text-primary-ink' },
   notCounted: { token: 'warning', dot: 'bg-warning', soft: 'bg-warning/15', ink: 'text-warning-ink', lineHex: '#f5b400', lineInkHex: '#92400e' },
   outstanding: { token: 'info', dot: 'bg-info', soft: 'bg-info/15', ink: 'text-info-ink' },
   count: { token: 'primary', dot: 'bg-primary' },
