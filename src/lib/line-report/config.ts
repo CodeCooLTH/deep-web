@@ -32,3 +32,9 @@ export function sellerDashboardUrl(): string | null {
   // iOS ยังเปิด Safari (AASA ยังไม่มี applinks) — user 2026-10-08 "กดแล้วเปิด app deep"
   return base && base.startsWith('https://') ? `${base}/dashboard?openExternalBrowser=1` : null
 }
+
+/** ลิงก์หน้าสรุปรายละเอียดสาธารณะ — ไม่ใส่ openExternalBrowser (หน้าเว็บล้วน ไม่ต้องเข้าแอป) · ไม่ใช่ https = null */
+export function detailLinkUrl(token: string): string | null {
+  const base = process.env.NEXT_PUBLIC_SELLER_URL?.trim().replace(/\/+$/, '')
+  return base && base.startsWith('https://') ? `${base}/lr/${token}` : null
+}

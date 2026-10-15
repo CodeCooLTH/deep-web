@@ -121,7 +121,7 @@ describe('authoredLength', () => {
 })
 
 // ─── EXT-EXP: บล็อกค่าใช้จ่าย/ยอดหลังหักค่าใช้จ่าย ────────────────────────────────
-import { deriveExposure, needsExpenseConfirm } from '../template'
+import { deriveExposure, needsExpenseConfirm, needsDetailLinkConfirm, detailLinkBlocked } from '../template'
 const tpl = (...types: ('expense' | 'net_sales' | 'orders' | 'sales')[]): TemplateV1 => ({
   v: 1, button: { show: true, label: 'x' }, blocks: types.map((type, i) => ({ id: `b${i}`, type })),
 })
@@ -157,5 +157,42 @@ describe('EXP: deriveExposure / needsExpenseConfirm / deriveFlags', () => {
       expect(types).not.toContain('expense')
       expect(types).not.toContain('net_sales')
     }
+  })
+})
+
+describe('LINK: button.target / needsDetailLinkConfirm / detailLinkBlocked', () => {
+  const det = (...types: ('expense' | 'net_sales' | 'orders' | 'sales')[]): TemplateV1 => ({ ...tpl(...types), button: { show: true, label: 'x', target: 'DETAIL' } })
+  const dash = (...types: ('expense' | 'net_sales' | 'orders' | 'sales')[]): TemplateV1 => ({ ...tpl(...types), button: { show: true, label: 'x', target: 'DASHBOARD' } })
+  it('deriveFlags ไม่รั่ว key เมื่อมี target:DETAIL', () => {
+    expect(Object.keys(deriveFlags(det('sales', 'expense'))).sort()).toEqual(
+      ['attachCycleToDaily', 'showCancelled', 'showOrders', 'showProfit', 'showSales', 'showTopProducts'],
+    )
+  })
+  it('defaultTemplateFromFlags ไม่ปล่อย target', () => {
+    const t = defaultTemplateFromFlags({ showOrders: true, showSales: true, showCancelled: false, showTopProducts: false, showProfit: false, attachCycleToDaily: false, monthlyEnabled: false })
+    expect('target' in t.button).toBe(false)
+  })
+  it('needsDetailLinkConfirm: เปิดใหม่ถาม (prev null/ไม่มี target/DASHBOARD)', () => {
+    expect(needsDetailLinkConfirm(null, det('sales'))).toBe(true)
+    expect(needsDetailLinkConfirm(tpl('sales'), det('sales'))).toBe(true)
+    expect(needsDetailLinkConfirm(dash('sales'), det('sales'))).toBe(true)
+  })
+  it('needsDetailLinkConfirm: ค้างเปิดอยู่ไม่ถามซ้ำ · ปิด/ไม่ใช่ DETAIL ไม่ถาม', () => {
+    expect(needsDetailLinkConfirm(det('sales'), det('sales', 'orders'))).toBe(false)
+    expect(needsDetailLinkConfirm(det('sales'), dash('sales'))).toBe(false)
+    expect(needsDetailLinkConfirm(det('sales'), tpl('sales'))).toBe(false)
+    expect(needsDetailLinkConfirm(null, tpl('sales'))).toBe(false)
+  })
+  it('needsDetailLinkConfirm: DETAIL เปิดอยู่ แล้วเพิ่งเปิดค่าใช้จ่าย = ถาม · มีอยู่แล้ว/สลับชนิด ไม่ถาม', () => {
+    expect(needsDetailLinkConfirm(det('sales'), det('sales', 'expense'))).toBe(true)
+    expect(needsDetailLinkConfirm(det('sales'), det('sales', 'net_sales'))).toBe(true)
+    expect(needsDetailLinkConfirm(det('sales', 'expense'), det('sales', 'net_sales'))).toBe(false)
+    expect(needsDetailLinkConfirm(det('sales', 'expense'), det('sales', 'expense'))).toBe(false)
+  })
+  it('detailLinkBlocked: ต้องมี orders หรือ sales', () => {
+    expect(detailLinkBlocked(tpl('expense'))).toBe(true)
+    expect(detailLinkBlocked(tpl())).toBe(true)
+    expect(detailLinkBlocked(tpl('orders'))).toBe(false)
+    expect(detailLinkBlocked(tpl('sales', 'expense'))).toBe(false)
   })
 })

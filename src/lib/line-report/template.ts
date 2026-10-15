@@ -8,7 +8,7 @@
 export type TemplateV1 = {
   v: 1
   title?: string
-  button: { show: boolean; label: string }
+  button: { show: boolean; label: string; target?: 'DASHBOARD' | 'DETAIL' }
   blocks: Block[]
 }
 export type Block =
@@ -145,6 +145,16 @@ export const deriveExposure = (t: TemplateV1): { expense: boolean } => ({
 /** เปิดเพิ่มต้องยืนยัน: false→true เทียบกับเทมเพลตที่บันทึกไว้เดิม (null = ยังไม่เคยมี = false) */
 export const needsExpenseConfirm = (prev: TemplateV1 | null, next: TemplateV1): boolean =>
   deriveExposure(next).expense && !(prev && deriveExposure(prev).expense)
+
+/** เปิดปุ่มไปหน้าสรุปสาธารณะต้องยืนยัน: เพิ่งเปิด DETAIL หรือ DETAIL เปิดอยู่แล้วแต่ค่าใช้จ่ายเพิ่งถูกเปิดเผย (หน้านั้นแสดงค่าใช้จ่ายตามเทมเพลต) */
+export const needsDetailLinkConfirm = (prev: TemplateV1 | null, next: TemplateV1): boolean => {
+  if (next.button.target !== 'DETAIL') return false
+  if (prev?.button.target !== 'DETAIL') return true
+  return deriveExposure(next).expense && !deriveExposure(prev).expense
+}
+
+/** หน้าสรุปไม่มีอะไรให้แสดงถ้าไม่มีบล็อกจำนวนรายการหรือยอดขาย */
+export const detailLinkBlocked = (t: TemplateV1): boolean => !t.blocks.some((b) => b.type === 'orders' || b.type === 'sales')
 
 export type TemplateNeeds = DerivedFlags & {
   needSeries: boolean

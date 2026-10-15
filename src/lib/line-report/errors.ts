@@ -13,6 +13,7 @@ export const LINE_REPORT_ERROR_CODES = [
   'INVALID_SETTINGS',
   'PROFIT_CONFIRM_REQUIRED',
   'EXPENSE_CONFIRM_REQUIRED',
+  'DETAIL_LINK_CONFIRM_REQUIRED',
   'TEMPLATE_INVALID',
   'TEMPLATE_TOO_LARGE',
   'TEMPLATE_STALE',
@@ -44,6 +45,7 @@ export const LINE_REPORT_ERROR_STATUS: Record<LineReportErrorCode, number> = {
   INVALID_SETTINGS: 400,
   PROFIT_CONFIRM_REQUIRED: 400,
   EXPENSE_CONFIRM_REQUIRED: 400,
+  DETAIL_LINK_CONFIRM_REQUIRED: 400,
   TEMPLATE_INVALID: 400,
   TEMPLATE_TOO_LARGE: 400,
   TEMPLATE_STALE: 409,
@@ -74,6 +76,7 @@ export const LINE_REPORT_ERROR_MESSAGE: Record<LineReportErrorCode, string> = {
   INVALID_SETTINGS: 'ตั้งค่านี้ไม่ได้',
   PROFIT_CONFIRM_REQUIRED: 'ต้องยืนยันก่อนแสดงกำไรในกลุ่ม LINE',
   EXPENSE_CONFIRM_REQUIRED: 'ต้องยืนยันก่อนแสดงค่าใช้จ่ายในกลุ่ม LINE',
+  DETAIL_LINK_CONFIRM_REQUIRED: 'ต้องยืนยันก่อนเปิดลิงก์หน้าสรุปรายละเอียดให้ทุกคนในกลุ่ม',
   TEMPLATE_INVALID: 'ข้อความรายงานไม่ถูกต้อง',
   TEMPLATE_TOO_LARGE: 'ข้อความรายงานยาวเกินที่ LINE รับได้ ลดบล็อกหรือข้อความลง',
   TEMPLATE_STALE: 'มีการแก้ข้อความจากที่อื่นแล้ว โหลดใหม่ก่อนบันทึก',
@@ -94,10 +97,11 @@ export const LINE_REPORT_ERROR_MESSAGE: Record<LineReportErrorCode, string> = {
 }
 
 /** `details.rule` ของ INVALID_SETTINGS */
-export type InvalidSettingsRule = 'NEEDS_TIME' | 'METRIC_REQUIRED'
+export type InvalidSettingsRule = 'NEEDS_TIME' | 'METRIC_REQUIRED' | 'DETAIL_NEEDS_METRIC'
 export const INVALID_SETTINGS_RULE_MESSAGE: Record<InvalidSettingsRule, string> = {
   NEEDS_TIME: 'ต้องมีอย่างน้อย 1 เวลา ปิดรายวันถ้าไม่ต้องการส่ง',
   METRIC_REQUIRED: 'ต้องแสดงตัวเลขอย่างน้อย 1 รายการ',
+  DETAIL_NEEDS_METRIC: 'เปิดหน้าสรุปรายละเอียดได้เมื่อมีจำนวนรายการหรือยอดขายในข้อความ',
 }
 
 export class LineReportError extends Error {

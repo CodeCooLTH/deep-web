@@ -53,7 +53,7 @@ export function classifyBucket(
 export function bucketLabels(rule: DetailRule): [string, string] {
   return rule === 'SERVICE'
     ? ['ปิดงานแล้ว', 'รอปิดงาน']
-    : [GENERIC_SALES_LEGEND.counted, GENERIC_SALES_LEGEND.pending]
+    : [GENERIC_SALES_LEGEND.counted, GENERIC_SALES_LEGEND.pending ?? 'รอยืนยัน']
 }
 
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
