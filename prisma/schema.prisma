@@ -5029,6 +5029,7 @@ model LineReportGroup {
   shops      LineReportGroupShop[]
   bindCodes  LineReportBindCode[]
   deliveries LineReportDelivery[]
+  snapshots  LineReportSnapshot[]
 
   @@index([ownerId, status])
   @@index([status])
@@ -5094,12 +5095,40 @@ model LineReportDelivery {
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
 
-  group LineReportGroup @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  group     LineReportGroup      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  snapshots LineReportSnapshot[]
 
   @@unique([groupId, slotKey])
   @@index([groupId, createdAt])
   @@index([status, createdAt])
   @@index([createdAt])
+}
+
+// 00070 EXT: snapshot หน้าสรุปรายละเอียดสาธารณะ (/lr/{token}) — เก็บ sha256(token) ไม่เก็บ token ดิบ
+// 🛑 CHECK ที่ Prisma ไม่รู้จัก (เขียนมือใน migration 20261015090000_line_report_detail_snapshot — ห้าม db pull/migrate dev ทับ):
+//   LineReportSnapshot_payload_size_chk (payload NULL หรือ octet_length(payload::text) <= 524288)
+//   LineReportSnapshot_expiry_chk ("expiresAt" > "createdAt")
+// payload NULL = ล้าง PII แล้ว (แถวโครงเปล่า ไว้แยก 410 หมดอายุ ออกจาก 404)
+model LineReportSnapshot {
+  id          String                 @id @default(uuid())
+  groupId     String
+  deliveryId  String?
+  kind        LineReportDeliveryKind
+  tokenHash   String                 @unique
+  windowStart String
+  windowEnd   String
+  computedAt  DateTime
+  expiresAt   DateTime
+  payload     Json?
+  purgedAt    DateTime?
+  createdAt   DateTime               @default(now())
+
+  group    LineReportGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  delivery LineReportDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+  @@index([expiresAt])
+  @@index([deliveryId])
 }
 
 // AiSuggestRun — การขอคำแนะนำ 1 ครั้ง (ทั้งอัตโนมัติและกดเอง) ทำ 3 หน้าที่ในตารางเดียว:
