@@ -209,4 +209,26 @@ describe.skipIf(!isLocal)('00070 EXT template service (DB)', () => {
     await resetTemplate(A, g)
     expect(await code(updateTemplate(A, g, { template: viaExpense, expectedVersion: 4 }))).toBe('EXPENSE_CONFIRM_REQUIRED')
   })
+
+  it('ลิงก์หน้าสรุป (FR-02): เปิดใหม่ต้อง confirmDetailLink · ค้างอยู่แก้อื่นผ่าน · เปิดค่าใช้จ่ายเพิ่มต้องยืนยัน · reset แล้วเปิดใหม่ต้องยืนยัน · ไม่มี orders/sales = DETAIL_NEEDS_METRIC', async () => {
+    const g = await mkGroup(A)
+    const det = (blocks: unknown[], label = 'เปิด Deep') => ({ v: 1, button: { show: true, label, target: 'DETAIL' }, blocks })
+    // (ก) null → DETAIL ไม่ confirm = 400 ไม่เขียน
+    expect(await code(updateTemplate(A, g, { template: det(OS), expectedVersion: 0 }))).toBe('DETAIL_LINK_CONFIRM_REQUIRED')
+    expect((await row(g)).templateVersion).toBe(0)
+    // (ข) confirm ผ่าน
+    await updateTemplate(A, g, { template: det(OS), expectedVersion: 0, confirmDetailLink: true })
+    expect((await row(g)).templateVersion).toBe(1)
+    // (ค) ค้างอยู่ แก้ข้อความอื่น ไม่ต้อง confirm
+    await updateTemplate(A, g, { template: det(OS, 'ดูรายละเอียด'), expectedVersion: 1 })
+    // (ง) ค้างอยู่ เปิดบล็อกค่าใช้จ่ายเพิ่ม (confirmExpense แล้ว) แต่ไม่ confirmDetailLink = 400
+    const withExp = det([...OS, { id: 'e', type: 'expense' }])
+    expect(await code(updateTemplate(A, g, { template: withExp, expectedVersion: 2, confirmExpense: true }))).toBe('DETAIL_LINK_CONFIRM_REQUIRED')
+    await updateTemplate(A, g, { template: withExp, expectedVersion: 2, confirmExpense: true, confirmDetailLink: true })
+    // (จ) reset แล้วเปิดใหม่ = 400
+    await resetTemplate(A, g)
+    expect(await code(updateTemplate(A, g, { template: det(OS), expectedVersion: 4 }))).toBe('DETAIL_LINK_CONFIRM_REQUIRED')
+    // (ฉ) ไม่มี orders/sales = INVALID_SETTINGS (ตรวจก่อนถามยืนยัน)
+    expect(await code(updateTemplate(A, g, { template: det([{ id: 'c', type: 'cancelled' }]), expectedVersion: 4 }))).toBe('INVALID_SETTINGS:DETAIL_NEEDS_METRIC')
+  })
 })
