@@ -133,6 +133,9 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   return NextResponse.next()
 }
 
+// หน้า 429 ของ /lr/ — HTML เล็ก ไม่มีสคริปต์/ลิงก์ภายนอก (ถ้อยคำตาม design spec §A12)
+const LR_RATE_LIMITED_HTML = `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>เปิดหน้านี้ถี่เกินไป</title></head><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;background:#f5f5f9;color:#2f2b3d"><main style="max-width:420px;margin:16px;padding:32px 24px;background:#fff;border-radius:12px;text-align:center"><h1 style="font-size:20px;margin:0 0 12px">เปิดหน้านี้ถี่เกินไป</h1><p style="margin:0;line-height:1.6">ช่วงนี้มีการเปิดลิงก์จากเครือข่ายนี้หลายครั้ง Deep จึงพักไว้สักครู่เพื่อปกป้องข้อมูลร้าน รอประมาณ 15 นาทีแล้วกดปุ่มบนการ์ดอีกครั้ง</p></main></body></html>`
+
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host') || 'localhost:3000'
   const subdomain = getSubdomain(host)
@@ -172,6 +175,29 @@ export async function proxy(request: NextRequest) {
    */
   if (pathname.startsWith('/.well-known/')) {
     return NextResponse.next()
+  }
+
+  // หน้ารายละเอียดรายงาน LINE (00070 FR-05) — สาธารณะ ใช้ token ใน URL เป็นกุญแจ
+  // วางก่อน getToken: ต้องไม่ถูกด่าน onboarding/registration/แอป iOS เด้งไปที่อื่นไม่ว่าผู้เปิดจะล็อกอินแบบไหน
+  // 🛑 ห้าม log token/path ในสาขานี้
+  if (subdomain === 'seller' && pathname.startsWith('/lr/')) {
+    const headers = {
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'no-referrer',
+    }
+    // นับทุก request (รวมที่ผ่าน) ต่อ IP — กันไล่เดา token
+    if (!checkApiRateLimit(`lr:${clientIp(request)}`, 30, 15 * 60 * 1000)) {
+      return new NextResponse(LR_RATE_LIMITED_HTML, {
+        status: 429,
+        headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = `/seller${pathname}`
+    const res = NextResponse.rewrite(url)
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v)
+    return res
   }
 
   // Cookies are per-hostname → this token is specific to this subdomain's session
