@@ -27,6 +27,7 @@
 | S-10 | UI หน้าตั้งค่าเทมเพลต `[Q-1]`: ตัวเลือก "ปุ่มเปิดหน้าสรุปรายละเอียด" + Swal ยืนยัน (`pacesConfirm.warning`) + ส่ง `confirmDetailLink` + disabled เมื่อไม่มี orders/sales · พรีวิวไม่สร้างลิงก์จริง · ผ่าน `safepay-ux` · `Base: theme/...` | AC-LINK-09-1..5: `reducer.test.ts` toggle · `confirm-detail-link.test.ts` ทุกเส้นทาง · `preview-data.test.ts` JSON ไม่มี `/lr/` · Playwright ยืนยัน/ยกเลิก · `rg` HR9 `react-toastify` ใน `(paces)` = 0 | TODO |
 | S-11 | อายุและการล้างข้อมูล `[Q-4]`: `runCleanup` ล้าง `payload`+ตั้ง `purgedAt` เมื่อหมดอายุ · ลบแถวโครงเปล่าเมื่อเกิน 30 วันหลังหมดอายุ · ผลคืน sweep เพิ่มจำนวน · **ได้รับความเห็นชอบจาก user (Q-4) ก่อน merge** | AC-LINK-08-2: db test scope ด้วย group id ที่เทสสร้าง (HR13) — แถวหมดอายุ payload NULL · แถวสดไม่เปลี่ยน · แถว 31 วันถูกลบ · **mutation:** ถอดการล้าง/ขยาย scope → แดง · เทส cleanup เดิมไม่เปลี่ยนผล | TODO |
 | S-12 | QA และปิดงาน: reviewer + `safepay-security` (checklist EXTENSIONS §9) · `npx tsc --noEmit` exit 0 · `npm test` ด้วย `DATABASE_URL` localhost:5434 · build exit code 0 · golden diff ว่าง · ส่งทดสอบเข้า OA ทดสอบจริงแล้ว user ดูบน LINE มือถือ · วัดเวลา sweep+ทางคำสั่ง · **แจ้ง HR15 3 ข้อก่อน push main** · retro · snapshot `docs/claude/state-snapshots.md` + บรรทัดเดียวใน `CLAUDE.md` | รายงาน security ไม่มี finding สูง/กลาง ค้าง · ผล mutation แนบ · บันทึกการแจ้ง HR15 · `git diff --stat` golden ว่าง · เอกสาร sync ตาม S-1 | TODO |
+| S-13 | แถวรายการมี **รูปสินค้า** (รูปแรกของสินค้าใน item แรก ผ่าน `lineProductImageUrl` first-party มีลายเซ็น · origin ต้องเป็นโดเมนผู้ขายของเรา) และ **ช่องทางการขาย** (คีย์แพลตฟอร์มจาก `resolveOrderSource` · ไม่เก็บรูปเพจ/URL ภายนอก) — ไม่ใช่ OOS-5 (เป็นชนิดแพลตฟอร์ม ไม่ใช่ข้อมูลติดต่อลูกค้า) | `line-report-detail.test.ts` (รูปจากคีย์ในบัคเก็ต · คีย์ภายนอกไม่มี · สินค้าร้านอื่นไม่หลุด · channel จาก shopChannel ชนะ · ไม่มี `fbcdn`) · `page.test.tsx` (safeImageUrl ปฏิเสธ origin ภายนอก) | DONE |
 
 ## Out-of-Scope
 > แตะ = CREEP (hard block) ต้องให้ Controller ตัดสินแล้วจด Change Log
@@ -88,4 +89,6 @@
 
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
+| 2026-10-15 | รับ S-13 (รูปสินค้า + ช่องทาง) | user ขอระหว่างดู mockup: "รูปสินค้า ช่องทางไรงี้" | user 2026-10-15 |
+| 2026-10-15 | S-8: หน้าหมดอายุตอบ status 200 + ไม่มี payload (แทน 410 — Next 16 ไม่มี 410 ในตัว) · S-11: purge payload ทุก tick ของ sweep + กลุ่ม REMOVED (เข้มกว่าเดิม) ลบแถวเปล่า >30 วันในรอบ cleanup | มติ Controller ตามแผนเทคนิค | Controller |
 | 2026-10-14 | baseline ร่างสร้าง (S-1..S-12 / OOS-1..17) | user ขอปุ่มบนการ์ดเปิดหน้าสรุปรายละเอียดสาธารณะ + ตอบมติ D-LNK-1..5 | user 2026-10-15 "ลุยต่อจนจบเลย" |
