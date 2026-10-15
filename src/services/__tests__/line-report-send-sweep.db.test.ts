@@ -895,4 +895,46 @@ describe.skipIf(!isLocal)('00070 send/sweep (DB, LINE mock)', () => {
       err.mockRestore()
     })
   })
+  describe('purge snapshot สาธารณะ (00070 EXT-LINK U9)', () => {
+    const NOW = new Date('2000-06-01T12:00:00+07:00') // ไม่ใช่หน้าต่าง 03:00 — purge ต้องทำทุก tick
+    const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000)
+    const snap = (groupId: string, expiresAt: Date) =>
+      prisma.lineReportSnapshot.create({
+        data: { groupId, kind: 'DAILY', tokenHash: `lrx-${randomUUID()}`, windowStart: D, windowEnd: D, computedAt: day(-3), createdAt: day(-90), expiresAt, payload: { v: 1 } },
+      })
+    const get = (id: string) => prisma.lineReportSnapshot.findUnique({ where: { id } })
+    afterAll(async () => { await prisma.lineReportSnapshot.deleteMany({ where: { groupId: { in: ids.groups } } }) })
+
+    it('หมดอายุ → payload null + purgedAt · สดไม่เปลี่ยน · กลุ่ม REMOVED → null · แถวโครงยังอยู่', async () => {
+      const u = await mkUser('purge')
+      const g = await mkGroup(u, [], { dailyEnabled: false })
+      const gr = await mkGroup(u, [], { dailyEnabled: false })
+      const old = await snap(g.id, day(-1))
+      const edge = await snap(g.id, NOW)
+      const fresh = await snap(g.id, day(1))
+      const inRemoved = await snap(gr.id, day(1))
+      await prisma.lineReportGroup.update({ where: { id: gr.id }, data: { status: 'REMOVED', removedAt: NOW } })
+
+      const r = await tick(NOW, [g.id, gr.id])
+      expect(r).toMatchObject({ snapshotsPurged: 3, cleanup: 'SKIPPED' })
+      expect(await get(old.id)).toMatchObject({ payload: null, purgedAt: NOW })
+      expect(await get(edge.id)).toMatchObject({ payload: null })
+      expect((await get(fresh.id))!.payload).not.toBeNull()
+      expect(await get(inRemoved.id)).toMatchObject({ payload: null })
+      expect((await tick(NOW, [g.id, gr.id]))).toMatchObject({ snapshotsPurged: 0 }) // ซ้ำ = ไม่มีอะไรให้ล้าง
+    })
+
+    it('cleanup 03:00: ลบแถวที่หมดอายุเกิน 30 วัน · 29 วันไม่ลบ', async () => {
+      const u = await mkUser('purge2')
+      const g = await mkGroup(u, [], { dailyEnabled: false })
+      const now = new Date('2000-07-01T03:05:00+07:00')
+      const at = (d: number) => new Date(now.getTime() - d * 86_400_000)
+      const s31 = await snap(g.id, at(31))
+      const s29 = await snap(g.id, at(29))
+      const res = await runCleanup(now)
+      expect(res.snapshotsDeleted).toBeGreaterThanOrEqual(1)
+      expect(await get(s31.id)).toBeNull()
+      expect(await get(s29.id)).not.toBeNull()
+    })
+  })
 })

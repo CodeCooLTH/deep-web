@@ -3,7 +3,7 @@
  *
  * ทำทีละกลุ่ม (TD-009) · try/catch ต่อกลุ่ม (AC-19-5) · หยุด "เริ่ม" กลุ่มใหม่เมื่อเกิน budget — slot ที่เหลือรอ tick ถัดไปในหน้าต่าง 60 นาที
  */
-import type { LineReportGroup } from '@prisma/client'
+import { Prisma, type LineReportGroup } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { thaiTodayBounds } from '@/lib/date-range'
 import { isReportBotReady } from '@/lib/line-report/config'
@@ -36,7 +36,7 @@ const oldestOf = (w: Work, stuckAt: number | undefined) =>
 type CleanupResult = Awaited<ReturnType<typeof runCleanup>>
 export type SweepResult =
   | { skipped: 'NOT_CONFIGURED' }
-  | { groups: number; processed: number; paused: number; unknown: number; errors: number; budgetStopped: boolean; cleanup: CleanupResult | 'SKIPPED' | 'FAILED' }
+  | { groups: number; processed: number; paused: number; unknown: number; errors: number; budgetStopped: boolean; snapshotsPurged: number; cleanup: CleanupResult | 'SKIPPED' | 'FAILED' }
 
 /** log เฉพาะชื่อ/โค้ดของ error — message ของ DB/LINE อาจมีข้อมูลร้าน/ลูกค้าปน (security L3) */
 const errTag = (e: unknown) => {
@@ -134,6 +134,14 @@ export async function runSweep(opts: { now?: Date; budgetMs?: number; clock?: ()
     // เทียบตรง ๆ — `a.at - b.at` ของ Infinity − Infinity = NaN (กลุ่มที่ไม่มีงานทั้งคู่) ทำให้ลำดับไม่แน่นอน
     .sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1))
 
+  // ล้าง payload ที่หมดอายุ/กลุ่มถูกลบ "ทุก tick" (ไม่รอหน้าต่าง 03:00) — payload มี PII ลูกค้า · ล้มไม่ทำให้ sweep ล้ม
+  let snapshotsPurged = 0
+  try {
+    snapshotsPurged = await purgeExpiredSnapshots(now, opts.groupIds)
+  } catch (e) {
+    console.error('[line-report] snapshot purge failed', errTag(e))
+  }
+
   let processed = 0
   let paused = 0
   let unknown = 0
@@ -172,7 +180,20 @@ export async function runSweep(opts: { now?: Date; budgetMs?: number; clock?: ()
       console.error('[line-report] cleanup failed', errTag(e))
     }
   }
-  return { groups: groups.length, processed, paused, unknown, errors, budgetStopped, cleanup }
+  return { groups: groups.length, processed, paused, unknown, errors, budgetStopped, snapshotsPurged, cleanup }
+}
+
+/** ล้าง payload ของ snapshot ที่หมดอายุ หรือกลุ่มเป็น REMOVED (คงแถวโครงไว้ให้หน้า "ลิงก์หมดอายุ") · `groupIds` = จำกัดวงสำหรับเทส */
+export async function purgeExpiredSnapshots(now: Date, groupIds?: readonly string[]): Promise<number> {
+  const r = await prisma.lineReportSnapshot.updateMany({
+    where: {
+      payload: { not: Prisma.DbNull },
+      OR: [{ expiresAt: { lte: now } }, { group: { status: 'REMOVED' } }],
+      ...(groupIds ? { groupId: { in: [...groupIds] } } : {}),
+    },
+    data: { payload: Prisma.DbNull, purgedAt: now },
+  })
+  return r.count
 }
 
 /**
@@ -198,5 +219,7 @@ export async function runCleanup(now: Date) {
   const deliveries = await cleanupDeliveries(now)
   const rate = await prisma.lineReportRateEvent.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - DAY_MS) } } })
   const codes = await prisma.lineReportBindCode.deleteMany({ where: { createdAt: { lt: weekAgo } } })
-  return { ...deliveries, rateEvents: rate.count, bindCodes: codes.count, pendingRemoved: removed.count }
+  // แถวโครงเปล่าของ snapshot เก็บไว้ให้หน้า "หมดอายุ" อีก 30 วัน แล้วลบ
+  const snaps = await prisma.lineReportSnapshot.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 30 * DAY_MS) } } })
+  return { ...deliveries, rateEvents: rate.count, bindCodes: codes.count, pendingRemoved: removed.count, snapshotsDeleted: snaps.count }
 }
