@@ -108,7 +108,8 @@ export function toExpenseRow(i: {
   note: string | null
   system?: boolean
 }): ExpenseRow {
-  const note = (i.note ?? '').trim()
+  // โน้ตเป็นข้อความอิสระ — ปิดอีเมล/เลขยาว ≥7 หลัก (เบอร์/บัญชี) ก่อนขึ้นหน้าสาธารณะ (security L-2)
+  const note = (i.note ?? '').trim().replace(/\S+@\S+/g, '•••').replace(/\d[\d\s-]{5,}\d/g, (m) => (m.replace(/\D/g, '').length >= 7 ? '•••' : m))
   return {
     date: new Date(i.date).toISOString(),
     category: EXPENSE_CATEGORY_LABEL_TH[i.category as ExpenseCategory] ?? i.category,

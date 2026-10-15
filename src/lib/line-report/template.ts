@@ -150,7 +150,9 @@ export const needsExpenseConfirm = (prev: TemplateV1 | null, next: TemplateV1): 
 export const needsDetailLinkConfirm = (prev: TemplateV1 | null, next: TemplateV1): boolean => {
   if (next.button.target !== 'DETAIL') return false
   if (prev?.button.target !== 'DETAIL') return true
-  return deriveExposure(next).expense && !deriveExposure(prev).expense
+  // เปิดเผยเพิ่มขณะ DETAIL ค้างอยู่ = ถามใหม่: ค่าใช้จ่าย (พร้อมโน้ต) หรือยอดเงินรายใบ (security L-4)
+  const hasSales = (t: TemplateV1) => t.blocks.some((b) => b.type === 'sales')
+  return (deriveExposure(next).expense && !deriveExposure(prev).expense) || (hasSales(next) && !hasSales(prev))
 }
 
 /** หน้าสรุปไม่มีอะไรให้แสดงถ้าไม่มีบล็อกจำนวนรายการหรือยอดขาย */

@@ -106,3 +106,13 @@ describe('toExpenseRow', () => {
     expect(toExpenseRow({ date: '2026-10-14', category: 'X', amount: 1, note: null, system: true })).toMatchObject({ category: 'X', system: true })
   })
 })
+
+describe('security L-2: โน้ตค่าใช้จ่ายปิดเบอร์/อีเมล', () => {
+  it('ปิดเบอร์ 10 หลัก · มีขีด · อีเมล · คงตัวเลขสั้น', () => {
+    const n = (note: string) => toExpenseRow({ date: '2026-10-14', category: 'OTHER', amount: 1, note }).note
+    expect(n('โทร 0812345678 ค่าน้ำมัน')).toBe('โทร ••• ค่าน้ำมัน')
+    expect(n('จ่าย 081-234-5678')).toBe('จ่าย •••')
+    expect(n('ส่งบิล a@b.com')).toBe('ส่งบิล •••')
+    expect(n('ค่าน้ำมัน 500 บาท 2 ถัง')).toBe('ค่าน้ำมัน 500 บาท 2 ถัง')
+  })
+})

@@ -210,3 +210,12 @@ describe('ซอร์สของหน้า', () => {
     for (const f of files) expect(readFileSync(f, 'utf8'), f).not.toMatch(/next-auth|next\/headers|getServerSession|useSession/)
   })
 })
+
+describe('security L-1: safeImageUrl ต้องเป็น origin ของเรา', () => {
+  it('ภายนอกที่ path เหมือนกันไม่ผ่าน · ของเราผ่าน', async () => {
+    process.env.NEXT_PUBLIC_SELLER_URL = 'https://seller.example.test'
+    const { safeImageUrl } = await import('../components/view-model')
+    expect(safeImageUrl('https://evil.example/api/line-report/product-image?k=a&s=b')).toBeUndefined()
+    expect(safeImageUrl('https://seller.example.test/api/line-report/product-image?k=a&s=b')).toBe('https://seller.example.test/api/line-report/product-image?k=a&s=b')
+  })
+})

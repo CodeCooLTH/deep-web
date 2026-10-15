@@ -61,7 +61,9 @@ export function safeImageUrl(u: string | undefined): string | undefined {
   if (!u) return undefined
   try {
     const url = new URL(u)
-    return url.protocol === 'https:' && url.pathname === '/api/line-report/product-image' ? u : undefined
+    // origin ต้องเป็นโดเมนผู้ขายของเราเอง — กัน payload ที่ถูกแก้ในฐานชี้รูปภายนอก (security L-1)
+    const own = process.env.NEXT_PUBLIC_SELLER_URL ? new URL(process.env.NEXT_PUBLIC_SELLER_URL).origin : null
+    return url.protocol === 'https:' && url.origin === own && url.pathname === '/api/line-report/product-image' ? u : undefined
   } catch {
     return undefined
   }

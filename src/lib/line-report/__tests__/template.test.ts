@@ -189,6 +189,10 @@ describe('LINK: button.target / needsDetailLinkConfirm / detailLinkBlocked', () 
     expect(needsDetailLinkConfirm(det('sales', 'expense'), det('sales', 'net_sales'))).toBe(false)
     expect(needsDetailLinkConfirm(det('sales', 'expense'), det('sales', 'expense'))).toBe(false)
   })
+  it('needsDetailLinkConfirm: DETAIL เปิดอยู่ แล้วเพิ่งเปิดยอดขาย (ยอดรายใบ) = ถาม (security L-4)', () => {
+    expect(needsDetailLinkConfirm(det('orders'), det('orders', 'sales'))).toBe(true)
+    expect(needsDetailLinkConfirm(det('sales'), det('orders', 'sales'))).toBe(false)
+  })
   it('detailLinkBlocked: ต้องมี orders หรือ sales', () => {
     expect(detailLinkBlocked(tpl('expense'))).toBe(true)
     expect(detailLinkBlocked(tpl())).toBe(true)
