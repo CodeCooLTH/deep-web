@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   cleanupFail: { on: false },
   subFail: { on: false },
   onPush: { fn: null as null | (() => void) },
+  snap: { fn: null as null | ((i: unknown) => Promise<unknown>) },
   cumulative: vi.fn(async () => ({ totals: { orders: 3, confirmed: 300, unconfirmed: 0, cancelled: 0 }, failedShops: 0 })),
 }))
 vi.mock('@/lib/line/client', async () => ({ ...(await vi.importActual<object>('@/lib/line/client')), lineApiRequest: h.api }))
@@ -25,6 +26,10 @@ vi.mock('@/services/business-package.service', async () => {
 vi.mock('@/services/line-report-delivery.service', async () => {
   const actual = await vi.importActual<typeof import('@/services/line-report-delivery.service')>('@/services/line-report-delivery.service')
   return { ...actual, cleanupDeliveries: (now: Date) => (h.cleanupFail.on ? Promise.reject(new Error('db')) : actual.cleanupDeliveries(now)) }
+})
+vi.mock('@/services/line-report-snapshot.service', async () => {
+  const actual = await vi.importActual<typeof import('@/services/line-report-snapshot.service')>('@/services/line-report-snapshot.service')
+  return { ...actual, createDetailSnapshot: (i: Parameters<typeof actual.createDetailSnapshot>[0]) => (h.snap.fn ? h.snap.fn(i) : actual.createDetailSnapshot(i)) as ReturnType<typeof actual.createDetailSnapshot> }
 })
 vi.mock('@/services/line-report-summary.service', async () => {
   const actual = await vi.importActual<typeof import('@/services/line-report-summary.service')>('@/services/line-report-summary.service')
@@ -54,6 +59,8 @@ vi.mock('@/services/line-report-summary.service', async () => {
 import { LineApiError } from '@/lib/line/client'
 import { prisma } from '@/lib/prisma'
 import { fireAt } from '@/lib/line-report/schedule'
+import { hashDetailToken } from '@/lib/line-report/detail-token'
+import { todayThaiIsoDate } from '@/lib/date-range'
 import { retryKeyFor } from '@/lib/line-report/retry-key'
 import { FINAL_NOTICE_MESSAGE } from '@/lib/line-report/messages'
 import { resolveSendableShops } from '@/services/line-report-shop.service'
@@ -149,6 +156,7 @@ describe.skipIf(!isLocal)('00070 send/sweep (DB, LINE mock)', () => {
     h.cumulative.mockClear()
     h.subFail.on = false
     h.onPush.fn = null
+    h.snap.fn = null
     behave.clear()
     gone.clear()
     h.api.mockImplementation(async (path: string, _t: string, init: { body?: { to?: string } } = {}) => {
@@ -833,6 +841,131 @@ describe.skipIf(!isLocal)('00070 send/sweep (DB, LINE mock)', () => {
       err.mockRestore()
       expect((await row(g.id, SLOT)).status).toBe('SENT')
     })
+  })
+
+  describe('ลิงก์หน้าสรุปรายละเอียด (00070 EXT-LINK U11 · FR-01)', () => {
+    // 🛑 ใช้เวลาจริง (วันนี้ไทย): แถว snapshot มี CHECK expiresAt > createdAt ของ DB — now ปี 2000 จะสร้างไม่ได้
+    const TODAY = todayThaiIsoDate(new Date())
+    const TN = new Date(fireAt(TODAY, 1080) + 5 * MIN)
+    const SLOTN = `D:${TODAY}@18:00`
+    const dtpl = (target: 'DASHBOARD' | 'DETAIL' = 'DETAIL') => ({ v: 1, button: { show: true, label: 'ดู', target }, blocks: [{ id: 'a', type: 'orders' }] })
+    const yesterdayDay = Number(new Date(Date.parse(`${TODAY}T00:00:00Z`) - 86_400_000).toISOString().slice(8, 10))
+    const URL_RE = /https:\/\/seller\.example\.test\/lr\/([^"\\]+)/g
+    const urlsOf = (text: string) => [...text.matchAll(URL_RE)].map((m) => ({ url: m[0], token: m[1] }))
+    const snapRows = (groupId: string) => prisma.lineReportSnapshot.findMany({ where: { groupId }, orderBy: { kind: 'asc' } })
+    const bodyOf = (gid: string, i = 0) => JSON.stringify(pushes(gid)[i].init.body?.messages)
+    beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_SELLER_URL', 'https://seller.example.test') })
+    afterAll(() => { vi.stubEnv('NEXT_PUBLIC_SELLER_URL', '') })
+
+    it('DETAIL: uri ของปุ่ม = /lr/<token> และ hash ของ token ตรงแถว snapshot (deliveryId = แถวที่ claim)', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never })
+      await tick(TN, [g.id])
+      const found = urlsOf(bodyOf(g.lineGroupId!))
+      expect(found).toHaveLength(1)
+      const snaps = await snapRows(g.id)
+      expect(snaps).toHaveLength(1)
+      expect(snaps[0]).toMatchObject({ tokenHash: hashDetailToken(found[0].token), kind: 'DAILY', deliveryId: (await row(g.id, SLOTN)).id })
+      expect((await row(g.id, SLOTN)).status).toBe('SENT')
+    })
+
+    it('D+M ใน push เดียว: 2 แถว 2 URL ต่างกัน · แต่ละข้อความชี้แถวของตัวเอง', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never, monthlyEnabled: true, cutoffDay: yesterdayDay })
+      await tick(TN, [g.id])
+      expect(pushes(g.lineGroupId!)).toHaveLength(1)
+      const msgs = pushes(g.lineGroupId!)[0].init.body!.messages as unknown[]
+      expect(msgs).toHaveLength(2)
+      const [u1, u2] = msgs.map((m) => urlsOf(JSON.stringify(m)))
+      expect(u1).toHaveLength(1)
+      expect(u2).toHaveLength(1)
+      expect(u1[0].url).not.toBe(u2[0].url)
+      const snaps = await snapRows(g.id)
+      expect(snaps.map((x) => x.kind).sort()).toEqual(['DAILY', 'MONTHLY'])
+      const byHash = new Map(snaps.map((x) => [x.tokenHash, x]))
+      expect(byHash.get(hashDetailToken(u1[0].token))?.kind).toBe('DAILY')
+      expect(byHash.get(hashDetailToken(u2[0].token))?.kind).toBe('MONTHLY')
+    })
+
+    it('DASHBOARD: ไม่มีแถว snapshot ใหม่ · uri เดิม (ไม่ใช่ /lr/)', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl('DASHBOARD') as never })
+      await tick(TN, [g.id])
+      expect((await row(g.id, SLOTN)).status).toBe('SENT')
+      expect(await snapRows(g.id)).toHaveLength(0)
+      expect(bodyOf(g.lineGroupId!)).not.toContain('/lr/')
+    })
+
+    it('createDetailSnapshot throw → ส่งสำเร็จด้วย uri เดิม · log มีแต่ชื่อ error ไม่มียอด/ข้อความ', async () => {
+      h.snap.fn = async () => { throw new Error('ยอด ฿98,765 ร้านลับ') }
+      const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never })
+      await tick(TN, [g.id])
+      const logged = JSON.stringify(err.mock.calls)
+      err.mockRestore()
+      expect((await row(g.id, SLOTN)).status).toBe('SENT')
+      expect(bodyOf(g.lineGroupId!)).not.toContain('/lr/')
+      expect(logged).toContain('detail snapshot failed')
+      expect(logged).not.toContain('98,765')
+      expect(logged).not.toContain('ร้านลับ')
+    })
+
+    it('push ล้ม 503: แถว snapshot มีแล้ว · retry ส่ง raw เดิมไบต์เดิม ไม่สร้างแถวใหม่', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never })
+      behave.set(g.lineGroupId!, [503])
+      await tick(TN, [g.id])
+      expect((await row(g.id, SLOTN)).status).toBe('RETRY_PENDING')
+      expect(await snapRows(g.id)).toHaveLength(1)
+      // ถอยเวลาแถวให้ตรงนาฬิกาปลอมของ tick (findRetryable กรอง createdAt ด้วย now) — now จริงของเทสนี้ไม่ใช่เวลา tick
+      await prisma.lineReportDelivery.updateMany({ where: { groupId: g.id }, data: { createdAt: TN, updatedAt: TN } })
+      await tick(new Date(TN.getTime() + 30 * MIN), [g.id])
+      expect(pushes(g.lineGroupId!)).toHaveLength(2)
+      expect(bodyOf(g.lineGroupId!, 1)).toBe(bodyOf(g.lineGroupId!, 0))
+      expect(await snapRows(g.id)).toHaveLength(1)
+    })
+
+    it('sendTest DETAIL: ลิงก์ kind TEST ผูกแถวทดสอบ · snapshot ล้ม → ยังส่งสำเร็จ (ไม่กลายเป็น INTERNAL)', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never })
+      const res = await sendTest(owner, g.id)
+      const found = urlsOf(bodyOf(g.lineGroupId!))
+      expect(found).toHaveLength(1)
+      expect((await snapRows(g.id))[0]).toMatchObject({ tokenHash: hashDetailToken(found[0].token), kind: 'TEST', deliveryId: res.deliveryId })
+      h.snap.fn = async () => { throw new Error('boom') }
+      const err = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      await expect(sendTest(owner, g.id)).resolves.toMatchObject({ remaining: 3 })
+      err.mockRestore()
+      expect(bodyOf(g.lineGroupId!, 1)).not.toContain('/lr/')
+    })
+
+    const cmd = (g: { lineGroupId: string | null }, ts: number, tag: string) => handleEvents([{
+      mode: 'active', type: 'message', timestamp: ts, webhookEventId: `ev-${tag}-${run}`, replyToken: `rt-${tag}`,
+      source: { type: 'group', groupId: g.lineGroupId }, message: { id: '1', type: 'text', text: 'สรุปวันนี้' },
+    }], Date.now())
+    const replyBody = () => JSON.stringify(calls().find((c) => c.path === '/v2/bot/message/reply')?.init.body?.messages)
+
+    it('คำสั่ง: ลิงก์ kind COMMAND ผูกแถวคำสั่ง · ช้าเกินงบ → ปุ่มเดิมทันที · เหลือเวลาไม่พอ → ไม่เรียกสร้างเลย', async () => {
+      const g = await mkGroup(owner, [shopA], { template: dtpl() as never })
+      ids.rateGroups.push(g.lineGroupId!)
+      await cmd(g, Date.now(), 'ok')
+      const found = urlsOf(replyBody())
+      expect(found).toHaveLength(1)
+      expect((await snapRows(g.id))[0]).toMatchObject({ tokenHash: hashDetailToken(found[0].token), kind: 'COMMAND' })
+      expect((await row(g.id, `C:ev-ok-${run}`)).id).toBe((await snapRows(g.id))[0].deliveryId)
+
+      // ช้า: เหลือ 50s−43s−5s = 2s · สร้างใช้ 4s → ต้องตอบด้วยปุ่มเดิมที่ ~2s
+      h.api.mockClear()
+      const slow = vi.fn(() => new Promise((r) => setTimeout(() => r({ url: 'https://seller.example.test/lr/late' }), 4000)))
+      h.snap.fn = slow
+      const t0 = Date.now()
+      await cmd(g, Date.now() - 43_000, 'slow')
+      expect(Date.now() - t0).toBeLessThan(3500)
+      expect(slow).toHaveBeenCalledTimes(1)
+      expect(replyBody()).not.toContain('/lr/')
+
+      // เหลือ ≤ 0: เกิน 45s แล้ว → ข้าม ไม่เรียก
+      h.api.mockClear()
+      slow.mockClear()
+      await cmd(g, Date.now() - 46_000, 'late')
+      expect(slow).not.toHaveBeenCalled()
+      expect(replyBody()).not.toContain('/lr/')
+    }, 20_000)
   })
 
   describe('cleanup (TFR-23 · AC-23-3/5/6)', () => {

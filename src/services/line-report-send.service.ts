@@ -11,7 +11,7 @@ import type { LineReportDelivery, LineReportGroup } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { todayThaiIsoDate } from '@/lib/date-range'
 import { formatTimeHM } from '@/lib/format-date'
-import { buildPlainNotice, buildSummaryReportFlex, collectSkipped, fitToLimits } from '@/lib/line/flex-summary-report'
+import { buildPlainNotice, buildSummaryReportFlex, collectSkipped, fitToLimits, titleOf } from '@/lib/line/flex-summary-report'
 import type { LineErrorKind } from '@/lib/line/client'
 import { assertReady, fetchGroupSummary, fetchMemberCount, pushToGroup } from '@/lib/line-report/line-client'
 import { LineReportError } from '@/lib/line-report/errors'
@@ -27,6 +27,7 @@ import {
 } from '@/services/line-report-delivery.service'
 import { raiseAlert, markInactive, resolveAlert, TEST_LIMIT_PER_DAY } from '@/services/line-report-group.service'
 import { lockOwnedGroup, resolveSendableShops } from '@/services/line-report-shop.service'
+import { createDetailSnapshot } from '@/services/line-report-snapshot.service'
 import {
   buildCycleCumulative, buildGroupSummary, createSweepCache, type SummaryFlags, type SweepCache,
 } from '@/services/line-report-summary.service'
@@ -40,6 +41,19 @@ export type Outcome = { state: string; reason?: string; lineKind?: LineErrorKind
 
 /** bubble ≤ 30KB ของ LINE — ตรวจซ้ำหลัง fitToLimits (ตัดแล้วยังเกิน = ส่งไม่ได้ ไม่ใช่ retry) */
 const BUBBLE_MAX_BYTES = 30_000
+
+/**
+ * สร้างสำเนา+ลิงก์หน้าสรุปรายละเอียด — ล้มเมื่อไรก็ใช้ปุ่มเดิม (undefined) ห้ามทำให้การส่งล้ม · log เฉพาะชื่อ error (ไม่มี token/ยอด/ชื่อ)
+ * ต้องเรียกก่อน savePendingPayload เพื่อให้ retry ส่ง raw เดิมที่มีลิงก์เดิม (ไม่สร้างแถวใหม่ทุกครั้งที่ retry)
+ */
+async function detailUrlFor(input: Parameters<typeof createDetailSnapshot>[0]): Promise<string | undefined> {
+  try {
+    return (await createDetailSnapshot(input))?.url // no-row: ไม่ใช่ทางออกของ delivery
+  } catch (e) {
+    console.error('[line-report] detail snapshot failed', e instanceof Error ? e.name : 'unknown')
+    return undefined // no-row
+  }
+}
 
 /** "ข้าม: …" ต่อท้าย Delivery.summary — label/reason เป็นข้อความตายตัวของ composer ไม่มียอดเงิน/เนื้อหาของเจ้าของ (EXT-06) */
 export const skippedNote = (skipped: readonly { label: string; reason: string }[]): string =>
@@ -171,9 +185,16 @@ async function runSlot(group: Group, ctx: SweepCtx, plan: Plan): Promise<Outcome
     // failedShops ต้องส่งต่อให้ข้อความบอก "ยอดไม่ครบ" — ไม่งั้นร้านที่ล้มหายไปเงียบ ๆ เหมือนยอด 0
     cycleToDate = { startIso: w.startIso, endIso: w.endIso, totals: cum.totals, failedShops: cum.failedShops }
   }
+  // ลิงก์ละหนึ่งข้อความ (D+M = 2 แถว 2 URL) · title ต้องตรงหัวการ์ด: ข้อความแรกใช้ template.title, รายเดือนที่ติดมาไม่ใช้
+  const snapOf = (p: Part, title: string) =>
+    detailUrlFor({ groupId: group.id, deliveryId: p.row.id, kind: p.kind, template, summary: p.summary, title, window: p.summary.window, now, cache })
+  const [detailUrl, monthlyDetailUrl] = await Promise.all([
+    snapOf(head, titleOf(head.kind, head.summary, template.title)),
+    rest[0] ? snapOf(rest[0], titleOf('MONTHLY', rest[0].summary)) : undefined,
+  ])
   // 🛑 fitToLimits ต้องรับ object จาก builder โดยตรง (ผูกด้วย identity) — ห้าม clone/parse ก่อน
   const messages = fitToLimits(
-    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, template, cycleToDate, monthly: rest[0]?.summary }),
+    buildSummaryReportFlex({ summary: head.summary, kind: head.kind, template, cycleToDate, monthly: rest[0]?.summary, detailUrl, monthlyDetailUrl }),
   )
   if (messages.some((m) => Buffer.byteLength(JSON.stringify(m)) > BUBBLE_MAX_BYTES)) {
     await raiseAlert(group.id, 'SEND_FAILED')
@@ -301,7 +322,11 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
       await markFailed(row.id, { reason: 'GROUP_NOT_ACTIVE' })
       throw new LineReportError('GROUP_NOT_ACTIVE')
     }
-    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', template }))
+    // try ชั้นใน (detailUrlFor) — catch ชั้นนอกแปลงทุกอย่างเป็น INTERNAL ซึ่งไม่ควรเกิดเพราะลิงก์สรุปล้ม
+    const detailUrl = await detailUrlFor({
+      groupId, deliveryId: row.id, kind: 'TEST', template, summary, title: titleOf('TEST', summary, template.title), window, now, cache: createSweepCache(),
+    })
+    const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'TEST', template, detailUrl }))
     const skipped = collectSkipped(messages)
     const text = `${sendable.length} ร้าน · ช่วง 00:00–${formatTimeHM(now)}`
     const raw = JSON.stringify(messages)

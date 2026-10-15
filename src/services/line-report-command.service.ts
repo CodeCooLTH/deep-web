@@ -25,12 +25,13 @@ import {
   bindSuccessMessage,
 } from '@/lib/line-report/messages'
 import type { Window } from '@/lib/line-report/types'
-import { buildPlainNotice, buildSummaryReportFlex, fitToLimits } from '@/lib/line/flex-summary-report'
+import { buildPlainNotice, buildSummaryReportFlex, fitToLimits, titleOf } from '@/lib/line/flex-summary-report'
 import { isOwnerPaidForReports } from '@/services/line-report-access.service'
 import { claimSlots, writeDelivery } from '@/services/line-report-delivery.service'
 import { markInactive } from '@/services/line-report-group.service'
 import { resolveSendableShops } from '@/services/line-report-shop.service'
 import { buildGroupSummary, createSweepCache } from '@/services/line-report-summary.service'
+import { createDetailSnapshot } from '@/services/line-report-snapshot.service'
 import { consumeBindCode, recordAndCountRate, type BindOutcome } from '@/services/line-report-bind.service'
 
 /** reply token อายุ ~1 นาที (LINE-API-Facts §4) — เผื่อเวลาส่ง/เครือข่ายไว้ 10 วินาที */
@@ -89,7 +90,7 @@ export async function replyCommand(
 ): Promise<void> {
   let out: ReplyOutcome
   try {
-    out = await composeAndReply(group, command, ctx, now)
+    out = await composeAndReply(group, command, ctx, now, claimedRowId)
   } catch (e) {
     console.error(LOG, 'คำสั่งสรุปล้ม', errTag(e))
     out = { status: 'FAILED', reason: 'INTERNAL' }
@@ -109,11 +110,32 @@ function sentOrFailed(r: SendResult | 'EXPIRED', okReason?: string): ReplyOutcom
   return { status: 'REPLY_FAILED', reason: r.status === 400 ? 'REPLY_REJECTED' : r.reason, httpStatus: r.status || undefined }
 }
 
+/** งบสร้างลิงก์สูงสุด 5 วินาที และต้องเหลือเวลาตอบ ≥5 วินาทีก่อนครบหน้าต่าง reply token — เหลือไม่พอ/ช้า/ล้ม = undefined (ปุ่มเดิม) */
+async function detailUrlWithinBudget(ctx: Ctx, input: Parameters<typeof createDetailSnapshot>[0]): Promise<string | undefined> {
+  const budget = Math.min(5000, ctx.baseMs + REPLY_WINDOW_MS - Date.now() - 5000)
+  if (budget <= 0) return undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    // shortcut: ช้าเกินงบแล้วแถว snapshot ที่สร้างตามหลังกำพร้า (ไม่มีใครใช้) — หมดอายุ/ถูกล้างเอง ไม่ยกเลิกคำสั่ง DB กลางทาง
+    const r = await Promise.race([
+      createDetailSnapshot(input),
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), budget) }),
+    ])
+    return r?.url
+  } catch (e) {
+    console.error('[line-report] detail snapshot failed', e instanceof Error ? e.name : 'unknown')
+    return undefined
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function composeAndReply(
   group: Parameters<typeof replyCommand>[0],
   command: SummaryCommand,
   ctx: Ctx,
   now: Date,
+  deliveryId: string,
 ): Promise<ReplyOutcome> {
   // ไม่ ACTIVE = หยุดชั่วคราว — คำนวณสดทุกครั้ง ไม่อ่านจากแถวกลุ่ม (AC-01-6)
   if (!(await isOwnerPaidForReports(group.ownerId))) {
@@ -131,7 +153,10 @@ async function composeAndReply(
   const { sendable, excluded } = await resolveSendableShops(group)
   const { template, flags, needs } = resolveReportConfig(group)
   const summary = await buildGroupSummary({ shops: sendable, excluded, window, flags, needs, cache: createSweepCache() })
-  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', template }))
+  const detailUrl = await detailUrlWithinBudget(ctx, {
+    groupId: group.id, deliveryId, kind: 'COMMAND', template, summary, title: titleOf('COMMAND', summary, template.title), window, now, cache: createSweepCache(),
+  })
+  const messages = fitToLimits(buildSummaryReportFlex({ summary, kind: 'COMMAND', template, detailUrl }))
   return sentOrFailed(await replyMessages(ctx, messages))
 }
 
