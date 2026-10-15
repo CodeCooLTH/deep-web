@@ -6,10 +6,8 @@
 import { GENERIC_SALES_LEGEND } from '@/lib/line/flex-report-blocks'
 import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { maskPhoneForGuest } from '@/lib/order-pii-mask'
 import { countsAsRevenue } from '@/lib/order-revenue'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
 import {
   MAX_CUSTOMER_NAME_LEN,
   MAX_NOTE_LEN,
@@ -26,8 +24,6 @@ export const ruleOf = (vertical: string | null | undefined): DetailRule =>
 export interface OrderRowInput {
   createdAt: Date | string
   status: string
-  appointmentStatus: string | null
-  serviceStart: Date | string | null
   serviceClosedAt: Date | string | null
   totalAmount: number
   buyerName: string | null
@@ -80,26 +76,23 @@ function titleOf(i: OrderRowInput): string {
   return FALLBACK_TITLE
 }
 
+/**
+ * แกนของการ์ด (ไม่ใช่ OrderStatus ดิบ): หน้าแปลงเป็นป้าย — ใบ SHIPPED ที่ขนส่งรับแล้วต้องเป็น "ยืนยันแล้ว" ตรงหัว
+ * RETURNED ไม่เคยเป็น countsAsRevenue จึงเช็คก่อนเพื่อให้ได้ป้ายของตัวเอง
+ */
+export function axisOf(order: Pick<OrderRowInput, 'status' | 'shipments'>): OrderRow['axis'] {
+  if (order.status === 'RETURNED') return 'RETURNED'
+  return countsAsRevenue({ status: order.status, shipments: order.shipments }) ? 'CONFIRMED' : 'PENDING'
+}
+
 export function toOrderRow(i: OrderRowInput, rule: DetailRule): OrderRow {
-  const label =
-    rule === 'SERVICE'
-      ? resolveServiceStatusBadge(
-          {
-            status: i.status,
-            appointmentStatus: i.appointmentStatus,
-            hasAppointment: i.serviceStart != null,
-            serviceClosedAt: i.serviceClosedAt,
-          },
-          'seller',
-        ).label
-      : resolveOrderStatusBadge(i.status).label
   return {
     at: new Date(i.createdAt).toISOString(),
     customerName: safeCustomerName(i.buyerName),
     phoneMasked: maskPhoneForGuest(i.buyerContact),
     title: titleOf(i),
     amount: i.totalAmount,
-    status: label,
+    axis: axisOf(i),
     bucket: classifyBucket(i, rule),
   }
 }

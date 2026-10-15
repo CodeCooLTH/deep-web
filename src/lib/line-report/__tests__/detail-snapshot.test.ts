@@ -5,14 +5,14 @@ import { toExpenseRow, toOrderRow } from '../detail-snapshot-rows'
 const mkRow = (n: number): OrderRow =>
   toOrderRow(
     {
-      createdAt: '2026-10-14T03:00:00Z', status: 'CONFIRMED', appointmentStatus: null, serviceStart: null, serviceClosedAt: null,
+      createdAt: '2026-10-14T03:00:00Z', status: 'CONFIRMED', serviceClosedAt: null,
       totalAmount: 100 + n, buyerName: 'ลูกค้าทดสอบ', buyerContact: '0812345678',
       items: [{ name: 'ก'.repeat(80), qty: 1 }], room: null,
     },
     'GENERAL',
   )
 const mkShop = (i: number, rows: number, exps: number): DetailShop => ({
-  name: `ร้าน${i}`, state: 'OK', rule: 'GENERAL', orders: rows, sales: rows * 100, cancelled: 0,
+  name: `ร้าน${i}`, state: 'OK', rule: 'GENERAL', orderWord: 'คำสั่งซื้อ', itemColLabel: 'สินค้า', orders: rows, sales: rows * 100, cancelled: 0,
   buckets: [
     { key: 'COUNTED', label: 'ยืนยันแล้ว', count: rows, amount: rows * 100 },
     { key: 'PENDING', label: 'รอยืนยัน', count: 0, amount: 0 },
@@ -26,7 +26,7 @@ const mkShop = (i: number, rows: number, exps: number): DetailShop => ({
 const mkSnap = (shops: DetailShop[]): DetailSnapshotV1 => ({
   v: 1, kind: 'DAILY',
   window: { startIso: '2026-10-14T00:00:00Z', endIso: '2026-10-14T23:59:59Z', computedAt: '2026-10-15T00:00:00Z' },
-  title: 'สรุปวันที่ 14', expiresAt: '2026-10-16T16:59:59Z',
+  title: 'สรุปวันที่ 14', orderWord: 'คำสั่งซื้อ', orderWordMixed: false, mixedFinanceRules: false, expiresAt: '2026-10-16T16:59:59Z',
   exposure: { orders: true, sales: true, cancelled: true, expense: true },
   total: { orders: shops.reduce((a, s) => a + s.orders, 0), sales: shops.reduce((a, s) => a + (s.sales ?? 0), 0), cancelled: 0 },
   shops,

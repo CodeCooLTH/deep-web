@@ -23,7 +23,7 @@ const OrderRowSchema = v.strictObject({
   phoneMasked: v.nullable(v.string()),
   title: v.pipe(v.string(), v.maxLength(MAX_TITLE_LEN)),
   amount: v.optional(v.number()),
-  status: v.string(),
+  axis: v.picklist(['CONFIRMED', 'PENDING', 'RETURNED']),
   bucket: v.optional(v.picklist([0, 1])),
 })
 
@@ -46,6 +46,10 @@ const ShopSchema = v.strictObject({
   name: v.string(),
   state: v.picklist(['OK', 'ERROR', 'EXCLUDED']),
   rule: v.picklist(['SERVICE', 'GENERAL']),
+  /** คำเรียกใบ/คำหัวคอลัมน์ ตัดสินที่จุดเขียน (reportOrderWord / resolveProductVocab) — หน้าไม่พิมพ์เอง */
+  orderWord: v.string(),
+  itemColLabel: v.string(),
+  excludedReason: v.optional(v.string()),
   orders: nonNegInt,
   sales: v.optional(v.number()),
   cancelled: v.optional(nonNegInt),
@@ -75,6 +79,9 @@ export const DetailSnapshotSchema = v.strictObject({
     computedAt: v.string(),
   }),
   title: v.string(),
+  orderWord: v.string(),
+  orderWordMixed: v.boolean(),
+  mixedFinanceRules: v.boolean(),
   expiresAt: v.string(),
   exposure: v.strictObject({
     orders: v.boolean(),

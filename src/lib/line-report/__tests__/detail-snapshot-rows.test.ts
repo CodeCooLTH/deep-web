@@ -4,8 +4,6 @@ import { bucketLabels, classifyBucket, ruleOf, toExpenseRow, toOrderRow, type Or
 const base: OrderRowInput = {
   createdAt: '2026-10-14T03:00:00Z',
   status: 'PENDING',
-  appointmentStatus: null,
-  serviceStart: null,
   serviceClosedAt: null,
   totalAmount: 500,
   buyerName: 'สมชาย ใจดี',
@@ -88,12 +86,13 @@ describe('classifyBucket — partition ของชุดเดียวกั�
     expect(ruleOf('ONLINE_SALES')).toBe('GENERAL')
     expect(ruleOf(null)).toBe('GENERAL')
   })
-  it('toOrderRow ใส่ bucket และป้ายสถานะจาก SSOT', () => {
-    expect(row({ status: 'RETURNED', serviceClosedAt: new Date() }, 'SERVICE')).toMatchObject({ bucket: 0, status: 'คืนเงินทั้งใบ' })
-    expect(row({ status: 'RETURNED' }).status).toBe('คืนของแล้ว')
-    expect(row({ status: 'RETURNED' }).bucket).toBe(1)
-    expect(row({ status: 'SHIPPED', shipments: fwd('delivered') }).bucket).toBe(0)
-    expect(row({ status: 'SHIPPED' }).bucket).toBe(1)
+  it('toOrderRow ใส่ bucket และ axis ตามแกนการ์ด', () => {
+    expect(row({ status: 'RETURNED', serviceClosedAt: new Date() }, 'SERVICE')).toMatchObject({ bucket: 0, axis: 'RETURNED' })
+    expect(row({ status: 'RETURNED' })).toMatchObject({ axis: 'RETURNED', bucket: 1 })
+    expect(row({ status: 'SHIPPED', shipments: fwd('delivered') })).toMatchObject({ axis: 'CONFIRMED', bucket: 0 })
+    expect(row({ status: 'SHIPPED' })).toMatchObject({ axis: 'PENDING', bucket: 1 })
+    expect(row({ status: 'CONFIRMED' }).axis).toBe('CONFIRMED')
+    expect(row({ status: 'PENDING' }).axis).toBe('PENDING')
   })
 })
 

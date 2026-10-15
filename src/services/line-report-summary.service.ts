@@ -71,7 +71,7 @@ export type SweepCache = {
   top3: Map<string, Promise<ProductSalesMonth>>
   cancelled: Map<string, Promise<number>>
   /** getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนทั้งกำไร (showProfit) และค่าใช้จ่าย (needExpense) */
-  pnl: Map<string, Promise<ShopProfit & ShopFinance & { items: ExpenseItem[] }>>
+  pnl: Map<string, Promise<PnlLoad>>
 }
 
 export const createSweepCache = (): SweepCache => ({
@@ -88,6 +88,46 @@ function memo<T>(m: Map<string, Promise<T>>, key: string, load: () => Promise<T>
     m.set(key, p)
   }
   return p
+}
+
+/** ผล getPnlReport ต่อ (ร้าน,ช่วง) + ข้อมูลค่าใช้จ่ายดิบ — หน้า "สรุปรายละเอียด" (line-report-detail) ใช้ซ้ำผ่าน cache เดียวกัน ไม่ query ซ้ำ */
+export type PnlLoad = ShopProfit & ShopFinance & {
+  items: ExpenseItem[]
+  /** แถว Expense ดิบ (มีโน้ต) — ห้ามไหลเข้า ShopSummary/การ์ด LINE มีแต่หน้าสาธารณะที่ exposure เปิดเท่านั้นที่อ่าน */
+  expenses: Awaited<ReturnType<typeof listExpenses>>
+  shippingCost: number
+  returnShippingCost: number
+}
+
+/** getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนกำไร · ค่าใช้จ่าย · ค่าใช้จ่ายรายวันของกราฟ · รายละเอียดค่าใช้จ่าย */
+export function loadPnl(shop: ShopRef, from: string, to: string, cache: SweepCache): Promise<PnlLoad> {
+  return memo(cache.pnl, `${shop.id}:${from}:${to}`, async () => {
+    const range = resolveDateRange('custom', from, to)
+    // ยิงค่าใช้จ่ายขนานกับ P&L · คงรูป `= await getPnlReport(` ไว้ให้เทสสแกน AC-14-1
+    const expensesP = listExpenses(shop.id, { range: range.expenseRange })
+    // กัน unhandledRejection ถ้า getPnlReport throw ก่อนถึง await expensesP (await ด้านล่างยังได้ error ตามปกติ)
+    expensesP.catch(() => undefined)
+    const report = await getPnlReport(shop.id, range, shop.vertical)
+    const expenses = await expensesP
+    // ชุดเดียวกับ sales/page.tsx — ป้ายเพดานเมื่อข้อมูลไม่ครบ (ตัวนับรายการสินค้าไม่มีผลกับ `complete`)
+    const c = resolveDataCompleteness({
+      hasMissingCost: report.hasMissingCost,
+      expenseCount: expenses.length,
+      uncostedItemCount: 0,
+      soldItemCount: 0,
+    })
+    return {
+      netProfit: report.netProfit,
+      capped: !c.complete,
+      expense: report.totalExpense,
+      netSales: round2(report.revenue - report.totalExpense),
+      expenseRecorded: expenses.length > 0,
+      items: expenseItems(expenses, report),
+      expenses,
+      shippingCost: report.shippingCost,
+      returnShippingCost: report.returnShippingCost,
+    }
+  })
 }
 
 type Month = { year: number; month0: number }
@@ -113,32 +153,7 @@ async function summarizeShop(
       return series
     })
 
-  // getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนกำไร · ค่าใช้จ่าย · ค่าใช้จ่ายรายวันของกราฟ
-  const pnlFor = (from: string, to: string) =>
-    memo(cache.pnl, `${shop.id}:${from}:${to}`, async () => {
-      const range = resolveDateRange('custom', from, to)
-      // ยิงค่าใช้จ่ายขนานกับ P&L · คงรูป `= await getPnlReport(` ไว้ให้เทสสแกน AC-14-1
-      const expensesP = listExpenses(shop.id, { range: range.expenseRange })
-      // กัน unhandledRejection ถ้า getPnlReport throw ก่อนถึง await expensesP (await ด้านล่างยังได้ error ตามปกติ)
-      expensesP.catch(() => undefined)
-      const report = await getPnlReport(shop.id, range, shop.vertical)
-      const expenses = await expensesP
-      // ชุดเดียวกับ sales/page.tsx — ป้ายเพดานเมื่อข้อมูลไม่ครบ (ตัวนับรายการสินค้าไม่มีผลกับ `complete`)
-      const c = resolveDataCompleteness({
-        hasMissingCost: report.hasMissingCost,
-        expenseCount: expenses.length,
-        uncostedItemCount: 0,
-        soldItemCount: 0,
-      })
-      return {
-        netProfit: report.netProfit,
-        capped: !c.complete,
-        expense: report.totalExpense,
-        netSales: round2(report.revenue - report.totalExpense),
-        expenseRecorded: expenses.length > 0,
-        items: expenseItems(expenses, report),
-      }
-    })
+  const pnlFor = (from: string, to: string) => loadPnl(shop, from, to, cache)
 
   // needExpense ต้องมียอดขายรวม (ยอดขายหลังหักค่าใช้จ่าย = ยอดขายรวม − ค่าใช้จ่าย)
   if (flags.showOrders || flags.showSales || needs.needSeries || needs.needCompare || needs.needExpense) {
