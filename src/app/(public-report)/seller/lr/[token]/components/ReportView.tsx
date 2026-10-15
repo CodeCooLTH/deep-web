@@ -47,7 +47,8 @@ function Chips({ shop, r }: { shop: DetailShop; r: OrderRow }) {
 
 function ChannelTag({ channel }: { channel?: string }) {
   if (!channel) return null
-  const label = SALES_CHANNEL_LABELS[channel] ?? channel
+  const label = SALES_CHANNEL_LABELS[channel]
+  if (!label) return null // คีย์ที่ไม่รู้จัก — ไม่โชว์คำดิบ
   const logo = SALES_CHANNEL_LOGO[channel]
   return (
     <span className={`${MUTED} inline-flex items-center gap-1 text-xs`}>

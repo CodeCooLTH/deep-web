@@ -27,6 +27,8 @@ import {
 } from '@/lib/line-report/detail-snapshot'
 import { bucketLabels, classifyBucket, ruleOf, toExpenseRow, toOrderRow } from '@/lib/line-report/detail-snapshot-rows'
 import { resolveOrderSource } from '@/lib/order-source-channel'
+import { chatChannelToSalesChannel } from '@/lib/chat-sales-channel'
+import { SALES_CHANNEL_LABELS } from '@/app/(paces)/seller/(dashboard)/orders/components/data'
 import { lineProductImageUrl } from '@/lib/line-report/product-image'
 import { reportOrderWord, salesTotal } from '@/lib/line/flex-report-blocks'
 import { loadPnl, type PnlLoad, type SweepCache } from '@/services/line-report-summary.service'
@@ -171,11 +173,13 @@ async function shopDetail(
       if (!d) return []
       const pid = firstPid(d)
       const img = lineProductImageUrl(pid ? firstImage.get(pid) : undefined)
-      const channel = resolveOrderSource({
+      const raw = resolveOrderSource({
         salesChannel: d.salesChannel,
         shopChannel: d.shopChannel ? { avatarUrl: null, provider: d.shopChannel.provider } : null,
         legacyFacebookPageAvatar: null,
       }).channel
+      // ข้อมูลเก่าเก็บชื่อช่องแชท (MESSENGER) ไว้ใน salesChannel — แปลงด้วยตัวกลาง · ไม่รู้จัก = ไม่แสดง (ไม่โชว์คำดิบ)
+      const channel = raw && SALES_CHANNEL_LABELS[raw] ? raw : (raw ? chatChannelToSalesChannel(raw) : undefined)
       const row = toOrderRow(
         { ...o, ...d, totalAmount: Number(o.totalAmount), imageUrl: img?.startsWith('https://') ? img : undefined, channel },
         rule,

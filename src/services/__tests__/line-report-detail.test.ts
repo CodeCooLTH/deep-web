@@ -209,4 +209,12 @@ describe('รูปสินค้า + ช่องทางขาย', () => {
     expect(j).not.toContain('fbcdn')
     for (const u of j.match(/https?:\/\/[^"\\]+/g) ?? []) expect(u.startsWith('https://seller.example.test/')).toBe(true)
   })
+  it('channel: ค่าเก่า MESSENGER → FACEBOOK · คีย์ที่ไม่รู้จัก = ไม่มี key (ไม่โชว์คำดิบ)', async () => {
+    mockDb([ord(1, 100), ord(2, 100)])
+    detailExtra = (id) => (id === 'o1' ? { salesChannel: 'MESSENGER' } : { salesChannel: 'WHATEVER' })
+    const snap = await build(['orders', 'sales'], shop({ orders: 2, confirmed: 200, unconfirmed: 0 }))
+    const [r1, r2] = snap.shops[0].rows
+    expect(r1.channel).toBe('FACEBOOK')
+    expect('channel' in r2).toBe(false)
+  })
 })
