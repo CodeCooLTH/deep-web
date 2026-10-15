@@ -36,4 +36,8 @@ describe('preview-data', () => {
     expect(json).toContain('ยอดขายหลังหักค่าใช้จ่าย')
     expect(JSON.stringify(buildPreviewContents(args))).not.toContain('ค่าใช้จ่าย')
   })
+  it('target DETAIL: พรีวิวไม่ build ลิงก์หน้าสรุป (ไม่มี /lr/ ใน JSON)', () => {
+    const t: TemplateV1 = { ...tpl(), button: { ...tpl().button, target: 'DETAIL' } }
+    expect(JSON.stringify(buildPreviewContents({ ...args, template: t }))).not.toContain('/lr/')
+  })
 })

@@ -42,6 +42,7 @@ import TemplateLibrary, { LIBRARY_DROPPABLE_ID, typeOfDraggableId } from './comp
 import { blockTitle, makeBlock } from './lib/block-meta'
 import { confirmProfitExposure } from './lib/confirm-profit'
 import { confirmExpenseExposure } from './lib/confirm-expense'
+import { confirmDetailLinkExposure, DETAIL_LINK_NEEDS_METRIC_HELPER } from './lib/confirm-detail-link'
 import { analyzeDraft, EMPTY_TEXT_HINT, normalizeHiddenButton } from './lib/draft-issues'
 import { GAUGE_COPY, gaugeState } from './lib/gauge-state'
 import { getPrimaryAction } from './lib/primary-action'
@@ -53,7 +54,7 @@ const REASON_ID = 'template-action-reason'
 /** id บล็อกใหม่ — ไม่ใช้ crypto.randomUUID (ต้อง secure context · dev โดเมน http ใช้ไม่ได้) */
 const newBlockId = () => `b${Math.random().toString(36).slice(2, 10)}`
 
-type SaveBody = { template: TemplateV1; expectedVersion: number; confirmProfit?: boolean; confirmExpense?: boolean }
+type SaveBody = { template: TemplateV1; expectedVersion: number; confirmProfit?: boolean; confirmExpense?: boolean; confirmDetailLink?: boolean }
 
 export type TemplateBuilderClientProps = {
   group: GroupDetailDto
@@ -135,6 +136,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
 
   // ─── เพิ่ม/เอาออก/ยืนยันกำไร ───────────────────────────────────────────────────────
   const expenseConfirmed = useRef(false)
+  const detailConfirmed = useRef(false)
 
   async function addBlock(type: BlockType, index?: number) {
     if (readOnly || !libraryAvailability(type, state.draft, ctx).ok) return
@@ -149,6 +151,9 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       const next = { ...state.draft, blocks: [...state.draft.blocks, block] }
       if (!(await confirmExpenseExposure(state.draft, next, expenseConfirmed.current))) return
       expenseConfirmed.current = true
+      // ปุ่มชี้หน้าสรุปที่บันทึกแล้ว: ค่าใช้จ่ายเพิ่งถูกเปิดเผยบนหน้าสาธารณะ → ถามด้วย (server จะบังคับเหมือนกัน)
+      if (!(await confirmDetailLinkExposure(state.saved.template, next, detailConfirmed.current))) return
+      detailConfirmed.current = true
     }
     dispatch({ type: 'add', block, index })
     setAnnouncement(`เพิ่มแล้ว: ${blockTitle(type, word)}`)
@@ -173,6 +178,16 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       dispatch({ type: 'confirmProfit' })
     }
     dispatch({ type: 'setShops', id, patch: { profit: next } })
+  }
+
+  async function setDetailLink(on: boolean) {
+    // ปิดไม่ต้องถาม · ยกเลิก Swal = ไม่ dispatch (สวิตช์ controlled จึงกลับเอง)
+    if (on) {
+      const next: TemplateV1 = { ...state.draft, button: { ...state.draft.button, target: 'DETAIL' } }
+      if (!(await confirmDetailLinkExposure(state.saved.template, next, detailConfirmed.current))) return
+      detailConfirmed.current = true
+    }
+    dispatch({ type: 'setDetailLink', on })
   }
 
   async function confirmTypedProfit() {
@@ -218,7 +233,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
     dispatch({ type: 'saveStart' })
     const sent = { template: normalizeHiddenButton(state.draft), markup: state.markupById } // snapshot ที่ส่งจริง
     if (sent.template !== state.draft) dispatch({ type: 'setButton', patch: { label: sent.template.button.label } })
-    const body: SaveBody = { template: sent.template, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}), ...(expenseConfirmed.current ? { confirmExpense: true } : {}) }
+    const body: SaveBody = { template: sent.template, expectedVersion: state.saved.version, ...(state.profitConfirmed || confirmedNow ? { confirmProfit: true } : {}), ...(expenseConfirmed.current ? { confirmExpense: true } : {}), ...(detailConfirmed.current ? { confirmDetailLink: true } : {}) }
     try {
       const res = await fetch(`/api/line-report/groups/${group.id}/template`, {
         method: 'PUT',
@@ -252,6 +267,11 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
           expenseConfirmed.current = true
           return void save(confirmedNow)
         }
+      } else if (code === 'DETAIL_LINK_CONFIRM_REQUIRED') {
+        if (!detailConfirmed.current && (await confirmDetailLinkExposure(null, state.draft, false))) {
+          detailConfirmed.current = true
+          return void save(confirmedNow)
+        }
       } else if (code === 'TEMPLATE_INVALID') {
         // ตาข่ายชั้นสอง (client ตรวจก่อนแล้ว) — เปิดแถวที่ผิดให้เห็น
         if (typeof data.details?.blockId === 'string') {
@@ -263,6 +283,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
         setServerNote({ forDraft: state.draft, warnings: [], errors: [GAUGE_COPY.over] })
       } else if (code === 'INVALID_SETTINGS' && data.details?.rule === 'METRIC_REQUIRED') {
         setServerNote({ forDraft: state.draft, warnings: [], errors: [METRIC_REQUIRED_HELPER] })
+      } else if (code === 'INVALID_SETTINGS' && data.details?.rule === 'DETAIL_NEEDS_METRIC') {
+        setServerNote({ forDraft: state.draft, warnings: [], errors: [DETAIL_LINK_NEEDS_METRIC_HELPER] })
       } else {
         pacesToast.error('บันทึกเทมเพลตไม่สำเร็จ ข้อความที่แก้ยังอยู่ในหน้านี้ ลองบันทึกอีกครั้ง')
       }
@@ -279,7 +301,7 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
       const res = await fetch(`/api/line-report/groups/${group.id}/test`, { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        pacesToast.success('ส่งตัวอย่างเข้ากลุ่มแล้ว ดูได้ในกลุ่ม LINE')
+        pacesToast.success(`ส่งตัวอย่างเข้ากลุ่มแล้ว ดูได้ในกลุ่ม LINE${state.saved.template.button.target === 'DETAIL' ? ' กดปุ่มบนการ์ดเพื่อดูหน้าสรุปจริง' : ''}`)
         const skipped: { label: string; reason: string }[] = Array.isArray(data.skipped) ? data.skipped : []
         if (skipped.length > 0) {
           const what = skipped.length === 1 ? `ข้าม ${skipped[0].label} (${skipped[0].reason})` : `ข้าม ${skipped.length} รายการ`
@@ -417,6 +439,8 @@ export default function TemplateBuilderClient({ group, shell, lockReason, server
               onShopsProfit={(id, next) => void setShopsProfit(id, next)}
               onConfirmProfit={() => void confirmTypedProfit()}
               onRemove={removeBlock}
+              onDetailLink={(on) => void setDetailLink(on)}
+              detailNeedsMetric={issues.detailNeedsMetric}
             />
           </div>
           <div data-scroll-col className={`${state.view === 'canvas' ? 'hidden md:block' : ''} lg:min-h-0 lg:w-1/3 lg:shrink-0 lg:overflow-y-auto`}>

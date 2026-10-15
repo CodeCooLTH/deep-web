@@ -137,4 +137,13 @@ describe('reducer', () => {
     s = reducer(s, { type: 'setMeasure', id: 'c1', measure: 'orders' })
     expect(s.draft.blocks.find((b) => b.id === 'c1')).toMatchObject({ measure: 'orders' })
   })
+  it('setDetailLink: เปิด = target DETAIL (dirty) · ปิด = ลบ key กลับเท่าเดิมไม่ dirty', () => {
+    let s = fresh()
+    s = reducer(s, { type: 'setDetailLink', on: true })
+    expect(s.draft.button.target).toBe('DETAIL')
+    expect(isDirty(s)).toBe(true)
+    s = reducer(s, { type: 'setDetailLink', on: false })
+    expect('target' in s.draft.button).toBe(false)
+    expect(isDirty(s)).toBe(false)
+  })
 })

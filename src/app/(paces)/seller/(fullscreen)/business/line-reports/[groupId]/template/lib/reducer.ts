@@ -49,6 +49,7 @@ export type Action =
   | { type: 'setMeasure'; id: string; measure: 'sales' | 'orders' }
   | { type: 'setTitle'; title: string }
   | { type: 'setButton'; patch: Partial<TemplateV1['button']> }
+  | { type: 'setDetailLink'; on: boolean }
   | { type: 'open'; id: string | null }
   | { type: 'touch'; id: string }
   | { type: 'touchAll' }
@@ -152,6 +153,11 @@ export function reducer(s: State, a: Action): State {
     }
     case 'setButton':
       return { ...s, draft: { ...s.draft, button: { ...s.draft.button, ...a.patch } } }
+    case 'setDetailLink': {
+      // ปิด = ลบ key (ไม่ใช่ 'DASHBOARD') เพื่อให้เทมเพลตเดิมที่ไม่มี target เปิด-ปิดแล้วกลับมาไม่ dirty
+      const { target: _t, ...rest } = s.draft.button
+      return { ...s, draft: { ...s.draft, button: a.on ? { ...rest, target: 'DETAIL' } : rest } }
+    }
     case 'open':
       return { ...s, openId: a.id }
     case 'touch':

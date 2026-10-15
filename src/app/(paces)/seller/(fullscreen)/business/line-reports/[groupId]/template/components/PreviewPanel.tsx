@@ -18,6 +18,8 @@ import SegControl from './SegControl'
 
 const CAPTION = 'ตัวเลขในตัวอย่างเป็นค่าสมมุติ ข้อความจริงใช้ยอดของร้านคุณ · การตัดบรรทัดใน LINE อาจต่างเล็กน้อย'
 
+const DETAIL_CAPTION = 'ปุ่มในตัวอย่างกดไม่ได้ ลิงก์จริงสร้างตอนส่ง ใช้ “ส่งทดสอบ” เพื่อลองกดดูหน้าสรุป'
+
 export default function PreviewPanel({
   template,
   shops,
@@ -69,7 +71,7 @@ export default function PreviewPanel({
               { value: 'MONTHLY', label: 'รายเดือน', disabled: st.monthlyDisabled },
             ]}
           />
-        <FlexBubbleView className="rounded-xl" contents={contents} caption={CAPTION} />
+        <FlexBubbleView className="rounded-xl" contents={contents} caption={template.button.target === 'DETAIL' ? `${CAPTION} · ${DETAIL_CAPTION}` : CAPTION} />
         {children}
       </div>
     </section>

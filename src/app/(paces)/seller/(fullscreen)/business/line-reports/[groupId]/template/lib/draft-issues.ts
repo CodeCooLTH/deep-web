@@ -6,8 +6,9 @@
  */
 import { validateTemplate } from '@/lib/line-report/validations'
 import { METRIC_REQUIRED_HELPER } from '@/lib/line-report/settings-guards'
-import { authoredLength, DEFAULT_BUTTON_LABEL, deriveFlags, MAX_BUTTON_LABEL, MAX_TEXT_LENGTH, MAX_TITLE_LENGTH, parseMarkup, type TemplateV1 } from '@/lib/line-report/template'
+import { authoredLength, DEFAULT_BUTTON_LABEL, deriveFlags, detailLinkBlocked, MAX_BUTTON_LABEL, MAX_TEXT_LENGTH, MAX_TITLE_LENGTH, parseMarkup, type TemplateV1 } from '@/lib/line-report/template'
 import { profitNeedsConfirmation } from './confirm-profit'
+import { DETAIL_LINK_DRAFT_REASON } from './confirm-detail-link'
 
 export const EMPTY_TEXT_HINT = 'พิมพ์ข้อความก่อนบันทึก'
 export const PROFIT_TOKEN_HINT = 'ตัวแปร {กำไร} ใช้ได้หลังเปิดแสดงกำไรแล้ว กดเพื่อเปิดและยืนยัน'
@@ -27,6 +28,8 @@ export type DraftIssues = {
   profitUnconfirmed: boolean
   /** ไม่มีตัวเลขเลย (กราฟ/ข้อความอย่างเดียว) */
   metricMissing: boolean
+  /** เปิดปุ่มหน้าสรุปไว้แต่ไม่มีบล็อกจำนวนรายการ/ยอดขาย (server: DETAIL_NEEDS_METRIC) */
+  detailNeedsMetric: boolean
   /** เหตุแรกที่บันทึกไม่ได้ — null = บันทึกได้ */
   firstReason: string | null
 }
@@ -56,6 +59,7 @@ export function analyzeDraft(input: {
   }
   const drafted = deriveFlags(draft)
   const metricMissing = !(drafted.showOrders || drafted.showSales || drafted.showCancelled || drafted.showTopProducts || drafted.showProfit)
+  const detailNeedsMetric = draft.button.target === 'DETAIL' && detailLinkBlocked(draft)
   const profitUnconfirmed = profitNeedsConfirmation(deriveFlags(input.saved), drafted, input.profitConfirmed)
 
   const titleLen = draft.title === undefined ? 0 : Array.from(draft.title).length
@@ -64,10 +68,11 @@ export function analyzeDraft(input: {
   if (firstTextError) firstReason = firstTextError
   else if (emptyTextIds.length > 0) firstReason = EMPTY_TEXT_HINT
   else if (metricMissing) firstReason = METRIC_REQUIRED_HELPER
+  else if (detailNeedsMetric) firstReason = DETAIL_LINK_DRAFT_REASON
   else if (profitUnconfirmed) firstReason = PROFIT_TOKEN_HINT
   else if (titleLen > MAX_TITLE_LENGTH) firstReason = `ชื่อรายงานยาวเกิน ${MAX_TITLE_LENGTH} ตัวอักษร`
   else if (draft.button.show && (draft.button.label.trim() === '' || Array.from(draft.button.label).length > MAX_BUTTON_LABEL)) firstReason = `ป้ายปุ่มต้องไม่ว่างและไม่เกิน ${MAX_BUTTON_LABEL} ตัวอักษร`
   else if (input.tooLarge) firstReason = input.tooLargeReason
   else if (!validateTemplate(normalizeHiddenButton(draft)).ok) firstReason = 'ข้อมูลเทมเพลตไม่ถูกต้อง โหลดหน้านี้ใหม่แล้วลองอีกครั้ง'
-  return { textErrors, emptyTextIds, profitUnconfirmed, metricMissing, firstReason }
+  return { textErrors, emptyTextIds, profitUnconfirmed, metricMissing, detailNeedsMetric, firstReason }
 }
