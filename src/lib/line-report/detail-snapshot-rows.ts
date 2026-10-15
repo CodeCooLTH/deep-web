@@ -30,6 +30,8 @@ export interface OrderRowInput {
   buyerContact: string | null
   items: { name: string; qty: number }[]
   room: { name: string } | null
+  imageUrl?: string
+  channel?: string | null
   shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[] | null
 }
 
@@ -92,6 +94,8 @@ export function toOrderRow(i: OrderRowInput, rule: DetailRule): OrderRow {
     phoneMasked: maskPhoneForGuest(i.buyerContact),
     title: titleOf(i),
     amount: i.totalAmount,
+    ...(i.imageUrl ? { imageUrl: i.imageUrl } : {}),
+    ...(i.channel ? { channel: i.channel } : {}),
     axis: axisOf(i),
     bucket: classifyBucket(i, rule),
   }

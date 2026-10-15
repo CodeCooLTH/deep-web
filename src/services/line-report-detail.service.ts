@@ -26,6 +26,8 @@ import {
   type ExpenseRow,
 } from '@/lib/line-report/detail-snapshot'
 import { bucketLabels, classifyBucket, ruleOf, toExpenseRow, toOrderRow } from '@/lib/line-report/detail-snapshot-rows'
+import { resolveOrderSource } from '@/lib/order-source-channel'
+import { lineProductImageUrl } from '@/lib/line-report/product-image'
 import { reportOrderWord, salesTotal } from '@/lib/line/flex-report-blocks'
 import { loadPnl, type PnlLoad, type SweepCache } from '@/services/line-report-summary.service'
 import type { GroupSummary, ReportKind, ShopSummary, Window } from '@/lib/line-report/types'
@@ -151,14 +153,33 @@ async function shopDetail(
         buyerName: true,
         buyerContact: true,
         room: { select: { name: true } },
-        items: { select: { name: true, qty: true } },
+        salesChannel: true,
+        shopChannel: { select: { provider: true } }, // ห้ามเลือก avatarUrl: เป็น URL ภายนอก (Facebook) หน้านี้ห้ามโหลด
+        items: { select: { name: true, qty: true, productId: true } },
       },
     })
+    // รูปสินค้า: รูปแรกของ item แรกที่มี productId · query เดียวต่อร้าน จำกัด shopId (กันสินค้าร้านอื่นหลุด)
+    const firstPid = (d: (typeof detail)[number]) => d.items.find((it) => it.productId)?.productId ?? null
+    const pids = [...new Set(detail.flatMap((d) => firstPid(d) ?? []))]
+    const prods = pids.length
+      ? await prisma.product.findMany({ where: { id: { in: pids }, shopId: s.shop.id }, select: { id: true, images: true } })
+      : []
+    const firstImage = new Map(prods.map((p) => [p.id, Array.isArray(p.images) ? (p.images[0] as string | undefined) : undefined]))
     const byId = new Map(detail.map((d) => [d.id, d]))
     out.rows = top.flatMap((o) => {
       const d = byId.get(o.id)
       if (!d) return []
-      const row = toOrderRow({ ...o, ...d, totalAmount: Number(o.totalAmount) }, rule)
+      const pid = firstPid(d)
+      const img = lineProductImageUrl(pid ? firstImage.get(pid) : undefined)
+      const channel = resolveOrderSource({
+        salesChannel: d.salesChannel,
+        shopChannel: d.shopChannel ? { avatarUrl: null, provider: d.shopChannel.provider } : null,
+        legacyFacebookPageAvatar: null,
+      }).channel
+      const row = toOrderRow(
+        { ...o, ...d, totalAmount: Number(o.totalAmount), imageUrl: img?.startsWith('https://') ? img : undefined, channel },
+        rule,
+      )
       if (exp.sales) return [row]
       const { amount: _a, bucket: _b, ...rest } = row // ปิดยอดขาย = ไม่มียอด/ก้อนใน payload เลย
       return [rest]

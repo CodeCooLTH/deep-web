@@ -23,6 +23,10 @@ const OrderRowSchema = v.strictObject({
   phoneMasked: v.nullable(v.string()),
   title: v.pipe(v.string(), v.maxLength(MAX_TITLE_LEN)),
   amount: v.optional(v.number()),
+  /** รูปสินค้า first-party (ลายเซ็น HMAC) เท่านั้น — ห้ามเก็บ URL ภายนอก (หน้าสาธารณะไม่โหลดของนอก) */
+  imageUrl: v.optional(v.pipe(v.string(), v.startsWith('https://'), v.maxLength(500))),
+  /** คีย์ช่องทางขาย (FACEBOOK/LINE/…) ไม่ใช่รูปเพจ */
+  channel: v.optional(v.pipe(v.string(), v.maxLength(30), v.regex(/^[A-Z_]+$/))),
   axis: v.picklist(['CONFIRMED', 'PENDING', 'RETURNED']),
   bucket: v.optional(v.picklist([0, 1])),
 })

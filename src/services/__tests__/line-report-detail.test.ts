@@ -4,7 +4,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const findMany = vi.fn()
-vi.mock('@/lib/prisma', () => ({ prisma: { order: { findMany: (a: unknown) => findMany(a) } } }))
+const productFindMany = vi.fn()
+vi.mock('@/lib/prisma', () => ({
+  prisma: { order: { findMany: (a: unknown) => findMany(a) }, product: { findMany: (a: unknown) => productFindMany(a) } },
+}))
 const loadPnl = vi.fn()
 vi.mock('@/services/line-report-summary.service', () => ({ loadPnl: (...a: unknown[]) => loadPnl(...a) }))
 
@@ -28,7 +31,11 @@ const summary = (s: ShopSummary): GroupSummary => ({ window: W, shops: [s], prof
 const ord = (i: number, amount: number, status = 'CONFIRMED') => ({
   id: `o${i}`, createdAt: new Date(Date.UTC(2026, 8, 10, 3, 0, 0) - i * 1000), status, totalAmount: amount, serviceClosedAt: null, shipments: [],
 })
-const detailRow = (id: string) => ({ id, buyerName: 'สมชาย', buyerContact: '0812345678', room: null, items: [{ name: 'สินค้า', qty: 1 }] })
+let detailExtra: (id: string) => Record<string, unknown> = () => ({})
+const detailRow = (id: string) => ({
+  id, buyerName: 'สมชาย', buyerContact: '0812345678', room: null, salesChannel: null, shopChannel: null,
+  items: [{ name: 'สินค้า', qty: 1, productId: null }], ...detailExtra(id),
+})
 
 /** query A ตอบ `a` (ครั้งแรก) / `a2` (ครั้งที่สอง) · query B (where.id) ตอบแถวรายละเอียด */
 function mockDb(a: ReturnType<typeof ord>[], a2 = a) {
@@ -45,6 +52,11 @@ const ABC = [ord(1, 100), ord(2, 200, 'PENDING'), ord(3, 120, 'PENDING')]
 const A3 = [ord(1, 300), ord(2, 120, 'PENDING')]
 
 beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_SELLER_URL', 'https://seller.example.test')
+  vi.stubEnv('NEXTAUTH_SECRET', 'test-secret')
+  detailExtra = () => ({})
+  productFindMany.mockReset()
+  productFindMany.mockResolvedValue([])
   findMany.mockReset()
   loadPnl.mockReset()
   loadPnl.mockResolvedValue({
@@ -154,5 +166,47 @@ describe('expenseDetailRows', () => {
       new Date('2026-09-11T00:00:00Z'),
     )
     expect(rows.map((r) => [r.category, r.amount, !!r.system])).toEqual([['ค่าส่ง (จ่ายขนส่ง)', 5, true], ['อื่นๆ', 20, false], ['ค่าเช่า', 10.25, false]])
+  })
+})
+
+describe('รูปสินค้า + ช่องทางขาย', () => {
+  const withItems = (id: string, productId: string | null) => ({ items: [{ name: 'ก', qty: 1, productId }] })
+  it('คีย์ในบัคเก็ต → imageUrl first-party · คีย์ภายนอก/ไม่มีสินค้า → ไม่มี key · query สินค้าจำกัดร้าน', async () => {
+    mockDb([ord(1, 100), ord(2, 100), ord(3, 100)])
+    detailExtra = (id) => withItems(id, id === 'o1' ? 'p1' : id === 'o2' ? 'p2' : null)
+    productFindMany.mockResolvedValue([
+      { id: 'p1', images: ['shops/a/p1.png'] },
+      { id: 'p2', images: ['https://cdn.example.com/x.jpg'] },
+    ])
+    const snap = await build(['orders', 'sales'], shop({ orders: 3, confirmed: 300, unconfirmed: 0 }))
+    const [r1, r2, r3] = snap.shops[0].rows
+    expect(r1.imageUrl).toMatch(/^https:\/\/seller\.example\.test\/api\/line-report\/product-image\?k=/)
+    expect('imageUrl' in r2).toBe(false)
+    expect('imageUrl' in r3).toBe(false)
+    expect(productFindMany).toHaveBeenCalledTimes(1)
+    expect(productFindMany.mock.calls[0][0].where).toEqual({ id: { in: ['p1', 'p2'] }, shopId: 's1' })
+  })
+  it('สินค้าร้านอื่น (ไม่ถูกคืนจาก query ที่จำกัดร้าน) ไม่ได้รูป', async () => {
+    mockDb([ord(1, 100)])
+    detailExtra = (id) => withItems(id, 'other-shop-product')
+    productFindMany.mockResolvedValue([])
+    const snap = await build(['orders', 'sales'], shop({ orders: 1, confirmed: 100, unconfirmed: 0 }))
+    expect('imageUrl' in snap.shops[0].rows[0]).toBe(false)
+  })
+  it('channel: shopChannel ชนะ salesChannel · ไม่มีทั้งคู่ = ไม่มี key · query B ไม่ขอ avatarUrl · payload ไม่มี URL นอกโดเมน', async () => {
+    mockDb([ord(1, 100), ord(2, 100), ord(3, 100)])
+    detailExtra = (id) =>
+      id === 'o1' ? { salesChannel: 'FACEBOOK', shopChannel: { provider: 'LINE', avatarUrl: 'https://scontent.fbcdn.net/a.jpg' } }
+      : id === 'o2' ? { salesChannel: 'TIKTOK' } : {}
+    const snap = await build(['orders', 'sales'], shop({ orders: 3, confirmed: 300, unconfirmed: 0 }))
+    const [r1, r2, r3] = snap.shops[0].rows
+    expect(r1.channel).toBe('LINE')
+    expect(r2.channel).toBe('TIKTOK')
+    expect('channel' in r3).toBe(false)
+    const b = findMany.mock.calls.map((c) => c[0]).find((a) => a.where.id)
+    expect(b.select.shopChannel).toEqual({ select: { provider: true } })
+    const j = JSON.stringify(snap)
+    expect(j).not.toContain('fbcdn')
+    for (const u of j.match(/https?:\/\/[^"\\]+/g) ?? []) expect(u.startsWith('https://seller.example.test/')).toBe(true)
   })
 })
