@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — โต๊ะแชท (00077 Chat Desk)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // โทเคนจาก src/assets/css/config/_root.css (Paces skin ของ Deep) — ไม่มีม่วง ไม่มีเขียว
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+    colors: {
+      primary: '#236dc9', 'primary-ink': '#1e3a8a',
+      warning: '#f9bf59', 'warning-ink': '#92400e',
+      danger: '#f7577e', 'danger-ink': '#7f1d1d',
+      info: '#5bc3e1', 'info-ink': '#1e40af',
+      dark: '#313a46', light: '#eef2f7', body: '#f6f7fb',
+      default: { 100: '#f6f7fb', 200: '#eef2f7', 300: '#e7e9eb', 400: '#627189', 500: '#58626b', 600: '#4a5358', 700: '#40454a', 800: '#343a40', 900: '#313a46' },
+    },
+  } } }
+</script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.169.0/build/three.module.js" } }</script>
+<style>
+  body { font-family: Anuphan, sans-serif; }
+  iconify-icon { display: inline-block; vertical-align: -0.125em; }
+  /* ── primitive จำลอง Paces ── */
+  .card { background: #fff; border-radius: .5rem; box-shadow: 0 1px 2px rgba(49,58,70,.07), 0 2px 6px rgba(49,58,70,.06); }
+  .card-header { padding: .7rem 1rem; border-bottom: 1px dashed #e7e9eb; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .card-title { font-size: .875rem; font-weight: 600; color: #313a46; }
+  .btn-icon { width: 2.25rem; height: 2.25rem; display: inline-grid; place-items: center; color: #313a46; background: #fff; position: relative; }
+  .btn-icon:hover { background: #eef2f7; }
+  .chip { font-size: .75rem; border-radius: 999px; padding: .3rem .7rem; border: 1px solid #e7e9eb; background: #eef2f7; color: #40454a; display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; }
+  .chip.on { background: rgba(35,109,201,.15); color: #1e3a8a; border-color: rgba(35,109,201,.35); }
+  /* ── กรอบอุปกรณ์ scale ลง ── */
+  .dev { margin: 0; width: calc(var(--w) * var(--s)); }
+  .dev-box { width: calc(var(--w) * var(--s)); height: calc(var(--h) * var(--s)); overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px #cfd5df, 0 10px 30px rgba(49,58,70,.15); background: #f6f7fb; }
+  .dev-screen { width: var(--w); height: var(--h); transform: scale(var(--s)); transform-origin: 0 0; position: relative; overflow: hidden; background: #f6f7fb; }
+  .dev figcaption { margin-top: .6rem; font-size: .85rem; font-weight: 600; color: #313a46; }
+  .dev figcaption span { font-weight: 400; color: #627189; }
+  /* ── ป้ายลอยบนฉาก ── */
+  .lbls { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; left: 0; top: 0; pointer-events: auto; will-change: transform; }
+  .pill { display: inline-flex; align-items: center; gap: .3rem; background: #fff; box-shadow: 0 1px 3px rgba(49,58,70,.18); border-radius: 999px; padding: .2rem .6rem; font-size: .75rem; font-weight: 600; color: #313a46; white-space: nowrap; max-width: 14rem; }
+  .pill .t { overflow: hidden; text-overflow: ellipsis; }
+  .hide-nums .lbl-num { display: none !important; }
+  .dot-on { width: .5rem; height: .5rem; border-radius: 99px; background: #236dc9; flex: none; }
+  .dot-off { width: .5rem; height: .5rem; border-radius: 99px; border: 1.5px solid #627189; flex: none; }
+  .scroll-thin::-webkit-scrollbar { width: 6px; } .scroll-thin::-webkit-scrollbar-thumb { background: #d5dae2; border-radius: 9px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="bg-[#e4e8ef] text-default-900 p-6">
+
+<!-- ═════════ หัวไฟล์ ═════════ -->
+<div class="max-w-[1500px] mx-auto mb-6 card p-5">
+  <div class="flex items-start gap-4">
+    <span class="size-10 rounded-full bg-primary/15 text-primary-ink grid place-items-center flex-none"><iconify-icon icon="tabler:info-circle" width="22"></iconify-icon></span>
+    <div class="flex-1 min-w-0">
+      <h1 class="text-lg font-bold">ม็อกอัพหน้า "โต๊ะแชท" (00077 Chat Desk) · ฝั่งผู้ขาย</h1>
+      <p class="text-sm text-default-700 mt-1">ไฟล์นี้เป็นม็อกอัพไว้ให้ดูก่อนเริ่มเขียนโค้ดจริง ในฉาก 3D ตัวคนยังเป็นแคปซูลกับหัวกลมไปก่อน ฉากจริงจะใช้โมเดลตัวละคร CC0 (KayKit/Kenney) แทน <b>ข้อมูลทุกตัวเป็นตัวอย่าง</b> และตั้งชื่อร้าน เพจ แอดมิน ให้ยาวเท่าชื่อที่ยาวที่สุดบน prod (34/37/26 ตัวอักษร) จะได้เห็นว่าชื่อถูกตัดตรงไหนบ้าง</p>
+      <p class="text-sm text-default-700 mt-1">ลองกดได้ในกรอบ Desktop 3D ได้แก่ หมุนมุมมอง · ซูม · ตัวกรอง · ตัวเลข · เต็มจอ · สลับ "ฉาก 3D | รายการ" · ปุ่ม ⓘ ในการ์ดภาพรวม · คลิกตัวลูกค้าในฉากเพื่อเปิดแผงอ่านแชท ส่วนตัวกรองในม็อกอัพเลือกชิปได้ แต่ยังไม่กรองข้อมูลจริง</p>
+    </div>
+    <button id="btnReal" class="flex-none text-sm font-medium rounded-md px-3 py-2 bg-light hover:bg-default-300 inline-flex items-center gap-1.5"><iconify-icon icon="tabler:zoom-in"></iconify-icon><span>ดูขนาดจริง</span></button>
+  </div>
+</div>
+
+<!-- ═════════ แถวที่ 1 ═════════ -->
+<div class="max-w-[1500px] mx-auto flex flex-wrap gap-6 items-start mb-10" id="row1">
+  <figure class="dev" style="--w:1440px;--h:900px;--s:.55"><div class="dev-box"><div class="dev-screen" id="fDesk"></div></div>
+    <figcaption>Desktop 1440 · ฉาก 3D <span>— wireframe 1 · การ์ด ①–④ ลอยซ้าย · คลิกลูกค้าได้</span></figcaption></figure>
+  <figure class="dev" style="--w:834px;--h:1112px;--s:.445"><div class="dev-box"><div class="dev-screen" id="fTab"></div></div>
+    <figcaption>Tablet 834 · ฉาก 3D <span>— wireframe 2 · แถบสรุปล่าง</span></figcaption></figure>
+  <figure class="dev" style="--w:390px;--h:844px;--s:.587"><div class="dev-box"><div class="dev-screen" id="fMob"></div></div>
+    <figcaption>Mobile 390 · รายการ 2D <span>— wireframe 6 (ค่าตั้งต้น)</span></figcaption></figure>
+</div>
+
+<!-- ═════════ แถวที่ 2 ═════════ -->
+<div class="max-w-[1500px] mx-auto flex flex-wrap gap-6 items-start" id="row2">
+  <figure class="dev" style="--w:1440px;--h:900px;--s:.55"><div class="dev-box"><div class="dev-screen" id="fDesk2d"></div></div>
+    <figcaption>Desktop 1440 · โหมดรายการ 2D <span>— wireframe 4 · แสดงครบทุกคน</span></figcaption></figure>
+  <figure class="dev" style="--w:390px;--h:844px;--s:.587"><div class="dev-box"><div class="dev-screen" id="fSheet"></div></div>
+    <figcaption>Mobile 390 · แผงอ่านแชท <span>— bottom-sheet อ่านอย่างเดียว</span></figcaption></figure>
+</div>
+
+<script>
+/* ═════════ ข้อมูลตัวอย่าง (ชุดเดียว ทุกกรอบใช้ร่วมกัน ตัวเลขทุกตัวคำนวณจากชุดนี้) ═════════ */
+const SHOP = 'ร้านบ้านสวนอะไหล่ประดับยนต์ คลอง 4'            // 34 ตัวอักษร
+const PG = { bt: 'BT Premium Xenon คลอง4 ธัญบุรี สาขา 2',      // 37 ตัวอักษร
+             bs: 'บ้านสวนอะไหล่ยนต์', line: '@baansuan-parts', ig: 'baansuan.autoparts', deep: 'หน้าร้าน Deep' }
+const CH = {
+  messenger: { name: 'Messenger', icon: 'tabler:brand-messenger', bar: 'bg-info' },
+  line:      { name: 'LINE',      icon: 'tabler:brand-line',      bar: 'bg-default-400' },
+  instagram: { name: 'Instagram', icon: 'tabler:brand-instagram', bar: 'bg-dark' },
+  deep:      { name: 'Deep',      icon: 'tabler:message-circle',  bar: 'bg-primary' },
+}
+const ADMINS = [
+  { id: 'a1', name: 'ปาล์มมี่', online: true },
+  { id: 'a2', name: 'ธนพล ศักดิ์สิทธิ์ไพศาลวงศ์', online: true },   // 26 ตัวอักษร
+  { id: 'a3', name: 'นิด', online: false },
+  { id: 'a4', name: 'โอ๊ต', online: false },
+]
+const DESKS = [
+  { id: 'a1', kind: 'admin', admin: ADMINS[0] },
+  { id: 'a2', kind: 'admin', admin: ADMINS[1] },
+  { id: 'a3', kind: 'admin', admin: ADMINS[2] },
+  { id: 'out',  kind: 'out',  name: 'ตอบจากนอกระบบ', icon: 'tabler:device-mobile' },
+  { id: 'meta', kind: 'meta', name: 'Meta AI / กล่องของเพจ', icon: 'tabler:sparkles' },
+  { id: 'bot',  kind: 'bot',  name: 'บอท Deep', icon: 'tabler:robot' },
+]
+const c = (n, ch, page, st, min, desk) => ({ n, ch, page, st, min, desk })
+const CUSTOMERS = [
+  // เลานจ์ — รอคำตอบ (เรียงรอนานสุดก่อน)
+  c('Kanokwan Srisuwan (น้องแพรว)', 'messenger', 'bt', 'over', 12),
+  c('สมหญิง ก.', 'messenger', 'bs', 'over', 8),
+  c('Mr. Jonathan Wattanapanich', 'instagram', 'ig', 'wait', 4),
+  c('มานะ ท.', 'line', 'line', 'wait', 3),
+  c('Nok Natcha', 'messenger', 'bt', 'wait', 2),
+  c('ป้าศรี ขายส่งผลไม้ ตลาดไท', 'line', 'line', 'wait', 1),
+  c('Beam', 'messenger', 'bs', 'wait', 1),
+  // โต๊ะ — ร้านเพิ่งตอบ (min = ตอบเมื่อกี่นาทีก่อน)
+  c('สมชาย ใจดี', 'messenger', 'bt', 'replied', 1, 'a1'),
+  c('Ploy', 'line', 'line', 'replied', 1, 'a1'),
+  c('เจ๊หน่อย ร้านกาแฟหน้าปากซอย', 'messenger', 'bt', 'replied', 2, 'a1'),
+  c('Tony K.', 'messenger', 'bs', 'replied', 2, 'a1'),
+  c('อรทัย', 'deep', 'deep', 'replied', 3, 'a1'),
+  c('Golf Phuwanat', 'messenger', 'bt', 'replied', 1, 'a2'),
+  c('แม่บ้านจันทร์', 'line', 'line', 'replied', 2, 'a2'),
+  c('Arm', 'instagram', 'ig', 'replied', 3, 'a3'),
+  c('ลุงชัย', 'messenger', 'bt', 'replied', 1, 'out'),
+  c('Fah', 'messenger', 'bs', 'replied', 1, 'out'),
+  c('วิไลวรรณ', 'messenger', 'bt', 'replied', 1, 'out'),
+  c('James Hunt', 'messenger', 'bt', 'replied', 2, 'out'),
+  c('ต้น ช่างแอร์', 'line', 'line', 'replied', 2, 'out'),
+  c('Mint', 'instagram', 'ig', 'replied', 3, 'out'),
+  c('เปิ้ล', 'line', 'line', 'replied', 3, 'out'),
+  c('Somsak P.', 'messenger', 'bs', 'replied', 2, 'meta'),
+]
+const LOUNGE = CUSTOMERS.filter((x) => !x.desk)
+const atDesk = (id) => CUSTOMERS.filter((x) => x.desk === id)
+const STATS = {
+  wait: LOUNGE.length,
+  over: LOUNGE.filter((x) => x.st === 'over').length,
+  online: `${ADMINS.filter((a) => a.online).length}/${ADMINS.length}`,
+  free: ADMINS.filter((a) => a.online && atDesk(a.id).length === 0).length,
+  talking: CUSTOMERS.filter((x) => x.desk && x.desk !== 'meta' && x.desk !== 'bot').length,
+  closed: 18, first: '3 น.', avg: '5 น.', unattributed: 41,
+}
+const CH_COUNT = Object.keys(CH).map((k) => ({ k, n: CUSTOMERS.filter((x) => x.ch === k).length }))
+  .filter((x) => x.n > 0).sort((a, b) => b.n - a.n)
+const TOTAL = CUSTOMERS.length
+const FEED = [
+  { who: 'Beam', ev: 'in', t: '12 วิ' },
+  { who: 'สมชาย ใจดี', ev: 'desk', desk: 'ปาล์มมี่', t: '40 วิ' },
+  { who: 'Pim Pimchanok', ev: 'out', t: '1 น.' },
+  { who: 'เปิ้ล', ev: 'desk', desk: 'ตอบจากนอกระบบ', t: '2 น.' },
+  { who: 'ป้าศรี ขายส่งผลไม้ ตลาดไท', ev: 'in', t: '3 น.' },
+]
+const GLOSS = {
+  online: 'สมาชิกที่เปิดหน้าแชทของร้านนี้อยู่ตอนนี้ นับต่อคน เปิดหลายแท็บนับเป็น 1 คน. ใครที่ตอบจากแอป Messenger หรือ Business Suite โดยไม่ได้เปิดหน้าแชทของ Deep จะไม่ถูกนับ และผู้ที่เปิดแค่หน้าโต๊ะแชทก็ไม่ถูกนับ',
+  free: 'สมาชิกที่ออนไลน์และตอนนี้ไม่มีแชทในมือ (ระบบยังไม่มีการมอบแชท จึงไม่มีโควตาต่อคน)',
+  talking: 'ห้องที่ร้านเพิ่งตอบภายใน 3 นาที ที่โต๊ะแอดมินกับโต๊ะตอบจากนอกระบบ. ไม่นับ Meta AI และบอท',
+  closed: 'ห้องที่ปิดงานตั้งแต่ 00:00 น. วันนี้ (เวลาไทย) และยังปิดอยู่. ห้องที่ลูกค้าทักกลับมาแล้วไม่นับ',
+  first: 'เวลาตั้งแต่ข้อความแรกของลูกค้าถึงคำตอบแรกของคน (ไม่นับบอทและบรรทัดระบบ) ของวันนี้ ตรงกับรายงานผลงานแอดมิน นับเฉพาะคำตอบที่ระบุตัวคนได้',
+  avg: 'เวลารอเฉลี่ยของการตอบแต่ละครั้งของวันนี้ ตรงกับรายงานผลงานแอดมิน และปิดช่วงรอด้วยคำตอบของคนที่ระบุตัวได้เท่านั้น. ต่างจาก "รอคำตอบ" ที่ถือว่าคำตอบทุกแบบ (รวมตอบจากนอกระบบ) คือตอบแล้ว',
+}
+
+/* ═════════ ชิ้นส่วน DOM ═════════ */
+const I = (icon, w = 16, cls = '') => `<iconify-icon icon="${icon}" width="${w}" height="${w}" class="${cls}" aria-hidden="true"></iconify-icon>`
+const esc = (s) => s.replace(/"/g, '&quot;')
+const ST = {
+  wait:    { label: 'รอคำตอบ',     chip: 'bg-warning/15 text-warning-ink', icon: 'tabler:clock' },
+  over:    { label: 'เกินเวลาตอบ',  chip: 'bg-danger/15 text-danger-ink',   icon: 'tabler:alert-triangle' },
+  replied: { label: 'ร้านเพิ่งตอบ', chip: 'bg-info/15 text-info-ink',       icon: 'tabler:messages' },
+}
+const chip = (st) => `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${ST[st].chip}">${I(ST[st].icon, 12)}${ST[st].label}</span>`
+const chMark = (ch, size = 'size-6', w = 14) => `<span class="${size} rounded-full bg-light text-default-700 grid place-items-center flex-none" title="${CH[ch].name}" role="img" aria-label="${CH[ch].name}">${I(CH[ch].icon, w)}</span>`
+const deskName = (d) => d.admin ? d.admin.name : d.name
+
+function headerRow({ compact = false, mobile = false } = {}) {
+  const seg = mobile
+    ? `<div class="inline-flex bg-light p-1 rounded-lg text-sm" role="group" aria-label="มุมมอง"><button class="px-3 h-9 rounded-md bg-white shadow-sm font-semibold" aria-pressed="true">รายการ</button><button class="px-3 h-9 rounded-md text-default-700 inline-flex items-center gap-1" aria-pressed="false">${I('tabler:cube', 14)}เปิดฉาก 3D</button></div>`
+    : `<div class="inline-flex bg-light p-1 rounded-lg text-sm js-seg" role="group" aria-label="มุมมอง"><button data-mode="3d" class="px-3 h-8 rounded-md font-semibold" aria-pressed="true">ฉาก 3D</button><button data-mode="2d" class="px-3 h-8 rounded-md" aria-pressed="false">รายการ</button></div>`
+  const shop = `<button class="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-white shadow-sm text-sm font-medium min-w-0 ${mobile ? 'flex-1 max-w-full' : 'max-w-[18rem]'}" aria-label="เลือกร้าน">${I('tabler:building-store', 16, 'text-default-400 flex-none')}<span class="truncate" title="${SHOP}">${SHOP}</span>${I('tabler:chevron-down', 14, 'flex-none')}</button>`
+  return `<div class="flex items-center gap-3 ${mobile ? 'flex-wrap' : ''}">
+    <div class="${mobile ? 'flex-none' : 'min-w-0 mr-auto'}"><h4 class="text-lg font-semibold leading-tight">โต๊ะแชท</h4><div class="text-xs text-default-400">แชท › โต๊ะแชท</div></div>
+    ${shop}${mobile ? `<div class="w-full">${seg}</div>` : seg}</div>`
+}
+
+function cardShop(pfx) {
+  return `<div class="card"><div class="p-3">
+    <div class="flex items-center gap-2"><span class="size-8 rounded-md bg-primary/15 text-primary-ink grid place-items-center flex-none">${I('tabler:building-store', 16)}</span>
+      <button class="min-w-0 flex-1 text-start inline-flex items-center gap-1 font-semibold text-sm" aria-label="เลือกร้าน"><span class="truncate" title="${SHOP}">${SHOP}</span>${I('tabler:chevron-down', 14, 'flex-none')}</button></div>
+    <div class="flex items-end justify-between mt-2">
+      <div><div class="text-2xl font-bold tabular-nums leading-none js-clock">21:17:08</div>
+      <div class="text-xs text-default-700 mt-1">อัปเดตล่าสุด <span class="tabular-nums">21:17:08</span></div></div>
+      <button class="btn-icon rounded-md bg-light" aria-label="ดึงข้อมูลใหม่">${I('tabler:refresh', 18)}</button>
+    </div></div></div>`
+}
+
+function cardOverview(pfx) {
+  const row = (k, icon, label, val) => `
+    <div class="py-2">
+      <div class="flex items-center gap-2 text-sm">${I(icon, 16, 'text-default-400')}<span class="text-default-700">${label}</span>
+        <button class="text-default-400 hover:text-primary js-info" aria-expanded="false" aria-controls="${pfx}-g-${k}" aria-label="คำอธิบาย ${label}">${I('tabler:info-circle', 15)}</button>
+        <span class="ms-auto font-semibold tabular-nums text-default-900">${val}</span></div>
+      <p id="${pfx}-g-${k}" class="hidden mt-1.5 text-xs leading-relaxed text-default-700 bg-default-100 rounded-md p-2">${GLOSS[k]}</p>
+    </div>`
+  return `<div class="card"><div class="card-header"><span class="card-title">ภาพรวมห้องแชท</span></div>
+    <div class="grid grid-cols-2 divide-x divide-default-300 border-b border-dashed border-default-300">
+      <div class="p-3"><div class="text-xs text-default-700 flex items-center gap-1">${I('tabler:clock', 13)}รอคำตอบ</div><div class="text-xl font-bold tabular-nums mt-0.5">${STATS.wait}</div></div>
+      <div class="p-3"><div class="text-xs text-default-700 flex items-center gap-1">${I('tabler:alert-triangle', 13)}เกินเวลาตอบ</div><div class="text-xl font-bold tabular-nums mt-0.5 ${STATS.over > 0 ? 'text-danger-ink' : ''}">${STATS.over}</div></div>
+    </div>
+    <div class="px-3 divide-y divide-default-200">
+      ${row('online', 'tabler:users', 'ออนไลน์', STATS.online)}
+      ${row('free', 'tabler:user', 'ว่างรับแชท', STATS.free)}
+      ${row('talking', 'tabler:messages', 'กำลังคุย', STATS.talking)}
+      ${row('closed', 'tabler:circle-check', 'ปิดงานวันนี้', STATS.closed)}
+      ${row('first', 'tabler:clock-play', 'ตอบแรกเฉลี่ย', STATS.first)}
+      ${row('avg', 'tabler:hourglass', 'รอเฉลี่ย', STATS.avg)}
+    </div>
+    <div class="px-3 pb-3 pt-1">
+      <p class="text-xs text-warning-ink flex gap-1">${I('tabler:alert-circle', 14, 'flex-none mt-px')}<span>นับเฉพาะคำตอบที่ระบุตัวคนได้ · ตอบจากนอกระบบ ${STATS.unattributed} ข้อความไม่รวม</span></p>
+      <a href="#" class="text-xs font-medium text-primary inline-flex items-center gap-1 mt-2">ดูรายงานผลงานแอดมิน ${I('tabler:arrow-right', 13)}</a>
+    </div></div>`
+}
+
+function cardChannels() {
+  return `<div class="card"><div class="card-header"><div><div class="card-title">แชทแยกตามช่องทาง</div><div class="text-xs text-default-400">ห้องที่อยู่บนฉากตอนนี้</div></div></div>
+    <div class="p-3"><div class="flex h-2.5 rounded-full overflow-hidden bg-light gap-px">${CH_COUNT.map((x) => `<div class="${CH[x.k].bar}" style="width:${x.n / TOTAL * 100}%"></div>`).join('')}</div>
+    <ul class="mt-3 space-y-2">${CH_COUNT.map((x) => `<li class="flex items-center gap-2 text-sm"><span class="size-2.5 rounded-sm ${CH[x.k].bar}"></span>${chMark(x.k, 'size-5', 12)}<span class="text-default-700">${CH[x.k].name}</span><span class="ms-auto font-semibold tabular-nums">${x.n}</span><span class="w-9 text-end text-xs text-default-400 tabular-nums">${Math.round(x.n / TOTAL * 100)}%</span></li>`).join('')}</ul></div></div>`
+}
+
+function cardFeed() {
+  const m = { in: ['tabler:walk', 'bg-default-200 text-default-700'], desk: ['tabler:messages', 'bg-info/15 text-info-ink'], out: ['tabler:door-exit', 'bg-default-200 text-default-700'] }
+  const txt = (f) => f.ev === 'in' ? 'เข้ามารอคำตอบ' : f.ev === 'out' ? 'ออกจากฉาก' : `ไปที่โต๊ะ ${f.desk}`
+  return `<div class="card"><div class="card-header"><div><div class="card-title">ความเคลื่อนไหวล่าสุด</div><div class="text-xs text-default-400">แสดงเฉพาะเหตุการณ์ที่เกิดหลังเปิดหน้านี้</div></div></div>
+    <ul class="divide-y divide-default-200 px-3">${FEED.map((f) => `<li class="py-2 flex items-center gap-2.5"><span class="size-8 rounded-full grid place-items-center flex-none ${m[f.ev][1]}">${I(m[f.ev][0], 16)}</span>
+      <div class="min-w-0 flex-1 text-sm"><span class="font-semibold truncate inline-block max-w-full align-bottom" title="${esc(f.who)}">${f.who}</span> <span class="text-default-700">${txt(f)}</span></div>
+      <span class="text-xs text-default-400 tabular-nums flex-none">${f.t}</span></li>`).join('')}</ul></div>`
+}
+const cardsAll = (pfx) => cardShop(pfx) + cardOverview(pfx) + cardChannels() + cardFeed()
+
+function legend() {
+  const it = (icon, tint, label) => `<span class="inline-flex items-center gap-1.5 whitespace-nowrap"><span class="size-5 rounded-full grid place-items-center ${tint}">${I(icon, 12)}</span>${label}</span>`
+  return `<div class="card px-3 py-2 text-xs text-default-700 space-y-1.5">
+    <div class="flex items-center gap-3"><span class="font-semibold text-default-900 w-10">ลูกค้า</span>
+      ${it('tabler:walk', 'bg-default-200 text-default-700', 'เดินเข้า/ออก')}${it('tabler:clock', 'bg-warning/15 text-warning-ink', 'รอคำตอบ')}${it('tabler:messages', 'bg-info/15 text-info-ink', 'ร้านเพิ่งตอบ (ภายใน 3 นาที)')}${it('tabler:alert-triangle', 'bg-danger/15 text-danger-ink', 'เกินเวลาตอบ')}</div>
+    <div class="flex items-center gap-3"><span class="font-semibold text-default-900 w-10">โต๊ะ</span>
+      ${it('tabler:user', 'bg-primary/15 text-primary-ink', 'แอดมิน')}${it('tabler:device-mobile', 'bg-default-200 text-default-700', 'ตอบจากนอกระบบ')}${it('tabler:sparkles', 'bg-default-300 text-default-800', 'Meta AI / กล่องของเพจ')}${it('tabler:robot', 'bg-dark text-white', 'บอท Deep')}</div></div>`
+}
+
+function toolbar(full = true) {
+  return `<div class="inline-flex rounded-lg shadow bg-white overflow-hidden divide-x divide-default-200" role="toolbar" aria-label="เครื่องมือฉาก">
+    <button class="btn-icon js-rot" aria-label="หมุนมุมมอง">${I('tabler:rotate-clockwise', 18)}</button>
+    <button class="btn-icon js-zout" aria-label="ซูมออก">${I('tabler:zoom-out', 18)}</button>
+    <button class="btn-icon js-zin" aria-label="ซูมเข้า">${I('tabler:zoom-in', 18)}</button>
+    <span class="w-1.5 bg-default-200"></span>
+    <button class="btn-icon js-filter" aria-label="ตัวกรอง" aria-expanded="false">${I('tabler:filter', 18)}<span class="absolute top-0.5 end-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] leading-4 font-semibold">2</span></button>
+    <button class="btn-icon js-nums bg-primary/15 text-primary" aria-label="ตัวเลข" aria-pressed="true">${I('tabler:numbers', 18)}</button>
+    <button class="btn-icon js-fs" aria-label="เต็มจอ">${I('tabler:maximize', 18)}</button></div>`
+}
+
+function filterPopover() {
+  const grp = (title, items) => `<div class="mb-3"><div class="text-xs font-semibold text-default-700 mb-1.5">${title}</div><div class="flex flex-wrap gap-1.5">${items}</div></div>`
+  const ch = (label, on, icon) => `<button class="chip js-chip ${on ? 'on' : ''}" aria-pressed="${on}">${icon ? I(icon, 13) : ''}<span class="truncate">${label}</span></button>`
+  return `<div class="js-pop hidden absolute end-3 top-16 z-30 card w-80 p-4">
+    <div class="flex items-center justify-between mb-3"><span class="card-title">ตัวกรอง</span><button class="text-default-400 js-popclose" aria-label="ปิด">${I('tabler:x', 18)}</button></div>
+    ${grp('แพลตฟอร์ม', Object.keys(CH).map((k) => ch(CH[k].name, false, CH[k].icon)).join(''))}
+    ${grp('เพจ', Object.values(PG).map((p, i) => ch(p, i === 0)).join(''))}
+    ${grp('แอดมิน', ADMINS.map((a, i) => ch(a.name, i === 0)).join(''))}
+    <div class="flex gap-2 pt-3 border-t border-dashed border-default-300"><button class="flex-1 h-9 rounded-md bg-light text-sm font-medium js-clear">ล้างตัวกรอง</button><button class="flex-1 h-9 rounded-md bg-primary text-white text-sm font-medium js-popclose">ใช้ตัวกรอง</button></div></div>`
+}
+
+const MSGS = [
+  { me: 0, t: 'สวัสดีค่ะ สนใจไฟ Xenon สำหรับ Honda City ปี 2019 ค่ะ', at: 'เมื่อวาน 19:42' },
+  { me: 1, t: 'สวัสดีค่ะ รุ่นนี้มีชุด 6000K ราคา 2,490 บาท รวมติดตั้งค่ะ', at: 'เมื่อวาน 19:50', by: 'ปาล์มมี่' },
+  { me: 0, t: 'ติดตั้งที่ร้านใช้เวลานานไหมคะ', at: 'เมื่อวาน 19:51' },
+  { me: 1, t: 'ประมาณ 40 นาทีค่ะ จองคิวล่วงหน้าได้นะคะ', at: 'เมื่อวาน 19:55', by: 'ตอบจากนอกระบบ' },
+  { me: 0, del: 1, at: '21:01' },
+  { me: 0, img: 1, at: '21:03' },
+  { me: 0, t: 'วันเสาร์นี้ร้านเปิดกี่โมงคะ จะเข้าไปช่วงบ่ายพร้อมแฟน', at: '21:04' },
+  { me: 0, t: 'ยังอยู่ไหมคะ รอคำตอบอยู่ค่ะ', at: '21:05' },
+]
+function chatPanelBody(cu) {
+  const b = (m) => `<div class="flex ${m.me ? 'justify-end' : ''}"><div class="max-w-[78%]">
+    ${m.del ? `<div class="rounded-2xl rounded-bl-sm px-3 py-2 text-sm italic text-default-400 border border-dashed border-default-300 inline-flex items-center gap-1">${I('tabler:trash', 14)}ข้อความถูกลบ</div>`
+      : m.img ? `<div class="rounded-2xl rounded-bl-sm bg-light w-40 h-28 grid place-items-center text-default-400">${I('tabler:photo', 28)}</div>`
+      : `<div class="rounded-2xl px-3 py-2 text-sm ${m.me ? 'bg-primary text-white rounded-br-sm' : 'bg-light text-default-900 rounded-bl-sm'}">${m.t}</div>`}
+    <div class="text-[11px] text-default-400 mt-0.5 ${m.me ? 'text-end' : ''}">${m.by ? m.by + ' · ' : ''}${m.at}</div></div></div>`
+  return `
+  <div class="p-4 border-b border-dashed border-default-300">
+    <div class="flex items-start gap-2">${chMark(cu.ch, 'size-9', 18)}
+      <div class="min-w-0 flex-1"><div class="font-semibold truncate" title="${esc(cu.n)}">${cu.n}</div>
+        <div class="text-xs text-default-700 truncate" title="${esc(PG[cu.page])}">${CH[cu.ch].name} · ${PG[cu.page]}</div></div>
+      <button class="btn-icon rounded-md js-close" aria-label="ปิดแผง">${I('tabler:x', 18)}</button></div>
+    <div class="flex items-center gap-2 mt-2">${chip(cu.st)}<span class="text-xs text-default-700 tabular-nums">${cu.st === 'replied' ? `ร้านตอบเมื่อ ${cu.min} น. ก่อน` : `รอมา ${cu.min} น.`}</span></div>
+  </div>
+  <div class="mx-4 mt-3 rounded-md bg-default-100 px-3 py-2 text-xs text-default-700 flex gap-1.5">${I('tabler:eye', 14, 'flex-none mt-px')}<span>อ่านอย่างเดียว — ห้องนี้ยังเป็น "ยังไม่อ่าน" ในกล่องข้อความ</span></div>
+  <div class="flex-1 overflow-y-auto scroll-thin p-4 space-y-3">${MSGS.map(b).join('')}</div>
+  <div class="p-4 border-t border-dashed border-default-300"><a href="#" class="w-full h-10 rounded-md bg-primary hover:bg-[#1d5eae] text-white text-sm font-medium inline-flex items-center justify-center gap-1.5">${I('tabler:message-circle', 16)}เปิดในหน้าข้อความ</a></div>`
+}
+
+/* ── โหมดรายการ 2D (เดสก์ท็อป) ── */
+function list2dDesktop() {
+  const rows = LOUNGE.map((x, i) => `<tr class="hover:bg-default-100 cursor-pointer js-row" data-i="${i}">
+    <td class="py-2.5 px-4"><div class="flex items-center gap-2 min-w-0">${chMark(x.ch)}<span class="font-medium truncate max-w-[14rem]" title="${esc(x.n)}">${x.n}</span></div></td>
+    <td class="py-2.5 px-4 text-default-700"><span class="truncate inline-block max-w-[16rem] align-bottom" title="${esc(PG[x.page])}">${CH[x.ch].name} · ${PG[x.page]}</span></td>
+    <td class="py-2.5 px-4 tabular-nums">${x.min} น.</td><td class="py-2.5 px-4">${chip(x.st)}</td></tr>`).join('')
+  const deskCard = (d) => {
+    const list = atDesk(d.id)
+    const head = d.kind === 'admin'
+      ? `<span class="${d.admin.online ? 'dot-on' : 'dot-off'}"></span><span class="truncate" title="${esc(d.admin.name)}">${d.admin.name}</span><span class="text-xs font-normal text-default-400 flex-none">${d.admin.online ? 'ออนไลน์' : 'ออฟไลน์'}</span>`
+      : `${I(d.icon, 16, 'text-default-700 flex-none')}<span class="truncate">${d.name}</span>`
+    return `<div class="card ${d.kind === 'admin' && !d.admin.online ? 'opacity-70' : ''}"><div class="card-header"><span class="card-title flex items-center gap-1.5 min-w-0">${head}</span><span class="text-xs text-default-700 flex-none">แชทในมือ <b class="tabular-nums">${list.length}</b></span></div>
+      ${list.length ? `<ul class="divide-y divide-default-200 px-3">${list.map((x) => `<li class="py-2 flex items-center gap-2 text-sm">${chMark(x.ch, 'size-5', 12)}<span class="truncate flex-1" title="${esc(x.n)}">${x.n}</span><span class="text-xs text-default-400 flex-none">ตอบ ${x.min} น.</span></li>`).join('')}</ul>`
+        : `<p class="p-3 text-xs text-default-400">ไม่มีห้องที่โต๊ะนี้ตอนนี้</p>`}</div>`
+  }
+  return `<div class="card"><div class="card-header"><span class="card-title">เลานจ์ · ลูกค้ารอคำตอบ (${LOUNGE.length})</span><span class="text-xs text-default-400">เรียงรอนานสุดก่อน</span></div>
+      <table class="w-full text-sm"><thead class="text-xs text-default-700 bg-default-100"><tr><th class="text-start font-semibold py-2 px-4">ลูกค้า</th><th class="text-start font-semibold py-2 px-4">ช่องทาง/เพจ</th><th class="text-start font-semibold py-2 px-4">รอมา</th><th class="text-start font-semibold py-2 px-4">สถานะ</th></tr></thead>
+      <tbody class="divide-y divide-default-200">${rows}</tbody></table></div>
+    <div class="mt-4 mb-2 text-sm font-semibold">โต๊ะ</div>
+    <div class="grid grid-cols-3 gap-4 items-start">${DESKS.map(deskCard).join('')}</div>`
+}
+
+/* ── เปลือก Paces ── */
+function desktopShell(inner) {
+  const nav = ['tabler:layout-dashboard', 'tabler:message-circle', 'tabler:armchair-2', 'tabler:shopping-cart', 'tabler:package', 'tabler:users', 'tabler:chart-bar', 'tabler:settings']
+  return `<div class="absolute inset-y-0 start-0 w-[75px] bg-white border-e border-default-300 flex flex-col items-center py-4 gap-2">
+      <span class="size-10 rounded-lg bg-primary text-white grid place-items-center font-bold mb-4">D</span>
+      ${nav.map((n, i) => `<span class="size-10 rounded-md grid place-items-center ${i === 2 ? 'bg-primary/15 text-primary' : 'text-default-400'}">${I(n, 20)}</span>`).join('')}</div>
+    <div class="absolute top-0 start-[75px] end-0 h-[64px] bg-white border-b border-default-300 flex items-center px-6 gap-4">
+      <span class="text-default-400">${I('tabler:menu-2', 20)}</span><div class="flex-1"></div>
+      <span class="text-default-400">${I('tabler:bell', 20)}</span><span class="size-8 rounded-full bg-light grid place-items-center text-default-700">${I('tabler:user', 16)}</span></div>
+    <div class="absolute top-[64px] start-[75px] end-0 bottom-0 p-6 flex flex-col gap-4">${inner}</div>`
+}
+function mobileShell(inner, { tab = false } = {}) {
+  const nav = [['tabler:layout-dashboard', 'หน้าหลัก'], ['tabler:message-circle', 'แชท'], ['tabler:shopping-cart', 'ออเดอร์'], ['tabler:package', 'สินค้า'], ['tabler:dots', 'เพิ่มเติม']]
+  return `<div class="absolute top-0 inset-x-0 h-14 bg-white border-b border-default-300 flex items-center px-4 gap-3">
+      <span class="size-8 rounded-lg bg-primary text-white grid place-items-center font-bold text-sm">D</span><span class="font-semibold text-sm">Deep ผู้ขาย</span><div class="flex-1"></div><span class="text-default-400">${I('tabler:bell', 20)}</span></div>
+    <div class="absolute top-14 bottom-[72px] inset-x-0 overflow-y-auto scroll-thin ${tab ? 'p-5' : 'p-4'} js-mscroll">${inner}</div>
+    <div class="absolute bottom-0 inset-x-0 h-[72px] bg-white border-t border-default-300 grid grid-cols-5">${nav.map(([n, l], i) => `<span class="flex flex-col items-center justify-center gap-0.5 text-[11px] ${i === 1 ? 'text-primary font-semibold' : 'text-default-400'}">${I(n, 22)}${l}</span>`).join('')}</div>`
+}
+
+/* ── มือถือ 2D (wireframe 6) ── */
+function mobileList() {
+  const rows = LOUNGE.map((x) => `<li class="flex items-center gap-3 px-3 min-h-14 py-2">${chMark(x.ch, 'size-9', 18)}
+      <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="font-semibold text-sm truncate" title="${esc(x.n)}">${x.n}</span><span class="ms-auto flex-none">${chip(x.st)}</span></div>
+      <div class="text-xs text-default-700 truncate">${PG[x.page]} · รอ ${x.min} น.</div></div></li>`).join('')
+  const det = (d) => {
+    const list = atDesk(d.id)
+    const name = d.kind === 'admin' ? `<span class="${d.admin.online ? 'dot-on' : 'dot-off'}"></span><span class="truncate">${d.admin.name}</span>` : `${I(d.icon, 16, 'text-default-700 flex-none')}<span class="truncate">${d.name}</span>`
+    return `<details class="border-b border-default-200 last:border-0"><summary class="flex items-center gap-2 px-3 h-12 text-sm font-medium cursor-pointer list-none">${I('tabler:chevron-right', 14, 'text-default-400 flex-none')}${name}<span class="ms-auto text-xs text-default-700 flex-none">(${list.length})</span></summary>
+      <ul class="pb-2 px-3">${list.map((x) => `<li class="flex items-center gap-2 text-sm py-1.5 ps-5">${chMark(x.ch, 'size-5', 12)}<span class="truncate flex-1">${x.n}</span><span class="text-xs text-default-400">ตอบ ${x.min} น.</span></li>`).join('')}</ul></details>`
+  }
+  return `${headerRow({ mobile: true })}
+    <div class="card grid grid-cols-2 divide-x divide-default-300 mt-4">
+      <div class="p-3"><div class="text-xs text-default-700 flex items-center gap-1">${I('tabler:clock', 13)}รอคำตอบ</div><div class="text-xl font-bold tabular-nums">${STATS.wait}</div></div>
+      <div class="p-3"><div class="text-xs text-default-700 flex items-center gap-1">${I('tabler:alert-triangle', 13)}เกินเวลาตอบ</div><div class="text-xl font-bold tabular-nums text-danger-ink">${STATS.over}</div></div></div>
+    <div class="flex items-center justify-between mt-3">
+      <button class="h-11 px-3 rounded-md bg-white shadow-sm text-sm font-medium inline-flex items-center gap-1.5">${I('tabler:filter', 16)}ตัวกรอง<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-white text-[11px] leading-5 font-semibold">2</span></button>
+      <span class="text-xs text-default-700 inline-flex items-center gap-1">อัปเดต <span class="tabular-nums">21:17</span><button class="size-11 grid place-items-center" aria-label="ดึงข้อมูลใหม่">${I('tabler:refresh', 18)}</button></span></div>
+    <div class="text-sm font-semibold mt-2 mb-2">เลานจ์ · รอคำตอบ (${LOUNGE.length})</div>
+    <ul class="card divide-y divide-default-200">${rows}</ul>
+    <div class="text-sm font-semibold mt-4 mb-2">โต๊ะ</div>
+    <div class="card">${DESKS.map(det).join('')}</div>
+    <details class="card mt-4"><summary class="px-3 h-12 flex items-center gap-2 text-sm font-medium cursor-pointer list-none">${I('tabler:chevron-right', 14, 'text-default-400')}ภาพรวมห้องแชท / ช่องทาง / ความเคลื่อนไหว</summary></details>`
+}
+
+/* ═════════ ประกอบกรอบ ═════════ */
+// Desktop 3D (+ สลับเป็น 2D ได้)
+document.getElementById('fDesk').innerHTML = desktopShell(`
+  ${headerRow()}
+  <div class="card relative overflow-hidden flex-1 js-stage" id="stageDesk">
+    <div class="absolute inset-0 js-view3d">
+      <div class="absolute inset-0 js-gl"></div><div class="lbls js-lbls"></div>
+      <div class="absolute start-3 top-3 bottom-3 w-72 overflow-y-auto scroll-thin space-y-3 pe-1 z-10">${cardsAll('d')}</div>
+      <div class="absolute end-3 top-3 z-20">${toolbar()}</div>
+      ${filterPopover()}
+      <div class="absolute end-3 bottom-3 z-10">${legend()}</div>
+    </div>
+    <div class="absolute inset-0 js-view2d hidden bg-body grid grid-cols-[20rem_1fr] gap-4 p-0">
+      <div class="overflow-y-auto scroll-thin space-y-3 pe-1">${cardsAll('d2')}</div>
+      <div class="overflow-y-auto scroll-thin pe-1">${list2dDesktop()}</div>
+    </div>
+    <aside class="js-panel hidden absolute top-0 end-0 bottom-0 w-96 bg-white shadow-xl z-40 flex flex-col border-s border-default-300"></aside>
+  </div>`)
+
+// Desktop 2D แถวสอง (static)
+document.getElementById('fDesk2d').innerHTML = desktopShell(`
+  ${headerRow().replace('aria-label="มุมมอง"><button data-mode="3d" class="px-3 h-8 rounded-md font-semibold" aria-pressed="true">ฉาก 3D</button><button data-mode="2d" class="px-3 h-8 rounded-md" aria-pressed="false">รายการ</button>',
+    'aria-label="มุมมอง"><button class="px-3 h-8 rounded-md" aria-pressed="false">ฉาก 3D</button><button class="px-3 h-8 rounded-md font-semibold bg-white shadow-sm" aria-pressed="true">รายการ</button>')
+    .replace('<div class="inline-flex bg-light', `<button class="h-9 px-3 rounded-md bg-white shadow-sm text-sm font-medium inline-flex items-center gap-1.5">${I('tabler:filter', 16)}ตัวกรอง<span class="min-w-5 h-5 px-1 rounded-full bg-primary text-white text-[11px] leading-5 font-semibold">2</span></button><div class="inline-flex bg-light`)}
+  <div class="flex-1 min-h-0 grid grid-cols-[20rem_1fr] gap-4">
+    <div class="overflow-y-auto scroll-thin space-y-3 pe-1">${cardsAll('e')}</div>
+    <div class="overflow-y-auto scroll-thin pe-1">${list2dDesktop()}</div>
+  </div>`)
+
+// Tablet 3D
+document.getElementById('fTab').innerHTML = mobileShell(`
+  ${headerRow({ compact: true })}
+  <div class="card relative overflow-hidden mt-4 js-stage" style="height:880px" id="stageTab">
+    <div class="absolute inset-0 js-gl"></div><div class="lbls js-lbls"></div>
+    <div class="absolute end-3 top-3 z-20">${toolbar()}</div>
+    <div class="absolute start-3 bottom-3 z-10 card flex items-center text-sm divide-x divide-default-200">
+      <span class="px-3 py-2.5 inline-flex items-center gap-1.5">${I('tabler:clock', 15, 'text-warning-ink')}รอคำตอบ <b class="tabular-nums">${STATS.wait}</b></span>
+      <span class="px-3 py-2.5 inline-flex items-center gap-1.5">${I('tabler:alert-triangle', 15, 'text-danger-ink')}เกินเวลา <b class="tabular-nums text-danger-ink">${STATS.over}</b></span>
+      <span class="px-3 py-2.5 inline-flex items-center gap-1.5">${I('tabler:users', 15, 'text-default-400')}ออนไลน์ <b class="tabular-nums">${STATS.online}</b></span>
+      <button class="px-3 py-2.5 text-primary font-medium inline-flex items-center gap-1">ดูทั้งหมด ${I('tabler:chevron-right', 14)}</button></div>
+    <button class="absolute end-3 bottom-3 z-10 h-11 px-3 card text-sm font-medium inline-flex items-center gap-1.5">${I('tabler:info-circle', 16)}สัญลักษณ์</button>
+  </div>`, { tab: true })
+
+// Mobile 2D
+document.getElementById('fMob').innerHTML = mobileShell(mobileList())
+
+// Mobile bottom-sheet อ่านแชท
+document.getElementById('fSheet').innerHTML = mobileShell(mobileList()) + `
+  <div class="absolute inset-0 bg-dark/50 z-40"></div>
+  <div class="absolute inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-xl flex flex-col" style="max-height:85%">
+    <div class="pt-2 pb-1 grid place-items-center"><span class="w-10 h-1.5 rounded-full bg-default-300"></span></div>
+    ${chatPanelBody(LOUNGE[0])}
+    <div class="h-2"></div></div>`
+
+/* ═════════ interaction ที่ไม่ใช่ 3D ═════════ */
+document.getElementById('btnReal').onclick = (e) => {
+  const real = document.body.classList.toggle('real')
+  document.querySelectorAll('.dev').forEach((d) => {
+    if (real) { d.dataset.s = d.style.getPropertyValue('--s'); d.style.setProperty('--s', '1') } else d.style.setProperty('--s', d.dataset.s)
+  })
+  e.currentTarget.querySelector('span').textContent = real ? 'ย่อให้พอดีจอ' : 'ดูขนาดจริง'
+}
+const tick = () => { const t = new Date().toLocaleTimeString('th-TH', { hour12: false }); document.querySelectorAll('.js-clock').forEach((el) => el.textContent = t) }
+tick(); setInterval(tick, 1000)
+
+document.addEventListener('click', (e) => {
+  const info = e.target.closest('.js-info')
+  if (info) { const p = document.getElementById(info.getAttribute('aria-controls')); const open = info.getAttribute('aria-expanded') !== 'true'; info.setAttribute('aria-expanded', open); p.classList.toggle('hidden', !open); return }
+  const ch = e.target.closest('.js-chip')
+  if (ch) { const on = ch.classList.toggle('on'); ch.setAttribute('aria-pressed', on); return }
+  const stage = e.target.closest('.js-stage')
+  if (!stage) return
+  const pop = stage.querySelector('.js-pop')
+  if (e.target.closest('.js-filter') && pop) { pop.classList.toggle('hidden'); e.target.closest('.js-filter').setAttribute('aria-expanded', !pop.classList.contains('hidden')) }
+  if (e.target.closest('.js-popclose') && pop) pop.classList.add('hidden')
+  if (e.target.closest('.js-clear')) stage.querySelectorAll('.js-chip.on').forEach((c) => { c.classList.remove('on'); c.setAttribute('aria-pressed', false) })
+  const nb = e.target.closest('.js-nums')
+  if (nb) { const on = nb.getAttribute('aria-pressed') !== 'true'; nb.setAttribute('aria-pressed', on); nb.classList.toggle('bg-primary/15', on); nb.classList.toggle('text-primary', on); stage.classList.toggle('hide-nums', !on) }
+  const fs = e.target.closest('.js-fs')
+  if (fs) { document.fullscreenElement ? document.exitFullscreen() : stage.requestFullscreen?.() }
+  if (e.target.closest('.js-close')) stage.querySelector('.js-panel')?.classList.add('hidden')
+  const row = e.target.closest('.js-row')
+  if (row) openPanel(stage, LOUNGE[+row.dataset.i])
+})
+document.addEventListener('fullscreenchange', () => document.querySelectorAll('.js-fs').forEach((b) => {
+  const on = b.closest('.js-stage') === document.fullscreenElement
+  b.setAttribute('aria-label', on ? 'ออกจากเต็มจอ' : 'เต็มจอ'); b.innerHTML = I(on ? 'tabler:minimize' : 'tabler:maximize', 18)
+}))
+// สลับ ฉาก 3D | รายการ ในกรอบ desktop
+document.querySelectorAll('#fDesk .js-seg button').forEach((b) => b.onclick = () => {
+  const two = b.dataset.mode === '2d', st = document.getElementById('stageDesk')
+  st.querySelector('.js-view3d').classList.toggle('hidden', two); st.querySelector('.js-view2d').classList.toggle('hidden', !two)
+  b.parentElement.querySelectorAll('button').forEach((x) => { const on = x === b; x.setAttribute('aria-pressed', on); x.classList.toggle('bg-white', on); x.classList.toggle('shadow-sm', on); x.classList.toggle('font-semibold', on) })
+})
+document.querySelector('#fDesk .js-seg button').classList.add('bg-white', 'shadow-sm')
+
+function openPanel(stage, cu) {
+  const p = stage.querySelector('.js-panel')
+  p.innerHTML = chatPanelBody(cu); p.classList.remove('hidden')
+}
+if (location.hash.includes('real')) document.getElementById('btnReal').click()
+if (location.hash.includes('panel')) openPanel(document.getElementById('stageDesk'), LOUNGE[0])
+window.CHATDESK = { CUSTOMERS, LOUNGE, DESKS, atDesk, SHOP, I, openPanel }
+</script>
+
+<script type="module">
+import * as THREE from 'three'
+const { LOUNGE, DESKS, atDesk, SHOP, I, openPanel } = window.CHATDESK
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+const COL = { primary: '#236dc9', warning: '#f9bf59', danger: '#f7577e', info: '#5bc3e1', dark: '#313a46', d400: '#627189', d600: '#4a5358', skin: '#f1cba8' }
+
+function woodTexture() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512
+  const g = cv.getContext('2d'), rows = 8, h = 512 / rows
+  for (let r = 0; r < rows; r++) {
+    let x = -(r % 3) * 90
+    while (x < 512) {
+      const len = 160 + ((r * 37 + x) % 3) * 40, l = 70 + ((r * 13 + Math.abs(x)) % 5) * 2
+      g.fillStyle = `hsl(31 42% ${l}%)`; g.fillRect(x, r * h, len, h)
+      g.fillStyle = 'rgba(110,72,40,.25)'; g.fillRect(x, r * h, 2, h)
+      x += len
+    }
+    g.fillStyle = 'rgba(110,72,40,.3)'; g.fillRect(0, r * h + h - 2, 512, 2)
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2.2); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4
+  return t
+}
+const WOOD = woodTexture()
+
+function createDesk(stage, { leftPad = 0, pickable = false }) {
+  const host = stage.querySelector('.js-gl'), overlay = stage.querySelector('.js-lbls')
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  host.appendChild(renderer.domElement)
+  const scene = new THREE.Scene()
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -200, 200)
+  scene.add(new THREE.HemisphereLight('#ffffff', '#b8a68c', 1.5))
+  const sun = new THREE.DirectionalLight('#ffffff', 1.6); sun.position.set(9, 16, 7); sun.castShadow = true
+  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16 }); sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005
+  scene.add(sun)
+
+  const W = 22, D = 16, WALL_H = 3.6
+  const matCache = {}
+  const mat = (c, o = {}) => { const k = c + JSON.stringify(o); return matCache[k] ||= new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, ...o }) }
+  const box = (w, h, d, c, x, y, z, parent = scene, o) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof c === 'string' ? mat(c, o) : c); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m }
+
+  // พื้นไม้ + ผนังหลัง/ซ้าย
+  box(W, 0.3, D, new THREE.MeshStandardMaterial({ map: WOOD, roughness: 0.8 }), 0, -0.15, 0)
+  const walls = { back: new THREE.Group(), left: new THREE.Group() }
+  scene.add(walls.back, walls.left)
+  box(W + 0.3, WALL_H, 0.3, '#e9e4dc', 0, WALL_H / 2, -D / 2 - 0.15, walls.back)
+  box(0.3, WALL_H, D, '#e2ddd4', -W / 2 - 0.15, WALL_H / 2, 0, walls.left)
+  box(W, 0.22, 0.06, '#cfc6b8', 0, 0.11, -D / 2 + 0.03, walls.back)
+  box(0.06, 0.22, D, '#cfc6b8', -W / 2 + 0.03, 0.11, 0, walls.left)
+  box(6.4, 0.9, 0.08, COL.dark, 4.5, 2.65, -D / 2 + 0.06, walls.back) // ป้ายร้าน
+  // ประตู ไม้/เทา
+  const door = (parent, x, z, rotY) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rotY; parent.add(g)
+    box(0.18, 2.5, 0.16, '#8a6a4a', -0.85, 1.25, 0, g); box(0.18, 2.5, 0.16, '#8a6a4a', 0.85, 1.25, 0, g); box(1.88, 0.18, 0.16, '#8a6a4a', 0, 2.5, 0, g)
+    box(1.5, 2.38, 0.06, '#9aa3ad', 0, 1.19, 0.02, g); box(0.08, 0.3, 0.08, '#5b6470', 0.5, 1.15, 0.08, g)
+  }
+  door(walls.left, -W / 2 + 0.05, 5, Math.PI / 2)   // ทางเข้า (ผนังซ้าย ใกล้กล้อง)
+  door(walls.back, -2.2, -D / 2 + 0.05, 0)          // ทางออก (ผนังหลัง)
+  // ต้นไม้ประดับ (เทา-น้ำเงิน ไม่ใช่เขียว)
+  for (const [x, z] of [[-10, -7], [10.2, -7.2]]) { box(0.6, 0.6, 0.6, '#b9a58a', x, 0.3, z); const s = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), mat('#7d8fa3')); s.position.set(x, 1.05, z); s.castShadow = true; scene.add(s) }
+
+  // ── คน ──
+  const pickables = []
+  const capsule = new THREE.CapsuleGeometry(0.24, 0.5, 6, 12), head = new THREE.SphereGeometry(0.2, 16, 12)
+  const person = (color, x, z, { seated = false, opacity = 1, cust = null, ry = 0 } = {}) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry
+    const o = opacity < 1 ? { transparent: true, opacity } : {}
+    const b = new THREE.Mesh(capsule, mat(color, o)); b.position.y = seated ? 0.78 : 0.6; b.castShadow = true
+    const h = new THREE.Mesh(head, mat(COL.skin, o)); h.position.y = seated ? 1.38 : 1.2; h.castShadow = true
+    g.add(b, h); scene.add(g)
+    if (cust) { g.userData.cust = cust; pickables.push(g) }
+    return g
+  }
+  const rings = []
+  const overRing = (x, z) => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.5, 40), new THREE.MeshBasicMaterial({ color: COL.danger, transparent: true, opacity: 0.85, side: THREE.DoubleSide }))
+    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); scene.add(m); rings.push(m)
+  }
+
+  // ── ป้าย DOM ──
+  const labels = []
+  const label = (html, pos, { wall = null, cls = '' } = {}) => {
+    const el = document.createElement('div'); el.className = 'lbl ' + cls; el.innerHTML = html; overlay.appendChild(el)
+    labels.push({ el, p: new THREE.Vector3(...pos), wall }); return el
+  }
+  label(`<span class="pill" style="font-size:1.125rem;padding:.35rem .9rem;max-width:22rem"><span class="t" title="${SHOP}">${SHOP}</span></span>`, [4.5, 3.45, -D / 2 + 0.1], { wall: 'back' })
+  label(`<span class="pill text-default-700" aria-hidden="true">${I('tabler:door-enter', 13)}ทางเข้า</span>`, [-W / 2 + 0.1, 3.1, 5], { wall: 'left' })
+  label(`<span class="pill text-default-700" aria-hidden="true">${I('tabler:door-exit', 13)}ทางออก</span>`, [-2.2, 3.1, -D / 2 + 0.1], { wall: 'back' })
+
+  // ── เลานจ์ ──
+  const LX = -5.6, LZ = 0.6
+  box(7.2, 0.03, 5.2, '#e3d6c2', LX, 0.015, LZ)
+  box(7.0, 0.02, 5.0, '#d8c8b0', LX, 0.035, LZ)
+  const seats = []
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) {
+    const x = LX - 2.4 + i * 1.6, z = LZ - 1.2 + r * 2.4
+    box(1.0, 0.42, 0.9, '#8796ab', x, 0.21, z); box(1.0, 0.7, 0.18, '#7a889c', x, 0.6, z - 0.42)
+    seats.push([x, z])
+  }
+  LOUNGE.forEach((cu, i) => {
+    const [x, z] = seats[i], over = cu.st === 'over'
+    person(over ? COL.danger : COL.warning, x, z + 0.05, { seated: true, cust: cu })
+    if (over) {
+      overRing(x, z + 0.05)
+      label(`<span class="pill lbl-num bg-white text-danger-ink"><span class="size-4 rounded-full bg-danger/15 grid place-items-center">${I('tabler:alert-triangle', 11)}</span>เกินเวลาตอบ ${cu.min} น.</span>`, [x, 2.05, z])
+    }
+  })
+  label(`<button class="pill hover:ring-2 hover:ring-primary/40" aria-label="ลูกค้ารอคำตอบ ${LOUNGE.length} คน"><span class="size-4 rounded-full bg-warning/15 text-warning-ink grid place-items-center">${I('tabler:clock', 11)}</span>ลูกค้ารอคำตอบ<span class="lbl-num">${LOUNGE.length} คน</span></button>`, [LX, 0.4, LZ + 3.1])
+
+  // ── โต๊ะ ──
+  const deskPos = { a1: [1.6, -4.6], a2: [5.6, -4.6], a3: [9.6, -4.6], out: [1.6, 3.4], meta: [5.6, 3.4], bot: [9.6, 3.4] }
+  const rugCol = { admin: '#cfe0f5', out: '#dde1e6', meta: '#b9c0c8', bot: '#6c7581' }
+  const frontCol = { admin: COL.primary, out: COL.d400, meta: COL.d600, bot: COL.dark }
+  DESKS.forEach((d) => {
+    const [x, z] = deskPos[d.id], off = d.kind === 'admin' && !d.admin.online
+    const o = off ? { transparent: true, opacity: 0.5 } : {}
+    box(3.4, 0.03, 4.2, mat(rugCol[d.kind], o), x, 0.02, z + 0.5)
+    box(2.1, 0.08, 0.9, mat('#f4f1ec', o), x, 0.76, z); box(2.1, 0.72, 0.08, mat(frontCol[d.kind], o), x, 0.36, z + 0.42)
+    box(0.7, 0.45, 0.06, mat('#2b3040', o), x + 0.4, 1.06, z - 0.2)
+    box(0.7, 0.4, 0.65, mat('#6e7a93', o), x, 0.2, z - 0.95); box(0.7, 0.7, 0.1, mat('#6e7a93', o), x, 0.65, z - 1.25)
+    if (d.kind === 'admin') person(COL.primary, x, z - 0.95, { seated: true, opacity: off ? 0.35 : 1 })
+    if (d.kind === 'out') { person(COL.d400, x, z - 0.95, { seated: true, opacity: 0.45 }); box(0.22, 0.04, 0.4, '#2b3040', x - 0.5, 0.82, z) }
+    if (d.kind === 'meta') { const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), mat('#c9d2dc', { emissive: '#7f8a96', emissiveIntensity: 0.4 })); s.position.set(x, 1.25, z - 0.95); scene.add(s) }
+    if (d.kind === 'bot') { box(0.6, 0.7, 0.5, COL.dark, x, 0.75, z - 0.95); box(0.5, 0.42, 0.45, '#4a5563', x, 1.32, z - 0.95); box(0.36, 0.08, 0.02, '#9fd6ec', x, 1.36, z - 0.72) }
+    const list = atDesk(d.id), shown = list.slice(0, 3)
+    shown.forEach((cu, i) => person(COL.info, x + (i - (shown.length - 1) / 2) * 0.8, z + 1.5, { cust: cu, ry: Math.PI }))
+    if (list.length > 3) label(`<span class="pill lbl-num">+${list.length - 3}</span>`, [x + 1.55, 1.5, z + 1.5])
+    const n = `<span class="lbl-num text-default-700 font-normal flex-none">· ${d.kind === 'admin' ? 'แชทในมือ ' : ''}${list.length}</span>`
+    const head = d.kind === 'admin'
+      ? `<span class="${d.admin.online ? 'dot-on' : 'dot-off'}"></span><span class="t" title="${d.admin.name}">${d.admin.name}</span>${n}`
+      : `${I(d.icon, 13, 'flex-none')}<span class="t">${d.name}</span>${n}`
+    label(`<button class="pill ${off ? 'opacity-60' : ''}" aria-label="โต๊ะ ${deskName(d)} ${d.kind === 'admin' ? (d.admin.online ? 'ออนไลน์' : 'ออฟไลน์') : ''} แชทในมือ ${list.length}">${head}</button>`, [x, 2.25, z - 0.6])
+  })
+  function deskName(d) { return d.admin ? d.admin.name : d.name }
+
+  // ── ลูกค้าเดินเข้า ──
+  const walker = person(COL.d400, -W / 2 + 0.6, 5, { opacity: 0.6 })
+  const path = [[-W / 2 + 0.4, 5], [-6.5, 5], [-5.6, 3.9]]
+
+  // ── กล้อง ──
+  let theta = Math.PI / 4, target = theta, zoomF = 1, size = { w: 1, h: 1 }
+  const v = new THREE.Vector3()
+  function placeCam() {
+    const R = 40
+    cam.position.set(Math.sin(theta) * R, R * 0.82, Math.cos(theta) * R); cam.lookAt(0, 0.6, 0); cam.updateMatrixWorld()
+    walls.back.visible = cam.position.z > 0.5; walls.left.visible = cam.position.x > 0.5 // ผนังฝั่งที่บังกล้องซ่อน
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+    for (const cx of [-W / 2, W / 2]) for (const cy of [0, WALL_H]) for (const cz of [-D / 2, D / 2]) {
+      v.set(cx, cy, cz).applyMatrix4(cam.matrixWorldInverse); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y)
+    }
+    const pad = size.w >= 1024 ? leftPad : 0
+    const fit = Math.min((size.w - pad - 40) / (x1 - x0), (size.h - 70) / (y1 - y0))
+    cam.left = -size.w / 2; cam.right = size.w / 2; cam.top = size.h / 2; cam.bottom = -size.h / 2
+    cam.zoom = fit * zoomF
+    if (pad) cam.setViewOffset(size.w, size.h, -pad / 2, 0, size.w, size.h); else cam.clearViewOffset()
+    cam.updateProjectionMatrix()
+  }
+  function updateLabels() {
+    for (const l of labels) {
+      const hide = l.wall && !walls[l.wall].visible
+      l.el.style.display = hide ? 'none' : ''
+      if (hide) continue
+      v.copy(l.p).project(cam)
+      l.el.style.transform = `translate(${((v.x + 1) / 2 * size.w).toFixed(1)}px,${((1 - v.y) / 2 * size.h).toFixed(1)}px) translate(-50%,-100%)`
+    }
+  }
+  let raf = 0
+  function frame(t) {
+    raf = 0
+    if (document.hidden) return
+    if (!reduce) {
+      theta += (target - theta) * 0.12
+      const s = (t / 7000) % 1, seg = s < 0.5 ? 0 : 1, k = seg ? (s - 0.5) / 0.5 : s / 0.5
+      const [a, b] = [path[seg], path[seg + 1]]
+      walker.position.set(a[0] + (b[0] - a[0]) * k, Math.abs(Math.sin(t / 160)) * 0.06, a[1] + (b[1] - a[1]) * k)
+      walker.rotation.y = Math.atan2(b[0] - a[0], b[1] - a[1])
+      const p = (t / 900) % 1
+      rings.forEach((r) => { r.scale.setScalar(1 + p * 0.7); r.material.opacity = 0.9 * (1 - p) })
+    } else { theta = target; walker.position.set(-7.2, 0, 5) }
+    placeCam(); renderer.render(scene, cam); updateLabels()
+    if (!reduce) raf = requestAnimationFrame(frame)
+  }
+  const kick = () => { if (!raf) raf = requestAnimationFrame(frame) }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kick() })
+  new ResizeObserver(() => { size = { w: host.clientWidth, h: host.clientHeight }; renderer.setSize(size.w, size.h); placeCam(); renderer.render(scene, cam); updateLabels() }).observe(host)
+
+  // ── ปุ่ม ──
+  stage.querySelector('.js-rot').onclick = () => { target += Math.PI / 2; kick() }
+  stage.querySelector('.js-zin').onclick = () => { zoomF = Math.min(zoomF * 1.25, 3); kick() }
+  stage.querySelector('.js-zout').onclick = () => { zoomF = Math.max(zoomF / 1.25, 0.6); kick() }
+  stage.querySelector('.js-nums').addEventListener('click', kick)
+
+  if (pickable) {
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2()
+    const hit = (e) => {
+      const r = renderer.domElement.getBoundingClientRect()
+      ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+      ray.setFromCamera(ndc, cam)
+      const h = ray.intersectObjects(pickables, true)[0]
+      let o = h?.object; while (o && !o.userData.cust) o = o.parent
+      return o?.userData.cust
+    }
+    renderer.domElement.addEventListener('click', (e) => { const cu = hit(e); if (cu) openPanel(stage, cu) })
+    renderer.domElement.addEventListener('pointermove', (e) => { renderer.domElement.style.cursor = hit(e) ? 'pointer' : '' })
+  }
+  kick()
+}
+
+try {
+  createDesk(document.getElementById('stageDesk'), { leftPad: 300, pickable: true })
+  createDesk(document.getElementById('stageTab'), {})
+} catch (err) {
+  console.error(err)
+  document.querySelectorAll('.js-gl').forEach((g) => g.innerHTML = '<div class="absolute inset-0 grid place-items-center text-sm text-default-700 bg-default-100">เครื่องนี้แสดงฉาก 3D ไม่ได้ จึงแสดงเป็นรายการ ข้อมูลชุดเดียวกัน</div>')
+}
+</script>
+</body>
+</html>
