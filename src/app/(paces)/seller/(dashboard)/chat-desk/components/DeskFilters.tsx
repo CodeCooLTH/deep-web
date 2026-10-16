@@ -138,10 +138,10 @@ export default function DeskFilters({ value, channels, members, onApply, variant
             </Group>
           )}
           <div className="border-default-300 mt-3 flex gap-2 border-t border-dashed pt-3">
-            <button type="button" onClick={() => { onApply(EMPTY_FILTERS); setOpen(false) }} className="bg-light text-default-900 hover:bg-default-300 h-9 flex-1 rounded-md text-sm font-medium">
+            <button type="button" onClick={() => { onApply(EMPTY_FILTERS); setOpen(false) }} className="bg-light text-default-900 hover:bg-default-300 min-h-11 lg:min-h-0 lg:h-9 flex-1 rounded-md text-sm font-medium">
               ล้างตัวกรอง
             </button>
-            <button type="button" onClick={() => { onApply(draft); setOpen(false) }} className="bg-primary hover:bg-primary-hover h-9 flex-1 rounded-md text-sm font-medium text-white">
+            <button type="button" onClick={() => { onApply(draft); setOpen(false) }} className="bg-primary hover:bg-primary-hover min-h-11 lg:min-h-0 lg:h-9 flex-1 rounded-md text-sm font-medium text-white">
               ใช้ตัวกรอง
             </button>
           </div>

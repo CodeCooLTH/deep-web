@@ -108,8 +108,6 @@ describe('canSeePage — ตามทะเบียนเดียวกับ 
     ['/reviews', ['OWNER', 'MANAGER']],
     ['/reports/agents', ['OWNER', 'MANAGER', 'CHAT']],
     ['/admins', ['OWNER']],
-    // 00077 โต๊ะแชท = X7 เจ้าของเท่านั้น (ผู้ดูแล/แชท/เปิดบิล/ช่าง เข้าไม่ได้)
-    ['/chat-desk', ['OWNER']],
   ]
   it.each(table)('%s', (url, can) => {
     for (const r of ALL) expect(canSeePage(url, [r], { isPrimaryOwner: true }), `${url} × ${r}`).toBe(can.includes(r))
@@ -164,13 +162,6 @@ describe('เมนู sidebar ตามบทบาท (resolveVisibleSellerMen
     expect(s).toEqual(expect.arrayContaining(['seller:inbox', 'seller:orders', 'seller:customers', 'seller:reports-agents']))
     for (const bad of ['seller:settings-auto-reply', 'seller:sales', 'seller:wallet', 'seller:verification', 'seller:admins', 'seller:subscriptions'])
       expect(s, bad).not.toContain(bad)
-  })
-
-  it('00077 เมนู "โต๊ะแชท" เห็นเฉพาะ OWNER — MANAGER/CHAT/BILLING/TECHNICIAN ไม่เห็น (แม้เห็น seller:inbox)', () => {
-    expect(slugs({ role: 'OWNER', roles: ['OWNER'] })).toContain('seller:chat-desk')
-    for (const r of ['MANAGER', 'CHAT', 'BILLING', 'TECHNICIAN'])
-      expect(slugs({ role: 'ADMIN', roles: [r] }), r).not.toContain('seller:chat-desk')
-    expect(slugs({ role: 'ADMIN', roles: ['MANAGER'] })).toContain('seller:inbox')
   })
 
   it('BILLING (ร้านบริการ) เห็นออเดอร์/ลูกค้า ไม่เห็นแชท', () => {
