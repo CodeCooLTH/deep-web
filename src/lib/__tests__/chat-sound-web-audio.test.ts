@@ -73,8 +73,6 @@ beforeEach(() => {
   })
   vi.stubGlobal('Audio', audioCtor)
   vi.stubGlobal('BroadcastChannel', undefined)
-  // Node 24 มี navigator.locks จริงที่แชร์ทั้งไฟล์ — lock 3 วิของเทสก่อนหน้าจะทำให้เทสถัดไปเงียบ (Web Locks คุมใน chat-sound.test.ts)
-  vi.stubGlobal('navigator', {})
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) })))
 })
 

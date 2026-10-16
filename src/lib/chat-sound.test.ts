@@ -7,7 +7,6 @@ function setupEnv() {
   const plays = { count: 0 }
   let visibility: 'visible' | 'hidden' = 'visible'
   const docListeners: Array<() => void> = []
-  vi.stubGlobal('window', { localStorage: { getItem: () => null }, dispatchEvent: () => {} })
   vi.stubGlobal('document', {
     get visibilityState() {
       return visibility
@@ -24,19 +23,18 @@ function setupEnv() {
       }
     },
   )
-  vi.stubGlobal('navigator', {
-    locks: {
-      request: async (name: string, _o: unknown, cb: (l: object | null) => Promise<void>) => {
-        if (held.has(name)) return cb(null)
-        held.add(name)
-        try {
-          await cb({})
-        } finally {
-          held.delete(name)
-        }
-      },
+  const locks = {
+    request: async (name: string, _o: unknown, cb: (l: object | null) => Promise<void>) => {
+      if (held.has(name)) return cb(null)
+      held.add(name)
+      try {
+        await cb({})
+      } finally {
+        held.delete(name)
+      }
     },
-  })
+  }
+  vi.stubGlobal('window', { localStorage: { getItem: () => null }, dispatchEvent: () => {}, navigator: { locks } })
   const setVisibility = (v: 'visible' | 'hidden') => {
     visibility = v
     docListeners.forEach((fn) => fn())

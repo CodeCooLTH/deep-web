@@ -216,7 +216,8 @@ export function playChatBeep(opts: { shopId?: string | null; conversationId?: st
   if (Date.now() - resumedAt < RESUME_QUIET_MS) return
 
   const key = opts.shopId ?? GLOBAL_THROTTLE_KEY
-  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+  // อ่านผ่าน window ไม่ใช่ global navigator — Node 24 (เทส) มี navigator.locks จริงที่ค้างข้ามเทส
+  const locks = typeof window !== 'undefined' ? window.navigator?.locks : undefined
   if (locks) {
     // ifAvailable = จองแบบ atomic ข้ามแท็บ: แท็บแรกได้ lock แล้วถือไว้ MIN_GAP_MS ·
     // แท็บอื่น (และแท็บเดิม) ที่มาระหว่างนั้นได้ null → เงียบ ไม่มี race แบบ BroadcastChannel
