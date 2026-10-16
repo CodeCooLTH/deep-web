@@ -28,32 +28,44 @@ import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 type ChatSignal = { conversationId?: string }
 type Listener = (signal: ChatSignal) => void
 
-const subscriptions = new Map<string, { channel: RealtimeChannel; listeners: Set<Listener> }>()
+/**
+ * `new_message` = ลูกค้าทักมา (ค่าตั้งต้น — listener เดิมทุกตัว: toast/เสียง/ตัวนับ)
+ * `shop_reply` = ร้านตอบ (00077 โต๊ะแชท · migration 20261016230000) — ห้ามให้ toast/เสียงฟังตัวนี้
+ */
+export type ShopChatEvent = 'new_message' | 'shop_reply'
+const SHOP_CHAT_EVENTS: ShopChatEvent[] = ['new_message', 'shop_reply']
 
-/** subscribe ข้อความใหม่จากผู้ซื้อของร้านนี้ — คืน unsubscribe (ปิด channel จริงเมื่อ listener หมด) */
-export function subscribeShopChat(shopId: string, listener: Listener): () => void {
+// เก็บเป็น record ต่อการ subscribe (ไม่ใช้ fn เป็นคีย์) — fn ตัวเดียวกันฟังหลาย event ได้โดยไม่ทับกัน
+type Sub = { fn: Listener; event: ShopChatEvent }
+const subscriptions = new Map<string, { channel: RealtimeChannel; listeners: Set<Sub> }>()
+
+/** subscribe สัญญาณของร้านนี้ (ค่าตั้งต้น = ข้อความใหม่จากผู้ซื้อ) — คืน unsubscribe (ปิด channel จริงเมื่อ listener หมด) */
+export function subscribeShopChat(shopId: string, listener: Listener, event: ShopChatEvent = 'new_message'): () => void {
   let entry = subscriptions.get(shopId)
 
   if (!entry) {
-    const listeners = new Set<Listener>()
-    const channel = getSupabaseBrowserClient()
-      .channel(`chat:shop:${shopId}`)
-      .on('broadcast', { event: 'new_message' }, (msg) => {
+    const listeners = new Set<Sub>()
+    let channel = getSupabaseBrowserClient().channel(`chat:shop:${shopId}`)
+    // ลงทะเบียนทุก event ครั้งเดียวก่อน subscribe (channel แชร์กัน — .on หลัง subscribe ไม่มีผล)
+    for (const ev of SHOP_CHAT_EVENTS) {
+      channel = channel.on('broadcast', { event: ev }, (msg) => {
         const raw = (msg as { payload?: { conversationId?: unknown } } | undefined)?.payload
         const conversationId = typeof raw?.conversationId === 'string' ? raw.conversationId : undefined
-        listeners.forEach((l) => l({ conversationId }))
+        listeners.forEach((sub) => { if (sub.event === ev) sub.fn({ conversationId }) })
       })
-      .subscribe()
+    }
+    channel.subscribe()
     entry = { channel, listeners }
     subscriptions.set(shopId, entry)
   }
 
-  entry.listeners.add(listener)
+  const sub: Sub = { fn: listener, event }
+  entry.listeners.add(sub)
 
   return () => {
     const current = subscriptions.get(shopId)
     if (!current) return
-    current.listeners.delete(listener)
+    current.listeners.delete(sub)
     if (current.listeners.size === 0) {
       getSupabaseBrowserClient().removeChannel(current.channel)
       subscriptions.delete(shopId)

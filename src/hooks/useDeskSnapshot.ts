@@ -61,7 +61,11 @@ export function useDeskSnapshot(shopId: string | null | undefined, filters: Desk
   const realtimeShopId = shopId ?? cur?.snapshot?.shop.id ?? null
   useEffect(() => {
     if (!realtimeShopId) return
-    return subscribeShopChat(realtimeShopId, () => pollerRef.current?.signal())
+    // ลูกค้าทัก (new_message) + ร้านตอบ (shop_reply · 00077 ext) — ทั้งคู่เป็นแค่สัญญาณให้ดึงใหม่ (poller รวมเป็นรอบเดียว)
+    const signal = () => pollerRef.current?.signal()
+    const offIn = subscribeShopChat(realtimeShopId, signal)
+    const offReply = subscribeShopChat(realtimeShopId, signal, 'shop_reply')
+    return () => { offIn(); offReply() }
   }, [realtimeShopId])
 
   const refresh = useCallback(() => pollerRef.current?.refresh(), [])

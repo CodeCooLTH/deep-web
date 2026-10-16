@@ -85,6 +85,9 @@ erDiagram
 **ไม่มี index บน** `Conversation(resolvedAt)` และ `Conversation(shopId, lastSenderRole)` — ห้ามเพิ่ม (OOS-6) ความเสี่ยงอยู่ที่ [[SDS]] §7.3
 
 ## 5. Migration Plan
+
+> **แก้ 2026-10-17 (ส่วนขยาย):** มี migration 1 ตัว `20261016230000_chat_shop_reply_broadcast` — `CREATE OR REPLACE FUNCTION public.chat_message_realtime_broadcast()` เพิ่ม event `shop_reply` บน `chat:shop:{shopId}` เมื่อ INSERT ข้อความ SHOP ที่ไม่ใช่บรรทัดระบบ · **ไม่มีตาราง/คอลัมน์/index/enum ใหม่ ไม่แตะ schema.prisma** · trigger เดิมไม่สร้างใหม่ · rollback = re-apply ฟังก์ชันใน `20260823110000_chat_broadcast_on_status_update` (ไม่มี data loss) · AC-CD-55 (`prisma/` diff = 0) ใช้กับรอบ 1 (PR #168) เท่านั้น
+
 ### 5.1 ลำดับการ Migrate
 | ลำดับ | การเปลี่ยนแปลง | Store | หมายเหตุ |
 |---|---|---|---|
