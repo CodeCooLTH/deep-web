@@ -135,7 +135,8 @@ jobs:
       NEXT_PUBLIC_BUYER_URL: https://deepthailand.app
       NEXT_PUBLIC_SELLER_URL: https://seller.deepthailand.app
       NEXT_TELEMETRY_DISABLED: '1'
-      NODE_OPTIONS: --max-old-space-size=4096
+      # 6144 (เดิม 4096) — 00077 เพิ่ม @react-three/fiber ซึ่ง augment JSX ทั้งโปรเจกต์ ⇒ type-check ใช้หน่วยความจำเพิ่ม (~+1 GB, instantiations +50%) · runner มี RAM 16 GB · ไม่ได้ลดเกณฑ์ตรวจใด ๆ
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
