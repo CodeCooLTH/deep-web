@@ -412,3 +412,26 @@
 - purge payload ทุก tick ของ sweep (หมดอายุ/กลุ่ม REMOVED) · ลบแถวเปล่า >30 วัน · token ดิบยังอยู่ใน `LineReportDelivery.pendingPayload` ≤24 ชม. (ข้อจำกัดของ retry-byte-เดิม)
 - PR #165 (วันก่อนหน้า): รายงาน LINE ร้านบริการนับยอดแบบร้านทั่วไป (ไม่รอปิดงาน) — กำไรยังนับตามปิดงาน (คนละฐานถ้าเทมเพลตเปิดกำไร)
 - carry: ยังไม่เคยกดลิงก์จริงบน LINE มือถือ · สวิตช์หน้าตั้งค่ายังไม่ได้ลองในเบราว์เซอร์ · `next/font` + ไอคอน Iconify โหลดจาก api.iconify.design (ไม่ส่ง token — no-referrer)
+
+## 2026-10-16 (00077 Chat Desk) — โต๊ะแชท 3D อ่านอย่างเดียว สำหรับเจ้าของร้าน (รอบ 1)
+
+สถานะ: โค้ดครบ S-1..S-12 + เอกสารซิงก์ (`docs/SRS.md` §7.28/§9.11) · QA E2E รอบ 1 PASS (10 เคส, minor 4 แก้ใน `50b33225f`) · **ยังไม่ merge** · ค้าง S-13 (`/impeccable critique` + `clarify` · ภาพ 3 จอให้ user อนุมัติ) และ S-16 (retro) · เอกสาร `docs/20 - Features/00077 - Chat Desk/` · scope `docs/scope/2026-10-16-00077-chat-desk-scope-baseline.md`
+
+**มติที่ห้ามกลับ**
+- ไม่มีระบบมอบแชท/ทีม/คิว — เลานจ์ = "ลูกค้ารอคำตอบ" ตามสถานะปัจจุบัน ไม่มีโซนทีม
+- ฉาก 3D ยกเว้น HR1 **เฉพาะตัวฉาก** (`components/scene/**`) — เปลือกรอบฉาก (การ์ด/แถบเครื่องมือ/ตัวกรอง) ยังต้อง copy จาก Paces ตาม HR1/7/9
+- เปิดให้ **OWNER เท่านั้น** ผ่าน capability `X7` (`shop-permissions.ts`; แถว X7 ใน 00071 BRD §8.3) — ตรวจสดทุกคำขอด้วย `listAccessibleShopIds(userId,'X7')` ใน route/หน้าเอง (literal `'X7'` ต้องอยู่ในไฟล์นั้นตามทะเบียน `route-capabilities.ts`) · preview ของผู้ไม่มีสิทธิ์ = 404 ไม่ใช่ 403
+- Presence ไม่แตะ schema — ช่อง `presence:chat:{shopId}` + คีย์ทึบ HMAC จาก `GET /api/chat/presence-keys` · tracker ลงชื่ออยู่ใน layout `(chat)` ส่วนหน้าโต๊ะเป็นผู้อ่านเท่านั้น (ห้องมี `.track(` ในไฟล์ reader = เทสแดง)
+- ไม่มีสัญญาณสดฝั่งแอดมิน (กำลังพิมพ์/เส้นแอดมินไปลูกค้า) — ภาพช้ากว่าจริงได้ถึงรอบ polling 8 วินาที
+- ตัวเลขเวลาตอบใช้นิยาม 00059 ผ่าน `getShopResponseSummary` (ห้ามเขียนสูตรชุดที่สอง) + ป้าย "นับเฉพาะคำตอบที่ระบุตัวคนได้ · ตอบจากนอกระบบ n ข้อความไม่รวม" เมื่อนับไม่ครบ · "-" เมื่อไม่มีตัวอย่าง ห้ามแสดง 0
+- คำบนจอของคำตอบที่ระบุตัวไม่ได้ = **"ตอบจากนอกระบบ"** (ไม่ใช่ "ตอบนอก Deep") ห้ามเรียกว่า AI/บอท · การ์ดความเคลื่อนไหวใช้ "ออกจากฉาก" ไม่ใช่ "ปิดงาน"
+- บรรทัดระบบที่ไม่นับเป็นคนตอบ = `INTERNAL_MESSAGE_TYPES` (`AUTO_ORDER_RESULT` + `META_NOTICE`) · "วันนี้" = `thaiTodayBounds` · N ออนไลน์นับเฉพาะสมาชิกที่ `canChat` (ถือ H1)
+
+**กับดัก**
+- ไฟล์ `.glb` ใต้ `public/chat-desk/**` ต้องมีนามสกุล `glb` ใน regex ของ `src/proxy.ts` ไม่งั้นโหลด asset ไม่ได้ (ฉากตกไปแคปซูล) — เทส `chat-desk-assets-served.test.ts`
+- `import three` / `@react-three/*` ได้เฉพาะใต้ `chat-desk/components/scene/**` (เทส `chat-desk-scene-imports.test.ts`) ไม่งั้น chunk three รั่วเข้า route อื่น
+- `tsc` ของโปรเจกต์นี้ต้องรันด้วย `NODE_OPTIONS=--max-old-space-size=8192` (หน่วยความจำไม่พอ)
+- เทส DB ต้อง override `DATABASE_URL` เป็น localhost:5434 (HR13/14) · query จริงต่อ snapshot = SQL 6 (แคชรายวันโดน) / 9 (พลาด) — ตีความ "<= 4" เป็นจำนวนการเรียก Prisma ของเส้นทางปกติ (SDS §7.4 / OQ-5)
+- ช่อง presence เป็น public (anon): คนนอกที่รู้ `shopId` เห็นจำนวนคีย์ออนไลน์ ไม่เห็นตัวตน ปลอมสมาชิกไม่ได้ — ทางปิดจริง = Realtime private channel (รอบ 2)
+
+**carry (รอบ 2)**: แผงตกแต่งห้อง (ต้องมีที่เก็บค่า + migration) · สัญญาณสดฝั่งแอดมิน · Realtime private channel · โซนทีม/เปิดให้บทบาทอื่นเมื่อมีระบบมอบแชท · Meta AI แยกต่อเพจ · เสียง/แจ้งเตือนเมื่อรอเกินเวลา · ยังไม่เคยดูภาพจริง 3 จอ/critique

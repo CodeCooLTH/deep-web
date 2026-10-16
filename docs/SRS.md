@@ -2407,6 +2407,32 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 **เปลี่ยน endpoint เดิม:** `POST …/ai-suggest/auto` ต่อ `after()` เรียก `maybeUpdateMemory` หลัง READY (response ไม่เปลี่ยน · callback ต้อง `.catch(()=>{})`) · `POST …/ai-suggest` (Gemini) ต่อความจำ+สินค้าเข้า `contextBlock` · ความจำ/สินค้าเข้า prompt ทุก trigger ผ่าน `sanitizeForExternalAi` (ความจำ/สินค้าล้ม = ตัดหัวข้อนั้น ทำคำแนะนำต่อ)
 
+### 7.28 โต๊ะแชท 3D (`/api/chat-desk/**`, `/api/chat/presence-keys`) — feature 00077
+
+> เอกสารเต็ม: `docs/20 - Features/00077 - Chat Desk/{PRD,BRD,SRS,SDS,API,DATABASE,TestCase}.md` (สัญญาละเอียด = `API.md`) · **ทั้ง 3 endpoint เป็น `GET` อ่านอย่างเดียว ไม่มี schema/enum/migration ใหม่**
+> Auth/Cache: `sessionUserId()` · `Cache-Control: private, no-store, max-age=0, must-revalidate` · `force-dynamic` · error body เป็น `{ error: '<CODE>' }` · สิทธิ์ตรวจสดทุกคำขอ ไม่พึ่ง layout/JWT · ลงทะเบียนใน `src/lib/route-capabilities.ts` (`DECLARED`)
+
+| Method | Path | Capability | Purpose |
+|---|---|---|---|
+| GET | `/api/chat-desk/snapshot` | **X7** (เจ้าของ) | snapshot ห้องแชท/โต๊ะ/สมาชิก/ตัวเลขรายวันของร้านหนึ่งร้าน |
+| GET | `/api/chat-desk/rooms/[id]/preview` | **X7** | 30 ข้อความล่าสุดของห้อง ไม่แตะ `shopLastReadAt` ไม่ส่ง seen/sender action |
+| GET | `/api/chat/presence-keys` | H1 | คีย์ presence ทึบของ "ผู้เรียก" ในทุกร้านในขอบเขตแชท (tracker ใน layout `(chat)` ใช้) |
+
+**`GET /api/chat-desk/snapshot`** — query (ทั้งหมด optional): `shopId` (uuid; ผิดรูป → 400 `INVALID_QUERY`) · `platforms` (CSV ย่อยของ `DEEP,MESSENGER,INSTAGRAM,LINE`) · `pages` (CSV `ShopChannel.id` ≤ 50) · `admins` (CSV `User.id` ≤ 50) — ค่าที่ไม่อยู่ในร้านถูกทิ้งเงียบ (`parseDeskFilters`) · ไม่ส่ง `shopId` = ร้าน active ถ้าเป็นเจ้าของ ไม่งั้นร้านแรกของชุดเจ้าของเรียงตามชื่อ (`pickDeskShop`)
+- 200 `DeskSnapshot` v1: `{ v:1, serverNow, shop:{id,name,kind}, sla:{firstResponseSec,source}, filters, awaiting:{capped}, rooms[], members[], channels[], daily }` + header `Server-Timing: guard, directory, rooms, daily`
+- `rooms[]`: `{ id, name, platform, pageId, state:'WAITING'|'AT_DESK', askedAt, lastInboundAt, repliedAt, desk }` · `desk` = `null` (WAITING) หรือ `{kind:'ADMIN',userId}|{kind:'EXTERNAL'}|{kind:'META_AI'}|{kind:'BOT'}` · รอคำตอบ ≤ 200 ห้อง/7 วัน (`awaiting.capped=true` เมื่อมี ≥ 201) · เพิ่งตอบ ≤ 180 วินาที
+- `members[]`: `{ userId, name, role:'OWNER'|'ADMIN', canChat, presenceKey }` — `canChat` = ถือ H1 จริง · `presenceKey` ทึบ (HMAC)
+- `daily`: `{ status:'OK'|'UNAVAILABLE', asOf, firstResponseAvgSec, responseAvgSec, responseSampleCount, unattributedReplyCount, answeredOutsideSystemConversations, resolvedToday }` — `null` = ไม่มีตัวอย่าง (UI แสดง "—" ไม่ใช่ 0) · เวลาไทยผ่าน `thaiTodayBounds` · ตัวเลขเวลาตอบมาจาก `getShopResponseSummary` (นิยามเดียวกับ `/reports/agents` 00059) · แคช 60 วินาที/ร้าน/อินสแตนซ์ · เป็นของ "ทั้งร้าน" ไม่ตามตัวกรอง
+- ห้ามมีใน payload: เบอร์โทร · อีเมล · token · avatar · เนื้อข้อความ · บรรทัดระบบ (`INTERNAL_MESSAGE_TYPES` = `AUTO_ORDER_RESULT` + `META_NOTICE`) ไม่นับเป็นคนตอบ
+- error: 400 `INVALID_QUERY` · 401 `unauthorized` · 403 `FORBIDDEN_ROLE` (ไม่ถือ X7 หรือ `shopId` ไม่อยู่ในชุดเจ้าของ — body ไม่มีข้อมูลร้าน) · 500 `INTERNAL`
+
+**`GET /api/chat-desk/rooms/[id]/preview`** — path `id` = `Conversation.id` (uuid; ผิดรูป → 400 `INVALID_ID`)
+- 200 `{ room:{id,name,platform,pageName}, messages[≤30 เก่า→ใหม่], truncated }` · `messages[]` = `{ id, senderRole:'BUYER'|'SHOP', by, type, body, isDeleted, createdAt }` · `by` (เฉพาะ SHOP) = `{kind:'ADMIN',name}|{kind:'EXTERNAL'}|{kind:'META_AI'}|{kind:'BOT'}` · `body` ตัดที่ 2000 ตัวอักษร, `null` เมื่อลบหรือไม่ใช่ข้อความตัวอักษร · กรอง `INTERNAL_MESSAGE_TYPES` ทิ้ง · ไม่มี URL ไฟล์/รูป
+- 404 `NOT_FOUND` **ทุกกรณี** (ADMIN · ห้องร้านอื่น · ไม่มีห้อง) — ไม่ใช้ 403 เพราะจะยืนยันว่าห้องมีอยู่จริง · 401 · 500
+
+**`GET /api/chat/presence-keys`** — ไม่มีพารามิเตอร์ · 200 `{ keys:[{ shopId, key }] }` ของผู้เรียกเองเท่านั้น ในทุกร้านใน `resolveChatScope(session,'H1').shopIds` · `key` = HMAC ทึบ (`presenceKeyFor(shopId,userId)`) ไม่มี userId · error: 401 · 403/404 ตาม `chatScopeOrDeny` เดิม · 500
+- ช่อง Supabase Presence ของร้าน = `presence:chat:{shopId}` (anon key; payload `{at}` เท่านั้น) — ข้อจำกัดที่รู้ตัว: ช่องเป็น public คนนอกที่รู้ `shopId` เห็นจำนวนคีย์ออนไลน์ได้ ไม่เห็นตัวตน ปลอมสมาชิกไม่ได้ (เทียบเท่า `chat:shop:{shopId}` เดิม) ทางปิดจริง = Realtime private channel (รอบ 2)
+
 ---
 
 ## §8 Enums & Constants
@@ -3054,6 +3080,15 @@ HTTP ตามตาราง §7.21
 - ไม่มีสิทธิ์ = 403 `FORBIDDEN_ROLE` (no-store) · ไม่ใช่สมาชิกของร้านที่ระบุทรัพยากร = 404 · หน้า RSC = `NoPermissionCard`/`NoPermissionScreen` (หน้าเต็มจอมีทางกลับ)
 - `session.activeShopRoles` = แสดงผลเท่านั้น ไม่ใช่ตัวตัดสินสิทธิ์
 - ต้นทุน (`OrderItem.cost`/`Product.cost`) ถูก Prisma global `omit` ตัดโดยค่าตั้งต้น เจ้าของ opt-in เอง (§6.71)
+- **X7 (feature 00077 โต๊ะแชท 3D) = เจ้าของเท่านั้น** (`CAPABILITY_ROLES.X7 = [OWNER]`; ผู้ดูแล/ตอบแชท/เปิดบิล/ช่าง ไม่มี) — เห็นภาพรวมการตอบของแอดมินทุกคน จึงไม่เปิดให้ ADMIN:
+
+| Endpoint / หน้า | เจ้าของ (X7) | ADMIN (ทุกบทบาท) | ไม่ล็อกอิน |
+|---|---|---|---|
+| `GET /api/chat-desk/snapshot` | 200 | 403 `FORBIDDEN_ROLE` | 401 |
+| `GET /api/chat-desk/rooms/[id]/preview` | 200 (เฉพาะห้องร้านที่ตนเป็นเจ้าของ) | 404 `NOT_FOUND` | 401 |
+| `GET /api/chat/presence-keys` (H1) | 200 | 200 (ถือ H1 — ต้องลงชื่อ presence ได้) | 401 |
+| หน้า `/chat-desk` | เปิดได้ | `NoPermissionCard` (หน้าเรียก `listAccessibleShopIds(userId,'X7')` เอง ไม่พึ่ง layout · ไม่มีข้อมูลร้านใน HTML) · เมนูไม่แสดง | ไม่มี session → หน้าไม่แสดงเนื้อหา (proxy/layout พาไป login) |
+
 - หน้าแอดมินแพลตฟอร์ม: `requireAdmin()` ในหน้าเองทุกหน้า (layout ไม่นับ) — คนละระบบกับบทบาทสมาชิกร้าน
 - ด่านกันลืม: `route-capability-inventory.test.ts` (ทะเบียน + ด่านรายเมธอด + คำนำหน้า admin/cron/webhook) · `finance-surface-guard.test.ts` (ผิวเงิน) · `cost-optin-guard.test.ts` · `tests/integration/role-contract.test.ts` (คีย์ต้องห้ามใน JSON จริงต่อบทบาท × route ตัวแทน บน Postgres localhost)
 

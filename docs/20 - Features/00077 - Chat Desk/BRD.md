@@ -75,39 +75,39 @@
 | AC-CD-01 | ห้องเปิด ไม่ spam ไม่ hidden `lastSenderRole='BUYER'` และ `lastInboundAt` ไม่เกิน 7 วัน แล้ว ห้องนั้นอยู่เลานจ์ | `rules.ts` `classifyRoom()` + WHERE ใน `chat-desk.service.ts` | `rules.test.ts` ชุดเคส ปิดงาน/hidden/spam/8 วัน/ข้อความล่าสุดเป็น SHOP ต้องไม่เข้าเลานจ์ ทีละเงื่อนไข |
 | AC-CD-02 | มีห้องรอคำตอบเกิน 200 ห้อง แล้ว เลือก 200 ห้องที่รอนานสุด และส่ง `awaitingTotalCapped=true` ป้ายขึ้น "200+" | `chat-desk.service.ts` (`take: 200` เรียง `lastInboundAt asc`) | เทส service 201 ห้อง: payload มี 200 และ flag เป็น true |
 | AC-CD-03 | ร้านตอบห้องที่เปิดอยู่ภายใน 180 วินาที (ข้อความฝั่งร้านล่าสุดที่ไม่ใช่บรรทัดระบบ) แล้ว ห้องนั้นอยู่หน้าโต๊ะผู้ตอบ ไม่อยู่เลานจ์ | `rules.ts` `classifyRoom()` `RECENT_REPLY_WINDOW_SEC=180` | เทสขอบเขต 179/180/181 วินาที |
-| AC-CD-04 | ข้อความฝั่งร้านล่าสุดเป็น `AUTO_ORDER_RESULT` แล้ว ไม่นับเป็นคนตอบ ใช้ข้อความฝั่งร้านก่อนหน้าที่ไม่ใช่บรรทัดระบบแทน ถ้าไม่มีเลยไม่ขึ้นหน้าโต๊ะ | `chat-desk.service.ts` query ข้อความล่าสุดต้องมี `type: { not: AUTO_ORDER_RESULT_TYPE }` | เทส service: ห้องมี SHOP จริง 1 ใบ + บรรทัดระบบใหม่กว่า -> โต๊ะตามใบจริง ลบเงื่อนไข type แล้วแดง |
+| AC-CD-04 | ข้อความฝั่งร้านล่าสุดเป็นบรรทัดระบบ (`AUTO_ORDER_RESULT` หรือ `META_NOTICE`) แล้ว ไม่นับเป็นคนตอบ ใช้ข้อความฝั่งร้านก่อนหน้าที่ไม่ใช่บรรทัดระบบแทน ถ้าไม่มีเลยไม่ขึ้นหน้าโต๊ะ | `chat-desk.service.ts` query ข้อความล่าสุดต้องกรอง `type NOT IN (INTERNAL_MESSAGE_TYPES)` (ทั้ง 2 ชนิด) | เทส service: ห้องมี SHOP จริง 1 ใบ + บรรทัดระบบใหม่กว่า -> โต๊ะตามใบจริง ลบเงื่อนไข type แล้วแดง |
 | AC-CD-05 | ข้อความฝั่งร้านล่าสุดมี `autoReplyKind` ไม่ใช่ null แล้ว ลูกค้ายืนโต๊ะ "บอท Deep" | `rules.ts` `pickDesk()` ลำดับที่ 1 | เทสตาราง `pickDesk` ครบ 4 ชนิด + เคสชน (autoReplyKind และ viaStandby พร้อมกัน -> บอท) |
 | AC-CD-06 | `viaStandby=true` และ `autoReplyKind=null` แล้ว โต๊ะ "Meta AI / กล่องของเพจ" | `pickDesk()` ลำดับที่ 2 | เทสเดียวกัน |
 | AC-CD-07 | `senderUserId` เป็นสมาชิก/เจ้าของร้านนี้ แล้ว โต๊ะแอดมินคนนั้น | `pickDesk()` ลำดับที่ 3 | เทสเดียวกัน |
-| AC-CD-08 | `senderUserId = null` (หรือไม่ใช่สมาชิกแล้ว) และไม่เข้าข้อ 05/06 แล้ว โต๊ะ "ตอบนอก Deep" | `pickDesk()` ลำดับที่ 4 (ที่เหลือ) | เทสเดียวกัน |
+| AC-CD-08 | `senderUserId = null` (หรือไม่ใช่สมาชิกแล้ว) และไม่เข้าข้อ 05/06 แล้ว โต๊ะ "ตอบจากนอกระบบ" | `pickDesk()` ลำดับที่ 4 (ที่เหลือ) | เทสเดียวกัน |
 | AC-CD-09 | ห้องหนึ่งเข้าได้ทั้งเลานจ์และหน้าโต๊ะ แล้ว เป็นของเลานจ์ (ข้อความล่าสุดเป็นลูกค้า = ยังไม่ถูกตอบ) | `classifyRoom()` ตรวจ awaiting ก่อน | เทส: ห้องที่ลูกค้าเพิ่งส่งหลังร้านตอบ 30 วินาที -> เลานจ์ |
 | AC-CD-10 | ลูกค้าอยู่หน้าโต๊ะเกิน 3 คน แล้ว แสดง 3 คน ที่เหลือเป็น "+N" บนป้ายโต๊ะ | `scene-model.ts` `layoutDesk()` | `scene-model.test.ts` 0/3/4/10 คน |
-| AC-CD-11 | ร้านไม่มีแอดมินในระบบเลย (เจ้าของคนเดียว) แล้ว ฉากแสดงโต๊ะเจ้าของ + โต๊ะนอก Deep ครบ ไม่ error | `scene-model.ts` | เทสร้านสมาชิก 1 คน + ห้องทุกชนิด |
+| AC-CD-11 | ร้านไม่มีแอดมินในระบบเลย (เจ้าของคนเดียว) แล้ว ฉากแสดงโต๊ะเจ้าของ + โต๊ะตอบจากนอกระบบ ครบ ไม่ error | `scene-model.ts` | เทสร้านสมาชิก 1 คน + ห้องทุกชนิด |
 
 ### 3.2 ตัวเลข
 
 | AC | เมื่อ ... แล้ว ... | บังคับที่ | เทสที่ต้องแดง |
 |---|---|---|---|
-| AC-CD-12 | เปิดหน้าช่วงเวลาเดียวกับ `/reports/agents` (ร้านและช่วง "วันนี้") แล้ว "ตอบแรกเฉลี่ย" และ "รอเฉลี่ย" เท่ากับค่าของรายงานทุกวินาที | `chat-desk.service.ts` เรียกฟังก์ชันระดับร้านของ `agent-performance.service.ts` (ที่ `summarizeShop` ~บรรทัด 452-468) ห้ามคำนวณเอง | เทส parity (แพตเทิร์นเดียวกับ `agent-performance-sql-parity.test.ts`) ถ้าแทนด้วยสูตรเองต้องแดง + เทสสแกนซอร์สว่า `chat-desk.service.ts` ไม่มี `computeResponsePairs(` ที่เรียกซ้ำเอง และไม่มีการ AVG เอง |
+| AC-CD-12 | เปิดหน้าช่วงเวลาเดียวกับ `/reports/agents` (ร้านและช่วง "วันนี้") แล้ว "ตอบแรกเฉลี่ย" และ "รอเฉลี่ย" เท่ากับค่าของรายงานทุกวินาที | `chat-desk.service.ts` เรียก `getShopResponseSummary` (export ใหม่ใน `agent-performance.service.ts` เพิ่มอย่างเดียว — ใช้ `summarizeShop` ตัวเดียวกับ `getAgentPerformanceOverview` ข้าม `fetchOrders`; ไม่มีฟังก์ชันระดับร้านมาก่อน) ห้ามคำนวณเอง | เทส parity (แพตเทิร์นเดียวกับ `agent-performance-sql-parity.test.ts`) ถ้าแทนด้วยสูตรเองต้องแดง + เทสสแกนซอร์สว่า `chat-desk.service.ts` ไม่มี `computeResponsePairs(` ที่เรียกซ้ำเอง และไม่มีการ AVG เอง |
 | AC-CD-13 | ไม่มีตัวอย่างในช่วง (ไม่มีห้องที่ถูกตอบ) แล้ว แสดง "-" ห้ามแสดง 0 | `chat-desk.service.ts` คืน `null` + UI `formatDuration(null)` | เทสคืน null และเทส component |
-| AC-CD-14 | ในช่วงมีคำตอบที่ระบุตัวคนไม่ได้ แล้ว ใต้ไทล์เวลาแสดง "นับเฉพาะคำตอบที่ระบุตัวคนได้ - ตอบนอก Deep n ข้อความไม่รวม" ทุกครั้งที่ n > 0 | `chat-desk.service.ts` ส่ง `unattributedReplyCount` (จาก `summarizeShop`) + component ไทล์ | เทส component: n>0 ต้องมีป้าย n=0 ไม่มี |
+| AC-CD-14 | ในช่วงมีคำตอบที่ระบุตัวคนไม่ได้ แล้ว ใต้ไทล์เวลาแสดง "นับเฉพาะคำตอบที่ระบุตัวคนได้ - ตอบจากนอกระบบ n ข้อความไม่รวม" ทุกครั้งที่ n > 0 | `chat-desk.service.ts` ส่ง `unattributedReplyCount` (จาก `summarizeShop`) + component ไทล์ | เทส component: n>0 ต้องมีป้าย n=0 ไม่มี |
 | AC-CD-15 | เกินเวลาตอบ แล้ว นับห้องเลานจ์ที่ (เวลาปัจจุบัน - เวลาข้อความลูกค้าใบแรกของรอบที่ยังไม่ถูกตอบ) มากกว่า SLA จาก `resolveSlaConfig(shop)` (ปัจจุบัน 300 วินาที) | `rules.ts` `isOverdue(askedAt, now, slaSec)` | เทสขอบเขต SLA-1/SLA/SLA+1 และเทสสแกนซอร์สว่า `chat-desk.service.ts` เรียก `resolveSlaConfig(` และไม่มีเลข 300 ฮาร์ดโค้ด |
-| AC-CD-16 | เวลาข้ามเที่ยงคืนไทย (เช่น 23:59:59 / 00:00:00 +07) แล้ว ตัวเลขรายวันเริ่มรอบใหม่ตามเวลาไทย ไม่ใช่ UTC | `rules.ts` `startOfBangkokDay(now)` | เทสที่เวลา 16:59:59Z และ 17:00:00Z |
-| AC-CD-17 | ออนไลน์ n/N แล้ว N = จำนวนสมาชิกทั้งหมดของร้าน (รวมเจ้าของ นับคนเดียวเมื่อซ้ำในสองตาราง) n = จำนวนที่ presence key ตรงสมาชิก | `chat-desk.service.ts` `loadDeskMembers()` + `scene-model.ts` | เทส: เจ้าของร้าน BUSINESS ที่มีแถว ShopMember ของตัวเองด้วย นับ 1 ไม่ใช่ 2 |
+| AC-CD-16 | เวลาข้ามเที่ยงคืนไทย (เช่น 23:59:59 / 00:00:00 +07) แล้ว ตัวเลขรายวันเริ่มรอบใหม่ตามเวลาไทย ไม่ใช่ UTC | `thaiTodayBounds(now)` จาก `src/lib/date-range.ts` (นิยามเดียวของ "วันนี้" ไม่สร้าง `startOfBangkokDay` ใหม่) | เทสที่เวลา 16:59:59Z และ 17:00:00Z |
+| AC-CD-17 | ออนไลน์ n/N แล้ว N = จำนวนสมาชิกที่ **`canChat`** (ถือ H1 — รวมเจ้าของ นับคนเดียวเมื่อซ้ำในสองตาราง; ผู้ดูแลที่ไม่มี H1 เช่น เปิดบิล/ช่าง ออนไลน์ใน presence ไม่ได้จึงไม่นับเข้า N) n = จำนวนที่ presence key ตรงสมาชิกกลุ่มนั้น | `chat-desk.service.ts` `loadDeskMembers()` (`canChat = can(effectiveRoles(...),'H1')`) + `scene-model.ts` | เทส: เจ้าของร้าน BUSINESS ที่มีแถว ShopMember ของตัวเองด้วย นับ 1 ไม่ใช่ 2 · สมาชิกไม่มี H1 ไม่อยู่ใน N |
 | AC-CD-18 | ว่างรับแชท แล้ว = สมาชิกที่ออนไลน์ และจำนวนแชทในมือ = 0 (ไม่มีระบบมอบแชท จึงไม่มี "ว่างตามโควตา") | `scene-model.ts` `summarize()` | เทสตาราง ออนไลน์/แชทในมือ |
-| AC-CD-19 | กำลังคุย แล้ว = จำนวนห้องหน้าโต๊ะแอดมินและโต๊ะนอก Deep ไม่นับ Meta AI และบอท | `scene-model.ts` `summarize()` | เทส ห้องโต๊ะ AI/บอทไม่เพิ่มตัวเลข |
+| AC-CD-19 | กำลังคุย แล้ว = จำนวนห้องหน้าโต๊ะแอดมินและโต๊ะตอบจากนอกระบบ ไม่นับ Meta AI และบอท | `scene-model.ts` `summarize()` | เทส ห้องโต๊ะ AI/บอทไม่เพิ่มตัวเลข |
 | AC-CD-20 | ปิดงานวันนี้ (ตามคำตอบ Q-2) แล้ว นับห้อง `resolvedAt` ตั้งแต่ 00:00 ไทย และ `resolvedAt` ยังไม่ null (ห้องที่ลูกค้าทักกลับถูกล้างแล้ว ไม่นับ) | `chat-desk.service.ts` `countResolvedToday()` | เทส service ห้องปิดแล้วถูกล้าง -> ไม่นับ |
 
 ### 3.3 สิทธิ์
 
 | AC | เมื่อ ... แล้ว ... | บังคับที่ | เทสที่ต้องแดง |
 |---|---|---|---|
-| AC-CD-21 | ADMIN เรียก `GET /api/chat-desk/snapshot` แล้ว 403 `FORBIDDEN_ROLE` ไม่มีข้อมูลใน body | `owner-scope.ts` `resolveOwnerDeskScope()` เรียกที่บรรทัดแรกของทุก route | เทส route 3 บัญชี (OWNER 200 / ADMIN 403 / ไม่ล็อกอิน 401) |
-| AC-CD-22 | ADMIN เปิดหน้า `/seller/chat-desk` โดยตรง แล้ว ถูกเปลี่ยนเส้นทาง/แสดงหน้าไม่มีสิทธิ์ ไม่มีข้อมูลร้านใน HTML (ไม่พึ่ง layout เป็นด่านสิทธิ์) | `page.tsx` ของหน้าเรียก `resolveOwnerDeskScope()` เอง | เทส + QA browser |
-| AC-CD-23 | ผู้ดูเป็น OWNER ร้าน A และ ADMIN ร้าน B (โหมดรวมแชท) แล้ว ฉากมีเฉพาะร้าน A ส่ง `shopId` ของ B ใน query -> 403/ถูกตัดทิ้ง | `owner-scope.ts` กรอง `resolveChatScope().shopIds` ด้วย WHERE (`Shop.userId = ผู้ดู` หรือ `ShopMember.role='OWNER'`) ตั้งแต่ query แรก ห้าม post-check | เทส: ส่ง shopId ของร้านที่เป็น ADMIN แล้วต้องไม่ได้ข้อมูล ถอดการกรองแล้วแดง |
+| AC-CD-21 | ADMIN เรียก `GET /api/chat-desk/snapshot` แล้ว 403 `FORBIDDEN_ROLE` ไม่มีข้อมูลใน body | route เรียก `listAccessibleShopIds(userId,'X7')` (`shop-capability.ts`) ก่อน query ข้อมูลใด ๆ ของทุก route + `pickDeskShop` (`owner-scope.ts` pure) | เทส route 3 บัญชี (OWNER 200 / ADMIN 403 / ไม่ล็อกอิน 401) |
+| AC-CD-22 | ADMIN เปิดหน้า `/seller/chat-desk` โดยตรง แล้ว ถูกเปลี่ยนเส้นทาง/แสดงหน้าไม่มีสิทธิ์ ไม่มีข้อมูลร้านใน HTML (ไม่พึ่ง layout เป็นด่านสิทธิ์) | `page.tsx` ของหน้าเรียก `listAccessibleShopIds(userId,'X7')` เอง (ว่าง → `NoPermissionCard`) | เทส + QA browser |
+| AC-CD-23 | ผู้ดูเป็น OWNER ร้าน A และ ADMIN ร้าน B (โหมดรวมแชท) แล้ว ฉากมีเฉพาะร้าน A ส่ง `shopId` ของ B ใน query -> 403/ถูกตัดทิ้ง | ชุดร้านมาจาก `listAccessibleShopIds(userId,'X7')` (อ่านสมาชิกสด ตั้งแต่ query แรก) แล้ว `pickDeskShop(owned, requested, active)` คืน null เมื่อร้านที่ขอไม่อยู่ในชุด → 403 ห้าม post-check | เทส: ส่ง shopId ของร้านที่เป็น ADMIN แล้วต้องไม่ได้ข้อมูล ถอดการกรองแล้วแดง |
 | AC-CD-24 | ผู้ดูถูกถอดจาก OWNER ระหว่างเปิดหน้า แล้ว รอบ polling ถัดไป 403 และหน้าแสดงสถานะไม่มีสิทธิ์ ไม่ค้างข้อมูลเก่า | route ตรวจสิทธิ์ทุกคำขอ (ไม่ cache สิทธิ์ใน JWT) | เทส route สลับ role ระหว่างสองคำขอ |
 | AC-CD-25 | เมนู "โต๊ะแชท" แล้ว ขึ้นเฉพาะ OWNER ของร้าน active | `seller-menu.ts` CHAT group + `BY_SLUG` | `chat-nav-rail-guard.test.ts` (มีอยู่) ขยายให้ครอบ slug ใหม่ + เทสว่า ADMIN ไม่เห็น |
-| AC-CD-26 | preview ห้อง (`GET /api/chat-desk/rooms/[id]/preview`) ของร้านที่ผู้ดูไม่ใช่ OWNER แล้ว 404 (ไม่ใช่ 403 ไม่บอกว่าห้องมีอยู่) | route ผูก `Conversation.shopId IN (ร้าน OWNER)` ใน WHERE ของ query แรก (แพตเทิร์นเดียวกับ `resolveConversationShopId`) | เทส route ห้องของร้านอื่น |
+| AC-CD-26 | preview ห้อง (`GET /api/chat-desk/rooms/[id]/preview`) ของร้านที่ผู้ดูไม่ใช่ OWNER แล้ว 404 (ไม่ใช่ 403 ไม่บอกว่าห้องมีอยู่) | `getRoomPreview(ownedShopIds, id)` ผูก `Conversation.shopId IN (ร้านที่ถือ X7)` ใน WHERE ของ query แรก ชุดว่าง/ไม่พบ → 404 เหมือนกันหมด | เทส route ห้องของร้านอื่น |
 
 ### 3.4 Presence
 
@@ -116,7 +116,7 @@
 | AC-CD-27 | OWNER/ADMIN เปิดหน้าแชทของร้าน แล้ว ลงชื่อ presence ของร้านนั้น (ทุกร้านในขอบเขตแชทของผู้ใช้) | `useChatPresenceTracker` (ใหม่) ใน layout ของ `(chat)` | เทส hook (mock supabase client) ว่าเรียก `channel.track` ต่อร้าน |
 | AC-CD-28 | ผู้ใช้เปิดแท็บแชทสองแท็บ แล้ว นับเป็น 1 คน (key ต่อคน ไม่ใช่ต่อแท็บ) ต่างจาก `useAuctionPresence` | `useChatPresenceTracker` ตั้ง `presence.key` = presence key ต่อคน | เทส: สอง instance key เดียวกัน -> `presenceState()` มี 1 key |
 | AC-CD-29 | ผู้ดูหน้าโต๊ะแชทเปิดหน้าโดยไม่ได้เปิดหน้าแชท แล้ว ไม่ถูกนับออนไลน์ (หน้าโต๊ะ subscribe อ่านอย่างเดียว ไม่เรียก `track`) | `useChatDeskPresence` (ใหม่) ห้ามเรียก `.track(` | เทสสแกนซอร์สว่าไฟล์ไม่มี `.track(` + เทส hook |
-| AC-CD-30 | presence key ที่ออกไปฝั่งเบราว์เซอร์ แล้ว ไม่เผย `userId` จริง (คีย์ทึบที่ server ออกให้ HMAC ของ `shopId:userId`) ผู้ที่รู้ `shopId` เข้าช่อง presence ไปก็อ่าน userId ของสมาชิกไม่ได้ | `chat-desk.service.ts` `presenceKeyFor()` + endpoint ออกคีย์ของตนเอง | เทส: คีย์ต่างกันต่อร้าน และไม่มี userId อยู่ในสตริง |
+| AC-CD-30 | presence key ที่ออกไปฝั่งเบราว์เซอร์ แล้ว ไม่เผย `userId` จริง (คีย์ทึบที่ server ออกให้ HMAC ของ `shopId:userId`) ผู้ที่รู้ `shopId` เข้าช่อง presence ไปก็อ่าน userId ของสมาชิกไม่ได้ | `src/lib/chat-desk/presence-key.ts` `presenceKeyFor()` + `GET /api/chat/presence-keys` (พหูพจน์ คืนคีย์ของตนเองทุกร้านในครั้งเดียว) | เทส: คีย์ต่างกันต่อร้าน และไม่มี userId อยู่ในสตริง |
 | AC-CD-31 | Presence ล่ม/ต่อไม่ได้ แล้ว หน้าไม่ล้ม ออนไลน์แสดง "-" พร้อมป้ายว่าตรวจสถานะไม่ได้ ห้ามแสดง 0/N | `useChatDeskPresence` คืน `status: 'unavailable'` | เทส hook + component |
 
 ### 3.5 รีเฟรชและเหตุการณ์
@@ -180,7 +180,7 @@ sequenceDiagram
     participant M as agent-performance.service (00059)
 
     B->>S: GET snapshot (ตัวกรองจาก URL)
-    S->>S: resolveOwnerDeskScope() เฉพาะร้านที่เป็น OWNER
+    S->>S: listAccessibleShopIds(userId,'X7') + pickDeskShop เฉพาะร้านที่เป็น OWNER
     S->>D: ห้องรอคำตอบ (<=200) + ห้องที่ร้านตอบ <=180 วิ + สมาชิก
     S->>M: ตัวเลขระดับร้าน (ตอบแรกเฉลี่ย รอเฉลี่ย SLA) แคช 60 วิ
     S-->>B: snapshot (ห้อง โต๊ะ ตัวเลข คีย์ presence ทึบของสมาชิก)
@@ -198,8 +198,8 @@ sequenceDiagram
 flowchart TD
     A[คำขอ page หรือ API] --> B{มี session และ sessionUserId?}
     B -- ไม่ --> X1[401]
-    B -- ใช่ --> C[resolveChatScope]
-    C --> D[กรองเหลือร้านที่ Shop.userId = ผู้ดู หรือ ShopMember.role = OWNER ใน WHERE]
+    B -- ใช่ --> C[listAccessibleShopIds userId X7]
+    C --> D[ได้ชุดร้านที่ผู้ดูถือ X7 จากสมาชิกสด Shop.userId หรือ ShopMember.role = OWNER]
     D --> E{เหลืออย่างน้อย 1 ร้าน และร้านที่ขอเป็นของชุดนี้?}
     E -- ไม่ --> X2[403 FORBIDDEN_ROLE / preview ห้อง = 404]
     E -- ใช่ --> F[ให้ข้อมูล]
@@ -215,7 +215,7 @@ flowchart TD
 | เปิดหน้า `/seller/chat-desk` | ใช่ | ไม่ (ไม่มีข้อมูลใน HTML) | ไม่ (ส่งไป sign-in) |
 | `GET /api/chat-desk/snapshot` | 200 | 403 | 401 |
 | `GET /api/chat-desk/rooms/[id]/preview` | 200 (ห้องของร้านที่เป็น OWNER) | 404 | 401 |
-| endpoint ออกคีย์ presence ของตน (อยู่ใต้ `/api/chat/` ไม่ใช่ `/api/chat-desk/`) | 200 | 200 (ต้องลงชื่อ presence ได้ ดู BR-CD-20) | 401 |
+| `GET /api/chat/presence-keys` ออกคีย์ presence ของตน (อยู่ใต้ `/api/chat/` ไม่ใช่ `/api/chat-desk/` · capability H1) | 200 | 200 (ต้องลงชื่อ presence ได้ ดู BR-CD-20) | 401 |
 | เขียนข้อมูลใด ๆ จากโต๊ะแชท | ไม่มี endpoint | ไม่มี | ไม่มี |
 
 > หมายเหตุ ADMIN ลงชื่อ Presence ได้ (ต้องได้ เพื่อให้เจ้าของเห็นว่าแอดมินออนไลน์) แต่ไม่เปิดโต๊ะแชท จึงต้องแยก "ออกคีย์ presence ของตน" ออกจาก API ของโต๊ะแชท (ADMIN ต้องเรียกได้) — ข้อนี้ผูกกับ AC-CD-27, AC-CD-30
@@ -224,8 +224,8 @@ flowchart TD
 
 ## 6. Use Case Scenarios
 
-### Scenario 1: ร้านตอบนอก Deep เป็นหลัก
-ร้าน X มีเจ้าของคนเดียวตอบจากแอป Messenger ลูกค้า 3 คนได้รับคำตอบเมื่อ 1 นาทีก่อน -> ยืนหน้าโต๊ะ "ตอบนอก Deep" ไม่มีโต๊ะแอดมินอื่น ไทล์ "ตอบแรกเฉลี่ย" แสดง "-" พร้อมป้าย "ตอบนอก Deep 41 ข้อความไม่รวม"
+### Scenario 1: ร้านตอบจากนอกระบบ เป็นหลัก
+ร้าน X มีเจ้าของคนเดียวตอบจากแอป Messenger ลูกค้า 3 คนได้รับคำตอบเมื่อ 1 นาทีก่อน -> ยืนหน้าโต๊ะ "ตอบจากนอกระบบ" ไม่มีโต๊ะแอดมินอื่น ไทล์ "ตอบแรกเฉลี่ย" แสดง "-" พร้อมป้าย "ตอบจากนอกระบบ 41 ข้อความไม่รวม"
 
 ### Scenario 2: แอดมิน A ตอบห้อง Y และห้อง Z
 ทั้งสองห้องยืนหน้าโต๊ะ A ป้ายโต๊ะ "แชทในมือ 2" A ออนไลน์ (เปิดหน้าแชท) หลัง 3 นาที ถ้าไม่มีข้อความใหม่ ลูกค้าทั้งสองเดินออก ป้าย "แชทในมือ 0" A "ว่างรับแชท"
@@ -246,7 +246,7 @@ OWNER ร้าน A และ ADMIN ร้าน B ในโหมดรวม�
 | ด้าน | ความต้องการ |
 |---|---|
 | ความถูกต้อง | ตัวเลขเท่ากับ `/reports/agents` (AC-CD-12) นับไม่ครบต้องบอก (AC-CD-14, 02) |
-| ความรวดเร็ว | snapshot <= 4 query · ตัวเลขรายวันแคช 60 วินาทีต่อร้าน · three.js lazy |
+| ความรวดเร็ว | snapshot เส้นทางปกติ (แคชรายวันโดน) = 3 การเรียก Prisma, แคชพลาด = 6 · SQL จริงที่วัดจาก `log:query` = 6 / 9 (Prisma แตก relation เป็น SQL แยก; ผลวัด SDS §7.4) — ตีความ "<= 4" เป็นเส้นทางปกติตาม SDS OQ-5 · ตัวเลขรายวันแคช 60 วินาทีต่อร้าน · three.js lazy |
 | ความปลอดภัย | OWNER เท่านั้น ที่ server · WHERE ผูกร้านตั้งแต่ query แรก · PII ไม่ออกจาก server · presence key ทึบ |
 | ความน่าเชื่อถือ | WebGL/asset/presence ล้ม = degrade ไม่ล้มทั้งหน้า |
 | ใช้งานได้ | คีย์บอร์ด · 2D เป็นทางเลือก · reduced-motion |
@@ -261,11 +261,11 @@ OWNER ร้าน A และ ADMIN ร้าน B ในโหมดรวม�
 |---|---|
 | BR-CD-01 | ห้องที่นำมาพิจารณา = `Conversation` ของร้านที่เลือก `resolvedAt IS NULL` `isHidden=false` `isSpam=false` |
 | BR-CD-02 | **รอคำตอบ** = ห้องตาม BR-CD-01 และ `lastSenderRole = 'BUYER'` และ `lastInboundAt` อยู่ภายใน 7 วันก่อนเวลาปัจจุบัน เลือกไม่เกิน 200 ห้องที่รอนานสุด (เรียง `lastInboundAt` น้อยไปมาก) ถ้าครบ 200 แสดง "200+" |
-| BR-CD-03 | บรรทัดระบบ (`ChatMessage.type = AUTO_ORDER_RESULT`) ไม่นับเป็นข้อความฝั่งร้านเลย (ไม่ใช่คนตอบ ไม่ตัดสินโต๊ะ ไม่ปิดการรอ) อ้างต้นแบบ `chat-metrics.service.ts` และ AC-ACO-61 ที่ระบุว่าบรรทัดระบบไม่แตะ `lastSenderRole`/`lastMessageAt` |
+| BR-CD-03 | บรรทัดระบบ (`ChatMessage.type` อยู่ใน `INTERNAL_MESSAGE_TYPES` ของ `src/lib/auto-order-message-type.ts` = **2 ชนิด**: `AUTO_ORDER_RESULT` และ `META_NOTICE`) ไม่นับเป็นข้อความฝั่งร้านเลย (ไม่ใช่คนตอบ ไม่ตัดสินโต๊ะ ไม่ปิดการรอ) อ้างต้นแบบ `chat-metrics.service.ts` และ AC-ACO-61 ที่ระบุว่าบรรทัดระบบไม่แตะ `lastSenderRole`/`lastMessageAt` |
 | BR-CD-04 | ข้อความที่ถูกลบ (`isDeleted`) ไม่นับเป็นคำตอบของคน (สอดคล้อง `isHumanAgentReply`) |
 | BR-CD-05 | **คนตอบล่าสุด** = ผู้ส่งของข้อความฝั่งร้านล่าสุด (`senderRole='SHOP'`) ที่ไม่ใช่บรรทัดระบบ และ `createdAt` อยู่ภายใน 180 วินาที และห้องตาม BR-CD-01 และข้อความล่าสุดของห้องเป็นฝั่งร้าน (ถ้าลูกค้าส่งหลังจากนั้นห้องกลับเป็น "รอคำตอบ") |
-| BR-CD-06 | **ลำดับตัดสินโต๊ะ** เมื่อข้อความเดียวเข้าได้หลายเงื่อนไข ตรวจตามลำดับและหยุดที่ข้อแรกที่ตรง 1) `autoReplyKind` ไม่ null -> โต๊ะบอท Deep 2) `viaStandby = true` -> โต๊ะ Meta AI / กล่องของเพจ 3) `senderUserId` เป็นสมาชิกหรือเจ้าของร้านนี้ -> โต๊ะแอดมินคนนั้น 4) ที่เหลือ -> โต๊ะตอบนอก Deep |
-| BR-CD-07 | ห้ามเรียกโต๊ะ "ตอบนอก Deep" ว่า AI หรือบอท มันคือคนจริงที่ระบบระบุตัวไม่ได้ (นิยามเดียวกับ `isUnattributedShopReply`) |
+| BR-CD-06 | **ลำดับตัดสินโต๊ะ** เมื่อข้อความเดียวเข้าได้หลายเงื่อนไข ตรวจตามลำดับและหยุดที่ข้อแรกที่ตรง 1) `autoReplyKind` ไม่ null -> โต๊ะบอท Deep 2) `viaStandby = true` -> โต๊ะ Meta AI / กล่องของเพจ 3) `senderUserId` เป็นสมาชิกหรือเจ้าของร้านนี้ -> โต๊ะแอดมินคนนั้น 4) ที่เหลือ -> โต๊ะตอบจากนอกระบบ |
+| BR-CD-07 | ห้ามเรียกโต๊ะ "ตอบจากนอกระบบ" ว่า AI หรือบอท มันคือคนจริงที่ระบบระบุตัวไม่ได้ (นิยามเดียวกับ `isUnattributedShopReply`) |
 | BR-CD-08 | ห้ามหนึ่งห้องอยู่ได้ที่เดียว รอคำตอบ (เลานจ์) ชนะหน้าโต๊ะเสมอ (ข้อความล่าสุดเป็นลูกค้าแปลว่ายังไม่ถูกตอบ) |
 
 ### 8.2 ตัวเลข
@@ -276,14 +276,14 @@ OWNER ร้าน A และ ADMIN ร้าน B ในโหมดรวม�
 | BR-CD-10 | **เกินเวลาตอบ** = ห้องในเลานจ์ที่ (เวลาปัจจุบัน - เวลาของข้อความลูกค้าใบแรกของช่วงที่ยังไม่ถูกตอบ) > `resolveSlaConfig(shop).firstResponseSec` (`DEFAULT_FIRST_RESPONSE_SLA_SEC = 300`) "ใบแรกของช่วงที่ยังไม่ถูกตอบ" = ข้อความลูกค้าที่เก่าสุดที่ใหม่กว่าข้อความฝั่งร้านล่าสุด (ไม่ใช่ `lastInboundAt` ซึ่งเป็นใบล่าสุด และจะรีเซ็ตนาฬิกาเมื่อลูกค้าพิมพ์รัว) |
 | BR-CD-11 | "ตอบแรกเฉลี่ย" "รอเฉลี่ย" ใช้ค่าระดับร้านของ `agent-performance.service.ts` (`firstResponseAvgSec`, `responseAvgSec`) ที่ `/reports/agents` ใช้ ห้ามคำนวณเอง ช่วง = "วันนี้" ตามเวลาไทย cohort ตามที่ 00059 กำหนด (ห้องที่เปิดในช่วง) |
 | BR-CD-12 | **ข้อมูลไม่ครบ** สูตรของ 00059 นับเฉพาะคำตอบที่ระบุตัวคนได้ (`HUMAN_AGENT_REPLY_WHERE`) บน prod คือ 22% ของข้อความฝั่งร้าน (7 วันถึง 2026-10-16) ทุกครั้งที่ `unattributedReplyCount > 0` ไทล์ต้องบอกจำนวนข้อความที่ไม่รวม ครบ 3 สถานะ ครบ = ไม่มีป้าย · บางส่วน = ตัวเลขพร้อมป้าย · ไม่มีเลย = "-" ห้ามแสดง 0 (`partial-data-must-be-labeled-or-filled`) |
-| BR-CD-13 | **รอคำตอบตอนนี้** (อ่านจากสถานะปัจจุบัน) ต่างจาก **รอเฉลี่ย** (ช่วงรอที่ถูกตอบแล้วตามคู่ใน `computeResponsePairs`) ต้องเรียกคนละชื่อบนจอ เพราะ "รอเฉลี่ย" ปิดช่วงรอด้วยคำตอบของคนที่ระบุตัวได้เท่านั้น ขณะที่ "รอคำตอบตอนนี้" ถือว่าคำตอบฝั่งร้านทุกชนิด (รวมนอก Deep) ตอบแล้ว ความต่างนี้ตั้งใจและต้องมีคำอธิบายบนจอ (ไอคอนข้อมูลที่ไทล์) |
+| BR-CD-13 | **รอคำตอบตอนนี้** (อ่านจากสถานะปัจจุบัน) ต่างจาก **รอเฉลี่ย** (ช่วงรอที่ถูกตอบแล้วตามคู่ใน `computeResponsePairs`) ต้องเรียกคนละชื่อบนจอ เพราะ "รอเฉลี่ย" ปิดช่วงรอด้วยคำตอบของคนที่ระบุตัวได้เท่านั้น ขณะที่ "รอคำตอบตอนนี้" ถือว่าคำตอบฝั่งร้านทุกชนิด (รวมตอบจากนอกระบบ) ตอบแล้ว ความต่างนี้ตั้งใจและต้องมีคำอธิบายบนจอ (ไอคอนข้อมูลที่ไทล์) |
 
 ### 8.3 สิทธิ์และขอบเขตร้าน
 
 | ID | กฎ |
 |---|---|
-| BR-CD-14 | เฉพาะ OWNER = `Shop.userId` ของผู้ดู หรือ `ShopMember.role = 'OWNER'` |
-| BR-CD-15 | ขอบเขตร้าน = `resolveChatScope(session).shopIds` กรองต่อด้วย BR-CD-14 ใน WHERE ตั้งแต่ query แรก (helper ใหม่ `resolveOwnerDeskScope`) ห้ามดึงก่อนแล้วค่อยเช็ค ปัจจุบัน `resolveChatScope` ไม่มี role ต่อร้านจึงต้องมี query role เพิ่ม |
+| BR-CD-14 | เฉพาะ OWNER = capability `X7` (เพิ่มใน `shop-permissions.ts`: `X7: [OWNER]`; แถว `X7` ใน 00071 BRD §8.3) ซึ่ง OWNER = `Shop.userId` หรือ `ShopMember.role = 'OWNER'` |
+| BR-CD-15 | ขอบเขตร้าน = `listAccessibleShopIds(userId, 'X7')` (00071 merge แล้ว — อ่านบทบาทสดจาก `ShopMember` ทุกคำขอ) แล้ว `pickDeskShop` เลือกร้านตั้งต้น ห้ามดึงข้อมูลก่อนแล้วค่อยเช็ค · ไม่ใช้ `resolveChatScope().shopIds` เป็นชุดของโต๊ะ (ไม่มี role ต่อร้าน) และไม่มี helper `resolveOwnerDeskScope` · literal `'X7'` ต้องอยู่ใน route/page เองตามทะเบียน `route-capabilities.ts` |
 | BR-CD-16 | ใช้ `sessionUserId()` ห้าม cast session (`session-exists-is-not-identity`) |
 | BR-CD-17 | ตรวจสิทธิ์ทุกคำขอ ไม่ cache สิทธิ์ใน JWT และ page ต้องตรวจเองไม่พึ่ง layout (`feedback_layout_is_not_a_guard`) |
 | BR-CD-18 | ฉากแสดงทีละร้าน ถ้า OWNER หลายร้าน มีตัวสลับร้านเฉพาะร้านที่เป็น OWNER ตัวเลขไม่รวมข้ามร้าน |
@@ -335,7 +335,7 @@ OWNER ร้าน A และ ADMIN ร้าน B ในโหมดรวม�
 |---|---|---|
 | รอคำตอบ (ตอนนี้) | BR-CD-02 | ใหม่ แต่ผูกกติกา unread เดิม `lastSenderRole IS DISTINCT FROM 'SHOP'` (`chat.service.ts:463`) |
 | คนตอบ / ตอบโดยคน | `isHumanAgentReply` / `HUMAN_AGENT_REPLY_WHERE` | `src/lib/agent-performance.ts:63,85` (นำมาใช้ ไม่พิมพ์เงื่อนไขซ้ำ) |
-| ตอบนอก Deep | `isUnattributedShopReply` | `agent-performance.ts:93` |
+| ตอบจากนอกระบบ | `isUnattributedShopReply` | `agent-performance.ts:93` |
 | Meta AI / กล่องของเพจ | `ChatMessage.viaStandby` (ตัวแทนที่ใกล้สุด) | `schema.prisma:2215` ไม่ใช่คอลัมน์ AI โดยตรง |
 | บอท Deep | `autoReplyKind` ไม่ null (AUTO, AUTO_TEST) | `agent-performance.ts:23` |
 | บรรทัดระบบ | `type = AUTO_ORDER_RESULT` | `auto-order-message-type` |
@@ -344,7 +344,7 @@ OWNER ร้าน A และ ADMIN ร้าน B ในโหมดรวม�
 | ปิดงานวันนี้ | **ไม่พบนิยามเดิมใน 00059** ข้อเสนอตาม Q-2 | ใหม่ ลงทะเบียนที่นี่ที่เดียว |
 | ออนไลน์ | BR-CD-19 | ใหม่ (ไม่มีนิยามเดิมในระบบ) |
 | ว่างรับแชท | ออนไลน์ และแชทในมือ = 0 | ใหม่ (ระบบไม่มีโควตา/มอบแชท) |
-| กำลังคุย | ห้องหน้าโต๊ะแอดมินและโต๊ะนอก Deep | ใหม่ |
+| กำลังคุย | ห้องหน้าโต๊ะแอดมินและโต๊ะตอบจากนอกระบบ | ใหม่ |
 
 ---
 

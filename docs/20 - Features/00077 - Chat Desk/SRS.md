@@ -44,7 +44,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 |---|---|
 | **เลานจ์** | ห้องสถานะ `WAITING` (ลูกค้ารอคำตอบ) |
 | **หน้าโต๊ะ** | ห้องสถานะ `AT_DESK` (ร้านตอบภายใน 180 วินาที) |
-| **โต๊ะ** | `admin:{userId}` · `external` (ตอบนอก Deep) · `meta-ai` · `bot` |
+| **โต๊ะ** | `admin:{userId}` · `external` (ตอบจากนอกระบบ) · `meta-ai` · `bot` |
 | **X7** | capability ใหม่ที่ OWNER เท่านั้นถือ (SDS TD-02) |
 | **บรรทัดระบบ** | `ChatMessage.type` ∈ `INTERNAL_MESSAGE_TYPES` (`src/lib/auto-order-message-type.ts:16`) |
 | **คีย์ทึบ** | presence key = HMAC ของ `shopId:userId` ไม่มี userId จริง |
