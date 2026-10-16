@@ -1,6 +1,6 @@
 /**
  * 00077 โต๊ะแชท — เมนูและหน้า /chat-desk เห็นเฉพาะ OWNER (capability X7)
- * แยกจาก role-nav.test.ts (ไฟล์ [blocker] คุ้มครองด้วยด่าน 0) — เทสเพิ่มอย่างเดียว ไม่แตะตารางเดิม
+ * แยกจาก role-nav.test.ts (ไฟล์ที่คุ้มครองด้วยด่าน 0) — เทสเพิ่มอย่างเดียว ไม่แตะตารางเดิม
  */
 import { describe, expect, it } from 'vitest'
 import { canSeePage, isRegisteredPage } from '@/lib/role-nav'
