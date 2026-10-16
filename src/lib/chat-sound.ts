@@ -197,7 +197,8 @@ function getSoundChannel(): BroadcastChannel | null {
 // shortcut: เงียบตามเวลา — ข้อความสดที่มาภายใน 8 วิหลังกลับเข้าหน้าจะเงียบด้วย; ถ้าต้องแม่นกว่านี้
 // ให้ caller ส่งธง "มาจาก refetch ตอนกลับเข้าหน้า" แทน
 const RESUME_QUIET_MS = 8000
-let resumedAt = Date.now() // เปิดแอปจาก cold start ก็นับเป็นการกลับเข้าหน้า
+// เริ่ม 0: cold start ไม่ต้องเงียบ — รายการแรกเป็นฐานใหม่ (pickBeepTarget ไม่มี prev ให้เทียบ) จึงไม่ดังย้อนหลังอยู่แล้ว
+let resumedAt = 0
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') resumedAt = Date.now()
