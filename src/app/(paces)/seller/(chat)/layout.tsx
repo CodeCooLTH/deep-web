@@ -41,6 +41,7 @@ import { getProductsByShop, getBestSellerProducts } from '@/services/product.ser
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatNoPermission from './_components/ChatNoPermission'
+import ChatPresenceTracker from './_components/ChatPresenceTracker'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import ChatNavRail from './_components/ChatNavRail'
 import ChatRailColumn from './_components/ChatRailColumn'
@@ -253,6 +254,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const shell = (
     <CanTopUpProvider canTopUp={scope ? isShopOwnerRole(scope.activeRole, scope.activeRoles) : false}>
     <ChatSearchProvider>
+      <ChatPresenceTracker key={scopeKey} />
       {/**
        * ChatNavRail — แถบเมนูร้านแบบไอคอนล้วนที่ขอบซ้าย กางตอน hover (≥1024px)
        *

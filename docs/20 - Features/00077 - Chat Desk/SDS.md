@@ -318,10 +318,18 @@ JOIN LATERAL (SELECT m.* FROM "ChatMessage" m
 | recent | `@@index([shopId, lastMessageAt])` L2059 | range 180 วินาที เล็กมาก |
 | ข้อความต่อห้อง | `ChatMessage @@index([conversationId, createdAt])` L2314 | LATERAL แบบ `ORDER BY createdAt DESC LIMIT 1` + filter senderRole |
 | resolvedToday | ไม่มี index บน `resolvedAt` | ใช้ prefix `shopId` + filter ต่อแถว |
-**ความเสี่ยง:** ร้านใหญ่ที่มีห้อง active ใน 7 วันเป็นหมื่น แต่ห้องรอจริงน้อย → สแกน index range ทั้งช่วงก่อนจะครบ 201 แถว; `resolvedToday` สแกนทั้งร้าน (แคช 60 วินาทีช่วย) ห้ามแก้ด้วย index (OOS-6) · **ยังไม่ได้วัด EXPLAIN** งาน T4 ต้องรัน `EXPLAIN (ANALYZE, BUFFERS)` บน dev (localhost:5434) ที่ 200 ห้อง และบันทึกผลในหัวข้อ §7.4
-### 7.4 ผลวัดที่ต้องบันทึกก่อน sign-off
+**ความเสี่ยง:** ร้านใหญ่ที่มีห้อง active ใน 7 วันเป็นหมื่น แต่ห้องรอจริงน้อย → สแกน index range ทั้งช่วงก่อนจะครบ 201 แถว; `resolvedToday` สแกนทั้งร้าน (แคช 60 วินาทีช่วย) ห้ามแก้ด้วย index (OOS-6) · วัด EXPLAIN แล้วที่ 200+200 ห้อง ผลอยู่ §7.4
+### 7.4 ผลวัด (T4 · 2026-10-16 · dev DB localhost:5434 · ร้านทดสอบ 20,400 ห้อง = 200 รอ + 200 เพิ่งตอบ + noise 20,000)
+noise 20,000 = 10,000 ตอบแล้วภายใน 7 วัน · 5,000 ลูกค้าล่าสุดแต่ปิดงานแล้ว · 5,000 ซ่อน (กรณีแย่สุดของ "กรองที่ heap") · ข้อมูลทดสอบลบด้วย id แล้ว
 | รายการ | ค่า | สถานะ |
 |---|---|---|
+| จำนวน SQL จริงต่อ snapshot (นับจาก `log:query`) | **แคชรายวันโดน = 6** (G 1 + `Shop`/`User`/`ShopMember`/`ShopChannel` อย่างละ 1 จาก `findUnique` ที่มี relation + rooms 1) · **แคชพลาด = 9** (+ `conversation.count` + `fetchConversations` + `fetchResponsePairs`) | วัดแล้ว — **เกิน "3 / 6 การเรียก Prisma" ใน §7.1**: Prisma แตก relation เป็น SQL แยก (ตีความ OQ-5 เป็นจำนวนการเรียก Prisma ยังได้ 3/6 แต่จำนวน SQL จริงคือ 6/9) |
+| EXPLAIN (ANALYZE, BUFFERS) rooms ที่ 200+200 ห้อง | Execution **8.0 ms** (Planning 2.0 ms) · awaiting ใช้ `Conversation_shopId_lastInboundAt_idx` แต่ **Rows Removed by Filter = 20,200** / shared hit 15,428 (ต้องไล่ index range ทั้งก้อนเพราะ resolvedAt/isHidden/lastSenderRole เป็น filter ที่ heap) · recent ใช้ `shopId_lastMessageAt_idx` 83 buffers · LATERAL ใช้ `ChatMessage_conversationId_senderRole_createdAt_idx` (มีอยู่แล้ว ดีกว่าที่ §7.3 คาด) | วัดแล้ว — เร็วที่ขนาดนี้ แต่ต้นทุนของ awaiting โตตามจำนวนห้องที่ `lastInboundAt` อยู่ใน 7 วัน ไม่ตามจำนวนห้องรอจริง (R-02 ยังเปิดสำหรับร้านที่ห้อง active 7 วันเป็นแสน) · ไม่เพิ่ม index (OOS-6) |
+| EXPLAIN `resolvedToday` | Execution **2.5 ms** · **Seq Scan** บน `Conversation` (754 buffers, ลบทิ้ง 35,410) ไม่ใช่ index prefix `shopId` ตามที่ §7.3 คาด เพราะ 5,000/20,400 แถวของร้านผ่าน filter และตารางเล็ก | วัดแล้ว — ไม่มี index บน `resolvedAt` ตามที่ระบุ · แคช 60 วินาทีกันซ้ำ |
+| ต้นทุนรายวันตอนแคชพลาด | `fetchResponsePairs` **1,316 ms** · `fetchConversations` 43 ms · count 3 ms — เพราะ cohort "เปิดวันนี้" ของร้านทดสอบมี 20,400 ห้อง (ทุกห้องสร้างวันนี้) | วัดแล้ว — เป็นต้นทุนของสูตร 00059 เดิม (ไม่แก้ได้ใน 00077) จ่ายครั้งเดียว/60 วินาที/ร้าน/อินสแตนซ์ ใช้ promise-cache กัน stampede · ร้านจริงที่เปิดห้องใหม่วันละไม่กี่ร้อยจะเล็กกว่านี้มาก |
+| ขนาด payload ที่ 400 แถว | JSON **92,056 B** · gzip **12,426 B** (ชื่อห้องเป็น "ลูกค้า" ทั้งหมดในชุดทดสอบ — ชื่อจริงจะยาวกว่านี้เล็กน้อย) | วัดแล้ว |
+
+---|---|---|
 | จำนวน SQL จริงต่อ snapshot (เส้นทางปกติ/แคชพลาด) | — | ยังไม่วัด |
 | EXPLAIN rooms ที่ 200 ห้อง | — | ยังไม่วัด |
 | EXPLAIN `resolvedToday` | — | ยังไม่วัด |

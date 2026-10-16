@@ -677,3 +677,34 @@ export async function getAgentDetailBundle(
   ])
   return { detail, breakdown }
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 00077 โต๊ะแชท — ตัวเลขเวลาตอบระดับร้านโดยไม่ลาก query ที่ไม่ต้องใช้
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type ShopResponseSummary = Pick<
+  PerformanceMetrics,
+  | 'firstResponseAvgSec'
+  | 'responseAvgSec'
+  | 'responseSampleCount'
+  | 'unattributedReplyCount'
+  | 'answeredOutsideSystemConversations'
+>
+
+/**
+ * ตัวเลข 5 ตัวนี้ไม่ขึ้นกับออเดอร์ จึงข้าม `fetchOrders` (2 query แทน 3) และไม่โหลดช่วงก่อนหน้า
+ * ผลต้องเท่ากับ `getAgentPerformanceOverview(...).overview` ทุกวินาที — มีเทส parity ผูกไว้
+ * (chat-desk-metrics-parity.db.test.ts) ห้ามเขียนสูตรชุดที่สองที่อื่น
+ */
+export async function getShopResponseSummary(shopId: string, f: ReportFilters): Promise<ShopResponseSummary> {
+  const sla = resolveSlaConfig({ id: shopId })
+  const [conversations, pairs] = await Promise.all([fetchConversations(shopId, f), fetchResponsePairs(shopId, f)])
+  const m = summarizeShop(assembleFacts(conversations, pairs, []), sla.firstResponseSec)
+  return {
+    firstResponseAvgSec: m.firstResponseAvgSec,
+    responseAvgSec: m.responseAvgSec,
+    responseSampleCount: m.responseSampleCount,
+    unattributedReplyCount: m.unattributedReplyCount,
+    answeredOutsideSystemConversations: m.answeredOutsideSystemConversations,
+  }
+}
