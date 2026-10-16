@@ -156,7 +156,7 @@ export async function proxy(request: NextRequest) {
   // เพิ่ม webmanifest 2026-08-05: `/manifest.webmanifest` ที่ Next สร้างจาก src/app/manifest.ts เสิร์ฟที่ root
   // เดิมไม่อยู่ใน list → โดน rewrite เป็น /seller/manifest.webmanifest = 404 (เจอตอน debug บน iPhone)
   // PWA "เพิ่มลงหน้าจอโฮม" บน seller/admin จึงไม่ทำงานมาตลอด — บั๊กคลาสเดียวกับ /sounds/*.m4a ข้างบน
-  if (/\.(?:json|webmanifest|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map|m4a|mp3|wav|ogg|aac)$/i.test(pathname)) {
+  if (/\.(?:json|webmanifest|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map|m4a|mp3|wav|ogg|aac|glb)$/i.test(pathname)) {
     return NextResponse.next()
   }
 

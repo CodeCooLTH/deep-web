@@ -349,20 +349,20 @@ JOIN LATERAL (SELECT m.* FROM "ChatMessage" m
 ## 9. ทะเบียน dependency
 | แพ็กเกจ | เวอร์ชันที่เสนอ | เหตุผล | ขนาด | ใบอนุญาต | ผู้อนุมัติ |
 |---|---|---|---|---|---|
-| `three` | `^0.186.1` (npm latest ตรวจ 2026-10-16) | engine 3D | unpacked 20.4 MB (ขนาดแพ็กเกจ ไม่ใช่ bundle; ต้องวัด chunk หลัง build) | MIT | **รออนุมัติ user** |
-| `@react-three/fiber` | `^9.8.2` (peer `react >=19 <19.4` เข้ากับ 19.2.3 ✓; `three >=0.156`) | React renderer ของ three | unpacked 2.4 MB | MIT | รออนุมัติ user |
-| `@react-three/drei` | `^10.7.9` (peer `@react-three/fiber ^9`, `react ^19`, `three >=0.159`) | `Html` `OrbitControls` `useGLTF` `useAnimations` `Edges` `RoundedBox` | unpacked 1.75 MB (ลาก transitive หลายตัว เช่น `three-stdlib` `hls.js` `@mediapipe/tasks-vision` ลงใน node_modules แต่ไม่เข้า bundle หากไม่ import) | MIT | รออนุมัติ user |
-| `@types/three` (dev) | `^0.186.0` | type | — | MIT | รออนุมัติ user |
+| `three` | `^0.186.1` (npm latest ตรวจ 2026-10-16) | engine 3D | unpacked 20.4 MB (ขนาดแพ็กเกจ ไม่ใช่ bundle; ต้องวัด chunk หลัง build) | MIT | **ติดตั้งแล้ว 0.186.1** |
+| `@react-three/fiber` | `^9.8.2` ติดตั้งแล้ว 9.8.2 (peer `react >=19 <19.4` เข้ากับ 19.2.3 ✓; `three >=0.156`) | React renderer ของ three | unpacked 2.4 MB | MIT | รออนุมัติ user |
+| `@react-three/drei` | `^10.7.9` ติดตั้งแล้ว 10.7.9 (peer `@react-three/fiber ^9`, `react ^19`, `three >=0.159`) | `Html` `OrbitControls` `useGLTF` `useAnimations` `Edges` `RoundedBox` | unpacked 1.75 MB (ลาก transitive หลายตัว เช่น `three-stdlib` `hls.js` `@mediapipe/tasks-vision` ลงใน node_modules แต่ไม่เข้า bundle หากไม่ import) | MIT | รออนุมัติ user |
+| `@types/three` (dev) | `^0.186.0` ติดตั้งแล้ว 0.186.0 | type | — | MIT | รออนุมัติ user |
 เวอร์ชันชุดเดียวกับที่ต้นแบบ gochat ใช้ (Next 16.2.12 / React 19.2.4) ความเข้ากับ **Next 16.1.1 + Turbopack ของรีโปนี้ยังไม่พิสูจน์** งาน T8 ต้อง `next build` (ตัดสินด้วย exit code) และวัดว่าไม่มี chunk three ใน route อื่น · ไม่ต้อง `transpilePackages` (ต้นแบบไม่ใช้)
 
 ## 10. ทะเบียน asset (CC0)
 | ไฟล์ปลายทาง | ที่มา | ผู้สร้าง | ใบอนุญาต | ขนาด |
 |---|---|---|---|---|
-| `public/chat-desk/kenney/{female-a..f,male-a..f}.glb` (12 ไฟล์) | ต้นแบบ `gochat-v3/3D-Chat-Desk/public/ops3d/kenney/` ← Kenney Mini Characters 1.0 (https://kenney.nl/assets/mini-characters) บีบเหลือ 5 ท่า (Idle · Walking_A · Sit_Chair_Idle · Interact · Cheer) ด้วย gltf-transform | Kenney (www.kenney.nl) | CC0 http://creativecommons.org/publicdomain/zero/1.0/ | ~43 KB/ตัว ≈ 0.5 MB (ตามคอมเมนต์ต้นแบบ **ยังไม่ได้วัด**) |
+| `public/chat-desk/kenney/{female-a..f,male-a..f}.glb` (12 ไฟล์) | ต้นแบบ `gochat-v3/3D-Chat-Desk/public/ops3d/kenney/` ← Kenney Mini Characters 1.0 (https://kenney.nl/assets/mini-characters) บีบเหลือ 5 ท่า (Idle · Walking_A · Sit_Chair_Idle · Interact · Cheer) ด้วย gltf-transform | Kenney (www.kenney.nl) | CC0 http://creativecommons.org/publicdomain/zero/1.0/ | 39,476–43,568 B/ตัว (วัดจริง 2026-10-16) รวม 12 ไฟล์ ≈ 493 KB |
 | `public/chat-desk/kenney/LICENSE.txt` | คัดลอกจากต้นแบบ | — | CC0 | — |
-| `public/chat-desk/kaykit/furniture.glb` | ต้นแบบ `public/ops3d/kaykit/furniture.glb` ← KayKit Furniture Bits 1.0 (https://kaylousberg.itch.io/furniture-bits) รวม 11 ชิ้น + meshopt | Kay Lousberg (www.kaylousberg.com) | CC0 | ~105 KB (ตามคอมเมนต์ **ยังไม่ได้วัด**) |
+| `public/chat-desk/kaykit/furniture.glb` | ต้นแบบ `public/ops3d/kaykit/furniture.glb` ← KayKit Furniture Bits 1.0 (https://kaylousberg.itch.io/furniture-bits) รวม 11 ชิ้น + meshopt | Kay Lousberg (www.kaylousberg.com) | CC0 | 104,892 B (วัดจริง 2026-10-16; EXT_meshopt_compression + KHR_mesh_quantization) |
 | `public/chat-desk/kaykit/LICENSE.txt` | เฉพาะส่วน Furniture Bits | — | CC0 | — |
-node ที่ใช้จาก furniture.glb (มุมคาเฟ่): `shelf_B_large_decorated` `pictureframe_large_A` `pictureframe_medium` `cabinet_medium_decorated` `cactus_medium_A` `couch_pillows` `rug_oval_A` `table_low` `lamp_standing` · **ไม่ใช้/ไม่ส่ง:** `themes.glb` · KayKit Adventurers · Mixamo · Quaternius (NFR-CD-10) · ตัวถอด meshopt มากับ three-stdlib ใน drei (`useGLTF(url, false)` ไม่ดึง Draco จาก CDN) · งาน T8 ต้องวัดขนาดจริงด้วย `ls -l` และเติมในตารางนี้ · เทสสแกนว่าทุกไฟล์ใต้ `public/chat-desk/**` มีนามสกุลที่อยู่ใน regex ของ `proxy.ts`
+node จริงใน furniture.glb (อ่าน JSON chunk 2026-10-16 มี 11 ตัว): `shelf_B_large_decorated` `cabinet_medium_decorated` `cactus_medium_A` `cactus_small_A` `lamp_standing` `couch_pillows` `armchair_pillows` `table_low` `pictureframe_large_A` `pictureframe_medium` `rug_oval_A` — ครบทุกชื่อที่แผนอ้าง · LICENSE.txt ของ kaykit ขึ้นหัวเป็น Adventurers แต่มีส่วน `---- furniture.glb ----` Furniture Bits 1.0 CC0 ท้ายไฟล์ · node ที่ใช้ในมุมคาเฟ่ตามแผน: `shelf_B_large_decorated` `pictureframe_large_A` `pictureframe_medium` `cabinet_medium_decorated` `cactus_medium_A` `couch_pillows` `rug_oval_A` `table_low` `lamp_standing` · **ไม่ใช้/ไม่ส่ง:** `themes.glb` · KayKit Adventurers · Mixamo · Quaternius (NFR-CD-10) · ตัวถอด meshopt มากับ three-stdlib ใน drei (`useGLTF(url, false)` ไม่ดึง Draco จาก CDN) · งาน T8 ต้องวัดขนาดจริงด้วย `ls -l` และเติมในตารางนี้ · เทสสแกนว่าทุกไฟล์ใต้ `public/chat-desk/**` มีนามสกุลที่อยู่ใน regex ของ `proxy.ts`
 
 ---
 
