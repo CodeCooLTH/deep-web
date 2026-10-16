@@ -41,6 +41,7 @@ const EXPECTED: Record<Capability, string> = {
   X4: 'YYY--',
   X5: 'YY---',
   X6: 'YY---',
+  X7: 'Y----',
 }
 
 describe('can() — ตารางสิทธิ์ครบทุกคู่ (บทบาท × capability)', () => {
@@ -51,8 +52,8 @@ describe('can() — ตารางสิทธิ์ครบทุกคู่
       })
     })
   }
-  it('ตารางคาดหวังครอบทุก capability (36 รหัส)', () => {
-    expect(Object.keys(EXPECTED)).toHaveLength(36)
+  it('ตารางคาดหวังครอบทุก capability (37 รหัส)', () => {
+    expect(Object.keys(EXPECTED)).toHaveLength(37)
   })
 })
 

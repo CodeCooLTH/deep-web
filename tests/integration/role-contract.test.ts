@@ -333,6 +333,8 @@ const COVERED: Record<string, string> = {
   'src/app/api/seller/iship/shipments/': 'พัสดุรายใบ (label/traces) S1 — ไบนารี/ไทม์ไลน์ขนส่ง ไม่มีต้นทุนสินค้า · ค่าส่งอยู่ที่ order-context (อยู่ใน MATRIX)',
   'src/app/api/seller/iship/unlinked/preview/': 'พรีวิวนำเข้าพัสดุ (S1) — ข้อมูลขนส่งดิบ ไม่ผูกต้นทุน',
   'src/app/api/seller/reports/agents/': 'รายงานแอดมินรายคน — ครอบด้วย agents (อยู่ใน MATRIX) + redactAgent* unit test',
+  'src/app/api/chat-desk/': 'โต๊ะแชท 00077 (X7 เจ้าของเท่านั้น) — snapshot/preview อ่านอย่างเดียว ไม่มีเงิน/ต้นทุน · สิทธิ์ครอบด้วย route.test 3 บัญชี + chat-desk-sources',
+  'src/app/api/chat/presence-keys/': 'คีย์ presence ทึบของผู้เรียกเอง (H1 · 00077) — ไม่มีข้อมูลร้าน/เงิน',
   'src/app/api/chat/comments/': 'กล่องคอมเมนต์ (H1) — ข้อความ/โพสต์ ไม่มีเงิน',
   'src/app/api/chat/conversations/[id]/ai-suggest/': 'สถานะ AI ตอบอัตโนมัติ (H1) — config',
   'src/app/api/chat/conversations/[id]/library/': 'คลังไฟล์ลูกค้า (X2) — ไฟล์/รูป',

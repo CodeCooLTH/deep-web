@@ -163,6 +163,8 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
+      // 00077 โต๊ะแชท — เห็นเฉพาะ OWNER ผ่านทะเบียน route (X7) ใน canSeePage · ห้ามใส่ slug นี้ใน *_ONLY_SLUGS (ต้องเห็นทุก vertical เหมือน seller:inbox)
+      { url: '/chat-desk', slug: 'seller:chat-desk', label: 'โต๊ะแชท', icon: 'armchair-2' },
       { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ตอบกลับอัตโนมัติ', icon: 'message-bolt' },
       // feature 00038 (Task 10) — เมนูต้องเห็นได้ทุก vertical: ห้ามใส่ slug นี้เข้า *_ONLY_SLUGS/
       // SHARED_PRODUCT_SLUGS ใด ๆ ทั้งสิ้น (ไม่อยู่ใน array ใด = ไม่ถูกซ่อนโดย applyVerticalMenu —
@@ -1053,6 +1055,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:follow-ups': m.followUps,
     'seller:expenses': m.expenses,
     'seller:inbox': m.inbox,
+    'seller:chat-desk': m.chatDesk,
     'seller:settings-auto-reply': m.settingsAutoReply,
     'seller:settings-order-agent': m.settingsOrderAgent,
     'seller:settings-comment-reply': m.settingsCommentReply,
