@@ -142,6 +142,12 @@ export type DeskCanvasProps = {
   selectedRoomId: string | null
   selectedTableKey: string | null
   hideNumbers: boolean
+  /** หมุนมุมมองทีละ 90° (นับจากมุมตั้งต้น) — ปุ่มหมุนบน toolbar เพิ่มทีละ 1 วนกลับ 0 */
+  rotation: 0 | 1 | 2 | 3
+  /** ตัวคูณซูม 0.6–3 (1 = พอดีห้อง) */
+  zoom: number
+  /** px ฝั่งซ้ายที่การ์ดลอยบังอยู่ — ฉากจัดกลางส่วนที่เหลือ (ไม่ส่ง = 0) */
+  leftInset?: number
   reducedMotion: boolean
   /** แท็บซ่อน → frameloop='never' */
   paused: boolean

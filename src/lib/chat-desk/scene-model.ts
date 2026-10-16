@@ -106,11 +106,12 @@ export function buildDeskView({ snapshot, filters, onlineKeys, now }: BuildDeskV
   const admin = members
     .map((m) => make({ key: `admin:${m.userId}`, kind: 'ADMIN', userId: m.userId, name: m.name, role: m.role, m }))
     .sort((a, b) => Number(b.total > 0) - Number(a.total > 0) || Number(!!b.online) - Number(!!a.online) || a.name.localeCompare(b.name, 'th'))
+  // โต๊ะที่ไม่ใช่แอดมินแสดงครบ 3 ชนิดเสมอแม้ 0 คน (ตาม mockup ที่ user อนุมัติ) — ฉากไม่กระโดดเมื่อมีคนแรกมาถึง
   const others = [
     make({ key: 'external', kind: 'EXTERNAL', userId: null, name: DESK_LABELS.EXTERNAL, role: null }),
     make({ key: 'meta_ai', kind: 'META_AI', userId: null, name: DESK_LABELS.META_AI, role: null }),
     make({ key: 'bot', kind: 'BOT', userId: null, name: DESK_LABELS.BOT, role: null }),
-  ].filter((t) => t.kind === 'EXTERNAL' || t.total > 0)
+  ]
 
   return {
     lounge: { seats: lounge.seats, overflow: lounge.overflow, total: waiting.length },

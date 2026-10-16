@@ -41,15 +41,17 @@ describe('layoutLounge (AC-CD-50)', () => {
 describe('buildDeskView', () => {
   it('ร้านเจ้าของคนเดียว (AC-CD-11): โต๊ะเจ้าของ + ตอบนอก Deep ครบ ไม่ error', () => {
     const v = view(snap([wait('w1'), desk('d1', { kind: 'EXTERNAL' }), desk('d2', { kind: 'ADMIN', userId: 'u1' })], [member(1, { role: 'OWNER' })]))
-    expect(v.tables.map((t) => t.key)).toEqual(['admin:u1', 'external'])
+    expect(v.tables.map((t) => t.key)).toEqual(['admin:u1', 'external', 'meta_ai', 'bot'])
     expect(v.tables[0].total).toBe(1)
     expect(v.tables[1].total).toBe(1)
     expect(v.lounge.total).toBe(1)
   })
-  it('ไม่มีห้องเลย: ยังมีโต๊ะสมาชิก + ตอบนอก Deep', () => {
-    expect(view(snap([])).tables.map((t) => t.key)).toEqual(['admin:u1', 'external'])
+  it('ไม่มีห้องเลย: โต๊ะสมาชิก + โต๊ะ 3 ชนิดที่เหลือยังอยู่ครบ (0 คน)', () => {
+    const v = view(snap([]))
+    expect(v.tables.map((t) => t.key)).toEqual(['admin:u1', 'external', 'meta_ai', 'bot'])
+    expect(v.tables.slice(1).map((t) => t.total)).toEqual([0, 0, 0])
   })
-  it('Meta AI / บอท โผล่เมื่อมีลูกค้า', () => {
+  it('Meta AI / บอท มีลูกค้ายืนหน้าโต๊ะได้', () => {
     const v = view(snap([desk('a', { kind: 'META_AI' }), desk('b', { kind: 'BOT' })]))
     expect(v.tables.map((t) => t.key)).toEqual(['admin:u1', 'external', 'meta_ai', 'bot'])
   })
