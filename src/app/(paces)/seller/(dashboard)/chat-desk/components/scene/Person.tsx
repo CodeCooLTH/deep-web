@@ -4,12 +4,12 @@
 // สีสถานะ = จานใต้เท้า (ตัว Kenney มีลายในตัว ทาสีทั้งตัวไม่ได้) — เป็นจุดที่ต่างจาก mockup
 import { useAnimations, useGLTF } from '@react-three/drei'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import type { Group, Mesh } from 'three'
+import type { Group, Material, Mesh } from 'three'
 import { ENTRANCE, routeBetween, type StageActor, type Vec } from '@/lib/chat-desk/scene-layout'
 import type { DeskEvent } from '@/lib/chat-desk/types'
-import { FLOOR_RING_Y, FloorDisc, Soft } from './parts'
+import { FLOOR_RING_Y, FloorDisc, Guarded } from './parts'
 import { MATERIAL as M, type SceneTokens } from './scene-colors'
 
 const KENNEY = ['female-a', 'female-b', 'female-c', 'female-d', 'female-e', 'female-f', 'male-a', 'male-b', 'male-c', 'male-d', 'male-e', 'male-f']
@@ -37,7 +37,8 @@ function Capsule({ color, seated, opacity }: { color: string; seated: boolean; o
 
 function KenneyModel({ who, anim, opacity, still }: { who: string; anim: Anim; opacity: number; still: boolean }) {
   const { scene, animations } = useGLTF(`/chat-desk/kenney/${who}.glb`, false)
-  const model = useMemo(() => {
+  const { model, clones } = useMemo(() => {
+    const clones: Material[] = []
     const m = cloneSkinned(scene)
     m.traverse((o) => {
       const mesh = o as Mesh
@@ -47,10 +48,13 @@ function KenneyModel({ who, anim, opacity, still }: { who: string; anim: Anim; o
         const c = mesh.material.clone()
         c.transparent = true; c.opacity = opacity; c.depthWrite = false
         mesh.material = c
+        clones.push(c)
       }
     })
-    return m
+    return { model: m, clones }
   }, [scene, opacity])
+  // material ที่ clone เองไม่ถูก GC ฝั่ง GPU — คืนเมื่อ opacity เปลี่ยน/ถอด component (geometry/texture ใช้ร่วมกับ scene จึงไม่แตะ)
+  useEffect(() => () => { clones.forEach((c) => c.dispose()) }, [clones])
   const { actions } = useAnimations(animations, model)
   useEffect(() => {
     const a = actions[anim] ?? actions.Idle
@@ -68,14 +72,12 @@ export function Figure({ id, anim, seated, color, opacity = 1, still }: {
 }) {
   const fallback = <Capsule color={color} seated={seated} opacity={opacity} />
   return (
-    <Soft fallback={fallback}>
-      <Suspense fallback={fallback}>
-        {/* นั่งแล้วยกขึ้น/ถอยหลังนิดให้สะโพกตรงเบาะ (ค่าจากต้นแบบ gochat) */}
-        <group position={[0, seated ? 0.12 : 0, seated ? -0.1 : 0]}>
-          <KenneyModel who={pickModel(id)} anim={anim} opacity={opacity} still={still} />
-        </group>
-      </Suspense>
-    </Soft>
+    <Guarded url={`/chat-desk/kenney/${pickModel(id)}.glb`} fallback={fallback}>
+      {/* นั่งแล้วยกขึ้น/ถอยหลังนิดให้สะโพกตรงเบาะ (ค่าจากต้นแบบ gochat) */}
+      <group position={[0, seated ? 0.12 : 0, seated ? -0.1 : 0]}>
+        <KenneyModel who={pickModel(id)} anim={anim} opacity={opacity} still={still} />
+      </group>
+    </Guarded>
   )
 }
 

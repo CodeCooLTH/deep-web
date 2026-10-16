@@ -6,13 +6,17 @@ import { useCallback, useSyncExternalStore, type RefObject } from 'react'
 const noopSub = () => () => {}
 
 /** วินาทีปัจจุบัน (epoch sec) — tick ทุก 1 วินาที เฉพาะ component ที่เรียก · server = 0 (UI ต้องแสดง "--" ไม่ใช่เวลาเพี้ยน) */
+// cache ค่าไว้ใน module: getSnapshot ต้องคืนค่าเดิมระหว่างสองครั้งที่ React เรียกติดกัน (ข้ามขอบวินาทีแล้วจะเตือน)
+let tickSec = 0
+const readTick = () => tickSec || (tickSec = Math.floor(Date.now() / 1000))
 export function useSecondTick(): number {
   return useSyncExternalStore(
     (cb) => {
-      const t = setInterval(cb, 1000)
+      tickSec = Math.floor(Date.now() / 1000)
+      const t = setInterval(() => { tickSec = Math.floor(Date.now() / 1000); cb() }, 1000)
       return () => clearInterval(t)
     },
-    () => Math.floor(Date.now() / 1000),
+    readTick,
     () => 0,
   )
 }

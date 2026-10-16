@@ -84,7 +84,7 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
                   <tr>
                     <th scope="col" className="px-4 py-2 text-start font-semibold">ลูกค้า</th>
                     <th scope="col" className="px-4 py-2 text-start font-semibold">ช่องทาง/เพจ</th>
-                    <th scope="col" className="px-4 py-2 text-start font-semibold">รอมา</th>
+                    <th scope="col" className="px-4 py-2 text-start font-semibold whitespace-nowrap">รอมา</th>
                     <th scope="col" className="px-4 py-2 text-start font-semibold">สถานะ</th>
                   </tr>
                 </thead>
@@ -102,7 +102,7 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
                           {CHANNEL_LABEL[c.platform]}{pageName(c.pageId) ? ` · ${pageName(c.pageId)}` : ''}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums">{waited(c, now)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap tabular-nums">{waited(c, now)}</td>
                       <td className="px-4 py-2.5"><StatusChip status={c.status} /></td>
                     </tr>
                   ))}

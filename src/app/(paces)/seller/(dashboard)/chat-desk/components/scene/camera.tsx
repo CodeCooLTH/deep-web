@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 import { MathUtils, Vector3, type Group, type OrthographicCamera } from 'three'
 import { ROOM } from '@/lib/chat-desk/scene-layout'
 
-export type LabelEntry = { el: HTMLElement; pos: Vector3; wall?: 'back' | 'left' }
+export type LabelEntry = { el: HTMLElement; pos: Vector3; wall?: 'back' | 'left'; mid?: boolean; w?: number; h?: number }
 export type SceneRefs = {
   labels: Map<string, LabelEntry>
   walls: { back: Group | null; left: Group | null }
@@ -28,14 +28,21 @@ function syncWalls(refs: SceneRefs, cam: OrthographicCamera) {
   if (refs.walls.left) refs.walls.left.visible = cam.position.x > 0.5
 }
 
-function projectLabels(refs: SceneRefs, cam: OrthographicCamera, width: number, height: number) {
+let frame = 0
+function projectLabels(refs: SceneRefs, cam: OrthographicCamera, width: number, height: number, pad: number) {
+  // วัดขนาดป้ายเป็นระยะ (ไม่ทุกเฟรม กัน layout thrash) เพื่อ clamp ไม่ให้ล้นขอบเวที/ใต้แผงซ้าย
+  const measure = frame++ % 20 === 0
   for (const l of refs.labels.values()) {
     const hide = l.wall && !refs.walls[l.wall]?.visible
     l.el.style.display = hide ? 'none' : ''
     if (hide) continue
+    if (measure || l.w === undefined) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight }
     v.copy(l.pos).project(cam)
+    const w = l.w ?? 0, h = l.h ?? 0
+    const x = Math.min(Math.max(((v.x + 1) / 2) * width, pad + w / 2 + 4), width - w / 2 - 4)
+    const y = Math.max(((1 - v.y) / 2) * height, l.mid ? h / 2 + 4 : h + 4)
     l.el.style.visibility = 'visible'
-    l.el.style.transform = `translate(${(((v.x + 1) / 2) * width).toFixed(1)}px,${(((1 - v.y) / 2) * height).toFixed(1)}px) translate(-50%,-100%)`
+    l.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,${l.mid ? '-50%' : '-100%'})`
   }
 }
 
@@ -71,13 +78,14 @@ export function CameraRig({ rotation, zoom, leftInset, reduced, refs }: {
       x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y)
     }
     const pad = Math.min(leftInset, width * 0.5)
-    const fit = Math.min((width - pad - 40) / (x1 - x0), (height - 70) / (y1 - y0))
+    // เผื่อขอบมากขึ้นสำหรับป้ายที่ยื่นออกนอกกล่องห้อง (ชื่อร้าน/ป้ายโต๊ะริมขวา)
+    const fit = Math.min((width - pad - 90) / (x1 - x0), (height - 90) / (y1 - y0))
     cam.zoom = Math.max(fit, 1) * zoom
     if (pad) cam.setViewOffset(width, height, -pad / 2, 0, width, height)
     else cam.clearViewOffset()
     cam.updateProjectionMatrix()
 
-    projectLabels(refs, cam, width, height)
+    projectLabels(refs, cam, width, height, pad)
   })
   return null
 }

@@ -2,7 +2,7 @@
 
 // ชิ้นส่วนร่วมของฉาก: กล่อง · ตัวกั้น error ของโมเดล · ของแต่งจาก furniture.glb
 import { useGLTF } from '@react-three/drei'
-import { Component, Suspense, useMemo, type ReactNode } from 'react'
+import { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BoxGeometry, DoubleSide, type Mesh, type Texture } from 'three'
 
 const UNIT = new BoxGeometry(1, 1, 1)
@@ -43,6 +43,27 @@ export class Soft extends Component<{ fallback?: ReactNode; children: ReactNode 
   render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children }
 }
 
+// ถามไฟล์ .glb ครั้งเดียวต่อ URL (ผลเก็บใน module) — ถ้าล้ม (ถูกบล็อก/404) ทุกตัวที่ใช้ URL นี้ใช้ fallback ทันที ไม่ยิง useGLTF ซ้ำจนมี uncaught ท่วม
+const probed = new Map<string, boolean | Promise<boolean>>()
+function probe(url: string): boolean | Promise<boolean> {
+  let p = probed.get(url)
+  if (p === undefined) {
+    p = fetch(url).then((r) => r.ok, () => false).then((ok) => { probed.set(url, ok); return ok })
+    probed.set(url, p)
+  }
+  return p
+}
+
+export function Guarded({ url, fallback = null, children }: { url: string; fallback?: ReactNode; children: ReactNode }) {
+  const [ok, setOk] = useState<boolean | null>(() => { const p = probe(url); return typeof p === 'boolean' ? p : null })
+  useEffect(() => {
+    let live = true
+    void Promise.resolve(probe(url)).then((v) => { if (live) setOk(v) })
+    return () => { live = false }
+  }, [url])
+  return ok ? <Soft fallback={fallback}><Suspense fallback={fallback}>{children}</Suspense></Soft> : fallback
+}
+
 const FURNITURE_URL = '/chat-desk/kaykit/furniture.glb'
 
 /** ของแต่งหนึ่งชิ้นจาก furniture.glb (ชื่อ node ตาม SDS §10) — clone ครั้งเดียวด้วย useMemo */
@@ -57,5 +78,5 @@ function Piece({ name, pos, ry = 0, k = 1.5 }: { name: string; pos: Tri; ry?: nu
 }
 
 export function Furniture(p: { name: string; pos: Tri; ry?: number; k?: number }) {
-  return <Soft><Suspense fallback={null}><Piece {...p} /></Suspense></Soft>
+  return <Guarded url={FURNITURE_URL}><Piece {...p} /></Guarded>
 }
