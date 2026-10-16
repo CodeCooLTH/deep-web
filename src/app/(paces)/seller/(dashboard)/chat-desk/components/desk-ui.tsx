@@ -1,6 +1,5 @@
 // ชิ้นส่วนเล็กที่หลายการ์ด/รายการใช้ร่วม — สถานะลูกค้า · โลโก้ช่องทาง · จุดออนไลน์ (สีตามตารางเดียวกับ legend: Design Spec §Legend)
 import Icon from '@/components/wrappers/Icon'
-import { ChannelMark } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { CHANNEL_LABEL } from '@/lib/chat-desk/channel-colors'
 import type { DeskCustomerStatus, DeskPlatform } from '@/lib/chat-desk/types'
 
@@ -21,11 +20,20 @@ export function StatusChip({ status }: { status: DeskCustomerStatus }) {
   )
 }
 
+const CHANNEL_ICON: Record<DeskPlatform, string> = {
+  DEEP: 'message-circle', MESSENGER: 'brand-messenger', INSTAGRAM: 'brand-instagram', LINE: 'brand-line',
+}
+
+/** ไอคอนช่องทางสีเดียว (ไม่ใช้สีแบรนด์ — เขียว LINE ชนกับ "ยืนยันแล้ว") */
+export function ChannelGlyph({ platform }: { platform: DeskPlatform }) {
+  return <Icon icon={CHANNEL_ICON[platform]} width={12} height={12} className="text-default-700 shrink-0" aria-hidden="true" />
+}
+
 /** โลโก้ช่องทางในวงกลมเทา — ช่องทางอยู่ที่นี่ ไม่ใช่สีตัว (มติ Controller ข้อ 3) */
 export function ChannelDot({ platform, size = 'size-6' }: { platform: DeskPlatform; size?: string }) {
   return (
     <span className={`${size} bg-light text-default-700 grid shrink-0 place-items-center rounded-full`} role="img" aria-label={CHANNEL_LABEL[platform]} title={CHANNEL_LABEL[platform]}>
-      <ChannelMark channel={platform} />
+      <ChannelGlyph platform={platform} />
     </span>
   )
 }

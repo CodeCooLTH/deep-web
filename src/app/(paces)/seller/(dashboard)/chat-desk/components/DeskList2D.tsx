@@ -38,7 +38,7 @@ function TableHead({ t }: { t: DeskTable }) {
     <>
       <OnlineDot online={t.online} />
       <span className="truncate" title={t.name}>{t.name}</span>
-      {t.online !== null && <span className="text-default-400 shrink-0 text-xs font-normal">{t.online ? 'ออนไลน์' : 'ออฟไลน์'}</span>}
+      {t.online !== null && <span className="text-default-600 shrink-0 text-xs font-normal">{t.online ? 'ออนไลน์' : 'ออฟไลน์'}</span>}
     </>
   ) : (
     <>
@@ -49,7 +49,7 @@ function TableHead({ t }: { t: DeskTable }) {
 }
 
 function TableRooms({ list, now, onSelectCustomer }: { list: DeskCustomer[]; now: number; onSelectCustomer: (c: DeskCustomer) => void }) {
-  if (list.length === 0) return <p className="text-default-700 px-3 py-3 text-xs">ไม่มีห้องที่โต๊ะนี้ตอนนี้</p>
+  if (list.length === 0) return <p className="text-default-700 px-3 py-3 text-xs">ตอนนี้ไม่มีแชทที่โต๊ะนี้</p>
   return (
     <ul className="divide-default-200 divide-y px-3">
       {list.map((c) => (
@@ -78,8 +78,8 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
         ) : (
           <>
             {/* md+ : ตาราง */}
-            <div className="hidden md:block">
-              <table className="table table-hover text-sm">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="table table-hover w-full text-sm">
                 <thead className="bg-default-100 text-default-700 text-xs">
                   <tr>
                     <th scope="col" className="px-4 py-2 text-start font-semibold">ลูกค้า</th>
@@ -98,12 +98,12 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
                         </button>
                       </td>
                       <td className="text-default-700 px-4 py-2.5">
-                        <span className="inline-block max-w-64 truncate align-bottom" title={pageName(c.pageId) ?? CHANNEL_LABEL[c.platform]}>
+                        <span className="inline-block max-w-48 truncate align-bottom" title={pageName(c.pageId) ?? CHANNEL_LABEL[c.platform]}>
                           {CHANNEL_LABEL[c.platform]}{pageName(c.pageId) ? ` · ${pageName(c.pageId)}` : ''}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap tabular-nums">{waited(c, now)}</td>
-                      <td className="px-4 py-2.5"><StatusChip status={c.status} /></td>
+                      <td className="px-4 py-2.5 whitespace-nowrap"><StatusChip status={c.status} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -120,8 +120,9 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
                         <span className="truncate text-sm font-semibold" title={c.name}>{c.name}</span>
                         <span className="ms-auto shrink-0"><StatusChip status={c.status} /></span>
                       </span>
-                      <span className="text-default-700 block truncate text-xs">
-                        {pageName(c.pageId) ?? CHANNEL_LABEL[c.platform]} · รอ {waited(c, now)}
+                      <span className="text-default-700 flex items-center gap-1 text-xs">
+                        <span className="min-w-0 truncate">{pageName(c.pageId) ?? CHANNEL_LABEL[c.platform]}</span>
+                        <span className="shrink-0 whitespace-nowrap">· รอ {waited(c, now)}</span>
                       </span>
                     </span>
                   </button>
@@ -139,9 +140,9 @@ export default function DeskList2D({ lounge, loungeCapped, tables, byTable, page
           {tables.map((t) => {
             const list = byTable[t.key] ?? []
             return (
-              <div key={t.key} className={`card ${t.kind === 'ADMIN' && t.online === false ? 'opacity-70' : ''}`}>
-                <div className="card-header">
-                  <span className="card-title flex min-w-0 items-center gap-1.5"><TableHead t={t} /></span>
+              <div key={t.key} className={`card ${''}`}>
+                <div className="card-header flex-nowrap gap-2">
+                  <span className="card-title flex min-w-0 flex-1 items-center gap-1.5"><TableHead t={t} /></span>
                   <span className="text-default-700 shrink-0 text-xs">แชทในมือ <b className="tabular-nums">{list.length}</b></span>
                 </div>
                 <TableRooms list={list} now={now} onSelectCustomer={onSelectCustomer} />

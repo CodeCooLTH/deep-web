@@ -79,7 +79,8 @@ export function CameraRig({ rotation, zoom, leftInset, reduced, refs }: {
     }
     const pad = Math.min(leftInset, width * 0.5)
     // เผื่อขอบมากขึ้นสำหรับป้ายที่ยื่นออกนอกกล่องห้อง (ชื่อร้าน/ป้ายโต๊ะริมขวา)
-    const fit = Math.min((width - pad - 90) / (x1 - x0), (height - 90) / (y1 - y0))
+    const m = width < 768 ? 40 : 90 // จอเล็กเหลือขอบน้อยลงให้ฉากเต็มเวที
+    const fit = Math.min((width - pad - m) / (x1 - x0), (height - m) / (y1 - y0))
     cam.zoom = Math.max(fit, 1) * zoom
     if (pad) cam.setViewOffset(width, height, -pad / 2, 0, width, height)
     else cam.clearViewOffset()

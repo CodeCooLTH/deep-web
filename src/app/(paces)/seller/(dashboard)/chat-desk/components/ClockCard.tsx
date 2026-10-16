@@ -72,13 +72,13 @@ export default function ClockCard({ shopName, shops, shopId, onShopChange, lastU
         {fresh === 'old' && (
           <p role="status" className="bg-warning/15 text-warning-ink mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <Icon icon="clock" width={12} height={12} aria-hidden="true" />
-            ข้อมูลเก่า {Math.round(ageSec)} วินาที กำลังลองใหม่
+            ข้อมูลล่าช้า {Math.round(ageSec)} วินาที · กำลังเชื่อมต่อใหม่
           </p>
         )}
         {fresh === 'lost' && (
           <p role="status" className="bg-danger/15 text-danger-ink mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <Icon icon="alert-triangle" width={12} height={12} aria-hidden="true" />
-            เชื่อมต่อไม่ได้
+            เชื่อมต่อไม่ได้ · กดรีเฟรชเพื่อลองใหม่
           </p>
         )}
       </div>

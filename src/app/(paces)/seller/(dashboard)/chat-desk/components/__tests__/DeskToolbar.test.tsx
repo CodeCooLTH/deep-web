@@ -12,10 +12,10 @@ const html = (p: Partial<DeskToolbarProps> = {}) => renderToStaticMarkup(<DeskTo
 describe('DeskToolbar', () => {
   it('ปุ่มทุกตัวมี aria-label ไทย · ตัวเลขเป็นปุ่มสลับ aria-pressed', () => {
     const h = html()
-    for (const l of ['หมุนมุมมอง', 'ซูมออก', 'ซูมเข้า', 'ตัวเลข', 'เต็มจอ']) expect(h).toContain(`aria-label="${l}"`)
+    for (const l of ['หมุนมุมมอง', 'ซูมออก', 'ซูมเข้า', 'แสดงตัวเลขบนฉาก', 'เต็มจอ']) expect(h).toContain(`aria-label="${l}"`)
     expect(h).toContain('ตัวกรอง-slot')
-    expect(h).toMatch(/aria-label="ตัวเลข"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="ตัวเลข"/)
-    expect(html({ hideNumbers: true })).toMatch(/aria-label="ตัวเลข"[^>]*aria-pressed="false"|aria-pressed="false"[^>]*aria-label="ตัวเลข"/)
+    expect(h).toMatch(/aria-label="แสดงตัวเลขบนฉาก"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*aria-label="แสดงตัวเลขบนฉาก"/)
+    expect(html({ hideNumbers: true })).toMatch(/aria-label="แสดงตัวเลขบนฉาก"[^>]*aria-pressed="false"|aria-pressed="false"[^>]*aria-label="แสดงตัวเลขบนฉาก"/)
   })
 
   it('ไม่รองรับ Fullscreen API = ไม่มีปุ่มเต็มจอเลย (ไม่ใช่ปุ่ม disabled) · เต็มจออยู่ = "ออกจากเต็มจอ"', () => {

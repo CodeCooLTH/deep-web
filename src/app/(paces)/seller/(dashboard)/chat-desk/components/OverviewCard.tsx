@@ -88,7 +88,7 @@ export default function OverviewCard({ summary, daily, filtered }: OverviewCardP
           const panelId = `${uid}-${r.key}`
           const isOpen = open === r.key
           return (
-            <li key={r.key} className="py-2">
+            <li key={r.key} className="py-1.5">
               <div className="flex items-center gap-2 text-sm">
                 <Icon icon={r.icon} width={16} height={16} className="text-default-400 shrink-0" aria-hidden="true" />
                 <span className="text-default-700 min-w-0">
@@ -131,7 +131,7 @@ export default function OverviewCard({ summary, daily, filtered }: OverviewCardP
         {outside > 0 && (
           <p className="text-warning-ink flex gap-1 text-xs">
             <Icon icon="alert-circle" width={14} height={14} className="mt-px shrink-0" aria-hidden="true" />
-            <span>นับเฉพาะคำตอบที่ระบุตัวคนได้ · ตอบจากนอกระบบ {fmtInt(outside)} ข้อความไม่รวม</span>
+            <span>นับเฉพาะคำตอบที่ระบุได้ว่าใครตอบ · ไม่รวมคำตอบจากนอกระบบ {fmtInt(outside)} ข้อความ</span>
           </p>
         )}
         <Link href="/reports/agents" className="text-primary mt-1 inline-flex items-center gap-1 text-xs font-medium">

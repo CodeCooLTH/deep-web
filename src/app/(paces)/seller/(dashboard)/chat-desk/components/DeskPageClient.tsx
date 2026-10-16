@@ -214,7 +214,7 @@ export default function DeskPageClient({ ownerShops, initialShopId, initialFilte
               onClick={() => changeView(o.v)}
               className={`inline-flex h-8 items-center gap-1 rounded-md px-3 ${view === o.v ? 'bg-card text-default-900 font-semibold shadow-sm' : 'text-default-700'}`}
             >
-              {o.icon && view !== o.v && <Icon icon={o.icon} className="text-sm" aria-hidden="true" />}
+              {o.icon && <Icon icon={o.icon} className="text-sm" aria-hidden="true" />}
               {o.label}
             </button>
           ))}
@@ -291,7 +291,7 @@ export default function DeskPageClient({ ownerShops, initialShopId, initialFilte
   const sceneBanner = sceneFailed && (
     <div role="status" className="bg-default-100 text-default-900 flex items-center gap-2 rounded-md px-3 py-2 text-sm">
       <Icon icon="info-circle" className="shrink-0 text-base" aria-hidden="true" />
-      เครื่องนี้แสดงฉาก 3D ไม่ได้ จึงแสดงเป็นรายการ ข้อมูลชุดเดียวกัน
+      อุปกรณ์นี้แสดงฉาก 3D ไม่ได้ จึงแสดงเป็นรายการแทน · ข้อมูลเหมือนกันทุกอย่าง
     </div>
   )
 
@@ -339,18 +339,18 @@ export default function DeskPageClient({ ownerShops, initialShopId, initialFilte
 
   const is3d = view === '3d'
   const summaryBar = (
-    <div className="card divide-default-200 absolute start-3 bottom-3 z-10 flex items-center divide-x text-sm lg:hidden">
-      <span className="inline-flex items-center gap-1.5 px-3 py-2.5">
+    <div className="card divide-default-200 absolute start-3 bottom-3 z-10 flex flex-row items-center divide-x whitespace-nowrap text-sm lg:hidden">
+      <span className="inline-flex items-center gap-1.5 px-3 py-2.5 max-sm:px-2">
         <Icon icon="clock" className="text-warning-ink text-base" aria-hidden="true" />รอคำตอบ <b className="tabular-nums">{fmtInt(s.waiting)}{s.awaitingCapped ? '+' : ''}</b>
       </span>
-      <span className="inline-flex items-center gap-1.5 px-3 py-2.5">
-        <Icon icon="alert-triangle" className="text-danger-ink text-base" aria-hidden="true" />เกินเวลา <b className={`tabular-nums ${s.overdue > 0 ? 'text-danger-ink' : ''}`}>{fmtInt(s.overdue)}</b>
+      <span className="inline-flex items-center gap-1.5 px-3 py-2.5 max-sm:px-2">
+        <Icon icon="alert-triangle" className="text-danger-ink text-base" aria-hidden="true" />เกิน<span className="max-sm:hidden">เวลา</span> <b className={`tabular-nums ${s.overdue > 0 ? 'text-danger-ink' : ''}`}>{fmtInt(s.overdue)}</b>
       </span>
-      <span className="hidden items-center gap-1.5 px-3 py-2.5 sm:inline-flex">
+      <span className="hidden items-center gap-1.5 px-3 py-2.5 max-sm:px-2 sm:inline-flex">
         <Icon icon="users" className="text-default-400 text-base" aria-hidden="true" />ออนไลน์ <b className="tabular-nums">{s.online === null ? '—' : `${s.online}/${s.chatters}`}</b>
       </span>
-      <button type="button" onClick={() => setOverviewOpen(true)} className="text-primary inline-flex min-h-11 items-center gap-1 px-3 font-medium">
-        ดูทั้งหมด<Icon icon="chevron-right" className="text-sm" aria-hidden="true" />
+      <button type="button" onClick={() => setOverviewOpen(true)} className="text-primary inline-flex min-h-11 items-center gap-0.5 px-3 font-medium max-sm:px-2">
+        ดูทั้งหมด<Icon icon="chevron-right" className="text-sm max-sm:hidden" aria-hidden="true" />
       </button>
     </div>
   )

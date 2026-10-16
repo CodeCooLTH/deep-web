@@ -19,7 +19,7 @@ const MARKER: Record<ActivityKind, { icon: string; cls: string }> = {
   LEAVE: { icon: 'door-exit', cls: 'bg-default-200 text-default-700' },
 }
 const TEXT = (a: ActivityItem) =>
-  a.kind === 'ENTER_LOUNGE' ? 'เข้ามารอคำตอบ' : a.kind === 'TO_DESK' ? `ไปที่โต๊ะ ${a.deskName ?? ''}` : 'ออกจากฉาก'
+  a.kind === 'ENTER_LOUNGE' ? 'เข้ามารอคำตอบ' : a.kind === 'TO_DESK' ? a.deskName ? `ไปที่โต๊ะ ${a.deskName}` : 'ไปที่โต๊ะแอดมิน' : 'ออกจากฉาก'
 
 export type ActivityCardProps = {
   items: ActivityItem[]

@@ -41,7 +41,7 @@ export default function DeskToolbar({ zoom, onRotate, onZoomIn, onZoomOut, hideN
       {filterSlot}
       <button
         type="button"
-        aria-label="ตัวเลข"
+        aria-label="แสดงตัวเลขบนฉาก"
         aria-pressed={!hideNumbers}
         onClick={onToggleNumbers}
         className={`${BTN} ${hideNumbers ? '' : 'bg-primary/15 text-primary'} ${fullscreen.supported ? '' : 'rounded-e-lg'}`}

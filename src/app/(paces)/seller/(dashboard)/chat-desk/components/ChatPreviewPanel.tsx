@@ -11,7 +11,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { ChannelMark } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
+import { ChannelGlyph } from './desk-ui'
 import { formatResponseDuration } from '@/lib/agent-performance'
 import { CHANNEL_LABEL } from '@/lib/chat-desk/channel-colors'
 import { previewBodyLabel } from '@/lib/chat-desk/rules'
@@ -110,7 +110,7 @@ export function ChatPreviewView({ customer, now, phase, data, onRetry, onClose, 
             </button>
           )}
           <div className="mt-1 shrink-0">
-            <ChannelMark channel={customer.platform} />
+            <ChannelGlyph platform={customer.platform} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-default-900 truncate font-semibold" title={customer.name}>

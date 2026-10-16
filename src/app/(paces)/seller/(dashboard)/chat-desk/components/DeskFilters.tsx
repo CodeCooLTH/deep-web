@@ -10,7 +10,7 @@
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { ChannelMark } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
+import { ChannelGlyph } from './desk-ui'
 import { CHANNEL_LABEL } from '@/lib/chat-desk/channel-colors'
 import { PLATFORMS } from '@/lib/chat-desk/constants'
 import { EMPTY_FILTERS } from '@/lib/chat-desk/filters'
@@ -114,13 +114,13 @@ export default function DeskFilters({ value, channels, members, onApply, variant
         <div id={popId} role="dialog" aria-label="ตัวกรอง" className="card absolute end-0 top-full z-30 mt-2 w-72 p-4 sm:w-80">
           <div className="mb-3 flex items-center justify-between">
             <span className="card-title">ตัวกรอง</span>
-            <button type="button" aria-label="ปิด" onClick={() => setOpen(false)} className="text-default-400 hover:text-default-900">
+            <button type="button" aria-label="ปิดตัวกรอง" onClick={() => setOpen(false)} className="text-default-400 hover:text-default-900">
               <Icon icon="x" className="text-lg" aria-hidden="true" />
             </button>
           </div>
           <Group title="แพลตฟอร์ม">
             {PLATFORMS.map((p) => (
-              <Chip key={p} on={draft.platforms.includes(p)} label={CHANNEL_LABEL[p]} leading={<ChannelMark channel={p} />} onClick={() => setDraft({ ...draft, platforms: toggle(draft.platforms, p) })} />
+              <Chip key={p} on={draft.platforms.includes(p)} label={CHANNEL_LABEL[p]} leading={<ChannelGlyph platform={p} />} onClick={() => setDraft({ ...draft, platforms: toggle(draft.platforms, p) })} />
             ))}
           </Group>
           {channels.length >= 2 && (

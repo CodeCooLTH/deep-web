@@ -55,7 +55,7 @@ export function Overlay({ view, shopName, hideNumbers: hide, refs, slots, actors
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {/* ป้ายร้านอยู่กลางป้ายไม้บนผนังหลัง (ซ่อนพร้อมผนัง) · จอแคบซ่อน — เหลือป้ายหลักเท่านั้น */}
-      <Pin id="shop" pos={[6.6, 3.5, -D / 2 + 0.12]} wall="back" mid cls="max-md:hidden" refs={refs}>
+      <Pin id="shop" pos={[3.5, 5.2, -D / 2 + 0.12]} wall="back" mid cls="max-md:hidden" refs={refs}>
         <span aria-hidden className={cn(PILL, 'max-w-64 px-3 py-1 text-sm')}><span className="truncate">{shopName}</span></span>
       </Pin>
       <Pin id="door-in" pos={[-W / 2 + 0.1, 3.1, 5]} wall="left" cls="max-md:hidden" refs={refs}>
@@ -105,19 +105,19 @@ export function Overlay({ view, shopName, hideNumbers: hide, refs, slots, actors
           <div key={t.key}>
             <Pin id={`t:${t.key}`} pos={[x, 2.25, z - 0.6]} refs={refs}>
               <button type="button" onClick={() => onSelectTable(t.key)} className={HIT} aria-label={tableAria(t, hide)}>
-                <span className={cn(PILL, 'hover:ring-2 hover:ring-primary/40', off && 'opacity-60')}>
+                <span className={cn(PILL, 'hover:ring-2 hover:ring-primary/40')}>
                   {t.kind === 'ADMIN'
                     ? t.online === null
-                      ? <span aria-hidden className="text-default-400">-</span>
-                      : <span aria-hidden className={cn('size-2 flex-none rounded-full', t.online ? 'bg-primary' : 'border-2 border-default-400')} />
+                      ? <span aria-hidden className="text-default-600">-</span>
+                      : <span aria-hidden className={cn('size-2 flex-none rounded-full', t.online ? 'bg-primary' : 'border-2 border-default-600')} />
                     : <Icon icon={KIND_ICON[t.kind]} className="size-3.5 flex-none" />}
-                  <span className="truncate max-md:hidden">{t.name}</span>
+                  <span className={cn('truncate max-md:max-w-20', off && 'text-default-600')}>{t.name}</span>
                   {!hide && <span className="flex-none font-normal tabular-nums text-default-700">· <span className="max-md:hidden">{t.kind === 'ADMIN' ? 'แชทในมือ ' : ''}</span>{t.total}</span>}
                 </span>
               </button>
             </Pin>
             {t.overflow > 0 && !hide && (
-              <Pin id={`more:${t.key}`} pos={[x + 1.55, 1.5, z + 1.5]} cls="max-md:hidden" refs={refs}>
+              <Pin id={`more:${t.key}`} pos={[x + 1.2, 0.3, z + 2.0]} cls="max-md:hidden" refs={refs}>
                 <button type="button" onClick={() => onSelectTable(t.key)} className={HIT} aria-label={`อีก ${t.overflow} คนที่โต๊ะ ${t.name}`}>
                   <span className={cn(PILL, 'tabular-nums')}>+{t.overflow}</span>
                 </button>

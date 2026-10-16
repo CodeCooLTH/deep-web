@@ -8,7 +8,7 @@
  * ไม่มีปุ่มกระทำใด ๆ กับห้อง (อ่านอย่างเดียว) — โครงรายการตาม mockup `deskCard`
  */
 import Icon from '@/components/wrappers/Icon'
-import { ChannelMark } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
+import { ChannelGlyph } from './desk-ui'
 import { formatResponseDuration } from '@/lib/agent-performance'
 import { CHANNEL_LABEL } from '@/lib/chat-desk/channel-colors'
 import type { DeskCustomer, DeskTable } from '@/lib/chat-desk/types'
@@ -59,7 +59,7 @@ export default function AdminPanel({ table, customers, now, onSelectCustomer, on
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
         {list.length === 0 ? (
-          <p className="text-default-400 py-4 text-xs">ไม่มีห้องที่โต๊ะนี้ตอนนี้</p>
+          <p className="text-default-600 py-4 text-xs">ตอนนี้ไม่มีแชทที่โต๊ะนี้</p>
         ) : (
           <ul className="divide-default-200 divide-y">
             {list.map((c) => (
@@ -69,7 +69,7 @@ export default function AdminPanel({ table, customers, now, onSelectCustomer, on
                   onClick={() => onSelectCustomer(c)}
                   className="hover:bg-default-100 flex min-h-12 w-full items-center gap-2 py-2 text-start text-sm"
                 >
-                  <ChannelMark channel={c.platform} />
+                  <ChannelGlyph platform={c.platform} />
                   <span className="min-w-0 flex-1">
                     <span className="text-default-900 block truncate" title={c.name}>
                       {c.name}
@@ -78,7 +78,7 @@ export default function AdminPanel({ table, customers, now, onSelectCustomer, on
                   </span>
                   {c.since && (
                     <span className="text-default-400 shrink-0 text-xs">
-                      ตอบเมื่อ {formatResponseDuration((now - new Date(c.since).getTime()) / 1000)} ที่แล้ว
+                      ร้านตอบเมื่อ {formatResponseDuration((now - new Date(c.since).getTime()) / 1000)} ที่แล้ว
                     </span>
                   )}
                   <Icon icon="chevron-right" className="text-default-400 shrink-0" />
@@ -87,7 +87,7 @@ export default function AdminPanel({ table, customers, now, onSelectCustomer, on
             ))}
           </ul>
         )}
-        {list.length < table.total && <p className="text-default-400 pt-2 text-xs">และอีก {table.total - list.length} ห้อง</p>}
+        {list.length < table.total && <p className="text-default-400 pt-2 text-xs">และอีก {table.total - list.length} แชท</p>}
       </div>
     </>
   )

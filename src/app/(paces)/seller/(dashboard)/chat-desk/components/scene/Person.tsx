@@ -158,6 +158,13 @@ export function Actor({ actor, tokens, ev, from, reduced, selected, onSelect, on
           <meshBasicMaterial color={tokens.danger} transparent opacity={0.85} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} depthWrite={false} />
         </mesh>
       )}
+      {/* ลูกค้าที่นั่งเลานจ์: จานใต้เท้าถูกโซฟาบัง → ทรงกลมสีสถานะลอยเหนือหัว (ไม่ทาสีตัวคน) */}
+      {seated && (
+        <mesh position={[0, 2.0, 0]}>
+          <sphereGeometry args={[0.17, 16, 12]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+      )}
       {selected && <FloorDisc color={tokens.primary} radius={0.72} inner={0.6} y={FLOOR_RING_Y + 0.02} />}
       <Figure id={id} anim={walking ? 'Walking_A' : seated ? 'Sit_Chair_Idle' : 'Idle'} seated={seated && !walking} color={color} still={reduced} />
     </group>

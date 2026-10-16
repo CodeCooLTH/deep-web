@@ -149,13 +149,13 @@ test.describe('owner รอบ 2', () => {
     expect(errs.filter((e) => e.startsWith('pageerror'))).toEqual([])
   })
 
-  test('poll ล้ม (500) > 30 วิ → ป้าย "ข้อมูลเก่า"', async ({ page }) => {
+  test('poll ล้ม (500) > 30 วิ → ป้าย "ข้อมูลล่าช้า"', async ({ page }) => {
     test.setTimeout(90000)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/chat-desk')
     await page.waitForTimeout(3000)
     await page.route('**/api/chat-desk/snapshot**', (r) => r.fulfill({ status: 500, body: '{}' }))
-    await expect(page.getByText(/ข้อมูลเก่า \d+ วินาที/)).toBeVisible({ timeout: 60000 })
+    await expect(page.getByText(/ข้อมูลล่าช้า \d+ วินาที/)).toBeVisible({ timeout: 60000 })
     await page.screenshot({ path: `${SHOT}/qa2-stale-badge.png` })
   })
 
