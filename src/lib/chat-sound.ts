@@ -173,6 +173,9 @@ const lastPlayedByShop = new Map<string, number>()
 // "ประกาศ" (พร้อม shopId) แล้วทุกแท็บ (รวมตัวเอง) ยึด throttle รายร้านเดียวกัน → ข้อความของร้านหนึ่ง
 // ดังครั้งเดียวทั้ง browser แต่ **ต่างร้านไม่กลบกัน**. race window = latency ของ message (~ไม่กี่ ms)
 // << MIN_GAP_MS จึง dedup ได้แทบทุกกรณี ไม่ต้องทำ leader-election
+// 🛑 ข้อสันนิษฐานข้างบนผิด (user report ซ้ำ 2026-10-16): ทุกแท็บได้ realtime event "พร้อมกัน" ⇒
+// เช็ค throttle ก่อนข้อความของกันและกันมาถึงเสมอ ⇒ ดังเท่าจำนวนแท็บ — ตอนนี้ใช้ Web Locks เป็นหลัก
+// (ดู playChatBeep) ทางนี้เหลือเป็น fallback ของเบราว์เซอร์ที่ไม่มี navigator.locks
 let soundChannel: BroadcastChannel | null = null
 function getSoundChannel(): BroadcastChannel | null {
   if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null
@@ -188,6 +191,20 @@ function getSoundChannel(): BroadcastChannel | null {
   return soundChannel
 }
 
+// ── เงียบช่วงกลับเข้าหน้า (user report 2026-10-16: เปิดแอปมือถือแล้วมีเสียงแชทดัง) ──
+// ตอนแอป/แท็บกลับมามองเห็น InboxList + useSellerChatThread refetch แล้วเจอข้อความที่มาระหว่างหายไป
+// → ดังย้อนหลัง ทั้งที่ข้อความพวกนั้นมีเสียงไปแล้ว (แอป = push ของแอปเอง · เว็บ = แท็บซ่อนยังได้ realtime)
+// shortcut: เงียบตามเวลา — ข้อความสดที่มาภายใน 8 วิหลังกลับเข้าหน้าจะเงียบด้วย; ถ้าต้องแม่นกว่านี้
+// ให้ caller ส่งธง "มาจาก refetch ตอนกลับเข้าหน้า" แทน
+const RESUME_QUIET_MS = 8000
+// เริ่ม 0: cold start ไม่ต้องเงียบ — รายการแรกเป็นฐานใหม่ (pickBeepTarget ไม่มี prev ให้เทียบ) จึงไม่ดังย้อนหลังอยู่แล้ว
+let resumedAt = 0
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') resumedAt = Date.now()
+  })
+}
+
 /**
  * playChatBeep — เล่นไฟล์เสียงแจ้งเตือนข้อความใหม่
  * opts.shopId — key ของ throttle (ต่างร้านไม่แข่งกันดัง); ไม่ระบุ = throttle รวม (ChatWidget)
@@ -196,8 +213,23 @@ function getSoundChannel(): BroadcastChannel | null {
 export function playChatBeep(opts: { shopId?: string | null; conversationId?: string } = {}): void {
   if (isChatSoundMuted()) return
   if (opts.conversationId && isConversationMuted(opts.conversationId)) return
+  if (Date.now() - resumedAt < RESUME_QUIET_MS) return
 
   const key = opts.shopId ?? GLOBAL_THROTTLE_KEY
+  // อ่านผ่าน window ไม่ใช่ global navigator — Node 24 (เทส) มี navigator.locks จริงที่ค้างข้ามเทส
+  const locks = typeof window !== 'undefined' ? window.navigator?.locks : undefined
+  if (locks) {
+    // ifAvailable = จองแบบ atomic ข้ามแท็บ: แท็บแรกได้ lock แล้วถือไว้ MIN_GAP_MS ·
+    // แท็บอื่น (และแท็บเดิม) ที่มาระหว่างนั้นได้ null → เงียบ ไม่มี race แบบ BroadcastChannel
+    void locks.request(`deep-chat-sound:${key}`, { ifAvailable: true }, async (lock) => {
+      if (!lock) return
+      playSound()
+      await new Promise((r) => setTimeout(r, MIN_GAP_MS))
+    })
+    return
+  }
+
+  // fallback เบราว์เซอร์ที่ไม่มี Web Locks (Safari < 15.4) — ทางเดิม
   const now = Date.now()
   if (now - (lastPlayedByShop.get(key) ?? 0) < MIN_GAP_MS) return // throttle รายร้าน (ในแท็บ + ข้ามแท็บ)
   lastPlayedByShop.set(key, now)
