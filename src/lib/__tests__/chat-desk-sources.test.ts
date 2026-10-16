@@ -96,3 +96,21 @@ describe('ไม่มีสัญญาณสดฝั่งแอดมิน 
     expect(code(read(f))).not.toMatch(/\b(typing|viewing)\b/i)
   })
 })
+
+describe('โฟลเดอร์หน้า /chat-desk (AC-CD-38 · HR12 · HR9)', () => {
+  const PAGE_DIR = join(ROOT, 'src/app/(paces)/seller/(dashboard)/chat-desk')
+  const files = walk(PAGE_DIR).filter((f) => /\.tsx?$/.test(f) && !f.includes('__tests__')).map((f) => relative(ROOT, f))
+  it('พบไฟล์หน้าครบ (กันสแกนว่างแล้วเขียว)', () => {
+    expect(files.length).toBeGreaterThanOrEqual(15)
+    expect(files).toContain('src/app/(paces)/seller/(dashboard)/chat-desk/page.tsx')
+  })
+  it.each(files)('%s ไม่มี typing/viewing', (f) => {
+    expect(code(read(f))).not.toMatch(/\b(typing|viewing)\b/i)
+  })
+  it.each(files)('%s ไม่มี emoji และไม่ใช้ react-toastify', (f) => {
+    // สแกนเฉพาะโค้ด (ตัดคอมเมนต์) — เครื่องหมายในคอมเมนต์ไม่ใช่ UI ที่ผู้ใช้เห็น
+    const src = code(read(f))
+    expect(src).not.toMatch(/\p{Extended_Pictographic}/u)
+    expect(src).not.toMatch(/react-toastify/)
+  })
+})

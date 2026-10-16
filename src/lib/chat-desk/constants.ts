@@ -20,9 +20,9 @@ export const MOBILE_BREAKPOINT_PX = 768
 
 export const PLATFORMS = ['DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE'] as const
 
-/** ชื่อโต๊ะที่ไม่ใช่แอดมิน — "ตอบนอก Deep" ห้ามเรียก AI/บอท (BR-CD-07) */
+/** ชื่อโต๊ะที่ไม่ใช่แอดมิน — "ตอบจากนอกระบบ" (คำเดียวกับ MetricGlossary · มติ Controller ข้อ 5) ห้ามเรียก AI/บอท (BR-CD-07) */
 export const DESK_LABELS = {
-  EXTERNAL: 'ตอบนอก Deep',
+  EXTERNAL: 'ตอบจากนอกระบบ',
   META_AI: 'Meta AI / กล่องของเพจ',
   BOT: 'บอท Deep',
 } as const

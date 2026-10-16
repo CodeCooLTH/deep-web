@@ -118,6 +118,7 @@ export const en: Dictionary = {
     customers: 'Customers',
     expenses: 'Expenses',
     inbox: 'Messages',
+    chatDesk: 'Chat Desk',
     settingsAutoReply: 'Auto-reply',
     settingsOrderAgent: 'Order from chat',
     settingsCommentReply: 'Comment replies',

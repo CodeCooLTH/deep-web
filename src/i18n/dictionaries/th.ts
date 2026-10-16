@@ -152,6 +152,7 @@ export const th = {
     customers: 'ลูกค้า',
     expenses: 'ค่าใช้จ่าย',
     inbox: 'ข้อความ',
+    chatDesk: 'โต๊ะแชท',
     settingsAutoReply: 'ตอบกลับอัตโนมัติ',
     settingsOrderAgent: 'สร้างออเดอร์จากแชท',
     settingsCommentReply: 'ตอบกลับคอมเมนต์',

@@ -20,7 +20,7 @@ export function layoutLounge<T>(customers: readonly T[], seats = LOUNGE_SEATS): 
   return { seats: customers.slice(0, seats), overflow: Math.max(0, customers.length - seats) }
 }
 
-const toCustomer = (r: DeskRoom, now: number, slaSec: number): DeskCustomer => {
+export const toCustomer = (r: DeskRoom, now: number, slaSec: number): DeskCustomer => {
   const asked = roomAskedAt(r)
   const overdue = r.state === 'WAITING' && isOverdue(asked === null ? null : Date.parse(asked), now, slaSec)
   return {
@@ -66,9 +66,9 @@ export function summarizeDesk(p: SummaryInput): DeskSummary {
   }
 }
 
-const byAsked = (a: DeskRoom, b: DeskRoom) =>
+export const byAsked = (a: DeskRoom, b: DeskRoom) =>
   (Date.parse(roomAskedAt(a) ?? '') || Infinity) - (Date.parse(roomAskedAt(b) ?? '') || Infinity)
-const byReplied = (a: DeskRoom, b: DeskRoom) => (Date.parse(b.repliedAt ?? '') || 0) - (Date.parse(a.repliedAt ?? '') || 0)
+export const byReplied = (a: DeskRoom, b: DeskRoom) => (Date.parse(b.repliedAt ?? '') || 0) - (Date.parse(a.repliedAt ?? '') || 0)
 
 export type BuildDeskViewInput = {
   snapshot: DeskSnapshot

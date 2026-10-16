@@ -51,6 +51,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:badges',
         'seller:bookings',
         'seller:calendar',
+        // เพิ่ม 2026-10-16 — เมนู "โต๊ะแชท" (feature 00077) slug ใหม่ล้วน = เพิ่มอย่างปลอดภัย
+        'seller:chat-desk',
         'seller:customers',
         'seller:dashboard',
         'seller:expenses',

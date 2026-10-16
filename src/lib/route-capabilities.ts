@@ -85,6 +85,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/business/subscribe/page.tsx': { class: 'SELF', reason: 'สมัครแพ็กเกจธุรกิจของผู้ใช้เอง — ยังไม่มีร้านธุรกิจให้ผูกบทบาท', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/calendar/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/categories/page.tsx': { page: 'P2', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/chat-desk/page.tsx': { page: 'X7', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/customers/[id]/page.tsx': { page: 'C1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/customers/page.tsx': { page: 'C1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/dashboard/page.tsx': { class: 'MEMBER', reason: 'หน้ารวมของสมาชิกทุกคน — ความสำเร็จ/แจ้งเตือน/หน้าแรก/หน้าร้าน (C-1/C-8) · ตัวเลขเงินตัดตามระดับเงินใน service ไม่ใช่ด่านหน้า', status: 'DECLARED' },

@@ -405,3 +405,13 @@ export async function sortShopIdsByName(shopIds: readonly string[]): Promise<str
   })
   return rows.map((r) => r.id)
 }
+
+/** รายชื่อร้านที่ใช้ในตัวสลับร้านของหน้าโต๊ะแชท — เรียงตามชื่อ · ผู้เรียกต้องส่งเฉพาะร้านที่ผ่าน listAccessibleShopIds(userId,'X7') แล้ว */
+export async function listDeskShopOptions(shopIds: readonly string[]): Promise<{ id: string; name: string }[]> {
+  const rows = await prisma.shop.findMany({
+    where: { id: { in: [...shopIds] } },
+    select: { id: true, shopName: true },
+    orderBy: [{ shopName: 'asc' }, { id: 'asc' }],
+  })
+  return rows.map((r) => ({ id: r.id, name: r.shopName }))
+}
