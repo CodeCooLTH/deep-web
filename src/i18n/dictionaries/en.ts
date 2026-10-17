@@ -69,6 +69,14 @@ export const en: Dictionary = {
 
     noteWindow: 'Messenger and Instagram can be sent within 24 hours after the customer last messaged',
     noteLineQuota: 'LINE counts toward the account monthly message quota',
+    cardEventsTitle: 'When messages are sent',
+    cardNotesTitle: 'Good to know before turning on',
+    noteLinkedOnly: 'Only chats linked to the {noun} receive messages. A {noun} that is not linked to a chat sends nothing to the customer.',
+    capInvalid: 'Enter a whole number from 1 to 20',
+    capSaving: 'Saving…',
+    noChannelBanner: 'No chat channel is connected yet. The system sends messages through the shop chat, so connect one before customers can receive them. You can set things up in advance.',
+    noChannelCta: 'Connect a chat channel',
+    emptyNoKinds: 'This type of shop has no auto-send events yet',
 
     readOnlyBanner: 'View only. The owner or a manager can turn these on and off. Ask them if you need a change.',
 

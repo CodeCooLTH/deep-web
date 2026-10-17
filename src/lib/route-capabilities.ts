@@ -115,6 +115,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/sales/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/reports/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/ai/page.tsx': { page: 'H3', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx': { page: 'H1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/[id]/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/new/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/order-agent/page.tsx': { page: 'X3', status: 'DECLARED' },

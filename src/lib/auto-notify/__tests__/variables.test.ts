@@ -43,7 +43,7 @@ describe('ชุดตัวแปรต่อ kind (TC-111)', () => {
   it('kindsForVertical', () => {
     expect(kindsForVertical('ONLINE_SALES')).toEqual(['ORDER_SUMMARY', 'TRACKING'])
     expect(kindsForVertical('SERVICE_QUEUE')).toEqual(['SERVICE_BOOKED', 'SERVICE_STARTED', 'SERVICE_CLOSED'])
-    expect(kindsForVertical('LODGING')).toEqual(['ORDER_SUMMARY'])
+    expect(kindsForVertical('LODGING')).toEqual([])
     expect(kindsForVertical('???')).toEqual([])
   })
 })

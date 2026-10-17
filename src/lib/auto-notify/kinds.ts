@@ -8,7 +8,8 @@ export type { AutoNotifyKind }
 const KINDS_BY_VERTICAL: Record<string, readonly AutoNotifyKind[]> = {
   ONLINE_SALES: ['ORDER_SUMMARY', 'TRACKING'],
   SERVICE_QUEUE: ['SERVICE_BOOKED', 'SERVICE_STARTED', 'SERVICE_CLOSED'],
-  LODGING: ['ORDER_SUMMARY'],
+  // LODGING: บิลเข้าพักสร้างผ่าน booking.service ที่ไม่ผูกแชทและไม่มีจุดส่ง — ว่างจนกว่าจะต่อจุดส่ง (user เคาะ 2026-10-17 ทับ OQ-5)
+  LODGING: [],
 }
 
 /** ชนิดที่ร้านประเภทนี้ใช้ได้ ตามลำดับแสดง — vertical ที่ไม่รู้จัก = ไม่มีชนิดใดเลย (fail-closed: ห้ามส่งหาลูกค้าโดยเดา) */
@@ -20,13 +21,13 @@ export function isKindAvailable(vertical: string, kind: AutoNotifyKind): boolean
   return kindsForVertical(vertical).includes(kind)
 }
 
-/** ชื่อไอคอน tabler (ใช้กับ `@iconify/react` รูปแบบ `tabler-*` ตามที่โปรเจกต์ใช้) */
+/** ชื่อไอคอน tabler แบบเปล่า (ไม่มี prefix) — ส่งเข้า wrapper `Icon` ซึ่งเติม `tabler:` ให้เอง */
 export const AUTO_NOTIFY_KIND_ICON: Record<AutoNotifyKind, string> = {
-  ORDER_SUMMARY: 'tabler-receipt',
-  TRACKING: 'tabler-truck-delivery',
-  SERVICE_BOOKED: 'tabler-calendar-check',
-  SERVICE_STARTED: 'tabler-player-play',
-  SERVICE_CLOSED: 'tabler-circle-check',
+  ORDER_SUMMARY: 'receipt',
+  TRACKING: 'truck-delivery',
+  SERVICE_BOOKED: 'calendar-check',
+  SERVICE_STARTED: 'player-play',
+  SERVICE_CLOSED: 'clipboard-check',
 }
 
 /** ป้ายแถวในหน้าตั้งค่า — ORDER_SUMMARY ผันคำเรียกรายการตามประเภทกิจการ (HR16: ใช้ resolveOrderVocab) */
