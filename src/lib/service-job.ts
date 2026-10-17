@@ -39,6 +39,14 @@ export class ServiceJobNotClosableError extends Error {
   }
 }
 
+/** เริ่มงานไม่ได้ — ยกเลิก/คืนทั้งใบ/ร่าง (00078) */
+export class ServiceJobNotStartableError extends Error {
+  constructor() {
+    super('SERVICE_JOB_NOT_STARTABLE')
+    this.name = 'ServiceJobNotStartableError'
+  }
+}
+
 /** "ไม่มาตามนัด" ใช้ได้เฉพาะงานที่มีนัด — walk-in ลูกค้ามาแล้วโดยนิยาม */
 export class ServiceJobNoShowWithoutAppointmentError extends Error {
   constructor() {
@@ -76,6 +84,7 @@ export const SERVICE_JOB_ERROR_MESSAGE: Record<string, string> = {
   SERVICE_JOB_NOT_FOUND: 'ไม่พบงานนี้ในร้าน',
   SERVICE_JOB_ALREADY_CLOSED: 'งานนี้ปิดไปแล้ว',
   SERVICE_JOB_NOT_CLOSABLE: 'งานนี้ถูกยกเลิกหรือยังเป็นร่าง จึงปิดงานไม่ได้',
+  SERVICE_JOB_NOT_STARTABLE: 'งานนี้ถูกยกเลิกหรือยังเป็นร่าง จึงเริ่มงานไม่ได้',
   SERVICE_JOB_NO_SHOW_WITHOUT_APPOINTMENT: 'งานที่ไม่มีนัดบันทึกว่าไม่มาตามนัดไม่ได้',
   SERVICE_JOB_NOT_REOPENABLE: 'เปิดงานอีกครั้งได้เฉพาะงานที่ปิดแล้วและลูกค้ายังไม่ยืนยัน',
   SERVICE_JOB_CLOSED_LOCKED: 'งานนี้ปิดแล้ว — กด "เปิดงานอีกครั้ง" ก่อนถ้าต้องการแก้ไข',

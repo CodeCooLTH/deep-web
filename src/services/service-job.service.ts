@@ -20,10 +20,13 @@ import {
   ServiceJobNotClosableError,
   ServiceJobNotFoundError,
   ServiceJobNotReopenableError,
+  ServiceJobNotStartableError,
   type ServiceCloseOutcome,
   type ServiceNoShowDeposit,
 } from '@/lib/service-job'
+import { runAfterResponse } from '@/lib/run-after-response'
 import { assertShopCanUseAppointments } from '@/services/appointment.service'
+import { dispatchAutoNotify, reserveAutoNotifyIntent } from '@/services/auto-notify.service'
 import { recordOrderEvent } from '@/services/order-event.service'
 import { MONEY_SELECT, OrderPaymentError, toMoney } from '@/services/order-payment.service'
 
@@ -55,10 +58,12 @@ export async function closeServiceJob(args: CloseServiceJobArgs) {
     throw new OrderPaymentError('AMOUNT_INVALID')
   }
 
-  return prisma.$transaction(async (tx) => {
+  let ledgerId: string | null = null
+  const result = await prisma.$transaction(async (tx) => {
+    ledgerId = null // รีเซ็ตทุกรอบ — ไม่ให้ค่าจากรอบที่ rollback รั่วออกไป
     const order = await tx.order.findFirst({
       where: { publicToken: args.orderToken, shopId: args.shopId },
-      select: { id: true, shopId: true, status: true, serviceStart: true, serviceClosedAt: true },
+      select: { id: true, shopId: true, status: true, serviceStart: true, serviceClosedAt: true, conversationId: true, isDryRun: true },
     })
     if (!order) throw new ServiceJobNotFoundError()
     if (order.serviceClosedAt != null) throw new ServiceJobAlreadyClosedError()
@@ -129,6 +134,14 @@ export async function closeServiceJob(args: CloseServiceJobArgs) {
       occurredAt: now,
     })
 
+    // แจ้งลูกค้าอัตโนมัติ (00078) — เฉพาะ "ให้บริการแล้ว"; ไม่มาตามนัดไม่ส่ง · reserve ไม่ throw (SAVEPOINT)
+    if (args.outcome === 'SERVED') {
+      ledgerId = await reserveAutoNotifyIntent(tx, {
+        shopId: order.shopId, orderId: order.id, conversationId: order.conversationId,
+        kind: 'SERVICE_CLOSED', isDryRun: order.isDryRun, keyedInAt: now,
+      })
+    }
+
     const after = await tx.order.findUnique({
       where: { id: order.id },
       select: { ...MONEY_SELECT, serviceClosedAt: true, appointmentStatus: true },
@@ -140,6 +153,56 @@ export async function closeServiceJob(args: CloseServiceJobArgs) {
       money: toMoney(after),
     }
   })
+  const id = ledgerId as string | null
+  if (id) runAfterResponse(() => dispatchAutoNotify(id))
+  return result
+}
+
+/**
+ * เริ่มงาน (00078 FR-CS-26) — ตั้ง `serviceStartedAt` ครั้งเดียว · idempotent (กดซ้ำคืนค่าเดิม ไม่ส่งซ้ำ)
+ * 🛑 ไม่แตะ Order.status / appointmentStatus / เงิน — เป็นแค่ "เวลา" ไม่ใช่สถานะ
+ */
+export async function startServiceJob(args: { shopId: string; orderToken: string; actorUserId: string; now?: Date }) {
+  const now = args.now ?? new Date()
+  await assertShopCanUseAppointments(args.shopId)
+
+  let ledgerId: string | null = null
+  const result = await prisma.$transaction(async (tx) => {
+    ledgerId = null
+    const order = await tx.order.findFirst({
+      where: { publicToken: args.orderToken, shopId: args.shopId },
+      select: {
+        id: true, shopId: true, status: true, serviceStart: true, serviceClosedAt: true,
+        serviceStartedAt: true, conversationId: true, isDryRun: true,
+      },
+    })
+    if (!order) throw new ServiceJobNotFoundError()
+    if (order.serviceClosedAt != null) throw new ServiceJobAlreadyClosedError()
+    if (order.serviceStartedAt != null) return { serviceStartedAt: order.serviceStartedAt, alreadyStarted: true }
+    if (!CLOSABLE_STATUSES.includes(order.status)) throw new ServiceJobNotStartableError() // ยกเลิก/คืน/ร่าง
+    if (order.serviceStart != null && now.getTime() < order.serviceStart.getTime()) throw new AppointmentNotStartedError()
+
+    // WHERE serviceStartedAt IS NULL = เขียนครั้งเดียว แม้สองคนกดพร้อมกัน
+    const updated = await tx.order.updateMany({
+      where: { id: order.id, serviceStartedAt: null, serviceClosedAt: null, status: { in: CLOSABLE_STATUSES } },
+      data: { serviceStartedAt: now },
+    })
+    if (updated.count === 0) {
+      const again = await tx.order.findUnique({ where: { id: order.id }, select: { serviceStartedAt: true } })
+      if (again?.serviceStartedAt) return { serviceStartedAt: again.serviceStartedAt, alreadyStarted: true }
+      throw new ServiceJobNotStartableError()
+    }
+
+    await recordOrderEvent(tx, { orderId: order.id, type: 'SERVICE_STARTED', actorUserId: args.actorUserId, occurredAt: now })
+    ledgerId = await reserveAutoNotifyIntent(tx, {
+      shopId: order.shopId, orderId: order.id, conversationId: order.conversationId,
+      kind: 'SERVICE_STARTED', isDryRun: order.isDryRun, keyedInAt: now,
+    })
+    return { serviceStartedAt: now, alreadyStarted: false }
+  })
+  const id = ledgerId as string | null
+  if (id) runAfterResponse(() => dispatchAutoNotify(id))
+  return result
 }
 
 /**

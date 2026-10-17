@@ -94,6 +94,8 @@ describe('sellerMenuItems — slug contract', () => {
         // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่
         // เทสข้อนี้จึงแดงอยู่บน main (พบตอน merge 2026-08-09) ไม่ใช่ของใหม่ที่เพิ่งพัง
         'seller:settings-comment-reply',
+        // 00078 — ส่งอัตโนมัติถึงลูกค้า (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:settings-auto-notify',
         'seller:shop',
         'seller:subscriptions',
         'seller:verification',

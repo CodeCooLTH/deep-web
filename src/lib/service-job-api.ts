@@ -8,6 +8,7 @@ import {
   ServiceJobNotClosableError,
   ServiceJobNotFoundError,
   ServiceJobNotReopenableError,
+  ServiceJobNotStartableError,
 } from '@/lib/service-job'
 
 /**
@@ -20,6 +21,7 @@ export function serviceJobErrorResponse(e: unknown): Response | null {
   if (e instanceof ServiceJobNotFoundError) return pick('SERVICE_JOB_NOT_FOUND', 404)
   if (e instanceof ServiceJobAlreadyClosedError) return pick('SERVICE_JOB_ALREADY_CLOSED', 409)
   if (e instanceof ServiceJobNotClosableError) return pick('SERVICE_JOB_NOT_CLOSABLE', 409)
+  if (e instanceof ServiceJobNotStartableError) return pick('SERVICE_JOB_NOT_STARTABLE', 409)
   if (e instanceof ServiceJobNoShowWithoutAppointmentError) return pick('SERVICE_JOB_NO_SHOW_WITHOUT_APPOINTMENT', 400)
   if (e instanceof ServiceJobNotReopenableError) return pick('SERVICE_JOB_NOT_REOPENABLE', 409)
   if (e instanceof ServiceJobClosedLockedError) return pick('SERVICE_JOB_CLOSED_LOCKED', 409)

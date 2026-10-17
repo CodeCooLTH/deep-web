@@ -141,6 +141,7 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
               orderLabel={order.orderNo ?? String(order.publicToken).slice(0, 8).toUpperCase()}
               status={order.status}
               closedAtISO={order.serviceClosedAt ? new Date(order.serviceClosedAt).toISOString() : null}
+              startedAtISO={order.serviceStartedAt ? new Date(order.serviceStartedAt).toISOString() : null}
               badge={serviceBadge}
               hasAppointment={Boolean(order.serviceStart)}
               startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}

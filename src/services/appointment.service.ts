@@ -4,6 +4,8 @@ import { withoutDrafted } from "@/lib/order-visibility";
 import { isExclusionViolation } from "@/lib/prisma-errors";
 import { appointmentDayWhere } from "@/lib/appointment-day";
 import { ServiceJobClosedLockedError } from "@/lib/service-job";
+import { runAfterResponse } from "@/lib/run-after-response";
+import { dispatchAutoNotify, reserveAutoNotifyIntent } from "@/services/auto-notify.service";
 import {
   APPOINTMENT_ORDER_TYPE,
   APPOINTMENT_STATUS,
@@ -236,7 +238,9 @@ export async function setOrRescheduleAppointment(args: {
   assertValidRange(input.start, input.end);
   const resource = await loadActiveResource(shopId, input.resourceId);
 
-  return prisma.$transaction(async (tx) => {
+  let ledgerId: string | null = null;
+  const result = await prisma.$transaction(async (tx) => {
+    ledgerId = null;
     // ownership อยู่ใน WHERE ตั้งแต่ query แรก — ห้าม findUnique แล้วค่อยเช็คทีหลัง
     const current = await tx.order.findFirst({
       where: { publicToken: orderToken, shopId },
@@ -247,6 +251,8 @@ export async function setOrRescheduleAppointment(args: {
         serviceEnd: true,
         appointmentStatus: true,
         serviceClosedAt: true,
+        conversationId: true,
+        isDryRun: true,
       },
     });
     if (!current) throw new AppointmentNotFoundError();
@@ -305,8 +311,19 @@ export async function setOrRescheduleAppointment(args: {
       where: { orderId: current.id },
     });
 
+    // แจ้งลูกค้าอัตโนมัติ (00078) — เฉพาะ "ตั้งนัดครั้งแรก" ในอนาคต; การย้ายนัดไม่ส่ง · createOrder เป็นเจ้าของกรณีสร้างพร้อมนัด (SDS §7.3)
+    if (!hadAppointment && input.start.getTime() > Date.now()) {
+      ledgerId = await reserveAutoNotifyIntent(tx, {
+        shopId, orderId: current.id, conversationId: current.conversationId,
+        kind: "SERVICE_BOOKED", isDryRun: current.isDryRun, keyedInAt: new Date(),
+      });
+    }
+
     return { ...updated, resource: { id: resource.id, name: resource.name }, rescheduleCount };
   });
+  const id = ledgerId as string | null;
+  if (id) runAfterResponse(() => dispatchAutoNotify(id));
+  return result;
 }
 
 /**

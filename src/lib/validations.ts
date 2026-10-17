@@ -890,6 +890,8 @@ export const SendChatMessageSchema = v.object({
     "PRODUCT",
     "ORDER",
     "APPOINTMENT",
+    // TRACKING (00078 T14): ให้ server ประกอบข้อความแจ้งเลขจากออเดอร์ (orderRefToken) — เก็บ/ส่งเป็น TEXT ของร้าน
+    "TRACKING",
     "STICKER",
     "IMAGE_GRID",
   ]),
@@ -915,7 +917,7 @@ export const SendChatMessageSchema = v.object({
   productRefIds: v.optional(
     v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(36)),
   ),
-  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์/สรุปนัดในแชท — type=ORDER|APPOINTMENT (Order.publicToken)
+  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์/สรุปนัด/แจ้งเลขในแชท — type=ORDER|APPOINTMENT|TRACKING (Order.publicToken)
   /**
    * (ส่วนขยาย 00024, 2026-08-11) บรรทัดที่ร้านติ๊กปิดบนการ์ดสรุปนัด — เฉพาะ type='APPOINTMENT'
    *

@@ -171,6 +171,10 @@ export const sellerMenuItems: MenuItemType[] = [
       // SHARED_PRODUCT_SLUGS ใด ๆ ทั้งสิ้น (ไม่อยู่ใน array ใด = ไม่ถูกซ่อนโดย applyVerticalMenu —
       // ยืนยันแบบเดียวกับ seller:inbox ที่ไม่ปรากฏใน array พวกนี้เลย)
       { url: '/settings/comment-reply', slug: 'seller:settings-comment-reply', label: 'ตอบกลับคอมเมนต์', icon: 'message-reply' },
+      // feature 00078 — ส่งข้อความอัตโนมัติถึงลูกค้า (สรุปคำสั่งซื้อ/เลขพัสดุ/นัด/เริ่มงาน/ปิดงาน) · ทุก vertical
+      // (ร้านที่พักเห็นกรอบว่าง) · ด่านจริงอยู่ที่ route-capabilities (H1 อ่าน / X8 เขียน) ไม่ใช่เมนู
+      // icon 'send' ใช้อยู่แล้วในหน้าเดียวกัน (กรอบว่าง) — ไม่ชนกับไอคอนอื่นในกลุ่ม
+      { url: '/settings/auto-notify', slug: 'seller:settings-auto-notify', label: 'ส่งอัตโนมัติถึงลูกค้า', icon: 'send' },
       { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ผู้ช่วยอัตโนมัติ', icon: 'robot' },
       /**
        * feature 00061 — อยู่ในกลุ่ม CHAT เพราะมันคือ "สิ่งที่เกิดขึ้นเมื่อร้านพิมพ์ในแชท"
@@ -1065,6 +1069,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-order-agent': m.settingsOrderAgent,
     'seller:settings-comment-reply': m.settingsCommentReply,
     'seller:settings-chatbot': m.settingsChatbot,
+    'seller:settings-auto-notify': m.settingsAutoNotify,
     'seller:reviews': m.reviews,
     'seller:verification': m.verification,
     'seller:badges': m.badges,

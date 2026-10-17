@@ -322,6 +322,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/orders/[token]/claim/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   // feature 00073 — ปิดงาน (O4 · เงินต้อง O5 · คืนมัดจำต้อง O6 ตรวจในเมธอด) / เปิดงานอีกครั้ง (O6) / สถานะเงินให้ชีต (O4 · เงินเฉพาะ O5)
   'src/app/api/orders/[token]/close/route.ts': { GET: 'O4', POST: 'O4', DELETE: 'O6', status: 'DECLARED' },
+  // feature 00078 — เริ่มงาน (O4 · ช่างเรียกได้ · ไม่แตะเงิน)
+  'src/app/api/orders/[token]/start/route.ts': { POST: 'O4', status: 'DECLARED' },
   'src/app/api/orders/[token]/cod-received/route.ts': { POST: 'O5', DELETE: 'O5', status: 'DECLARED' },
   'src/app/api/orders/[token]/confirm/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/[token]/dispute/resolve/route.ts': { POST: 'O6', status: 'DECLARED' },

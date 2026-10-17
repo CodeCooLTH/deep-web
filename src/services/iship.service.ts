@@ -18,6 +18,7 @@ import {
   syncOrderPaymentToParcel,
 } from "@/services/order.service";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { resolveDefaultCodAmount } from "@/lib/iship/payment-sync";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
@@ -1356,6 +1357,7 @@ async function dispatchShipment(
     );
     // event อยู่ใน tx เดียวกับการ mark CREATED (feature 00031) — actor = คนที่กดสร้าง/ลองใหม่
     // (row.createdByUserId ถูกเขียนทับตอน retry แล้ว จึงเป็นคนล่าสุดที่กดจริงเสมอ)
+    let ledgerId: string | null = null;
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.orderShipment.update({
         where: { id: shipmentId },
@@ -1377,8 +1379,11 @@ async function dispatchShipment(
         actorUserId: row.createdByUserId,
         meta: { shipmentId, courierName: row.courierName ?? undefined },
       });
+      // 00078 — เลขจากโหมดทดลองของ iShip เป็นเลขปลอม ห้ามส่งให้ลูกค้า (ไม่จอง)
+      if (!dryRun) ledgerId = await reserveTrackingNotice(tx, row.orderId, result.tracking_number);
       return u;
     });
+    dispatchAutoNotifyAfterCommit(ledgerId);
     return toShipmentView(updated);
   } catch (err) {
     const code = err instanceof IShipError ? err.code : "UPSTREAM_ERROR";
@@ -3046,6 +3051,7 @@ export async function linkShipment(
 
   // event อยู่ใน tx เดียวกับการสร้างแถวผูก (feature 00031 — บั๊กจริง 2026-08-05:
   // ผูกพัสดุแล้วประวัติคำสั่งซื้อไม่ขึ้น เพราะไม่มีจุดเขียน SHIPMENT_LINKED เลย)
+  let linkLedgerId: string | null = null;
   const created = await prisma.$transaction(async (tx) => {
     const row = await tx.orderShipment.create({
       data: {
@@ -3084,8 +3090,11 @@ export async function linkShipment(
       actorUserId: userId,
       meta: { shipmentId: row.id, courierName: parcel.courierName ?? undefined },
     });
+    // 00078 — ผูกพัสดุเดิม = มีเลขแล้ว (ชนกับ advanceOrderIfDispatched ที่ unique key เดียวกัน → จองครั้งเดียว)
+    linkLedgerId = await reserveTrackingNotice(tx, orderId, trackingNo);
     return row;
   });
+  dispatchAutoNotifyAfterCommit(linkLedgerId);
 
   // เติมไทม์ไลน์ย้อนหลังทันที — ใบที่ผูกย้อนหลังอาจเดินทางไปไกลแล้วตั้งแต่เมื่อวาน
   // ถ้าไม่ดึงตรงนี้ แถบความคืบหน้าจะค้างที่ขั้นแรกจนกว่าจะมีคนเปิดดูไทม์ไลน์
@@ -3140,6 +3149,7 @@ async function advanceOrderIfDispatched(
   if (order.status !== "PENDING") return;
   if (!impliesDispatched(parcel.carrierStatus)) return;
 
+  let ledgerId: string | null = null;
   await prisma.$transaction(async (tx) => {
     await tx.shipmentTracking.upsert({
       where: { orderId: order.id },
@@ -3154,7 +3164,10 @@ async function advanceOrderIfDispatched(
       },
     });
     await tx.order.update({ where: { id: order.id }, data: { status: "SHIPPED" } });
+    // 00078 — เลขเดียวกับที่ linkShipment จองไว้แล้ว → ชน unique ได้ null (ไม่ซ้ำ) · ทำให้ครอบคลุมถ้ามีผู้เรียกอื่นในอนาคต
+    ledgerId = await reserveTrackingNotice(tx, order.id, parcel.trackNo);
   });
+  dispatchAutoNotifyAfterCommit(ledgerId);
 }
 
 /**
