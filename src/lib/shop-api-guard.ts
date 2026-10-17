@@ -1,3 +1,4 @@
+import type { ShopRole } from "@/lib/shop-permissions";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -71,7 +72,7 @@ export async function requireLodgingShop(cap: Capability | readonly Capability[]
 
 type GeneralGuardResult =
   | { error: NextResponse }
-  | { shopId: string; userId: string; role: "OWNER" | "ADMIN"; roles: string[] };
+  | { shopId: string; userId: string; role: "OWNER" | "ADMIN"; roles: string[]; effRoles: ShopRole[] };
 
 /**
  * ต้องเป็นสมาชิกร้าน + ร้านต้องเป็นประเภทขายออนไลน์ (feature 00022; ค่าที่เทียบเปลี่ยนเป็น
@@ -142,7 +143,7 @@ export async function requireGeneralShop(opts: {
     return { error: forbiddenRoleResponse() };
   }
 
-  return { shopId: active.shop.id, userId, role: active.role, roles: active.roles };
+  return { shopId: active.shop.id, userId, role: active.role, roles: active.roles, effRoles: eff };
 }
 
 /**

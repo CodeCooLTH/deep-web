@@ -451,6 +451,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
         publicToken={orderToken}
         alwaysOpen
         hideActions
+        showShipCost={ctx?.canSetShipCost === true}
         silentSuccess
         formId={MANUAL_FORM_ID}
         onSuccess={(saved) => void handleManualSaved(saved)}

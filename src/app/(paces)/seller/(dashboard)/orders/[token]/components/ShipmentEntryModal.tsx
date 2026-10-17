@@ -80,6 +80,9 @@ interface ShipmentEntryModalProps {
   /** ค่าที่กรอกไว้แล้ว — prefill ตอน mode='edit' */
   initialTrackingNo?: string | null
   initialProvider?: string | null
+  /** 00078 — ส่งมาเฉพาะบทบาทที่เห็นเงินได้ · ไม่ส่ง = ไม่วาดช่องค่าส่ง */
+  showShipCost?: boolean
+  initialOutboundShippingCost?: number | null
 }
 
 const SEGMENTS: { value: Method; label: string; icon: string }[] = [
@@ -98,6 +101,8 @@ export default function ShipmentEntryModal({
   hasIshipShipment = false,
   initialTrackingNo,
   initialProvider,
+  showShipCost = false,
+  initialOutboundShippingCost,
 }: ShipmentEntryModalProps) {
   const canUseIship = mode === 'create' && ishipContext !== null
   const [method, setMethod] = useState<Method>(hasIshipShipment ? 'ISHIP' : 'MANUAL')
@@ -319,6 +324,8 @@ export default function ShipmentEntryModal({
             publicToken={orderToken}
             initialTrackingNo={initialTrackingNo}
             initialProvider={initialProvider}
+            showShipCost={showShipCost}
+            initialOutboundShippingCost={initialOutboundShippingCost}
             mode={mode}
             alwaysOpen
             formId={MANUAL_FORM_ID}

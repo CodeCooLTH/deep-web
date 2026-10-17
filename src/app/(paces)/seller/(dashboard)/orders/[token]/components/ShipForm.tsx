@@ -19,12 +19,15 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
+import { useT } from '@/i18n/LocaleProvider'
+import { parseShipCostInput } from '@/lib/ship-cost-input'
 import { COURIER_OPTIONS, providerToOptionLabel } from '@/lib/iship/courier'
 
 // ค่าที่เก็บลงฐานคือ label (เหมือนเดิม) — รายชื่อมาจาก COURIER_OPTIONS ที่เดียว (HR16)
 const CARRIERS = COURIER_OPTIONS.map((o) => o.label)
 
 const trackingSchema = yup.object({
+  shipCost: yup.string().default('').test('ship-cost', 'invalid', (v) => parseShipCostInput(v).ok),
   provider: yup.string().required('กรุณาเลือกขนส่ง'),
   trackingNo: yup.string().required('กรุณากรอกเลขพัสดุ').min(3, 'เลขพัสดุต้องมีอย่างน้อย 3 ตัวอักษร'),
 })
@@ -74,6 +77,13 @@ interface ShipFormProps {
    * (Impeccable critique 2026-08-04 P0: ปุ่มหลักเดิมเลื่อนหายไปกับฟอร์ม)
    */
   hideActions?: boolean
+  /**
+   * 00078 — แสดงช่องค่าส่งที่ร้านจ่าย (ต้นทุนร้าน) · ผู้เรียกส่ง true เฉพาะบทบาทที่เห็นเงินได้ (moneyLevel ≠ NONE)
+   * ค่าตั้งต้น false = ไม่วาดช่องและไม่ส่งคีย์ไป server (fail-closed)
+   */
+  showShipCost?: boolean
+  /** ค่าเดิมจาก ShipmentTracking.outboundShippingCost (mode='edit') — null = ยังไม่ระบุ */
+  initialOutboundShippingCost?: number | null
 }
 
 export default function ShipForm({
@@ -89,7 +99,10 @@ export default function ShipForm({
   onSubmittingChange,
   formId,
   hideActions = false,
+  showShipCost = false,
+  initialOutboundShippingCost,
 }: ShipFormProps) {
+  const t = useT()
   const router = useRouter()
   const [showShipForm, setShowShipForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -109,6 +122,7 @@ export default function ShipForm({
       // เติมค่าที่ไม่มีในลิสต์เข้าไปจะทำให้ select ว่างเปล่าแต่ validation ผ่าน = สับสนกว่าเดิม
       provider: providerToOptionLabel(initialProvider),
       trackingNo: initialTrackingNo ?? '',
+      shipCost: initialOutboundShippingCost == null ? '' : String(initialOutboundShippingCost),
     },
   })
 
@@ -128,11 +142,17 @@ export default function ShipForm({
 
   const handleShip = async (values: TrackingFormValues) => {
     setLoadingState(true)
+    const cost = showShipCost ? parseShipCostInput(values.shipCost) : null
     try {
       const res = await fetch(`/api/orders/${publicToken}/ship`, {
         method: mode === 'edit' ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: values.provider, trackingNo: values.trackingNo }),
+        // ไม่ส่งคีย์ = server ไม่แตะ (PATCH) · ว่างที่ส่ง = null ล้างเป็น "ยังไม่ระบุ" ตามสเปก
+        body: JSON.stringify({
+          provider: values.provider,
+          trackingNo: values.trackingNo,
+          ...(cost?.ok ? { outboundShippingCost: cost.value } : {}),
+        }),
       })
       if (!res.ok) {
         // แสดงข้อความจริงจาก route (409/404/400 ของ updateShipmentTracking) ไม่ใช้ generic เสมอ
@@ -240,6 +260,33 @@ export default function ShipForm({
               <p id="ship-tracking-no-error" className="text-danger text-xs mt-1">{errors.trackingNo.message}</p>
             )}
           </div>
+
+          {showShipCost && (
+            <div>
+              <label htmlFor="ship-cost" className="form-label text-xs mb-1 block">
+                {t.shipCost.label} <span className="text-default-600">(ไม่บังคับ)</span>
+              </label>
+              <div className="input-group">
+                <span className="input-group-text">฿</span>
+                <input
+                  {...register('shipCost')}
+                  id="ship-cost"
+                  type="text"
+                  inputMode="decimal"
+                  enterKeyHint="done"
+                  placeholder="0.00"
+                  aria-invalid={errors.shipCost ? true : undefined}
+                  aria-describedby={errors.shipCost ? 'ship-cost-error' : 'ship-cost-help'}
+                  className="form-input text-sm w-full"
+                />
+              </div>
+              {errors.shipCost ? (
+                <p id="ship-cost-error" className="text-danger text-xs mt-1">{t.shipCost.errorInvalid}</p>
+              ) : (
+                <p id="ship-cost-help" className="text-default-600 text-xs mt-1 mb-0">{t.shipCost.help}</p>
+              )}
+            </div>
+          )}
 
           {/* hideActions = ผู้เรียกยกปุ่มไปไว้ที่ footer ที่ไม่เลื่อนตามเนื้อหาแล้ว
               (ปุ่มนั้นยิง submit กลับมาที่ฟอร์มนี้ผ่าน attribute form={formId}) */}

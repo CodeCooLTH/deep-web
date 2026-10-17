@@ -503,6 +503,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
         hasIshipShipment={hasLiveIshipShipment}
         parcelReturned={parcelReturned}
         trackingNo={shippingInfo?.trackingNo ?? null}
+        outboundShippingCost={
+          shipmentSource === 'MANUAL' && order.shipmentTracking.outboundShippingCost != null
+            ? Number(order.shipmentTracking.outboundShippingCost)
+            : null
+        }
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
