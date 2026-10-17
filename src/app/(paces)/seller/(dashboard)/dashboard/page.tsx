@@ -52,6 +52,9 @@ import PortfolioPanel from './components/PortfolioPanel'
 import { getPortfolioSeries, listOverviewShops, type OverviewShop, type PortfolioSeries } from '@/services/business-overview.service'
 import RecentOrder from './components/RecentOrder'
 import SalesReport from './components/SalesReport'
+import ServiceReportCard from '../_shared/service-report/ServiceReportCard'
+import { expenseBuckets, toServiceReportData } from '@/services/service-report.service'
+import type { ServiceReportData } from '@/lib/service-report/view-model'
 import StatisticCard from './components/StatisticCard'
 import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
@@ -73,9 +76,7 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 import { getSalesSeries } from '@/services/dashboard.service'
 // 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
 import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
-import { DEFAULT_REPORT_SETTINGS, profitExclusionNote, profitShown, resolveHeadline, resolveReportSettings, showsUnclosedOnCard, type ReportSettings } from '@/lib/report-settings'
-import { getPnlReport } from '@/services/pnl.service'
-import { resolveDateRange } from '@/lib/date-range'
+import { DEFAULT_REPORT_SETTINGS, resolveReportSettings, serviceReportChart, serviceReportView, showsUnclosedOnCard, type ReportSettings, type ServiceReportChart, type ServiceReportView } from '@/lib/report-settings'
 import { getAdvanceDeposits } from '@/services/finance-chart.service'
 import { dashboardMoney, homeBlocks, redactCommandCenterData } from '@/lib/dashboard-money'
 import TodayJobs from './components/TodayJobs'
@@ -187,7 +188,6 @@ export default async function SellerDashboardPage() {
    * ตัวเลขหลักบนการ์ด (มติ user 2026-10-12) — ร้านบริการ + เห็นเงินเต็มเท่านั้น · null = ยอดขาย (หน้าตาเดิม)
    * today/month = ช่วงเดียวกับปุ่ม วันนี้/เดือนนี้ ของการ์ด (มือถือ) และ filter ของภาพรวมร้าน (คอม)
    */
-  let headlineData: { kind: 'RECEIVED' | 'NET_PROFIT'; today: number; month: number; note: string | null } | null = null
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   // 00071: ผู้ไม่ใช่เจ้าของไม่ query ยอดเลย ⇒ null (ไม่ใช่ 0 — 0 คือการโกหกว่ากระเป๋าว่าง)
   let walletBalance: number | null = null
@@ -201,6 +201,8 @@ export default async function SellerDashboardPage() {
   let liveAuctionCount = 0
   // Sales Chart (mobile command center) — ยอดขายรายวันเดือนปัจจุบัน; null = fetch ล้ม → การ์ดซ่อนตัวเอง
   let mobileSalesSeries: SalesChartSeries | null = null
+  // feature 00078 — ร้านบริการ (เจ้าของ): การ์ดใหม่ ทั้งมือถือ (CommandCenter) และคอม (แทน SalesReport) · null = ร้านอื่น/ไม่มีสิทธิ์/ล้ม
+  let serviceReport: { data: ServiceReportData; view: ServiceReportView; chart: ServiceReportChart } | null = null
   // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — resolve จาก "เจ้าของร้านที่เปิดอยู่"
   // (shop.userId) ไม่ใช่ session user: สมาชิก ADMIN ของร้าน Business จะเห็นแพ็กเกจส่วนตัวของตัวเอง
   // แทนของร้าน (bug 2026-07-29) — จึงต้องรอ requireActiveShop ก่อน ดูจุด fetch ด้านล่าง
@@ -471,28 +473,23 @@ export default async function SellerDashboardPage() {
         if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
         else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
 
-        // ตัวเลขหลักบนการ์ด — รับเงินแล้ว = ชุดเดียวกับกราฟ (receivedValues ของงานที่ปิดตามวันปิดงาน)
-        // กำไรสุทธิ = getPnlReport ช่วงเดียวกัน หักตามสวิตช์ (นิยามเดียวกับแท็บกำไรขาดทุน — HR16)
-        const headlineKind = usesServiceFinanceRules(shop.vertical) && moneyLvl === 'FULL' ? resolveHeadline(reportSettings) : 'SALES'
-        if (headlineKind === 'RECEIVED' && salesSeriesRes.status === 'fulfilled' && salesSeriesRes.value?.receivedValues) {
-          const rv = salesSeriesRes.value.receivedValues
-          headlineData = { kind: 'RECEIVED', today: rv[currentDay - 1] ?? 0, month: rv.reduce((s, v) => s + v, 0), note: null }
-        } else if (headlineKind === 'NET_PROFIT') {
+        /**
+         * feature 00078 — ร้านบริการ: ประกอบข้อมูลการ์ดใหม่จาก series เดิม (ไม่เรียก getSalesSeries ซ้ำ) + ค่าใช้จ่ายรายวัน
+         * 🛑 แทนบล็อก "ตัวเลขหลักบนการ์ด" ของ 00073 (headline RECEIVED/NET_PROFIT + getPnlReport 2 ครั้ง) ที่เลิกใช้แล้ว
+         *    — กำไรคิดจากตัวคำนวณกลางชุดเดียวกับหน้ายอดขายและกำไร (HR16) · ร้านอื่นไม่เข้าบล็อกนี้
+         */
+        if (usesServiceFinanceRules(shop.vertical) && salesSeriesRes.status === 'fulfilled' && salesSeriesRes.value) {
           try {
-            const [dayRep, monthRep] = await Promise.all([
-              getPnlReport(shop.id, resolveDateRange('today'), shop.vertical),
-              getPnlReport(shop.id, resolveDateRange('month'), shop.vertical),
-            ])
-            const shown = (r: typeof dayRep) => profitShown(reportSettings, { revenue: r.revenue, cogs: r.cogs, expense: r.totalExpense })
-            headlineData = {
-              kind: 'NET_PROFIT',
-              today: shown(dayRep),
-              month: shown(monthRep),
-              note: profitExclusionNote(reportSettings, resolveOrderVocab(shop.vertical).costNoun),
+            const series = salesSeriesRes.value
+            const expense = await expenseBuckets(shop.id, 'daily', currentYear, currentMonth - 1, series.labels.length)
+            serviceReport = {
+              data: toServiceReportData(series, expense, 'daily', { year: currentYear, month: currentMonth }),
+              view: serviceReportView(reportSettings),
+              chart: serviceReportChart(reportSettings),
             }
           } catch (e) {
-            // ล้ม = ถอยเป็นยอดขาย (ตัวเลขที่มีแน่) ดีกว่าโชว์กำไร 0 ที่ไม่จริง
-            console.error('[dashboard] headline pnl failed', e)
+            // ล้ม = ถอยไปการ์ดเดิม (series ยังอยู่) ดีกว่าการ์ดหาย
+            console.error('[dashboard] service report failed', e)
           }
         }
 
@@ -707,17 +704,8 @@ export default async function SellerDashboardPage() {
       : []),
     ...(canSeeRevenue
       ? [
-          // ตัวเลขหลักบนการ์ด (00073 · มติ user 2026-10-12) — ร้านบริการเลือกได้ · null = ยอดขายเดิม
-          (headlineData
-            ? {
-                title: headlineData.kind === 'RECEIVED' ? 'รับเงินแล้ว' : headlineData.note ? 'กำไร (หักไม่ครบ)' : 'กำไรสุทธิ',
-                value: (range === 'today' ? headlineData.today : headlineData.month) / 1000,
-                prefix: '฿',
-                suffix: 'k',
-                periodLabel: rangeLabel,
-                icon: headlineData.kind === 'RECEIVED' ? 'cash' : 'chart-line',
-              }
-            : { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' }) satisfies StatType,
+          // 00078: การ์ดตัวเลขหลัก (รับเงินแล้ว/กำไรสุทธิ) ของ 00073 เลิกใช้ — กลับเป็นการ์ดรายได้เดิมทุกร้าน
+          { title: t.dashboard.statRevenue, value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' } satisfies StatType,
         ]
       : []),
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
@@ -775,7 +763,6 @@ export default async function SellerDashboardPage() {
             shopVertical,
             reportSettings,
             advanceDeposit,
-            headline: headlineData,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8) · ผู้ไม่ใช่เจ้าของ: redact ตัดคีย์ walletBalance ทิ้ง (CompactHero ซ่อนแถวกระเป๋า)
             walletBalance,
@@ -797,6 +784,8 @@ export default async function SellerDashboardPage() {
             // 00069 v1.1: มีค่า = หัวการ์ดเป็น "ยอดขายทุกธุรกิจ" + กดเปิดชีตรวม (ต้องไปคู่กับ salesSeries = aggregate)
             portfolio:
               portfolio && portfolio.aggregate.labels.length > 0 ? { initial: portfolio } : null,
+            // feature 00078 — ร้านบริการ: การ์ดใหม่ (redact ตัดทิ้งให้ผู้ไม่เห็นเงินเต็ม)
+            serviceReport,
             // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
             packageStatus,
             packageTier,
@@ -890,7 +879,12 @@ export default async function SellerDashboardPage() {
             00071: ยอดขายรวม = เจ้าของเท่านั้น (ผู้ไม่ใช่เจ้าของไม่ถูก query ตั้งแต่ต้น ไม่ใช่แค่ซ่อน) */}
         {canSeeRevenue && (
           <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
-            <SalesReport series={salesSeries} summary={salesSummary} vertical={shopVertical} />
+            {/* feature 00078 — ร้านบริการ: การ์ดยอดขายและกำไรแบบกว้าง แทนกราฟ "รายงานยอดขาย" · ร้านอื่นของเดิม */}
+            {serviceReport ? (
+              <ServiceReportCard initial={serviceReport.data} view={serviceReport.view} chart={serviceReport.chart} variant="desktop" />
+            ) : (
+              <SalesReport series={salesSeries} summary={salesSummary} vertical={shopVertical} />
+            )}
             <TopSellingProducts products={bestSellers} vertical={shopVertical} />
           </div>
         )}

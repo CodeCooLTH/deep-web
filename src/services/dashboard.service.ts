@@ -84,6 +84,8 @@ export interface SalesSeries {
   unclosedValues?: number[]
   unclosedTotal?: number
   unclosedCount?: number
+  /** feature 00078 — จำนวนงานที่ยังไม่ปิดต่อ bucket (คู่กับ unclosedValues · ร้านบริการเท่านั้น) — คอลัมน์ "งาน" ในตารางรายงาน */
+  unclosedCounts?: number[]
   /** ช่วงก่อนหน้า ถึง bucket เดียวกับวันนี้ — คู่กับ prevTotalToDate (เทียบ % แบบเดียวกัน) */
   prevUnclosedToDate?: number
   /** 14 วันล่าสุด — คู่กับ last14Confirmed (โหมดวันนี้ของการ์ด) */
@@ -581,9 +583,10 @@ export async function getSalesSeries(
    * แยก bucket/ช่วงก่อนหน้า/14 วัน ด้วยกติกาเดียวกับลูปยอดขายข้างบน ⇒ ยอดรวม (เขียว+เหลือง) เทียบ % ได้ชุดเดียวกัน
    * หักคืนบางส่วนด้วย returnAdj ตัวเดียวกัน (ทั้งร้าน)
    */
-  let unclosed: Pick<SalesSeries, 'unclosedValues' | 'unclosedTotal' | 'unclosedCount' | 'prevUnclosedToDate' | 'last14Unclosed'> = {}
+  let unclosed: Pick<SalesSeries, 'unclosedValues' | 'unclosedCounts' | 'unclosedTotal' | 'unclosedCount' | 'prevUnclosedToDate' | 'last14Unclosed'> = {}
   if (unclosedRows) {
     const uValues = new Array<number>(bucketCount).fill(0)
+    const uCounts = new Array<number>(bucketCount).fill(0)
     const u14 = isCurrentDaily ? new Array<number>(RECENT_DAYS).fill(0) : undefined
     let uTotal = 0
     let uCount = 0
@@ -598,7 +601,10 @@ export async function getSalesSeries(
       const shifted = new Date(c.getTime() + TZ_OFFSET_MS)
       if (c >= gte && c < lt) {
         const idx = bucketOf(shifted)
-        if (idx >= 0 && idx < bucketCount) uValues[idx] += amt
+        if (idx >= 0 && idx < bucketCount) {
+          uValues[idx] += amt
+          uCounts[idx] += 1
+        }
         uTotal += amt
         uCount += 1
       } else if (c >= prevGte && c < gte && bucketOf(shifted) < futureFromIndex) {
@@ -607,6 +613,7 @@ export async function getSalesSeries(
     }
     unclosed = {
       unclosedValues: uValues,
+      unclosedCounts: uCounts,
       unclosedTotal: uTotal,
       unclosedCount: uCount,
       prevUnclosedToDate: uPrevToDate,

@@ -10,6 +10,12 @@
  *   3. รายงานกลุ่ม LINE ไม่อ่านค่านี้ (แต่ละกลุ่มมีสวิตช์ของตัวเอง — 00070)
  *   4. ร้านที่ไม่ใช่บริการ: `resolveReportSettings` คืนค่าตั้งต้นเสมอ ไม่ว่าแถวจะมีอะไร
  *
+ * 🛑 feature 00078 (2026-10-17 · user เลือกต้นแบบใหม่): ตั้งค่าเหลือ **2 ข้อ** — ตัวเลขที่อยากเห็นก่อน
+ * (ยอดขาย/กำไร = `headline` SALES|NET_PROFIT) + รูปแบบกราฟ (แท่ง/เส้น = `chartStyle` STACKED|LINE)
+ * สวิตช์อื่นทั้งหมด (receivables advanceDeposit jobCount partCost shopExpense pnl defaultRange unclosedDisplay)
+ * **เลิกใช้ = ค่าตั้งต้นเสมอ** ไม่ว่าแถวจะเก็บอะไรไว้ (ค่าเดิมในฐานไม่ลบ — ย้อนกลับได้) · ค่าเก่าแปลง:
+ * RECEIVED→SALES · GROUPED→STACKED · AREA→LINE (`resolveReportSettings`)
+ *
  * ไฟล์บริสุทธิ์ (ไม่แตะ prisma/window) — RSC และ client เรียกตัวเดียวกันได้ · ทุก boolean ที่ตัดสิน
  * ว่าจอจะ "พูดอะไร" อยู่ที่นี่ให้เทสจับได้ (docs/conventions/ui-boolean-needs-a-testable-home.md)
  */
@@ -99,26 +105,43 @@ export function resolveReportSettings(raw: unknown, vertical: string | null | un
   if (!usesServiceFinanceRules(vertical)) return base
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return base
   const r = raw as Record<string, unknown>
-  const bool = (k: keyof ReportSettings) => (typeof r[k] === 'boolean' ? (r[k] as boolean) : (base[k] as boolean))
+  /* 00078: เหลือ 2 ข้อที่อ่านจากแถว — สวิตช์ที่เลิกใช้คงค่าตั้งต้นเสมอ (ดูหัวไฟล์) */
   return {
-    receivables: bool('receivables'),
-    advanceDeposit: bool('advanceDeposit'),
-    jobCount: bool('jobCount'),
-    partCost: bool('partCost'),
-    shopExpense: bool('shopExpense'),
-    pnl: bool('pnl'),
-    chartStyle: (REPORT_CHART_STYLES as readonly string[]).includes(r.chartStyle as string)
-      ? (r.chartStyle as ReportChartStyle)
-      : base.chartStyle,
-    defaultRange: (REPORT_RANGES as readonly string[]).includes(r.defaultRange as string)
-      ? (r.defaultRange as ReportRange)
-      : base.defaultRange,
-    headline: (REPORT_HEADLINES as readonly string[]).includes(r.headline as string)
-      ? (r.headline as ReportHeadline)
-      : base.headline,
-    unclosedDisplay: (REPORT_UNCLOSED_DISPLAYS as readonly string[]).includes(r.unclosedDisplay as string)
-      ? (r.unclosedDisplay as ReportUnclosedDisplay)
-      : base.unclosedDisplay,
+    ...base,
+    chartStyle: normalizeChartStyle(r.chartStyle),
+    headline: normalizeHeadline(r.headline),
+  }
+}
+
+/** ค่าเก่า/เพี้ยน → 2 ค่าที่ใช้จริง (00078): GROUPED เป็นแท่ง · AREA เป็นเส้น · อื่น ๆ = แท่ง */
+function normalizeChartStyle(raw: unknown): ReportChartStyle {
+  if (raw === 'LINE' || raw === 'AREA') return 'LINE'
+  return 'STACKED'
+}
+
+/** ค่าเก่า/เพี้ยน → 2 ค่าที่ใช้จริง (00078): RECEIVED (รับเงินแล้ว) เป็นยอดขาย · อื่น ๆ = ยอดขาย */
+function normalizeHeadline(raw: unknown): ReportHeadline {
+  return raw === 'NET_PROFIT' ? 'NET_PROFIT' : 'SALES'
+}
+
+// ─── 00078: 2 ข้อที่ร้านบริการเลือกได้ (ตัวตัดสินเดียวของทุกจอรายงาน) ─────────────────────────
+
+/** ตัวเลขที่อยากเห็นก่อน — ยอดขาย หรือ กำไร */
+export type ServiceReportView = 'sales' | 'profit'
+/** รูปแบบกราฟ — แท่ง หรือ เส้น */
+export type ServiceReportChart = 'bar' | 'line'
+
+export function serviceReportView(s: ReportSettings): ServiceReportView {
+  return s.headline === 'NET_PROFIT' ? 'profit' : 'sales'
+}
+export function serviceReportChart(s: ReportSettings): ServiceReportChart {
+  return s.chartStyle === 'LINE' || s.chartStyle === 'AREA' ? 'line' : 'bar'
+}
+/** ค่าที่ PATCH ส่งเมื่อร้านเลือกในหน้าตั้งค่า — ทางเดียวที่ฟอร์มเขียนลงแถว */
+export function serviceReportPatch(p: { view?: ServiceReportView; chart?: ServiceReportChart }): UpdateReportSettingsInput {
+  return {
+    ...(p.view ? { headline: p.view === 'profit' ? 'NET_PROFIT' : 'SALES' } : {}),
+    ...(p.chart ? { chartStyle: p.chart === 'line' ? 'LINE' : 'STACKED' } : {}),
   }
 }
 

@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { CanTopUpProvider } from '@/components/paces/PaymentRestrictionProvider'
 import { isShopOwnerRole } from '@/lib/shop-owner'
-import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+import { FINANCE_MENU_LABEL, mergesFinanceMenu, resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import { getT } from '@/i18n/server'
 import { can, effectiveRoles } from '@/lib/shop-permissions'
 import { bottomNavHiddenPages, resolveMobileNav } from '@/lib/role-nav'
@@ -192,6 +192,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           trustScore={user.trustScore ?? 0}
           orderLabel={orderVocab.noun}
           productLabel={resolveProductVocab(shop.vertical).productNoun}
+          salesLabel={mergesFinanceMenu(shop.vertical) ? FINANCE_MENU_LABEL : undefined}
         />
       }
       bottomNavSlot={

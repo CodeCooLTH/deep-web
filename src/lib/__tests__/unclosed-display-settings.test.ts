@@ -20,8 +20,9 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 describe('ตั้งค่า งานที่ยังไม่ปิด (สีเหลือง)', () => {
   it('[blocker] ค่าตั้งต้น = CARD (หน้าตาหลัง #156 ไม่เปลี่ยน) · ค่าเพี้ยน = CARD · ร้านอื่นค่าตั้งต้นเสมอ', () => {
     expect(DEFAULT_REPORT_SETTINGS.unclosedDisplay).toBe('CARD')
-    expect(resolveReportSettings({ unclosedDisplay: 'ALL' }, 'SERVICE_QUEUE').unclosedDisplay).toBe('ALL')
-    expect(resolveReportSettings({ unclosedDisplay: 'OFF' }, 'SERVICE_QUEUE').unclosedDisplay).toBe('OFF')
+    // 00078: ตัวเลือกนี้เลิกใช้ — ยอดยังไม่ปิดงานอยู่ในยอดขายของรายงานใหม่เสมอ ⇒ ค่าในแถวไม่มีผล (CARD เสมอ)
+    expect(resolveReportSettings({ unclosedDisplay: 'ALL' }, 'SERVICE_QUEUE').unclosedDisplay).toBe('CARD')
+    expect(resolveReportSettings({ unclosedDisplay: 'OFF' }, 'SERVICE_QUEUE').unclosedDisplay).toBe('CARD')
     expect(resolveReportSettings({ unclosedDisplay: 'BOGUS' }, 'SERVICE_QUEUE').unclosedDisplay).toBe('CARD')
     expect(resolveReportSettings({ unclosedDisplay: 'ALL' }, 'ONLINE_SALES').unclosedDisplay).toBe('CARD')
     expect(resolveReportSettings({ unclosedDisplay: 'ALL' }, 'LODGING').unclosedDisplay).toBe('CARD')

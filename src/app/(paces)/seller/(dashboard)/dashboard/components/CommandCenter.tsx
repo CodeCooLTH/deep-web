@@ -21,6 +21,7 @@ import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import SalesChartCard from './SalesChartCard'
+import ServiceReportCard from '../../_shared/service-report/ServiceReportCard'
 import TodayJobs from './TodayJobs'
 import type { homeBlocks } from '@/lib/dashboard-money'
 
@@ -62,7 +63,11 @@ export default function CommandCenter({ data, blocks }: Props) {
       {/* costNoun อ่านจาก ORDER_VOCAB ตรง ๆ (ไม่ผ่าน dictionary) — แผงการเงินทั้งชุด
           (PnlReportCard · /expenses · /sales) เป็นภาษาไทยตายตัวอยู่แล้วทั้ง section
           จะแปลก็ต้องแปลพร้อมกันทั้งชุด ไม่ใช่แปลคำเดียวแล้วปนกันครึ่ง ๆ (feature 00067) */}
-      <SalesChartCard
+{/* feature 00078 — ร้านบริการ (ไม่ใช่บริบทหลายธุรกิจ): การ์ดใหม่ · ร้านอื่นการ์ดเดิมทุกตัวอักษร */}
+      {data.serviceReport && !data.portfolio ? (
+        <ServiceReportCard initial={data.serviceReport.data} view={data.serviceReport.view} chart={data.serviceReport.chart} variant="mobile" />
+      ) : (
+            <SalesChartCard
         initialSeries={data.salesSeries ?? null}
         portfolio={data.portfolio ?? null}
         orderNoun={data.orderNoun}
@@ -71,6 +76,7 @@ export default function CommandCenter({ data, blocks }: Props) {
         advance={data.advanceDeposit ?? null}
         headline={data.headline ?? null}
       />
+      )}
 
       {/* งานวันนี้ — ฝ่ายช่างล้วนในร้านที่รับนัดเท่านั้น (00071 S-15) · ไม่ mount ให้บทบาทอื่น (endpoint คืนเบอร์ลูกค้า) */}
       {blocks.todayJobs && <TodayJobs />}

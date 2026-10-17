@@ -9,6 +9,7 @@
  * ถ้าปล่อยให้ service เขียนกฎสิทธิ์ชุดที่สองขึ้นมาเอง วันที่กฎหนึ่งเปลี่ยนแล้วอีกชุดไม่เปลี่ยน
  * = เมนูลัดพาผู้ใช้ไปหน้าที่เขาไม่มีสิทธิ์ (permission drift — ความเสี่ยงอันดับ 1 ของฟีเจอร์นี้)
  */
+import { SERVICE_REPORT_WORDS } from './service-report/words'
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import { effectiveRoles } from '@/lib/shop-permissions'
@@ -869,8 +870,12 @@ export function resolveVisibleSellerMenu(
 /** slug ของเมนูเรื่องเงิน — เขียนที่เดียว ผู้เรียกห้ามพิมพ์สตริงเอง */
 export const FINANCE_MENU_SLUGS = { sales: 'seller:sales', expenses: 'seller:expenses' } as const
 
-/** ป้ายของเมนูเรื่องเงินเมื่อสองหน้าถูกรวมเป็นหน้าเดียว (feature 00067) */
-export const FINANCE_MENU_LABEL = 'การเงินร้าน'
+/**
+ * ป้ายเมนู `/sales` ของร้านบริการ — feature 00078: หน้าเหลือหน้าเดียว "ยอดขายและกำไร"
+ * (เดิม 00067 = "การเงินร้าน" 3 แท็บ) · ชี้คำกลางของรายงานร้านบริการ ⇒ เมนู/หัวหน้า/ชีตใช้คำเดียวกัน
+ * 🛑 พจนานุกรม `menu.salesFinance` (th) ต้องเท่าค่านี้ — เทสคุม
+ */
+export const FINANCE_MENU_LABEL = SERVICE_REPORT_WORDS.pageTitle
 
 /**
  * ร้านไหนเมนูเรื่องเงินถูกรวมเป็น "การเงินร้าน" — ตัวตัดสินเดียวของ applyFinanceMenu และ applyMenuLocale
@@ -914,9 +919,9 @@ export function applyFinanceMenu(items: MenuItemType[], vertical: string, report
       : {
           ...group,
           children: group.children.filter((child) => !(hideExpenses && child.slug === FINANCE_MENU_SLUGS.expenses)).map((child) => {
+            // feature 00078: ชื่อเมนูตรงกับหน้าที่ไปถึง ("ยอดขายและกำไร") · ค่าใช้จ่ายกลับไปหน้าเดิม /expenses
+            // (แท็บค่าใช้จ่ายของ /sales เลิกแล้ว — ลิงก์เก่า ?tab=expense ถูกส่งต่อไป /expenses ที่หน้า /sales)
             if (child.slug === FINANCE_MENU_SLUGS.sales) return { ...child, label: FINANCE_MENU_LABEL }
-            if (child.slug === FINANCE_MENU_SLUGS.expenses)
-              return { ...child, url: FINANCE_EXPENSE_TAB_URL }
             return child
           }),
         },
@@ -1037,7 +1042,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
 
   const BY_SLUG: Record<string, string> = {
     'seller:dashboard': m.dashboard,
-    // ร้านบริการ = "การเงินร้าน" ตาม applyFinanceMenu — ห้ามแปลทับกลับเป็น "ภาพรวมกำไร/ขาดทุน"
+    // ร้านบริการ = FINANCE_MENU_LABEL ("ยอดขายและกำไร" · 00078) ตาม applyFinanceMenu — ห้ามแปลทับกลับเป็น "ภาพรวมกำไร/ขาดทุน"
     'seller:sales': mergesFinanceMenu(vertical) ? m.salesFinance : m.sales,
     'seller:reports-agents': m.reportsAgents,
     'seller:reports-products': m.reportsProducts,

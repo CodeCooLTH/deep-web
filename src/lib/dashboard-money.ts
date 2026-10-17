@@ -32,6 +32,8 @@ type Redactable = {
   advanceDeposit?: unknown
   /** feature 00073 — ตัวเลขหลักบนการ์ด (เงิน) */
   headline?: unknown
+  /** feature 00078 — การ์ดรายงานร้านบริการ (เงิน) */
+  serviceReport?: unknown
 }
 
 /**
@@ -46,6 +48,7 @@ export function redactCommandCenterData<T extends Redactable>(data: T, level: Mo
   delete out.portfolio
   delete out.advanceDeposit
   delete out.headline
+  delete out.serviceReport
   if (out.bestSellers) {
     out.bestSellers = out.bestSellers.map((b) => {
       const { soldCount: _omit, ...rest } = b

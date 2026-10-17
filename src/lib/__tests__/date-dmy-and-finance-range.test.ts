@@ -190,8 +190,10 @@ describe('[blocker] review 2026-10-01 — ตัวเลือกวันท�
     expect(ws).toMatch(/capped=\{serviceRules && !resolveDataCompleteness\(/)
     expect(ws).toMatch(/costNoun=\{costNoun\}/)
     const exp = read('src/app/(paces)/seller/(dashboard)/expenses/page.tsx')
+    // ร้านอื่นยังได้ของเดิม (ไม่ส่ง costNoun/serviceRules) · 00078: ร้านบริการกลับมาใช้หน้านี้ ⇒ ส่งเฉพาะในกิ่งร้านบริการ
     expect(exp).not.toMatch(/costNoun=/)
-    expect(exp).not.toMatch(/serviceRules/)
+    expect(exp).not.toMatch(/serviceRules=/)
+    expect(exp).toMatch(/\.\.\.\(isService\s*\?\s*\{ serviceRules: true, showReport: false, costNoun:/)
     // คำเดิม "ช่วงที่เลือก" สำหรับร้านที่ไม่ใช่บริการ (มติ 2026-10-02 "กลับเป็นคำเดิมด้วย")
     expect(ws).toMatch(/rangeLabel=\{serviceRules && range === 'custom' && customDates \?/)
   })

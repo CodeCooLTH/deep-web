@@ -1,5 +1,6 @@
 /**
  * ตั้งค่ารายงานการเงิน — ร้านบริการเท่านั้น · เจ้าของเท่านั้น (feature 00073 เฟส B · FR-010)
+ * feature 00078: เหลือ 2 ข้อ (ตัวเลขที่อยากเห็นก่อน · รูปแบบกราฟ) + ตัวอย่างบนหน้าแรก ด้วยตัวเลขจริงเดือนนี้
  *
  * Base: src/app/(paces)/seller/(dashboard)/settings/job-types/page.tsx (gate 3 ชั้น: เมนู · หน้า · API
  *   + PageBreadcrumb + NoPermissionCard) · การ์ดสวิตช์ ยกจาก public-profile/components/PriceVisibilityToggleClient.tsx
@@ -15,8 +16,9 @@ import { authOptions } from '@/lib/auth'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { REPORT_SETTINGS_LABEL, resolveReportSettings } from '@/lib/report-settings'
-import { resolveOrderVocab } from '@/lib/seller-menu'
+import { REPORT_SETTINGS_LABEL, resolveReportSettings, serviceReportChart, serviceReportView } from '@/lib/report-settings'
+import { todayThaiIsoDate } from '@/lib/date-range'
+import { getServiceReportData } from '@/services/service-report.service'
 import NoPermissionCard from '../../_shared/NoPermissionCard'
 import ReportSettingsForm from './components/ReportSettingsForm'
 
@@ -38,13 +40,13 @@ export default async function ReportSettingsPage() {
   const shop = gate.active.shop
   if (!usesServiceFinanceRules(shop.vertical)) notFound()
 
+  const settings = resolveReportSettings(shop.reportSettings, shop.vertical)
+  const [y, m] = todayThaiIsoDate().split('-').map(Number)
+  const preview = await getServiceReportData(shop.id, shop.vertical, 'daily', { year: y, month: m })
   return (
     <>
       <PageBreadcrumb title={REPORT_SETTINGS_LABEL} trail={[{ label: 'ตั้งค่า' }]} />
-      <ReportSettingsForm
-        initial={resolveReportSettings(shop.reportSettings, shop.vertical)}
-        costNoun={resolveOrderVocab(shop.vertical).costNoun}
-      />
+      <ReportSettingsForm initialView={serviceReportView(settings)} initialChart={serviceReportChart(settings)} preview={preview} />
     </>
   )
 }
