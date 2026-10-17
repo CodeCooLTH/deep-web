@@ -1532,7 +1532,8 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
 
 export async function shipOrder(
   publicToken: string,
-  data: { provider: string; trackingNo: string },
+  // outboundShippingCost: ต้นทุนส่งเอง (00078) — ไม่ส่ง/null = ยังไม่ระบุ
+  data: { provider: string; trackingNo: string; outboundShippingCost?: number | null },
   // feature 00031 — คนที่กดแจ้งจัดส่ง (optional เพื่อไม่ให้ผู้เรียกเดิมพัง)
   actorUserId?: string | null,
 ) {
@@ -1546,7 +1547,12 @@ export async function shipOrder(
   assertTransition(order.status, "SHIPPED");
   return prisma.$transaction(async (tx) => {
     await tx.shipmentTracking.create({
-      data: { orderId: order.id, provider: data.provider, trackingNo: data.trackingNo },
+      data: {
+        orderId: order.id,
+        provider: data.provider,
+        trackingNo: data.trackingNo,
+        outboundShippingCost: data.outboundShippingCost ?? null,
+      },
     });
     // feature 00031 — TRACKING_ADDED ใน tx เดียวกัน; provider = ชื่อขนส่งที่ร้านกรอกเอง (ไม่ใช่ PII)
     await recordOrderEvent(tx, {
@@ -1588,7 +1594,8 @@ export class IShipManagedShipmentError extends Error {
  */
 export async function updateShipmentTracking(
   publicToken: string,
-  data: { provider: string; trackingNo: string },
+  // outboundShippingCost: undefined = ไม่แตะ · null = ล้าง (00078)
+  data: { provider: string; trackingNo: string; outboundShippingCost?: number | null },
   // feature 00031 — คนที่แก้เลขพัสดุ (optional เพื่อไม่ให้ผู้เรียกเดิมพัง)
   actorUserId?: string | null,
 ) {
@@ -1611,7 +1618,11 @@ export async function updateShipmentTracking(
   return prisma.$transaction(async (tx) => {
     const updated = await tx.shipmentTracking.update({
       where: { orderId: order.id },
-      data: { provider: data.provider, trackingNo: data.trackingNo },
+      data: {
+        provider: data.provider,
+        trackingNo: data.trackingNo,
+        ...(data.outboundShippingCost !== undefined ? { outboundShippingCost: data.outboundShippingCost } : {}),
+      },
     });
     await recordOrderEvent(tx, {
       orderId: order.id,
@@ -1620,6 +1631,48 @@ export async function updateShipmentTracking(
       meta: { provider: data.provider },
     });
     return updated;
+  });
+}
+
+// 00078 D06 — ออเดอร์ที่ยังไม่ส่งออกจริง (ร่าง) หรือถูกยกเลิก ไม่มีค่าส่งให้บันทึก
+export class ShippingCostNotAllowedError extends Error {
+  constructor() { super("SHIPPING_COST_NOT_ALLOWED"); this.name = "ShippingCostNotAllowedError"; }
+}
+
+/**
+ * setOutboundShippingCost — แก้เฉพาะต้นทุนส่งเอง (D06) โดยไม่แตะเลขพัสดุ/สถานะ
+ *
+ * 🛑 ต้องมีแถว ShipmentTracking อยู่แล้ว ไม่สร้างแถวปลอม (TD-010) และไม่ผ่าน updateShipmentTracking
+ * เพราะอันนั้นปฏิเสธใบ iShip — ใบ LINKED ที่ dispatch แล้วมีแถวนี้ แต่ iShip ก็ยังไม่รู้ราคา ร้านกรอกเองได้
+ * ผู้แก้บันทึกใน OrderEvent (changedCount เท่านั้น ไม่ใส่ตัวเลขเงิน)
+ */
+export async function setOutboundShippingCost(
+  shopId: string,
+  publicToken: string,
+  value: number | null,
+  actorUserId: string | null,
+) {
+  const order = await prisma.order.findFirst({
+    where: { publicToken, shopId },
+    select: { id: true, status: true, shipmentTracking: { select: { id: true } } },
+  });
+  if (!order) throw new OrderNotFoundError();
+  if (order.status === "CANCELLED" || order.status === "DRAFTED") throw new ShippingCostNotAllowedError();
+  if (!order.shipmentTracking) throw new ShipmentTrackingNotFoundError();
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.shipmentTracking.update({
+      where: { orderId: order.id },
+      data: { outboundShippingCost: value },
+      select: { outboundShippingCost: true },
+    });
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "ORDER_EDITED",
+      actorUserId,
+      meta: { changedCount: 1 },
+    });
+    return updated.outboundShippingCost == null ? null : Number(updated.outboundShippingCost);
   });
 }
 

@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00078 สัญญาณลูกค้าในแชท + ส่งอัตโนมัติถึงลูกค้า — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โทเคนตามสเปก §1.1 — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'), purple: v('purple'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'), danger10: v('danger10'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'), primary5: v('primary5'),
+          'row-pinned': v('row-pinned'), 'row-active': v('row-active'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --purple:#7b70ef;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --danger10:#feeef2; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250); --primary5:rgb(244,248,252);
+    --row-pinned:rgb(250,250,253); --row-active:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd; --purple:#7b70ef;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --danger10:rgb(52,37,48); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55); --primary5:rgb(30,35,47);
+    --row-pinned:rgb(35,36,46); --row-active:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces (_forms.css) */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; height:20px; width:30px;
+    border-radius:9999px; background:var(--d200); border:1px solid var(--d300); cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:0; top:50%; width:12px; height:12px; border-radius:9999px;
+    transform:translate(4px,-50%); background:var(--knob); transition:transform .15s; }
+  .form-switch:checked { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::before { background:#fff; transform:translate(18px,-50%); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  .form-checkbox { appearance:none; width:16px; height:16px; border:1px solid var(--d300); border-radius:4px; background:var(--card); flex-shrink:0; }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .note li { margin-top:2px; }
+  .rows > * + * { border-top:1px dashed var(--d300); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+  /* .badge ของ Paces (_badge.css) + text-2xs ทับขนาด */
+  .badge { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; gap:.25rem;
+    border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; }
+  .shadow-theme { box-shadow: var(--shadow); }
+  .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    border-bottom:1px dashed var(--d300); padding:15px 20px; }
+  .card-title { font-size:15px; font-weight:500; color:var(--body-color); }
+  .card-body { padding:20px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px;
+      border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+  }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="border-b border-d300" style="background:var(--card)">
+  <div class="flex items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00078 สัญญาณลูกค้าในแชท และส่งอัตโนมัติถึงลูกค้า (ฝั่งผู้ขาย · ธีม Paces)</h1>
+      <p class="text-xs text-d600">ทำตาม docs/superpowers/specs/2026-10-17-00078-chat-signals-design.md · ตัวเลือกไอคอนตามที่สเปก "แนะนำ" ทุกข้อ · Mobile 390 · Tablet 834 · Desktop 1440</p>
+    </div>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+// ---------- ตัวช่วย ----------
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="tabler:${n}" width="${s}" height="${s}" class="${c}" aria-hidden="true"></iconify-icon>`
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const DEVS = [
+  { k: 'm', w: 390, label: 'Mobile 390' },
+  { k: 't', w: 834, label: 'Tablet 834' },
+  { k: 'd', w: 1440, label: 'Desktop 1440' },
+]
+// รูปโปรไฟล์จำลอง (SVG ในไฟล์ ไม่โหลดจากเน็ต)
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h},55%,62%)'/><stop offset='1' stop-color='hsl(${(h + 40) % 360},50%,42%)'/></linearGradient></defs><rect width='40' height='40' fill='url(#g)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('')
+
+// ขอบรูป: outline-2 outline-offset-2 outline-purple (TW4 outline-2 ใส่ style solid ให้เอง · TW3 CDN ต้องมี `outline`)
+const RING = 'outline outline-2 outline-offset-2 outline-purple'
+function avatar({ img, name, ring, size = 'size-10', fail }) {
+  if (!img || fail)
+    return `<span class="bg-primary10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-sm font-semibold ${ring ? RING : ''}">${esc(initials(name))}</span>`
+  return `<img src="${img}" alt="${esc(name)}" class="${size} shrink-0 rounded-full bg-d100 object-cover ${ring ? RING : ''}">`
+}
+// จานมุมบนขวา — ในแถวเป็น aria-hidden (มีชิปข้อความอ่านซ้ำแล้ว) · หัวห้อง/แผงเป็น role=img
+// รอบ 2: ใหม่ = รถเข็น · ซื้อซ้ำ = ตัวเลขจำนวนใบ (เกิน 9 = 9+) · role=img ทุกจุด (แถวไม่มีชิปข้อความแล้ว)
+function cornerDisc(o) {
+  const isNew = o.customer === 'new'
+  const label = isNew ? 'ลูกค้าใหม่ ซื้อแล้ว 1 คำสั่งซื้อ' : `ลูกค้าซื้อซ้ำ ซื้อแล้ว ${o.n} คำสั่งซื้อ`
+  const inner = isNew ? IC('shopping-cart', 10, 'text-white') : `<span class="text-[10px] font-bold leading-none text-white">${o.n > 9 ? '9+' : o.n}</span>`
+  const dim = isNew || o.n <= 9 ? 'size-4' : 'h-4 min-w-4 px-0.5'
+  return `<span role="img" aria-label="${label}" title="${label}" class="absolute -end-0.5 -top-0.5 flex ${dim} items-center justify-center rounded-full bg-purple ring-2" style="--tw-ring-color:var(--card)">${inner}</span>`
+}
+const CH = {
+  MESSENGER: { label: 'Messenger', html: `<iconify-icon icon="logos:messenger" width="16" height="16"></iconify-icon>` },
+  INSTAGRAM: { label: 'Instagram', html: `<iconify-icon icon="skill-icons:instagram" width="16" height="16"></iconify-icon>` },
+  LINE: { label: 'LINE', html: `<span class="flex size-full items-center justify-center" style="background:#06c755"><iconify-icon icon="tabler:brand-line" width="11" height="11" style="color:#fff"></iconify-icon></span>` },
+}
+const channelOverlay = (ch) =>
+  `<span title="${CH[ch].label}" class="absolute -end-0.5 -bottom-0.5 block size-4 overflow-hidden rounded-full bg-card ring-2" style="--tw-ring-color:var(--card)">${CH[ch].html}</span>`
+function avatarBlock(o, semantic, size) {
+  return `<span class="relative shrink-0">${avatar({ img: o.img, name: o.name, ring: !!o.customer, size, fail: o.imgFail })}${o.customer ? cornerDisc(o) : ''}${channelOverlay(o.ch)}</span>`
+}
+
+// ---------- จุดที่ 1: แถวรายการห้อง ----------
+const LONG_NAME = 'BT Premium Auto Xenon คลอง4 ธัญบุรี'
+const LONG_PREVIEW = 'สนใจชุดไฟ Xenon รุ่นใหม่ติดตั้งที่ธัญบุรีได้ไหมคะ ราคารวมค่าแรงเท่าไหร่ แล้วต้องจองคิวล่วงหน้ากี่วัน'
+const ROWS = [
+  { id: 'R1', note: 'พื้นฐาน ไม่มีสัญญาณ', name: 'นภัสสร ใจดี', img: photo(200), ch: 'MESSENGER', preview: 'ขอบคุณค่ะ ได้รับของแล้วนะคะ', time: '10:24' },
+  { id: 'R2', note: 'ลูกค้าใหม่', name: 'กิตติพงษ์ ศรีสุข', img: photo(30), ch: 'LINE', preview: 'ส่งของวันไหนครับ', time: '09:58', customer: 'new', unread: 1 },
+  { id: 'R3', note: 'ลูกค้าซื้อซ้ำ', name: 'วรรณา พรหมมา', img: photo(320), ch: 'INSTAGRAM', you: true, preview: 'ได้เลยค่ะ เดี๋ยวแพ็กให้วันนี้', time: '09:41', customer: 'repeat', n: 4 },
+  { id: 'R4', note: 'Meta AI อย่างเดียว (ยังไม่เป็นลูกค้า)', name: 'Somchai K.', img: photo(140), ch: 'MESSENGER', preview: 'มีสีดำไหมครับ', time: '09:30', metaAi: true },
+  { id: 'R5', note: 'เลวร้ายสุด: ปักหมุด + ทุกป้าย', name: LONG_NAME, img: photo(260), ch: 'MESSENGER', you: true, preview: LONG_PREVIEW, time: 'เมื่อวาน',
+    pinned: true, unread: 12, draft: 2, follow: 3, metaAi: true, customer: 'repeat', n: 3, returned: 2, deepbot: true, interested: true,
+    adId: '120210987654321', tag: 'ลูกค้าประจำย่านธัญบุรีรังสิตคลองหลวง', folder: 'ลูกค้าติดตั้งไฟหน้ารถยนต์', stage: 'พัสดุมีปัญหา ×2',
+    urgent: { when: 'เลย 2 วัน', title: 'โทรยืนยันที่อยู่ติดตั้ง', more: 1 } },
+  null, // R6 = R3 ตอนเลือกอยู่ (ตั้งค่าข้างล่าง)
+  { id: 'R7', note: 'ปิดงานแล้ว + ลูกค้า', name: 'ประภาพร มั่นคง', img: photo(90), ch: 'MESSENGER', you: true, preview: 'ขอบคุณที่อุดหนุนค่ะ', time: 'จ.', customer: 'repeat', n: 12, resolved: true },
+  { id: 'R8', note: 'รูปโหลดพลาด (ตัวอักษรย่อมีขอบ)', name: 'ธนากร วงศ์ใหญ่', img: photo(10), imgFail: true, ch: 'LINE', preview: 'โอนแล้วครับ', time: '12 ต.ค.', customer: 'new' },
+]
+ROWS[5] = { ...ROWS[2], id: 'R6', note: 'เลือกอยู่ (active) บน R3', active: true }
+
+function rowChips(o) {
+  // รอบ 2: สูงสุด 2 ใบ + "+N" ทุกจอ · ลำดับ ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id → แท็ก
+  // ลูกค้าใหม่/ซื้อซ้ำ ย้ายไปจานมุมรูป · Meta AI ย้ายไปไอคอนหน้าเวลา
+  const c = []
+  if (o.follow) c.push({ l: `ติดตาม ${o.follow}`, h: `<span role="img" aria-label="ติดตาม ${o.follow} รายการ" title="ติดตาม ${o.follow} รายการ" class="badge bg-success15 text-success-ink">${IC('star', 12)}ติดตาม ${o.follow}</span>` })
+  if (o.returned) c.push({ l: `ตีกลับ ${o.returned} รายการ`, h: `<span role="img" aria-label="ตีกลับ ${o.returned} รายการ" title="ตีกลับ ${o.returned} รายการ" class="badge max-w-32 shrink-0 bg-warning15 text-warning-ink">${IC('arrow-back-up', 12)}<span class="truncate">ตีกลับ ${o.returned} รายการ</span></span>` })
+  if (o.deepbot) c.push({ l: 'DeepBot', h: `<span class="badge bg-primary15 text-primary-ink">${IC('robot', 12)}DeepBot</span>` })
+  if (o.interested) c.push({ l: 'สนใจ', h: `<span class="badge bg-success15 text-success">สนใจ</span>` })
+  if (o.adId) c.push({ l: `ad_id.${o.adId}`, h: `<span title="ad_id.${o.adId}" class="badge max-w-24 bg-d100 text-d600">${IC('brand-meta', 12)}<span class="truncate">ad_id.${o.adId}</span></span>` })
+  if (o.tag) c.push({ l: o.tag, h: `<span title="${o.tag}" class="badge max-w-28 bg-primary15 text-primary-ink"><span class="truncate">${o.tag}</span></span>` })
+  if (!c.length) return ''
+  const hidden = c.slice(2)
+  const plus = hidden.length
+    ? `<span role="img" aria-label="ป้ายอื่นอีก ${hidden.length} รายการ: ${hidden.map((x) => x.l).join(', ')}" title="${hidden.map((x) => x.l).join(' · ')}" class="badge bg-d100 text-d700">+${hidden.length}</span>`
+    : ''
+  return `<span class="mt-1 flex flex-wrap items-center gap-1">${c.slice(0, 2).map((x) => x.h).join('')}${plus}</span>`
+}
+function inboxRow(o) {
+  const st = o.active ? 'border-primary bg-row-active' : o.pinned ? 'border-warning bg-row-pinned' : 'border-transparent bg-card'
+  const unread = !!o.unread
+  return `
+  <div class="relative flex items-stretch border-s-2 ${st}" data-row="${o.id}">
+    <span class="absolute -start-0.5 top-1 z-10 rounded-e bg-d900 px-1 text-[9px] font-bold leading-4 text-card" title="${o.note}">${o.id}</span>
+    <div class="flex min-w-0 flex-1 justify-between gap-3 py-3 pe-3.75 ps-3.75">
+      <div class="flex min-w-0 flex-1 items-center gap-3">
+        ${avatarBlock(o, false, 'size-10')}
+        <span class="min-w-0 flex-1 overflow-hidden text-start">
+          <span class="flex items-center gap-1 truncate text-xs text-d900 ${unread ? 'font-bold' : 'font-semibold'}">
+            ${o.pinned ? IC('star-filled', 14, 'text-warning') : ''}
+            ${o.resolved ? IC('circle-check', 14, 'text-success') : ''}
+            <span class="truncate">${esc(o.name)}</span>
+          </span>
+          <span class="block truncate text-xs ${unread ? 'font-medium text-d900' : 'text-d700'}">${o.you ? '<span class="font-normal text-d700">คุณ: </span>' : ''}${esc(o.preview)}</span>
+          ${rowChips(o)}
+          ${o.stage ? `<span class="badge mt-1 inline-flex w-fit shrink-0 bg-danger15 text-danger-ink">${IC('alert-triangle', 13)}<span class="truncate">${o.stage}</span></span>` : ''}
+          ${o.urgent ? `<span class="mt-1 flex min-w-0 items-center gap-1 rounded bg-danger10 px-1.5 py-0.5 text-2xs text-danger-ink">${IC('clock-exclamation', 12)}<span class="shrink-0 font-semibold">${o.urgent.when}</span><span class="shrink-0">·</span><span class="min-w-0 truncate">${o.urgent.title}</span><span class="shrink-0 font-semibold">+${o.urgent.more}</span></span>` : ''}
+        </span>
+      </div>
+      <span class="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
+        <span class="flex flex-col items-end gap-1.25">
+          <span class="flex items-center gap-1 text-2xs text-d700 ${unread ? 'font-semibold' : ''}">${o.metaAi ? `<span role="img" aria-label="Meta AI กำลังควบคุมห้องนี้" title="Meta AI กำลังควบคุมห้องนี้" class="flex">${IC('sparkles', 12, 'text-d700')}</span>` : ''}${o.time}</span>
+          ${unread ? `<span class="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-danger px-1 text-2xs font-semibold text-white">${o.unread}</span>` : ''}
+          ${o.draft ? `<span class="badge gap-0.5 bg-warning15 text-warning-ink" title="มี ${o.draft} ร่างคำสั่งซื้อรอจัดการ">${IC('file-alert', 11)}${o.draft}</span>` : ''}
+        </span>
+        ${o.folder ? `<span class="badge max-w-28 bg-d100 text-d600">${IC('folder', 11)}<span class="truncate">${o.folder}</span></span>` : ''}
+      </span>
+    </div>
+  </div>`
+}
+const listCard = (rows, cls = '') =>
+  `<div class="card overflow-hidden ${cls}"><div class="rows">${rows.map(inboxRow).join('')}</div></div>`
+
+function inboxListHeader() {
+  return `<div class="flex items-center gap-3 border-b border-d200 px-4 pt-3 text-sm">
+    <span class="-mb-px border-b-2 border-primary pb-1.5 font-medium text-primary">ทั้งหมด</span>
+    <span class="-mb-px border-b-2 border-transparent pb-1.5 text-d700">ยังไม่อ่าน</span>
+    <span class="-mb-px border-b-2 border-transparent pb-1.5 text-d700">ติดตาม</span></div>`
+}
+
+// ---------- โครงจอ ----------
+function navRail() {
+  const it = (i, a) => `<span class="flex size-10 items-center justify-center rounded ${a ? 'bg-primary15 text-primary' : 'text-d600'}">${IC(i, 20)}</span>`
+  return `<aside class="flex w-16 shrink-0 flex-col items-center gap-2 border-e border-d200 bg-card py-3">${it('message-circle', 1)}${it('armchair-2')}${it('shopping-cart')}${it('users')}${it('settings')}</aside>`
+}
+function mobileTop(title) {
+  return `<div class="flex items-center gap-3 border-b border-d200 bg-card px-4 py-3">${IC('menu-2', 20, 'text-d700')}<span class="text-md font-semibold text-d900">${title}</span><span class="ms-auto">${IC('bell', 20, 'text-d700')}</span></div>`
+}
+function bottomNav(active) {
+  const items = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+  return `<nav class="grid grid-cols-5 border-t border-d200 bg-card py-1.5">${items.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === active ? 'text-primary' : 'text-d600'}">${IC(i, 20)}${l}</span>`).join('')}</nav>`
+}
+function frame(dev, inner, h = '') {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame @container" style="width:${dev.w}px;${h}">${inner}</div></div>`
+}
+function section(no, title, notes, framesHtml) {
+  return `<section>
+    <h2 class="mb-1 text-lg font-bold text-d900">${no}) ${title}</h2>
+    <ul class="note mb-4 max-w-[1400px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>
+    <div class="flex items-start gap-10">${framesHtml}</div></section>`
+}
+
+// ---------- จุดที่ 2: หัวห้อง ----------
+const R5 = ROWS[4]
+function threadHeader(dev, o = R5) {
+  return `<div class="card-header flex-nowrap py-3" style="border-radius:0">
+    <div class="flex min-w-0 items-center gap-3">
+      ${dev.k !== 'd' ? `<span class="btn-icon">${IC('arrow-left', 18)}</span>` : ''}
+      ${avatarBlock(o, true, 'size-9')}
+      <h5 class="min-w-0 truncate text-base font-semibold text-d900" title="${o.name}">${o.name}</h5>
+    </div>
+    <div class="ms-auto flex shrink-0 items-center gap-1">
+      <span class="btn-icon">${IC('volume', 18)}</span>
+      ${dev.k !== 'd' ? `<span class="btn-icon">${IC('user-circle', 18)}</span>` : ''}
+      <span class="btn-icon">${IC('dots', 18)}</span>
+    </div>
+  </div>`
+}
+function chipStrip(open) {
+  const chip = (cls, icon, text, isOpen) => `<button type="button" aria-expanded="${!!isOpen}" class="${cls} flex max-w-52 shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${isOpen ? 'ring-1' : ''}" style="${isOpen ? '--tw-ring-color:var(--d400)' : ''}">${IC(icon, 14)}<span class="truncate">${text}</span>${IC(isOpen ? 'chevron-up' : 'chevron-down', 14, 'opacity-70')}</button>`
+  return `<div class="border-b border-d200 bg-card">
+    <div class="flex flex-nowrap items-center gap-1.5 overflow-x-auto px-4 py-2">
+      ${chip('bg-d200 text-d800', 'sparkles', 'Meta AI คุมอยู่', open)}
+      ${chip('bg-warning15 text-warning-ink', 'robot-off', 'บอทหยุดตอบห้องนี้แล้ว — รอคุณสั่งให้กลับมา', false)}
+    </div>
+    ${open ? `<div class="space-y-2 px-4 pb-3">
+      <div class="flex items-start gap-2 rounded-lg bg-d100 px-3 py-2 text-sm text-d800">
+        ${IC('sparkles', 16, 'mt-0.5')}
+        <div class="min-w-0"><p class="font-medium">Meta AI กำลังตอบลูกค้าห้องนี้แทนร้าน</p>
+        <p class="mt-0.5 text-xs">ช่องพิมพ์ยังใช้ได้ แต่ถ้าพิมพ์จาก Deep ตอนนี้ Meta อาจปฏิเสธข้อความ จะตอบเองให้ไปรับดูแลแชทนี้ที่ Business Suite ของเพจก่อน</p></div>
+      </div>
+      <button type="button" class="flex items-center gap-1 text-xs font-medium text-d700">${IC('chevron-up', 14)}ย่อ</button>
+    </div>` : ''}
+  </div>`
+}
+function customerBubble(text, time) {
+  return `<div class="my-5 flex items-start gap-2.5">${avatar({ img: R5.img, name: R5.name, size: 'size-9' })}<div class="min-w-0 max-w-96"><div class="rounded bg-light px-6 py-3 text-sm text-d800">${text}</div><div class="mt-1 flex items-center gap-1 text-xs text-d700">${IC('clock', 12)}${time}</div></div></div>`
+}
+function messagesFiller() {
+  return `<div class="flex-1 px-4">${customerBubble('สนใจชุดไฟ Xenon รุ่นใหม่ ติดตั้งที่ธัญบุรีได้ไหมคะ', '13:58')}</div>`
+}
+
+// ---------- จุดที่ 3: แผงลูกค้า ----------
+function customerPanel(o = R5) {
+  const tab = (i, l, a) => `<span class="-mb-px flex shrink-0 items-center gap-1 border-b-2 px-1.5 py-2 text-sm ${a ? 'border-primary text-primary' : 'border-transparent text-d700'}">${IC(i, 16)}${l}</span>`
+  return `<div class="flex h-full flex-col bg-card">
+    <div class="flex items-center gap-3 px-4 pb-3 pt-4">
+      <span class="relative shrink-0">${avatar({ img: o.img, name: o.name, ring: !!o.customer, fail: o.imgFail })}${o.customer ? cornerDisc(o) : ''}</span>
+      <div class="min-w-0">
+        <p class="mb-1 truncate text-sm font-semibold text-d900" title="${o.name}">${o.name}</p>
+        <span class="badge max-w-56 bg-d100 text-d700"><iconify-icon icon="logos:messenger" width="12"></iconify-icon><span class="truncate">BT Premium Auto (เพจ)</span></span>
+      </div>
+    </div>
+    <nav class="flex flex-nowrap border-b border-d200 px-2">${tab('user-circle', 'ข้อมูล', 1)}${tab('shopping-cart', 'คำสั่งซื้อ')}${tab('files', 'ไฟล์')}${tab('notes', 'โน้ต')}${tab('star', 'ติดตาม')}</nav>
+    <div class="space-y-3 p-4 text-xs">
+      ${[['ซื้อแล้ว', '6 คำสั่งซื้อ'], ['ยอดรวม', '฿14,940'], ['เบอร์โทร', '081-234-5678']].map(([a, b]) => `<div class="flex justify-between"><span class="text-d600">${a}</span><span class="font-medium text-d900">${b}</span></div>`).join('')}
+    </div>
+  </div>`
+}
+
+// ---------- จุดที่ 4: หน้าตั้งค่า ----------
+const STATES = [
+  { k: 's1', title: 'สถานะ 1 · ปิดทั้งคู่', a: false, b: false, ships: true, canEdit: true, noun: 'คำสั่งซื้อ' },
+  { k: 's2', title: 'สถานะ 2 · (ก) เปิด (ข) ปิด', a: true, b: false, ships: true, canEdit: true, noun: 'คำสั่งซื้อ' },
+  { k: 's3', title: 'สถานะ 3 · ร้านไม่ส่งสินค้า (ร้านบริการ ไม่มีแถว ข)', a: true, b: false, ships: false, canEdit: true, noun: 'งานบริการ' },
+  { k: 's4', title: 'สถานะ 4 · บทบาท CHAT ดูได้อย่างเดียว', a: true, b: true, ships: true, canEdit: false, noun: 'คำสั่งซื้อ' },
+]
+function switchRow(id, icon, label, on, offText, onText, canEdit) {
+  return `<li class="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+    ${IC(icon, 20, 'mt-0.5 text-d500')}
+    <div class="min-w-0 flex-1">
+      <label for="${id}" class="text-sm font-medium text-d900">${label}</label>
+      <p class="mt-0.5 text-xs text-d700">${on ? onText : offText}</p>
+      ${on ? `<p class="mt-0.5 text-xs text-d600">เปิดเมื่อ 17-10-2569 12:30:00 โดย สมชาย</p>` : ''}
+    </div>
+    <input id="${id}" type="checkbox" class="form-switch mt-0.5" ${on ? 'checked' : ''} ${canEdit ? '' : 'disabled'} />
+  </li>`
+}
+function settingsPage(dev, s) {
+  const id = `${s.k}-${dev.k}`
+  const two = dev.k !== 'm'
+  const noun = s.noun
+  const banner = s.canEdit ? '' : `<div class="card mb-4 bg-d100" style="background:var(--d100)"><div class="card-body flex items-center gap-3 py-3">${IC('lock', 20, 'text-d700')}<p class="text-sm text-d800">ดูได้อย่างเดียว เจ้าของร้านหรือผู้ดูแลเป็นคนเปิดและปิดได้ ถ้าต้องการเปลี่ยน บอกเจ้าของร้านหรือผู้ดูแลได้เลย</p></div></div>`
+  const switches = `<div class="card mb-5">
+    <div class="card-header"><h4 class="card-title">แจ้งลูกค้าอัตโนมัติ</h4></div>
+    <div class="card-body"><ul class="divide-y divide-d200">
+      ${switchRow(id + 'a', 'file-invoice', `ส่งสรุป${noun}`, s.a, 'ปิดอยู่ ลูกค้าจะได้รับสรุปเมื่อคุณกดส่งเอง', `เปิดอยู่ ลูกค้าได้รับสรุปทันทีเมื่อสร้าง${noun}เสร็จ (ไม่นับฉบับร่าง)`, s.canEdit)}
+      ${s.ships ? switchRow(id + 'b', 'truck-delivery', 'ส่งเลขพัสดุ', s.b, 'ปิดอยู่ ลูกค้าจะได้เลขพัสดุเมื่อคุณกดแจ้งเอง', `เปิดอยู่ ลูกค้าได้เลขพัสดุและลิงก์ติดตามทันทีที่มีเลข ถ้าแก้เลข ระบบส่งอีกครั้งโดยขึ้นต้นว่า “อัปเดตเลขติดตามพัสดุ” (สูงสุด 3 ครั้งต่อ${noun}) เลขที่กรอกเองไม่มีลิงก์ติดตามแนบ`, s.canEdit) : ''}
+    </ul></div></div>`
+  const tips = [
+    `ส่งเฉพาะห้องแชทที่ผูกกับ${noun} ที่สร้างนอกแชท (เช่น การจอง ประมูล หน้าร้าน) ระบบไม่ส่งให้`,
+    'Messenger และ Instagram: ถ้าลูกค้าไม่ได้ทักเกิน 24 ชั่วโมง Meta ไม่ให้ส่ง ระบบจะไม่ส่งและแจ้งในห้องแชทว่าส่งไม่สำเร็จ',
+    'LINE: ข้อความอัตโนมัตินับรวมในโควตาข้อความรายเดือนของบัญชี LINE OA ถ้าโควตาเต็มจะส่งไม่ได้',
+    `ไม่ส่ง${noun}ทดสอบ และส่งเลขเดียวกันครั้งเดียว`,
+  ]
+  const notes = `<div class="card mb-5"><div class="card-header"><h4 class="card-title">ข้อควรรู้ก่อนเปิด</h4></div>
+    <div class="card-body"><ul class="list-disc space-y-1.5 ps-5 text-sm text-d700">${tips.map((t) => `<li>${t}</li>`).join('')}</ul></div></div>`
+  const pre = (t) => `<p class="whitespace-pre-line rounded border border-d300 bg-d100 px-3 py-2.5 text-xs text-d800" style="overflow-wrap:anywhere">${t}</p>`
+  const item = s.ships ? 'ชุดไฟ Xenon H4 6000K' : 'ติดตั้งไฟหน้า Xenon (2 ชม.)'
+  const example = `<div class="card mb-5"><div class="card-header"><h4 class="card-title">ตัวอย่างข้อความที่ลูกค้าจะได้รับ</h4></div>
+    <div class="card-body space-y-4">
+      <div><p class="mb-2 text-sm font-medium text-d900">สรุป${noun}</p>
+        <p class="mb-1 flex items-center gap-1 text-2xs font-semibold text-d600"><iconify-icon icon="logos:messenger" width="12"></iconify-icon> Messenger / Instagram</p>
+        ${pre(`${noun}: ${item}\nยอดสุทธิ ฿2,490\nhttps://deepthailand.app/o/k3X9pQ2mLw`)}
+        <p class="mb-1 mt-3 flex items-center gap-1 text-2xs font-semibold text-d600"><span class="flex size-3 items-center justify-center rounded-full" style="background:#06c755">${IC('brand-line', 8, 'text-white')}</span> LINE</p>
+        <p class="rounded border border-dashed border-d300 px-3 py-2.5 text-xs text-d700">ส่งเป็นการ์ดสรุป: ชื่อรายการ · “และอีก n รายการ” · ยอดสุทธิ · ปุ่มเปิดลิงก์ (หน้าตาการ์ดจริงจาก buildLineFlexOrderCard ไม่ได้วาดในม็อกอัพนี้)</p>
+      </div>
+      ${s.ships ? `<div class="border-t border-dashed border-d300 pt-4"><p class="mb-2 text-sm font-medium text-d900">เลขพัสดุ</p>
+        ${pre('จัดส่งด้วย Flash Express\nเลขติดตามพัสดุ: TH012345678A\nติดตามพัสดุ: https://app.iship.cloud/tracking?track=TH012345678A')}</div>` : ''}
+    </div></div>`
+  const head = `<div class="mb-4 flex items-center justify-between"><h4 class="text-lg font-semibold text-d900">ส่งอัตโนมัติถึงลูกค้า</h4>
+    ${dev.k !== 'm' ? `<div class="flex items-center gap-1.25 text-sm font-medium text-d700">Deep ${IC('chevron-right', 14)} ตั้งค่า ${IC('chevron-right', 14)} <span class="text-d400">ส่งอัตโนมัติถึงลูกค้า</span></div>` : ''}</div>
+    <p class="mb-5 text-sm text-d700">เลือกเองว่าจะให้ระบบแจ้งลูกค้าในแชทหรือไม่ ปิดอยู่ทั้งสองข้อ และส่งเฉพาะรายการที่เกิดหลังเปิดสวิตช์</p>`
+  const body = two
+    ? `<div class="grid grid-cols-5 gap-5"><div class="col-span-3">${banner}${switches}${notes}</div><div class="col-span-2">${example}</div></div>`
+    : `${banner}${switches}${notes}${example}`
+  const content = `<div class="${dev.k === 'm' ? 'p-4' : 'p-5'}">${head}${body}</div>`
+  if (dev.k === 'd') return `<div class="flex">${sideNav()}<div class="min-w-0 flex-1"><div class="flex h-[60px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto">${IC('bell', 20, 'text-d700')}</span></div>${content}</div></div>`
+  return `${mobileTop('ส่งอัตโนมัติถึงลูกค้า')}${content}${bottomNav('เมนู')}`
+}
+function sideNav() {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[250px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">CHAT</p>
+    <ul class="space-y-0.5">${it('message-circle', 'ข้อความ')}${it('armchair-2', 'โต๊ะแชท')}${it('message-bolt', 'ตอบกลับอัตโนมัติ')}${it('message-reply', 'ตอบกลับคอมเมนต์')}${it('robot', 'ผู้ช่วยอัตโนมัติ')}${it('file-invoice', 'สร้างออเดอร์จากแชท')}${it('send', 'ส่งอัตโนมัติถึงลูกค้า', 1)}</ul>
+    <p class="px-3 pb-1 pt-4 text-2xs font-semibold text-d500">ร้านค้า</p>
+    <ul class="space-y-0.5">${it('shopping-cart', 'คำสั่งซื้อ')}${it('truck-delivery', 'การจัดส่ง')}${it('chart-bar', 'รายงาน')}</ul>
+  </aside>`
+}
+
+// ---------- จุดที่ 5: บับเบิลระบบ + แผงพัสดุ ----------
+const sysTag = (what) => `<span title="ส่งโดยระบบ: ${what}" class="absolute end-2.5 top-0 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-d300 bg-card px-2 py-0.5 text-2xs font-medium text-d700 shadow-theme">${IC('send', 13)}<span aria-hidden="true">ส่งโดยระบบ</span><span class="sr-only">ส่งโดยระบบ: ${what}</span></span>`
+const pageAv = `<span class="flex size-4 items-center justify-center overflow-hidden rounded-full"><img src="${photo(210)}" class="size-full" alt=""></span>`
+function metaOk(time, status) {
+  return `<div class="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-xs text-d700"><span class="flex items-center gap-1 whitespace-nowrap">${IC('clock', 12)}${time}</span><span class="flex items-center gap-0.5">${IC('checks', 14, 'text-primary')}${status}</span>${pageAv}</div>`
+}
+function metaFail(time, retry) {
+  return `<div class="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-xs text-d700">
+    <span class="flex items-center gap-2 text-danger">
+      ${retry ? `<button type="button" class="flex items-center gap-1 rounded">${IC('refresh', 14)}ลองใหม่</button>` : '<span>ระบบส่งไม่สำเร็จ</span>'}
+      <button type="button" class="flex items-center justify-center rounded p-1" aria-label="สาเหตุ">${IC('info-circle', 14)}</button>
+      <span class="text-d300">|</span>
+      <button type="button" class="underline decoration-dotted underline-offset-2">ยกเลิก</button>
+    </span>
+    <span class="flex items-center gap-1 whitespace-nowrap">${IC('clock', 12)}${time}</span>${pageAv}</div>`
+}
+function mine(content, tag, meta, label) {
+  return `<div class="my-7 flex items-start justify-end gap-2.5">
+    <div class="relative min-w-0 max-w-96 break-words">${tag}${content}${meta}
+    ${label ? `<p class="mt-1 text-end text-2xs font-semibold text-d500">${label}</p>` : ''}</div></div>`
+}
+const textBubble = (t) => `<div class="whitespace-pre-line rounded bg-primary px-6 py-3 text-sm text-white" style="overflow-wrap:anywhere">${t}</div>`
+function orderCard() {
+  return `<div class="w-64 overflow-hidden rounded-lg border border-d200 bg-card">
+    <div class="space-y-1.5 p-3">
+      <p class="flex items-center gap-1.5 text-xs font-semibold text-d600">${IC('receipt', 14)}คำสั่งซื้อ #DP-25691017-0042</p>
+      <p class="text-sm font-medium text-d900">ชุดไฟ Xenon H4 6000K</p>
+      <p class="text-xs text-d700">และอีก 1 รายการ</p>
+      <p class="flex justify-between text-sm"><span class="text-d600">ยอดสุทธิ</span><span class="font-bold text-d900">฿2,490</span></p>
+    </div>
+    <div class="flex items-center justify-center gap-1.5 border-t border-d200 bg-primary5 px-4 py-2.5 text-sm font-semibold text-primary">${IC('external-link', 16)}ดูคำสั่งซื้อ</div>
+  </div>`
+}
+const TRACK = 'จัดส่งด้วย Flash Express\nเลขติดตามพัสดุ: TH012345678A\nติดตามพัสดุ: https://app.iship.cloud/tracking?track=TH012345678A'
+function bubbles(dev) {
+  const compare = `<div class="my-7 flex items-start justify-end gap-6">
+      <div class="relative min-w-0 max-w-96"><span class="absolute end-2.5 top-0 z-20 inline-flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-primary bg-card px-2 py-0.5 text-2xs font-medium text-primary shadow-theme">${IC('robot', 13)}DeepBot</span>${textBubble('สวัสดีค่ะ ร้านเปิด 9:00-18:00 น.')}<p class="mt-1 text-end text-2xs font-semibold text-d500">เดิม: DeepBot (กดได้ สี primary)</p></div>
+    </div>`
+  return `<div class="bg-card px-4 py-2">
+    ${mine(orderCard(), sysTag('สรุปคำสั่งซื้อ'), metaOk('14:00', 'อ่านแล้ว'), 'สำเร็จ · ORDER')}
+    ${mine(textBubble(TRACK), sysTag('เลขพัสดุ'), metaOk('14:02', 'ส่งแล้ว'), 'สำเร็จ · TEXT (เลขพัสดุ)')}
+    ${mine(textBubble('คำสั่งซื้อ: ชุดไฟ Xenon H4 6000K\nยอดสุทธิ ฿2,490\nhttps://deepthailand.app/o/k3X9pQ2mLw'), sysTag('สรุปคำสั่งซื้อ'), metaFail('14:05', false), 'ล้ม · WINDOW_CLOSED (ลองใหม่ไม่ได้)')}
+    ${mine(textBubble(TRACK), sysTag('เลขพัสดุ'), metaFail('14:06', true), 'ล้ม · ลองใหม่ได้ (ระบบฝั่ง Meta ขัดข้องชั่วคราว)')}
+    ${compare}
+  </div>`
+}
+function swalMock() {
+  return `<div class="mx-auto w-[340px] rounded-lg bg-card p-6 text-center shadow-theme" style="box-shadow:0 10px 40px rgba(0,0,0,.18)">
+    <span class="mx-auto mb-3 flex size-14 items-center justify-center rounded-full border-4 text-info" style="border-color:var(--info15)">${IC('info-small', 32)}</span>
+    <p class="text-lg font-semibold text-d900">ระบบส่งข้อความให้ลูกค้าไม่สำเร็จ</p>
+    <p class="mt-2 text-sm text-d700">หมดเวลาที่ Meta อนุญาตให้ส่งข้อความในเธรดนี้ — ต้องรอให้ลูกค้าทักเข้ามาใหม่</p>
+    <span class="mt-4 inline-block rounded bg-primary px-4 py-2 text-sm font-medium text-white">เข้าใจแล้ว</span>
+    <p class="mt-3 text-2xs text-d500">Swal ของปุ่ม (i) — หัวข้อใหม่ ข้อความเดิมจาก chat-send-failure.ts</p>
+  </div>`
+}
+function shipmentPanels(dev) {
+  const formTop = `<div class="space-y-3"><div><p class="mb-1 text-xs font-medium text-d700">ขนส่ง</p><div class="flex items-center justify-between rounded border border-d300 bg-card px-3 py-2 text-sm text-d900">Flash Express ${IC('chevron-down', 16, 'text-d500')}</div></div></div>`
+  const btn = `<div class="mt-4 flex justify-end"><span class="rounded bg-primary px-4 py-2 text-sm font-medium text-white">สร้างพัสดุ</span></div>`
+  const old = `<div class="rounded border border-d200 bg-card p-4"><p class="mb-3 text-xs font-semibold text-d500">เดิม (และยังใช้เมื่อเงื่อนไขไม่ครบ)</p>${formTop}
+    <div class="mt-4"><label class="flex items-start gap-2"><input type="checkbox" class="form-checkbox mt-0.5"><span class="min-w-0"><span class="block text-sm font-semibold text-d900">แจ้งเลขติดตามในแชทหลังสร้าง</span><span class="block text-xs text-d700">ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่เปิดพัสดุสำเร็จ</span></span></label></div>${btn}</div>`
+  const neu = `<div class="rounded border border-d200 bg-card p-4"><p class="mb-3 text-xs font-semibold text-d500">ใหม่ — เมื่อสวิตช์ (ข) เปิด + ออเดอร์ผูกห้อง + ไม่ใช่ dry-run</p>${formTop}
+    <div class="mt-4"><div class="flex items-start gap-2">${IC('send', 18, 'mt-0.5 text-d600')}<div class="min-w-0">
+      <p class="text-sm font-semibold text-d900">ระบบจะแจ้งเลขติดตามให้ลูกค้าในแชทนี้เอง หลังสร้างพัสดุสำเร็จ</p>
+      <p class="text-xs text-d700">ถ้าส่งไม่ได้ จะมีข้อความ “ส่งไม่สำเร็จ” ในห้องนี้</p></div></div>
+      <div class="mt-2 rounded-lg border border-dashed border-d300 bg-d50 px-3 py-2.5"><p class="mb-1 text-xs font-semibold text-d700">ข้อความที่ลูกค้าจะได้รับ</p>
+      <p class="whitespace-pre-line text-xs text-d700">จัดส่งด้วย Flash Express\nเลขติดตามพัสดุ: (จะแสดงหลังสร้างพัสดุสำเร็จ)\nติดตามพัสดุ: (ลิงก์จะแนบให้อัตโนมัติ)</p></div></div>${btn}</div>`
+  return `<div class="grid gap-4 ${dev.k === 'm' ? '' : 'grid-cols-2'}">${old}${neu}</div>`
+}
+
+// ---------- ประกอบหน้า ----------
+const app = document.getElementById('app')
+let html = ''
+
+// ส่วนที่ 1
+html += section('1', 'แถวรายการห้อง R1-R8',
+  [
+    '<b>แก้รอบ 2 (user: "R5 วุ่นวายเกินไป"):</b> ย้ายสัญญาณไปที่รูปและเวลา เลิกชิปข้อความ "ลูกค้าใหม่/ลูกค้าซื้อซ้ำ" และชิป "Meta AI คุมอยู่" ในแถว',
+    '<b>ลูกค้า:</b> ขอบม่วง 2px รอบรูป + จานม่วงมุมบนขวา · ลูกค้าใหม่ = ไอคอนรถเข็น (R2, R8) · ซื้อซ้ำ = ตัวเลขจำนวนใบ (R3 = 4, R5 = 3) เกิน 9 แสดง "9+" (R7) · จานใช้ size-4 (16px) ตัวเลข 10px ตัวหนา · "9+" ขยายเป็นแคปซูลสูง 16px กว้างขั้นต่ำ 16px · จานอ่านด้วย screen reader ได้ (role="img")',
+    '<b>Meta AI:</b> ไอคอน sparkles เล็กหน้าเวลาในคอลัมน์ขวา (R4, R5) ไม่ใช่ชิป · หัวห้องยังเป็นชิปเต็ม (ส่วนที่ 2)',
+    '<b>บรรทัดชิป:</b> สูงสุด 2 ใบ + "+N" ทุกขนาดจอ (เลิกแบบ 4 ใบตามความกว้าง) ลำดับ ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id → แท็ก · "+N" อ่านชื่อป้ายที่ซ่อนได้จาก title/aria',
+    'R6 = R3 ตอนเลือกอยู่ · R7 เช็คเขียวหน้าชื่อ (ปิดงาน) อยู่คนละที่กับจานม่วง · R8 รูปโหลดพลาด ตัวอักษรย่อยังมีขอบ · ป้าย R1-R8 สีดำมุมซ้ายบนมีไว้อ้างอิงในม็อกอัพเท่านั้น',
+  ],
+  DEVS.map((d) => {
+    if (d.k === 'd')
+      return frame(d, `<div class="flex" style="height:100%">${navRail()}<div class="w-96 shrink-0 border-e border-d200 bg-card">${inboxListHeader()}${listCard(ROWS, 'rounded-none shadow-none')}</div>
+        <div class="flex min-w-0 flex-1 flex-col bg-card opacity-60">${threadHeader(d, ROWS[5])}${messagesFiller()}</div>
+        <div class="w-96 shrink-0 border-s border-d200 opacity-60">${customerPanel(ROWS[5])}</div></div>`)
+    const list = `<div class="bg-card">${inboxListHeader()}${listCard(ROWS, 'rounded-none shadow-none')}</div>`
+    return frame(d, d.k === 't' ? `${mobileTop('ข้อความ')}<div class="p-5">${`<div class="card overflow-hidden">${inboxListHeader()}${listCard(ROWS, 'rounded-none shadow-none')}</div>`}</div>` : `${mobileTop('ข้อความ')}${list}`)
+  }).join('')
+)
+
+// ส่วนที่ 2
+html += section('2', 'หัวห้อง + ชิป Meta AI + บอทหยุด + การ์ดอธิบายที่กางแล้ว',
+  [
+    '<b>ใหม่:</b> รูปหัวห้อง (36px) มีขอบม่วง + จานมุมแบบเดียวกับแถว (ซื้อซ้ำ = ตัวเลข เช่น 3 · ใหม่ = รถเข็น) role="img" + aria-label',
+    '<b>ใหม่:</b> ชิป "Meta AI คุมอยู่" โทนใหม่ neutral (bg-default-200 / text-default-800) อยู่หน้าชิปบอทหยุด · แตะแล้วกางการ์ดอธิบาย ไม่มีปุ่ม action',
+    'ชิปบอทหยุดยาวถูกตัดด้วย … ที่ max-w-52 (ของเดิม) · แถบชิปเลื่อนแนวนอนได้ถ้าล้น (ของเดิม) · มือถือแสดงทั้งตอนยุบและตอนกาง',
+  ],
+  DEVS.map((d) => {
+    if (d.k === 'd')
+      return frame(d, `<div class="flex">${navRail()}<div class="w-96 shrink-0 border-e border-d200 bg-card opacity-60">${inboxListHeader()}${listCard([ROWS[4], ROWS[5], ROWS[3]], 'rounded-none shadow-none')}</div>
+        <div class="flex min-w-0 flex-1 flex-col bg-card">${threadHeader(d)}${chipStrip(true)}${messagesFiller()}</div>
+        <div class="w-96 shrink-0 border-s border-d200 opacity-60">${customerPanel()}</div></div>`)
+    const thread = (open) => `<div class="bg-card">${threadHeader(d)}${chipStrip(open)}${messagesFiller()}</div>`
+    return frame(d, d.k === 'm'
+      ? `<p class="bg-d200 px-4 py-1 text-2xs font-semibold text-d700">ยุบ</p>${thread(false)}<p class="bg-d200 px-4 py-1 text-2xs font-semibold text-d700">กางชิป Meta AI</p>${thread(true)}`
+      : thread(true))
+  }).join('')
+)
+
+// ส่วนที่ 3
+html += section('3', 'แผงลูกค้า (ขอบรูปอย่างเดียว ไม่มีป้ายข้อความ)',
+  [
+    '<b>ใหม่:</b> รูปหัวแผงมีขอบม่วง + จานมุมแบบเดียวกับแถว (ตัวเลข/รถเข็น, role="img" + title) — ไม่มีป้าย "ลูกค้าใหม่/ซื้อซ้ำ" ตามมติ 2026-08-27 ที่ถอดป้ายออกจากหัวแผง',
+    'เดสก์ท็อป ≥1280 = แผงถาวรกว้าง 384px · ต่ำกว่า 1280 = sheet (ม็อกอัพวาดเป็นแผงเลื่อนจากขวา ทับห้องแชท) · แท็บเล็ตแสดงกรณีรูปโหลดพลาด (ตัวอักษรย่อมีขอบ)',
+  ],
+  DEVS.map((d) => {
+    if (d.k === 'd')
+      return frame(d, `<div class="flex" style="height:420px">${navRail()}<div class="w-96 shrink-0 border-e border-d200 bg-card opacity-40">${listCard([ROWS[4], ROWS[5]], 'rounded-none shadow-none')}</div>
+        <div class="flex min-w-0 flex-1 flex-col bg-card opacity-40">${threadHeader(d)}${messagesFiller()}</div>
+        <div class="w-96 shrink-0 border-s border-d200">${customerPanel()}</div></div>`)
+    const o = d.k === 't' ? { ...ROWS[7], ch: 'MESSENGER' } : R5
+    return frame(d, `<div class="relative" style="height:420px"><div class="opacity-40">${threadHeader(d)}${messagesFiller()}</div>
+      <div class="absolute inset-0 bg-black/40"></div>
+      <div class="absolute inset-y-0 end-0 ${d.k === 'm' ? 'w-full' : 'w-96'} shadow-theme">${customerPanel(o)}</div></div>`)
+  }).join('')
+)
+
+// ส่วนที่ 4
+html += `<section><h2 class="mb-1 text-lg font-bold text-d900">4) หน้าตั้งค่า "ส่งอัตโนมัติถึงลูกค้า" (/settings/auto-notify) · 4 สถานะ</h2>
+  <ul class="note mb-6 max-w-[1400px] list-disc ps-5 text-xs text-d700">
+    <li><b>ใหม่ทั้งหน้า:</b> เมนูอยู่ในกลุ่ม CHAT ต่อจาก "สร้างออเดอร์จากแชท" ไอคอน send · ชื่อเมนู = หัวหน้า · สองสวิตช์คือพระเอก บันทึกทันทีที่กด ไม่มีปุ่มบันทึก ไม่มี Swal ยืนยัน</li>
+    <li>เดสก์ท็อป/แท็บเล็ต 2 คอลัมน์ (ซ้าย 3/5: สวิตช์ + ข้อควรรู้ · ขวา 2/5: ตัวอย่างข้อความ) · มือถือคอลัมน์เดียว เรียง สวิตช์ → ข้อควรรู้ → ตัวอย่าง</li>
+    <li>สถานะ 3 (ร้านไม่ส่งสินค้า): ซ่อนแถว "ส่งเลขพัสดุ" ทั้งแถว (ไม่ใช่ disabled) และตัดส่วนเลขพัสดุออกจากตัวอย่าง · คำว่า "คำสั่งซื้อ" ผันเป็น "งานบริการ" ตาม resolveOrderVocab</li>
+    <li>สถานะ 4 (CHAT): แบนเนอร์ล็อก + สวิตช์ disabled แต่ยังอ่าน "เปิดอยู่/ปิดอยู่" และ "เปิดเมื่อ … โดย …" ได้ · toast: "เปิดแล้ว ใช้กับคำสั่งซื้อที่สร้างหลังจากนี้" / "ปิดแล้ว ระบบจะไม่ส่งอะไรเพิ่ม" / "บันทึกไม่สำเร็จ ลองอีกครั้ง" (ไม่ได้วาด)</li>
+  </ul>
+  ${STATES.map((s) => `<h3 class="mb-3 mt-8 text-md font-semibold text-d900">${s.title}</h3><div class="flex items-start gap-10">${DEVS.map((d) => frame(d, settingsPage(d, s))).join('')}</div>`).join('')}
+</section>`
+
+// ส่วนที่ 5
+html += section('5', 'บับเบิล "ส่งโดยระบบ" + แผงพัสดุ',
+  [
+    '<b>ใหม่:</b> ป้ายเกยขอบบนบับเบิล "ส่งโดยระบบ" ไอคอน send สีเทา เป็น span ไม่ใช่ปุ่ม (ต่างจาก DeepBot ที่สี primary และกดเปิด popover — ดูบับเบิลเทียบท้ายสุด)',
+    '<b>เปลี่ยน:</b> บับเบิลระบบที่ล้มแบบลองใหม่ไม่ได้เขียน "ระบบส่งไม่สำเร็จ" แทน "ส่งไม่สำเร็จ" · หัว Swal เป็น "ระบบส่งข้อความให้ลูกค้าไม่สำเร็จ" · ปุ่มลองใหม่ / ยกเลิก เหมือนเดิม · ไม่มีกล่องแดงใหม่',
+    '<b>เปลี่ยน:</b> แผงพัสดุ — ช่องติ๊ก "แจ้งเลขติดตามในแชทหลังสร้าง" ถูกแทนด้วยข้อความ + พรีวิว เฉพาะเมื่อระบบจะส่งจริง ถ้าเงื่อนไขไม่ครบยังเป็นช่องติ๊กเดิม',
+  ],
+  DEVS.map((d) => frame(d, `<div class="${d.k === 'd' ? 'grid grid-cols-2 gap-6 p-6' : 'space-y-6 p-4'}">
+      <div><p class="mb-2 text-xs font-semibold text-d600">ข้อความในห้องแชท</p><div class="card overflow-hidden">${bubbles(d)}</div>
+        ${d.k === 'd' ? '' : `<div class="mt-6">${swalMock()}</div>`}</div>
+      <div><p class="mb-2 text-xs font-semibold text-d600">แผงพัสดุ (ShipmentDraftPanel) — ส่วนท้ายฟอร์ม</p>${shipmentPanels(d)}
+        ${d.k === 'd' ? `<div class="mt-8">${swalMock()}</div>` : ''}</div>
+    </div>`)).join('')
+)
+
+app.innerHTML = html
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+})
+</script>
+</body>
+</html>

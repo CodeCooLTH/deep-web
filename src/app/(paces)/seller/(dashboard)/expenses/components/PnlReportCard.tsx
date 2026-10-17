@@ -213,7 +213,7 @@ export default function PnlReportCard({
 
       {/* ค่าส่งขาไปที่จ่ายขนส่งจริง (D-EXT-10) — อยู่ใน "ค่าใช้จ่าย" แล้ว แต่ไม่ใช่แถวที่ร้านบันทึกเอง
           ต้องบอกที่มา ไม่งั้นร้านบวกรายการในตารางแล้วไม่เท่าการ์ด · ราคาประมาณต้องบอกว่ายังไม่ครบ */}
-      {shopExpenseOn && report.shippingCost > 0 && (
+      {shopExpenseOn && (report.shippingCost > 0 || report.shippingMissingCount > 0) && (
         <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
           <Icon icon="truck" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
           <span>
@@ -222,6 +222,12 @@ export default function PnlReportCard({
               <span className="text-warning-ink">
                 {' '}
                 · {report.shippingPendingCount} ใบยังเป็นราคาประมาณ (ขนส่งยังไม่ชั่งจริง)
+              </span>
+            )}
+            {report.shippingMissingCount > 0 && (
+              <span className="text-warning-ink">
+                {' '}
+                · {report.shippingMissingCount} ใบยังไม่ได้กรอกค่าส่ง
               </span>
             )}
           </span>

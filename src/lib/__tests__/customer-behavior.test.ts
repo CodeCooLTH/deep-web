@@ -26,7 +26,7 @@ describe('summarizeCustomerBehavior', () => {
   it('ไม่มีประวัติเลย → ศูนย์ทุกช่อง (ไม่ใช่ null ให้ปลายทางต้องเช็คซ้ำ)', () => {
     expect(summarizeCustomerBehavior([])).toEqual({
       orders: 0,
-      completed: 0,
+      counted: 0,
       cancelledByBuyer: 0,
       cancelledTotal: 0,
       returnedParcels: 0,
@@ -34,10 +34,10 @@ describe('summarizeCustomerBehavior', () => {
     })
   })
 
-  it('ใบปกติ → นับเป็น completed', () => {
+  it('ใบปกติ → นับเป็น counted', () => {
     const s = summarizeCustomerBehavior([order(), order({ status: 'SHIPPED' })])
     expect(s.orders).toBe(2)
-    expect(s.completed).toBe(2)
+    expect(s.counted).toBe(2)
     expect(s.problemOrders).toBe(0)
   })
 
@@ -50,7 +50,7 @@ describe('summarizeCustomerBehavior', () => {
     const s = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelInitiator: 'seller' })])
     expect(s.cancelledByBuyer).toBe(0)
     expect(s.problemOrders).toBe(0)
-    expect(s.completed).toBe(0) // ยกเลิกแล้วก็ไม่ใช่ใบที่สำเร็จเช่นกัน
+    expect(s.counted).toBe(0) // ยกเลิกแล้วก็ไม่ใช่ใบที่สำเร็จเช่นกัน
   })
 
   it('[blocker] ใบเก่าที่ไม่รู้ว่าใครยกเลิก (null) → ไม่โทษลูกค้า (fail-closed)', () => {
@@ -99,7 +99,7 @@ describe('summarizeCustomerBehavior', () => {
     ])
     expect(s.returnedParcels).toBe(2)
     expect(s.problemOrders).toBe(2)
-    expect(s.completed).toBe(0)
+    expect(s.counted).toBe(0)
   })
 
   /**
@@ -123,7 +123,7 @@ describe('summarizeCustomerBehavior', () => {
       order({ status: 'CANCELLED', cancelInitiator: 'seller' }),
     ])
     expect(s.orders).toBe(4)
-    expect(s.completed).toBe(1)
+    expect(s.counted).toBe(1)
     expect(s.problemOrders).toBe(s.cancelledByBuyer + s.returnedParcels)
     expect(s.problemOrders).toBe(2)
   })
@@ -133,7 +133,7 @@ describe('customerBadges', () => {
   const noun = 'คำสั่งซื้อ'
   const behavior = (o: Partial<ReturnType<typeof summarizeCustomerBehavior>> = {}) => ({
     orders: 0,
-    completed: 0,
+    counted: 0,
     cancelledByBuyer: 0,
     cancelledTotal: 0,
     returnedParcels: 0,
@@ -146,13 +146,24 @@ describe('customerBadges', () => {
     expect(customerBadges(behavior({ orders: 0 }), { hasHistory: false, orderNoun: noun, copy })).toEqual([])
   })
 
-  it('สั่งใบเดียว → ลูกค้าใหม่', () => {
-    const b = customerBadges(behavior({ orders: 1, completed: 1 }), { hasHistory: true, orderNoun: noun, copy })
+  it('counted 1 → ลูกค้าใหม่ (user-plus, info)', () => {
+    const b = customerBadges(behavior({ orders: 1, counted: 1 }), { hasHistory: true, orderNoun: noun, copy })
     expect(b.map((x) => x.key)).toEqual(['NEW'])
+    expect(b[0]).toMatchObject({ icon: 'user-plus', tone: 'info' })
+  })
+
+  it('counted 0 (ผูกลูกค้าแต่ใบเดียวที่มียกเลิก) → ไม่ขึ้นลูกค้าใหม่', () => {
+    const b = customerBadges(behavior({ orders: 1, counted: 0 }), { hasHistory: true, orderNoun: noun, copy })
+    expect(b.map((x) => x.key)).toEqual([])
+  })
+
+  it('counted 2 → ซื้อซ้ำป้ายเดียว ไม่ออก NEW ซ้อน (เกณฑ์ 1↔2)', () => {
+    const b = customerBadges(behavior({ orders: 2, counted: 2 }), { hasHistory: true, orderNoun: noun, copy })
+    expect(b.map((x) => x.key)).toEqual(['REGULAR'])
   })
 
   it('[blocker] สั่ง 5 ยกเลิกหมด → ห้ามได้ป้าย "ลูกค้าเก่า" (ป้ายบวกที่ผิด)', () => {
-    const b = customerBadges(behavior({ orders: 5, completed: 0, cancelledByBuyer: 5, cancelledTotal: 5, problemOrders: 5 }), {
+    const b = customerBadges(behavior({ orders: 5, counted: 0, cancelledByBuyer: 5, cancelledTotal: 5, problemOrders: 5 }), {
       hasHistory: true,
       orderNoun: noun,
       copy,
@@ -162,12 +173,18 @@ describe('customerBadges', () => {
   })
 
   it('ลูกค้าเก่าผันคำนามตาม vertical — ไม่ต่อคำเอง', () => {
-    const b = customerBadges(behavior({ orders: 4, completed: 4 }), { hasHistory: true, orderNoun: 'การจอง', copy })
-    expect(b[0]!.label).toBe('ลูกค้าเก่า · 4 การจอง')
+    const b = customerBadges(behavior({ orders: 4, counted: 4 }), {
+      hasHistory: true,
+      orderNoun: 'การจอง',
+      copy: { ...copy, regularTip: th.chatSignals.customerRegularTip },
+    })
+    expect(b[0]!.key).toBe('REGULAR')
+    expect(b[0]!.icon).toBe('repeat')
+    expect(b[0]!.detail).toBe('ซื้อแล้ว 4 การจอง')
   })
 
   it('[blocker] ห้ามมีป้ายสีเขียว/แดง — บวก=info ระวัง=warning เท่านั้น', () => {
-    const b = customerBadges(behavior({ orders: 6, completed: 4, returnedParcels: 1, cancelledByBuyer: 1, cancelledTotal: 1, problemOrders: 2 }), {
+    const b = customerBadges(behavior({ orders: 6, counted: 4, returnedParcels: 1, cancelledByBuyer: 1, cancelledTotal: 1, problemOrders: 2 }), {
       hasHistory: true,
       orderNoun: noun,
       copy,
@@ -178,7 +195,7 @@ describe('customerBadges', () => {
   })
 
   it('[blocker] ห้ามใช้คำว่า "คืน" กับพัสดุตีกลับ (ชนกับ 00044 ที่กำลังออกแบบอยู่)', () => {
-    const b = customerBadges(behavior({ orders: 2, completed: 1, returnedParcels: 1, problemOrders: 1 }), {
+    const b = customerBadges(behavior({ orders: 2, counted: 1, returnedParcels: 1, problemOrders: 1 }), {
       hasHistory: true,
       orderNoun: noun,
       copy,
@@ -191,7 +208,7 @@ describe('customerBadges', () => {
 
   it('[blocker] ป้ายยกเลิกนับ "ทุกใบ" ตามที่ user ระบุ + ขยายความใน tooltip เมื่อรู้ต้นเรื่อง', () => {
     const b = customerBadges(
-      behavior({ orders: 5, completed: 2, cancelledTotal: 3, cancelledByBuyer: 1, problemOrders: 1 }),
+      behavior({ orders: 5, counted: 2, cancelledTotal: 3, cancelledByBuyer: 1, problemOrders: 1 }),
       { hasHistory: true, orderNoun: noun, copy },
     )
     const cancelled = b.find((x) => x.key === 'CANCELLED_BY_BUYER')!
@@ -200,7 +217,7 @@ describe('customerBadges', () => {
   })
 
   it('ร้านยกเลิกเองล้วน → ป้ายยังขึ้น (ข้อเท็จจริง) แต่ไม่มีวงเล็บขยายความ', () => {
-    const b = customerBadges(behavior({ orders: 3, completed: 1, cancelledTotal: 2 }), {
+    const b = customerBadges(behavior({ orders: 3, counted: 1, cancelledTotal: 2 }), {
       hasHistory: true,
       orderNoun: noun,
       copy,
@@ -211,7 +228,7 @@ describe('customerBadges', () => {
   })
 
   it('ลูกค้าปกติที่ไม่เข้าเงื่อนไขไหนเลย → ไม่มีป้าย (ค่าเริ่มต้นของระบบ)', () => {
-    expect(customerBadges(behavior({ orders: 2, completed: 2 }), { hasHistory: true, orderNoun: noun, copy })).toEqual([])
+    expect(customerBadges(behavior({ orders: 2, counted: 0 }), { hasHistory: true, orderNoun: noun, copy })).toEqual([])
     expect(hasBehaviorWarning([])).toBe(false)
   })
 })
@@ -223,10 +240,10 @@ describe('[blocker] feature 00073 — ไม่มาตามนัดผ่า
     const viaLegacy = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelReason: 'BUYER_NO_SHOW' })])
     expect(viaClose).toEqual(viaLegacy)
     expect(viaClose.cancelledByBuyer).toBe(1)
-    expect(viaClose.completed).toBe(0)
+    expect(viaClose.counted).toBe(0)
   })
 
   it('ให้บริการแล้วนับเป็นงานที่สำเร็จตามเดิม', () => {
-    expect(summarizeCustomerBehavior([order({ status: 'PENDING', appointmentStatus: 'COMPLETED' })]).completed).toBe(1)
+    expect(summarizeCustomerBehavior([order({ status: 'PENDING', appointmentStatus: 'COMPLETED' })]).counted).toBe(1)
   })
 })

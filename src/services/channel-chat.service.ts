@@ -1,7 +1,15 @@
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { isMetaInternalNote } from '@/lib/meta-system-notice'
+import { ourMetaAppId } from '@/lib/facebook/app-id'
+import { recordOurSendAsMetaOwner } from '@/services/meta-owner-on-send'
+import { META_PAGE_INBOX_APP_ID, META_IG_INBOX_APP_ID } from '@/lib/meta-ai-holder'
 import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
+import { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState } from '@/lib/messaging-window'
+import { shopSendSenderRolePatch, type AutoReplyKind } from '@/lib/auto-reply-constants'
+
+// re-export ชื่อเดิม — ผู้ import เดิมไม่ต้องแก้ (ย้ายไป lib เพื่อให้ pure ไม่ลาก prisma)
+export { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState }
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShopWith, ForbiddenRoleError } from '@/lib/shop-capability'
@@ -78,19 +86,6 @@ function getAdapter(provider: string): ChannelAdapter {
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
-
-// หน้าต่างตอบกลับมาตรฐานของ Meta — นับจากข้อความล่าสุด "ของลูกค้า"
-export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000
-
-/**
- * HUMAN_AGENT tag — Meta ให้ "คนจริง" ตอบด้วยมือนอกหน้าต่าง 24 ชม. ได้ถึง 7 วัน
- * (Messaging Policy: human agent tag "manually respond to user messages within a 7-day period")
- * ครอบทั้ง Messenger และ Instagram
- *
- * สำคัญ: ใช้ได้เฉพาะข้อความที่ "คนพิมพ์เอง" เท่านั้น — ห้าม auto-reply/AI ยิงผ่าน tag นี้ และห้าม
- * เนื้อหาโปรโมชัน (ผิดนโยบาย เสี่ยงโดนระงับแอป) จึง gate ที่ service ไม่ใช่แค่ซ่อนปุ่มใน UI
- */
-export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * ต้องได้ permission `human_agent` จาก App Review ก่อนถึงจะยิงจริงได้ — ถ้ายังไม่ได้แล้วส่ง tag ไป
@@ -184,32 +179,6 @@ export function shouldTagHumanAgent(params: {
   // ระบบ/บอท/AI ห้ามได้ tag HUMAN_AGENT เด็ดขาด (BR-HA-02/13) — ห้ามผ่อนไม่ว่ากรณีใด แม้ eligible=true
   if (!params.sentByHuman) return false
   return params.eligible && params.humanAgentWindowOpen
-}
-
-export function getWindowState(
-  lastInboundAt: Date | null,
-  now: Date = new Date(),
-): {
-  open: boolean
-  expiresAt: Date | null
-  msRemaining: number
-  /** หน้าต่าง 7 วันของ HUMAN_AGENT ยังเปิดอยู่ไหม (คนตอบเองได้ แม้เกิน 24 ชม. แล้ว) */
-  humanAgentOpen: boolean
-  humanAgentExpiresAt: Date | null
-} {
-  if (!lastInboundAt) {
-    return { open: false, expiresAt: null, msRemaining: 0, humanAgentOpen: false, humanAgentExpiresAt: null }
-  }
-  const expiresAt = new Date(lastInboundAt.getTime() + MESSAGING_WINDOW_MS)
-  const msRemaining = expiresAt.getTime() - now.getTime()
-  const humanAgentExpiresAt = new Date(lastInboundAt.getTime() + HUMAN_AGENT_WINDOW_MS)
-  return {
-    open: msRemaining > 0,
-    expiresAt,
-    msRemaining: Math.max(0, msRemaining),
-    humanAgentOpen: humanAgentExpiresAt.getTime() > now.getTime(),
-    humanAgentExpiresAt,
-  }
 }
 
 /**
@@ -1642,8 +1611,13 @@ export async function ingestInboundMessage(params: {
   // หลายรูป → preview บอกจำนวน "[N รูป]" (นับตัวแรก + extra) แทน "[รูปภาพ]" เดี่ยว
   const mediaCount = (mirroredFileId ? 1 : 0) + extraMedia.length
   const preview = mediaCount > 1 ? `[${mediaCount} รูป]` : singlePreview
-  const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
+  // clamp ไม่ให้เกินเวลาปัจจุบัน: timestamp อนาคตจาก Meta จะปัก metaForeignEchoAt/lastMessageAt ไว้
+  // จน event ถัดไปทับไม่ได้ (เงื่อนไข lt t) — ใช้ค่าเดียวกันทั้งสองคอลัมน์เพื่อให้ meta-ai-holder เทียบเท่ากันได้
+  const occurredAt = new Date(Math.min(event.timestamp ?? Date.now(), Date.now()))
   const mid = event.message.mid
+  // app_id ของ Meta เป็น number บ้าง string บ้าง — normalize ครั้งเดียวตอนเขียน (เหมือน ingestHandoverEvent)
+  const rawEchoAppId = event.message.app_id
+  const echoAppId = rawEchoAppId === undefined || rawEchoAppId === null ? null : String(rawEchoAppId)
 
   const conversationWhere = {
     shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id },
@@ -1676,6 +1650,15 @@ export async function ingestInboundMessage(params: {
         // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
         rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
         viaStandby: params.standby === true,
+        // 00078 TFR-001: ข้อเท็จจริงของ echo (ไม่ใช่ verdict) — ใบที่ไม่ใช่ echo ปล่อย NULL
+        // เขียนผ่าน Prisma create เท่านั้น (ด่าน chat-message-no-raw-write)
+        ...(isEcho
+          ? {
+              echoAppId: echoAppId,
+              echoAiGenerated: event.message?.ai_generated ?? null,
+              echoHasAdminText: event.message?.admin_text !== undefined,
+            }
+          : {}),
         // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — mirror เสร็จแล้วนอก transaction
         // ด้านบน; ไม่มี = ข้อความนี้ไม่ใช่ generic template card (undefined → Prisma ไม่เซ็ตคอลัมน์
         // ปล่อยเป็น NULL ตาม default ของคอลัมน์ใหม่)
@@ -1751,6 +1734,31 @@ export async function ingestInboundMessage(params: {
             : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
       },
     })
+
+    // 00078 TFR-001: echo ของแอปอื่น (มี app_id และไม่ใช่ของเรา) → จดเป็น "echo ฝั่งร้านล่าสุดที่ไม่ใช่ของเรา"
+    // ใน tx เดียวกับข้อความ · เงื่อนไขเวลาอยู่ใน where ⇒ event สลับลำดับ/ซ้ำไม่ทับของใหม่ (ไม่ใช้ raw)
+    // echo ของเรา/ไม่มี app_id ไม่เขียนอะไรเพิ่ม: "ข้อความฝั่งร้านล่าสุดเป็นของเรา" อ่านได้จาก
+    // lastMessageAt+lastSenderRole='SHOP' ที่ update ด้านบนอยู่แล้ว (ดู meta-ai-holder.ts)
+    // ข้อความภายในของ Meta (isMetaNote) ลูกค้าไม่เห็น ไม่ใช่หลักฐานว่า AI ตอบ ⇒ ข้าม
+    // ไม่รู้ app id ตัวเอง (env ไม่ตั้ง) ⇒ แยกไม่ออกว่า echo ใครเป็นของเรา: เขียนเฉพาะ app กลางของ Meta
+    const ourApp = ourMetaAppId()
+    const isForeign =
+      echoAppId !== null &&
+      (ourApp !== null ? echoAppId !== ourApp : echoAppId === META_PAGE_INBOX_APP_ID || echoAppId === META_IG_INBOX_APP_ID)
+    if (isEcho && !isMetaNote && isForeign) {
+      await tx.conversation.updateMany({
+        where: {
+          id: conversation.id,
+          OR: [{ metaForeignEchoAt: null }, { metaForeignEchoAt: { lt: occurredAt } }],
+        },
+        data: {
+          metaForeignEchoAt: occurredAt,
+          metaForeignEchoAppId: echoAppId,
+          metaForeignEchoAi: event.message?.ai_generated ?? null,
+          metaForeignEchoAdminText: event.message?.admin_text !== undefined,
+        },
+      })
+    }
 
     // เลิกเขียน Notification kind="chat_message" (user สั่ง 2026-07-29) — ดูเหตุผลเต็มที่
     // chat.service.ts (จุดคู่กัน): ไม่มีผู้บริโภคจริง + เป็น INSERT ในทรานแซกชันรับข้อความ
@@ -2469,6 +2477,42 @@ export async function ingestHandoverEvent(params: {
   } catch (e) {
     console.error('[fb-handover] เก็บ event ไม่สำเร็จ', e instanceof Error ? e.message : e)
   }
+
+  // 00078 TFR-001: ข้อเท็จจริง "ผู้ถือห้อง" บน Conversation — แยก try เพื่อไม่ให้ล้มแล้วกระทบ ledger ข้างบน
+  // request ไม่เปลี่ยนผู้ถือ · ใช้ new_owner_app_id เท่านั้น (previous = คนที่เพิ่งเสียห้อง ไม่ใช่ผู้ถือ)
+  if (params.kind === 'request' || !params.contactExternalId) return
+  try {
+    const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+    const contact = channel
+      ? await prisma.externalContact.findUnique({
+          where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+          select: { id: true },
+        })
+      : null
+    const conversation = channel && contact
+      ? await prisma.conversation.findUnique({
+          where: { shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id } },
+          select: { id: true },
+        })
+      : null
+    if (!conversation) {
+      console.warn('[fb-handover] ไม่พบห้องสำหรับเก็บผู้ถือ — ข้าม', { provider: params.provider, kind: params.kind })
+      return
+    }
+    // เวลาของ Meta (ไม่ใช่ now()) — ใช้เทียบกันเขียนทับ event เก่า · ไม่มี timestamp = ไม่มีหลักให้เทียบ ใช้เวลารับ
+    // clamp ไม่เกินเวลาปัจจุบัน — เวลาอนาคตจะปักค่าจน event ถัดไปทับไม่ได้
+    const t = new Date(Math.min(typeof params.timestamp === 'number' ? params.timestamp : Date.now(), Date.now()))
+    await prisma.conversation.updateMany({
+      where: {
+        id: conversation.id,
+        OR: [{ metaOwnerObservedAt: null }, { metaOwnerObservedAt: { lt: t } }],
+      },
+      // take ที่ไม่มี new owner = NULL + observedAt (ห้องว่าง/ไม่รู้ ⇒ ไม่ขึ้นป้าย)
+      data: { metaOwnerAppId: asId(params.newOwnerAppId), metaOwnerObservedAt: t },
+    })
+  } catch (e) {
+    console.error('[fb-handover] เก็บผู้ถือห้องไม่สำเร็จ', e instanceof Error ? e.message : e)
+  }
 }
 
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
@@ -2904,7 +2948,7 @@ export type SendOutboundParams = {
   // (ค่านี้มาจาก AutoReplyJob.shopId ซึ่งถูกเขียนตอน ingest webhook ฝั่ง server ไม่ได้มาจาก client)
   systemShopId?: string
   // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
-  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  autoReplyKind?: AutoReplyKind
   // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
   text?: string
   /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
@@ -3285,7 +3329,7 @@ export async function answerIceBreaker(params: {
  *  ทุกตัวอักษร (ชุดย่อยของ `SendOutboundParams`: ไม่มี conversationId/systemShopId/template) */
 type LineOutboundParams = {
   actorUserId: string | null
-  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  autoReplyKind?: AutoReplyKind
   text?: string
   imageFileId?: string
   sticker?: { id: string; imageUrl: string }
@@ -3632,7 +3676,7 @@ async function sendOutboundLineMessage(
 
       await tx.conversation.update({
         where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, ...shopSendSenderRolePatch(params.autoReplyKind) },
       })
 
       return created
@@ -4272,7 +4316,7 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
       // อัปเดต snapshot แม้ส่งไม่สำเร็จ — seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด
       await tx.conversation.update({
         where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, ...shopSendSenderRolePatch(params.autoReplyKind) },
       })
 
       return created
@@ -4324,6 +4368,9 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
     err.savedMessage = message
     throw err
   }
+
+  // 00078: ส่งสำเร็จบน Meta = เราถือห้อง → ตัดป้าย Meta AI (ดู meta-owner-on-send.ts)
+  await recordOurSendAsMetaOwner(conversation.id, conversation.channel)
 
   // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
   //

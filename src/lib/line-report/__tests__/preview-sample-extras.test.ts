@@ -57,6 +57,6 @@ describe('withSampleFinance items §17', () => {
       expect(s.finance!.items!.reduce((a, i) => a + i.amount, 0)).toBe(s.finance!.expense)
     }
     const labels = out.shops[0].finance!.items!.map((i) => i.label)
-    expect(labels).toEqual(expect.arrayContaining(['ค่าเช่า', 'ค่าโฆษณา', 'ค่าบรรจุภัณฑ์', 'ค่าส่งขาไป (จากระบบ)']))
+    expect(labels).toEqual(expect.arrayContaining(['ค่าเช่า', 'ค่าโฆษณา', 'ค่าบรรจุภัณฑ์', 'ค่าส่ง (จ่ายขนส่ง)']))
   })
 })

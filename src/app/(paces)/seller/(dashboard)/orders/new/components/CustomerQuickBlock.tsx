@@ -3,10 +3,11 @@
 /**
  * CustomerQuickBlock — section "ลูกค้า" ของ quick create (< lg), phone-first
  * Base: mockup 2026-07-06-quick-create-order.html (section ลูกค้า) + CustomerSearchSheet (dedup, full-screen)
- * ค้นหาลูกค้า → full-screen CustomerSearchSheet (คลิกเดียวได้ข้อมูล); เจอลูกค้าเดิม = badge "ลูกค้าเก่า" ข้างหัวข้อ
+ * ค้นหาลูกค้า → full-screen CustomerSearchSheet (คลิกเดียวได้ข้อมูล); badge ข้างหัวข้อตามตัวนับกลาง counted (ใหม่/ซื้อซ้ำ/ยังไม่เคยสั่ง)
  * wand tool → PasteParseSheet; locality field → AddressSearchSheet; ที่อยู่แสดงเมื่อ salesChannel !== STOREFRONT
  */
 
+import { useT } from '@/i18n/LocaleProvider'
 import { DEFAULT_ORDER_FORM_WORDS, type OrderFormWords } from './order-form-words'
 import { useState, useRef, useEffect } from 'react'
 import { useController, useWatch } from 'react-hook-form'
@@ -50,6 +51,7 @@ export default function CustomerQuickBlock({
   showDeliveryToggle = false,
   words = DEFAULT_ORDER_FORM_WORDS,
 }: Props) {
+  const dict = useT()
   const [pasteOpen, setPasteOpen] = useState(false)
   /** ข้อความตั้งต้นในชีตกระจาย — มีค่าเมื่อเปิดชีตเพราะกระจายได้ไม่ครบ (ให้ร้านแก้ต่อจากของเดิม) */
   const [pasteInitialText, setPasteInitialText] = useState('')
@@ -60,6 +62,14 @@ export default function CustomerQuickBlock({
   const [custQuery, setCustQuery] = useState('')
   const [selected, setSelected] = useState<CustomerResult | null>(null)
   const [isNewCustomer, setIsNewCustomer] = useState(false) // badge "ลูกค้าใหม่" (paste ไม่เจอ / ยืนยันลูกค้าใหม่)
+  // 00078 S-5: ป้ายลูกค้าตามตัวนับกลาง counted (selected.orderCount) — คำนวณนอก JSX
+  const counted = selected?.orderCount ?? 0
+  const badge =
+    counted >= 2
+      ? { icon: 'repeat', text: `${dict.inbox.customerPanel.badgeRegular} · ${counted} ${words.orderUnit}` }
+      : counted === 1
+        ? { icon: 'user-plus', text: dict.inbox.customerPanel.badgeNew }
+        : { icon: 'user-question', text: dict.chatSignals.neverOrdered }
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // พิมพ์เบอร์ → debounce (เผื่อ paste) → เปิด sheet ค้นหา (ไม่เปิดตอนแค่จิ้ม)
@@ -266,16 +276,12 @@ export default function CustomerQuickBlock({
       <div className="mb-3 flex items-center gap-2">
         <Icon icon="user" className="size-5 text-primary" />
         <h2 className="text-base font-bold text-dark">ลูกค้า</h2>
-        {selected && (
-          <span className="badge badge-label bg-success/15 text-success text-2xs font-semibold">
-            <Icon icon="user-check" className="text-xs" />
-            ลูกค้าเก่า · {selected.orderCount} {words.orderUnit}
-          </span>
-        )}
-        {!selected && isNewCustomer && (
-          <span className="badge badge-label bg-info/15 text-info text-2xs font-semibold">
-            <Icon icon="user-plus" className="text-xs" />
-            ลูกค้าใหม่
+        {/* 00078 S-5: 1 = ลูกค้าใหม่ · ≥2 = ลูกค้าซื้อซ้ำ · 0/ไม่มีในระบบ = ยังไม่เคยสั่ง — tone info ไม่ใช้เขียว
+            (ไม่ใช่สถานะที่ยืนยันแล้ว) · ป้ายสีหมึก -ink */}
+        {(selected || isNewCustomer) && (
+          <span className="badge badge-label bg-info/15 text-info-ink text-2xs font-semibold">
+            <Icon icon={badge.icon} className="text-xs" />
+            {badge.text}
           </span>
         )}
         <button

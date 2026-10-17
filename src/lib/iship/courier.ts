@@ -42,7 +42,7 @@ type CourierBrand = {
  * สำคัญ: ลำดับมีความหมาย: ตัวแรกที่ match ชนะ — วางตัวที่จำเพาะกว่าไว้ก่อนเสมอ
  * ("iShip Exclusive" ต้องไม่ถูกกฎอื่นดักไปก่อน)
  */
-const COURIER_BRANDS: CourierBrand[] = [
+export const COURIER_BRANDS: CourierBrand[] = [
   // แพ็กเกจของ iShip เอง — ใช้โลโก้แพลตฟอร์มที่มีอยู่แล้ว
   { code: 'ISHIP', label: 'iShip', match: /iship/i, logo: '/images/logos/iship.jpeg', selectable: false },
   // user ส่งไฟล์มาเอง 2026-08-04 — 447x447 พื้นเหลืองเต็มกรอบ ไม่โปร่งใส (ดู object-cover ที่ OrderCard)
@@ -147,4 +147,25 @@ export function courierInitials(courierName?: string | null, courierCode?: strin
   if (/[\u0E00-\u0E7F]/.test(words[0])) return words[0].slice(0, 2)
   if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
   return words[0].slice(0, 2).toUpperCase()
+}
+
+/**
+ * isOtherCourier — provider ที่ร้านเลือก "อื่น ๆ" (ไม่บอกอะไรลูกค้า → ตัดบรรทัดขนส่ง)
+ * รับทั้ง 'อื่น ๆ' (label ปัจจุบันจาก COURIER_OPTIONS) และ 'อื่นๆ' (แถวเก่าที่เคยบันทึกไม่มีเว้นวรรค) + รหัส OTHER
+ * ตัดช่องว่างทุกชนิดก่อนเทียบ — ที่เดียวที่รู้ว่า "อื่น ๆ" สะกดได้กี่แบบ
+ */
+export function isOtherCourier(provider?: string | null): boolean {
+  const p = (provider ?? '').replace(/\s+/g, '')
+  return p === 'อื่นๆ' || p.toUpperCase() === OTHER_COURIER_CODE
+}
+
+/**
+ * providerToOptionLabel — แปลง provider ที่เคยบันทึก (เช่น 'Thailand Post', 'อื่นๆ') เป็น label ของตัวเลือกปัจจุบัน
+ * เพื่อให้ ShipForm prefill ได้กับแถวเก่า · ไม่รู้จัก = '' (ให้ร้านเลือกใหม่ ไม่เดาให้)
+ */
+export function providerToOptionLabel(provider?: string | null): string {
+  if (!provider?.trim()) return ''
+  if (isOtherCourier(provider)) return COURIER_OPTIONS.find((o) => o.code === OTHER_COURIER_CODE)?.label ?? ''
+  const code = courierBrandCode(null, provider)
+  return COURIER_OPTIONS.find((o) => o.code === code)?.label ?? ''
 }

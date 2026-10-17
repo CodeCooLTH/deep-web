@@ -18,6 +18,8 @@
  * client fetch-based (ไม่ใช่ RSC) ตาม UX-Design-Spec.md S-9 — GET /api/chat/conversations
  * คืน counterparty (B1 route enrich) = shop { shopName, logo } เพราะหน้านี้เป็น buyer surface
  */
+import { previewPrefix } from '@/lib/preview-attribution'
+import { buyerHasUnreadFromShop } from '@/lib/buyer-unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
@@ -43,6 +45,8 @@ type ConversationListItem = {
   lastMessagePreview: string | null
   lastSenderRole: SenderRole | null
   buyerLastReadAt: string | null
+  lastShopMessageAt?: string | null
+  lastMessageIsSystem?: boolean
   shopLastReadAt: string | null
   counterparty: { shopName: string; logo: string | null } | null
 }
@@ -58,7 +62,7 @@ function formatInboxTime(iso: string): string {
 }
 
 function isUnread(item: ConversationListItem): boolean {
-  return item.lastSenderRole === 'SHOP' && (item.buyerLastReadAt === null || item.lastMessageAt > item.buyerLastReadAt)
+  return buyerHasUnreadFromShop(item)
 }
 
 export default function BuyerMessagesPage() {
@@ -195,7 +199,7 @@ export default function BuyerMessagesPage() {
             const preview =
               item.lastMessagePreview === null
                 ? 'ยังไม่มีข้อความ'
-                : item.lastSenderRole === 'BUYER'
+                : previewPrefix('BUYER', { lastSenderRole: item.lastSenderRole, lastMessageIsSystem: item.lastMessageIsSystem, hasPreview: true }) === 'YOU'
                   ? `คุณ: ${item.lastMessagePreview}`
                   : item.lastMessagePreview
             const unread = isUnread(item)

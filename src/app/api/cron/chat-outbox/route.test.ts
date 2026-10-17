@@ -15,6 +15,12 @@ vi.mock('@/services/chat-outbox.service', () => ({
   sweepOutbox: (...a: unknown[]) => sweepOutbox(...a),
 }))
 
+// 00078: ตัวกวาดข้อความแจ้งลูกค้าอัตโนมัติต่อท้ายรอบ — mock ไว้ไม่ให้เทส route แตะ DB
+const sweepAutoNotify = vi.fn()
+vi.mock('@/services/auto-notify.service', () => ({
+  sweepAutoNotify: (...a: unknown[]) => sweepAutoNotify(...a),
+}))
+
 const { GET } = await import('./route')
 
 const ORIGINAL_SECRET = process.env.CRON_SECRET
@@ -28,6 +34,7 @@ function req(auth?: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   sweepOutbox.mockResolvedValue({ rooms: 0, sent: 0, failed: 0, stale: 0, staleRows: [] })
+  sweepAutoNotify.mockResolvedValue({ dispatched: 0, uncertain: 0, settled: 0 })
 })
 
 afterEach(() => {
@@ -100,6 +107,33 @@ describe('GET /api/cron/chat-outbox — งานที่ทำ', () => {
     try {
       await GET(req('Bearer sekret'))
       expect(spy).toHaveBeenCalledWith('[chat-outbox]', JSON.stringify({ rooms: 0, sent: 0, failed: 0, stale: 0 }))
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('GET /api/cron/chat-outbox — ตัวกวาดแจ้งลูกค้าอัตโนมัติ (00078)', () => {
+  it('เรียกหลัง sweepOutbox · response ของ outbox ไม่เปลี่ยน', async () => {
+    process.env.CRON_SECRET = 'sekret'
+    const order: string[] = []
+    sweepOutbox.mockImplementation(async () => { order.push('outbox'); return { rooms: 1, sent: 1, failed: 0, stale: 0, staleRows: [] } })
+    sweepAutoNotify.mockImplementation(async () => { order.push('autoNotify'); return { dispatched: 0, uncertain: 0, settled: 0 } })
+    const res = await GET(req('Bearer sekret'))
+    expect(order).toEqual(['outbox', 'autoNotify'])
+    await expect(res.json()).resolves.toEqual({ rooms: 1, sent: 1, failed: 0, stale: 0 })
+  })
+
+  // 🛑 ตัวกวาดนี้ล้มต้องไม่พา cron ของ outbox ล้ม — outbox คือตัวการันตีของข้อความขาออกทั้งระบบ
+  it('ตัวกวาดแจ้งลูกค้าล้ม → ยังตอบ 200 พร้อมผล outbox ครบ', async () => {
+    process.env.CRON_SECRET = 'sekret'
+    sweepAutoNotify.mockRejectedValue(new Error('db down'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const res = await GET(req('Bearer sekret'))
+      expect(res.status).toBe(200)
+      await expect(res.json()).resolves.toEqual({ rooms: 0, sent: 0, failed: 0, stale: 0 })
+      expect(spy).toHaveBeenCalled()
     } finally {
       spy.mockRestore()
     }

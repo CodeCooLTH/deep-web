@@ -139,6 +139,8 @@ export interface OrderDetailClientProps {
   parcelReturned?: boolean
   /** เลขพัสดุ/ขนส่งปัจจุบัน (MANUAL) — prefill ตอน mode='edit' + payload ของ copy-tracking */
   trackingNo: string | null
+  /** 00078 — ต้นทุนส่งเอง (เฉพาะส่งเอง) · หน้านี้ไม่ถึงที่นี่สำหรับ NONE (ไปหน้าช่างก่อน) */
+  outboundShippingCost?: number | null
   provider: string | null
 
   /** ที่อยู่จัดส่งรวมเป็นบรรทัดเดียว (สำหรับ copy-address) — null = ไม่มีที่อยู่ให้คัดลอก */
@@ -234,6 +236,7 @@ export default function OrderDetailClient({
   hasIshipShipment,
   parcelReturned = false,
   trackingNo,
+  outboundShippingCost,
   provider,
   addressText,
   isCodUnpaid,
@@ -917,6 +920,9 @@ export default function OrderDetailClient({
           hasIshipShipment={hasIshipShipment}
           initialTrackingNo={trackingNo}
           initialProvider={provider}
+          // iShip เป็นเจ้าของราคาเอง — ช่องนี้ใช้กับ "ส่งเอง" เท่านั้น (โมดัลซ่อนเองใน branch iShip ไม่เกี่ยว)
+          showShipCost
+          initialOutboundShippingCost={outboundShippingCost ?? null}
         />
       )}
     </>

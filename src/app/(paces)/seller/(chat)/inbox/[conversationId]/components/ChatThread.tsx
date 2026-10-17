@@ -72,6 +72,7 @@ import Icon from '@/components/wrappers/Icon'
 import { INTERNAL_MESSAGE_TYPES } from '@/lib/auto-order-message-type'
 import AutoOrderResultCard, { type AutoOrderCardData } from './AutoOrderResultCard'
 import AutoReplyTag from './AutoReplyTag'
+import { isMetaAiHolding, metaAiNowBucket, META_AI_NOW_BUCKET_MS } from '@/lib/meta-ai-holder'
 import ThreadChipStrip, {
   type ThreadChipItem,
   type ThreadStatusItem,
@@ -806,6 +807,8 @@ type Props = {
   isChatbotTestThread?: boolean
   /** มีบอทตัวไหนจะตอบห้องนี้ไหม — false = ไม่ต้องบอกว่า "พัก" เพราะไม่มีอะไรถูกพัก */
   botCouldReply?: boolean
+  /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง (primitive จาก server) · null = ไม่ถือ */
+  metaAiHoldUntilMs?: number | null
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -1243,6 +1246,7 @@ export default function ChatThread({
   botHandoffReason = null,
   isChatbotTestThread = false,
   botCouldReply = false,
+  metaAiHoldUntilMs = null,
   channel,
   channelName,
   channelAvatarUrl,
@@ -1682,6 +1686,14 @@ export default function ChatThread({
     return false
   }, [isExternal, messages])
 
+  // 00078 — ชิป "Meta AI คุมอยู่" หมดอายุเองเมื่อเปิดห้องค้างไว้ (bucket หยาบ 5 นาที ไม่ใช่ทุกวินาที)
+  // ไม่แตะ aiAgentActive — สองสัญญาณขัดกันได้ตาม Q-10 (ช่องพิมพ์ยังใช้ได้เสมอ)
+  const [metaAiNow, setMetaAiNow] = useState(() => metaAiNowBucket(Date.now()))
+  useEffect(() => {
+    if (metaAiHoldUntilMs == null) return
+    const id = setInterval(() => setMetaAiNow(metaAiNowBucket(Date.now())), META_AI_NOW_BUCKET_MS)
+    return () => clearInterval(id)
+  }, [metaAiHoldUntilMs])
   // ป้าย "Meta AI" รายบับเบิล (Task 7, 2026-09-14) — derive จาก marker ชุดเดียวกับ aiAgentActive
   // ไม่มี marker = ไม่ติดป้าย (ดูเหตุผลที่ attributeMetaAi) · เฉพาะ Messenger เพราะ marker มาจากที่นั่นที่เดียว
   const metaAiMessageIds = useMemo(
@@ -2521,6 +2533,24 @@ export default function ChatThread({
       ),
     })
   }
+  // 00078 S-4 — Meta AI ถือห้อง (เฉพาะ Messenger/IG) · ก่อนชิป 'bot' เพราะกระทบการส่งมากกว่า · ข้อมูลอย่างเดียว ไม่มีปุ่ม
+  if ((channel === 'MESSENGER' || channel === 'INSTAGRAM') && isMetaAiHolding(metaAiHoldUntilMs, metaAiNow)) {
+    threadStatuses.push({
+      key: 'meta-ai',
+      tone: 'neutral',
+      icon: 'sparkles',
+      short: t.chatSignals.metaAiChip,
+      detail: (
+        <div className="bg-default-100 text-default-800 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="sparkles" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">{t.chatSignals.metaAiCardHead}</span>
+            {t.chatSignals.metaAiCardBody}
+          </span>
+        </div>
+      ),
+    })
+  }
   // botCouldReply = คำถามที่ BotPausedBanner ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก")
   // ส่วน "พักอยู่จริงไหม" ตัดสินที่ getBotPausedSummary ที่เดียว ทั้งแถบยุบและตัวแบนเนอร์เต็ม
   const botPaused = getBotPausedSummary(botPausedUntil, botHandoffAt)
@@ -3148,6 +3178,7 @@ export default function ChatThread({
         ) : (
           <ThreadMessageList
             messages={messages}
+            vertical={customerPanelData?.vertical}
             conversationId={conversationId}
             channel={channel}
             buyerName={buyerName}

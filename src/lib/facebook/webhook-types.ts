@@ -132,6 +132,11 @@ const MessageSchema = v.object({
   is_unsupported: v.optional(v.boolean()),
   ai_generated: v.optional(v.boolean()),
   app_id: v.optional(v.union([v.string(), v.number()])),
+  /**
+   * 00078: เก็บแค่ "มี/ไม่มี" (ไม่รู้ชนิดจริง — spike Q-23 ไม่เคยเจอใน 30 วัน) ⇒ unknown + optional
+   * ห้ามประกาศชนิดเจาะจง/บังคับ: ชนิดผิด = event ตกทั้งก้อน
+   */
+  admin_text: v.optional(v.unknown()),
 })
 
 const MessagingEventSchema = v.object({

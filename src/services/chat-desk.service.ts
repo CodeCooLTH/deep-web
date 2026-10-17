@@ -18,6 +18,7 @@ import {
   RECENT_REPLY_WINDOW_SEC,
 } from '@/lib/chat-desk/constants'
 import { roomMatchesFilters, sanitizeDeskFilters } from '@/lib/chat-desk/filters'
+import { isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import { classifyRoom, pickDesk, startOfBangkokDay } from '@/lib/chat-desk/rules'
 import type {
   DeskDaily,
@@ -147,6 +148,7 @@ async function fetchRoomRows(shopId: string, f: DeskFilters, now: Date): Promise
       SELECT m."createdAt" AS "at" FROM "ChatMessage" m
       WHERE m."conversationId" = a."id" AND m."senderRole" = 'SHOP' AND m."isDeleted" = false
         AND m."type" NOT IN (${internal})
+        AND m."autoReplyKind" IS DISTINCT FROM 'AUTO_NOTICE'
       ORDER BY m."createdAt" DESC, m."seq" DESC LIMIT 1
     ) ls ON true
     LEFT JOIN LATERAL (
@@ -163,6 +165,7 @@ async function fetchRoomRows(shopId: string, f: DeskFilters, now: Date): Promise
       SELECT m."createdAt", m."senderUserId", m."autoReplyKind", m."viaStandby" FROM "ChatMessage" m
       WHERE m."conversationId" = r."id" AND m."senderRole" = 'SHOP' AND m."isDeleted" = false
         AND m."type" NOT IN (${internal})
+        AND m."autoReplyKind" IS DISTINCT FROM 'AUTO_NOTICE'
       ORDER BY m."createdAt" DESC, m."seq" DESC LIMIT 1
     ) lr ON true
   `)
@@ -375,7 +378,8 @@ export async function getRoomPreview(shopIds: readonly string[], conversationId:
   const ids = new Set(names.keys())
   const messages = rows.slice(0, PREVIEW_LIMIT).reverse().map((m) => {
     const isShop = m.senderRole === 'SHOP'
-    const t = isShop ? pickDesk(m, ids) : null
+    // ข้อความระบบแจ้ง (AUTO_NOTICE) ไม่มีโต๊ะ — ไม่ใช่บอท/คน/Meta AI (00078 S-10)
+    const t = isShop && !isSystemNoticeKind(m.autoReplyKind) ? pickDesk(m, ids) : null
     const by: RoomPreviewBy = !t ? null : t.kind === 'ADMIN' ? { kind: 'ADMIN', name: names.get(t.userId) ?? 'ไม่ทราบชื่อ' } : t
     return {
       id: m.id,

@@ -38,7 +38,7 @@ const RICH = {
   items: [{ id: 'i1', name: 'ตัดผม', qty: 1, description: null, price: '900', cost: '100', product: { images: ['a'], cost: '5', price: '9' } }],
   payments: [{ kind: 'DEPOSIT', amount: '300' }],
   shipments: [{ id: 's1', trackingNo: 'T', status: 'CREATED', carrierPrice: '40', estimatedPrice: '40', codFee: '5', codAmount: '900' }],
-  shipmentTracking: { trackingNo: 'T', provider: 'x', createdAt: new Date(), orderId: 'o1' },
+  shipmentTracking: { trackingNo: 'T', provider: 'x', createdAt: new Date(), orderId: 'o1', outboundShippingCost: '35' },
   serviceResource: { id: 'r', name: 'ช่าง A', capacity: 1, depositDefault: '300' },
   shopChannel: { avatarUrl: null, provider: 'LINE', name: 'เพจ', accessTokenEnc: 'secret' },
   buyer: { id: 'u', displayName: 'n', username: 'un', avatar: null, phone: '0899' },
@@ -53,6 +53,11 @@ describe('allow-list ไม่ชนคีย์เงิน', () => {
 
 describe('toNoMoneyOrder', () => {
   const out = toNoMoneyOrder(RICH)
+
+  it('TC-304: ต้นทุนส่งเอง (outboundShippingCost) ถูกซ่อน และอยู่ในรายการคีย์ต้องห้าม', () => {
+    expect(NO_MONEY_FORBIDDEN_KEYS).toContain('outboundShippingCost')
+    expect(allKeys(out)).not.toContain('outboundShippingCost')
+  })
 
   it('ไม่มีคีย์เงินสักตัวที่ความลึกใดก็ตาม', () => {
     expect(allKeys(out).filter((k) => NO_MONEY_FORBIDDEN_KEYS.includes(k))).toEqual([])

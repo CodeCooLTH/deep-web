@@ -426,9 +426,26 @@ export const CreateReviewSchema = v.object({
   comment: v.optional(v.pipe(v.string(), v.maxLength(500))),
 });
 
+// 00078 TD-009 — ต้นทุนส่งเอง ≥0 ≤99,999.99 ทศนิยม ≤2 (ตรง numeric(12,2) + DB CHECK) · null = ล้าง/ยังไม่ระบุ ≠ 0
+const OutboundShippingCostValue = v.nullable(
+  v.pipe(
+    v.number(),
+    v.minValue(0),
+    v.maxValue(99999.99),
+    v.check((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "ทศนิยมไม่เกิน 2 ตำแหน่ง"),
+  ),
+);
+
 export const ShipOrderSchema = v.object({
   provider: v.pipe(v.string(), v.minLength(1)),
   trackingNo: v.pipe(v.string(), v.minLength(1)),
+  // ไม่ส่งคีย์ = ไม่แตะ (PATCH) · null = ล้าง
+  outboundShippingCost: v.optional(OutboundShippingCostValue),
+});
+
+/** body ของ PATCH /api/orders/[token]/shipping-cost — คีย์บังคับ (null = ล้างเป็นยังไม่ระบุ) */
+export const SetOutboundShippingCostSchema = v.object({
+  outboundShippingCost: OutboundShippingCostValue,
 });
 
 // ─── Badge schemas (admin write endpoints) ───────────────────────────────────

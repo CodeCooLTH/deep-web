@@ -118,6 +118,7 @@ import { type RowAction } from './ChatContextMenu'
 import { THREAD_AGENT_STACK_MAX } from '@/services/thread-agents.service'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
+import { metaAiNowBucket, META_AI_NOW_BUCKET_MS } from '@/lib/meta-ai-holder'
 import { useT } from '@/i18n/LocaleProvider'
 import { salesStatusMeta } from '../[conversationId]/components/CustomerCrmSection'
 import {
@@ -186,8 +187,10 @@ export type ConversationListItem = {
   /** ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ (ไม่มีป้ายเลย)
    *  enrich ด้วย enrichWithCustomerBehavior ทั้งฝั่ง RSC และ route เหมือน orderStage */
   customerBehavior?: CustomerBehavior | null
+  /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง · null = ไม่ถือ · client เทียบกับ nowBucket (ไอคอนอยู่ InboxRow) */
+  metaAiHoldUntilMs?: number | null
   // S-20 (phase 00023-qna) — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
-  // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null)
+  // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null — AUTO_NOTICE ถูกตัดเป็น null ที่ enrichWithAutoReplyBadge)
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
   // optional เผื่อ payload เก่าที่ยังไม่มี field นี้ -> fallback เป็นพฤติกรรมเดิม ("คุณ: ")
   lastMessageAutoReplyKind?: string | null
@@ -199,6 +202,8 @@ export type ConversationListItem = {
    * (แก้แล้ว 2026-08-02 — อ่านจาก `AutoReplyLog.matchedVia = 'CHATBOT'`)
    */
   lastMessageIsAiEnhanced?: boolean
+  /** ข้อความล่าสุดเป็นข้อความระบบแจ้ง (AUTO_NOTICE) — ใช้เลือกคำนำหน้าพรีวิว (lib/preview-attribution.ts) */
+  lastMessageIsSystem?: boolean
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null
@@ -419,6 +424,13 @@ export default function InboxList({
 
   const shopIdsKey = shopIds.join(',')
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
+  // 00078 — นาฬิกาหยาบของรายการ: แถวเป็น memo จึงส่ง bucket เป็น prop primitive ให้ไอคอน Meta AI หมดอายุเอง
+  // (เปลี่ยนทุก 5 นาที = re-render แถวไม่เกิน 1 รอบ/5 นาที · ไม่มีนาฬิกาในแถว)
+  const [nowBucket, setNowBucket] = useState(() => metaAiNowBucket(Date.now()))
+  useEffect(() => {
+    const id = setInterval(() => setNowBucket(metaAiNowBucket(Date.now())), META_AI_NOW_BUCKET_MS)
+    return () => clearInterval(id)
+  }, [])
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -1719,6 +1731,7 @@ export default function InboxList({
                 hiddenMode={filter.hidden}
                 orderNoun={orderVocab.noun}
                 sortMode={sortMode}
+                nowBucket={nowBucket}
                 channelAvatarUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
                 channelName={c.shopChannelId ? channelNameById.get(c.shopChannelId) : null}
                 singleChannelScope={singleChannelScope}

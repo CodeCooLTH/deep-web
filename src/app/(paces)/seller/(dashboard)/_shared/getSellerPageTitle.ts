@@ -43,6 +43,7 @@ const FALLBACK = 'Deep ผู้ขาย'
 // กัน sticky header แสดง FALLBACK "Deep ผู้ขาย" บนหน้าที่ไม่มีใน menu
 const EXTRA_TITLES: Record<string, string> = {
   '/notifications': 'การแจ้งเตือน',
+  '/settings/auto-notify': 'ส่งอัตโนมัติถึงลูกค้า',
 }
 
 /**

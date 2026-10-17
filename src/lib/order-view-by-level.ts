@@ -44,6 +44,8 @@ export const NO_MONEY_FORBIDDEN_KEYS: readonly string[] = [
   'payments', 'payment', 'paymentMethod', 'paymentConfirmedAt', 'codReceivedAt', 'slipFileId', 'money', 'amount',
   'carrierPrice', 'estimatedPrice', 'codFee', 'codAmount', 'refundAmount', 'shippingCost', 'paymentFrom',
   'totalText', 'depositText', 'serviceMoney', 'outstanding', 'totalReceived',
+  // 00078 — ต้นทุนส่งเอง (ต้นทุนของร้าน)
+  'outboundShippingCost',
 ]
 
 type Rec = Record<string, unknown>

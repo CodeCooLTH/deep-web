@@ -1,3 +1,4 @@
+import type { CustomerBehavior } from '@/lib/customer-behavior'
 import type { AppointmentStatus } from '@/lib/appointments'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import type { ServiceWorkStage } from '@/lib/service-work-stage'
@@ -216,8 +217,8 @@ export type OrderRow = {
    * cancelled ใช้ตัดสินใจจริงตอนจะเปิดพัสดุ COD (ลูกค้าที่ยกเลิกบ่อย = ค่าส่งเสียเปล่า)
    */
   /** ประวัติลูกค้ากับร้านนี้ — ป้ายท้ายชื่อ. `cancelled` = ทุกใบที่ยกเลิก (คงไว้เพื่อความเข้ากันได้)
-   *  ส่วน `cancelledByBuyer`/`returned` คือค่าที่ป้ายใช้จริง (ดู lib/customer-behavior.ts) */
-  customerStats: { orders: number; cancelled: number; cancelledByBuyer: number; returned: number } | null
+   *  ค่าทั้งก้อนมาจาก `summarizeCustomerBehavior` (lib/customer-behavior.ts) — ห้ามนับเองที่ปลายทาง */
+  customerStats: CustomerBehavior | null
   /**
    * ห้องแชทของลูกค้ารายนี้ (null = ไม่มี/หาไม่เจอ) — ใช้ทำปุ่ม "เปิดแชท" บนแถบหัว
    *

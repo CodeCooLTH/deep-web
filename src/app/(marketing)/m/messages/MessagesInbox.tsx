@@ -2,6 +2,8 @@
 
 // กล่องข้อความ (mobile) — rebuild เป็นแถว full-bleed แตะง่าย. reuse API เดิม:
 // GET /api/chat/conversations?cursor= (cursor pagination + infinite scroll). ไม่มี realtime (เบา).
+import { previewPrefix } from '@/lib/preview-attribution'
+import { buyerHasUnreadFromShop } from '@/lib/buyer-unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
@@ -16,11 +18,13 @@ type ConversationListItem = {
   lastMessagePreview: string | null
   lastSenderRole: SenderRole | null
   buyerLastReadAt: string | null
+  lastShopMessageAt?: string | null
+  lastMessageIsSystem?: boolean
   counterparty: { shopName: string; logo: string | null } | null
 }
 
 const isUnread = (it: ConversationListItem) =>
-  it.lastSenderRole === 'SHOP' && (it.buyerLastReadAt === null || it.lastMessageAt > it.buyerLastReadAt)
+  buyerHasUnreadFromShop(it)
 
 // วันนี้ → เวลา HH:mm, ไม่ใช่วันนี้ → วันที่ไทย
 // "วันนี้" ตามปฏิทินไทย (isSameBangkokDay ตัวกลาง) — ไม่ใช่วันของเบราว์เซอร์ ซึ่งไม่ตรงกับเวลาที่โชว์ (เวลาไทย)
@@ -132,7 +136,7 @@ export default function MessagesInbox() {
         const preview =
           it.lastMessagePreview === null
             ? 'ยังไม่มีข้อความ'
-            : it.lastSenderRole === 'BUYER'
+            : previewPrefix('BUYER', { lastSenderRole: it.lastSenderRole, lastMessageIsSystem: it.lastMessageIsSystem, hasPreview: true }) === 'YOU'
               ? `คุณ: ${it.lastMessagePreview}`
               : it.lastMessagePreview
         return (

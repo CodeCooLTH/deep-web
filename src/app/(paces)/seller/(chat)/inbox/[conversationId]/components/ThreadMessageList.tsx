@@ -31,6 +31,9 @@ import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-messa
 import { pacesConfirm } from '@/lib/paces-swal'
 import Swal from 'sweetalert2'
 import { useT } from '@/i18n/LocaleProvider'
+import { isSystemNoticeKind } from '@/lib/auto-reply-constants'
+import { systemNoticeLabelKey } from '@/lib/system-notice-label'
+import { chatOrderLabel } from '@/lib/chat-vocab'
 import { fmt } from '@/i18n/fmt'
 import AutoOrderResultCard from './AutoOrderResultCard'
 import AutoReplyTag from './AutoReplyTag'
@@ -87,6 +90,8 @@ export type ThreadMessageListProps = {
   savedFiles: Set<string>
   savingFileId: string | null
   metaAiMessageIds: Set<string>
+  /** Shop.vertical — ใช้ผันคำ "สรุป{noun}" ของป้ายข้อความระบบ */
+  vertical?: string | null
   // ── callback: identity ต้องคงที่ (useStableCallback / setState / useCallback ของ hook) ──
   toggleLibrary: (m: { id: string; imageUrl?: string | null }) => Promise<void> | void
   setReplyingTo: (m: ChatMessageView | null) => void
@@ -120,6 +125,7 @@ function ThreadMessageListImpl({
   savedFiles,
   savingFileId,
   metaAiMessageIds,
+  vertical,
   toggleLibrary,
   setReplyingTo,
   setActionTarget,
@@ -674,8 +680,28 @@ function ThreadMessageListImpl({
                     >
                       {/* ป้ายลอยเกยขอบบนมีช่องเดียว — ป้ายบอทของเราชนะเสมอถ้าเกิดพร้อมกัน
                           ป้าย Meta AI เป็น span ไม่ใช่ปุ่ม: ไม่มีข้อมูลเงื่อนไขของ Meta ให้เปิดดู */}
-                      {mExt.autoReplyKind ? (
+                      {/* ลำดับชนะ: DeepBot/AUTO_TEST → ระบบแจ้ง (AUTO_NOTICE) → AI ของ Meta (00078 S-10)
+                          AUTO_NOTICE ไม่ใช่บอทตอบแชท จึงไม่มี popover เหตุผล — span เทา ไม่ใช่ปุ่ม */}
+                      {mExt.autoReplyKind && !isSystemNoticeKind(mExt.autoReplyKind) ? (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
+                      ) : isSystemNoticeKind(mExt.autoReplyKind) ? (
+                        (() => {
+                          // ชื่อชนิด notice เท่าที่อ่านจากแถวได้ (system-notice-label.ts) — title กับ sr-only ใช้ข้อความเดียวกัน
+                          const noticeLabel =
+                            systemNoticeLabelKey(m) === 'sentBySystemOrder'
+                              ? fmt(t.autoNotify.sentBySystemOrder, { noun: chatOrderLabel(vertical) })
+                              : t.autoNotify.sentBySystem
+                          return (
+                            <span
+                              title={noticeLabel}
+                              className="border-default-300 bg-card text-default-700 absolute top-0 end-2.5 z-20 inline-flex -translate-y-1/2 items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
+                            >
+                              <Icon icon="send" className="text-xs" aria-hidden="true" />
+                              <span aria-hidden="true">{t.autoNotify.sentBySystem}</span>
+                              <span className="sr-only">{noticeLabel}</span>
+                            </span>
+                          )
+                        })()
                       ) : channel === 'MESSENGER' && metaAiMessageIds.has(m.id) ? (
                         <span
                           title={t.inbox.metaAiBadgeExplain}
@@ -958,7 +984,7 @@ function ThreadMessageListImpl({
                                   ลองใหม่
                                 </button>
                               ) : (
-                                <span>ส่งไม่สำเร็จ</span>
+                                <span>{isSystemNoticeKind(mExt.autoReplyKind) ? t.autoNotify.bubbleFailed : 'ส่งไม่สำเร็จ'}</span>
                               )}
                               {failReason && (
                                 <button
@@ -969,7 +995,7 @@ function ThreadMessageListImpl({
                                     Swal.fire({
                                       buttonsStyling: false,
                                       icon: 'info',
-                                      title: 'ส่งข้อความไม่สำเร็จ',
+                                      title: isSystemNoticeKind(mExt.autoReplyKind) ? t.autoNotify.bubbleFailedTitle : 'ส่งข้อความไม่สำเร็จ',
                                       text: failReason,
                                       confirmButtonText: 'เข้าใจแล้ว',
                                       customClass: {

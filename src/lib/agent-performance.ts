@@ -20,7 +20,7 @@
 import { round2 } from '@/lib/round2'
 
 /** ค่าที่ `ChatMessage.autoReplyKind` เป็นได้เมื่อ "ระบบเป็นผู้ส่ง" — null = คนส่ง */
-export const AUTO_REPLY_KINDS = ['AUTO', 'AUTO_TEST'] as const
+export { AUTO_REPLY_KINDS, type AutoReplyKind } from '@/lib/auto-reply-constants'
 
 /**
  * ข้อความหนึ่งใบเท่าที่สูตรตอบเวลาต้องรู้ — ตั้งใจไม่รับ `body`/`type` เข้ามาเลย
