@@ -4,7 +4,7 @@
  * การ์ดยอดขายหน้าแรกของร้านบริการ (feature 00078 · BRD FR-010) — มือถือ (แตะ → ชีต) และคอม (แตะ → /sales)
  *
  * หัว: ไอคอน · ชื่อตามตั้งค่า · ปุ่มตั้งค่า (ก่อน) · วันนี้/เดือนนี้ → ตัวเลข → บรรทัด % → กราฟ
- * แถบ ปิดงานแล้ว + ยังไม่ปิดงาน (หรือแถบกำไร) กลับมาบนหน้าแรก (user 2026-10-17 หลังลองบน prod) · ไม่มีจำนวนงาน
+ * บรรทัด ● ปิดงานแล้ว ● ยังไม่ปิดงาน แบบการ์ดเดิม (user 2026-10-17: แถบสมการบนหน้าแรกรกไป) · ไม่มีจำนวนงาน
  *
  * Base: dashboard/components/SalesChartCard.tsx (card-body !p-4 · segmented · hero ramp "Metric")
  */
@@ -103,7 +103,7 @@ export default function ServiceReportCard({ initial, view, chart, variant }: Pro
             </Link>
           )}
 
-          <ServiceReportStrip cells={strip} className="mb-2 mt-1" />
+          <ServiceReportStrip cells={strip} variant="inline" className="mb-2" />
 
           {/* กราฟอยู่นอกปุ่ม — แตะแท่งแล้วเห็นป้ายยอดวันนั้น (ไม่เปิดชีต) */}
           <ServiceReportChart
