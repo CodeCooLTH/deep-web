@@ -18,19 +18,14 @@ import { FINANCE_COLORS } from '@/lib/finance-colors'
 import { formatMonthYearTH, toBuddhistYear } from '@/lib/format-date'
 import { formatNumberNoSymbol } from '@/lib/format-money'
 import type { ServiceReportChart as ChartKind, ServiceReportView } from '@/lib/report-settings'
-import { buildServiceReport, type ServiceReportData, type ServiceReportMode, type StripDot } from '@/lib/service-report/view-model'
+import { buildServiceReport, type ServiceReportData, type ServiceReportMode } from '@/lib/service-report/view-model'
 import { SERVICE_REPORT_WORDS as W, deltaSentence } from '@/lib/service-report/words'
 
 import SellerEmptyState from '../SellerEmptyState'
 import ServiceReportChart from './ServiceReportChart'
+import ServiceReportStrip from './ServiceReportStrip'
 
 type Bill = { token: string; orderNo: string | null; buyerName: string | null; amount: number; closed: boolean }
-
-const DOT_CLASS: Record<StripDot, string> = {
-  counted: FINANCE_COLORS.counted.dot,
-  notCounted: FINANCE_COLORS.notCounted.dot,
-  outflow: FINANCE_COLORS.outflow.dot,
-}
 
 const pill = (on: boolean) =>
   `min-h-11 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors ${on ? 'bg-card text-primary shadow' : 'text-default-700'}`
@@ -202,22 +197,7 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
             </div>
 
             {/* แถบสมการ — ยอดขาย: ปิดงานแล้ว + ยังไม่ปิดงาน · กำไร: ปิดงานแล้ว − (ต้นทุนอะไหล่) − ค่าใช้จ่าย */}
-            <div className="border-default-300 mb-2 flex items-stretch border-y border-dashed">
-              {model.strip.map((c) => (
-                <div key={c.key} className="flex flex-1 items-center">
-                  {c.op && (
-                    <span className="px-1 text-sm font-bold text-default-500" aria-hidden="true">
-                      {c.op}
-                    </span>
-                  )}
-                  <div className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-center">
-                    {c.dot && <span className={`size-2 rounded-full ${DOT_CLASS[c.dot]}`} aria-hidden="true" />}
-                    <span className="text-xs text-default-700">{c.label}</span>
-                    <b className="text-sm font-bold text-default-800 tabular-nums">{formatNumberNoSymbol(c.value)}</b>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ServiceReportStrip cells={model.strip} className="mb-2" />
 
             {model.rows.length === 0 ? (
               <SellerEmptyState compact icon="chart-bar-off" title={W.empty} />
@@ -229,6 +209,7 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
                   height={layout === 'page' ? 260 : 200}
                   onPick={mode === 'daily' ? onChartPick : undefined}
                   period={mode}
+                  resetKey={`${data.mode}-${data.year}-${data.month ?? ''}-${view}`}
                 />
 
                 {/* ตาราง — ใหม่สุดก่อน · เฉพาะช่วงที่มีความเคลื่อนไหว (precedent: ตารางชีตร้านขายของ) */}

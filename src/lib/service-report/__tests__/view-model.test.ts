@@ -94,6 +94,14 @@ describe('การ์ดโหมดวันนี้', () => {
     expect(t.delta).toEqual({ direction: 'up', pct: 890, compareLabel: 'ค่าเฉลี่ย 14 วันล่าสุด' })
     expect(t.chart?.series.map((s) => s.key)).toEqual(['closed', 'unclosed'])
   })
+  it('แถบสมการหน้าแรก: วันนี้ = ยอดของวันนี้ · เดือนนี้ = ยอดทั้งเดือน (ตัวเดียวกับหน้าเต็ม)', () => {
+    const t = buildServiceToday(OCT, 'sales')
+    const i = OCT.futureFromIndex - 1
+    expect(t.strip.map((c) => [c.key, c.value])).toEqual([['closed', OCT.closed[i]], ['unclosed', OCT.unclosed[i]]])
+    expect(buildServiceReport(OCT, 'sales').strip.map((c) => c.value)).toEqual([248300, 388600])
+    const p = buildServiceToday(OCT, 'profit')
+    expect(p.strip.map((c) => c.key)).toEqual(['closed', 'expense'])
+  })
   it('วันนี้ยังไม่มีงาน (0) → ไม่แสดง % (ไม่ขึ้น "ลดลง 100%")', () => {
     const l14 = { labels: Array(14).fill('d'), closed: Array(14).fill(1000), unclosed: Array(14).fill(0) }
     const zeroToday = { ...OCT, closed: OCT.closed.map((v, i) => (i === OCT.futureFromIndex - 1 ? 0 : v)), unclosed: OCT.unclosed.map((v, i) => (i === OCT.futureFromIndex - 1 ? 0 : v)), last14: l14 }
