@@ -1,5 +1,6 @@
 // กฎตัดสินห้อง/โต๊ะ (BR-CD-01..10) — pure ไม่แตะ DB · client-safe
 import { thaiTodayBounds } from '@/lib/date-range'
+import { isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import { AWAITING_WINDOW_DAYS, MOBILE_BREAKPOINT_PX, RECENT_REPLY_WINDOW_SEC } from './constants'
 import type { DeskRoom, DeskTarget, DeskViewMode, RoomClass } from './types'
 
@@ -41,7 +42,8 @@ export type PickDeskInput = {
 
 /** ลำดับตัดสินโต๊ะ BOT > META_AI > ADMIN > EXTERNAL (BR-CD-06) — เปลี่ยนลำดับ = ลูกค้าไปผิดโต๊ะ */
 export function pickDesk(m: PickDeskInput, memberIds: ReadonlySet<string> | readonly string[]): DeskTarget {
-  if (m.autoReplyKind) return { kind: 'BOT' }
+  // AUTO_NOTICE = ข้อความระบบแจ้ง ไม่ใช่บอทตอบแชท (00078 S-10) — ไม่นับโต๊ะบอท
+  if (m.autoReplyKind && !isSystemNoticeKind(m.autoReplyKind)) return { kind: 'BOT' }
   if (m.viaStandby) return { kind: 'META_AI' }
   const isMember = (id: string) => (Array.isArray(memberIds) ? memberIds.includes(id) : (memberIds as ReadonlySet<string>).has(id))
   if (m.senderUserId && isMember(m.senderUserId)) return { kind: 'ADMIN', userId: m.senderUserId }

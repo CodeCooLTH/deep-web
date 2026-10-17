@@ -133,6 +133,17 @@ export const isBotReplyKind = (k: string | null | undefined): k is 'AUTO' | 'AUT
 export const isSystemNoticeKind = (k: string | null | undefined): k is 'AUTO_NOTICE' =>
   k === 'AUTO_NOTICE'
 
+/**
+ * ฟิลด์ denorm `Conversation.lastSenderRole` ที่ต้องเขียนเมื่อฝั่งร้านส่งข้อความ
+ *
+ * AUTO_NOTICE (ข้อความระบบแจ้ง) ห้ามเขียน: ทุกจอ "รอตอบ/ยังไม่อ่าน/โต๊ะ 00077" ตัดสินจากค่านี้
+ * ลูกค้าถามค้างแล้วระบบส่งสรุปอัตโนมัติ ห้องต้องยังรอแอดมินตอบ (00078 S-10)
+ * ส่วน lastMessageAt/lastMessagePreview ยังเขียนตามปกติ เพื่อดันลำดับเธรดและพรีวิว
+ */
+export const shopSendSenderRolePatch = (
+  kind: string | null | undefined,
+): { lastSenderRole: 'SHOP' } | Record<string, never> => (isSystemNoticeKind(kind) ? {} : { lastSenderRole: 'SHOP' })
+
 /** Conversation.contextProductSource */
 export const CONTEXT_PRODUCT_SOURCES = ['ADS_MAPPING', 'MANUAL', 'REFERRAL'] as const
 export type ContextProductSource = (typeof CONTEXT_PRODUCT_SOURCES)[number]

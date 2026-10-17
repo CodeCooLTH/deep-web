@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { isBotReplyKind, isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import {
   DEFAULT_INBOX_SORT,
   buildCustomerSortCursorWhere,
@@ -17,7 +18,7 @@ import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { runAfterResponse } from '@/lib/run-after-response'
-import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
 import { conversationIdsByFollowUpState } from '@/services/customer-follow-up.service'
 import type { FilterState as FollowUpFilterState } from '@/lib/follow-up-rules'
@@ -61,6 +62,10 @@ export interface ConversationSummary {
   // feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าเข้ามา (ชิป `ad_id.…` ในรายการแชท แบบ Business Suite,
   // user request 2026-07-26); findMany คืน runtime อยู่แล้วเช่นกัน
   referralAdId: string | null
+  /** เฉพาะรายการฝั่งผู้ซื้อ (listConversationsForBuyer) — ดู lib/buyer-unread.ts */
+  lastShopMessageAt?: Date | null
+  /** เฉพาะฝั่งผู้ซื้อ — ข้อความล่าสุดเป็น AUTO_NOTICE */
+  lastMessageIsSystem?: boolean
 }
 
 /**
@@ -128,7 +133,7 @@ export interface ChatMessageView {
   productRefIds?: string[]
   orderRefToken: string | null // การ์ดออเดอร์ในแชท (user 2026-07-24) — เฉพาะ type='ORDER' (Order.publicToken)
   flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
-  // feature 00023 — null = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบขณะโหมดทดสอบ
+  // feature 00023 — null = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบขณะโหมดทดสอบ | 'AUTO_NOTICE' = ข้อความระบบแจ้ง (00078)
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   // findMany ด้านล่างไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้วตั้งแต่ migration — แค่ประกาศ type เพิ่ม
   autoReplyKind: string | null
@@ -563,7 +568,31 @@ export async function listConversationsForBuyer(
   buyerUserId: string,
   opts: { cursor?: string; take?: number } = {},
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
-  return listConversations({ buyerUserId }, opts)
+  const r = await listConversations({ buyerUserId }, opts)
+  // จุดแจ้งเตือนฝั่งผู้ซื้อ — เวลาข้อความร้านล่าสุดที่ผู้ซื้อเห็น (ไม่พึ่ง lastSenderRole เพราะ AUTO_NOTICE ไม่เปลี่ยนค่านั้น)
+  const ids = r.items.map((i) => i.id)
+  const rows = ids.length
+    ? await prisma.chatMessage.groupBy({
+        by: ['conversationId'],
+        where: { conversationId: { in: ids }, senderRole: 'SHOP', isDeleted: false, type: { notIn: [...INTERNAL_MESSAGE_TYPES] } },
+        _max: { createdAt: true },
+      })
+    : []
+  const latest = new Map(rows.map((x) => [x.conversationId, x._max.createdAt]))
+  // พรีวิวล่าสุดเป็นข้อความระบบแจ้งไหม — ผู้ซื้อต้องไม่เห็นเป็น "คุณ:" (preview-attribution.ts)
+  const kinds = ids.length
+    ? await prisma.$queryRaw<{ conversationId: string; autoReplyKind: string | null }[]>`
+        SELECT DISTINCT ON (m."conversationId") m."conversationId" AS "conversationId", m."autoReplyKind" AS "autoReplyKind"
+        FROM "ChatMessage" m
+        WHERE m."conversationId" IN (${Prisma.join(ids)})
+        ORDER BY m."conversationId", m."createdAt" DESC, m."seq" DESC
+      `
+    : []
+  const isSystem = new Map(kinds.map((k) => [k.conversationId, isSystemNoticeKind(k.autoReplyKind)]))
+  return {
+    ...r,
+    items: r.items.map((i) => ({ ...i, lastShopMessageAt: latest.get(i.id) ?? null, lastMessageIsSystem: isSystem.get(i.id) ?? false })),
+  }
 }
 
 async function listConversations(
@@ -747,7 +776,7 @@ async function attachAutoReplyTrace(
   // แต่ [conversationId, createdAt] มี และจำนวนแถวที่ได้ถูกจำกัดด้วย maxRepliesPerConversation
   // (ค่าเริ่มต้น 10) อยู่แล้ว จึงเป็น index scan สั้น ๆ ไม่ใช่ seq scan ทั้งตาราง
   const traceByMessageId = new Map<string, AutoReplyTrace>()
-  if (page.some((m) => m.autoReplyKind)) {
+  if (page.some((m) => isBotReplyKind(m.autoReplyKind))) {
     const logs = await prisma.autoReplyLog.findMany({
       where: { conversationId, decision: 'REPLIED', outboundMessageId: { not: null } },
       select: {
@@ -810,7 +839,8 @@ async function attachAutoReplyTrace(
 // ---- sendMessage (tx: insert + denorm update + Notification) ----
 export async function sendMessage(params: {
   conversationId: string
-  senderUserId: string
+  /** null ได้เฉพาะโหมด `system` (ข้อความจากระบบ ไม่มีคนกดส่ง) — โหมดปกติ null = FORBIDDEN */
+  senderUserId: string | null
   senderRole: SenderRole // caller (route) รู้อยู่แล้วว่าเป็นฝั่งไหน — ฟังก์ชันนี้ verify ซ้ำ ไม่ trust เฉย ๆ
   type: SendableMessageType
   body?: string | null
@@ -831,6 +861,15 @@ export async function sendMessage(params: {
    */
   isAppointmentCard?: boolean
   replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
+  /**
+   * โหมดระบบ (00078 TD-005) — ข้อความแจ้งอัตโนมัติ `AUTO_NOTICE` ไม่มีคนกดส่ง
+   *
+   * ไม่ใช่ flag ข้าม authz: เปลี่ยนคำถามจาก "user นี้แตะร้านนี้ได้ไหม" เป็น "เธรดนี้เป็นของร้านที่ระบบ
+   * ทำงานแทนจริงไหม" (`system.shopId` ต้องตรงห้อง ไม่ตรง = FORBIDDEN) · senderRole ต้องเป็น SHOP ·
+   * ข้าม `pauseForHumanTakeover` (ไม่ใช่คนรับช่วง) และ `detectAutoOrderTrigger` (กันวงจรสร้างออเดอร์)
+   * ไม่แตะ `lastAutoReplyAt/autoReplyCount` (ของบอทตอบแชท) และไม่มี replyToMid
+   */
+  system?: { shopId: string; autoReplyKind: 'AUTO_NOTICE' }
 }): Promise<ChatMessageView> {
   const sent = await prisma.$transaction(async (tx) => {
     const conversation = await tx.conversation.findUnique({ where: { id: params.conversationId } })
@@ -842,10 +881,13 @@ export async function sendMessage(params: {
     // verify role vs. truth — กัน client ปลอม senderRole (FR-CHAT-04-AC-03)
     // เธรดช่องทางนอก (feature 00018) ไม่มี buyerUserId → ไม่มีใครอ้าง BUYER ได้เลย
     const isBuyerClaim = params.senderRole === 'BUYER'
-    // ฝั่งร้าน (00071 S-13): เจ้าของร้าน (shop.userId = OWNER ถือทุก cap) หรือสมาชิกที่บทบาทถือ H2 ส่งได้
-    // (เดิมเจ้าของเท่านั้น → ผู้ดูแล/ตอบแชทส่งในเธรด Deep ไม่ได้)
-    // อ่านแถวสมาชิกสดทุกครั้ง · BILLING/TECHNICIAN → ForbiddenRoleError → 403 FORBIDDEN_ROLE
-    if (isBuyerClaim) {
+    if (params.system) {
+      // โหมดระบบ: ประกาศร้านที่ตัวเองเชื่อว่าเป็นเจ้าของ แล้ว cross-check กับห้องจริง (TC-106)
+      if (params.system.shopId !== conversation.shopId) throw new Error('FORBIDDEN')
+      if (params.senderRole !== 'SHOP' || params.senderUserId !== null) throw new Error('FORBIDDEN')
+    } else if (params.senderUserId === null) {
+      throw new Error('FORBIDDEN') // ไม่มีผู้ส่งและไม่ได้ประกาศโหมดระบบ = เรียกผิดรูป
+    } else if (isBuyerClaim) {
       const ownerMatch = conversation.buyerUserId !== null && conversation.buyerUserId === params.senderUserId
       if (!ownerMatch) throw new Error('FORBIDDEN')
     } else if (shop.userId !== params.senderUserId && !(await canAccessShopWith(conversation.shopId, params.senderUserId, 'H2'))) {
@@ -937,7 +979,8 @@ export async function sendMessage(params: {
         attachmentSize: params.imageUrl ? (params.attachmentSize ?? null) : null,
         productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
         orderRefToken: params.type === 'ORDER' ? (params.orderRefToken ?? null) : null,
-        replyToMid: params.replyToMid ?? null,
+        replyToMid: params.system ? null : (params.replyToMid ?? null),
+        autoReplyKind: params.system?.autoReplyKind ?? null,
         flaggedScam: scamResult?.flagged ?? false,
         scamMatchedRules: scamResult?.flagged ? scamResult.matchedRules : undefined,
       },
@@ -948,7 +991,8 @@ export async function sendMessage(params: {
       data: {
         lastMessageAt: message.createdAt,
         lastMessagePreview: preview,
-        lastSenderRole: params.senderRole,
+        // AUTO_NOTICE ไม่ปรับ lastSenderRole — ลูกค้าที่ถามค้างต้องยังขึ้น "รอตอบ" (00078 S-10)
+        ...(params.system ? {} : { lastSenderRole: params.senderRole }),
         // BR-FBC-15/16 (S-7): ลูกค้าทักมาใหม่ในเธรดที่ร้านซ่อน/ปิดงานไว้ → เด้งกลับให้เห็นอัตโนมัติ
         // กันร้านพลาดข้อความ; เฉพาะฝั่ง BUYER เท่านั้น — ร้านตอบเอง (SHOP) ไม่ trigger
         ...(params.senderRole === 'BUYER' ? { isHidden: false, resolvedAt: null } : {}),
@@ -970,6 +1014,9 @@ export async function sendMessage(params: {
 
     return { ...message, autoReply: null } as ChatMessageView
   })
+
+  // โหมดระบบ (00078 TD-005): ไม่ใช่คนรับช่วง → ไม่หยุดบอท และไม่ส่งเข้าตัวดักจับออเดอร์ (กันวงจรป้อนกลับ)
+  if (params.system) return sent
 
   // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
   //

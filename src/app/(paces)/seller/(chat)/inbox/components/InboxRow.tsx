@@ -12,6 +12,7 @@
  * ออบเจกต์/ฟังก์ชันที่ประกาศสดใน render ของ InboxList (hook-return-identity-in-deps.md)
  * 🛑 ห้ามประกาศ component ในตัว render (component-declared-in-render.md)
  */
+import { previewPrefix } from '@/lib/preview-attribution'
 import { memo } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -86,6 +87,7 @@ function InboxRowImpl({
       const name =
         c.alias?.trim() || c.counterparty?.displayName || (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
       const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
+      const prefix = previewPrefix('SELLER', { lastSenderRole: c.lastSenderRole, lastMessageIsSystem: c.lastMessageIsSystem, hasPreview: !!c.lastMessagePreview })
       const isResolved = c.resolvedAt !== null
       const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
       const contactTags = c.contactTags ?? []
@@ -312,9 +314,9 @@ function InboxRowImpl({
                       ย้ายไปเป็นชิปในแถวป้ายด้านล่าง (ที่เดียวกับ "สั่งซื้อแล้ว"/แท็ก) แล้วคืน
                       "คุณ: " ให้ทุกข้อความที่ฝั่งร้านส่ง ไม่ว่าคนหรือบอทเป็นคนส่ง — ในสายตา
                       ลูกค้าทั้งคู่คือ "ร้าน" เหมือนกันอยู่แล้ว */}
-                  {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
-                    <span className="text-default-700 font-normal">คุณ: </span>
-                  )}
+                  {prefix === 'YOU' && <span className="text-default-700 font-normal">คุณ: </span>}
+                  {/* ข้อความระบบแจ้ง (00078): lastSenderRole ยังเป็นลูกค้าโดยตั้งใจ → ต้องบอกเองว่าไม่ใช่ลูกค้าพิมพ์ */}
+                  {prefix === 'SYSTEM' && <span className="text-default-700 font-normal">{t.autoNotify.sentBySystem}: </span>}
                   {preview}
                 </span>
                 {/* บรรทัด "ที่มา" (มติแบบ C 2026-08-09) — ตอบว่า "บัญชีไหน" ที่ badge มุม

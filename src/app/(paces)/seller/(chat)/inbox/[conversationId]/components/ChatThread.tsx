@@ -3148,6 +3148,7 @@ export default function ChatThread({
         ) : (
           <ThreadMessageList
             messages={messages}
+            vertical={customerPanelData?.vertical}
             conversationId={conversationId}
             channel={channel}
             buyerName={buyerName}

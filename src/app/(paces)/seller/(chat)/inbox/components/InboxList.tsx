@@ -189,7 +189,7 @@ export type ConversationListItem = {
   /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง · null = ไม่ถือ · client เทียบกับ nowBucket (UI อยู่ T22) */
   metaAiHoldUntilMs?: number | null
   // S-20 (phase 00023-qna) — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
-  // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null)
+  // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null — AUTO_NOTICE ถูกตัดเป็น null ที่ enrichWithAutoReplyBadge)
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
   // optional เผื่อ payload เก่าที่ยังไม่มี field นี้ -> fallback เป็นพฤติกรรมเดิม ("คุณ: ")
   lastMessageAutoReplyKind?: string | null
@@ -201,6 +201,8 @@ export type ConversationListItem = {
    * (แก้แล้ว 2026-08-02 — อ่านจาก `AutoReplyLog.matchedVia = 'CHATBOT'`)
    */
   lastMessageIsAiEnhanced?: boolean
+  /** ข้อความล่าสุดเป็นข้อความระบบแจ้ง (AUTO_NOTICE) — ใช้เลือกคำนำหน้าพรีวิว (lib/preview-attribution.ts) */
+  lastMessageIsSystem?: boolean
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null

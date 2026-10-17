@@ -278,3 +278,55 @@ DB → types/window/i18n skeleton/pure libs → (counted · tracking-link · Met
 
 ## 11. สรุป
 ใช้โครงเดิมทั้งหมด (outbox · cron · SAVEPOINT+advisory lock · pure-lib-ตัดสิน) เพิ่มเฉพาะ ledger/config ที่ DATABASE.md อนุมัติ · จุดเสี่ยงสูงสุดคือ F-1 (ย้อนหลัง) F-5 (ผู้บริโภค AUTO_NOTICE) F-7 (default ไม่เท่าเดิม)
+
+## 12. บันทึกผู้บริโภค autoReplyKind (T12)
+
+ไล่ด้วย `rg -n "autoReplyKind|AUTO_TEST|'AUTO'|AUTO_NOTICE" src` — ตัดสินแบบ 3 ชั้น: บอทตอบแชท (`AUTO`/`AUTO_TEST`, `isBotReplyKind`) · ข้อความระบบแจ้ง (`AUTO_NOTICE`, `isSystemNoticeKind`) · คน (`null`)
+
+| ไฟล์ | จุด | ตัดสิน | ผล |
+|---|---|---|---|
+| `services/auto-reply.service.ts` | `sweepStuckJobs` (`not: null`) | แก้ | `in: AUTO_REPLY_KINDS` — AUTO_NOTICE ไม่ถือว่าบอทตอบแล้ว (TC-101) |
+| `services/auto-reply.service.ts` | `enrichWithAutoReplyBadge` | แก้ | AUTO_NOTICE → `lastMessageAutoReplyKind=null`, `lastMessageIsAiEnhanced=false` (TC-102) |
+| `lib/chat-desk/rules.ts` | `pickDesk` | แก้ | AUTO_NOTICE ไม่ใช่ BOT (ค่าอื่นที่ไม่ใช่ null ยังเป็น BOT เหมือนเดิม) |
+| `services/chat-desk.service.ts` | SQL `ls`/`lr` + พรีวิวห้อง | แก้ | ข้ามแถว AUTO_NOTICE ตอนหา "ข้อความร้านล่าสุด" → โต๊ะ/askedAt ยึดการตอบจริง · พรีวิวไม่ระบุโต๊ะให้ข้อความระบบ |
+| `services/chat.service.ts` | `sendMessage` | แก้ (TD-005) | โหมด `system` + `senderUserId: string \| null` · `attachAutoReplyTrace` ใช้ `isBotReplyKind` (AUTO_NOTICE ไม่มี AutoReplyLog) |
+| `ThreadMessageList.tsx` | ป้ายบับเบิล + บับเบิลล้ม | แก้ | AutoReplyTag เฉพาะบอท → ป้าย "ส่งโดยระบบ" (span) → ป้าย AI ของ Meta · ข้อความล้ม "ระบบส่งไม่สำเร็จ" + หัว Swal |
+| `InboxList.tsx`, `InboxRow.tsx` | ป้ายบอทในแถว | ไม่แก้โค้ด | อ่านจาก `lastMessageAutoReplyKind` ที่ enrich ตัด AUTO_NOTICE เป็น null แล้ว (แก้คอมเมนต์ชนิดค่า) |
+| `app/api/chat/conversations/route.ts` | เรียก `enrichWithAutoReplyBadge` | ไม่แก้ | ผ่านฟังก์ชันเดียวกับ RSC |
+| `useSellerChatThread.ts` | type `autoReplyKind?: string \| null` | ไม่แก้โค้ด | แก้คอมเมนต์ค่าที่เป็นได้ |
+| `lib/agent-performance.ts` / `agent-performance-sql.ts` / `agent-performance.service.ts` | คน = `IS NULL` | ไม่แก้ | AUTO_NOTICE ไม่ null → ไม่ใช่คน และไม่ใช่ "ตอบนอกระบบ" (`isUnattributedShopReply` ก็ต้อง null) · `AutoReplyKind` re-export จาก SSOT แล้ว |
+| `services/channel-chat.service.ts` | `if (!params.autoReplyKind)` (pause บอท · `sentByHuman`) | ไม่แก้ | truthy → AUTO_NOTICE ไม่หยุดบอท · `systemShopId` ≠ ห้อง → FORBIDDEN มีอยู่แล้ว (`:3046`) |
+| `services/chat-outbox.service.ts` | `autoReplyKind ?? null`, `!autoReplyKind` | ไม่แก้ | ส่งต่อค่า/กฎ "คนส่ง" ตาม truthy ถูกแล้ว |
+| `services/auto-order-detect.service.ts` | `if (message.autoReplyKind) → BOT_MESSAGE` | ไม่แก้ | ต้องกันข้อความระบบทุกชนิดไม่ให้สร้างออเดอร์ — truthy ถูกแล้ว |
+| `lib/meta-system-notice.ts` | `attributeMetaAi` `if (m.autoReplyKind) continue` | ไม่แก้ | ข้อความที่ระบบเราส่งไม่ใช่ของ Meta AI — truthy ถูกแล้ว |
+| `services/auto-reply-send.service.ts`, `line-rich-menu-reply.service.ts` | ผู้ผลิต `AUTO`/`AUTO_TEST` | ไม่แก้ | เป็นบอทตอบแชท |
+| `services/auto-reply-takeover.service.ts` | คอมเมนต์ "ห้ามเรียกเมื่อมี autoReplyKind" | ไม่แก้ | ตรงกับพฤติกรรม |
+| `app/api/cron/auto-order-sweeper/route.ts` | `autoReplyKind: null` | ไม่แก้ | เขียนการ์ดของตัวดักจับออเดอร์ (คนละเรื่อง) |
+| `lib/order-event.ts` | ชื่อ `AUTO_NOTICE_SENT/FAILED` | ไม่เกี่ยว | ชนิดเหตุการณ์ออเดอร์ ไม่ใช่ `autoReplyKind` |
+| F-6 (12 ไฟล์ `'AUTO'` คนละความหมาย): `iship/after-order-create.ts` `ShippingSettingsRow.tsx` `line/rich-menu.ts` `RichMenuEditor.tsx` `inspection-round/admin.service.ts` `inspection/checks.ts` `owner-view.ts` `inspection-view-vm.ts` `comment-auto-reply` `comment-private-reply` `page-comment` + `inspection-round.service.ts` | `createMode`/`mode`/`method`/`trigger` | ไม่เกี่ยว | ไม่ใช่ `ChatMessage.autoReplyKind` — ไม่แตะ |
+
+เทส: `lib/__tests__/auto-notice-consumers.test.ts` (pure+static, TC-103/104) · `services/__tests__/auto-notice-side-effects.test.ts` (DB 5434, TC-100..102/105/106; `M12_NOTICE_NULL=1` → แดง 4 ข้อ [blocker])
+
+### 12.1 AUTO_NOTICE ไม่ทำให้ห้องหลุดจาก "รอตอบ" (แก้แล้ว)
+
+- ทุกจอ "รอตอบ / ยังไม่อ่าน / โต๊ะ 00077" ตัดสินจาก `Conversation.lastSenderRole` (unread 4 query ใน `chat.service`, `chat-desk.service` สาขา WAITING/AT_DESK, `InboxList` ลำดับ, `chat-beep-target`) — คอลัมน์อื่นที่เกี่ยวข้อง (`lastInboundAt`, `shopLastReadAt`) ไม่ถูกเขียนโดยขาออกอยู่แล้ว
+- AUTO_NOTICE จึง **ไม่เขียน `lastSenderRole`** ผ่านตัวเดียว `shopSendSenderRolePatch(kind)` ใน `auto-reply-constants.ts` ใช้ครบทั้ง 4 จุดเขียนขาออก: `chat.service.sendMessage` (โหมด system ข้าม) · `chat-outbox` ตอนเขียนแถว · `channel-chat` Meta · `channel-chat` LINE (ตอนส่งสำเร็จ `chat-outbox` ไม่เขียน conversation ซ้ำ)
+- `lastMessageAt` และ `lastMessagePreview` ยังเขียนตามข้อความร้านปกติ (ดันเธรดขึ้นบน พรีวิวแสดงข้อความระบบ)
+- เทส: ฝั่ง `sendMessage` พิสูจน์บน DB จริง (ห้องคง BUYER · ขึ้น WAITING · ยังนับ unread) + mutation `M12_NOTICE_NULL=1` แดง · ฝั่ง channel-chat/chat-outbox พิสูจน์ด้วยเทส pure ของ helper + static gate (ไม่มี `lastSenderRole: 'SHOP'` ตรง ๆ ในจุดเขียนขาออก) — ยังไม่มีเทส DB ที่ยิง outbound จริงของสองเส้นนี้
+
+### 12.2 มติ Controller ต่อผลข้างเคียง 2 ข้อ (ทำแล้ว · ไม่มี migration)
+
+1. **Meta AI hold** — ข้อความฝั่งร้านที่ส่งสำเร็จบน MESSENGER/INSTAGRAM (AUTO_NOTICE หรือข้อความร้านปกติ) บันทึก `Conversation.metaOwnerAppId = ourMetaAppId()` + `metaOwnerObservedAt = เวลาส่งสำเร็จ` ด้วย `updateMany` เงื่อนไข `observedAt IS NULL OR < t` (`src/services/meta-owner-on-send.ts`: `recordOurSendAsMetaOwner`) · สูตร `meta-ai-holder.ts` กิ่ง `owner==ours && ownerAt > echoAt → ไม่ถือ` ทำให้ป้าย Meta AI หายทันที
+   - จุดเรียก: `channel-chat.sendOutboundMessage` Meta (หลังผ่าน `failureReason`) และ `chat-outbox.deliverHead` (หลัง `closeRow` SENT) — ส่งล้ม (#10) ไม่เรียก → ป้ายคงอยู่
+   - `FB_CHAT_APP_ID` ไม่ตั้ง → ข้าม (ไม่เดา · ป้ายหมดเองใน 24 ชม.) · ช่อง LINE/DEEP → ข้าม · ห้าม throw (เขียนล้มไม่ทำให้การส่งเป็น error)
+   - เทส `meta-owner-on-send.test.ts`: AI echo → ส่ง AUTO_NOTICE สำเร็จ → สูตรคืน null · ส่งล้ม → ไม่เขียน · ไม่มี app id → ข้าม · mutation ถอดการเรียกออก → แดง (ทดสอบแล้ว) · ฝั่ง `chat-outbox` พิสูจน์ด้วยการอ่านโค้ด/tsc เท่านั้น ยังไม่มีเทสที่ยิงจริง
+2. **จุดแจ้งเตือนฝั่งผู้ซื้อ DEEP** — แยกออกจาก `lastSenderRole` แล้ว: `listConversationsForBuyer` เติม `lastShopMessageAt` (MAX `createdAt` ของข้อความ SHOP ที่ผู้ซื้อเห็น: ไม่ลบ ไม่ใช่การ์ดภายใน — `groupBy` ตาม index `conversationId,createdAt` ที่มี) แล้ว helper เดียว `buyerHasUnreadFromShop` (`src/lib/buyer-unread.ts`) เทียบกับ `buyerLastReadAt` · ใช้ใน `BuyerChatWidget`, `(buyer-app)/messages/page.tsx`, `m/messages/MessagesInbox.tsx` · payload เก่าที่ไม่มีฟิลด์ → fallback นิยามเดิม · คอลัมน์ที่มีพอ ไม่ต้อง migration
+   - เทส DB: ผู้ซื้อถามค้าง → AUTO_NOTICE → ผู้ซื้อเห็นจุด + ร้านยังรอตอบ (`lastSenderRole` คง BUYER, นับ unread) → อ่านแล้วจุดหาย · mutation `M12_NOTICE_NULL=1` แดง
+   - ข้อสังเกต: ฟีเจอร์นี้แก้ความหมาย "unread ฝั่งผู้ซื้อ" ให้ถูกกว่าเดิมด้วย (เดิมข้อความร้านที่ตามด้วยข้อความผู้ซื้อ ทำจุดหายแม้ยังไม่อ่าน) — เป็นผลดีที่ตามมา ไม่ได้ตั้งใจเปลี่ยนพฤติกรรมอื่น
+
+### 12.3 พรีวิวล่าสุดเมื่อเป็น AUTO_NOTICE (ระบุแหล่งที่มา) + ป้ายบับเบิลตามชนิด
+
+- `lastMessagePreview` เป็นข้อความระบบ แต่ `lastSenderRole` ยังเป็น BUYER โดยตั้งใจ → ตัดสินคำนำหน้าด้วยฟังก์ชัน pure เดียว `previewPrefix(viewer, …)` ใน `src/lib/preview-attribution.ts` (เทส `preview-attribution.test.ts`) · ธง `lastMessageIsSystem` ส่งมาจาก `enrichWithAutoReplyBadge` (ฝั่งร้าน; ไม่ปน `lastMessageAutoReplyKind` ซึ่งยังเป็นของบอทเท่านั้น) และ `listConversationsForBuyer` (ฝั่งผู้ซื้อ)
+- ผู้ซื้อ (`BuyerChatWidget`, `(buyer-app)/messages`, `m/messages`): ข้อความระบบ = เสียงของร้าน ไม่มีคำนำหน้า "คุณ:" · ร้าน (`InboxRow`): คำนำหน้า "ส่งโดยระบบ:" (คีย์ `autoNotify.sentBySystem` เดียวกับป้ายบับเบิล)
+- ป้ายบับเบิล: title + sr-only เลือกคีย์ด้วย `systemNoticeLabelKey` — การ์ด ORDER → `sentBySystemOrder` ({noun} จาก `chatOrderLabel(vertical)`) · นอกนั้น `sentBySystem` ถ้อยคำกลาง · 🛑 `sentBySystemTracking/Start/Close` ยังใช้ไม่ได้: แถวไม่เก็บชนิด notice และห้ามเดาจากเนื้อความ → ต้องให้ตัวส่ง (T13) เก็บชนิดก่อน
+- gate: เทส static ห้ามไฟล์ใต้ `src/app/api` ที่เรียก `sendMessage(` มี `system:` (ตัวตรวจพิสูจน์ด้วยตัวอย่างผิด)

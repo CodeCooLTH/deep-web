@@ -277,7 +277,7 @@ export default async function SellerInboxPage() {
     const autoReplyBadgeMap = new Map(
       (await enrichWithAutoReplyBadge(result.items)).map((r) => [
         r.id,
-        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced },
+        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced, isSystem: r.lastMessageIsSystem },
       ]),
     )
 
@@ -344,6 +344,7 @@ export default async function SellerInboxPage() {
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
+        lastMessageIsSystem: autoReplyBadgeMap.get(c.id)?.isSystem ?? false,
         // 00078 TFR-003 — primitive (ms) เทียบกับ nowBucket ฝั่ง client · ฟังก์ชันเดียวกับ route
         metaAiHoldUntilMs: metaAiHoldingUntilMs(c, appId),
       }

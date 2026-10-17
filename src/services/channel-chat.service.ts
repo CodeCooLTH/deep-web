@@ -1,11 +1,12 @@
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { isMetaInternalNote } from '@/lib/meta-system-notice'
 import { ourMetaAppId } from '@/lib/facebook/app-id'
+import { recordOurSendAsMetaOwner } from '@/services/meta-owner-on-send'
 import { META_PAGE_INBOX_APP_ID, META_IG_INBOX_APP_ID } from '@/lib/meta-ai-holder'
 import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
 import { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState } from '@/lib/messaging-window'
-import type { AutoReplyKind } from '@/lib/auto-reply-constants'
+import { shopSendSenderRolePatch, type AutoReplyKind } from '@/lib/auto-reply-constants'
 
 // re-export ชื่อเดิม — ผู้ import เดิมไม่ต้องแก้ (ย้ายไป lib เพื่อให้ pure ไม่ลาก prisma)
 export { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState }
@@ -3675,7 +3676,7 @@ async function sendOutboundLineMessage(
 
       await tx.conversation.update({
         where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, ...shopSendSenderRolePatch(params.autoReplyKind) },
       })
 
       return created
@@ -4315,7 +4316,7 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
       // อัปเดต snapshot แม้ส่งไม่สำเร็จ — seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด
       await tx.conversation.update({
         where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, ...shopSendSenderRolePatch(params.autoReplyKind) },
       })
 
       return created
@@ -4367,6 +4368,9 @@ export async function sendOutboundMessage(params: SendOutboundParams) {
     err.savedMessage = message
     throw err
   }
+
+  // 00078: ส่งสำเร็จบน Meta = เราถือห้อง → ตัดป้าย Meta AI (ดู meta-owner-on-send.ts)
+  await recordOurSendAsMetaOwner(conversation.id, conversation.channel)
 
   // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
   //

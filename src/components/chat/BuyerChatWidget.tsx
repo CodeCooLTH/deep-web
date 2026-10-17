@@ -17,6 +17,8 @@
  * State (open/view/activeShopId) persist ข้าม open/close ตาม resolved decision OQ3 (ไม่ reset ตอนปิด)
  * Breakpoint `lg` (resolved FINDING 1) — ≥lg = bubble+panel, <lg = bubble เล็ก router.push('/messages')
  */
+import { previewPrefix } from '@/lib/preview-attribution'
+import { buyerHasUnreadFromShop } from '@/lib/buyer-unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -52,6 +54,8 @@ type ConversationListItem = {
   lastMessagePreview: string | null
   lastSenderRole: SenderRole | null
   buyerLastReadAt: string | null
+  lastShopMessageAt?: string | null
+  lastMessageIsSystem?: boolean
   shopLastReadAt: string | null
   // S-20 (extension #1 Chat Product Context Card): username เพิ่มจาก B1 route enrich (api/chat/conversations)
   counterparty: { shopName: string; logo: string | null; username: string } | null
@@ -69,7 +73,7 @@ function formatInboxTime(iso: string): string {
 }
 
 function isUnread(item: ConversationListItem): boolean {
-  return item.lastSenderRole === 'SHOP' && (item.buyerLastReadAt === null || item.lastMessageAt > item.buyerLastReadAt)
+  return buyerHasUnreadFromShop(item)
 }
 
 // icon-button สีขาวบนพื้น primary ของ header panel (composition token — HR7 ไม่เกี่ยว buyer/Vuexy)
@@ -306,7 +310,7 @@ export default function BuyerChatWidget() {
                                 const preview =
                                   item.lastMessagePreview === null
                                     ? 'ยังไม่มีข้อความ'
-                                    : item.lastSenderRole === 'BUYER'
+                                    : previewPrefix('BUYER', { lastSenderRole: item.lastSenderRole, lastMessageIsSystem: item.lastMessageIsSystem, hasPreview: true }) === 'YOU'
                                       ? `คุณ: ${item.lastMessagePreview}`
                                       : item.lastMessagePreview
                                 const unread = isUnread(item)
