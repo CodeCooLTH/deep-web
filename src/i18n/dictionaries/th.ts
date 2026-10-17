@@ -170,8 +170,150 @@ export const th = {
     settingsJobTypes: 'ประเภทงาน',
     settingsReports: 'ตั้งค่ารายงาน',
     /** ป้ายบน badge ของเมนู — คนละฟิลด์กับ label จึงไม่ถูกแปลไปพร้อมชื่อเมนู (user เจอบน prod) */
+    // 00078 หัวกลุ่มเมนูซ้ายฝั่งผู้ขาย (7 กลุ่ม)
+    groupDaily: 'งานประจำวัน',
+    groupChatCustomers: 'แชทและลูกค้า',
+    groupReportsFinance: 'รายงานและการเงิน',
+    groupTrust: 'ความน่าเชื่อถือ',
+    groupChatSettings: 'ตั้งค่าแชท',
+    groupShopSettings: 'ตั้งค่าร้าน',
+    groupTeamPlan: 'ทีมและแพ็กเกจ',
+    settingsAutoNotify: 'ส่งอัตโนมัติถึงลูกค้า',
     badgeLocked: 'ถูกล็อก',
     badgeChoosePlan: 'เลือกแพ็กเกจ',
+  },
+
+  /**
+   * 00078 ส่งอัตโนมัติถึงลูกค้า — หน้าตั้งค่า + แถบแจ้งในจุดที่ทำงาน + ป้าย/บับเบิลในแชท
+   * ชื่อจังหวะ "เมื่อ…" ขึ้นต้นด้วย "เมื่อ" ทุกใบ · ใช้คำ "ปิดงาน" ไม่ใช่ "จบงาน"
+   * ถ้อยคำเหตุผลที่ส่งไม่ได้ใช้ของเดิมใน `src/lib/chat-send-failure.ts` — ไม่ซ้ำที่นี่
+   */
+  autoNotify: {
+    pageTitle: 'ส่งอัตโนมัติถึงลูกค้า',
+    pageSubtitle: 'ให้ระบบส่งข้อความในแชทแทนคุณ เมื่อเกิดเหตุการณ์ที่เลือกไว้ ส่งเฉพาะลูกค้าที่คุยกับร้านผ่านแชท',
+    breadcrumbSettings: 'ตั้งค่า',
+
+    /** ชื่อจังหวะ — ใบสร้างผันตาม vertical */
+    eventCreated: {
+      ONLINE_SALES: 'เมื่อสร้างคำสั่งซื้อ',
+      SERVICE_QUEUE: 'เมื่อสร้างงานบริการ',
+      LODGING: 'เมื่อสร้างบิลเข้าพัก',
+    },
+    eventTracking: 'เมื่อมีเลขพัสดุ',
+    eventStarted: 'เมื่อเริ่มงาน',
+    eventClosed: 'เมื่อปิดงาน',
+    useDefaultText: 'ใช้ข้อความตั้งต้น',
+    editText: 'แก้ข้อความ',
+    closedNote: 'ไม่ส่งถ้าลูกค้าไม่มาตามนัด',
+    trackingNote: 'ถ้าแก้เลขพัสดุ ระบบส่งอีกครั้งพร้อมคำว่า “อัปเดตเลขติดตามพัสดุ”',
+    trackingLinkNote: '“ลิงก์ติดตามพัสดุ” คือลิงก์ของขนส่งที่เลือกตอนกรอกเลข ถ้าขนส่งนั้นไม่มีลิงก์ บรรทัดนี้จะไม่ถูกส่ง',
+
+    stateOn: 'เปิดอยู่',
+    stateOff: 'ปิดอยู่',
+
+    /** Swal ยืนยันตอนเปิดสวิตช์เหตุการณ์ครั้งแรก — {event} = ชื่อจังหวะโดยไม่มีคำ "เมื่อ" นำ */
+    firstOnTitle: 'เริ่มส่งข้อความนี้ถึงลูกค้าจริง?',
+    firstOnBody: 'ลูกค้าที่คุยในแชทจะได้รับข้อความนี้{when} ไม่ส่งย้อนหลัง',
+    firstOnConfirm: 'เริ่มส่ง',
+    firstOnCancel: 'ยังก่อน',
+
+    capPrefix: 'ส่งไม่เกิน',
+    capSuffix: 'ข้อความ / ลูกค้า / วัน',
+    capHint: 'นับรวมทุกเหตุการณ์ ตั้งได้ 1-20',
+    capLabel: 'จำนวนข้อความสูงสุดต่อลูกค้าต่อวัน',
+
+    noteWindow: 'Messenger และ Instagram ส่งได้ภายใน 24 ชั่วโมงหลังลูกค้าทักล่าสุด',
+    noteLineQuota: 'LINE นับรวมในโควตาข้อความรายเดือนของบัญชี',
+
+    readOnlyBanner: 'ดูได้อย่างเดียว เจ้าของร้านหรือผู้ดูแลเป็นคนเปิดและปิดได้ ถ้าต้องการเปลี่ยน บอกเจ้าของร้านหรือผู้ดูแลได้เลย',
+
+    /** ตัวแก้ข้อความ */
+    editorBody: 'เนื้อความ',
+    editorBodyHint: 'พิมพ์ { เพื่อแทรกตัวแปร',
+    editorAddVar: '+ ตัวแปร',
+    editorStartFrom: 'เริ่มจากตัวอย่าง',
+    sampleStandard: 'มาตรฐาน',
+    sampleShort: 'สั้น กระชับ',
+    sampleFriendly: 'เป็นกันเอง',
+    save: 'บันทึก',
+    resetDefault: 'คืนค่าตั้งต้น',
+    cancel: 'ยกเลิก',
+    errorUnknownVar: 'ตัวแปร {name} ไม่มีในระบบ เลือกจากชิป “+ ตัวแปร” ใต้เนื้อความ',
+    errorTooLong: 'ข้อความยาวเกิน {max} ตัวอักษร ตัดให้สั้นลงก่อนบันทึก',
+    errorEmpty: 'ข้อความว่างอยู่ พิมพ์เนื้อความก่อนบันทึก',
+    errorSaveFailed: 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง',
+    warnNoLink: 'ข้อความนี้ไม่มีลิงก์ ลูกค้าจะไม่เห็นลิงก์ให้กดดูรายละเอียด',
+    lineNote: 'ลูกค้า LINE จะได้ข้อความนี้แทนการ์ดสรุป กดคืนค่าตั้งต้นเพื่อกลับไปใช้การ์ด',
+    lastEdited: 'แก้ล่าสุด {when} โดย {name}',
+
+    toastSaved: 'บันทึกข้อความแล้ว',
+    toastReset: 'คืนค่าตั้งต้นแล้ว',
+    toastEnabled: 'เปิดส่งอัตโนมัติแล้ว',
+    toastDisabled: 'ปิดส่งอัตโนมัติแล้ว',
+    toastCapSaved: 'บันทึกจำนวนข้อความต่อวันแล้ว',
+    toastFailed: 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง',
+
+    /** แถบแจ้งในจุดที่ทำงาน (ฟอร์มออเดอร์ · แผงพัสดุ · ServiceJobCard) */
+    stripOrder: 'เมื่อบันทึก ระบบจะส่งสรุป{noun}ให้ลูกค้าในแชทนี้ ({channel} · {name})',
+    stripOrderShort: 'จะส่งสรุปให้ลูกค้าในแชทนี้ ({channel})',
+    stripTracking: 'เมื่อยืนยัน ระบบจะส่งเลขพัสดุให้ลูกค้าในแชทนี้ ({channel} · {name})',
+    stripTrackingShort: 'จะส่งเลขพัสดุให้ลูกค้าในแชทนี้',
+    stripStart: 'เมื่อกดเริ่มงาน ระบบจะส่งข้อความให้ลูกค้าในแชท ({channel} · {name})',
+    stripStartShort: 'กดเริ่มงานแล้วจะแจ้งลูกค้า ({channel})',
+    stripShow: 'ดูข้อความ',
+    stripHide: 'ซ่อน',
+    stripSettings: 'ตั้งค่า',
+    stripWindowWarn: 'ส่งอัตโนมัติไม่ได้ เพราะลูกค้าทักล่าสุดเกิน 24 ชั่วโมง',
+    shipPanelNote: 'ระบบจะแจ้งเลขติดตามให้ลูกค้าในแชทนี้เอง หลังสร้างพัสดุสำเร็จ',
+    shipPanelFailNote: 'ถ้าส่งไม่ได้ จะมีข้อความ “ส่งไม่สำเร็จ” ในห้องนี้',
+
+    /** บับเบิลในเธรด */
+    sentBySystem: 'ส่งโดยระบบ',
+    sentBySystemOrder: 'ส่งโดยระบบ: สรุป{noun}',
+    sentBySystemTracking: 'ส่งโดยระบบ: เลขพัสดุ',
+    sentBySystemStart: 'ส่งโดยระบบ: เริ่มงาน',
+    sentBySystemClose: 'ส่งโดยระบบ: ปิดงาน',
+    bubbleFailed: 'ระบบส่งไม่สำเร็จ',
+    bubbleFailedTitle: 'ระบบส่งข้อความให้ลูกค้าไม่สำเร็จ',
+
+    /** แถวสถานะบนการ์ดออเดอร์ */
+    orderRowSent: 'ส่งให้ลูกค้าอัตโนมัติแล้ว',
+    orderRowPending: 'กำลังส่งให้ลูกค้า',
+    orderRowFailed: 'ส่งให้ลูกค้าอัตโนมัติไม่สำเร็จ',
+    orderRowSkipped: 'ไม่ได้ส่งให้ลูกค้าอัตโนมัติ',
+
+    /** ปุ่มเริ่มงาน (ServiceJobCard) */
+    startJob: 'เริ่มงาน',
+    startedAt: 'เริ่มงานเมื่อ {time} น.',
+    startSwalTitle: 'เริ่มงานนี้?',
+    startSwalBody: 'ระบบจะบันทึกเวลาเริ่มงาน และแจ้งลูกค้าในแชทถ้าเปิดส่งอัตโนมัติไว้',
+    startSwalConfirm: 'เริ่มงาน',
+    startSwalCancel: 'ยังก่อน',
+    closeHint: 'ทำงานเสร็จแล้วกด “ปิดงาน” — บันทึกผลและรับเงินที่เหลือในครั้งเดียว',
+  },
+
+  /** 00078 ช่องค่าส่งใน ShipForm */
+  shipCost: {
+    label: 'ค่าส่งที่ร้านจ่ายขนส่ง',
+    help: 'ต้นทุนของร้าน ไม่แสดงให้ลูกค้า',
+    helpWithProfit: 'ต้นทุนของร้าน ไม่แสดงให้ลูกค้า — หักในกำไรของ{noun}นี้',
+    errorInvalid: 'ค่าส่งต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป',
+  },
+
+  /** 00078 สัญญาณในรายการแชท/หัวห้อง */
+  chatSignals: {
+    metaAiChip: 'Meta AI คุมอยู่',
+    metaAiAria: 'Meta AI กำลังควบคุมห้องนี้',
+    metaAiTitle: 'Meta AI กำลังตอบลูกค้าห้องนี้แทนร้าน',
+    metaAiCardHead: 'Meta AI กำลังตอบลูกค้าห้องนี้แทนร้าน',
+    metaAiCardBody: 'ช่องพิมพ์ยังใช้ได้ แต่ถ้าพิมพ์จาก Deep ตอนนี้ Meta อาจปฏิเสธข้อความ จะตอบเองให้ไปรับดูแลแชทนี้ที่ Business Suite ของเพจก่อน',
+    customerNewTip: 'ซื้อแล้ว 1 {noun}',
+    customerRegularTip: 'ซื้อแล้ว {n} {noun}',
+    customerNewAria: 'ลูกค้าใหม่ ซื้อแล้ว 1 {noun}',
+    customerRegularAria: 'ลูกค้าซื้อซ้ำ ซื้อแล้ว {n} {noun}',
+    customerRingAria: 'เป็นลูกค้าของร้านแล้ว',
+    neverOrdered: 'ยังไม่เคยสั่ง',
+    moreBadgesAria: 'ป้ายอื่นอีก {n} รายการ: {names}',
   },
 
   /**
@@ -947,7 +1089,7 @@ export const th = {
 
       /** ป้ายพฤติกรรมลูกค้าเหนือแท็บ — โผล่เองไม่ต้องกด และโผล่ในรายการแชทกับหน้า /orders ด้วย */
       badgeNew: 'ลูกค้าใหม่',
-      badgeRegular: 'ลูกค้าเก่า · {count} {noun}',
+      badgeRegular: 'ลูกค้าซื้อซ้ำ',
       badgeReturned: 'ตีกลับ {count} รายการ',
       badgeCancelled: 'ยกเลิก {count} รายการ',
       badgeCancelledDetail: 'ยกเลิก {count} รายการ (ลูกค้าขอเอง {byBuyer})',
