@@ -111,3 +111,19 @@
 - ไฟล์รูปผ่าน `/api/files/{key}` เปิดได้สาธารณะถ้ารู้ key (uuid) · ส่งเข้า Messenger/LINE ใช้ presigned 1 ชม. (แพลตฟอร์มดึงไปเก็บเอง)
 - 🛑 **ไม่มีหน้ารายงานงานสำหรับลูกค้า** — `/o/{token}` (guest view) ไม่แสดงรูป/บันทึกช่าง · ใบเสร็จ `/o/[token]/receipt` เฉพาะ SERVICE_QUEUE ที่ปิดงานและจ่ายครบ
 - ส่งรูปในแชท: `enqueueOutbound` รับ attachment IMAGE ทีละ 1 ไฟล์ · หลายรูป = วนหลายแถว (`messages/route.ts:893-930` IMAGE_GRID) · การ์ดนัดหมาย (`:787-820`) ใช้เป็นต้นแบบข้อความ "สร้างการจองแล้ว" ได้
+
+## Spike Q-23 (T02) — วัดข้อมูล prod แบบอ่านอย่างเดียว 2026-10-17 (Supabase PAT, SELECT เท่านั้น)
+
+| คำถาม | ผล |
+|---|---|
+| `ChatHandoverEvent` | ทั้งหมด 32 แถว (30 วัน: 10) · ชนิด pass/request/take · **ทุกแถวเป็นของเราเอง** (`deep-seller-takeover:*` 30 แถว, `axon_take_thread_control` 2) · **ไม่มี event ที่ Meta ส่งตอน AI เข้า/ออกห้องเลย** |
+| `ai_generated` อยู่ที่ไหน | `ChatMessage.rawMessage` เก็บเป็น `{provider, source, payload}` → path จริง **`payload.message.ai_generated`** / `payload.message.app_id` / `payload.message.is_echo` (ไม่ใช่ `message.*` ที่ระดับบน) |
+| echo 30 วัน แยกตาม app_id | Page Inbox `263902037430900` **ไม่มีธง AI 15,230 ใบ / 3,824 ห้อง** · **มี `ai_generated=true` 4,413 ใบ / 1,492 ห้อง** · ไม่มี app_id 243 ใบ (= ของเรา) · `1570859340799126` 127 ใบ (= แอปเรา `FB_CHAT_APP_ID` น่าจะใช่ — dev ยืนยันกับ env) · `165907476854626` 71 · อื่น 3 |
+| `admin_text` | **0 ใบใน 30 วัน** — สัญญาณ "AI ปล่อยห้อง" ใช้ไม่ได้ในสนามจริง |
+| IG Inbox `1217981644879628` | ไม่พบ echo ใน 30 วัน — IG ยังไม่มีเคสยืนยัน (ตรง Q-24) |
+
+**ผลต่อสูตร (TFR-002 / S-3) — ถอยตามที่ Scope อนุญาต:**
+1. เงื่อนไข "ผู้ถือไม่ใช่เรา (จาก handover)" ใช้ไม่ได้ เพราะ Meta ไม่ส่ง handover ตอน AI ตอบ ⇒ **ตัดสินจาก echo ล่าสุดที่ไม่ใช่ของเราอย่างเดียว:** echo ฝั่งร้านล่าสุดของห้อง (ทุกแอป รวมของเรา) เป็นของ Page Inbox + `ai_generated=true` และอายุ < 24 ชม. ⇒ ถือ · ถ้า echo ล่าสุดเป็นของเรา หรือ Page Inbox ไม่มีธง AI (คนพิมพ์ใน Business Suite) ⇒ ไม่ถือ
+2. app_id อย่างเดียวจะติดป้ายผิด ~72% ของห้องที่ Page Inbox ตอบ (3,824 vs 1,492) — ยืนยันว่าต้องใช้ `ai_generated`
+3. `admin_text` ไม่ปรากฏ ⇒ คอลัมน์ `echoHasAdminText` / `metaForeignEchoAdminText` ยังเก็บได้ (ราคาถูก) แต่สูตรไม่พึ่ง
+4. ingest ต้องอ่าน path `payload.message.*` ตาม shape ที่เก็บจริง (ตรวจกับ `webhook-types.ts` ตอน T10)
