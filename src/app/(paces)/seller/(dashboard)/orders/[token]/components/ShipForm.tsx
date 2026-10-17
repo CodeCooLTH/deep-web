@@ -19,15 +19,10 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
+import { COURIER_OPTIONS, providerToOptionLabel } from '@/lib/iship/courier'
 
-const CARRIERS = [
-  'Kerry Express',
-  'Flash Express',
-  'Thailand Post',
-  'J&T Express',
-  'DHL',
-  'อื่นๆ',
-]
+// ค่าที่เก็บลงฐานคือ label (เหมือนเดิม) — รายชื่อมาจาก COURIER_OPTIONS ที่เดียว (HR16)
+const CARRIERS = COURIER_OPTIONS.map((o) => o.label)
 
 const trackingSchema = yup.object({
   provider: yup.string().required('กรุณาเลือกขนส่ง'),
@@ -112,7 +107,7 @@ export default function ShipForm({
       // provider เติมเฉพาะเมื่อชื่อตรงกับตัวเลือกในลิสต์พอดี — ชื่อขนส่งฝั่ง iShip
       // สะกดไม่เหมือนกันเสมอไป (เช่น "KEX Express" กับ "Kerry Express")
       // เติมค่าที่ไม่มีในลิสต์เข้าไปจะทำให้ select ว่างเปล่าแต่ validation ผ่าน = สับสนกว่าเดิม
-      provider: initialProvider && CARRIERS.includes(initialProvider) ? initialProvider : '',
+      provider: providerToOptionLabel(initialProvider),
       trackingNo: initialTrackingNo ?? '',
     },
   })

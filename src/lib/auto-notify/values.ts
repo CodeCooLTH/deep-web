@@ -1,4 +1,5 @@
 // feature 00078 — ประกอบค่าตัวแปรเทมเพลตจากข้อมูลออเดอร์ (pure: ผู้เรียกอ่านฐานแล้วส่ง snapshot เข้ามา) · HR16
+import { isOtherCourier } from '@/lib/iship/courier'
 import { formatBaht } from '@/lib/format-money'
 import { formatDate, formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { publicOrderUrl } from '@/lib/public-order-url'
@@ -81,7 +82,7 @@ export function buildTemplateValues(kind: AutoNotifyKind, s: AutoNotifySnapshot)
       return {
         ...common,
         // "อื่นๆ" ไม่บอกอะไรลูกค้า → ว่าง → บรรทัดขนส่งถูกตัด (พฤติกรรมเดิมของ trackingMessage)
-        ขนส่ง: courier === 'อื่นๆ' ? '' : courier,
+        ขนส่ง: isOtherCourier(courier) ? '' : courier,
         เลขพัสดุ: s.trackingNo?.trim() ?? '',
         ลิงก์ติดตามพัสดุ: s.trackingLink?.trim() ?? '',
         ลิงก์คำสั่งซื้อ: url,

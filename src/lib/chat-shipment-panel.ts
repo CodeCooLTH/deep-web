@@ -4,6 +4,7 @@
  */
 
 import { hasLiveIshipShipment } from './iship/live-shipment'
+import { isOtherCourier } from './iship/courier'
 import { ORDER_STATUS_META } from './order-display'
 
 export type IShipState = 'READY' | 'NOT_CONNECTED' | 'DISCONNECTED'
@@ -59,7 +60,7 @@ export function orderStatusLabel(status: string): string {
  * หน้าติดตามพัสดุสาธารณะของ iShip — hardcode โดยเจตนา (ลูกค้าปลายทางกดเปิด ต้องเป็น production
  * เสมอ ไม่ผูกกับ env ISHIP_BASE_URL ที่ไว้สลับไประบบทดสอบ)
  */
-const trackingUrl = (trackingNo: string) =>
+export const trackingUrl = (trackingNo: string) =>
   `https://app.iship.cloud/tracking?track=${encodeURIComponent(trackingNo)}`
 
 export type TrackingMessageMode = 'ISHIP' | 'MANUAL'
@@ -81,7 +82,7 @@ export function trackingMessage(
   const lines: string[] = []
   const name = courierName?.trim()
   if (mode === 'MANUAL') {
-    if (name && name !== 'อื่นๆ') lines.push(`จัดส่งด้วย ${name}`)
+    if (name && !isOtherCourier(name)) lines.push(`จัดส่งด้วย ${name}`)
     // preview ที่ยังไม่ได้เลือกขนส่ง — ตัวยึดตำแหน่ง (เลือก "อื่นๆ" แล้วตัดบรรทัดเหมือนข้อความจริง)
     else if (trackingNo === null && !name) lines.push('จัดส่งด้วย (ขนส่งที่เลือก)')
     lines.push(`เลขติดตามพัสดุ: ${trackingNo ?? '(เลขที่กรอกด้านบน)'}`)
