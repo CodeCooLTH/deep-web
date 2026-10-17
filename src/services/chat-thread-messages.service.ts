@@ -1,4 +1,5 @@
 import { isStickerRawMessage } from '@/lib/chat-sticker'
+import { soloProductRefId } from '@/lib/chat-product-ref'
 import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { prisma } from '@/lib/prisma'
 import { chatCardPreview } from '@/lib/chat-vocab'
@@ -416,14 +417,19 @@ export async function getThreadMessagesPage(params: {
       // reply/quote — ข้อความ "นี้เอง" อ้างอิงได้ไหมถ้าถูกตอบทับต่อ (composer ใช้ตัดสินก่อนกดส่ง
       // ผ่าน replyingTo.quotable — ดู isQuotable ด้านบนไฟล์นี้)
       quotable: isQuotable((m as { rawMessage?: unknown }).rawMessage),
-      productCard:
-        m.type === "PRODUCT" && m.productRefId && productMap.has(m.productRefId)
+      productCard: (() => {
+        if (m.type !== "PRODUCT") return null;
+        // การ์ดใบเดียวที่ส่งออก LINE/Meta ถูกเก็บเป็น productRefIds=[id] (productRefId ว่าง) — ต้องอ่านทั้งสองช่อง
+        // ไม่งั้นการ์ดที่ลูกค้าได้ครบกลับขึ้น "ไม่พบสินค้านี้แล้ว" ฝั่งผู้ขาย (user เจอบน prod 2026-10-17)
+        const soloId = soloProductRefId(m.productRefId, (m as { productRefIds?: string[] }).productRefIds);
+        return soloId && productMap.has(soloId)
           ? (() => {
-              const p = productMap.get(m.productRefId!)!;
+              const p = productMap.get(soloId)!;
               // isActive=false ยัง join ได้ (FR-CTX-08 "หยุดขายแล้ว" ตัดสินใจที่ UI); ลบจริง (ไม่พบใน map) = null
               return { id: p.id, name: p.name, price: p.price, imageFileId: p.images[0] ?? null, isActive: p.isActive };
             })()
-          : null,
+          : null;
+      })(),
       /**
        * การ์ดหลายชิ้น (ส่วนขยาย 2026-08-11) — `null` เมื่อข้อความนี้เป็นการ์ดใบเดียว (ใช้ productCard เดิม)
        *

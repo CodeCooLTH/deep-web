@@ -41,6 +41,12 @@ export interface MetaProductCardInput {
   /** URL รูป 1.91:1 ที่ Meta ดึงได้ — `null` = การ์ดไม่มีรูป */
   imageUrl: string | null
   isActive: boolean
+  /**
+   * URL ถาวรของรูปเต็ม (`/api/files/{id}` สาธารณะ) ให้ลูกค้ากดการ์ดแล้วเปิดดูรูปได้ — `imageUrl` ข้างบน
+   * เป็นลิงก์ลงชื่อ 1 ชม. ใช้ได้แค่ตอน Meta ดึงรูปครั้งแรก กดทีหลังจะหมดอายุ (user เจอ 2026-10-17)
+   * `null`/ไม่ส่ง = การ์ดกดไม่ได้เหมือนเดิม
+   */
+  tapUrl?: string | null
 }
 
 /** เพดานจำนวนการ์ดต่อข้อความของ Meta — ตัวเลขสำหรับ "แบ่งกี่ข้อความ" อยู่ที่
@@ -59,6 +65,7 @@ function toElement(input: MetaProductCardInput): Record<string, unknown> {
   }
   // ไม่ใส่คีย์ image_url เลยเมื่อไม่มีรูป — ส่งค่าว่างไป Meta ตีเป็น payload ผิดรูปแล้วตกทั้งข้อความ
   if (input.imageUrl) element.image_url = input.imageUrl
+  if (input.tapUrl) element.default_action = { type: 'web_url', url: input.tapUrl }
   return element
 }
 
