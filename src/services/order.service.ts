@@ -23,6 +23,8 @@ import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
+import { normalizeTrackingKey } from "@/lib/auto-notify/ledger";
 import { orderDateRejectReason } from "@/lib/order-date-window";
 import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
 // feature 00062 (U11) — override fulfillmentMode='PICKUP' + freeze payoutSnapshot (TD-001/TFR-009)
@@ -636,9 +638,12 @@ export async function createOrder(shopId: string, data: {
   // retry อยู่ใน tx เดิมจะ fail ทันทีด้วย aborted-transaction error ไม่ใช่ retry จริง
   // แก้โดยเปิด $transaction ใหม่ทั้งก้อนทุก attempt (รวม stock-deduct ด้วย — ปลอดภัยเพราะ
   // attempt ที่ fail จะ rollback หมดอัตโนมัติ, attempt ถัดไป re-read stock สดใหม่)
+  // 00078 — ledgerId ของแจ้งลูกค้าอัตโนมัติ: ประกาศนอก loop, รีเซ็ตทุก attempt (attempt ที่ rollback ต้องไม่ทิ้งค่าค้าง)
+  let ledgerId: string | null = null;
   for (let attempt = 0; attempt < 5; attempt++) {
+    ledgerId = null;
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         // Inventory Add-on hook — 1 indexed lookup, short-circuit สำหรับ shop ที่ไม่มี
         // entitlement ACTIVE (ส่วนใหญ่) → ไม่ query product/stock เพิ่มเลย (zero regression)
         const entitlement = await tx.inventoryEntitlement.findUnique({
@@ -782,8 +787,24 @@ export async function createOrder(shopId: string, data: {
           });
         }
 
+        // 00078 — จองเจตนาแจ้งลูกค้าใน tx เดียวกัน (ล้ม = null ไม่พางานหลักล้ม) · มีนัด = SERVICE_BOOKED, ไม่มี = ORDER_SUMMARY
+        // ชนิดที่ vertical ไม่รองรับ eligibility ตัดเอง · createdAt = วันที่ผู้ขายระบุ (D-13 ตัดสินแบบ "ต่างวันไทย")
+        if (order.conversationId) {
+          ledgerId = await reserveAutoNotifyIntent(tx, {
+            shopId,
+            orderId: order.id,
+            conversationId: order.conversationId,
+            kind: appointmentResource && data.appointment ? "SERVICE_BOOKED" : "ORDER_SUMMARY",
+            isDryRun: order.isDryRun,
+            keyedInAt,
+            createdAtInput: orderCreatedAt ?? null,
+          });
+        }
+
         return order;
       });
+      dispatchAutoNotifyAfterCommit(ledgerId);
+      return created;
     } catch (e) {
       // P2002 = unique violation (ชน shortCode) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่น
       // (รวม OutOfStockError) throw ทันทีไม่ retry
@@ -888,7 +909,8 @@ async function promoteDraftCore(
   }
 
   // ── ในทรานแซกชัน ────────────────────────────────────────────────────────────────
-  return prisma.$transaction(async (tx) => {
+  let ledgerId: string | null = null;
+  const promoted = await prisma.$transaction(async (tx) => {
     const existing = await tx.order.findFirst({
       where: { publicToken, shopId },
       select: { id: true, status: true, publicToken: true, createdAt: true, conversationId: true, isDryRun: true },
@@ -1010,8 +1032,24 @@ async function promoteDraftCore(
 
     // 🛑 ไม่มีบล็อก appointment — ฟีเจอร์ 00061 จำกัด ONLINE_SALES ซึ่งไม่มีแนวคิดนัด
     //    **ตัดทิ้งโดยตั้งใจ ไม่ใช่ลืม** (ถ้าวันหนึ่งขยายไป SERVICE_QUEUE ต้องมาเติมที่นี่)
+
+    // 00078 — ร่างกลายเป็นออเดอร์จริง = จังหวะ "ตอนสร้าง" (ใช้ห้องของแถวที่ผ่าน WHERE shopId แล้ว)
+    // createdAtInput = เฉพาะวันที่ที่ผู้ขายส่งมาเอง — createdAt ของร่างเป็นเวลาที่ระบบสร้างร่าง ไม่ใช่ค่าที่ผู้ขายคีย์ (ไม่นับย้อนหลัง)
+    if (existing.conversationId) {
+      ledgerId = await reserveAutoNotifyIntent(tx, {
+        shopId,
+        orderId: existing.id,
+        conversationId: existing.conversationId,
+        kind: "ORDER_SUMMARY",
+        isDryRun: existing.isDryRun,
+        keyedInAt,
+        createdAtInput: data.createdAt ? new Date(data.createdAt) : null,
+      });
+    }
     return order;
   });
+  dispatchAutoNotifyAfterCommit(ledgerId);
+  return promoted;
 }
 
 /** เลื่อนขั้นร่างด้วยมือจากฟอร์มแก้ไข — อนุญาต Quick-Create (มนุษย์กรอกเอง) */
@@ -1545,7 +1583,8 @@ export async function shipOrder(
     throw new Error("ออเดอร์นี้ไม่ต้องจัดส่ง");
   }
   assertTransition(order.status, "SHIPPED");
-  return prisma.$transaction(async (tx) => {
+  let ledgerId: string | null = null;
+  const shipped = await prisma.$transaction(async (tx) => {
     await tx.shipmentTracking.create({
       data: {
         orderId: order.id,
@@ -1561,8 +1600,13 @@ export async function shipOrder(
       actorUserId: actorUserId ?? null,
       meta: { provider: data.provider },
     });
-    return tx.order.update({ where: { publicToken }, data: { status: "SHIPPED" } });
+    const updated = await tx.order.update({ where: { publicToken }, data: { status: "SHIPPED" } });
+    // 00078 — จองหลังสถานะเป็น SHIPPED (eligibility อ่านสถานะสด) · ล้ม = null
+    ledgerId = await reserveTrackingNotice(tx, order.id, data.trackingNo);
+    return updated;
   });
+  dispatchAutoNotifyAfterCommit(ledgerId);
+  return shipped;
 }
 
 // S-12 — seller พิมพ์เลขพัสดุผิดหลังกด "แจ้งจัดส่ง" แล้วแก้ไม่ได้ (shipOrder ใช้ไม่ได้ซ้ำ:
@@ -1615,7 +1659,8 @@ export async function updateShipmentTracking(
 
   // feature 00031 — การแก้เลข/ขนส่งคือการ "แจ้งเลขพัสดุ" รอบใหม่ของออเดอร์เดิม
   // บันทึกเป็น TRACKING_ADDED ใน tx เดียวกัน (ค่าใหม่คือความจริงล่าสุดที่ผู้ซื้อจะได้เห็น)
-  return prisma.$transaction(async (tx) => {
+  let ledgerId: string | null = null;
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.shipmentTracking.update({
       where: { orderId: order.id },
       data: {
@@ -1630,8 +1675,14 @@ export async function updateShipmentTracking(
       actorUserId: actorUserId ?? null,
       meta: { provider: data.provider },
     });
+    // 00078 — แจ้งเฉพาะเมื่อเลข (หลัง normalize) เปลี่ยนจริง · เลขเดิมแก้แค่ขนส่ง/ค่าส่ง = ไม่แจ้ง
+    if (normalizeTrackingKey(data.trackingNo) !== normalizeTrackingKey(order.shipmentTracking!.trackingNo)) {
+      ledgerId = await reserveTrackingNotice(tx, order.id, data.trackingNo);
+    }
     return updated;
   });
+  dispatchAutoNotifyAfterCommit(ledgerId);
+  return result;
 }
 
 // 00078 D06 — ออเดอร์ที่ยังไม่ส่งออกจริง (ร่าง) หรือถูกยกเลิก ไม่มีค่าส่งให้บันทึก

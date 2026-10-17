@@ -26,6 +26,7 @@ import { recordOrderEventSafe } from '@/services/order-event.service'
 import { composeNotice, externalCardParts } from '@/services/auto-notify-message.service'
 import { sendMessage } from '@/services/chat.service'
 import { enqueueOutbound, deliverRoom } from '@/services/chat-outbox.service'
+import { runAfterResponse } from '@/lib/run-after-response'
 
 type Tx = Prisma.TransactionClient
 
@@ -181,6 +182,38 @@ export async function reserveAutoNotifyIntent(tx: Tx, p: ReserveInput): Promise<
     console.error('[auto-notify] reserve ล้มเหลว (งานหลักไม่กระทบ)', { kind: p.kind, orderId: p.orderId, err: errTag(e) })
     return null
   }
+}
+
+/**
+ * จุดเขียนเลขพัสดุ (order/iship service) — จอง TRACKING จากแถวออเดอร์เอง (ห้องผูกที่ Order.conversationId เท่านั้น · BR-CS-S01)
+ * ไม่มีห้อง = ไม่แตะ ledger เลย · ล้ม = ตกเป็น null ตาม reserveAutoNotifyIntent (SAVEPOINT)
+ */
+export async function reserveTrackingNotice(tx: Tx, orderId: string, trackingNo: string): Promise<string | null> {
+  // การอ่านต้องอยู่ใน SAVEPOINT ด้วย — query ที่ล้มนอก savepoint ทำให้ Postgres abort ทั้ง tx แล้ว commit ของงานหลักล้มตาม
+  let o: { shopId: string; conversationId: string | null; isDryRun: boolean } | null
+  await tx.$executeRawUnsafe('SAVEPOINT auto_notify_read')
+  try {
+    o = await tx.order.findUnique({ where: { id: orderId }, select: { shopId: true, conversationId: true, isDryRun: true } })
+    await tx.$executeRawUnsafe('RELEASE SAVEPOINT auto_notify_read')
+  } catch (e) {
+    try {
+      await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT auto_notify_read')
+    } catch {
+      // tx พังเกินกู้ — ผู้เรียกเจอเองตอน commit
+    }
+    console.error('[auto-notify] อ่านออเดอร์ก่อนจองล้มเหลว (งานหลักไม่กระทบ)', { orderId, err: errTag(e) })
+    return null
+  }
+  if (!o?.conversationId) return null
+  return reserveAutoNotifyIntent(tx, {
+    shopId: o.shopId, orderId, conversationId: o.conversationId, kind: 'TRACKING',
+    valueKey: trackingNo, isDryRun: o.isDryRun, keyedInAt: new Date(),
+  })
+}
+
+/** หลัง COMMIT เท่านั้น — dispatch ไม่ throw · พลาดแล้ว sweeper เก็บ INTENT ที่ค้าง */
+export function dispatchAutoNotifyAfterCommit(ledgerId: string | null | undefined): void {
+  if (ledgerId) runAfterResponse(() => dispatchAutoNotify(ledgerId))
 }
 
 // ══════════════════════════════════════════════════════════════════════════
