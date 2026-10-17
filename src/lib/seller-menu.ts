@@ -1069,6 +1069,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-order-agent': m.settingsOrderAgent,
     'seller:settings-comment-reply': m.settingsCommentReply,
     'seller:settings-chatbot': m.settingsChatbot,
+    'seller:settings-auto-notify': m.settingsAutoNotify,
     'seller:reviews': m.reviews,
     'seller:verification': m.verification,
     'seller:badges': m.badges,

@@ -168,7 +168,12 @@ async function reserveInner(tx: Tx, p: ReserveInput): Promise<string | null> {
  * ล้มเหลวทุกแบบ = ROLLBACK TO SAVEPOINT + log แล้วคืน null: ห้ามพางานหลัก (ออเดอร์/เลข/ปิดงาน) ล้มตาม (BR-CS-C13)
  */
 export async function reserveAutoNotifyIntent(tx: Tx, p: ReserveInput): Promise<string | null> {
-  await tx.$executeRawUnsafe('SAVEPOINT auto_notify_reserve')
+  try {
+    await tx.$executeRawUnsafe('SAVEPOINT auto_notify_reserve')
+  } catch (e) {
+    console.error('[auto-notify] เปิด savepoint ไม่ได้ (งานหลักไม่กระทบ)', { kind: p.kind, orderId: p.orderId, err: errTag(e) })
+    return null
+  }
   try {
     const id = await reserveInner(tx, p)
     await tx.$executeRawUnsafe('RELEASE SAVEPOINT auto_notify_reserve')
@@ -191,7 +196,12 @@ export async function reserveAutoNotifyIntent(tx: Tx, p: ReserveInput): Promise<
 export async function reserveTrackingNotice(tx: Tx, orderId: string, trackingNo: string): Promise<string | null> {
   // การอ่านต้องอยู่ใน SAVEPOINT ด้วย — query ที่ล้มนอก savepoint ทำให้ Postgres abort ทั้ง tx แล้ว commit ของงานหลักล้มตาม
   let o: { shopId: string; conversationId: string | null; isDryRun: boolean } | null
-  await tx.$executeRawUnsafe('SAVEPOINT auto_notify_read')
+  try {
+    await tx.$executeRawUnsafe('SAVEPOINT auto_notify_read')
+  } catch (e) {
+    console.error('[auto-notify] เปิด savepoint ไม่ได้ (งานหลักไม่กระทบ)', { orderId, err: errTag(e) })
+    return null
+  }
   try {
     o = await tx.order.findUnique({ where: { id: orderId }, select: { shopId: true, conversationId: true, isDryRun: true } })
     await tx.$executeRawUnsafe('RELEASE SAVEPOINT auto_notify_read')
