@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { resolveOutboundShippingCost } from '@/lib/shipping-cost'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
@@ -58,6 +59,8 @@ export interface PnlReport {
   shippingCost: number
   /** ใบที่ค่าส่งยังเป็นราคาประมาณ (ขนส่งยังไม่ชั่ง) — ต้องติดป้าย ห้ามแสดงเงียบ ๆ */
   shippingPendingCount: number
+  /** ใบส่งเองที่ร้านยังไม่กรอกค่าส่ง (00078) — คนละความหมายกับราคาประมาณ จึงแยกนับ */
+  shippingMissingCount: number
 }
 
 /** โครง select เดียวกันทั้งช่วงปัจจุบันและช่วงก่อนหน้า — กันสูตรสองชุดหลุดจากกัน */
@@ -72,6 +75,8 @@ const ORDER_SELECT = {
     take: 1,
     select: { carrierPrice: true, estimatedPrice: true, codFee: true },
   },
+  // ต้นทุนส่งเองที่ร้านกรอก (00078 TD-009) — ออเดอร์ส่งเองไม่มีใบ iShip
+  shipmentTracking: { select: { outboundShippingCost: true } },
   // feature 00073 — ร้านบริการ: งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (ร้านอื่นไม่มีค่าเหล่านี้ ⇒ ไม่เข้ากิ่ง)
   appointmentStatus: true,
 } as const
@@ -90,6 +95,7 @@ type PnlOrder = {
   totalAmount: unknown
   items: { cost: unknown; qty: number }[]
   shipments: { carrierPrice: unknown; estimatedPrice: unknown; codFee: unknown }[]
+  shipmentTracking?: { outboundShippingCost: unknown } | null
   appointmentStatus: string | null
   /** มีเฉพาะร้านบริการ (SERVICE_ORDER_SELECT) */
   payments?: { amount: unknown; voidedAt: Date | null }[]
@@ -100,8 +106,8 @@ function sumOrders(
   orders: PnlOrder[],
   returns: Map<string, ReturnAdjustment>,
   isServiceShop: boolean,
-): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number } {
-  let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0
+): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number; shippingMissing: number } {
+  let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0, shippingMissing = 0
   for (const o of orders) {
     // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ)
     if (isServiceShop && isServiceNoShow(o)) {
@@ -117,14 +123,16 @@ function sumOrders(
       orderCogs += Number(item.cost) * item.qty
     }
     cogs += costNetOfReturns(orderCogs, adj)
-    // ค่าส่งขาไป: ราคาจริง → ราคาประมาณ + COD fee (กติกาเดียวกับ /sales · ชีต — D-EXT-10)
+    // ค่าส่งขาไป: ตัวกลาง resolveOutboundShippingCost (กติกาเดียวกับ /sales · ชีต — D-EXT-10 · 00078)
     const sp = o.shipments[0]
-    if (sp) {
-      shipping += Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
-      if (sp.carrierPrice == null) shippingPending += 1
+    if (sp || o.shipmentTracking) {
+      const c = resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost })
+      shipping += c.amount
+      if (c.pendingReason === 'ESTIMATE') shippingPending += 1
+      else if (c.pendingReason === 'MISSING') shippingMissing += 1
     }
   }
-  return { revenue, cogs, hasMissingCost, shipping, shippingPending }
+  return { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing }
 }
 
 export async function getPnlReport(
@@ -200,7 +208,7 @@ export async function getPnlReport(
     newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
 
-  const { revenue, cogs, hasMissingCost, shipping, shippingPending } = sumOrders(orders, returnAdj, newRules)
+  const { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing } = sumOrders(orders, returnAdj, newRules)
   const grossProfit = round2(revenue - cogs)
 
   /**
@@ -256,5 +264,6 @@ export async function getPnlReport(
     returnShippingUnknownCount: returnCost.unknownCount,
     shippingCost,
     shippingPendingCount: newRules ? shippingPending : 0,
+    shippingMissingCount: newRules ? shippingMissing : 0,
   }
 }

@@ -20,6 +20,7 @@ import {
   serviceUnclosedOrderWhere,
 } from '@/lib/order-revenue'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import { resolveOutboundShippingCost } from '@/lib/shipping-cost'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
@@ -222,6 +223,8 @@ export interface SalesSeries {
   pendingShipmentValues?: number[]
   /** จำนวนพัสดุทั้งช่วงที่ยังไม่ถูกคิดเงิน — > 0 = ตัวเลขค่าส่ง/กำไรทั้งหน้าเป็นเพดานบน */
   pendingShipmentCount?: number
+  /** ใบส่งเองที่ร้านยังไม่กรอกต้นทุนค่าส่ง (00078) — คนละความหมายกับราคาประมาณ · > 0 = ค่าส่งรวมยังไม่ครบ */
+  shippingMissingCount?: number
   /** กำไรสุทธิรวมทั้งช่วง */
   netProfit?: number
 }
@@ -347,6 +350,8 @@ export async function getSalesSeries(
             codFee: true,
           },
         },
+        // ต้นทุนส่งเองที่ร้านกรอก (00078 TD-009) — ออเดอร์ส่งเองไม่มีแถว OrderShipment
+        shipmentTracking: { select: { outboundShippingCost: true } },
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
@@ -415,6 +420,7 @@ export async function getSalesSeries(
   const shippingConfirmedValues = new Array<number>(bucketCount).fill(0)
   /** พัสดุที่ยังไม่ถูกคิดเงินต่อ bucket — ทำให้ยอดค่าส่งของ bucket นั้นเป็นแค่บางส่วน */
   const pendingShipmentValues = new Array<number>(bucketCount).fill(0)
+  let shippingMissingCount = 0
   /* เงินรับจริงของร้านบริการ — คู่กับ `values` (นับทุกใบที่ไม่ถูกยกเลิก) ไม่ใช่คู่กับ
      `confirmedValues` เพราะร้านเก็บมัดจำตั้งแต่ก่อนงานจบ ตัวหารกับตัวตั้งต้องเป็นชุดเดียวกัน */
   const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
@@ -533,23 +539,21 @@ export async function getSalesSeries(
           (sp) => sp.status === 'CREATED' && !sp.isDryRun && (!newRules || sp.direction === FORWARD_SHIPMENT),
         )
         let rowShipping = 0
-        if (activeShipment) {
+        const tracking = (r as { shipmentTracking?: { outboundShippingCost: unknown } | null }).shipmentTracking
+        if (activeShipment || tracking) {
           /**
-           * ลำดับความน่าเชื่อถือ: ราคาจริง → ราคาประมาณตอนสร้าง → ไม่มีเลย
+           * ลำดับความน่าเชื่อถือ (ตัวกลาง resolveOutboundShippingCost — SSOT): ราคาจริง → ราคาประมาณตอนสร้าง
+           * → ต้นทุนที่ร้านกรอกเอง → ยังไม่ระบุ (pending)
            *
            * iShip ไม่เปิดราคาจริงจนกว่าขนส่งจะเข้ารับและชั่ง (ใบ status=1 คืน discount_price=0)
-           * ระหว่างนั้นใช้ค่าประมาณไปก่อนดีกว่าปล่อยว่าง — แต่ **ต้องนับว่ายังไม่ใช่ตัวจริง**
-           * (`pendingShipmentValues`) เพราะค่าประมาณคิดจากน้ำหนักที่ร้านแจ้ง ซึ่งมักน้อยกว่า
-           * ที่ชั่งได้จริง (92/151 ใบ) ตัวเลขจึงเป็นเพดานล่าง ไม่ใช่คำตอบสุดท้าย
-           *
-           * `codFee` บวกได้เสมอไม่ว่าราคาส่งจะมาหรือยัง — iShip คิดจาก % ของยอด COD จึงรู้
-           * ตั้งแต่วินาทีที่สร้างพัสดุ (ยืนยัน 2026-08-10: ใบ status=1 มี cod_fee=12.63 แล้ว)
+           * ค่าประมาณคิดจากน้ำหนักที่ร้านแจ้ง ซึ่งมักน้อยกว่าที่ชั่งได้จริง (92/151 ใบ) จึง **ต้องนับ pending**
+           * `codFee` บวกได้เสมอเมื่อมีใบ iShip — iShip คิดจาก % ของยอด COD รู้ตั้งแต่สร้างพัสดุ
            */
-          const price = activeShipment.carrierPrice ?? activeShipment.estimatedPrice
-          if (price != null) rowShipping += Number(price)
-          rowShipping += Number(activeShipment.codFee ?? 0)
+          const c = resolveOutboundShippingCost({ forward: activeShipment ?? null, manual: tracking?.outboundShippingCost })
+          rowShipping = c.amount
           shippingValues[idx] += rowShipping
-          if (activeShipment.carrierPrice == null) pendingShipmentValues[idx] += 1
+          if (c.pendingReason === 'MISSING') shippingMissingCount += 1
+          if (c.pendingReason === 'ESTIMATE') pendingShipmentValues[idx] += 1 // ป้าย "ประมาณ" เท่านั้น — ใบที่ยังไม่กรอกไม่ใช่ราคาประมาณ
         }
 
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
@@ -687,6 +691,7 @@ export async function getSalesSeries(
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalShipping: shippingValues.reduce((s, v) => s + v, 0),
     pendingShipmentCount: pendingShipmentValues.reduce((s, v) => s + v, 0),
+    shippingMissingCount,
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
     hasMissingCost,
     hasMissingCostConfirmed,

@@ -306,7 +306,7 @@ describe('ITEMS §17: expenseItems / needExpenseItems', () => {
     expect(f.items).toEqual([
       { key: 'RENT', label: 'ค่าเช่า', amount: 200 },
       { key: 'ADVERTISING', label: 'ค่าโฆษณา', amount: 100 },
-      { key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: 50 },
+      { key: 'SYS_SHIPPING', label: 'ค่าส่ง (จ่ายขนส่ง)', amount: 50 },
       { key: 'SYS_RETURN_SHIPPING', label: 'ค่าส่งขากลับของใบคืน', amount: 15 },
     ])
     expect(f.items!.reduce((a, i) => a + i.amount, 0)).toBe(f.expense)

@@ -343,6 +343,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/orders/[token]/send-sms/route.ts': { POST: 'O7', status: 'DECLARED' },
   'src/app/api/orders/[token]/ship/route.ts': { POST: 'S1', PATCH: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/shipment-evidence/route.ts': { GET: 'S1', status: 'DECLARED' },
+  'src/app/api/orders/[token]/shipping-cost/route.ts': { PATCH: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/slip/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/[token]/verify-phone/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/customers/route.ts': { GET: 'C1', status: 'DECLARED' },
