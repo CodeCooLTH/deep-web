@@ -44,7 +44,7 @@ import { useState, type ReactNode } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 
-export type ThreadChipTone = 'danger' | 'warning' | 'info' | 'order' | 'context'
+export type ThreadChipTone = 'danger' | 'warning' | 'info' | 'order' | 'context' | 'neutral'
 
 export interface ThreadChipItem {
   key: string
@@ -71,7 +71,7 @@ export interface ThreadChipItem {
 /** คำเตือนระดับห้อง — โทนสื่อความรุนแรง และมี `action` ที่เคยกดได้ทันทีก่อนยุบ */
 export interface ThreadStatusItem {
   key: string
-  tone: 'danger' | 'warning' | 'info'
+  tone: 'danger' | 'warning' | 'info' | 'neutral'
   icon: string
   short: string
   detail: ReactNode
@@ -101,6 +101,8 @@ const TONE_CLS: Record<ThreadChipTone, string> = {
   warning: 'bg-warning/15 text-warning-ink',
   info: 'bg-info/15 text-info-ink',
   order: 'bg-primary/15 text-primary-ink',
+  // 00078 — สถานะกลาง ๆ (Meta AI) เทาเข้ม ไม่ใช่คำเตือน/ไม่ใช่ข้อมูลลูกค้า · คลาสเดียวกับชิปในแถวรายการ (HR16)
+  neutral: 'bg-default-200 text-default-800',
   context: 'border-default-300 text-default-700 border bg-transparent',
 }
 

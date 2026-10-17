@@ -4,7 +4,7 @@ import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-messa
 import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { getRuleSetCache, setRuleSetCache } from '@/lib/auto-reply-cache'
-import type { SkipReason } from '@/lib/auto-reply-constants'
+import { AUTO_REPLY_KINDS, isSystemNoticeKind, type SkipReason } from '@/lib/auto-reply-constants'
 import { getConfig } from '@/services/auto-reply-config.service'
 import {
   matchKeywords,
@@ -642,7 +642,7 @@ export async function processPendingForConversation(conversationId: string, limi
  *
  * WARNING: งานที่ค้างสถานะ PROCESSING **ห้ามคืนเป็น PENDING โดยไม่ตรวจก่อน** (AC-017-03)
  * เพราะเคส "ส่งสำเร็จแล้วแต่เขียน DB ไม่สำเร็จ" จะทำให้ลูกค้าได้ข้อความสองครั้ง
- * ตรวจด้วยการหาข้อความฝั่งร้านที่ระบบเป็นผู้ส่ง (autoReplyKind != null) ที่เกิดหลังเวลา claim
+ * ตรวจด้วยการหาข้อความฝั่งร้านที่บอทเป็นผู้ส่ง (AUTO/AUTO_TEST) ที่เกิดหลังเวลา claim
  */
 export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } = {}) {
   const cutoff = new Date(Date.now() - STUCK_AFTER_MS)
@@ -668,7 +668,8 @@ export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } =
         where: {
           conversationId: j.conversationId,
           senderRole: 'SHOP',
-          autoReplyKind: { not: null },
+          // บอทตอบแชทเท่านั้น — AUTO_NOTICE (ข้อความระบบแจ้ง) ไม่ใช่คำตอบที่งานนี้ค้างรอ (00078 TC-101)
+          autoReplyKind: { in: [...AUTO_REPLY_KINDS] },
           ...(j.lockedAt ? { createdAt: { gte: j.lockedAt } } : {}),
         },
         select: { id: true },
@@ -723,7 +724,7 @@ export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } =
  */
 export async function enrichWithAutoReplyBadge<T extends { id: string }>(
   items: T[],
-): Promise<(T & { lastMessageAutoReplyKind: string | null; lastMessageIsAiEnhanced: boolean })[]> {
+): Promise<(T & { lastMessageAutoReplyKind: string | null; lastMessageIsAiEnhanced: boolean; lastMessageIsSystem: boolean })[]> {
   if (items.length === 0) return []
 
   const ids = items.map((i) => i.id)
@@ -749,10 +750,14 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
   const byConversation = new Map(rows.map((r) => [r.conversationId, r.autoReplyKind]))
   const viaByConversation = new Map(viaRows.map((r) => [r.conversationId, r.matchedVia]))
   return items.map((i) => {
-    const kind = byConversation.get(i.id) ?? null
+    // AUTO_NOTICE (ข้อความระบบแจ้ง) ไม่ใช่บอทตอบแชท → ไม่ติดป้าย DeepBot/DeepAI (00078 TC-102)
+    const raw = byConversation.get(i.id) ?? null
+    const kind = isSystemNoticeKind(raw) ? null : raw
     return {
       ...i,
       lastMessageAutoReplyKind: kind,
+      // ข้อความล่าสุดเป็นข้อความระบบแจ้ง (AUTO_NOTICE) — แถวต้องไม่ดูเหมือนลูกค้าพิมพ์ (preview-attribution.ts)
+      lastMessageIsSystem: isSystemNoticeKind(raw),
       // ต้องเช็ค kind ด้วย ไม่ใช่ดูแต่ matchedVia — เธรดที่ ChatBot เคยตอบเมื่อวาน แล้ววันนี้
       // พนักงานพิมพ์เอง ข้อความล่าสุดไม่ใช่ของบอทแล้ว ป้ายจึงต้องไม่ขึ้น
       lastMessageIsAiEnhanced: kind !== null && viaByConversation.get(i.id) === 'CHATBOT',

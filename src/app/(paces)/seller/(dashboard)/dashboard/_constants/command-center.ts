@@ -211,6 +211,8 @@ export type SalesSeries = {
   pendingShipmentValues?: number[]
   /** พัสดุทั้งช่วงที่ยังไม่ถูกคิดเงิน — > 0 = ตัวเลขค่าส่ง/กำไรทั้งหน้าเป็นเพดานบน */
   pendingShipmentCount?: number
+  /** ใบส่งเองที่ร้านยังไม่กรอกค่าส่ง — > 0 = ค่าส่งรวมยังไม่ครบ */
+  shippingMissingCount?: number
   netProfit?: number
 }
 

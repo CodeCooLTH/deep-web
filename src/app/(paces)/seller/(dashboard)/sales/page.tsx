@@ -45,6 +45,7 @@ import { SERVICE_REPORT_WORDS } from '@/lib/service-report/words'
 import ServiceFinanceChart from './components/ServiceFinanceChart'
 import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, serviceReportChart, serviceReportView, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
 import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
+import { resolveOutboundShippingCost } from '@/lib/shipping-cost'
 
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
 
@@ -355,8 +356,8 @@ export default async function SalesPage({
   const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
     if (o.status === 'CANCELLED' || !isSale(o)) return sum
     const sp = o.shipments?.[0]
-    if (!sp) return sum
-    return sum + Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
+    if (!sp && !o.shipmentTracking) return sum
+    return sum + resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost }).amount
   }, 0)
 
   // Build bucket maps
@@ -376,6 +377,8 @@ export default async function SalesPage({
   const shippingCostPerDay: Record<string, number> = {}
   /** พัสดุที่ยังไม่รู้ค่าส่งจริงต่อวัน — ทำให้กำไรของวันนั้นเป็นเพดานบน ต้องมีป้ายกำกับ */
   const pendingShipmentPerDay: Record<string, number> = {}
+  /** ใบส่งเองที่ร้านยังไม่กรอกค่าส่ง (00078) — แยกจากราคาประมาณ: ป้ายต่างกัน */
+  let shippingMissingCount = 0
   /** ยอดค่าธรรมเนียม COD ทั้งช่วง — ส่วนย่อยของค่าส่งข้างบน ใช้โชว์บนการ์ดเท่านั้น */
   let codFeeTotal = 0
   /** มีรายการที่ยืนยันแล้วแต่ยังไม่ตั้งต้นทุน — กำไร/อัตรากำไรเป็นเพดานบน (นิยามเดียวกับ isMissingCost) */
@@ -435,15 +438,15 @@ export default async function SalesPage({
        * ห้ามตีเป็น 0 (จะอ่านว่าส่งฟรี) และ `codFee` แยกก้อนกับค่าส่ง ไม่ทับซ้อนกัน
        */
       const shipment = o.shipments?.[0]
-      if (shipment) {
-        // ราคาจริงก่อน → ถ้ายังไม่มีใช้ราคาประมาณตอนสร้าง (iShip ไม่เปิดราคาจนกว่าจะชั่ง)
-        // ค่าธรรมเนียม COD บวกได้เสมอ — รู้ตั้งแต่วินาทีที่สร้างพัสดุ
-        const price = shipment.carrierPrice ?? shipment.estimatedPrice
-        shippingCostPerDay[day] =
-          (shippingCostPerDay[day] ?? 0) + Number(price ?? 0) + Number(shipment.codFee ?? 0)
-        codFeeTotal += Number(shipment.codFee ?? 0)
+      if (shipment || o.shipmentTracking) {
+        // ตัวกลาง resolveOutboundShippingCost (SSOT): ราคาจริง → ประมาณ → ที่ร้านกรอก → ยังไม่ระบุ(pending)
+        // ค่าธรรมเนียม COD บวกได้เสมอเมื่อมีใบ iShip — รู้ตั้งแต่วินาทีที่สร้างพัสดุ
+        const cost = resolveOutboundShippingCost({ forward: shipment ?? null, manual: o.shipmentTracking?.outboundShippingCost })
+        shippingCostPerDay[day] = (shippingCostPerDay[day] ?? 0) + cost.amount
+        codFeeTotal += Number(shipment?.codFee ?? 0)
         // ยังไม่ใช่ราคาจริง = ตัวเลขของวันนั้นยังขยับได้ ต้องมีป้ายกำกับ
-        if (shipment.carrierPrice == null) {
+        if (cost.pendingReason === 'MISSING') shippingMissingCount += 1
+        if (cost.pendingReason === 'ESTIMATE') {
           pendingShipmentPerDay[day] = (pendingShipmentPerDay[day] ?? 0) + 1
         }
       }
@@ -504,6 +507,7 @@ export default async function SalesPage({
       netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
       prevShippingCost: prevShippingTotal,
       pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
+      shippingMissingCount,
       // ป้าย "ไม่เกิน" เมื่อตั้งต้นทุนไม่ครบ — กติกาใหม่ ร้านบริการเท่านั้น (ร้านอื่นแสดงแบบเดิม)
       ...(newRules && { hasMissingCost }),
     }),

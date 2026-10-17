@@ -9,8 +9,9 @@
 import type { NextRequest } from "next/server";
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { ishipError, ishipJson, mapIShipError } from "@/lib/iship/route-helpers";
-import { getShipmentPanelOrReason, resolveOrderIdByToken } from "@/services/iship.service";
-import { toShipmentContextJson } from "@/lib/iship/context";
+import { getShipmentPanelState, resolveOrderIdByToken } from "@/services/iship.service";
+import { toShipmentContextJson, toShipmentViewJson, type ShipmentPanelJson } from "@/lib/iship/context";
+import { moneyLevel } from "@/lib/shop-permissions";
 import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
@@ -28,17 +29,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const id = orderId ?? (await resolveOrderIdByToken(guard.shopId, orderToken!));
-    const result = await getShipmentPanelOrReason(guard.shopId, id);
+    const result = await getShipmentPanelState(guard.shopId, id);
 
-    // ตอบ 404 แทนที่จะตอบ context เปล่า — ปุ่มไม่ควรโผล่ตั้งแต่แรกในกรณีนี้
-    //
-    // ส่ง "สาเหตุจริง" ออกไป ไม่ใช่ข้อความรวม: เดิมที่นี่ตอบ "คำสั่งซื้อนี้ไม่มีส่วนการจัดส่ง"
-    // เหมือนกันหมดทั้งกรณีร้านยังไม่ได้เชื่อม iShip กรณีหาออเดอร์ไม่เจอ และกรณีออเดอร์
-    // ไม่ต้องจัดส่ง — ร้านที่เจอข้อความนี้บนออเดอร์ที่มีที่อยู่จัดส่งอยู่ตรงหน้าจะไล่แก้ผิดจุด
+    // 404 เหลือเฉพาะ "ไม่พบคำสั่งซื้อ" กับ "ไม่ต้องจัดส่ง" (ปุ่มซ่อนอยู่แล้ว) — ร้านที่ไม่ได้เชื่อม
+    // iShip ตอบ 200 พร้อม ishipState เพราะหน้าต่างพัสดุยังใช้ "ส่งเอง" ได้ ไม่ใช่ทางตัน
     if ("reason" in result) {
       return ishipError("NOT_ELIGIBLE", result.reason, 404);
     }
-    return ishipJson(toShipmentContextJson(result.ctx));
+    const payload: ShipmentPanelJson =
+      result.ishipState === "READY"
+        ? {
+            ...toShipmentContextJson(result.ctx),
+            ishipState: "READY",
+            orderStatus: result.orderStatus,
+            manualShipment: result.manualShipment,
+          }
+        : { ...result, shipment: result.shipment ? toShipmentViewJson(result.shipment) : null };
+    // 00078: ช่องค่าส่งเป็นต้นทุนร้าน — บทบาทระดับเงิน NONE ไม่ได้ธง (fail-closed)
+    return ishipJson({ ...payload, canSetShipCost: moneyLevel(guard.effRoles) !== "NONE" });
   } catch (err) {
     return mapIShipError(err);
   }

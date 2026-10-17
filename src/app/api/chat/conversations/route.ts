@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import { ourMetaAppId } from "@/lib/facebook/app-id";
+import { withMetaAiHold } from "@/lib/meta-ai-holder";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -330,7 +332,10 @@ export async function GET(request: NextRequest) {
     const withDraft = withFollowUp.map((c) => ({ ...c, draftOrderCount: draftMap.get(c.id) ?? 0 }));
     // กองรูปแอดมินที่ตอบ (user สั่ง 2026-09-10) — enrich ทั้ง 2 ทางเหมือนตัวอื่นทุกตัว
     // (RSC อยู่ที่ inbox/page.tsx) ทำทางเดียว = กองรูปไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่
-    const items = await enrichWithThreadAgents(withDraft);
+    // 00078 TFR-003: คอลัมน์ meta* มากับ findMany เดิมอยู่แล้ว (ไม่มี query เพิ่มต่อแถว) — คำนวณเป็น primitive
+    // ให้ client เทียบกับ nowBucket เอง · ตัดคอลัมน์ดิบออกไม่ให้หลุดผ่าน spread
+    const appId = ourMetaAppId();
+    const items = (await enrichWithThreadAgents(withDraft)).map((c) => withMetaAiHold(c, appId));
 
     // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
     //
@@ -383,6 +388,10 @@ export async function GET(request: NextRequest) {
     take: parsed.output.take,
   });
   // B1: buyer เห็น counterparty = shop identity
-  const items = await enrichWithShopCounterparty(result.items);
+  // buyer ไม่ใช้สัญญาณ Meta AI — strip คอลัมน์ meta* (spread แถวเต็ม) ไม่ให้หลุดไป client
+  const items = (await enrichWithShopCounterparty(result.items)).map((c) => {
+    const { metaAiHoldUntilMs: _omit, ...rest } = withMetaAiHold(c, null);
+    return rest;
+  });
   return NextResponse.json({ items, nextCursor: result.nextCursor }, { headers: NO_STORE_HEADERS });
 }

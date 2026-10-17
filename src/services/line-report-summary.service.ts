@@ -15,7 +15,7 @@ import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
 import { resolveDateRange, shiftIsoDate } from '@/lib/date-range'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
-import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
+import { EXPENSE_CATEGORY_LABEL_TH, SYSTEM_SHIPPING_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import { resolveShopVertical } from '@/lib/lodging'
 import { round2 } from '@/lib/round2'
 import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend, type TopRow } from '@/lib/line-report/aggregate'
@@ -61,7 +61,7 @@ export function expenseItems(
     by.set(e.category, cur)
   }
   const out = [...by.values()]
-  if (report.shippingCost > 0) out.push({ key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: report.shippingCost })
+  if (report.shippingCost > 0) out.push({ key: 'SYS_SHIPPING', label: SYSTEM_SHIPPING_LABEL_TH, amount: report.shippingCost })
   if (report.returnShippingCost > 0) out.push({ key: 'SYS_RETURN_SHIPPING', label: 'ค่าส่งขากลับของใบคืน', amount: report.returnShippingCost })
   return out.map((i) => ({ ...i, amount: round2(i.amount) })).filter((i) => i.amount > 0).sort((a, b) => b.amount - a.amount)
 }

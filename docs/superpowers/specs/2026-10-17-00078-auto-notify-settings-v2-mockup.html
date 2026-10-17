@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00078 หน้าตั้งค่า "ส่งอัตโนมัติถึงลูกค้า" รอบ 2 — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โทเคนตามสเปก §1.1 — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'), purple: v('purple'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'), danger10: v('danger10'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'), primary5: v('primary5'),
+          'row-pinned': v('row-pinned'), 'row-active': v('row-active'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --purple:#7b70ef;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --danger10:#feeef2; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250); --primary5:rgb(244,248,252);
+    --row-pinned:rgb(250,250,253); --row-active:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd; --purple:#7b70ef;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --danger10:rgb(52,37,48); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55); --primary5:rgb(30,35,47);
+    --row-pinned:rgb(35,36,46); --row-active:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces — กล่องจริง 44×44 (เป้าแตะ) วาดราง 30×20 ด้วย ::before และปุ่มกลม ::after */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; width:44px; height:44px; margin:-12px -7px; background:transparent; border:0; cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:7px; top:12px; width:30px; height:20px; border-radius:9999px; background:var(--d200); border:1px solid var(--d300); box-sizing:border-box; }
+  .form-switch::after { content:""; position:absolute; left:11px; top:16px; width:12px; height:12px; border-radius:9999px; background:var(--knob); transition:transform .15s; }
+  .form-switch:checked::before { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::after { background:#fff; transform:translateX(14px); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  .form-input { min-height:44px; }
+  .form-checkbox { appearance:none; width:16px; height:16px; border:1px solid var(--d300); border-radius:4px; background:var(--card); flex-shrink:0; }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .note li { margin-top:2px; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .rows > * + * { border-top:1px dashed var(--d300); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+  /* .badge ของ Paces (_badge.css) + text-2xs ทับขนาด */
+  .badge { display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; gap:.25rem;
+    border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; }
+  .shadow-theme { box-shadow: var(--shadow); }
+  .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    border-bottom:1px dashed var(--d300); padding:15px 20px; }
+  .card-title { font-size:15px; font-weight:500; color:var(--body-color); }
+  .card-body { padding:20px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px;
+      border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+  }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .form-input { display:block; width:100%; border:1px solid var(--d300); border-radius:4px; background:var(--card); color:var(--d900); padding:.5rem .75rem; font-size:14px; }
+    .input-group { display:flex; width:100%; }
+    .input-group > .form-input { border-start-start-radius:0; border-end-start-radius:0; flex:1; min-width:0; }
+    .input-group-text { display:flex; align-items:center; border:1px solid var(--d300); border-inline-end:0; border-radius:4px 0 0 4px; background:var(--d100); padding:0 .75rem; font-size:14px; color:var(--d700); }
+    .input-group-text.end { border-inline-end:1px solid var(--d300); border-inline-start:0; border-radius:0 4px 4px 0; }
+    .input-group > .form-input.mid { border-radius:0; flex:none; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; }
+  }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="border-b border-d300" style="background:var(--card)">
+  <div class="flex items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00078 หน้าตั้งค่า "ส่งอัตโนมัติถึงลูกค้า" (รอบ polish) + ปุ่มเริ่มงาน + ช่องค่าส่ง · ฝั่งผู้ขาย ธีม Paces</h1>
+      <p class="text-xs text-d600">register = product · Restrained · สวิตช์ต่อเหตุการณ์ชั้นเดียว · ไม่มีโหมดทดสอบ · เพดานต่อวันเป็นบรรทัดเล็กท้ายการ์ด · ตัวแปรตาม PRD v0.2 §3.4 · ตัวแก้แบบ gochat-v3 · ไม่มีพรีวิว</p>
+    </div>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="tabler:${n}" width="${s}" height="${s}" class="${c}" aria-hidden="true"></iconify-icon>`
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const DEVS = [
+  { k: 'm', w: 390, label: 'Mobile 390' },
+  { k: 't', w: 834, label: 'Tablet 834' },
+  { k: 'd', w: 1440, label: 'Desktop 1440' },
+]
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},55%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function frame(dev, inner) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame" style="width:${dev.w}px">${inner}</div></div>`
+}
+function section(id, title, notes, body) {
+  return `<section id="${id}"><h2 class="mb-1 text-lg font-bold text-d900">${title}</h2>
+    <ul class="note mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>${body}</section>`
+}
+const row3 = (fn) => `<div class="flex items-start gap-10">${DEVS.map((d) => frame(d, fn(d))).join('')}</div>`
+
+// ---------- ตัวแปรตาม PRD v0.2 §3.4 ----------
+const COMMON = ['ชื่อร้าน', 'ชื่อลูกค้า', 'เลขคำสั่งซื้อ', 'วันที่สั่งซื้อ', 'รายการสินค้า', 'ยอดสุทธิ', 'ลิงก์คำสั่งซื้อ']
+const VARS = {
+  T1: COMMON,
+  T2: [...COMMON, 'ขนส่ง', 'เลขพัสดุ', 'ลิงก์ติดตามพัสดุ'],
+  T1S: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'วันเวลานัด', 'ลิงก์งาน'],
+  T3: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'วันเวลานัด', 'เวลาเริ่มงาน', 'ลิงก์งาน'],
+  T4: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'วันเวลานัด', 'เวลาเริ่มงาน', 'เวลาปิดงาน', 'ลิงก์งาน'],
+}
+const TPL = {
+  T1: 'สรุปยอดคำสั่งซื้อ\nชื่อลูกค้า: {ชื่อลูกค้า}\nวันที่สั่งซื้อ: {วันที่สั่งซื้อ}\n\nรายการสินค้า:\n{รายการสินค้า}\n\nยอดสุทธิ: {ยอดสุทธิ} บาท\n\nตรวจสอบสถานะคำสั่งซื้อได้ที่ {ลิงก์คำสั่งซื้อ}\nขอบคุณสำหรับการสั่งซื้อ',
+  T2: 'จัดส่งด้วย {ขนส่ง}\nเลขติดตามพัสดุ: {เลขพัสดุ}\nติดตามพัสดุ: {ลิงก์ติดตามพัสดุ}',
+  T3: 'ร้านเริ่มงาน {บริการ} แล้วเมื่อ {เวลาเริ่มงาน}\nดูรายละเอียด {ลิงก์งาน}',
+  BAD: 'สรุปยอดคำสั่งซื้อ\nชื่อลูกค้า: {ชื่อลูกค้า} รับส่วนลดพิเศษ {ส่วนลด} สำหรับคำสั่งซื้อถัดไป\nรายการสินค้า:\n{รายการสินค้า}\nยอดสุทธิ: {ยอดสุทธิ} บาท\n'
+    + 'ร้านของเราคัดสินค้าคุณภาพดี ติดตั้งโดยช่างผู้ชำนาญ รับประกันงานติดตั้งหนึ่งปีเต็ม หากมีปัญหาการใช้งานทักแชทร้านได้ทุกวันตั้งแต่เก้าโมงเช้าถึงหกโมงเย็น '.repeat(3)
+    + '\nตรวจสอบสถานะคำสั่งซื้อได้ที่ {ลิงก์คำสั่งซื้อ}',
+}
+let UID = 0
+const uid = (p) => `${p}-${++UID}`
+const firstLine = (t) => t.split('\n')[0]
+
+// ---------- ชิ้นส่วน ----------
+function editLink(ro) {
+  return `<button type="button" ${ro ? 'disabled' : ''} class="-my-3 inline-flex min-h-11 shrink-0 items-center gap-1 px-1 text-xs font-medium ${ro ? 'cursor-not-allowed text-d600' : 'text-d800'}">${IC('pencil', 14)}แก้ข้อความ</button>`
+}
+// แถวจังหวะ 2 บรรทัด
+function eventRow({ icon, title, on, ro, preview, sub, editorHtml }) {
+  const open = !!editorHtml
+  return `<li class="${open ? '-ms-5 border-s-[3px] border-primary ps-[17px]' : ''} py-3.5">
+    <div class="flex items-center gap-3">
+      ${IC(icon, 18, 'shrink-0 text-d500')}
+      <span class="min-w-0 truncate text-sm font-semibold text-d900">${title}</span>
+      <input type="checkbox" class="form-switch ms-auto" ${on ? 'checked' : ''} ${ro ? 'disabled' : ''} aria-label="${title}" />
+    </div>
+    ${sub ? `<p class="ms-[30px] mt-0.5 text-xs text-d600">${sub}</p>` : ''}
+    ${open ? editorHtml : `<div class="ms-[30px] mt-1 flex items-center gap-3"><p class="min-w-0 flex-1 truncate text-xs text-d600">${preview ? esc(preview) : 'ใช้ข้อความตั้งต้น'}</p>${editLink(ro)}</div>`}
+  </li>`
+}
+// มือถือ: ปุ่มเดียว "+ ตัวแปร" เปิดรายการ (แทนชิป 7 ใบ)
+const SAMPLE = { 'ชื่อร้าน': 'BT Premium Auto', 'ชื่อลูกค้า': 'สมชาย', 'เลขคำสั่งซื้อ': '#1024', 'วันที่สั่งซื้อ': '17-10-2569', 'รายการสินค้า': 'ชุดไฟหน้า Xenon 6000K และอีก 1 รายการ', 'ยอดสุทธิ': '฿2,490', 'ลิงก์คำสั่งซื้อ': 'deepthailand.app/o/…', 'ขนส่ง': 'Flash Express', 'เลขพัสดุ': 'TH012345678901234A', 'ลิงก์ติดตามพัสดุ': 'flashexpress.co.th/…', 'บริการ': 'เปลี่ยนชุดไฟหน้า Xenon', 'วันเวลานัด': 'ส. 18 ต.ค. 69 · 10:00 น.', 'เวลาเริ่มงาน': '10:12 น.', 'เวลาปิดงาน': '11:40 น.', 'ลิงก์งาน': 'deepthailand.app/o/…' }
+function varMenuBtn(t, open) {
+  const btn = `<button type="button" aria-haspopup="listbox" aria-expanded="${open}" class="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-primary px-3 text-sm font-medium text-primary-ink">${IC('plus', 14)}ตัวแปร</button>`
+  if (!open) return btn
+  return `${btn}<ul role="listbox" aria-label="เลือกตัวแปร" class="w-full overflow-hidden rounded-lg border border-d300 bg-card shadow-theme">${VARS[t].map((v, i) => `<li role="option" aria-selected="${i === 0}" class="flex min-h-11 items-center justify-between gap-3 border-t border-d200 px-3 first:border-t-0 ${i === 0 ? 'bg-d100' : ''}"><span class="shrink-0 whitespace-nowrap text-sm font-medium text-d900">${v}</span><span class="min-w-0 truncate text-xs text-d600">${SAMPLE[v] ?? ''}</span></li>`).join('')}</ul>`
+}
+function editor(dev, t, tpl, opts = {}) {
+  const len = [...tpl].length
+  const over = len > 500
+  const bad = over || !!opts.errors
+  const cnt = over ? 'text-danger-ink font-semibold' : len >= 450 ? 'text-warning-ink' : 'text-d500'
+  const known = new Set(VARS[t])
+  const body = esc(tpl).replace(/\{([^}]+)\}/g, (_, k) => known.has(k)
+    ? `<span contenteditable="false" aria-label="ตัวแปร ${k}" class="mx-0.5 inline-flex items-center rounded-full bg-primary10 px-2 py-px align-baseline text-[13px] font-semibold leading-snug text-primary-ink">${k}</span>`
+    : `<span contenteditable="false" aria-label="ตัวแปรที่ไม่รู้จัก ${k}" class="mx-0.5 inline-flex items-center gap-1 rounded-full bg-danger15 px-2 py-px align-baseline text-[13px] font-semibold leading-snug text-danger-ink">${IC('alert-circle', 12)}${k}</span>`)
+  const tap = dev.k === 'm' ? 'min-h-11' : ''
+  const chips = VARS[t].map((v) => `<button type="button" class="inline-flex ${tap} items-center gap-1 rounded-full border border-dashed border-primary px-2.5 py-1 text-xs font-medium text-primary-ink">${IC('plus', 12)}${v}</button>`).join('')
+  const samples = ['มาตรฐาน', 'สั้น กระชับ', 'เป็นกันเอง'].map((l) => `<button type="button" class="btn ${tap} border border-d300 px-3 py-1.5 text-xs text-d800">${l}</button>`).join('')
+  const errs = (opts.errors || []).map((e) => `<p class="flex items-start gap-1.5 text-xs text-danger-ink">${IC('alert-circle', 14, 'mt-0.5 shrink-0')}${e}</p>`).join('')
+  return `<div class="${dev.k === 'm' ? '' : 'ms-[30px]'} mt-3 space-y-3">
+    ${opts.sub2 ? `<p class="text-xs text-d600">${opts.sub2}</p>` : ''}
+    <div><p class="mb-1.5 text-xs text-d700">เริ่มจากตัวอย่าง</p><div class="flex flex-wrap gap-2">${samples}</div></div>
+    <div class="overflow-hidden rounded-xl border ${bad ? 'border-danger' : 'border-d300'} bg-card">
+      <div class="flex items-center gap-3 px-4 pt-3">
+        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-d100 text-d700">${IC('message', 18)}</span>
+        <div class="min-w-0 flex-1"><p class="text-sm font-bold text-d900">เนื้อความ</p><p class="text-xs text-d600">พิมพ์ { เพื่อแทรกตัวแปร</p></div>
+        <span class="self-start text-xs ${cnt}" aria-live="polite">${len}/500</span>
+      </div>
+      <div role="textbox" aria-multiline="true" aria-label="ข้อความที่ส่ง${opts.when ?? ''}" contenteditable="${opts.ro ? 'false' : 'true'}" class="min-h-32 whitespace-pre-line px-4 pb-4 pt-3 text-sm leading-relaxed text-d900 outline-none" style="overflow-wrap:anywhere">${body}</div>
+      <div class="flex flex-wrap items-center gap-2 border-t border-d200 px-3 py-2.5">
+        <button type="button" aria-label="แทรกอีโมจิ" class="flex ${dev.k === 'm' ? 'size-11' : 'size-9'} shrink-0 items-center justify-center rounded-lg border border-d300 text-d700">${IC('mood-smile', 18)}</button>
+        <span class="h-6 w-px shrink-0 bg-d300" aria-hidden="true"></span>
+        ${dev.k === 'm' ? varMenuBtn(t, !!opts.varMenu) : chips}
+        ${opts.chipNote ? `<p class="w-full text-2xs text-d600">${opts.chipNote}</p>` : ''}
+      </div>
+    </div>
+    ${errs ? `<div class="space-y-1">${errs}</div>` : ''}
+    ${opts.note ? `<p class="flex items-start gap-1.5 rounded bg-info15 px-3 py-2 text-xs text-info-ink">${IC('info-circle', 14, 'mt-0.5 shrink-0')}<span>${opts.note}</span></p>` : ''}
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" class="btn min-h-11 bg-primary text-white ${bad ? 'opacity-50' : ''}">บันทึก</button>
+      <button type="button" class="btn min-h-11 border border-d300 text-d700">คืนค่าตั้งต้น</button>
+      <button type="button" class="btn min-h-11 text-d700">ยกเลิก</button>
+      <span class="ms-auto text-2xs text-d600">แก้ล่าสุด 17 ต.ค. 14:30 โดย สมชาย</span>
+    </div>
+  </div>`
+}
+// เพดานต่อวัน — บรรทัดเล็กท้ายการ์ด (เหลือรายการเดียว ไม่ทำเป็นส่วนพับ)
+let capId = ''
+function capLine(dev, ro = false) {
+  return `<div class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-d200 py-3 text-xs text-d700">
+    ${IC('adjustments-horizontal', 16, 'shrink-0 text-d500')}
+    ${(() => { capId = uid('cap'); return '' })()}<label for="${capId}">ส่งไม่เกิน</label>
+    <input id="${capId}" class="form-input ${dev.k === 'm' ? 'h-11' : 'h-8'} w-14 px-2 text-center text-sm" style="width:3.5rem" value="5" inputmode="numeric" ${ro ? 'disabled' : ''} />
+    <span>ข้อความ / ลูกค้า / วัน</span>
+    <span class="text-d600 ${dev.k === 'm' ? 'basis-full ps-6' : ''}">${dev.k === 'm' ? '' : '· '}นับรวมทุกเหตุการณ์ ตั้งได้ 1-20</span>
+  </div>`
+}
+const FOOT = `<ul class="mt-3 space-y-1 ps-1 text-xs text-d700"><li class="flex gap-1.5">${IC('info-circle', 14, 'mt-0.5 shrink-0 text-d500')}Messenger และ Instagram ส่งได้ภายใน 24 ชั่วโมงหลังลูกค้าทักล่าสุด</li><li class="flex gap-1.5">${IC('info-circle', 14, 'mt-0.5 shrink-0 text-d500')}LINE นับรวมในโควตาข้อความรายเดือนของบัญชี</li></ul>`
+const roBanner = `<div class="card mb-4" style="background:var(--d100)"><div class="card-body flex items-center gap-3" style="padding:12px 20px">${IC('lock', 20, 'shrink-0 text-d700')}<p class="text-sm text-d800">ดูได้อย่างเดียว เจ้าของร้านหรือผู้ดูแลเป็นคนเปิดและปิดได้ ถ้าต้องการเปลี่ยน บอกเจ้าของร้านหรือผู้ดูแลได้เลย</p></div></div>`
+function eventsCard(rowsHtml, adv) {
+  return `<div class="card"><div class="card-body" style="padding-bottom:0"><ul class="rowsdiv -mt-3.5">${rowsHtml}</ul>${adv}</div></div>${FOOT}`
+}
+function sideNav() {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[250px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">CHAT</p>
+    <ul class="space-y-0.5">${it('message-circle', 'ข้อความ')}${it('armchair-2', 'โต๊ะแชท')}${it('message-bolt', 'ตอบกลับอัตโนมัติ')}${it('message-reply', 'ตอบกลับคอมเมนต์')}${it('robot', 'ผู้ช่วยอัตโนมัติ')}${it('file-invoice', 'สร้างออเดอร์จากแชท')}${it('send', 'ส่งอัตโนมัติถึงลูกค้า', 1)}</ul></aside>`
+}
+function page(dev, inner) {
+  // breadcrumb ชิดซ้ายเหนือหัวหน้า (เดิมชิดขวาของ max-w-3xl ลอยกลางจอ)
+  const head = `<div class="mb-5">${dev.k === 'd' ? `<nav aria-label="breadcrumb" class="mb-1 flex items-center gap-1.25 text-xs font-medium text-d600">Deep ${IC('chevron-right', 12)} ตั้งค่า ${IC('chevron-right', 12)} <span aria-current="page" class="text-d700">ส่งอัตโนมัติถึงลูกค้า</span></nav>` : ''}
+    <h3 class="text-lg font-semibold text-d900">ส่งอัตโนมัติถึงลูกค้า</h3>
+    <p class="mt-1 text-sm text-d700">ให้ระบบส่งข้อความในแชทแทนคุณ เมื่อเกิดเหตุการณ์ที่เลือกไว้ ส่งเฉพาะลูกค้าที่คุยกับร้านผ่านแชท</p></div>`
+  const content = `<div class="max-w-3xl">${head}${inner}</div>`
+  if (dev.k === 'd') return `<div class="flex">${sideNav()}<div class="min-w-0 flex-1"><div class="flex h-[60px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto">${IC('bell', 20, 'text-d700')}</span></div><div class="p-5">${content}</div></div></div>`
+  const items = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+  return `<div class="flex items-center gap-3 border-b border-d200 bg-card px-4 py-3">${IC('arrow-left', 20, 'text-d700')}<span class="text-md font-semibold text-d900">ส่งอัตโนมัติถึงลูกค้า</span></div>
+    <div class="${dev.k === 'm' ? 'p-4' : 'p-5'}">${content}</div>
+    <nav class="grid grid-cols-5 border-t border-d200 bg-card py-1.5">${items.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === 'เมนู' ? 'text-primary-ink' : 'text-d600'}">${IC(i, 20)}${l}</span>`).join('')}</nav>`
+}
+const LINE_NOTE = 'ลูกค้า LINE จะได้ข้อความนี้แทนการ์ดสรุป กดคืนค่าตั้งต้นเพื่อกลับไปใช้การ์ด'
+const T2_SUB = 'ถ้าแก้เลขพัสดุ ระบบส่งอีกครั้งพร้อมคำว่า “อัปเดตเลขติดตามพัสดุ”'
+const T2_CHIPNOTE = '“ลิงก์ติดตามพัสดุ” คือลิงก์ของขนส่งที่เลือกตอนกรอกเลข ถ้าขนส่งนั้นไม่มีลิงก์ บรรทัดนี้จะไม่ถูกส่ง'
+
+// ---------- เฟรม ----------
+function pageOnline(dev, { open = 'T1', ro = false } = {}) {
+  const t1 = eventRow({ icon: 'file-invoice', title: 'เมื่อสร้างคำสั่งซื้อ', on: true, ro, preview: firstLine(TPL.T1),
+    editorHtml: open === 'T1' ? editor(dev, 'T1', TPL.T1, { when: 'เมื่อสร้างคำสั่งซื้อ', note: LINE_NOTE, varMenu: dev.k === 'm' && !ro }) : '' })
+  const t2 = eventRow({ icon: 'truck-delivery', title: 'เมื่อมีเลขพัสดุ', on: true, ro, preview: '',
+    editorHtml: open === 'T2' ? editor(dev, 'T2', TPL.T2, { when: 'เมื่อมีเลขพัสดุ', sub2: T2_SUB, chipNote: T2_CHIPNOTE }) : '' })
+  return page(dev, `${ro ? roBanner : ''}${eventsCard(t1 + t2, capLine(dev, ro))}`)
+}
+function pageService(dev) {
+  const rows = eventRow({ icon: 'file-invoice', title: 'เมื่อสร้างงานบริการ', on: true, preview: '' })
+    + eventRow({ icon: 'player-play', title: 'เมื่อเริ่มงาน', on: true, preview: firstLine(TPL.T3), editorHtml: editor(dev, 'T3', TPL.T3, { when: 'เมื่อเริ่มงาน' }) })
+    + eventRow({ icon: 'clipboard-check', title: 'เมื่อปิดงาน', on: false, preview: '', sub: 'ไม่ส่งถ้าลูกค้าไม่มาตามนัด' })
+  return page(dev, eventsCard(rows, capLine(dev)))
+}
+function errorFrame(dev) {
+  const errs = ['ตัวแปร {ส่วนลด} ไม่มีในระบบ เลือกจากชิป “+ ตัวแปร” ใต้เนื้อความ', 'ข้อความยาวเกิน 500 ตัวอักษร ตัดให้สั้นลงก่อนบันทึก']
+  const row = eventRow({ icon: 'file-invoice', title: 'เมื่อสร้างคำสั่งซื้อ', on: true, editorHtml: editor(dev, 'T1', TPL.BAD, { when: 'เมื่อสร้างคำสั่งซื้อ', errors: errs }) })
+  return `<div class="${dev.k === 'm' ? 'p-4' : 'p-5'}"><div class="max-w-3xl"><div class="card"><div class="card-body" style="padding-bottom:0"><ul class="rowsdiv -mt-3.5">${row}</ul></div></div></div></div>`
+}
+function swalFrame(dev) {
+  return `<div class="relative" style="height:${dev.k === 'm' ? 560 : 500}px">
+    <div class="opacity-50">${page(dev, eventsCard(eventRow({ icon: 'file-invoice', title: 'เมื่อสร้างคำสั่งซื้อ', on: true, preview: firstLine(TPL.T1) }) + eventRow({ icon: 'truck-delivery', title: 'เมื่อมีเลขพัสดุ', on: false, preview: '' }), capLine(dev)))}</div>
+    <div class="absolute inset-0 bg-black/45"></div>
+    <div class="absolute inset-x-0 top-16 mx-auto rounded-lg bg-card p-6 text-center" style="width:${dev.k === 'm' ? 340 : 420}px;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+      <span class="mx-auto mb-3 flex size-16 items-center justify-center rounded-full border-4 text-warning" style="border-color:var(--warning15)">${IC('exclamation-mark', 34)}</span>
+      <p class="text-lg font-semibold text-d900">เริ่มส่งข้อความนี้ถึงลูกค้าจริง?</p>
+      <p class="mt-2 text-sm text-d700">ลูกค้าที่คุยในแชทจะได้รับข้อความนี้เมื่อสร้างคำสั่งซื้อ ไม่ส่งย้อนหลัง</p>
+      <div class="mt-5 flex justify-center gap-2"><span class="btn min-h-11 bg-primary text-white">เริ่มส่ง</span><span class="btn min-h-11 border border-d300 text-d800 ring-2" style="--tw-ring-color:var(--d400)">ยังก่อน</span></div>
+      <p class="mt-3 text-2xs text-d500">ถามทุกครั้งที่เปิดสวิตช์เหตุการณ์ครั้งแรก · โฟกัสเริ่มที่ "ยังก่อน"</p>
+    </div></div>`
+}
+function jobCard(state) {
+  const badge = state === 'closed' ? '<span class="inline-flex items-center gap-1 rounded-md bg-d200 px-2 py-0.5 text-xs font-medium text-d800">' + IC('circle-check', 14) + 'ปิดงานแล้ว</span>'
+    : '<span class="inline-flex items-center gap-1 rounded-md bg-info15 px-2 py-0.5 text-xs font-medium text-info-ink">' + IC('calendar-check', 14) + 'จองแล้ว</span>'
+  const title = { idle: 'ยังไม่เริ่ม', started: 'เริ่มแล้ว (ยังไม่ปิด)', closed: 'ปิดแล้ว' }[state]
+  let body
+  if (state === 'idle') body = `<p class="text-sm text-d700">ทำงานเสร็จแล้วกด “ปิดงาน” — บันทึกผลและรับเงินที่เหลือในครั้งเดียว</p>
+    <div class="mt-4 space-y-2 border-t border-dashed border-d200 pt-4">
+      <button type="button" class="btn min-h-11 w-full bg-primary15 text-primary-ink">${IC('player-play', 16)}เริ่มงาน</button>
+      <button type="button" class="btn min-h-11 w-full bg-primary text-white">${IC('clipboard-check', 16)}ปิดงาน</button></div>`
+  else if (state === 'started') body = `<p class="text-sm text-d700">ทำงานเสร็จแล้วกด “ปิดงาน” — บันทึกผลและรับเงินที่เหลือในครั้งเดียว</p>
+    <div class="mt-4 space-y-2 border-t border-dashed border-d200 pt-4">
+      <p class="flex items-center gap-1.5 text-sm text-d700">${IC('player-play', 16, 'text-d500')}เริ่มงานเมื่อ 10:12 น.</p>
+      <button type="button" class="btn min-h-11 w-full bg-primary text-white">${IC('clipboard-check', 16)}ปิดงาน</button></div>`
+  else body = `<p class="text-sm text-d700">ลูกค้ายืนยันรับบริการแล้ว — ปิดงานเพื่อให้ยอดเข้าการเงินร้าน</p>
+    <div class="mt-4 border-t border-dashed border-d200 pt-4"><button type="button" class="btn min-h-11 w-full bg-d100 text-d800">${IC('clipboard-x', 16)}เปิดงานอีกครั้ง</button></div>`
+  return `<div><p class="mb-2 text-xs font-semibold text-d600">${title}</p><div class="card"><div class="card-header"><h3 class="card-title">งานนี้</h3>${badge}</div><div class="card-body">${body}</div></div></div>`
+}
+function shipForm(state) {
+  const ids = { c: uid('carrier'), t: uid('track'), k: uid('cost') }
+  const title = { empty: 'ว่าง (ไม่บังคับ)', filled: 'กรอกแล้ว', error: 'ผิด' }[state]
+  const val = state === 'filled' ? '45' : state === 'error' ? '-20' : ''
+  const help = state === 'filled'
+    ? '<p class="mt-1 text-xs text-d700">ต้นทุนของร้าน ไม่แสดงให้ลูกค้า · หักในกำไรของคำสั่งซื้อนี้ ฿45</p>'
+    : state === 'error'
+      ? '<p id="cost-err" class="mt-1 text-xs text-danger-ink">ค่าส่งต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป</p>'
+      : '<p class="mt-1 text-xs text-d700">ต้นทุนของร้าน ไม่แสดงให้ลูกค้า — หักในกำไรของคำสั่งซื้อนี้</p>'
+  return `<div><p class="mb-2 text-xs font-semibold text-d600">${title}</p><div class="card"><div class="card-body flex flex-col gap-3">
+    <div><label id="${ids.c}-l" class="mb-1 block text-xs text-d800">ขนส่ง <span class="text-danger-ink" aria-hidden="true">*</span></label><button type="button" aria-labelledby="${ids.c}-l" class="flex min-h-11 w-full items-center justify-between rounded border border-d300 bg-card px-3 text-sm text-d900">Flash Express ${IC('chevron-down', 16, 'text-d500')}</button></div>
+    <div><label for="${ids.t}" class="mb-1 block text-xs text-d800">เลขพัสดุ <span class="text-danger-ink" aria-hidden="true">*</span></label><input id="${ids.t}" class="form-input" value="TH012345678901234A"></div>
+    <div><label for="${ids.k}" class="mb-1 block text-xs text-d800">ค่าส่งที่ร้านจ่ายขนส่ง</label>
+      <div class="input-group"><span class="input-group-text ${state === 'error' ? 'border-danger' : ''}">฿</span><input id="${ids.k}" class="form-input ${state === 'error' ? 'border-danger' : ''}" placeholder="0.00" value="${val}" inputmode="decimal" ${state === 'error' ? 'aria-invalid="true" aria-describedby="cost-err"' : ''}></div>${help}</div>
+    <div class="flex gap-2"><button type="button" class="btn min-h-11 flex-1 bg-primary text-white">ยืนยันจัดส่ง</button><button type="button" class="btn min-h-11 border border-d300 text-d700">ปิด</button></div>
+  </div></div></div>`
+}
+const grid3 = (dev, items) => `<div class="${dev.k === 'm' ? 'space-y-5 p-4' : dev.k === 't' ? 'grid grid-cols-2 gap-5 p-5' : 'grid grid-cols-3 gap-6 p-6'}">${items.join('')}</div>`
+
+let html = ''
+html += section('s-online', '1) ONLINE_SALES · แถว "เมื่อสร้างคำสั่งซื้อ" กางตัวแก้', [
+  '<b>polish:</b> เหลือแค่สวิตช์เปิด/ปิดต่อเหตุการณ์ — ตัดการ์ด "สถานะการส่ง" และโหมดทดสอบทั้งหมด (สวิตช์ส่งเฉพาะห้องทดสอบ · รายการห้องทดสอบ · ชิป "ทดสอบ") · เพดานต่อวันเหลือเป็นบรรทัดเล็กท้ายการ์ด "ส่งไม่เกิน [5] ข้อความ / ลูกค้า / วัน" (ไม่ทำส่วนพับเพราะเหลือรายการเดียว)',
+  '<b>polish:</b> แถวเหลือ 2 บรรทัด (ชื่อเหตุการณ์ขึ้นต้นด้วย "เมื่อ" + สวิตช์ · ต้นข้อความ 1 บรรทัด + "แก้ข้อความ") · "แก้ล่าสุด … โดย …" ย้ายเข้าไปในตัวแก้ · ปุ่ม "บันทึก" · ตัวอย่าง 3 แบบเป็นปุ่มธรรมดาใต้หัว "เริ่มจากตัวอย่าง" (ไม่ใช่ segmented)',
+  '<b>polish:</b> ตัดตารางลิงก์ขนส่งและการ์ดข้อควรรู้ → เหลือ 2 บรรทัดเล็กใต้การ์ด · เดสก์ท็อปคอลัมน์เดียว max-w-3xl · ตัวแปรตาม PRD v0.2 §3.4 (ชื่อลูกค้า วันที่สั่งซื้อ รายการสินค้า ยอดสุทธิ ลิงก์คำสั่งซื้อ …) · มือถือ: ชิปตัวแปรรวมเป็นปุ่มเดียว "+ ตัวแปร" (เฟรมนี้วาดตอนเปิดรายการ: ชื่อตัวแปร + ค่าตัวอย่าง แถวละ 44px)',
+  '<b>audit:</b> ตัวหนังสือสีหลักทุกจุดใช้คู่ -ink (เริ่มงาน, ข้อความผิด, ชิปตัวแปร, เมนูที่เลือก) · "แก้ข้อความ" เป็นเทาเข้ม + ไอคอนดินสอ · ทุกช่องกรอกผูก label · สวิตช์/ปุ่มกด 44px · breadcrumb ย้ายชิดซ้ายเหนือหัวหน้า · เนื้อความในตัวแก้ระยะบรรทัดแคบลง',
+], row3((d) => pageOnline(d)))
+html += section('s-t2', '1b) แถว "เมื่อมีเลขพัสดุ" กางตัวแก้', [
+  'คำอธิบาย "ลิงก์ติดตามพัสดุ" อยู่ใต้แถบชิปในกล่อง (แทนตารางขนส่งที่ตัดออก) · บรรทัด "ถ้าแก้เลขพัสดุ ระบบส่งอีกครั้ง…" อยู่หัวตัวแก้',
+], row3((d) => pageOnline(d, { open: 'T2' })))
+html += section('s-service', '2) SERVICE_QUEUE · 3 เหตุการณ์ · "เมื่อเริ่มงาน" กาง', [
+  'เมื่อสร้างงานบริการ / เมื่อเริ่มงาน / เมื่อปิดงาน (+ "ไม่ส่งถ้าลูกค้าไม่มาตามนัด") · ตัวแปรบริการ: ชื่อร้าน ชื่อลูกค้า บริการ วันเวลานัด เวลาเริ่มงาน เวลาปิดงาน ลิงก์งาน',
+], row3((d) => pageService(d)))
+html += section('s-chat', '3) บทบาท CHAT · ดูได้อย่างเดียว', [
+  'แบนเนอร์ล็อก · สวิตช์และช่องเพดาน disabled · "แก้ข้อความ" เป็นสีเทากดไม่ได้ · ยังอ่านต้นข้อความของแต่ละเหตุการณ์และค่าเพดานได้',
+], row3((d) => pageOnline(d, { open: null, ro: true })))
+html += section('s-error', '4) ข้อผิดพลาด: ตัวแปรไม่รู้จัก + ข้อความเกิน 500', [
+  'กล่องขอบแดง + ตัวนับแดง + ชิปแดงในเนื้อความ + ข้อความใต้กล่องบอกเหตุและทางออก · ปุ่มบันทึกกดไม่ได้จนกว่าจะแก้',
+], row3((d) => errorFrame(d)))
+html += section('s-swal', '5) Swal ยืนยันตอนเปิดสวิตช์เหตุการณ์ครั้งแรก', [
+  '<b>polish:</b> ถามทุกครั้งที่เปิดสวิตช์เหตุการณ์ครั้งแรก (ไม่มีโหมดทดสอบแล้ว) · ปุ่ม "เริ่มส่ง" / "ยังก่อน"',
+], row3((d) => swalFrame(d)))
+html += section('s-job', '6) ServiceJobCard · ปุ่ม "เริ่มงาน" 3 สถานะ (คงเดิม)', [
+  'ปุ่ม "เริ่มงาน" (tonal) เหนือ "ปิดงาน" (ปุ่มหลัก) · กดแล้วแทนด้วย "เริ่มงานเมื่อ 10:12 น." · ปิดแล้วไม่มีปุ่มเริ่ม',
+], row3((d) => grid3(d, ['idle', 'started', 'closed'].map(jobCard))))
+html += section('s-ship', '7) ShipForm · ช่อง "ค่าส่งที่ร้านจ่ายขนส่ง" (คงเดิม)', [
+  'ช่องที่ 3 ใต้เลขพัสดุ แบบ input-group ฿ · ไม่บังคับ ว่าง = ยังไม่ระบุ (ไม่ใช่ 0) · ไม่แสดงให้ลูกค้า',
+], row3((d) => grid3(d, ['empty', 'filled', 'error'].map(shipForm))))
+
+
+// ---------- ส่วนที่ 8: แถบบอกว่าจะส่งอะไร ในจุดที่ทำงาน ----------
+const varChip = (k) => `<span class="mx-0.5 inline-flex items-center rounded-full bg-primary10 px-1.5 align-baseline text-2xs font-semibold leading-snug text-primary-ink" title="จะเติมหลังบันทึก">${k}</span>`
+function sendBar(dev, { text, short, msg, open = false, warn = false }) {
+  if (warn) return `<p class="flex items-start gap-1.5 rounded bg-warning15 px-3 py-2 text-xs text-warning-ink">${IC('alert-triangle', 14, 'mt-0.5 shrink-0')}<span>ส่งอัตโนมัติไม่ได้ เพราะลูกค้าทักล่าสุดเกิน 24 ชั่วโมง</span></p>`
+  const m = dev.k === 'm'
+  return `<div class="rounded bg-info15 px-3 py-2 text-xs text-info-ink">
+    ${(() => {
+      const links = `<button type="button" aria-expanded="${open}" class="-my-3 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center font-semibold underline underline-offset-2">${open ? 'ซ่อน' : 'ดูข้อความ'}</button><span class="text-d400" aria-hidden="true">·</span><a class="-my-2 shrink-0 py-2 font-medium underline underline-offset-2">ตั้งค่า</a>`
+      // มือถือ: บรรทัดเดียว (ไม่ดันปุ่มบันทึก) · จออื่น: ประโยคเต็มแล้วลิงก์ขึ้นบรรทัดใหม่ ไม่ตัดคำกลางชื่อ
+      return m
+        ? `<div class="flex items-center gap-1.5">${IC('send', 14, 'shrink-0')}<span class="min-w-0 flex-1 truncate" title="${esc(text)}">${short}</span>${links}</div>`
+        : `<div class="flex items-start gap-1.5">${IC('send', 14, 'mt-0.5 shrink-0')}<div class="min-w-0 flex-1"><p>${text}</p><div class="mt-1 flex items-center gap-1.5">${links}</div></div></div>`
+    })()}
+    ${open ? `<div class="mt-2 max-h-36 overflow-y-auto whitespace-pre-line rounded border border-d300 bg-card px-3 py-2 text-xs leading-relaxed text-d800">${msg}</div>` : ''}
+  </div>`
+}
+const MSG_T1 = `สรุปยอดคำสั่งซื้อ\nชื่อลูกค้า: สมชาย\nวันที่สั่งซื้อ: 17-10-2569\n\nรายการสินค้า:\nชุดไฟหน้า Xenon 6000K และอีก 1 รายการ\n\nยอดสุทธิ: ฿2,490 บาท\n\nตรวจสอบสถานะคำสั่งซื้อได้ที่ ${varChip('ลิงก์คำสั่งซื้อ')}\nขอบคุณสำหรับการสั่งซื้อ`
+const MSG_T2 = `จัดส่งด้วย Flash Express\nเลขติดตามพัสดุ: ${varChip('เลขพัสดุ')}\nติดตามพัสดุ: https://www.flashexpress.co.th/fle/tracking`
+const MSG_T3 = `ร้านเริ่มงาน เปลี่ยนชุดไฟหน้า Xenon แล้วเมื่อ ${varChip('เวลาเริ่มงาน')}\nดูรายละเอียด https://deepthailand.app/o/k3Fz9Qw2Lm8X`
+const T1_TEXT = 'เมื่อบันทึก ระบบจะส่งสรุปคำสั่งซื้อให้ลูกค้าในแชทนี้ (Messenger · คุณสมชาย)'
+function panel(title, sub, inner) {
+  return `<div><p class="text-xs font-semibold text-d900">${title}</p><p class="mb-2 text-2xs text-d600">${sub}</p>${inner}</div>`
+}
+function cartFoot(dev, bar, label = 'บันทึกคำสั่งซื้อ') {
+  return `<div class="card"><div class="card-body space-y-3" style="padding:16px">
+    <div class="flex justify-between text-sm"><span class="min-w-0 truncate text-d800">ชุดไฟหน้า Xenon 6000K × 1</span><span class="shrink-0 text-d900">฿2,290</span></div>
+    <div class="flex justify-between text-sm"><span class="text-d800">หลอดไฟหรี่ LED × 1</span><span class="text-d900">฿200</span></div>
+    <div class="flex items-center justify-between border-t border-d200 pt-2"><span class="font-bold text-d900">รวมทั้งสิ้น</span><span class="text-lg font-bold text-d900">฿2,490</span></div>
+    ${bar}
+    <button type="button" class="btn min-h-11 w-full bg-primary font-semibold text-white">${IC('device-floppy', 18)}${label}</button>
+  </div></div>`
+}
+// มือถือ: แถบล่างค้างจอของฟอร์ม (QuickSummaryPanel) — แถบส่งอยู่บรรทัดเดียวเหนือปุ่ม
+function mobileFoot(dev, bar) {
+  return `<div class="overflow-hidden rounded-lg border border-d300">
+    <div class="h-24 bg-body-bg px-4 pt-3 text-xs text-d500">… ฟอร์ม (เลื่อนได้) …</div>
+    <div class="border-t border-d200 bg-card px-4 pb-3 pt-2 shadow-theme">
+      <div class="mb-2 flex min-h-11 items-center justify-between"><span class="text-sm text-d500">รวมทั้งสิ้น</span><span class="inline-flex items-center gap-1.5 text-base font-bold text-d900">฿2,490 ${IC('chevron-up', 16, 'text-d400')}</span></div>
+      <div class="mb-2">${bar}</div>
+      <button type="button" class="btn min-h-11 w-full bg-primary font-semibold text-white">${IC('device-floppy', 18)}บันทึกคำสั่งซื้อ</button>
+    </div></div>`
+}
+function shipManual(dev, bar) {
+  const ids = { c: uid('mcarrier'), t: uid('mtrack'), k: uid('mcost') }
+  return `<div class="card"><div class="card-body flex flex-col gap-3" style="padding:16px">
+    <div class="flex gap-4 border-b border-d200 text-sm"><span class="-mb-px border-b-2 border-transparent pb-2 text-d600">เปิดพัสดุ iShip</span><span class="-mb-px border-b-2 border-primary pb-2 font-medium text-primary-ink">ส่งเอง</span></div>
+    <div><label id="${ids.c}-l" class="mb-1 block text-xs text-d800">ขนส่ง <span class="text-danger-ink" aria-hidden="true">*</span></label><button type="button" aria-labelledby="${ids.c}-l" class="flex min-h-11 w-full items-center justify-between rounded border border-d300 bg-card px-3 text-sm text-d900">Flash Express ${IC('chevron-down', 16, 'text-d500')}</button></div>
+    <div><label for="${ids.t}" class="mb-1 block text-xs text-d800">เลขพัสดุ <span class="text-danger-ink" aria-hidden="true">*</span></label><input id="${ids.t}" class="form-input" placeholder="เช่น TH123456789"></div>
+    <div><label for="${ids.k}" class="mb-1 block text-xs text-d800">ค่าส่งที่ร้านจ่ายขนส่ง</label><div class="input-group"><span class="input-group-text">฿</span><input id="${ids.k}" class="form-input" placeholder="0.00"></div></div>
+    ${bar}
+    <button type="button" class="btn min-h-11 w-full bg-primary text-white">ยืนยันจัดส่ง</button>
+  </div></div>`
+}
+function jobWithBar(dev, bar) {
+  return `<div class="card"><div class="card-header"><h3 class="card-title">งานนี้</h3><span class="inline-flex items-center gap-1 rounded-md bg-info15 px-2 py-0.5 text-xs font-medium text-info-ink">${IC('calendar-check', 14)}จองแล้ว</span></div>
+    <div class="card-body" style="padding:16px"><p class="text-sm text-d700">ทำงานเสร็จแล้วกด “ปิดงาน” — บันทึกผลและรับเงินที่เหลือในครั้งเดียว</p>
+    <div class="mt-4 space-y-2 border-t border-dashed border-d200 pt-4">${bar}
+      <button type="button" class="btn min-h-11 w-full bg-primary15 text-primary-ink">${IC('player-play', 16)}เริ่มงาน</button>
+      <button type="button" class="btn min-h-11 w-full bg-primary text-white">${IC('clipboard-check', 16)}ปิดงาน</button></div></div></div>`
+}
+function notifyPanels(dev) {
+  const m = dev.k === 'm'
+  const b1 = (open) => sendBar(dev, { text: T1_TEXT, short: 'จะส่งสรุปให้ลูกค้าในแชทนี้ (Messenger)', msg: MSG_T1, open })
+  const p1 = panel('(1) ฟอร์มสร้างคำสั่งซื้อในแชท', m ? 'แถบล่างค้างจอ · ยุบ / กาง (ข้อความเลื่อนในกรอบ ปุ่มบันทึกไม่ตกจอ)' : 'โมดัลจากห้องแชท · กาง "ดูข้อความ"',
+    m ? `<div class="space-y-3">${mobileFoot(dev, b1(false))}${mobileFoot(dev, b1(true))}</div>` : cartFoot(dev, b1(true)))
+  const p2 = panel('(2) /orders/new ที่ผูกห้องแชท', 'ปกติ (ยุบ) และกรณี Messenger เกิน 24 ชม.',
+    `<div class="space-y-3">${m ? mobileFoot(dev, b1(false)) : cartFoot(dev, b1(false))}${m ? mobileFoot(dev, sendBar(dev, { warn: true })) : cartFoot(dev, sendBar(dev, { warn: true }))}</div>`)
+  const p3 = panel('(3) แผงพัสดุในแชท · แท็บส่งเอง', 'แทนช่องติ๊ก "แจ้งเลขในแชท" · ช่องเลขพัสดุยังว่าง = ชิปตัวแปร',
+    shipManual(dev, sendBar(dev, { text: 'เมื่อยืนยัน ระบบจะส่งเลขพัสดุให้ลูกค้าในแชทนี้ (Messenger · คุณสมชาย)', short: 'จะส่งเลขพัสดุให้ลูกค้าในแชทนี้', msg: MSG_T2, open: true })))
+  const p4 = panel('(4) ServiceJobCard', 'เหนือปุ่มเริ่มงาน (สวิตช์ "เมื่อเริ่มงาน" เปิด)',
+    jobWithBar(dev, sendBar(dev, { text: 'เมื่อกดเริ่มงาน ระบบจะส่งข้อความให้ลูกค้าในแชท (LINE · คุณวรรณา)', short: 'กดเริ่มงานแล้วจะแจ้งลูกค้า (LINE)', msg: MSG_T3, open: !m })))
+  return `<div class="${m ? 'space-y-8 p-4' : dev.k === 't' ? 'grid grid-cols-2 items-start gap-6 p-5' : 'grid grid-cols-4 items-start gap-6 p-6'}">${p1}${p2}${p3}${p4}</div>`
+}
+html += section('s-notify', '8) บอกในจุดที่ทำงานว่าระบบจะส่งอะไร (ฟอร์มออเดอร์ในแชท · /orders/new · แผงพัสดุ · ServiceJobCard)', [
+  '<b>ใหม่:</b> แถบ info เล็กเหนือปุ่มบันทึก ไอคอน send + ประโยคบอกว่าจะส่งอะไรให้ใคร (ช่องทาง · ชื่อลูกค้า) + "ดูข้อความ" กางเห็นข้อความจริงที่เติมจากข้อมูลในฟอร์ม ช่องที่ยังไม่มีค่าแสดงเป็นชิปตัวแปร + ลิงก์ "ตั้งค่า"',
+  'แสดงเฉพาะเมื่อระบบจะส่งจริง (สวิตช์เหตุการณ์นั้นเปิด + ออเดอร์ผูกห้อง) · สวิตช์ปิด = ไม่มีแถบ · Messenger/IG เกิน 24 ชม. = แถบเหลือง "ส่งอัตโนมัติไม่ได้ เพราะลูกค้าทักล่าสุดเกิน 24 ชั่วโมง"',
+  'มือถือ: แถบเป็นบรรทัดเดียวตัดด้วย … อยู่ในแถบล่างค้างจอเหนือปุ่มบันทึก · กางแล้วข้อความเลื่อนในกรอบสูงไม่เกิน 9rem ปุ่มบันทึกยังอยู่ในจอ',
+], row3((d) => notifyPanels(d)))
+
+document.getElementById('app').innerHTML = html
+// iconify-icon บางตัวที่สร้างพร้อมกันระหว่างโหลดชุดไอคอนวาดไม่ขึ้น — สั่งวาดใหม่ตัวที่ยังว่าง
+const redrawIcons = () => document.querySelectorAll('iconify-icon').forEach((i) => {
+  if (i.shadowRoot && !i.shadowRoot.querySelector('svg')) i.replaceWith(i.cloneNode(true))
+})
+;[800, 2000, 4000].forEach((t) => setTimeout(redrawIcons, t))
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+})
+</script>
+</body>
+</html>

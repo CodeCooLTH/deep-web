@@ -7,6 +7,7 @@
  */
 import { combineTotals, sumTrend } from '@/lib/line-report/aggregate'
 import { resolveProductVocab } from '@/lib/seller-menu'
+import { SYSTEM_SHIPPING_LABEL_TH } from '@/lib/expense'
 import type { GroupSummary, ShopSummary, Trend, Window } from '@/lib/line-report/types'
 
 export type SampleShopInput = {
@@ -106,7 +107,7 @@ const SAMPLE_ITEMS = [
   { key: 'RENT', label: 'ค่าเช่า', amount: 60_000 },
   { key: 'ADVERTISING', label: 'ค่าโฆษณา', amount: 40_000 },
   { key: 'PACKAGING', label: 'ค่าบรรจุภัณฑ์', amount: 18_400 },
-  { key: 'SYS_SHIPPING', label: 'ค่าส่งขาไป (จากระบบ)', amount: 10_000 },
+  { key: 'SYS_SHIPPING', label: SYSTEM_SHIPPING_LABEL_TH, amount: 10_000 },
 ]
 
 /**

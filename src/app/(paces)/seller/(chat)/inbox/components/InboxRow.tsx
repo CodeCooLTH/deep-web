@@ -12,6 +12,7 @@
  * ออบเจกต์/ฟังก์ชันที่ประกาศสดใน render ของ InboxList (hook-return-identity-in-deps.md)
  * 🛑 ห้ามประกาศ component ในตัว render (component-declared-in-render.md)
  */
+import { previewPrefix } from '@/lib/preview-attribution'
 import { memo } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -35,6 +36,7 @@ import { useRouter } from 'next/navigation'
 import { salesStatusMeta } from '../[conversationId]/components/CustomerCrmSection'
 import type { InboxSortMode } from '@/lib/inbox-sort'
 import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-reducer-types'
+import { isMetaAiHolding } from '@/lib/meta-ai-holder'
 import { shouldPrefetchRow } from '@/lib/inbox-row-prefetch'
 
 export type InboxRowProps = {
@@ -50,6 +52,8 @@ export type InboxRowProps = {
   hiddenMode: boolean
   orderNoun: string
   sortMode: InboxSortMode
+  /** ปัดทุก ~5 นาที — ใช้เทียบ metaAiHoldUntilMs (primitive) ให้ไอคอนหมดอายุเอง */
+  nowBucket: number
   /** avatar ของเพจ/OA ที่แถวนี้ผูกอยู่ (null = ไม่มี/ไม่ผูก) — lookup ที่ parent เพื่อไม่ส่ง Map ทั้งก้อนเข้ามา */
   channelAvatarUrl: string | null
   channelName: string | null | undefined
@@ -71,6 +75,7 @@ function InboxRowImpl({
   hiddenMode,
   orderNoun,
   sortMode,
+  nowBucket,
   channelAvatarUrl,
   channelName,
   singleChannelScope,
@@ -86,6 +91,7 @@ function InboxRowImpl({
       const name =
         c.alias?.trim() || c.counterparty?.displayName || (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
       const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
+      const prefix = previewPrefix('SELLER', { lastSenderRole: c.lastSenderRole, lastMessageIsSystem: c.lastMessageIsSystem, hasPreview: !!c.lastMessagePreview })
       const isResolved = c.resolvedAt !== null
       const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
       const contactTags = c.contactTags ?? []
@@ -312,9 +318,9 @@ function InboxRowImpl({
                       ย้ายไปเป็นชิปในแถวป้ายด้านล่าง (ที่เดียวกับ "สั่งซื้อแล้ว"/แท็ก) แล้วคืน
                       "คุณ: " ให้ทุกข้อความที่ฝั่งร้านส่ง ไม่ว่าคนหรือบอทเป็นคนส่ง — ในสายตา
                       ลูกค้าทั้งคู่คือ "ร้าน" เหมือนกันอยู่แล้ว */}
-                  {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
-                    <span className="text-default-700 font-normal">คุณ: </span>
-                  )}
+                  {prefix === 'YOU' && <span className="text-default-700 font-normal">คุณ: </span>}
+                  {/* ข้อความระบบแจ้ง (00078): lastSenderRole ยังเป็นลูกค้าโดยตั้งใจ → ต้องบอกเองว่าไม่ใช่ลูกค้าพิมพ์ */}
+                  {prefix === 'SYSTEM' && <span className="text-default-700 font-normal">{t.autoNotify.sentBySystem}: </span>}
                   {preview}
                 </span>
                 {/* บรรทัด "ที่มา" (มติแบบ C 2026-08-09) — ตอบว่า "บัญชีไหน" ที่ badge มุม
@@ -495,8 +501,14 @@ function InboxRowImpl({
                     มาทับที่ตรงนี้พอดี — พอ user สั่งย้ายชุดปุ่มไปกลางการ์ด (2026-08-03) มันไม่ทับ
                     แล้ว การซ่อนเวลาจึงกลายเป็นการทิ้งข้อมูลฟรี ๆ ทุกครั้งที่เมาส์ผ่าน → เอาออก */}
                 <span
-                  className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-700'}`}
+                  className={`text-2xs inline-flex items-center gap-1 ${unread ? 'text-default-700 font-semibold' : 'text-default-700'}`}
                 >
+                  {/* 00078 S-4 — Meta AI ถือห้อง: ไอคอนเล็กหน้าเวลา (ไม่ใช่ชิป) · role=img เพราะไม่มีข้อความให้อ่าน */}
+                  {isMetaAiHolding(c.metaAiHoldUntilMs, nowBucket) ? (
+                    <span role="img" aria-label={t.chatSignals.metaAiAria} title={t.chatSignals.metaAiTitle} className="inline-flex shrink-0">
+                      <Icon icon="sparkles" className="text-xs" aria-hidden="true" />
+                    </span>
+                  ) : null}
                   {/* 00018 ext 2026-09-09 — เวลาที่โชว์ต้องเป็นคีย์เดียวกับที่ใช้เรียง ไม่งั้น
                       รายการดูเหมือนเรียงมั่ว (เรียงด้วยเลขหนึ่ง โชว์อีกเลขหนึ่ง)
                       lastInboundAt = null (ลูกค้าไม่เคยพิมพ์) → บอกตรง ๆ ห้ามเอา lastMessageAt

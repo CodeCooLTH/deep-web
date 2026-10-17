@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sweepOutbox } from "@/services/chat-outbox.service";
+import { sweepAutoNotify } from "@/services/auto-notify.service";
 
 // ตัวกวาดอาจต้องระบายหลายห้องในรอบเดียว — กัน default timeout เหมือน cron ตัวอื่นของโปรเจกต์
 export const maxDuration = 60;
@@ -38,6 +39,14 @@ export async function GET(request: Request) {
     owner: "cron",
     limit: 50,
   });
+  // 00078: ตัวกวาดข้อความแจ้งลูกค้าอัตโนมัติ ต่อท้ายหลัง outbox (ให้เห็นผลที่ outbox เพิ่งปิด) —
+  // try/catch แยก: ตัวนี้ล้ม **ต้องไม่ทำให้ cron ของ outbox ล้ม** (outbox คือตัวการันตีของทั้งฟีเจอร์แชท)
+  // (ผลของตัวกวาดนี้ log แยกบรรทัด ไม่ปนใน summary ของ outbox — สัญญา response/log ของ outbox คงเดิม)
+  try {
+    console.log("[auto-notify-sweep]", JSON.stringify(await sweepAutoNotify()));
+  } catch (e) {
+    console.error("[chat-outbox] sweepAutoNotify ล้มเหลว (outbox ไม่กระทบ)", e instanceof Error ? e.name : typeof e);
+  }
   const summary = { rooms, sent, failed, stale, timedOut, staleUnnotified };
 
   // 🛑 log ตัวเลขทุกรอบเสมอ แม้เป็นศูนย์ — ค่า `stale` ที่สูงผิดปกติแปลว่ามีคนตายกลางทางบ่อย

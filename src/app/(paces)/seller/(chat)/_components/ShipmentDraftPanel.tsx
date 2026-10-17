@@ -11,7 +11,8 @@
  * ส่วนที่เป็นเรื่องของแชทจริง ๆ มีอย่างเดียวคือ "แจ้งเลขติดตามในห้องนี้"
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { toastPaymentNotice } from '@/components/safepay/iship/payment-notice-toast'
@@ -20,7 +21,16 @@ import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/Shi
 import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
 import ShipmentStatusView from '@/components/safepay/iship/ShipmentStatusView'
 import { useIShipCouriers } from '@/components/safepay/iship/useIShipCouriers'
-import type { ShipmentContextJson, ShipmentViewJson } from '@/lib/iship/context'
+import ShipForm from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/ShipForm'
+import type { ShipmentPanelJson, ShipmentViewJson } from '@/lib/iship/context'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
+import {
+  decidePanelView,
+  isViewOnlyPanelView,
+  orderStatusLabel,
+  trackingMessage,
+  type TrackingMessageMode,
+} from '@/lib/chat-shipment-panel'
 
 interface Props {
   conversationId: string
@@ -29,39 +39,29 @@ interface Props {
   /**
    * รายงานว่าตอนนี้แผงเป็น "อ่านอย่างเดียว" ไหม — หน้าต่างที่ครอบอยู่ใช้ตัดสินว่าตอนกดปิด
    * ต้องถามยืนยันหรือไม่ (ดู viewOnlyRef ใน DraftOrderProvider) แผงนี้สลับระหว่างดูสถานะกับ
-   * ฟอร์มเปิด/ผูกพัสดุได้ในตัวเอง ตัวที่รู้ความจริงจึงเป็นแผง ไม่ใช่ผู้เรียก
+   * ฟอร์มได้ในตัวเอง ตัวที่รู้ความจริงจึงเป็นแผง (ตัดสินจาก decidePanelView ใน lib)
    */
   onViewOnlyChange?: (viewOnly: boolean) => void
 }
 
-/**
- * หน้าติดตามพัสดุสาธารณะของ iShip (user สั่ง 2026-08-07 ให้แนบไปกับข้อความแจ้งเลข)
- *
- * hardcode ที่นี่โดยเจตนา เหตุผลเดียวกับ ISHIP_TOPUP_URL ใน ShipmentStatusView.tsx:
- * `ISHIP_BASE_URL` เป็น env ฝั่งเซิร์ฟเวอร์ที่ไว้สลับไประบบทดสอบ ส่วนลิงก์นี้คือหน้าที่
- * **ลูกค้าปลายทาง** จะกดเปิด ต้องเป็น production เสมอ ไม่ควรผูกกับ env นั้น
- */
-const trackingUrl = (trackingNo: string) =>
-  `https://app.iship.cloud/tracking?track=${encodeURIComponent(trackingNo)}`
+type Method = 'MANUAL' | 'ISHIP' | 'ISHIP_LINK'
+
+/** id คงที่ — ปุ่มยืนยันอยู่นอก <form> ของ ShipForm จึงอ้างผ่าน attribute form= */
+const MANUAL_FORM_ID = 'chat-shipment-manual-form'
 
 /**
- * ข้อความแจ้งเลข — ข้อความธรรมดา ใช้ได้ทุกช่องทาง (Messenger/IG ไม่รองรับการ์ดของเรา)
- *
- * trackingNo = null คือโหมด "ตัวอย่างข้อความ" ก่อนกดสร้าง (ยังไม่มีเลขจริง) — ต้องผ่าน
- * ฟังก์ชันเดียวกันนี้ ห้ามเขียนข้อความตัวอย่างซ้ำอีกชุดใน JSX เพราะสองชุดจะเพี้ยนจากกัน
- * ทันทีที่มีใครแก้ข้อความจริงแล้วลืมแก้ตัวอย่าง (ซึ่งเกิดขึ้นแล้วรอบนี้: ตัวอย่างเดิม
- * เขียนซ้ำไว้ใน JSX จึงไม่มีบรรทัดลิงก์ตามมาให้เอง)
+ * Base: orders/[token]/components/ShipmentEntryModal.tsx (ลำดับ/ป้าย/ไอคอนต้องตรงกัน — ถ้าแก้ที่นั่น
+ * แก้ที่นี่ด้วย) ต่างแค่ไอคอนอยู่บนป้ายอยู่ล่าง เพราะหน้าต่างแชทแคบ (328px) ป้าย "สร้างพัสดุ iShip"
+ * แนวนอนจะหักหลายบรรทัด
  */
-function trackingMessage(trackingNo: string | null, courierName: string | null): string {
-  const lines: string[] = []
-  if (courierName) lines.push(`จัดส่งด้วย ${courierName}`)
-  lines.push(`เลขติดตามพัสดุ: ${trackingNo ?? '(จะแสดงหลังสร้างพัสดุสำเร็จ)'}`)
-  lines.push(`ติดตามพัสดุ: ${trackingNo ? trackingUrl(trackingNo) : '(ลิงก์จะแนบให้อัตโนมัติ)'}`)
-  return lines.join('\n')
-}
+const SEGMENTS: { value: Method; label: string; icon: string }[] = [
+  { value: 'MANUAL', label: 'ส่งเอง', icon: 'edit' },
+  { value: 'ISHIP', label: 'สร้างพัสดุ iShip', icon: 'package-export' },
+  { value: 'ISHIP_LINK', label: 'เลือกจาก iShip', icon: 'link' },
+]
 
 export default function ShipmentDraftPanel({ conversationId, orderToken, onDone, onViewOnlyChange }: Props) {
-  const [ctx, setCtx] = useState<ShipmentContextJson | null>(null)
+  const [ctx, setCtx] = useState<ShipmentPanelJson | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   /**
@@ -71,18 +71,33 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    */
   const [notify, setNotify] = useState(false)
   const [forceForm, setForceForm] = useState(false)
-  // สลับระหว่าง 'เปิดใบใหม่' กับ 'ผูกใบที่มีอยู่แล้วบน iShip'
-  const [linkMode, setLinkMode] = useState(false)
+  // ค่าเริ่มต้นของร้านที่เชื่อม iShip = "สร้างพัสดุ iShip" (พฤติกรรมเดิมของแผงนี้)
+  const [method, setMethod] = useState<Method>('ISHIP')
   const [sending, setSending] = useState(false)
+  const [manualSubmitting, setManualSubmitting] = useState(false)
+  // ขนส่งที่เลือกอยู่ในฟอร์มส่งเอง — ให้ตัวอย่างข้อความตรงกับที่จะส่งจริง
+  const [manualProvider, setManualProvider] = useState<string | null>(null)
+  const segRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  const { couriers, error: couriersError } = useIShipCouriers(!!ctx && !ctx.blockedBy)
+  const ready = ctx?.ishipState === 'READY' ? ctx : null
+  const view = ctx
+    ? decidePanelView({
+        ishipState: ctx.ishipState,
+        orderStatus: ctx.orderStatus,
+        ishipShipment: ctx.shipment,
+        hasManual: ctx.manualShipment !== null,
+        senderBlocked: Boolean(ready?.blockedBy),
+        forceForm,
+      })
+    : null
+
+  const { couriers, error: couriersError } = useIShipCouriers(Boolean(ready && !ready.blockedBy))
 
   /**
-   * "อ่านอย่างเดียว" = กำลังดูสถานะพัสดุที่เปิดไปแล้ว (ไม่มีช่องให้กรอกสักช่อง)
-   * ทางตันเรื่องที่อยู่ผู้ส่ง (blockedBy) ก็นับด้วย — หน้านั้นมีแต่ข้อความบอกให้ไปแก้ที่ตั้งค่า
-   * ส่วน forceForm/linkMode คือฟอร์มจริง ต้องถามก่อนปิดตามเดิม
+   * "อ่านอย่างเดียว" = ไม่มีช่องให้กรอกสักช่อง (ดูสถานะ/ส่งเองแล้ว/สถานะไม่เปิดให้แจ้ง/ผู้ส่งไม่ครบ)
+   * ตัวตัดสินอยู่ใน lib/chat-shipment-panel.ts ให้เทสจับได้
    */
-  const viewOnly = Boolean(ctx && (ctx.blockedBy || (ctx.shipment && !forceForm && !linkMode)))
+  const viewOnly = view !== null && isViewOnlyPanelView(view)
   useEffect(() => {
     onViewOnlyChange?.(viewOnly)
   }, [viewOnly, onViewOnlyChange])
@@ -101,7 +116,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
           if (alive) setLoadError(body.error?.message ?? 'โหลดข้อมูลการจัดส่งไม่สำเร็จ')
           return
         }
-        const body = (await res.json()) as ShipmentContextJson
+        const body = (await res.json()) as ShipmentPanelJson
         if (alive) setCtx(body)
       } catch {
         if (alive) setLoadError('โหลดข้อมูลการจัดส่งไม่สำเร็จ')
@@ -112,40 +127,43 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     }
   }, [orderToken, reloadKey])
 
-  /** ส่งเลขติดตามเข้าห้องแชทนี้ */
-  const sendTracking = useCallback(
-    async (shipment: ShipmentViewJson): Promise<boolean> => {
-      if (!shipment.trackingNo) return false
+  /** แทนที่ใบ iShip ใน context */
+  const patchShipment = (shipment: ShipmentViewJson | null) =>
+    setCtx((c) => (c ? { ...c, shipment } : c))
+
+  /** ส่งข้อความเข้าห้องแชทนี้ */
+  const sendText = useCallback(
+    async (body: string): Promise<boolean> => {
       const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'TEXT',
-          body: trackingMessage(shipment.trackingNo, shipment.courierName),
-        }),
+        body: JSON.stringify({ type: 'TEXT', body }),
       })
       return res.ok
     },
     [conversationId],
   )
 
+  const sendTracking = (mode: TrackingMessageMode, trackingNo: string, courierName: string | null) =>
+    sendText(trackingMessage(mode, trackingNo, courierName))
+
   async function handleCreated(shipment: ShipmentViewJson) {
     // สร้างไม่ผ่าน → ไม่มีเลขให้แจ้ง ปล่อยให้หน้าสถานะแสดงเหตุผลและปุ่มลองใหม่
     if (shipment.status !== 'CREATED' || !shipment.trackingNo) {
-      setCtx((c) => (c ? { ...c, shipment } : c))
+      patchShipment(shipment)
       setForceForm(false)
       return
     }
 
     if (notify) {
-      const ok = await sendTracking(shipment)
+      const ok = await sendTracking('ISHIP', shipment.trackingNo, shipment.courierName)
       // พัสดุถูกเปิดไปแล้วจริง ๆ ต่อให้ส่งข้อความไม่ผ่าน — ห้ามบอกว่า "ล้มเหลว" ลอย ๆ
       // ไม่งั้นร้านจะกดซ้ำแล้วนึกว่าไม่มีอะไรเกิดขึ้น (กันซ้ำไว้แล้วแต่ก็สับสนอยู่ดี)
       if (!ok) {
         pacesToast.warning(
           `สร้างพัสดุแล้ว (${shipment.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
         )
-        setCtx((c) => (c ? { ...c, shipment } : c))
+        patchShipment(shipment)
         setForceForm(false)
         return
       }
@@ -164,11 +182,34 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     onDone()
   }
 
-  async function handleNotifyNow() {
-    if (!ctx?.shipment?.trackingNo || sending) return
+  /** ส่งเองบันทึกสำเร็จ — ลำดับเดียวกับ handleCreated และปิดเลยเช่นกัน (ShipForm ปิด toast ของตัวเองไว้) */
+  async function handleManualSaved(saved: { provider: string; trackingNo: string }) {
+    if (!notify) {
+      pacesToast.success(`บันทึกการจัดส่งแล้ว (${saved.trackingNo})`)
+      onDone()
+      return
+    }
+    let ok = false
+    try {
+      ok = await sendTracking('MANUAL', saved.trackingNo, saved.provider)
+    } catch {
+      ok = false
+    }
+    // บันทึกไปแล้วจริง — ไม่มีหน้าสถานะค้างให้กดแจ้งซ้ำ จึงต้องมีเลขในประโยค
+    // (ร้านแจ้งทีหลังได้จากมุมมองส่งเองแล้วตอนเปิดหน้าต่างใหม่)
+    if (ok) pacesToast.success('บันทึกการจัดส่งและแจ้งเลขติดตามแล้ว')
+    else
+      pacesToast.warning(
+        `บันทึกการจัดส่งแล้ว (${saved.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
+      )
+    onDone()
+  }
+
+  async function notifyNow(mode: TrackingMessageMode, trackingNo: string | null, courierName: string | null) {
+    if (!trackingNo || sending) return
     setSending(true)
     try {
-      const ok = await sendTracking(ctx.shipment)
+      const ok = await sendTracking(mode, trackingNo, courierName)
       if (ok) pacesToast.success('แจ้งเลขติดตามในแชทแล้ว')
       else pacesToast.error('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่')
     } catch {
@@ -177,6 +218,70 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
       setSending(false)
     }
   }
+
+  /** ทางออกของใบ FAILED / ผู้ส่งไม่ครบ — ไปฟอร์มส่งเอง (ปิดทางตันของ state-snapshots กับดัก FAILED) */
+  function goManual() {
+    setMethod('MANUAL')
+    setForceForm(true)
+  }
+
+  async function copyTracking(trackingNo: string) {
+    try {
+      await navigator.clipboard.writeText(trackingNo)
+      pacesToast.success('คัดลอกเลขติดตามแล้ว')
+    } catch {
+      // clipboard ต้องการ https — บน dev ที่ไม่ใช่ https จะล้มเหลว ให้บอกตามตรง
+      pacesToast.warning('คัดลอกอัตโนมัติไม่ได้ กรุณาเลือกและคัดลอกด้วยตัวเอง')
+    }
+  }
+
+  // ลูกศรซ้าย/ขวา + Home/End ตาม APG ของ radiogroup (เหมือน ShipmentEntryModal)
+  const onSegKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const delta =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+    let next = -1
+    if (delta !== 0) next = (index + delta + SEGMENTS.length) % SEGMENTS.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = SEGMENTS.length - 1
+    if (next < 0) return
+    e.preventDefault()
+    setMethod(SEGMENTS[next].value)
+    segRefs.current[next]?.focus()
+  }
+
+  /** ช่องติ๊กแจ้งในแชท + ตัวอย่างข้อความ — ใช้ร่วมกันทั้งฟอร์ม iShip และฟอร์มส่งเอง */
+  const notifyBlock = (mode: TrackingMessageMode, courierName: string | null, verb: string) => (
+    <>
+      <label className="flex min-h-11 items-start gap-2">
+        <input
+          type="checkbox"
+          className="form-checkbox mt-0.5"
+          checked={notify}
+          onChange={(e) => setNotify(e.target.checked)}
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-default-900">แจ้งเลขติดตามในแชทหลัง{verb}</span>
+          <span className="block text-xs text-default-700">
+            ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่{verb}เสร็จ
+          </span>
+        </span>
+      </label>
+
+      {notify && (
+        <div className="mt-2 rounded-lg border border-dashed border-default-300 bg-default-50 px-3 py-2.5">
+          <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">ข้อความที่ลูกค้าจะได้รับ</p>
+          {/* ยังไม่มีเลขจริงจนกว่าจะบันทึกสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด
+              สร้างจาก trackingMessage ตัวเดียวกับข้อความจริง (ดู lib/chat-shipment-panel.ts) */}
+          <p className="mb-0 whitespace-pre-line text-xs text-default-700">
+            {trackingMessage(mode, null, courierName)}
+          </p>
+        </div>
+      )}
+    </>
+  )
+
+  const ghostBtn =
+    'btn inline-flex w-full items-center justify-center gap-2 text-default-700 hover:bg-default-100 min-h-11'
 
   if (loadError) {
     return (
@@ -197,7 +302,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     )
   }
 
-  if (!ctx) {
+  if (!ctx || !view) {
     return (
       <div className="flex flex-col gap-3 p-4" aria-busy="true">
         <span className="h-24 animate-pulse rounded-lg bg-default-100" />
@@ -207,96 +312,228 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     )
   }
 
-  if (ctx.blockedBy) {
+  // กล่อง D — สถานะ "ปกติ" ที่แจ้งเลขไม่ได้ ใช้ warning ไม่ใช่แดง และไม่มีปุ่มตัน
+  if (view === 'STATUS_BLOCKED') {
     return (
       <div className="p-4">
-        <SenderIncompleteNotice
-          missing={ctx.blockedBy.missing}
-          missingReceiver={ctx.missingReceiver}
-        />
+        <p className="mb-0 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning-ink">
+          <Icon icon="tabler:alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <span>
+            คำสั่งซื้อนี้อยู่สถานะ{orderStatusLabel(ctx.orderStatus)} จึงแจ้งเลขพัสดุไม่ได้ ตรวจสถานะได้ที่การ์ดคำสั่งซื้อ
+          </span>
+        </p>
       </div>
     )
   }
 
-  if (ctx.shipment && !forceForm) {
+  // มุมมอง C — ส่งเองไปแล้ว ไม่มีข้อมูลขนส่งให้ติดตาม จึงไม่มี timeline และไม่ใช้สีเขียว
+  // (ไม่มีใครยืนยัน — เลขมาจากมือร้านเอง)
+  if (view === 'MANUAL_DONE' && ctx.manualShipment) {
+    const { provider, trackingNo } = ctx.manualShipment
+    const logo = courierLogoUrl(null, provider)
     return (
-      <ShipmentStatusView
-        shipment={ctx.shipment}
-        // ผู้รับ/สินค้ามากับ context ที่โหลดไว้แล้ว — ไม่มีคำขอเพิ่ม (user 2026-08-07 "ข้อมูลน้อย")
-        receiver={ctx.receiver}
-        items={ctx.items}
-        onCancelled={() => {
-          setCtx((c) => (c ? { ...c, shipment: null } : c))
-          setForceForm(false)
-        }}
-        onRetried={(s) => setCtx((c) => (c ? { ...c, shipment: s } : c))}
-        onEditRequest={() => setForceForm(true)}
-        actions={
-          <button
-            type="button"
-            onClick={handleNotifyNow}
-            disabled={sending || !ctx.shipment.trackingNo}
-            // w-full: ปุ่มนี้ไปนั่งใน flex-1 ของแถบล่างใน ShipmentStatusView ต้องกางเต็มช่องที่ได้
-            className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
-          >
-            {sending ? (
-              <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
-            )}
-            แจ้งเลขในแชท
-          </button>
-        }
-      />
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-start gap-3">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt={provider} className="ring-default-200 size-11 shrink-0 rounded-lg object-contain ring-1" />
+          ) : (
+            <span className="bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
+              {courierInitials(provider, null)}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => void copyTracking(trackingNo)}
+              aria-label={`คัดลอกเลขติดตาม ${trackingNo}`}
+              className="btn -ms-1 inline-flex max-w-full items-center gap-2 p-1 text-start"
+            >
+              <span className="min-w-0 truncate text-lg font-bold tabular-nums text-default-900">{trackingNo}</span>
+              <span className="bg-primary/15 text-primary-ink flex size-7 shrink-0 items-center justify-center rounded-lg">
+                <Icon icon="tabler:copy" className="text-base" aria-hidden="true" />
+              </span>
+            </button>
+            <p className="mb-0 mt-1 flex min-w-0 items-center gap-2">
+              <span className="shrink-0 rounded-full bg-default-100 px-2 py-0.5 text-xs font-medium text-default-700">
+                ส่งเอง
+              </span>
+              <span className="min-w-0 truncate text-xs text-default-700">{provider}</span>
+            </p>
+          </div>
+        </div>
+        <p className="mb-0 text-xs text-default-700">ส่งเอง ระบบจึงไม่ได้ติดตามสถานะพัสดุให้</p>
+        <button
+          type="button"
+          onClick={() => void notifyNow('MANUAL', trackingNo, provider)}
+          disabled={sending}
+          className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+        >
+          {sending ? (
+            <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
+          ) : (
+            <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
+          )}
+          แจ้งเลขในแชท
+        </button>
+        <p className="mb-0 text-xs text-default-700">
+          <Link href={`/orders/${orderToken}`} className="text-primary-ink underline">
+            แก้เลขพัสดุได้ที่หน้าคำสั่งซื้อ
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
+  if (view === 'SENDER_BLOCKED' && ready?.blockedBy) {
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <SenderIncompleteNotice missing={ready.blockedBy.missing} missingReceiver={ready.missingReceiver} />
+        <button type="button" onClick={goManual} className={ghostBtn}>
+          <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
+          ส่งเองแทน
+        </button>
+      </div>
+    )
+  }
+
+  if (view === 'ISHIP_STATUS' && ctx.shipment) {
+    return (
+      <>
+        <ShipmentStatusView
+          shipment={ctx.shipment}
+          // ผู้รับ/สินค้ามากับ context ที่โหลดไว้แล้ว — ไม่มีคำขอเพิ่ม (user 2026-08-07 "ข้อมูลน้อย")
+          receiver={ready?.receiver}
+          items={ready?.items}
+          onCancelled={() => {
+            patchShipment(null)
+            setForceForm(false)
+          }}
+          onRetried={(s) => patchShipment(s)}
+          onEditRequest={() => setForceForm(true)}
+          actions={
+            <button
+              type="button"
+              onClick={() => void notifyNow('ISHIP', ctx.shipment?.trackingNo ?? null, ctx.shipment?.courierName ?? null)}
+              disabled={sending || !ctx.shipment.trackingNo}
+              // w-full: ปุ่มนี้ไปนั่งใน flex-1 ของแถบล่างใน ShipmentStatusView ต้องกางเต็มช่องที่ได้
+              className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              {sending ? (
+                <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
+              )}
+              แจ้งเลขในแชท
+            </button>
+          }
+        />
+        {ctx.shipment.status === 'FAILED' && (
+          <div className="px-4 pb-4">
+            <button type="button" onClick={goManual} className={ghostBtn}>
+              <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
+              ส่งเองแทน
+            </button>
+          </div>
+        )}
+      </>
     )
   }
 
   /**
-   * segmented 2 ทางเท่านั้น — ไม่มี "ส่งเอง (MANUAL)"
-   *
-   * ห้องแชทตั้งใจไม่รองรับ MANUAL มาแต่ต้น (แตะ ShipmentTracking ไม่ได้จากบริบทนี้ —
-   * ดูเหตุผลเต็มใน ShipmentEntryModal.tsx) งานนี้เพิ่มเฉพาะทางเลือกที่ร้องขอ
-   * ไม่ดึงขอบเขตที่เคยตัดออกไปแล้วกลับเข้ามา
-   *
-   * โชว์แม้ตอน forceForm (ลองใหม่หลังล้มเหลว) โดยเจตนา — เคส "ยิงสำเร็จแต่คำตอบหาย"
-   * คือเคสที่กด "ลองใหม่" ซ้ำเท่าไรก็ไม่ช่วย ต้องมาหาใบที่เกิดขึ้นจริงแล้วผูกเอง
+   * ฟอร์มส่งเอง — reuse ShipForm ของหน้าคำสั่งซื้อ (alwaysOpen + hideActions) ปุ่มยืนยันวาดเองในกระแส
+   * (หน้าต่างแชทไม่มี sticky footer) แล้วยิง submit กลับผ่าน form=
    */
-  const segCls = (active: boolean) =>
-    `btn inline-flex flex-1 items-center justify-center gap-1.5 border border-default-200 py-2 text-sm ${
-      active ? 'bg-primary text-white' : 'bg-default-50 text-default-900 hover:bg-default-100'
-    }`
-
-  const modeSwitch = (
-    <div className="flex px-4 pt-4" role="group" aria-label="เลือกวิธีเปิดพัสดุ">
+  const manualSection = (
+    <div className="flex flex-col gap-3 p-4">
+      <p className="mb-0 text-xs text-default-700">ส่งของกับขนส่งเอง แล้วนำเลขพัสดุมากรอกที่นี่เพื่อแจ้งผู้ซื้อ</p>
+      <ShipForm
+        publicToken={orderToken}
+        alwaysOpen
+        hideActions
+        showShipCost={ctx?.canSetShipCost === true}
+        silentSuccess
+        formId={MANUAL_FORM_ID}
+        onSuccess={(saved) => void handleManualSaved(saved)}
+        onSubmittingChange={setManualSubmitting}
+        onProviderChange={setManualProvider}
+      />
+      <div className="border-t border-default-200 pt-3">{notifyBlock('MANUAL', manualProvider, 'บันทึก')}</div>
       <button
-        type="button"
-        onClick={() => setLinkMode(false)}
-        aria-pressed={!linkMode}
-        className={`${segCls(!linkMode)} rounded-e-none`}
+        type="submit"
+        form={MANUAL_FORM_ID}
+        disabled={manualSubmitting}
+        className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
       >
-        <Icon icon="tabler:package-export" className="text-sm" aria-hidden="true" />
-        สร้างพัสดุใหม่
-      </button>
-      <button
-        type="button"
-        onClick={() => setLinkMode(true)}
-        aria-pressed={linkMode}
-        className={`${segCls(linkMode)} -ms-px rounded-s-none`}
-      >
-        <Icon icon="tabler:link" className="text-sm" aria-hidden="true" />
-        เลือกจาก iShip
+        {manualSubmitting ? (
+          <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
+        ) : (
+          <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
+        )}
+        {manualSubmitting ? 'กำลังบันทึก...' : 'ยืนยันจัดส่ง'}
       </button>
     </div>
   )
 
-  if (linkMode) {
+  // ร้านไม่เชื่อม iShip / ผู้ส่งไม่ครบแล้วเลือกส่งเองแทน — "ส่งเอง" คือทั้งหน้าต่าง ไม่มีแถบเลือก
+  if (view === 'MANUAL_ONLY' || !ready) return manualSection
+
+  /**
+   * segmented 3 ทาง — โครง/ลำดับ/ป้ายตาม ShipmentEntryModal (radiogroup + roving tabindex)
+   *
+   * โชว์แม้ตอน forceForm (ลองใหม่หลังล้มเหลว) โดยเจตนา — เคส "ยิงสำเร็จแต่คำตอบหาย"
+   * คือเคสที่กด "ลองใหม่" ซ้ำเท่าไรก็ไม่ช่วย ต้องมาหาใบที่เกิดขึ้นจริงแล้วผูกเอง
+   * ปิดทั้งแถบตอนกำลังบันทึกส่งเอง กันสลับแท็บแล้ว unmount ฟอร์มที่กำลังรอ response
+   */
+  const SEG = 'btn inline-flex flex-1 flex-col items-center justify-center gap-1 px-1 text-xs min-h-11'
+  const segCls = (active: boolean) =>
+    active
+      ? `${SEG} bg-primary text-white border border-primary`
+      : `${SEG} border border-default-300 bg-card text-default-700 hover:bg-default-50`
+
+  const modeSwitch = (
+    <div className="flex px-4 pt-4" role="radiogroup" aria-label="เลือกวิธีจัดส่ง">
+      {SEGMENTS.map((seg, i) => (
+        <button
+          key={seg.value}
+          ref={(el) => {
+            segRefs.current[i] = el
+          }}
+          type="button"
+          role="radio"
+          aria-checked={method === seg.value}
+          tabIndex={method === seg.value ? 0 : -1}
+          onKeyDown={(e) => onSegKeyDown(e, i)}
+          onClick={() => setMethod(seg.value)}
+          disabled={manualSubmitting}
+          className={`${segCls(method === seg.value)} ${
+            i === 0 ? 'rounded-e-none' : i === SEGMENTS.length - 1 ? '-ms-px rounded-s-none' : '-ms-px rounded-none'
+          } disabled:opacity-60`}
+        >
+          <Icon icon={`tabler:${seg.icon}`} className="text-sm" aria-hidden="true" />
+          {seg.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (method === 'MANUAL') {
+    return (
+      <div>
+        {modeSwitch}
+        {manualSection}
+      </div>
+    )
+  }
+
+  if (method === 'ISHIP_LINK') {
     return (
       <div>
         {modeSwitch}
         <ShipmentLinkPanel
           orderToken={orderToken}
           onLinked={handleCreated}
-          onSwitchToCreate={() => setLinkMode(false)}
+          onSwitchToCreate={() => setMethod('ISHIP')}
         />
       </div>
     )
@@ -305,55 +542,23 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   return (
     <div>
       {modeSwitch}
-    <ShipmentCreateForm
-      orderToken={orderToken}
-      missingReceiver={ctx.missingReceiver}
-      receiver={ctx.receiver}
-      sender={ctx.sender}
-      items={ctx.items}
-      codSuggested={ctx.codSuggested}
-      defaults={ctx.defaults}
-      couriers={couriers as Courier[]}
-      couriersError={couriersError}
-      onCreated={handleCreated}
-      onExists={() => {
-        setForceForm(false)
-        setReloadKey((k) => k + 1)
-      }}
-      extraFields={({ courierName }) => (
-        <>
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              className="form-checkbox mt-0.5"
-              checked={notify}
-              onChange={(e) => setNotify(e.target.checked)}
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-default-900">
-                แจ้งเลขติดตามในแชทหลังสร้าง
-              </span>
-              <span className="block text-xs text-default-700">
-                ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่เปิดพัสดุสำเร็จ
-              </span>
-            </span>
-          </label>
-
-          {notify && (
-            <div className="mt-2 rounded-lg border border-dashed border-default-300 bg-default-50 px-3 py-2.5">
-              <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">
-                ข้อความที่ลูกค้าจะได้รับ
-              </p>
-              {/* ยังไม่มีเลขจริงจนกว่าจะสร้างสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด
-                  สร้างจาก trackingMessage ตัวเดียวกับข้อความจริง (ดูคอมเมนต์ที่ฟังก์ชัน) */}
-              <p className="mb-0 whitespace-pre-line text-xs text-default-700">
-                {trackingMessage(null, courierName)}
-              </p>
-            </div>
-          )}
-        </>
-      )}
-    />
+      <ShipmentCreateForm
+        orderToken={orderToken}
+        missingReceiver={ready.missingReceiver}
+        receiver={ready.receiver}
+        sender={ready.sender}
+        items={ready.items}
+        codSuggested={ready.codSuggested}
+        defaults={ready.defaults}
+        couriers={couriers as Courier[]}
+        couriersError={couriersError}
+        onCreated={handleCreated}
+        onExists={() => {
+          setForceForm(false)
+          setReloadKey((k) => k + 1)
+        }}
+        extraFields={({ courierName }) => notifyBlock('ISHIP', courierName, 'สร้าง')}
+      />
     </div>
   )
 }

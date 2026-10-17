@@ -371,6 +371,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 | **ติดตามลูกค้า (feature 00066)** | **`/follow-ups`** — เมนู slug `seller:follow-ups` (icon `list-check`, กลุ่มเดียวกับ `/customers`) · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · query `?mine=1&shopId=` (ลิงก์จาก push/bubble) · ไม่มีตัวเลขบนเมนู · ดู §7.22 |
 
+**ส่งอัตโนมัติถึงลูกค้า (feature 00078 — เอกสารอนุมัติแล้ว 2026-10-17 · ยังไม่ implement)** — หน้า **`/settings/auto-notify`** (ไฟล์ `(paces)/seller/(dashboard)/settings/auto-notify/page.tsx` · ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" ด้านล่างโดยเจตนา) · เมนู slug `seller:settings-auto-notify` · อ่านหน้า = **H1** (`gatePage`; TECHNICIAN/BILLING ไม่มี H1 → `NoPermissionCard`) · แก้ค่า = **X8** · 🛑 **กลุ่มเมนู sidebar ปรับเป็น 7 กลุ่ม** ตาม SDS TD-012: `seller-daily` · `seller-chat` (คงเดิม) · `seller-finance` · `seller-trust` · `seller-chat-settings` · `seller-setting` (คงเดิม) · `seller-team` — เลิก slug กลุ่ม `seller-analytics/manage/shops` และถอดกลุ่มว่างท้าย `resolveVisibleSellerMenu` (ชื่อรายการเมนูเดิม 3 หน้า "…อัตโนมัติ" และแถบล่างมือถือ `resolveMobileNav` ไม่เปลี่ยน — OOS-17) · ไม่มีหน้าใหม่อื่น (แถบแจ้งในห้องแชท/ฟอร์มสร้างออเดอร์เป็นคอมโพเนนต์ ไม่ใช่ route; `/orders/new` เต็มจอไม่ผูกห้อง — D-6) · ดู `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/{SRS,SDS}.md`
+
 **รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — สถานะ ณ 2026-10-05 (ตรวจจากโค้ด): เมนู sidebar (`seller:line-reports`) + **`page.tsx` ของ 3 หน้าแรกมีในโค้ดแล้ว** (`(paces)/seller/(dashboard)/business/line-reports/{page,new/page,[groupId]/page}.tsx`) · ~~🛑 หน้า `/template` (ส่วนต่อขยาย EXT) = กำลังสร้าง ยังไม่ commit~~ **sync 2026-10-15: `page.tsx` ของ `/template` มีในโค้ดแล้ว (ดูตารางด้านล่าง) — ยังไม่ได้ตรวจสถานะ commit/ผล QA บนจอจริง**
 
 | เมนู | Path | สถานะ |
@@ -527,6 +529,14 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | `TYPHOON_SUGGEST_SHOP_IDS` | `resolveSuggestProvider` | ไม่ | ว่าง = ไม่มีร้านใดใช้ Typhoon · `id1,id2` = เฉพาะร้านในรายการ · `*` = ทุกร้าน |
 | `AI_SUGGEST_RPS` | pacing ใน `ai-suggest-auto.service` | ไม่ | default 3 (ยิงจริงรวมต่อวินาที) |
 | `AI_SUGGEST_RPM` | pacing | ไม่ | default 100 (รวมต่อนาที · ต่อร้าน ≤ `floor(RPM/2)`) |
+
+### 5.3 env ที่ feature 00078 ใช้ (ไม่มี env ใหม่ · 2026-10-17)
+
+> เอกสารต้นทาง: `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/SDS.md` §0 F-2 · D-5
+
+| env | ใช้ที่ | หมายเหตุ |
+|---|---|---|
+| `FB_CHAT_APP_ID` (**มีอยู่แล้ว**) | `src/lib/facebook/app-id.ts::ourMetaAppId()` (ไฟล์ใหม่) — ตัดสินว่า echo/ผู้ถือห้อง "เป็นของเรา" หรือไม่ | 🛑 **ไม่มี env ชื่อ `META_APP_ID` ในโค้ด** (เอกสาร 00078 รุ่นก่อนเขียนผิด — แก้แล้วตาม D-5) · ใช้ตัวเดียวกับ `graph.ts` / `connect/route.ts` |
 
 ---
 
@@ -792,6 +802,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `slipFileId` | String? | Phase 2 OOS-1 — fileId ของสลิปโอนเงิน; null = ยังไม่แนบ |
 | `accessUrl` | String? | Phase 2 OOS-2 — URL ส่งมอบ digital order |
 | `serviceClosedAt` | DateTime? `@db.Timestamptz(3)` | **feature 00073** — ร้านบริการ "ปิดงาน" เมื่อไร (ขั้น 3) · NULL = ยังไม่ปิด · ตั้ง/ล้างผ่าน `closeServiceJob`/`reopenServiceJob` เท่านั้น · **วันที่ของยอดขายร้านบริการ** (แทน createdAt) · index `Order_shopId_serviceClosedAt_idx` · ร้านอื่นไม่อ่านค่านี้ · migration `20261011120000_service_closed_at` (+ ปิดย้อนหลังงานเก่าของร้านบริการ) |
+| `serviceStartedAt` | DateTime? `@db.Timestamptz(3)` | **feature 00078 (ออกแบบแล้ว · M5)** — เวลา "เริ่มงาน" ร้านบริการ · NULL = ยังไม่เริ่ม · เขียนครั้งเดียว (`WHERE serviceStartedAt IS NULL`) ผ่าน `startServiceJob` · **ไม่ใช่สถานะ** ไม่แตะ `status`/`appointmentStatus`/ป้าย 10 ป้าย · ปิดงานโดยไม่เริ่มได้ · `reopenServiceJob` ไม่ล้างค่า · ไม่มี index · ไม่เพิ่มคอลัมน์ "ผู้กด" (อยู่ใน `OrderEvent.actorUserId`) · ดู §6.72 |
 | `serviceResourceId` / `serviceSeat` / `serviceStart` / `serviceEnd` / `appointmentStatus` / `buyerConfirmedAt` / `rescheduleRequestNote` / `depositAmount` | nullable ทั้งหมด | **feature 00024 (Service Appointment Booking)** — ฟิลด์นัดหมายบริการ (ร้าน `Shop.vertical='SERVICE_QUEUE'` เท่านั้น; NULL เสมอสำหรับร้านอื่น) ยังไม่เคย sync เข้าเอกสารนี้มาก่อน (หนี้เดิม — รายละเอียดเต็ม: constraint EXCLUDE `Order_service_seat_no_overlap`, state machine ของ `appointmentStatus`, กฎมัดจำ อยู่ที่ `docs/20 - Features/00024 - Service Appointment Booking/{SRS,DATABASE}.md`). 🛑 ตั้งแต่ 2026-08-08: `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` ถูก select เพิ่มใน `getThreadPanelOrders()` (ชื่อเดิม `getOrdersByCustomer` — เปลี่ยน 2026-09-05, `src/services/order.service.ts`) **และ** `inbox/[conversationId]/page.tsx` เพื่อป้อนแกนสถานะนัดในห้องแชท (`src/lib/chat-service-progress.ts` — ดูด้านล่าง) — สอง select ต้อง sync ฟิลด์ชุดนี้เสมอ ไม่งั้นออเดอร์ที่โหลดทีหลัง (lazy-load) จะกลายเป็น walk-in เงียบ ๆ |
 
 **Index:** `[slipFileId]` — รองรับ `/api/files` order-slip gate
@@ -816,7 +827,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `orderId` | String FK → Order | cascade delete |
-| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) |
+| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) · **feature 00078 ออกแบบเพิ่ม +3 → 30 ค่า (ยังไม่ implement · M4 — ดู §6.72)** |
 | `actorUserId` | String? FK → User | `SetNull` เมื่อลบ user — ห้าม fallback เป็นเจ้าของร้าน |
 | `meta` | Json default `{}` | โครงต่างกันตาม `type` — **ห้ามมี PII ผู้ซื้อดิบ** (เบอร์/อีเมล/ที่อยู่) เด็ดขาด |
 | `occurredAt` | DateTime (ไม่มี default) | 🛑 **เวลาจริงที่เหตุการณ์เกิด เสมอ — ห้ามย้อนตามวันที่ที่ผู้ใช้กรอก** (เช่น `Order.createdAt` ที่ backdate ได้ตาม feature 00033). วันที่สั่งซื้อที่ผู้ขายเลือกอยู่ใน `meta.orderedAt`/`orderedAtFrom`/`orderedAtTo` เท่านั้น — ประวัติคือหลักฐาน |
@@ -834,6 +845,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `trackingNo` | String | หมายเลขพัสดุ |
 | `status` | String default `"SHIPPED"` | |
 | `lastSyncAt` | DateTime? | Phase 2 — shipping status sync |
+| `outboundShippingCost` | Decimal(12,2)? | **feature 00078 (ออกแบบแล้ว · M6)** — ต้นทุนค่าส่ง "ขาไป" ของพัสดุที่ร้านส่งเอง · NULL = ยังไม่ระบุ (นับ pending) ≠ 0 = ไม่มีค่าใช้จ่ายจริง · CHECK `>= 0` · 🛑 ต้นทุนของร้าน ซ่อนจากระดับเงิน `NONE` และห้ามส่งหน้า guest `/o/{token}` · ชื่อต่างจาก `OrderReturn.shippingCost` (ขากลับ 00056) โดยเจตนา · ดู §6.72 |
 
 #### Review (`prisma/schema.prisma:209`)
 
@@ -1591,6 +1603,66 @@ erDiagram
 **Prisma global `omit` (P3 · `src/lib/prisma.ts`):** `OrderItem.cost` และ `Product.cost` ไม่ติดมากับ query ปกติโดยค่าตั้งต้น (ไม่ใช่การเปลี่ยน schema) · query ของเจ้าของ/F1 ที่ต้องใช้ต้นทุน **opt-in เอง** ด้วย `select: { cost: true }` · `omit: { cost: false }` · `include: { items: { omit: { cost: false } } }` · ไม่ครอบ `$queryRaw` และ aggregate (`_sum` ที่อ้าง cost) — ด่านกันลืม opt-in ของหน้าคำนวณต้นทุน: `src/lib/__tests__/cost-optin-guard.test.ts` · ตรวจคีย์จริงในผลลัพธ์: `tests/integration/role-contract.test.ts`
 
 Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน์ → backfill `ShopMember.role='ADMIN'` → `roles=['MANAGER']` (คำเชิญ/ลิงก์ค้างได้ `['MANAGER']` จาก default) → `SET NOT NULL` → CHECK 3 ตัว (`NOT VALID` + `VALIDATE`) — CHECK เป็น **unmanaged SQL** (Prisma ประกาศไม่ได้) ห้าม `db pull`/`migrate dev` · invariant: `role='OWNER' ⇒ roles=[]` · `role='ADMIN' ⇒` 1..4 ค่าในชุด · เขียน `role='OWNER'` ต้องส่ง `roles: []` คู่กัน
+
+### 6.72 สัญญาณลูกค้าในแชท + ส่งอัตโนมัติถึงลูกค้า (feature 00078)
+
+> สถานะ: **ออกแบบแล้ว อนุมัติ 2026-10-17 · ยังไม่ implement ยังไม่มี migration บนดิสก์** — เขียนจากเอกสาร ไม่ใช่จากโค้ด; ตรวจกับ `prisma/schema.prisma` อีกครั้งเมื่อ dev เสร็จ · เอกสารต้นทาง (SSOT ของรายละเอียด/SQL/เหตุผล): `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/DATABASE.md` (+ มติ Controller ท้ายไฟล์) · `SDS.md` §8.4 · Scope `docs/scope/2026-10-17-00078-chat-signals-auto-notify-scope-baseline.md` (Change Log)
+> ทุก migration **additive · ไม่มี backfill · ไม่มี DROP** · CHECK ทุกตัวเป็น **unmanaged SQL** → ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14) · ไม่มี RLS (สิทธิ์ตัดสินที่ `src/services/`) · migration ไฟล์ละส่วน ชื่อเสนอ `20261017100000` … `20261017100500` (เช็คชนข้าม branch แล้ว: ล่าสุด = `20261016230000`)
+
+| M | ไฟล์ (ชื่อเสนอ) | สิ่งที่ทำ |
+|---|---|---|
+| M1 | `…100000_chat_meta_owner_facts` | `Conversation` +6 คอลัมน์ · `ChatMessage` +3 คอลัมน์ (nullable ไม่มี default) · หัวไฟล์ `SET LOCAL lock_timeout = '5s'` (ล้ม = deploy ไม่ขึ้น แจ้งตาม HR15 ดีกว่าบล็อก webhook แชท) |
+| M2 | `…100100_auto_notify_settings` | ตารางใหม่ `AutoNotifyConfig` / `AutoNotifySwitch` / `AutoNotifyTemplate` |
+| M3 | `…100200_auto_notify_ledger` | ตารางใหม่ `AutoNotifyLedger` |
+| M4 | `…100300_order_event_service_started` | ขยาย `OrderEvent_type_check` **+3 ชนิด** (`SERVICE_STARTED`, `AUTO_NOTICE_SENT`, `AUTO_NOTICE_FAILED`) — อ่านนิยามเดิมจาก `pg_get_constraintdef` แล้วต่อท้าย (ห้าม hardcode ทับ) · กิ่ง fallback ต้องมีรายชื่อครบ = ค่าใน `ORDER_EVENT_TYPES` ณ วันเขียน (27) + 3 = 30 · idempotent ด้วย `position('SERVICE_STARTED' IN def)` · forward-only |
+| M5 | `…100400_order_service_started_at` | `Order.serviceStartedAt` |
+| M6 | `…100500_shipment_tracking_outbound_cost` | `ShipmentTracking.outboundShippingCost` + CHECK |
+
+**M1 — ข้อเท็จจริงผู้ถือห้อง Meta (ไม่เก็บ verdict)** — เก็บ *ข้อเท็จจริงล่าสุดที่ Meta บอก* ให้ฟังก์ชันบริสุทธิ์ใน `src/lib/` (ไม่ import prisma) ตัดสิน "Meta AI ถือห้อง" จากข้อเท็จจริง + `now()` + `FB_CHAT_APP_ID` · 🛑 **ไม่เก็บ "kind" (AI/คน/แอปอื่น) และไม่เก็บธง `aiHolds`** (verdict ค้างทันทีที่ rule/env เปลี่ยน — `stored-flag-vs-owner-truth`) · ไม่เพิ่ม index · ไม่ backfill (หลักฐานมี TTL 24 ชม.; NULL = ไม่รู้ = ไม่ขึ้นป้าย) · `viaStandby` เดิมไม่แตะ (00077 ใช้อยู่)
+
+| ตาราง.คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `Conversation.metaOwnerAppId` | `text?` | `new_owner_app_id` ของ `pass`/`take` ล่าสุด · NULL + `metaOwnerObservedAt` มีค่า = ห้องว่าง · `take_thread_control` ไม่มี new owner → NULL (D-17) |
+| `Conversation.metaOwnerObservedAt` | `timestamptz(3)?` | เวลา `timestamp` **ของ Meta** (ไม่ใช่ `now()`) — กัน event เก่าเขียนทับ |
+| `Conversation.metaForeignEchoAt` | `timestamptz(3)?` | เวลา echo ฝั่งร้านล่าสุดที่ **ไม่ใช่ของเรา** |
+| `Conversation.metaForeignEchoAppId` | `text?` | `app_id` ของ echo นั้น |
+| `Conversation.metaForeignEchoAi` | `boolean?` | `ai_generated` ตามที่ Meta ส่ง · NULL = ไม่มี field (spike Q-23: Meta ไม่ส่ง handover ตอน AI ตอบ → ใช้ echo `ai_generated` ล่าสุด) |
+| `Conversation.metaForeignEchoAdminText` | `boolean?` | echo นั้น **มี** `admin_text` หรือไม่ (เก็บแค่มี/ไม่มี) |
+| `ChatMessage.echoAppId` / `echoAiGenerated` / `echoHasAdminText` | `text?` / `boolean?` / `boolean?` | หลักฐานระดับ echo · เขียนผ่าน Prisma `create`/`update` เท่านั้น (ด่าน `chat-message-no-raw-write.test.ts`) · `Conversation.metaForeignEcho*` เขียนแบบมีเงื่อนไขเวลา `updateMany where metaForeignEchoAt IS NULL OR < t` |
+
+**M2 — ตั้งค่า (แยกจาก `AutoReplyConfig` และไม่ใส่ `Shop`)** · ไม่มีโหมดทดสอบ/ห้องทดสอบ/สถานะ 3 ค่า (OOS-2)
+
+| ตาราง | คอลัมน์/คีย์หลัก | กติกา |
+|---|---|---|
+| `AutoNotifyConfig` (1 ร้าน 1 แถว) | `shopId` UNIQUE (CASCADE) · `dailyCapPerRoom` int default 5 · `updatedByUserId` (SetNull) | CHECK `AutoNotifyConfig_dailyCap_range` `BETWEEN 1 AND 20` · **ไม่มีแถว = 5** (อ่านด้วย `?? 5` จุดเดียวใน `src/lib`) |
+| `AutoNotifySwitch` | UNIQUE `(shopId, kind)` · `kind` · `enabled` default false · `enabledAt` timestamptz(3)? · `updatedByUserId` (SetNull) | CHECK `AutoNotifySwitch_kind_check` (5 ค่า §8.15) · CHECK `AutoNotifySwitch_enabled_has_enabledAt` (`NOT enabled OR enabledAt IS NOT NULL`) · **ไม่มีแถว = ปิด** (ค่าตั้งต้นทุกร้านรวมร้านเดิม) · `enabledAt` ตั้งใหม่เฉพาะตอน ปิด→เปิด และคงไว้ตอนปิด (ไว้ตอบ "เคยเปิดไหม" ให้ Swal ครั้งแรก) · upsert ใน SQL เดียว (`ON CONFLICT … CASE WHEN enabled …`) · **ตัวส่งต้องอ่านสวิตช์ซ้ำตอนส่งจริง** |
+| `AutoNotifyTemplate` | UNIQUE `(shopId, kind)` · `kind` · `body` text · `updatedByUserId` (SetNull) · `updatedAt` = ตัวกันแก้ชน | CHECK `AutoNotifyTemplate_kind_check` · CHECK `AutoNotifyTemplate_body_len` `char_length(body) BETWEEN 1 AND 500 AND btrim(body, E' \t\r\n') <> ''` · **แถวมี = ร้านแก้แล้ว / ไม่มีแถว = ค่าตั้งต้น** · "คืนค่าตั้งต้น" = DELETE แถว · กันแก้ชน `UPDATE … WHERE updatedAt = expected` · DB ไม่รู้จักชุดตัวแปร (บังคับที่ Valibot) · ไม่เก็บประวัติแก้ |
+
+**M3 — `AutoNotifyLedger` (กันส่งซ้ำ + ผลการแจ้ง + เพดานต่อวัน + จุดรับช่วงของ sweeper)**
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `shopId` / `orderId` | FK → `Shop` / `Order` (CASCADE) | `shopId` เขียนจาก `Order.shopId` เสมอ (ไม่รับจาก client) |
+| `conversationId` | FK → `Conversation` (SetNull)? | ใช้นับเพดานต่อห้อง |
+| `kind` | `text` | CHECK `AutoNotifyLedger_kind_check` (ชุดเดียวกับ §8.15) |
+| `valueKey` | `text` NOT NULL | `'-'` สำหรับ kind ครั้งเดียวต่อใบ · เลขพัสดุ **normalize แล้ว** (trim + UPPER) สำหรับ `TRACKING` · CHECK `AutoNotifyLedger_valueKey_len` 1..120 |
+| `status` | `text` default `'INTENT'` | CHECK `_status_check`: `INTENT` / `SENT` / `FAILED` / `SKIPPED` |
+| `reason` | `text?` | CHECK `_reason_check`: `DAILY_CAP` `EMPTY_MESSAGE` `WINDOW_CLOSED` `QUOTA_EXCEEDED` `REJECTED_BY_PLATFORM` `NOT_ELIGIBLE_ANYMORE` `UNCERTAIN_SEND` `RESEND_LIMIT` (8 ค่า — ดู §8.15) |
+| `chatMessageId` | FK → `ChatMessage` (SetNull)? | ข้อความที่ส่งจริง |
+| `claimedAt` | `timestamptz(3)?` | NULL = ยังไม่เคยเริ่มยิง · มีค่า + ยัง `INTENT` + ไม่มี `chatMessageId` + เกินเวลา ⇒ **ห้ามยิงซ้ำอัตโนมัติ** (Meta ไม่มี idempotency key) ปิดเป็น `FAILED/UNCERTAIN_SEND` · claim ด้วย `UPDATE … WHERE status='INTENT' AND claimedAt IS NULL` (count=1 เท่านั้นที่ได้ส่ง) |
+| `createdAt` / `settledAt` | `timestamptz(3)` / `timestamptz(3)?` | CHECK `_settled_shape`: `(status='INTENT') = (settledAt IS NULL)` |
+
+- **UNIQUE `AutoNotifyLedger_key` `(shopId, orderId, kind, valueKey)`** = ด่านกันซ้ำ · `valueKey` NOT NULL โดยตั้งใจ (NULL ≠ NULL ใน UNIQUE ของ Postgres จะรั่ว)
+- CHECK `_status_reason_shape`: `(status IN ('INTENT','SENT') AND reason IS NULL) OR (status IN ('FAILED','SKIPPED') AND reason IS NOT NULL)` — ล้มต้องมีเหตุผล
+- Index: `(orderId)` · `(conversationId, createdAt)` (นับเพดาน — ห้ามห่อ `createdAt` ด้วยฟังก์ชัน) · `(status, createdAt)` (sweeper) · `(chatMessageId)` (SetNull)
+- จองกุญแจด้วย `INSERT … ON CONFLICT DO NOTHING RETURNING id` (ไม่ `create` แล้ว catch P2002 — ก่อ ERROR log) ใน tx เดียวกับเหตุการณ์ต้นทาง + **`pg_advisory_xact_lock(hashtextextended('auto-notify:'||conversationId,0))` ต่อห้อง** ตอนนับเพดาน/จอง (มติ Controller ข้อ 4 · SDS TD-002 — ถูกต้องที่ขอบ ไม่ปล่อยเกิน) · ขอบวัน = ปฏิทินไทย Asia/Bangkok
+- `SENT` = ปลายทางรับแล้ว ≠ สถานะส่งถึงลูกค้า — จอแสดงผลต้อง join อ่าน `ChatMessage.deliveryStatus` สด ห้ามสะท้อนค่าใน ledger · ledger เป็น SSOT ของผลส่ง ส่วน `OrderEvent` `AUTO_NOTICE_*` เป็นภาพสำหรับไทม์ไลน์ · 🛑 **ห้ามตัดแถวเก่าทิ้ง** (เป็นด่านกันซ้ำ; อยู่ตาม `Order` ด้วย cascade) · ไม่เก็บเนื้อข้อความ/เบอร์/ชื่อลูกค้า
+
+**M4–M6** — `OrderEvent` +3 ชนิด (ดู §8.1b) · `Order.serviceStartedAt` (ดู §6.2 Order) · `ShipmentTracking.outboundShippingCost` (ดู §6.2 ShipmentTracking · ผู้แก้บันทึกใน `OrderEvent` ชนิดเดิม `ORDER_EDITED` meta `{field:'outboundShippingCost'}` **ไม่ใส่ตัวเลขดิบ**) · สูตรเลือกต้นทุน: ใบ iShip active → `carrierPrice ?? estimatedPrice` + `codFee` · ไม่มีราคา → `outboundShippingCost` · ไม่มีทั้งหมด → ยังไม่ระบุ (`pending=false` เมื่อค่ามาจากที่ร้านกรอก — D-11) · ไม่ backfill เป็น 0 เด็ดขาด
+
+**ไม่มี migration:** `ChatMessage.autoReplyKind` (`String?` ไม่มี CHECK — ยืนยันจาก migration `20260729000000_auto_reply`) รับค่าใหม่ `AUTO_NOTICE` ได้เลย (ดู §8.15) · ความเสี่ยงอยู่ที่ผู้บริโภคที่เขียน `<> 'AUTO'` / `NOT IN (…)` / `not: null` ต้องไล่ทุกจุด (SDS §0 F-5/F-6)
+
+**Rollback:** ย้อนโค้ดก่อนแล้วปล่อย schema ไว้ (additive + inert) · M1/M2/M3/M5/M6 ย้อน = DROP ที่เสียข้อมูล (ต้อง Controller สั่งชัด) · M3 ต้องปิดสวิตช์ทุกร้านก่อน · M4 forward-only · HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง (ปักหมุด URL localhost), migrate ล้ม = deploy ไม่ขึ้น
 
 ---
 
@@ -2436,6 +2508,33 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 **`GET /api/chat/presence-keys`** — ไม่มีพารามิเตอร์ · 200 `{ keys:[{ shopId, key }] }` ของผู้เรียกเองเท่านั้น ในทุกร้านใน `resolveChatScope(session,'H1').shopIds` · `key` = HMAC ทึบ (`presenceKeyFor(shopId,userId)`) ไม่มี userId · error: 401 · 403/404 ตาม `chatScopeOrDeny` เดิม · 500
 - ช่อง Supabase Presence ของร้าน = `presence:chat:{shopId}` (anon key; payload `{at}` เท่านั้น) — ข้อจำกัดที่รู้ตัว: ช่องเป็น public คนนอกที่รู้ `shopId` เห็นจำนวนคีย์ออนไลน์ได้ ไม่เห็นตัวตน ปลอมสมาชิกไม่ได้ (เทียบเท่า `chat:shop:{shopId}` เดิม) ทางปิดจริง = Realtime private channel (รอบ 2)
 
+### 7.29 ส่งอัตโนมัติถึงลูกค้า (`/api/shops/current/auto-notify/**` + ส่วนที่เปลี่ยน) — feature 00078
+
+> สถานะ: **สัญญาออกแบบแล้ว อนุมัติ 2026-10-17 · ยังไม่ implement** · สัญญาละเอียด (schema, ตัวอย่าง JSON, sequence) = `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/API.md` · ทุก route: `requireShopCapability(session, CAP, {shopId})` → Valibot → service → `jsonNoStore()` · error shape `{ error: CODE, message?: ไทย }` · ไม่มี session = 401 · ไม่ถือ cap = 403 `FORBIDDEN_ROLE` · ต้องลง `src/lib/route-capabilities.ts` + `tests/integration/role-contract.test.ts` (GET ใหม่: `auto-notify`, `strip-context`) ในคอมมิตเดียวกับ route
+
+| Method | Path | Cap | Purpose |
+|---|---|---|---|
+| GET | `/api/shops/current/auto-notify` | **H1** | snapshot หน้าตั้งค่า: `vertical`, `kinds[]` (เฉพาะ kind ที่ vertical นี้ใช้ได้ — `kindsForVertical`) แต่ละตัว `{kind, enabled, enabledAt, updatedBy, template:{body\|null, defaultBody, isCustom, updatedAt, updatedBy}}`, `dailyCapPerRoom`, `canEdit` (= `can(roles,'X8')`), `variables` |
+| PATCH | `/api/shops/current/auto-notify/settings` | **X8** | ตั้งเพดานต่อห้องต่อวัน body `{dailyCapPerRoom: int 1..20}` |
+| PUT | `/api/shops/current/auto-notify/switches/[kind]` | **X8** | เปิด/ปิดจังหวะ body `{enabled}` → `{kind, enabled, enabledAt, firstEnable}` · ปิดไม่แตะ `enabledAt` · Swal ยืนยันครั้งแรกเป็น UX ไม่ใช่กฎ server (A-12) · 409 `KIND_NOT_AVAILABLE` |
+| PUT | `/api/shops/current/auto-notify/templates/[kind]` | **X8** | บันทึกเทมเพลต body `{body, expectedUpdatedAt\|null}` · 400 `VALIDATION_ERROR` + `issues[]` (`UNKNOWN_VARIABLE` `WRONG_KIND_VARIABLE` `BLANK` `TOO_LONG`) · **409 `TEMPLATE_CONFLICT`** `{currentUpdatedAt}` · 409 `KIND_NOT_AVAILABLE` |
+| DELETE | `/api/shops/current/auto-notify/templates/[kind]?expectedUpdatedAt=` | **X8** | คืนค่าตั้งต้น (ลบแถว) → 204 (ไม่มีแถว = 204) · `updatedAt` ไม่ตรง = 409 `TEMPLATE_CONFLICT` |
+| GET | `/api/shops/current/auto-notify/strip-context` | **O1** (+ **H1** เมื่อส่ง `conversationId`) | ข้อมูลให้แถบแจ้ง: query `orderToken` หรือ `conversationId` (อย่างน้อยหนึ่ง) · `shopId?` `kind?` → `{switches, templates, canOpenSettings (= H1), conversation, order}` · ไม่มีเงิน/ที่อยู่/เบอร์ · ห้อง/ออเดอร์ไม่ใช่ของร้าน = 404 (ตอบเหมือนไม่มี) · ไม่ส่งทั้งสอง = 400 |
+| POST | `/api/orders/[token]/start?shopId=` | **O4** | เริ่มงาน (service: `startServiceJob`) → 200 `{serviceStartedAt, alreadyStarted}` · กดซ้ำ = 200 ค่าเดิม `alreadyStarted:true` ไม่ส่งซ้ำ · ไม่คืนเงิน (ช่างเรียกได้) · 404 `SERVICE_JOB_NOT_FOUND` · 409 `SERVICE_JOB_ALREADY_CLOSED` / `SERVICE_JOB_NOT_STARTABLE` (ยกเลิก/ร่าง) / `APPOINTMENT_NOT_STARTED` · 403 `FEATURE_NOT_AVAILABLE` · เขียน `serviceStartedAt` + `OrderEvent SERVICE_STARTED` + (ถ้าเข้าเงื่อนไข) ledger INTENT ใน tx เดียว · ไม่แตะ `status`/`appointmentStatus` |
+| PATCH | `/api/orders/[token]/shipping-cost` | **S1** (`canAccessShopWith(order.shopId,userId,'S1')` แบบเดียวกับ `/ship`) | แก้เฉพาะต้นทุนส่งเอง (D06) body `{outboundShippingCost: number\|null}` (null = ล้าง) → 200 · **ต้องมีแถว `ShipmentTracking` อยู่แล้ว ไม่สร้างแถวปลอม** (D-7/TD-010) → ไม่มี = 409 `NO_TRACKING_ROW` · 409 `SHIPPING_COST_NOT_ALLOWED` (CANCELLED/DRAFTED) · ไม่ผ่าน `updateShipmentTracking` (ซึ่งปฏิเสธใบ iShip active) |
+
+**Route เดิมที่เปลี่ยน**
+- `POST|PATCH /api/orders/[token]/ship` (**S1**) — body เพิ่ม `outboundShippingCost` (optional/nullable, ≥0, ≤99,999.99, ทศนิยม ≤2) · POST: ไม่ส่ง/null = เก็บ NULL · PATCH: **ไม่ส่งคีย์ = ไม่แตะ** / `null` = ล้าง / ตัวเลข = ตั้ง · response/error เดิมไม่เปลี่ยน · side effect: จอง INTENT `TRACKING`
+- `POST /api/chat/conversations/[id]/messages` (**H2**) — `type:"TRACKING"` + `orderRefToken` ใหม่ (ประกอบจากฐาน: ใบ iShip active ก่อน ไม่ก็ `ShipmentTracking` ผ่าน `composeNotice('TRACKING')` · ไม่ติด `AUTO_NOTICE` · 202) · error ใหม่: 400 `ไม่พบคำสั่งซื้อนี้ในร้าน` · 409 `NO_TRACKING` · 409 `EMPTY_MESSAGE` (renderer ว่างทั้งข้อความ ใช้กับ `ORDER`/`APPOINTMENT`/`TRACKING`) · `ORDER`/`APPOINTMENT` ค่าตั้งต้นต้องเท่าเดิม ยกเว้น D-1 (`{รายการสินค้า}` มี "และอีก N รายการ" เมื่อหลายรายการ) และ D-2 (เงินใช้ `formatBaht`)
+- `GET /api/chat/conversations` (**H1**) — item เพิ่ม `metaAiHoldUntilMs: number|null` (เฉพาะ MESSENGER/INSTAGRAM; server คืน primitive ไม่คืน boolean — client เทียบเวลา, TD-011) · `customerBehavior` = `{orders, counted, cancelledTotal, cancelledByBuyer, returnedParcels, problemOrders}` **เลิกฟิลด์ `completed`**
+- `GET /api/chat/conversations/[id]/orders` (**H1**) — order เพิ่ม `autoNotify: [{kind, status, reason, createdAt, message:{deliveryStatus, failureReason}|null}]` (ไม่มี ledger = `[]` · สถานะส่งจริงมาจาก join `ChatMessage` สด)
+- `GET /api/seller/iship/order-context` (**S1**) — เพิ่ม `manualShipment.outboundShippingCost`
+- `GET /api/cron/chat-outbox` (`CRON_SECRET`) — sweeper ledger piggyback cron เดิม (ไม่เพิ่ม cron/`vercel.json` — TD-003) · response เพิ่ม `autoNotify:{…}` · **ห้ามยิงซ้ำ INTENT ที่ `claimedAt` มีค่า**
+
+**Error code ใหม่:** `KIND_NOT_AVAILABLE` 409 · `TEMPLATE_CONFLICT` 409 · `SERVICE_JOB_NOT_STARTABLE` 409 · `NO_TRACKING_ROW` 409 · `SHIPPING_COST_NOT_ALLOWED` 409 · `NO_TRACKING` 409 · `EMPTY_MESSAGE` 409 (`SERVICE_JOB_ALREADY_CLOSED` / `APPOINTMENT_NOT_STARTED` ใช้รหัสเดิมของ 00073/00024)
+
+**ตัวส่งอัตโนมัติ (ไม่ใช่ endpoint):** เริ่มจาก service ที่เปลี่ยนสถานะ (`order.service` / `iship.service.dispatchShipment` / `appointment.service` / `service-job.service`) จอง ledger INTENT ใน tx แล้วส่งด้วย `runAfterResponse` → `dispatchAutoNotify` · DEEP ผ่าน `chat.service.sendMessage` โหมด `system?: {shopId, autoReplyKind:'AUTO_NOTICE'}` + `senderUserId: string|null` (เช็ค `system.shopId === conversation.shopId` แทน authz ผู้ใช้ · ข้าม `pauseForHumanTakeover` และ `detectAutoOrderTrigger` — TD-005) · Meta/LINE ผ่านคิวขาออกเดิม (`enqueueOutbound`/`deliverRoom`; ไม่แก้ `chat-outbox.service.ts` — TD-004) · **นิยาม "ย้อนหลัง" (ไม่ส่ง) = `createdAt` กับเวลาบันทึกจริงต่างวันปฏิทินไทย (D-13) ไม่ใช่ต่างกันกี่ ms** · SERVICE_BOOKED ต้อง `serviceStart > now` (D-3: walk-in ไม่ส่ง) · เลขพัสดุใหม่ครั้งที่ 4+ ของใบเดียวกัน = `SKIPPED/RESEND_LIMIT` (D-4, TD-008) · ข้อความ IG ยาว: ย่อบรรทัดยาวสุดที่ไม่ใช่ลิงก์ (1000 bytes UTF-8, D-12)
+
 ---
 
 ### 7.29 หน้ายอดขายและกำไรร้านบริการ (`/api/seller/service-report/**`) — feature 00078
@@ -2569,6 +2668,10 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 | `PAYMENT_CONFIRMED` / `PAYMENT_CONFIRM_REVERTED` | **feature 00062** — ร้านยืนยันรับเงินโอน / ยกเลิก |
 | `SERVICE_CLOSED` | **feature 00073** — ร้านบริการปิดงาน · `meta.outcome` = `SERVED`\|`NO_SHOW` · `meta.amount` = เงินที่รับตอนปิด · `meta.deposit` = `KEPT`\|`REFUNDED` (ไม่มาตามนัด) · `meta.backfilled` = ปิดย้อนหลังตอน migrate |
 | `SERVICE_REOPENED` | **feature 00073** — เปิดงานอีกครั้ง (O6 · ก่อนลูกค้ายืนยัน) |
+| `SERVICE_STARTED` | **feature 00078 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านบริการกด "เริ่มงาน" · `actorUserId` = ผู้กด · `meta` = `{}` |
+| `AUTO_NOTICE_SENT` / `AUTO_NOTICE_FAILED` | **feature 00078 (ออกแบบแล้ว · ยังไม่ implement)** — ภาพบนไทม์ไลน์ของผลส่งอัตโนมัติ · SSOT ของผลส่งคือ `AutoNotifyLedger` (ไม่ใช่ event) · `meta` ห้ามมี PII/เนื้อข้อความ |
+
+> เมื่อ 00078 implement ครบ ชุดนี้เป็น **30 ค่า** (27 + 3) — ต้องแก้ `ORDER_EVENT_TYPES` + `ORDER_EVENT_META` (tsc บังคับ) + หัวข้อ "27 ค่า" ที่นี่และใน §6.2 OrderEvent พร้อมกัน
 
 > ลำดับคำสองค่าท้ายของ instrumentation ด้านล่างอ้างถึง `AUTH_FLOW_*` (ไม่ใช่สองแถวสุดท้ายของตาราง)
 
@@ -2909,11 +3012,24 @@ HTTP ตามตาราง §7.21
 | `ShopMember.roles` (P2 ✅) | 1-4 ค่าจาก `STAFF_ROLES` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ `canUseAppointments` (vertical `SERVICE_QUEUE`) |
 | error (P2 ✅) | `INVALID_ROLES` · `BILLING_NOT_AVAILABLE` (HTTP 400) |
 | `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
-| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
+| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) · `X7` (00077 โต๊ะแชท 3D, เจ้าของเท่านั้น) · **`X8` (feature 00078 — ตั้งค่าส่งอัตโนมัติถึงลูกค้า: สวิตช์/เพดาน/เทมเพลต · `[OWNER, MANAGER]` · ออกแบบแล้ว ยังไม่ implement — ดู §9.12)** — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
 | `RouteClass` (ทะเบียน `route-capabilities.ts`) | `MEMBER` · `SELF` · `BUYER` · `PUBLIC` · `PLATFORM_ADMIN` · `CRON` · `WEBHOOK` — route ที่ไม่ใช่ capability ของสมาชิกร้านต้องจัดคลาสพร้อม `reason` |
 | error | `FORBIDDEN_ROLE` (HTTP 403) |
 
 **ค่าคงที่:** `AUTO_SUGGEST_NOTE_MAX = 120` · ตัดผล ≤3 ประโยค/≤400 ตัวอักษร (`clampSuggestion`) · Typhoon timeout 8 วินาที ไม่ retry (`TYPHOON_TIMEOUT_MS`) · รอคิว pacing ≤5 วินาที (รอบละ 250 ms) แล้วทิ้ง `RATE_LIMITED` · pacing `AI_SUGGEST_RPS` 3 / `AI_SUGGEST_RPM` 100 / ต่อร้าน `floor(RPM/2)` · `THINKING` อายุ >30 วินาที ยึดต่อได้ · `SKIPPED_BOT` = มี `AutoReplyJob` ของ anchor สถานะ `PENDING`/`PROCESSING` และ `updatedAt` ภายใน 5 นาที · `manual` ≤15 ครั้ง/นาที/ผู้ใช้
+
+### 8.15 ส่งอัตโนมัติถึงลูกค้า (feature 00078 — ออกแบบแล้ว ยังไม่ implement · SSOT ฝั่งโค้ดเมื่อเสร็จ: ไฟล์ใน `src/lib/` ที่ SDS §3.1 กำหนด · ทุกค่าเก็บเป็น String + CHECK ที่ DB · ดู §6.72)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `AutoNotifyKind` (5 ค่า) | `ORDER_SUMMARY` (เมื่อสร้างออเดอร์ — สรุปรายการ) · `TRACKING` (เมื่อมีเลขพัสดุ/เปลี่ยนเลข) · `SERVICE_BOOKED` (เมื่อสร้างงานบริการ/นัด) · `SERVICE_STARTED` (เมื่อเริ่มงาน) · `SERVICE_CLOSED` (เมื่อปิดงาน — ไม่ส่งถ้าลูกค้าไม่มาตามนัด) · 🛑 ใช้ **`SERVICE_CLOSED`** ไม่ใช่ `SERVICE_FINISHED` (HR16 คำว่า "ปิดงาน") · ร้านเห็นเฉพาะ kind ที่ vertical ตน ใช้ได้ (`kindsForVertical`) |
+| `AutoNotifyLedger.status` | `INTENT` · `SENT` (= ปลายทางรับแล้ว ไม่ใช่ลูกค้าอ่านแล้ว) · `FAILED` · `SKIPPED` |
+| `AutoNotifyLedger.reason` (8 ค่า · บังคับเมื่อ `FAILED`/`SKIPPED`) | `DAILY_CAP` · `EMPTY_MESSAGE` · `WINDOW_CLOSED` · `QUOTA_EXCEEDED` · `REJECTED_BY_PLATFORM` · `NOT_ELIGIBLE_ANYMORE` · `UNCERTAIN_SEND` (**เพิ่มโดยมติ Controller** — `claimedAt` ค้างไม่รู้ผล ห้ามยิงซ้ำ) · `RESEND_LIMIT` (**เพิ่มโดย D-4** — เลขพัสดุใหม่ครั้งที่ 4+) · เหตุผลที่ "ไม่บันทึก" (SWITCH_OFF / NO_ROOM / BACKDATED / ALREADY_SENT / SERVICE_NO_SHOW) ไม่อยู่ในชุด |
+| `ChatMessage.autoReplyKind` | `null` (คนส่ง) · `AUTO` (บอทตอบ) · `AUTO_TEST` (เดิม) · **`AUTO_NOTICE`** (ใหม่ — ข้อความแจ้งอัตโนมัติจากระบบ ไม่ใช่บอท) — 🛑 `AUTO_NOTICE` ยังเป็น `IS NOT NULL` จึงไม่นับเป็น "คนตอบ" แต่ **ต้องไม่ถูกนับเป็นบอท/DeepBot/DeepAI** · ผู้บริโภคที่ตีความ "ไม่ null = บอท" ต้องแก้ (`auto-reply.service`, `chat-desk/rules.ts`, `chat.service`, `InboxList`, `ThreadMessageList`, `conversations/route`) — ดู SDS §0 F-5 |
+| `OrderEvent.type` | +3 ค่า: ดู §8.1b |
+| env | `FB_CHAT_APP_ID` (ไม่ใช่ `META_APP_ID`) — ดู §5.3 |
+| เพดานต่อห้องต่อวัน | ค่าตั้งต้น **5** · ช่วงที่ตั้งได้ **1..20** · นับ `status IN ('INTENT','SENT')` ตั้งแต่เที่ยงคืนเวลา Asia/Bangkok |
+| เทมเพลต | **1..500 code point** · ตัวแปรเป็น allow-list ต่อ kind (ตาราง PRD §3.4 ของ 00078): `ORDER_SUMMARY` = `{คำเรียกรายการ}` `{รายการสินค้า}` `{ยอดสุทธิ}` `{ลิงก์คำสั่งซื้อ}` ฯลฯ · `TRACKING` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{เลขคำสั่งซื้อ}` `{ขนส่ง}` `{เลขพัสดุ}` `{ลิงก์ติดตามพัสดุ}` `{ลิงก์คำสั่งซื้อ}` · `SERVICE_*` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{บริการ}` `{วันเวลานัด}` `{เวลาเริ่มงาน}`/`{เวลาปิดงาน}` (ตาม kind) `{ลิงก์งาน}` (ชื่อเดียวทั้ง 3 จังหวะบริการ) · ห้ามตัวแปร `internalNote` / ที่อยู่ / เบอร์ลูกค้า / ยอดที่ชำระแล้ว-ค้างชำระ (OOS-14) |
 
 ---
 
@@ -3111,6 +3227,22 @@ HTTP ตามตาราง §7.21
 
 - หน้าแอดมินแพลตฟอร์ม: `requireAdmin()` ในหน้าเองทุกหน้า (layout ไม่นับ) — คนละระบบกับบทบาทสมาชิกร้าน
 - ด่านกันลืม: `route-capability-inventory.test.ts` (ทะเบียน + ด่านรายเมธอด + คำนำหน้า admin/cron/webhook) · `finance-surface-guard.test.ts` (ผิวเงิน) · `cost-optin-guard.test.ts` · `tests/integration/role-contract.test.ts` (คีย์ต้องห้ามใน JSON จริงต่อบทบาท × route ตัวแทน บน Postgres localhost)
+
+### 9.12 ส่งอัตโนมัติถึงลูกค้า (feature 00078 — ออกแบบแล้ว ยังไม่ implement)
+
+> เอกสารต้นทาง: `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/SDS.md` §8.3 · TD-013 · `API.md` §6 · ต้องเพิ่ม BRD 00071 §8.3 (แถว X8) คู่กัน · **ไม่เพิ่ม capability "อ่านหน้า"** — ใช้ `H1` ที่มีอยู่
+
+| การกระทำ | cap | บทบาทที่ผ่าน | ที่ตัดสิน |
+|---|---|---|---|
+| ดูหน้า `/settings/auto-notify` + `GET …/auto-notify` | `H1` | OWNER · MANAGER · CHAT (TECHNICIAN/BILLING ไม่มี H1 → `NoPermissionCard` / 403) | page `gatePage` + route |
+| สวิตช์ · เพดาน · เทมเพลต (PATCH/PUT/DELETE) | **`X8` (ใหม่)** | `[OWNER, MANAGER]` เท่านั้น (CHAT อ่านได้ แก้ไม่ได้ — `canEdit=false`) | route + service |
+| `GET …/strip-context` | `O1` (+ `H1` เมื่อมี `conversationId`; ห้อง/ออเดอร์ต้องเป็นของร้านใน WHERE) | ทุกบทบาทที่เห็นจุดใช้งาน (ช่างเห็นแถบเริ่ม/ปิดงานได้ — ไม่มีเงิน/ที่อยู่/เบอร์) | route |
+| เริ่มงาน `POST /api/orders/[token]/start` | `O4` (+ `?shopId=`) | ตาม O4 ของ 00071 (ช่างเรียกได้) | route |
+| กรอก/แก้ต้นทุนส่งเอง (`/ship`, `/shipping-cost`) | `S1` | ตาม S1 · ต้นทุนอยู่ใน `order-view-by-level` — ซ่อนจากระดับเงิน `NONE` · ไม่ส่งหน้า guest | route |
+| ตัวส่งอัตโนมัติ (ไม่มี user) | — | `system.shopId` ต้อง = `conversation.shopId` (กันข้ามร้าน) | service |
+
+- ทะเบียน `route-capabilities.ts`: `auto-notify/route.ts` `{GET:'H1'}` · `settings` `{PATCH:'X8'}` · `switches/[kind]` `{PUT:'X8'}` · `templates/[kind]` `{PUT:'X8', DELETE:'X8'}` · `strip-context` `{GET:'O1'}` · `orders/[token]/start` `{POST:'O4'}` · `orders/[token]/shipping-cost` `{PATCH:'S1'}` · หน้า `settings/auto-notify/page.tsx` `{page:'H1'}` · ต้องมีเทสสิทธิ์ทุกคู่ (บทบาท × cap) เป็นไฟล์ใหม่
+- หน้า/คอมโพเนนต์ที่ไม่ถือ X8 ต้องไม่แสดงปุ่มแก้ (ซ่อนหรือ disabled ตาม `canEdit`) — แต่ด่านจริงอยู่ที่ route/service ไม่ใช่ UI
 
 ---
 
@@ -3550,6 +3682,22 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 
 **กฎข้ามฟิลด์ที่ service ของเทมเพลต (`updateTemplate` — ใช้ `mergeSettings` ตัวเดิม ไม่เขียนกฎซ้ำ) [EXT]:** `deriveFlags(template)` ไม่มีตัวเลขเลย (กราฟ/ข้อความ/โทเคนที่ไม่ใช่ `profit`/`cycle_sales` ไม่นับ) → `INVALID_SETTINGS`/`METRIC_REQUIRED` · `showProfit` เปลี่ยน false→true ด้วยทางใดก็ได้ (บล็อก `profit` · `shops.profit` · โทเคน `{กำไร}`) ต้อง `confirmProfit:true` ไม่งั้น `PROFIT_CONFIRM_REQUIRED` แล้วตั้ง `profitEnabledAt` · `monthlyEnabled=false` → `attachCycleToDaily` ถูกล้าง · ขนาด: JSON เทมเพลต ≤16,384 ไบต์ แล้ว `measureTemplate` (ทั้ง message ระดับ 3) ≤30,000 ไบต์ ไม่งั้น `TEMPLATE_TOO_LARGE` (เกินที่ระดับ 0 แต่ผ่านระดับ 3 = บันทึกได้พร้อม `warnings`) · `templateVersion` ต้องตรง `expectedVersion` ไม่งั้น `TEMPLATE_STALE` · `updateSettings` ปฏิเสธ flag ขณะมีเทมเพลต (`FLAGS_DERIVED_FROM_TEMPLATE`) · **[EXT ค่าใช้จ่าย]** บล็อก `expense`/`net_sales` (อย่างละ ≤1) ไม่นับเป็นตัวเลข ไม่มีคอลัมน์ `show*` · เปิดครั้งแรก (`needsExpenseConfirm(เทมเพลตเดิม, ใหม่)`) ต้อง `confirmExpense:true` ไม่งั้น `EXPENSE_CONFIRM_REQUIRED` · ตัวเลข = `getPnlReport.totalExpense` และ `revenue − totalExpense` (ดู `EXTENSIONS-2026-10-05-expenses-and-net-sales.md`) · **[EXT-LINK]** `button.target='DETAIL'` ต้องมีบล็อก `orders`/`sales` (`detailLinkBlocked` → `INVALID_SETTINGS`/`DETAIL_NEEDS_METRIC`) แล้วเปิดใหม่ (หรือ DETAIL เปิดอยู่แล้วแต่ค่าใช้จ่ายเพิ่งถูกเปิดเผย — `needsDetailLinkConfirm(เทมเพลตเดิม, ใหม่)`) ต้อง `confirmDetailLink:true` ไม่งั้น `DETAIL_LINK_CONFIRM_REQUIRED` · `deriveFlags` ไม่เพิ่ม key จาก `target` (ไม่รั่วลง `prisma.update`)
 
+### §10.20 ส่งอัตโนมัติถึงลูกค้า (feature 00078 — ออกแบบแล้ว ยังไม่ implement · `src/lib/validations.ts` + ไฟล์ SDS §3.1 · ดู `API.md` §4)
+
+| Schema / กฎ | กติกา |
+|---|---|
+| `SetAutoNotifyCapSchema` | `{ dailyCapPerRoom }` = number · integer · **1..20** (0 / 21 / ทศนิยม / ไม่ใช่ตัวเลข = 400 `VALIDATION_ERROR`) · DB CHECK `BETWEEN 1 AND 20` อีกชั้น |
+| path `[kind]` | picklist 5 ค่า (§8.15) · kind ที่ vertical ของร้านไม่ใช้ = 409 `KIND_NOT_AVAILABLE` |
+| switch body | `{ enabled: boolean }` |
+| `SaveAutoNotifyTemplateSchema` | `body`: string · **ห้าม `\u0000` (NUL)** (Postgres รับไม่ได้ → 22021) · **ห้าม lone surrogate** · นับด้วย **code point** (`[...s].length` / ฟังก์ชันนับตัวเดียวทั้ง client/Valibot/server; ห้าม `s.length` และห้าม normalize NFC/NFD ฝั่งเดียว) **1..500** · ไม่ว่างหลัง trim · `expectedUpdatedAt`: ISO string หรือ `null` (ยังไม่เคยมีแถว) |
+| `validateTemplate(kind, body)` | allow-list ตัวแปรต่อ kind (§8.15) → `issues[]` = `UNKNOWN_VARIABLE` / `WRONG_KIND_VARIABLE` / `BLANK` / `TOO_LONG` · ตรวจที่ route และ**ซ้ำที่ service** · DB ไม่รู้จักชุดตัวแปร (CHECK แค่ความยาว/ไม่ว่าง) · mutation test: เปลี่ยนเป็น `.length` ต้องแดงเมื่อเนื้อความมีอีโมจิ 251 ตัว |
+| ช่อง Instagram | ข้อความ ≤ 1000 bytes UTF-8 (ไทย ≈ 333 ตัว) — ตัวแก้เตือนเมื่อเทมเพลตดิบยาวเกิน; ตัวส่งย่อบรรทัดยาวสุดที่ไม่ใช่ลิงก์ (D-12) |
+| `ShipOrderSchema.outboundShippingCost` | optional + nullable · number **≥ 0** · **≤ 99,999.99** · ทศนิยมไม่เกิน 2 ตำแหน่ง · NULL = ยังไม่ระบุ ≠ 0 · DB CHECK ≥ 0 อย่างเดียว (เพดานบังคับที่ Valibot ที่เดียว) |
+| `PATCH …/shipping-cost` body | `{ outboundShippingCost: number \| null }` ชุดกฎเดียวกับด้านบน |
+| `POST …/start` body | ว่าง (ยอมรับ `{}`) |
+| ledger `valueKey` | 1..120 ตัวอักษร · เลขพัสดุ normalize = trim + ตัวพิมพ์ใหญ่ (`normalizeTrackingKey`) |
+| กติกาเวลา "ย้อนหลัง" | ออเดอร์ที่ `createdAt` กับเวลาบันทึกจริง (`keyedInAt`) **ต่างวันปฏิทินไทย** = ไม่ส่งอัตโนมัติ (D-13 · นิยามเดียวกับ `OrderCreateForm.tsx:950`) — ไม่ใช่เทียบต่างกัน ms เพราะฟอร์มสร้างออเดอร์ส่ง `createdAt` เสมอ |
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -3557,6 +3705,10 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-10-17 (HR11, Documentation-First): sync **การออกแบบที่อนุมัติแล้ว** ของ feature 00078 (ยังไม่ implement — เขียนจากเอกสาร 00078 ไม่ใช่จากโค้ด) —
+§3.4 (route `/settings/auto-notify` + กลุ่มเมนู 7 กลุ่ม) · §5.3 (env `FB_CHAT_APP_ID`) · §6.2 (Order.serviceStartedAt · ShipmentTracking.outboundShippingCost · OrderEvent +3) · §6.72 (M1–M6) ·
+§7.29 (API) · §8.1b + §8.15 (enum/ค่าคงที่) · §8.14 (X8) · §9.12 (สิทธิ์) · §10.20 (validation). ต้องตรวจกับ `prisma/schema.prisma` + โค้ดจริงอีกครั้งเมื่อ dev เสร็จ แล้วลบคำว่า "ยังไม่ implement" ออก._
 
 _อัปเดต 2026-10-15: sync ตามโค้ดจริงของ feature 00070 ส่วนขยาย "หน้าสรุปรายละเอียดสาธารณะ" (EXT 2026-10-14, HR11) —
 §3.4 (route `seller.*/lr/{token}` + แก้สถานะ `/template` ให้ตรงโค้ด: `page.tsx` มีแล้ว) · §3.6 · NFR-2.13 · §6.67 (โมเดล `LineReportSnapshot` + CHECK ×2 + ERD) ·

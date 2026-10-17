@@ -19,19 +19,17 @@ import { resolveCustomerIds, type Linkable } from './order-stage.service'
 
 const key = (shopId: string, customerId: string) => `${shopId}::${customerId}`
 
-export async function enrichWithCustomerBehavior<T extends Linkable>(
-  items: T[],
+/**
+ * สรุปพฤติกรรมของลูกค้าหลายคนกับร้านที่กำหนด ใน query เดียว — คีย์ `${shopId}::${customerId}`
+ * ผู้เรียกทุกจอที่ต้องการ "ซื้อแล้วกี่ใบ" (`counted`) ต้องมาทางนี้ ห้ามนับเอง (00078 S-5, HR16)
+ * คนที่ไม่มีออเดอร์เลยไม่อยู่ใน Map — ผู้เรียกตีความเป็น counted=0
+ */
+export async function behaviorByShopCustomer(
   shopIds: string[],
-): Promise<(T & { customerBehavior: CustomerBehavior | null })[]> {
-  if (items.length === 0 || shopIds.length === 0) {
-    return items.map((i) => ({ ...i, customerBehavior: null }))
-  }
-
-  const customerIdOf = await resolveCustomerIds(items)
-  const customerIds = [...new Set([...customerIdOf.values()].filter((x): x is string => x !== null))]
-  if (customerIds.length === 0) {
-    return items.map((i) => ({ ...i, customerBehavior: null }))
-  }
+  customerIds: string[],
+): Promise<Map<string, CustomerBehavior>> {
+  const out = new Map<string, CustomerBehavior>()
+  if (shopIds.length === 0 || customerIds.length === 0) return out
 
   // หลักฐานรายใบของทุกคนในหน้าเดียว — select แค่ field ที่ตัวตัดสินใช้จริง
   //
@@ -82,20 +80,30 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
     evidenceByKey.set(k, list)
   }
 
-  const summaryCache = new Map<string, CustomerBehavior>()
+  for (const [k, list] of evidenceByKey) out.set(k, summarizeCustomerBehavior(list))
+  return out
+}
+
+export async function enrichWithCustomerBehavior<T extends Linkable>(
+  items: T[],
+  shopIds: string[],
+): Promise<(T & { customerBehavior: CustomerBehavior | null })[]> {
+  if (items.length === 0 || shopIds.length === 0) {
+    return items.map((i) => ({ ...i, customerBehavior: null }))
+  }
+
+  const customerIdOf = await resolveCustomerIds(items)
+  const customerIds = [...new Set([...customerIdOf.values()].filter((x): x is string => x !== null))]
+  if (customerIds.length === 0) {
+    return items.map((i) => ({ ...i, customerBehavior: null }))
+  }
+
+  const behaviorOf = await behaviorByShopCustomer(shopIds, customerIds)
   return items.map((i) => {
     const cid = customerIdOf.get(i) ?? null
     if (!cid) return { ...i, customerBehavior: null }
-    const k = key(i.shopId, cid)
-    const evidence = evidenceByKey.get(k)
     // ผูกกับลูกค้าในระบบแล้วแต่ยังไม่เคยมีออเดอร์กับร้านนี้ → คืน summary ว่าง (ไม่ใช่ null)
     // เพื่อให้ฝั่ง UI แยก "ยังไม่ผูก" (null) ออกจาก "ผูกแล้วแต่ยังไม่เคยสั่ง" ได้
-    if (!evidence) return { ...i, customerBehavior: summarizeCustomerBehavior([]) }
-    let summary = summaryCache.get(k)
-    if (!summary) {
-      summary = summarizeCustomerBehavior(evidence)
-      summaryCache.set(k, summary)
-    }
-    return { ...i, customerBehavior: summary }
+    return { ...i, customerBehavior: behaviorOf.get(key(i.shopId, cid)) ?? summarizeCustomerBehavior([]) }
   })
 }

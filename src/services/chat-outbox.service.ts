@@ -11,6 +11,7 @@
  * `count === 0` แปลว่าแพ้ race **จบทันที ห้ามยิง**
  */
 
+import { shopSendSenderRolePatch } from '@/lib/auto-reply-constants'
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { buildLineExternalMessageId } from '@/lib/channels/line-adapter'
@@ -32,6 +33,7 @@ import {
   isUniqueViolationOn,
   type SendOutboundParams,
 } from '@/services/channel-chat.service'
+import { recordOurSendAsMetaOwner } from '@/services/meta-owner-on-send'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { runAfterResponse } from '@/lib/run-after-response'
@@ -321,7 +323,7 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
 
     await tx.conversation.update({
       where: { id: conversation.id },
-      data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+      data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, ...shopSendSenderRolePatch(params.autoReplyKind) },
     })
 
     return created
@@ -529,6 +531,9 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
     // 🛑 ห้ามเคลียร์ `sendLockedBy` — บนแถว SENT มันคือคำตอบว่า "ใครส่งสำเร็จ" (after/sweep/cron)
     // ซึ่งเป็นตัววัดที่บอกว่าบั๊กต้นเรื่อง (คำขอตายกลางทาง) เกิดจริงกี่ครั้ง (spec §9)
   })
+
+  // 00078: ส่งสำเร็จบน Meta = เราถือห้อง → ตัดป้าย Meta AI (ดู meta-owner-on-send.ts)
+  await recordOurSendAsMetaOwner(conversationId, conversation.channel)
 
   // D-7: บอทหลบเมื่อ "คนส่งสำเร็จ" เท่านั้น — ไม่ย้ายมาตอนเข้าคิว และไม่ทำเมื่อบอทเป็นผู้ส่งเอง
   if (!params.autoReplyKind) {

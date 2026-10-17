@@ -291,6 +291,8 @@ const MATRIX: Entry[] = [
   E({ key: R('shops/current/appointments'), name: 'appointments month', load: () => import('@/app/api/shops/current/appointments/route'), url: () => '/api/shops/current/appointments?from=2030-01-01T00:00:00Z&to=2030-02-01T00:00:00Z' }),
   E({ key: R('shops/current/appointments/day'), name: 'appointments day', load: () => import('@/app/api/shops/current/appointments/day/route'), url: (c) => `/api/shops/current/appointments/day?date=${c.apptDate}` }),
   E({ key: R('shops/current/service-resources'), name: 'service resources', load: () => import('@/app/api/shops/current/service-resources/route'), url: () => '/api/shops/current/service-resources' }),
+  E({ key: R('shops/current/auto-notify'), name: 'auto-notify settings', load: () => import('@/app/api/shops/current/auto-notify/route'), url: () => '/api/shops/current/auto-notify' }),
+  E({ key: R('shops/current/auto-notify/strip-context'), name: 'auto-notify strip-context', load: () => import('@/app/api/shops/current/auto-notify/strip-context/route'), url: (c) => `/api/shops/current/auto-notify/strip-context?orderToken=${c.token}` }),
   E({ key: R('wallet'), name: 'wallet', load: () => import('@/app/api/wallet/route'), url: () => '/api/wallet' }),
   E({ key: R('expenses'), name: 'expenses', load: () => import('@/app/api/expenses/route'), url: () => '/api/expenses' }),
   E({ key: R('expenses/report'), name: 'expenses report', load: () => import('@/app/api/expenses/report/route'), url: () => '/api/expenses/report?range=month' }),
@@ -486,6 +488,24 @@ describe('ร้านขายออนไลน์ (shop2): BILLING ถูก�
       expect(r.status).toBe(403)
     })
   }
+})
+
+describe('00078 auto-notify: เขียนต้อง X8', () => {
+  it('CHAT: GET ได้ แต่ PUT switches = 403 · TECHNICIAN: GET settings = 403 แต่ strip-context ได้', async () => {
+    const get = MATRIX.find((x) => x.name === 'auto-notify settings')!
+    const strip = MATRIX.find((x) => x.name === 'auto-notify strip-context')!
+    expect((await callRoute(get, sessionOf(ctx.userIds.CHAT, ctx.shop1))).status).toBe(200)
+    expect((await callRoute(get, sessionOf(ctx.userIds.TECHNICIAN, ctx.shop1))).status).toBe(403)
+    expect((await callRoute(strip, sessionOf(ctx.userIds.TECHNICIAN, ctx.shop1))).status).toBe(200)
+    const { PUT } = await import('@/app/api/shops/current/auto-notify/switches/[kind]/route')
+    sess.current = sessionOf(ctx.userIds.CHAT, ctx.shop1)
+    const req = new NextRequest(new URL('/api/shops/current/auto-notify/switches/SERVICE_BOOKED', 'http://seller.deepth.local'), {
+      method: 'PUT', headers: { host: 'seller.deepth.local', 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    })
+    const res = await PUT(req, { params: Promise.resolve({ kind: 'SERVICE_BOOKED' }) })
+    expect(res.status).toBe(403)
+    expect(JSON.stringify(await res.json())).toContain('FORBIDDEN_ROLE')
+  })
 })
 
 describe('ผู้ซื้อ + สาธารณะ', () => {
