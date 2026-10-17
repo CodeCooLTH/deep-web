@@ -42,6 +42,8 @@ import ShopVideosClient from './components/ShopVideosClient'
 import PublishToggleClient from './components/PublishToggleClient'
 import PriceVisibilityToggleClient from './components/PriceVisibilityToggleClient'
 import ProfileItemVisibilityClient from './components/ProfileItemVisibilityClient'
+import TabVisibilityClient from './components/TabVisibilityClient'
+import type { HideableTabKey } from '@/lib/profile-tab-keys'
 
 /**
  * title ของแท็บต้องผันตามภาษา (feature 00047) — reviewer เปิดหน้านี้ค้างไว้ทั้งฉากในคลิป C
@@ -101,6 +103,16 @@ export default async function PublicProfileSettingsPage() {
     // feature 00053 — รายการที่ร้านเลือกแสดง/ซ่อนได้ · guard อยู่ในบริการ (ไม่ใช่ public read)
     listProfileVisibilityItems(active.shop.id, actorUserId),
   ])
+
+  // CR 00053 2026-10-10 — สวิตช์ซ่อนแท็บโชว์ตาม "ประเภทร้าน" (เงื่อนไขเดียวกับ computeVisibleTabKeys)
+  // ไม่ query ว่ามีข้อมูลจริงไหม — แท็บที่ไม่มีข้อมูลไม่โผล่บนหน้าร้านอยู่แล้ว สวิตช์นั้นจึงไม่มีผลเสีย
+  const vertical = active.shop.vertical
+  const hideableTabs: HideableTabKey[] =
+    vertical === 'LODGING'
+      ? ['pinned', 'rooms', 'calendar']
+      : vertical === 'SERVICE_QUEUE'
+        ? ['pinned', 'services', 'items']
+        : ['pinned', 'items']
 
   const publicUrl =
     active.kind === 'PERSONAL'
@@ -182,6 +194,8 @@ export default async function PublicProfileSettingsPage() {
       {/* feature 00053 — สองการ์ดนี้อยู่ต่อจากสวิตช์เผยแพร่โดยตั้งใจ: เรียงจาก "เห็นหน้าร้านไหม"
           → "เห็นราคาไหม" → "เห็นอะไรบ้าง" คือลำดับจากกว้างไปแคบ ซึ่งตรงกับลำดับที่ร้านตัดสินใจจริง */}
       <PriceVisibilityToggleClient initial={layout.showPrices} />
+
+      <TabVisibilityClient tabs={hideableTabs} initialHidden={layout.hiddenTabs} />
 
       <ProfileItemVisibilityClient groups={visibilityGroups} />
 

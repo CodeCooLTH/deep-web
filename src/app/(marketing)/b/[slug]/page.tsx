@@ -430,6 +430,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             isOwnShop,
             itemKind: profileTab.itemKind,
             tabOrder: pageLayout.tabOrder,
+            hiddenTabs: pageLayout.hiddenTabs,
             blocks: pageBlocks,
             inspection: inspectionView,
           }}

@@ -32,6 +32,20 @@ export const PROFILE_TAB_KEYS = [
 
 export type ProfileTabKey = (typeof PROFILE_TAB_KEYS)[number]
 
+/**
+ * แท็บที่ร้านสั่งซ่อนได้ (CR 00053 2026-10-10 hide-tabs) — เฉพาะ "เนื้อหาที่ร้านเสนอขาย"
+ *
+ * 🛑 ไม่มี 'reviews' โดยตั้งใจ — รีวิวคือสัญญาณความน่าเชื่อถือ ห้ามซ่อน (00035 D-9) · ไม่มี 'about'
+ * เพราะเป็นแท็บเดียวที่รับประกันว่าแถบแท็บไม่ว่าง · เพิ่มคีย์ในนี้ = เปิดให้ร้านซ่อนได้ ต้องคุยก่อน
+ */
+export const HIDEABLE_TAB_KEYS = ['pinned', 'rooms', 'calendar', 'services', 'items'] as const
+
+export type HideableTabKey = (typeof HIDEABLE_TAB_KEYS)[number]
+
+export function isHideableTabKey(key: string): key is HideableTabKey {
+  return (HIDEABLE_TAB_KEYS as readonly string[]).includes(key)
+}
+
 /** ข้อมูลที่ใช้ตัดสินว่าแท็บไหน "มีของจริง" พอจะ render — สะท้อนเงื่อนไขเดิมใน ShopProfile.tsx ทีละข้อ */
 export type VisibleTabInput = {
   hasVideos: boolean
@@ -45,6 +59,8 @@ export type VisibleTabInput = {
   hasItems: boolean
   /** ratingDistribution != null && avgRating != null */
   hasReviews: boolean
+  /** ShopPageLayout.hiddenTabs — คีย์ที่ไม่อยู่ใน HIDEABLE_TAB_KEYS ถูกเมินเสมอ (D-9) */
+  hiddenTabs?: readonly string[]
 }
 
 /**
@@ -57,12 +73,15 @@ export type VisibleTabInput = {
  */
 export function computeVisibleTabKeys(input: VisibleTabInput): ProfileTabKey[] {
   const visible: ProfileTabKey[] = []
+  // ซ่อนได้เฉพาะคีย์ที่ร้านสั่งไว้ "และ" อยู่ใน HIDEABLE_TAB_KEYS — รีวิว/เกี่ยวกับร้านถูก push
+  // ข้างล่างโดยไม่ผ่านตัวนี้เลย จึงไม่มีทางหายแม้ hiddenTabs จะมีคีย์นั้นหลุดเข้ามา
+  const hidden = new Set((input.hiddenTabs ?? []).filter(isHideableTabKey))
 
-  if (input.hasVideos) visible.push('pinned')
-  if (input.isLodging && input.hasRooms) visible.push('rooms')
-  if (input.isLodging && input.hasAvailability) visible.push('calendar')
-  if (input.isServiceQueue && input.hasServices) visible.push('services')
-  if (!input.isLodging && input.hasItems) visible.push('items')
+  if (input.hasVideos && !hidden.has('pinned')) visible.push('pinned')
+  if (input.isLodging && input.hasRooms && !hidden.has('rooms')) visible.push('rooms')
+  if (input.isLodging && input.hasAvailability && !hidden.has('calendar')) visible.push('calendar')
+  if (input.isServiceQueue && input.hasServices && !hidden.has('services')) visible.push('services')
+  if (!input.isLodging && input.hasItems && !hidden.has('items')) visible.push('items')
 
   /* 🛑 รีวิวอยู่ "ก่อนเกี่ยวกับร้าน" ไม่ใช่แท็บแรก (user 2026-08-11 สั่งแก้ในวันเดียวกับที่สั่ง
      ให้ย้ายมาข้างหน้า — "เอา tab review ไว้ข้างหน้า เกี่ยวกับร้านครับ ไม่ใช่ tab แรก")
