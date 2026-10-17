@@ -43,6 +43,7 @@ import { canUseAppointments, isTerminalAppointmentStatus } from "@/lib/appointme
 import { publicOrderUrl } from "@/lib/public-order-url";
 import { buildLineFlexProductCarousel } from "@/lib/line/flex-product-card";
 import { buildMetaProductCarousel } from "@/lib/meta/product-card";
+import { publicBuyerBaseUrl } from "@/lib/public-order-url";
 import {
   chunkProductCards,
   maxSelectableProducts,
@@ -735,6 +736,7 @@ export async function POST(
                   priceText: formatBaht(r.price),
                   imageUrl: r.images[0] ? await resolveMetaCardImageUrl(r.images[0], { shopId: conv.shopId }) : null,
                   isActive: r.isActive,
+                  tapUrl: r.images[0] ? `${publicBuyerBaseUrl()}/api/files/${r.images[0]}` : null,
                 })),
               );
               lastSent = await enqueueOutbound({
