@@ -47,6 +47,11 @@ export const ORDER_EVENT_TYPES = [
   // DB CHECK ขยายที่ migration 20261011120000_service_closed_at
   'SERVICE_CLOSED',
   'SERVICE_REOPENED',
+  // feature 00078 — ร้านบริการกด "เริ่มงาน" + ผลแจ้งลูกค้าอัตโนมัติ (ledger เป็น SSOT ของผลส่ง · event นี้เป็นภาพบนไทม์ไลน์)
+  // DB CHECK ขยายที่ migration 20261017100300_order_event_auto_notify_types
+  'SERVICE_STARTED',
+  'AUTO_NOTICE_SENT',
+  'AUTO_NOTICE_FAILED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -108,6 +113,11 @@ export const ORDER_EVENT_META: Record<
   // เขียวสงวนให้ลูกค้ายืนยันรับบริการ (BUYER_CONFIRMED) ซึ่งเป็นหลักฐานบนโปรไฟล์สาธารณะ
   SERVICE_CLOSED: { label: 'ร้านปิดงาน', icon: 'clipboard-check', tone: 'neutral' },
   SERVICE_REOPENED: { label: 'เปิดงานอีกครั้ง', icon: 'clipboard-x', tone: 'neutral' },
+  // feature 00078 — neutral ทั้งหมด: เริ่มงาน/แจ้งลูกค้าเป็นข้อเท็จจริงของร้าน ไม่ใช่ความสำเร็จของธุรกรรม
+  // AUTO_NOTICE_FAILED ไม่ใช้ danger — แจ้งไม่สำเร็จไม่ได้ทำให้ออเดอร์เสีย (ผลละเอียดอยู่ที่ ledger)
+  SERVICE_STARTED: { label: 'ร้านเริ่มงาน', icon: 'player-play', tone: 'neutral' },
+  AUTO_NOTICE_SENT: { label: 'ระบบแจ้งลูกค้าในแชทแล้ว', icon: 'message-check', tone: 'neutral' },
+  AUTO_NOTICE_FAILED: { label: 'แจ้งลูกค้าในแชทไม่สำเร็จ', icon: 'message-off', tone: 'neutral' },
 }
 
 /**

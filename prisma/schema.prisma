@@ -138,6 +138,10 @@ model User {
   // ของ AutoReplyKeyword/AutoReplyRule และ testModeEnabledByUserId ของ AutoReplyConfig เป็น
   // String ดิบไม่มี FK ตาม DATABASE.md §3 (audit เบา ไม่ผูก relation)
   autoReplyConfigUpdates AutoReplyConfig[] @relation("AutoReplyConfigUpdatedBy")
+  // feature 00078 — ผู้แก้ล่าสุดของตั้งค่าแจ้งลูกค้าอัตโนมัติ (SetNull)
+  autoNotifyConfigUpdates   AutoNotifyConfig[]   @relation("AutoNotifyConfigUpdatedBy")
+  autoNotifySwitchUpdates   AutoNotifySwitch[]   @relation("AutoNotifySwitchUpdatedBy")
+  autoNotifyTemplateUpdates AutoNotifyTemplate[] @relation("AutoNotifyTemplateUpdatedBy")
 
   // feature 00061 — ใครสร้าง/ใครเปิด LIVE ชุดตั้งค่าตัวสร้างออเดอร์อัตโนมัติ
   autoOrderConfigsCreated AutoOrderAgentConfig[] @relation("AutoOrderConfigsCreated")
@@ -371,6 +375,10 @@ model Shop {
 
   // --- feature 00023 Chat Auto-Reply (additive) ---
   autoReplyConfig              AutoReplyConfig? // การตั้งค่าระดับร้าน (1:1)
+  autoNotifyConfig             AutoNotifyConfig? // feature 00078
+  autoNotifySwitches           AutoNotifySwitch[]
+  autoNotifyTemplates          AutoNotifyTemplate[]
+  autoNotifyLedgers            AutoNotifyLedger[]
   autoReplyKeywords            AutoReplyKeyword[] // กลุ่มคำของร้านนี้
   autoReplyRules               AutoReplyRule[] // กฎคำตอบของร้านนี้ (ทุกระดับ)
   autoReplyJobs                AutoReplyJob[] // คิวงานตอบอัตโนมัติ scope ร้านนี้
@@ -875,6 +883,11 @@ model Order {
   /// ตั้ง/ล้างผ่าน closeServiceJob / reopenServiceJob เท่านั้น (src/services/appointment.service.ts)
   serviceClosedAt DateTime? @db.Timestamptz(3)
 
+  /// feature 00078 M5 — เวลา "เริ่มงาน" (ไม่ใช่สถานะ) · NULL = ยังไม่กด · เขียนครั้งเดียว (WHERE serviceStartedAt IS NULL)
+  /// ผู้กดอยู่ที่ OrderEvent SERVICE_STARTED.actorUserId · ไม่แตะ status/appointmentStatus · reopenServiceJob ไม่ล้างค่า
+  serviceStartedAt DateTime? @db.Timestamptz(3)
+  autoNotifyLedgers AutoNotifyLedger[]
+
   /// คนที่กดสร้างออเดอร์นี้ (2026-08-04) — เจ้าของร้านหรือพนักงานที่ถูกเชิญ (feature 00012)
   ///
   /// nullable โดยตั้งใจ 2 เหตุผล ห้ามเปลี่ยนเป็น required:
@@ -1191,6 +1204,11 @@ model ShipmentTracking {
   lastSyncAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+
+  /// feature 00078 M6 — ต้นทุนส่งเอง (ขาออก) · NULL = ยังไม่ระบุ ≠ 0 = ไม่มีค่าใช้จ่ายจริง (ห้าม backfill 0)
+  /// ชื่อ outbound… เพราะ OrderReturn.shippingCost = ค่าส่งขากลับ · DB CHECK >= 0 (unmanaged)
+  /// 🛑 ต้นทุนของร้าน — ห้ามส่งไปหน้า guest /o/{token}
+  outboundShippingCost Decimal? @db.Decimal(12, 2)
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -2078,6 +2096,16 @@ model Conversation {
   chatMemory         ChatMemory?
   interestedProducts ChatInterestedProduct[]
 
+  // --- feature 00078 M1 — "ข้อเท็จจริง" ผู้ถือห้อง Meta (ไม่เก็บ verdict AI/คน/แอปอื่น — derive ใน src/lib) ---
+  // เวลาเป็นของ Meta (timestamp ใน event) ไม่ใช่ now() · NULL ทั้งหมด = ไม่รู้ = ไม่ขึ้นป้าย
+  metaOwnerAppId           String?
+  metaOwnerObservedAt      DateTime? @db.Timestamptz(3)
+  metaForeignEchoAt        DateTime? @db.Timestamptz(3)
+  metaForeignEchoAppId     String?
+  metaForeignEchoAi        Boolean?
+  metaForeignEchoAdminText Boolean?
+  autoNotifyLedgers        AutoNotifyLedger[]
+
   @@index([externalContactId]) // feature 00066 — cluster query (unique เดิมขึ้นต้น shopChannelId ใช้ไม่ได้)
 }
 
@@ -2257,7 +2285,15 @@ model ChatMessage {
   // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
   // 🛑 คอลัมน์นี้คือสิ่งที่ทำให้ BR-AR-22 บังคับได้: "พนักงานตอบ" = senderRole='SHOP' AND autoReplyKind IS NULL
   // ถ้าไม่มีคอลัมน์นี้ คำตอบของระบบเองจะถูกนับเป็น "พนักงานตอบ" แล้วระบบจะหยุดตัวเองทุกครั้งที่ตอบ
+  // feature 00078: เพิ่มค่า "AUTO_NOTICE" = ข้อความแจ้งลูกค้าอัตโนมัติ (ไม่มี CHECK บนคอลัมน์นี้ ไม่ต้อง migration)
   autoReplyKind String?
+
+  // feature 00078 M1 — ข้อเท็จจริงระดับ echo ฝั่งร้าน (ไม่ใช่ verdict) · NULL = ไม่ใช่ echo/ไม่มี field
+  // เขียนผ่าน Prisma create/update เท่านั้น (ด่าน chat-message-no-raw-write)
+  echoAppId        String?
+  echoAiGenerated  Boolean?
+  echoHasAdminText Boolean?
+  autoNotifyLedger AutoNotifyLedger[]
 
   // seq — ลำดับที่แถวถูกบันทึกจริง ใช้เป็นตัวตัดสินเมื่อ createdAt เท่ากัน (feature 00018)
   // ทำไมต้องมี: Meta ส่งเวลาของข้อความระบบ/การ์ดมาแค่ระดับ "วินาที" (13:41:43.000) ขณะที่
@@ -4135,7 +4171,7 @@ model OrderEvent {
   id      String @id @default(uuid())
   orderId String
 
-  // type: 15 ค่าคงที่ (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง)
+  // type: 30 ค่า (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง)
   // 🛑 คอมเมนต์บรรทัดนี้เคยเขียน "9 ค่า" ค้างไว้ตั้งแต่ตอนมี 13 ค่าแล้ว (หนี้จาก 00033)
   //    ถ้าเพิ่มชนิดใหม่แล้วไม่แก้ตัวเลขตรงนี้ คนอ่านจะเชื่อคอมเมนต์แล้วเขียน migration ผิด
   // String + DB CHECK ไม่ใช่ Prisma enum ตาม
@@ -5206,4 +5242,90 @@ model ChatInterestedProduct {
 
   @@unique([conversationId, productId, optionLabel]) // กันแปะซ้ำ (productId null หลังสินค้าถูกลบ: NULL ไม่ชนกัน ยอมรับ)
   @@index([shopId, conversationId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// feature 00078 — แจ้งลูกค้าอัตโนมัติ (M2/M3) · DATABASE.md §3.3–3.4
+// kind = String + DB CHECK 5 ค่า: ORDER_SUMMARY | TRACKING | SERVICE_BOOKED | SERVICE_STARTED | SERVICE_CLOSED
+// CHECK ทั้งหมด (kind/status/reason/shape/ความยาว) เป็น unmanaged SQL ใน migration —
+// ห้าม `prisma db pull`/`migrate dev` (HR13/14) · ไม่มีแถว = ปิด/ค่าตั้งต้น ไม่ backfill
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// เพดานต่อห้องต่อวัน (ไม่มีแถว = 5) · CHECK 1..20
+model AutoNotifyConfig {
+  id              String   @id @default(uuid())
+  shopId          String   @unique
+  dailyCapPerRoom Int      @default(5)
+  updatedByUserId String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  shop          Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  updatedByUser User? @relation("AutoNotifyConfigUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+}
+
+/// สวิตช์ต่อ (ร้าน, จังหวะ) · ไม่มีแถว = ปิด · CHECK: enabled ต้องมี enabledAt
+model AutoNotifySwitch {
+  id              String    @id @default(uuid())
+  shopId          String
+  kind            String
+  enabled         Boolean   @default(false)
+  enabledAt       DateTime? @db.Timestamptz(3)
+  updatedByUserId String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  shop          Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  updatedByUser User? @relation("AutoNotifySwitchUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, kind])
+  @@index([updatedByUserId])
+}
+
+/// เฉพาะเทมเพลตที่ร้านแก้ (ไม่มีแถว = ค่าตั้งต้น) · body CHECK char_length 1..500 (code point)
+model AutoNotifyTemplate {
+  id              String   @id @default(uuid())
+  shopId          String
+  kind            String
+  body            String
+  updatedByUserId String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  shop          Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  updatedByUser User? @relation("AutoNotifyTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, kind])
+  @@index([updatedByUserId])
+}
+
+/// ledger กันส่งซ้ำ · status INTENT|SENT|FAILED|SKIPPED · reason บังคับเมื่อ FAILED/SKIPPED
+/// claimedAt NULL = ยังไม่เคยเริ่มยิง (ห้ามยิงซ้ำถ้ามีค่า — Meta ไม่มี idempotency key)
+/// 🛑 ไม่เก็บเนื้อข้อความ/เบอร์/ชื่อ · ห้ามตัดแถวเก่า (เป็นด่านกันซ้ำ) · จองกุญแจด้วย INSERT … ON CONFLICT DO NOTHING
+model AutoNotifyLedger {
+  id             String    @id @default(uuid())
+  shopId         String
+  orderId        String
+  conversationId String?
+  kind           String
+  valueKey       String
+  status         String    @default("INTENT")
+  reason         String?
+  chatMessageId  String?
+  claimedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  settledAt      DateTime? @db.Timestamptz(3)
+
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  chatMessage  ChatMessage?  @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, orderId, kind, valueKey], map: "AutoNotifyLedger_key")
+  @@index([orderId])
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt]) // sweeper: INTENT ที่ค้าง
+  @@index([chatMessageId])
 }
