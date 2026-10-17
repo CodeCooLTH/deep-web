@@ -407,6 +407,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/reports/agents/[agentId]/route.ts': { GET: 'X4', status: 'DECLARED' },
   'src/app/api/seller/reports/agents/route.ts': { GET: 'X4', status: 'DECLARED' },
   'src/app/api/seller/sales-series/route.ts': { GET: 'F1', status: 'DECLARED' },
+  'src/app/api/seller/service-report/route.ts': { GET: 'F1', status: 'DECLARED' },
+  'src/app/api/seller/service-report/day/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/shops/[id]/route.ts': { PATCH: 'T1', status: 'DECLARED' },
   'src/app/api/shops/ai-settings/route.ts': { GET: 'H3', PUT: 'H3', status: 'DECLARED' },
   'src/app/api/shops/auto-reply/ads/route.ts': { GET: 'H3', status: 'DECLARED' },

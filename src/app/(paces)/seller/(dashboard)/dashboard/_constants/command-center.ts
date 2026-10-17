@@ -23,7 +23,8 @@ import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/busine
 // 🛑 ตัวนับกองพัสดุต้องพิมพ์จาก ShippingStageKey เสมอ ห้ามไล่ชื่อช่องเอง — object ที่ "มีช่องเกิน"
 // assign ได้ปกติ ⇒ วันที่เพิ่มกองใหม่ ไทล์จะขาดไปหนึ่งช่องโดย tsc ไม่ฟ้อง (2026-08-24 เพิ่ม RETURNED)
 import type { ShippingStageKey } from '@/lib/order-stage'
-import type { ReportSettings } from '@/lib/report-settings'
+import type { ReportSettings, ServiceReportChart, ServiceReportView } from '@/lib/report-settings'
+import type { ServiceReportData } from '@/lib/service-report/view-model'
 export type { BusinessPackageStatusApp, BusinessPackageTier }
 
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
@@ -107,6 +108,11 @@ export type CommandCenterData = {
   salesSeries?: SalesSeries | null
   // 00069 v1.1: บริบท Personal + มีร้านธุรกิจจ่ายแล้ว → การ์ดยอดขายเป็น "ยอดขายทุกธุรกิจ" (salesSeries = initial.aggregate)
   portfolio?: { initial: PortfolioSeries } | null
+  /**
+   * feature 00078 — ร้านบริการ: การ์ดใหม่ (ServiceReportCard) แทน SalesChartCard · เงิน ⇒ redact
+   * view/chart = 2 ข้อของตั้งค่ารายงาน (สตริงล้วน ข้ามเส้น RSC→client ได้)
+   */
+  serviceReport?: { data: ServiceReportData; view: ServiceReportView; chart: ServiceReportChart } | null
   // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — ตั้งชื่อ packageStatus/packageTier
   // (ไม่ใช่ tier/tierLabel เปล่า ๆ) กันชนกับ tierName (trust tier ด้านบน — คนละเรื่อง)
   // มิเรอร์ businessPackageStatus/businessPackageTier ใน (dashboard)/layout.tsx
@@ -169,6 +175,8 @@ export type SalesSeries = {
   unclosedValues?: number[]
   unclosedTotal?: number
   unclosedCount?: number
+  /** feature 00078 — จำนวนงานยังไม่ปิดต่อ bucket (คอลัมน์ "งาน" ในรายงานร้านบริการ) */
+  unclosedCounts?: number[]
   prevUnclosedToDate?: number
   last14Unclosed?: number[]
   /** ยอดขายของใบที่ไม่มีบันทึกรับเงินเลย — แยก "ค้างจริง" ออกจาก "ไม่รู้" (เหตุผลเต็มที่ service) */

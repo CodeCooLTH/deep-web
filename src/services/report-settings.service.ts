@@ -9,7 +9,6 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import {
-  mergeReportSettings,
   resolveReportSettings,
   type ReportSettings,
   type UpdateReportSettingsInput,
@@ -30,10 +29,19 @@ export async function getReportSettings(shopId: string): Promise<ReportSettings>
 export async function updateReportSettings(shopId: string, patch: UpdateReportSettingsInput): Promise<ReportSettings> {
   const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true, reportSettings: true } })
   if (!shop || !usesServiceFinanceRules(shop.vertical)) throw new ReportSettingsNotAvailableError()
-  const next = mergeReportSettings(resolveReportSettings(shop.reportSettings, shop.vertical), patch)
+  /**
+   * feature 00078: เขียน "ทับเฉพาะช่องที่ส่งมา" บนค่าดิบเดิม — ไม่เขียนค่าที่ resolve แล้วทั้งก้อน
+   * เพราะ resolve ตอนนี้คืนค่าตั้งต้นให้สวิตช์ที่เลิกใช้ ถ้าเขียนทั้งก้อนค่าเดิมของร้านจะถูกลบทิ้ง (PRD 4.3: ไม่ลบ ย้อนกลับได้)
+   */
+  const raw =
+    shop.reportSettings && typeof shop.reportSettings === 'object' && !Array.isArray(shop.reportSettings)
+      ? (shop.reportSettings as Record<string, unknown>)
+      : {}
+  const stored: Record<string, unknown> = { ...raw }
+  for (const [k, val] of Object.entries(patch)) if (val !== undefined) stored[k] = val
   await prisma.shop.update({
     where: { id: shopId },
-    data: { reportSettings: next as unknown as Prisma.InputJsonValue },
+    data: { reportSettings: stored as Prisma.InputJsonValue },
   })
-  return next
+  return resolveReportSettings(stored, shop.vertical)
 }

@@ -86,4 +86,9 @@ describe('[blocker] หน้าที่ซ่อนชื่อของตั
   it('/reports/products ต้องไม่ตกไปที่ค่าสำรอง', () => {
     expect(getSellerPageTitle('/reports/products')).toBe('ยอดขายรายสินค้า')
   })
+  it('[00078] /sales ร้านบริการ = ป้ายที่ส่งมา · ไม่ส่ง = ป้ายเดิมจากเมนู (ร้านขายของ/ที่พักไม่เปลี่ยน)', () => {
+    expect(getSellerPageTitle('/sales', undefined, undefined, 'ยอดขายและกำไร')).toBe('ยอดขายและกำไร')
+    expect(getSellerPageTitle('/sales')).toBe('ภาพรวมกำไร/ขาดทุน')
+    expect(getSellerPageTitle('/sales-foo', undefined, undefined, 'ยอดขายและกำไร')).not.toBe('ยอดขายและกำไร')
+  })
 })

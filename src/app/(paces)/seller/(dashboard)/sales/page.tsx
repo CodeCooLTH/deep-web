@@ -21,7 +21,7 @@ import SalesChart from './components/SalesChart'
 import SalesTable from './components/SalesTable'
 import SalesDateRange from './components/SalesDateRange'
 import type { DailyRow, SummaryData } from './components/data'
-import { resolveRangeFromParams, thaiMidnightUtc } from '@/lib/date-range'
+import { resolveRangeFromParams, thaiMidnightUtc, todayThaiIsoDate } from '@/lib/date-range'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { countsAsServiceRevenue, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
@@ -39,8 +39,11 @@ import IncompleteDataNotice from './components/IncompleteDataNotice'
 import ReceivableList from './components/ReceivableList'
 import PnlReportCard from '../expenses/components/PnlReportCard'
 import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
+import ServiceReportPanel from '../_shared/service-report/ServiceReportPanel'
+import { getServiceReportData } from '@/services/service-report.service'
+import { SERVICE_REPORT_WORDS } from '@/lib/service-report/words'
 import ServiceFinanceChart from './components/ServiceFinanceChart'
-import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
+import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, serviceReportChart, serviceReportView, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
 import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
 
 export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
@@ -146,6 +149,31 @@ export default async function SalesPage({
    * และไม่มีการ import คอมโพเนนต์แท็บเข้ามาในเส้นทางนั้น
    */
   const isServiceQueue = resolveShopVertical(shop.vertical) === 'SERVICE_QUEUE'
+
+  /**
+   * ── feature 00078: ร้านบริการได้หน้าเดียว "ยอดขายและกำไร" (โครงเดียวกับร้านขายของ) ─────────────
+   * แทน 3 แท็บของ 00067/00073 ทั้งหมด · ร้านอื่นไม่เข้าบล็อกนี้ (โค้ดข้างล่างคงเดิมทุกบรรทัด)
+   * ลิงก์เก่า `?tab=expense` (บุ๊กมาร์ก/ทางลัด/เมนูเดิม) → หน้า /expenses เดิม (มติ Q-1 2026-10-17)
+   * 🛑 ไม่ดึงออเดอร์ทั้งร้านอีก — ข้อมูลจาก getServiceReportData (series + ค่าใช้จ่าย) ช่วงเดียว
+   */
+  if (isServiceQueue) {
+    if (sp[FINANCE_TAB_PARAM] === 'expense') {
+      const qs = new URLSearchParams()
+      if (typeof sp.range === 'string') qs.set('range', sp.range)
+      if (typeof sp.start === 'string') qs.set('start', sp.start)
+      if (typeof sp.end === 'string') qs.set('end', sp.end)
+      redirect(`/expenses${qs.size ? `?${qs}` : ''}`)
+    }
+    const [nowYear, nowMonth] = todayThaiIsoDate().split('-').map(Number)
+    const settings = resolveReportSettings(shop.reportSettings, shop.vertical)
+    const initial = await getServiceReportData(shop.id, shop.vertical, 'daily', { year: nowYear, month: nowMonth })
+    return (
+      <>
+        <PageBreadcrumb title={SERVICE_REPORT_WORDS.pageTitle} trail={[{ label: 'ธุรกิจ' }]} />
+        <ServiceReportPanel initial={initial} view={serviceReportView(settings)} chart={serviceReportChart(settings)} layout="page" />
+      </>
+    )
+  }
   /**
    * feature 00073 เฟส B — ตั้งค่ารายงานของร้านบริการ (ร้านอื่น = ค่าตั้งต้นเสมอ และไม่ถูกอ่านในเส้นทางนั้น)
    * แท็บที่ถูกปิด/URL ที่ไม่รู้จัก ถอยไปแท็บที่มองเห็น (resolveVisibleFinanceTab — fail-closed)

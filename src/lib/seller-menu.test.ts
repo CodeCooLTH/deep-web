@@ -350,10 +350,14 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
   const urlOf = (items: ReturnType<typeof applyFinanceMenu>, slug: string) =>
     items.flatMap((g) => g.children ?? []).find((c) => c.slug === slug)?.url
 
-  it('[blocker] SERVICE_QUEUE — เปลี่ยนป้าย seller:sales และชี้ seller:expenses ไปที่แท็บ', () => {
+  it('[blocker] SERVICE_QUEUE — ป้าย seller:sales = "ยอดขายและกำไร" และ seller:expenses ชี้หน้าเดิม /expenses (00078)', () => {
     const out = applyFinanceMenu(menu(), 'SERVICE_QUEUE')
-    expect(labelOf(out, 'seller:sales')).toBe(FINANCE_MENU_LABEL)
-    expect(urlOf(out, 'seller:expenses')).toBe(FINANCE_EXPENSE_TAB_URL)
+    // 00078: หน้า /sales ของร้านบริการเหลือหน้าเดียว "ยอดขายและกำไร" — ชื่อเมนูตรงกับหน้าที่ไปถึง (clarify)
+    expect(labelOf(out, 'seller:sales')).toBe('ยอดขายและกำไร')
+    expect(FINANCE_MENU_LABEL).toBe('ยอดขายและกำไร')
+    // แท็บค่าใช้จ่ายเลิกแล้ว ⇒ เมนูชี้หน้าเดิม (ไม่ใช่ลิงก์แท็บที่ต้องถูกส่งต่ออีกรอบ)
+    expect(urlOf(out, 'seller:expenses')).toBe(urlOf(menu(), 'seller:expenses'))
+    expect(urlOf(out, 'seller:expenses')).not.toBe(FINANCE_EXPENSE_TAB_URL)
   })
 
   it('[blocker] ห้ามถอด seller:expenses ออกจากเมนู — เมนูลัดของผู้ใช้จะกลายเป็น "ไม่พร้อมใช้งาน"', () => {
@@ -383,7 +387,7 @@ describe('applyFinanceMenu — ยุบเมนูเรื่องเงิ�
     expect(urlOf(out, 'seller:expenses')).toBe('/expenses')
   })
 
-  it('[blocker] หลังแปลภาษา (applyMenuLocale รันนอกสุด) ร้านบริการยังเป็น "การเงินร้าน" — ตรงหัวหน้า /sales', () => {
+  it('[blocker] หลังแปลภาษา (applyMenuLocale รันนอกสุด) ร้านบริการยังเป็น "ยอดขายและกำไร" (00078) — ตรงหัวหน้า /sales', () => {
     // บั๊กเดิม: applyMenuLocale แปล seller:sales ทับกลับเป็น "ภาพรวมกำไร/ขาดทุน" ⇒ เมนูกับหัวหน้าไม่ตรงกัน
     expect(th.menu.salesFinance).toBe(FINANCE_MENU_LABEL)
     const out = applyMenuLocale(applyFinanceMenu(menu(), 'SERVICE_QUEUE'), th, 'SERVICE_QUEUE')

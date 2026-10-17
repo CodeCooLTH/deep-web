@@ -72,6 +72,8 @@ type Props = {
   settings?: ReportSettings
   revenue?: { label: string; basis: string; countMetric: string }
   serviceRules?: boolean
+  /** feature 00078 — false = ไม่มีการ์ดกำไร/แถบเตือนต้นทุน (ร้านบริการ: กำไรอยู่หน้ายอดขายและกำไร) · ไม่ส่ง = เดิม */
+  showReport?: boolean
 }
 
 export default function ExpenseWorkspace({
@@ -86,6 +88,7 @@ export default function ExpenseWorkspace({
   serviceRules = false,
   revenue,
   settings,
+  showReport = true,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -215,7 +218,7 @@ export default function ExpenseWorkspace({
       {/* แถบเตือนต้นทุนขาด — ย้ายออกจากในการ์ดมาเป็นแถบเต็มความกว้างเหนือกริด เพราะการ์ด 5 ใบ
           ต้องสูงเท่ากัน ใส่แถบไว้ในใบเดียวจะดันความสูงทั้งแถว
           โครงเดียวกับแถบ "โหลดข้อมูลไม่สำเร็จ" ด้านบน ต่างแค่ tone */}
-      {report.hasMissingCost && (
+      {showReport && report.hasMissingCost && (
         <div
           role="alert"
           aria-live="polite"
@@ -231,7 +234,7 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={serviceRules && range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun}
+      {showReport && <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={serviceRules && range === 'custom' && customDates ? `${formatDate(customDates[0])} – ${formatDate(customDates[1])}` : RANGE_LABEL[range]} orderNoun={orderNoun}
         costNoun={costNoun}
         /* ข้อมูลไม่ครบ (ต้นทุนหาย/ยังไม่มีค่าใช้จ่าย) = เพดานบน — นิยามเดียวกับแท็บกำไรขาดทุน
            (resolveDataCompleteness) เดิมไม่ส่ง capped การ์ดนี้จึงเขียวพร้อม % ขณะที่การ์ดข้าง ๆ เตือน (review 2026-10-01) */
@@ -244,7 +247,7 @@ export default function ExpenseWorkspace({
           uncostedItemCount: 0,
           soldItemCount: 0,
         }).complete}
-      />
+      />}
 
       {(expenses.length > 0 || (serviceRules && (report.shippingCost > 0 || report.returnShippingCost > 0))) && (
         <ExpenseBreakdownCard

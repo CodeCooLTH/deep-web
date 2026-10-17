@@ -84,23 +84,11 @@ export default async function ExpensesPage({
   const decision = { shop: gate.active.shop }
 
   /**
-   * ร้านบริการ: หน้านี้ถูกยกไปเป็นแท็บ "ค่าใช้จ่าย" ของ /sales แล้ว (feature 00067 FR-FIN-03)
-   *
-   * 🛑 redirect ไม่ใช่ 404 — ผู้ใช้บุ๊กมาร์กหน้านี้ไว้ และ `SellerShortcutPreference` ของบางคน
-   * ผูก slug `seller:expenses` ไว้แล้ว ลิงก์เดิมต้องยังพาไปที่ที่ถูกเสมอ
-   *
-   * 🛑 อยู่ **หลัง** ด่านสิทธิ์ทั้งสองตัว — คนที่ไม่มีสิทธิ์ต้องเห็นจอปฏิเสธของหน้านี้ตามเดิม
-   * ไม่ใช่ถูกส่งไปอีกหน้าแล้วเจอจอปฏิเสธที่นั่นแทน (ปลายทางเปลี่ยน ข้อความเดิม = สับสนเปล่า ๆ)
-   *
-   * คงพารามิเตอร์ช่วงเวลาที่ผู้ใช้ถืออยู่ไปด้วย — เปิดลิงก์ที่มี ?range=month แล้วต้องได้เดือนนั้น
+   * ร้านบริการ (feature 00078 · มติ Q-1 2026-10-17): กลับมาใช้หน้านี้ (หน้าเดิมของ 00016)
+   * เดิม 00067 ส่งต่อไปแท็บ "ค่าใช้จ่าย" ของ /sales — แท็บเลิกแล้ว (/sales เหลือหน้ายอดขายและกำไรหน้าเดียว)
+   * ร้านบริการไม่เห็นการ์ดกำไร 5 ใบ (กำไรอยู่ในหน้ายอดขายและกำไรแล้ว) · คำของร้านบริการ (serviceRules)
    */
-  if (resolveShopVertical(decision.shop.vertical) === 'SERVICE_QUEUE') {
-    const qs = new URLSearchParams({ tab: 'expense' })
-    if (sp.range) qs.set('range', sp.range)
-    if (sp.start) qs.set('start', sp.start)
-    if (sp.end) qs.set('end', sp.end)
-    redirect(`/sales?${qs.toString()}`)
-  }
+  const isService = resolveShopVertical(decision.shop.vertical) === 'SERVICE_QUEUE'
 
   // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง
   // listExpenses ผูกช่วงเดียวกับรายงานเสมอ — ถ้าดึงทั้งหมดเหมือนเดิม การ์ดแยกหมวด
@@ -137,6 +125,9 @@ export default async function ExpensesPage({
         // คำผันตามประเภทกิจการ — ร้านคิวงานไม่มี "ออเดอร์" ให้เฉลี่ยต่อใบ (ORDER_VOCAB)
         orderNoun={resolveOrderVocab(decision.shop.vertical).noun}
         itemNoun={chatItemLabel(decision.shop.vertical)}
+        {...(isService
+          ? { serviceRules: true, showReport: false, costNoun: resolveOrderVocab(decision.shop.vertical).costNoun }
+          : {})}
       />
     </>
   )

@@ -88,8 +88,8 @@ export const en: Dictionary = {
     // "ภาพรวมกำไร/ขาดทุน" — ใช้ P&L ซึ่งเป็นศัพท์บัญชีสากล สั้นกว่า "Profit and loss" มาก
     // และเมนูซ้ายกว้างคงที่ 245px (BR-I18N-17)
     sales: 'P&L overview',
-    // ร้านบริการ — หน้า "การเงินร้าน" (กำไรขาดทุน · ยอดเก็บเงิน · ค่าใช้จ่าย)
-    salesFinance: 'Shop finances',
+    // ร้านบริการ — หน้า "ยอดขายและกำไร" (00078 · เดิม "การเงินร้าน" 00067)
+    salesFinance: 'Sales and profit',
     reportsAgents: 'Agent Chat Response',
     reportsProducts: 'Sales by Product',
     followUps: 'Customer follow-ups',

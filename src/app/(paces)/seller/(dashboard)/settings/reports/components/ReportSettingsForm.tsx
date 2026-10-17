@@ -1,319 +1,155 @@
 'use client'
 
 /**
- * ฟอร์มตั้งค่ารายงานการเงิน (feature 00073 เฟส B · FR-010 · ดีไซน์บอร์ด 8)
+ * ฟอร์มตั้งค่ารายงานของร้านบริการ — 2 ข้อ (feature 00078 · BRD FR-012 · ต้นแบบที่ user เลือก 2026-10-17)
+ *   1. ตัวเลขที่อยากเห็นก่อน — ยอดขาย / กำไร (กล่องโชว์ตัวเลขจริงของร้านเดือนนี้)
+ *   2. รูปแบบกราฟ — แท่ง / เส้น
+ * + ตัวอย่างบนหน้าแรก เปลี่ยนตามทันที · บันทึกทันทีที่เลือก (optimistic + ย้อนค่าเมื่อ PATCH ล้ม + pacesToast HR9)
  *
  * Base: src/app/(paces)/seller/(dashboard)/public-profile/components/PriceVisibilityToggleClient.tsx
- *   — การ์ด Paces + form-switch controlled + optimistic + revert เมื่อ PATCH ล้ม + pacesToast (HR9)
- *   Adapt: หลายสวิตช์ในการ์ดเดียว (รายการแบบ list-group ของ Paces) · ตัวเลือกรูปแบบกราฟ/ช่วงเวลาเป็นปุ่มกลุ่ม
- *
- * บันทึกทีละช่องทันทีที่กด (ไม่มีปุ่มบันทึก) — ช่องที่ไม่ได้แตะไม่ถูกส่ง (API รวมกับค่าเดิมให้)
+ *   (การ์ด Paces + optimistic + revert + pacesToast) · ตัวเลือกแบบกล่องคู่ = radio card (role="radio")
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
-import Icon from '@/components/wrappers/Icon'
+import { formatNumberNoSymbol } from '@/lib/format-money'
 import { pacesToast } from '@/lib/paces-toast'
 import {
-  DEFAULT_REPORT_SETTINGS,
-  isDefaultReportSettings,
-  type ReportChartStyle,
-  type ReportHeadline,
-  type ReportRange,
+  serviceReportChart,
+  serviceReportPatch,
+  serviceReportView,
   type ReportSettings,
-  type ReportUnclosedDisplay,
+  type ServiceReportChart as ChartKind,
+  type ServiceReportView,
 } from '@/lib/report-settings'
-import { FINANCE_COLORS } from '@/lib/finance-colors'
+import { buildServiceReport, type ServiceReportData } from '@/lib/service-report/view-model'
+import { SERVICE_REPORT_WORDS as W } from '@/lib/service-report/words'
 
-type BoolKey = 'receivables' | 'advanceDeposit' | 'jobCount' | 'partCost' | 'shopExpense' | 'pnl'
+import ServiceReportChart from '../../../_shared/service-report/ServiceReportChart'
 
-const CHART_STYLE_LABEL: Record<ReportChartStyle, string> = {
-  STACKED: 'แท่งซ้อน',
-  GROUPED: 'แท่งคู่',
-  LINE: 'เส้น',
-  AREA: 'พื้นที่',
-}
-/** ตัวเลขหลักบนการ์ดยอดขาย — ตัวที่สวิตช์ต้นทางปิดอยู่เลือกไม่ได้ (บอกเหตุผลใต้ปุ่ม) */
-const HEADLINE_OPTIONS: { key: ReportHeadline; label: string; needs?: 'receivables' | 'pnl'; needsLabel?: string }[] = [
-  { key: 'SALES', label: 'ยอดขาย' },
-  { key: 'RECEIVED', label: 'รับเงินแล้ว', needs: 'receivables', needsLabel: 'ต้องเปิด "รับเงินแล้ว / ค้างรับ" ก่อน' },
-  { key: 'NET_PROFIT', label: 'กำไรสุทธิ', needs: 'pnl', needsLabel: 'ต้องเปิด "กำไรขาดทุน" ก่อน' },
-]
+type Props = { initialView: ServiceReportView; initialChart: ChartKind; preview: ServiceReportData }
 
-/** งานที่ยังไม่ปิด (สีเหลือง) แสดงที่ไหน — 00073 ภาคต่อ FR-016 · คำอธิบายต้องบอกว่า "ไม่นับเป็นยอดขาย" ทุกตัวเลือก */
-const UNCLOSED_OPTIONS: { key: ReportUnclosedDisplay; label: string; hint: string }[] = [
-  { key: 'OFF', label: 'ไม่แสดง', hint: 'การ์ดและกราฟแสดงเฉพาะงานที่ปิดแล้ว' },
-  { key: 'CARD', label: 'การ์ดหน้าแรก', hint: 'การ์ดยอดขายมีก้อนเหลือง + ตัวเลขรวม · หน้าการเงินบอกยอดรวมเป็นบรรทัดเดียว' },
-  { key: 'ALL', label: 'ทุกจอ', hint: 'เพิ่มก้อนเหลืองในกราฟและคอลัมน์ "ยังไม่ปิด" ในตารางของหน้าการเงินด้วย' },
-]
+const tileClass = (on: boolean) =>
+  `relative flex min-h-24 w-full flex-col gap-1 rounded-xl border-2 p-3.5 text-start transition-colors ${
+    on ? 'border-primary bg-primary/5' : 'border-default-200 bg-card hover:border-primary/40'
+  }`
 
-const RANGE_LABEL: Record<ReportRange, string> = {
-  MONTH: 'เดือนนี้ (รายวัน)',
-  M3: '3 เดือน',
-  M6: '6 เดือน',
-  M12: '12 เดือน',
-  YEAR: 'ปีนี้',
+function Tick({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`absolute end-2.5 top-2.5 inline-flex size-5 items-center justify-center rounded-full border-2 ${on ? 'border-primary bg-primary text-white' : 'border-default-300'}`}
+    >
+      {on && (
+        <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M2.5 6.2l2.3 2.3 4.7-5" />
+        </svg>
+      )}
+    </span>
+  )
 }
 
-export default function ReportSettingsForm({ initial, costNoun }: { initial: ReportSettings; costNoun: string }) {
-  const [s, setS] = useState<ReportSettings>(initial)
-  const [pending, setPending] = useState<string | null>(null)
+export default function ReportSettingsForm({ initialView, initialChart, preview }: Props) {
+  const [view, setView] = useState<ServiceReportView>(initialView)
+  const [chart, setChart] = useState<ChartKind>(initialChart)
+  const [busy, setBusy] = useState(false)
 
-  const save = async (patch: Partial<ReportSettings>, key: string) => {
-    const prev = s
-    setS({ ...s, ...patch }) // optimistic
-    setPending(key)
+  const sales = useMemo(() => buildServiceReport(preview, 'sales'), [preview])
+  const profit = useMemo(() => buildServiceReport(preview, 'profit'), [preview])
+  const shown = view === 'profit' ? profit : sales
+
+  const save = async (next: { view?: ServiceReportView; chart?: ChartKind }) => {
+    const prev = { view, chart }
+    if (next.view) setView(next.view)
+    if (next.chart) setChart(next.chart)
+    setBusy(true)
     try {
       const res = await fetch('/api/shops/current/report-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify(serviceReportPatch(next)),
       })
       if (!res.ok) throw new Error(String(res.status))
-      setS((await res.json()) as ReportSettings)
-      pacesToast.success('บันทึกตั้งค่ารายงานแล้ว')
+      const saved = (await res.json()) as ReportSettings
+      setView(serviceReportView(saved))
+      setChart(serviceReportChart(saved))
+      pacesToast.success(W.saved)
     } catch {
-      setS(prev) // revert
-      pacesToast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setView(prev.view)
+      setChart(prev.chart)
+      pacesToast.error(W.saveFailed)
     } finally {
-      setPending(null)
+      setBusy(false)
     }
   }
 
-  const rows: { key: BoolKey; icon: string; label: string; on: string; off: string }[] = [
-    {
-      key: 'receivables',
-      icon: 'cash',
-      label: 'รับเงินแล้ว / ค้างรับ',
-      on: 'แยกยอดขายเป็นเงินที่รับแล้วกับค้างรับ · มีรายการ "ต้องตามเก็บ"',
-      off: 'แสดงแค่ยอดขาย · การ์ดค้างรับและรายการต้องตามเก็บถูกซ่อน',
-    },
-    {
-      key: 'advanceDeposit',
-      icon: 'wallet',
-      label: 'มัดจำรับล่วงหน้า',
-      on: 'แสดงการ์ดเงินมัดจำของงานที่ยังไม่ปิด (ไม่ปนยอดขาย)',
-      off: 'ไม่แสดงมัดจำของงานที่ยังไม่ปิด',
-    },
-    {
-      key: 'jobCount',
-      icon: 'list-numbers',
-      label: 'จำนวนงาน',
-      on: 'แสดงจำนวนงานที่ปิด · เฉลี่ยต่องาน · จำนวนงานในกล่องยอดของกราฟ',
-      off: 'ซ่อนจำนวนงานและค่าเฉลี่ยต่องาน',
-    },
-    {
-      key: 'partCost',
-      icon: 'tool',
-      label: costNoun,
-      on: `แสดง${costNoun} และหักในกำไร`,
-      off: `ซ่อนทุกจุดที่พูดถึง${costNoun} · กำไรไม่หัก${costNoun} (มีป้ายบอก)`,
-    },
-    {
-      key: 'shopExpense',
-      icon: 'receipt-2',
-      label: 'ค่าใช้จ่ายร้าน',
-      on: 'มีแท็บ/เมนูค่าใช้จ่าย และหักในกำไร',
-      off: 'แท็บและเมนูค่าใช้จ่ายหาย · กำไรไม่หักค่าใช้จ่ายร้าน (ข้อมูลเดิมไม่ถูกลบ)',
-    },
-    {
-      key: 'pnl',
-      icon: 'chart-line',
-      label: 'กำไรขาดทุน',
-      on: 'มีแท็บกำไรขาดทุน และการ์ดกำไรในหน้างาน',
-      off: 'ซ่อนแท็บกำไรขาดทุนและการ์ดกำไรในหน้างาน',
-    },
-  ]
-
   return (
-    <div className="grid gap-base lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <div className="card mb-base">
-          <div className="card-header">
-            <h4 className="card-title">ตัวเลขที่แสดง</h4>
-          </div>
-          <div className="card-body">
-            <ul className="divide-default-200 divide-y">
-              {/* ยอดขายเปิดเสมอ — เป็นแกนของทุกรายงาน (PRD §3.6) */}
-              <li className="flex items-start gap-3 pb-3">
-                <Icon icon="chart-bar" className="text-default-500 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <label htmlFor="rs-sales" className="text-default-900 text-sm font-medium">
-                    ยอดขาย (งานที่ร้านปิดแล้ว)
-                  </label>
-                  <p className="text-default-600 mt-0.5 text-xs">เปิดเสมอ — เป็นแกนของทุกรายงาน</p>
-                </div>
-                <input id="rs-sales" type="checkbox" className="form-switch mt-0.5 shrink-0" checked disabled readOnly />
-              </li>
-              {rows.map((r) => (
-                <li key={r.key} className="flex items-start gap-3 py-3 last:pb-0">
-                  <Icon icon={r.icon} className="text-default-500 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-                  <div className="min-w-0 flex-1">
-                    <label htmlFor={`rs-${r.key}`} className="text-default-900 text-sm font-medium">
-                      {r.label}
-                    </label>
-                    <p className="text-default-600 mt-0.5 text-xs">{s[r.key] ? r.on : r.off}</p>
-                  </div>
-                  <input
-                    id={`rs-${r.key}`}
-                    type="checkbox"
-                    className="form-switch mt-0.5 shrink-0"
-                    checked={s[r.key]}
-                    disabled={pending !== null}
-                    onChange={(e) => void save({ [r.key]: e.target.checked }, r.key)}
-                  />
-                </li>
+    <div className="grid grid-cols-1 gap-base lg:grid-cols-3" aria-busy={busy}>
+      <div className="card lg:col-span-2">
+        <div className="card-body">
+          <section role="radiogroup" aria-labelledby="rs-view" className="border-default-200 border-b pb-5">
+            <h4 id="rs-view" className="mb-0.5 text-base font-semibold text-dark">{W.setViewTitle}</h4>
+            <p className="mb-3 text-sm text-default-700">{W.setViewHelp}</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {(
+                [
+                  { key: 'sales', title: W.sales, help: W.setViewSalesHelp, value: sales.totals.sales },
+                  { key: 'profit', title: W.profit, help: W.setViewProfitHelp, value: profit.totals.profit },
+                ] as const
+              ).map((o) => (
+                <button key={o.key} type="button" role="radio" aria-checked={view === o.key} disabled={busy} onClick={() => view !== o.key && save({ view: o.key })} className={tileClass(view === o.key)}>
+                  <Tick on={view === o.key} />
+                  <span className="pe-7 text-base font-semibold text-dark">{o.title}</span>
+                  <span className="text-xs text-default-700">{o.help}</span>
+                  <span className={`mt-auto text-xl font-bold tabular-nums ${o.value < 0 ? 'text-danger-ink' : 'text-dark'}`}>{formatNumberNoSymbol(o.value)}</span>
+                </button>
               ))}
-            </ul>
-          </div>
-        </div>
+            </div>
+          </section>
 
-        <div className="card mb-base">
-          <div className="card-header">
-            <h4 className="card-title">การ์ดและกราฟ</h4>
-          </div>
-          <div className="card-body space-y-4">
-            {/* ตัวเลขหลักบนการ์ด (มติ user 2026-10-12) — ตัวที่เลือกไว้แต่สวิตช์ต้นทางปิดภายหลัง จอถอยเป็นยอดขายเอง (resolveHeadline) */}
-            <fieldset>
-              <legend className="text-default-900 mb-2 text-sm font-medium">ตัวเลขหลักบนการ์ดยอดขาย</legend>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="ตัวเลขหลักบนการ์ดยอดขาย">
-                {HEADLINE_OPTIONS.map((o) => {
-                  const blocked = o.needs != null && !s[o.needs]
-                  const selected = s.headline === o.key && !blocked
-                  return (
-                    <button
-                      key={o.key}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      disabled={pending !== null || blocked}
-                      title={blocked ? o.needsLabel : undefined}
-                      onClick={() => s.headline !== o.key && void save({ headline: o.key }, 'headline')}
-                      className={`btn min-h-11 ${selected ? 'bg-primary text-white' : 'border-default-300 text-default-700 hover:bg-default-100'} ${blocked ? 'opacity-50' : ''}`}
-                    >
-                      {o.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="text-default-600 mt-1.5 text-xs">
-                การ์ดยอดขายหน้าแรก (มือถือ) และภาพรวมร้าน (คอม) · เลือกกำไรสุทธิ ชีตการเงินจะเปิดที่แท็บกำไรขาดทุนก่อน
-                {HEADLINE_OPTIONS.filter((o) => o.needs && !s[o.needs]).map((o) => (
-                  <span key={o.key} className="block">
-                    {o.label}: {o.needsLabel}
-                  </span>
-                ))}
-              </p>
-            </fieldset>
-            <fieldset>
-              <legend className="text-default-900 mb-2 flex items-center gap-1.5 text-sm font-medium">
-                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
-                งานที่ยังไม่ปิด (สีเหลือง)
-              </legend>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="งานที่ยังไม่ปิด แสดงที่ไหน">
-                {UNCLOSED_OPTIONS.map((o) => (
-                  <button
-                    key={o.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={s.unclosedDisplay === o.key}
-                    disabled={pending !== null}
-                    onClick={() => s.unclosedDisplay !== o.key && void save({ unclosedDisplay: o.key }, 'unclosedDisplay')}
-                    className={`btn min-h-11 ${s.unclosedDisplay === o.key ? 'bg-primary text-white' : 'border-default-300 text-default-700 hover:bg-default-100'}`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-default-600 mt-1.5 text-xs">
-                {UNCLOSED_OPTIONS.find((o) => o.key === s.unclosedDisplay)?.hint} · งานที่เปิดบิลแล้วแต่ยังไม่กดปิดงาน
-                ยังไม่นับเป็นยอดขาย — กดปิดงานเมื่อไรจะเป็นสีเขียว
-              </p>
-            </fieldset>
-            <fieldset>
-              <legend className="text-default-900 mb-2 text-sm font-medium">รูปแบบกราฟ</legend>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="รูปแบบกราฟ">
-                {(Object.keys(CHART_STYLE_LABEL) as ReportChartStyle[]).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    role="radio"
-                    aria-checked={s.chartStyle === k}
-                    disabled={pending !== null}
-                    onClick={() => s.chartStyle !== k && void save({ chartStyle: k }, 'chartStyle')}
-                    className={`btn min-h-11 ${s.chartStyle === k ? 'bg-primary text-white' : 'border-default-300 text-default-700 hover:bg-default-100'}`}
-                  >
-                    {CHART_STYLE_LABEL[k]}
-                  </button>
-                ))}
-              </div>
-              <p className="text-default-600 mt-1.5 text-xs">ตั้งครั้งเดียว ใช้ทุกกราฟการเงินของร้าน</p>
-            </fieldset>
-            <fieldset>
-              <legend className="text-default-900 mb-2 text-sm font-medium">ช่วงเวลาเริ่มต้นของกราฟ</legend>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="ช่วงเวลาเริ่มต้นของกราฟ">
-                {(Object.keys(RANGE_LABEL) as ReportRange[]).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    role="radio"
-                    aria-checked={s.defaultRange === k}
-                    disabled={pending !== null}
-                    onClick={() => s.defaultRange !== k && void save({ defaultRange: k }, 'defaultRange')}
-                    className={`btn min-h-11 ${s.defaultRange === k ? 'bg-primary text-white' : 'border-default-300 text-default-700 hover:bg-default-100'}`}
-                  >
-                    {RANGE_LABEL[k]}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          </div>
+          <section role="radiogroup" aria-labelledby="rs-chart" className="pt-5">
+            <h4 id="rs-chart" className="mb-0.5 text-base font-semibold text-dark">{W.setChartTitle}</h4>
+            <p className="mb-3 text-sm text-default-700">{W.setChartHelp}</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {(
+                [
+                  { key: 'bar', title: W.setChartBar },
+                  { key: 'line', title: W.setChartLine },
+                ] as const
+              ).map((o) => (
+                <button key={o.key} type="button" role="radio" aria-checked={chart === o.key} disabled={busy} onClick={() => chart !== o.key && save({ chart: o.key })} className={tileClass(chart === o.key)}>
+                  <Tick on={chart === o.key} />
+                  <span className="pe-7 text-base font-semibold text-dark">{o.title}</span>
+                  {/* ภาพย่อรูปแบบกราฟ — SVG ตกแต่ง (aria-hidden) สีจาก token ธีม */}
+                  {o.key === 'bar' ? (
+                    <svg viewBox="0 0 120 44" className="mt-auto h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
+                      <g className="fill-success">
+                        <rect x="6" y="22" width="13" height="22" rx="2" /><rect x="29" y="12" width="13" height="32" rx="2" /><rect x="52" y="26" width="13" height="18" rx="2" /><rect x="75" y="6" width="13" height="38" rx="2" /><rect x="98" y="18" width="13" height="26" rx="2" />
+                      </g>
+                      <g className="fill-warning">
+                        <rect x="6" y="14" width="13" height="8" rx="2" /><rect x="52" y="18" width="13" height="8" rx="2" /><rect x="98" y="10" width="13" height="8" rx="2" />
+                      </g>
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 120 44" className="mt-auto h-11 w-full" preserveAspectRatio="none" aria-hidden="true" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline className="stroke-success" points="4,32 28,20 52,28 76,8 100,18 116,14" />
+                      <polyline className="stroke-warning" points="4,40 28,34 52,37 76,26 100,30 116,24" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
 
-      <div>
-        <div className="card">
-          <div className="card-header">
-            <h4 className="card-title">ตั้งค่านี้ทำอะไร</h4>
-          </div>
-          <div className="card-body">
-            <ul className="text-default-700 list-disc space-y-2 ps-4 text-sm">
-              <li>ใช้ทั้งร้าน — เห็นและแก้ได้เฉพาะเจ้าของร้าน</li>
-              <li>ปิด = ซ่อนจากจอของร้าน ไม่ลบข้อมูล เปิดกลับมาได้ครบ</li>
-              <li>เปลี่ยนแค่ “แสดงอะไร แบบไหน” — วิธีนับเงินไม่เปลี่ยน (ยอดขายนับตอนร้านปิดงาน)</li>
-              <li>รายงานเข้ากลุ่ม LINE ไม่เปลี่ยน — แต่ละกลุ่มตั้งของตัวเองแยก</li>
-            </ul>
-            {/* สีในกราฟ — จาก FINANCE_COLORS ตัวกลาง (ทุกจอใช้ชุดนี้) · ร้านงงเรื่องสีบ่อย จึงอธิบายไว้ที่เดียวกับตั้งค่า */}
-            <p className="text-default-900 mt-4 mb-2 text-sm font-medium">สีในกราฟ</p>
-            <ul className="text-default-700 space-y-1.5 text-sm">
-              <li className="flex items-center gap-2">
-                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.counted.dot}`} aria-hidden="true" />
-                เขียว — ปิดงานแล้ว / รับเงินแล้ว (นับเป็นยอดขาย)
-              </li>
-              <li className="flex items-center gap-2">
-                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.outstanding.dot}`} aria-hidden="true" />
-                ฟ้า — ค้างรับ (ปิดงานแล้ว ยังเก็บเงินไม่ครบ)
-              </li>
-              <li className="flex items-center gap-2">
-                <span className={`size-2.5 shrink-0 rounded-full ${FINANCE_COLORS.notCounted.dot}`} aria-hidden="true" />
-                เหลือง — ยังไม่ปิดงาน (ยังไม่นับเป็นยอดขาย)
-              </li>
-              <li className="flex items-center gap-2">
-                <span className={`h-0.5 w-3 shrink-0 ${FINANCE_COLORS.count.dot}`} aria-hidden="true" />
-                เส้นน้ำเงิน — จำนวนงาน
-              </li>
-            </ul>
-            <button
-              type="button"
-              className="btn border-default-300 text-default-700 hover:bg-default-100 mt-4 min-h-11 w-full"
-              disabled={pending !== null || isDefaultReportSettings(s)}
-              onClick={() => void save({ ...DEFAULT_REPORT_SETTINGS }, 'reset')}
-            >
-              <Icon icon="refresh" className="size-4" aria-hidden="true" />
-              คืนค่าเริ่มต้น
-            </button>
-          </div>
+      <aside className="card self-start" aria-label={W.setPreview}>
+        <div className="card-body">
+          <p className="mb-1.5 text-xs font-semibold text-default-700">{W.setPreview}</p>
+          <p className="mb-0 text-xs text-default-700">{shown.hero.label}</p>
+          <p className={`text-3xl font-bold tracking-tight tabular-nums ${shown.hero.tone === 'loss' ? 'text-danger-ink' : 'text-dark'}`}>{formatNumberNoSymbol(shown.hero.value)}</p>
+          <ServiceReportChart chart={shown.chart} kind={chart} height={140} />
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

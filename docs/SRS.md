@@ -272,6 +272,7 @@ flowchart LR
 - **ตั้งค่ารายงาน (เฟส B)**: `Shop.reportSettings Json?` (null = ค่าตั้งต้น = เหมือนก่อนมีฟีเจอร์) · ร้านบริการ + เจ้าของเท่านั้น (F1) · `src/lib/report-settings.ts` เป็นตัวตัดสินเดียว (สวิตช์ รับเงิน/ค้างรับ · มัดจำล่วงหน้า · จำนวนงาน · ต้นทุนอะไหล่ · ค่าใช้จ่ายร้าน · กำไรขาดทุน · รูปแบบกราฟ · ช่วงเริ่มต้น) · เปลี่ยนแค่การแสดงผล ไม่เปลี่ยนวิธีนับเงิน · รายงานกลุ่ม LINE ไม่อ่าน (2026-10-14: รายงานกลุ่ม LINE ของร้านบริการนับยอดแบบร้านทั่วไป — ทุกใบที่ไม่ยกเลิก ตามวันเปิดบิล · ยืนยันแล้ว + รอยืนยัน · ไม่รอปิดงาน · ไม่มีบรรทัด "ยังไม่ปิดงาน") · ร้านอื่น `resolveReportSettings` คืนค่าตั้งต้นเสมอ · **FR-014/016 (2026-10-12):** `unclosedDisplay` OFF/CARD(ค่าตั้งต้น)/ALL = งานที่ยังไม่ปิด (ตามวันเปิดบิล · ไม่ใช่ยอดขาย) บนการ์ด/คอม/รายงานยอดขาย/ชีต//sales · สีทุกจอจากตัวกลาง `src/lib/finance-colors.ts` (เขียว นับแล้ว · เหลือง ยังไม่ปิด · ฟ้า ค้างรับ · น้ำเงิน จำนวน · แดง เงินออก · เทา อื่น ๆ)
 - **กราฟการเงิน 3 แบบ (เฟส B)**: `GET /api/seller/finance-chart` (`finance-chart.service` ต่อจาก `getSalesSeries` + Expense + ค่าส่งคืน — ผลรวมเท่า `getPnlReport` มีเทส parity) · ช่วง MONTH/M3/M6/M12/YEAR
 - รายละเอียด: `docs/20 - Features/00073 - Service Four-Step Flow/`
+- **00078 (2026-10-17) — หน้ายอดขายและกำไรร้านบริการใหม่** (แทนการ์ด/ชีต 3 แท็บ/`/sales` 3 แท็บ/หน้าตั้งค่าหลายสวิตช์ของเฟส B): ตัวกลาง `src/lib/service-report/{words,view-model,chart-options}.ts` + ตัวโหลด `service-report.service` (ต่อจาก `getSalesSeries` — เพิ่ม `unclosedCounts` ในทางร้านบริการเท่านั้น) · ตั้งค่าเหลือ 2 ข้อ (`headline` ยอดขาย/กำไร · `chartStyle` แท่ง/เส้น · ค่าตั้งต้น ยอดขาย + แท่ง) — `resolveReportSettings` ร้านบริการคืนค่าตั้งต้นทุกสวิตช์อื่น (RECEIVED→ยอดขาย · AREA→เส้น · GROUPED→แท่ง) และ PATCH merge ทับ JSON ดิบ (ไม่ลบคีย์เดิม) · `/sales?tab=expense` → `/expenses` · เมนู/หัวจอ `/sales` ร้านบริการ = "ยอดขายและกำไร" (`FINANCE_MENU_LABEL`) · โค้ด `/sales` 3 แท็บเดิม (+ `ServiceFinanceChart`/`finance-chart`) ยังอยู่ในไฟล์แต่ร้านบริการไม่เข้าทางนั้นแล้ว · ไม่มี migration · รายละเอียด `docs/20 - Features/00078 - Service Report Redesign/`
 
 ### 2.2 Data Visibility — Order Link (`/o/{token}`)
 
@@ -1877,6 +1878,8 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
 | GET | `/api/seller/finance-chart` | F1 (เจ้าของ) · ร้านบริการ (อื่น 404) | **00073 เฟส B** กราฟการเงินรายช่อง `?range=MONTH\|M3\|M6\|M12\|YEAR&year&month[&advance=1]` → buckets {sales, received, outstanding, unrecorded, jobs, cost, expense} + totals (เท่า P&L) + มัดจำล่วงหน้า | `finance-chart.service` |
 | GET/PATCH | `/api/shops/current/report-settings` | F1 (เจ้าของ) · ร้านบริการ (อื่น 403) | **00073 เฟส B** อ่าน/บันทึกตั้งค่ารายงาน (PATCH ส่งเฉพาะช่องที่เปลี่ยน · `UpdateReportSettingsSchema`) | `report-settings.service` |
+| GET | `/api/seller/service-report` | F1 (เจ้าของ) · ร้านบริการ (อื่น 404) | **00078** ข้อมูลรายงานหนึ่งช่วง `?mode=daily\|monthly&year[&month]` → `ServiceReportData` (ปิดงานแล้ว/ยังไม่ปิดงาน/จำนวนงาน/ต้นทุน/ค่าใช้จ่ายรายช่อง + ยอดช่วงก่อนถึงวันเดียวกัน + 14 วันล่าสุด) — ดู §7.29 | `service-report.service` |
+| GET | `/api/seller/service-report/day` | F1 (เจ้าของ) · ร้านบริการ (อื่น 404) | **00078** บิลของวัน `?date=YYYY-MM-DD` (ต้องเป็นวันที่มีจริง) → `{ bills[] }` ผลรวม = ยอดแถววันนั้น — ดู §7.29 | `service-report.service` |
 | GET | `/api/seller/portfolio-series` | Seller (บริบท Personal) | **00069** ยอดรวมทุกร้าน BUSINESS ที่ผู้ใช้เป็น OWNER และจ่ายแล้ว + แท่งซ้อนตามร้าน + ตารางเทียบ (ยอดขาย = `getSalesSeries.total` · กำไร = `getPnlReport`) · 403 เมื่อร้านที่เลือกอยู่ไม่ใช่ Personal | `business-overview.service` |
 
 **🛑 COGS ใน `sales-series` มี 2 ชุด และจะไม่มีวันเท่ากัน (HR16 — วางติดกันใน `dashboard.service.ts`):**
@@ -2432,6 +2435,23 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 **`GET /api/chat/presence-keys`** — ไม่มีพารามิเตอร์ · 200 `{ keys:[{ shopId, key }] }` ของผู้เรียกเองเท่านั้น ในทุกร้านใน `resolveChatScope(session,'H1').shopIds` · `key` = HMAC ทึบ (`presenceKeyFor(shopId,userId)`) ไม่มี userId · error: 401 · 403/404 ตาม `chatScopeOrDeny` เดิม · 500
 - ช่อง Supabase Presence ของร้าน = `presence:chat:{shopId}` (anon key; payload `{at}` เท่านั้น) — ข้อจำกัดที่รู้ตัว: ช่องเป็น public คนนอกที่รู้ `shopId` เห็นจำนวนคีย์ออนไลน์ได้ ไม่เห็นตัวตน ปลอมสมาชิกไม่ได้ (เทียบเท่า `chat:shop:{shopId}` เดิม) ทางปิดจริง = Realtime private channel (รอบ 2)
+
+---
+
+### 7.29 หน้ายอดขายและกำไรร้านบริการ (`/api/seller/service-report/**`) — feature 00078
+
+> เอกสารเต็ม: `docs/20 - Features/00078 - Service Report Redesign/{PRD,BRD,SRS,SDS,API,DATABASE,TestCase}.md` (สัญญาละเอียด = `API.md`) · ทั้ง 2 endpoint อ่านอย่างเดียว · `requireShopCapability('F1')` แล้ว `usesServiceFinanceRules(vertical)` ไม่ผ่าน → 404 · `Cache-Control: private, no-store`
+
+| Method | Path | Capability | Purpose |
+|---|---|---|---|
+| GET | `/api/seller/service-report` | **F1** · ร้านบริการ | ข้อมูลหนึ่งช่วง (`getServiceReportData`) |
+| GET | `/api/seller/service-report/day` | **F1** · ร้านบริการ | บิลของหนึ่งวัน (`getServiceReportDayBills`) |
+
+**`GET /api/seller/service-report`** — `mode` (`daily`\|`monthly`) · `year` (2000–2100) · `month` (1–12 · บังคับเมื่อ daily) → 200 `{ mode, year, month?, labels[], closed[], closedCounts[], unclosed[], unclosedCounts[], cost[], expense[], futureFromIndex, prevSalesToDate, last14? }`
+- ปิดงานแล้ว = ตามวันปิดงาน (ไม่มาตามนัด = เงินที่รับไว้ · หักคืนบางส่วน) · ยังไม่ปิดงาน = ตามวันเปิดบิล · ไม่นับ CANCELLED/RETURNED/DRAFTED · `expense` = ค่าใช้จ่าย + ค่าส่งขากลับของใบคืนที่รับแล้ว (นิยามเดียวกับ `finance-chart`)
+- error: 400 query ผิด · 401 · 403 (ไม่ถือ F1) · 404 (ไม่ใช่ร้านบริการ)
+
+**`GET /api/seller/service-report/day`** — `date=YYYY-MM-DD` (วันไทย · ต้องมีจริง เช่น `2026-02-31` → 400) → 200 `{ bills: [{ token, orderNo, buyerName, amount, closed }] }` — ปิดงานแล้วก่อน แล้วยังไม่ปิดงาน · ไม่คืนเบอร์/ข้อมูลติดต่อ
 
 ---
 

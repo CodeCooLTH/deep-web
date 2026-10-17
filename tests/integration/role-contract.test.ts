@@ -318,6 +318,7 @@ const MATRIX: Entry[] = [
  */
 const COVERED: Record<string, string> = {
   'src/app/api/shops/current/report-settings/': 'ตั้งค่ารายงานการเงิน (F1 เจ้าของเท่านั้น · 00073 เฟส B) — config ล้วน ไม่มีแถวเงิน/ต้นทุน',
+  'src/app/api/seller/service-report/': 'หน้ายอดขายและกำไรร้านบริการ (F1 เจ้าของเท่านั้น + ร้านบริการเท่านั้น · 00078) — ด่าน F1 ชุดเดียวกับ sales-series ที่อยู่ใน MATRIX · เทสด่านเฉพาะ: tests/integration/service-report-routes.test.ts',
   'src/app/api/seller/finance-chart/': 'กราฟการเงินร้านบริการ (F1 เจ้าของเท่านั้น · 00073 เฟส B) — ยอดรวมรายช่อง ไม่มี cost รายใบ · ด่าน F1 = ชุดเดียวกับ sales-series ที่อยู่ใน MATRIX',
   'src/app/api/shops/auto-reply/': 'ตั้งค่าบอท/กฎตอบอัตโนมัติ (H3) — ไม่มีแถวออเดอร์/เงิน/ต้นทุน · ขอบเขตคือ OWNER+MANAGER (ไม่ใช่ระดับเงิน)',
   'src/app/api/shops/comment-reply/': 'กฎตอบคอมเมนต์ (H3) — config ล้วน ไม่มีเงิน',
