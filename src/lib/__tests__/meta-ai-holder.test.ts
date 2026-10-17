@@ -5,6 +5,8 @@ import {
   metaAiHoldingUntilMs,
   decideMetaAiHolding,
   withMetaAiHold,
+  isMetaAiHolding,
+  metaAiNowBucket,
   META_PAGE_INBOX_APP_ID as PAGE,
   META_IG_INBOX_APP_ID as IG,
   type MetaAiFacts,
@@ -89,5 +91,21 @@ describe('ข้อห้ามของสูตร', () => {
     // ตัดคอมเมนต์ออกก่อน — คอมเมนต์อธิบายข้อห้ามได้
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
     expect(code).not.toMatch(/viaStandby|marker/i)
+  })
+})
+
+describe('isMetaAiHolding / nowBucket — ขอบหมดอายุฝั่ง UI', () => {
+  it('null/undefined = ไม่ถือ · until > bucket = ถือ · until === bucket = หมด', () => {
+    expect(isMetaAiHolding(null, T0)).toBe(false)
+    expect(isMetaAiHolding(undefined, T0)).toBe(false)
+    expect(isMetaAiHolding(T0 + 1, T0)).toBe(true)
+    expect(isMetaAiHolding(T0, T0)).toBe(false)
+    expect(isMetaAiHolding(T0 - 1, T0)).toBe(false)
+  })
+  it('bucket ปัดลงทีละ 5 นาที และคงที่ในก้อนเดียวกัน', () => {
+    const b = metaAiNowBucket(T0 + 7 * 60_000)
+    expect(b % (5 * 60_000)).toBe(0)
+    expect(metaAiNowBucket(b + 4 * 60_000)).toBe(b)
+    expect(metaAiNowBucket(b + 5 * 60_000)).toBe(b + 5 * 60_000)
   })
 })

@@ -67,3 +67,12 @@ export function withMetaAiHold<T extends Partial<MetaAiFacts>>(
   )
   return { ...rest, metaAiHoldUntilMs: until }
 }
+
+/** ปัดเวลาเป็นก้อน ~5 นาที — ส่งเป็น prop primitive ให้แถว memo เทียบ expiry โดยไม่ต้องมีนาฬิกาในแถว */
+export const META_AI_NOW_BUCKET_MS = 5 * 60 * 1000
+export const metaAiNowBucket = (nowMs: number): number => Math.floor(nowMs / META_AI_NOW_BUCKET_MS) * META_AI_NOW_BUCKET_MS
+
+/** ตัวตัดสิน "แสดงไอคอน/ชิป" ตัวเดียวของ UI (FR-CS-02) — ขอบ: until === now ถือว่าหมดแล้ว */
+export function isMetaAiHolding(holdUntilMs: number | null | undefined, nowBucket: number): boolean {
+  return holdUntilMs != null && holdUntilMs > nowBucket
+}

@@ -783,10 +783,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
 
   mark('savedFileIds')
 
-  // 00078 TFR-003 — primitive ที่ T22 จะส่งเป็น prop ให้ ChatThread (หัวห้อง); คำนวณที่นี่ด้วยฟังก์ชันเดียวกับรายการ
+  // 00078 TFR-003 — primitive ส่งเป็น prop ให้ ChatThread (ชิปหัวห้อง); คำนวณที่นี่ด้วยฟังก์ชันเดียวกับรายการ
   const metaAiHoldUntilMs = metaAiHoldingUntilMs(conversation, ourMetaAppId())
-  // TODO(T22): ส่ง metaAiHoldUntilMs เป็น prop ให้ ChatThread แล้วลบ void นี้ — ตอนนี้ยังไม่มีผู้ใช้
-  void metaAiHoldUntilMs
 
   return (
     // rewrite (chat-standalone): ไม่มี PageBreadcrumb (ตัดออกตั้งแต่ก่อนหน้านี้แล้ว — หน้าแชท
@@ -819,6 +817,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         botHandoffReason={conversation.handoffReason}
         isChatbotTestThread={isChatbotTestThread}
         botCouldReply={botCouldReply}
+        metaAiHoldUntilMs={metaAiHoldUntilMs}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}
