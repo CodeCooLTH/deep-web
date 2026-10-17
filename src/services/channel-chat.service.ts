@@ -2,6 +2,11 @@ import { Prisma, type ChatMessage } from '@prisma/client'
 import { isMetaInternalNote } from '@/lib/meta-system-notice'
 import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
+import { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState } from '@/lib/messaging-window'
+import type { AutoReplyKind } from '@/lib/auto-reply-constants'
+
+// re-export ชื่อเดิม — ผู้ import เดิมไม่ต้องแก้ (ย้ายไป lib เพื่อให้ pure ไม่ลาก prisma)
+export { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState }
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShopWith, ForbiddenRoleError } from '@/lib/shop-capability'
@@ -78,19 +83,6 @@ function getAdapter(provider: string): ChannelAdapter {
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
-
-// หน้าต่างตอบกลับมาตรฐานของ Meta — นับจากข้อความล่าสุด "ของลูกค้า"
-export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000
-
-/**
- * HUMAN_AGENT tag — Meta ให้ "คนจริง" ตอบด้วยมือนอกหน้าต่าง 24 ชม. ได้ถึง 7 วัน
- * (Messaging Policy: human agent tag "manually respond to user messages within a 7-day period")
- * ครอบทั้ง Messenger และ Instagram
- *
- * สำคัญ: ใช้ได้เฉพาะข้อความที่ "คนพิมพ์เอง" เท่านั้น — ห้าม auto-reply/AI ยิงผ่าน tag นี้ และห้าม
- * เนื้อหาโปรโมชัน (ผิดนโยบาย เสี่ยงโดนระงับแอป) จึง gate ที่ service ไม่ใช่แค่ซ่อนปุ่มใน UI
- */
-export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * ต้องได้ permission `human_agent` จาก App Review ก่อนถึงจะยิงจริงได้ — ถ้ายังไม่ได้แล้วส่ง tag ไป
@@ -184,32 +176,6 @@ export function shouldTagHumanAgent(params: {
   // ระบบ/บอท/AI ห้ามได้ tag HUMAN_AGENT เด็ดขาด (BR-HA-02/13) — ห้ามผ่อนไม่ว่ากรณีใด แม้ eligible=true
   if (!params.sentByHuman) return false
   return params.eligible && params.humanAgentWindowOpen
-}
-
-export function getWindowState(
-  lastInboundAt: Date | null,
-  now: Date = new Date(),
-): {
-  open: boolean
-  expiresAt: Date | null
-  msRemaining: number
-  /** หน้าต่าง 7 วันของ HUMAN_AGENT ยังเปิดอยู่ไหม (คนตอบเองได้ แม้เกิน 24 ชม. แล้ว) */
-  humanAgentOpen: boolean
-  humanAgentExpiresAt: Date | null
-} {
-  if (!lastInboundAt) {
-    return { open: false, expiresAt: null, msRemaining: 0, humanAgentOpen: false, humanAgentExpiresAt: null }
-  }
-  const expiresAt = new Date(lastInboundAt.getTime() + MESSAGING_WINDOW_MS)
-  const msRemaining = expiresAt.getTime() - now.getTime()
-  const humanAgentExpiresAt = new Date(lastInboundAt.getTime() + HUMAN_AGENT_WINDOW_MS)
-  return {
-    open: msRemaining > 0,
-    expiresAt,
-    msRemaining: Math.max(0, msRemaining),
-    humanAgentOpen: humanAgentExpiresAt.getTime() > now.getTime(),
-    humanAgentExpiresAt,
-  }
 }
 
 /**
@@ -2904,7 +2870,7 @@ export type SendOutboundParams = {
   // (ค่านี้มาจาก AutoReplyJob.shopId ซึ่งถูกเขียนตอน ingest webhook ฝั่ง server ไม่ได้มาจาก client)
   systemShopId?: string
   // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
-  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  autoReplyKind?: AutoReplyKind
   // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
   text?: string
   /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
@@ -3285,7 +3251,7 @@ export async function answerIceBreaker(params: {
  *  ทุกตัวอักษร (ชุดย่อยของ `SendOutboundParams`: ไม่มี conversationId/systemShopId/template) */
 type LineOutboundParams = {
   actorUserId: string | null
-  autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+  autoReplyKind?: AutoReplyKind
   text?: string
   imageFileId?: string
   sticker?: { id: string; imageUrl: string }

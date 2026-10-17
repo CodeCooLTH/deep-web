@@ -123,9 +123,15 @@ export const SKIP_REASONS = [
 ] as const
 export type SkipReason = (typeof SKIP_REASONS)[number]
 
-/** ChatMessage.autoReplyKind — `null` = คนตอบเอง (ไม่ใช่ auto-reply) */
+/** ชนิด "บอทตอบ" ของ ChatMessage.autoReplyKind — `null` = คนตอบเอง (ไม่ใช่ auto-reply) */
 export const AUTO_REPLY_KINDS = ['AUTO', 'AUTO_TEST'] as const
-export type AutoReplyKind = (typeof AUTO_REPLY_KINDS)[number] | null
+/** SSOT ของค่า autoReplyKind ที่ไม่ใช่ null — AUTO_NOTICE = ข้อความแจ้งเตือนจากระบบ (ไม่ใช่บอทตอบแชท) */
+export type AutoReplyKind = (typeof AUTO_REPLY_KINDS)[number] | 'AUTO_NOTICE'
+
+export const isBotReplyKind = (k: string | null | undefined): k is 'AUTO' | 'AUTO_TEST' =>
+  k === 'AUTO' || k === 'AUTO_TEST'
+export const isSystemNoticeKind = (k: string | null | undefined): k is 'AUTO_NOTICE' =>
+  k === 'AUTO_NOTICE'
 
 /** Conversation.contextProductSource */
 export const CONTEXT_PRODUCT_SOURCES = ['ADS_MAPPING', 'MANUAL', 'REFERRAL'] as const
