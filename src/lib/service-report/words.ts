@@ -28,6 +28,10 @@ export const SERVICE_REPORT_WORDS = Object.freeze({
   monthly: 'รายเดือน',
   today: 'วันนี้',
   thisMonth: 'เดือนนี้',
+  /** "ปี 2569" ในตัวเลือกช่วงรายเดือน */
+  year: 'ปี',
+  /** ปุ่ม ‹ หัวชีต — คำเดียวกับปุ่มย้อนกลับของหัวจอมือถือ (SellerMobileHeader) */
+  back: 'ย้อนกลับ',
   prev: 'ช่วงก่อนหน้า',
   next: 'ช่วงถัดไป',
   up: 'เพิ่มขึ้น',
@@ -39,10 +43,9 @@ export const SERVICE_REPORT_WORDS = Object.freeze({
   loadFailed: 'โหลดข้อมูลไม่สำเร็จ',
   retry: 'ลองใหม่',
   settings: 'ตั้งค่ารายงาน',
-  chartAria: 'กราฟยอดขายรายวัน แตะแท่งเพื่อดูยอดวันนั้น',
   // ── หน้าตั้งค่า (2 ข้อ) ──
   setViewTitle: 'ตัวเลขที่อยากเห็นก่อน',
-  setViewHelp: 'แสดงตัวใหญ่บนหน้าแรกและหน้ายอดขายและกำไร',
+  setViewHelp: 'ตัวเลขใหญ่บนหน้าแรกกับหน้ายอดขายและกำไร',
   setViewSalesHelp: 'รวมงานที่ยังไม่ปิดงานด้วย',
   setViewProfitHelp: 'เฉพาะงานที่ปิดงานแล้ว หักต้นทุนและค่าใช้จ่าย',
   setChartTitle: 'รูปแบบกราฟ',
@@ -58,4 +61,15 @@ export const SERVICE_REPORT_WORDS = Object.freeze({
 export function deltaSentence(direction: 'up' | 'down', pct: number, compareLabel: string): string {
   const w = SERVICE_REPORT_WORDS
   return `${direction === 'up' ? w.up : w.down} ${pct.toLocaleString('en-US')}% ${w.compare} ${compareLabel}`
+}
+
+/**
+ * คำอ่านของกราฟสำหรับโปรแกรมอ่านจอ — บอกตรงกับกราฟที่เห็นจริง (เดิมเป็น "กราฟยอดขายรายวัน แตะแท่ง…"
+ * ทุกกรณี ทั้งที่เป็นกราฟกำไร/รายเดือน/เส้น/แตะไม่ได้ — clarify 00078)
+ */
+export function chartAriaOf(o: { profit: boolean; period: 'daily' | 'monthly' | 'last14'; tappable: boolean }): string {
+  const w = SERVICE_REPORT_WORDS
+  const what = o.profit ? w.profit : w.sales
+  const when = o.period === 'monthly' ? w.monthly : o.period === 'last14' ? '14 วันล่าสุด' : w.daily
+  return `กราฟ${what} ${when}${o.tappable ? ' แตะวันไหนเพื่อดูบิลของวันนั้น' : ''}`
 }

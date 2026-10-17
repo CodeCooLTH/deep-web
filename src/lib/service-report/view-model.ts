@@ -185,7 +185,8 @@ export function buildServiceToday(d: ServiceReportData, view: ServiceReportView)
     hero: isProfit
       ? { label: profit < 0 ? W.loss : W.profit, value: profit, tone: (profit < 0 ? 'loss' : 'profit') as 'loss' | 'profit' }
       : { label: W.sales, value: closed + unclosed, tone: 'neutral' as const },
-    delta: isProfit ? null : deltaOf(closed + unclosed, avg14, W.avg14),
+    // วันนี้ยังไม่มีงาน (0) = ยังเทียบไม่ได้ ไม่ใช่ "ลดลง 100%" — วันยังไม่จบ ⇒ ไม่แสดงบรรทัด % (user 2026-10-17)
+    delta: isProfit || closed + unclosed <= 0 ? null : deltaOf(closed + unclosed, avg14, W.avg14),
     chart: l14
       ? {
           categories: l14.labels,

@@ -106,7 +106,7 @@ export default function ServiceReportCard({ initial, view, chart, variant }: Pro
             chart={chartModel}
             kind={chart}
             height={variant === 'desktop' ? 240 : 168}
-            anchors={!(isToday && today.chart)}
+            period={isToday && today.chart ? 'last14' : 'daily'}
           />
         </div>
       </div>

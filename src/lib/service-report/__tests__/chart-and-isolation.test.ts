@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { anchorIndexes, buildServiceChartOptions } from '../chart-options'
+import { chartAriaOf } from '../words'
 
 /** [blocker] กราฟรายงานร้านบริการ + กั้นไม่ให้กระทบร้านอื่น/รายงาน LINE (feature 00078) */
 const colors = { counted: 'G', notCounted: 'Y', outflow: 'R', axis: 'A', grid: 'D', marker: 'M' }
@@ -50,6 +51,22 @@ describe('[blocker] buildServiceChartOptions', () => {
         expect(a[a.length - 1]).toBe(count - 1)
         if (ffi < count && ffi - 1 >= 3 && count - ffi >= 3) expect(a).toContain(ffi - 1)
       }
+  })
+  it('รายเดือน: ป้ายครบ 12 เดือน (ไม่ใช้หมุดวัน) · เส้นปัจจุบัน = "เดือนนี้"', () => {
+    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+    const m = { categories: months, series: chart.series.map((x) => ({ ...x, data: Array(12).fill(1) })), futureFromIndex: 10 }
+    const o = buildServiceChartOptions(m, 'bar', colors, { height: 200, period: 'monthly' })
+    const fmt = (o.xaxis?.labels as { formatter: (v: string) => string }).formatter
+    expect(months.map(fmt)).toEqual(months)
+    expect((o.annotations?.xaxis?.[0]?.label as { text: string }).text).toBe('เดือนนี้')
+    const d = buildServiceChartOptions({ ...chart, categories: Array.from({ length: 31 }, (_, i) => String(i + 1)), series: chart.series.map((x) => ({ ...x, data: Array(31).fill(1) })), futureFromIndex: 17 }, 'bar', colors, { height: 200 })
+    expect((d.annotations?.xaxis?.[0]?.label as { text: string }).text).toBe('วันนี้')
+    expect((d.xaxis?.labels as { formatter: (v: string) => string }).formatter('2')).toBe('')
+  })
+  it('คำอ่านกราฟตรงกับกราฟจริง', () => {
+    expect(chartAriaOf({ profit: false, period: 'daily', tappable: true })).toBe('กราฟยอดขาย รายวัน แตะวันไหนเพื่อดูบิลของวันนั้น')
+    expect(chartAriaOf({ profit: true, period: 'monthly', tappable: false })).toBe('กราฟกำไร รายเดือน')
+    expect(chartAriaOf({ profit: false, period: 'last14', tappable: false })).toBe('กราฟยอดขาย 14 วันล่าสุด')
   })
   it('ไม่มีคีย์ที่ค่าเป็น undefined — ApexCharts merge ทับค่าตั้งต้นแล้วพัง (หน้าแรกล้ม: events.beforeMount)', () => {
     const undefinedPaths = (v: unknown, path: string, out: string[]) => {

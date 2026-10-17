@@ -80,7 +80,7 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
   const model = useMemo(() => buildServiceReport(data, view), [data, view])
 
   const isCurrent = mode === 'daily' ? year === nowYear && month === nowMonth : year === nowYear
-  const periodLabel = mode === 'daily' ? formatMonthYearTH(new Date(Date.UTC(year, month - 1, 15))) : `ปี ${toBuddhistYear(year)}`
+  const periodLabel = mode === 'daily' ? formatMonthYearTH(new Date(Date.UTC(year, month - 1, 15))) : `${W.year} ${toBuddhistYear(year)}`
 
   const shift = (step: -1 | 1) => {
     setOpenIdx(null)
@@ -191,7 +191,7 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
             {/* ตัวเลขใหญ่ตามตั้งค่า + % เทียบ (ยอดขายเสมอ — บอกในประโยค) */}
             <div className="my-3 text-center">
               <p className="mb-0 text-xs text-default-700">{model.hero.label}</p>
-              <p className={`text-4xl font-bold tracking-tight tabular-nums ${heroTone}`}>{formatNumberNoSymbol(model.hero.value)}</p>
+              <p className={`text-4xl font-extrabold tracking-tight tabular-nums ${heroTone}`}>{formatNumberNoSymbol(model.hero.value)}</p>
               {model.delta && (
                 <p className={`mb-0 inline-flex items-center gap-1 text-sm font-semibold ${model.delta.direction === 'up' ? 'text-success-ink' : 'text-danger-ink'}`}>
                   <Icon icon={model.delta.direction === 'up' ? 'arrow-up' : 'arrow-down'} className="size-3.5" aria-hidden="true" />
@@ -228,13 +228,16 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
                   kind={chart}
                   height={layout === 'page' ? 260 : 200}
                   onPick={mode === 'daily' ? onChartPick : undefined}
+                  period={mode}
                 />
 
                 {/* ตาราง — ใหม่สุดก่อน · เฉพาะช่วงที่มีความเคลื่อนไหว (precedent: ตารางชีตร้านขายของ) */}
-                <div className="mt-4 text-xs">
-                  <div className="border-default-200 flex items-end gap-1.5 border-b pb-2 text-default-700">
-                    <span className="w-9 shrink-0">{mode === 'daily' ? W.date : W.month}</span>
-                    <span className="w-8 shrink-0 text-center">{W.jobUnit}</span>
+                {/* ตารางกว้างกว่าจอได้เมื่อมีคอลัมน์ต้นทุน + ยอดหลักแสน/ล้าน (จอ 390 เหลือ ~318px) ⇒ เลื่อนข้างในกรอบ ไม่ล้นการ์ด */}
+                <div className="mt-4 overflow-x-auto overscroll-x-contain text-xs">
+                  <div className="w-full min-w-min">
+                  <div className="border-default-200 flex items-end gap-1 border-b pb-2 text-default-700">
+                    <span className="w-8 shrink-0">{mode === 'daily' ? W.date : W.month}</span>
+                    <span className="w-7 shrink-0 text-center">{W.jobUnit}</span>
                     <span className="flex-1 text-end">{W.closed}</span>
                     <span className="flex-1 text-end">{W.unclosed}</span>
                     {model.hasCost && <span className="flex-1 text-end">{W.costShort}</span>}
@@ -242,25 +245,19 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
                     <span className="flex-1 text-end leading-tight">
                       {W.profitColumn}
                       <br />
-                      <span className="whitespace-nowrap text-2xs">{W.profitColumnNote}</span>
+                      <span className="text-2xs">{W.profitColumnNote}</span>
                     </span>
                   </div>
                   {model.rows.map((r) => {
                     const open = openIdx === r.index && mode === 'daily'
                     const key = mode === 'daily' ? dayIso(r.index) : ''
                     const list = open ? bills[key] : undefined
-                    return (
-                      <div key={r.index} id={`svc-day-${r.index}`}>
-                        <button
-                          type="button"
-                          onClick={() => toggleDay(r.index)}
-                          disabled={mode !== 'daily'}
-                          aria-expanded={mode === 'daily' ? open : undefined}
-                          className={`border-default-200 flex min-h-11 w-full items-center gap-1.5 border-b py-2 text-start tabular-nums ${open ? 'text-primary' : ''}`}
-                        >
-                          <span className="w-9 shrink-0">{r.label}</span>
-                          <span className="w-8 shrink-0 text-center">{r.jobs || '—'}</span>
-                          <span className="flex-1 text-end font-semibold">{formatNumberNoSymbol(r.closed)}</span>
+                    const rowClass = 'border-default-200 flex min-h-11 w-full items-center gap-1 border-b py-2 tabular-nums'
+                    const cells = (
+                      <>
+                          <span className="w-8 shrink-0">{r.label}</span>
+                          <span className="w-7 shrink-0 text-center">{r.jobs || '—'}</span>
+                          <span className="flex-1 whitespace-nowrap text-end font-semibold">{formatNumberNoSymbol(r.closed)}</span>
                           <span className={`flex-1 text-end ${r.unclosed ? FINANCE_COLORS.notCounted.ink : 'text-default-500'}`}>
                             {r.unclosed ? formatNumberNoSymbol(r.unclosed) : '—'}
                           </span>
@@ -269,7 +266,23 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
                           )}
                           <span className={`flex-1 text-end ${r.expense ? 'text-danger-ink' : 'text-default-500'}`}>{r.expense ? formatNumberNoSymbol(r.expense) : '—'}</span>
                           <span className={`flex-1 text-end font-semibold ${r.profit < 0 ? 'text-danger-ink' : ''}`}>{formatNumberNoSymbol(r.profit)}</span>
-                        </button>
+                      </>
+                    )
+                    return (
+                      <div key={r.index} id={`svc-day-${r.index}`}>
+                        {/* รายเดือนแตะไม่ได้ ⇒ แถวธรรมดา (ปุ่ม disabled ถูกธีมจาง opacity-50 ทั้งแถว · โปรแกรมอ่านจออ่านว่า "ปิดใช้งาน") */}
+                        {mode === 'daily' ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleDay(r.index)}
+                            aria-expanded={open}
+                            className={`${rowClass} text-start ${open ? 'text-primary' : ''}`}
+                          >
+                            {cells}
+                          </button>
+                        ) : (
+                          <div className={rowClass}>{cells}</div>
+                        )}
                         {open && (
                           <div className="bg-default-100 my-1.5 rounded-lg px-3">
                             {list === 'loading' || list === undefined ? (
@@ -302,6 +315,7 @@ export default function ServiceReportPanel({ initial, view, chart, layout }: Pro
                       </div>
                     )
                   })}
+                  </div>
                 </div>
               </>
             )}

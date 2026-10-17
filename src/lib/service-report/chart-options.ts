@@ -33,17 +33,23 @@ export function anchorIndexes(count: number, futureFromIndex: number = count): S
   return new Set([...axisAnchorDays(count, today)].map((d) => d - 1))
 }
 
+/** ช่วงของกราฟ — ตัดสินป้ายแกน x · ป้ายเส้น "วันนี้/เดือนนี้" · คำอ่านของโปรแกรมอ่านจอ */
+export type ServiceChartPeriod = 'daily' | 'monthly' | 'last14'
+
 export function buildServiceChartOptions(
   chart: ServiceReportModel['chart'],
   kind: ServiceReportChart,
   colors: ServiceChartColors,
-  opts: { height: number; onPick?: (index: number) => void; anchors?: boolean },
+  opts: { height: number; onPick?: (index: number) => void; period?: ServiceChartPeriod },
 ): ApexOptions {
   const { categories, series, futureFromIndex } = chart
   const mask = (arr: number[]) => arr.map((v, i) => (i < futureFromIndex ? v : null))
   const isProfit = series.length === 1 && series[0].key === 'profit'
   const colorOf = (key: string) => (key === 'closed' ? colors.counted : key === 'unclosed' ? colors.notCounted : colors.counted)
-  const anchors = opts.anchors === false ? null : anchorIndexes(categories.length, futureFromIndex)
+  // หมุดป้ายเฉพาะรายวันทั้งเดือน (31 ช่อง) — รายเดือน 12 ช่อง/14 วันล่าสุด ป้ายครบทุกช่อง
+  // (เดิมใช้หมุดวันกับรายเดือนด้วย ⇒ เห็นแค่ ม.ค. พ.ค. ธ.ค. — เจอตอน critique 00078)
+  const period = opts.period ?? 'daily'
+  const anchors = period === 'daily' ? anchorIndexes(categories.length, futureFromIndex) : null
   const todayLabel = futureFromIndex < categories.length ? categories[futureFromIndex - 1] : null
   const isBar = kind === 'bar'
 
@@ -101,7 +107,7 @@ export function buildServiceChartOptions(
     // เส้น: เว้นขอบ 8 — จุด/ป้ายวันแรกกับวันสุดท้ายอยู่ชิดขอบพอดี ถูกตัดครึ่ง ("1" เหลือ "l")
     grid: { borderColor: colors.grid, strokeDashArray: 3, padding: { left: isBar ? 0 : 8, right: isBar ? 0 : 8, top: 0 }, yaxis: { lines: { show: true } } },
     ...(todayLabel
-      ? { annotations: { xaxis: [{ x: todayLabel, borderColor: colors.marker, strokeDashArray: 3, label: { text: W.today, position: 'top', orientation: 'horizontal', offsetY: -4, borderWidth: 0, style: { background: 'transparent', color: colors.marker, fontSize: '10px' } } }] } }
+      ? { annotations: { xaxis: [{ x: todayLabel, borderColor: colors.marker, strokeDashArray: 3, label: { text: period === 'monthly' ? W.thisMonth : W.today, position: 'top', orientation: 'horizontal', offsetY: -4, borderWidth: 0, style: { background: 'transparent', color: colors.marker, fontSize: '10px' } } }] } }
       : {}),
     tooltip: {
       shared: true,

@@ -32,7 +32,7 @@ export default function ServiceReportSheet({ initial, view, chart, onClose }: Pr
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (pattern เดียวกับ SalesChartSheet/AddressSearchSheet)
     <div className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" role="dialog" aria-label={W.pageTitle}> {/* carve-out: safe-area ไม่มี token (ios-safe-area.md) */}
       <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-4 py-3">
-        <button type="button" onClick={onClose} aria-label="ปิด" className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-default-700">
+        <button type="button" onClick={onClose} aria-label={W.back} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-default-700">
           <Icon icon="chevron-left" className="size-6" />
         </button>
         <h3 className="flex-1 text-center text-base font-semibold text-dark">{W.pageTitle}</h3>
