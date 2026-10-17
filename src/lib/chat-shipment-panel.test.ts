@@ -81,7 +81,10 @@ describe('orderStatusLabel', () => {
   })
 })
 
-describe('trackingMessage', () => {
+describe('trackingMessage (preview เท่านั้น — ข้อความจริงประกอบที่ server, 00078 T14)', () => {
+  it('ขนส่ง "อื่น ๆ" (มีเว้นวรรค) ไม่ขึ้น "จัดส่งด้วย อื่น ๆ"', () => {
+    expect(trackingMessage('MANUAL', 'TH1', 'อื่น ๆ')).not.toContain('จัดส่งด้วย')
+  })
   it('iShip แนบลิงก์ติดตาม', () => {
     const m = trackingMessage('ISHIP', 'TH1', 'Kerry Express')
     expect(m).toContain('จัดส่งด้วย Kerry Express')

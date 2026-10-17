@@ -30,9 +30,8 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { resolveChatChannel, type ChatChannel } from "@/lib/chat-channel";
-import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
+import { composeNotice, externalCardParts } from "@/services/auto-notify-message.service";
 // คลังคำตามประเภทกิจการ — คำที่ลูกค้าเห็นต้องมาจากที่เดียวกับที่ร้านเห็น (HR16)
-import { resolveOrderVocab } from "@/lib/seller-menu";
 import { buildLineFlexAppointmentCard } from "@/lib/line/flex-appointment-card";
 import { buildMetaAppointmentCard } from "@/lib/meta/appointment-card";
 import {
@@ -415,8 +414,8 @@ export async function POST(
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
   const {
-    type,
-    body: text,
+    type: requestedType,
+    body: requestedText,
     imageUrl,
     attachmentName: rawAttachmentName,
     attachmentSize,
@@ -430,6 +429,10 @@ export async function POST(
     hiddenSummaryKeys,
     summaryClosing,
   } = parsed.output;
+  // TRACKING = "อยากให้ server ประกอบข้อความแจ้งเลข" (00078 T14) — ประกอบเสร็จแล้วเก็บ/ส่งเป็น TEXT
+  // ของร้านธรรมดา (ไม่ติด AUTO_NOTICE) จึงต้องแก้ type/text ได้หลังรู้ conv
+  let type: typeof requestedType = requestedType;
+  let text = requestedText;
 
   // สติกเกอร์: ต้องมาครบทั้ง id และ url และเป็นของช่องทาง Meta เท่านั้น (แชท DEEP ไม่มีสติกเกอร์
   // ให้ส่ง — ปล่อยผ่านจะได้แถว IMAGE ที่ไม่มีปลายทางจริง) — เช็คช่องทางหลัง fetch conv ด้านล่าง
@@ -463,6 +466,31 @@ export async function POST(
     // ผู้ซื้อ (senderRole BUYER) ไม่ผ่านด่านนี้ — ตรวจ buyerUserId ใน service เดิม · ด่านซ้ำใน service/outbox เป็นชั้นลึก
     if (conv && senderRole === "SHOP" && !(await canAccessShopWith(conv.shopId, userId, "H2"))) {
       return forbiddenRoleResponse();
+    }
+
+    // TRACKING (00078 T14): ปุ่มมือใช้ renderer ตัวเดียวกับส่งอัตโนมัติ — ไม่ส่ง trackingKey = เลขปัจจุบัน
+    // 🛑 ownership อยู่ใน WHERE (shopId ของเธรด) และต้องอยู่หลังด่านสิทธิ์ H2 ด้านบน
+    if (type === "TRACKING") {
+      // ปุ่มของร้านเท่านั้น — ฝั่งผู้ซื้อห้ามถึงกิ่งนี้ (กัน oracle สถานะออเดอร์ + กันโพสต์ข้อความเลขพัสดุในนามตัวเอง)
+      if (senderRole !== "SHOP") return forbiddenRoleResponse();
+      if (!conv) return NextResponse.json({ error: "ไม่พบห้องแชท" }, { status: 404 });
+      if (!orderRefToken) return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
+      const o = await prisma.order.findFirst({
+        where: { publicToken: orderRefToken, shopId: conv.shopId },
+        select: { id: true },
+      });
+      if (!o) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
+      const c = await composeNotice("TRACKING", { shopId: conv.shopId, orderId: o.id, channel: resolveChatChannel(conv.channel) });
+      if (!c.ok) {
+        return NextResponse.json(
+          c.reason === "ORDER_NOT_FOUND"
+            ? { error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }
+            : { error: "ยังไม่มีเลขติดตามพัสดุให้แจ้ง", code: "NO_TRACKING" },
+          { status: c.reason === "ORDER_NOT_FOUND" ? 400 : 409 },
+        );
+      }
+      type = "TEXT";
+      text = c.text;
     }
 
     // แถวสินค้าที่ผ่านด่าน ownership แล้ว — ใช้ต่อตอนประกอบการ์ด Flex ให้ LINE (ไม่ query ซ้ำ)
@@ -826,47 +854,31 @@ export async function POST(
       if (type === "ORDER") {
         const order = await prisma.order.findFirst({
           where: { publicToken: orderRefToken!, shopId: conv.shopId },
-          // _count.items: ใช้บอกว่า "และอีก n รายการ" บนการ์ด Flex — ต้องนับจากฐาน ไม่ใช่ items.length
-          // ที่ take:1 ไว้แล้ว (จะได้ 1 เสมอ ซึ่งแปลว่าการ์ดจะบอกว่ามีรายการเดียวตลอดกาล)
-          select: {
-            totalAmount: true,
-            items: { select: { name: true }, take: 1 },
-            _count: { select: { items: true } },
-            // คำที่ลูกค้าเห็นต้องผันตามประเภทกิจการเหมือนที่ร้านเห็น (user report 2026-08-12) —
-            // เดิมฝั่งนี้ hardcode "คำสั่งซื้อ" ทั้ง 3 ที่ (ข้อความลิงก์ Meta, altText/หัวการ์ด Flex,
-            // ชื่อสำรองเมื่อบิลไม่มีรายการ) ร้านบริการจึงส่งคำว่า "คำสั่งซื้อ" ออกไปหาลูกค้าทุกใบ
-            shop: { select: { vertical: true } },
-          },
+          // ข้อมูลการ์ด/คำผันตามประเภทกิจการประกอบใน composeNotice แล้ว — ที่นี่เช็คแค่ว่าเป็นของร้าน
+          select: { id: true },
         });
         if (!order) {
           return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
         }
-        const orderVocab = resolveOrderVocab(order.shop.vertical);
-        const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(/\/+$/, "");
-        const orderTitle = order.items[0]?.name ?? orderVocab.noun;
-        const orderTotal = `฿${Number(order.totalAmount).toLocaleString("th-TH")}`;
-        const orderUrl = `${base}/o/${orderRefToken}`;
-        const linkText = `${orderVocab.noun}: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${orderUrl}`;
-        // (2026-08-11) LINE ได้การ์ด Flex จริง — Messenger/IG ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ
-        // (ไม่มีของเทียบฝั่ง Meta; MetaAdapter ปฏิเสธ part ชนิด flex ตั้งแต่ต้นทางถ้าเผลอส่งไป)
-        // 🛑 uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดน LINE ปฏิเสธทั้งข้อความ
-        // จึงถอยไปใช้ข้อความลิงก์เดิม ดีกว่าส่งไม่ออกเลย
-        const useFlex = conv.channel === "LINE" && orderUrl.startsWith("https://");
+        // 00078 T14: ข้อความ/การ์ดประกอบจาก renderer ตัวเดียวกับส่งอัตโนมัติ (HR16) — ค่าตั้งต้นให้ข้อความ
+        // ลิงก์เดิมทุกตัวอักษร + การ์ด Flex ของ LINE; ร้านแก้เทมเพลตแล้ว = ข้อความล้วนทุกช่องทาง
+        // 🛑 ด่านเดิม: แถบ https ของ LINE อยู่ใน externalCardParts (http → ข้อความลิงก์แทน)
+        const composed = await composeNotice("ORDER_SUMMARY", {
+          shopId: conv.shopId,
+          orderId: order.id,
+          channel: resolveChatChannel(conv.channel),
+        });
+        if (!composed.ok) {
+          return NextResponse.json(
+            { error: composed.reason === "EMPTY_MESSAGE" ? "ข้อความว่าง ส่งไม่ได้" : "ไม่พบคำสั่งซื้อนี้ในร้าน" },
+            { status: composed.reason === "EMPTY_MESSAGE" ? 409 : 400 },
+          );
+        }
         const sent = await enqueueOutbound({
           conversationId: id,
           actorUserId: userId,
-          text: linkText, // ยังต้องส่งเสมอ: เป็นทั้ง body ที่ร้านเห็นในประวัติ และทางถอยของช่องทางอื่น
-          flex: useFlex
-            ? buildLineFlexOrderCard({
-                title: orderTitle,
-                extraItemCount: Math.max(0, order._count.items - 1),
-                totalText: orderTotal,
-                url: orderUrl,
-                // ห้ามให้ lib ตั้งคำเอง — คำมาจาก ORDER_VOCAB ที่เดียวทั้งระบบ (HR16)
-                noun: orderVocab.noun,
-                buttonLabel: orderVocab.viewLabel,
-              })
-            : undefined,
+          text: composed.text, // ยังต้องส่งเสมอ: เป็นทั้ง body ที่ร้านเห็นในประวัติ และทางถอยของช่องทางอื่น
+          ...externalCardParts(composed.card, resolveChatChannel(conv.channel)),
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
         });
         // ยิงจริงเบื้องหลัง — ตัวการันตีคือตัวเก็บงานค้าง ไม่ใช่บรรทัดนี้ (ดูคำอธิบายเต็มที่เส้นทาง PRODUCT)

@@ -131,21 +131,18 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   const patchShipment = (shipment: ShipmentViewJson | null) =>
     setCtx((c) => (c ? { ...c, shipment } : c))
 
-  /** ส่งข้อความเข้าห้องแชทนี้ */
-  const sendText = useCallback(
-    async (body: string): Promise<boolean> => {
-      const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'TEXT', body }),
-      })
-      return res.ok
-    },
-    [conversationId],
-  )
-
-  const sendTracking = (mode: TrackingMessageMode, trackingNo: string, courierName: string | null) =>
-    sendText(trackingMessage(mode, trackingNo, courierName))
+  /**
+   * แจ้งเลขติดตามในห้องนี้ — ข้อความประกอบที่ server (renderer ตัวเดียวกับส่งอัตโนมัติ, 00078 T14)
+   * จึงส่งแค่ orderToken: server อ่านเลข/ขนส่งสดจากพัสดุที่เพิ่งบันทึกเอง
+   */
+  const sendTracking = useCallback(async (): Promise<boolean> => {
+    const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'TRACKING', orderRefToken: orderToken }),
+    })
+    return res.ok
+  }, [conversationId, orderToken])
 
   async function handleCreated(shipment: ShipmentViewJson) {
     // สร้างไม่ผ่าน → ไม่มีเลขให้แจ้ง ปล่อยให้หน้าสถานะแสดงเหตุผลและปุ่มลองใหม่
@@ -156,7 +153,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     }
 
     if (notify) {
-      const ok = await sendTracking('ISHIP', shipment.trackingNo, shipment.courierName)
+      const ok = await sendTracking()
       // พัสดุถูกเปิดไปแล้วจริง ๆ ต่อให้ส่งข้อความไม่ผ่าน — ห้ามบอกว่า "ล้มเหลว" ลอย ๆ
       // ไม่งั้นร้านจะกดซ้ำแล้วนึกว่าไม่มีอะไรเกิดขึ้น (กันซ้ำไว้แล้วแต่ก็สับสนอยู่ดี)
       if (!ok) {
@@ -191,7 +188,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     }
     let ok = false
     try {
-      ok = await sendTracking('MANUAL', saved.trackingNo, saved.provider)
+      ok = await sendTracking()
     } catch {
       ok = false
     }
@@ -205,11 +202,11 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     onDone()
   }
 
-  async function notifyNow(mode: TrackingMessageMode, trackingNo: string | null, courierName: string | null) {
+  async function notifyNow(trackingNo: string | null) {
     if (!trackingNo || sending) return
     setSending(true)
     try {
-      const ok = await sendTracking(mode, trackingNo, courierName)
+      const ok = await sendTracking()
       if (ok) pacesToast.success('แจ้งเลขติดตามในแชทแล้ว')
       else pacesToast.error('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่')
     } catch {
@@ -271,7 +268,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
         <div className="mt-2 rounded-lg border border-dashed border-default-300 bg-default-50 px-3 py-2.5">
           <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">ข้อความที่ลูกค้าจะได้รับ</p>
           {/* ยังไม่มีเลขจริงจนกว่าจะบันทึกสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด
-              สร้างจาก trackingMessage ตัวเดียวกับข้อความจริง (ดู lib/chat-shipment-panel.ts) */}
+              ตัวอย่างนี้ยังประกอบฝั่ง client (trackingMessage — preview เท่านั้น เพราะยังไม่มีเลข) ข้อความจริงประกอบที่ server */}
           <p className="mb-0 whitespace-pre-line text-xs text-default-700">
             {trackingMessage(mode, null, courierName)}
           </p>
@@ -365,7 +362,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
         <p className="mb-0 text-xs text-default-700">ส่งเอง ระบบจึงไม่ได้ติดตามสถานะพัสดุให้</p>
         <button
           type="button"
-          onClick={() => void notifyNow('MANUAL', trackingNo, provider)}
+          onClick={() => void notifyNow(trackingNo)}
           disabled={sending}
           className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
         >
@@ -414,7 +411,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
           actions={
             <button
               type="button"
-              onClick={() => void notifyNow('ISHIP', ctx.shipment?.trackingNo ?? null, ctx.shipment?.courierName ?? null)}
+              onClick={() => void notifyNow(ctx.shipment?.trackingNo ?? null)}
               disabled={sending || !ctx.shipment.trackingNo}
               // w-full: ปุ่มนี้ไปนั่งใน flex-1 ของแถบล่างใน ShipmentStatusView ต้องกางเต็มช่องที่ได้
               className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
