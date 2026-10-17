@@ -173,3 +173,22 @@ export function toShipmentContextJson(ctx: ShipmentContext): ShipmentContextJson
     shipment: ctx.shipment ? toShipmentViewJson(ctx.shipment) : null,
   };
 }
+
+// ─── payload ของหน้าต่างพัสดุในแชท (GET order-context) ────────────────────────
+// ร้านที่ไม่ได้เชื่อม iShip ก็ต้องใช้หน้าต่างนี้ได้ (ส่งเอง) จึงไม่ใช่ 404 อีกแล้ว —
+// ชุดตัวแปร receiver/sender/items/defaults… มีเฉพาะตอน READY
+
+interface ShipmentPanelExtras {
+  orderStatus: string;
+  /** ShipmentTracking ที่ร้านแจ้งเอง (ส่งเอง) — null = ยังไม่มี */
+  manualShipment: { provider: string; trackingNo: string } | null;
+}
+
+export type ShipmentPanelJson =
+  | (ShipmentContextJson & ShipmentPanelExtras & { ishipState: "READY" })
+  | (ShipmentPanelExtras & {
+      ishipState: "NOT_CONNECTED" | "DISCONNECTED";
+      orderId: string;
+      /** ใบที่ค้างจากก่อนเลิกเชื่อม (ถ้ามี) */
+      shipment: ShipmentViewJson | null;
+    });

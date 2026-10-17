@@ -84,6 +84,7 @@ import { resolveOrderSource } from '@/lib/order-source-channel'
 import { toFileUrl } from '@/lib/file-url'
 import { usesTypedBuyerName } from '@/lib/buyer-name'
 import { gatePage } from '@/lib/shop-capability'
+import { hasLiveIshipShipment as hasLiveIshipShipmentOf } from '@/lib/iship/live-shipment'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
@@ -400,8 +401,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // ทั้งแถบ (`showSegmented`) ผลคือร้านที่เปิดพัสดุกับ iShip ไม่ได้ (เครดิตหมด/token เสีย) จะกรอก
   // เลขพัสดุที่ไปส่งเองมาก็ไม่ได้ด้วย = ทางตันทั้งที่ของส่งไปแล้ว
   // (บั๊กคลาสเดียวกับนิยาม "ออเดอร์นี้มีพัสดุแล้ว" ที่ปิดไป 2026-08-06 แต่รอดมาที่ call site นี้)
-  const hasLiveIshipShipment =
-    shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun
+  const hasLiveIshipShipment = hasLiveIshipShipmentOf(shipmentPanel?.shipment)
 
   /**
    * ขนส่งตีกลับของมาที่ร้านแล้ว — ใช้ `isReturnedCarrierStatus` ตัวเดียวกับที่ `order-stats`
@@ -447,8 +447,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           // "มีพัสดุ" ต้องหมายถึงใบที่เปิดสำเร็จจริงเท่านั้น (นิยามเดียวกับ getShippingStageCounts) —
           // ใบที่ยิงไม่ผ่าน (FAILED) ยังต้องอยู่กอง "รอเลขพัสดุ" ไม่ใช่ "รอรับเข้า" เพราะยังไม่มี
           // อะไรให้ขนส่งมารับ (user เจอบน prod 2026-08-06: DP256908A896B1BE)
-          hasShipment:
-            shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun,
+          hasShipment: hasLiveIshipShipment,
           paymentMethod: order.paymentMethod ?? null,
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,

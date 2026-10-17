@@ -12,6 +12,7 @@ import {
 } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
 import { canAccessShopWith } from "@/lib/shop-capability";
+import { translateInvalidTransition } from "@/lib/chat-shipment-panel";
 
 export async function POST(
   request: NextRequest,
@@ -37,7 +38,8 @@ export async function POST(
     const updated = await shipOrder(token, parsed.output, userId);
     return NextResponse.json(updated);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    // สองแท็บ/สองคนกดพร้อมกันได้ข้อความอังกฤษดิบจาก assertTransition — แปลงที่ route ไม่แตะ service
+    return NextResponse.json({ error: translateInvalidTransition(err.message) ?? err.message }, { status: 400 });
   }
 }
 

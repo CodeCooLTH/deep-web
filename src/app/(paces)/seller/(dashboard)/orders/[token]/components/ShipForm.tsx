@@ -11,7 +11,7 @@
  */
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
 import { Controller, useForm } from 'react-hook-form'
@@ -57,7 +57,14 @@ interface ShipFormProps {
    * เรียกแทนการ router.refresh()+ยุบฟอร์มในตัวเองหลังบันทึกสำเร็จ — ผู้เรียกที่เป็นโมดัล
    * (ShipmentEntryModal) จะปิดโมดัล + router.refresh() หน้าเอง ไม่ส่งมา = พฤติกรรมเดิม (ShippingCard)
    */
-  onSuccess?: () => void
+  onSuccess?: (saved: { provider: string; trackingNo: string }) => void
+  /**
+   * true = ไม่ขึ้น toast สำเร็จของฟอร์ม — ผู้เรียกเป็นเจ้าของ toast เอง (หน้าต่างพัสดุในแชทมีเคส
+   * "บันทึกได้แต่ส่งข้อความแจ้งไม่ผ่าน" ไม่งั้นได้ toast สองใบ) ต้องใช้คู่กับ onSuccess
+   */
+  silentSuccess?: boolean
+  /** แจ้งขนส่งที่เลือกอยู่ออกไป (ตัวอย่างข้อความแจ้งในแชทใช้) — ต้องส่งฟังก์ชันที่ identity คงที่ เช่น setState */
+  onProviderChange?: (provider: string) => void
   /** เรียกแทนการยุบฟอร์ม/reset ในตัวเองตอนกดปุ่ม "ปิด" — โมดัลใช้ปิด dialog ทั้งบาน ไม่ส่งมา = พฤติกรรมเดิม */
   onCancel?: () => void
   /** แจ้งสถานะกำลังส่งฟอร์มออกไปให้ผู้เรียก (โมดัลใช้กันปิด backdrop ระหว่างส่ง) */
@@ -81,6 +88,8 @@ export default function ShipForm({
   mode = 'create',
   alwaysOpen = false,
   onSuccess,
+  silentSuccess = false,
+  onProviderChange,
   onCancel,
   onSubmittingChange,
   formId,
@@ -96,6 +105,7 @@ export default function ShipForm({
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
   } = useForm<TrackingFormValues>({
     resolver: yupResolver(trackingSchema),
     defaultValues: {
@@ -106,6 +116,11 @@ export default function ShipForm({
       trackingNo: initialTrackingNo ?? '',
     },
   })
+
+  const watchedProvider = watch('provider')
+  useEffect(() => {
+    onProviderChange?.(watchedProvider)
+  }, [watchedProvider, onProviderChange])
 
   const setLoadingState = (v: boolean) => {
     setLoading(v)
@@ -129,10 +144,10 @@ export default function ShipForm({
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || genericErrorMessage)
       }
-      pacesToast.success(mode === 'edit' ? 'บันทึกการแก้ไขเลขพัสดุแล้ว' : 'บันทึกการจัดส่งแล้ว')
+      if (!silentSuccess) pacesToast.success(mode === 'edit' ? 'บันทึกการแก้ไขเลขพัสดุแล้ว' : 'บันทึกการจัดส่งแล้ว')
       if (onSuccess) {
         // ผู้เรียกเป็นโมดัล — โมดัลปิด + router.refresh() หน้าเอง ที่นี่ไม่เรียกซ้ำ
-        onSuccess()
+        onSuccess({ provider: values.provider, trackingNo: values.trackingNo })
       } else {
         setShowShipForm(false)
         reset()
@@ -219,6 +234,8 @@ export default function ShipForm({
               {...register('trackingNo')}
               id="ship-tracking-no"
               type="text"
+              // iOS: ปุ่มส่งฟอร์มในหน้าต่างแชทอาจถูกคีย์บอร์ดบัง — ให้กด Enter ส่งได้
+              enterKeyHint="done"
               placeholder="เช่น TH123456789"
               aria-invalid={errors.trackingNo ? true : undefined}
               aria-describedby={errors.trackingNo ? 'ship-tracking-no-error' : undefined}

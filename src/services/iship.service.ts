@@ -688,6 +688,74 @@ export async function getShipmentPanelOrReason(
   return { ctx };
 }
 
+/**
+ * getShipmentPanelState — ข้อมูลของหน้าต่างพัสดุในแชท (ครอบ getShipmentPanelOrReason)
+ *
+ * หน้าต่างนั้นต้องทำงานได้แม้ร้านไม่ได้เชื่อม iShip (ทางเดียวคือ "ส่งเอง") และต้องรู้ว่าออเดอร์
+ * ส่งเองไปแล้วหรือยัง ไม่งั้นเปิดมาเจอฟอร์มสร้างพัสดุซ้ำ — จึงตอบสถานะการเชื่อมต่อ + สถานะออเดอร์ +
+ * เลขที่แจ้งเองมาด้วย แทนการตอบ reason เฉย ๆ
+ * reason เหลือเฉพาะ "ไม่พบคำสั่งซื้อ" กับ "ไม่ต้องจัดส่ง" (SKIP_SILENT)
+ */
+export async function getShipmentPanelState(
+  shopId: string,
+  orderId: string,
+): Promise<
+  | { reason: string }
+  | {
+      ishipState: "READY";
+      ctx: ShipmentContext;
+      orderStatus: string;
+      manualShipment: { provider: string; trackingNo: string } | null;
+    }
+  | {
+      ishipState: "NOT_CONNECTED" | "DISCONNECTED";
+      orderId: string;
+      /** ใบ iShip ที่ยังค้างอยู่ (สร้างแล้วเลิกเชื่อมทีหลัง) — ต้องส่งไปด้วย ไม่งั้นส่งเองซ้ำได้ */
+      shipment: ReturnType<typeof toShipmentView> | null;
+      orderStatus: string;
+      manualShipment: { provider: string; trackingNo: string } | null;
+    }
+> {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, shopId },
+    select: {
+      status: true,
+      fulfillmentMode: true,
+      shipmentTracking: { select: { provider: true, trackingNo: true } },
+    },
+  });
+  if (!order) return { reason: "ไม่พบคำสั่งซื้อนี้ในร้าน" };
+  // fulfillmentMode เป็นผู้ตัดสินคนเดียวว่า "ไม่เกี่ยวกับการส่งของ" (eligibility.ts)
+  if (order.fulfillmentMode !== "SHIPPED") return { reason: "ออเดอร์นี้ไม่ต้องจัดส่ง" };
+
+  const extras = {
+    orderStatus: order.status,
+    manualShipment: order.shipmentTracking,
+  };
+  const account = await prisma.shopShippingAccount.findUnique({
+    where: { shopId },
+    select: { status: true },
+  });
+  if (!account || account.status === "DISCONNECTED") {
+    // ใบเดิมไม่หายไปตอนเลิกเชื่อม — ดึงมาด้วยให้ใบ live ยังชนะ "ส่งเอง" (query เดียวกับ getShipmentPanelOrReason)
+    const shipment = await prisma.orderShipment.findFirst({
+      where: { orderId, status: { not: "CANCELLED" }, direction: FORWARD_SHIPMENT },
+      select: SHIPMENT_SELECT,
+      orderBy: { createdAt: "desc" },
+    });
+    return {
+      ishipState: account ? "DISCONNECTED" : "NOT_CONNECTED",
+      orderId,
+      shipment: shipment ? toShipmentView(shipment) : null,
+      ...extras,
+    };
+  }
+
+  const r = await getShipmentPanelOrReason(shopId, orderId);
+  if ("reason" in r) return r;
+  return { ishipState: "READY", ctx: r.ctx, ...extras };
+}
+
 // ─── พัสดุ ──────────────────────────────────────────────────────────────────
 
 /**
