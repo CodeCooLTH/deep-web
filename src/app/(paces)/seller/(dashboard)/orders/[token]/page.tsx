@@ -583,6 +583,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 orderLabel={order.orderNo ?? order.publicToken.slice(0, 8).toUpperCase()}
                 status={order.status}
                 closedAtISO={serviceJob.closedAtISO}
+                startedAtISO={order.serviceStartedAt ? new Date(order.serviceStartedAt).toISOString() : null}
                 badge={serviceJob.badge}
                 hasAppointment={Boolean(order.serviceStart)}
                 startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}

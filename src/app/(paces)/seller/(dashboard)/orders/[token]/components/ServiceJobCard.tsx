@@ -17,6 +17,8 @@ import { useRouter } from 'next/navigation'
 
 import Icon from '@/components/wrappers/Icon'
 import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTH, formatDateTimeTH } from '@/lib/format-date'
@@ -31,6 +33,8 @@ type Props = {
   status: string
   /** ISO — null = ยังไม่ปิด */
   closedAtISO: string | null
+  /** ISO — null = ยังไม่กดเริ่มงาน (00078) */
+  startedAtISO?: string | null
   /** ป้ายสถานะที่ server derive แล้ว (service-status.ts) */
   badge: { key: ServiceStatusKey; label: string; cls: string; icon: string }
   hasAppointment: boolean
@@ -52,6 +56,7 @@ export default function ServiceJobCard({
   orderLabel,
   status,
   closedAtISO,
+  startedAtISO = null,
   badge,
   hasAppointment,
   startISO,
@@ -62,6 +67,8 @@ export default function ServiceJobCard({
   editHref,
 }: Props) {
   const router = useRouter()
+  const t = useT().autoNotify
+  const [starting, setStarting] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [reopening, setReopening] = useState(false)
 
@@ -79,6 +86,31 @@ export default function ServiceJobCard({
     const t = setTimeout(() => setNotStarted(false), msLeft)
     return () => clearTimeout(t)
   }, [startISO])
+
+  async function start() {
+    const ok = await pacesConfirm({
+      icon: 'question',
+      title: t.startSwalTitle,
+      text: t.startSwalBody,
+      confirmButtonText: t.startSwalConfirm,
+      cancelButtonText: t.startSwalCancel,
+    })
+    if (!ok) return
+    setStarting(true)
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/start`, { method: 'POST' })
+      const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
+      if (!res.ok) {
+        pacesToast.error(json.message ?? SERVICE_JOB_ERROR_MESSAGE[json.error ?? ''] ?? 'เริ่มงานไม่สำเร็จ — รีเฟรชหน้าแล้วลองอีกครั้ง')
+        return
+      }
+      router.refresh()
+    } catch {
+      pacesToast.error('เริ่มงานไม่สำเร็จ ตรวจสอบสัญญาณแล้วลองใหม่')
+    } finally {
+      setStarting(false)
+    }
+  }
 
   async function reopen() {
     const ok = await pacesConfirm({
@@ -131,6 +163,24 @@ export default function ServiceJobCard({
           <p className="text-default-700 mb-0 text-sm">
             ทำงานเสร็จแล้วกด &ldquo;ปิดงาน&rdquo; — บันทึกผลและรับเงินที่เหลือในครั้งเดียว
           </p>
+        )}
+
+        {/* เริ่มงาน (00078) — ไม่เปลี่ยนสถานะ/เงิน; กดแล้วแทนปุ่มด้วยข้อความเวลา · ซ่อนเมื่อยังไม่ถึงนัด */}
+        {canClose && closable && startedAtISO && (
+          <p className="text-default-700 mb-0 mt-4 text-sm">{fmt(t.startedAt, { time: formatDateTimeTH(startedAtISO) })}</p>
+        )}
+        {canClose && closable && !startedAtISO && !notStarted && (
+          <div className="border-default-200 mt-4 border-t border-dashed pt-4">
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => void start()}
+              className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 min-h-11 w-full gap-2 disabled:opacity-60"
+            >
+              <Icon icon={starting ? 'loader-2' : 'player-play'} className={cn('text-base', starting && 'animate-spin')} aria-hidden="true" />
+              {t.startJob}
+            </button>
+          </div>
         )}
 
         {canClose && closable && (

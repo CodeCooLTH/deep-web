@@ -35,6 +35,7 @@ const svc = vi.hoisted(() => ({
   updateProduct: vi.fn(),
   deleteProduct: vi.fn(),
   closeServiceJob: vi.fn(),
+  startServiceJob: vi.fn(),
   reopenServiceJob: vi.fn(),
   setOrRescheduleAppointment: vi.fn(),
   shipOrder: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock('@/services/appointment.service', async (orig) => ({
   ...(await orig<object>()), setOrRescheduleAppointment: svc.setOrRescheduleAppointment,
 }))
 // feature 00073 — ปุ่มผลนัดเดิม = ปิดงาน (closeServiceJob) · /close = ปิดงานเต็ม + เปิดงานอีกครั้ง
-vi.mock('@/services/service-job.service', () => ({ closeServiceJob: svc.closeServiceJob, reopenServiceJob: svc.reopenServiceJob }))
+vi.mock('@/services/service-job.service', () => ({ closeServiceJob: svc.closeServiceJob, reopenServiceJob: svc.reopenServiceJob, startServiceJob: svc.startServiceJob }))
 vi.mock('@/services/order.service', async (orig) => ({ ...(await orig<object>()), shipOrder: svc.shipOrder }))
 vi.mock('@/services/auto-order-validate.service', async (orig) => ({ ...(await orig<object>()), retryAutoOrderDraft: svc.retryAutoOrderDraft }))
 vi.mock('@/services/booking.service', async (orig) => ({ ...(await orig<object>()), createBooking: svc.createBooking }))
@@ -59,6 +60,8 @@ import { POST as createOrderRoute } from '../route'
 import { PATCH as patchOrderRoute } from '../[token]/route'
 import { POST as paymentsPost } from '../[token]/payments/route'
 import { POST as outcomePost } from '../[token]/appointment/outcome/route'
+import { POST as startPost } from '../[token]/start/route'
+import { ServiceJobNotStartableError } from '@/lib/service-job'
 import { POST as closePost, DELETE as reopenDelete } from '../[token]/close/route'
 import { PATCH as reschedulePatch } from '../[token]/appointment/route'
 import { DELETE as voidDelete } from '../[token]/payments/[paymentId]/route'
@@ -110,6 +113,7 @@ beforeEach(() => {
   svc.recordPayment.mockResolvedValue({ ok: true })
   svc.closeServiceJob.mockResolvedValue({ appointmentStatus: 'COMPLETED', serviceClosedAt: new Date(), money: {} })
   svc.reopenServiceJob.mockResolvedValue({ serviceClosedAt: null })
+  svc.startServiceJob.mockResolvedValue({ serviceStartedAt: new Date(), alreadyStarted: false })
 })
 
 describe('POST /api/orders — BILLING (มี O2s ไม่มี O2) สร้างได้เฉพาะบิลบริการ (C-6)', () => {
@@ -312,6 +316,34 @@ describe('สิทธิ์แยกราย action', () => {
     expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ payment: expect.objectContaining({ amount: 500, method: 'CASH' }) }))
     expect((await reopenDelete(json(`/api/orders/${TOKEN}/close`, 'DELETE', {}), params)).status).toBe(200)
   })
+  // ── feature 00078 — เริ่มงาน: O4 · ช่างเรียกได้ · ไม่มีคีย์เงินกลับไป ──
+  it('[00078] TECHNICIAN เริ่มงาน (O4) → 200 ไม่มีคีย์เงิน', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await startPost(json(`/api/orders/${TOKEN}/start`, 'POST', {}), params)
+    expect(res.status).toBe(200)
+    expect(Object.keys(await res.json()).sort()).toEqual(['alreadyStarted', 'serviceStartedAt'])
+  })
+  it('[00078] BILLING (ไม่มี O4) เริ่มงานไม่ได้ → 403 และไม่เรียก service', async () => {
+    asRole(['BILLING'])
+    const res = await startPost(json(`/api/orders/${TOKEN}/start`, 'POST', {}), params)
+    expect(res.status).toBe(403)
+    expect(svc.startServiceJob).not.toHaveBeenCalled()
+  })
+  it('[00078] ใบยกเลิก/ร่าง → 409 SERVICE_JOB_NOT_STARTABLE', async () => {
+    asRole(['TECHNICIAN'])
+    svc.startServiceJob.mockRejectedValueOnce(new ServiceJobNotStartableError())
+    const res = await startPost(json(`/api/orders/${TOKEN}/start`, 'POST', {}), params)
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('SERVICE_JOB_NOT_STARTABLE')
+  })
+  it('[00078] ?shopId= ของร้านที่ไม่ได้เป็นสมาชิก → ไม่ผ่านด่าน (ไม่เรียก service)', async () => {
+    asRole(['TECHNICIAN'])
+    db.shopMember.findUnique.mockResolvedValue(null)
+    const res = await startPost(json(`/api/orders/${TOKEN}/start?shopId=other-shop`, 'POST', {}), params)
+    expect([403, 404]).toContain(res.status)
+    expect(svc.startServiceJob).not.toHaveBeenCalled()
+  })
+
   it('[00073] TECHNICIAN เปิดงานอีกครั้ง (ไม่มี O6) → 403', async () => {
     asRole(['TECHNICIAN'])
     const res = await reopenDelete(json(`/api/orders/${TOKEN}/close`, 'DELETE', {}), params)
