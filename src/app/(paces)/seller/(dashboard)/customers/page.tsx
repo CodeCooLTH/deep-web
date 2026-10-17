@@ -151,7 +151,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
    * ถ้าคำนวณแยกกันสองที่ วันหนึ่งการ์ดจะบอก 12 แล้วกดกรองได้ 9 โดยไม่มีอะไรฟ้อง
    * `hasHistory: true` เสมอ — ทุก entry ในลิสต์นี้มีออเดอร์อย่างน้อย 1 ใบตามนิยาม (BR-CUSTP-01)
    */
-  const badgeOpts = { hasHistory: true, orderNoun: vocab.noun, copy: t.inbox.customerPanel }
+  const badgeOpts = { hasHistory: true, orderNoun: vocab.noun, copy: { ...t.inbox.customerPanel, regularTip: t.chatSignals.customerRegularTip } }
   const withWarning = entries.map((e) => ({
     entry: e,
     badges: customerBadges(e.behavior, badgeOpts),

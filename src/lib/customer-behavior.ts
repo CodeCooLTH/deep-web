@@ -66,8 +66,11 @@ export type CustomerOrderEvidence = {
 export type CustomerBehavior = {
   /** ออเดอร์ทั้งหมดที่เคยมีกับร้านนี้ (รวมที่ยกเลิก) */
   orders: number
-  /** ใบที่ไม่ได้ยกเลิก — ใช้แยก "ลูกค้าใหม่" ออกจาก "ลูกค้าประจำ" */
-  completed: number
+  /**
+   * จำนวนใบที่ "นับเป็นการซื้อ" ตาม `countsAsCustomerOrder` — ตัวนับกลางตัวเดียวของระบบ (00078 S-5)
+   * ใช้แยก "ลูกค้าใหม่ (1)" ออกจาก "ลูกค้าซื้อซ้ำ (≥2)" · ไม่นับร่าง/ยกเลิก/ไม่มาตามนัด/พัสดุตีกลับ/RETURNED
+   */
+  counted: number
   /** ผู้ซื้อกดยกเลิกเอง (ไม่นับใบที่ตีกลับ — ใบนั้นไปอยู่ถัง returnedParcels แล้ว) */
   cancelledByBuyer: number
   /**
@@ -94,17 +97,30 @@ export type CustomerBehavior = {
 
 const EMPTY: CustomerBehavior = {
   orders: 0,
-  completed: 0,
+  counted: 0,
   cancelledByBuyer: 0,
   cancelledTotal: 0,
   returnedParcels: 0,
   problemOrders: 0,
 }
 
-export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): CustomerBehavior {
+/**
+ * ใบนี้ "นับเป็นการซื้อของลูกค้า" ไหม — นิยามเดียวของ "ซื้อแล้วกี่ใบ" ทุกจอ (00078 S-5, PRD §3.2.1)
+ * ไม่นับ: ร่างจากแชท · ยกเลิก (รวมนัดที่ NO_SHOW) · พัสดุตีกลับ · Order.status='RETURNED'
+ * ห้าม consumer นับ `orders − cancelled` เอง (HR16)
+ */
+export function countsAsCustomerOrder(o: CustomerOrderEvidence): boolean {
+  if (o.status === 'DRAFTED' || o.status === 'CANCELLED' || o.status === 'RETURNED') return false
+  if (o.appointmentStatus === 'NO_SHOW') return false
+  return !isReturnedCarrierStatus(o.activeShipmentCarrierStatus)
+}
+
+export function summarizeCustomerBehavior(all: CustomerOrderEvidence[]): CustomerBehavior {
+  // ร่างไม่ใช่ออเดอร์ที่เคยเกิดขึ้น — ตัดทิ้งตั้งแต่ต้น กันผู้เรียกที่ลืมกรอง (directory ไม่กรองใน query)
+  const orders = all.filter((o) => o.status !== 'DRAFTED')
   if (orders.length === 0) return EMPTY
 
-  let completed = 0
+  let counted = 0
   let cancelledByBuyer = 0
   let cancelledTotal = 0
   let returnedParcels = 0
@@ -145,12 +161,12 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
       if (byBuyer) cancelledByBuyer += 1
       continue
     }
-    completed += 1
+    if (countsAsCustomerOrder(o)) counted += 1
   }
 
   return {
     orders: orders.length,
-    completed,
+    counted,
     cancelledByBuyer,
     cancelledTotal,
     returnedParcels,
@@ -193,10 +209,6 @@ export type CustomerBadge = {
 export const CUSTOMER_BADGE_THRESHOLDS = {
   /** ผู้ซื้อกดยกเลิกเองกี่ครั้งถึงขึ้นป้าย */
   cancelledByBuyer: 1,
-  /** ใบที่สำเร็จกี่ใบถึงเรียกว่า "ลูกค้าเก่า" */
-  regularCompleted: 3,
-  /** สั่งกี่ใบถึงยังนับว่า "ลูกค้าใหม่" */
-  newMaxOrders: 1,
 } as const
 
 /**
@@ -219,6 +231,8 @@ import { fmt } from '@/i18n/fmt'
 export type CustomerBadgeCopy = {
   badgeNew: string
   badgeRegular: string
+  /** `chatSignals.customerRegularTip` — "ซื้อแล้ว {n} {noun}" · ไม่ส่ง = tooltip ใช้ label */
+  regularTip?: string
   badgeReturned: string
   badgeCancelled: string
   badgeCancelledDetail: string
@@ -231,15 +245,19 @@ export function customerBadges(
   if (!opts.hasHistory) return []
   const out: CustomerBadge[] = []
 
-  if (b.orders <= CUSTOMER_BADGE_THRESHOLDS.newMaxOrders) {
-    out.push({ key: 'NEW', label: opts.copy.badgeNew, icon: 'sparkles', tone: 'info' })
-  } else if (b.completed >= CUSTOMER_BADGE_THRESHOLDS.regularCompleted) {
-    // นับจาก `completed` ไม่ใช่ `orders` ดิบ — ลูกค้าที่สั่ง 5 ครั้งแล้วยกเลิกทั้ง 5 ต้องไม่ได้ป้ายบวก
-    // คำว่า "ลูกค้าเก่า" ยืมจาก CustomerQuickBlock.tsx ที่ใช้อยู่ก่อนแล้ว — ห้ามตั้งคำที่สองให้ของเดียวกัน
+  // นับด้วย `counted` ตัวเดียว (00078 S-6): 0 = ไม่มีป้าย (ผูกลูกค้าแต่ยังไม่มีใบที่นับ) · 1 = NEW · ≥2 = REGULAR
+  // ไม่ออกสองป้าย · ไม่ใช่ warning ⇒ ไม่ทำให้จุดเหลืองบนปุ่ม "ข้อมูลลูกค้า" ติด
+  if (b.counted === 1) {
+    out.push({ key: 'NEW', label: opts.copy.badgeNew, icon: 'user-plus', tone: 'info' })
+  } else if (b.counted >= 2) {
+    const label = fmt(opts.copy.badgeRegular, { count: b.counted, noun: opts.orderNoun })
     out.push({
       key: 'REGULAR',
-      label: fmt(opts.copy.badgeRegular, { count: b.completed, noun: opts.orderNoun }),
-      icon: 'user-check',
+      label,
+      detail: opts.copy.regularTip
+        ? fmt(opts.copy.regularTip, { n: b.counted, noun: opts.orderNoun })
+        : label,
+      icon: 'repeat',
       tone: 'info',
     })
   }

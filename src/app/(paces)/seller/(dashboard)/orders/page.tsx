@@ -37,8 +37,8 @@ import OrdersList from './components/OrdersList'
 import { OrderViewerRolesProvider } from './components/OrderViewerRoles'
 import OrdersStatCard from './components/OrdersStatCard'
 // นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
-import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
-import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
+import type { CustomerBehavior } from '@/lib/customer-behavior'
+import { behaviorByShopCustomer } from '@/services/customer-behavior.service'
 import { toFileUrl } from '@/lib/file-url'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { resolveOrderBuyerNameForShop, usesTypedBuyerName } from '@/lib/buyer-name'
@@ -199,70 +199,12 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     if (c.buyerUserId && !convByBuyer.has(c.buyerUserId)) convByBuyer.set(c.buyerUserId, c.id)
   }
 
-  // ประวัติลูกค้าต่อร้าน — groupBy ครั้งเดียวสำหรับลูกค้าทุกคนในหน้านี้ ไม่วนต่อแถว
-  // (ใช้ index Order_customerId_status_idx ที่มีอยู่แล้ว)
-  //
-  // 🛑 แก้ 2026-08-11: เดิมนับ `status === 'CANCELLED'` **ทุกใบ ไม่สนว่าใครยกเลิก** แล้วเอาไปขึ้น
-  // ป้าย "เคยยกเลิก N ครั้ง" ท้ายชื่อลูกค้า — ข้อมูลจริงบน prod วันนั้น: ใบที่ยกเลิก 8 ใบ
-  // `cancelInitiator = 'seller'` **ทั้งหมด ไม่มี 'buyer' สักใบ** แปลว่าป้ายกำลังติดตราลูกค้า
-  // ด้วยการยกเลิกของร้านเอง ซึ่งตรงข้ามกับสิ่งที่ป้ายบอก และทำให้ร้านตัดสินใจผิดกับลูกค้าที่ไม่ผิด
-  //
-  // เกณฑ์ที่ถูกอยู่ที่ `lib/customer-behavior.ts` (ยืมนิยาม "ไม่ใช่ความผิดร้าน" ของ feature 00039
-  // มาพลิกด้าน) — ป้ายในแชทกับที่นี่ต้องมาจากตัวเดียวกัน ไม่งั้นลูกค้าคนเดียวกันจะได้ป้ายไม่ตรงกัน
-  // สองหน้าจอ (`docs/conventions/sibling-surface-parity.md` + HR16)
-  //
-  // ยังเป็น query ครั้งเดียวทั้งหน้าเหมือนเดิม — เพิ่ม `cancelInitiator` เป็นมิติที่ 3 ของ groupBy
-  // เดิม และนับ "ใบที่ตีกลับ" ด้วย query แยกอีก 1 ตัว (นับเป็นจำนวน **ออเดอร์** ไม่ใช่จำนวนแถว
-  // OrderShipment — ใบเดียว retry ได้หลายพัสดุ ดู project_iship_retry_credit_fixes)
+  // ประวัติลูกค้าต่อร้าน (ป้ายท้ายชื่อ) — มาจาก `behaviorByShopCustomer` ตัวเดียวกับป้ายในแชท/ลิสต์ลูกค้า
+  // (00078 S-5: เดิม groupBy + `orders − cancelled` นับร่าง/ตีกลับ/ไม่มาตามนัดเป็นการซื้อ — HR16)
   // ประวัติลูกค้า (ป้ายยกเลิก/ตีกลับ) อยู่คู่กับยอดขายของลูกค้า — ช่างไม่เห็น จึงไม่ต้อง query
-  const [custStatRows, returnedRows] = showMoney && customerIds.length > 0
-    ? await Promise.all([
-        prisma.order.groupBy({
-          // ต้องมี cancelReason ด้วย — บน prod ไม่มีใบไหนเลยที่ cancelInitiator='buyer'
-          // (ลูกค้าแจ้งในแชท ร้านกดให้) ต้นเรื่องจริงอยู่ที่เหตุผลที่ร้านบันทึก ดู customer-behavior.ts
-          by: ['customerId', 'status', 'cancelInitiator', 'cancelReason'],
-          // 00061: ร่างจากแชทไม่ใช่ประวัติการสั่งของลูกค้า ⇒ ห้ามเข้าตัวนับป้ายพฤติกรรม
-          where: { shopId: shop.id, customerId: { in: customerIds }, ...excludeDraftedWhere },
-          _count: { _all: true },
-        }),
-        prisma.order.findMany({
-          where: {
-            shopId: shop.id,
-            customerId: { in: customerIds },
-            ...excludeDraftedWhere, // 00061 — `status` ข้างล่างเป็นของ OrderShipment คนละตาราง
-            shipments: {
-              some: { status: { not: 'CANCELLED' }, carrierStatus: { in: [...RETURNED_CARRIER_STATUSES] } },
-            },
-          },
-          select: { customerId: true },
-        }),
-      ])
-    : [[], []]
-  const statByCustomer = new Map<string, { orders: number; cancelled: number; cancelledByBuyer: number; returned: number }>()
-  const bump = (cid: string) =>
-    statByCustomer.get(cid) ?? { orders: 0, cancelled: 0, cancelledByBuyer: 0, returned: 0 }
-  for (const r of custStatRows) {
-    if (!r.customerId) continue
-    const cur = bump(r.customerId)
-    cur.orders += r._count._all
-    if (r.status === 'CANCELLED') {
-      cur.cancelled += r._count._all
-      // เกณฑ์เดียวกับ customer-behavior.ts เป๊ะ — ห้ามเขียนกฎซ้ำที่นี่ (HR16)
-      if (
-        r.cancelInitiator === 'buyer' ||
-        (r.cancelReason !== null && cancelReasonCountsAgainstGuest(r.cancelReason))
-      ) {
-        cur.cancelledByBuyer += r._count._all
-      }
-    }
-    statByCustomer.set(r.customerId, cur)
-  }
-  for (const r of returnedRows) {
-    if (!r.customerId) continue
-    const cur = bump(r.customerId)
-    cur.returned += 1
-    statByCustomer.set(r.customerId, cur)
-  }
+  const behaviorByCustomer = showMoney && customerIds.length > 0
+    ? await behaviorByShopCustomer([shop.id], customerIds)
+    : new Map<string, CustomerBehavior>()
 
   // now ก้อนเดียวทั้งรอบ — ใบที่นัดหมดพอดีระหว่าง map ต้องไม่ตกคนละกองกับตัวนับบนไทล์
   const workNow = new Date()
@@ -498,7 +440,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       return Object.values(shape).some(Boolean) ? shape : null
     })(),
     ...(showMoney ? { codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null } : {}),
-    customerStats: showMoney && o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
+    customerStats: showMoney && o.customerId ? (behaviorByCustomer.get(`${shop.id}::${o.customerId}`) ?? null) : null,
     /* 🛑 ค่าที่บันทึกไว้ตอนสร้างออเดอร์ชนะเสมอ — สอง map ด้านล่างเป็น "การเดา" จากเบอร์โทร
        (Order → Customer → Conversation) ซึ่งคืนเธรดไหนก็ได้ของลูกค้าคนนั้น ไม่ใช่เธรดที่สร้าง
        ออเดอร์ใบนี้จริง ⇒ ลูกค้าที่ทัก FB แล้วย้ายไป LINE หรือร้านที่มี ≥2 เพจ ปุ่ม "เปิดแชท"

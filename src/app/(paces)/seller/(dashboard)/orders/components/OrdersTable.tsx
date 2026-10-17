@@ -502,18 +502,14 @@ export default function OrdersTable({
         // ป้ายจาก SSOT เดียวกับกล่องแชท — คำนามผันตาม vertical ผ่าน vocab ที่หน้านี้ใช้อยู่แล้ว
         const behaviorBadges = stats
           ? customerBadges(
-              {
-                orders: stats.orders,
-                // ใบที่ "สำเร็จ" = ทั้งหมด − ยกเลิกทั้งหมด (ตรงกับนิยาม completed ใน customer-behavior)
-                completed: stats.orders - stats.cancelled,
-                cancelledByBuyer: stats.cancelledByBuyer,
-                cancelledTotal: stats.cancelled,
-                returnedParcels: stats.returned,
-                problemOrders: stats.cancelledByBuyer + stats.returned,
-              },
+              stats,
               // ป้ายชุดนี้เป็นตัวเดียวกับที่โผล่ในกล่องข้อความ (SSOT `customerBadges`) จึงต้องส่งคำ
               // จาก dictionary เข้าไปด้วย ไม่งั้นลูกค้าคนเดียวกันจะได้ป้ายคนละภาษาสองหน้าจอ (HR16)
-              { hasHistory: true, orderNoun: vocab.noun, copy: t.inbox.customerPanel },
+              {
+                hasHistory: true,
+                orderNoun: vocab.noun,
+                copy: { ...t.inbox.customerPanel, regularTip: t.chatSignals.customerRegularTip },
+              },
             )
           : []
         return (

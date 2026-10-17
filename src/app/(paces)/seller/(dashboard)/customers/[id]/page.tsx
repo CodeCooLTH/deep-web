@@ -110,7 +110,7 @@ export default async function CustomerProfilePage({ params }: PageProps) {
   const badges = customerBadges(entry.behavior, {
     hasHistory: true,
     orderNoun: vocab.noun,
-    copy: t.inbox.customerPanel,
+    copy: { ...t.inbox.customerPanel, regularTip: t.chatSignals.customerRegularTip },
   })
 
   /**

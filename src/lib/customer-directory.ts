@@ -212,12 +212,11 @@ export function parseCustomerFilter(v: string | undefined | null): CustomerListF
  * 🛑 `hasWarning` ส่งเข้ามาจากผู้เรียก ไม่คำนวณเองที่นี่ — ต้องเป็นค่าเดียวกับที่การ์ดสถิติ
  * "ลูกค้าต้องเฝ้าระวัง" นับ ไม่งั้นการ์ดจะบอก 12 แล้วกดกรองได้ 9 โดยไม่มีอะไรฟ้อง
  *
- * `repeat` นับจาก `totalOrders` (รวมที่ยกเลิก) ตามนิยามเดิมของ 00014 FR-9 — และ **ไม่ผูกกับ
- * ป้าย `REGULAR`** ที่ใช้ `completed >= 3` เพราะเป็นคนละคำถาม (บนข้อมูลจริงลูกค้าซื้อซ้ำมี
- * ~16 จาก 397 คน ถ้าใช้เกณฑ์ป้ายจะเหลือแทบไม่มีใคร)
+ * `repeat` = `behavior.counted >= 2` (00078 S-5) — ตัวนับกลางเดียวกับป้าย `REGULAR` ทุกจอ
+ * (เดิมนับ `totalOrders` รวมที่ยกเลิก ⇒ ลูกค้าที่ยกเลิกใบแรกแล้วสั่งใหม่ถูกนับว่าซื้อซ้ำทั้งที่ซื้อจริงใบเดียว)
  */
 export function matchesCustomerFilter(
-  entry: Pick<CustomerDirectoryEntry, 'totalOrders' | 'shopReputation'>,
+  entry: Pick<CustomerDirectoryEntry, 'behavior' | 'shopReputation'>,
   filter: CustomerListFilter,
   hasWarning: boolean,
 ): boolean {
@@ -227,7 +226,7 @@ export function matchesCustomerFilter(
     case 'returned':
       return entry.shopReputation.returned > 0
     case 'repeat':
-      return entry.totalOrders >= 2
+      return entry.behavior.counted >= 2
     default:
       return true
   }

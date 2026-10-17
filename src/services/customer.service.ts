@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 // ไฟล์นี้เดิมรับแต่ TransactionClient (findOrCreateCustomer ถูกเรียกในธุรกรรมเสมอ)
 // getCancellationSummary เป็น read นอกธุรกรรม จึงต้องใช้ client ปกติ
 import { prisma } from '@/lib/prisma'
-import { withoutDrafted } from '@/lib/order-visibility'
+import { behaviorByShopCustomer } from '@/services/customer-behavior.service'
 import { CANCEL_REASON_KEYS, cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 
 // derive จาก SSOT ไม่ hardcode รายการซ้ำ — ถ้าเพิ่ม/แก้เหตุผลใน lodging.ts ที่นี่ตามอัตโนมัติ
@@ -82,10 +82,12 @@ export async function getCustomerSummary(
   shopId: string,
 ): Promise<{ orderCount: number; sinceISO: string } | null> {
   if (!customerId) return null;
-  const [customer, orderCount] = await Promise.all([
+  // orderCount = ตัวนับกลาง `counted` (00078 S-5) — ไม่นับร่าง/ยกเลิก/ตีกลับ/ไม่มาตามนัด
+  const [customer, behaviorOf] = await Promise.all([
     prisma.customer.findUnique({ where: { id: customerId }, select: { createdAt: true } }),
-    prisma.order.count({ where: { customerId, shopId, ...withoutDrafted("CANCELLED") } }),
+    behaviorByShopCustomer([shopId], [customerId]),
   ]);
   if (!customer) return null;
+  const orderCount = behaviorOf.get(`${shopId}::${customerId}`)?.counted ?? 0;
   return { orderCount, sinceISO: customer.createdAt.toISOString() };
 }

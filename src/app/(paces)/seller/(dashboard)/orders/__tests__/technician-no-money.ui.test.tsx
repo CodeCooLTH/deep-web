@@ -39,7 +39,7 @@ const NO_MONEY_ROW = {
 
 const MONEY_ROW = {
   ...NO_MONEY_ROW, total: 1234, paymentMethod: 'COD', codReceivedAtISO: null, conversationId: 'conv-1',
-  customerStats: { orders: 3, cancelled: 2, cancelledByBuyer: 2, returned: 0 },
+  customerStats: { orders: 3, counted: 1, cancelledTotal: 2, cancelledByBuyer: 2, returnedParcels: 0, problemOrders: 2 },
   money: { totalAmount: 1234, totalReceived: 0, outstanding: 1234 },
   items: [{ id: 'i1', name: 'ตัดผม', qty: 2, price: 617, imageUrl: null }],
 } as unknown as OrderRow

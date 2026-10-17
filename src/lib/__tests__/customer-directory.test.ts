@@ -62,7 +62,7 @@ function entry(over: Partial<CustomerDirectoryEntry> = {}): CustomerDirectoryEnt
     lastOrderRaw: 1,
     behavior: {
       orders: 3,
-      completed: 2,
+      counted: 2,
       cancelledByBuyer: 0,
       cancelledTotal: 1,
       returnedParcels: 0,
@@ -234,10 +234,12 @@ describe('[blocker] matchesCustomerFilter — ชิปกรอง 4 ตัว 
     expect(matchesCustomerFilter(e({ shopReputation: rep({ returned: 1 }) }), 'returned', false)).toBe(true)
   })
 
-  it('repeat → ตั้งแต่ 2 ใบขึ้นไป (นับทุกสถานะตามนิยามเดิมของ 00014 FR-9)', () => {
-    expect(matchesCustomerFilter(e({ totalOrders: 1 }), 'repeat', false)).toBe(false)
-    expect(matchesCustomerFilter(e({ totalOrders: 2 }), 'repeat', false)).toBe(true)
-    expect(matchesCustomerFilter(e({ totalOrders: 3 }), 'repeat', false)).toBe(true)
+  it('repeat → counted ตั้งแต่ 2 (00078 S-5: ไม่ดู totalOrders ที่รวมใบยกเลิก)', () => {
+    const b = (counted: number, totalOrders = 9) =>
+      e({ totalOrders, behavior: { ...entry().behavior, counted } })
+    expect(matchesCustomerFilter(b(1), 'repeat', false)).toBe(false) // สั่ง 9 ยกเลิกเกือบหมด ≠ ซื้อซ้ำ
+    expect(matchesCustomerFilter(b(2, 2), 'repeat', false)).toBe(true)
+    expect(matchesCustomerFilter(b(3, 3), 'repeat', false)).toBe(true)
   })
 
   it('parseCustomerFilter fail-closed — ค่าที่ไม่รู้จักตกเป็น all ไม่ใช่ throw', () => {
