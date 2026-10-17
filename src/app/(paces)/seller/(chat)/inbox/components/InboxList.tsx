@@ -186,6 +186,8 @@ export type ConversationListItem = {
   /** ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ (ไม่มีป้ายเลย)
    *  enrich ด้วย enrichWithCustomerBehavior ทั้งฝั่ง RSC และ route เหมือน orderStage */
   customerBehavior?: CustomerBehavior | null
+  /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง · null = ไม่ถือ · client เทียบกับ nowBucket (UI อยู่ T22) */
+  metaAiHoldUntilMs?: number | null
   // S-20 (phase 00023-qna) — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
   // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null)
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route

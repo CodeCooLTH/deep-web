@@ -61,6 +61,8 @@ import { listConversationsForShops, countUnreadByConversation } from '@/services
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
+import { ourMetaAppId } from '@/lib/facebook/app-id'
+import { metaAiHoldingUntilMs } from '@/lib/meta-ai-holder'
 import { countDraftedOrdersByConversation } from '@/services/auto-order-detect.service'
 import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
@@ -294,6 +296,7 @@ export default async function SellerInboxPage() {
 
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
+    const appId = ourMetaAppId()
     items = result.items.map((c) => {
       const buyer = c.buyerUserId ? buyerMap.get(c.buyerUserId) : undefined
       const contact = c.externalContactId ? contactMap.get(c.externalContactId) : undefined
@@ -341,6 +344,8 @@ export default async function SellerInboxPage() {
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
+        // 00078 TFR-003 — primitive (ms) เทียบกับ nowBucket ฝั่ง client · ฟังก์ชันเดียวกับ route
+        metaAiHoldUntilMs: metaAiHoldingUntilMs(c, appId),
       }
     })
     nextCursor = result.nextCursor

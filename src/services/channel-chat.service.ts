@@ -1,5 +1,7 @@
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { isMetaInternalNote } from '@/lib/meta-system-notice'
+import { ourMetaAppId } from '@/lib/facebook/app-id'
+import { META_PAGE_INBOX_APP_ID, META_IG_INBOX_APP_ID } from '@/lib/meta-ai-holder'
 import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
 import { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState } from '@/lib/messaging-window'
@@ -1608,8 +1610,13 @@ export async function ingestInboundMessage(params: {
   // หลายรูป → preview บอกจำนวน "[N รูป]" (นับตัวแรก + extra) แทน "[รูปภาพ]" เดี่ยว
   const mediaCount = (mirroredFileId ? 1 : 0) + extraMedia.length
   const preview = mediaCount > 1 ? `[${mediaCount} รูป]` : singlePreview
-  const occurredAt = event.timestamp ? new Date(event.timestamp) : new Date()
+  // clamp ไม่ให้เกินเวลาปัจจุบัน: timestamp อนาคตจาก Meta จะปัก metaForeignEchoAt/lastMessageAt ไว้
+  // จน event ถัดไปทับไม่ได้ (เงื่อนไข lt t) — ใช้ค่าเดียวกันทั้งสองคอลัมน์เพื่อให้ meta-ai-holder เทียบเท่ากันได้
+  const occurredAt = new Date(Math.min(event.timestamp ?? Date.now(), Date.now()))
   const mid = event.message.mid
+  // app_id ของ Meta เป็น number บ้าง string บ้าง — normalize ครั้งเดียวตอนเขียน (เหมือน ingestHandoverEvent)
+  const rawEchoAppId = event.message.app_id
+  const echoAppId = rawEchoAppId === undefined || rawEchoAppId === null ? null : String(rawEchoAppId)
 
   const conversationWhere = {
     shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id },
@@ -1642,6 +1649,15 @@ export async function ingestInboundMessage(params: {
         // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
         rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
         viaStandby: params.standby === true,
+        // 00078 TFR-001: ข้อเท็จจริงของ echo (ไม่ใช่ verdict) — ใบที่ไม่ใช่ echo ปล่อย NULL
+        // เขียนผ่าน Prisma create เท่านั้น (ด่าน chat-message-no-raw-write)
+        ...(isEcho
+          ? {
+              echoAppId: echoAppId,
+              echoAiGenerated: event.message?.ai_generated ?? null,
+              echoHasAdminText: event.message?.admin_text !== undefined,
+            }
+          : {}),
         // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — mirror เสร็จแล้วนอก transaction
         // ด้านบน; ไม่มี = ข้อความนี้ไม่ใช่ generic template card (undefined → Prisma ไม่เซ็ตคอลัมน์
         // ปล่อยเป็น NULL ตาม default ของคอลัมน์ใหม่)
@@ -1717,6 +1733,31 @@ export async function ingestInboundMessage(params: {
             : { lastMessageAt: occurredAt, lastInboundAt: occurredAt, isHidden: false, resolvedAt: null }),
       },
     })
+
+    // 00078 TFR-001: echo ของแอปอื่น (มี app_id และไม่ใช่ของเรา) → จดเป็น "echo ฝั่งร้านล่าสุดที่ไม่ใช่ของเรา"
+    // ใน tx เดียวกับข้อความ · เงื่อนไขเวลาอยู่ใน where ⇒ event สลับลำดับ/ซ้ำไม่ทับของใหม่ (ไม่ใช้ raw)
+    // echo ของเรา/ไม่มี app_id ไม่เขียนอะไรเพิ่ม: "ข้อความฝั่งร้านล่าสุดเป็นของเรา" อ่านได้จาก
+    // lastMessageAt+lastSenderRole='SHOP' ที่ update ด้านบนอยู่แล้ว (ดู meta-ai-holder.ts)
+    // ข้อความภายในของ Meta (isMetaNote) ลูกค้าไม่เห็น ไม่ใช่หลักฐานว่า AI ตอบ ⇒ ข้าม
+    // ไม่รู้ app id ตัวเอง (env ไม่ตั้ง) ⇒ แยกไม่ออกว่า echo ใครเป็นของเรา: เขียนเฉพาะ app กลางของ Meta
+    const ourApp = ourMetaAppId()
+    const isForeign =
+      echoAppId !== null &&
+      (ourApp !== null ? echoAppId !== ourApp : echoAppId === META_PAGE_INBOX_APP_ID || echoAppId === META_IG_INBOX_APP_ID)
+    if (isEcho && !isMetaNote && isForeign) {
+      await tx.conversation.updateMany({
+        where: {
+          id: conversation.id,
+          OR: [{ metaForeignEchoAt: null }, { metaForeignEchoAt: { lt: occurredAt } }],
+        },
+        data: {
+          metaForeignEchoAt: occurredAt,
+          metaForeignEchoAppId: echoAppId,
+          metaForeignEchoAi: event.message?.ai_generated ?? null,
+          metaForeignEchoAdminText: event.message?.admin_text !== undefined,
+        },
+      })
+    }
 
     // เลิกเขียน Notification kind="chat_message" (user สั่ง 2026-07-29) — ดูเหตุผลเต็มที่
     // chat.service.ts (จุดคู่กัน): ไม่มีผู้บริโภคจริง + เป็น INSERT ในทรานแซกชันรับข้อความ
@@ -2434,6 +2475,42 @@ export async function ingestHandoverEvent(params: {
     })
   } catch (e) {
     console.error('[fb-handover] เก็บ event ไม่สำเร็จ', e instanceof Error ? e.message : e)
+  }
+
+  // 00078 TFR-001: ข้อเท็จจริง "ผู้ถือห้อง" บน Conversation — แยก try เพื่อไม่ให้ล้มแล้วกระทบ ledger ข้างบน
+  // request ไม่เปลี่ยนผู้ถือ · ใช้ new_owner_app_id เท่านั้น (previous = คนที่เพิ่งเสียห้อง ไม่ใช่ผู้ถือ)
+  if (params.kind === 'request' || !params.contactExternalId) return
+  try {
+    const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+    const contact = channel
+      ? await prisma.externalContact.findUnique({
+          where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+          select: { id: true },
+        })
+      : null
+    const conversation = channel && contact
+      ? await prisma.conversation.findUnique({
+          where: { shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id } },
+          select: { id: true },
+        })
+      : null
+    if (!conversation) {
+      console.warn('[fb-handover] ไม่พบห้องสำหรับเก็บผู้ถือ — ข้าม', { provider: params.provider, kind: params.kind })
+      return
+    }
+    // เวลาของ Meta (ไม่ใช่ now()) — ใช้เทียบกันเขียนทับ event เก่า · ไม่มี timestamp = ไม่มีหลักให้เทียบ ใช้เวลารับ
+    // clamp ไม่เกินเวลาปัจจุบัน — เวลาอนาคตจะปักค่าจน event ถัดไปทับไม่ได้
+    const t = new Date(Math.min(typeof params.timestamp === 'number' ? params.timestamp : Date.now(), Date.now()))
+    await prisma.conversation.updateMany({
+      where: {
+        id: conversation.id,
+        OR: [{ metaOwnerObservedAt: null }, { metaOwnerObservedAt: { lt: t } }],
+      },
+      // take ที่ไม่มี new owner = NULL + observedAt (ห้องว่าง/ไม่รู้ ⇒ ไม่ขึ้นป้าย)
+      data: { metaOwnerAppId: asId(params.newOwnerAppId), metaOwnerObservedAt: t },
+    })
+  } catch (e) {
+    console.error('[fb-handover] เก็บผู้ถือห้องไม่สำเร็จ', e instanceof Error ? e.message : e)
   }
 }
 

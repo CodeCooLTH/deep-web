@@ -74,6 +74,8 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import RscTiming from './components/RscTiming'
 import { createRscTimer } from '@/lib/rsc-timer'
+import { ourMetaAppId } from '@/lib/facebook/app-id'
+import { metaAiHoldingUntilMs } from '@/lib/meta-ai-holder'
 import ChatThread from './components/ChatThread'
 import { resolveSuggestProvider } from '@/lib/reply-suggest-provider'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
@@ -152,6 +154,15 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       shopId: true, // feature 00037 — แหล่งความจริงของ "เธรดนี้เป็นของร้านไหน"
       channel: true,
       lastInboundAt: true,
+      // 00078 — ข้อเท็จจริง Meta AI ถือห้อง (คอลัมน์เดียวกับรายการ; ตัดสินด้วย meta-ai-holder)
+      lastMessageAt: true,
+      lastSenderRole: true,
+      metaOwnerAppId: true,
+      metaOwnerObservedAt: true,
+      metaForeignEchoAt: true,
+      metaForeignEchoAppId: true,
+      metaForeignEchoAi: true,
+      metaForeignEchoAdminText: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
       // feature 00023 — สถานะบอทของเธรดนี้ (พักเพราะคนเข้ามาตอบ / ส่งต่อคนแล้ว)
       // `autoReplyEnabled` = สวิตช์ที่ "ร้านตั้งเอง" ต่อห้อง (null = ยังไม่เคยตั้ง) คนละชั้นกับ
@@ -771,6 +782,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   mark('initialMessages')
 
   mark('savedFileIds')
+
+  // 00078 TFR-003 — primitive ที่ T22 จะส่งเป็น prop ให้ ChatThread (หัวห้อง); คำนวณที่นี่ด้วยฟังก์ชันเดียวกับรายการ
+  const metaAiHoldUntilMs = metaAiHoldingUntilMs(conversation, ourMetaAppId())
+  // TODO(T22): ส่ง metaAiHoldUntilMs เป็น prop ให้ ChatThread แล้วลบ void นี้ — ตอนนี้ยังไม่มีผู้ใช้
+  void metaAiHoldUntilMs
 
   return (
     // rewrite (chat-standalone): ไม่มี PageBreadcrumb (ตัดออกตั้งแต่ก่อนหน้านี้แล้ว — หน้าแชท
