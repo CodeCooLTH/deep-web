@@ -60,7 +60,7 @@ export default function DailyCapField({ initial, canEdit }: { initial: number; c
       <input
         type="text"
         inputMode="numeric"
-        className={`form-input h-11 w-16 text-center text-sm lg:h-9 ${invalid ? 'border-danger' : ''}`}
+        className={`form-input w-16! flex-none text-center text-sm ${invalid ? 'border-danger' : ''}`}
         value={text}
         disabled={!canEdit}
         readOnly={busy}
