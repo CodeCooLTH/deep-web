@@ -4,7 +4,7 @@
  * การ์ดยอดขายหน้าแรกของร้านบริการ (feature 00078 · BRD FR-010) — มือถือ (แตะ → ชีต) และคอม (แตะ → /sales)
  *
  * หัว: ไอคอน · ชื่อตามตั้งค่า · ปุ่มตั้งค่า (ก่อน) · วันนี้/เดือนนี้ → ตัวเลข → บรรทัด % → กราฟ
- * ไม่มีป้ายสี/จำนวนงาน/ยอดขาย-หักออก (user 2026-10-17: หน้าแรกรก — ดูในหน้ายอดขายและกำไร)
+ * แถบ ปิดงานแล้ว + ยังไม่ปิดงาน (หรือแถบกำไร) กลับมาบนหน้าแรก (user 2026-10-17 หลังลองบน prod) · ไม่มีจำนวนงาน
  *
  * Base: dashboard/components/SalesChartCard.tsx (card-body !p-4 · segmented · hero ramp "Metric")
  */
@@ -19,6 +19,7 @@ import { SERVICE_REPORT_WORDS as W, deltaSentence } from '@/lib/service-report/w
 
 import ServiceReportChart from './ServiceReportChart'
 import ServiceReportSheet from './ServiceReportSheet'
+import ServiceReportStrip from './ServiceReportStrip'
 
 const pill = (on: boolean) =>
   `min-h-11 rounded-md px-3 text-xs font-medium transition-colors ${on ? 'bg-card text-primary shadow' : 'text-default-700'}`
@@ -40,6 +41,7 @@ export default function ServiceReportCard({ initial, view, chart, variant }: Pro
   const today = useMemo(() => buildServiceToday(initial, view), [initial, view])
   const hero = isToday ? today.hero : month.hero
   const delta = isToday ? today.delta : month.delta
+  const strip = isToday ? today.strip : month.strip
   const chartModel = isToday && today.chart ? today.chart : month.chart
   /* กราฟ 14 วันโหมดกำไรใช้ยอดขาย 14 วัน (ไม่มีต้นทุน/ค่าใช้จ่ายรายวันย้อนข้ามเดือน) — ดู buildServiceToday */
   const heroTone = hero.tone === 'loss' ? 'text-danger-ink' : 'text-dark'
@@ -101,12 +103,15 @@ export default function ServiceReportCard({ initial, view, chart, variant }: Pro
             </Link>
           )}
 
+          <ServiceReportStrip cells={strip} className="mb-2 mt-1" />
+
           {/* กราฟอยู่นอกปุ่ม — แตะแท่งแล้วเห็นป้ายยอดวันนั้น (ไม่เปิดชีต) */}
           <ServiceReportChart
             chart={chartModel}
             kind={chart}
             height={variant === 'desktop' ? 240 : 168}
             period={isToday && today.chart ? 'last14' : 'daily'}
+            resetKey={`${period}-${view}`}
           />
         </div>
       </div>

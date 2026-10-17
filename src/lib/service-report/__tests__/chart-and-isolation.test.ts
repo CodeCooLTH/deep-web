@@ -68,6 +68,15 @@ describe('[blocker] buildServiceChartOptions', () => {
     expect(chartAriaOf({ profit: true, period: 'monthly', tappable: false })).toBe('กราฟกำไร รายเดือน')
     expect(chartAriaOf({ profit: false, period: 'last14', tappable: false })).toBe('กราฟยอดขาย 14 วันล่าสุด')
   })
+  it('[iOS] type line เสมอ + stackOnlyBar — ชุดเดียวกับกราฟร้านขายของ (type bar + ซีรีส์ column = แท่งลอย/ห้อยใต้แกนบน iPhone)', () => {
+    for (const kind of ['bar', 'line'] as const) {
+      const o = buildServiceChartOptions(chart, kind, colors, { height: 200 })
+      expect(o.chart?.type).toBe('line')
+      expect((o.chart as { stackOnlyBar?: boolean }).stackOnlyBar).toBe(true)
+      expect(o.chart?.animations?.enabled).toBe(false)
+      expect((o.series as { type: string }[]).every((s) => s.type === (kind === 'bar' ? 'column' : 'line'))).toBe(true)
+    }
+  })
   it('ไม่มีคีย์ที่ค่าเป็น undefined — ApexCharts merge ทับค่าตั้งต้นแล้วพัง (หน้าแรกล้ม: events.beforeMount)', () => {
     const undefinedPaths = (v: unknown, path: string, out: string[]) => {
       if (v === null || typeof v !== 'object') return out

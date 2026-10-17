@@ -61,9 +61,16 @@ export function buildServiceChartOptions(
   return {
     series: series.map((s) => ({ name: s.name, type: isBar ? 'column' : 'line', data: mask(s.data) })),
     chart: {
-      type: isBar ? 'bar' : 'line',
+      // 🛑 type 'line' เสมอ + ให้ซีรีส์บอก column/line เอง + stackOnlyBar — ชุดเดียวกับกราฟร้านขายของที่ใช้บน iPhone มานาน
+      // (เดิม type 'bar' + ซีรีส์ 'column' = โหมดกราฟผสมที่แท่งซ้อนลอย/ห้อยใต้แกนบน iOS — user ส่งภาพ 2026-10-17)
+      type: 'line',
       height: opts.height,
       stacked: isBar && !isProfit,
+      stackOnlyBar: true,
+      // ไม่มีแอนิเมชัน — ภาพจาก iPhone จริง: ความยาวแท่งถูกแต่ชุดเขียวทั้งชุดถูกเลื่อนลงใต้แกน 60–70px
+      // = สถานะค้างกลางการวาดซ้ำ (จำลองใน WebKit ไม่ขึ้น) · ไม่มีแอนิเมชัน = ไม่มีสถานะกลางทางให้ค้าง
+      // และตรง DESIGN.md "ไม่ใส่ choreography ตอนโหลดในฝั่ง seller/admin"
+      animations: { enabled: false },
       toolbar: { show: false },
       zoom: { enabled: false },
       selection: { enabled: false },

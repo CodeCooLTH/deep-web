@@ -22,9 +22,14 @@ type Props = {
   onPick?: (index: number) => void
   /** ช่วงของกราฟ — รายวัน (ค่าตั้งต้น) · รายเดือน · 14 วันล่าสุด */
   period?: ServiceChartPeriod
+  /**
+   * เปลี่ยนค่านี้ = สร้างกราฟใหม่ทั้งตัว (ไม่ updateOptions ทับ) — ทาง update คือทางที่ iOS วัดกล่องผิด
+   * จนแท่งลอย/ห้อยใต้แกน · ร้านขายของได้ผลเดียวกันจากการถอดกราฟเป็น skeleton ระหว่างโหลด
+   */
+  resetKey?: string
 }
 
-export default function ServiceReportChart({ chart, kind, height, onPick, period = 'daily' }: Props) {
+export default function ServiceReportChart({ chart, kind, height, onPick, period = 'daily', resetKey = '' }: Props) {
   const getOptions = useCallback(
     () =>
       buildServiceChartOptions(
@@ -44,7 +49,7 @@ export default function ServiceReportChart({ chart, kind, height, onPick, period
   )
   return (
     <div role="img" aria-label={chartAriaOf({ profit: chart.series[0]?.key === 'profit', period, tappable: !!onPick })}>
-      <ApexChart key={`${kind}-${chart.series.length}`} getOptions={getOptions} type={kind === 'bar' ? 'bar' : 'line'} height={height} />
+      <ApexChart key={`${kind}-${period}-${chart.series.length}-${resetKey}`} getOptions={getOptions} type="line" height={height} />
     </div>
   )
 }

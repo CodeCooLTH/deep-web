@@ -83,6 +83,23 @@ const at = (a: readonly number[] | undefined, i: number) => a?.[i] ?? 0
 
 
 /**
+ * แถบสมการใต้ตัวเลขใหญ่ — ตัวเดียวของการ์ดหน้าแรก (วันนี้/เดือนนี้) และหน้ายอดขายและกำไร
+ * ยอดขาย: ปิดงานแล้ว + ยังไม่ปิดงาน · กำไร: ปิดงานแล้ว − ต้นทุนอะไหล่ (ถ้ามี) − ค่าใช้จ่าย
+ */
+export function stripOf(view: ServiceReportView, t: { closed: number; unclosed: number; cost: number; expense: number }): StripCell[] {
+  return view === 'profit'
+    ? [
+        { key: 'closed', label: W.closed, value: t.closed, dot: 'counted' },
+        ...(t.cost > 0 ? [{ key: 'cost' as const, label: W.cost, value: t.cost, op: '−' as const }] : []),
+        { key: 'expense', label: W.expense, value: t.expense, op: '−', dot: 'outflow' },
+      ]
+    : [
+        { key: 'closed', label: W.closed, value: t.closed, dot: 'counted' },
+        { key: 'unclosed', label: W.unclosed, value: t.unclosed, op: '+', dot: 'notCounted' },
+      ]
+}
+
+/**
  * ป้ายช่วงที่ใช้เทียบ — บอกชัดว่าเทียบกับอะไร (clarify)
  * รายวันเดือนปัจจุบัน: "1–16 ก.ย." · เดือนอดีต: "ก.ย." · รายเดือนปีปัจจุบัน: "ม.ค.–ต.ค. 2568" · ปีอดีต: "ปี 2568"
  */
@@ -124,16 +141,7 @@ export function buildServiceReport(d: ServiceReportData, view: ServiceReportView
     ? { label: totals.profit < 0 ? W.loss : W.profit, value: totals.profit, tone: (totals.profit < 0 ? 'loss' : 'profit') as 'loss' | 'profit' }
     : { label: W.sales, value: totals.sales, tone: 'neutral' as const }
 
-  const strip: StripCell[] = isProfit
-    ? [
-        { key: 'closed', label: W.closed, value: totals.closed, dot: 'counted' },
-        ...(hasCost ? [{ key: 'cost' as const, label: W.cost, value: totals.cost, op: '−' as const }] : []),
-        { key: 'expense', label: W.expense, value: totals.expense, op: '−', dot: 'outflow' },
-      ]
-    : [
-        { key: 'closed', label: W.closed, value: totals.closed, dot: 'counted' },
-        { key: 'unclosed', label: W.unclosed, value: totals.unclosed, op: '+', dot: 'notCounted' },
-      ]
+  const strip = stripOf(view, totals)
 
   const series = isProfit
     ? [{ key: 'profit' as const, name: W.profit, data: Array.from({ length: n }, (_, i) => profitAt(i)) }]
@@ -177,7 +185,9 @@ export function buildServiceToday(d: ServiceReportData, view: ServiceReportView)
   const t = Math.max(0, d.futureFromIndex - 1)
   const closed = at(d.closed, t)
   const unclosed = at(d.unclosed, t)
-  const profit = closed - at(d.cost, t) - at(d.expense, t)
+  const cost = at(d.cost, t)
+  const expense = at(d.expense, t)
+  const profit = closed - cost - expense
   const l14 = d.last14
   const avg14 = l14 ? (sum(l14.closed) + sum(l14.unclosed)) / l14.labels.length : 0
   const isProfit = view === 'profit'
@@ -187,6 +197,7 @@ export function buildServiceToday(d: ServiceReportData, view: ServiceReportView)
       : { label: W.sales, value: closed + unclosed, tone: 'neutral' as const },
     // วันนี้ยังไม่มีงาน (0) = ยังเทียบไม่ได้ ไม่ใช่ "ลดลง 100%" — วันยังไม่จบ ⇒ ไม่แสดงบรรทัด % (user 2026-10-17)
     delta: isProfit || closed + unclosed <= 0 ? null : deltaOf(closed + unclosed, avg14, W.avg14),
+    strip: stripOf(view, { closed, unclosed, cost, expense }),
     chart: l14
       ? {
           categories: l14.labels,
