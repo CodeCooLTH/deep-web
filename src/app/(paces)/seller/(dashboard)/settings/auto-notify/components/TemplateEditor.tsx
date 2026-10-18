@@ -267,7 +267,7 @@ export default function TemplateEditor({
       })
       if (res.status === 409) {
         const code = ((await res.json().catch(() => null)) as { error?: string } | null)?.error
-        pacesToast.error(code === 'KIND_NOT_AVAILABLE' ? t.toastFailed : t.errorConflict)
+        pacesToast.error(code === 'KIND_NOT_AVAILABLE' ? t.kindUnavailable : t.errorConflict)
         router.refresh() // ดึง updatedAt ล่าสุด / ชนิดที่ร้านใช้ได้ — ข้อความที่พิมพ์ค้างในกล่องยังอยู่
         if (code === 'KIND_NOT_AVAILABLE') onClose()
         return
@@ -283,7 +283,8 @@ export default function TemplateEditor({
   }
 
   const messages = issues.flatMap((i) => {
-    if (i.code === 'UNKNOWN_VARIABLE' || i.code === 'WRONG_KIND_VARIABLE') return [fmt(t.errorUnknownVar, { name: `{${i.name}}` })]
+    if (i.code === 'UNKNOWN_VARIABLE') return [fmt(t.errorUnknownVar, { name: `{${i.name}}` })]
+    if (i.code === 'WRONG_KIND_VARIABLE') return [fmt(t.errorWrongKindVar, { name: `{${i.name}}` })]
     if (i.code === 'TOO_LONG') return [fmt(t.errorTooLong, { max })]
     if (i.code === 'BLANK') return [t.errorEmpty]
     return []
@@ -304,7 +305,7 @@ export default function TemplateEditor({
               onClick={() => void applyExample(ex.body)}
               className="text-default-700 hover:bg-card min-h-11 shrink-0 rounded-md px-3 text-xs font-medium lg:min-h-8"
             >
-              {ex.label}
+              {{ SHORT: t.sampleShort, POLITE: t.samplePolite, FRIENDLY: t.sampleFriendly }[ex.id]}
             </button>
           ))}
         </div>
@@ -456,7 +457,7 @@ export default function TemplateEditor({
       {warnNoLink && (
         <p className="text-warning-ink flex items-start gap-1.5 text-xs">
           <Icon icon="alert-triangle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          {t.warnNoLink}
+          {kind === 'TRACKING' ? t.warnNoTrackingLink : t.warnNoLink}
         </p>
       )}
       {(kind === 'ORDER_SUMMARY' || kind === 'TRACKING') && (
@@ -473,7 +474,7 @@ export default function TemplateEditor({
           disabled={saving || messages.length > 0}
           className="btn bg-primary min-h-11 text-white disabled:opacity-50 lg:min-h-9"
         >
-          {t.save}
+          {saving ? t.saving : t.save}
         </button>
         <button
           type="button"
@@ -488,7 +489,7 @@ export default function TemplateEditor({
         </button>
         {isCustom && updatedAt && (
           <span className="text-default-600 text-xs">
-            {fmt(t.lastEdited, { when: formatDateTime(updatedAt), name: updatedBy?.name ?? '—' })}
+            {updatedBy ? fmt(t.lastEdited, { when: formatDateTime(updatedAt), name: updatedBy.name }) : fmt(t.lastEditedNoName, { when: formatDateTime(updatedAt) })}
           </span>
         )}
       </div>

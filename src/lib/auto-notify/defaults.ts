@@ -48,7 +48,7 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
     {
       id: 'FRIENDLY',
       label: 'เป็นกันเอง',
-      body: 'สวัสดีค่ะคุณ{ชื่อลูกค้า}\nรับออเดอร์แล้วนะคะ {รายการสินค้า}\nรวม {ยอดสุทธิ}\nดูสถานะได้ที่นี่เลย {ลิงก์คำสั่งซื้อ}',
+      body: 'สวัสดีคุณ{ชื่อลูกค้า}\nร้านรับออเดอร์แล้ว {รายการสินค้า}\nรวม {ยอดสุทธิ}\nดูสถานะได้ที่นี่เลย {ลิงก์คำสั่งซื้อ}',
     },
   ],
   TRACKING: [
@@ -61,7 +61,7 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
     {
       id: 'FRIENDLY',
       label: 'เป็นกันเอง',
-      body: 'ของออกจากร้านแล้วนะคะคุณ{ชื่อลูกค้า}\nส่งด้วย {ขนส่ง} เลข {เลขพัสดุ}\nตามได้ที่ {ลิงก์ติดตามพัสดุ}',
+      body: 'ของออกจากร้านแล้ว คุณ{ชื่อลูกค้า}\nส่งด้วย {ขนส่ง} เลข {เลขพัสดุ}\nตามได้ที่ {ลิงก์ติดตามพัสดุ}',
     },
   ],
   SERVICE_BOOKED: [
@@ -74,7 +74,7 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
     {
       id: 'FRIENDLY',
       label: 'เป็นกันเอง',
-      body: 'จองคิวเรียบร้อยค่ะคุณ{ชื่อลูกค้า}\n{บริการ} {วันเวลานัด}\nเจอกันนะคะ {ลิงก์งาน}',
+      body: 'จองคิวเรียบร้อยแล้ว คุณ{ชื่อลูกค้า}\n{บริการ} {วันเวลานัด}\nแล้วพบกัน {ลิงก์งาน}',
     },
   ],
   SERVICE_STARTED: [
@@ -87,7 +87,7 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
     {
       id: 'FRIENDLY',
       label: 'เป็นกันเอง',
-      body: 'เริ่มทำ {บริการ} ให้คุณ{ชื่อลูกค้า}แล้วนะคะ\nดูความคืบหน้า {ลิงก์งาน}',
+      body: 'เริ่มทำ {บริการ} ให้คุณ{ชื่อลูกค้า}แล้ว\nดูความคืบหน้า {ลิงก์งาน}',
     },
   ],
   SERVICE_CLOSED: [
@@ -100,7 +100,7 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
     {
       id: 'FRIENDLY',
       label: 'เป็นกันเอง',
-      body: 'เสร็จแล้วค่ะคุณ{ชื่อลูกค้า}\n{บริการ} เรียบร้อยเมื่อ {เวลาปิดงาน}\nกดยืนยันรับบริการได้ที่ {ลิงก์งาน}',
+      body: 'เสร็จแล้ว คุณ{ชื่อลูกค้า}\n{บริการ} เรียบร้อยเมื่อ {เวลาปิดงาน}\nกดยืนยันรับบริการได้ที่ {ลิงก์งาน}',
     },
   ],
 }
