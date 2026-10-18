@@ -130,6 +130,7 @@ import { useSellerChatThread,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { CUSTOMER_RING_CLS, CustomerSignalPlate, hasCustomerRing } from '@/components/safepay/CustomerRingAvatar'
 import { chatCardPreview, chatItemLabel } from '@/lib/chat-vocab'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -809,6 +810,8 @@ type Props = {
   botCouldReply?: boolean
   /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง (primitive จาก server) · null = ไม่ถือ */
   metaAiHoldUntilMs?: number | null
+  /** 00078 S-7 — ใบที่นับของลูกค้าห้องนี้กับร้านนี้ (summarizeCustomerBehavior) · null = ยังไม่ผูกลูกค้า */
+  customerCounted?: number | null
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -970,12 +973,16 @@ export function ChatAvatar({
   name,
   size = 'size-9',
   fallback,
+  ring = false,
 }: {
   avatar: string | null
   name: string
   size?: string
   fallback?: React.ReactNode
+  /** 00078 S-7 — ขอบม่วง "เป็นลูกค้าของร้านแล้ว" (ติดที่ตัวรูป ไม่ใช่ wrapper) */
+  ring?: boolean
 }) {
+  const ringCls = ring ? ` ${CUSTOMER_RING_CLS}` : ''
   const [failed, setFailed] = useState(false)
   /**
    * 🛑 ต้องผ่าน `toFileUrl` เท่านั้น ห้ามประกอบ URL เอง (bugfix 2026-08-14)
@@ -993,7 +1000,7 @@ export function ChatAvatar({
   if (!src || failed) {
     if (fallback !== undefined) return <>{fallback}</>
     return (
-      <span className={`bg-primary/10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-sm font-semibold`}>
+      <span className={`bg-primary/10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-sm font-semibold${ringCls}`}>
         {generateInitials(name) || '?'}
       </span>
     )
@@ -1005,7 +1012,7 @@ export function ChatAvatar({
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}
-      className={`${size} shrink-0 rounded-full bg-default-100 object-cover`}
+      className={`${size} shrink-0 rounded-full bg-default-100 object-cover${ringCls}`}
     />
   )
 }
@@ -1247,6 +1254,7 @@ export default function ChatThread({
   isChatbotTestThread = false,
   botCouldReply = false,
   metaAiHoldUntilMs = null,
+  customerCounted = null,
   channel,
   channelName,
   channelAvatarUrl,
@@ -2872,7 +2880,8 @@ export default function ChatThread({
             className="relative shrink-0"
             title={channelName ? `ทักมาจากเพจ ${channelName}` : undefined}
           >
-            <ChatAvatar avatar={buyerAvatar} name={buyerName} />
+            <ChatAvatar avatar={buyerAvatar} name={buyerName} ring={hasCustomerRing(customerCounted)} />
+            <CustomerSignalPlate counted={customerCounted} orderNoun={vocab.noun} />
             <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
           </span>
           {/* ชื่อบรรทัดเดียว — title กันกรณีชื่อยาวถูกตัดจนอ่านไม่ออก (เดิมไม่มีเพราะชื่อมีทั้งบรรทัด) */}

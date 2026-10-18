@@ -38,6 +38,8 @@ import type { InboxSortMode } from '@/lib/inbox-sort'
 import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-reducer-types'
 import { isMetaAiHolding } from '@/lib/meta-ai-holder'
 import { shouldPrefetchRow } from '@/lib/inbox-row-prefetch'
+import { rowChipOverflow } from '@/lib/inbox-row-chips'
+import { CustomerSignalPlate, hasCustomerRing } from '@/components/safepay/CustomerRingAvatar'
 
 export type InboxRowProps = {
   c: ConversationListItem
@@ -110,6 +112,94 @@ function InboxRowImpl({
             copy: t.inbox.customerPanel,
           })
         : []
+      // 00078 S-6/S-8: ป้ายใหม่/ซื้อซ้ำย้ายไปอยู่ที่รูปแล้ว — ในบรรทัดป้ายเหลือแค่ตีกลับ/ยกเลิก
+      const warnBadges = behaviorBadges.filter((b) => b.key !== 'NEW' && b.key !== 'REGULAR')
+      const botLabel = c.lastSenderRole === 'SHOP' && c.lastMessageAutoReplyKind ? (c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot') : null
+      const salesMeta = salesStatus !== 'UNSPECIFIED' ? SALES_STATUS_META[salesStatus] : null
+      const rowChips: { name: string; node: React.ReactNode }[] = [
+        ...(followBadge !== null && c.followUp
+          ? [{
+              name: followBadgeText,
+              node: (
+                // 00066 (e) — เลยกำหนด = แดงอ่อน+ไอคอน · ค้างอยู่ = เขียว (user 2026-10-05) · aria-label เต็ม + title เดียวกัน
+                <span
+                  key="follow"
+                  role="img"
+                  className={`badge text-2xs ${followBadge === 'late' ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
+                  aria-label={followBadgeText}
+                  title={followBadgeText}
+                >
+                  <Icon icon="star" className="size-3 shrink-0" />
+                  {fmt(t.followUps.rowOpen, { n: formatCount(c.followUp.open) })}
+                </span>
+              ),
+            }]
+          : []),
+        // ป้ายพฤติกรรม (user 2026-08-11): ชิปมีคำ + max-w + truncate — ไอคอนล้วนผู้ขายอ่านไม่ออกว่าเป็นป้าย
+        ...warnBadges.map((b) => ({
+          name: b.label,
+          node: (
+            <span
+              key={b.key}
+              role="img"
+              aria-label={b.detail ?? b.label}
+              title={b.detail ?? b.label}
+              className="badge text-2xs bg-warning/15 text-warning-ink inline-flex max-w-32 shrink-0 items-center gap-1"
+            >
+              <Icon icon={b.icon} width={12} height={12} className="shrink-0" aria-hidden="true" />
+              <span className="truncate">{b.label}</span>
+            </span>
+          ),
+        })),
+        // DeepBot/DeepAI — ย้ายจากหน้าบรรทัด preview มาเป็นชิป (user 2026-08-01) ไม่แย่งสายตาจากชื่อลูกค้า
+        ...(botLabel
+          ? [{
+              name: botLabel,
+              node: (
+                <span key="bot" className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
+                  <Icon icon="robot" width={12} height={12} className="shrink-0" aria-hidden="true" />
+                  {botLabel}
+                </span>
+              ),
+            }]
+          : []),
+        ...(salesStatus !== 'UNSPECIFIED'
+          ? [{
+              name: salesMeta?.label ?? salesStatus,
+              node: (
+                <span key="sales" className={`badge text-2xs ${salesMeta?.cls ?? ''}`}>
+                  {salesMeta?.label ?? salesStatus}
+                </span>
+              ),
+            }]
+          : []),
+        // E5: ad_id ตัดสั้น (`max-w-24 truncate`) แบบ Business Suite — รหัสเต็มอ่านจาก title และแผงลูกค้า
+        ...(c.referralAdId
+          ? [{
+              name: `ad_id.${c.referralAdId}`,
+              node: (
+                <span
+                  key="ad"
+                  className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-24 items-center gap-1"
+                  title={`ad_id.${c.referralAdId}`}
+                >
+                  <Icon icon="brand-meta" className="size-3 shrink-0" />
+                  <span className="truncate">ad_id.{c.referralAdId}</span>
+                </span>
+              ),
+            }]
+          : []),
+        // แท็กผู้ใช้พิมพ์เองยาวได้ไม่จำกัด จึงต้อง max-w-28 + truncate กันดันแถว
+        ...contactTags.map((tag) => ({
+          name: tag,
+          node: (
+            <span key={`tag:${tag}`} className="badge bg-primary/15 text-primary-ink text-2xs max-w-28 truncate" title={tag}>
+              {tag}
+            </span>
+          ),
+        })),
+      ]
+      const chipOverflow = rowChipOverflow(rowChips.map((x) => x.name))
       return (
         // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
         // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
@@ -226,7 +316,9 @@ function InboxRowImpl({
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="relative shrink-0">
-                <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
+                <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} ring={hasCustomerRing(c.customerBehavior?.counted)} />
+                {/* 00078 S-7 — ลูกค้าใหม่/ซื้อซ้ำในแถวบอกด้วยขอบม่วง + จานมุมบนขวา ไม่มีชิปข้อความแล้ว (มติรอบ 2) */}
+                <CustomerSignalPlate counted={c.customerBehavior?.counted} orderNoun={orderNoun} />
                 {/* badge = โลโก้ "แพลตฟอร์ม" เสมอ (มติแบบ C 2026-08-09 — user เลือกจาก mockup)
                     เดิมส่งรูปเพจเข้ามา (user สั่ง 2026-07-23) เพื่อให้ร้านหลายเพจแยกออกว่า
                     ทักมาจากเพจไหน — แต่พอมี LINE เข้ามาปนในลิสต์เดียวกันแล้วพังทันที เพราะ
@@ -342,83 +434,21 @@ function InboxRowImpl({
                 )}
                 {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
                     + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
-                {(salesStatus !== 'UNSPECIFIED' ||
-                  contactTags.length > 0 ||
-                  !!c.referralAdId ||
-                  followBadge !== null ||
-                  behaviorBadges.length > 0 ||
-                  (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
+                {/* บรรทัดป้าย (00078 S-8): สูงสุด 2 ใบ + "+N" ทุกขนาดจอ — ลำดับ = ความสำคัญ
+                    ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id → แท็ก · +N นับรวมแท็กส่วนเกิน
+                    (เดิมไม่มีเพดาน แถวสูงต่างกันได้ 2.4 เท่า — impeccable critique 2026-08-09) */}
+                {rowChips.length > 0 && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">
-                    {/* 00066 (e) — ชิปแรกในบรรทัดป้าย · เลยกำหนด = แดงอ่อน+ไอคอน · ค้างอยู่ = เขียว (user 2026-10-05: "ติดตาม" ทั่วไปใช้เขียว แบบ gochat)
-                        aria-label เต็ม + title เดียวกัน (มือถือไม่มี hover จึงห้ามพึ่ง title อย่างเดียว) */}
-                    {followBadge !== null && c.followUp && (
+                    {rowChips.slice(0, chipOverflow.visible).map((chip) => chip.node)}
+                    {chipOverflow.more && (
                       <span
                         role="img"
-                        className={`badge text-2xs ${followBadge === 'late' ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
-                        aria-label={followBadgeText}
-                        title={followBadgeText}
+                        aria-label={fmt(t.chatSignals.moreBadgesAria, { n: chipOverflow.more.names.length, names: chipOverflow.more.names.join(', ') })}
+                        title={chipOverflow.more.names.join(', ')}
+                        className="badge bg-default-100 text-default-700 text-2xs"
                       >
-                        <Icon icon="star" className="size-3 shrink-0" />
-                        {fmt(t.followUps.rowOpen, { n: formatCount(c.followUp.open) })}
+                        {chipOverflow.more.text}
                       </span>
-                    )}
-                    {/* ป้ายพฤติกรรมลูกค้า — user สั่ง 2026-08-11
-                        รอบแรกผมทำเป็น **ไอคอนล้วนไม่มีคำ** เพราะ critique 2026-08-09 เพิ่งตัดชิป
-                        ในแถวนี้จาก "ชิงพื้นที่ได้ถึง 6 ใบ" เหลือ 1 — ผลคือมันขึ้นจริงแต่ผู้ขาย
-                        **อ่านไม่ออกว่าเป็นป้าย** (user: "มันไปซ่อนอยู่ตรงไหน งง") ป้ายที่อ่านไม่ออก
-                        มีค่าเท่ากับไม่มีป้าย จึงกลับมาเป็นชิปมีคำตามที่ user ระบุถ้อยคำมาเอง
-                        คุมพื้นที่แทนด้วย: คำสั้น (`ตีกลับ 2 รายการ`) + max-w + truncate
-                        ไม่ให้ดันแถวสูงขึ้นที่ rail 320px */}
-                    {behaviorBadges.map((b) => (
-                      <span
-                        key={b.key}
-                        role="img"
-                        aria-label={b.detail ?? b.label}
-                        title={b.detail ?? b.label}
-                        className={`badge text-2xs inline-flex max-w-32 shrink-0 items-center gap-1 ${
-                          b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
-                        }`}
-                      >
-                        <Icon icon={b.icon} width={12} height={12} className="shrink-0" aria-hidden="true" />
-                        <span className="truncate">{b.label}</span>
-                      </span>
-                    ))}
-                    {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}
-                    {/* DeepBot/DeepAI — ย้ายมาจากหน้าบรรทัด preview (user 2026-08-01) ให้เป็น
-                        ป้ายระดับเดียวกับแท็ก/สถานะขาย ไม่แย่งสายตาจากชื่อลูกค้าอีกต่อไป */}
-                    {c.lastSenderRole === 'SHOP' && c.lastMessageAutoReplyKind && (
-                      <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
-                        <Icon icon="robot" width={12} height={12} className="shrink-0" aria-hidden="true" />
-                        {c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot'}
-                      </span>
-                    )}
-                    {salesStatus !== 'UNSPECIFIED' && (
-                      <span className={`badge text-2xs ${SALES_STATUS_META[salesStatus]?.cls ?? ''}`}>
-                        {SALES_STATUS_META[salesStatus]?.label ?? salesStatus}
-                      </span>
-                    )}
-                    {c.referralAdId && (
-                      // ตัดข้อความให้สั้น (`max-w-24 truncate`) เหมือน Business Suite ที่โชว์ "ad_id...."
-                      // — รหัสเต็มอ่านได้จาก title (hover) และที่แผงลูกค้าด้านขวา
-                      <span
-                        className="badge bg-default-100 text-default-600 text-2xs inline-flex max-w-24 items-center gap-1"
-                        title={`ad_id.${c.referralAdId}`}
-                      >
-                        <Icon icon="brand-meta" className="size-3 shrink-0" />
-                        <span className="truncate">ad_id.{c.referralAdId}</span>
-                      </span>
-                    )}
-                    {/* 🛑 โชว์แท็กใบเดียว ไม่ใช่ 2 (impeccable critique 2026-08-09) — แถวชิงพื้นที่
-                        กันได้ถึง 6 ใบ (บอท/สถานะขาย/ad_id/แท็ก×2/+N) แล้ว flex-wrap ไม่มีเพดาน
-                        ทำให้ความสูงแถวต่างกันได้ 2.4 เท่า (64px→153px) ในรายการเดียวกัน จนกวาด
-                        สายตาเป็นจังหวะไม่ได้ · ลดเหลือ 1 ใบทำให้เคสส่วนใหญ่จบใน 1 บรรทัด
-                        แท็กที่เหลือยังนับรวมใน +N และดูครบได้ที่แผงลูกค้า/เมนูคลิกขวา
-                        แท็กผู้ใช้พิมพ์เองยาวได้ไม่จำกัด จึงต้อง max-w-28 + truncate กันดันแถว */}
-                    {contactTags.slice(0, 1).map((t) => (
-                      <span key={t} className="badge bg-primary/15 text-primary-ink text-2xs max-w-28 truncate" title={t}>{t}</span>
-                    ))}
-                    {contactTags.length > 1 && (
-                      <span className="badge bg-default-100 text-default-700 text-2xs">+{contactTags.length - 1}</span>
                     )}
                   </span>
                 )}

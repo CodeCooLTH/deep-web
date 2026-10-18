@@ -85,6 +85,7 @@ import { listSavedFileIds } from '@/services/customer-file-library.service'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { getServiceCustomerSpend } from '@/services/customer-directory.service'
+import { behaviorByShopCustomer, behaviorKey } from '@/services/customer-behavior.service'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -652,6 +653,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
   const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
   let customerStats: { orderCount: number; totalSpent?: string; since: string } | null = null
+  // 00078 S-7 — ขอบรูปม่วง: ตัวนับกลางตัวเดียวกับแถวรายการแชท (behaviorByShopCustomer) ห้ามนับเอง · null = ยังไม่ผูก
+  let customerCounted: number | null = null
   if (linkedCustomer) {
     // 🛑 2026-08-27: เดิมก้อนนี้มี `behaviorRows` (order.findMany ทุกใบของลูกค้า) + `getBuyerReputation`
     // ต่อท้ายด้วย — ทั้งคู่มีผู้ใช้แค่ป้ายพฤติกรรม/แถบ "ทั้งระบบ" ในแผงขวา ซึ่ง user สั่งถอดออกแล้ว
@@ -662,7 +665,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // 🛑 ห้ามตั้ง customerStats = null แทน — null แปลว่า "ยังไม่ผูกลูกค้า" แถวอื่นจะหายตามไปด้วย
     const threadCtx = await threadCtxPromise
     const canSeeSpend = !!threadCtx && can(rolesFromMembership(threadCtx.role, threadCtx.roles), 'F1')
-    const [orderCount, spentAgg] = await Promise.all([
+    const [orderCount, spentAgg, behaviorMap] = await Promise.all([
       // 00061: ตัดร่างจากแชทออกทั้งคู่ — "เคยสั่ง N ครั้ง" กับ "ยอดซื้อรวม" เป็นตัวเลขที่ผู้ขาย
       // ใช้ตัดสินว่าลูกค้ารายนี้ซื้อซ้ำจริงไหม ร่างที่ยังไม่ได้เป็นออเดอร์ไม่ควรถูกนับ
       prisma.order.count({
@@ -683,7 +686,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
               _sum: { totalAmount: true },
             }).then((agg) => (agg._sum.totalAmount ? agg._sum.totalAmount.toFixed(2) : '0.00'))
           : Promise.resolve(null),
+      behaviorByShopCustomer([shop.id], [linkedCustomer.id]),
     ])
+    customerCounted = behaviorMap.get(behaviorKey(shop.id, linkedCustomer.id))?.counted ?? 0
     customerStats = {
       orderCount,
       // ไม่มีสิทธิ์ = ไม่มีคีย์ (ไม่ใช่ '0.00')
@@ -764,6 +769,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       ? { id: linkedCustomer.id, phone: sellerContactDisplay(linkedCustomer.phone) }
       : null,
     customerStats,
+    customerCounted,
     // feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติแบบ Business Suite
     // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
     adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,
@@ -824,6 +830,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         isChatbotTestThread={isChatbotTestThread}
         botCouldReply={botCouldReply}
         metaAiHoldUntilMs={metaAiHoldUntilMs}
+        customerCounted={customerCounted}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}

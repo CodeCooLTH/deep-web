@@ -43,6 +43,7 @@ import CustomerFileLibrarySection from './CustomerFileLibrarySection'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
+import { CUSTOMER_RING_CLS, CustomerSignalPlate, hasCustomerRing } from '@/components/safepay/CustomerRingAvatar'
 import { type OrderStatus } from '@/lib/order-display'
 import { hasLiveIshipShipment as hasLiveIshipShipmentOf } from '@/lib/iship/live-shipment'
 import { canMarkDispatched as canMarkDispatchedOf, canMarkDelivered as canMarkDeliveredOf } from '@/lib/manual-shipment'
@@ -175,6 +176,8 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent?: string; since: string } | null
+  /** 00078 S-7 — ใบที่นับ (summarizeCustomerBehavior) ใช้ตัดสินขอบรูปม่วง · null = ยังไม่ผูกลูกค้า */
+  customerCounted?: number | null
   /** จำนวนใบในแท็บคำสั่งซื้อ (count จริง เกณฑ์เดียวกับ `orders`) — เลขบนแท็บ; ต่างจาก customerStats.orderCount
    *  ที่นับเฉพาะลูกค้าที่ผูก (แถว "เคยสั่ง" ในแท็บข้อมูล) */
   threadOrderCount: number
@@ -186,12 +189,13 @@ export type CustomerPanelData = {
 
 /** avatar หัวแผงลูกค้า — รูปจริง (http URL หรือ storage fileId) + fallback initials ถ้าไม่มี/โหลดพลาด
  *  (user report 2026-07-24: right panel ไม่มีรูป). ตรรกะ src เดียวกับ ChatAvatar ใน ChatThread.tsx */
-function PanelAvatar({ avatar, name }: { avatar: string | null; name: string }) {
+function PanelAvatar({ avatar, name, ring = false }: { avatar: string | null; name: string; ring?: boolean }) {
   const [failed, setFailed] = useState(false)
+  const ringCls = ring ? ` ${CUSTOMER_RING_CLS}` : ''
   const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
-      <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      <span className={`bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold${ringCls}`}>
         {generateInitials(name) || '?'}
       </span>
     )
@@ -203,7 +207,7 @@ function PanelAvatar({ avatar, name }: { avatar: string | null; name: string }) 
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="bg-default-100 size-10 shrink-0 rounded-full object-cover"
+      className={`bg-default-100 size-10 shrink-0 rounded-full object-cover${ringCls}`}
     />
   )
 }
@@ -997,7 +1001,11 @@ export function CustomerPanelBody({
           ระยะ pt-4/pb-3 ให้หัวหายใจเท่า .card-body ด้านบน แล้วชิดแถบแท็บลงมาเล็กน้อย
           (ป้าย/สถิติของ 00055 + 00057 ยังอยู่ครบที่ /customers และหน้าโปรไฟล์ลูกค้า — ถอดเฉพาะแผงนี้) */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-        <PanelAvatar avatar={data.avatar} name={data.contactName} />
+        {/* 00078 S-7 — ขอบรูป + จานมุมเท่านั้น ไม่มีป้ายข้อความ (มติ 2026-08-27 ถอดป้ายจากหัวแผง) */}
+        <span className="relative shrink-0">
+          <PanelAvatar avatar={data.avatar} name={data.contactName} ring={hasCustomerRing(data.customerCounted)} />
+          <CustomerSignalPlate counted={data.customerCounted} orderNoun={resolveOrderVocab(data.vertical).noun} />
+        </span>
         <div className="min-w-0">
           <p className="text-default-900 mb-1 truncate text-sm font-semibold" title={data.contactName}>
             {data.contactName}

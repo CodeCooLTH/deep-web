@@ -120,6 +120,7 @@ import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import { metaAiNowBucket, META_AI_NOW_BUCKET_MS } from '@/lib/meta-ai-holder'
 import { useT } from '@/i18n/LocaleProvider'
+import { CUSTOMER_RING_CLS } from '@/components/safepay/CustomerRingAvatar'
 import { salesStatusMeta } from '../[conversationId]/components/CustomerCrmSection'
 import {
   ChannelBadgeOverlay,
@@ -277,14 +278,15 @@ function unreadCountOf(c: ConversationListItem, localReadAt?: string): number {
 }
 
 /** avatar คู่สนทนา — รูปจริง (http URL หรือ storage fileId) + fallback initials */
-export function BuyerAvatar({ avatar, name }: { avatar: string | null; name: string }) {
+export function BuyerAvatar({ avatar, name, ring = false }: { avatar: string | null; name: string; ring?: boolean }) {
+  const ringCls = ring ? ` ${CUSTOMER_RING_CLS}` : ''
   const [failed, setFailed] = useState(false)
   const src = avatar ? (toFileUrl(avatar)) : null
   if (!src || failed) {
     return (
       // size-10 (40px) ไม่ใช่ size-9: user report 2026-07-23 ว่า badge ช่องทางบังจนรูปโปรไฟล์ดูเล็ก
       // ขยาย avatar + ลด badge (ดู ChannelBadgeOverlay) ให้สัดส่วน badge ต่อ avatar ลดจาก 56% เหลือ 40%
-      <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      <span className={`bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold${ringCls}`}>
         {generateInitials(name) || '?'}
       </span>
     )
@@ -296,7 +298,7 @@ export function BuyerAvatar({ avatar, name }: { avatar: string | null; name: str
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="size-10 shrink-0 rounded-full bg-default-100 object-cover"
+      className={`size-10 shrink-0 rounded-full bg-default-100 object-cover${ringCls}`}
     />
   )
 }
