@@ -50,6 +50,8 @@ export type OrderCardViewData = {
   /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING = งานไม่มีการส่งของ ไม่แสดง stepper (ห้ามเช็ค Order.type
    *  — ดู src/lib/iship/eligibility.ts) · ไม่ส่งมา (caller เก่า) = ปฏิบัติเหมือน SHIPPED */
   fulfillmentMode?: string
+  /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) · ไม่ส่งมา (caller เก่า) = false ⇒ ไม่ขึ้น "รอจัดส่ง" */
+  hasManualTracking: boolean
   /** ช่วงเวลานัด + สถานะนัด (feature 00024) — ไม่ส่งมา/null = ใบนี้ไม่มีนัด (walk-in)
    *  มีนัด = การ์ดแสดงแกน "นัดถึงขั้นไหน" แทนแกนพัสดุ (user report 2026-08-08) */
   serviceStart?: string | null
@@ -112,6 +114,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
       labelPrintedAt: null,
       carrierStatus: null,
       hasShipment: false,
+      hasManualTracking: data.hasManualTracking,
       // ร้านคิวงาน/บ้านพักไม่ได้เรียกใบของตัวเองว่า "สั่งซื้อแล้ว" (user report 2026-08-12)
       vertical: data.vertical,
     },
@@ -234,6 +237,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
          ไม่รู้ = ถอยไปพฤติกรรมเดิมก่อน feature 00062 คือถือว่าเป็นออเดอร์ที่ส่งของ
          ไม่ใช่เดาว่าเป็นนัดรับ (เดาผิดทางนั้นจะซ่อนสถานะพัสดุของใบที่ส่งจริง) */
       fulfillmentMode: data.fulfillmentMode ?? 'SHIPPED',
+      hasManualTracking: data.hasManualTracking,
       status: data.status,
       paymentMethod: data.paymentMethod,
       codReceivedAt: data.codReceivedAt,

@@ -22,7 +22,7 @@ describe('page.tsx payload allow-list', () => {
   })
 
   it('พัสดุผ่าน buildBuyerShipmentView ตัวเดียว ไม่ประกอบเองซ้ำใน page', () => {
-    expect(src).toContain('...buildBuyerShipmentView(order)')
+    expect(src).toMatch(/\.\.\.buildBuyerShipmentView\(\{[^}]*trackingNoticeTiming/)
     expect(src).not.toMatch(/order\.shipments\??\.\[0\]/)
   })
 

@@ -44,6 +44,8 @@ import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
 import { type OrderStatus } from '@/lib/order-display'
+import { hasLiveIshipShipment as hasLiveIshipShipmentOf } from '@/lib/iship/live-shipment'
+import { canMarkDispatched as canMarkDispatchedOf, canMarkDelivered as canMarkDeliveredOf } from '@/lib/manual-shipment'
 import type { ShopVertical } from '@/lib/lodging'
 import {
   computeOrderMoneyFromSerialized,
@@ -86,6 +88,8 @@ export type CustomerPanelOrder = {
   orderNo?: string | null // เลขคำสั่งซื้อ DP… (user 2026-07-25)
   status: string
   fulfillmentMode: string
+  /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) ⇒ ใบ PENDING ขึ้น "รอจัดส่ง" */
+  hasManualTracking: boolean
   totalAmount: string // "1234.00" — Decimal serialize เป็น string ก่อนข้าม RSC boundary
   createdAt: string // ISO
   checkIn: string | null // ISO date — เฉพาะออเดอร์ vertical=LODGING (type=BOOKING)
@@ -117,6 +121,8 @@ export type CustomerPanelOrder = {
     courierCode: string | null
     status: string
     carrierStatus: string | null
+    /** 00080 — ใบจำลองไม่นับเป็นพัสดุ live (hasLiveIshipShipment) · บังคับส่งจากทั้ง 2 serializer */
+    isDryRun: boolean
     /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง
      *  บังคับ: มี 2 ตัว serialize ที่ป้อนลิสต์นี้ ต้องส่งครบทั้งคู่ ไม่งั้นการ์ดสลับกองตอนเลื่อน */
     problemAt: string | null
@@ -384,6 +390,16 @@ function OrderCard({
   // type=BOOKING ซึ่ง cancelOrder บังคับเลือกเหตุผล (BR-LODG-36/37) — UI เลือกเหตุผลอยู่ที่
   // /bookings/[token] (BookingDetail) ถ้าโชว์ปุ่มที่นี่จะกดแล้วเจอ error ทางตัน
   // ("เลือกเหตุผลก่อนยกเลิกการจอง" โดยไม่มีที่ให้เลือก)
+  const manualFacts = {
+    status: o.status,
+    fulfillmentMode: o.fulfillmentMode,
+    hasManualTracking: o.hasManualTracking,
+    hasLiveIshipShipment: hasLiveIshipShipmentOf(o.shipment),
+  }
+  const manualStepFlags = {
+    canMarkDispatched: canMarkDispatchedOf(manualFacts),
+    canMarkDelivered: canMarkDeliveredOf(manualFacts),
+  }
   const cancelItems =
     vertical === 'LODGING'
       ? []
@@ -393,6 +409,8 @@ function OrderCard({
           shipmentSource: null,
           orderNoun: noun,
           serviceClosed: Boolean(o.serviceClosedAt),
+          // 00080 — ธงบังคับ: ตัดสินจากตัวตัดสินกลาง (live iShip = hasLiveIshipShipment) · ไม่กระทบ cancel-order ที่ดึงมาใช้
+          ...manualStepFlags,
         }).menu.filter((i) => i.key === 'cancel-order')
 
   /**
@@ -501,6 +519,7 @@ function OrderCard({
         shipment: o.shipment ?? null,
         // Order Progress (2026-08-05) — section พัสดุในการ์ดใช้ตัดสิน stepper/ชิป/notice COD
         fulfillmentMode: o.fulfillmentMode,
+        hasManualTracking: o.hasManualTracking,
         paymentMethod: o.paymentMethod,
         codReceivedAt: o.codReceivedAt,
         statusAt: o.statusAt,

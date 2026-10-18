@@ -12,6 +12,7 @@
  */
 
 import { toFileUrl } from '@/lib/file-url'
+import { shouldHideManualTracking } from '@/lib/order-shipment-view'
 import { maskPhoneForGuest, maskShippingAddressForGuest, type MaskedShippingAddress } from '@/lib/order-pii-mask'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import type { PayoutSnapshot } from '@/lib/shop-payout'
@@ -86,6 +87,13 @@ export type GuestOrderData = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /**
+   * feature 00080 — ป้อน `deriveShippingStage` ฝั่งผู้ซื้อ (ไม่ใช่ตัวแสดงเลข)
+   * `shipmentTracking` ข้างบนอาจเป็น null เพราะร้านตั้งซ่อนเลขจนกด "จัดส่งแล้ว" (S-12) จึงใช้ตัดสินขั้นไม่ได้
+   * hasManualTracking = มีแถว ShipmentTracking จริง · hasIshipTracking = มีพัสดุ iShip ที่มีเลขแล้ว (ชนะส่งเองเสมอ)
+   */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   paymentMethod: string | null
   /** เห็นได้เฉพาะ 3 ตัวท้าย — null = ไม่แสดงแถวนี้เลย (ไม่ใช่ "ไม่ระบุ") */
   maskedPhone: string | null
@@ -154,6 +162,8 @@ export type GuestOrderData = {
  * ของ Prisma เพื่อให้เห็นชัดว่าฟังก์ชันนี้ "แตะ" อะไรบ้าง (และ tsc จะฟ้องถ้ามีคนส่งของขาดมา)
  */
 type OrderLike = {
+  /** 00080 S-12 — บังคับส่ง ไม่มี default (ลืมส่ง = เลขหลุด) · ดู ShipmentViewInput */
+  trackingNoticeTiming: 'ON_SAVE' | 'ON_DISPATCH'
   publicToken: string
   status: string
   /** feature 00062 — scalar ของ Order มากับ findUnique อยู่แล้ว ไม่เพิ่ม query */
@@ -244,6 +254,7 @@ export function buildGuestOrderData(
   stats: GuestShopStats = EMPTY_SHOP_STATS,
 ): GuestOrderData {
   const shipment = order.shipments?.[0]
+  const hideManualTracking = shouldHideManualTracking(order)
   const isServiceShop = order.shop.vertical === 'SERVICE_QUEUE'
 
   return {
@@ -307,7 +318,10 @@ export function buildGuestOrderData(
       ? { provider: order.shopChannel.provider, name: order.shopChannel.name }
       : null,
     // ลำดับเดียวกับฝั่ง authenticated: สิ่งที่ร้านแจ้งเองมาก่อน แล้วค่อย fallback เป็นพัสดุ iShip
-    shipmentTracking: order.shipmentTracking
+    // 00080 S-12 — รอจัดส่ง + ร้านเลือก ON_DISPATCH: เลขไม่ลง payload เลย
+    shipmentTracking: hideManualTracking
+      ? null
+      : order.shipmentTracking
       ? {
           provider: order.shipmentTracking.provider,
           trackingNo: order.shipmentTracking.trackingNo,
@@ -322,6 +336,8 @@ export function buildGuestOrderData(
             courierCode: shipment.courierCode,
           }
         : null,
+    hasManualTracking: !!order.shipmentTracking,
+    hasIshipTracking: !!shipment?.trackingNo,
     carrierStatus: shipment?.carrierStatus ?? null,
     problemAt: shipment?.problemAt?.toISOString() ?? null,
     // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ — ผู้ซื้อต้องรู้ว่าของที่ส่งไม่ถึงกำลังกลับไปที่ร้าน

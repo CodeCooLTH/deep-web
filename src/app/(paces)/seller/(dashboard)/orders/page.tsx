@@ -374,6 +374,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           fulfillmentMode: o.fulfillmentMode,
           // ค้างเหนียว: ใบที่เคยมีปัญหาต้องอยู่กอง "พัสดุมีปัญหา" ต่อ แม้ขนส่งจะกลับไปเดินแล้ว
           problemAt: o.shipments?.[0]?.problemAt ?? null,
+          // ส่งเอง (00080) — ต้องตรงกับ LEFT JOIN "ShipmentTracking" ในสูตร SQL ของตัวกรอง/ตัวนับ
+          hasManualTracking: !!o.shipmentTracking,
         })
       : undefined,
     /**

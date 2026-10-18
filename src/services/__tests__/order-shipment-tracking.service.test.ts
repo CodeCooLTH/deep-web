@@ -17,6 +17,7 @@ vi.mock("@/lib/prisma", () => {
   return { prisma: prismaMock };
 });
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_FORWARD_SHIPMENT } from "@/lib/shipment-direction";
 import {
   updateShipmentTracking,
   OrderNotShippedError,
@@ -72,7 +73,7 @@ describe("updateShipmentTracking", () => {
     expect(prisma.shipmentTracking.update).not.toHaveBeenCalled();
   });
 
-  it("throw OrderNotShippedError เมื่อ status ไม่ใช่ SHIPPED (เช่น PENDING/CONFIRMED)", async () => {
+  it("throw OrderNotShippedError เมื่อ status ไม่ใช่ PENDING/SHIPPED (เช่น CONFIRMED)", async () => {
     (prisma.order.findFirst as any).mockResolvedValue(baseOrder({ status: "CONFIRMED" }));
     await expect(
       updateShipmentTracking("token-1", { provider: "flash", trackingNo: "X" }),
@@ -86,6 +87,13 @@ describe("updateShipmentTracking", () => {
       updateShipmentTracking("token-1", { provider: "flash", trackingNo: "X" }),
     ).rejects.toThrow(ShipmentTrackingNotFoundError);
     expect(prisma.shipmentTracking.update).not.toHaveBeenCalled();
+  });
+
+  // 00080 — ใบ FAILED/dry-run ต้องไม่บล็อกการแก้เลขส่งเอง (ร้านที่ "ส่งเองแทน") → ตัวกรองต้องเป็นนิยาม live
+  it("นับเฉพาะพัสดุ iShip ที่ live (ACTIVE_FORWARD_SHIPMENT) ไม่ใช่ทุกใบที่ไม่ CANCELLED", async () => {
+    (prisma.order.findFirst as any).mockResolvedValue(null);
+    await updateShipmentTracking("token-1", { provider: "flash", trackingNo: "X" }).catch(() => {});
+    expect((prisma.order.findFirst as any).mock.calls[0][0].include.shipments.where).toEqual(ACTIVE_FORWARD_SHIPMENT);
   });
 
   it("throw IShipManagedShipmentError เมื่อมี OrderShipment (iShip) ที่ยัง active อยู่", async () => {

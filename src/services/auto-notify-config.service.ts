@@ -6,7 +6,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { can, type ShopRole } from '@/lib/shop-permissions'
-import { AUTO_NOTIFY_DAILY_CAP, type AutoNotifyKind } from '@/lib/auto-notify/ledger-constants'
+import { AUTO_NOTIFY_DAILY_CAP, type AutoNotifyKind, type TrackingNoticeTiming } from '@/lib/auto-notify/ledger-constants'
 import { isKindAvailable, kindsForVertical } from '@/lib/auto-notify/kinds'
 import { DEFAULT_TEMPLATES } from '@/lib/auto-notify/defaults'
 import { TEMPLATE_VARIABLES, validateTemplate, type TemplateIssue } from '@/lib/auto-notify/variables'
@@ -43,12 +43,18 @@ async function assertAvailable(shopId: string, kind: AutoNotifyKind) {
   if (!isKindAvailable(await verticalOf(shopId), kind)) throw new AutoNotifyKindNotAvailableError(kind)
 }
 
+/** จังหวะแจ้งเลขพัสดุของ "ส่งเอง" (00080 TD-003) · ไม่มีแถว config = ON_SAVE (พฤติกรรมเดิม 00078) */
+export async function getTrackingNoticeTiming(shopId: string): Promise<TrackingNoticeTiming> {
+  const cfg = await prisma.autoNotifyConfig.findUnique({ where: { shopId }, select: { trackingNoticeTiming: true } })
+  return (cfg?.trackingNoticeTiming as TrackingNoticeTiming | undefined) ?? 'ON_SAVE'
+}
+
 export async function getAutoNotifySettings(shopId: string, roles: readonly ShopRole[]) {
   const vertical = await verticalOf(shopId)
   const kinds = kindsForVertical(vertical)
   const by = { select: { displayName: true } }
   const [cfg, switches, templates] = await Promise.all([
-    prisma.autoNotifyConfig.findUnique({ where: { shopId }, select: { dailyCapPerRoom: true } }),
+    prisma.autoNotifyConfig.findUnique({ where: { shopId }, select: { dailyCapPerRoom: true, trackingNoticeTiming: true } }),
     prisma.autoNotifySwitch.findMany({ where: { shopId, kind: { in: [...kinds] } }, include: { updatedByUser: by } }),
     prisma.autoNotifyTemplate.findMany({ where: { shopId, kind: { in: [...kinds] } }, include: { updatedByUser: by } }),
   ])
@@ -57,6 +63,7 @@ export async function getAutoNotifySettings(shopId: string, roles: readonly Shop
   return {
     vertical,
     dailyCapPerRoom: cfg?.dailyCapPerRoom ?? AUTO_NOTIFY_DAILY_CAP.default,
+    trackingNoticeTiming: (cfg?.trackingNoticeTiming as TrackingNoticeTiming | undefined) ?? 'ON_SAVE',
     canEdit: can(roles, 'X8'),
     kinds: kinds.map((kind) => {
       const s = sw.get(kind)
@@ -87,6 +94,20 @@ export async function setDailyCap(shopId: string, dailyCapPerRoom: number, userI
     select: { dailyCapPerRoom: true },
   })
   return r
+}
+
+/** ตั้งเฉพาะคีย์ที่ส่งมา (คีย์ที่ไม่ส่ง = ไม่แตะ) · ไม่มีแถว = สร้างด้วยค่าตั้งต้นของคอลัมน์ที่เหลือ */
+export async function setAutoNotifySettings(
+  shopId: string,
+  patch: { dailyCapPerRoom?: number; trackingNoticeTiming?: TrackingNoticeTiming },
+  userId: string,
+) {
+  return prisma.autoNotifyConfig.upsert({
+    where: { shopId },
+    create: { shopId, ...patch, updatedByUserId: userId },
+    update: { ...patch, updatedByUserId: userId },
+    select: { dailyCapPerRoom: true, trackingNoticeTiming: true },
+  }) as Promise<{ dailyCapPerRoom: number; trackingNoticeTiming: TrackingNoticeTiming }>
 }
 
 export async function setSwitch(shopId: string, kind: AutoNotifyKind, enabled: boolean, userId: string) {

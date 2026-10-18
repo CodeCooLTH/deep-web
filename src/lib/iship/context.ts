@@ -182,8 +182,16 @@ interface ShipmentPanelExtras {
   orderStatus: string;
   /** ShipmentTracking ที่ร้านแจ้งเอง (ส่งเอง) — null = ยังไม่มี */
   manualShipment: { provider: string; trackingNo: string } | null;
+  /** 00080 — จังหวะแจ้งเลขพัสดุของร้าน (ส่งเองเท่านั้น) */
+  trackingNoticeTiming: "ON_SAVE" | "ON_DISPATCH";
+  /** 00080 — เก็บเงินปลายทางและร้านยังไม่กดรับเงิน (isCodUnpaidOrder) */
+  isCodUnpaid: boolean;
+  /** Shop.vertical — ผันคำเรียกออเดอร์ในแผงแชท */
+  vertical: string;
   /** 00078 — true เฉพาะบทบาทที่เห็นเงินได้ (ไม่มี = ปิด) */
   canSetShipCost?: boolean;
+  /** 00080 TD-011 — ถือ S1 (ปุ่มจัดส่งแล้ว/ส่งสำเร็จ) · ไม่มี = ปิด (fail-closed) ตัดสินที่ server จากบทบาทของ session */
+  canShip?: boolean;
 }
 
 export type ShipmentPanelJson =

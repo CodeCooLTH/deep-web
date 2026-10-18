@@ -46,7 +46,7 @@ import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
-import { isCODPayment } from '@/lib/order-display'
+import { isCODPayment, isCodUnpaidOrder } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
@@ -85,6 +85,7 @@ import { toFileUrl } from '@/lib/file-url'
 import { usesTypedBuyerName } from '@/lib/buyer-name'
 import { gatePage } from '@/lib/shop-capability'
 import { hasLiveIshipShipment as hasLiveIshipShipmentOf } from '@/lib/iship/live-shipment'
+import { canMarkDispatched as canMarkDispatchedOf, canMarkDelivered as canMarkDeliveredOf } from '@/lib/manual-shipment'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 
@@ -411,6 +412,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
    *
    * ผูกกับ `hasLiveIshipShipment` เพราะสถานะจากใบ FAILED/dry-run ไม่ใช่หลักฐานอะไรทั้งนั้น
    */
+  // 00080 — ตัดสินขั้นของส่งเองจากตัวตัดสินกลาง (ห้ามเขียนเงื่อนไขซ้ำ) ส่งเข้า getOrderActionSet เหมือน isCodUnpaid
+  const manualFacts = {
+    status: order.status as string,
+    fulfillmentMode: order.fulfillmentMode as string,
+    hasManualTracking: !!order.shipmentTracking,
+    hasLiveIshipShipment,
+  }
+
   const parcelReturned =
     hasLiveIshipShipment && isReturnedCarrierStatus(shipmentPanel?.shipment?.carrierStatus)
 
@@ -452,6 +461,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
           problemAt: shipmentPanel?.shipment?.problemAt ?? null,
+          // ส่งเอง (00080): มีเลขที่ร้านกรอกแล้ว — สาขา hasShipment ชนะเองเมื่อมีใบ iShip live
+          hasManualTracking: !!order.shipmentTracking,
         })
       : undefined
 
@@ -510,7 +521,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
         }
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
-        isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
+        isCodUnpaid={isCodUnpaidOrder(order)}
+        canMarkDispatched={canMarkDispatchedOf(manualFacts)}
+        canMarkDelivered={canMarkDeliveredOf(manualFacts)}
         internalNote={order.internalNote ?? null}
         items={(order.items ?? []).map((item: any) => {
           const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
@@ -701,7 +714,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
                   ? {
                       provider: order.shipmentTracking.provider,
                       trackingNo: order.shipmentTracking.trackingNo,
-                      shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString()
+                      shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
+                      status: order.status,
+                      recordedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
+                      dispatchedAtISO: order.shipmentTracking.dispatchedAt
+                        ? (order.shipmentTracking.dispatchedAt as Date).toISOString()
+                        : null,
+                      // ปุ่ม "จัดส่งแล้ว" อยู่ใน action-bar — ชี้ทางเมื่อมันเป็น primary ที่ผู้ใช้เห็นจริง
+                      // (= canMarkDispatched ∧ ถือ S1 ตาม ORDER_ACTION_CAP['mark-dispatched'] — ไม่มีขั้นอื่นแทนที่ primary ในร้านที่มีพัสดุ)
+                      hintDispatch: canMarkDispatchedOf(manualFacts) && can(viewerRoles, 'S1'),
                     }
                   : null
               }

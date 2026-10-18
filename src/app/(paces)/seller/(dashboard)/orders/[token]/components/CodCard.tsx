@@ -32,6 +32,8 @@ export type CodCardProps = {
   onUndo: () => void
   /** 00071 P3 — บทบาทไม่มี O5 (รับเงิน): ซ่อนปุ่มกด คงข้อมูลไว้อ่าน · ค่าตั้งต้น true = พฤติกรรมเดิม */
   canAct?: boolean
+  /** 00080 TD-011 — ปุ่มหลักของหน้าคือ "ส่งสำเร็จ" ⇒ ปุ่มรับเงินลดเป็นปุ่มขอบ (หนึ่ง primary ต่อจอ) */
+  secondary?: boolean
 }
 
 export default function CodCard({
@@ -42,6 +44,7 @@ export default function CodCard({
   onMarkReceived,
   onUndo,
   canAct = true,
+  secondary = false,
 }: CodCardProps) {
   const received = Boolean(codReceivedAtISO)
 
@@ -89,7 +92,11 @@ export default function CodCard({
           </button>
         ) : (
           <button
-            className="btn bg-primary hover:bg-primary-hover mt-4 hidden w-full justify-center text-sm font-medium text-white disabled:opacity-60 lg:flex"
+            className={`btn mt-4 hidden w-full justify-center text-sm font-medium disabled:opacity-60 lg:flex ${
+              secondary
+                ? 'border-default-300 text-default-700 hover:bg-default-100 border'
+                : 'bg-primary hover:bg-primary-hover text-white'
+            }`}
             disabled={busy}
             onClick={onMarkReceived}
             type="button"

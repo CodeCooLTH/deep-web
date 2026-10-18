@@ -22,6 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTimeTH } from '@/lib/format-date'
+import { manualShippingNote } from '@/lib/manual-shipping-note'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
@@ -69,7 +70,17 @@ export type ShippingCardProps = {
     receivedAtISO: string | null
   } | null
   /** เลขพัสดุที่ร้านพิมพ์เอง (ShipmentTracking) — คนละตารางกับ iShip โดยสิ้นเชิง */
-  manual: { provider: string | null; trackingNo: string; shippedAtISO: string | null } | null
+  manual: {
+    provider: string | null
+    trackingNo: string
+    shippedAtISO: string | null
+    /** 00080 — Order.status · PENDING = รอจัดส่ง (ของยังไม่ออกจากร้าน) */
+    status?: string
+    recordedAtISO?: string | null
+    dispatchedAtISO?: string | null
+    /** มีปุ่ม "จัดส่งแล้ว" ใน action-bar จริงหรือไม่ — ใช้ชี้ทางเท่านั้น การ์ดนี้ไม่มีปุ่ม */
+    hintDispatch?: boolean
+  } | null
   /** เปิดโมดัลรายละเอียด/จัดการพัสดุใบเดิม */
   onOpenDetail?: () => void
 }
@@ -79,6 +90,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<string | null>(iship?.lastTracedAtISO ?? null)
 
+  const note = manualShippingNote(manual?.status)
   const courierName = iship?.courierName ?? manual?.provider ?? null
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
@@ -349,10 +361,31 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
 
         {/* เลขที่ร้านพิมพ์เอง — บอกตรง ๆ ว่าทำไมไม่มีแถบสถานะ ไม่ปล่อยให้เดาว่าจอพัง */}
         {!iship && manual && (
-          <p className="text-default-700 mt-4 mb-0 text-xs">
-            เลขพัสดุนี้ร้านเป็นคนกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้
-            {manual.shippedAtISO && ` · แจ้งเมื่อ ${formatDateTimeTH(manual.shippedAtISO)}`}
-          </p>
+          <div className="text-default-700 mt-4 text-xs">
+            {note === 'AWAITING' && (
+              <>
+                <p className="mb-0">ยังไม่ได้ส่งออก ระบบติดตามสถานะกับขนส่งให้ไม่ได้ เพราะเลขนี้ร้านกรอกเอง</p>
+                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTimeTH(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
+                {manual.hintDispatch && <p className="mb-0">กด &quot;จัดส่งแล้ว&quot; เมื่อนำพัสดุไปส่ง</p>}
+              </>
+            )}
+            {note === 'DISPATCHED' && (
+              <>
+                <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
+                {(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO) && (
+                  <p className="mb-0">
+                    แจ้งจัดส่งเมื่อ {formatDateTimeTH(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO)}
+                  </p>
+                )}
+              </>
+            )}
+            {note === 'RECORDED_ONLY' && (
+              <>
+                <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
+                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTimeTH(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

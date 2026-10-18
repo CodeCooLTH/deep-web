@@ -85,6 +85,8 @@ export async function replyOrderStatus(params: {
         codReceivedAt: true,
         // feature 00062 — ข้อความที่ตอบลูกค้าทาง LINE ต้องไม่พูดเรื่องพัสดุกับใบที่ไม่มีการส่งของ
         fulfillmentMode: true,
+        // feature 00080 — ใบรอจัดส่งต้องตอบ "รอจัดส่ง" ไม่ใช่ "รอเลขพัสดุ"
+        shipmentTracking: { select: { id: true } },
         shipments: {
           where: ACTIVE_FORWARD_SHIPMENT,
           orderBy: { createdAt: 'desc' },
@@ -103,6 +105,7 @@ export async function replyOrderStatus(params: {
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
       problemAt: o.shipments[0]?.problemAt ?? null,
+      hasManualTracking: !!o.shipmentTracking,
     }))
 
     const picked = pickOrderForStatusReply(candidates)

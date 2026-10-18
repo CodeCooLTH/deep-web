@@ -44,6 +44,8 @@ export type OrderStageKey =
   | 'CANCELLED'
   /** feature 00056 — ลูกค้ารับของแล้วส่งคืน (คนละเรื่องกับ CANCELLED ที่แปลว่าไม่เคยส่ง) */
   | 'RETURNED'
+  /** feature 00080 — ส่งเอง: มีเลขพัสดุแล้ว แต่ร้านยังไม่กด "จัดส่งแล้ว" (ของยังไม่ออกจากร้าน) */
+  | 'AWAITING_DISPATCH'
 
 /**
  * cls ใช้ pattern เดียวกับ ORDER_STATUS_META (`bg-{semantic}/15 text-{semantic}-ink`) — Paces token ล้วน
@@ -75,6 +77,8 @@ export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: strin
   CANCELLED: { label: 'ยกเลิกแล้ว', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x' },
   // warning ไม่ใช่ danger — ของกลับมาถึงร้านเรียบร้อยแล้ว ไม่ใช่เหตุที่ต้องรีบทำอะไร
   RETURNED: { label: 'คืนของแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'arrow-back-up' },
+  // feature 00080 — คำ/สี/ไอคอนเดียวกับ STAGE_BADGE_OVERRIDE.AWAITING_DISPATCH (HR16)
+  AWAITING_DISPATCH: { label: 'รอจัดส่ง', cls: 'bg-warning/15 text-warning-ink', icon: 'package-export' },
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -102,6 +106,11 @@ export type ShippingStageKey =
    */
   | 'DRAFT'
   | 'AWAITING_PARCEL'
+  /**
+   * feature 00080 — ส่งเอง: PENDING + มีแถว ShipmentTracking + ไม่มีพัสดุ iShip live
+   * ไม่ใช่ค่าใน Order.status (คำนวณเท่านั้น) · นิยามเดียวกับ `isAwaitingDispatch()` ใน manual-shipment.ts
+   */
+  | 'AWAITING_DISPATCH'
   | 'AWAITING_PICKUP'
   | 'SHIPPING'
   /**
@@ -158,6 +167,8 @@ export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> =
   // feature 00061 — ร่างไม่มีพัสดุให้วาดแถบเลย (null = ไม่วาด ไม่ใช่ "อยู่จุดที่ 0")
   DRAFT: null,
   AWAITING_PARCEL: null,
+  // feature 00080 — ของยังไม่ออกจากร้าน ไม่มีพัสดุให้วาดแถบ
+  AWAITING_DISPATCH: null,
   AWAITING_PICKUP: 0,
   SHIPPING: 2,
   PROBLEM: 2,
@@ -200,6 +211,13 @@ export interface ShippingStageInput {
    * คอลัมน์นี้ใน schema.prisma ว่าทำไมกู้ย้อนหลังได้ไม่ครบ)
    */
   problemAt: Date | string | null
+  /**
+   * มีแถว `ShipmentTracking` (เลขส่งเอง) ของออเดอร์นี้ไหม (feature 00080)
+   *
+   * 🛑 บังคับ (ไม่ใช่ optional) ด้วยเหตุผลเดียวกับ `fulfillmentMode`: ผู้เรียกที่ลืมส่งจะเห็นใบรอจัดส่ง
+   * เป็น "รอเลขพัสดุ" เงียบ ๆ เฉพาะจอตัวเอง แล้วไทล์กับตัวกรองจะนับไม่ตรงกัน (HR16) — ให้ `tsc` ไล่แทน
+   */
+  hasManualTracking: boolean
 }
 
 /**
@@ -291,6 +309,8 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   // ไม่มีพัสดุ — ร้านแจ้งส่งเองก็ถือว่ากำลังส่ง, ปิดการขายแล้วก็จบ, ที่เหลือคือยังไม่ได้เปิดพัสดุ
   if (o.status === 'SHIPPED') return 'SHIPPING'
   if (o.status === 'CONFIRMED') return 'DONE'
+  // ส่งเอง (00080): มีเลขแล้วแต่ยังไม่กดจัดส่ง — อยู่ใต้สาขา hasShipment ⇒ ใบ iShip ชนะเสมอ
+  if (o.status === 'PENDING' && o.hasManualTracking) return 'AWAITING_DISPATCH'
   return 'AWAITING_PARCEL'
 }
 
@@ -305,6 +325,7 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
 const ALL_SHIPPING_STAGES: Record<ShippingStageKey, true> = {
   DRAFT: true,
   AWAITING_PARCEL: true,
+  AWAITING_DISPATCH: true,
   AWAITING_PICKUP: true,
   SHIPPING: true,
   AWAITING_COD: true,
@@ -331,6 +352,7 @@ export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NO
   // feature 00061 — คำเดียวกับ `ORDER_STATUS_META.DRAFTED.label` (HR16: ป้ายเดียวกันต้องพูดคำเดียวกัน)
   DRAFT: 'ร่าง',
   AWAITING_PARCEL: 'รอเลขพัสดุ',
+  AWAITING_DISPATCH: 'รอจัดส่ง',
   AWAITING_PICKUP: 'รอรับเข้า',
   SHIPPING: 'กำลังจัดส่ง',
   AWAITING_COD: 'รอเงิน COD',
@@ -358,6 +380,13 @@ export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NO
 const STAGE_BADGE_OVERRIDE: Partial<
   Record<ShippingStageKey, { label: string; cls: string; icon: string; tone: OrderStatusTone }>
 > = {
+  // feature 00080 — warning: ของยังอยู่ในมือร้าน ต้องมีคนลงมือ (กดจัดส่งแล้ว) · ห้ามขึ้นคำว่า "ส่งแล้ว"
+  AWAITING_DISPATCH: {
+    label: SHIPPING_STAGE_LABEL.AWAITING_DISPATCH,
+    cls: 'bg-warning/15 text-warning-ink',
+    icon: 'package-export',
+    tone: 'warning',
+  },
   SHIPPING: {
     label: SHIPPING_STAGE_LABEL.SHIPPING,
     cls: 'bg-info/15 text-info-ink',
@@ -489,6 +518,11 @@ export interface OrderStageInput {
   labelPrintCount?: number | null
   /** มีพัสดุที่ยัง active อยู่หรือไม่ — ตัวตัดสินว่าจะอ่านสถานะจาก "พัสดุ" หรือจาก "ออเดอร์" */
   hasShipment?: boolean
+  /**
+   * มีแถว ShipmentTracking (เลขส่งเอง) ไหม — feature 00080 · บังคับด้วยเหตุผลเดียวกับ
+   * `ShippingStageInput.hasManualTracking` (ผู้เรียกที่ลืมส่ง = ป้าย "สั่งซื้อแล้ว" ทั้งที่กอง /orders บอก "รอจัดส่ง")
+   */
+  hasManualTracking: boolean
   /**
    * Order.serviceStart — **ตัวนิยามว่า "ใบนี้เป็นนัดหมาย"** (เกณฑ์เดียวกับ deriveAppointmentStage)
    * ไม่ใช่ Shop.vertical: ธงของร้านเป็นภาพนิ่งที่เปลี่ยนทีหลังได้ ส่วนช่วงเวลาที่นัดไว้เป็นของ
@@ -645,6 +679,9 @@ export function deriveOrderStage(
   } else if (order.status === 'CONFIRMED') {
     if (age > DELIVERED_VISIBLE_MS) return null
     key = 'COMPLETED'
+  } else if (order.status === 'PENDING' && order.hasManualTracking) {
+    // ส่งเอง (00080): มีเลขแล้วแต่ยังไม่กดจัดส่ง — อยู่ใต้สาขา hasShipment ⇒ ใบ iShip ชนะ
+    key = 'AWAITING_DISPATCH'
   } else {
     key = 'ORDERED'
   }

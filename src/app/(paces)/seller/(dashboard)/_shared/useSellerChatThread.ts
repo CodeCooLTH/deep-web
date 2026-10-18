@@ -119,6 +119,8 @@ export type ChatOrderCard = {
   // ── Order Progress (2026-08-05) — ให้การ์ดในเธรดแสดง timeline พัสดุได้เหมือน right panel ──
   /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING ไม่มี stepper (SSOT: fulfillmentMode ไม่ใช่ Order.type) */
   fulfillmentMode?: string
+  /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) · บังคับ: ลืมส่ง = ใบรอจัดส่งอ่านว่า "สั่งซื้อแล้ว" */
+  hasManualTracking: boolean
   /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก — null = ยังไม่เปิดพัสดุ */
   shipment?: {
     trackingNo: string | null

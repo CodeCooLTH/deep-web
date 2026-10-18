@@ -98,6 +98,8 @@ export type OrderSummaryProps = {
   /** ชุดปุ่มที่ getOrderActionSet() คำนวณไว้แล้ว — ไฟล์นี้แค่ render ไม่ตัดสินเอง · ไม่ส่ง = ไม่มีปุ่ม */
   actionSet?: OrderActionSet
   onAction?: (key: string) => void
+  /** 00080 — ส่งต่อให้ OrderActionBar (กำลังยิงจัดส่งแล้ว/ส่งสำเร็จ) */
+  actionBusy?: boolean
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
   orderNoun?: string
   /** คำผันตามประเภทกิจการ — ร้านบริการเรียกรายการว่า "บริการ" หน่วย "ครั้ง" แถวยอดว่า "ยอดค่าบริการ" */
@@ -128,6 +130,7 @@ export default function OrderSummary({
   totalAmount,
   actionSet,
   onAction,
+  actionBusy,
   orderNoun = 'คำสั่งซื้อ',
   serviceBadge: serviceBadgeProp = null,
   serviceMoney = null,
@@ -240,7 +243,7 @@ export default function OrderSummary({
             มือถือเลย ส่วนนี้เป็น adapt ที่จำเป็น) */}
         {actionSet && onAction && (
           <div className="mt-4 hidden md:ms-auto md:mt-0 md:block">
-            <OrderActionBar actionSet={actionSet} onAction={onAction} variant="inline" />
+            <OrderActionBar actionSet={actionSet} onAction={onAction} variant="inline" busy={actionBusy} />
           </div>
         )}
       </div>

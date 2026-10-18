@@ -20,6 +20,7 @@
  */
 import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 import { buildBuyerShipmentView } from '@/lib/order-shipment-view'
+import { getTrackingNoticeTiming } from '@/services/auto-notify-config.service'
 import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
@@ -99,6 +100,12 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
   if (UUID_V4_RE.test(token)) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
+
+    // 00080 S-12 — อ่านจังหวะแจ้งเลขของร้านเฉพาะใบที่มีผล (รอจัดส่ง + เลขส่งเอง) ไม่เพิ่ม query ให้ใบอื่น
+    const trackingNoticeTiming =
+      order.status === 'PENDING' && order.shipmentTracking
+        ? await getTrackingNoticeTiming(order.shopId)
+        : 'ON_SAVE'
 
     /**
      * เงินที่ **รับจริง** ของบิลนี้ — คำนวณครั้งเดียวตรงนี้ แล้วใช้ทั้ง **2 สาขา** ข้างล่าง
@@ -225,7 +232,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
       const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
       const reviewCount = ratingAgg._count._all
 
-      const guestData = buildGuestOrderData(order, guestMaxVerifyLevel, {
+      // Object.assign ไม่ใช่ spread: เป็นแค่การเติม timing ให้ input (ผลลัพธ์ยังผ่าน allow-list ใน builder)
+      const guestData = buildGuestOrderData(Object.assign({}, order, { trackingNoticeTiming }), guestMaxVerifyLevel, {
         // 🛑 `null` ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์" ซึ่งเป็นข้อเท็จจริงที่ต้องบอก
         // แต่เราเลือกไม่แสดงบล็อกเลยเมื่อยังไม่มีประวัติ (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)
         completedOrders: confirmedCount > 0 ? confirmedCount : null,
@@ -490,7 +498,12 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
       reviewCount: ratingAgg._count._all,
       channels,
       // feature 00022 + 00068 TD-003 — ลำดับ "ร้านแจ้งเอง → iShip" + allow-list พัสดุอยู่ที่ฟังก์ชันเดียว
-      ...buildBuyerShipmentView(order),
+      ...buildBuyerShipmentView({
+        status: order.status,
+        trackingNoticeTiming,
+        shipmentTracking: order.shipmentTracking,
+        shipments: order.shipments,
+      }),
       // 00068 R-7 — ธงให้ resolveBuyerNextAction ตัดสิน TRANSFER_NO_ACCOUNT (นิยามเดียวกับที่ UI เช็ค payoutSnapshot)
       hasPayoutAccount: order.payoutSnapshot != null,
       // 00068 D-11 — นิยามเดียวกับ ShopCover ที่ใช้อยู่ (completedOrders == null) ไม่นิยามใหม่

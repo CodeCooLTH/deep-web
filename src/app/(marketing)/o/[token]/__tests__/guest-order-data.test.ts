@@ -25,6 +25,7 @@ const RAW_ADDR = {
 
 function makeOrder(over: Record<string, unknown> = {}) {
   return {
+    trackingNoticeTiming: 'ON_SAVE' as const,
     publicToken: 'tok_1',
     status: 'SHIPPED',
     createdAt: new Date('2026-08-08T03:00:00.000Z'),
@@ -171,6 +172,9 @@ describe('buildGuestOrderData', () => {
         // เวลาที่ขนส่งเริ่มนำพัสดุมาส่งคืนร้าน — เพิ่มเข้า allow-list โดยตั้งใจ (2026-08-27)
         // ไม่ใช่ PII เช่นกัน: เป็นเวลาที่ *ขนส่ง* บันทึก ไม่ได้บอกตัวตน/สถานที่/พฤติกรรมของใคร
         'returnDispatchedAt',
+        // feature 00080 — ธง boolean ตัดสินขั้น "รอจัดส่ง" เท่านั้น (ไม่มีเลข/ชื่อ/เบอร์) — ดู GuestOrderData
+        'hasManualTracking',
+        'hasIshipTracking',
         // feature 00062 (2026-08-29) — บัญชีรับเงินของ "ร้าน" ไม่ใช่ PII ของผู้ซื้อ ร้าน
         // ต้องการให้ผู้ถือลิงก์เห็นอยู่แล้ว (เหตุผลเต็มที่ประกาศฟิลด์ใน guest-order-data.ts)
         'payoutSnapshot',

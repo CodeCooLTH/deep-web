@@ -105,6 +105,8 @@ export async function getThreadMessagesPage(params: {
             orderNo: true,
             status: true,
             fulfillmentMode: true,
+            // feature 00080 — ชิปบนการ์ดต้องพูด "รอจัดส่ง" ตรงกับ right panel (ไม่ใช่ "สั่งซื้อแล้ว")
+            shipmentTracking: { select: { id: true } },
             totalAmount: true,
             updatedAt: true,
             paymentMethod: true,
@@ -147,6 +149,7 @@ export async function getThreadMessagesPage(params: {
           orderNo: o.orderNo, // เลขคำสั่งซื้อ DP… (user 2026-07-25)
           status: o.status,
           fulfillmentMode: o.fulfillmentMode,
+          hasManualTracking: !!o.shipmentTracking,
           totalAmount: o.totalAmount.toFixed(2),
           statusAt: o.updatedAt.toISOString(),
           paymentMethod: o.paymentMethod,

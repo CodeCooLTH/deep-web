@@ -47,6 +47,8 @@ const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
   // ไม่มีพัสดุให้วาดแถบเลยโดยนิยาม (feature 00062 — นัดรับ/ดิจิทัล) เหมือน AWAITING_PARCEL
   NOT_SHIPPING: null,
   AWAITING_PARCEL: null,
+  // feature 00080 — ของยังไม่ออกจากร้าน ไม่มีแถบให้วาด
+  AWAITING_DISPATCH: null,
   AWAITING_PICKUP: 0,
   SHIPPING: 2,
   PROBLEM: 2,

@@ -628,12 +628,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
           // feature 00022 — shape เดียวกับ getOrdersByCustomer (lazy-load ต่อจากชุดนี้)
           // status/carrierStatus/courierCode เพิ่ม 2026-08-05: stepper + โลโก้ขนส่งในการ์ด/แถบปัก
+          // feature 00080 — ต้องตรงกับ getOrdersByShop ใน order.service.ts (ใบที่ 21+) เสมอ
+          shipmentTracking: { select: { id: true } },
           shipments: {
             where: LATEST_FORWARD_SHIPMENT,
             orderBy: { createdAt: 'desc' },
             take: 1,
             select: {
               trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+              // 00080 — hasLiveIshipShipment (CREATED && !isDryRun) · คู่กับ getThreadPanelOrders
+              isDryRun: true,
               // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
               problemAt: true,
             },
@@ -695,6 +699,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     orderNo: o.orderNo,
     status: o.status,
     fulfillmentMode: o.fulfillmentMode,
+    hasManualTracking: !!o.shipmentTracking,
     totalAmount: o.totalAmount.toFixed(2),
     createdAt: o.createdAt.toISOString(),
     statusAt: o.updatedAt.toISOString(),
@@ -725,6 +730,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           courierCode: o.shipments[0].courierCode,
           status: o.shipments[0].status,
           carrierStatus: o.shipments[0].carrierStatus,
+          isDryRun: o.shipments[0].isDryRun,
           problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
         }
       : null,

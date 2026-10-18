@@ -1144,6 +1144,8 @@ export default function ReturnPanel({
            ส่งของแน่นอน ไม่ใช่นัดรับ/ดิจิทัล (ค่านี้จึงเป็นข้อเท็จจริงที่อนุมานได้จากเงื่อนไข
            การเรนเดอร์ ไม่ใช่ค่าที่เดา — feature 00062) */
         fulfillmentMode: 'SHIPPED',
+        // มีพัสดุขาไปจริงแล้ว (iShip ชนะส่งเอง) ⇒ ไม่มีทางเป็น "รอจัดส่ง" (feature 00080)
+        hasManualTracking: false,
       }),
       forward.carrierStatus,
     )

@@ -16,7 +16,11 @@ import {
   RETURNED_CARRIER_STATUSES,
   isProblemCarrierStatus,
 } from '@/lib/iship/status'
-import { deriveShippingStage } from '@/lib/order-stage'
+import { deriveShippingStage as deriveShippingStageStrict } from '@/lib/order-stage'
+
+// feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
+const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking'> & { hasManualTracking?: boolean }) =>
+  deriveShippingStageStrict({ hasManualTracking: false, ...o })
 
 const stripComments = (src: string) =>
   src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')

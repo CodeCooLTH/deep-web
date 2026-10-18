@@ -4,6 +4,7 @@ import {
   createOrder,
   confirmOrder,
   shipOrder,
+  markManualDispatched,
   cancelOrder,
   VALID_TRANSITIONS,
 } from "@/services/order.service";
@@ -156,7 +157,10 @@ describe("OMS State Machine — SHIPPED flow", () => {
 
     // step 1: ship
     const shipped = await shipOrder(order.publicToken, { provider: "Kerry", trackingNo: "KR001" });
-    expect(shipped.status).toBe("SHIPPED");
+    // 00080 — บันทึกเลข = "รอจัดส่ง" (status คง PENDING) · SHIPPED มาจาก markManualDispatched
+    expect(shipped.status).toBe("PENDING");
+    const dispatched = await markManualDispatched(order.publicToken, shop.id, null);
+    expect(dispatched.order.status).toBe("SHIPPED");
 
     // step 2: buyer confirm
     await prisma.order.update({ where: { id: order.id }, data: { buyerUserId: buyer.id } });

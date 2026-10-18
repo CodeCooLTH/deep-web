@@ -7,8 +7,15 @@
 //          docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md Change Log
 
 import { describe, it, expect } from 'vitest'
-import { getOrderActionSet, type ShipmentSource } from '../order-action-set'
+import { getOrderActionSet as realGetOrderActionSet, type GetOrderActionSetInput, type ShipmentSource } from '../order-action-set'
 import type { OrderStatus } from '@/lib/order-display'
+
+// ธง 00080 บังคับใน production (ไม่มีค่าตั้งต้น) — เทสเดิมที่ไม่เกี่ยวกับส่งเองได้ false ที่นี่ที่เดียว
+// เคสส่งเอง (บรรทัด 'SHIPPED + MANUAL' และ describe 00080 ท้ายไฟล์) ส่งธงเองชัดเจน
+type TestInput = Omit<GetOrderActionSetInput, 'canMarkDispatched' | 'canMarkDelivered'> &
+  Partial<Pick<GetOrderActionSetInput, 'canMarkDispatched' | 'canMarkDelivered'>>
+const getOrderActionSet = (i: TestInput) =>
+  realGetOrderActionSet({ canMarkDispatched: false, canMarkDelivered: false, ...i })
 
 const keys = (arr: { key: string }[]) => arr.map((a) => a.key)
 
@@ -38,7 +45,7 @@ describe('getOrderActionSet — matrix ตาม design §3', () => {
   })
 
   it('SHIPPED + MANUAL → primary=null, ghost=[คัดลอกลิงก์,แก้ไขเลขพัสดุ], menu=[คัดลอกเลขพัสดุ,คัดลอกที่อยู่,ยกเลิก]', () => {
-    const r = getOrderActionSet({ status: 'SHIPPED', fulfillmentMode: 'SHIPPED', shipmentSource: 'MANUAL' })
+    const r = getOrderActionSet({ status: 'SHIPPED', fulfillmentMode: 'SHIPPED', shipmentSource: 'MANUAL', canMarkDispatched: false, canMarkDelivered: false })
     expect(r.primary).toBeNull()
     expect(keys(r.ghosts)).toEqual(['copy-link', 'edit-tracking'])
     expect(keys(r.menu)).toEqual(['copy-tracking', 'copy-address', 'cancel-order'])
@@ -427,5 +434,50 @@ describe('getOrderActionSet — serviceClosed', () => {
     const base = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: null })
     expect(getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: null, serviceClosed: false })).toEqual(base)
     expect(all(base)).toContain('cancel-order')
+  })
+})
+
+// -------------------------------------------------------------------------
+// feature 00080 — ขั้นของส่งเอง (Design-Spec §1) · ไม่ส่งธง = ชุดเดิมเป๊ะ (iShip/ใบเก่าไม่เปลี่ยน)
+// -------------------------------------------------------------------------
+describe('00080 — รอจัดส่ง / กำลังจัดส่ง ของส่งเอง', () => {
+  const base = { fulfillmentMode: 'SHIPPED', shipmentSource: 'MANUAL' as const }
+
+  it('PENDING + canMarkDispatched → primary=จัดส่งแล้ว · ghost=แก้ไขเลข · ไม่มี report-tracking', () => {
+    const r = getOrderActionSet({ ...base, status: 'PENDING', canMarkDispatched: true })
+    expect(r.primary).toEqual({ key: 'mark-dispatched', label: 'จัดส่งแล้ว', icon: 'truck-delivery' })
+    expect(keys(r.ghosts)).toEqual(['edit-tracking'])
+    expect(keys(r.menu)).toEqual(['copy-tracking', 'send-sms', 'copy-link', 'copy-address', 'edit-order', 'cancel-order'])
+    expect(keys([r.primary!, ...r.ghosts, ...r.menu])).not.toContain('report-tracking')
+  })
+
+  it('SHIPPED + canMarkDelivered → primary=ส่งสำเร็จ · คัดลอกลิงก์อยู่ในเมนู', () => {
+    const r = getOrderActionSet({ ...base, status: 'SHIPPED', canMarkDelivered: true })
+    expect(r.primary).toEqual({ key: 'mark-delivered', label: 'ส่งสำเร็จ', icon: 'circle-check' })
+    expect(keys(r.ghosts)).toEqual(['edit-tracking'])
+    expect(keys(r.menu)).toEqual(['copy-link', 'copy-tracking', 'copy-address', 'cancel-order'])
+  })
+
+  it('SHIPPED + canMarkDelivered + COD ยังไม่รับเงิน → ส่งสำเร็จเป็น primary · รับเงินเป็น ghost · แก้เลขลงเมนู', () => {
+    const r = getOrderActionSet({ ...base, status: 'SHIPPED', canMarkDelivered: true, isCodUnpaid: true })
+    expect(r.primary?.key).toBe('mark-delivered')
+    expect(keys(r.ghosts)).toEqual(['cod-received'])
+    expect(keys(r.menu)).toEqual(['edit-tracking', 'copy-link', 'copy-tracking', 'copy-address', 'cancel-order'])
+  })
+
+  it('ไม่มีธง (iShip / ใบเก่า) → ไม่มี mark-* เลยทุกสถานะ', () => {
+    for (const status of ['PENDING', 'SHIPPED', 'CONFIRMED'] as OrderStatus[]) {
+      for (const shipmentSource of ['ISHIP', null] as const) {
+        const r = getOrderActionSet({ status, fulfillmentMode: 'SHIPPED', shipmentSource })
+        expect(keys([...(r.primary ? [r.primary] : []), ...r.ghosts, ...r.menu]).some((k) => k.startsWith('mark-'))).toBe(false)
+      }
+    }
+  })
+
+  it('CONFIRMED / CANCELLED ต่อให้ส่งธงมา ก็ไม่มี mark-*', () => {
+    for (const status of ['CONFIRMED', 'CANCELLED'] as OrderStatus[]) {
+      const r = getOrderActionSet({ ...base, status, canMarkDispatched: true, canMarkDelivered: true })
+      expect(keys([...(r.primary ? [r.primary] : []), ...r.ghosts, ...r.menu]).some((k) => k.startsWith('mark-'))).toBe(false)
+    }
   })
 })

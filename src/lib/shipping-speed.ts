@@ -105,6 +105,17 @@ export function resolveElapsedHours(row: ShippingSpeedRow): number | null {
   return diffMs / (1000 * 60 * 60)
 }
 
+/**
+ * เวลา "ส่งออก" ของเลขส่งเอง — 00080 TD-002: `dispatchedAt` (กด "จัดส่งแล้ว") ก่อน
+ * ใบเก่าไม่มี dispatchedAt แต่ createdAt = เวลาส่งจริง จึงถูกต้องโดยไม่ backfill
+ * (หลังแยกขั้น createdAt = เวลาบันทึกเลข ซึ่งอาจก่อนของออกจากร้านนาน — ห้ามใช้นับความไว)
+ */
+export function resolveManualShipmentAt(
+  t: { createdAt: Date; dispatchedAt: Date | null } | null | undefined,
+): Date | null {
+  return t ? (t.dispatchedAt ?? t.createdAt) : null
+}
+
 /** รวมทุกแถวเป็นค่าเฉลี่ย — ฟังก์ชันบริสุทธิ์ ไม่แตะ DB ไม่ดูนาฬิกา */
 export function computeShippingSpeed(rows: ShippingSpeedRow[]): ShippingSpeed {
   let total = 0

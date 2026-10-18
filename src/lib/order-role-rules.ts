@@ -60,6 +60,9 @@ export const ORDER_ACTION_CAP: Readonly<Record<string, Capability>> = {
   'send-sms': 'O7',
   'report-tracking': 'S1',
   'edit-tracking': 'S1',
+  // 00080 — route dispatch/delivered ต้อง S1 (ไม่ใส่ = ปุ่มโผล่ให้บทบาทที่กดแล้วเจอ 403)
+  'mark-dispatched': 'S1',
+  'mark-delivered': 'S1',
   'pickup-handed-over': 'S1',
   'pickup-handover-undo': 'S1',
   'edit-order': 'O3',

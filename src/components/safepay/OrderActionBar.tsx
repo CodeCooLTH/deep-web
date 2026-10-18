@@ -46,15 +46,18 @@ export interface OrderActionBarProps {
   actionSet: OrderActionSet
   /** page เป็นคนต่อ logic จริง (ยิง API/Swal confirm/เปิด modal ฯลฯ) — component นี้ไม่มี business logic */
   onAction: (key: string) => void
+  /** 00080 — กำลังยิง "จัดส่งแล้ว/ส่งสำเร็จ": ปุ่มทั้งแถบ disabled · ปุ่มหลักเปลี่ยนเป็นตัวหมุน (ความกว้างคงเดิม) */
+  busy?: boolean
 }
 
 interface ButtonProps {
   item: ActionItem
   onAction: (key: string) => void
+  busy?: boolean
 }
 
 // ปุ่มรอง — icon-only 44px (แถบล่างตอนมี primary) หรือ icon+label (inline/stuck/แถบล่างตอนไม่มี primary)
-function GhostButton({ item, onAction, size, iconOnly }: ButtonProps & { size: 'sm' | 'lg'; iconOnly: boolean }) {
+function GhostButton({ item, onAction, size, iconOnly, busy }: ButtonProps & { size: 'sm' | 'lg'; iconOnly: boolean }) {
   const base = 'btn border border-default-300 text-default-700 hover:bg-default-100'
   if (iconOnly) {
     // .btn-icon = size-9.25 (37px) default; min-h-11/min-w-11 ชนะ (min-width ชนะ width ที่เล็กกว่าตาม
@@ -64,6 +67,7 @@ function GhostButton({ item, onAction, size, iconOnly }: ButtonProps & { size: '
       <button
         type="button"
         onClick={() => onAction(item.key)}
+        disabled={busy}
         aria-label={item.label}
         title={item.label}
         className={`${base} btn-icon justify-center ${sizeClass}`}
@@ -74,7 +78,7 @@ function GhostButton({ item, onAction, size, iconOnly }: ButtonProps & { size: '
   }
   const heightClass = size === 'lg' ? 'min-h-11 flex-1' : ''
   return (
-    <button type="button" onClick={() => onAction(item.key)} className={`${base} inline-flex items-center justify-center gap-1.5 ${heightClass}`}>
+    <button type="button" onClick={() => onAction(item.key)} disabled={busy} className={`${base} inline-flex items-center justify-center gap-1.5 ${heightClass}`}>
       <Icon icon={item.icon} className="text-lg" />
       <span>{item.label}</span>
     </button>
@@ -82,21 +86,23 @@ function GhostButton({ item, onAction, size, iconOnly }: ButtonProps & { size: '
 }
 
 // ปุ่มหลัก (น้ำเงิน) — ≤1 ตัวต่อสถานะเสมอ (One Voice, มาจาก actionSet.primary ที่คำนวณแล้ว)
-function PrimaryButton({ item, onAction, size }: ButtonProps & { size: 'sm' | 'lg' }) {
+function PrimaryButton({ item, onAction, size, busy }: ButtonProps & { size: 'sm' | 'lg' }) {
   const sizeClass = size === 'lg' ? 'min-h-11 flex-1' : ''
   return (
     <button
       type="button"
       onClick={() => onAction(item.key)}
+      disabled={busy}
+      aria-busy={busy || undefined}
       className={`btn bg-primary hover:bg-primary-hover text-white inline-flex items-center justify-center gap-1.5 ${sizeClass}`}
     >
-      <Icon icon={item.icon} className="text-lg" />
+      <Icon icon={busy ? 'loader-2' : item.icon} className={busy ? 'text-lg animate-spin' : 'text-lg'} />
       <span>{item.label}</span>
     </button>
   )
 }
 
-export default function OrderActionBar({ variant, actionSet, onAction }: OrderActionBarProps) {
+export default function OrderActionBar({ variant, actionSet, onAction, busy }: OrderActionBarProps) {
   const { primary, ghosts, menu } = actionSet
 
   // ไม่มี action เลย (CANCELLED) → ไม่ render อะไรทั้งก้อน ไม่ใช่แถบว่าง (design §3 บังคับ)
@@ -129,10 +135,10 @@ export default function OrderActionBar({ variant, actionSet, onAction }: OrderAc
     return (
       <div className={`${shellClass} items-center gap-2`}>
         {ghosts.map((g) => (
-          <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={false} />
+          <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={false} busy={busy} />
         ))}
-        {primary && <PrimaryButton item={primary} onAction={onAction} size="lg" />}
-        <OrderOverflowMenu items={menu} onAction={onAction} size="lg" dropDirection="up" />
+        {primary && <PrimaryButton item={primary} onAction={onAction} size="lg" busy={busy} />}
+        <OrderOverflowMenu items={menu} onAction={onAction} size="lg" dropDirection="up" disabled={busy} />
       </div>
     )
   }
@@ -147,11 +153,11 @@ export default function OrderActionBar({ variant, actionSet, onAction }: OrderAc
     <div className="hidden w-full items-center justify-between gap-2 lg:flex">
       <div className="flex items-center gap-2">
         {ghosts.map((g) => (
-          <GhostButton key={g.key} item={g} onAction={onAction} size="sm" iconOnly={false} />
+          <GhostButton key={g.key} item={g} onAction={onAction} size="sm" iconOnly={false} busy={busy} />
         ))}
-        {primary && <PrimaryButton item={primary} onAction={onAction} size="sm" />}
+        {primary && <PrimaryButton item={primary} onAction={onAction} size="sm" busy={busy} />}
       </div>
-      <OrderOverflowMenu items={menu} onAction={onAction} size="sm" dropDirection="down" />
+      <OrderOverflowMenu items={menu} onAction={onAction} size="sm" dropDirection="down" disabled={busy} />
     </div>
   )
 }

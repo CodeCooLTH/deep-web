@@ -27,5 +27,9 @@ export const AUTO_NOTIFY_LEDGER_REASONS = [
 ] as const
 export type AutoNotifyLedgerReason = (typeof AUTO_NOTIFY_LEDGER_REASONS)[number]
 
+/** feature 00080 — จังหวะแจ้งเลขพัสดุส่งเอง · ตรง CHECK ใน migration 20261018100100 */
+export const TRACKING_NOTICE_TIMINGS = ['ON_SAVE', 'ON_DISPATCH'] as const
+export type TrackingNoticeTiming = (typeof TRACKING_NOTICE_TIMINGS)[number]
+
 export const AUTO_NOTIFY_TEMPLATE_MAX_CHARS = 500
 export const AUTO_NOTIFY_DAILY_CAP = { min: 1, max: 20, default: 5 } as const

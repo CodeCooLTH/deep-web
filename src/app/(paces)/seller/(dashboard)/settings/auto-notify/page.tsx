@@ -67,6 +67,7 @@ export default async function AutoNotifyPage() {
       <AutoNotifyClient
         kinds={kinds}
         dailyCap={settings.dailyCapPerRoom}
+        trackingNoticeTiming={settings.trackingNoticeTiming}
         canEdit={settings.canEdit}
         hasChannel={channels.length > 0}
         noun={resolveOrderVocab(vertical).noun}

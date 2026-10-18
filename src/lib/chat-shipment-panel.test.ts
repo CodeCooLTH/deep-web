@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decidePanelView,
   isViewOnlyPanelView,
+  manualDoneStep,
   trackingMessage,
   orderStatusLabel,
   translateInvalidTransition,
@@ -123,12 +124,25 @@ describe('trackingMessage (preview เท่านั้น — ข้อคว�
 
 describe('translateInvalidTransition', () => {
   it('แปลงเป็นไทย', () => {
-    expect(translateInvalidTransition('Invalid transition: SHIPPED → SHIPPED')).toContain('แจ้งจัดส่งไปแล้ว')
+    expect(translateInvalidTransition('Invalid transition: SHIPPED → SHIPPED')).toContain('บันทึกเลขพัสดุไว้แล้ว')
     expect(translateInvalidTransition('Invalid transition: CANCELLED → SHIPPED')).toBe(
-      'คำสั่งซื้อนี้อยู่สถานะยกเลิก จึงบันทึกการจัดส่งไม่ได้',
+      'คำสั่งซื้อนี้อยู่สถานะยกเลิก จึงบันทึกเลขพัสดุไม่ได้',
     )
   })
   it('ข้อความอื่นคืน null', () => {
     expect(translateInvalidTransition('Order not found')).toBeNull()
+  })
+})
+
+describe('manualDoneStep (00080)', () => {
+  it('PENDING → ปุ่มจัดส่งแล้ว + ป้ายรอจัดส่ง', () => {
+    expect(manualDoneStep('PENDING')).toEqual({ action: 'DISPATCH', stage: 'AWAITING_DISPATCH' })
+  })
+  it('SHIPPED → ปุ่มส่งสำเร็จ + ป้ายกำลังจัดส่ง', () => {
+    expect(manualDoneStep('SHIPPED')).toEqual({ action: 'DELIVER', stage: 'SHIPPING' })
+  })
+  it('CONFIRMED / CANCELLED → ไม่มีปุ่ม', () => {
+    expect(manualDoneStep('CONFIRMED').action).toBeNull()
+    expect(manualDoneStep('CANCELLED').action).toBeNull()
   })
 })

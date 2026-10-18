@@ -8,7 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { FORWARD_SHIPMENT, RETURN_SHIPMENT, LATEST_FORWARD_SHIPMENT } from "@/lib/shipment-direction";
+import { FORWARD_SHIPMENT, RETURN_SHIPMENT, LATEST_FORWARD_SHIPMENT, ACTIVE_FORWARD_SHIPMENT } from "@/lib/shipment-direction";
 // value import (ไม่ใช่ `import type`) เพราะต้องใช้ `Prisma.PrismaClientKnownRequestError`
 // ตรวจ P2002 ตอนสร้างพัสดุขากลับ — ไม่เพิ่มต้นทุน runtime เพราะไฟล์นี้ import prisma client อยู่แล้ว
 import { Prisma } from "@prisma/client";
@@ -21,6 +21,8 @@ import { recordOrderEvent } from "@/services/order-event.service";
 import { reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { resolveDefaultCodAmount } from "@/lib/iship/payment-sync";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
+import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
+import type { TrackingNoticeTiming } from "@/lib/auto-notify/ledger-constants";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
 import {
@@ -68,6 +70,7 @@ import {
 } from "@/lib/iship/mapping";
 import type { ShipmentContext } from "@/lib/iship/context";
 import { MOBILE_PHONE_RE } from "@/lib/phone";
+import { isCodUnpaidOrder } from "@/lib/order-display";
 
 // ─── error ของชั้น service ที่ route แมปเป็น HTTP ได้ตรง ๆ ──────────────────
 
@@ -707,6 +710,9 @@ export async function getShipmentPanelState(
       ctx: ShipmentContext;
       orderStatus: string;
       manualShipment: { provider: string; trackingNo: string } | null;
+      trackingNoticeTiming: TrackingNoticeTiming;
+      isCodUnpaid: boolean;
+      vertical: string;
     }
   | {
       ishipState: "NOT_CONNECTED" | "DISCONNECTED";
@@ -715,6 +721,9 @@ export async function getShipmentPanelState(
       shipment: ReturnType<typeof toShipmentView> | null;
       orderStatus: string;
       manualShipment: { provider: string; trackingNo: string } | null;
+      trackingNoticeTiming: TrackingNoticeTiming;
+      isCodUnpaid: boolean;
+      vertical: string;
     }
 > {
   const order = await prisma.order.findFirst({
@@ -723,6 +732,9 @@ export async function getShipmentPanelState(
       status: true,
       fulfillmentMode: true,
       shipmentTracking: { select: { provider: true, trackingNo: true } },
+      paymentMethod: true,
+      codReceivedAt: true,
+      shop: { select: { vertical: true } },
     },
   });
   if (!order) return { reason: "ไม่พบคำสั่งซื้อนี้ในร้าน" };
@@ -732,6 +744,12 @@ export async function getShipmentPanelState(
   const extras = {
     orderStatus: order.status,
     manualShipment: order.shipmentTracking,
+    // 00080 — ShipForm ในแชทใช้ตั้งค่าเริ่มต้นของช่อง "แจ้งเลขในแชทหลังบันทึก"
+    trackingNoticeTiming: await getTrackingNoticeTiming(shopId),
+    // 00080 — Swal "ส่งสำเร็จ" ในแชทใช้ถ้อยคำ COD · นิยามเดียวกับปุ่มรับเงินบนหน้าออเดอร์
+    isCodUnpaid: isCodUnpaidOrder(order),
+    // ใช้ผันคำ {noun} ในแผงแชท (resolveOrderVocab)
+    vertical: order.shop.vertical as string,
   };
   const account = await prisma.shopShippingAccount.findUnique({
     where: { shopId },
@@ -878,6 +896,19 @@ export async function createShipment(
     },
   });
   if (!order) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำสั่งซื้อนี้");
+
+  // 00080 — ร้านบันทึกเลขส่งเองไว้แล้ว (รอจัดส่ง) และยังไม่มีพัสดุ iShip ที่ live → เปิดใบ iShip ทับไม่ได้
+  // (ไม่งั้นออเดอร์มีสองเลขพร้อมกัน) · ผูกใบ iShip ที่มีอยู่แล้ว (linkShipment) ยังชนะตามเดิม
+  const [manual, live] = await Promise.all([
+    prisma.shipmentTracking.findUnique({ where: { orderId }, select: { id: true } }),
+    prisma.orderShipment.findFirst({ where: { orderId, ...ACTIVE_FORWARD_SHIPMENT }, select: { id: true } }),
+  ]);
+  if (manual && !live) {
+    throw new IShipServiceError(
+      "SHIPMENT_EXISTS",
+      "คำสั่งซื้อนี้บันทึกเลขพัสดุส่งเองไว้แล้ว ถ้าจะส่งผ่าน iShip ให้แก้/ลบเลขส่งเองก่อน",
+    );
+  }
 
   const eligibility = evaluateEligibility(
     {

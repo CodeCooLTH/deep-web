@@ -7,13 +7,19 @@
 import { describe, expect, it } from "vitest";
 import { holdsParcelProblem } from "./iship/status";
 import {
-  deriveOrderStage,
-  deriveShippingStage,
+  deriveOrderStage as deriveOrderStageStrict,
+  deriveShippingStage as deriveShippingStageStrict,
   resolveOrderStatusBadge,
   SHIPPING_STAGE_LABEL,
   orderStageChipLabel,
   shouldPromptCloseReturnedOrder,
 } from "./order-stage";
+
+// feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
+const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking'> & { hasManualTracking?: boolean }) | null, now?: number) =>
+  deriveOrderStageStrict(o && { hasManualTracking: false, ...o }, now);
+const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking'> & { hasManualTracking?: boolean }) =>
+  deriveShippingStageStrict({ hasManualTracking: false, ...o });
 
 const NOW = new Date("2026-07-31T12:00:00Z").getTime();
 const base = {

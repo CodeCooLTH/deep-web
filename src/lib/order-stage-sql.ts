@@ -59,6 +59,13 @@ export type StageSqlColumns = {
    * ค้างมีปัญหาอยู่ ⇒ จอสองจอบอกคนละกองสำหรับใบเดียวกัน
    */
   problemAt: string
+  /**
+   * boolean — ออเดอร์นี้มีแถว `ShipmentTracking` (เลขส่งเอง) ไหม (feature 00080)
+   *
+   * ผู้เรียก `LEFT JOIN "ShipmentTracking"` (orderId unique ⇒ ไม่คูณแถว) แล้วส่ง `st."orderId" IS NOT NULL`
+   * 🛑 ห้ามส่ง `'false'` เพื่อให้คอมไพล์ผ่าน — ไทล์จะนับใบรอจัดส่งเป็น "รอเลขพัสดุ" ขณะที่หน้าอื่นบอกคนละกอง
+   */
+  hasManualTracking: string
 }
 
 /** ใส่ quote ให้ literal สตริงแบบปลอดภัย — ใช้กับค่าคงที่ในโค้ดเท่านั้น ไม่ใช่ input ผู้ใช้ */
@@ -108,7 +115,7 @@ export function buildProblemHoldSql(carrierStatus: string, problemAt: string): s
  * คืน SQL expression ที่ให้ค่าเดียวกับ `deriveShippingStage()`
  *
  * ผลลัพธ์เป็นสตริงของ `CASE … END` ที่เอาไปวางใน `SELECT`, `WHERE` หรือ `GROUP BY` ได้
- * ค่าที่คืน: `DRAFT` | `NOT_SHIPPING` | `AWAITING_PARCEL` | `AWAITING_PICKUP` | `SHIPPING`
+ * ค่าที่คืน: `DRAFT` | `NOT_SHIPPING` | `AWAITING_PARCEL` | `AWAITING_DISPATCH` | `AWAITING_PICKUP` | `SHIPPING`
  *          | `AWAITING_COD` | `PROBLEM` | `RETURNED` | `DONE`
  */
 export function buildShippingStageSql(c: StageSqlColumns): string {
@@ -145,6 +152,8 @@ export function buildShippingStageSql(c: StageSqlColumns): string {
     -- 3) ไม่มีพัสดุ
     WHEN ${c.orderStatus} = 'SHIPPED' THEN 'SHIPPING'
     WHEN ${c.orderStatus} = 'CONFIRMED' THEN 'DONE'
+    -- ส่งเอง (00080): มีเลขแล้วแต่ยังไม่กดจัดส่ง — อยู่ใต้กิ่ง hasShipment ⇒ ใบ iShip ชนะ
+    WHEN ${c.orderStatus} = 'PENDING' AND ${c.hasManualTracking} THEN 'AWAITING_DISPATCH'
     ELSE 'AWAITING_PARCEL'
   END`
 }

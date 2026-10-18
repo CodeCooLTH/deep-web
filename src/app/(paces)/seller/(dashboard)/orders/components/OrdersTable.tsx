@@ -104,6 +104,7 @@ const STAGE_FILTER_KEYS = [
   // (หายไปเองใน 7 วัน) ต่างจากกองพัสดุที่รออยู่ได้เรื่อย ๆ — ของที่หายได้ต้องอยู่ในสายตาก่อน
   'DRAFT',
   'AWAITING_PARCEL',
+  'AWAITING_DISPATCH', // feature 00080
   'AWAITING_PICKUP',
   'SHIPPING',
   'AWAITING_COD',
@@ -116,6 +117,7 @@ const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
   // warning ตรงกับ `ORDER_STATUS_META.DRAFTED` และ `STAGE_CHIP_CLS.DRAFT` — ใบเดียวกันสามจอ
   DRAFT: 'bg-warning/15 text-warning-ink',
   AWAITING_PARCEL: 'bg-warning/15 text-warning-ink',
+  AWAITING_DISPATCH: 'bg-warning/15 text-warning-ink', // ตรงกับ STAGE_BADGE_OVERRIDE (00080)
   AWAITING_PICKUP: 'bg-default-100 text-default-700',
   SHIPPING: 'bg-default-100 text-default-700',
   // warning ไม่ใช่ info — ตรงกับป้าย "รอเงิน COD" บนแถว (STAGE_BADGE_OVERRIDE) และไทล์

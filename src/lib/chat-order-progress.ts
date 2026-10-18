@@ -25,6 +25,11 @@ export interface ProgressOrderInput {
    * "รอเลขพัสดุ" เงียบ ๆ เหมือนบั๊กเดิม
    */
   fulfillmentMode: string
+  /**
+   * มีแถว ShipmentTracking (เลขส่งเอง) ไหม (feature 00080) — บังคับด้วยเหตุผลเดียวกับ `fulfillmentMode`
+   * และเพราะการ์ดแชทมี 2 ตัว serialize (20 ใบแรกใน page.tsx · ใบที่ 21+ ใน order.service.ts) ที่ต้องตรงกัน
+   */
+  hasManualTracking: boolean
   /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก (null/ไม่ส่งมา = ยังไม่เปิดพัสดุ) — optional เพื่อรับ
    *  CustomerPanelOrder ตรง ๆ ได้โดยไม่ต้อง remap (field เกินผ่าน structural typing) */
   shipment?: {
@@ -54,6 +59,7 @@ export function orderShippingStage(o: ProgressOrderInput): ShippingStageKey {
     codReceivedAt: o.codReceivedAt,
     fulfillmentMode: o.fulfillmentMode,
     problemAt: hasShipment ? (sh.problemAt ?? null) : null,
+    hasManualTracking: o.hasManualTracking,
   })
 }
 
@@ -71,6 +77,8 @@ export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIP
   // feature 00061 — warning ตรงกับ `ORDER_STATUS_META.DRAFTED` (ใบเดียวกันสามจอต้องโทนเดียวกัน)
   DRAFT: 'bg-warning/15 text-warning-ink',
   AWAITING_PARCEL: 'bg-primary/15 text-primary-ink',
+  // feature 00080 — warning ตรงกับ STAGE_BADGE_OVERRIDE.AWAITING_DISPATCH (ใบเดียวกันทุกจอโทนเดียวกัน)
+  AWAITING_DISPATCH: 'bg-warning/15 text-warning-ink',
   AWAITING_PICKUP: 'bg-primary/15 text-primary-ink',
   SHIPPING: 'bg-info/15 text-info-ink',
   AWAITING_COD: 'bg-warning/15 text-warning-ink',

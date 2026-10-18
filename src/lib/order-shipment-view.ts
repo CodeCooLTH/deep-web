@@ -8,6 +8,13 @@
  * 🛑 รับ order ทั้งก้อนได้แต่คืนเฉพาะ 6 คีย์ — ห้ามใส่ที่อยู่/เบอร์/ชื่อผู้ซื้อ ปลายทางเป็น client component
  */
 export type ShipmentViewInput = {
+  /** Order.status — ใช้ตัดสินซ่อนเลขส่งเองระหว่าง "รอจัดส่ง" (00080 S-12) */
+  status: string
+  /**
+   * จังหวะแจ้งเลขของร้าน — 🛑 บังคับส่ง ไม่มีค่าตั้งต้น: ค่าที่ลืมส่งแล้วกลายเป็น "ไม่ซ่อน" = เลขหลุดถึง client
+   * (docs/conventions/permission-gate-follows-the-row.md) · tsc ต้องฟ้องผู้เรียกใหม่ทุกราย
+   */
+  trackingNoticeTiming: 'ON_SAVE' | 'ON_DISPATCH'
   shipmentTracking: { provider: string; trackingNo: string } | null
   shipments?: Array<{
     trackingNo: string | null
@@ -28,12 +35,39 @@ export type BuyerShipmentView = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /**
+   * feature 00080 — ป้อน `deriveShippingStage` ฝั่งผู้ซื้อ (ไม่ใช่ตัวแสดงเลข)
+   * `shipmentTracking` ข้างบนอาจเป็น null เพราะร้านตั้งซ่อนเลขจนกด "จัดส่งแล้ว" (S-12) จึงใช้ตัดสินขั้นไม่ได้
+   * hasManualTracking = มีแถว ShipmentTracking จริง · hasIshipTracking = มีพัสดุ iShip ที่มีเลขแล้ว (ชนะส่งเองเสมอ)
+   */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
+}
+
+/**
+ * 00080 S-12 — ร้านตั้ง "แจ้งเลขตอนกดจัดส่งแล้ว" ⇒ ระหว่างรอจัดส่ง (PENDING + เลขส่งเอง ไม่มี iShip)
+ * เลขต้องไม่ถึง client เลย (ตัดที่ server ไม่ใช่ซ่อนด้วย CSS) · timing ต้องถูกส่งมาเสมอ (ผู้อ่านจาก getTrackingNoticeTiming: ไม่มีแถว config = ON_SAVE)
+ */
+export function shouldHideManualTracking(order: {
+  status: string
+  trackingNoticeTiming: 'ON_SAVE' | 'ON_DISPATCH'
+  shipmentTracking: unknown
+  shipments?: unknown[]
+}): boolean {
+  return (
+    order.trackingNoticeTiming === 'ON_DISPATCH' &&
+    order.status === 'PENDING' &&
+    !!order.shipmentTracking &&
+    !(order.shipments?.length)
+  )
 }
 
 export function buildBuyerShipmentView(order: ShipmentViewInput): BuyerShipmentView {
   const shipment = order.shipments?.[0]
   return {
-    shipmentTracking: order.shipmentTracking
+    shipmentTracking: shouldHideManualTracking(order)
+      ? null
+      : order.shipmentTracking
       ? {
           provider: order.shipmentTracking.provider,
           trackingNo: order.shipmentTracking.trackingNo,
@@ -47,6 +81,8 @@ export function buildBuyerShipmentView(order: ShipmentViewInput): BuyerShipmentV
             courierCode: shipment.courierCode,
           }
         : null,
+    hasManualTracking: !!order.shipmentTracking,
+    hasIshipTracking: !!shipment?.trackingNo,
     carrierStatus: shipment?.carrierStatus ?? null,
     problemAt: shipment?.problemAt?.toISOString() ?? null,
     returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,

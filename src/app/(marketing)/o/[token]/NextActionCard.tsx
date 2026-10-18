@@ -47,6 +47,8 @@ export type NextActionOrder = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   handedOverAt: string | null
   appointment: PublicAppointment | null
   /** ISO — มีค่า = ผู้ซื้อแจ้งปัญหาแล้ว (แถบใน hero) */
@@ -126,6 +128,8 @@ export default function NextActionCard({ action, order, paymentBadge, ctaLabel, 
         returnStartedAt={order.returnStartedAt}
         returnedAt={order.returnedAt}
         returnDispatchedAt={order.returnDispatchedAt}
+        hasManualTracking={order.hasManualTracking}
+        hasIshipTracking={order.hasIshipTracking}
         ctaLabel={ctaLabel}
         disputeOpenedAtIso={order.disputeOpenedAtIso}
       />

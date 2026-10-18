@@ -68,7 +68,7 @@ import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 import { needsPayoutAccount } from '@/lib/shop-payout'
-import { resolveTransferAmount } from '@/lib/buyer-next-action'
+import { buyerShipmentStatus, resolveTransferAmount } from '@/lib/buyer-next-action'
 import { isPickupOrder } from '@/lib/order-pickup'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
@@ -188,6 +188,13 @@ export type PublicOrderData = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /**
+   * feature 00080 — ป้อน `deriveShippingStage` ฝั่งผู้ซื้อ (ไม่ใช่ตัวแสดงเลข)
+   * `shipmentTracking` ข้างบนอาจเป็น null เพราะร้านตั้งซ่อนเลขจนกด "จัดส่งแล้ว" (S-12) จึงใช้ตัดสินขั้นไม่ได้
+   * hasManualTracking = มีแถว ShipmentTracking จริง · hasIshipTracking = มีพัสดุ iShip ที่มีเลขแล้ว (ชนะส่งเองเสมอ)
+   */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   /** 00068 R-7 — ร้านมีบัญชีรับเงินแช่แข็งในออเดอร์นี้ไหม (payoutSnapshot != null) */
   hasPayoutAccount: boolean
   /** 00068 D-11 — ร้านยังไม่มีออเดอร์จบสักใบ (นิยามเดียวกับ ShopCover) */
@@ -1148,7 +1155,22 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         buyerConfirmedAt: order.appointment?.buyerConfirmedAt ?? null,
         serviceClosedAt: order.serviceClosedAtIso ?? null,
       })
-    : getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
+    : getOrderTimeline(
+        order.status,
+        order.fulfillmentMode,
+        order.paymentMethod,
+        // 00080 — ตัดสินด้วย stage ตัวเดียวกับป้าย/หัวเรื่องพัสดุบนหน้านี้ (ห้ามเขียนเงื่อนไขซ้ำ — HR16)
+        buyerShipmentStatus({
+          status: order.status,
+          carrierStatus: order.carrierStatus,
+          hasShipment: false, // ตัวแสดงผลเท่านั้น ไม่มีผลกับ stage
+          hasManualTracking: order.hasManualTracking,
+          hasIshipTracking: order.hasIshipTracking,
+          paymentMethod: order.paymentMethod ?? null,
+          fulfillmentMode: order.fulfillmentMode,
+          problemAt: order.problemAt,
+        }).stage === 'AWAITING_DISPATCH',
+      )
 
   /**
    * ถึงเวลาที่ *ควร* กดปิดงานแล้วหรือยัง — ใช้ลดน้ำหนักปุ่ม **ไม่ใช่ปิดปุ่ม**

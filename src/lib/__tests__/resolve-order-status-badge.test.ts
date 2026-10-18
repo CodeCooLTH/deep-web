@@ -9,8 +9,12 @@
  * (3) ร้านที่ไม่ใช่ ONLINE_SALES ต้องได้ของเดิมเป๊ะทุกฟิลด์
  */
 import { describe, it, expect } from 'vitest'
-import { resolveOrderStatusBadge, deriveShippingStage } from '../order-stage'
+import { resolveOrderStatusBadge, deriveShippingStage as deriveShippingStageStrict } from '../order-stage'
 import { ORDER_STATUS_META } from '../order-display'
+
+// feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
+const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking'> & { hasManualTracking?: boolean }) =>
+  deriveShippingStageStrict({ hasManualTracking: false, ...o })
 
 describe('resolveOrderStatusBadge', () => {
   it('เคสจริง DP25690853C0FA9B — COD ส่งถึงแล้วแต่ยังไม่ได้เงิน = "รอเงิน COD" ไม่ใช่ "กำลังจัดส่ง"', () => {
@@ -88,5 +92,33 @@ describe('resolveOrderStatusBadge', () => {
     const badge = resolveOrderStatusBadge('SOMETHING_NEW', 'AWAITING_COD')
     expect(badge.label).toBeTruthy()
     expect(badge.cls).toBeTruthy()
+  })
+})
+
+// feature 00080 — ใบส่งเอง "รอจัดส่ง" ต้องพูดคำเดียวกันทุกจอ และห้ามขึ้นคำว่า "ส่งแล้ว/กำลังจัดส่ง"
+describe('AWAITING_DISPATCH (00080)', () => {
+  const awaiting = {
+    problemAt: null,
+    fulfillmentMode: 'SHIPPED',
+    status: 'PENDING',
+    carrierStatus: null,
+    hasShipment: false,
+    hasManualTracking: true,
+  }
+  it('PENDING + เลขส่งเอง + ไม่มี iShip → รอจัดส่ง (warning)', () => {
+    const stage = deriveShippingStage(awaiting)
+    expect(stage).toBe('AWAITING_DISPATCH')
+    const badge = resolveOrderStatusBadge('PENDING', stage)
+    expect(badge.label).toBe('รอจัดส่ง')
+    expect(badge.tone).toBe('warning')
+  })
+  it('ใบ iShip ชนะส่งเอง — มีพัสดุ iShip แล้วไม่ใช่ รอจัดส่ง', () => {
+    expect(deriveShippingStage({ ...awaiting, hasShipment: true })).toBe('AWAITING_PICKUP')
+  })
+  it('ไม่มีเลขส่งเอง → รอเลขพัสดุ · SHIPPED → กำลังจัดส่ง · CANCELLED → DONE · นัดรับ → NOT_SHIPPING', () => {
+    expect(deriveShippingStage({ ...awaiting, hasManualTracking: false })).toBe('AWAITING_PARCEL')
+    expect(deriveShippingStage({ ...awaiting, status: 'SHIPPED' })).toBe('SHIPPING')
+    expect(deriveShippingStage({ ...awaiting, status: 'CANCELLED' })).toBe('DONE')
+    expect(deriveShippingStage({ ...awaiting, fulfillmentMode: 'PICKUP' })).toBe('NOT_SHIPPING')
   })
 })

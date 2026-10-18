@@ -13,6 +13,7 @@ import {
   AUTO_NOTIFY_KINDS,
   AUTO_NOTIFY_LEDGER_REASONS,
   AUTO_NOTIFY_LEDGER_STATUSES,
+  TRACKING_NOTICE_TIMINGS,
 } from '../auto-notify/ledger-constants'
 import { ORDER_EVENT_TYPES } from '../order-event'
 
@@ -51,6 +52,16 @@ describe('00078 — TS ↔ migration', () => {
   })
   it.each([...AUTO_NOTIFY_LEDGER_REASONS])('reason %s อยู่ใน ledger CHECK', (v) => {
     expect(ledgerSql).toContain(`'${v}'`)
+  })
+  // feature 00080 — จังหวะแจ้งเลขพัสดุ (ตรง CHECK + default ของ schema)
+  const timingSql = sqlMentioning('AutoNotifyConfig_trackingNoticeTiming_check')
+  it.each([...TRACKING_NOTICE_TIMINGS])('trackingNoticeTiming %s อยู่ใน CHECK', (v) => {
+    expect(timingSql).toContain(`'${v}'`)
+  })
+  it('trackingNoticeTiming CHECK ไม่มีค่าที่ TS ไม่รู้จัก', () => {
+    const m = timingSql.match(/CHECK \("trackingNoticeTiming" IN \(([^)]*)\)\)/)
+    const inSql = [...(m?.[1] ?? '').matchAll(/'([A-Z_]+)'/g)].map((x) => x[1]).sort()
+    expect(inSql).toEqual([...TRACKING_NOTICE_TIMINGS].sort())
   })
   it('ledger CHECK ไม่มีค่าที่ TS ไม่รู้จัก (reason)', () => {
     const m = ledgerSql.match(/"AutoNotifyLedger_reason_check" CHECK \(([\s\S]*?)\),\n/)

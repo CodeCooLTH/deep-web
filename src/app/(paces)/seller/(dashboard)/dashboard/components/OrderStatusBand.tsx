@@ -147,6 +147,13 @@ const SHIPPING_STAGES: {
     iconClass: 'text-warning',
   },
   {
+    // feature 00080 — ส่งเอง: มีเลขแล้ว รอร้านกด "จัดส่งแล้ว" (warning = ร้านต้องลงมือ)
+    key: 'AWAITING_DISPATCH',
+    labelKey: 'stageAwaitingDispatch',
+    icon: 'solar:box-minimalistic-bold-duotone',
+    iconClass: 'text-warning',
+  },
+  {
     key: 'AWAITING_PICKUP',
     labelKey: 'stageAwaitingPickup',
     icon: 'solar:box-bold-duotone',
