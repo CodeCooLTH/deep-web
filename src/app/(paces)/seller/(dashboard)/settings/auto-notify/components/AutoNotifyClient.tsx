@@ -95,6 +95,12 @@ export default function AutoNotifyClient({
     setEditorDirty(false)
     setOpenKind(kind)
   }
+  // ปิดตัวแก้ = ปุ่ม "แก้ข้อความ" ของแถวนั้นกลับมา — คืนโฟกัสให้ปุ่มนั้น (ไม่งั้นโฟกัสหลุดไป body)
+  const closeEditor = (kind: string) => {
+    setEditorDirty(false)
+    setOpenKind(null)
+    requestAnimationFrame(() => document.getElementById(`an-edit-${kind}`)?.focus())
+  }
   const patchTemplate = (kind: string, tp: Partial<KindView['template']>) =>
     setKinds((ks) => ks.map((k) => (k.kind === kind ? { ...k, template: { ...k.template, ...tp } } : k)))
 
@@ -222,6 +228,7 @@ export default function AutoNotifyClient({
                           canEdit && openKind !== k.kind
                             ? () => (
                                 <button
+                                  id={`an-edit-${k.kind}`}
                                   type="button"
                                   onClick={() => void openEditor(k.kind)}
                                   className="btn btn-sm border-default-300 text-default-800 min-h-11 shrink-0 border lg:min-h-8"
@@ -244,19 +251,14 @@ export default function AutoNotifyClient({
                               updatedAt={k.template.updatedAt}
                               updatedBy={k.template.updatedBy}
                               onDirtyChange={setEditorDirty}
-                              onClose={() => {
-                                setEditorDirty(false)
-                                setOpenKind(null)
-                              }}
+                              onClose={() => closeEditor(k.kind)}
                               onSaved={(r) => {
                                 patchTemplate(k.kind, { body: r.body, isCustom: true, updatedAt: r.updatedAt, updatedBy: r.updatedBy })
-                                setEditorDirty(false)
-                                setOpenKind(null)
+                                closeEditor(k.kind)
                               }}
                               onReset={() => {
                                 patchTemplate(k.kind, { body: null, isCustom: false, updatedAt: null, updatedBy: null })
-                                setEditorDirty(false)
-                                setOpenKind(null)
+                                closeEditor(k.kind)
                               }}
                             />
                           ) : undefined
