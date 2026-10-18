@@ -9,23 +9,34 @@
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { settingsBanner } from '@/lib/auto-notify/settings-ui'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import type { AutoNotifyKind } from '@/lib/auto-notify/ledger-constants'
+import type { TemplateVariable } from '@/lib/auto-notify/variables'
 import AutoNotifyRow, { type TrackingTiming } from './AutoNotifyRow'
+import TemplateEditor from './TemplateEditor'
 import DailyCapField from './DailyCapField'
 
 interface KindView {
-  kind: string
+  kind: AutoNotifyKind
   label: string
   icon: string
   enabled: boolean
   enabledAt: string | null
-  customFirstLine: string | null
+  template: {
+    /** null = ร้านยังไม่แก้ (ใช้ defaultBody) */
+    body: string | null
+    defaultBody: string
+    isCustom: boolean
+    updatedAt: string | null
+    updatedBy: { name: string } | null
+  }
+  variables: readonly TemplateVariable[]
 }
 
 export default function AutoNotifyClient({
@@ -35,8 +46,6 @@ export default function AutoNotifyClient({
   canEdit,
   hasChannel,
   noun,
-  renderEditAction,
-  editorFor,
 }: {
   kinds: KindView[]
   dailyCap: number
@@ -45,13 +54,16 @@ export default function AutoNotifyClient({
   canEdit: boolean
   hasChannel: boolean
   noun: string
-  /** ช่องเสียบของ T18 — ไม่ส่ง = ไม่มีปุ่มแก้ข้อความ */
-  renderEditAction?: (kind: string) => ReactNode
-  editorFor?: (kind: string) => ReactNode
 }) {
   const t = useT().autoNotify
   const router = useRouter()
   const [kinds, setKinds] = useState(initial)
+  // router.refresh() (409 / สิทธิ์เปลี่ยน) ส่ง props ชุดใหม่มา — รับเข้า state ไม่งั้น updatedAt เก่าค้างจนโหลดหน้าเอง
+  const [prevInitial, setPrevInitial] = useState(initial)
+  if (initial !== prevInitial) {
+    setPrevInitial(initial)
+    setKinds(initial)
+  }
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
 
   const patch = (kind: string, p: Partial<KindView>) =>
@@ -63,6 +75,18 @@ export default function AutoNotifyClient({
       else n.delete(kind)
       return n
     })
+
+  // T18 — กางตัวแก้ได้ทีละแถว · กางแถวอื่นขณะข้อความค้าง = ถามก่อน (ท่า closeSettings ใน ShippingSettingsRow)
+  const [openKind, setOpenKind] = useState<string | null>(null)
+  const [editorDirty, setEditorDirty] = useState(false)
+  const openEditor = async (kind: string | null) => {
+    if (kind === openKind) return
+    if (editorDirty && !(await pacesConfirm.warning(t.discardConfirmTitle, undefined, { confirmButtonText: t.discardConfirmOk, cancelButtonText: t.keepEditing }))) return
+    setEditorDirty(false)
+    setOpenKind(kind)
+  }
+  const patchTemplate = (kind: string, tp: Partial<KindView['template']>) =>
+    setKinds((ks) => ks.map((k) => (k.kind === kind ? { ...k, template: { ...k.template, ...tp } } : k)))
 
   const [timing, setTiming] = useState<TrackingTiming>(trackingNoticeTiming)
   const [timingPending, setTimingPending] = useState(false)
@@ -182,10 +206,51 @@ export default function AutoNotifyClient({
                         checked={k.enabled}
                         pending={pending.has(k.kind)}
                         canEdit={canEdit}
-                        customFirstLine={k.customFirstLine}
+                        customFirstLine={k.template.isCustom && k.template.body ? (k.template.body.split('\n')[0] ?? '') : null}
                         onToggle={(next) => void toggle(k, next)}
-                        renderEditAction={renderEditAction ? () => renderEditAction(k.kind) : undefined}
-                        editor={editorFor?.(k.kind)}
+                        renderEditAction={
+                          canEdit && openKind !== k.kind
+                            ? () => (
+                                <button
+                                  type="button"
+                                  onClick={() => void openEditor(k.kind)}
+                                  className="btn btn-sm border-default-300 text-default-800 min-h-11 shrink-0 border lg:min-h-8"
+                                >
+                                  <Icon icon="pencil" className="size-4" aria-hidden="true" />
+                                  {t.editText}
+                                </button>
+                              )
+                            : undefined
+                        }
+                        editor={
+                          canEdit && openKind === k.kind ? (
+                            <TemplateEditor
+                              kind={k.kind}
+                              label={k.label}
+                              variables={k.variables}
+                              body={k.template.body ?? k.template.defaultBody}
+                              defaultBody={k.template.defaultBody}
+                              isCustom={k.template.isCustom}
+                              updatedAt={k.template.updatedAt}
+                              updatedBy={k.template.updatedBy}
+                              onDirtyChange={setEditorDirty}
+                              onClose={() => {
+                                setEditorDirty(false)
+                                setOpenKind(null)
+                              }}
+                              onSaved={(r) => {
+                                patchTemplate(k.kind, { body: r.body, isCustom: true, updatedAt: r.updatedAt, updatedBy: r.updatedBy })
+                                setEditorDirty(false)
+                                setOpenKind(null)
+                              }}
+                              onReset={() => {
+                                patchTemplate(k.kind, { body: null, isCustom: false, updatedAt: null, updatedBy: null })
+                                setEditorDirty(false)
+                                setOpenKind(null)
+                              }}
+                            />
+                          ) : undefined
+                        }
                         timing={k.kind === 'TRACKING' ? timing : undefined}
                         timingPending={timingPending}
                         onTimingChange={(next) => void changeTiming(next)}

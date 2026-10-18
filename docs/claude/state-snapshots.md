@@ -486,3 +486,15 @@
 - E2E: modal onboarding บัง pointer (ตั้ง localStorage `onboarding_modal_shown_v1`) · mutation ผ่าน `page.request` ต้องส่ง `Origin` (CSRF ใน proxy) · rate limit `/api` ต่อ IP ทำเทสแชทแดงถ้ารันถี่
 
 **carry**: ข้อความแจ้งเลขยังไม่เคยลองส่งเข้า Messenger/LINE จริง · ข้อความที่ยิงไปแล้วดึงคืนไม่ได้เมื่อเลิกทำ · 00081 (เช็คสถานะผ่าน API ขนส่ง) = เมล็ดความต้องการ พักไว้ · `CONFIRM_BTN.warning` คอนทราสต์ตก (นอกขอบเขต)
+
+## 2026-10-18 (00078 T18/T23/T24) — ขอบรูปลูกค้า · ชิปในแถวแชท 2 ใบ · ตัวแก้ข้อความส่งอัตโนมัติ
+
+**มติ user** (2026-10-18): ทำ T23/T24 ที่ตกหล่นจาก #174/#176 ให้ครบ + ร้านแก้เทมเพลตเองได้ · ตัวแก้ = **ชิปในเนื้อความแบบ gochat (contenteditable)** ไม่ใช่ textarea (user เลือกเองทั้งที่รู้ความเสี่ยง IME ไทย)
+- ขอบม่วง `outline-purple` + จานมุมบนขวา (รถเข็น = ใบที่นับ 1 · ตัวเลข = ≥2 · ≥10 = "9+") ที่รูป 3 จุด: แถวแชท · หัวห้อง · หัวแผงลูกค้า — คอมโพเนนต์เดียว `src/components/safepay/CustomerRingAvatar.tsx` ตัดสินด้วย `customerAvatarSignal(counted)`
+- หน้าห้องนับด้วย `behaviorByShopCustomer` ตัวเดียวกับรายการ (`behaviorKey`) · ไม่ผูกลูกค้า = ไม่มีขอบ
+- แถวแชทไม่มีชิป "ลูกค้าใหม่/ซื้อซ้ำ" แล้ว (ยังมีใน /orders, /customers, ฟอร์มสร้างออเดอร์) · บรรทัดชิปสูงสุด 2 + "+N" (`src/lib/inbox-row-chips.ts`) ลำดับ ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id → แท็ก
+- ตัวแก้ `settings/auto-notify/components/TemplateEditor.tsx`: DOM อ่านด้วย `domToText` (`src/lib/auto-notify/editor-dom.ts`) · บันทึกข้อความที่ตรงค่าตั้งต้น = ลบแถว (ไม่งั้น LINE ได้ข้อความล้วนแทนการ์ด) · 409 = toast + `router.refresh()` แล้ว `AutoNotifyClient` sync props
+
+**กับดัก**: ห้ามเขียน DOM ของกล่องระหว่างพิมพ์ (IME) · ห้ามวาดใหม่ตอน blur (ไปแผงอีโมจิแล้วตำแหน่งเคอร์เซอร์หาย) · `.form-input` สูงคงที่ ห้ามใช้กับกล่องนี้
+
+**carry**: 🛑 ยังไม่เคยพิมพ์ไทยในตัวแก้บน iOS/Android จริง · ยังไม่เปิดในเบราว์เซอร์เลย (ขอบ outline บน iOS < 16.4 เป็นสี่เหลี่ยม) · ยังไม่รัน `/impeccable critique` + `clarify` · ป้ายตัวอย่าง 3 แบบเป็นภาษาไทยตายตัวใน `defaults.ts` (ไม่ผ่าน i18n) · เมนู `{` วางใต้กล่อง ไม่ใช่ที่เคอร์เซอร์
