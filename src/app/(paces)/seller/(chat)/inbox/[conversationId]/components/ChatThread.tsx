@@ -1819,6 +1819,35 @@ export default function ChatThread({
     }
   }
 
+  // ── ชิป "เปิดให้ Meta AI ตอบ" (2026-10-18 · ท่าเดียวกับชิป "Turn on AI responses" ของ Business Suite)
+  // โชว์เฉพาะห้อง Messenger ที่ Meta AI เคยเข้ามา (มี marker) — ห้องที่ไม่เคยมี AI ยิงไปก็ล้มเปล่า ๆ
+  // ตอน AI ถือห้องอยู่ (และเรายังไม่ได้ดึงคืน) ไม่ต้องโชว์ เพราะ AI ตอบอยู่แล้ว
+  const [releaseBusy, setReleaseBusy] = useState(false)
+  const hadMetaAi = useMemo(
+    () => channel === 'MESSENGER' && messages.some(m => readMetaAiControlMarker(m.body) !== null),
+    [channel, messages],
+  )
+  const showReleaseToAiChip = !composerDisabled && hadMetaAi && (!aiAgentActive || manualOverrideStatus === 'taken')
+
+  const releaseToMetaAi = async () => {
+    if (releaseBusy) return
+    setReleaseBusy(true)
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}/thread-control`, { method: 'DELETE' })
+      const data = (await res.json().catch(() => ({}))) as { outcome?: 'RELEASED' | 'FAILED' }
+      if (res.ok && data.outcome === 'RELEASED') {
+        setManualOverrideStatus('none')
+        pacesToast.success('ส่งแชทนี้คืนให้ Meta AI แล้ว — AI จะตอบข้อความถัดไปของลูกค้า')
+      } else {
+        pacesToast.error('Meta ไม่รับคืนแชทนี้ — เปิด AI ที่ Business Suite แทน')
+      }
+    } catch {
+      pacesToast.error('เชื่อมต่อ Meta ไม่สำเร็จ — ลองอีกครั้ง')
+    } finally {
+      setReleaseBusy(false)
+    }
+  }
+
   // ── กดค้างบนข้อความ → เมนูลอย (user สั่ง 2026-08-02) ────────────────
   //
   // ทำไมต้องมี: ปุ่มตอบกลับ/คัดลอกข้างบับเบิลเป็น `lg:group-hover:flex` = ผูกกับ hover ซึ่งมือถือ
@@ -3693,6 +3722,19 @@ export default function ChatThread({
         {/* tone info→success (2026-08-26): แถบนี้โผล่ได้เฉพาะตอน Meta **ยืนยันแล้วจริง** ว่าเรา
             ถือสิทธิ์ (outcome TAKEN) ไม่ใช่ "เรากดปุ่มแล้ว" เหมือนก่อนหน้านี้ — success ของ Paces
             เป็น token ของสกินนี้เอง คนละตัวกับ Verified Green ของฝั่ง buyer */}
+        {/* Base: ปุ่ม "ส่ง" ในไฟล์นี้ (btn-sm + rounded-full + min-h-11 sm:min-h-0) — เปลี่ยนสีเป็น
+            bg-default-100 ให้เป็นปุ่มรองแบบชิปของ Business Suite · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) */}
+        {showReleaseToAiChip && (
+          <button
+            type="button"
+            onClick={releaseToMetaAi}
+            disabled={releaseBusy}
+            className="btn btn-sm bg-default-100 text-default-700 hover:bg-default-200 mb-2 min-h-11 gap-1 rounded-full disabled:opacity-60 sm:min-h-0"
+          >
+            <Icon icon={releaseBusy ? 'loader-2' : 'robot'} className={releaseBusy ? 'animate-spin text-base' : 'text-base'} aria-hidden="true" />
+            เปิดให้ Meta AI ตอบ
+          </button>
+        )}
         {showManualOverrideStrip && (
           <div className="border-success bg-success/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
             <Icon icon="robot" className="text-success-ink mt-0.5 shrink-0 text-base" />

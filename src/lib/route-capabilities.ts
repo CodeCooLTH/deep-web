@@ -245,7 +245,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/conversations/[id]/preview/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/read/route.ts': { POST: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/route.ts': { PATCH: 'H2', status: 'DECLARED' },
-  'src/app/api/chat/conversations/[id]/thread-control/route.ts': { POST: 'X2', status: 'DECLARED' },
+  'src/app/api/chat/conversations/[id]/thread-control/route.ts': { POST: 'X2', DELETE: 'X2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/typing/route.ts': { POST: 'H2', status: 'DECLARED' },
   'src/app/api/chat/conversations/route.ts': { POST: { class: 'BUYER', reason: 'ผู้ซื้อเริ่ม/เปิดห้องแชทกับร้าน — buyerUserId มาจาก session เท่านั้น ไม่ใช่สมาชิกร้าน' }, GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/giphy/route.ts': { GET: 'X2', status: 'DECLARED' },

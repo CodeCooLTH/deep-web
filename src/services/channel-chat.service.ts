@@ -14,7 +14,7 @@ import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShopWith, ForbiddenRoleError } from '@/lib/shop-capability'
 import type { Capability } from '@/lib/shop-permissions'
-import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessagesPage, sendMessageReaction, sendSenderAction, claimThreadControl, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessagesPage, sendMessageReaction, sendSenderAction, claimThreadControl, passThreadControlToMetaAi, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment, type ThreadControlFailureReason } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
 import { decideBackfillStep, MAX_BACKFILL_PAGES } from '@/lib/meta-backfill-bound'
@@ -3118,6 +3118,41 @@ export async function claimConversationControl(params: {
   if (result.outcome === 'TAKEN') return { outcome: 'TAKEN' }
   if (result.outcome === 'REQUESTED') return { outcome: 'REQUESTED' }
   return { outcome: 'FAILED', reason: result.reason, message: result.message }
+}
+
+/**
+ * คืนห้องให้ Meta AI ตอบต่อ (ปุ่ม "เปิดให้ AI ตอบ" 2026-10-18) — คู่กลับของ claimConversationControl
+ * ด่านสิทธิ์/ช่องทางเดียวกันทุกข้อ · เขียน ChatHandoverEvent ทุกครั้ง เพื่อดูว่า Meta AI รับห้องผ่านแอปไหน
+ */
+export async function releaseConversationControl(params: {
+  conversationId: string
+  actorUserId: string
+  cap: Capability
+}): Promise<{ outcome: 'RELEASED' } | { outcome: 'FAILED'; message: string }> {
+  const conversation = await resolveOutboundContext({
+    conversationId: params.conversationId,
+    actorUserId: params.actorUserId,
+    cap: params.cap,
+  })
+  // Meta AI มีแค่ใน Messenger (marker ทั้งหมดมาจากที่นั่น)
+  if (conversation.channel !== 'MESSENGER') throw new Error('CHANNEL_NOT_SUPPORTED')
+  if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+
+  const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+  const psid = conversation.externalContact.externalUserId
+  const result = await passThreadControlToMetaAi(pageToken, psid)
+
+  await ingestHandoverEvent({
+    provider: conversation.channel,
+    pageExternalId: conversation.shopChannel.externalId,
+    contactExternalId: psid,
+    kind: 'pass',
+    newOwnerAppId: result.outcome === 'RELEASED' ? result.targetAppId : null,
+    metadata: `deep-seller-release:${result.outcome}`,
+    rawEvent: result,
+  })
+
+  return result.outcome === 'RELEASED' ? { outcome: 'RELEASED' } : { outcome: 'FAILED', message: result.message }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
