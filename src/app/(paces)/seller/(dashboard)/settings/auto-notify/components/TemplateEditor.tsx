@@ -123,7 +123,17 @@ export default function TemplateEditor({
   const editorId = `an-editor-${kind}`
 
   useEffect(() => {
-    if (boxRef.current) paint(boxRef.current, body, allowed)
+    const el = boxRef.current
+    if (!el) return
+    paint(el, body, allowed)
+    // กด "แก้ข้อความ" = ตั้งใจพิมพ์ → โฟกัสกล่อง เคอร์เซอร์ท้ายข้อความ (ก่อน <br> ที่วางเคอร์เซอร์)
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    r.collapse(false)
+    if (el.lastChild?.nodeName === 'BR') r.setStartBefore(el.lastChild)
+    el.focus()
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(r)
     // วาดครั้งเดียวตอนเปิด — หลังจากนี้ DOM เป็นของผู้ใช้ (ดูหัวไฟล์)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -252,6 +262,14 @@ export default function TemplateEditor({
     }
   }
 
+  const close = async () => {
+    if (dirty && !(await pacesConfirm.warning(t.discardConfirmTitle, undefined, { confirmButtonText: t.discardConfirmOk, cancelButtonText: t.keepEditing }))) return
+    onClose()
+  }
+
+  /** จังหวะที่ข้อความตั้งต้นส่งเป็นการ์ด — แก้แล้วกลายเป็นข้อความล้วนทุกช่องทาง (auto-notify-message.service) */
+  const hasCard = kind === 'ORDER_SUMMARY' || kind === 'SERVICE_BOOKED'
+
   const issues = validateTemplate(kind, text)
   const save = async () => {
     if (issues.length || saving) return
@@ -261,6 +279,7 @@ export default function TemplateEditor({
       else onClose()
       return
     }
+    if (hasCard && !isCustom && !(await pacesConfirm.warning(t.cardConfirmTitle, t.cardConfirmBody, { confirmButtonText: t.cardConfirmOk, cancelButtonText: t.keepEditing }))) return
     setSaving(true)
     try {
       const res = await fetch(`/api/shops/current/auto-notify/templates/${kind}`, {
@@ -433,7 +452,8 @@ export default function TemplateEditor({
           </div>
         )}
 
-        <div className={`border-default-200 flex flex-wrap items-center gap-1 border-t px-2 py-1 ${previewing ? 'hidden' : ''}`}>
+        {/* มือถือ: ชิปเรียงแถวเดียวเลื่อนข้าง (ไม่ดันปุ่มบันทึกลงใต้คีย์บอร์ด) · อีโมจิอยู่นอกตัวเลื่อน — overflow ตัดแผงที่ลอยออกมา */}
+        <div className={`border-default-200 flex items-center gap-1 border-t px-2 py-1 ${previewing ? 'hidden' : ''}`}>
           <div className="relative shrink-0">
             <button
               type="button"
@@ -457,22 +477,24 @@ export default function TemplateEditor({
               </div>
             )}
           </div>
-          {variables.map((v) => (
-            <button
-              key={v.name}
-              type="button"
-              disabled={saving}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => insertVar(v.name)}
-              aria-label={fmt(t.insertVarAria, { name: v.name })}
-              title={v.sample}
-              className="inline-flex min-h-11 items-center lg:min-h-8"
-            >
-              <span className="border-primary/40 text-primary-ink hover:bg-primary/10 text-2xs rounded-full border border-dashed px-2 py-0.5 font-medium">
-                + {v.name}
-              </span>
-            </button>
-          ))}
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex-wrap">
+            {variables.map((v) => (
+              <button
+                key={v.name}
+                type="button"
+                disabled={saving}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertVar(v.name)}
+                aria-label={fmt(t.insertVarAria, { name: v.name })}
+                title={v.sample}
+                className="inline-flex min-h-11 shrink-0 items-center lg:min-h-8"
+              >
+                <span className="border-primary/40 text-primary-ink hover:bg-primary/10 text-2xs rounded-full border border-dashed px-2 py-0.5 font-medium whitespace-nowrap">
+                  + {v.name}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -492,10 +514,10 @@ export default function TemplateEditor({
           {kind === 'TRACKING' ? t.warnNoTrackingLink : t.warnNoLink}
         </p>
       )}
-      {(kind === 'ORDER_SUMMARY' || kind === 'TRACKING') && (
+      {(hasCard || kind === 'TRACKING') && (
         <p className="text-default-700 flex items-start gap-1.5 text-xs">
           <Icon icon="info-circle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          {kind === 'ORDER_SUMMARY' ? t.lineNote : t.trackingLinkNote}
+          {hasCard ? t.lineNote : t.trackingLinkNote}
         </p>
       )}
 
@@ -516,7 +538,7 @@ export default function TemplateEditor({
         >
           {t.resetDefault}
         </button>
-        <button type="button" onClick={onClose} disabled={saving} className="btn text-default-700 min-h-11 lg:min-h-9">
+        <button type="button" onClick={() => void close()} disabled={saving} className="btn text-default-700 min-h-11 lg:min-h-9">
           {t.cancel}
         </button>
         {isCustom && updatedAt && (
