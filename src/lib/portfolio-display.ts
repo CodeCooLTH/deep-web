@@ -41,8 +41,8 @@ export function financeBasisNote(mixedFinanceRules: boolean): string | null {
 // ─── v1.1 (2026-10-05) ช่วงเวลารายวัน/รายเดือน + กราฟแท่งซ้อน + ตารางเทียบ ─────────────────────────
 
 export const PORTFOLIO_TITLE = 'ภาพรวมทุกธุรกิจ'
-/** หัวการ์ดบนมือถือ + หัวชีต (spec: "ยอดขายทุกธุรกิจ") */
-export const PORTFOLIO_CARD_TITLE = 'ยอดขายทุกธุรกิจ'
+/** หัวการ์ดบนมือถือ + หัวชีต (เดิม "ยอดขายทุกธุรกิจ" → "ยอดขายรวม" user 2026-10-18) */
+export const PORTFOLIO_CARD_TITLE = 'ยอดขายรวม'
 export const PORTFOLIO_BASIS_NOTE = 'ยอดขายนับทั้งที่ยืนยันแล้วและรอยืนยัน · กำไรสุทธิคิดแบบเดียวกับหน้าการเงินของแต่ละร้าน'
 export const PORTFOLIO_PERSONAL_BADGE = 'ส่วนตัว · ไม่นับในยอดรวม'
 /** ป้ายเดียวกันแบ่งเป็นท่อน — แต่ละท่อน nowrap กันคำว่า "รวม" ตกบรรทัดเดี่ยว (critique 2026-10-05) */

@@ -131,3 +131,93 @@ export function buildPortfolio(rows: Omit<ComparisonRow, 'sharePct'>[]): { total
   )
   return { totals, rows: withShare }
 }
+
+// ─── การ์ดมือถือ "ยอดขายรวม" ของบัญชี Personal (00069 ext · 2026-10-18) ─────────────────────────
+// มติ user: ยอด = ทุกรายการที่ไม่ยกเลิก (ร้านบริการบวกงานที่ยังไม่ปิดกลับเข้าไป) · เดือน = แท่งซ้อนตามธุรกิจ
+// + แท่งค่าใช้จ่าย · วันนี้ = ยอดสะสมรายชั่วโมง · ไม่กระทบแดชบอร์ดของแต่ละร้าน/แผง desktop/ชีต
+// mockup: docs/superpowers/specs/2026-10-18-portfolio-card-stacked-by-business-mockup.html
+
+/** ชุดย่อยของ SalesSeries ที่การ์ดใช้ — unclosed* มีเฉพาะร้านบริการ */
+export type CardSeriesInput = {
+  values: number[]
+  total: number
+  prevTotalToDate: number
+  unclosedValues?: number[]
+  unclosedTotal?: number
+  prevUnclosedToDate?: number
+}
+
+/** ยอดของการ์ด = ยอดขาย + งานที่ยังไม่ปิด (ร้านบริการ) · ร้านอื่นไม่มี unclosed* ⇒ ค่าเดิม */
+export function salesInclUnclosed(s: CardSeriesInput): { values: number[]; total: number; prevTotalToDate: number } {
+  return {
+    values: s.values.map((v, i) => round2(v + (s.unclosedValues?.[i] ?? 0))),
+    total: round2(s.total + (s.unclosedTotal ?? 0)),
+    prevTotalToDate: round2(s.prevTotalToDate + (s.prevUnclosedToDate ?? 0)),
+  }
+}
+
+/** ยอดสะสม: จุดที่ i = ผลรวมของ bucket ก่อน i · ยาว n+1 (24 ชั่วโมง → 25 จุด 00:00–24:00) */
+export function cumulative(values: number[]): number[] {
+  const out = [0]
+  for (const v of values) out.push(round2(out[out.length - 1] + v))
+  return out
+}
+
+export type PortfolioCardShopInput = {
+  shopId: string
+  shopName: string
+  logoUrl: string | null
+  month: CardSeriesInput
+  hours: CardSeriesInput
+  /** ค่าใช้จ่ายรายวันของเดือน · null = ร้านปิดสวิตช์ค่าใช้จ่าย (ไม่นับ) */
+  expense: number[] | null
+}
+
+export type PortfolioCard = {
+  labels: string[]
+  futureFromIndex: number
+  /** ชั่วโมงแรกที่ยังไม่ถึง (0–24) — จุดสะสมที่ index > ค่านี้ไม่วาด */
+  hourFutureFromIndex: number
+  total: number
+  prevTotalToDate: number
+  todayTotal: number
+  /** เรียงยอดเดือนมาก→น้อย (ลำดับเดียวกับสีของ stack) */
+  rows: { shopId: string; shopName: string; logoUrl: string | null; monthTotal: number; todayTotal: number }[]
+  monthStack: { key: string; name: string; values: number[] }[]
+  todayStack: { key: string; name: string; values: number[] }[]
+  /** ค่าใช้จ่ายรวมรายวันของร้านที่เปิดสวิตช์ · null = ไม่มีค่าใช้จ่ายเลยทั้งเดือน (ไม่วาดแท่ง/แถว) */
+  expense: number[] | null
+  expenseTotal: number
+}
+
+export function buildPortfolioCard(
+  shops: PortfolioCardShopInput[],
+  meta: { labels: string[]; futureFromIndex: number; hourFutureFromIndex: number },
+  maxStack: number,
+): PortfolioCard {
+  const items = shops.map((s) => {
+    const month = salesInclUnclosed(s.month)
+    const hours = salesInclUnclosed(s.hours)
+    return { ...s, monthAll: month, todayTotal: hours.total, todayCum: cumulative(hours.values) }
+  })
+  // ทั้งสองแท็บจัดกลุ่ม/เรียงด้วยยอดเดือนชุดเดียวกัน ⇒ ร้านเดิมได้สีเดิมเมื่อสลับแท็บ
+  const stackOf = (pick: (i: (typeof items)[number]) => number[]) =>
+    buildStack(items.map((i) => ({ key: i.shopId, name: i.shopName, total: i.monthAll.total, values: pick(i) })), maxStack)
+  const n = meta.labels.length
+  const withExpense = items.filter((i) => i.expense)
+  const expense = Array.from({ length: n }, (_, d) => round2(withExpense.reduce((t, i) => t + (i.expense?.[d] ?? 0), 0)))
+  const expenseTotal = round2(expense.reduce((t, v) => t + v, 0))
+  return {
+    ...meta,
+    total: round2(items.reduce((t, i) => t + i.monthAll.total, 0)),
+    prevTotalToDate: round2(items.reduce((t, i) => t + i.monthAll.prevTotalToDate, 0)),
+    todayTotal: round2(items.reduce((t, i) => t + i.todayTotal, 0)),
+    rows: [...items]
+      .sort((a, b) => b.monthAll.total - a.monthAll.total || a.shopName.localeCompare(b.shopName, 'th'))
+      .map((i) => ({ shopId: i.shopId, shopName: i.shopName, logoUrl: i.logoUrl, monthTotal: i.monthAll.total, todayTotal: i.todayTotal })),
+    monthStack: stackOf((i) => i.monthAll.values),
+    todayStack: stackOf((i) => i.todayCum),
+    expense: expenseTotal > 0 ? expense : null,
+    expenseTotal,
+  }
+}

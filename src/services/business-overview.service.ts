@@ -17,6 +17,9 @@ import {
   aggregateSalesSeries,
   buildStack,
   buildPortfolio,
+  buildPortfolioCard,
+  type PortfolioCard,
+  type PortfolioCardShopInput,
   type PortfolioMode,
   type AdditiveSalesSeries,
   type ComparisonRow,
@@ -25,6 +28,7 @@ import {
 import { resolveDateRange } from '@/lib/date-range'
 import { getPnlReport } from '@/services/pnl.service'
 import { getSalesSeries } from '@/services/dashboard.service'
+import { resolveReportSettings, showsExpenseTab } from '@/lib/report-settings'
 
 /**
  * ร้านที่ผู้ใช้เห็นในภาพรวม — query เดียว แยกออกมาให้หน้าเช็คก่อน render
@@ -48,6 +52,8 @@ export async function listOverviewShops(userId: string) {
       shopName: true,
       logo: true,
       vertical: true,
+      // การ์ด "ยอดขายรวม" อ่านสวิตช์ค่าใช้จ่ายร้าน (showsExpenseTab) — 00069 ext
+      reportSettings: true,
       kind: true,
       packageLockedAt: true,
       user: { select: { businessPackageSubscription: { select: { status: true } } } },
@@ -76,6 +82,8 @@ export type PortfolioSeries = {
   stack: { key: string; name: string; values: number[] }[]
   rows: ComparisonRow[]
   totals: PortfolioTotals
+  /** การ์ดมือถือ "ยอดขายรวม" — มีเฉพาะเมื่อผู้เรียกขอ (หน้าแดชบอร์ด) · API ของชีตไม่คิดให้ */
+  card?: PortfolioCard
 }
 
 type SeriesShop = { id: string; shopName: string; logo: string | null; vertical: string }
@@ -96,6 +104,8 @@ export async function getPortfolioSeries(
   mode: PortfolioMode,
   year: number,
   month: number | null,
+  /** 00069 ext — คิดข้อมูลการ์ดมือถือด้วย (เฉพาะ mode 'daily') · day = วันที่ของแท็บ "วันนี้" */
+  card?: { day: number },
 ): Promise<PortfolioSeries | null> {
   if (shops.length === 0) return null
   const period = periodRange(mode, year, month)
@@ -118,6 +128,9 @@ export async function getPortfolioSeries(
       return { series, report, expenseCount }
     }),
   )
+  const cardExtras = card && mode === 'daily' && month != null
+    ? await Promise.allSettled(shops.map((s) => cardExtrasFor(s, year, month, card.day)))
+    : null
 
   const rows: Omit<ComparisonRow, 'sharePct'>[] = []
   const bizSeries: AdditiveSalesSeries[] = []
@@ -160,6 +173,19 @@ export async function getPortfolioSeries(
   })
 
   const aggregate = aggregateSalesSeries(bizSeries)
+  /* ร้านที่ดึงไม่สำเร็จ (ยอดเดือนหรือข้อมูลการ์ด) ไม่อยู่ในการ์ด — แผง desktop ยังมีแถว ERROR ให้เห็น */
+  const cardShops: PortfolioCardShopInput[] = []
+  if (cardExtras && aggregate) {
+    shops.forEach((shop, i) => {
+      const r = results[i]
+      const x = cardExtras[i]
+      if (r.status !== 'fulfilled' || x.status !== 'fulfilled') return
+      cardShops.push({
+        shopId: shop.id, shopName: shop.shopName, logoUrl: toFileUrl(shop.logo ?? null),
+        month: r.value.series, hours: x.value.hours, expense: x.value.expense,
+      })
+    })
+  }
   // ทุกร้าน BUSINESS ล้ม → ไม่มีกราฟให้แสดง แต่ยังคืนแถว ERROR ให้ UI บอกผู้ใช้
   const { totals, rows: sorted } = buildPortfolio(rows)
   return {
@@ -175,5 +201,40 @@ export async function getPortfolioSeries(
     stack: buildStack(stackInput, STACK_COLOR_TOKENS.length),
     rows: sorted,
     totals,
+    ...(cardShops.length > 0 && aggregate
+      ? {
+          card: buildPortfolioCard(
+            cardShops,
+            {
+              labels: aggregate.labels,
+              futureFromIndex: aggregate.futureFromIndex,
+              hourFutureFromIndex: cardExtras?.find((x) => x.status === 'fulfilled')?.value.hourFutureFromIndex ?? 24,
+            },
+            STACK_COLOR_TOKENS.length,
+          ),
+        }
+      : {}),
   }
+}
+
+/** ยอดรายชั่วโมงของวัน + ค่าใช้จ่ายรายวันของเดือน ของร้านหนึ่ง (การ์ด "ยอดขายรวม") */
+async function cardExtrasFor(shop: OverviewShop, year: number, month: number, day: number) {
+  // สวิตช์ "ค่าใช้จ่ายร้าน" (ร้านบริการ) — ร้านอื่นได้ค่าตั้งต้น = เปิด (resolveReportSettings)
+  const withExpense = showsExpenseTab(resolveReportSettings(shop.reportSettings, shop.vertical))
+  const [hours, expenses] = await Promise.all([
+    getSalesSeries(shop.id, 'hourly', { year, month, day }, false, shop.vertical),
+    withExpense
+      ? prisma.expense.findMany({
+          // expenseDate เก็บเป็นเที่ยงคืน UTC ของวันที่ (date-only) — ขอบเขตต้องเป็น date-only ด้วย (date-range.ts)
+          where: { shopId: shop.id, expenseDate: { gte: new Date(Date.UTC(year, month - 1, 1)), lt: new Date(Date.UTC(year, month, 1)) } },
+          select: { amount: true, expenseDate: true },
+        })
+      : Promise.resolve(null),
+  ])
+  let expense: number[] | null = null
+  if (expenses) {
+    expense = new Array<number>(new Date(Date.UTC(year, month, 0)).getUTCDate()).fill(0)
+    for (const e of expenses) expense[e.expenseDate.getUTCDate() - 1] += Number(e.amount)
+  }
+  return { hours, expense, hourFutureFromIndex: hours.futureFromIndex }
 }

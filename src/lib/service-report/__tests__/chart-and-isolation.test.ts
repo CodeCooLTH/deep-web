@@ -105,7 +105,8 @@ describe('[blocker] ไม่กระทบร้านอื่น · ไม�
     expect(page).toMatch(/if \(usesServiceFinanceRules\(shop\.vertical\) && salesSeriesRes\.status === 'fulfilled'/)
     expect(page).toMatch(/\{serviceReport \? \(\s*<ServiceReportCard[\s\S]*?\) : \(\s*<SalesReport /)
     const cc = read(`${D}/dashboard/components/CommandCenter.tsx`)
-    expect(cc).toMatch(/data\.serviceReport && !data\.portfolio \? \(\s*<ServiceReportCard[\s\S]*?\) : \(\s*<SalesChartCard/)
+    // บัญชี Personal (portfolio.card) มาก่อน → ร้านบริการ → ร้านอื่น SalesChartCard เดิม (00069 ext 2026-10-18)
+    expect(cc).toMatch(/data\.portfolio\?\.initial\.card \? \(\s*<PortfolioSalesCard[\s\S]*?\) : data\.serviceReport \? \(\s*<ServiceReportCard[\s\S]*?\) : \(\s*<SalesChartCard/)
   })
   it('หน้า /sales: บล็อกใหม่อยู่หลัง isServiceQueue เท่านั้น', () => {
     const sales = read(`${D}/sales/page.tsx`)

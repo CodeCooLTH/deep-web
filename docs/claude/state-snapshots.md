@@ -456,3 +456,16 @@
 **carry**: user ลองยอดบน prod เองหลัง merge · ร้านที่พักไม่มีในฐาน local · critique/clarify ทำแล้ว (ตามกฎใน DESIGN.md — ปลั๊กอิน impeccable ไม่มีในเครื่อง) · การ์ด "วันนี้" ซ่อน % ตอนยังเป็น 0 (มติ user)
 - 2026-10-17 หลัง prod: แถบ ปิดงานแล้ว + ยังไม่ปิดงาน กลับมาบนการ์ดหน้าแรก (user) · กราฟ iOS ชุดเขียวเลื่อนใต้แกน → type line + stackOnlyBar + `resetKey` สร้างใหม่ทุกช่วง + ปิดแอนิเมชัน (จำลองในเครื่องไม่ขึ้น ต้องยืนยันบน iPhone)
 - กับดักเพิ่ม: หมุดป้ายแกน x ใช้กับรายวันเท่านั้น (ส่ง `period`) · ปุ่ม `disabled` ในธีม Paces จาง opacity-50 ทั้งแถว — ของที่แตะไม่ได้ให้เป็นแถวธรรมดา
+
+## 2026-10-18 (00069 ext) — การ์ดมือถือ "ยอดขายรวม" ของบัญชี Personal ที่เป็นเจ้าของหลายธุรกิจ
+
+**มติ user** (ม็อกอัพ `docs/superpowers/specs/2026-10-18-portfolio-card-stacked-by-business-mockup.html` + .md)
+- ใช้เฉพาะบริบท Personal ที่มีร้าน BUSINESS (จ่ายแล้ว) — แดชบอร์ดของแต่ละร้านไม่เปลี่ยน · แผง desktop `PortfolioPanel` / `PortfolioSheet` ไม่เปลี่ยน
+- ยอด = ทุกรายการที่ไม่ยกเลิก (ร้านบริการบวกงานที่ยังไม่ปิด `unclosed*`) · ไม่มีแถวยืนยัน/รอยืนยัน · ไม่มีจำนวนคำสั่งซื้อ/บริการ
+- เดือนนี้ = แท่งซ้อนตามธุรกิจ + แท่งแดงค่าใช้จ่ายข้าง ๆ (series.group) · ค่าใช้จ่ายนับเฉพาะร้านที่ `showsExpenseTab(resolveReportSettings())`
+- วันนี้ = ยอดสะสมรายชั่วโมง 00:00–24:00 พื้นที่ซ้อน stepline · ไม่มีค่าเฉลี่ย/ไม่มี % เทียบ
+- legend = แถวละธุรกิจ (โลโก้ AccountAvatar) แตะ = สลับไปร้านนั้น (`useShopSwitcher` → /dashboard) · หัวการ์ด/หัวชีต "ยอดขายรวม"
+
+**โครง**: `getSalesSeries` มีโหมด `'hourly'` (วันเดียว 24 bucket) · `getPortfolioSeries(..., { day })` คืน `card` (คิดเฉพาะเมื่อขอ — API ชีตไม่คิด) · ตัวรวม pure `buildPortfolioCard` ใน `src/lib/business-overview.ts` · การ์ด `PortfolioSalesCard.tsx` · ไม่มี migration
+
+**carry**: ยังไม่เคยเปิดบนมือถือจริง (iPhone: กราฟแท่ง group ไม่เคยลองบน iOS — ดูกับดัก 00078 "แท่งลอยใต้แกน") · ชีตเต็มจอ/แผง desktop ยังนับเฉพาะงานที่ปิดแล้ว (เลขไม่ตรงการ์ด — user ยังไม่ตัดสิน)

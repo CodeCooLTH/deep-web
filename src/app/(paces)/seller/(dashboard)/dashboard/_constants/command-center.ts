@@ -106,7 +106,7 @@ export type CommandCenterData = {
   // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวัน (เดือนปัจจุบัน) สำหรับการ์ด mini + full sheet
   // null/undefined = fetch ล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide ไม่ใช่ error state บน command center)
   salesSeries?: SalesSeries | null
-  // 00069 v1.1: บริบท Personal + มีร้านธุรกิจจ่ายแล้ว → การ์ดยอดขายเป็น "ยอดขายทุกธุรกิจ" (salesSeries = initial.aggregate)
+  // 00069 ext (2026-10-18): บริบท Personal + มีร้านธุรกิจจ่ายแล้ว → การ์ด "ยอดขายรวม" (PortfolioSalesCard อ่าน initial.card)
   portfolio?: { initial: PortfolioSeries } | null
   /**
    * feature 00078 — ร้านบริการ: การ์ดใหม่ (ServiceReportCard) แทน SalesChartCard · เงิน ⇒ redact

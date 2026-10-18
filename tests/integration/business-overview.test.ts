@@ -120,5 +120,13 @@ d('listOverviewShops / getPortfolioSeries (integration)', () => {
     expect(res.rows.some((r) => r.shopId === z.id)).toBe(false)
     expect(res.stack.map((st) => st.key)).toEqual([x.id])
     expect(rowX.href).toBe(`/expenses?range=custom&start=${p.start}&end=${p.end}`)
+
+    // 00069 ext — การ์ด "ยอดขายรวม": คิดเฉพาะเมื่อขอ · ยอดเดือนชุดเดียวกับ getSalesSeries · ออเดอร์เมื่อกี้อยู่ในยอดวันนี้
+    expect(res.card).toBeUndefined()
+    const withCard = (await getPortfolioSeries(shops, personal, 'daily', year, month, { day: now.getUTCDate() }))!
+    expect(withCard.card!.total).toBe(series.total)
+    expect(withCard.card!.todayTotal).toBe(500)
+    expect(withCard.card!.rows.map((r) => r.shopId)).toEqual([x.id])
+    expect(withCard.card!.todayStack[0].values).toHaveLength(25)
   })
 })

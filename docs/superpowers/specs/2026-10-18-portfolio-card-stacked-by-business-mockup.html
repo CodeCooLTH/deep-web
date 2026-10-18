@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — การ์ด "ยอดขายทุกธุรกิจ" แท่งซ้อนแยกตามธุรกิจ (00069 ext · 2026-10-18)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@5.10.6"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  /* โทเคนก็อปจาก src/assets/css/config/_root.css (สกินที่ใช้บน prod — ตรงกับภาพหน้าจอ user) */
+  :root {
+    --primary: #236dc9; --danger: #f7577e; --success: #02bc9c; --warning: #f9bf59;
+    --chart-primary: #236dc9; --chart-delta: #5bc3e1; --chart-zeta: #db9052;
+    --d400: #627189; --d600: #4a5358; --d700: #40454a; --d800: #343a40;
+    --border: #e7e9eb; --chart-border: #e9ecef; --bg: #f4f6f9;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Anuphan, sans-serif; background: #e9ecf1; color: var(--d800); }
+  h1 { font-size: 20px; margin: 24px 24px 4px; }
+  .sub { margin: 0 24px 20px; color: var(--d600); font-size: 14px; line-height: 1.6; }
+  .delta:empty { min-height: 21px; }
+  .frames { display: flex; gap: 28px; align-items: flex-start; padding: 0 24px 40px; flex-wrap: wrap; }
+  .frame { background: var(--bg); border-radius: 18px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.08); container-type: inline-size; }
+  .frame > .cap { font-size: 12px; color: var(--d600); margin-bottom: 10px; font-weight: 600; }
+  .f-mobile { width: 390px; } .sim { outline: 2px dashed #db9052; outline-offset: -2px; } .f-tablet { width: 834px; } .f-desktop { width: 1200px; }
+
+  /* การ์ด — โครงเดียวกับ SalesChartCard (card + p-4) */
+  .card { background: #fff; border-radius: 10px; border: 1px solid var(--border); padding: 16px; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; }
+  .title iconify-icon { color: var(--primary); font-size: 20px; }
+  .pills { display: flex; background: #f1f3f6; border-radius: 10px; padding: 3px; font-size: 14px; }
+  .pills span { padding: 6px 12px; border-radius: 8px; color: var(--d700); }
+  .pills .on { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hero { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .hero b { font-size: 34px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+  .hero iconify-icon { color: var(--d600); font-size: 20px; }
+  .delta { font-size: 14px; color: var(--d700); margin-top: 2px; }
+  .delta .up { color: #0b8a6f; font-weight: 600; } .delta .down { color: #c0392b; font-weight: 600; }
+
+  /* legend ธุรกิจ — 1 แถว/ร้าน: แถบสี (= สีแท่ง) · โลโก้ · ชื่อ (ตัดได้) · ยอด */
+  .legend { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+  .legend li { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; min-height: 44px; margin: 0 -8px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+  .legend li:hover, .legend li:active { background: #f4f6f9; }
+  .legend li .go { color: var(--d400); font-size: 16px; flex-shrink: 0; }
+  .legend { gap: 0; }
+  /* ShopSwitchOverlay (src/components/paces/ShopSwitchOverlay.tsx) — เต็มจอพื้นขาว · โลโก้ + วงหมุน */
+  .switch-ov { position: absolute; inset: 0; background: #fff; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 5; }
+  .switch-ov .av { position: relative; width: 56px; height: 56px; }
+  .switch-ov .av img, .switch-ov .av .logo-fb { width: 56px; height: 56px; border-radius: 50%; font-size: 26px; }
+  .switch-ov .spin { position: absolute; inset: -2px; border: 2px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .switch-ov p { margin: 0; font-size: 14px; font-weight: 600; color: var(--d800); text-align: center; padding: 0 16px; }
+  .switch-ov small { font-size: 12px; color: #8a96a3; }
+  .card { position: relative; }
+  .swatch { width: 4px; height: 24px; border-radius: 2px; flex-shrink: 0; }
+  .logo { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--border); }
+  .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--d700); }
+  .amt { font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .chart { margin-top: 6px; }
+  .legend li.exp-row { cursor: default; } .legend li.exp-row:hover { background: none; }
+  .exp-ic { background: rgba(247,87,126,.15) !important; color: var(--danger) !important; }
+  .go-sp { width: 16px; flex-shrink: 0; }
+  .tt-exp { border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 6px !important; }
+  .pct { display: inline-block; min-width: 40px; text-align: right; color: var(--d600); font-weight: 500; margin-left: 6px; }
+  .multibar { display: flex; width: 100%; height: 12px; background: #eef0f3; border-radius: 999px; overflow: hidden; gap: 2px; margin-top: 8px; }
+  .multibar > div { height: 100%; }
+  .empty-note { margin: 10px 0 0; font-size: 13px; color: var(--d600); text-align: center; }
+  .legend li.ch { flex-wrap: wrap; row-gap: 6px; padding-top: 8px; padding-bottom: 10px; }
+  .legend li.ch .swatch { display: none; }
+  .chbar { flex-basis: 100%; height: 8px; background: #eef0f3; border-radius: 999px; overflow: hidden; }
+  .chbar > div { height: 100%; border-radius: 999px; }
+  .chart:empty { min-height: 0; }
+  .donut-empty { height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--d600); font-size: 13px; }
+  .donut-empty .ring { width: 130px; height: 130px; border-radius: 50%; border: 18px solid #eef0f3; }
+
+  /* tablet/desktop: legend เป็น 2 คอลัมน์ */
+  @container (min-width: 700px) { .legend { grid-template-columns: 1fr 1fr; column-gap: 24px; } }
+  /* tooltip ทำเอง (ในชีต) — พื้นทึบ ไม่โปร่งให้แท่งทะลุ · หัว = วันที่ + รวม · แถวละธุรกิจมีโลโก้ */
+  .tt { background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.12); padding: 10px 12px; min-width: 220px; max-width: 280px; font-family: Anuphan; }
+  .tt-head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--d600); padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .tt-head b { color: var(--d800); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tt-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; min-width: 0; }
+  .tt-row .name { color: var(--d700); }
+  .tt-row .swatch { height: 20px; }
+  .tt-row .logo { width: 20px; height: 20px; }
+  /* AccountAvatar fallback: วงกลม bg-primary/15 + icon building-store */
+  .logo-fb { display: inline-flex; align-items: center; justify-content: center; background: rgba(35,109,201,.15); color: var(--primary); border: 0; font-size: 13px; }
+  .tt-static { margin-top: 12px; }
+  .tt-static .cap2 { font-size: 12px; color: var(--d600); margin-bottom: 6px; }
+  .apexcharts-tooltip.apexcharts-theme-light { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+  .note { background: #fff; border-radius: 10px; border: 1px dashed var(--d400); padding: 16px; font-size: 14px; line-height: 1.7; color: var(--d700); }
+  .note code { background: #f1f3f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>การ์ด "ยอดขายรวม" — เดือนนี้ = แท่งซ้อนแยกธุรกิจ · วันนี้ = ยอดสะสมระหว่างวัน (เลือกแล้ว)</h1>
+<p class="sub">
+  ข้อมูลจริงจาก prod ของบัญชีในภาพหน้าจอ (2 สาขา BT Premium · 1–17 ต.ค. 2026 · วันนี้ = 18) ·
+  ยอด = ทุกรายการที่ไม่ยกเลิก (ปิดงานแล้วตามวันปิดงาน + ยังไม่ปิดตามวันเปิดบิล) · เทียบ 1–17 ก.ย. = 311,500<br />
+  สีแท่ง = <code>chart-primary</code>, <code>chart-delta</code> ตามลำดับยอด (ชุดเดียวกับแผง desktop <code>PortfolioPanel</code>)<br />
+  ตัดบรรทัดยืนยันแล้ว/รอยืนยัน + เส้น/ตัวเลขจำนวนคำสั่งซื้อ (บริการ) ออก (user 2026-10-18)
+</p>
+
+<div class="frames">
+  <div class="frame f-mobile"><div class="cap">Mobile · 390 — เดือนนี้ · ค่าใช้จ่าย = แท่งแดงข้าง ๆ</div><div class="slot" data-mode="month"></div>
+    <div class="tt-static"><div class="cap2">ในชีตเต็มจอ แตะแท่งวันที่ 16 → tooltip (ภาพนิ่ง · hover กราฟในหน้านี้เพื่อดูของจริง)</div><div class="tt-slot"></div></div>
+  </div>
+  <div class="frame f-mobile"><div class="cap">วันนี้ = ยอดสะสมระหว่างวัน (พื้นที่ซ้อน) · ยอดจริง 17 ต.ค. (สิ้นวัน)</div><div class="slot" data-mode="today" data-today="17" data-variant="cumulative"></div>
+    <div class="cap" style="margin-top:14px">จำลอง 3 ธุรกิจ</div><div class="slot" data-mode="today" data-today="17" data-set="sim" data-variant="cumulative"></div>
+    <div class="cap" style="margin-top:14px">ตอนนี้ 18 ต.ค. 09:40 · ยังไม่มียอด</div><div class="slot" data-mode="today" data-today="18" data-variant="cumulative"></div></div>
+  <div class="frame f-mobile sim"><div class="cap">จำลอง 3 ธุรกิจ · เดือนนี้</div><div class="slot" data-mode="month" data-set="sim"></div></div>
+  <div class="frame f-mobile sim"><div class="cap">จำลอง 3 ธุรกิจ · tooltip วันที่ 17</div><div class="tt-slot-sim"></div></div>
+  <div class="frame f-mobile"><div class="cap">แตะแถว "BT Premium - คลอง 4 ธัญบุรี" → สลับร้าน (ภาพนิ่ง · ของจริงเต็มจอ)</div><div class="slot" data-mode="month" data-switch="1"></div></div>
+  <div class="frame f-tablet"><div class="cap">Tablet · 834 — กดสลับ วันนี้/เดือนนี้ ได้ (ยังเป็นหน้ามือถือ — แผง desktop เริ่มที่ ≥1024)</div><div class="slot" data-mode="month"></div></div>
+  <div class="frame f-desktop"><div class="cap">Desktop · 1200</div>
+    <div class="note">
+      จอ ≥1024 ไม่มีการ์ดนี้ — ใช้แผง <b>ภาพรวมทุกธุรกิจ</b> (<code>PortfolioPanel</code>) ซึ่ง<b>เป็นแท่งซ้อนแยกธุรกิจ + โลโก้ในตารางอยู่แล้ว</b><br />
+      สิ่งที่ต้องตัดสินฝั่ง desktop: แท่งของแผงนั้นยังนับ<b>เฉพาะงานที่ปิดแล้ว</b> (คู่กับกำไรในตาราง) — จะให้แท่งรวมงานที่ยังไม่ปิดเหมือนการ์ดมือถือด้วยไหม
+    </div>
+  </div>
+</div>
+
+<template id="card">
+  <div class="card">
+    <div class="head">
+      <div class="title"><iconify-icon icon="tabler:chart-bar"></iconify-icon>ยอดขายรวม</div>
+      <div class="pills"><span data-p="today">วันนี้</span><span data-p="month">เดือนนี้</span></div>
+    </div>
+    <div class="hero"><b data-k="total"></b><iconify-icon icon="tabler:chevron-right"></iconify-icon></div>
+    <div class="delta" data-k="delta"></div>
+    <ul class="legend"></ul>
+    <div class="chart"></div>
+  </div>
+</template>
+
+<script>
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
+  const fmt = (n) => Math.round(n).toLocaleString('en-US')
+  const DAYS = 31, NOW = 18, RECENT = 14
+  // ยอดรายวัน (ปิดงานแล้วตามวันปิดงาน + ยังไม่ปิดตามวันเปิดบิล) ต่อสาขา — query prod 2026-10-18
+  const shops = [
+    { name: 'BT Premium - สุขสวัสดิ์', logo: 'assets-00069-stack/bt-sukhumsawat.jpg', color: '--chart-primary',
+      h17: { 13: 8250, 17: 7900, 18: 30000 }, showExpense: true,
+      exp: { 1: 2497, 2: 3146, 3: 1240, 4: 6817, 5: 93823, 6: 2776, 7: 282, 9: 2777, 13: 6394, 14: 197, 15: 3194, 16: 3294 },
+      d: { 3: 24500, 4: 53500, 5: 105000, 6: 63500, 7: 86500, 8: 7000, 10: 23400, 11: 72200, 12: 57900, 13: 71400, 14: 49200, 15: 12900, 16: 40800, 17: 46150 } },
+    { name: 'BT Premium - คลอง 4 ธัญบุรี', logo: 'assets-00069-stack/bt-klong4.jpg', color: '--chart-delta',
+      h17: { 13: 15400, 14: 1000, 15: 8000, 16: 2500, 18: 9000 }, showExpense: true, exp: {},
+      d: { 1: 4900, 3: 17800, 4: 39900, 6: 5900, 7: 26900, 8: 3500, 9: 32600, 10: 12400, 11: 7000, 13: 50100, 14: 26700, 15: 15900, 16: 21300, 17: 35900 } },
+  ]
+  // 🧪 ธุรกิจที่ 3 = จำลอง (ไม่มีในฐาน) — ร้านขายของออนไลน์ ไม่มีโลโก้ (เห็น fallback) ชื่อยาวสุดที่น่าจะเจอ
+  const simShop = { name: 'Deep Parts อะไหล่รถยนต์ออนไลน์ ส่งทั่วประเทศ', logo: null, color: '--chart-zeta',
+    h17: { 9: 2400, 11: 3900, 14: 5200, 19: 6100 }, showExpense: false, // จำลอง: ร้านนี้ปิดค่าใช้จ่าย → ไม่นับ
+    d: { 1: 12900, 2: 8400, 3: 31200, 4: 15800, 5: 22600, 6: 9900, 7: 18400, 8: 27300, 9: 6500, 10: 21800, 11: 14200, 12: 35600, 13: 19900, 14: 24700, 15: 11300, 16: 28400, 17: 17600 } }
+  const SETS = { real: shops, sim: [...shops, simShop] }
+  const PREV = { real: 311500, sim: 311500 + 268000 }
+  const logoHtml = (s) => (s.logo ? `<img class="logo" src="${s.logo}" alt="" />` : `<span class="logo logo-fb"><iconify-icon icon="tabler:building-store"></iconify-icon></span>`)
+  const PREV_TO_DATE = 311500
+  const val = (s, day) => s.d[day] ?? 0
+  SETS.sim.forEach((s) => (s.total = Object.values(s.d).reduce((a, b) => a + b, 0)))
+  // สีผูกกับลำดับยอดเดือน (เหมือน stack — buildStack/stackColorToken) — สลับแท็บแล้วสีร้านเดิมไม่เปลี่ยน
+  const COLORS = ['--chart-primary', '--chart-delta', '--chart-zeta', '--d600']
+  const rank = (list) => [...list].sort((a, b) => b.total - a.total).map((s, i) => ({ ...s, color: COLORS[i] }))
+  let ranked = rank(shops)
+
+  // tooltip: วันที่ + รวมของวัน · ธุรกิจเรียงตามยอดของวันนั้น (0 = ไม่แสดงแถว)
+  function tooltipHtml(day) {
+    const rows = ranked.map((s) => ({ s, v: val(s, day) })).filter((r) => r.v > 0).sort((a, b) => b.v - a.v)
+    const sum = rows.reduce((a, r) => a + r.v, 0)
+    return `<div class="tt"><div class="tt-head"><span>${day} ต.ค. · รวม</span><b>${fmt(sum)}</b></div>
+      ${rows.map(({ s, v }) => `<div class="tt-row"><span class="swatch" style="background:var(${s.color})"></span>${logoHtml(s)}
+        <span class="name">${s.name}</span><span class="amt">${fmt(v)}</span></div>`).join('')}
+      ${(() => { const e = ranked.filter((s) => s.showExpense).reduce((a, s) => a + (s.exp?.[day] ?? 0), 0); return e ? `<div class="tt-row tt-exp"><span class="swatch" style="background:var(--danger)"></span><span class="name">ค่าใช้จ่าย</span><span class="amt">${fmt(e)}</span></div>` : '' })()}</div>`
+  }
+  function deltaHtml(pct, word) {
+    if (pct == null) return ''
+    const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : ''
+    const icon = pct === 0 ? '' : `<iconify-icon icon="tabler:arrow-${pct > 0 ? 'up' : 'down'}" style="vertical-align:-2px"></iconify-icon> `
+    return `<span class="${cls}">${icon}${Math.abs(pct)}%</span> ${word}`
+  }
+
+  function render(slot, mode, today) {
+    ranked = rank(SETS[slot.dataset.set ?? 'real'])
+    const PREV_TO_DATE = PREV[slot.dataset.set ?? 'real']
+    slot.innerHTML = ''
+    slot.append(document.getElementById('card').content.cloneNode(true))
+    slot.querySelectorAll('[data-p]').forEach((p) => {
+      p.classList.toggle('on', p.dataset.p === mode)
+      p.onclick = () => render(slot, p.dataset.p, today)
+    })
+    const set = (k, html) => (slot.querySelector(`[data-k="${k}"]`).innerHTML = html)
+    let days, labels, amountOf, hero, pct, word, annotations, anchor
+    if (mode === 'month') {
+      days = Array.from({ length: DAYS }, (_, i) => i + 1)
+      labels = days.map(String)
+      amountOf = (s) => s.total
+      hero = ranked.reduce((a, s) => a + s.total, 0)
+      pct = Math.round((hero / PREV_TO_DATE - 1) * 100); word = 'จากเดือนก่อน'
+      anchor = new Set(['1', '5', '10', '15', String(NOW), '25', '31'])
+      annotations = { xaxis: [{ x: String(NOW), borderColor: css('--d400'), strokeDashArray: 3,
+        label: { text: 'วันนี้', borderWidth: 0, orientation: 'horizontal', offsetY: -4, style: { background: 'transparent', color: css('--d700'), fontSize: '10px' } } }] }
+    } else {
+      // วันนี้ = สัดส่วนยอดของวันนั้นต่อธุรกิจ (user 2026-10-18) — ไม่มีค่าเฉลี่ย/เทียบวันอื่น
+      amountOf = (s) => val(s, today)
+      hero = ranked.reduce((a, s) => a + val(s, today), 0)
+      pct = null
+    }
+    set('total', fmt(hero)); set('delta', deltaHtml(pct, word))
+    const mine = ranked
+    const expLine = slot.dataset.exp === 'line'
+    // ค่าใช้จ่ายรวมของธุรกิจที่เปิดสวิตช์ "ค่าใช้จ่ายร้าน" (reportSettings.shopExpense) เท่านั้น
+    const expShops = ranked.filter((s) => s.showExpense && Object.keys(s.exp ?? {}).length)
+    const expOf = (d) => expShops.reduce((a, s) => a + (s.exp?.[d] ?? 0), 0)
+    const expTotal = mode === 'month' ? days.reduce((a, d) => a + (d > NOW ? 0 : expOf(d)), 0) : 0
+    const share = (s) => (hero > 0 ? Math.round((amountOf(s) / hero) * 100) : 0)
+    // legend = ยอดของช่วงที่เลือก (วันนี้ / เดือนนี้) · ลำดับ+สีคงที่ตามยอดเดือน
+    // วันนี้: เรียงตามยอดของวัน (สีติดร้านเดิม) · เดือนนี้: เรียงตามยอดเดือน
+    const listed = mode === 'today' ? [...ranked].sort((a, b) => amountOf(b) - amountOf(a)) : ranked
+    slot.querySelector('.legend').innerHTML = listed.map((s) => `<li><span class="swatch" style="background:var(${s.color})"></span>
+      ${logoHtml(s)}<span class="name" title="${s.name}">${s.name}</span><span class="amt">${fmt(amountOf(s))}${mode === 'today' ? `<span class="pct">${share(s)}%</span>` : ''}</span><iconify-icon class="go" icon="tabler:chevron-right"></iconify-icon></li>`).join('')
+    if (mode === 'month' && expShops.length) slot.querySelector('.legend').insertAdjacentHTML('beforeend',
+      `<li class="exp-row"><span class="swatch" style="background:var(--danger)"></span><span class="logo logo-fb exp-ic"><iconify-icon icon="tabler:receipt"></iconify-icon></span><span class="name">ค่าใช้จ่าย</span><span class="amt">${fmt(expTotal)}</span><span class="go-sp"></span></li>`)
+    // แตะแถว = สลับไปร้านนั้น (useShopSwitcher → /dashboard ของร้าน) · overlay ค้าง 3 วิ ในม็อกอัพ
+    slot.querySelectorAll('.legend li:not(.exp-row)').forEach((li, i) => (li.onclick = () => showSwitch(slot.querySelector('.card'), listed[i], 3000)))
+    if (mode === 'today') {
+      const el = slot.querySelector('.chart')
+      const v = slot.dataset.variant ?? 'cumulative'
+      const HOURS = Array.from({ length: 14 }, (_, i) => i + 8) // 08–21
+      const pad = (h) => String(h).padStart(2, '0')
+      const base = { fontFamily: 'Anuphan', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false }, parentHeightOffset: 0 }
+      const axisStyle = { fontSize: '10px', colors: css('--d700') }
+      const grid = { borderColor: css('--chart-border'), strokeDashArray: 4, xaxis: { lines: { show: false } }, padding: { left: 4, right: 4 } }
+      const cols = ranked.map((s) => css(s.color))
+      let opt
+      if (v === 'hourly') {
+        // 1) Base: charts/apex/column ColumnChart getStackedColumnChart — ยอดรายชั่วโมงของวันนั้น ซ้อนตามธุรกิจ
+        opt = { chart: { ...base, type: 'bar', height: 200, stacked: true }, colors: cols,
+          series: ranked.map((s) => ({ name: s.name, data: HOURS.map((h) => s.h17?.[h] ?? 0) })),
+          plotOptions: { bar: { columnWidth: '70%', borderRadius: 1 } }, dataLabels: { enabled: false }, legend: { show: false },
+          xaxis: { categories: HOURS.map(pad), axisBorder: { show: false }, axisTicks: { show: false }, labels: { style: axisStyle, formatter: (x) => (['08', '12', '16', '20'].includes(x) ? `${x}:00` : '') } },
+          yaxis: { show: false }, grid, tooltip: { enabled: false } }
+      } else if (v === 'cumulative') {
+        // ทั้งวัน 00:00–24:00 (user 2026-10-18 "จะได้เห็น trend") · จุดที่ h = ยอดสะสมก่อนชั่วโมง h
+        // วันนี้จริง: ชั่วโมงที่ยังไม่ถึงเป็น null (ไม่วาด) — วันที่ 17 ในม็อกอัพคือวันที่จบแล้วจึงเต็มแกน
+        const DAY = Array.from({ length: 25 }, (_, i) => i)
+        const nowH = today === NOW ? 10 : 24
+        // 2) Base: charts/apex/area getStackedAreaChart — ยอดสะสมตั้งแต่เปิดร้านถึงตอนนี้ ซ้อนตามธุรกิจ
+        opt = { chart: { ...base, type: 'area', height: 200, stacked: true }, colors: cols,
+          series: ranked.map((s) => ({ name: s.name, data: DAY.map((h) => (h > nowH ? null : Object.entries(s.h17 ?? {}).reduce((a, [k, x]) => a + (Number(k) < h ? x : 0), 0))) })),
+          stroke: { width: 2, curve: 'stepline' }, fill: { type: 'solid', opacity: 0.35 }, dataLabels: { enabled: false }, legend: { show: false },
+          xaxis: { categories: DAY.map(pad), axisBorder: { show: false }, axisTicks: { show: false }, labels: { rotate: 0, hideOverlappingLabels: false, style: axisStyle, formatter: (x) => (['00', '06', '12', '18', '24'].includes(x) ? `${x}:00` : '') } },
+          yaxis: { show: false }, grid: { ...grid, padding: { left: 14, right: 8 } }, tooltip: { enabled: false } }
+      } else if (v === 'radial') {
+        // 3) Base: charts/apex/radialbar getMultipleRadialBarChart — วงละธุรกิจ ยาวตาม % ของวัน
+        opt = { chart: { ...base, type: 'radialBar', height: 210 }, colors: listed.map((s) => css(s.color)),
+          series: listed.map((s) => share(s)), labels: listed.map((s) => s.name),
+          plotOptions: { radialBar: { hollow: { size: '30%' }, track: { background: '#eef0f3' }, dataLabels: { name: { show: false }, value: { show: false },
+            total: { show: true, label: '', formatter: () => '' } } } }, stroke: { lineCap: 'round' }, legend: { show: false } }
+      } else if (v === 'treemap') {
+        // 4) Base: charts/apex/treemap getDistributedTreemapChart — กล่องใหญ่ตามยอด (ใส่ชื่อ+% ในกล่อง)
+        opt = { chart: { ...base, type: 'treemap', height: 200 }, colors: listed.map((s) => css(s.color)),
+          series: [{ data: listed.map((s) => ({ x: s.name.replace('BT Premium - ', ''), y: amountOf(s) })) }],
+          plotOptions: { treemap: { distributed: true, enableShades: false, dataLabels: { format: 'truncate' } } }, legend: { show: false },
+          dataLabels: { enabled: true, style: { fontSize: '13px', fontFamily: 'Anuphan' }, formatter: (t, o) => [t, `${Math.round((o.value / hero) * 100)}%`] } }
+      } else {
+        // 5) Base: charts/apex/bar getBasicBarChart (horizontal) — แท่งนอนต่อธุรกิจ ป้ายยอดท้ายแท่ง
+        opt = { chart: { ...base, type: 'bar', height: 60 + listed.length * 44 }, colors: listed.map((s) => css(s.color)),
+          series: [{ name: 'ยอด', data: listed.map((s) => amountOf(s)) }],
+          plotOptions: { bar: { horizontal: true, distributed: true, barHeight: '60%', borderRadius: 4, dataLabels: { position: 'top' } } },
+          dataLabels: { enabled: true, offsetX: 46, style: { colors: [css('--d800')], fontSize: '12px', fontFamily: 'Anuphan' }, formatter: (x) => fmt(x) },
+          legend: { show: false }, xaxis: { categories: listed.map((s) => s.name.replace('BT Premium - ', '')), labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+          yaxis: { labels: { style: { fontSize: '12px', colors: css('--d700') }, maxWidth: 110 } }, grid: { show: false, padding: { right: 64 } }, tooltip: { enabled: false } }
+      }
+      if (hero === 0) { el.innerHTML = '<p class="empty-note">ยังไม่มียอดวันนี้</p>'; return }
+      new ApexCharts(el, opt).render()
+      return
+    }
+    new ApexCharts(slot.querySelector('.chart'), {
+      chart: { type: expLine ? 'line' : 'bar', height: 200, stacked: true, toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'Anuphan', parentHeightOffset: 0, animations: { enabled: false } },
+      // Base: charts/apex/bar getGroupedStackedBarChart — กลุ่ม 'sales' ซ้อนตามธุรกิจ · กลุ่ม 'expense' แท่งแดงข้าง ๆ
+      series: [
+        ...ranked.map((s) => ({ name: s.name, type: 'bar', group: 'sales', data: days.map((d) => (d > NOW ? null : val(s, d))) })),
+        ...(expShops.length ? [{ name: 'ค่าใช้จ่าย', type: expLine ? 'line' : 'bar', group: 'expense', data: days.map((d) => (d > NOW ? null : expOf(d))) }] : []),
+      ],
+      ...(expLine ? { stroke: { width: [...ranked.map(() => 0), 2], curve: 'straight' }, markers: { size: [...ranked.map(() => 0), 3], strokeWidth: 0 } } : {}),
+      colors: [...ranked.map((s) => css(s.color)), css('--danger')],
+      plotOptions: { bar: { columnWidth: expShops.length ? '94%' : '70%', borderRadius: 1 } },
+      dataLabels: { enabled: false }, legend: { show: false }, fill: { opacity: 1 },
+      xaxis: { categories: labels, axisBorder: { show: false }, axisTicks: { show: false },
+        labels: { rotate: 0, hideOverlappingLabels: false, style: { fontSize: '10px', colors: css('--d700') }, formatter: (v) => (anchor.has(v) ? v : '') } },
+      yaxis: { show: false },
+      grid: { borderColor: css('--chart-border'), strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: mode === 'month' } }, padding: { left: 4, right: 4 } },
+      annotations,
+      tooltip: { shared: true, intersect: false, custom: ({ dataPointIndex: i }) => { const keep = ranked; ranked = mine; const h = tooltipHtml(days[i]); ranked = keep; return h } },
+    }).render()
+  }
+
+  function showSwitch(card, shop, ms) {
+    const av = shop.logo ? `<img src="${shop.logo}" alt="" />` : `<span class="logo logo-fb"><iconify-icon icon="tabler:building-store"></iconify-icon></span>`
+    card.insertAdjacentHTML('beforeend', `<div class="switch-ov"><div class="av">${av}<span class="spin"></span></div>
+      <p>กำลังสลับไปที่ร้าน "${shop.name}"</p><small>กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</small></div>`)
+    if (ms) setTimeout(() => card.querySelector('.switch-ov')?.remove(), ms)
+  }
+  document.querySelector('.tt-slot').innerHTML = tooltipHtml(16)
+  ranked = rank(SETS.sim); document.querySelector('.tt-slot-sim').innerHTML = tooltipHtml(16)
+  document.querySelectorAll('.slot').forEach((slot) => render(slot, slot.dataset.mode, Number(slot.dataset.today ?? NOW)))
+  document.querySelectorAll('.slot[data-switch]').forEach((slot) => showSwitch(slot.querySelector('.card'), rank(shops)[1], 0))
+</script>
+</body>
+</html>
