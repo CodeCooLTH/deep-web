@@ -698,6 +698,48 @@ export async function getSalesSeries(
   }
 }
 
+/**
+ * ชีต "ยอดขายและกำไร" (ร้านที่ไม่ใช่บริการ): บวกค่าใช้จ่ายที่ร้านบันทึกเองหมวด "ค่าขนส่ง" (SHIPPING)
+ * เข้าคอลัมน์ค่าส่ง + หักจากกำไร ตามวันที่ของค่าใช้จ่าย (user สั่ง 2026-10-18: "ลูกค้าต้องการให้
+ * ค่าใช้จ่ายประเภทค่าส่งมารวมตรงนี้ด้วย") — ปรับมติ 2026-08-09 เฉพาะหมวดนี้ หมวดอื่นยังไม่เข้าชีต
+ *
+ * แยกจาก getSalesSeries โดยตั้งใจ: ผู้เรียก includeFinance อื่น (service-report/finance-chart ของร้านบริการ)
+ * หักค่าใช้จ่ายทุกหมวดเองอยู่แล้ว ถ้าใส่ใน getSalesSeries จะนับค่าขนส่งซ้ำ
+ * ร้านบริการ / ไม่มีชุดการเงิน (ไม่ผ่านสิทธิ์) → คืนค่าเดิม
+ */
+export async function withShippingExpenses(
+  shopId: string,
+  series: SalesSeries,
+  mode: SalesSeriesMode,
+  period: { year: number; month?: number },
+  vertical?: string,
+): Promise<SalesSeries> {
+  if (usesServiceFinanceRules(vertical) || !series.shippingValues || !series.shippingConfirmedValues || !series.netProfitValues) return series
+  const m0 = mode === 'daily' ? (period.month ?? 1) - 1 : 0
+  // expenseDate เก็บเป็นเที่ยงคืน UTC ของวันที่ (date-only) — ขอบเขตต้องเป็น date-only ด้วย (date-range.ts)
+  const gte = new Date(Date.UTC(period.year, m0, 1))
+  const lt = mode === 'daily' ? new Date(Date.UTC(period.year, m0 + 1, 1)) : new Date(Date.UTC(period.year + 1, 0, 1))
+  const rows = await prisma.expense.findMany({
+    where: { shopId, category: 'SHIPPING', expenseDate: { gte, lt } },
+    select: { amount: true, expenseDate: true },
+  })
+  if (rows.length === 0) return series
+  const add = new Array<number>(series.labels.length).fill(0)
+  for (const r of rows) add[mode === 'daily' ? r.expenseDate.getUTCDate() - 1 : r.expenseDate.getUTCMonth()] += Number(r.amount)
+  // ทั้งสองชุดค่าส่ง (ทุกใบ / เฉพาะใบยืนยัน) — ค่าใช้จ่ายไม่ผูกกับใบไหน เกิดแล้วคือจ่ายแล้ว
+  const shippingValues = series.shippingValues.map((v, i) => v + add[i])
+  const shippingConfirmedValues = series.shippingConfirmedValues.map((v, i) => v + add[i])
+  const netProfitValues = series.netProfitValues.map((v, i) => v - add[i])
+  return {
+    ...series,
+    shippingValues,
+    shippingConfirmedValues,
+    netProfitValues,
+    totalShipping: shippingValues.reduce((s, v) => s + v, 0),
+    netProfit: netProfitValues.reduce((s, v) => s + v, 0),
+  }
+}
+
 // ─── การ์ดเดสก์ท็อป: ช่องทางการขาย + ยอดขายตามจังหวัด ─────────────────────────
 // ทั้งสองตัวคิดจาก "เดือนตามปฏิทินไทย" ชุดเดียวกับ getSalesSeries(mode='daily')
 // — user เคาะ 2026-08-05 ว่าทุกการ์ดบนแดชบอร์ดต้องพูดถึงช่วงเวลาเดียวกัน

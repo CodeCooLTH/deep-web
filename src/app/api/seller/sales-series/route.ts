@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireShopCapability } from '@/lib/shop-capability'
-import { getSalesSeries } from '@/services/dashboard.service'
+import { getSalesSeries, withShippingExpenses } from '@/services/dashboard.service'
 
 // auth per-user + query-driven — ห้าม cache ข้าม user/ช่วง (feedback_auth_api_cache_control)
 export const dynamic = 'force-dynamic'
@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
          ที่ว่างเปล่าเสมอสำหรับร้านประเภทนี้ (SERVICE_QUEUE ล็อก NO_SHIPPING ⇒ ไม่มีค่าส่งได้เลย) */
       active.shop.vertical,
     )
-    return NextResponse.json(series, { headers: { 'cache-control': 'private, no-store' } })
+    // ค่าใช้จ่ายหมวดค่าขนส่งเข้าคอลัมน์ค่าส่ง (ร้านที่ไม่ใช่บริการ) — user 2026-10-18
+    const withShip = await withShippingExpenses(active.shop.id, series, mode, { year, month }, active.shop.vertical)
+    return NextResponse.json(withShip, { headers: { 'cache-control': 'private, no-store' } })
   } catch (e) {
     console.error('[GET /api/seller/sales-series]', e)
     return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }, { status: 500 })

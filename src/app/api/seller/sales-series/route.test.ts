@@ -11,7 +11,7 @@ const requireShopForRequestMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/shop-context', () => ({ requireShopForRequest: requireShopForRequestMock }))
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 const getSalesSeriesMock = vi.hoisted(() => vi.fn())
-vi.mock('@/services/dashboard.service', () => ({ getSalesSeries: getSalesSeriesMock }))
+vi.mock('@/services/dashboard.service', () => ({ getSalesSeries: getSalesSeriesMock, withShippingExpenses: async (_id: string, s: unknown) => s }))
 
 import { GET } from './route'
 import { getServerSession } from 'next-auth'
