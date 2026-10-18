@@ -360,7 +360,7 @@ export default async function SellerDashboardPage() {
         // 00069 v1.1: ยิงขนานกับ query ชุดล่าง (เริ่มก่อน await) — .catch ในตัวกัน unhandled rejection ระหว่างรอ
         const portfolioPromise: Promise<PortfolioSeries | null> =
           money.salesChartCard && active?.kind === 'PERSONAL' && portfolioShops.length > 0
-            ? getPortfolioSeries(portfolioShops, shop, 'daily', currentYear, currentMonth).catch((err) => {
+            ? getPortfolioSeries(portfolioShops, shop, 'daily', currentYear, currentMonth, { day: currentDay }).catch((err) => {
                 console.error('[portfolio-series] page', err)
                 return null
               })
@@ -500,10 +500,8 @@ export default async function SellerDashboardPage() {
 
         // 00069 v1.1: การ์ดมือถือ = ยอดรวมทุกธุรกิจ (ชุดเดียวกับแผง desktop) · aggregate ว่าง (ทุกร้านธุรกิจล้ม) = ไม่มีกราฟให้วาด
         // → คงการ์ดของร้าน Personal ไว้ แต่แผง desktop ยังแสดงแถว ERROR ให้ผู้ใช้เห็นว่าดึงอะไรไม่ได้
+        // 00069 ext (2026-10-18): การ์ดมือถือใช้ portfolio.card ของตัวเอง (PortfolioSalesCard) ไม่ใช่ aggregate แล้ว
         portfolio = await portfolioPromise
-        if (portfolio && portfolio.aggregate.labels.length > 0) {
-          mobileSalesSeries = portfolio.aggregate as SalesChartSeries
-        }
 
         // ช่องทางการขาย — ล้ม = [] → การ์ดขึ้น empty state ("เดือนนี้ยังไม่มีออเดอร์")
         if (channelRes.status === 'fulfilled') salesChannels = channelRes.value
@@ -786,9 +784,9 @@ export default async function SellerDashboardPage() {
             bestSellers,
             // Sales Chart การ์ด mini — ยอดขายรายวันเดือนปัจจุบัน (null=ซ่อนการ์ด)
             salesSeries: mobileSalesSeries,
-            // 00069 v1.1: มีค่า = หัวการ์ดเป็น "ยอดขายทุกธุรกิจ" + กดเปิดชีตรวม (ต้องไปคู่กับ salesSeries = aggregate)
-            portfolio:
-              portfolio && portfolio.aggregate.labels.length > 0 ? { initial: portfolio } : null,
+            // 00069 ext: มีค่า = การ์ดมือถือเป็น PortfolioSalesCard ("ยอดขายรวม") แทนการ์ดของร้าน Personal
+            // card ไม่มี = ทุกร้านธุรกิจดึงไม่สำเร็จ → การ์ดของร้าน Personal เดิม (แผง desktop ยังแสดงแถว ERROR)
+            portfolio: portfolio?.card ? { initial: portfolio } : null,
             // feature 00078 — ร้านบริการ: การ์ดใหม่ (redact ตัดทิ้งให้ผู้ไม่เห็นเงินเต็ม)
             serviceReport,
             // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)

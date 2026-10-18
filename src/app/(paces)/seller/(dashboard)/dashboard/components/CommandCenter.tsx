@@ -21,6 +21,7 @@ import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
 import SalesChartCard from './SalesChartCard'
+import PortfolioSalesCard from './PortfolioSalesCard'
 import ServiceReportCard from '../../_shared/service-report/ServiceReportCard'
 import TodayJobs from './TodayJobs'
 import type { homeBlocks } from '@/lib/dashboard-money'
@@ -64,12 +65,14 @@ export default function CommandCenter({ data, blocks }: Props) {
           (PnlReportCard · /expenses · /sales) เป็นภาษาไทยตายตัวอยู่แล้วทั้ง section
           จะแปลก็ต้องแปลพร้อมกันทั้งชุด ไม่ใช่แปลคำเดียวแล้วปนกันครึ่ง ๆ (feature 00067) */}
 {/* feature 00078 — ร้านบริการ (ไม่ใช่บริบทหลายธุรกิจ): การ์ดใหม่ · ร้านอื่นการ์ดเดิมทุกตัวอักษร */}
-      {data.serviceReport && !data.portfolio ? (
+      {/* 00069 ext — บริบท Personal ที่เป็นเจ้าของร้านธุรกิจ: การ์ด "ยอดขายรวม" แยกตามธุรกิจ · ร้านเดี่ยวไม่โดน */}
+      {data.portfolio?.initial.card ? (
+        <PortfolioSalesCard initial={{ ...data.portfolio.initial, card: data.portfolio.initial.card }} />
+      ) : data.serviceReport ? (
         <ServiceReportCard initial={data.serviceReport.data} view={data.serviceReport.view} chart={data.serviceReport.chart} variant="mobile" />
       ) : (
             <SalesChartCard
         initialSeries={data.salesSeries ?? null}
-        portfolio={data.portfolio ?? null}
         orderNoun={data.orderNoun}
         costNoun={resolveOrderVocab(data.shopVertical ?? '').costNoun}
         reportSettings={data.reportSettings}

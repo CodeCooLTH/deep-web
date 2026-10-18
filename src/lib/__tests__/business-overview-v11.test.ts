@@ -1,6 +1,6 @@
 // 00069 v1.1 — TC-009 (แทนที่) · TC-012 · TC-014
 import { describe, it, expect } from 'vitest'
-import { periodRange, aggregateSalesSeries, buildStack, buildPortfolio, OTHERS_KEY, type AdditiveSalesSeries, type ComparisonRow } from '../business-overview'
+import { periodRange, aggregateSalesSeries, buildStack, buildPortfolio, buildPortfolioCard, OTHERS_KEY, type AdditiveSalesSeries, type CardSeriesInput, type ComparisonRow } from '../business-overview'
 
 const s = (o: Partial<AdditiveSalesSeries> & { values: number[] }): AdditiveSalesSeries => ({
   labels: o.values.map((_, i) => String(i + 1)),
@@ -97,5 +97,52 @@ describe('buildPortfolio (TC-014)', () => {
     expect(totals.incomplete).toBe(false)
     expect(totals.mixedFinanceRules).toBe(false)
     expect(buildPortfolio([row({ vertical: 'SERVICE_QUEUE' }), row({ shopId: 'b' })]).totals.mixedFinanceRules).toBe(true)
+  })
+})
+
+describe('buildPortfolioCard (00069 ext 2026-10-18)', () => {
+  const ser = (values: number[], o: Partial<CardSeriesInput> = {}): CardSeriesInput => ({
+    values, total: values.reduce((a, b) => a + b, 0), prevTotalToDate: 0, ...o,
+  })
+  const meta = { labels: ['1', '2'], futureFromIndex: 2, hourFutureFromIndex: 24 }
+  const hours = (at: Record<number, number>) => ser(Array.from({ length: 24 }, (_, h) => at[h] ?? 0))
+
+  it('ร้านบริการ: งานที่ยังไม่ปิดถูกนับในยอด/แท่ง/เทียบ% · ร้านขายของได้ค่าเดิม', () => {
+    const c = buildPortfolioCard([
+      { shopId: 'svc', shopName: 'บริการ', logoUrl: null, expense: null,
+        month: ser([10, 0], { prevTotalToDate: 3, unclosedValues: [0, 7], unclosedTotal: 7, prevUnclosedToDate: 2 }),
+        hours: hours({ 9: 1 }) },
+      { shopId: 'shop', shopName: 'ขายของ', logoUrl: null, expense: null, month: ser([1, 1], { prevTotalToDate: 1 }), hours: hours({}) },
+    ], meta, 4)
+    expect(c.total).toBe(19)
+    expect(c.prevTotalToDate).toBe(6)
+    expect(c.monthStack.find((s) => s.key === 'svc')!.values).toEqual([10, 7])
+    expect(c.rows.map((r) => r.shopId)).toEqual(['svc', 'shop'])
+  })
+
+  it('วันนี้ = ยอดสะสมรายชั่วโมง 25 จุด รวมงานยังไม่ปิด · ลำดับ/กลุ่มตามยอดเดือน', () => {
+    const c = buildPortfolioCard([
+      { shopId: 'a', shopName: 'A', logoUrl: null, expense: null, month: ser([1, 0]),
+        hours: { ...hours({ 13: 5 }), unclosedValues: Array.from({ length: 24 }, (_, h) => (h === 18 ? 3 : 0)), unclosedTotal: 3 } },
+      { shopId: 'b', shopName: 'B', logoUrl: null, expense: null, month: ser([9, 0]), hours: hours({ 0: 2 }) },
+    ], meta, 4)
+    const a = c.todayStack.find((s) => s.key === 'a')!.values
+    expect(a).toHaveLength(25)
+    expect([a[13], a[14], a[18], a[19], a[24]]).toEqual([0, 5, 5, 8, 8])
+    expect(c.todayStack.map((s) => s.key)).toEqual(['b', 'a'])
+    expect(c.todayTotal).toBe(10)
+    expect(c.rows.find((r) => r.shopId === 'a')!.todayTotal).toBe(8)
+  })
+
+  it('ค่าใช้จ่าย: รวมเฉพาะร้านที่ส่งมา (เปิดสวิตช์) · ทั้งเดือนเป็น 0 = null', () => {
+    const base = { logoUrl: null, month: ser([1, 1]), hours: hours({}) }
+    const c = buildPortfolioCard([
+      { ...base, shopId: 'a', shopName: 'A', expense: [5, 0] },
+      { ...base, shopId: 'b', shopName: 'B', expense: [1, 2] },
+      { ...base, shopId: 'c', shopName: 'C', expense: null },
+    ], meta, 4)
+    expect(c.expense).toEqual([6, 2])
+    expect(c.expenseTotal).toBe(8)
+    expect(buildPortfolioCard([{ ...base, shopId: 'a', shopName: 'A', expense: [0, 0] }], meta, 4).expense).toBeNull()
   })
 })

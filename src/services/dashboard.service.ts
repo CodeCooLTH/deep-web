@@ -28,7 +28,8 @@ import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
 
-export type SalesSeriesMode = 'daily' | 'monthly'
+/** 'hourly' = 24 ชั่วโมงของวันเดียว (period.day) — ใช้กับการ์ดยอดขายรวมของบัญชี Personal เท่านั้น (00069 ext) */
+export type SalesSeriesMode = 'daily' | 'monthly' | 'hourly'
 
 /**
  * แปลงแถวออเดอร์ที่ query มาเป็น input ของ deriveShippingStage — "พัสดุที่นับ" ต้องเป็นใบ
@@ -240,7 +241,7 @@ const daysInMonth = (year: number, month0: number): number =>
 export async function getSalesSeries(
   shopId: string,
   mode: SalesSeriesMode,
-  period: { year: number; month?: number },
+  period: { year: number; month?: number; day?: number },
   /** true เฉพาะเมื่อ caller ตรวจ resolveExpenseAccess ผ่านแล้ว — false = ไม่ query ค่าใช้จ่ายเลย
    *  (fail-closed ตั้งแต่ชั้น query ไม่ใช่ไปกรองทีหลังตอน render) */
   includeFinance = false,
@@ -284,6 +285,20 @@ export async function getSalesSeries(
     // เดือนนี้จริง → วันถัดจากวันนี้เป็นต้นไป = อนาคต (index วันนี้ = date-1, ไม่จาง)
     futureFromIndex =
       year === nowYear && month0 === nowMonth0 ? thaiNow.getUTCDate() : bucketCount
+  } else if (mode === 'hourly') {
+    // วันเดียวตามเวลาไทย แบ่ง 24 ชั่วโมง — ช่วงก่อนหน้า = เมื่อวาน (ลูปเดิมคิด prevTotal ให้เหมือนโหมดอื่น)
+    const { year } = period
+    const month0 = (period.month ?? 1) - 1
+    const day = period.day ?? 1
+    bucketCount = 24
+    gte = new Date(Date.UTC(year, month0, day) - TZ_OFFSET_MS)
+    lt = new Date(gte.getTime() + 24 * 60 * 60 * 1000)
+    prevGte = new Date(gte.getTime() - 24 * 60 * 60 * 1000)
+    labels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+    bucketOf = (t) => t.getUTCHours()
+    // วันนี้จริง → ชั่วโมงถัดจากตอนนี้เป็นต้นไป = อนาคต
+    futureFromIndex =
+      year === nowYear && month0 === nowMonth0 && day === thaiNow.getUTCDate() ? thaiNow.getUTCHours() + 1 : bucketCount
   } else {
     const { year } = period
     bucketCount = 12

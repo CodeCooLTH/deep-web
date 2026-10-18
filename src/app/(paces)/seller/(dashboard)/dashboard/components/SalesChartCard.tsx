@@ -31,9 +31,6 @@ import type { SalesSeries } from '../_constants/command-center'
 // อยู่แล้ว ถ้าชีตย้อนมา import จากที่นี่จะเป็น circular import)
 import { axisAnchorDays } from './sales-chart-axis'
 import SalesChartSheet from './SalesChartSheet'
-import PortfolioSheet from './PortfolioSheet'
-import { PORTFOLIO_CARD_TITLE } from '@/lib/portfolio-display'
-import type { PortfolioSeries } from '@/services/business-overview.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { DEFAULT_REPORT_SETTINGS, showsUnclosedOnCard, type ReportSettings } from '@/lib/report-settings'
@@ -51,12 +48,6 @@ type Props = {
   advance?: { amount: number; jobs: number } | null
   /** ตัวเลขหลักบนการ์ด (00073 · มติ user 2026-10-12) — null = ยอดขาย (หน้าตาเดิมทุกพิกเซล) */
   headline?: { kind: 'RECEIVED' | 'NET_PROFIT'; today: number; month: number; note: string | null } | null
-  /**
-   * โหมด "ยอดขายทุกธุรกิจ" (00069 v1.1 · บริบท Personal ที่มีร้านธุรกิจจ่ายแล้ว) — initialSeries ต้องเป็นยอดรวมของชุดเดียวกัน
-   * (`initial.aggregate`) · มีค่า = หัวการ์ดเปลี่ยนชื่อ + กดแล้วเปิด PortfolioSheet แทน SalesChartSheet
-   * ไม่ส่ง = การ์ดเส้นทางเดิมทุกบรรทัด
-   */
-  portfolio?: { initial: PortfolioSeries } | null
   /**
    * เงินที่ร้าน **ยืนยันว่าได้รับจริง** วันนี้ (feature 00050 · AC-SQ-04)
    * `undefined` = ไม่ใช่ร้าน SERVICE_QUEUE ⇒ การ์ดเหมือนเดิมทุก node
@@ -87,7 +78,7 @@ const RECENT_DAYS = 14
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
 
-export default function SalesChartCard({ initialSeries, orderNoun, costNoun, portfolio, reportSettings, advance, headline = null }: Props) {
+export default function SalesChartCard({ initialSeries, orderNoun, costNoun, reportSettings, advance, headline = null }: Props) {
   const t = useT()
   const noun = orderNoun || t.vocab.orderNoun.ONLINE_SALES
   const [open, setOpen] = useState(false)
@@ -485,7 +476,7 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Icon icon="chart-bar" className="size-4 text-primary" />
-              <span className="text-sm font-bold text-dark">{portfolio ? PORTFOLIO_CARD_TITLE : t.dashboard.salesCardTitle}</span>
+              <span className="text-sm font-bold text-dark">{t.dashboard.salesCardTitle}</span>
             </div>
             {/* segmented — Base: SalesChartSheet.tsx (in-app precedent) แต่คนละความหมาย จึงคนละคำ:
                 ของชีตคือ granularity ที่เลื่อนข้ามเดือน/ปีได้ ของที่นี่คือ snapshot คงที่ 2 อัน */}
@@ -598,12 +589,9 @@ export default function SalesChartCard({ initialSeries, orderNoun, costNoun, por
             (seller-menu.ts:84 slug seller:expenses) จึงไม่มีทางเข้าไหนหายไปจากการตัดนี้ */}
       </div>
 
-      {open &&
-        (portfolio ? (
-          <PortfolioSheet initial={portfolio.initial} onClose={() => setOpen(false)} />
-        ) : (
-          <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} costNoun={costNoun} reportSettings={reportSettings} advance={advance} />
-        ))}
+      {open && (
+        <SalesChartSheet initialSeries={initialSeries} onClose={() => setOpen(false)} costNoun={costNoun} reportSettings={reportSettings} advance={advance} />
+      )}
     </>
   )
 }
