@@ -182,6 +182,7 @@ theme/
 - **2026-10-16 (00077 Chat Desk):** โต๊ะแชท 3D อ่านอย่างเดียว เจ้าของร้านเท่านั้น (capability `X7`) — ยังไม่ merge · ค้าง critique/clarify + ภาพ 3 จอ · 🛑 `.glb` ต้องอยู่ใน regex `proxy.ts` · ดู [[docs/claude/state-snapshots]]
 - **2026-10-17 (00078):** หน้ายอดขายและกำไรร้านบริการใหม่ (ตัวกลาง `src/lib/service-report/*` · ตั้งค่า 2 ข้อ · API `service-report` 2 ตัว) — ร้านบริการเท่านั้น · ไม่มี migration · 🛑 ApexCharts ห้ามคีย์ค่า `undefined` · ดู [[docs/claude/state-snapshots]]
 - **2026-10-18 (00069 ext):** การ์ดมือถือ "ยอดขายรวม" ของ Personal ที่เป็นเจ้าของหลายธุรกิจ (แท่งซ้อนตามธุรกิจ + แท่งค่าใช้จ่าย · วันนี้ = ยอดสะสมรายชั่วโมง · แตะแถวสลับร้าน) — ไม่มี migration · ร้านเดี่ยว/desktop ไม่เปลี่ยน · ดู [[docs/claude/state-snapshots]]
+- **2026-10-18 (00080):** ส่งเอง 3 ขั้น รอจัดส่ง → "จัดส่งแล้ว" (เลิกทำ 5 วิ) → "ส่งสำเร็จ" + จังหวะแจ้งเลข ON_SAVE/ON_DISPATCH — "รอจัดส่ง" คำนวณ ไม่ใช่ค่า Order.status · migration 4 ตัว (HR15) · ดู [[docs/claude/state-snapshots]]
 - **2026-10-10 (00071 P2+P3):** 5 บทบาทถือหลายบทบาทได้ + ทุก route ประกาศ capability (`src/lib/route-capabilities.ts`) — branch `feat/00071-p2-roles` ยังไม่ push · มี migration (HR15) · 🛑 browser QA ยังไม่ทำ
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.

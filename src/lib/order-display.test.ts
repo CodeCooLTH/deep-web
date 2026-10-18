@@ -17,7 +17,7 @@ import {
 // -------------------------------------------------------------------------
 describe('getOrderTimeline', () => {
   it('PENDING transfer physical → step[0] done, step[1] รอชำระเงิน/cur, step[2] จัดส่ง/up', () => {
-    const tl = getOrderTimeline('PENDING', 'SHIPPED', 'พร้อมเพย์')
+    const tl = getOrderTimeline('PENDING', 'SHIPPED', 'พร้อมเพย์', false)
     expect(tl).toHaveLength(3)
     expect(tl[0]).toEqual({ label: 'สั่งซื้อแล้ว', state: 'done' })
     expect(tl[1]).toEqual({ label: 'รอชำระเงิน', state: 'cur' })
@@ -25,13 +25,13 @@ describe('getOrderTimeline', () => {
   })
 
   it('PENDING COD physical → step[1] รอยืนยัน/cur', () => {
-    const tl = getOrderTimeline('PENDING', 'SHIPPED', 'COD')
+    const tl = getOrderTimeline('PENDING', 'SHIPPED', 'COD', false)
     expect(tl[1]).toEqual({ label: 'รอยืนยัน', state: 'cur' })
     expect(tl[2]).toEqual({ label: 'จัดส่ง', state: 'up' })
   })
 
   it('PENDING digital (NO_SHIPPING) → [สั่งซื้อแล้ว/done, ส่งมอบแล้ว/cur, ยืนยันรับ/up]', () => {
-    const tl = getOrderTimeline('PENDING', 'NO_SHIPPING', null)
+    const tl = getOrderTimeline('PENDING', 'NO_SHIPPING', null, false)
     expect(tl).toEqual([
       { label: 'สั่งซื้อแล้ว', state: 'done' },
       { label: 'ส่งมอบแล้ว',  state: 'cur'  },
@@ -40,7 +40,7 @@ describe('getOrderTimeline', () => {
   })
 
   it('SHIPPED physical → [ยืนยันแล้ว/done, กำลังจัดส่ง/cur, ได้รับสินค้า/up]', () => {
-    const tl = getOrderTimeline('SHIPPED', 'SHIPPED', 'โอนเงิน')
+    const tl = getOrderTimeline('SHIPPED', 'SHIPPED', 'โอนเงิน', false)
     expect(tl).toEqual([
       { label: 'ยืนยันแล้ว',   state: 'done' },
       { label: 'กำลังจัดส่ง',  state: 'cur'  },
@@ -49,7 +49,7 @@ describe('getOrderTimeline', () => {
   })
 
   it('CONFIRMED physical → [ยืนยันแล้ว/done, จัดส่งแล้ว/done, ได้รับแล้ว/fin]', () => {
-    const tl = getOrderTimeline('CONFIRMED', 'SHIPPED', 'โอนเงิน')
+    const tl = getOrderTimeline('CONFIRMED', 'SHIPPED', 'โอนเงิน', false)
     expect(tl).toEqual([
       { label: 'ยืนยันแล้ว', state: 'done' },
       { label: 'จัดส่งแล้ว', state: 'done' },
@@ -58,7 +58,7 @@ describe('getOrderTimeline', () => {
   })
 
   it('CONFIRMED digital → [สั่งซื้อแล้ว/done, ส่งมอบแล้ว/done, ได้รับแล้ว/fin]', () => {
-    const tl = getOrderTimeline('CONFIRMED', 'NO_SHIPPING', undefined)
+    const tl = getOrderTimeline('CONFIRMED', 'NO_SHIPPING', undefined, false)
     expect(tl).toEqual([
       { label: 'สั่งซื้อแล้ว', state: 'done' },
       { label: 'ส่งมอบแล้ว',   state: 'done' },
@@ -67,7 +67,7 @@ describe('getOrderTimeline', () => {
   })
 
   it('CANCELLED physical → [สั่งซื้อแล้ว/done, ยกเลิก/cx, จัดส่ง/mute]', () => {
-    const tl = getOrderTimeline('CANCELLED', 'SHIPPED', 'โอนเงิน')
+    const tl = getOrderTimeline('CANCELLED', 'SHIPPED', 'โอนเงิน', false)
     expect(tl).toEqual([
       { label: 'สั่งซื้อแล้ว', state: 'done' },
       { label: 'ยกเลิก',       state: 'cx'   },
@@ -76,12 +76,12 @@ describe('getOrderTimeline', () => {
   })
 
   it('CANCELLED digital → step[2] ยืนยันรับ/mute (ไม่ใช่ จัดส่ง)', () => {
-    const tl = getOrderTimeline('CANCELLED', 'NO_SHIPPING', null)
+    const tl = getOrderTimeline('CANCELLED', 'NO_SHIPPING', null, false)
     expect(tl[2]).toEqual({ label: 'ยืนยันรับ', state: 'mute' })
   })
 
   it('ทุก path คืน array ความยาว 3 เสมอ', () => {
-    const cases: Parameters<typeof getOrderTimeline>[] = [
+    const cases: [Parameters<typeof getOrderTimeline>[0], string, string | null | undefined][] = [
       ['PENDING',   'SHIPPED',     'โอนเงิน'],
       ['PENDING',   'SHIPPED',     'COD'],
       ['PENDING',   'NO_SHIPPING', null],
@@ -93,7 +93,8 @@ describe('getOrderTimeline', () => {
       ['RETURNED',  'SHIPPED',     'COD'],
     ]
     for (const [s, f, p] of cases) {
-      expect(getOrderTimeline(s, f, p)).toHaveLength(3)
+      expect(getOrderTimeline(s, f, p, false)).toHaveLength(3)
+      expect(getOrderTimeline(s, f, p, true)).toHaveLength(3) // 00080 — ธงรอจัดส่งไม่เปลี่ยนความยาว
     }
   })
 
@@ -105,7 +106,7 @@ describe('getOrderTimeline', () => {
    * `steps.map()` = **หน้าออเดอร์ของผู้ซื้อ /o/[token] พังทั้งหน้า**
    */
   it('[blocker] RETURNED ต้องได้ไทม์ไลน์จริง ไม่ใช่ undefined', () => {
-    const tl = getOrderTimeline('RETURNED', 'SHIPPED', 'COD')
+    const tl = getOrderTimeline('RETURNED', 'SHIPPED', 'COD', false)
     expect(tl).toBeDefined()
     expect(Array.isArray(tl)).toBe(true)
     expect(tl.map((s) => s.label)).toEqual(['สั่งซื้อแล้ว', 'ได้รับสินค้า', 'คืนของแล้ว'])
@@ -119,7 +120,7 @@ describe('getOrderTimeline', () => {
    * (เช่น `as OrderStatus` ที่ยังเหลืออยู่ที่อื่น หรือค่าที่ migration เพิ่มแต่ยังไม่ sync type)
    */
   it('[blocker] ค่าที่ไม่รู้จักต้องได้ไทม์ไลน์กลาง ๆ ไม่ใช่ undefined (จอที่บอกไม่ละเอียด > จอขาว)', () => {
-    const tl = getOrderTimeline('SOMETHING_NEW' as never, 'SHIPPED', null)
+    const tl = getOrderTimeline('SOMETHING_NEW' as never, 'SHIPPED', null, false)
     expect(tl).toBeDefined()
     expect(tl).toHaveLength(3)
   })

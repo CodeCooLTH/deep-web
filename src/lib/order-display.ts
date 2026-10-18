@@ -469,6 +469,11 @@ export function getOrderTimeline(
   status: OrderStatus,
   fulfillmentMode: string,
   paymentMethod: string | null | undefined,
+  /**
+   * feature 00080 — PENDING + เลขพัสดุส่งเอง (ไม่มี iShip) = "รอจัดส่ง"
+   * 🛑 บังคับส่ง ไม่มีค่าตั้งต้น — ลืมส่ง = ไทม์ไลน์ขึ้น "รอชำระเงิน" ทั้งที่ป้ายบนหน้าเดียวกันบอก "รอจัดส่ง"
+   */
+  awaitingDispatch: boolean,
 ): TimelineStep[] {
   const isShipping = fulfillmentMode === 'SHIPPED'
   const isCOD = /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
@@ -517,6 +522,14 @@ export function getOrderTimeline(
       ]
 
     case 'PENDING':
+      if (isShipping && awaitingDispatch) {
+        // คำเดียวกับป้ายขั้น (SHIPPING_STAGE_LABEL.AWAITING_DISPATCH) และขั้นถัดไปตรงกับไทม์ไลน์ของ SHIPPED (HR16)
+        return [
+          { label: 'สั่งซื้อแล้ว',  state: 'done' },
+          { label: 'รอจัดส่ง',    state: 'cur'  },
+          { label: 'กำลังจัดส่ง', state: 'up'   },
+        ]
+      }
       if (isShipping) {
         return [
           { label: 'สั่งซื้อแล้ว',                     state: 'done' },

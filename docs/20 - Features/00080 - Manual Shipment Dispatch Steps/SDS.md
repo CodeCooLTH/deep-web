@@ -140,7 +140,7 @@ sequenceDiagram
 
 ### TD-009: สิทธิ์ "ส่งสำเร็จ" = S1 รวมบทบาทแชท (user ตัดสิน 2026-10-18 หลัง security ชี้ความเสี่ยงปั่น Trust Score)
 
-### TD-010: undo "จัดส่งแล้ว" ภายใน 5 วินาที (user เลือกจาก critique 2026-10-18 — ดึง OOS-6 บางส่วนเข้าขอบเขต)
+### TD-010: undo "จัดส่งแล้ว" — ปุ่มบน toast 5 วินาที (UI) · server รับภายใน 30 วินาที (user เลือกจาก critique 2026-10-18 — ดึง OOS-6 บางส่วนเข้าขอบเขต)
 - UI: toast สำเร็จของ "จัดส่งแล้ว" มีปุ่ม `เลิกทำ` (pacesToast action) แสดง 5 วินาที — ทั้งหน้าออเดอร์และแผงแชท
 - server `undoManualDispatch(publicToken, shopId, actorUserId)` + `POST /api/orders/[token]/dispatch/undo` (S1): conditional update `status=SHIPPED AND ShipmentTracking.dispatchedAt >= now()-30s` (เผื่อ latency เกิน 5 วิของ UI) และเป็นส่งเอง (ไม่มี iShip live) → `PENDING` · `dispatchedAt=null` · OrderEvent `MANUAL_DISPATCH_UNDONE` (M4 additive) · หมดเวลา/ไม่ใช่ขั้นนี้ → 409 ไทย "เลยเวลาเลิกทำแล้ว"
 - 🛑 ข้อจำกัดที่ยอมรับ: ข้อความแจ้งเลขพัสดุที่ "จัดส่งแล้ว" ยิงไปแล้ว **ดึงคืนไม่ได้** (ส่งหลัง commit ทันที) · กด "จัดส่งแล้ว" ใหม่ด้วยเลขเดิม ledger UNIQUE กันส่งซ้ำ

@@ -469,3 +469,20 @@
 **โครง**: `getSalesSeries` มีโหมด `'hourly'` (วันเดียว 24 bucket) · `getPortfolioSeries(..., { day })` คืน `card` (คิดเฉพาะเมื่อขอ — API ชีตไม่คิด) · ตัวรวม pure `buildPortfolioCard` ใน `src/lib/business-overview.ts` · การ์ด `PortfolioSalesCard.tsx` · ไม่มี migration
 
 **carry**: ยังไม่เคยเปิดบนมือถือจริง (iPhone: กราฟแท่ง group ไม่เคยลองบน iOS — ดูกับดัก 00078 "แท่งลอยใต้แกน") · ชีตเต็มจอ/แผง desktop ยังนับเฉพาะงานที่ปิดแล้ว (เลขไม่ตรงการ์ด — user ยังไม่ตัดสิน)
+
+## 2026-10-18 (00080) — ขั้นตอนจัดส่งแบบส่งเอง: รอจัดส่ง → จัดส่งแล้ว → ส่งสำเร็จ
+
+**มติที่ห้ามกลับ** (PRD/BRD v0.2 · SDS TD-001..TD-011 · Scope Baseline Change Log)
+- ส่งเองเท่านั้น (ไม่มีพัสดุ iShip live) · iShip ไม่เปลี่ยน · ร้านบริการ/ที่พักไม่เกี่ยว · ใบเก่าที่ SHIPPED อยู่ไม่ย้อน แต่ได้ปุ่ม "ส่งสำเร็จ"
+- "รอจัดส่ง" = **คำนวณ** (Order PENDING + มีแถว ShipmentTracking + ไม่มี iShip live) ไม่เพิ่มค่า Order.status — ตัวตัดสิน `src/lib/manual-shipment.ts` · stage `AWAITING_DISPATCH` (TS + SQL คู่ + parity test)
+- "ส่งสำเร็จ" นับยอดขาย/Trust Score/เหรียญเท่าลูกค้ายืนยัน (user ยืนยัน 2 รอบ แม้ขัด Positioning ใน PRODUCT.md) · สิทธิ์ S1 รวมบทบาทแชท (user) · ข้อความ Swal ห้ามบอกว่า "เท่ากับลูกค้ายืนยัน"
+- "จัดส่งแล้ว" ไม่มี confirm · เลิกทำได้จาก toast 5 วิ (server 30 วิ) · จังหวะแจ้งเลข `AutoNotifyConfig.trackingNoticeTiming` ON_SAVE (ค่าตั้งต้น) | ON_DISPATCH · "จัดส่งแล้ว" จองข้อความทุกครั้ง (ledger UNIQUE กันซ้ำ)
+- หน้าลูกค้า: PENDING+ON_DISPATCH ตัดเลขออกจาก payload ที่ server · ไทม์ไลน์ 3 ขั้นมี "รอจัดส่ง"
+
+**กับดัก**
+- นิยาม "มี iShip" ต้องเป็น `ACTIVE_FORWARD_SHIPMENT`/`hasLiveIshipShipment` ไม่ใช่ `LATEST_FORWARD_SHIPMENT` (นับใบ FAILED → ร้าน "ส่งเองแทน" ติด)
+- `createShipment` ปฏิเสธใบที่มีเลขส่งเองแล้ว · `confirmOrder` เป็น conditional update (ชนกับส่งสำเร็จ)
+- `next build` ทิ้ง `.next` ที่ทำ dev server ขึ้น Build Error ฟอนต์ Anuphan → ลบ `.next` ก่อน `next dev` · build ต้อง heap 8GB
+- E2E: modal onboarding บัง pointer (ตั้ง localStorage `onboarding_modal_shown_v1`) · mutation ผ่าน `page.request` ต้องส่ง `Origin` (CSRF ใน proxy) · rate limit `/api` ต่อ IP ทำเทสแชทแดงถ้ารันถี่
+
+**carry**: ข้อความแจ้งเลขยังไม่เคยลองส่งเข้า Messenger/LINE จริง · ข้อความที่ยิงไปแล้วดึงคืนไม่ได้เมื่อเลิกทำ · 00081 (เช็คสถานะผ่าน API ขนส่ง) = เมล็ดความต้องการ พักไว้ · `CONFIRM_BTN.warning` คอนทราสต์ตก (นอกขอบเขต)
