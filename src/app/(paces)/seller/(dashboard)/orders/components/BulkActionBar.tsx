@@ -11,6 +11,9 @@
  *
  * Desktop-only (scope 2026-06-15) — mobile card ไม่มี checkbox
  *
+ * 00080 ext (TD-013, user 2026-10-18) — [จัดส่งแล้ว] หลายใบ: ยิง route เดี่ยวตัวเดิมทีละใบ (สิทธิ์/idempotent/แจ้งเลข
+ * อยู่ที่ service ที่เดียว) · ใบที่ไม่ใช่ "รอจัดส่ง" ข้ามและบอกจำนวนในคำถาม · ไม่มีเลิกทำแบบกลุ่ม (กดทีละใบในหน้าออเดอร์)
+ *
  * Base (button/badge/card primitive): docs/system/ui-guideline/paces-component-reference.md §1/§6/§7
  * Base (progress dialog shell): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
  *   (card overlay/backdrop — controlled React state)
@@ -32,6 +35,8 @@ import Link from 'next/link'
 import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { INSUFFICIENT_CREDIT_TEXT, NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { postManualStep } from '@/lib/manual-shipment-client'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
@@ -75,6 +80,9 @@ export default function BulkActionBar({
   const canShip = useViewerCan('S1')
   const [smsDialogOpen, setSmsDialogOpen] = useState(false)
   const [printing, setPrinting] = useState(false)
+  const router = useRouter()
+  /** null = ว่าง · ตัวเลข = ทำไปแล้วกี่ใบ (โชว์บนปุ่มระหว่างวน) */
+  const [dispatchDone, setDispatchDone] = useState<number | null>(null)
 
   /**
    * พิมพ์ใบปะหน้าหลายใบ — เปิดแท็บใหม่ให้สั่งพิมพ์ได้ทันที
@@ -140,6 +148,42 @@ export default function BulkActionBar({
   const eligibleCount = eligibleRows.length
   const skippedCount = selectedCount - eligibleCount
   const visible = selectedCount > 0
+
+  // "รอจัดส่ง" มาจาก shippingStage ที่ server คำนวณด้วยตัวตัดสินกลาง — ไม่เดาจาก status เอง
+  const dispatchRows = selectedRows.filter((r) => r.original.shippingStage === 'AWAITING_DISPATCH')
+
+  const handleBulkDispatch = async () => {
+    if (dispatchDone !== null || dispatchRows.length === 0) return
+    const skipped = selectedCount - dispatchRows.length
+    const ok = await pacesConfirm.question(
+      `บันทึกว่าจัดส่งแล้ว ${dispatchRows.length} ${orderWord}?`,
+      `สถานะจะเปลี่ยนจาก "รอจัดส่ง" เป็น "กำลังจัดส่ง" · ถ้าตั้งให้แจ้งเลขพัสดุตอนกดจัดส่งแล้ว ลูกค้าจะได้รับข้อความตอนนี้${
+        skipped > 0 ? `\n\nข้าม ${skipped} ${orderWord}ที่ไม่ได้อยู่ในขั้นรอจัดส่ง` : ''
+      }`,
+      { confirmButtonText: `จัดส่งแล้ว (${dispatchRows.length})` },
+    )
+    if (!ok) return
+    let done = 0
+    let failed = 0
+    setDispatchDone(0)
+    // ทีละใบ ไม่ยิงขนาน — ร้านเดียวกันแตะ ledger แจ้งเลขชุดเดียวกัน · 409/403 นับเป็นไม่สำเร็จแล้วไปใบถัดไป
+    for (const row of dispatchRows) {
+      try {
+        const r = await postManualStep(row.original.publicToken, 'dispatch')
+        if (r.kind === 'ok') done++
+        else failed++
+      } catch {
+        failed++
+      }
+      setDispatchDone(done + failed)
+    }
+    setDispatchDone(null)
+    if (failed === 0) pacesToast.success(`บันทึกจัดส่งแล้ว ${done} ${orderWord}`)
+    else if (done === 0) pacesToast.error('บันทึกไม่สำเร็จ ลองกดอีกครั้ง ถ้ายังไม่ได้ให้รีเฟรชหน้า')
+    else pacesToast.warning(`บันทึกจัดส่งแล้ว ${done}/${done + failed} ${orderWord} · ที่เหลือให้เปิดดูทีละใบ`)
+    onClear()
+    router.refresh()
+  }
 
   const handleCopy = async () => {
     const text = selectedRows.map((r) => `${buyerBaseUrl}/o/${r.original.shortCode || r.original.publicToken}`).join('\n')
@@ -225,6 +269,17 @@ export default function BulkActionBar({
 
           {/* zone 3: close */}
           <div className="ps-1 pe-2">
+            {canShip && dispatchRows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleBulkDispatch()}
+                disabled={dispatchDone !== null}
+                className="btn text-white/80 hover:text-white hover:bg-white/10 rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Icon icon={dispatchDone !== null ? 'loader-2' : 'truck-delivery'} className={`size-4.5 ${dispatchDone !== null ? 'animate-spin' : ''}`} />
+                {dispatchDone !== null ? `กำลังบันทึก ${dispatchDone}/${dispatchRows.length}` : `จัดส่งแล้ว (${dispatchRows.length})`}
+              </button>
+            )}
             {ishipEnabled && canShip && (
               <button
                 type="button"
