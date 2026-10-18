@@ -1566,18 +1566,23 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   // ไม่เขียน buyerContact/buyerUserId ที่นี่อีกต่อไป — ทั้งคู่ถูก set ที่ต้นทาง
   // (createOrder) หรือ claim-time (guaranteeOrderLink) แล้วก่อนหน้านี้
   // feature 00031 — BUYER_CONFIRMED ใน tx เดียวกับการ mark CONFIRMED
-  const updated = await prisma.$transaction(async (tx) => {
-    const u = await tx.order.update({
-      where: { publicToken },
+  // conditional: ปิดงานได้เฉพาะที่ยัง PENDING/SHIPPED — ร้านกด "ส่งสำเร็จ" / ขนส่งโอน COD / ลูกค้าอีกแท็บ
+  // อาจปิดไปก่อนเสี้ยววินาที (00080) · แพ้ = คืนแถวปัจจุบัน ไม่เขียน BUYER_CONFIRMED ไม่รันผลข้างเคียงซ้ำ
+  const won = await prisma.$transaction(async (tx) => {
+    const r = await tx.order.updateMany({
+      where: { publicToken, status: { in: ["PENDING", "SHIPPED"] } },
       data: { status: "CONFIRMED" },
     });
+    if (r.count === 0) return false;
     await recordOrderEvent(tx, {
-      orderId: u.id,
+      orderId: order.id,
       type: "BUYER_CONFIRMED",
       actorUserId: buyerUserId,
     });
-    return u;
+    return true;
   });
+  const updated = await prisma.order.findUniqueOrThrow({ where: { publicToken } });
+  if (!won) return updated;
   // Post-confirm recalc เป็น best-effort (ดู runPostConfirmEffects)
   await runPostConfirmEffects(
     { publicToken: updated.publicToken, buyerUserId: updated.buyerUserId, auctionId: updated.auctionId, shop: order.shop },
@@ -1586,6 +1591,10 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   return updated;
 }
 
+
+export class ShipmentTrackingExistsError extends Error {
+  constructor() { super("SHIPMENT_TRACKING_EXISTS"); this.name = "ShipmentTrackingExistsError"; }
+}
 
 export async function shipOrder(
   publicToken: string,
@@ -1604,6 +1613,10 @@ export async function shipOrder(
   // 00080 — ด่านเดิม "ส่งได้ไหม" (PENDING เท่านั้น) · status ไม่ถูกเปลี่ยนแล้ว: บันทึกเลข = "รอจัดส่ง"
   // ขั้น "กำลังจัดส่ง" มาจากการกด markManualDispatched
   assertTransition(order.status, "SHIPPED");
+  // มีเลขแล้ว → ใช้ "แก้ไขเลขพัสดุ" (PATCH) · ไม่ปล่อยให้ชน unique แล้วกลายเป็น 400 ที่อ่านไม่รู้เรื่อง
+  if (await prisma.shipmentTracking.findUnique({ where: { orderId: order.id }, select: { id: true } })) {
+    throw new ShipmentTrackingExistsError();
+  }
   const timing = await getTrackingNoticeTiming(order.shopId);
   let ledgerId: string | null = null;
   const shipped = await prisma.$transaction(async (tx) => {
@@ -1796,11 +1809,10 @@ export async function markManualDispatched(publicToken: string, shopId: string, 
       throw new ManualDispatchNotAllowedError(dispatchRejectMessage(now ?? order));
     }
     // อ่านเลขหลังชนะ — PATCH แก้เลขแทรกได้ ต้องแจ้งเลขล่าสุด
-    const tracking = await tx.shipmentTracking.update({
-      where: { orderId: order.id },
-      data: { dispatchedAt: new Date() },
-      select: { trackingNo: true },
-    });
+    const stamped = await tx.shipmentTracking.updateMany({ where: { orderId: order.id }, data: { dispatchedAt: new Date() } });
+    // ไม่มีแถวเลข (ถูกลบแทรก) = ไม่ใช่ขั้นรอจัดส่งอีกแล้ว · throw → tx rollback คืนสถานะ PENDING
+    if (stamped.count === 0) throw new ManualDispatchNotAllowedError(dispatchRejectMessage({ ...order, shipmentTracking: null }));
+    const tracking = await tx.shipmentTracking.findUniqueOrThrow({ where: { orderId: order.id }, select: { trackingNo: true } });
     await recordOrderEvent(tx, { orderId: order.id, type: "MANUAL_DISPATCHED", actorUserId });
     ledgerId = await reserveTrackingNotice(tx, order.id, tracking.trackingNo);
     return { changed: true, order: { publicToken, status: "SHIPPED" } };
@@ -2692,6 +2704,8 @@ export async function getThreadPanelOrders(
         take: 1,
         select: {
           trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+          // 00080 — hasLiveIshipShipment ต้องใช้ (CREATED && !isDryRun) · คู่กับ inbox/[conversationId]/page.tsx
+          isDryRun: true,
           // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมีคู่กับ select ใน
           // inbox/[conversationId]/page.tsx เสมอ (สองที่นี้ป้อนลิสต์เดียวกันคนละหน้า)
           problemAt: true,
@@ -2742,6 +2756,7 @@ export async function getThreadPanelOrders(
             courierCode: o.shipments[0].courierCode,
             status: o.shipments[0].status,
             carrierStatus: o.shipments[0].carrierStatus,
+            isDryRun: o.shipments[0].isDryRun,
             problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
             // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้น RSC/JSON ไม่ได้ ต้องเป็นสตริง
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,

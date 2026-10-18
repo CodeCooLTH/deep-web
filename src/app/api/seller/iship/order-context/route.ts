@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
             orderStatus: result.orderStatus,
             manualShipment: result.manualShipment,
             trackingNoticeTiming: result.trackingNoticeTiming,
+            isCodUnpaid: result.isCodUnpaid,
           }
         : { ...result, shipment: result.shipment ? toShipmentViewJson(result.shipment) : null };
     // 00078: ช่องค่าส่งเป็นต้นทุนร้าน — บทบาทระดับเงิน NONE ไม่ได้ธง (fail-closed)

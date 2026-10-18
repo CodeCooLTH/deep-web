@@ -636,6 +636,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
             take: 1,
             select: {
               trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+              // 00080 — hasLiveIshipShipment (CREATED && !isDryRun) · คู่กับ getThreadPanelOrders
+              isDryRun: true,
               // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
               problemAt: true,
             },
@@ -728,6 +730,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           courierCode: o.shipments[0].courierCode,
           status: o.shipments[0].status,
           carrierStatus: o.shipments[0].carrierStatus,
+          isDryRun: o.shipments[0].isDryRun,
           problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
         }
       : null,

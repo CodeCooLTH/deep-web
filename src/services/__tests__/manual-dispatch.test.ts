@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/token-crypto', () => ({ decryptToken: () => 'tok', encryptToken: (t: string) => t }))
 
 const { dispatched, effects } = vi.hoisted(() => ({
   dispatched: [] as (string | null | undefined)[],
@@ -29,8 +30,11 @@ vi.mock('@/services/badge.service', async (orig) => ({
   evaluateBadges: effects.user,
 }))
 
+import { createShipment, IShipServiceError } from '@/services/iship.service'
+import { confirmOrder } from '@/services/order.service'
 import {
   shipOrder,
+  ShipmentTrackingExistsError,
   updateShipmentTracking,
   markManualDispatched,
   markManualDelivered,
@@ -88,11 +92,13 @@ describe.skipIf(!isLocal)('ส่งเอง 3 ขั้น (DB จริง)',
     const mk = (n: string) => db.shop.create({ data: { userId: u.id, shopName: `md-${n}-${run}`, kind: 'BUSINESS', vertical: 'ONLINE_SALES' } as never, select: { id: true } })
     const [shop, other] = await Promise.all([mk('a'), mk('b')])
     Object.assign(S, { user: u.id, shop: shop.id, otherShop: other.id })
+    await db.shopShippingAccount.create({ data: { shopId: shop.id, accessTokenEnc: 'x', connectedByUserId: u.id, status: 'ACTIVE', defaultCourierCode: 'FlashExpressA' } })
     await db.autoNotifySwitch.create({ data: { shopId: shop.id, kind: 'TRACKING', enabled: true, enabledAt: hoursAgo(1) } })
   })
 
   afterAll(async () => {
     // เฉพาะ id ที่เทสสร้าง (HR13) — event/ledger/tracking/shipment ลบตาม cascade ของ order
+    await db.shopShippingAccount.deleteMany({ where: { shopId: S.shop } })
     await db.order.deleteMany({ where: { id: { in: ids.orders } } })
     await db.conversation.deleteMany({ where: { id: { in: ids.convs } } })
     await db.shop.deleteMany({ where: { id: { in: [S.shop, S.otherShop] } } })
@@ -237,6 +243,47 @@ describe.skipIf(!isLocal)('ส่งเอง 3 ขั้น (DB จริง)',
       await setTiming('ON_SAVE')
       await markManualDispatched(o.publicToken, S.shop, S.user)
       expect(await ledger(o.id)).toHaveLength(1)
+    })
+  })
+
+  describe('รอบ review', () => {
+    it('createShipment (iShip) ปฏิเสธเมื่อมีเลขส่งเองและไม่มี iShip live · FAILED ก็ปฏิเสธ [M-create]', async () => {
+      for (const iship of [undefined, 'FAILED' as const]) {
+        const o = await mkOrder({ tracking: `C${randomUUID().slice(0, 6)}`, iship })
+        const err = await createShipment(S.shop, S.user, o.id).catch((e) => e)
+        expect(err).toBeInstanceOf(IShipServiceError)
+        expect(err.code).toBe('SHIPMENT_EXISTS')
+        expect(err.userMessage).toMatch(/ส่งเองไว้แล้ว/)
+      }
+    })
+
+    it('confirmOrder หลังร้านกด "ส่งสำเร็จ" → ไม่เขียน BUYER_CONFIRMED · ผลข้างเคียงครั้งเดียว [M-confirm]', async () => {
+      const o = await mkOrder({ status: 'SHIPPED', tracking: `F${randomUUID().slice(0, 6)}` })
+      await db.order.update({ where: { id: o.id }, data: { buyerUserId: S.user } })
+      await markManualDelivered(o.publicToken, S.shop, S.user)
+      // อ่านสด: ลูกค้ากดจากหน้าเก่าที่ยังเห็น SHIPPED — จำลองด้วยการเรียกขนาน
+      const rs = await Promise.allSettled([confirmOrder(o.publicToken, S.user), markManualDelivered(o.publicToken, S.shop, S.user)])
+      expect(rs.length).toBe(2)
+      expect(await events(o.id, 'BUYER_CONFIRMED')).toHaveLength(0)
+      expect(effects.seller).toHaveBeenCalledTimes(1)
+    })
+
+    it('ลูกค้ากับร้านปิดพร้อมกัน N=10 → ผู้ชนะคนเดียว · event ชุดเดียว · ผลข้างเคียงครั้งเดียว', async () => {
+      const o = await mkOrder({ status: 'SHIPPED', tracking: `G${randomUUID().slice(0, 6)}` })
+      await db.order.update({ where: { id: o.id }, data: { buyerUserId: S.user } })
+      await Promise.allSettled(
+        Array.from({ length: 10 }, (_, i) => (i % 2 ? confirmOrder(o.publicToken, S.user) : markManualDelivered(o.publicToken, S.shop, S.user))),
+      )
+      expect(await statusOf(o.id)).toBe('CONFIRMED')
+      const sellerEv = (await events(o.id, 'SELLER_DELIVERED')).length
+      const buyerEv = (await events(o.id, 'BUYER_CONFIRMED')).length
+      expect(sellerEv + buyerEv).toBe(1)
+      expect(effects.seller).toHaveBeenCalledTimes(1)
+    })
+
+    it('shipOrder ซ้ำเมื่อมีเลขแล้ว → ShipmentTrackingExistsError', async () => {
+      const o = await mkOrder({ tracking: `H${randomUUID().slice(0, 6)}` })
+      await expect(shipOrder(o.publicToken, { provider: 'K', trackingNo: 'again' })).rejects.toThrow(ShipmentTrackingExistsError)
     })
   })
 

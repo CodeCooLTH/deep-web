@@ -75,6 +75,14 @@ export type GetOrderActionSetInput = {
    * ร้านอื่นไม่มีวันปิดงาน ⇒ ส่ง false/ไม่ส่ง = ชุดเดิมเป๊ะ
    */
   serviceClosed?: boolean
+  /**
+   * feature 00080 — ส่งเองที่ "รอจัดส่ง" (PENDING + มีเลข + ไม่มี iShip live) ⇒ primary = "จัดส่งแล้ว"
+   * caller คำนวณจาก `canMarkDispatched()` ใน src/lib/manual-shipment.ts (ห้าม derive ที่นี่ — pure module ไม่รู้ iShip live)
+   * 🛑 บังคับส่ง ไม่มีค่าตั้งต้น — ลืมส่ง = tsc แดง (ui-boolean-needs-a-testable-home)
+   */
+  canMarkDispatched: boolean
+  /** feature 00080 — ส่งเองที่ "กำลังจัดส่ง" (SHIPPED) ⇒ primary = "ส่งสำเร็จ" · มาจาก `canMarkDelivered()` */
+  canMarkDelivered: boolean
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
@@ -102,6 +110,9 @@ const buildActions = (orderNoun: string) =>
     // feature 00062 — คนละคีย์กับ codReceived โดยตั้งใจ (COD vs โอน/พร้อมเพย์/เงินสดของออเดอร์นัดรับ
     // เป็นคนละแกน — ดูคอมเมนต์ isPickupPaymentUnpaid ด้านบน) label สั้นกว่าเพราะไม่มี "ปลายทาง"
     pickupPaymentReceived: { key: 'pickup-payment-received', label: 'ได้รับเงินแล้ว', icon: 'cash' },
+    // feature 00080 — 2 ขั้นของส่งเอง (ไม่ผ่าน confirm ตัวแรก / Swal ตัวหลัง — ดู OrderDetailClient)
+    markDispatched: { key: 'mark-dispatched', label: 'จัดส่งแล้ว', icon: 'truck-delivery' },
+    markDelivered: { key: 'mark-delivered', label: 'ส่งสำเร็จ', icon: 'circle-check' },
     pickupHandedOver: { key: 'pickup-handed-over', label: 'มอบสินค้าแล้ว', icon: 'package-check' },
     // impeccable critique P0-1 (2026-08-29) — เดิม undo มีแค่ใน ShippingAddress.tsx การ์ด
     // ที่ `hidden lg:flex` (เดสก์ท็อปเท่านั้น) มือถือกด "มอบสินค้าแล้ว" พลาดแล้วย้อนไม่ได้เลย
@@ -219,6 +230,14 @@ function buildOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
      * (user เจอจริง 2026-08-06) กดแล้วโมดัลก็เปิดหน้าสถานะอยู่แล้ว → label ต้องตรงกับ
      * สิ่งที่จะเห็น: "สถานะพัสดุ" + มีคัดลอกเลขให้ใน ⋮ เหมือนสถานะที่มีเลขแล้วตัวอื่น
      */
+    // 00080 — รอจัดส่ง: "แจ้งเลขพัสดุ" หาย (กดแล้ว P2002) เหลือ "แก้ไขเลขพัสดุ" เป็น ghost
+    if (hasShipping && input.canMarkDispatched) {
+      return {
+        primary: ACTIONS.markDispatched,
+        ghosts: [ACTIONS.editTracking],
+        menu: [ACTIONS.copyTracking, ACTIONS.sendSms, ACTIONS.copyLink, ACTIONS.copyAddress, ACTIONS.editOrder, ACTIONS.cancelOrder],
+      }
+    }
     const hasIshipParcel = hasShipping && shipmentSource === 'ISHIP'
     const primary = hasIshipParcel
       ? { ...ACTIONS.reportTracking, label: 'สถานะพัสดุ' }
@@ -237,6 +256,14 @@ function buildOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
   }
 
   if (status === 'SHIPPED') {
+    // 00080 — ส่งเองที่กำลังจัดส่ง: "ส่งสำเร็จ" ชนะเป็น primary (COD ที่ยังไม่รับเงินลดปุ่มรับเงินเป็น ghost
+    // และย้าย "แก้ไขเลขพัสดุ" ลงเมนู) · "คัดลอกลิงก์" ลงเมนูกัน 3 ปุ่ม label บน 390px
+    if (hasShipping && input.canMarkDelivered) {
+      const tail = [ACTIONS.copyLink, ACTIONS.copyTracking, ACTIONS.copyAddress, ACTIONS.cancelOrder]
+      return isCodUnpaid
+        ? { primary: ACTIONS.markDelivered, ghosts: [ACTIONS.codReceived], menu: [ACTIONS.editTracking, ...tail] }
+        : { primary: ACTIONS.markDelivered, ghosts: [ACTIONS.editTracking], menu: tail }
+    }
     const ghosts: ActionItem[] = [ACTIONS.copyLink]
     // "แก้ไขเลขพัสดุ" เฉพาะ MANUAL — ISHIP ต้องไม่มีปุ่มนี้เลย (system-generated, ห้ามเขียน
     // ShipmentTracking ตาม feat 00022)

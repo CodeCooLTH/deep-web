@@ -13,6 +13,8 @@ import type { ReactNode } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 
+export type TrackingTiming = 'ON_SAVE' | 'ON_DISPATCH'
+
 export interface AutoNotifyRowProps {
   kind: string
   label: string
@@ -26,6 +28,10 @@ export interface AutoNotifyRowProps {
   onToggle: (next: boolean) => void
   renderEditAction?: () => ReactNode
   editor?: ReactNode
+  /** 00080 — เฉพาะแถว TRACKING: จังหวะแจ้งเลขของส่งเอง · ไม่ส่ง = ไม่มี radio */
+  timing?: TrackingTiming
+  timingPending?: boolean
+  onTimingChange?: (next: TrackingTiming) => void
 }
 
 export default function AutoNotifyRow(p: AutoNotifyRowProps) {
@@ -41,6 +47,40 @@ export default function AutoNotifyRow(p: AutoNotifyRowProps) {
             {p.label}
           </label>
           {note && <p className="text-default-600 mt-0.5 text-xs">{note}</p>}
+          {p.timing && p.checked && p.onTimingChange && (
+            <fieldset
+              className="mt-2"
+              disabled={!p.canEdit || p.timingPending}
+              aria-busy={p.timingPending || undefined}
+              aria-describedby={p.canEdit ? undefined : 'an-ro'}
+            >
+              <legend className="mb-1 flex flex-wrap items-baseline gap-x-2">
+                <span className="text-default-800 text-xs font-medium">{t.trackingTimingLegend}</span>
+                <span className="text-default-700 text-xs">{t.trackingTimingScope}</span>
+              </legend>
+              {(
+                [
+                  ['ON_SAVE', t.trackingTimingOnSave, t.trackingTimingOnSaveHint],
+                  ['ON_DISPATCH', t.trackingTimingOnDispatch, t.trackingTimingOnDispatchHint],
+                ] as const
+              ).map(([value, title, hint]) => (
+                <label key={value} className="flex min-h-11 items-start gap-3">
+                  <input
+                    type="radio"
+                    className="form-radio mt-0.5"
+                    name={`an-timing-${p.kind}`}
+                    value={value}
+                    checked={p.timing === value}
+                    onChange={() => p.onTimingChange?.(value)}
+                  />
+                  <span className="min-w-0">
+                    <span className={`text-default-900 block text-sm ${p.timing === value ? 'font-medium' : ''}`}>{title}</span>
+                    <span className="text-default-600 block text-xs">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           <div className="mt-1 flex items-center gap-2">
             <p className="text-default-700 min-w-0 flex-1 truncate text-xs">{p.customFirstLine ?? t.useDefaultText}</p>
             {p.renderEditAction?.()}

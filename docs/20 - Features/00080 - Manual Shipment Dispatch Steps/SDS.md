@@ -133,6 +133,13 @@ sequenceDiagram
 
 ### TD-007: settings PATCH รับ `dailyCapPerRoom?` และ `trackingNoticeTiming?` (ต้องมีอย่างน้อย 1 คีย์) · 409 ของ PATCH `/ship` เมื่อปิด/ยกเลิกแล้ว = "แก้เลขพัสดุไม่ได้ ออเดอร์นี้ปิดหรือยกเลิกแล้ว" (SRS OQ-2, OQ-3)
 
+### TD-008: ช่องที่เปิดขึ้นเพราะ PENDING มีเลขพัสดุได้ (reviewer 2026-10-18)
+- `createShipment` (เปิดพัสดุ iShip ใหม่ เสียเงิน) ปฏิเสธใบที่มีแถว ShipmentTracking และไม่มี iShip live — กันลูกค้าได้เลขสองชุด/เลขส่งเองถูกทับ · `linkShipment` (ผูกพัสดุที่มีอยู่) คงเดิม (iShip ชนะ)
+- `confirmOrder` ของลูกค้าเป็น conditional update (PENDING/SHIPPED → CONFIRMED) — ชนกับ "ส่งสำเร็จ" ได้ผลครั้งเดียว
+- `shipOrder` ซ้ำ → 409 "ใช้แก้ไขเลขพัสดุแทน" (เดิมชน P2002)
+
+### TD-009: สิทธิ์ "ส่งสำเร็จ" = S1 รวมบทบาทแชท (user ตัดสิน 2026-10-18 หลัง security ชี้ความเสี่ยงปั่น Trust Score)
+
 ## 7. Traceability
 
 | Scope | Component |

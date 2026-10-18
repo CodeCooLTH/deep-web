@@ -46,6 +46,14 @@ export function isCODPayment(paymentMethod: string | null | undefined): boolean 
 }
 
 /**
+ * isCodUnpaidOrder — ใบเก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน (นิยามเดียว HR16)
+ * ใช้ทั้งหน้าออเดอร์ (isCodUnpaid → ปุ่มรับเงิน) และ order-context ของแผงพัสดุในแชท (Swal "ส่งสำเร็จ" แบบ COD)
+ */
+export function isCodUnpaidOrder(o: { paymentMethod: string | null | undefined; codReceivedAt: Date | string | null | undefined }): boolean {
+  return isCODPayment(o.paymentMethod) && !o.codReceivedAt
+}
+
+/**
  * CASH_PAYMENT_PATTERN — "จ่ายเงินสดต่อหน้า" (ไม่ต้องโอน ไม่ใช่ปลายทาง)
  *
  * 🛑 นิยามเดียว (Hard Rule 16) — เดิม regex ตัวนี้เขียนสดอยู่ใน `needsPayoutAccount()`

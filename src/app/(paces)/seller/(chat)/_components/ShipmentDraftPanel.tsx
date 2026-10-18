@@ -15,6 +15,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirmAsync } from '@/lib/paces-swal'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
+import {
+  deliveredConfirmCopy,
+  manualStepToast,
+  MANUAL_STEP_FAILED,
+  postManualStep,
+} from '@/lib/manual-shipment-client'
 import { toastPaymentNotice } from '@/components/safepay/iship/payment-notice-toast'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
 import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/ShipmentCreateForm'
@@ -27,6 +35,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import {
   decidePanelView,
   isViewOnlyPanelView,
+  manualDoneStep,
   orderStatusLabel,
   trackingMessage,
   type TrackingMessageMode,
@@ -182,7 +191,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   /** ส่งเองบันทึกสำเร็จ — ลำดับเดียวกับ handleCreated และปิดเลยเช่นกัน (ShipForm ปิด toast ของตัวเองไว้) */
   async function handleManualSaved(saved: { provider: string; trackingNo: string }) {
     if (!notify) {
-      pacesToast.success(`บันทึกการจัดส่งแล้ว (${saved.trackingNo})`)
+      pacesToast.success(`บันทึกเลขพัสดุแล้ว (${saved.trackingNo}) สถานะ "รอจัดส่ง"`)
       onDone()
       return
     }
@@ -194,10 +203,10 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     }
     // บันทึกไปแล้วจริง — ไม่มีหน้าสถานะค้างให้กดแจ้งซ้ำ จึงต้องมีเลขในประโยค
     // (ร้านแจ้งทีหลังได้จากมุมมองส่งเองแล้วตอนเปิดหน้าต่างใหม่)
-    if (ok) pacesToast.success('บันทึกการจัดส่งและแจ้งเลขติดตามแล้ว')
+    if (ok) pacesToast.success('บันทึกเลขพัสดุและแจ้งเลขติดตามแล้ว')
     else
       pacesToast.warning(
-        `บันทึกการจัดส่งแล้ว (${saved.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
+        `บันทึกเลขพัสดุแล้ว (${saved.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
       )
     onDone()
   }
@@ -214,6 +223,43 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     } finally {
       setSending(false)
     }
+  }
+
+  /**
+   * 00080 — "จัดส่งแล้ว" / "ส่งสำเร็จ" จากแผง · busy ใช้ตัว `sending` ร่วมกับปุ่มแจ้งเลข (กันกดสองปุ่มพร้อมกัน)
+   * สำเร็จ → toast ในแชท → onDone() · ล้ม → แผงไม่ปิด (ให้กดซ้ำได้)
+   */
+  async function runStep(action: 'DISPATCH' | 'DELIVER') {
+    if (sending) return
+    const noun = 'คำสั่งซื้อ' // ctx ไม่มี vertical — ถ้อยคำกลาง
+    if (action === 'DISPATCH') {
+      setSending(true)
+      try {
+        const t = manualStepToast('dispatch', await postManualStep(orderToken, 'dispatch'), noun)
+        pacesToast.chat[t.type](t.message)
+        if (t.type !== 'error') onDone()
+      } catch {
+        pacesToast.chat.error(MANUAL_STEP_FAILED)
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+    const result = await pacesConfirmAsync({
+      ...deliveredConfirmCopy(noun, ctx?.isCodUnpaid === true),
+      run: async () => {
+        setSending(true)
+        try {
+          return await postManualStep(orderToken, 'delivered')
+        } finally {
+          setSending(false)
+        }
+      },
+    })
+    if (!result) return
+    const t = manualStepToast('delivered', result, noun)
+    pacesToast.chat[t.type](t.message)
+    if (t.type !== 'error') onDone()
   }
 
   /** ทางออกของใบ FAILED / ผู้ส่งไม่ครบ — ไปฟอร์มส่งเอง (ปิดทางตันของ state-snapshots กับดัก FAILED) */
@@ -261,6 +307,11 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
           <span className="block text-xs text-default-700">
             ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่{verb}เสร็จ
           </span>
+          {mode === 'MANUAL' && ctx?.trackingNoticeTiming === 'ON_DISPATCH' && (
+            <span className="mt-0.5 block text-xs text-default-700">
+              ร้านตั้งให้ส่งเลขตอนกด &quot;จัดส่งแล้ว&quot;
+            </span>
+          )}
         </span>
       </label>
 
@@ -328,6 +379,8 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   if (view === 'MANUAL_DONE' && ctx.manualShipment) {
     const { provider, trackingNo } = ctx.manualShipment
     const logo = courierLogoUrl(null, provider)
+    const step = manualDoneStep(ctx.orderStatus)
+    const badge = step.stage ? resolveOrderStatusBadge(ctx.orderStatus, step.stage) : resolveOrderStatusBadge(ctx.orderStatus)
     return (
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-start gap-3">
@@ -355,26 +408,50 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
               <span className="shrink-0 rounded-full bg-default-100 px-2 py-0.5 text-xs font-medium text-default-700">
                 ส่งเอง
               </span>
+              {/* ป้ายสถานะจาก SSOT เดียวกับหน้าออเดอร์ — ห้ามประกอบ class เอง */}
+              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge.cls}`}>
+                <Icon icon={`tabler:${badge.icon}`} className="text-sm" aria-hidden="true" />
+                {badge.label}
+              </span>
               <span className="min-w-0 truncate text-xs text-default-700">{provider}</span>
             </p>
           </div>
         </div>
-        <p className="mb-0 text-xs text-default-700">ส่งเอง ระบบจึงไม่ได้ติดตามสถานะพัสดุให้</p>
+        {step.action && (
+          <p className="mb-0 text-xs text-default-700">
+            {step.action === 'DISPATCH'
+              ? 'ยังไม่ได้ส่งออก กด "จัดส่งแล้ว" เมื่อนำพัสดุไปส่ง · ระบบไม่ได้ติดตามสถานะกับขนส่งให้'
+              : 'ส่งออกแล้ว กด "ส่งสำเร็จ" เมื่อลูกค้าได้รับของ · ระบบไม่ได้ติดตามสถานะกับขนส่งให้'}
+          </p>
+        )}
+        {!step.action && <p className="mb-0 text-xs text-default-700">ส่งเอง ระบบจึงไม่ได้ติดตามสถานะพัสดุให้</p>}
+        {step.action && (
+          <button
+            type="button"
+            onClick={() => void runStep(step.action!)}
+            disabled={sending}
+            aria-busy={sending || undefined}
+            className="btn inline-flex min-h-12 w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+          >
+            <Icon
+              icon={sending ? 'tabler:loader-2' : step.action === 'DISPATCH' ? 'tabler:truck-delivery' : 'tabler:circle-check'}
+              className={sending ? 'animate-spin text-base' : 'text-base'}
+              aria-hidden="true"
+            />
+            {step.action === 'DISPATCH' ? 'จัดส่งแล้ว' : 'ส่งสำเร็จ'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void notifyNow(trackingNo)}
           disabled={sending}
-          className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+          className={step.action ? `${ghostBtn} disabled:opacity-60` : 'btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60'}
         >
-          {sending ? (
-            <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
-          ) : (
-            <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
-          )}
+          <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
           แจ้งเลขในแชท
         </button>
         <p className="mb-0 text-xs text-default-700">
-          <Link href={`/orders/${orderToken}`} className="text-primary-ink underline">
+          <Link href={`/orders/${orderToken}`} className="inline-flex min-h-11 items-center text-primary-ink underline">
             แก้เลขพัสดุได้ที่หน้าคำสั่งซื้อ
           </Link>
         </p>
@@ -443,7 +520,9 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    */
   const manualSection = (
     <div className="flex flex-col gap-3 p-4">
-      <p className="mb-0 text-xs text-default-700">ส่งของกับขนส่งเอง แล้วนำเลขพัสดุมากรอกที่นี่เพื่อแจ้งผู้ซื้อ</p>
+      <p className="mb-0 text-xs text-default-700">
+        ส่งของกับขนส่งเอง แล้วกรอกเลขพัสดุที่นี่ ออเดอร์จะอยู่ที่ &quot;รอจัดส่ง&quot; จนกว่าจะกด &quot;จัดส่งแล้ว&quot;
+      </p>
       <ShipForm
         publicToken={orderToken}
         alwaysOpen
@@ -465,9 +544,9 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
         {manualSubmitting ? (
           <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
         ) : (
-          <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
+          <Icon icon="tabler:truck" className="text-base" aria-hidden="true" />
         )}
-        {manualSubmitting ? 'กำลังบันทึก...' : 'ยืนยันจัดส่ง'}
+        {manualSubmitting ? 'กำลังบันทึก...' : 'บันทึกเลขพัสดุ'}
       </button>
     </div>
   )

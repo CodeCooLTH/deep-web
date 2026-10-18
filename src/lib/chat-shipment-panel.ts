@@ -6,6 +6,8 @@
 import { hasLiveIshipShipment } from './iship/live-shipment'
 import { isOtherCourier } from './iship/courier'
 import { ORDER_STATUS_META } from './order-display'
+import { canMarkDelivered, canMarkDispatched } from './manual-shipment'
+import type { ShippingStageKey } from './order-stage'
 
 export type IShipState = 'READY' | 'NOT_CONNECTED' | 'DISCONNECTED'
 
@@ -44,6 +46,21 @@ export function decidePanelView(i: PanelViewInput): PanelView {
   if (i.senderBlocked) return i.forceForm ? 'MANUAL_ONLY' : 'SENDER_BLOCKED'
   if (i.ishipShipment && !i.forceForm) return 'ISHIP_STATUS'
   return 'CHOOSE'
+}
+
+/**
+ * 00080 — มุมมอง MANUAL_DONE: ปุ่มขั้นถัดไป + ป้ายสถานะ จากสถานะออเดอร์ (ผ่านตัวตัดสินกลาง manual-shipment)
+ * view นี้ = มีเลขส่งเอง และไม่มี iShip live อยู่แล้ว (decidePanelView) จึงใส่ facts ตรง ๆ
+ * CONFIRMED/CANCELLED = ไม่มีปุ่ม (CANCELLED คงพฤติกรรมเดิม)
+ */
+export function manualDoneStep(orderStatus: string): {
+  action: 'DISPATCH' | 'DELIVER' | null
+  stage: ShippingStageKey | undefined
+} {
+  const facts = { status: orderStatus, fulfillmentMode: 'SHIPPED', hasManualTracking: true, hasLiveIshipShipment: false }
+  if (canMarkDispatched(facts)) return { action: 'DISPATCH', stage: 'AWAITING_DISPATCH' }
+  if (canMarkDelivered(facts)) return { action: 'DELIVER', stage: 'SHIPPING' }
+  return { action: null, stage: undefined }
 }
 
 /** มุมมองที่ไม่มีช่องกรอก — ปิดหน้าต่างได้ไม่ต้องถามยืนยัน */

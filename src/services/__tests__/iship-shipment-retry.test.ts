@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     shopShippingAccount: { findUnique: vi.fn(), updateMany: vi.fn() },
+    shipmentTracking: { findUnique: vi.fn(async () => null) }, // 00080: ไม่มีเลขส่งเอง
     orderShipment: { findFirst: vi.fn(), update: vi.fn(), findUniqueOrThrow: vi.fn() },
     order: { findFirst: vi.fn(), findFirstOrThrow: vi.fn(), findUniqueOrThrow: vi.fn() },
     $transaction: vi.fn(),

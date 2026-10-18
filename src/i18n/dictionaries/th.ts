@@ -207,6 +207,14 @@ export const th = {
     closedNote: 'ไม่ส่งถ้าลูกค้าไม่มาตามนัด',
     trackingNote: 'ถ้าแก้เลขพัสดุ ระบบส่งอีกครั้งพร้อมคำว่า “อัปเดตเลขติดตามพัสดุ”',
     trackingLinkNote: '“ลิงก์ติดตามพัสดุ” คือลิงก์ของขนส่งที่เลือกตอนกรอกเลข ถ้าขนส่งนั้นไม่มีลิงก์ บรรทัดนี้จะไม่ถูกส่ง',
+    /** 00080 — จังหวะส่งเลขพัสดุของ "ส่งเอง" */
+    trackingTimingLegend: 'ส่งเลขพัสดุให้ลูกค้าตอนไหน',
+    trackingTimingScope: 'มีผลกับการส่งเองเท่านั้น',
+    trackingTimingOnSave: 'ตอนบันทึกเลขพัสดุ',
+    trackingTimingOnSaveHint: 'ลูกค้าได้เลขทันที แม้ของยังไม่ได้ส่งออก',
+    trackingTimingOnDispatch: 'ตอนกดจัดส่งแล้ว',
+    trackingTimingOnDispatchHint: 'ลูกค้าได้เลขหลังกด “จัดส่งแล้ว”',
+    toastTimingSaved: 'บันทึกจังหวะการส่งเลขพัสดุแล้ว',
 
     stateOn: 'เปิดอยู่',
     stateOff: 'ปิดอยู่',

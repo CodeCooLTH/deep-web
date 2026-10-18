@@ -138,7 +138,7 @@ export default function ShipForm({
 
   const genericErrorMessage = mode === 'edit'
     ? 'แก้ไขเลขพัสดุไม่สำเร็จ กรุณาลองใหม่'
-    : 'บันทึกการจัดส่งไม่สำเร็จ กรุณาลองใหม่'
+    : 'บันทึกเลขพัสดุไม่สำเร็จ กรุณาลองใหม่'
 
   const handleShip = async (values: TrackingFormValues) => {
     setLoadingState(true)
@@ -159,7 +159,9 @@ export default function ShipForm({
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || genericErrorMessage)
       }
-      if (!silentSuccess) pacesToast.success(mode === 'edit' ? 'บันทึกการแก้ไขเลขพัสดุแล้ว' : 'บันทึกการจัดส่งแล้ว')
+      if (!silentSuccess) pacesToast.success(
+          mode === 'edit' ? 'บันทึกการแก้ไขเลขพัสดุแล้ว' : `บันทึกเลขพัสดุแล้ว (${values.trackingNo}) สถานะ "รอจัดส่ง"`,
+        )
       if (onSuccess) {
         // ผู้เรียกเป็นโมดัล — โมดัลปิด + router.refresh() หน้าเอง ที่นี่ไม่เรียกซ้ำ
         onSuccess({ provider: values.provider, trackingNo: values.trackingNo })
@@ -299,8 +301,8 @@ export default function ShipForm({
                 // ทั้งที่สำคัญกว่า (Impeccable audit 2026-08-04)
                 className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium min-h-11 disabled:opacity-60 flex-1"
               >
-                {/* edit mode ใช้คำว่า "บันทึกการแก้ไข" — คนละคำกับ "ยืนยันจัดส่ง" ตอนสร้าง (task T9) */}
-                {loading ? 'กำลังบันทึก...' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'ยืนยันจัดส่ง'}
+                {/* 00080 — create ไม่ได้ "จัดส่ง" แล้ว (แค่บันทึกเลข → รอจัดส่ง) จึงไม่ใช้คำว่ายืนยันจัดส่ง */}
+                {loading ? 'กำลังบันทึก...' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'บันทึกเลขพัสดุ'}
               </button>
               {/* เดิมเขียน "ยกเลิก" ซึ่งซ้ำกับปุ่ม "ยกเลิกออเดอร์" (ทำลายล้าง) ที่อยู่ถัดลงไปไม่กี่พิกเซล
                   — คำเดียวกัน ผลลัพธ์คนละเรื่อง จึงเปลี่ยนเป็น "ปิด" */}

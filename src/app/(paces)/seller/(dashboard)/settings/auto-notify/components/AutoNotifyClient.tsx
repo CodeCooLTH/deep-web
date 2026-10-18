@@ -16,7 +16,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { settingsBanner } from '@/lib/auto-notify/settings-ui'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import AutoNotifyRow from './AutoNotifyRow'
+import AutoNotifyRow, { type TrackingTiming } from './AutoNotifyRow'
 import DailyCapField from './DailyCapField'
 
 interface KindView {
@@ -31,6 +31,7 @@ interface KindView {
 export default function AutoNotifyClient({
   kinds: initial,
   dailyCap,
+  trackingNoticeTiming,
   canEdit,
   hasChannel,
   noun,
@@ -39,6 +40,8 @@ export default function AutoNotifyClient({
 }: {
   kinds: KindView[]
   dailyCap: number
+  /** 00080 — จังหวะแจ้งเลขพัสดุของส่งเอง */
+  trackingNoticeTiming: TrackingTiming
   canEdit: boolean
   hasChannel: boolean
   noun: string
@@ -60,6 +63,31 @@ export default function AutoNotifyClient({
       else n.delete(kind)
       return n
     })
+
+  const [timing, setTiming] = useState<TrackingTiming>(trackingNoticeTiming)
+  const [timingPending, setTimingPending] = useState(false)
+
+  // optimistic + revert + pacesToast (แบบเดียวกับสวิตช์) — PATCH คีย์เดียว ไม่แตะเพดานข้อความ
+  const changeTiming = async (next: TrackingTiming) => {
+    if (!canEdit || timingPending || next === timing) return
+    const prev = timing
+    setTiming(next)
+    setTimingPending(true)
+    try {
+      const res = await fetch('/api/shops/current/auto-notify/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackingNoticeTiming: next }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      pacesToast.success(t.toastTimingSaved)
+    } catch {
+      setTiming(prev)
+      pacesToast.error(t.toastFailed)
+    } finally {
+      setTimingPending(false)
+    }
+  }
 
   const toggle = async (row: KindView, next: boolean) => {
     if (!canEdit) return
@@ -158,6 +186,9 @@ export default function AutoNotifyClient({
                         onToggle={(next) => void toggle(k, next)}
                         renderEditAction={renderEditAction ? () => renderEditAction(k.kind) : undefined}
                         editor={editorFor?.(k.kind)}
+                        timing={k.kind === 'TRACKING' ? timing : undefined}
+                        timingPending={timingPending}
+                        onTimingChange={(next) => void changeTiming(next)}
                       />
                     ))}
                   </ul>

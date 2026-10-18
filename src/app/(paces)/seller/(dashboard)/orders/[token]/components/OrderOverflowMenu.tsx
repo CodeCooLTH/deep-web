@@ -30,12 +30,14 @@ export interface OrderOverflowMenuProps {
   size?: 'sm' | 'lg'
   /** ทิศทางกางเมนู — ค่าเริ่มต้น 'down' */
   dropDirection?: 'up' | 'down'
+  /** 00080 — กำลังยิงจัดส่งแล้ว/ส่งสำเร็จ: ปิดปุ่ม ⋮ ด้วย */
+  disabled?: boolean
 }
 
 // key เดียวใน order-action-set.ts ที่เป็น action ทำลายล้าง (ยกเลิกคำสั่งซื้อ) — ต้องเด่นด้วย text-danger
 const DESTRUCTIVE_KEYS = new Set(['cancel-order'])
 
-export default function OrderOverflowMenu({ items, onAction, size = 'sm', dropDirection = 'down' }: OrderOverflowMenuProps) {
+export default function OrderOverflowMenu({ items, onAction, size = 'sm', dropDirection = 'down', disabled }: OrderOverflowMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -61,6 +63,7 @@ export default function OrderOverflowMenu({ items, onAction, size = 'sm', dropDi
       <button
         type="button"
         className={`btn btn-icon border border-default-300 text-default-700 hover:bg-default-100 justify-center ${sizeClass}`}
+        disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="ตัวเลือกเพิ่มเติม"

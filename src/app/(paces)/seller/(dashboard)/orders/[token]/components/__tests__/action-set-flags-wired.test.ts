@@ -34,7 +34,7 @@ describe('[blocker] ธงของ getOrderActionSet ต้องถูกส�
   const call = body.slice(body.indexOf('getOrderActionSet({'))
   const args = call.slice(0, call.indexOf('})') + 2)
 
-  for (const flag of ['isCodUnpaid', 'isPickupPaymentUnpaid', 'isPickupHandedOver']) {
+  for (const flag of ['isCodUnpaid', 'isPickupPaymentUnpaid', 'isPickupHandedOver', 'canMarkDispatched', 'canMarkDelivered']) {
     it(`ส่ง ${flag} เข้า getOrderActionSet()`, () => {
       expect(args).toContain(flag)
     })
@@ -42,8 +42,8 @@ describe('[blocker] ธงของ getOrderActionSet ต้องถูกส�
 
   it('ทุกธงที่ประกาศใน props ถูกใช้จริง ไม่ใช่รับมาแล้วทิ้ง', () => {
     // ธงพวกนี้มีไว้ตัดสินปุ่มหลักเท่านั้น — ถ้าโผล่ใน props แต่ไม่โผล่ในอาร์กิวเมนต์ = dead prop
-    const declared = ['isCodUnpaid', 'isPickupPaymentUnpaid', 'isPickupHandedOver'].filter((f) =>
-      body.includes(`${f}:`),
+    const declared = ['isCodUnpaid', 'isPickupPaymentUnpaid', 'isPickupHandedOver', 'canMarkDispatched', 'canMarkDelivered'].filter((f) =>
+      (body.includes(`${f}:`) || body.includes(`${f}?:`)),
     )
     const missing = declared.filter((f) => !args.includes(f))
     expect(missing, `ธงที่ประกาศแต่ไม่ได้ส่งเข้า getOrderActionSet: ${missing.join(', ')}`).toEqual([])

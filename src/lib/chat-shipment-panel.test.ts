@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decidePanelView,
   isViewOnlyPanelView,
+  manualDoneStep,
   trackingMessage,
   orderStatusLabel,
   translateInvalidTransition,
@@ -130,5 +131,18 @@ describe('translateInvalidTransition', () => {
   })
   it('ข้อความอื่นคืน null', () => {
     expect(translateInvalidTransition('Order not found')).toBeNull()
+  })
+})
+
+describe('manualDoneStep (00080)', () => {
+  it('PENDING → ปุ่มจัดส่งแล้ว + ป้ายรอจัดส่ง', () => {
+    expect(manualDoneStep('PENDING')).toEqual({ action: 'DISPATCH', stage: 'AWAITING_DISPATCH' })
+  })
+  it('SHIPPED → ปุ่มส่งสำเร็จ + ป้ายกำลังจัดส่ง', () => {
+    expect(manualDoneStep('SHIPPED')).toEqual({ action: 'DELIVER', stage: 'SHIPPING' })
+  })
+  it('CONFIRMED / CANCELLED → ไม่มีปุ่ม', () => {
+    expect(manualDoneStep('CONFIRMED').action).toBeNull()
+    expect(manualDoneStep('CANCELLED').action).toBeNull()
   })
 })

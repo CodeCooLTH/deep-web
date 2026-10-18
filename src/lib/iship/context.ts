@@ -184,6 +184,8 @@ interface ShipmentPanelExtras {
   manualShipment: { provider: string; trackingNo: string } | null;
   /** 00080 — จังหวะแจ้งเลขพัสดุของร้าน (ส่งเองเท่านั้น) */
   trackingNoticeTiming: "ON_SAVE" | "ON_DISPATCH";
+  /** 00080 — เก็บเงินปลายทางและร้านยังไม่กดรับเงิน (isCodUnpaidOrder) */
+  isCodUnpaid: boolean;
   /** 00078 — true เฉพาะบทบาทที่เห็นเงินได้ (ไม่มี = ปิด) */
   canSetShipCost?: boolean;
 }

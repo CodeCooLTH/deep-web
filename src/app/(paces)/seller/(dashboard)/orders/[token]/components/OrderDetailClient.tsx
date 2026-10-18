@@ -31,7 +31,14 @@ import { insufficientCreditHtml } from '@/lib/payment-copy'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmAsync, pacesConfirmWithReason } from '@/lib/paces-swal'
+import {
+  deliveredConfirmCopy,
+  manualStepToast,
+  MANUAL_STEP_FAILED,
+  postManualStep,
+  type ManualStepResult,
+} from '@/lib/manual-shipment-client'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import type { ShopVertical } from '@/lib/lodging'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
@@ -148,6 +155,9 @@ export interface OrderDetailClientProps {
 
   /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
   isCodUnpaid: boolean
+  /** 00080 — ส่งเองที่ "รอจัดส่ง"/"กำลังจัดส่ง" · คำนวณที่ page.tsx จาก src/lib/manual-shipment.ts (ห้ามคำนวณที่นี่) */
+  canMarkDispatched: boolean
+  canMarkDelivered: boolean
   internalNote: string | null
 
   // ── OrderSummary (การ์ดหัวตามโครงธีม: หัว + ปุ่ม + ตารางสินค้า + ยอดรวม) ──────
@@ -240,6 +250,8 @@ export default function OrderDetailClient({
   provider,
   addressText,
   isCodUnpaid,
+  canMarkDispatched,
+  canMarkDelivered,
   internalNote,
   items,
   discount,
@@ -275,6 +287,8 @@ export default function OrderDetailClient({
   const [returnOpen, setReturnOpen] = useState(false)
   // feature 00065 — กำลังออกเลขใบเสร็จ (กันกดซ้ำ + เปลี่ยนคำบนเมนู)
   const [receiptBusy, setReceiptBusy] = useState(false)
+  // 00080 — กำลังยิง "จัดส่งแล้ว/ส่งสำเร็จ" (กันกดซ้ำ + ปุ่มหลักหมุน)
+  const [stepBusy, setStepBusy] = useState(false)
   const isOnlineSales = vertical === 'ONLINE_SALES'
   /** ร้านคิวงาน — เจ้าของคำถาม "ได้เงินยัง" คือบัญชี `OrderPayment` ไม่ใช่ธงใบเดียวของ 00062 */
   const isServiceQueue = vertical === 'SERVICE_QUEUE'
@@ -293,6 +307,8 @@ export default function OrderDetailClient({
     shipmentSource,
     orderNoun: vocab.noun,
     isCodUnpaid,
+    canMarkDispatched,
+    canMarkDelivered,
     isPickupPaymentUnpaid,
     isPickupHandedOver,
     editLocked,
@@ -683,6 +699,45 @@ export default function OrderDetailClient({
     setReceiptBusy(false)
   }
 
+  // 00080 — ขั้นของส่งเอง: ตรรกะ fetch/ถ้อยคำอยู่ src/lib/manual-shipment-client.ts (ใช้ร่วมกับแผงพัสดุในแชท)
+  const showStepToast = (step: 'dispatch' | 'delivered', r: ManualStepResult) => {
+    const t = manualStepToast(step, r, vocab.noun)
+    pacesToast[t.type](t.message)
+  }
+
+  // "จัดส่งแล้ว" ไม่มี confirm (มติ Controller) — ย้อนด้วยการแก้เลขได้ ผลข้างเคียงมีแค่แจ้งเลขให้ลูกค้า
+  const handleMarkDispatched = async () => {
+    if (stepBusy) return
+    setStepBusy(true)
+    try {
+      showStepToast('dispatch', await postManualStep(publicToken, 'dispatch'))
+      router.refresh()
+    } catch {
+      pacesToast.error(MANUAL_STEP_FAILED)
+    } finally {
+      setStepBusy(false)
+    }
+  }
+
+  // "ส่งสำเร็จ" ย้อนกลับไม่ได้ + นับเป็นยอดขาย/Trust Score → Swal ก่อนเสมอ
+  const handleMarkDelivered = async () => {
+    if (stepBusy) return
+    const result = await pacesConfirmAsync({
+      ...deliveredConfirmCopy(vocab.noun, isCodUnpaid),
+      run: async () => {
+        setStepBusy(true)
+        try {
+          return await postManualStep(publicToken, 'delivered')
+        } finally {
+          setStepBusy(false)
+        }
+      },
+    })
+    if (!result) return
+    showStepToast('delivered', result)
+    router.refresh()
+  }
+
   // ปุ่ม action ทั้งหมดของหน้านี้ (StatusHero inline/stuck + OrderActionBar variant="bottom") วิ่งเข้า
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
@@ -721,6 +776,12 @@ export default function OrderDetailClient({
         return
       case 'edit-order':
         router.push(`/orders/${publicToken}/edit`)
+        return
+      case 'mark-dispatched':
+        void handleMarkDispatched()
+        return
+      case 'mark-delivered':
+        void handleMarkDelivered()
         return
       case 'cod-received':
         void handleCodReceived()
@@ -803,6 +864,7 @@ export default function OrderDetailClient({
             isFromAuction={isFromAuction}
             items={items}
             onAction={handleAction}
+            actionBusy={stepBusy}
             orderNoun={orderNoun}
             vocab={vocab}
             vertical={vertical}
@@ -876,7 +938,7 @@ export default function OrderDetailClient({
       </div>
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
-      <OrderActionBar variant="bottom" actionSet={visibleActionSet} onAction={handleAction} />
+      <OrderActionBar variant="bottom" actionSet={visibleActionSet} onAction={handleAction} busy={stepBusy} />
 
       {/* ชีตคืนของ (feature 00056) — component ตัวเดียวกับที่ห้องแชทใช้ ต่างแค่จุดที่เปิด
           `initialCount={0}` เพราะจำนวนจริงมาตอนโหลดในชีต (หน้านี้ไม่ query ล่วงหน้าแล้ว —
