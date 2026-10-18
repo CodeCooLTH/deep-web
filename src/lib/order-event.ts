@@ -56,6 +56,8 @@ export const ORDER_EVENT_TYPES = [
   // DB CHECK ขยายที่ migration 20261018100200_order_event_manual_dispatch_types
   'MANUAL_DISPATCHED',
   'SELLER_DELIVERED',
+  // TD-010 — เลิกทำ "จัดส่งแล้ว" ภายในหน้าต่างเวลา · DB CHECK: 20261018100300_order_event_manual_dispatch_undone
+  'MANUAL_DISPATCH_UNDONE',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -125,6 +127,7 @@ export const ORDER_EVENT_META: Record<
   // feature 00080 — neutral ทั้งคู่: SELLER_DELIVERED เป็นคำรายงานของร้านเอง ไม่ใช่หลักฐานจากบุคคลที่สาม (เขียวสงวน BUYER_CONFIRMED)
   MANUAL_DISPATCHED: { label: 'แจ้งจัดส่งแล้ว (ส่งเอง)', icon: 'truck-delivery', tone: 'neutral' },
   SELLER_DELIVERED: { label: 'ร้านยืนยันส่งสำเร็จ', icon: 'package-import', tone: 'neutral' },
+  MANUAL_DISPATCH_UNDONE: { label: 'เลิกทำแจ้งจัดส่ง (ส่งเอง)', icon: 'arrow-back-up', tone: 'neutral' },
 }
 
 /**

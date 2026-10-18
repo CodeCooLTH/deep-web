@@ -4175,7 +4175,7 @@ model OrderEvent {
   id      String @id @default(uuid())
   orderId String
 
-  // type: 32 ค่า (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง · 00080 +MANUAL_DISPATCHED/SELLER_DELIVERED)
+  // type: 33 ค่า (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง · 00080 +MANUAL_DISPATCHED/SELLER_DELIVERED/MANUAL_DISPATCH_UNDONE)
   // 🛑 คอมเมนต์บรรทัดนี้เคยเขียน "9 ค่า" ค้างไว้ตั้งแต่ตอนมี 13 ค่าแล้ว (หนี้จาก 00033)
   //    ถ้าเพิ่มชนิดใหม่แล้วไม่แก้ตัวเลขตรงนี้ คนอ่านจะเชื่อคอมเมนต์แล้วเขียน migration ผิด
   // String + DB CHECK ไม่ใช่ Prisma enum ตาม

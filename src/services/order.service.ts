@@ -1737,6 +1737,9 @@ export async function updateShipmentTracking(
 export class ManualDispatchNotAllowedError extends Error {
   constructor(message: string) { super(message); this.name = "ManualDispatchNotAllowedError"; }
 }
+export class ManualUndoNotAllowedError extends Error {
+  constructor(message: string) { super(message); this.name = "ManualUndoNotAllowedError"; }
+}
 export class ManualDeliveryNotAllowedError extends Error {
   constructor(message: string) { super(message); this.name = "ManualDeliveryNotAllowedError"; }
 }
@@ -1779,6 +1782,10 @@ function dispatchRejectMessage(o: ManualStepOrder): string {
   if (!o.shipmentTracking) return 'ยังไม่มีเลขพัสดุ บันทึกเลขก่อนแล้วกด "จัดส่งแล้ว"';
   return `${noun}นี้ไม่อยู่ขั้นรอจัดส่ง จึงกดจัดส่งแล้วไม่ได้`;
 }
+
+/** TD-010 — UI โชว์ปุ่ม "เลิกทำ" 5 วิ · server ให้ 30 วิเผื่อ latency (ตัวกั้นจริงอยู่ที่ WHERE ของ updateMany) */
+export const MANUAL_UNDO_WINDOW_MS = 30_000;
+const UNDO_EXPIRED_MSG = "เลยเวลาเลิกทำแล้ว";
 
 function deliverRejectMessage(o: ManualStepOrder): string {
   const noun = resolveOrderVocab(o.shop.vertical).noun;
@@ -1825,6 +1832,39 @@ export async function markManualDispatched(publicToken: string, shopId: string, 
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
   return result;
+}
+
+/**
+ * undoManualDispatch — เลิกทำ "จัดส่งแล้ว": SHIPPED (ส่งเอง) → PENDING ภายในหน้าต่างเวลา (00080 TD-010)
+ *
+ * ตัวกั้นเวลาอยู่ใน WHERE ของ updateMany (`dispatchedAt >= now-30s`) ตัวเดียว — ผู้ชนะคือคนที่ล้าง dispatchedAt ได้
+ * ⇒ กดซ้ำ/สองแท็บได้ครั้งเดียว ตัวที่สองเห็น dispatchedAt=null → "เลยเวลาเลิกทำแล้ว"
+ * 🛑 ข้อความแจ้งเลขพัสดุที่ยิงไปตอนจัดส่งแล้ว ดึงคืนไม่ได้ (ledger UNIQUE กันส่งซ้ำเมื่อกดจัดส่งแล้วใหม่ด้วยเลขเดิม)
+ */
+export async function undoManualDispatch(publicToken: string, shopId: string, actorUserId: string | null) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({
+      where: { publicToken, shopId },
+      select: { ...MANUAL_STEP_SELECT, shipmentTracking: { select: { trackingNo: true, dispatchedAt: true } } },
+    });
+    if (!order) throw new OrderNotFoundError();
+    if (order.shipments.length > 0) throw new ManualUndoNotAllowedError(MANUAL_STEP_ISHIP_MSG);
+    if (order.status !== "SHIPPED" || !isManualShipment(manualFacts(order)) || !order.shipmentTracking?.dispatchedAt) {
+      throw new ManualUndoNotAllowedError(UNDO_EXPIRED_MSG);
+    }
+
+    const cutoff = new Date(Date.now() - MANUAL_UNDO_WINDOW_MS);
+    const won = await tx.shipmentTracking.updateMany({
+      where: { orderId: order.id, dispatchedAt: { gte: cutoff } },
+      data: { dispatchedAt: null },
+    });
+    if (won.count === 0) throw new ManualUndoNotAllowedError(UNDO_EXPIRED_MSG);
+    const back = await tx.order.updateMany({ where: { id: order.id, status: "SHIPPED" }, data: { status: "PENDING" } });
+    // ลูกค้ายืนยัน/ปิดงานแทรกระหว่างทาง — throw เพื่อ rollback dispatchedAt ด้วย
+    if (back.count === 0) throw new ManualUndoNotAllowedError(UNDO_EXPIRED_MSG);
+    await recordOrderEvent(tx, { orderId: order.id, type: "MANUAL_DISPATCH_UNDONE", actorUserId });
+    return { changed: true, order: { publicToken, status: "PENDING" } };
+  });
 }
 
 /**

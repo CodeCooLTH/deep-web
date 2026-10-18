@@ -23,6 +23,7 @@ import {
   manualStepToast,
   MANUAL_STEP_FAILED,
   postManualStep,
+  reportDispatch,
 } from '@/lib/manual-shipment-client'
 import { toastPaymentNotice } from '@/components/safepay/iship/payment-notice-toast'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
@@ -87,6 +88,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   const [manualSubmitting, setManualSubmitting] = useState(false)
   // ขนส่งที่เลือกอยู่ในฟอร์มส่งเอง — ให้ตัวอย่างข้อความตรงกับที่จะส่งจริง
   const [manualProvider, setManualProvider] = useState<string | null>(null)
+  const stepLock = useRef(false)
   const segRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const ready = ctx?.ishipState === 'READY' ? ctx : null
@@ -231,19 +233,23 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    * สำเร็จ → toast ในแชท → onDone() · ล้ม → แผงไม่ปิด (ให้กดซ้ำได้)
    */
   async function runStep(action: 'DISPATCH' | 'DELIVER') {
-    if (sending) return
+    // ref ไม่ใช่ state: แตะซ้ำก่อน re-render ต้องไม่เปิด Swal สองใบ / ยิงสองครั้ง
+    if (sending || stepLock.current) return
+    stepLock.current = true
     const noun = resolveOrderVocab(ctx?.vertical ?? 'ONLINE_SALES').noun
     if (action === 'DISPATCH') {
       setSending(true)
       try {
-        const t = manualStepToast('dispatch', await postManualStep(orderToken, 'dispatch'), noun)
-        pacesToast.chat[t.type](t.message)
-        if (t.type !== 'error') onDone()
+        const r = await postManualStep(orderToken, 'dispatch')
+        // changed → toast มีปุ่ม "เลิกทำ" (TD-010) · แผงปิดไปแล้วแต่ toast อยู่ระดับ window
+        reportDispatch(pacesToast.chat, orderToken, noun, r, () => {})
+        if (r.kind === 'ok') onDone()
         else setReloadKey((k) => k + 1) // 409/403 = สถานะเปลี่ยนไปแล้ว โหลด context ใหม่
       } catch {
         pacesToast.chat.error(MANUAL_STEP_FAILED)
         setReloadKey((k) => k + 1)
       } finally {
+        stepLock.current = false
         setSending(false)
       }
       return
@@ -258,6 +264,8 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
           setSending(false)
         }
       },
+    }).finally(() => {
+      stepLock.current = false
     })
     if (!result) return
     const t = manualStepToast('delivered', result, noun)
@@ -383,8 +391,10 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   if (view === 'MANUAL_DONE' && ctx.manualShipment) {
     const { provider, trackingNo } = ctx.manualShipment
     const logo = courierLogoUrl(null, provider)
-    const step = manualDoneStep(ctx.orderStatus)
-    const badge = step.stage ? resolveOrderStatusBadge(ctx.orderStatus, step.stage) : resolveOrderStatusBadge(ctx.orderStatus)
+    // ไม่ถือ S1 = ไม่เห็นปุ่มขั้น (ตรงกับ ORDER_ACTION_CAP ของหน้าออเดอร์) · ป้ายสถานะยังแสดง
+    const stepRaw = manualDoneStep(ctx.orderStatus)
+    const step = ctx.canShip === true ? stepRaw : { ...stepRaw, action: null }
+    const badge = stepRaw.stage ? resolveOrderStatusBadge(ctx.orderStatus, stepRaw.stage) : resolveOrderStatusBadge(ctx.orderStatus)
     return (
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-start gap-3">

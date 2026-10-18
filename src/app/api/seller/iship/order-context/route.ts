@@ -11,7 +11,7 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { ishipError, ishipJson, mapIShipError } from "@/lib/iship/route-helpers";
 import { getShipmentPanelState, resolveOrderIdByToken } from "@/services/iship.service";
 import { toShipmentContextJson, toShipmentViewJson, type ShipmentPanelJson } from "@/lib/iship/context";
-import { moneyLevel } from "@/lib/shop-permissions";
+import { can, moneyLevel } from "@/lib/shop-permissions";
 import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
           }
         : { ...result, shipment: result.shipment ? toShipmentViewJson(result.shipment) : null };
     // 00078: ช่องค่าส่งเป็นต้นทุนร้าน — บทบาทระดับเงิน NONE ไม่ได้ธง (fail-closed)
-    return ishipJson({ ...payload, canSetShipCost: moneyLevel(guard.effRoles) !== "NONE" });
+    return ishipJson({ ...payload, canSetShipCost: moneyLevel(guard.effRoles) !== "NONE", canShip: can(guard.effRoles, "S1") });
   } catch (err) {
     return mapIShipError(err);
   }

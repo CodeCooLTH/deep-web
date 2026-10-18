@@ -346,6 +346,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/orders/[token]/send-sms/route.ts': { POST: 'O7', status: 'DECLARED' },
   'src/app/api/orders/[token]/delivered/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/dispatch/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/orders/[token]/dispatch/undo/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/ship/route.ts': { POST: 'S1', PATCH: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/shipment-evidence/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/orders/[token]/shipping-cost/route.ts': { PATCH: 'S1', status: 'DECLARED' },

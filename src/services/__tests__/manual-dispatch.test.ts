@@ -6,6 +6,7 @@
  *   M-effects  ถอด runPostConfirmEffects ใน markManualDelivered   → "ผลข้างเคียงครั้งเดียว" แดง
  *   M-both     shipOrder จองทุก timing                             → "ON_DISPATCH ไม่จองตอนบันทึก" แดง
  *   M-ondisp   updateShipmentTracking ไม่เช็ก holdNotice           → "PATCH ใน ON_DISPATCH ไม่จอง" แดง
+ *   M-window   undoManualDispatch ถอด dispatchedAt >= cutoff        → "เลยหน้าต่างเวลา" แดง
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -38,6 +39,8 @@ import {
   updateShipmentTracking,
   markManualDispatched,
   markManualDelivered,
+  undoManualDispatch,
+  ManualUndoNotAllowedError,
   OrderNotShippedError,
   ManualDispatchNotAllowedError,
   ManualDeliveryNotAllowedError,
@@ -284,6 +287,68 @@ describe.skipIf(!isLocal)('ส่งเอง 3 ขั้น (DB จริง)',
     it('shipOrder ซ้ำเมื่อมีเลขแล้ว → ShipmentTrackingExistsError', async () => {
       const o = await mkOrder({ tracking: `H${randomUUID().slice(0, 6)}` })
       await expect(shipOrder(o.publicToken, { provider: 'K', trackingNo: 'again' })).rejects.toThrow(ShipmentTrackingExistsError)
+    })
+  })
+
+  describe('undoManualDispatch (TD-010)', () => {
+    // 🛑 ต้อง apply migration 20261018100300 (CHECK รับ MANUAL_DISPATCH_UNDONE) บนฐานเทสก่อน
+    it('ภายในหน้าต่างเวลา → กลับ PENDING · dispatchedAt=null · event 1 แถว (ผู้กด)', async () => {
+      const o = await mkOrder({ tracking: 'U1' })
+      await markManualDispatched(o.publicToken, S.shop, S.user)
+      const r = await undoManualDispatch(o.publicToken, S.shop, S.user)
+      expect(r).toMatchObject({ changed: true, order: { status: 'PENDING' } })
+      expect(await statusOf(o.id)).toBe('PENDING')
+      expect((await db.shipmentTracking.findUniqueOrThrow({ where: { orderId: o.id } })).dispatchedAt).toBeNull()
+      const ev = await events(o.id, 'MANUAL_DISPATCH_UNDONE')
+      expect(ev).toHaveLength(1)
+      expect(ev[0].actorUserId).toBe(S.user)
+    })
+
+    it('เลยหน้าต่างเวลา (dispatchedAt ย้อน 60 วิ) → 409 เลยเวลาเลิกทำแล้ว · สถานะไม่เปลี่ยน [M-window]', async () => {
+      const o = await mkOrder({ tracking: 'U2' })
+      await markManualDispatched(o.publicToken, S.shop, S.user)
+      await db.shipmentTracking.update({ where: { orderId: o.id }, data: { dispatchedAt: new Date(Date.now() - 60_000) } })
+      await expect(undoManualDispatch(o.publicToken, S.shop, S.user)).rejects.toThrow(ManualUndoNotAllowedError)
+      await expect(undoManualDispatch(o.publicToken, S.shop, S.user)).rejects.toThrow('เลยเวลาเลิกทำแล้ว')
+      expect(await statusOf(o.id)).toBe('SHIPPED')
+      expect(await events(o.id, 'MANUAL_DISPATCH_UNDONE')).toHaveLength(0)
+    })
+
+    it('iShip live → 409 (ข้อความ iShip) · ไม่ใช่ขั้นกำลังจัดส่ง (PENDING/CONFIRMED) → 409', async () => {
+      const ish = await mkOrder({ tracking: 'U3', iship: 'CREATED', status: 'SHIPPED' })
+      await db.shipmentTracking.update({ where: { orderId: ish.id }, data: { dispatchedAt: new Date() } })
+      await expect(undoManualDispatch(ish.publicToken, S.shop, S.user)).rejects.toThrow(/iShip/)
+      expect(await statusOf(ish.id)).toBe('SHIPPED')
+      const pend = await mkOrder({ tracking: 'U4' })
+      await expect(undoManualDispatch(pend.publicToken, S.shop, S.user)).rejects.toThrow(ManualUndoNotAllowedError)
+      const conf = await mkOrder({ tracking: 'U5', status: 'CONFIRMED' })
+      await expect(undoManualDispatch(conf.publicToken, S.shop, S.user)).rejects.toThrow(ManualUndoNotAllowedError)
+    })
+
+    it('ออเดอร์ร้านอื่น → OrderNotFoundError', async () => {
+      const o = await mkOrder({ tracking: 'U6' })
+      await markManualDispatched(o.publicToken, S.shop, S.user)
+      await expect(undoManualDispatch(o.publicToken, S.otherShop, S.user)).rejects.toThrow(OrderNotFoundError)
+      expect(await statusOf(o.id)).toBe('SHIPPED')
+    })
+
+    it('กดซ้ำพร้อมกัน N=5 → สำเร็จ 1 ครั้ง · event 1 แถว · ที่เหลือ 409', async () => {
+      const o = await mkOrder({ tracking: 'U7' })
+      await markManualDispatched(o.publicToken, S.shop, S.user)
+      const rs = await Promise.allSettled(Array.from({ length: 5 }, () => undoManualDispatch(o.publicToken, S.shop, S.user)))
+      expect(rs.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      expect(await events(o.id, 'MANUAL_DISPATCH_UNDONE')).toHaveLength(1)
+      // ครั้งที่สองหลังเสร็จ → 409 (dispatchedAt=null แล้ว) ไม่เขียน event เพิ่ม
+      await expect(undoManualDispatch(o.publicToken, S.shop, S.user)).rejects.toThrow(ManualUndoNotAllowedError)
+      expect(await events(o.id, 'MANUAL_DISPATCH_UNDONE')).toHaveLength(1)
+    })
+
+    it('เลิกทำแล้วกดจัดส่งแล้วใหม่ได้ (ledger UNIQUE กันแจ้งเลขซ้ำ)', async () => {
+      const o = await mkOrder({ tracking: 'U8' })
+      await markManualDispatched(o.publicToken, S.shop, S.user)
+      await undoManualDispatch(o.publicToken, S.shop, S.user)
+      await expect(markManualDispatched(o.publicToken, S.shop, S.user)).resolves.toMatchObject({ changed: true })
+      expect(await ledger(o.id)).toHaveLength(1)
     })
   })
 

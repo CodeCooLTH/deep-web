@@ -190,6 +190,8 @@ interface ShipmentPanelExtras {
   vertical: string;
   /** 00078 — true เฉพาะบทบาทที่เห็นเงินได้ (ไม่มี = ปิด) */
   canSetShipCost?: boolean;
+  /** 00080 TD-011 — ถือ S1 (ปุ่มจัดส่งแล้ว/ส่งสำเร็จ) · ไม่มี = ปิด (fail-closed) ตัดสินที่ server จากบทบาทของ session */
+  canShip?: boolean;
 }
 
 export type ShipmentPanelJson =

@@ -37,6 +37,7 @@ import {
   manualStepToast,
   MANUAL_STEP_FAILED,
   postManualStep,
+  reportDispatch,
   type ManualStepResult,
 } from '@/lib/manual-shipment-client'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
@@ -713,7 +714,7 @@ export default function OrderDetailClient({
     stepLock.current = true
     setStepBusy(true)
     try {
-      showStepToast('dispatch', await postManualStep(publicToken, 'dispatch'))
+      reportDispatch(pacesToast, publicToken, vocab.noun, await postManualStep(publicToken, 'dispatch'), () => router.refresh())
       router.refresh()
     } catch {
       pacesToast.error(MANUAL_STEP_FAILED)
@@ -896,6 +897,7 @@ export default function OrderDetailClient({
           {isCod ? (
             <CodCard
               canAct={canReceiveMoney}
+              secondary={visibleActionSet.primary?.key === 'mark-delivered'}
               codReceivedAtISO={codReceivedAtISO}
               onMarkReceived={handleCodReceived}
               onUndo={handleCodUndo}
