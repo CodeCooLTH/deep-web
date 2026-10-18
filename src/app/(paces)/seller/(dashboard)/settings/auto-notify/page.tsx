@@ -52,8 +52,8 @@ export default async function AutoNotifyPage() {
     icon: AUTO_NOTIFY_KIND_ICON[k.kind],
     enabled: k.enabled,
     enabledAt: k.enabledAt,
-    // บรรทัดแรกของเทมเพลตที่ร้านแก้เอง · null = ใช้ข้อความตั้งต้น
-    customFirstLine: k.template.isCustom && k.template.body ? (k.template.body.split('\n')[0] ?? '') : null,
+    template: k.template,
+    variables: settings.variables[k.kind] ?? [],
   }))
 
   return (

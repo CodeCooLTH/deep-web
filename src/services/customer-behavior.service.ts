@@ -17,7 +17,8 @@ import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { resolveCustomerIds, type Linkable } from './order-stage.service'
 
-const key = (shopId: string, customerId: string) => `${shopId}::${customerId}`
+/** คีย์ของ Map ที่ `behaviorByShopCustomer` คืน */
+export const behaviorKey = (shopId: string, customerId: string) => `${shopId}::${customerId}`
 
 /**
  * สรุปพฤติกรรมของลูกค้าหลายคนกับร้านที่กำหนด ใน query เดียว — คีย์ `${shopId}::${customerId}`
@@ -68,7 +69,7 @@ export async function behaviorByShopCustomer(
   const evidenceByKey = new Map<string, Parameters<typeof summarizeCustomerBehavior>[0]>()
   for (const r of rows) {
     if (!r.customerId) continue
-    const k = key(r.shopId, r.customerId)
+    const k = behaviorKey(r.shopId, r.customerId)
     const list = evidenceByKey.get(k) ?? []
     list.push({
       status: r.status,
@@ -104,6 +105,6 @@ export async function enrichWithCustomerBehavior<T extends Linkable>(
     if (!cid) return { ...i, customerBehavior: null }
     // ผูกกับลูกค้าในระบบแล้วแต่ยังไม่เคยมีออเดอร์กับร้านนี้ → คืน summary ว่าง (ไม่ใช่ null)
     // เพื่อให้ฝั่ง UI แยก "ยังไม่ผูก" (null) ออกจาก "ผูกแล้วแต่ยังไม่เคยสั่ง" ได้
-    return { ...i, customerBehavior: behaviorOf.get(key(i.shopId, cid)) ?? summarizeCustomerBehavior([]) }
+    return { ...i, customerBehavior: behaviorOf.get(behaviorKey(i.shopId, cid)) ?? summarizeCustomerBehavior([]) }
   })
 }
