@@ -225,7 +225,7 @@ export default function ShipmentEntryModal({
           ? 'กำลังบันทึก...'
           : mode === 'edit'
             ? 'บันทึกการแก้ไข'
-            : 'ยืนยันจัดส่ง'}
+            : 'บันทึกเลขพัสดุ'}
       </button>
       {closeButton}
     </div>

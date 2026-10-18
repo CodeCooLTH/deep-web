@@ -186,6 +186,8 @@ interface ShipmentPanelExtras {
   trackingNoticeTiming: "ON_SAVE" | "ON_DISPATCH";
   /** 00080 — เก็บเงินปลายทางและร้านยังไม่กดรับเงิน (isCodUnpaidOrder) */
   isCodUnpaid: boolean;
+  /** Shop.vertical — ผันคำเรียกออเดอร์ในแผงแชท */
+  vertical: string;
   /** 00078 — true เฉพาะบทบาทที่เห็นเงินได้ (ไม่มี = ปิด) */
   canSetShipCost?: boolean;
 }

@@ -124,9 +124,9 @@ describe('trackingMessage (preview เท่านั้น — ข้อคว�
 
 describe('translateInvalidTransition', () => {
   it('แปลงเป็นไทย', () => {
-    expect(translateInvalidTransition('Invalid transition: SHIPPED → SHIPPED')).toContain('แจ้งจัดส่งไปแล้ว')
+    expect(translateInvalidTransition('Invalid transition: SHIPPED → SHIPPED')).toContain('บันทึกเลขพัสดุไว้แล้ว')
     expect(translateInvalidTransition('Invalid transition: CANCELLED → SHIPPED')).toBe(
-      'คำสั่งซื้อนี้อยู่สถานะยกเลิก จึงบันทึกการจัดส่งไม่ได้',
+      'คำสั่งซื้อนี้อยู่สถานะยกเลิก จึงบันทึกเลขพัสดุไม่ได้',
     )
   })
   it('ข้อความอื่นคืน null', () => {

@@ -22,6 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime, formatDateTimeTH } from '@/lib/format-date'
+import { manualShippingNote } from '@/lib/manual-shipping-note'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
@@ -89,6 +90,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<string | null>(iship?.lastTracedAtISO ?? null)
 
+  const note = manualShippingNote(manual?.status)
   const courierName = iship?.courierName ?? manual?.provider ?? null
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
@@ -360,13 +362,14 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
         {/* เลขที่ร้านพิมพ์เอง — บอกตรง ๆ ว่าทำไมไม่มีแถบสถานะ ไม่ปล่อยให้เดาว่าจอพัง */}
         {!iship && manual && (
           <div className="text-default-700 mt-4 text-xs">
-            {manual.status === 'PENDING' ? (
+            {note === 'AWAITING' && (
               <>
                 <p className="mb-0">ยังไม่ได้ส่งออก ระบบติดตามสถานะกับขนส่งให้ไม่ได้ เพราะเลขนี้ร้านกรอกเอง</p>
                 <p className="mb-0">บันทึกเลขเมื่อ {formatDateTime(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
                 {manual.hintDispatch && <p className="mb-0">กด &quot;จัดส่งแล้ว&quot; เมื่อนำพัสดุไปส่ง</p>}
               </>
-            ) : (
+            )}
+            {note === 'DISPATCHED' && (
               <>
                 <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
                 {(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO) && (
@@ -374,6 +377,12 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
                     แจ้งจัดส่งเมื่อ {formatDateTime(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO)}
                   </p>
                 )}
+              </>
+            )}
+            {note === 'RECORDED_ONLY' && (
+              <>
+                <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
+                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTime(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
               </>
             )}
           </div>

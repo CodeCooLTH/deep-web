@@ -120,7 +120,7 @@ export function translateInvalidTransition(message: string): string | null {
   const m = /^Invalid transition: (\w+) → (\w+)$/.exec(message)
   if (!m) return null
   if (m[1] === 'SHIPPED') {
-    return 'คำสั่งซื้อนี้แจ้งจัดส่งไปแล้ว แก้เลขพัสดุได้ที่หน้าคำสั่งซื้อ'
+    return 'คำสั่งซื้อนี้บันทึกเลขพัสดุไว้แล้ว แก้เลขพัสดุได้ที่หน้าคำสั่งซื้อ'
   }
-  return `คำสั่งซื้อนี้อยู่สถานะ${orderStatusLabel(m[1])} จึงบันทึกการจัดส่งไม่ได้`
+  return `คำสั่งซื้อนี้อยู่สถานะ${orderStatusLabel(m[1])} จึงบันทึกเลขพัสดุไม่ได้`
 }

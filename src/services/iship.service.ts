@@ -712,6 +712,7 @@ export async function getShipmentPanelState(
       manualShipment: { provider: string; trackingNo: string } | null;
       trackingNoticeTiming: TrackingNoticeTiming;
       isCodUnpaid: boolean;
+      vertical: string;
     }
   | {
       ishipState: "NOT_CONNECTED" | "DISCONNECTED";
@@ -722,6 +723,7 @@ export async function getShipmentPanelState(
       manualShipment: { provider: string; trackingNo: string } | null;
       trackingNoticeTiming: TrackingNoticeTiming;
       isCodUnpaid: boolean;
+      vertical: string;
     }
 > {
   const order = await prisma.order.findFirst({
@@ -732,6 +734,7 @@ export async function getShipmentPanelState(
       shipmentTracking: { select: { provider: true, trackingNo: true } },
       paymentMethod: true,
       codReceivedAt: true,
+      shop: { select: { vertical: true } },
     },
   });
   if (!order) return { reason: "ไม่พบคำสั่งซื้อนี้ในร้าน" };
@@ -745,6 +748,8 @@ export async function getShipmentPanelState(
     trackingNoticeTiming: await getTrackingNoticeTiming(shopId),
     // 00080 — Swal "ส่งสำเร็จ" ในแชทใช้ถ้อยคำ COD · นิยามเดียวกับปุ่มรับเงินบนหน้าออเดอร์
     isCodUnpaid: isCodUnpaidOrder(order),
+    // ใช้ผันคำ {noun} ในแผงแชท (resolveOrderVocab)
+    vertical: order.shop.vertical as string,
   };
   const account = await prisma.shopShippingAccount.findUnique({
     where: { shopId },

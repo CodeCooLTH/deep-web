@@ -44,7 +44,7 @@ export async function POST(
   } catch (err: any) {
     if (err instanceof ShipmentTrackingExistsError) return NextResponse.json({ error: 'บันทึกเลขพัสดุไว้แล้ว ใช้ "แก้ไขเลขพัสดุ" แทน' }, { status: 409, headers: NO_STORE });
     // สองแท็บ/สองคนกดพร้อมกันได้ข้อความอังกฤษดิบจาก assertTransition — แปลงที่ route ไม่แตะ service
-    return NextResponse.json({ error: translateInvalidTransition(err?.message) ?? "ไม่สามารถแจ้งจัดส่งได้" }, { status: 400, headers: NO_STORE });
+    return NextResponse.json({ error: translateInvalidTransition(err?.message) ?? "บันทึกเลขพัสดุไม่สำเร็จ ลองใหม่อีกครั้ง" }, { status: 400, headers: NO_STORE });
   }
 }
 

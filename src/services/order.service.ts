@@ -1620,14 +1620,20 @@ export async function shipOrder(
   const timing = await getTrackingNoticeTiming(order.shopId);
   let ledgerId: string | null = null;
   const shipped = await prisma.$transaction(async (tx) => {
-    await tx.shipmentTracking.create({
-      data: {
-        orderId: order.id,
-        provider: data.provider,
-        trackingNo: data.trackingNo,
-        outboundShippingCost: data.outboundShippingCost ?? null,
-      },
-    });
+    try {
+      await tx.shipmentTracking.create({
+        data: {
+          orderId: order.id,
+          provider: data.provider,
+          trackingNo: data.trackingNo,
+          outboundShippingCost: data.outboundShippingCost ?? null,
+        },
+      });
+    } catch (e) {
+      // สองแท็บบันทึกพร้อมกัน: ผ่านด่าน findUnique ทั้งคู่ แล้วชน unique orderId — ตอบ 409 ไทยเหมือนด่านบน ไม่ใช่ 400
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ShipmentTrackingExistsError();
+      throw e;
+    }
     // feature 00031 — TRACKING_ADDED ใน tx เดียวกัน; provider = ชื่อขนส่งที่ร้านกรอกเอง (ไม่ใช่ PII)
     await recordOrderEvent(tx, {
       orderId: order.id,

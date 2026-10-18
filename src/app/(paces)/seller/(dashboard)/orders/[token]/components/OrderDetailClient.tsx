@@ -28,7 +28,7 @@
 import Icon from '@/components/wrappers/Icon'
 import { useCanTopUp, useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { insufficientCreditHtml } from '@/lib/payment-copy'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmAsync, pacesConfirmWithReason } from '@/lib/paces-swal'
@@ -289,6 +289,8 @@ export default function OrderDetailClient({
   const [receiptBusy, setReceiptBusy] = useState(false)
   // 00080 — กำลังยิง "จัดส่งแล้ว/ส่งสำเร็จ" (กันกดซ้ำ + ปุ่มหลักหมุน)
   const [stepBusy, setStepBusy] = useState(false)
+  // state อัปเดตแบบ async — ดับเบิลคลิกก่อน re-render ผ่านด่าน stepBusy ได้ ใช้ ref กันซ้ำทันที
+  const stepLock = useRef(false)
   const isOnlineSales = vertical === 'ONLINE_SALES'
   /** ร้านคิวงาน — เจ้าของคำถาม "ได้เงินยัง" คือบัญชี `OrderPayment` ไม่ใช่ธงใบเดียวของ 00062 */
   const isServiceQueue = vertical === 'SERVICE_QUEUE'
@@ -707,7 +709,8 @@ export default function OrderDetailClient({
 
   // "จัดส่งแล้ว" ไม่มี confirm (มติ Controller) — ย้อนด้วยการแก้เลขได้ ผลข้างเคียงมีแค่แจ้งเลขให้ลูกค้า
   const handleMarkDispatched = async () => {
-    if (stepBusy) return
+    if (stepLock.current) return
+    stepLock.current = true
     setStepBusy(true)
     try {
       showStepToast('dispatch', await postManualStep(publicToken, 'dispatch'))
@@ -715,13 +718,15 @@ export default function OrderDetailClient({
     } catch {
       pacesToast.error(MANUAL_STEP_FAILED)
     } finally {
+      stepLock.current = false
       setStepBusy(false)
     }
   }
 
   // "ส่งสำเร็จ" ย้อนกลับไม่ได้ + นับเป็นยอดขาย/Trust Score → Swal ก่อนเสมอ
   const handleMarkDelivered = async () => {
-    if (stepBusy) return
+    if (stepLock.current) return
+    stepLock.current = true
     const result = await pacesConfirmAsync({
       ...deliveredConfirmCopy(vocab.noun, isCodUnpaid),
       run: async () => {
@@ -732,6 +737,8 @@ export default function OrderDetailClient({
           setStepBusy(false)
         }
       },
+    }).finally(() => {
+      stepLock.current = false
     })
     if (!result) return
     showStepToast('delivered', result)

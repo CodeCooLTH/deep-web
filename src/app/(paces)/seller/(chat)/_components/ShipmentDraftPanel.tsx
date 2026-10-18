@@ -16,6 +16,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirmAsync } from '@/lib/paces-swal'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import {
   deliveredConfirmCopy,
@@ -231,15 +232,17 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    */
   async function runStep(action: 'DISPATCH' | 'DELIVER') {
     if (sending) return
-    const noun = 'คำสั่งซื้อ' // ctx ไม่มี vertical — ถ้อยคำกลาง
+    const noun = resolveOrderVocab(ctx?.vertical ?? 'ONLINE_SALES').noun
     if (action === 'DISPATCH') {
       setSending(true)
       try {
         const t = manualStepToast('dispatch', await postManualStep(orderToken, 'dispatch'), noun)
         pacesToast.chat[t.type](t.message)
         if (t.type !== 'error') onDone()
+        else setReloadKey((k) => k + 1) // 409/403 = สถานะเปลี่ยนไปแล้ว โหลด context ใหม่
       } catch {
         pacesToast.chat.error(MANUAL_STEP_FAILED)
+        setReloadKey((k) => k + 1)
       } finally {
         setSending(false)
       }
@@ -260,6 +263,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     const t = manualStepToast('delivered', result, noun)
     pacesToast.chat[t.type](t.message)
     if (t.type !== 'error') onDone()
+    else setReloadKey((k) => k + 1)
   }
 
   /** ทางออกของใบ FAILED / ผู้ส่งไม่ครบ — ไปฟอร์มส่งเอง (ปิดทางตันของ state-snapshots กับดัก FAILED) */
