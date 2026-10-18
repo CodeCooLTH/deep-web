@@ -9,7 +9,7 @@
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
@@ -89,6 +89,17 @@ export default function AutoNotifyClient({
   // T18 — กางตัวแก้ได้ทีละแถว · กางแถวอื่นขณะข้อความค้าง = ถามก่อน (ท่า closeSettings ใน ShippingSettingsRow)
   const [openKind, setOpenKind] = useState<string | null>(null)
   const [editorDirty, setEditorDirty] = useState(false)
+  // ปิดแท็บ/รีเฟรชตอนข้อความค้าง = เบราว์เซอร์ถามเอง (ท่าเดียวกับ useUnsavedChangesGuard ส่วน beforeunload)
+  // shortcut: ไม่ครอบการกดลิงก์ในแอป (Next Link) — ทำเมื่อมีตัวดัก route change กลางของ (dashboard)
+  useEffect(() => {
+    if (!editorDirty) return
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onUnload)
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [editorDirty])
   const openEditor = async (kind: string | null) => {
     if (kind === openKind) return
     if (editorDirty && !(await pacesConfirm.warning(t.discardConfirmTitle, undefined, { confirmButtonText: t.discardConfirmOk, cancelButtonText: t.keepEditing }))) return
