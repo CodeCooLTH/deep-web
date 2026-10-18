@@ -23,8 +23,8 @@ export interface AutoNotifyRowProps {
   /** ล็อกสวิตช์นี้ตัวเดียว (กำลังบันทึก) */
   pending: boolean
   canEdit: boolean
-  /** บรรทัดแรกของเทมเพลตที่แก้เอง · null = ใช้ข้อความตั้งต้น */
-  customFirstLine: string | null
+  /** บรรทัดแรกของข้อความที่ลูกค้าจะได้ (เติมค่าตัวอย่างแล้ว) พร้อมคำนำว่าตั้งต้น/ของร้าน — clarify: เดิมบอกแค่ "ใช้ข้อความตั้งต้น" ไม่บอกว่าเขียนว่าอะไร */
+  previewLine: string
   onToggle: (next: boolean) => void
   renderEditAction?: () => ReactNode
   editor?: ReactNode
@@ -46,6 +46,8 @@ export default function AutoNotifyRow(p: AutoNotifyRowProps) {
           <label htmlFor={id} className="text-default-900 text-sm font-medium">
             {p.label}
           </label>
+          {/* สถานะเป็นคำ (spec v2 §3.C) — สวิตช์อย่างเดียวบอกด้วยตำแหน่ง/สี */}
+          <span className={`ms-2 text-xs ${p.checked ? 'text-primary-ink' : 'text-default-600'}`}>{p.checked ? t.stateOn : t.stateOff}</span>
           {note && <p className="text-default-600 mt-0.5 text-xs">{note}</p>}
           {p.timing && p.checked && p.onTimingChange && (
             <fieldset
@@ -82,7 +84,7 @@ export default function AutoNotifyRow(p: AutoNotifyRowProps) {
             </fieldset>
           )}
           <div className="mt-1 flex items-center gap-2">
-            <p className="text-default-700 min-w-0 flex-1 truncate text-xs">{p.customFirstLine ?? t.useDefaultText}</p>
+            <p className="text-default-700 min-w-0 flex-1 truncate text-xs">{p.previewLine}</p>
             {p.renderEditAction?.()}
           </div>
         </div>

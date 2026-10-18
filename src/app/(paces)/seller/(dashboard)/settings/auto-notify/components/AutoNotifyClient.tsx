@@ -20,6 +20,8 @@ import type { AutoNotifyKind } from '@/lib/auto-notify/ledger-constants'
 import type { TemplateVariable } from '@/lib/auto-notify/variables'
 import AutoNotifyRow, { type TrackingTiming } from './AutoNotifyRow'
 import TemplateEditor from './TemplateEditor'
+import { renderTemplate } from '@/lib/auto-notify/render'
+import { fmt } from '@/i18n/fmt'
 import DailyCapField from './DailyCapField'
 
 interface KindView {
@@ -37,6 +39,14 @@ interface KindView {
     updatedBy: { name: string } | null
   }
   variables: readonly TemplateVariable[]
+}
+
+/** บรรทัดแรกของข้อความหลังเติมค่าตัวอย่าง — ตัวสร้างข้อความเดียวกับตัวส่งจริง ไม่โชว์ `{ชื่อ}` ดิบในแถว */
+function rowPreviewLine(k: KindView, t: { rowDefaultText: string; rowCustomText: string; useDefaultText: string }): string {
+  const r = renderTemplate(k.template.body ?? k.template.defaultBody, Object.fromEntries(k.variables.map((v) => [v.name, v.sample])))
+  const line = r.ok ? (r.text.split('\n').find((x) => x.trim() !== '') ?? '') : ''
+  if (!line) return t.useDefaultText
+  return fmt(k.template.isCustom ? t.rowCustomText : t.rowDefaultText, { line })
 }
 
 export default function AutoNotifyClient({
@@ -206,7 +216,7 @@ export default function AutoNotifyClient({
                         checked={k.enabled}
                         pending={pending.has(k.kind)}
                         canEdit={canEdit}
-                        customFirstLine={k.template.isCustom && k.template.body ? (k.template.body.split('\n')[0] ?? '') : null}
+                        previewLine={rowPreviewLine(k, t)}
                         onToggle={(next) => void toggle(k, next)}
                         renderEditAction={
                           canEdit && openKind !== k.kind
