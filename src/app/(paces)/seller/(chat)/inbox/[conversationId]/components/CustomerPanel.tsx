@@ -78,7 +78,9 @@ import ReturnPanel from '../../../../(dashboard)/orders/[token]/components/Retur
 import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import { pacesToast } from '@/lib/paces-toast'
 import { sendOrderToChat } from '@/app/(paces)/seller/(chat)/_components/sendOrderToChat'
-import { pacesConfirmWithReason } from '@/lib/paces-swal'
+import { pacesConfirmAsync, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { deliveredConfirmCopy, MANUAL_STEP_FAILED, manualStepToast, postManualStep, reportDispatch } from '@/lib/manual-shipment-client'
+import { isCodUnpaidOrder } from '@/lib/order-display'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import { toFileUrl } from '@/lib/file-url'
 
@@ -400,6 +402,47 @@ function OrderCard({
     canMarkDispatched: canMarkDispatchedOf(manualFacts),
     canMarkDelivered: canMarkDeliveredOf(manualFacts),
   }
+  /** 00080 ext — ส่งเองที่มีขั้นถัดไป: ปุ่มพัสดุกลายเป็นปุ่มขั้น (user 2026-10-18 "เปลี่ยนปุ่มเป็นส่งแล้ว") */
+  const manualStep = manualStepFlags.canMarkDispatched ? 'dispatch' : manualStepFlags.canMarkDelivered ? 'delivered' : null
+  const [stepBusy, setStepBusy] = useState(false)
+  const stepLock = useRef(false)
+  // Base: ShipmentDraftPanel.tsx runStep — ถ้อยคำ/toast/เลิกทำจาก manual-shipment-client ตัวเดียวกัน (HR16)
+  async function runManualStep(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    // ref ไม่ใช่ state: แตะซ้ำก่อน re-render ต้องไม่ยิงสองครั้ง
+    if (!manualStep || stepLock.current) return
+    stepLock.current = true
+    try {
+      if (manualStep === 'dispatch') {
+        setStepBusy(true)
+        try {
+          const r = await postManualStep(o.token, 'dispatch')
+          reportDispatch(pacesToast.chat, o.token, noun, r, () => router.refresh())
+          router.refresh() // 409/403 ก็โหลดใหม่ — สถานะบนการ์ดอาจเก่าแล้ว
+        } catch {
+          pacesToast.chat.error(MANUAL_STEP_FAILED)
+        }
+      } else {
+        const result = await pacesConfirmAsync({
+          ...deliveredConfirmCopy(noun, isCodUnpaidOrder({ paymentMethod: o.paymentMethod, codReceivedAt: o.codReceivedAt })),
+          run: async () => {
+            setStepBusy(true)
+            return await postManualStep(o.token, 'delivered')
+          },
+        })
+        if (result) {
+          const t = manualStepToast('delivered', result, noun)
+          pacesToast.chat[t.type](t.message)
+          router.refresh()
+        }
+      }
+    } finally {
+      stepLock.current = false
+      setStepBusy(false)
+    }
+  }
+  const hasAnyShipment = hasShipment || o.hasManualTracking
   const cancelItems =
     vertical === 'LODGING'
       ? []
@@ -622,16 +665,30 @@ function OrderCard({
                 กั้นด้วย fulfillmentMode ไม่ใช่ vertical เพราะ resolveFulfillmentMode คือ SSOT
                 ของ "ใบนี้ต้องส่งของไหม" (มติ 2026-08-07) — และกันเผื่อสินค้าดิจิทัลของร้าน
                 ขายออนไลน์ไปด้วยในตัว ซึ่งมีปัญหาเดียวกันมาตลอดโดยไม่มีใครรายงาน */}
-            {o.fulfillmentMode !== 'NO_SHIPPING' && (
+            {manualStep ? (
+            <button
+              type="button"
+              onClick={(e) => void runManualStep(e)}
+              disabled={stepBusy || cancelling}
+              aria-label={`${manualStep === 'dispatch' ? 'จัดส่งแล้ว' : 'ส่งสำเร็จ'} — ${o.orderNo || o.token.slice(0, 8).toUpperCase()}`}
+              className="btn btn-sm bg-primary hover:bg-primary-hover text-white flex-1 gap-1 disabled:opacity-60"
+            >
+              <Icon
+                icon={stepBusy ? 'loader-2' : manualStep === 'dispatch' ? 'truck-delivery' : 'circle-check'}
+                className={`text-sm ${stepBusy ? 'animate-spin' : ''}`}
+              />
+              {manualStep === 'dispatch' ? 'จัดส่งแล้ว' : 'ส่งสำเร็จ'}
+            </button>
+            ) : o.fulfillmentMode !== 'NO_SHIPPING' && (
             <button
               type="button"
               onClick={openShipment}
               disabled={cancelling}
-              aria-label={hasShipment ? `ดูพัสดุของ${noun}นี้` : `สร้างพัสดุสำหรับ${noun}นี้`}
+              aria-label={hasAnyShipment ? `ดูพัสดุของ${noun}นี้` : `สร้างพัสดุสำหรับ${noun}นี้`}
               className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
             >
               <Icon icon="truck-delivery" className="text-sm" />
-              {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
+              {hasAnyShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
             </button>
             )}
             {/* ⋮ ยกเลิก (user 2026-08-05) — PENDING/SHIPPED เท่านั้น (cancelItems ว่าง →

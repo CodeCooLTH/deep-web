@@ -169,3 +169,16 @@ sequenceDiagram
 
 ## 8. สรุป
 "รอจัดส่ง" เป็นขั้นคำนวณจาก PENDING + เลขพัสดุส่งเอง · 2 action ใหม่เป็น conditional update ที่ idempotent · migration 3 ตัว additive (dispatchedAt · trackingNoticeTiming · OrderEvent types) · ไม่แตะ iShip
+
+### TD-012: ย้ายใบส่งเองเก่าที่ค้าง SHIPPED กลับเป็นรอจัดส่ง (user 2026-10-18 หลัง deploy)
+- กลับมติ "ปล่อยไว้" — user เปิด prod แล้วเห็นใบที่กรอกเลขก่อน deploy ขึ้น "กำลังจัดส่ง" (prod 45 ใบ · 44 ใบ COD ร้านเดียว 15–18 ต.ค. + 1 ใบ 17 ส.ค. · ไม่มีใบไหนมี OrderShipment)
+- migration `20261018120000_backfill_manual_shipped_to_awaiting_dispatch`: `SHIPPED → PENDING` เมื่อ isManualShipment + `dispatchedAt IS NULL` · live iShip = ACTIVE_FORWARD_SHIPMENT · ไม่บันทึก OrderEvent · รันซ้ำได้
+- ใบที่ของออกไปแล้วจริง ร้านกด "จัดส่งแล้ว" อีกครั้ง (ใช้ bulk TD-013 ได้) · ledger UNIQUE กันแจ้งเลขซ้ำ
+
+### TD-013: bulk "จัดส่งแล้ว" ในหน้า /orders (user 2026-10-18)
+- ปุ่มใน `BulkActionBar` (desktop) โผล่เมื่อเลือกใบที่ `shippingStage === 'AWAITING_DISPATCH'` ≥1 และผู้ดูมี S1
+- Swal ยืนยันพร้อมจำนวนที่ข้าม → ยิง `POST /api/orders/[token]/dispatch` ทีละใบ (ไม่มี route ใหม่ · สิทธิ์/idempotent อยู่ที่ route เดิม) → toast สรุป → `router.refresh()`
+- ไม่มีเลิกทำแบบกลุ่ม (OOS) — เลิกทำทีละใบได้จาก toast ของหน้าออเดอร์เท่านั้น
+
+### TD-014: ปุ่มบนการ์ดออเดอร์ในแชท (CustomerPanel) — ช่องที่ตกสำรวจใน S-4
+- การ์ดเช็คแค่ `o.shipment` (iShip) ⇒ ใบส่งเองขึ้น "สร้างพัสดุ" และไม่มีปุ่มขั้น · แก้: มีขั้นถัดไป → ปุ่ม "จัดส่งแล้ว"/"ส่งสำเร็จ" แทนปุ่มพัสดุ (ตัวตัดสิน `canMarkDispatched/canMarkDelivered` + ถ้อยคำ/เลิกทำจาก `manual-shipment-client`) · ไม่มีขั้น → "ดูพัสดุ" เมื่อมีเลขส่งเอง
