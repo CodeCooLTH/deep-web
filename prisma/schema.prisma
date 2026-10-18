@@ -1210,6 +1210,10 @@ model ShipmentTracking {
   /// 🛑 ต้นทุนของร้าน — ห้ามส่งไปหน้า guest /o/{token}
   outboundShippingCost Decimal? @db.Decimal(12, 2)
 
+  /// feature 00080 — เวลาที่ร้านกด "จัดส่งแล้ว" (ส่งเอง) · NULL = ยังไม่กด หรือใบเก่า → ผู้อ่านใช้ dispatchedAt ?? createdAt
+  /// createdAt = เวลาบันทึกเลขพัสดุ (ไม่ใช่เวลาส่งอีกต่อไป) · ไม่ backfill
+  dispatchedAt DateTime? @db.Timestamptz(3)
+
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([trackingNo], map: "ShipmentTracking_trackingNo_idx") // CR 2026-08-25 — ค้นเลขพัสดุที่ร้านแจ้งเอง
@@ -5256,6 +5260,9 @@ model AutoNotifyConfig {
   id              String   @id @default(uuid())
   shopId          String   @unique
   dailyCapPerRoom Int      @default(5)
+  /// feature 00080 — จังหวะแจ้งเลขพัสดุส่งเอง: ON_SAVE (แจ้งตอนบันทึกเลข) | ON_DISPATCH (แจ้งตอนกด "จัดส่งแล้ว")
+  /// DB CHECK ใน migration 20261018100100 · iShip ไม่อ่านค่านี้
+  trackingNoticeTiming String @default("ON_SAVE")
   updatedByUserId String?
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @db.Timestamptz(3)
