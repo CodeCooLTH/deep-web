@@ -21,6 +21,7 @@ import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { TEMPLATE_EXAMPLES } from '@/lib/auto-notify/defaults'
 import { domToText } from '@/lib/auto-notify/editor-dom'
+import { renderTemplate } from '@/lib/auto-notify/render'
 import { textToParts } from '@/lib/auto-notify/editor-text'
 import { AUTO_NOTIFY_TEMPLATE_MAX_CHARS, type AutoNotifyKind } from '@/lib/auto-notify/ledger-constants'
 import {
@@ -112,6 +113,8 @@ export default function TemplateEditor({
   const [text, setText] = useState(body)
   const [saving, setSaving] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  /** critique P1 — ดูข้อความหลังเติมค่าตัวอย่าง (renderTemplate ตัวเดียวกับตัวส่งจริง) · กล่องแก้ซ่อนด้วย class ไม่ unmount (DOM เป็นของผู้ใช้) */
+  const [previewing, setPreviewing] = useState(false)
   /** เมนู `{` — เปิดเมื่อตัวอักษรหน้าเคอร์เซอร์คือ `{` (ตัดสินใหม่ทุกครั้งที่พิมพ์) */
   const [menuIdx, setMenuIdx] = useState<number | null>(null)
   const allowed = useMemo(() => new Set(variables.map((v) => v.name)), [variables])
@@ -318,7 +321,21 @@ export default function TemplateEditor({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-default-900 text-sm font-medium">{t.editorBody}</p>
-            <p className="text-default-600 text-xs">{t.editorBodyHint}</p>
+            <p className="text-default-600 text-xs">{previewing ? t.previewNote : t.editorBodyHint}</p>
+            <button
+              type="button"
+              aria-pressed={previewing}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setMenuIdx(null)
+                setEmojiOpen(false)
+                setPreviewing((v) => !v)
+              }}
+              className="text-primary-ink mt-1 inline-flex min-h-11 items-center gap-1 text-xs font-medium lg:min-h-0"
+            >
+              <Icon icon={previewing ? 'pencil' : 'eye'} className="size-4" aria-hidden="true" />
+              {previewing ? t.previewBack : t.previewToggle}
+            </button>
           </div>
           <span
             className={`shrink-0 text-xs tabular-nums ${count >= max ? 'text-danger-ink' : count >= max - 50 ? 'text-warning-ink' : 'text-default-600'}`}
@@ -378,8 +395,23 @@ export default function TemplateEditor({
             const el = boxRef.current
             if (el && hasLiteralVar(el, allowed)) applyBody(domToText(el))
           }}
-          className="text-default-900 min-h-32 px-3 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap focus:outline-none"
+          className={`text-default-900 min-h-32 px-3 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap focus:outline-none ${previewing ? 'hidden' : ''}`}
         />
+
+        {previewing && (() => {
+          const r = renderTemplate(text, Object.fromEntries(variables.map((v) => [v.name, v.sample])))
+          return (
+            <div className="px-3 py-3" aria-live="polite">
+              {r.ok ? (
+                <p className="bg-default-100 text-default-900 w-fit max-w-full rounded-lg px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap">
+                  {r.text}
+                </p>
+              ) : (
+                <p className="text-danger-ink text-xs">{t.errorEmpty}</p>
+              )}
+            </div>
+          )
+        })()}
 
         {menuIdx !== null && (
           <div id={`${editorId}-menu`} role="listbox" aria-label={t.varMenuLabel} className="card absolute inset-x-3 z-20 -mt-2 max-h-64 overflow-y-auto p-1 shadow-lg">
@@ -401,7 +433,7 @@ export default function TemplateEditor({
           </div>
         )}
 
-        <div className="border-default-200 flex flex-wrap items-center gap-1 border-t px-2 py-1">
+        <div className={`border-default-200 flex flex-wrap items-center gap-1 border-t px-2 py-1 ${previewing ? 'hidden' : ''}`}>
           <div className="relative shrink-0">
             <button
               type="button"

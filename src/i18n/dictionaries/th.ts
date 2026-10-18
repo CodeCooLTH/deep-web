@@ -246,7 +246,7 @@ export const th = {
     /** ตัวแก้ข้อความ */
     editorBody: 'เนื้อความ',
     editorBodyHint: 'กดชิปด้านล่างเพื่อใส่ข้อมูลของแต่ละลูกค้า เช่น ชื่อ ยอดเงิน ลิงก์ (หรือพิมพ์ { )',
-    editorAddVar: '+ ตัวแปร',
+    editorAddVar: '+ ข้อมูลลูกค้า',
     editorStartFrom: 'เริ่มจากตัวอย่าง',
     sampleStandard: 'มาตรฐาน',
     sampleShort: 'สั้น กระชับ',
@@ -276,8 +276,11 @@ export const th = {
     keepEditing: 'เก็บข้อความเดิม',
     discardConfirmTitle: 'ทิ้งข้อความที่ยังไม่ได้บันทึก?',
     discardConfirmOk: 'ทิ้งข้อความ',
-    varMenuLabel: 'เลือกตัวแปร',
-    insertVarAria: 'แทรกตัวแปร {name}',
+    varMenuLabel: 'เลือกข้อมูลลูกค้าที่จะใส่',
+    previewToggle: 'ดูแบบที่ลูกค้าเห็น',
+    previewBack: 'กลับไปแก้',
+    previewNote: 'ใช้ข้อมูลตัวอย่าง ข้อมูลที่ว่างจะถูกตัดออกทั้งบรรทัด',
+    insertVarAria: 'ใส่ข้อมูลลูกค้า {name}',
     emojiAria: 'แทรกอีโมจิ',
     editorAria: 'เนื้อความของข้อความ{when}',
 

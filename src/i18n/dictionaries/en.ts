@@ -89,7 +89,7 @@ export const en: Dictionary = {
 
     editorBody: 'Message',
     editorBodyHint: 'Tap a chip below to add each customer’s details, like name, amount or link (or type { )',
-    editorAddVar: '+ Variable',
+    editorAddVar: '+ Customer detail',
     editorStartFrom: 'Start from a sample',
     sampleStandard: 'Standard',
     sampleShort: 'Short',
@@ -119,8 +119,11 @@ export const en: Dictionary = {
     keepEditing: 'Keep my text',
     discardConfirmTitle: 'Discard unsaved changes?',
     discardConfirmOk: 'Discard',
-    varMenuLabel: 'Choose a variable',
-    insertVarAria: 'Insert variable {name}',
+    varMenuLabel: 'Choose a customer detail to add',
+    previewToggle: 'See what the customer sees',
+    previewBack: 'Back to editing',
+    previewNote: 'Uses sample details. A line whose details are all empty is left out.',
+    insertVarAria: 'Add customer detail {name}',
     emojiAria: 'Insert emoji',
     editorAria: 'Message body {when}',
 
