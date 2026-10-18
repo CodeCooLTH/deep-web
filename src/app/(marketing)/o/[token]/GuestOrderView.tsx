@@ -87,7 +87,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   const stage = deriveShippingStage({
     status: order.status,
     carrierStatus: order.carrierStatus,
-    hasShipment: !!order.shipmentTracking,
+    // ขั้นต้องดู "พัสดุ iShip" กับ "เลขส่งเอง" แยกกัน — shipmentTracking รวมสองทางและอาจถูกซ่อน (00080)
+    hasShipment: order.hasIshipTracking,
+    hasManualTracking: order.hasManualTracking,
     paymentMethod: order.paymentMethod,
     codReceivedAt: null,
     fulfillmentMode: order.fulfillmentMode,
@@ -102,7 +104,8 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   const genericHeadline = resolveOrderStatusHeadline({
     status: order.status,
     stage,
-    hasShipment: !!order.shipmentTracking,
+    // รอจัดส่งต้องขึ้นหัวเรื่อง "รอจัดส่ง" แม้เลขถูกซ่อน (ไม่งั้นผู้ซื้อเห็นแค่ "รอดำเนินการ")
+    hasShipment: !!order.shipmentTracking || stage === 'AWAITING_DISPATCH',
     carrierStatus: order.carrierStatus,
   })
   // feature 00073 — ร้านบริการ: หัวข้อ = ป้ายชุดเดียวคำฝั่งลูกค้า (ไม่มีแกนพัสดุให้คู่) · ร้านอื่นหัวข้อเดิม

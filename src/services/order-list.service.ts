@@ -76,6 +76,8 @@ const STAGE_COLUMNS = {
   codReceivedAt: 'o."codReceivedAt"',
   // feature 00062 — ต้องมีคู่กับฝั่ง TS เสมอ (เทส parity จับถ้าฝั่งใดฝั่งหนึ่งขาด)
   fulfillmentMode: 'o."fulfillmentMode"',
+  // feature 00080 — ส่งเอง: มีแถว ShipmentTracking (LEFT JOIN ใน ACTIVE_SHIPMENT_LATERAL; orderId unique ⇒ ไม่คูณแถว)
+  hasManualTracking: 'st."orderId" IS NOT NULL',
 } as const
 
 /**
@@ -96,7 +98,8 @@ const ACTIVE_SHIPMENT_LATERAL = `
       AND sh."direction" = 'FORWARD'
     ORDER BY sh."createdAt" DESC
     LIMIT 1
-  ) s ON true`
+  ) s ON true
+  LEFT JOIN "ShipmentTracking" st ON st."orderId" = o."id"`
 
 /**
  * 🛑 00061 — ไฟล์นี้ **จงใจไม่ตัด `status='DRAFTED'`** ต่างจากทุกจุดใน DATABASE.md §C

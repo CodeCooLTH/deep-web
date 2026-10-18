@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { deriveOrderStage } from '@/lib/order-stage'
+import { deriveOrderStage as deriveOrderStageStrict } from '@/lib/order-stage'
+
+// feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
+const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking'> & { hasManualTracking?: boolean }) | null, now?: number) =>
+  deriveOrderStageStrict(o && { hasManualTracking: false, ...o }, now)
 
 // เวลาอ้างอิงคงที่ — ห้ามใช้ Date.now() จริงในเทส (ผลจะเปลี่ยนตามเวลาที่รัน)
 const NOW = new Date('2026-07-29T12:00:00Z').getTime()
@@ -266,5 +270,19 @@ describe('deriveOrderStage', () => {
       expect(deriveOrderStage({ ...base, vertical: 'SERVICE_QUEUE', status: 'CONFIRMED' }, NOW)?.label).toBe('สำเร็จ')
       expect(deriveOrderStage({ ...base, vertical: 'LODGING', status: 'SHIPPED' }, NOW)?.label).toBe('กำลังจัดส่ง')
     })
+  })
+})
+
+// feature 00080 — ชิปแถวแชทของใบส่งเอง
+describe('deriveOrderStage — AWAITING_DISPATCH (00080)', () => {
+  it('PENDING + เลขส่งเอง ไม่มี iShip → รอจัดส่ง (ไม่ใช่ สั่งซื้อแล้ว)', () => {
+    const s = deriveOrderStage({ ...base, hasManualTracking: true }, NOW)
+    expect(s?.key).toBe('AWAITING_DISPATCH')
+    expect(s?.label).toBe('รอจัดส่ง')
+  })
+  it('มีพัสดุ iShip → iShip ชนะ · SHIPPED → กำลังจัดส่ง · ไม่มีเลข → สั่งซื้อแล้ว', () => {
+    expect(deriveOrderStage({ ...base, hasManualTracking: true, hasShipment: true }, NOW)?.key).toBe('PARCEL_CREATED')
+    expect(deriveOrderStage({ ...base, hasManualTracking: true, status: 'SHIPPED' }, NOW)?.key).toBe('SHIPPING')
+    expect(deriveOrderStage({ ...base, hasManualTracking: false }, NOW)?.key).toBe('ORDERED')
   })
 })

@@ -41,6 +41,8 @@ const STAGE_COLUMNS = {
   // feature 00062 — ต้องตรงกับ STAGE_COLUMNS จริงใน order-list.service.ts (สำเนาในเทสนี้
   // เป็นสำเนาโดยเจตนา: ถ้าของจริงเปลี่ยนแล้วที่นี่ไม่เปลี่ยน tsc จะฟ้องที่ buildShippingStageSql)
   fulfillmentMode: 'o."fulfillmentMode"',
+  // feature 00080 — ต้องตรงกับของจริง (LEFT JOIN "ShipmentTracking" st ด้านล่าง)
+  hasManualTracking: 'st."orderId" IS NOT NULL',
 }
 
 const LATERAL = `
@@ -50,7 +52,8 @@ const LATERAL = `
     WHERE sh."orderId" = o."id"
       AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
     ORDER BY sh."createdAt" DESC LIMIT 1
-  ) s ON true`
+  ) s ON true
+  LEFT JOIN "ShipmentTracking" st ON st."orderId" = o."id"`
 
 describe('order-list — กองงานที่นับด้วย SQL ต้องตรงกับที่ derive ด้วย TS บนข้อมูลจริง', () => {
   it('[blocker] ทุกออเดอร์ในฐานได้กองเดียวกันทั้งสองทาง', async () => {
@@ -75,6 +78,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
         payment_method: string | null
         cod_received_at: Date | null
         fulfillment_mode: string
+        has_manual_tracking: boolean
         problem_at: Date | null
         sql_stage: string
       }[]
@@ -86,6 +90,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
              o."paymentMethod"    AS payment_method,
              o."codReceivedAt"    AS cod_received_at,
              o."fulfillmentMode"  AS fulfillment_mode,
+             (st."orderId" IS NOT NULL) AS has_manual_tracking,
              s."problemAt"        AS problem_at,
              (${stageExpr})       AS sql_stage
       FROM "Order" o
@@ -105,6 +110,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
           paymentMethod: r.payment_method,
           codReceivedAt: r.cod_received_at,
           fulfillmentMode: r.fulfillment_mode,
+          hasManualTracking: r.has_manual_tracking,
           problemAt: r.problem_at,
         })
         return fromTs === r.sql_stage

@@ -198,7 +198,7 @@ describe.skipIf(!isLocal)('auto-notify goods hooks (DB จริง)', () => {
       expect(await ledger(o.id, 'TRACKING')).toHaveLength(1)
     })
 
-    it('reserve ล้ม (เลขยาว > 120 ชน CHECK) → shipOrder ยังสำเร็จ · สถานะ SHIPPED · ไม่มีแถว', async () => {
+    it('reserve ล้ม (เลขยาว > 120 ชน CHECK) → shipOrder ยังสำเร็จ · สถานะคง PENDING (00080) · ไม่มีแถว', async () => {
       const o = await mkOrder(await mkConv())
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
       try {
@@ -207,7 +207,7 @@ describe.skipIf(!isLocal)('auto-notify goods hooks (DB จริง)', () => {
       } finally {
         spy.mockRestore()
       }
-      expect((await db.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('SHIPPED')
+      expect((await db.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('PENDING')
       expect(await db.shipmentTracking.count({ where: { orderId: o.id } })).toBe(1)
       expect(await ledger(o.id)).toHaveLength(0)
     })

@@ -396,6 +396,7 @@ export const en: Dictionary = {
     statusConfirmed: 'Completed',
     statusCancelled: 'Cancelled',
     stageAwaitingParcel: 'Awaiting tracking no.',
+    stageAwaitingDispatch: 'Awaiting dispatch',
     stageAwaitingPickup: 'Awaiting pickup',
     stageInTransit: 'In transit',
     stageCodPending: 'COD pending',

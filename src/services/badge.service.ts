@@ -24,7 +24,7 @@ import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { Prisma } from "@prisma/client"
 import { recalculateTrustScore, recalculateShopTrustScore } from "@/services/trust-score.service"
 import { pushToUser } from "@/services/app-push.service"
-import { computeShippingSpeed } from "@/lib/shipping-speed"
+import { computeShippingSpeed, resolveManualShipmentAt } from "@/lib/shipping-speed"
 import { approvedVerificationWhere, businessScope } from "@/lib/verification-scope"
 import type {
   BadgeCriteria,
@@ -242,7 +242,7 @@ export async function checkFastShipping(
     where: { shopId: shop.id, status: { in: statuses } },
     select: {
       createdAt: true,
-      shipmentTracking: { select: { createdAt: true } },
+      shipmentTracking: { select: { createdAt: true, dispatchedAt: true } },
       // status='CREATED' + ไม่ใช่ dry-run = นิยาม "ออเดอร์นี้มีพัสดุแล้ว" ตัวเดียวกับทั้งระบบ
       // (ใบ FAILED ไม่ใช่พัสดุ — บทเรียน 2026-08-06/08-07 ที่เคยนับผิดมาแล้ว 2 ที่)
       shipments: {
@@ -276,7 +276,7 @@ export async function checkFastShipping(
       ishipShipmentEventAt:
         o.events.filter((e) => e.type === 'SHIPMENT_CREATED').at(-1)?.occurredAt ?? null,
       ishipShipmentRowAt: o.shipments[0]?.createdAt ?? null,
-      manualShipmentAt: o.shipmentTracking?.createdAt ?? null,
+      manualShipmentAt: resolveManualShipmentAt(o.shipmentTracking),
     })),
   )
 

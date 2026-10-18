@@ -86,6 +86,8 @@ type Row = {
   fulfillmentMode: string
   /** "เคยมีปัญหาครั้งแรกเมื่อไร" — null = ไม่เคย (กอง PROBLEM ค้างเหนียว 2026-09-14) */
   problemAt: string | null
+  /** มีแถว ShipmentTracking (ส่งเอง) — feature 00080 */
+  hasManualTracking: boolean
 }
 
 function buildCorpus(): Row[] {
@@ -98,6 +100,7 @@ function buildCorpus(): Row[] {
         for (const paymentMethod of PAYMENT_METHODS)
           for (const codReceivedAt of COD_RECEIVED)
             for (const problemAt of PROBLEM_AT)
+              for (const hasManualTracking of [false, true])
               rows.push({
                 i: i++,
                 status,
@@ -107,6 +110,7 @@ function buildCorpus(): Row[] {
                 codReceivedAt,
                 fulfillmentMode: 'SHIPPED',
                 problemAt,
+                hasManualTracking,
               })
 
   /**
@@ -120,6 +124,7 @@ function buildCorpus(): Row[] {
     for (const status of ORDER_STATUSES)
       for (const hasShipment of [true, false])
         for (const carrierStatus of CARRIER_CODES)
+          for (const hasManualTracking of [false, true])
           rows.push({
             i: i++,
             status,
@@ -130,6 +135,7 @@ function buildCorpus(): Row[] {
             fulfillmentMode,
             // ใบที่เคยมีปัญหาต้องไม่หลุดออกจากกิ่ง NOT_SHIPPING เช่นกัน
             problemAt: '2026-09-01T03:00:00.000Z',
+            hasManualTracking,
           })
   return rows
 }
@@ -156,7 +162,7 @@ describe('สูตรกองงานตามสถานะพัสดุ 
           `(${r.i}, ${sqlLit(r.status)}, ${r.hasShipment}, ${sqlLit(r.carrierStatus)}, ` +
           `${sqlLit(r.paymentMethod)}, ${r.codReceivedAt === null ? 'NULL' : `TIMESTAMP ${sqlLit(r.codReceivedAt.replace('T', ' ').replace('Z', ''))}`}, ` +
           `${sqlLit(r.fulfillmentMode)}, ` +
-          `${r.problemAt === null ? 'NULL::timestamp' : `TIMESTAMP ${sqlLit(r.problemAt.replace('T', ' ').replace('Z', ''))}`})`,
+          `${r.problemAt === null ? 'NULL::timestamp' : `TIMESTAMP ${sqlLit(r.problemAt.replace('T', ' ').replace('Z', ''))}`}, ${r.hasManualTracking})`,
       )
       .join(',\n')
 
@@ -168,10 +174,11 @@ describe('สูตรกองงานตามสถานะพัสดุ 
       codReceivedAt: 't.cod_received_at',
       fulfillmentMode: 't.fulfillment_mode',
       problemAt: 't.problem_at',
+      hasManualTracking: 't.has_manual_tracking',
     })
 
     // SELECT บนค่าคงที่ล้วน — ไม่มีชื่อตารางจริงปรากฏใน query นี้เลยแม้แต่ตัวเดียว
-    const sql = `SELECT t.i, ${stageExpr} AS stage FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode, problem_at) ORDER BY t.i`
+    const sql = `SELECT t.i, ${stageExpr} AS stage FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode, problem_at, has_manual_tracking) ORDER BY t.i`
 
     const result = await prisma!.$queryRawUnsafe<{ i: number; stage: string }[]>(sql)
     expect(result).toHaveLength(corpus.length)
@@ -187,12 +194,13 @@ describe('สูตรกองงานตามสถานะพัสดุ 
         codReceivedAt: input.codReceivedAt ? new Date(input.codReceivedAt) : null,
         fulfillmentMode: input.fulfillmentMode,
         problemAt: input.problemAt ? new Date(input.problemAt) : null,
+        hasManualTracking: input.hasManualTracking,
       })
       if (fromTs !== row.stage) {
         mismatches.push(
           `status=${input.status} hasShipment=${input.hasShipment} ` +
             `carrier=${input.carrierStatus} pay=${input.paymentMethod} cod=${input.codReceivedAt} ` +
-            `fulfillment=${input.fulfillmentMode} problemAt=${input.problemAt} ` +
+            `fulfillment=${input.fulfillmentMode} problemAt=${input.problemAt} manual=${input.hasManualTracking} ` +
             `→ TS=${fromTs} SQL=${row.stage}`,
         )
       }
@@ -210,6 +218,7 @@ describe('รายชื่อสถานะใน SQL ต้องมาจ�
     codReceivedAt: 'cod',
     fulfillmentMode: 'fm',
     problemAt: 'pa',
+    hasManualTracking: 'hm',
   })
 
   it('[blocker] ทุกรหัสใน 4 ชุดของ iship/status.ts ต้องโผล่ใน SQL', () => {

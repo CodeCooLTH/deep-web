@@ -21,6 +21,8 @@ import { recordOrderEvent } from "@/services/order-event.service";
 import { reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { resolveDefaultCodAmount } from "@/lib/iship/payment-sync";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
+import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
+import type { TrackingNoticeTiming } from "@/lib/auto-notify/ledger-constants";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
 import {
@@ -707,6 +709,7 @@ export async function getShipmentPanelState(
       ctx: ShipmentContext;
       orderStatus: string;
       manualShipment: { provider: string; trackingNo: string } | null;
+      trackingNoticeTiming: TrackingNoticeTiming;
     }
   | {
       ishipState: "NOT_CONNECTED" | "DISCONNECTED";
@@ -715,6 +718,7 @@ export async function getShipmentPanelState(
       shipment: ReturnType<typeof toShipmentView> | null;
       orderStatus: string;
       manualShipment: { provider: string; trackingNo: string } | null;
+      trackingNoticeTiming: TrackingNoticeTiming;
     }
 > {
   const order = await prisma.order.findFirst({
@@ -732,6 +736,8 @@ export async function getShipmentPanelState(
   const extras = {
     orderStatus: order.status,
     manualShipment: order.shipmentTracking,
+    // 00080 — ShipForm ในแชทใช้ตั้งค่าเริ่มต้นของช่อง "แจ้งเลขในแชทหลังบันทึก"
+    trackingNoticeTiming: await getTrackingNoticeTiming(shopId),
   };
   const account = await prisma.shopShippingAccount.findUnique({
     where: { shopId },

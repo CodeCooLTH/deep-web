@@ -71,6 +71,7 @@ type LatestOrderRow = {
   carrierStatus: string | null
   problemAt: Date | null
   hasShipment: boolean
+  hasManualTracking: boolean
   serviceStart: Date | null
   appointmentStatus: string | null
   serviceClosedAt: Date | null
@@ -157,6 +158,8 @@ export async function enrichWithOrderStage<T extends Linkable>(
       -- มีแถวพัสดุที่ยัง active อยู่จริงหรือไม่ — ต้องเช็คจาก id ไม่ใช่จาก labelPrintedAt/carrierStatus
       -- เพราะพัสดุที่เพิ่งสร้าง (ยังไม่พิมพ์ ขนส่งยังไม่แจ้ง) ทั้งสองคอลัมน์นั้นเป็น null ทั้งคู่
       (s."id" IS NOT NULL) AS "hasShipment",
+      -- ส่งเอง (00080): มีเลขพัสดุที่ร้านกรอกเอง — ใบรอจัดส่งต้องขึ้นป้าย "รอจัดส่ง" ไม่ใช่ "สั่งซื้อแล้ว"
+      (st."orderId" IS NOT NULL) AS "hasManualTracking",
       COALESCE(pr."n", 0) AS "problemOrderCount"
     FROM "Order" o
     JOIN "Shop" sp ON sp."id" = o."shopId"
@@ -171,6 +174,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
       ORDER BY sh."createdAt" DESC
       LIMIT 1
     ) s ON true
+    LEFT JOIN "ShipmentTracking" st ON st."orderId" = o."id"
     LEFT JOIN prob pr ON pr."shopId" = o."shopId" AND pr."customerId" = o."customerId"
       -- 00061: ร่างจากแชท (status='DRAFTED') ไม่ใช่ "ออเดอร์ล่าสุดของลูกค้า" — ถ้าปล่อยผ่าน
       -- ชิปขั้นตอนในรายการแชทจะเปลี่ยนเป็น "สั่งซื้อแล้ว" ทันทีที่ตัวดักจับเขียนร่าง ทั้งที่ยัง
@@ -193,6 +197,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
         carrierStatus: r.carrierStatus,
         problemAt: r.problemAt,
         hasShipment: r.hasShipment,
+        hasManualTracking: r.hasManualTracking,
         serviceStart: r.serviceStart,
         appointmentStatus: r.appointmentStatus,
         serviceClosedAt: r.serviceClosedAt,

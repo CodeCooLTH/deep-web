@@ -452,6 +452,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
           problemAt: shipmentPanel?.shipment?.problemAt ?? null,
+          // ส่งเอง (00080): มีเลขที่ร้านกรอกแล้ว — สาขา hasShipment ชนะเองเมื่อมีใบ iShip live
+          hasManualTracking: !!order.shipmentTracking,
         })
       : undefined
 

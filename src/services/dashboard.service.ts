@@ -45,6 +45,8 @@ type StageRow = {
   fulfillmentMode: string
   paymentMethod?: string | null
   codReceivedAt?: Date | string | null
+  /** feature 00080 — มีแถวเลขส่งเอง (select ไว้แล้วที่ query หลัก); ไม่ส่งมา = ไม่มี */
+  shipmentTracking?: unknown
   shipments?: {
     status: string
     isDryRun: boolean
@@ -66,6 +68,7 @@ const toShippingStageInput = (r: StageRow) => {
     codReceivedAt: r.codReceivedAt ?? null,
     fulfillmentMode: r.fulfillmentMode,
     problemAt: active[0]?.problemAt ?? null,
+    hasManualTracking: !!r.shipmentTracking,
   }
 }
 

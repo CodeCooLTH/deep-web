@@ -12,8 +12,12 @@ import {
   STATUS_TRACKING_HINT,
   type BuyerNextAction,
 } from '../buyer-next-action'
-import { deriveShippingStage } from '../order-stage'
+import { deriveShippingStage as deriveShippingStageStrict } from '../order-stage'
 import { resolveOrderStatusHeadline } from '../order-status-headline'
+
+// feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
+const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking'> & { hasManualTracking?: boolean }) =>
+  deriveShippingStageStrict({ hasManualTracking: false, ...o })
 
 const act = (o: Partial<BuyerNextAction>): BuyerNextAction => ({
   primary: 'NONE',
@@ -68,12 +72,14 @@ describe('buyerShipmentStatus (R-6 — stage ตัวเดียวป้อ�
   type ShipIn = Parameters<typeof buyerShipmentStatus>[0]
   const base: ShipIn = {
     status: 'SHIPPED', carrierStatus: null, hasShipment: true, paymentMethod: 'TRANSFER',
+    hasManualTracking: false, hasIshipTracking: true, // 00080 — ดู GuestOrderData
     fulfillmentMode: 'SHIPPED', problemAt: null,
   }
   const guest = (i: ShipIn) => {
     // อาร์กิวเมนต์เหมือน GuestOrderView ทุกตัว (codReceivedAt: null)
-    const stage = deriveShippingStage({ ...i, codReceivedAt: null })
-    return { stage, ...resolveOrderStatusHeadline({ status: i.status, stage, hasShipment: i.hasShipment, carrierStatus: i.carrierStatus }) }
+    const { hasIshipTracking, ...rest } = i
+    const stage = deriveShippingStage({ ...rest, hasShipment: hasIshipTracking, codReceivedAt: null })
+    return { stage, ...resolveOrderStatusHeadline({ status: i.status, stage, hasShipment: i.hasShipment || stage === 'AWAITING_DISPATCH', carrierStatus: i.carrierStatus }) }
   }
   const cases: [string, ShipIn][] = [
     ['ร้านแจ้งส่งเอง', base],
@@ -82,7 +88,7 @@ describe('buyerShipmentStatus (R-6 — stage ตัวเดียวป้อ�
     ['ส่งถึงแล้ว', { ...base, carrierStatus: 'delivered' }],
     ['มีปัญหา', { ...base, carrierStatus: 'problem', problemAt: '2026-10-01T00:00:00.000Z' }],
     ['ตีกลับ', { ...base, carrierStatus: 'return' }],
-    ['ไม่มีพัสดุ', { ...base, hasShipment: false }],
+    ['ไม่มีพัสดุ', { ...base, hasShipment: false, hasIshipTracking: false }],
     ['ค่าไม่รู้จัก', { ...base, status: 'ZZZ', carrierStatus: 'ZZZ' }],
   ]
   for (const [name, i] of cases) {
@@ -189,5 +195,21 @@ describe('buildTransferView (D-4 / R-3)', () => {
     const v = buildTransferView({ amountDue: 2400, totalReceived: 0, slipAttached: true })
     expect(v).toEqual({ title: 'แนบสลิปแล้ว', subtitle: 'ร้านยังไม่ได้ยืนยันรับเงิน' })
     expect(JSON.stringify(v)).not.toMatch(/ตรวจ|ร้านจะ/)
+  })
+})
+
+describe('buyerShipmentStatus — รอจัดส่ง (00080)', () => {
+  const awaiting: Parameters<typeof buyerShipmentStatus>[0] = {
+    status: 'PENDING', carrierStatus: null, hasShipment: false, hasManualTracking: true, hasIshipTracking: false,
+    paymentMethod: 'TRANSFER', fulfillmentMode: 'SHIPPED', problemAt: null,
+  }
+  it('เลขถูกซ่อน (hasShipment=false) ก็ยังขึ้น "รอจัดส่ง" ไม่ใช่ "ส่งแล้ว/กำลังจัดส่ง"', () => {
+    const r = buyerShipmentStatus(awaiting)
+    expect(r.stage).toBe('AWAITING_DISPATCH')
+    expect(r.headline).toBe('รอจัดส่ง')
+    expect(r.headline).not.toMatch(/กำลังจัดส่ง|ส่งแล้ว|ส่งถึง/)
+  })
+  it('เลขแสดงได้ (hasShipment=true) หัวเรื่องเดิม', () => {
+    expect(buyerShipmentStatus({ ...awaiting, hasShipment: true }).headline).toBe('รอจัดส่ง')
   })
 })

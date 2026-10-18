@@ -28,6 +28,9 @@ type Props = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /** 00080 — ป้อนขั้นของกล่อง (ดูคอมเมนต์ที่ GuestOrderData) */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   /** ป้ายปุ่มยืนยันล่างจอ (ผันตามประเภทงาน) — ตัวแปรเดียวกับปุ่มจริง */
   ctaLabel: string
   disputeOpenedAtIso: string | null
@@ -43,6 +46,8 @@ export default function NextActionShipment({
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
+  hasManualTracking,
+  hasIshipTracking,
   ctaLabel,
   disputeOpenedAtIso,
 }: Props) {
@@ -50,6 +55,8 @@ export default function NextActionShipment({
     status,
     carrierStatus,
     hasShipment: !!shipmentTracking,
+    hasManualTracking,
+    hasIshipTracking,
     paymentMethod,
     fulfillmentMode,
     problemAt,

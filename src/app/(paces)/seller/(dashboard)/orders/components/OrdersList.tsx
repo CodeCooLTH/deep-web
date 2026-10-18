@@ -61,6 +61,7 @@ const STAGE_CHIPS = [
   // (หายไปเองใน 7 วัน) ต่างจากกองพัสดุที่รออยู่ได้เรื่อย ๆ — ของที่หายได้ต้องอยู่ในสายตาก่อน
   'DRAFT',
   'AWAITING_PARCEL',
+  'AWAITING_DISPATCH', // feature 00080 — ส่งเอง: มีเลขแล้ว รอร้านกด "จัดส่งแล้ว"
   'AWAITING_PICKUP',
   'SHIPPING',
   'AWAITING_COD',

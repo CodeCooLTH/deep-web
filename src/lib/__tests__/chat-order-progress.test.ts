@@ -6,6 +6,7 @@ const base = {
   status: 'PENDING',
   // feature 00062 — fixture ชุดนี้เป็นออเดอร์ที่ส่งของจริง (เคสนัดรับอยู่ใน describe แยก)
   fulfillmentMode: 'SHIPPED',
+  hasManualTracking: false, // feature 00080 — เคสส่งเอง override เป็นรายเคส
   paymentMethod: null as string | null,
   codReceivedAt: null as string | null,
   shipment: null as { status: string; carrierStatus: string | null; problemAt: string | null } | null,
@@ -60,5 +61,14 @@ describe('filterActiveOrders', () => {
       { ...base, id: 'd' }, // AWAITING_PARCEL → อยู่
     ]
     expect(filterActiveOrders(orders).map((o) => o.id)).toEqual(['b', 'd'])
+  })
+})
+
+describe('orderShippingStage — ส่งเอง (00080)', () => {
+  it('PENDING + เลขส่งเอง ไม่มีพัสดุ = AWAITING_DISPATCH · พัสดุ iShip ชนะ', () => {
+    expect(orderShippingStage({ ...base, hasManualTracking: true })).toBe('AWAITING_DISPATCH')
+    expect(
+      orderShippingStage({ ...base, hasManualTracking: true, shipment: { status: 'CREATED', carrierStatus: null, problemAt: null } }),
+    ).toBe('AWAITING_PICKUP')
   })
 })

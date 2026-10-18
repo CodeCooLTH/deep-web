@@ -107,7 +107,11 @@ export function planNextActionCards(a: BuyerNextAction): {
 export function buyerShipmentStatus(i: {
   status: string
   carrierStatus: string | null
+  /** มีเลขพัสดุให้แสดง (ส่งเอง/iShip) — ตัวแสดงผล ไม่ใช่ตัวตัดสินขั้น */
   hasShipment: boolean
+  /** feature 00080 — ตัวตัดสินขั้น: มีแถวเลขส่งเอง / มีพัสดุ iShip ที่มีเลขแล้ว */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   paymentMethod: string | null
   fulfillmentMode: string
   problemAt: string | null
@@ -119,11 +123,13 @@ export function buyerShipmentStatus(i: {
   /** ของถึงปลายทางแล้ว — กล่องพัสดุชวนให้ตรวจของแล้วกดยืนยัน (ปุ่มล่างจอเป็นทึบในขั้นนี้) */
   delivered: boolean
 } {
-  const stage = deriveShippingStage({ ...i, codReceivedAt: null })
+  const { hasShipment: _display, hasIshipTracking, ...rest } = i
+  const stage = deriveShippingStage({ ...rest, hasShipment: hasIshipTracking, codReceivedAt: null })
   const { headline, statusPill } = resolveOrderStatusHeadline({
     status: i.status,
     stage,
-    hasShipment: i.hasShipment,
+    // "รอจัดส่ง" ต้องมีหัวเรื่องของมันเอง แม้เลขถูกซ่อนตามที่ร้านตั้ง — ห้ามตกเป็นแค่ "รอดำเนินการ"
+    hasShipment: i.hasShipment || stage === 'AWAITING_DISPATCH',
     carrierStatus: i.carrierStatus,
   })
   return { hasShipment: i.hasShipment, stage, headline, statusPill, delivered: i.hasShipment && (stage === 'DONE' || stage === 'AWAITING_COD') }

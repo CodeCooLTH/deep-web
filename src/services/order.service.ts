@@ -24,6 +24,9 @@ import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
+import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
+import { canMarkDispatched, canMarkDelivered, isManualShipment } from "@/lib/manual-shipment";
+import { resolveOrderVocab } from "@/lib/seller-menu";
 import { normalizeTrackingKey } from "@/lib/auto-notify/ledger";
 import { orderDateRejectReason } from "@/lib/order-date-window";
 import { canSellerConfirmPayment, isCODPayment } from "@/lib/order-display";
@@ -1492,6 +1495,51 @@ export class OrderOwnershipError extends Error {
   }
 }
 
+/**
+ * runPostConfirmEffects — ผลข้างเคียงหลังออเดอร์เป็น CONFIRMED (เหรียญ + Trust Score) ชุดเดียวทุกทางปิดงาน
+ * (ลูกค้ายืนยัน · ขนส่งโอน COD · ร้านกด "ส่งสำเร็จ" 00080 TD-004)
+ *
+ * best-effort — ถ้า dev pool timeout หรือ error อื่นใน badges/trust-score ไม่ควร fail การปิดงาน
+ * (ข้อมูลหลัก save แล้ว) log ให้เห็นชัดถ้าล้ม · pattern เดียวกับ createReview
+ */
+export async function runPostConfirmEffects(
+  order: {
+    publicToken: string;
+    buyerUserId: string | null;
+    auctionId: string | null;
+    shop: { id: string; userId: string; kind: string };
+  },
+  tag: "post-confirm" | "post-auto-confirm" | "post-seller-delivered",
+): Promise<void> {
+  try {
+    // 00008 P5-2: business shop มี seller-badge แยกต่อร้าน (shopId=order.shop.id); personal เดิม
+    // ยัง user-level (shopId NULL) — evaluateBadges คงเดิมเป๊ะ
+    if (order.shop.kind === "BUSINESS") {
+      await evaluateSellerBadgesForShop({ id: order.shop.id, userId: order.shop.userId, kind: order.shop.kind });
+    } else {
+      await evaluateBadges(order.shop.userId);
+    }
+  } catch (err) {
+    console.error(
+      `[order] ${tag} recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${order.publicToken} persisted but trust/badges อาจไม่ update`,
+      err,
+    );
+  }
+  // BUYER-side badge eval — จำเป็นสำหรับ Auction Completer (AUCTION_WON_COMPLETED ต้อง order=CONFIRMED)
+  // gate ด้วย auctionId: BUYER badge ทุกใบปัจจุบันเป็น auction ล้วน → order ทั่วไปข้ามได้ ไม่เพิ่ม round-trip
+  // แยก try/catch ไม่ให้ล้มกระทบ SELLER eval
+  if (order.buyerUserId && order.auctionId) {
+    try {
+      await evaluateBadges(order.buyerUserId, "BUYER");
+    } catch (err) {
+      console.error(
+        `[order] ${tag} buyer badge eval ล้มเหลวสำหรับ buyer ${order.buyerUserId}; order ${order.publicToken} persisted`,
+        err,
+      );
+    }
+  }
+}
+
 export async function confirmOrder(publicToken: string, buyerUserId: string) {
   const order = await prisma.order.findUnique({
     where: { publicToken },
@@ -1530,40 +1578,11 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
     });
     return u;
   });
-  // Post-confirm recalc เป็น best-effort — ถ้า dev pool timeout หรือ error
-  // อื่นใน badges/trust-score ไม่ควร fail confirmation (ข้อมูลหลัก save
-  // แล้ว). Log ให้เห็นชัดถ้าล้ม. Pattern เดียวกับ createReview
-  // (ย้ายมาจาก completeOrder เดิม — terminal ใหม่คือ CONFIRMED ไม่ใช่ COMPLETED)
-  try {
-    // 00008 P5-2: business shop มี seller-badge แยกต่อร้าน (shopId=order.shop.id); personal เดิม
-    // ยัง user-level (shopId NULL) — evaluateBadges คงเดิมเป๊ะ
-    if (order.shop.kind === "BUSINESS") {
-      await evaluateSellerBadgesForShop({ id: order.shop.id, userId: order.shop.userId, kind: order.shop.kind });
-    } else {
-      await evaluateBadges(order.shop.userId);
-    }
-  } catch (err) {
-    console.error(
-      `[order] post-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${updated.publicToken} persisted but trust/badges อาจไม่ update`,
-      err,
-    );
-  }
-  // BUYER-side badge eval — จำเป็นสำหรับ Auction Completer (AUCTION_WON_COMPLETED
-  // ต้อง order=CONFIRMED); ตอน settle order ยังไม่ CONFIRMED จึงต้อง re-eval ที่จุดนี้.
-  // gate ด้วย auctionId: BUYER-audience badge ทุกใบปัจจุบันเป็น auction badge ล้วน
-  // (First/Active Bidder, First Winner, Winner's Circle, Completer) → order ที่ไม่ใช่
-  // auction ไม่มี buyer badge ให้ประเมิน — ข้ามเพื่อไม่เพิ่ม DB round-trip บน checkout
-  // path ของ order ทั่วไป. best-effort + แยก try/catch ไม่ให้ล้มกระทบ SELLER eval
-  if (updated.buyerUserId && updated.auctionId) {
-    try {
-      await evaluateBadges(updated.buyerUserId, "BUYER");
-    } catch (err) {
-      console.error(
-        `[order] post-confirm buyer badge eval ล้มเหลวสำหรับ buyer ${updated.buyerUserId}; order ${updated.publicToken} persisted`,
-        err,
-      );
-    }
-  }
+  // Post-confirm recalc เป็น best-effort (ดู runPostConfirmEffects)
+  await runPostConfirmEffects(
+    { publicToken: updated.publicToken, buyerUserId: updated.buyerUserId, auctionId: updated.auctionId, shop: order.shop },
+    "post-confirm",
+  );
   return updated;
 }
 
@@ -1582,7 +1601,10 @@ export async function shipOrder(
   if (order.fulfillmentMode !== "SHIPPED") {
     throw new Error("ออเดอร์นี้ไม่ต้องจัดส่ง");
   }
+  // 00080 — ด่านเดิม "ส่งได้ไหม" (PENDING เท่านั้น) · status ไม่ถูกเปลี่ยนแล้ว: บันทึกเลข = "รอจัดส่ง"
+  // ขั้น "กำลังจัดส่ง" มาจากการกด markManualDispatched
   assertTransition(order.status, "SHIPPED");
+  const timing = await getTrackingNoticeTiming(order.shopId);
   let ledgerId: string | null = null;
   const shipped = await prisma.$transaction(async (tx) => {
     await tx.shipmentTracking.create({
@@ -1600,10 +1622,9 @@ export async function shipOrder(
       actorUserId: actorUserId ?? null,
       meta: { provider: data.provider },
     });
-    const updated = await tx.order.update({ where: { publicToken }, data: { status: "SHIPPED" } });
-    // 00078 — จองหลังสถานะเป็น SHIPPED (eligibility อ่านสถานะสด) · ล้ม = null
-    ledgerId = await reserveTrackingNotice(tx, order.id, data.trackingNo);
-    return updated;
+    // 00080 TD-003 — ON_DISPATCH ไม่จองตอนบันทึก (markManualDispatched จองให้) · ล้ม = null
+    if (timing === "ON_SAVE") ledgerId = await reserveTrackingNotice(tx, order.id, data.trackingNo);
+    return tx.order.findUniqueOrThrow({ where: { publicToken } });
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
   return shipped;
@@ -1612,6 +1633,7 @@ export async function shipOrder(
 // S-12 — seller พิมพ์เลขพัสดุผิดหลังกด "แจ้งจัดส่ง" แล้วแก้ไม่ได้ (shipOrder ใช้ไม่ได้ซ้ำ:
 // assertTransition(SHIPPED→SHIPPED) throw + shipmentTracking.orderId unique ทำให้ create ซ้ำไม่ได้)
 // ต้องยกเลิกทั้งใบเพื่อแก้เลขเดิม — updateShipmentTracking() คือ "update อย่างเดียว ไม่แตะ status"
+// 00080 — ชื่อคลาสเดิม แต่ความหมายตอนนี้ = ออเดอร์ปิด/ยกเลิกแล้ว (รับแก้ได้เฉพาะ PENDING/SHIPPED) · route แปลเป็นข้อความไทย TD-007
 export class OrderNotShippedError extends Error {
   constructor() { super("ORDER_NOT_SHIPPED"); this.name = "OrderNotShippedError"; }
 }
@@ -1649,16 +1671,21 @@ export async function updateShipmentTracking(
     where: { publicToken },
     include: {
       shipmentTracking: true,
-      shipments: { where: LATEST_FORWARD_SHIPMENT, select: { id: true } },
+      // 00080 — ใบ FAILED/dry-run ไม่นับ (นิยามเดียวกับ hasLiveIshipShipment) ไม่งั้นร้านที่ "ส่งเองแทน"
+      // หลังเปิด iShip ไม่ผ่าน แก้เลขพัสดุของตัวเองไม่ได้ ทั้งที่กดจัดส่งแล้ว/ส่งสำเร็จได้
+      shipments: { where: ACTIVE_FORWARD_SHIPMENT, select: { id: true } },
     },
   });
   if (!order) throw new Error("Order not found");
-  if (order.status !== "SHIPPED") throw new OrderNotShippedError();
+  // 00080 — รับ PENDING (รอจัดส่ง) และ SHIPPED · CONFIRMED/CANCELLED แก้ไม่ได้
+  if (order.status !== "PENDING" && order.status !== "SHIPPED") throw new OrderNotShippedError();
   if (!order.shipmentTracking) throw new ShipmentTrackingNotFoundError();
   if (order.shipments.length > 0) throw new IShipManagedShipmentError();
 
   // feature 00031 — การแก้เลข/ขนส่งคือการ "แจ้งเลขพัสดุ" รอบใหม่ของออเดอร์เดิม
   // บันทึกเป็น TRACKING_ADDED ใน tx เดียวกัน (ค่าใหม่คือความจริงล่าสุดที่ผู้ซื้อจะได้เห็น)
+  // PENDING + ON_DISPATCH = ยังไม่แจ้ง (กด "จัดส่งแล้ว" ค่อยจองเลขปัจจุบัน)
+  const holdNotice = order.status === "PENDING" && (await getTrackingNoticeTiming(order.shopId)) === "ON_DISPATCH";
   let ledgerId: string | null = null;
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.shipmentTracking.update({
@@ -1676,13 +1703,144 @@ export async function updateShipmentTracking(
       meta: { provider: data.provider },
     });
     // 00078 — แจ้งเฉพาะเมื่อเลข (หลัง normalize) เปลี่ยนจริง · เลขเดิมแก้แค่ขนส่ง/ค่าส่ง = ไม่แจ้ง
-    if (normalizeTrackingKey(data.trackingNo) !== normalizeTrackingKey(order.shipmentTracking!.trackingNo)) {
+    if (!holdNotice && normalizeTrackingKey(data.trackingNo) !== normalizeTrackingKey(order.shipmentTracking!.trackingNo)) {
       ledgerId = await reserveTrackingNotice(tx, order.id, data.trackingNo);
     }
     return updated;
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
   return result;
+}
+
+// ─── 00080 — ขั้นตอนจัดส่งแบบส่งเอง ─────────────────────────────────────────────
+
+/** 409 ข้อความไทยพร้อมส่งให้ผู้ใช้ (ไม่ใช่ข้อความภายใน) — route คืน err.message ได้ตรง ๆ */
+export class ManualDispatchNotAllowedError extends Error {
+  constructor(message: string) { super(message); this.name = "ManualDispatchNotAllowedError"; }
+}
+export class ManualDeliveryNotAllowedError extends Error {
+  constructor(message: string) { super(message); this.name = "ManualDeliveryNotAllowedError"; }
+}
+
+const MANUAL_STEP_ISHIP_MSG = "พัสดุนี้เปิดผ่าน iShip สถานะจะอัปเดตตามขนส่งเอง";
+
+type ManualStepOrder = {
+  id: string;
+  status: string;
+  fulfillmentMode: string;
+  shipmentTracking: { trackingNo: string } | null;
+  shipments: { id: string }[];
+  shop: { vertical: string };
+};
+
+const MANUAL_STEP_SELECT = {
+  id: true,
+  status: true,
+  fulfillmentMode: true,
+  shipmentTracking: { select: { trackingNo: true } },
+  // นิยาม "iShip live" ตัวเดียวกับหน้าจอ (hasLiveIshipShipment: CREATED && !isDryRun) — ใบ FAILED/จำลองไม่กั้นส่งเอง
+  shipments: { where: ACTIVE_FORWARD_SHIPMENT, select: { id: true }, take: 1 },
+  shop: { select: { vertical: true } },
+} as const;
+
+function manualFacts(o: ManualStepOrder) {
+  return {
+    status: o.status,
+    fulfillmentMode: o.fulfillmentMode,
+    hasManualTracking: !!o.shipmentTracking,
+    hasLiveIshipShipment: o.shipments.length > 0,
+  };
+}
+
+function dispatchRejectMessage(o: ManualStepOrder): string {
+  const noun = resolveOrderVocab(o.shop.vertical).noun;
+  if (o.shipments.length > 0) return MANUAL_STEP_ISHIP_MSG;
+  if (o.status === "CONFIRMED") return `${noun}นี้ปิดเป็น "สำเร็จ" ไปแล้ว จึงกด "จัดส่งแล้ว" ไม่ได้`;
+  if (o.status === "CANCELLED") return `${noun}นี้ถูกยกเลิกแล้ว จึงกด "จัดส่งแล้ว" ไม่ได้`;
+  if (!o.shipmentTracking) return 'ยังไม่มีเลขพัสดุ บันทึกเลขก่อนแล้วกด "จัดส่งแล้ว"';
+  return `${noun}นี้ไม่อยู่ขั้นรอจัดส่ง จึงกดจัดส่งแล้วไม่ได้`;
+}
+
+function deliverRejectMessage(o: ManualStepOrder): string {
+  const noun = resolveOrderVocab(o.shop.vertical).noun;
+  if (o.shipments.length > 0) return MANUAL_STEP_ISHIP_MSG;
+  if (o.status === "CANCELLED") return `${noun}นี้ถูกยกเลิกแล้ว จึงกด "ส่งสำเร็จ" ไม่ได้`;
+  if (o.status === "PENDING" && o.shipmentTracking) return 'ยังไม่ได้กด "จัดส่งแล้ว" จึงกด "ส่งสำเร็จ" ไม่ได้';
+  return `${noun}นี้ไม่อยู่ขั้นกำลังจัดส่ง จึงกดส่งสำเร็จไม่ได้`;
+}
+
+/**
+ * markManualDispatched — "จัดส่งแล้ว": รอจัดส่ง (PENDING + เลขส่งเอง) → SHIPPED (00080 S-5)
+ *
+ * ขั้นอยู่ใน WHERE ของ updateMany — กดซ้ำ/สองแท็บได้แถวเดียว ตัวที่แพ้อ่านใหม่แล้วตอบ changed:false
+ * 🛑 จองข้อความเลขพัสดุเสมอ ไม่ว่า timing ไหน (TD-006): ledger UNIQUE กันซ้ำกับที่ ON_SAVE ส่งไปแล้ว
+ */
+export async function markManualDispatched(publicToken: string, shopId: string, actorUserId: string | null) {
+  let ledgerId: string | null = null;
+  const result = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findFirst({ where: { publicToken, shopId }, select: MANUAL_STEP_SELECT });
+    if (!order) throw new OrderNotFoundError();
+    const facts = manualFacts(order);
+    // idempotent: ส่งเอง + SHIPPED อยู่แล้ว = ครั้งก่อน/อีกแท็บทำไปแล้ว
+    if (order.status === "SHIPPED" && isManualShipment(facts)) {
+      return { changed: false, order: { publicToken, status: "SHIPPED" } };
+    }
+    if (!canMarkDispatched(facts)) throw new ManualDispatchNotAllowedError(dispatchRejectMessage(order));
+
+    const won = await tx.order.updateMany({ where: { id: order.id, status: "PENDING" }, data: { status: "SHIPPED" } });
+    if (won.count === 0) {
+      const now = await tx.order.findFirst({ where: { id: order.id }, select: MANUAL_STEP_SELECT });
+      if (now && now.status === "SHIPPED" && isManualShipment(manualFacts(now))) {
+        return { changed: false, order: { publicToken, status: "SHIPPED" } };
+      }
+      throw new ManualDispatchNotAllowedError(dispatchRejectMessage(now ?? order));
+    }
+    // อ่านเลขหลังชนะ — PATCH แก้เลขแทรกได้ ต้องแจ้งเลขล่าสุด
+    const tracking = await tx.shipmentTracking.update({
+      where: { orderId: order.id },
+      data: { dispatchedAt: new Date() },
+      select: { trackingNo: true },
+    });
+    await recordOrderEvent(tx, { orderId: order.id, type: "MANUAL_DISPATCHED", actorUserId });
+    ledgerId = await reserveTrackingNotice(tx, order.id, tracking.trackingNo);
+    return { changed: true, order: { publicToken, status: "SHIPPED" } };
+  });
+  dispatchAutoNotifyAfterCommit(ledgerId);
+  return result;
+}
+
+/**
+ * markManualDelivered — "ส่งสำเร็จ": ส่งเอง SHIPPED → CONFIRMED เท่ากับลูกค้ายืนยัน (00080 S-6)
+ *
+ * ลูกค้า/ขนส่งปิดไปก่อน = alreadyClosed (ไม่ใช่ error) · ผลข้างเคียงรันครั้งเดียวต่อผู้ชนะ (TD-004)
+ */
+export async function markManualDelivered(publicToken: string, shopId: string, actorUserId: string | null) {
+  type Done = { changed: boolean; alreadyClosed?: boolean; order: { publicToken: string; status: string } };
+  const closed: Done = { changed: false, alreadyClosed: true, order: { publicToken, status: "CONFIRMED" } };
+  const out = await prisma.$transaction(async (tx): Promise<{ res: Done; effects: Parameters<typeof runPostConfirmEffects>[0] | null }> => {
+    const order = await tx.order.findFirst({
+      where: { publicToken, shopId },
+      select: { ...MANUAL_STEP_SELECT, buyerUserId: true, auctionId: true, shop: { select: { id: true, userId: true, kind: true, vertical: true } } },
+    });
+    if (!order) throw new OrderNotFoundError();
+    const facts = manualFacts(order);
+    if (order.status === "CONFIRMED" && isManualShipment(facts)) return { res: closed, effects: null };
+    if (!canMarkDelivered(facts)) throw new ManualDeliveryNotAllowedError(deliverRejectMessage(order));
+
+    const won = await tx.order.updateMany({ where: { id: order.id, status: "SHIPPED" }, data: { status: "CONFIRMED" } });
+    if (won.count === 0) {
+      const now = await tx.order.findFirst({ where: { id: order.id }, select: MANUAL_STEP_SELECT });
+      if (now && now.status === "CONFIRMED" && isManualShipment(manualFacts(now))) return { res: closed, effects: null };
+      throw new ManualDeliveryNotAllowedError(deliverRejectMessage(now ?? order));
+    }
+    await recordOrderEvent(tx, { orderId: order.id, type: "SELLER_DELIVERED", actorUserId });
+    return {
+      res: { changed: true, order: { publicToken, status: "CONFIRMED" } },
+      effects: { publicToken, buyerUserId: order.buyerUserId, auctionId: order.auctionId, shop: order.shop },
+    };
+  });
+  if (out.effects) await runPostConfirmEffects(out.effects, "post-seller-delivered");
+  return out.res;
 }
 
 // 00078 D06 — ออเดอร์ที่ยังไม่ส่งออกจริง (ร่าง) หรือถูกยกเลิก ไม่มีค่าส่งให้บันทึก
@@ -1870,7 +2028,7 @@ export async function getOrderByToken(publicToken: string) {
       // เมื่อร้านยังไม่ได้กด "แจ้งจัดส่ง" ด้วยตัวเอง — ผู้ซื้อจะได้ไม่ต้องรอ
       // ห้ามเขียนลง ShipmentTracking แทน: orderId เป็น unique และ shipOrder() สร้างแถวนั้น
       // พร้อมเปลี่ยนสถานะออเดอร์ในทรานแซกชันเดียว ถ้าเราชิงสร้างไว้ก่อน ปุ่มแจ้งจัดส่ง
-      // ของร้านจะชน P2002 ใช้ไม่ได้อีกเลย
+      // ของร้านจะชน P2002 ใช้ไม่ได้อีกเลย (shipOrder() สร้างแถวนั้น — 00080: status คง PENDING จนกด "จัดส่งแล้ว")
       shipments: {
         where: ACTIVE_FORWARD_SHIPMENT,
         // feature 00041 — เพิ่ม carrierStatus: หน้าผู้ซื้อต้องคำนวณขั้นสถานะพัสดุด้วย
@@ -2261,30 +2419,8 @@ export async function settleCodFromCarrier(input: {
     occurredAt: input.settledAt,
   });
 
-  // recalc ชุดเดียวกับ confirmOrder เป๊ะ — best-effort ตาม pattern เดิม (ล้มแล้วไม่ย้อนสถานะ
-  // เพราะข้อมูลหลักบันทึกแล้ว) BR-ISHIP-44: ไม่มีสูตรพิเศษสำหรับใบที่ระบบยืนยันเอง
-  try {
-    if (order.shop.kind === "BUSINESS") {
-      await evaluateSellerBadgesForShop(order.shop);
-    } else {
-      await evaluateBadges(order.shop.userId);
-    }
-  } catch (err) {
-    console.error(
-      `[order] post-auto-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${order.publicToken} persisted`,
-      err,
-    );
-  }
-  if (order.buyerUserId && order.auctionId) {
-    try {
-      await evaluateBadges(order.buyerUserId, "BUYER");
-    } catch (err) {
-      console.error(
-        `[order] post-auto-confirm buyer badge eval ล้มเหลวสำหรับ buyer ${order.buyerUserId}; order ${order.publicToken} persisted`,
-        err,
-      );
-    }
-  }
+  // recalc ชุดเดียวกับ confirmOrder เป๊ะ (BR-ISHIP-44: ไม่มีสูตรพิเศษสำหรับใบที่ระบบยืนยันเอง)
+  await runPostConfirmEffects(order, "post-auto-confirm");
   return true;
 }
 
@@ -2482,6 +2618,8 @@ export async function getThreadPanelOrders(
     token: string;
     status: string;
     fulfillmentMode: string;
+    /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) */
+    hasManualTracking: boolean;
     totalAmount: string;
     createdAt: string;
     checkIn: string | null;
@@ -2522,6 +2660,8 @@ export async function getThreadPanelOrders(
       orderNo: true,
       status: true,
       fulfillmentMode: true,
+      // feature 00080 — ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ (การ์ด 2 ชุดสลับกองไม่ได้)
+      shipmentTracking: { select: { id: true } },
       totalAmount: true,
       createdAt: true,
       updatedAt: true,
@@ -2571,6 +2711,7 @@ export async function getThreadPanelOrders(
       orderNo: o.orderNo,
       status: o.status,
       fulfillmentMode: o.fulfillmentMode,
+      hasManualTracking: !!o.shipmentTracking,
       totalAmount: o.totalAmount.toString(),
       createdAt: o.createdAt.toISOString(),
       statusAt: o.updatedAt.toISOString(),
@@ -2708,6 +2849,8 @@ export async function getShippingStageCounts(
       // feature 00062 — ออเดอร์นัดรับ/ไม่มีการส่งของ ต้องไม่ถูกนับในไทล์พัสดุใด ๆ
       // (ไม่ใช่แค่ไม่แสดงคำ — ตัวเลขบนไทล์ที่โป่งขึ้นโดยไม่มีพัสดุจริงให้ทำคือสิ่งที่ร้านเห็นก่อน)
       fulfillmentMode: true,
+      // feature 00080 — มีเลขส่งเอง ⇒ ใบ PENDING ที่ไม่มีพัสดุ iShip นับเป็น "รอจัดส่ง" (ไม่ใช่ "รอเลขพัสดุ")
+      shipmentTracking: { select: { id: true } },
       shipments: {
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
@@ -2722,6 +2865,7 @@ export async function getShippingStageCounts(
     // 🛑 ประกาศชนิดให้ `tsc` บังคับความครบ แทน object literal เปล่า ๆ ที่เงียบเมื่อมีกองใหม่
     DRAFT: 0,
     AWAITING_PARCEL: 0,
+    AWAITING_DISPATCH: 0,
     AWAITING_PICKUP: 0,
     SHIPPING: 0,
     AWAITING_COD: 0,
@@ -2737,6 +2881,7 @@ export async function getShippingStageCounts(
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
       problemAt: o.shipments[0]?.problemAt ?? null,
+      hasManualTracking: !!o.shipmentTracking,
     });
     // สองกองที่ไม่มีไทล์: DONE (จบแล้ว) และ NOT_SHIPPING (ไม่เคยมีการส่งของเลย)
     if (stage !== "DONE" && stage !== "NOT_SHIPPING") counts[stage] += 1;

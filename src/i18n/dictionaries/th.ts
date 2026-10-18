@@ -487,6 +487,7 @@ export const th = {
     statusConfirmed: 'สำเร็จ',
     statusCancelled: 'ยกเลิก',
     stageAwaitingParcel: 'รอเลขพัสดุ',
+    stageAwaitingDispatch: 'รอจัดส่ง',
     stageAwaitingPickup: 'รอรับเข้า',
     stageInTransit: 'กำลังจัดส่ง',
     stageCodPending: 'รอเงิน COD',

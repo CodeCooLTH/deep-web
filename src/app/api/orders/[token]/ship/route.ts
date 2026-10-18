@@ -45,7 +45,7 @@ export async function POST(
 }
 
 // PATCH /api/orders/[token]/ship — S-12: แก้เลขพัสดุ/ผู้ให้บริการหลังกด "แจ้งจัดส่ง" ไปแล้ว
-// (update อย่างเดียว ไม่แตะ order.status — ต่างจาก POST ที่ transition PENDING→SHIPPED)
+// (update อย่างเดียว ไม่แตะ order.status · รับ PENDING รอจัดส่ง และ SHIPPED)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
@@ -70,7 +70,8 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (err: any) {
     // ส่งเฉพาะรหัสคงที่ — ไม่ echo err.message ดิบ (อาจหลุดข้อความภายใน)
-    if (err instanceof OrderNotShippedError) return NextResponse.json({ error: "ออเดอร์นี้ยังไม่ได้แจ้งจัดส่ง" }, { status: 409 });
+    // 00080 TD-007 — รับแก้ได้ทั้ง PENDING/SHIPPED แล้ว เหลือแต่ปิด/ยกเลิก
+    if (err instanceof OrderNotShippedError) return NextResponse.json({ error: "แก้เลขพัสดุไม่ได้ ออเดอร์นี้ปิดหรือยกเลิกแล้ว" }, { status: 409 });
     if (err instanceof ShipmentTrackingNotFoundError) return NextResponse.json({ error: "ไม่พบข้อมูลเลขพัสดุของออเดอร์นี้" }, { status: 404 });
     if (err instanceof IShipManagedShipmentError) return NextResponse.json({ error: "พัสดุนี้สร้างผ่าน iShip แก้เลขด้วยมือไม่ได้" }, { status: 409 });
     console.error("[ship] PATCH ล้มเหลว", err);

@@ -26,6 +26,8 @@ const ALL_STAGES: ShippingStageKey[] = [
   // feature 00061 — ร่างจากแชท (ไม่มีพัสดุเลย จึงเป็น null เหมือน AWAITING_PARCEL)
   'DRAFT',
   'AWAITING_PARCEL',
+  // feature 00080 — ส่งเอง รอจัดส่ง: ของยังไม่ออกจากร้าน ไม่มีแถบให้วาด
+  'AWAITING_DISPATCH',
   'AWAITING_PICKUP',
   'SHIPPING',
   'AWAITING_COD',

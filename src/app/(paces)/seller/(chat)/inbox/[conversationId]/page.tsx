@@ -628,6 +628,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
           // feature 00022 — shape เดียวกับ getOrdersByCustomer (lazy-load ต่อจากชุดนี้)
           // status/carrierStatus/courierCode เพิ่ม 2026-08-05: stepper + โลโก้ขนส่งในการ์ด/แถบปัก
+          // feature 00080 — ต้องตรงกับ getOrdersByShop ใน order.service.ts (ใบที่ 21+) เสมอ
+          shipmentTracking: { select: { id: true } },
           shipments: {
             where: LATEST_FORWARD_SHIPMENT,
             orderBy: { createdAt: 'desc' },
@@ -695,6 +697,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     orderNo: o.orderNo,
     status: o.status,
     fulfillmentMode: o.fulfillmentMode,
+    hasManualTracking: !!o.shipmentTracking,
     totalAmount: o.totalAmount.toFixed(2),
     createdAt: o.createdAt.toISOString(),
     statusAt: o.updatedAt.toISOString(),

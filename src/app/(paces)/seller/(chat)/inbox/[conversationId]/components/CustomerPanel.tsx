@@ -86,6 +86,8 @@ export type CustomerPanelOrder = {
   orderNo?: string | null // เลขคำสั่งซื้อ DP… (user 2026-07-25)
   status: string
   fulfillmentMode: string
+  /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) ⇒ ใบ PENDING ขึ้น "รอจัดส่ง" */
+  hasManualTracking: boolean
   totalAmount: string // "1234.00" — Decimal serialize เป็น string ก่อนข้าม RSC boundary
   createdAt: string // ISO
   checkIn: string | null // ISO date — เฉพาะออเดอร์ vertical=LODGING (type=BOOKING)
@@ -501,6 +503,7 @@ function OrderCard({
         shipment: o.shipment ?? null,
         // Order Progress (2026-08-05) — section พัสดุในการ์ดใช้ตัดสิน stepper/ชิป/notice COD
         fulfillmentMode: o.fulfillmentMode,
+        hasManualTracking: o.hasManualTracking,
         paymentMethod: o.paymentMethod,
         codReceivedAt: o.codReceivedAt,
         statusAt: o.statusAt,

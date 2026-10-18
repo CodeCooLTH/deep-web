@@ -188,6 +188,13 @@ export type PublicOrderData = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /**
+   * feature 00080 — ป้อน `deriveShippingStage` ฝั่งผู้ซื้อ (ไม่ใช่ตัวแสดงเลข)
+   * `shipmentTracking` ข้างบนอาจเป็น null เพราะร้านตั้งซ่อนเลขจนกด "จัดส่งแล้ว" (S-12) จึงใช้ตัดสินขั้นไม่ได้
+   * hasManualTracking = มีแถว ShipmentTracking จริง · hasIshipTracking = มีพัสดุ iShip ที่มีเลขแล้ว (ชนะส่งเองเสมอ)
+   */
+  hasManualTracking: boolean
+  hasIshipTracking: boolean
   /** 00068 R-7 — ร้านมีบัญชีรับเงินแช่แข็งในออเดอร์นี้ไหม (payoutSnapshot != null) */
   hasPayoutAccount: boolean
   /** 00068 D-11 — ร้านยังไม่มีออเดอร์จบสักใบ (นิยามเดียวกับ ShopCover) */
