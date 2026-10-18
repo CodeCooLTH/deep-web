@@ -21,7 +21,7 @@ import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatDateTime, formatDateTimeTH } from '@/lib/format-date'
+import { formatDateTimeTH } from '@/lib/format-date'
 import { manualShippingNote } from '@/lib/manual-shipping-note'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
@@ -365,7 +365,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
             {note === 'AWAITING' && (
               <>
                 <p className="mb-0">ยังไม่ได้ส่งออก ระบบติดตามสถานะกับขนส่งให้ไม่ได้ เพราะเลขนี้ร้านกรอกเอง</p>
-                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTime(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
+                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTimeTH(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
                 {manual.hintDispatch && <p className="mb-0">กด &quot;จัดส่งแล้ว&quot; เมื่อนำพัสดุไปส่ง</p>}
               </>
             )}
@@ -374,7 +374,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
                 <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
                 {(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO) && (
                   <p className="mb-0">
-                    แจ้งจัดส่งเมื่อ {formatDateTime(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO)}
+                    แจ้งจัดส่งเมื่อ {formatDateTimeTH(manual.dispatchedAtISO ?? manual.recordedAtISO ?? manual.shippedAtISO)}
                   </p>
                 )}
               </>
@@ -382,7 +382,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
             {note === 'RECORDED_ONLY' && (
               <>
                 <p className="mb-0">เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้</p>
-                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTime(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
+                <p className="mb-0">บันทึกเลขเมื่อ {formatDateTimeTH(manual.recordedAtISO ?? manual.shippedAtISO)}</p>
               </>
             )}
           </div>

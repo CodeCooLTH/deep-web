@@ -20,7 +20,7 @@ if (!/@localhost:5434\//.test(process.env.DATABASE_URL ?? '')) {
 }
 
 const BUYER_ORIGIN = 'http://deepth.local:4000'
-const SHOT_DIR = 'e2e/__screens__/00080'
+const SHOT_DIR = '.screenshots/2026/10/18/00080' // artifact ไม่ commit (.gitignore)
 const TAG = `qa80${Math.random().toString(36).slice(2, 7)}`
 
 // id ที่เทสสร้างเอง — cleanup ไล่ตามนี้เท่านั้น
@@ -73,7 +73,7 @@ async function seedOrder(
         orderId: order.id,
         shopId: fx.shopId,
         status: 'CREATED',
-        trackingNo: `ISH${TAG}`,
+        trackingNo: `ISH${TAG}${order.id.slice(0, 6)}`,
         idempotencyKey: `${order.id}:1`,
         isDryRun: false,
         direction: 'FORWARD',
@@ -83,8 +83,11 @@ async function seedOrder(
   return order
 }
 
-const login = (ctx: BrowserContext, fx: Fx) =>
-  loginAs(ctx, { userId: fx.userId, needsRegistration: false, needsOnboarding: false })
+// modal onboarding บัง pointer ทุกหน้า dashboard-group — ตั้ง flag "เคยเปิดแล้ว" (OnboardingGate SHOWN_FLAG)
+const login = async (ctx: BrowserContext, fx: Fx) => {
+  await ctx.addInitScript(() => localStorage.setItem('onboarding_modal_shown_v1', '1'))
+  await loginAs(ctx, { userId: fx.userId, needsRegistration: false, needsOnboarding: false })
+}
 
 const events = (orderId: string, type: string) => prisma.orderEvent.count({ where: { orderId, type } })
 const dbOrder = (id: string) =>
@@ -92,7 +95,7 @@ const dbOrder = (id: string) =>
 
 async function pickCarrierAndTrack(page: Page, trackingNo: string) {
   // ShipForm: react-select (inputId ship-provider) + input#ship-tracking-no
-  await page.locator('#ship-provider').click({ force: true })
+  await page.locator('.react-select__control').first().click()
   await page.getByText('Kerry Express', { exact: true }).click()
   await page.locator('#ship-tracking-no').fill(trackingNo)
   await page.getByRole('button', { name: 'บันทึกเลขพัสดุ' }).click()
@@ -124,7 +127,7 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
     await page.getByRole('button', { name: 'แจ้งเลขพัสดุ' }).first().click()
     const manual = page.getByRole('radio', { name: 'ส่งเอง' })
     if (await manual.count()) await manual.click() // ร้านไม่เชื่อม iShip อาจไม่มีแถบเลือก
-    await pickCarrierAndTrack(page, 'KEX80FLOW1')
+    await pickCarrierAndTrack(page, `KEX80FLOW1${TAG}`)
 
     await expect(page.getByText('รอจัดส่ง').first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'จัดส่งแล้ว', exact: true }).first()).toBeVisible()
@@ -163,12 +166,15 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
     await page.goto(`/inbox/${conv.id}`)
 
     const openPanel = async () => {
+      // แผงขวาของห้อง: ต้องกดแท็บ "คำสั่งซื้อ" ก่อนถึงเห็นปุ่มพัสดุของการ์ดออเดอร์
+      const tab = page.locator('button, [role=tab]').filter({ hasText: /^คำสั่งซื้อ/ }).first()
+      if (await tab.count()) await tab.click().catch(() => {})
       await page.getByRole('button', { name: /ดูรายละเอียดพัสดุของคำสั่งซื้อ|สร้างพัสดุสำหรับ|ดูพัสดุของ/ }).first().click()
     }
     await openPanel()
     const manual = page.getByRole('radio', { name: 'ส่งเอง' })
     if (await manual.count()) await manual.click()
-    await pickCarrierAndTrack(page, 'KEX80CHAT1')
+    await pickCarrierAndTrack(page, `KEX80CHAT1${TAG}`)
     await expect.poll(async () => (await dbOrder(order.id)).shipmentTracking !== null).toBe(true)
     expect((await dbOrder(order.id)).status).toBe('PENDING')
 
@@ -187,7 +193,7 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
 
   test('3. กด "จัดส่งแล้ว" ซ้ำจากสองแท็บ: event เดียว ไม่ error', async ({ context }) => {
     const fx = await seedShop('double')
-    const order = await seedOrder(fx, 'QA80 ลูกค้ากดซ้ำ', { trackingNo: 'KEX80DBL1' })
+    const order = await seedOrder(fx, 'QA80 ลูกค้ากดซ้ำ', { trackingNo: `KEX80DBL1${TAG}` })
     await login(context, fx)
     const a = await context.newPage()
     const b = await context.newPage()
@@ -216,10 +222,10 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
 
   test('5. ตัวกรอง ?stage=AWAITING_DISPATCH + ไทล์ dashboard ตรงกัน', async ({ page, context }) => {
     const fx = await seedShop('stage')
-    await seedOrder(fx, 'QA80 รอส่งหนึ่ง', { trackingNo: 'KEX80S1' })
-    await seedOrder(fx, 'QA80 รอส่งสอง', { trackingNo: 'KEX80S2' })
+    await seedOrder(fx, 'QA80 รอส่งหนึ่ง', { trackingNo: `KEX80S1${TAG}` })
+    await seedOrder(fx, 'QA80 รอส่งสอง', { trackingNo: `KEX80S2${TAG}` })
     await seedOrder(fx, 'QA80 ไม่มีเลข') // ตัวหลอก: ยังรอเลขพัสดุ
-    await seedOrder(fx, 'QA80 ใบ iShip', { trackingNo: 'KEX80S4', iship: true }) // ตัวหลอก: iShip ชนะ
+    await seedOrder(fx, 'QA80 ใบ iShip', { trackingNo: `KEX80S4${TAG}`, iship: true }) // ตัวหลอก: iShip ชนะ
     await login(context, fx)
     await page.setViewportSize({ width: 1440, height: 900 })
 
@@ -238,13 +244,22 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
 
   test('6. ตั้งค่าจังหวะแจ้งเลข + หน้าลูกค้าไม่เห็นเลขจนกด จัดส่งแล้ว', async ({ page, context, browser }) => {
     const fx = await seedShop('timing')
-    const order = await seedOrder(fx, 'QA80 ลูกค้าจังหวะ', { trackingNo: 'KEX80TIM9' })
+    const order = await seedOrder(fx, 'QA80 ลูกค้าจังหวะ', { trackingNo: `KEX80TIM9${TAG}` })
     await login(context, fx)
     await page.setViewportSize({ width: 1440, height: 900 })
 
     await page.goto('/settings/auto-notify')
     const sw = page.getByLabel('เมื่อมีเลขพัสดุ')
-    if (!(await sw.isChecked())) await sw.check()
+    if (!(await sw.isChecked())) {
+      const put = page.waitForResponse((r) => r.url().includes('/auto-notify/switches/TRACKING') && r.request().method() === 'PUT')
+      await sw.click()
+      // เปิดครั้งแรก = Swal ถามก่อน (AutoNotifyClient.toggle)
+      const ok = page.locator('.swal2-confirm')
+      await ok.waitFor({ timeout: 3000 }).then(() => ok.click()).catch(() => {})
+      const pr = await put
+      expect(pr.status(), await pr.text()).toBe(200)
+      await expect(sw).toBeChecked()
+    }
     const onDispatch = page.getByRole('radio', { name: /ตอนกดจัดส่งแล้ว/ })
     await expect(onDispatch).toBeVisible()
     await onDispatch.check()
@@ -256,20 +271,20 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
     const buyerCtx = await browser.newContext()
     const buyer = await buyerCtx.newPage()
     await buyer.goto(`${BUYER_ORIGIN}/o/${order.publicToken}`)
-    expect(await buyer.content()).not.toContain('KEX80TIM9')
+    expect(await buyer.content()).not.toContain(`KEX80TIM9${TAG}`)
 
-    const res = await page.request.post(`/api/orders/${order.publicToken}/dispatch`)
-    expect(res.status()).toBe(200)
+    const res = await page.request.post(`/api/orders/${order.publicToken}/dispatch`, { headers: { Origin: 'http://seller.deepth.local:4000' } }) // proxy.ts บังคับ Origin กับ mutation
+    expect(res.status(), await res.text()).toBe(200)
 
     await buyer.goto(`${BUYER_ORIGIN}/o/${order.publicToken}`)
-    expect(await buyer.content()).toContain('KEX80TIM9')
+    expect(await buyer.content()).toContain(`KEX80TIM9${TAG}`)
     await buyerCtx.close()
   })
 
   test('7. ภาพหน้าออเดอร์ 390/834/1440 ที่ รอจัดส่ง และ กำลังจัดส่ง', async ({ page, context }) => {
     fs.mkdirSync(SHOT_DIR, { recursive: true })
     const fx = await seedShop('shots')
-    const order = await seedOrder(fx, 'QA80 ลูกค้าถ่ายภาพ', { trackingNo: 'KEX80SHOT' })
+    const order = await seedOrder(fx, 'QA80 ลูกค้าถ่ายภาพ', { trackingNo: `KEX80SHOT${TAG}` })
     await login(context, fx)
     const sizes = [
       { w: 390, h: 844 },
@@ -281,15 +296,19 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
         await page.setViewportSize({ width: s.w, height: s.h })
         await page.goto(`/orders/${order.publicToken}`)
         await page.getByRole('button', { name: stage === 'awaiting' ? 'จัดส่งแล้ว' : 'ส่งสำเร็จ', exact: true }).first().waitFor()
+        // ไอคอน iconify โหลดจาก API หลัง hydrate — รอ network นิ่งก่อนถ่าย ไม่งั้นได้วงกลมว่าง
+        await page.waitForLoadState('networkidle')
         await page.screenshot({ path: `${SHOT_DIR}/${stage}-${s.w}.png`, fullPage: true })
       }
     }
     await shoot('awaiting')
     // dark 1 ภาพ — Paces สลับด้วย attribute data-theme บน <html> (ไม่มี helper สลับในรีโป)
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+    await page.waitForLoadState('networkidle')
     await page.screenshot({ path: `${SHOT_DIR}/awaiting-1440-dark.png`, fullPage: true })
 
-    expect((await page.request.post(`/api/orders/${order.publicToken}/dispatch`)).status()).toBe(200)
+    const dr = await page.request.post(`/api/orders/${order.publicToken}/dispatch`, { headers: { Origin: 'http://seller.deepth.local:4000' } }) // proxy.ts บังคับ Origin กับ mutation
+    expect(dr.status(), await dr.text()).toBe(200)
     await shoot('shipping')
   })
 })

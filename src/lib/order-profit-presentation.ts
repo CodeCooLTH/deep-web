@@ -46,7 +46,7 @@ export function presentOrderProfit(
       amount: null,
       note: serviceRules
         ? `กำไรจะคำนวณเมื่อร้านปิด${orderNoun}แล้ว`
-        : `กำไรจะคำนวณเมื่อลูกค้ายืนยันรับ${orderNoun}แล้ว`,
+        : `กำไรจะคำนวณเมื่อ${orderNoun}สำเร็จแล้ว`, // 00080 — ปิดได้ทั้งลูกค้ายืนยัน · ร้านกด "ส่งสำเร็จ" · ขนส่งยืนยัน
       tone: 'neutral',
     }
   }

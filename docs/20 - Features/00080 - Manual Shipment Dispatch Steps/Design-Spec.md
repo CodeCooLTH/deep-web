@@ -33,8 +33,8 @@
 
 | สถานะ | บรรทัด 1 | บรรทัด 2 |
 |---|---|---|
-| PENDING | ยังไม่ได้ส่งออก ระบบติดตามสถานะกับขนส่งให้ไม่ได้ เพราะเลขนี้ร้านกรอกเอง | บันทึกเลขเมื่อ {formatDateTime(recordedAt)} |
-| SHIPPED/CONFIRMED | เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้ | แจ้งจัดส่งเมื่อ {formatDateTime(dispatchedAt ?? recordedAt)} |
+| PENDING | ยังไม่ได้ส่งออก ระบบติดตามสถานะกับขนส่งให้ไม่ได้ เพราะเลขนี้ร้านกรอกเอง | บันทึกเลขเมื่อ {formatDateTimeTH(recordedAt)} |
+| SHIPPED/CONFIRMED | เลขพัสดุนี้ร้านกรอกเอง ระบบจึงติดตามสถานะกับขนส่งให้ไม่ได้ | แจ้งจัดส่งเมื่อ {formatDateTimeTH(dispatchedAt ?? recordedAt)} |
 
 - PENDING + `actionSet.primary?.key==='mark-dispatched'` เท่านั้น: เพิ่ม "กด "จัดส่งแล้ว" เมื่อนำพัสดุไปส่ง"
 
