@@ -58,7 +58,10 @@ export default function PortfolioSalesCard({ initial }: { initial: PortfolioSeri
   const hasExpense = card.expense != null
 
   // วันนี้: เรียงตามยอดของวัน (คำถามคือ "วันนี้ร้านไหนทำได้") · สีติดร้านตามลำดับยอดเดือนเสมอ
-  const rows = isToday ? [...card.rows].sort((a, b) => b.todayTotal - a.todayTotal) : card.rows
+  // ซ่อนธุรกิจที่ยอดของแท็บนั้นเป็น 0 (user 2026-10-18) — ไม่มีอะไรให้ดู แถวเปล่ายาวดันการ์ดลงไปเปล่า ๆ
+  const rows = (isToday ? [...card.rows].sort((a, b) => b.todayTotal - a.todayTotal) : card.rows).filter(
+    (r) => (isToday ? r.todayTotal : r.monthTotal) > 0,
+  )
 
   const grid = {
     show: true,
