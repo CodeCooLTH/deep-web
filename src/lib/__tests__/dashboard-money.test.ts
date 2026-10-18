@@ -153,7 +153,8 @@ describe('layout/page: ตัดที่ต้นทาง ไม่ใช่�
   it('unread แชทนับเฉพาะ can(H1) และ ChatToastListener mount เฉพาะ H1', () => {
     expect(layout).toMatch(/const canChat = can\(roles, 'H1'\)/)
     expect(layout).toMatch(/if \(shop\?\.id && canChat\) \{\s*try \{\s*unreadChatCount = await getUnreadCountForShop/)
-    expect(layout).toMatch(/\{canChat && <ChatToastListener/)
+    // แอปมือถือไม่ mount (toast เฉพาะเว็บ — user 2026-10-18) · H1 ยังเป็นเงื่อนไขแรก
+    expect(layout).toMatch(/\{canChat && \(await getAppShell\(\)\) === 'web' && <ChatToastListener/)
   })
   it('isPrimaryOwner มาจากแถวร้านที่ requireActiveShop อ่านแล้ว ไม่ใช่ query เพิ่ม', () => {
     expect(layout).toMatch(/isPrimaryOwner: active\.shop\.userId === user\.id/)

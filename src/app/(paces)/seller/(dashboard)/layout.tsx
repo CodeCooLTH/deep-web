@@ -25,7 +25,7 @@ import OnboardingGate from './dashboard/components/OnboardingGate'
 import { showsPersonalSetupChecklist } from '@/lib/onboarding-gate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
-import { shouldHidePaidFeatures, shouldOfferIap, shouldHidePayments } from '@/lib/app-shell-server'
+import { shouldHidePaidFeatures, shouldOfferIap, shouldHidePayments, getAppShell } from '@/lib/app-shell-server'
 import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -237,7 +237,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* ChatToastListener (S-7): subscribe chat:shop:{shopId} ทุก page — mount ที่ layout
           เหมือน TopUpCelebrationPoller เพื่อให้ toast เด้งได้ไม่ว่า seller อยู่หน้าไหน */}
       {/* 00071: เฉพาะบทบาทที่มี H1 — ช่าง/เปิดบิลไม่ควรได้ toast ข้อความลูกค้า (เนื้อแชทผ่าน realtime channel) */}
-      {canChat && <ChatToastListener shopId={shop?.id ?? null} />}
+      {/* แอปมือถือ (iOS/Android) ไม่เด้ง toast มุมขวาล่าง — แอปมี push notification ของระบบอยู่แล้ว · เว็บคงเดิม (user 2026-10-18) */}
+      {canChat && (await getAppShell()) === 'web' && <ChatToastListener shopId={shop?.id ?? null} />}
       {/* IapRecoveryListener (00064): รับธุรกรรม Apple ที่ค้างจากรอบก่อนแล้วเปิดสิทธิ์ให้เอง
           — mount ที่ layout เพราะคนที่จ่ายเงินแล้วสิทธิ์ไม่เปิดจะไม่เดินกลับไปหน้าแพ็กเกจเอง
           บนเบราว์เซอร์ปกติตัวนี้ไม่แขวน listener ใด ๆ (ไม่มี ReactNativeWebView) */}
