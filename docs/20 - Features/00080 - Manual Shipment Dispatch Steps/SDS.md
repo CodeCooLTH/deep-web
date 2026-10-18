@@ -140,6 +140,17 @@ sequenceDiagram
 
 ### TD-009: สิทธิ์ "ส่งสำเร็จ" = S1 รวมบทบาทแชท (user ตัดสิน 2026-10-18 หลัง security ชี้ความเสี่ยงปั่น Trust Score)
 
+### TD-010: undo "จัดส่งแล้ว" ภายใน 5 วินาที (user เลือกจาก critique 2026-10-18 — ดึง OOS-6 บางส่วนเข้าขอบเขต)
+- UI: toast สำเร็จของ "จัดส่งแล้ว" มีปุ่ม `เลิกทำ` (pacesToast action) แสดง 5 วินาที — ทั้งหน้าออเดอร์และแผงแชท
+- server `undoManualDispatch(publicToken, shopId, actorUserId)` + `POST /api/orders/[token]/dispatch/undo` (S1): conditional update `status=SHIPPED AND ShipmentTracking.dispatchedAt >= now()-30s` (เผื่อ latency เกิน 5 วิของ UI) และเป็นส่งเอง (ไม่มี iShip live) → `PENDING` · `dispatchedAt=null` · OrderEvent `MANUAL_DISPATCH_UNDONE` (M4 additive) · หมดเวลา/ไม่ใช่ขั้นนี้ → 409 ไทย "เลยเวลาเลิกทำแล้ว"
+- 🛑 ข้อจำกัดที่ยอมรับ: ข้อความแจ้งเลขพัสดุที่ "จัดส่งแล้ว" ยิงไปแล้ว **ดึงคืนไม่ได้** (ส่งหลัง commit ทันที) · กด "จัดส่งแล้ว" ใหม่ด้วยเลขเดิม ledger UNIQUE กันส่งซ้ำ
+- ใช้ได้ครั้งเดียวต่อการกด (หลังเลิกทำ dispatchedAt=null → ต้องกดจัดส่งแล้วใหม่)
+
+### TD-011: critique fixes (user 2026-10-18)
+- ข้อความ Swal "ส่งสำเร็จ" ไม่บอกว่าเท่ากับลูกค้ายืนยัน → "นับเป็นยอดขาย ย้อนกลับไม่ได้ · ประวัติจะบันทึกว่าร้านเป็นผู้ปิดงาน" (logic นับ Trust Score คงเดิม — user ยืนยัน)
+- แผงแชทกรองปุ่มตามสิทธิ์ S1 เหมือนหน้าออเดอร์ + กันเปิด Swal ซ้อน
+- ปุ่ม "ได้รับเงินแล้ว" ในการ์ดชำระเงินเป็นแบบรอง (soft) เมื่อปุ่มหลักของหน้าคือ "ส่งสำเร็จ" (หนึ่ง primary ต่อจอ)
+
 ## 7. Traceability
 
 | Scope | Component |

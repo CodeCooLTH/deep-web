@@ -98,3 +98,4 @@ branch: `feat/00080-manual-dispatch`
 | 2026-10-18 | baseline สร้าง (S-1..S-15, OOS-1..OOS-11) | PRD+BRD v0.2 อนุมัติ · มติ D-1..D-4 | user (PRD/BRD) |
 | 2026-10-18 | ยืนยัน A-2: ปุ่ม "ส่งสำเร็จ" ใช้สิทธิ์ S1 (รวมบทบาทแชท) ไม่จำกัดเจ้าของ/ผู้จัดการ · "ส่งสำเร็จ" นับ Trust Score เท่าลูกค้ายืนยัน (คงตามมติ PRD 3.3) | security review ชี้ความเสี่ยงพนักงานปั่นคะแนน — user เลือกคงสิทธิ์ S1 | user |
 | 2026-10-18 | รับเข้า S-4: createShipment (iShip เปิดพัสดุใหม่) ปฏิเสธใบที่มีเลขส่งเองแล้ว · confirmOrder ฝั่งลูกค้าเป็น conditional update | reviewer must-fix (ช่องที่เปิดขึ้นเพราะ PENDING มีเลขได้แล้ว) | Controller |
+| 2026-10-18 | รับเข้าจาก OOS-6: undo "จัดส่งแล้ว" ภายใน 5 วินาที (SDS TD-010) + critique fixes 3 ข้อ (TD-011) · ยืนยันคง Trust Score นับเท่าลูกค้ายืนยัน | /impeccable critique — user เลือกแก้ทั้ง 4 ข้อ | user |
