@@ -73,7 +73,7 @@ import { getTierLabel } from '@/lib/trust-tier'
 import { getAvgRatingByShop } from '@/services/review.service'
 // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวันเดือนปัจจุบัน สำหรับการ์ด mini + full sheet
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
-import { getSalesSeries } from '@/services/dashboard.service'
+import { getSalesSeries, withShippingExpenses } from '@/services/dashboard.service'
 // 00071: สิทธิ์เห็นเงินตัดจากบทบาทของสมาชิกที่เปิดร้านอยู่ (ไม่ใช่ธงต่อร้านอีกแล้ว)
 import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
 import { DEFAULT_REPORT_SETTINGS, resolveReportSettings, serviceReportChart, serviceReportView, showsUnclosedOnCard, type ReportSettings, type ServiceReportChart, type ServiceReportView } from '@/lib/report-settings'
@@ -393,7 +393,10 @@ export default async function SellerDashboardPage() {
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน · เจ้าของเท่านั้น (F1) ⇒ รวมค่าใช้จ่าย/ต้นทุนเสมอ
             // เท่ากับ expenseGranted เดิมของเจ้าของ (สูตรไม่เปลี่ยน — HR16)
             money.salesChartCard
-              ? getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, true, shop.vertical)
+              ? getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, true, shop.vertical).then((s) =>
+                  // ค่าใช้จ่ายหมวดค่าขนส่งเข้าคอลัมน์ค่าส่งของชีต — ชุดเดียวกับ /api/seller/sales-series (user 2026-10-18)
+                  withShippingExpenses(shop.id, s, 'daily', { year: currentYear, month: currentMonth }, shop.vertical),
+                )
               : Promise.resolve(null),
             // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
             resolveShortcutState(
