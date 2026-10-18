@@ -70,7 +70,7 @@ import { PROMO_BANNER } from './_constants/command-center'
 import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
 // v10: review count + avg rating สำหรับ stats row ใน CompactHero (S-8)
-import { getAvgRatingByUsername } from '@/services/review.service'
+import { getAvgRatingByShop } from '@/services/review.service'
 // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวันเดือนปัจจุบัน สำหรับการ์ด mini + full sheet
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
@@ -382,7 +382,9 @@ export default async function SellerDashboardPage() {
             // /notifications ยังเรียก service ตัวนี้เองแยกต่างหาก ข้อมูลจึงไม่หายไปจากระบบ
             // ร้านบริการดึงเงินรับมาด้วย — งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (00073) · ร้านอื่น query เดิม
             getOrdersByShop(shop.id, undefined, usesServiceFinanceRules(shop.vertical) ? { withPayments: true } : undefined),
-            getAvgRatingByUsername(owner?.username ?? ''),
+            // รีวิว/ดาวของ "ร้านที่เลือก" เท่านั้น — เดิมนับผ่าน username เจ้าของ = รวมทุกร้านที่เขาเป็นเจ้าของ
+            // บัญชี Personal จึงขึ้นรีวิวของร้าน BUSINESS ทั้งที่คำสั่งซื้อข้าง ๆ เป็นของร้านที่เลือก (user 2026-10-18)
+            getAvgRatingByShop(shop.id),
             // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
             prisma.auction.count({ where: { shopId: shop.id, status: 'live' } }),
             // สินค้าขายดี (top 8) สำหรับ strip บน command center · TopSellingProducts เดสก์ท็อป
@@ -440,7 +442,7 @@ export default async function SellerDashboardPage() {
         if (ratingRes.status === 'fulfilled') {
           reviewCount = ratingRes.value.reviewCount
           avgRating = ratingRes.value.avgRating
-        } else console.error('[dashboard] getAvgRatingByUsername failed', ratingRes.reason)
+        } else console.error('[dashboard] getAvgRatingByShop failed', ratingRes.reason)
 
         // D#13: liveAuctionCount — fallback 0 ถ้าล้ม (honest-zero pattern เดียวกับ field อื่น)
         if (liveAuctionRes.status === 'fulfilled') liveAuctionCount = liveAuctionRes.value
