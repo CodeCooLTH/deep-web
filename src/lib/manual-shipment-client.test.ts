@@ -68,6 +68,6 @@ describe('reportDispatch / undo toast (TD-010)', () => {
     expect(b.calls[0]).toMatchObject({ kind: 'error', message: 'x' })
   })
   it('undo สำเร็จ → ข้อความกลับเป็นรอจัดส่ง', () => {
-    expect(manualStepToast('undo', { kind: 'ok', changed: true, alreadyClosed: false }, 'n').message).toBe('เลิกทำแล้ว กลับเป็น รอจัดส่ง')
+    expect(manualStepToast('undo', { kind: 'ok', changed: true, alreadyClosed: false }, 'n').message).toBe('เลิกทำแล้ว สถานะกลับเป็น "รอจัดส่ง"')
   })
 })

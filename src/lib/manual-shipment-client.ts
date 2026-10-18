@@ -49,7 +49,7 @@ export function manualStepToast(
   noun: string,
 ): { type: 'success' | 'info' | 'error'; message: string } {
   if (r.kind === 'rejected') return { type: 'error', message: r.message }
-  if (step === 'undo') return { type: 'success', message: 'เลิกทำแล้ว กลับเป็น รอจัดส่ง' }
+  if (step === 'undo') return { type: 'success', message: 'เลิกทำแล้ว สถานะกลับเป็น "รอจัดส่ง"' }
   if (step === 'dispatch') {
     return r.changed
       ? { type: 'success', message: 'บันทึกว่าจัดส่งแล้ว' }

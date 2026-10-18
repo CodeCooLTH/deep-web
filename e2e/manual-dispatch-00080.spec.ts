@@ -44,7 +44,7 @@ async function seedShop(label: string): Promise<Fx> {
 async function seedOrder(
   fx: Fx,
   name: string,
-  opts: { trackingNo?: string; iship?: boolean; conversationId?: string } = {},
+  opts: { trackingNo?: string; iship?: boolean; conversationId?: string; cod?: boolean } = {},
 ) {
   const order = await prisma.order.create({
     data: {
@@ -55,6 +55,7 @@ async function seedOrder(
       totalAmount: 590,
       buyerName: name,
       buyerContact: '0891082095',
+      ...(opts.cod ? { paymentMethod: 'COD' } : {}),
       ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
       shippingAddress: { line1: '1/1 ถ.ทดสอบ', subdistrict: 'ออเงิน', district: 'สายไหม', province: 'กรุงเทพมหานคร', postcode: '10220' },
       items: { create: [{ name: 'สินค้าทดสอบ', qty: 1, price: 590 }] },
@@ -163,6 +164,10 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
     const order = await seedOrder(fx, 'QA80 ลูกค้าแชท', { conversationId: conv.id })
     await login(context, fx)
     await page.setViewportSize({ width: 1440, height: 900 })
+    // เก็บหลักฐานถ้า order-context ล้ม (เจอแผงขึ้น "โหลดข้อมูลการจัดส่งไม่สำเร็จ" เป็นช่วง ๆ)
+    page.on('response', async (r) => {
+      if (r.url().includes('/api/seller/iship/order-context') && !r.ok()) console.log('[order-context]', r.status(), (await r.text()).slice(0, 300))
+    })
     await page.goto(`/inbox/${conv.id}`)
 
     const openPanel = async () => {
@@ -172,6 +177,13 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
       await page.getByRole('button', { name: /ดูรายละเอียดพัสดุของคำสั่งซื้อ|สร้างพัสดุสำหรับ|ดูพัสดุของ/ }).first().click()
     }
     await openPanel()
+    // proxy.ts rate-limit /api ต่อ IP ต่อนาที — รันซ้ำถี่ ๆ แผงขึ้น "ลองใหม่" (429) → รอให้หน้าต่างเลื่อนแล้วกดซ้ำ
+    for (let i = 0; i < 4; i++) {
+      const retry = page.getByRole('button', { name: 'ลองใหม่' })
+      if (!(await retry.isVisible({ timeout: 1500 }).catch(() => false))) break
+      await page.waitForTimeout(20_000)
+      await retry.click()
+    }
     const manual = page.getByRole('radio', { name: 'ส่งเอง' })
     if (await manual.count()) await manual.click()
     await pickCarrierAndTrack(page, `KEX80CHAT1${TAG}`)
@@ -310,5 +322,64 @@ test.describe('00080 ส่งเอง 3 ขั้น', () => {
     const dr = await page.request.post(`/api/orders/${order.publicToken}/dispatch`, { headers: { Origin: 'http://seller.deepth.local:4000' } }) // proxy.ts บังคับ Origin กับ mutation
     expect(dr.status(), await dr.text()).toBe(200)
     await shoot('shipping')
+  })
+
+  test('8. เลิกทำ จัดส่งแล้ว จาก toast บนหน้าออเดอร์', async ({ page, context }) => {
+    const fx = await seedShop('undo')
+    const order = await seedOrder(fx, 'QA80 ลูกค้าเลิกทำ', { trackingNo: `KEX80UND${TAG}` })
+    await login(context, fx)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/orders/${order.publicToken}`)
+    await page.getByRole('button', { name: 'จัดส่งแล้ว', exact: true }).first().click()
+    // toast มีปุ่ม "เลิกทำ" 5 วิ — กดทันที
+    await page.getByText('เลิกทำ', { exact: true }).click()
+    await expect(page.getByText('เลิกทำแล้ว สถานะกลับเป็น "รอจัดส่ง"')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'จัดส่งแล้ว', exact: true }).first()).toBeVisible()
+    const db = await dbOrder(order.id)
+    expect(db.status).toBe('PENDING')
+    expect(db.shipmentTracking?.dispatchedAt).toBeNull()
+    expect(await events(order.id, 'MANUAL_DISPATCH_UNDONE')).toBe(1)
+  })
+
+  test('9. เลิกทำเกินหน้าต่าง 30 วิ ผ่าน API = 409', async ({ page, context }) => {
+    const fx = await seedShop('undolate')
+    const order = await seedOrder(fx, 'QA80 ลูกค้าเลิกทำช้า', { trackingNo: `KEX80LAT${TAG}` })
+    await login(context, fx)
+    await page.goto(`/orders/${order.publicToken}`)
+    const origin = { Origin: 'http://seller.deepth.local:4000' }
+    const d = await page.request.post(`/api/orders/${order.publicToken}/dispatch`, { headers: origin })
+    expect(d.status(), await d.text()).toBe(200)
+    await prisma.shipmentTracking.update({ where: { orderId: order.id }, data: { dispatchedAt: new Date(Date.now() - 60_000) } })
+    const u = await page.request.post(`/api/orders/${order.publicToken}/dispatch/undo`, { headers: origin })
+    expect(u.status(), await u.text()).toBe(409)
+    expect((await dbOrder(order.id)).status).toBe('SHIPPED')
+    expect(await events(order.id, 'MANUAL_DISPATCH_UNDONE')).toBe(0)
+  })
+
+  test('10. ภาพ: toast เลิกทำ 390 + COD กำลังจัดส่ง 390/1440', async ({ page, context }) => {
+    fs.mkdirSync(SHOT_DIR, { recursive: true })
+    const fx = await seedShop('codshot')
+    const toastOrder = await seedOrder(fx, 'QA80 ลูกค้า toast', { trackingNo: `KEX80TST${TAG}` })
+    const cod = await seedOrder(fx, 'QA80 ลูกค้า COD', { trackingNo: `KEX80COD${TAG}`, cod: true })
+    await login(context, fx)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`/orders/${toastOrder.publicToken}`)
+    await page.getByRole('button', { name: 'จัดส่งแล้ว', exact: true }).first().click()
+    await page.getByText('เลิกทำ', { exact: true }).waitFor()
+    // รอแอนิเมชันเข้า + router.refresh ให้ chip เปลี่ยนก่อนถ่าย (ไม่งั้นได้ toast ครึ่งโปร่งใส)
+    await expect(page.getByRole('button', { name: 'ส่งสำเร็จ', exact: true }).first()).toBeVisible()
+    await page.waitForTimeout(600)
+    await page.screenshot({ path: `${SHOT_DIR}/toast-undo-390.png` })
+
+    const origin = { Origin: 'http://seller.deepth.local:4000' }
+    const d = await page.request.post(`/api/orders/${cod.publicToken}/dispatch`, { headers: origin })
+    expect(d.status(), await d.text()).toBe(200)
+    for (const s of [{ w: 390, h: 844 }, { w: 1440, h: 900 }]) {
+      await page.setViewportSize({ width: s.w, height: s.h })
+      await page.goto(`/orders/${cod.publicToken}`)
+      await expect(page.getByRole('button', { name: 'ส่งสำเร็จ', exact: true }).first()).toBeVisible()
+      await expect(page.getByRole('button', { name: /ได้รับเงิน.*แล้ว/ }).first()).toBeVisible()
+      await page.screenshot({ path: `${SHOT_DIR}/shipping-cod-${s.w}.png`, fullPage: true })
+    }
   })
 })
