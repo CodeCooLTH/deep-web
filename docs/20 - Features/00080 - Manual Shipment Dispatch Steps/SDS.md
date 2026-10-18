@@ -55,7 +55,7 @@ flowchart LR
 | คีย์ stage ที่ hard-code | `OrderStatusBand.tsx:144` · `OrdersList.tsx:63` · `OrdersTable.tsx:106,118` · `ShipmentHoverCard.tsx:49` · `chat-order-progress.ts:73` · `ProvinceSalesMap.tsx:209` · `order.service.ts:2724` | เติม `AWAITING_DISPATCH` (`Record` ให้ tsc บังคับ) |
 | shipOrder (แก้) | `order.service.ts:1571` | สร้างแถว ShipmentTracking + `TRACKING_ADDED` · **ไม่เปลี่ยน status (คง PENDING)** · `assertTransition(status,'SHIPPED')` คงไว้เป็นด่าน "ส่งได้ไหม" · จอง TRACKING notice เฉพาะ timing `ON_SAVE` |
 | updateShipmentTracking (แก้) | `order.service.ts:1639` | รับ `PENDING` หรือ `SHIPPED` (เดิม SHIPPED อย่างเดียว) · `PENDING && ON_DISPATCH` = ไม่จอง notice · ที่เหลือกติกาเดิม (เลขเปลี่ยนเท่านั้น) |
-| markManualDispatched (ใหม่) | `order.service.ts` | tx: อ่านออเดอร์ (shopId scope) + tracking + live iShip → `canMarkDispatched` · `updateMany({id, status:'PENDING'} → SHIPPED)` · count 0 → อ่านใหม่: SHIPPED = `{changed:false}` (idempotent) · อื่น = `ManualDispatchNotAllowedError` · `tracking.dispatchedAt = now` · `OrderEvent MANUAL_DISPATCHED` · timing `ON_DISPATCH` → `reserveTrackingNotice(tx, orderId, trackingNo ปัจจุบัน)` · dispatch หลัง commit |
+| markManualDispatched (ใหม่) | `order.service.ts` | tx: อ่านออเดอร์ (shopId scope) + tracking + live iShip → `canMarkDispatched` · `updateMany({id, status:'PENDING'} → SHIPPED)` · count 0 → อ่านใหม่: SHIPPED = `{changed:false}` (idempotent) · อื่น = `ManualDispatchNotAllowedError` · `tracking.dispatchedAt = now` · `OrderEvent MANUAL_DISPATCHED` · **จอง `reserveTrackingNotice(tx, orderId, trackingNo ปัจจุบัน)` ทุกครั้งไม่ว่า timing ไหน** (TD-006) · dispatch หลัง commit |
 | markManualDelivered (ใหม่) | `order.service.ts` | `updateMany({id, status:'SHIPPED'} → CONFIRMED)` เมื่อ `canMarkDelivered` · `OrderEvent SELLER_DELIVERED` · count 0 → อ่านใหม่: CONFIRMED = `{changed:false, alreadyClosed:true}` · อื่น = `ManualDeliveryNotAllowedError` · หลัง commit → `runPostConfirmEffects` |
 | runPostConfirmEffects (สกัด) | `order.service.ts` | ย้ายบล็อกเหรียญ/Trust จาก `confirmOrder` (`:1535-1566`) และ `settleCodFromCarrier` (`:2267-2288`) มาเป็น helper เดียว · พฤติกรรมเดิมทุกตัวอักษร |
 | route ใหม่ | `src/app/api/orders/[token]/dispatch/route.ts` · `.../delivered/route.ts` | session → `sessionUserId` · `canAccessShopWith(order.shopId,userId,'S1')` · error → 409 ข้อความไทย · `Cache-Control: no-store` · ลงทะเบียน `src/lib/route-capabilities.ts` `{ POST: 'S1' }` |
@@ -86,9 +86,7 @@ sequenceDiagram
     U->>API: POST /dispatch
     API->>S: markManualDispatched
     S->>DB: UPDATE Order PENDING→SHIPPED (conditional) · dispatchedAt · OrderEvent MANUAL_DISPATCHED
-    alt timing ON_DISPATCH
-      S->>N: reserveTrackingNotice (เลขปัจจุบัน)
-    end
+    S->>N: reserveTrackingNotice (เลขปัจจุบัน · ON_SAVE ที่แจ้งไปแล้ว = ledger UNIQUE ชน → ไม่ส่งซ้ำ)
     U->>API: POST /delivered
     API->>S: markManualDelivered
     S->>DB: UPDATE Order SHIPPED→CONFIRMED (conditional) · OrderEvent SELLER_DELIVERED
@@ -128,6 +126,12 @@ sequenceDiagram
 
 ### TD-005: OrderEvent ใหม่ `MANUAL_DISPATCHED` · `SELLER_DELIVERED`
 - แยกจาก `BUYER_CONFIRMED`/`SYSTEM_CONFIRMED` (BR-MS-21) · ขยาย CHECK แบบ additive ตามแบบ `20261017100300_order_event_auto_notify_types`
+
+### TD-006: "จัดส่งแล้ว" จองข้อความเลขพัสดุทุกครั้ง (มติ Controller 2026-10-18 จาก SRS OQ-1)
+- ถ้าจองเฉพาะ `ON_DISPATCH`: ร้านบันทึกเลขตอน `ON_DISPATCH` แล้วสลับเป็น `ON_SAVE` ก่อนกด ⇒ ลูกค้าไม่ได้เลขเลย
+- จองเสมอปลอดภัย: ledger UNIQUE (shop, order, TRACKING, valueKey=เลข normalize) ⇒ เลขที่ `ON_SAVE` ส่งไปแล้วชน → null ไม่ส่งซ้ำ
+
+### TD-007: settings PATCH รับ `dailyCapPerRoom?` และ `trackingNoticeTiming?` (ต้องมีอย่างน้อย 1 คีย์) · 409 ของ PATCH `/ship` เมื่อปิด/ยกเลิกแล้ว = "แก้เลขพัสดุไม่ได้ ออเดอร์นี้ปิดหรือยกเลิกแล้ว" (SRS OQ-2, OQ-3)
 
 ## 7. Traceability
 

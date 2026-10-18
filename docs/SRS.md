@@ -219,6 +219,7 @@
 ```
 มีจัดส่ง (fulfillmentMode = SHIPPED):
   PENDING ──seller ใส่ tracking──▶ SHIPPED ──buyer กดรับของ──▶ CONFIRMED ✅ (นับ trust/badge)
+  (00080 ออกแบบแล้ว: ส่งเอง "ใส่ tracking" ไม่เปลี่ยน status แล้ว — ต้องกด "จัดส่งแล้ว" จึงเป็น SHIPPED, ร้านกด "ส่งสำเร็จ" ปิดงานได้ · ดู §2.1a)
 
 ไม่จัดส่ง (NO_SHIPPING: digital / service / subscription):
   PENDING ──buyer กดยืนยัน──▶ CONFIRMED ✅ (นับ trust/badge)
@@ -248,6 +249,30 @@
 - ยกเลิกหลัง CONFIRMED ไม่ได้ (terminal). MVP **ไม่มี dispute system** (Phase 2)
 - SUBSCRIPTION: แต่ละรอบบิล (cycle) สร้าง order ย่อยที่เดิน PENDING→CONFIRMED ของตัวเอง
 - 🛑 **แก้ข้อความที่ไม่ตรงโค้ด (พบระหว่าง 00073 · 2026-10-11):** โค้ด `cancelOrder` **ไม่มี** กติกาแยกฝั่งผู้ซื้อ — `VALID_TRANSITIONS.SHIPPED` มี `CANCELLED` ⇒ ผู้ซื้อยกเลิกใบ SHIPPED ได้ในโค้ดปัจจุบัน (ข้อ "Buyer-cancel rule" ด้านบนจึงเป็นเจตนา ไม่ใช่พฤติกรรมจริง — งานแยก ไม่แตะในรอบนี้)
+
+### 2.1a ส่งเอง 3 ขั้น (feature 00080 · ออกแบบแล้ว 2026-10-18 · ยังไม่ implement)
+
+> เขียนจาก SDS/SRS ของ 00080 ไม่ใช่จากโค้ด — ตรวจกับโค้ดอีกครั้งเมื่อ dev เสร็จ · เอกสารเต็ม `docs/20 - Features/00080 - Manual Shipment Dispatch Steps/`
+
+ใบ **ส่งเอง** (มีแถว `ShipmentTracking` และไม่มี live iShip) เดิน 3 ขั้นที่ร้านเลื่อนเอง **โดยไม่เพิ่มค่า `Order.status`** (TD-001):
+
+```mermaid
+stateDiagram-v2
+    PENDING --> PENDING: POST /ship (บันทึกเลข = ขั้น รอจัดส่ง)
+    PENDING --> SHIPPED: POST /dispatch "จัดส่งแล้ว" (ส่งเอง)
+    SHIPPED --> CONFIRMED: POST /delivered "ส่งสำเร็จ" (ส่งเอง, นับเท่าลูกค้ายืนยัน)
+    PENDING --> CONFIRMED: ลูกค้ายืนยัน
+    SHIPPED --> CONFIRMED: ลูกค้ายืนยัน
+    PENDING --> CANCELLED: ยกเลิก
+    SHIPPED --> CANCELLED: ยกเลิก
+```
+
+- **"รอจัดส่ง" = ขั้นที่คำนวณ** (`ShippingStageKey = AWAITING_DISPATCH`): `status = PENDING` + มีแถว `ShipmentTracking` + ไม่มี live iShip · ไม่ใช่ค่าที่เก็บ
+- `POST /ship` (บันทึกเลข) **ไม่เปลี่ยน `status` อีกต่อไป** (เดิม PENDING→SHIPPED) · `PATCH /ship` แก้เลขได้ทั้ง PENDING และ SHIPPED
+- "จัดส่งแล้ว": PENDING→SHIPPED + `ShipmentTracking.dispatchedAt` + `OrderEvent MANUAL_DISPATCHED` · "ส่งสำเร็จ": SHIPPED→CONFIRMED + `OrderEvent SELLER_DELIVERED` + `runPostConfirmEffects` (ยอดขาย · Trust Score · เหรียญ ชุดเดียวกับลูกค้ายืนยัน) · ทั้งสองเป็น conditional update ที่ idempotent
+- ลูกค้ายืนยันได้ทุกขั้น (เหมือนเดิม) · ยกเลิกได้ก่อนสำเร็จ · ไม่มีขั้นย้อน · ใบเก่า (SHIPPED ส่งเอง `dispatchedAt` NULL) ไม่ถูกย้อนและกด "ส่งสำเร็จ" ได้
+- ใบที่มี live iShip **ไม่อยู่ใต้กฎนี้** (iShip ชนะ) · ร้านบริการไม่เกี่ยว
+- ตัวตัดสินเดียว `src/lib/manual-shipment.ts` (`isManualShipment` · `canMarkDispatched` · `canMarkDelivered`) + `deriveShippingStage`
 
 ### 2.2 ร้านบริการ (SERVICE_QUEUE) — flow 4 ขั้น (feature 00073 · 2026-10-11)
 
@@ -827,7 +852,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `orderId` | String FK → Order | cascade delete |
-| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) · **feature 00078 ออกแบบเพิ่ม +3 → 30 ค่า (ยังไม่ implement · M4 — ดู §6.72)** |
+| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) · **feature 00078 ออกแบบเพิ่ม +3 → 30 ค่า (ยังไม่ implement · M4 — ดู §6.72)** · **feature 00080 ออกแบบเพิ่ม +2** (`MANUAL_DISPATCHED`, `SELLER_DELIVERED` — ดู §8.1b; จำนวนรวมให้ตรวจกับ `ORDER_EVENT_TYPES` ตอน implement) |
 | `actorUserId` | String? FK → User | `SetNull` เมื่อลบ user — ห้าม fallback เป็นเจ้าของร้าน |
 | `meta` | Json default `{}` | โครงต่างกันตาม `type` — **ห้ามมี PII ผู้ซื้อดิบ** (เบอร์/อีเมล/ที่อยู่) เด็ดขาด |
 | `occurredAt` | DateTime (ไม่มี default) | 🛑 **เวลาจริงที่เหตุการณ์เกิด เสมอ — ห้ามย้อนตามวันที่ที่ผู้ใช้กรอก** (เช่น `Order.createdAt` ที่ backdate ได้ตาม feature 00033). วันที่สั่งซื้อที่ผู้ขายเลือกอยู่ใน `meta.orderedAt`/`orderedAtFrom`/`orderedAtTo` เท่านั้น — ประวัติคือหลักฐาน |
@@ -845,6 +870,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `trackingNo` | String | หมายเลขพัสดุ |
 | `status` | String default `"SHIPPED"` | |
 | `lastSyncAt` | DateTime? | Phase 2 — shipping status sync |
+| `dispatchedAt` | DateTime? (`timestamptz(3)`) | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — เวลาที่ร้านกด "จัดส่งแล้ว" · NULL = ยังไม่กด หรือใบเก่าก่อนมีฟีเจอร์ · ผู้อ่าน "เวลาส่งจริง" (เหรียญ FAST_SHIPPING · "แจ้งเมื่อ") ใช้ `dispatchedAt ?? createdAt` · หลังแยกขั้น `createdAt` = เวลาบันทึกเลข · ไม่ backfill · ดู §2.1a |
 | `outboundShippingCost` | Decimal(12,2)? | **feature 00078 (ออกแบบแล้ว · M6)** — ต้นทุนค่าส่ง "ขาไป" ของพัสดุที่ร้านส่งเอง · NULL = ยังไม่ระบุ (นับ pending) ≠ 0 = ไม่มีค่าใช้จ่ายจริง · CHECK `>= 0` · 🛑 ต้นทุนของร้าน ซ่อนจากระดับเงิน `NONE` และห้ามส่งหน้า guest `/o/{token}` · ชื่อต่างจาก `OrderReturn.shippingCost` (ขากลับ 00056) โดยเจตนา · ดู §6.72 |
 
 #### Review (`prisma/schema.prisma:209`)
@@ -1634,7 +1660,7 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 | ตาราง | คอลัมน์/คีย์หลัก | กติกา |
 |---|---|---|
-| `AutoNotifyConfig` (1 ร้าน 1 แถว) | `shopId` UNIQUE (CASCADE) · `dailyCapPerRoom` int default 5 · `updatedByUserId` (SetNull) | CHECK `AutoNotifyConfig_dailyCap_range` `BETWEEN 1 AND 20` · **ไม่มีแถว = 5** (อ่านด้วย `?? 5` จุดเดียวใน `src/lib`) |
+| `AutoNotifyConfig` (1 ร้าน 1 แถว) | `shopId` UNIQUE (CASCADE) · `dailyCapPerRoom` int default 5 · `updatedByUserId` (SetNull) | CHECK `AutoNotifyConfig_dailyCap_range` `BETWEEN 1 AND 20` · **ไม่มีแถว = 5** (อ่านด้วย `?? 5` จุดเดียวใน `src/lib`) · **feature 00080 (ออกแบบแล้ว):** +`trackingNoticeTiming` `text NOT NULL default 'ON_SAVE'` + CHECK ∈ {`ON_SAVE`,`ON_DISPATCH`} · ไม่มีแถว = `ON_SAVE` · มีผลกับส่งเองเท่านั้น (§8.16) |
 | `AutoNotifySwitch` | UNIQUE `(shopId, kind)` · `kind` · `enabled` default false · `enabledAt` timestamptz(3)? · `updatedByUserId` (SetNull) | CHECK `AutoNotifySwitch_kind_check` (5 ค่า §8.15) · CHECK `AutoNotifySwitch_enabled_has_enabledAt` (`NOT enabled OR enabledAt IS NOT NULL`) · **ไม่มีแถว = ปิด** (ค่าตั้งต้นทุกร้านรวมร้านเดิม) · `enabledAt` ตั้งใหม่เฉพาะตอน ปิด→เปิด และคงไว้ตอนปิด (ไว้ตอบ "เคยเปิดไหม" ให้ Swal ครั้งแรก) · upsert ใน SQL เดียว (`ON CONFLICT … CASE WHEN enabled …`) · **ตัวส่งต้องอ่านสวิตช์ซ้ำตอนส่งจริง** |
 | `AutoNotifyTemplate` | UNIQUE `(shopId, kind)` · `kind` · `body` text · `updatedByUserId` (SetNull) · `updatedAt` = ตัวกันแก้ชน | CHECK `AutoNotifyTemplate_kind_check` · CHECK `AutoNotifyTemplate_body_len` `char_length(body) BETWEEN 1 AND 500 AND btrim(body, E' \t\r\n') <> ''` · **แถวมี = ร้านแก้แล้ว / ไม่มีแถว = ค่าตั้งต้น** · "คืนค่าตั้งต้น" = DELETE แถว · กันแก้ชน `UPDATE … WHERE updatedAt = expected` · DB ไม่รู้จักชุดตัวแปร (บังคับที่ Valibot) · ไม่เก็บประวัติแก้ |
 
@@ -1789,7 +1815,10 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) · **00073:** งานร้านบริการที่ปิดแบบไม่มาตามนัด → 409 (`SERVICE_JOB_NO_SHOW_CONFIRM` — ทั้งเว็บและ `/api/app/orders/[id]/confirm`) | `order.service` |
 | POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session · **00073:** งานร้านบริการที่ปิดแล้ว → 409 (`SERVICE_JOB_CLOSED_LOCKED`) · ร้านบริการไม่รับเหตุผล `BUYER_NO_SHOW` แล้ว (ไม่มาตามนัด = ปิดงาน) | `order.service` |
-| POST | `/api/orders/[token]/ship` | Seller-owner | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) | `order.service` |
+| POST | `/api/orders/[token]/ship` | Seller **S1** | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) · **00080 (ออกแบบแล้ว):** ไม่เปลี่ยน `status` (คง PENDING = ขั้น "รอจัดส่ง") · ดู §7.30 | `order.service` |
+| PATCH | `/api/orders/[token]/ship` | Seller **S1** | แก้เลข/ขนส่ง/ต้นทุนส่งเอง · **00080:** รับ PENDING หรือ SHIPPED (เดิม SHIPPED อย่างเดียว) · ปฏิเสธเมื่อมี live iShip | `order.service` |
+| POST | `/api/orders/[token]/dispatch` | Seller **S1** | **feature 00080** — "จัดส่งแล้ว" PENDING→SHIPPED (ส่งเอง) · ดู §7.30 | `order.service` |
+| POST | `/api/orders/[token]/delivered` | Seller **S1** | **feature 00080** — "ส่งสำเร็จ" SHIPPED→CONFIRMED (ส่งเอง) · ดู §7.30 | `order.service` |
 | GET | `/api/orders/[token]/close` | Seller **O4** | **feature 00073** — สถานะเงินของงานสำหรับชีตปิดงาน (บอร์ดคิว/แชทไม่ถือยอดไว้) · คืน `{ money }` เฉพาะผู้มี O5 · ผู้อื่นได้ `{ money: null }` · `?shopId=` optional | `order-payment.service` |
 | POST | `/api/orders/[token]/close` | Seller **O4** (+O5 เมื่อส่ง `payment` · +O6 เมื่อ `deposit=REFUND`) | **feature 00073** — ร้านบริการ "ปิดงาน" กดครั้งเดียว: body `CloseServiceJobSchema` `{ outcome: SERVED\|NO_SHOW, payment?: {amount, method, slipFileId?, note?} \| null, deposit?: KEEP\|REFUND }` → ตั้ง `serviceClosedAt` + `appointmentStatus` + บันทึกเงิน BALANCE + (คืนมัดจำ = void) + event `SERVICE_CLOSED` ในทรานแซกชันเดียว · 409 `SERVICE_JOB_ALREADY_CLOSED`/`NOT_CLOSABLE` · 400 `NO_SHOW_WITHOUT_APPOINTMENT` · 409 `APPOINTMENT_NOT_STARTED` · ร้านอื่น 403 `FEATURE_NOT_AVAILABLE` | `service-job.service` |
 | DELETE | `/api/orders/[token]/close` | Seller **O6** | **feature 00073** — เปิดงานอีกครั้ง (ก่อนลูกค้ายืนยัน) · ล้าง `serviceClosedAt` · event `SERVICE_REOPENED` · ไม่ย้อน void มัดจำอัตโนมัติ · 409 `SERVICE_JOB_NOT_REOPENABLE` | `service-job.service` |
@@ -2515,7 +2544,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
 | GET | `/api/shops/current/auto-notify` | **H1** | snapshot หน้าตั้งค่า: `vertical`, `kinds[]` (เฉพาะ kind ที่ vertical นี้ใช้ได้ — `kindsForVertical`) แต่ละตัว `{kind, enabled, enabledAt, updatedBy, template:{body\|null, defaultBody, isCustom, updatedAt, updatedBy}}`, `dailyCapPerRoom`, `canEdit` (= `can(roles,'X8')`), `variables` |
-| PATCH | `/api/shops/current/auto-notify/settings` | **X8** | ตั้งเพดานต่อห้องต่อวัน body `{dailyCapPerRoom: int 1..20}` |
+| PATCH | `/api/shops/current/auto-notify/settings` | **X8** | ตั้งเพดานต่อห้องต่อวัน body `{dailyCapPerRoom: int 1..20}` · **00080 (ออกแบบแล้ว):** เพิ่ม `trackingNoticeTiming?: 'ON_SAVE'\|'ON_DISPATCH'` (ทั้งสองคีย์ optional, ต้องมีอย่างน้อย 1) → `{dailyCapPerRoom, trackingNoticeTiming}` · สิทธิ์เดิม X8 |
 | PUT | `/api/shops/current/auto-notify/switches/[kind]` | **X8** | เปิด/ปิดจังหวะ body `{enabled}` → `{kind, enabled, enabledAt, firstEnable}` · ปิดไม่แตะ `enabledAt` · Swal ยืนยันครั้งแรกเป็น UX ไม่ใช่กฎ server (A-12) · 409 `KIND_NOT_AVAILABLE` |
 | PUT | `/api/shops/current/auto-notify/templates/[kind]` | **X8** | บันทึกเทมเพลต body `{body, expectedUpdatedAt\|null}` · 400 `VALIDATION_ERROR` + `issues[]` (`UNKNOWN_VARIABLE` `WRONG_KIND_VARIABLE` `BLANK` `TOO_LONG`) · **409 `TEMPLATE_CONFLICT`** `{currentUpdatedAt}` · 409 `KIND_NOT_AVAILABLE` |
 | DELETE | `/api/shops/current/auto-notify/templates/[kind]?expectedUpdatedAt=` | **X8** | คืนค่าตั้งต้น (ลบแถว) → 204 (ไม่มีแถว = 204) · `updatedAt` ไม่ตรง = 409 `TEMPLATE_CONFLICT` |
@@ -2551,6 +2580,19 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 - error: 400 query ผิด · 401 · 403 (ไม่ถือ F1) · 404 (ไม่ใช่ร้านบริการ)
 
 **`GET /api/seller/service-report/day`** — `date=YYYY-MM-DD` (วันไทย · ต้องมีจริง เช่น `2026-02-31` → 400) → 200 `{ bills: [{ token, orderNo, buyerName, amount, closed }] }` — ปิดงานแล้วก่อน แล้วยังไม่ปิดงาน · ไม่คืนเบอร์/ข้อมูลติดต่อ
+
+### 7.30 ขั้นตอนจัดส่งแบบส่งเอง (`/api/orders/[token]/{ship,dispatch,delivered}`) — feature 00080
+
+> สถานะ: **สัญญาออกแบบแล้ว 2026-10-18 · ยังไม่ implement** (เขียนจาก SDS/API ของ 00080 + โค้ด `ship/route.ts` ปัจจุบัน) · สัญญาละเอียด = `docs/20 - Features/00080 - Manual Shipment Dispatch Steps/API.md` · ทุก route: session → `sessionUserId` → `canAccessShopWith(order.shopId, userId, 'S1')` · error body `{ error: string }` แบบ `/ship` เดิม · 401 / 403 / 404 `Order not found` · 409 ข้อความไทยเมื่อขั้นไม่ถูก (ไม่ใช่ 500) · ลง `src/lib/route-capabilities.ts` `{ POST: 'S1' }` ใน commit เดียวกับ route
+
+| Method | Path | Cap | Purpose |
+|---|---|---|---|
+| POST | `/api/orders/[token]/ship` | **S1** | บันทึกเลขส่งเอง → 200 แถว Order ที่ **`status` ยัง `PENDING`** (ขั้น "รอจัดส่ง") · จอง notice TRACKING เฉพาะ timing `ON_SAVE` |
+| PATCH | `/api/orders/[token]/ship` | **S1** | แก้เลข/ขนส่ง/ต้นทุน — รับ `PENDING` หรือ `SHIPPED` · ไม่แตะ `status` · 404 ไม่มีแถว tracking · 409 มี live iShip / สถานะอื่น |
+| POST | `/api/orders/[token]/dispatch` | **S1** | "จัดส่งแล้ว" → 200 `{changed, order}` · `changed:false` = เป็น SHIPPED อยู่แล้ว (กดซ้ำ) · 409 ไม่ใช่ส่งเอง/ไม่ใช่ PENDING-SHIPPED · เขียน `dispatchedAt` + `OrderEvent MANUAL_DISPATCHED` · timing `ON_DISPATCH` ส่งเลขปัจจุบัน |
+| POST | `/api/orders/[token]/delivered` | **S1** | "ส่งสำเร็จ" → 200 `{changed, alreadyClosed?, order}` · `alreadyClosed:true` = CONFIRMED อยู่แล้ว (ลูกค้า/ร้านปิดไปก่อน) · 409 PENDING / CANCELLED / iShip / ร้านบริการ · เขียน `OrderEvent SELLER_DELIVERED` + `runPostConfirmEffects` ครั้งเดียว |
+
+body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settings` เพิ่ม `trackingNoticeTiming` (ดู §7.29) · `GET …/auto-notify` และ `GET /api/seller/iship/order-context` ตอบค่า/ขั้น/ปุ่มที่กดได้เพิ่ม
 
 ---
 
@@ -2670,6 +2712,11 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 | `SERVICE_REOPENED` | **feature 00073** — เปิดงานอีกครั้ง (O6 · ก่อนลูกค้ายืนยัน) |
 | `SERVICE_STARTED` | **feature 00078 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านบริการกด "เริ่มงาน" · `actorUserId` = ผู้กด · `meta` = `{}` |
 | `AUTO_NOTICE_SENT` / `AUTO_NOTICE_FAILED` | **feature 00078 (ออกแบบแล้ว · ยังไม่ implement)** — ภาพบนไทม์ไลน์ของผลส่งอัตโนมัติ · SSOT ของผลส่งคือ `AutoNotifyLedger` (ไม่ใช่ event) · `meta` ห้ามมี PII/เนื้อข้อความ |
+
+| `MANUAL_DISPATCHED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "จัดส่งแล้ว" (ส่งเอง) · `actorUserId` = ผู้กด |
+| `SELLER_DELIVERED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "ส่งสำเร็จ" ปิดงาน · แยกจาก `BUYER_CONFIRMED`/`SYSTEM_CONFIRMED` (BR-MS-21) · `actorUserId` = ผู้กด |
+
+> 00080 เพิ่มอีก 2 ค่า (CHECK ขยายแบบ additive อ่านนิยามเดิมจาก `pg_get_constraintdef` แล้วต่อท้าย — ห้าม hardcode ทับ) · ต้องแก้ `ORDER_EVENT_TYPES` + `ORDER_EVENT_META` (tsc บังคับ) + หัวข้อจำนวนค่าพร้อมกัน
 
 > เมื่อ 00078 implement ครบ ชุดนี้เป็น **30 ค่า** (27 + 3) — ต้องแก้ `ORDER_EVENT_TYPES` + `ORDER_EVENT_META` (tsc บังคับ) + หัวข้อ "27 ค่า" ที่นี่และใน §6.2 OrderEvent พร้อมกัน
 
@@ -3029,7 +3076,17 @@ HTTP ตามตาราง §7.21
 | `OrderEvent.type` | +3 ค่า: ดู §8.1b |
 | env | `FB_CHAT_APP_ID` (ไม่ใช่ `META_APP_ID`) — ดู §5.3 |
 | เพดานต่อห้องต่อวัน | ค่าตั้งต้น **5** · ช่วงที่ตั้งได้ **1..20** · นับ `status IN ('INTENT','SENT')` ตั้งแต่เที่ยงคืนเวลา Asia/Bangkok |
+| `trackingNoticeTiming` (00080) | `ON_SAVE` (ค่าตั้งต้น · แจ้งตอนบันทึกเลข) · `ON_DISPATCH` (แจ้งตอนกด "จัดส่งแล้ว") — ดู §8.16 |
 | เทมเพลต | **1..500 code point** · ตัวแปรเป็น allow-list ต่อ kind (ตาราง PRD §3.4 ของ 00078): `ORDER_SUMMARY` = `{คำเรียกรายการ}` `{รายการสินค้า}` `{ยอดสุทธิ}` `{ลิงก์คำสั่งซื้อ}` ฯลฯ · `TRACKING` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{เลขคำสั่งซื้อ}` `{ขนส่ง}` `{เลขพัสดุ}` `{ลิงก์ติดตามพัสดุ}` `{ลิงก์คำสั่งซื้อ}` · `SERVICE_*` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{บริการ}` `{วันเวลานัด}` `{เวลาเริ่มงาน}`/`{เวลาปิดงาน}` (ตาม kind) `{ลิงก์งาน}` (ชื่อเดียวทั้ง 3 จังหวะบริการ) · ห้ามตัวแปร `internalNote` / ที่อยู่ / เบอร์ลูกค้า / ยอดที่ชำระแล้ว-ค้างชำระ (OOS-14) |
+
+### 8.16 ขั้นตอนจัดส่งแบบส่งเอง (feature 00080 — ออกแบบแล้ว ยังไม่ implement · SSOT ฝั่งโค้ดเมื่อเสร็จ: `src/lib/order-stage.ts` + `src/lib/manual-shipment.ts`)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `ShippingStageKey` (เพิ่ม) | **`AWAITING_DISPATCH`** — ป้าย **"รอจัดส่ง"** · คำนวณ = `PENDING` + มีแถว `ShipmentTracking` + ไม่มี live iShip · ไม่ใช่ค่าที่เก็บใน `Order.status` · ต้องเติมทุก `Record<ShippingStageKey,…>` (tsc บังคับ) และ `STAGE_BADGE_OVERRIDE` · `OrderStageKey` (stage chip แชท) เพิ่มค่าเดียวกัน |
+| `trackingNoticeTiming` | `ON_SAVE` (ตอนบันทึกเลขพัสดุ · ค่าตั้งต้น) · `ON_DISPATCH` (ตอนกดจัดส่งแล้ว) · เก็บที่ `AutoNotifyConfig.trackingNoticeTiming` · ใช้กับส่งเองเท่านั้น (iShip ไม่อ่าน) |
+| `OrderEvent.type` | +`MANUAL_DISPATCHED` · +`SELLER_DELIVERED` — ดู §8.1b |
+| `Order.status` | **ไม่เพิ่มค่า** (TD-001) |
 
 ---
 
@@ -3240,6 +3297,8 @@ HTTP ตามตาราง §7.21
 | เริ่มงาน `POST /api/orders/[token]/start` | `O4` (+ `?shopId=`) | ตาม O4 ของ 00071 (ช่างเรียกได้) | route |
 | กรอก/แก้ต้นทุนส่งเอง (`/ship`, `/shipping-cost`) | `S1` | ตาม S1 · ต้นทุนอยู่ใน `order-view-by-level` — ซ่อนจากระดับเงิน `NONE` · ไม่ส่งหน้า guest | route |
 | ตัวส่งอัตโนมัติ (ไม่มี user) | — | `system.shopId` ต้อง = `conversation.shopId` (กันข้ามร้าน) | service |
+| **00080 (ออกแบบแล้ว)** บันทึก/แก้เลขส่งเอง `POST|PATCH …/ship` · "จัดส่งแล้ว" `POST …/dispatch` · "ส่งสำเร็จ" `POST …/delivered` | `S1` | ตาม S1 · `canAccessShopWith(order.shopId, userId, 'S1')` ที่ route + ออเดอร์ต้องเป็นของร้านที่ service · `dispatch`/`delivered` ลง `route-capabilities.ts` `{ POST: 'S1' }` | route + service |
+| **00080** ตั้งจังหวะแจ้งเลขพัสดุ `PATCH …/auto-notify/settings` (`trackingNoticeTiming`) | `X8` | `[OWNER, MANAGER]` เหมือนเพดาน (ตรวจแล้ว `route-capabilities.ts` `settings: { PATCH: 'X8' }`) — 403 ที่ server | route |
 
 - ทะเบียน `route-capabilities.ts`: `auto-notify/route.ts` `{GET:'H1'}` · `settings` `{PATCH:'X8'}` · `switches/[kind]` `{PUT:'X8'}` · `templates/[kind]` `{PUT:'X8', DELETE:'X8'}` · `strip-context` `{GET:'O1'}` · `orders/[token]/start` `{POST:'O4'}` · `orders/[token]/shipping-cost` `{PATCH:'S1'}` · หน้า `settings/auto-notify/page.tsx` `{page:'H1'}` · ต้องมีเทสสิทธิ์ทุกคู่ (บทบาท × cap) เป็นไฟล์ใหม่
 - หน้า/คอมโพเนนต์ที่ไม่ถือ X8 ต้องไม่แสดงปุ่มแก้ (ซ่อนหรือ disabled ตาม `canEdit`) — แต่ด่านจริงอยู่ที่ route/service ไม่ใช่ UI
@@ -3698,6 +3757,15 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | ledger `valueKey` | 1..120 ตัวอักษร · เลขพัสดุ normalize = trim + ตัวพิมพ์ใหญ่ (`normalizeTrackingKey`) |
 | กติกาเวลา "ย้อนหลัง" | ออเดอร์ที่ `createdAt` กับเวลาบันทึกจริง (`keyedInAt`) **ต่างวันปฏิทินไทย** = ไม่ส่งอัตโนมัติ (D-13 · นิยามเดียวกับ `OrderCreateForm.tsx:950`) — ไม่ใช่เทียบต่างกัน ms เพราะฟอร์มสร้างออเดอร์ส่ง `createdAt` เสมอ |
 
+### §10.21 ขั้นตอนจัดส่งแบบส่งเอง (feature 00080 — ออกแบบแล้ว ยังไม่ implement)
+
+| Schema / กฎ | กติกา |
+|---|---|
+| `trackingNoticeTiming` | `v.picklist(['ON_SAVE','ON_DISPATCH'])` · ค่านอกชุด = 400 `VALIDATION_ERROR` · DB CHECK อีกชั้น · body ของ `PATCH …/auto-notify/settings` = `{ dailyCapPerRoom?, trackingNoticeTiming? }` ต้องมีอย่างน้อย 1 คีย์ (คีย์ที่ไม่ส่ง = ไม่แตะ) |
+| `ShipOrderSchema` | ไม่เปลี่ยน (`provider`/`trackingNo` ≥ 1 ตัวอักษร · `outboundShippingCost` optional) |
+| `POST …/dispatch`, `POST …/delivered` | ไม่มี body · ขั้น/สิทธิ์ตัดสินที่ server ด้วย conditional `updateMany` (เงื่อนไขขั้นอยู่ใน WHERE) ไม่เชื่อสถานะจาก client |
+| ขั้นที่กดได้ | `canMarkDispatched = ส่งเอง && status = PENDING` · `canMarkDelivered = ส่งเอง && status = SHIPPED` (ส่งเอง = มีแถว tracking && ไม่มี live iShip && `fulfillmentMode = SHIPPED`) |
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -3705,6 +3773,8 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-10-18 (HR11): sync **การออกแบบ** ของ feature 00080 ขั้นตอนจัดส่งแบบส่งเอง (ยังไม่ implement — เขียนจาก SDS/API 00080 + โค้ด `ship/route.ts` ปัจจุบัน) — §2.1a (state) · §6.2 ShipmentTracking.dispatchedAt + OrderEvent · §6.72 AutoNotifyConfig.trackingNoticeTiming · §7.29/§7.30 (API) · §8.1b + §8.16 (enum) · §9 (S1/X8) · §10.21 (validation). ตรวจกับ `prisma/schema.prisma` + โค้ดจริงเมื่อ dev เสร็จ แล้วลบคำว่า "ยังไม่ implement"._
 
 _อัปเดต 2026-10-17 (HR11, Documentation-First): sync **การออกแบบที่อนุมัติแล้ว** ของ feature 00078 (ยังไม่ implement — เขียนจากเอกสาร 00078 ไม่ใช่จากโค้ด) —
 §3.4 (route `/settings/auto-notify` + กลุ่มเมนู 7 กลุ่ม) · §5.3 (env `FB_CHAT_APP_ID`) · §6.2 (Order.serviceStartedAt · ShipmentTracking.outboundShippingCost · OrderEvent +3) · §6.72 (M1–M6) ·
