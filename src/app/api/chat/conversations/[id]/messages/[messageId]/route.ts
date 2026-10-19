@@ -125,6 +125,9 @@ export async function POST(
       // ข้อความที่ยังไม่ถึง Meta (ส่งไม่สำเร็จ) ไม่มี mid ให้ผูกรีแอ็กชัน
       return NextResponse.json({ error: "ข้อความนี้ยังส่งไม่ถึงลูกค้า กดรีแอ็กชันไม่ได้" }, { status: 409 });
     }
+    if (msg === "REACTION_WINDOW_CLOSED") {
+      return NextResponse.json({ error: "รีแอ็กชันกดได้เฉพาะภายใน 24 ชม. หลังลูกค้าทักล่าสุด" }, { status: 409 });
+    }
     if (e instanceof GraphApiError) {
       // Meta ปฏิเสธ — ส่งเหตุผลจริงต่อให้ร้านเห็น (pattern เดียวกับการส่งข้อความ)
       return NextResponse.json({ error: `Facebook ปฏิเสธรีแอ็กชัน: ${(e as GraphApiError).message}` }, { status: 502 });
