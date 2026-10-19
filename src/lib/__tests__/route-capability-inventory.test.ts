@@ -28,7 +28,7 @@ const GUARDS = [
   // T2: route ส่ง cap literal ให้ service ที่ตรวจ canAccessShopWith กับร้านเจ้าของแถวเอง (review T2 ยืนยันทั้ง 12 ตัว)
   'replyToComment', 'sendPrivateReplyToCommentById', 'commentOnPost', 'getPostComments', 'setCommentResolved',
   'getThreadMessagesPage', 'markRead', 'sendOutboundReaction', 'cancelFailedOutboundMessage',
-  'claimConversationControl', 'notifyTyping', 'saveIceBreakers',
+  'claimConversationControl', 'releaseConversationControl', 'notifyTyping', 'saveIceBreakers',
 ]
 // ด่านระดับ "บัญชี" (ไม่ผูกร้านที่ active) — ใช้ได้เฉพาะรายการคลาส SELF ที่ทะเบียนประกาศ `account` (รายงานกลุ่ม LINE · มติ 00070)
 // ไม่ใช่ GUARDS: ไม่รับ cap ร้าน จึงห้ามถูกนับเป็นด่านของรายการแบบ cap (กันใช้แทนด่านร้านโดยเงียบ)

@@ -1308,6 +1308,11 @@ export async function claimThreadControl(
   } catch (takeErr) {
     const takeError = takeErr instanceof Error ? takeErr.message : String(takeErr)
 
+    // `(#27) Application calling take thread control has control of the thread.` = เราถือห้องอยู่แล้ว
+    // (prod 2026-10-18 เพจที่ตั้ง Deep เป็น Default routing app) — เดิมตกไป request แล้วกลายเป็น FAILED
+    // ผู้ขายจึงเห็นแถบแดงทั้งที่ส่งได้จริง
+    if (/has control of the thread/i.test(takeError)) return { outcome: 'TAKEN', raw: { alreadyOwner: true } }
+
     // token ตาย = ทั้งสองทางตายเหมือนกัน ยิงซ้ำไม่มีประโยชน์ และ error ตัวที่สองจะกลบตัวแรก
     // ทำให้ผู้ขายถูกชี้ไปหน้าที่แก้ไม่ตรงปัญหา (ไป Business Suite ทั้งที่ต้องไปเชื่อมเพจใหม่)
     if (takeErr instanceof GraphApiError && classifyThreadControlError(takeErr) === 'TOKEN_INVALID') {
@@ -1330,6 +1335,52 @@ export async function claimThreadControl(
       return { outcome: 'FAILED', reason, message, takeError }
     }
   }
+}
+
+/**
+ * แอปของ Meta ที่ถือห้องแทนร้าน — อ่านจาก webhook จริง (prod 2026-10-18)
+ * - Business AI: `take_thread_control` metadata `axon_take_thread_control` มาจากแอปนี้
+ * - Page Inbox: ตัว echo ข้อความของ AI และคนที่ตอบใน Business Suite
+ */
+export const META_BUSINESS_AI_APP_ID = '928891643393937'
+export const META_PAGE_INBOX_APP_ID = '263902037430900'
+
+export type ThreadReleaseOutcome =
+  | { outcome: 'RELEASED'; targetAppId: string; raw: unknown }
+  | { outcome: 'FAILED'; message: string; tried: string[] }
+
+/**
+ * คืนห้องให้ Meta AI — `pass_thread_control` ไปที่ Business AI ก่อน ไม่ผ่านค่อยส่งให้ Page Inbox
+ *
+ * ไม่ใช้ `release_thread_control` เพราะมันคืนห้องให้ Default routing app ซึ่งคือ Deep เอง
+ * (เพจที่ตั้งค่าแล้ว) ⇒ ห้องไม่ไปไหน
+ * shortcut: ยังไม่รู้ว่า Meta AI รับห้องผ่าน app ไหนแน่ — ลองสองตัวแล้วเก็บผลลง ChatHandoverEvent
+ * เมื่อรู้แล้วตัดตัวที่ไม่ใช่ออก
+ *
+ * ไม่ throw — ผู้เรียกคือปุ่มบนหน้าจอ
+ */
+export async function passThreadControlToMetaAi(
+  pageToken: string,
+  recipientId: string,
+  metadata = 'deep-seller-release',
+): Promise<ThreadReleaseOutcome> {
+  const tried: string[] = []
+  let message = ''
+  for (const target of [META_BUSINESS_AI_APP_ID, META_PAGE_INBOX_APP_ID]) {
+    try {
+      const raw = await graphFetch('/me/pass_thread_control', pageToken, {
+        method: 'POST',
+        body: { recipient: { id: recipientId }, target_app_id: target, metadata },
+      })
+      return { outcome: 'RELEASED', targetAppId: target, raw }
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err)
+      tried.push(`${target}: ${message}`)
+      // token ตาย = ยิงตัวถัดไปก็ตายเหมือนกัน
+      if (err instanceof GraphApiError && classifyThreadControlError(err) === 'TOKEN_INVALID') break
+    }
+  }
+  return { outcome: 'FAILED', message, tried }
 }
 
 /**

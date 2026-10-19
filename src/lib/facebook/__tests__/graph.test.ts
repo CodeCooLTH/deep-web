@@ -7,7 +7,8 @@ import {
   fetchThreadMessagesPage,
   getContactProfile,
   GraphApiError,
-  claimThreadControl
+  claimThreadControl,
+  passThreadControlToMetaAi
 } from '@/lib/facebook/graph'
 
 const okJson = (data: unknown) =>
@@ -396,6 +397,15 @@ describe('claimThreadControl', () => {
     error: { message: '(#27) Calling take_thread_control is not supported when Conversation Routing is not enabled', code: 27 },
   })
 
+  it('[blocker] take ตอบ #27 "has control of the thread" (เราถือห้องอยู่แล้ว) → TAKEN ไม่ยิง request (prod 2026-10-18)', async () => {
+    mockFetch().mockReturnValueOnce(
+      failJson({ error: { message: '(#27) Application calling take thread control has control of the thread.', code: 27 } }),
+    )
+    const r = await claimThreadControl('tok', 'PSID1')
+    expect(r.outcome).toBe('TAKEN')
+    expect(mockFetch()).toHaveBeenCalledTimes(1)
+  })
+
   it('[blocker] take ผ่าน → TAKEN และไม่ยิง request ตามอีก', async () => {
     mockFetch().mockReturnValueOnce(okJson({ success: true }))
     const r = await claimThreadControl('tok', 'PSID1')
@@ -439,5 +449,36 @@ describe('claimThreadControl', () => {
     await claimThreadControl('tok', 'PSID-XYZ')
     const body = JSON.parse(mockFetch().mock.calls[0][1].body as string)
     expect(body.recipient).toEqual({ id: 'PSID-XYZ' })
+  })
+})
+
+describe('passThreadControlToMetaAi', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.unstubAllGlobals())
+  const mockFetch = () => fetch as unknown as ReturnType<typeof vi.fn>
+  const bodyOf = (i: number) => JSON.parse(mockFetch().mock.calls[i][1].body as string)
+
+  it('ส่งให้ Business AI ผ่าน → RELEASED ไม่ยิงตัวที่สอง', async () => {
+    mockFetch().mockReturnValueOnce(okJson({ success: true }))
+    const r = await passThreadControlToMetaAi('tok', 'PSID1')
+    expect(r).toMatchObject({ outcome: 'RELEASED', targetAppId: '928891643393937' })
+    expect(mockFetch()).toHaveBeenCalledTimes(1)
+    expect(mockFetch().mock.calls[0][0]).toContain('/me/pass_thread_control')
+    expect(bodyOf(0)).toMatchObject({ recipient: { id: 'PSID1' }, target_app_id: '928891643393937' })
+  })
+
+  it('Business AI ไม่รับ → ลอง Page Inbox', async () => {
+    mockFetch()
+      .mockReturnValueOnce(failJson({ error: { message: '(#100) invalid target', code: 100 } }))
+      .mockReturnValueOnce(okJson({ success: true }))
+    const r = await passThreadControlToMetaAi('tok', 'PSID1')
+    expect(r).toMatchObject({ outcome: 'RELEASED', targetAppId: '263902037430900' })
+  })
+
+  it('token ตาย → FAILED ทันที ไม่ยิงตัวที่สอง', async () => {
+    mockFetch().mockReturnValueOnce(failJson({ error: { message: 'Error validating access token', code: 190 } }))
+    const r = await passThreadControlToMetaAi('tok', 'PSID1')
+    expect(r.outcome).toBe('FAILED')
+    expect(mockFetch()).toHaveBeenCalledTimes(1)
   })
 })

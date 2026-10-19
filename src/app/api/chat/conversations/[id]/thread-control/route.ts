@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
-import { claimConversationControl } from "@/services/channel-chat.service";
+import { claimConversationControl, releaseConversationControl } from "@/services/channel-chat.service";
 import { ForbiddenRoleError } from "@/lib/shop-capability";
 import { forbiddenRoleResponse } from "@/lib/forbidden-role";
 
@@ -19,9 +19,19 @@ import { forbiddenRoleResponse } from "@/lib/forbidden-role";
  * 🛑 คืน `outcome` สามค่า ไม่ใช่ ok:boolean — `REQUESTED` แปลว่า "ส่งคำขอไปแล้ว ยังไม่รู้ผล"
  * ซึ่งไม่ใช่ทั้งสำเร็จและล้มเหลว หน้าจอต้องพูดคนละอย่างกับอีกสองค่า (ดู claimThreadControl)
  */
-export async function POST(
-  request: NextRequest,
+export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return handle(ctx, "POST", (id, userId) => claimConversationControl({ conversationId: id, actorUserId: userId, cap: "X2" }));
+}
+
+/** DELETE = คืนห้องให้ Meta AI ตอบต่อ (pass_thread_control) — ด่านเดียวกับ POST */
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return handle(ctx, "DELETE", (id, userId) => releaseConversationControl({ conversationId: id, actorUserId: userId, cap: "X2" }));
+}
+
+async function handle(
   { params }: { params: Promise<{ id: string }> },
+  method: string,
+  run: (id: string, userId: string) => Promise<unknown>,
 ) {
   const session = await getServerSession(authOptions);
   // "มี session" ≠ "รู้ว่าเป็นใคร" — ดู src/lib/session-user.ts
@@ -32,8 +42,7 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const result = await claimConversationControl({ conversationId: id, actorUserId: userId, cap: "X2" });
-    return NextResponse.json(result);
+    return NextResponse.json(await run(id, userId));
   } catch (e: unknown) {
     if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const msg = e instanceof Error ? e.message : "";
@@ -53,7 +62,7 @@ export async function POST(
         { status: 409 },
       );
     }
-    console.error("[POST /api/chat/conversations/[id]/thread-control]", msg || e);
+    console.error(`[${method} /api/chat/conversations/[id]/thread-control]`, msg || e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }
