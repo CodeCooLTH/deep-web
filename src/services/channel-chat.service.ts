@@ -2815,6 +2815,10 @@ export async function sendOutboundReaction(params: {
     if (conversation.shopChannel!.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
     // ข้อความที่ยังไม่มี mid = ยังไม่ถึง Meta (ส่งไม่สำเร็จ/optimistic) — รีแอ็กชันไม่มีเป้าให้ผูก
     if (!message.externalMessageId) throw new Error('MESSAGE_NOT_ON_CHANNEL')
+    // นโยบาย Meta: reaction (sender action) ใช้ได้เฉพาะใน 24 ชม. แนบแท็กไม่ได้ — ไม่ยิงให้โดนปฏิเสธ
+    if ((conversation.channel === 'MESSENGER' || conversation.channel === 'INSTAGRAM') && !getWindowState(conversation.lastInboundAt).open) {
+      throw new Error('REACTION_WINDOW_CLOSED')
+    }
     const pageToken = decryptToken(conversation.shopChannel!.accessTokenEnc)
     await sendMessageReaction(
       pageToken,
@@ -3201,6 +3205,8 @@ export async function notifyTyping(params: {
     })
     if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') return false
     if (conversation.shopChannel.status !== 'ACTIVE') return false
+    // นโยบาย Meta: typing (sender action) ใช้ได้เฉพาะใน 24 ชม.
+    if (!getWindowState(conversation.lastInboundAt).open) return false
 
     const now = Date.now()
     const store = typingStore()
@@ -4040,6 +4046,8 @@ async function transmitMetaMessage(
   // การ throw WINDOW_CLOSED เมื่อ !sentByHuman ยังคงอยู่ตรงนี้เหมือนเดิมทุกประการ — shouldTagHumanAgent
   // แค่ตอบว่า "ติด tag ไหม" ไม่ได้ตัดสินว่า "throw ไหม" (คนละ concern — TFR-HA-02)
   if (!windowState.open && !sentByHuman) throw new Error('WINDOW_CLOSED')
+  // นโยบาย Meta: สติกเกอร์ใช้ได้เฉพาะใน 24 ชม. แนบ HUMAN_AGENT ไม่ได้ (ตรวจ 2026-10-19) ⇒ บล็อกก่อนยิง
+  if (params.sticker && !windowState.open) throw new Error('STICKER_WINDOW_CLOSED')
   const messageTag: 'HUMAN_AGENT' | undefined = shouldTagHumanAgent({
     windowOpen: windowState.open,
     sentByHuman,

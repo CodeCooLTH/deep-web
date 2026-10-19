@@ -1474,6 +1474,8 @@ export default function ChatThread({
     return () => clearInterval(timer)
   }, [isExternal, windowOpen, clockMs])
   const liveWindowOpen = windowOpen && liveRemaining > 0
+  // นโยบาย Meta: สติกเกอร์ส่งได้เฉพาะใน 24 ชม. (service บล็อกซ้ำ STICKER_WINDOW_CLOSED) — LINE ไม่มีหน้าต่างนี้
+  const stickerAllowed = canSendSticker && (channel === 'LINE' || liveWindowOpen)
   // tick หยาบ ๆ (ทุก 15 วิ) ให้เวลาข้อความล่าสุด "หายไปเอง" หลังส่งเกิน 1 นาที (user request 2026-07-23)
   const [, setMetaTick] = useState(0)
   useEffect(() => {
@@ -1943,7 +1945,7 @@ export default function ChatThread({
     // (CR 2026-08-23) `deliveryStatus !== 'QUEUED'` ด้วยเหตุผลเดียวกับ 'reply' ข้างบน — สติกเกอร์
     // ถูกส่งเป็น "ข้อความใหม่ที่ผูก reply_to" จึงต้องการ mid ของข้อความต้นทางเหมือนกันทุกประการ
     if (
-      canSendSticker &&
+      stickerAllowed &&
       !m.isDeleted &&
       !m._status &&
       !m.id.startsWith('local-') &&
@@ -3587,7 +3589,7 @@ export default function ChatThread({
             {emojiOpen && (
               <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
             )}
-            {canSendSticker && stickerOpen && (
+            {stickerAllowed && stickerOpen && (
               <EmojiPicker
                 mode="STICKER"
                 stickerProvider={stickerProvider}
@@ -3605,7 +3607,7 @@ export default function ChatThread({
           {/* ปุ่มสติกเกอร์แยกจากอิโมจิ (user สั่ง 2026-08-04) — เฉพาะ Messenger/Instagram/LINE (S-18b)
               เพราะ Graph ของแชทเราเอง (DEEP) ไม่มี sticker_id ให้ส่ง. relative ของตัวเอง = แผงยึดกับ
               ปุ่มนี้ ไม่ใช่ยึดกับแถวทั้งแถว (สาเหตุที่แผงเคย "เพี้ยน") */}
-          {canSendSticker && (
+          {stickerAllowed && (
             <button
               type="button"
               onClick={() => setStickerOpen((v) => !v)}
