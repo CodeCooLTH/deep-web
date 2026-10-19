@@ -16,6 +16,9 @@ import { resolveShopVertical } from '@/lib/lodging'
 import { prisma } from '@/lib/prisma'
 import { excludeDraftedWhere } from '@/lib/order-visibility'
 import { getOrdersByShop } from '@/services/order.service'
+import { canMarkDelivered } from '@/lib/manual-shipment'
+import { isCodUnpaidOrder } from '@/lib/order-display'
+import { hasLiveIshipShipment } from '@/lib/iship/live-shipment'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { deriveServiceWorkStage } from '@/lib/service-work-stage'
 import { derivePickupStage, isPickupOrder } from '@/lib/order-pickup'
@@ -388,6 +391,19 @@ export default async function OrdersPage({ searchParams }: PageProps) {
      * handedOverAt เป็น null เหมือนกัน ⇒ ถ้าไม่กั้นจะได้ pickupStage='AWAITING_HANDOVER' ปลอม
      * ติดไปกับทุกใบที่ไม่ใช่นัดรับเลย
      */
+    // ปุ่ม "ส่งสำเร็จ" หลายใบ — ตัวตัดสินกลางตัวเดียวกับหน้ารายละเอียด (o.shipments = ACTIVE_FORWARD_SHIPMENT แล้ว)
+    ...(isOnlineSales
+      ? {
+          manualDeliverable: canMarkDelivered({
+            status: o.status as string,
+            fulfillmentMode: o.fulfillmentMode as string,
+            hasManualTracking: !!o.shipmentTracking,
+            hasLiveIshipShipment: hasLiveIshipShipment(o.shipments?.[0]),
+          }),
+          // เรื่องเงิน — ผู้ดูระดับเงิน NONE (ช่าง) ไม่ได้คีย์นี้ เหมือน codReceivedAtISO
+          ...(showMoney ? { codUnpaid: isCodUnpaidOrder(o) } : {}),
+        }
+      : {}),
     fulfillmentMode: isOnlineSales ? (o.fulfillmentMode as string) : undefined,
     pickupStage:
       isOnlineSales && isPickupOrder(o.fulfillmentMode)

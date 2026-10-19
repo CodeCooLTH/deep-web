@@ -13,6 +13,7 @@
  *
  * 00080 ext (TD-013, user 2026-10-18) — [จัดส่งแล้ว] หลายใบ: ยิง route เดี่ยวตัวเดิมทีละใบ (สิทธิ์/idempotent/แจ้งเลข
  * อยู่ที่ service ที่เดียว) · ใบที่ไม่ใช่ "รอจัดส่ง" ข้ามและบอกจำนวนในคำถาม · ไม่มีเลิกทำแบบกลุ่ม (กดทีละใบในหน้าออเดอร์)
+ * [ส่งสำเร็จ] หลายใบ (user 2026-10-19) — แบบเดียวกัน ใช้ manualDeliverable (canMarkDelivered ที่ server)
  *
  * Base (button/badge/card primitive): docs/system/ui-guideline/paces-component-reference.md §1/§6/§7
  * Base (progress dialog shell): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
@@ -83,6 +84,7 @@ export default function BulkActionBar({
   const router = useRouter()
   /** null = ว่าง · ตัวเลข = ทำไปแล้วกี่ใบ (โชว์บนปุ่มระหว่างวน) */
   const [dispatchDone, setDispatchDone] = useState<number | null>(null)
+  const [deliveredDone, setDeliveredDone] = useState<number | null>(null)
 
   /**
    * พิมพ์ใบปะหน้าหลายใบ — เปิดแท็บใหม่ให้สั่งพิมพ์ได้ทันที
@@ -185,6 +187,49 @@ export default function BulkActionBar({
     router.refresh()
   }
 
+  // "ส่งสำเร็จ" — manualDeliverable มาจาก canMarkDelivered() ที่ server (ตัวเดียวกับหน้ารายละเอียด)
+  const deliveredRows = selectedRows.filter((r) => r.original.manualDeliverable === true)
+
+  /**
+   * [ส่งสำเร็จ] หลายใบ (user 2026-10-19) — ยิง route เดี่ยวตัวเดิมทีละใบ เหมือน handleBulkDispatch
+   * ย้อนกลับไม่ได้ + นับเป็นยอดขาย ⇒ ยืนยันก่อนเสมอ และบอกจำนวน COD ที่ยังไม่บันทึกรับเงินในคำถาม
+   * (ทีละใบใช้ deliveredConfirmCopy แบบเตือน — หลายใบรวมไว้ในคำถามเดียว)
+   */
+  const handleBulkDelivered = async () => {
+    if (deliveredDone !== null || deliveredRows.length === 0) return
+    const skipped = selectedCount - deliveredRows.length
+    const codUnpaid = deliveredRows.filter((r) => r.original.codUnpaid === true).length
+    const ok = await pacesConfirm.question(
+      `ยืนยันว่าส่งถึงลูกค้าแล้ว ${deliveredRows.length} ${orderWord}?`,
+      `${orderWord}ที่เลือกจะเป็น "สำเร็จ" และนับเป็นยอดขาย ย้อนกลับไม่ได้ · ประวัติจะบันทึกว่าร้านเป็นผู้ปิดงาน${
+        codUnpaid > 0
+          ? `\n\nมี ${codUnpaid} ${orderWord}เก็บเงินปลายทางที่ยังไม่บันทึกรับเงิน — กด "ได้รับเงินปลายทางแล้ว" ทีหลังเมื่อเงินเข้า`
+          : ''
+      }${skipped > 0 ? `\n\nข้าม ${skipped} ${orderWord}ที่ไม่ได้อยู่ในขั้นกำลังจัดส่ง (ส่งเอง)` : ''}`,
+      { confirmButtonText: `ส่งสำเร็จ (${deliveredRows.length})` },
+    )
+    if (!ok) return
+    let done = 0
+    let failed = 0
+    setDeliveredDone(0)
+    for (const row of deliveredRows) {
+      try {
+        const r = await postManualStep(row.original.publicToken, 'delivered')
+        if (r.kind === 'ok') done++
+        else failed++
+      } catch {
+        failed++
+      }
+      setDeliveredDone(done + failed)
+    }
+    setDeliveredDone(null)
+    if (failed === 0) pacesToast.success(`ปิดงานแล้ว ${done} ${orderWord}`)
+    else if (done === 0) pacesToast.error('บันทึกไม่สำเร็จ ลองกดอีกครั้ง ถ้ายังไม่ได้ให้รีเฟรชหน้า')
+    else pacesToast.warning(`ปิดงานแล้ว ${done}/${done + failed} ${orderWord} · ที่เหลือให้เปิดดูทีละใบ`)
+    onClear()
+    router.refresh()
+  }
+
   const handleCopy = async () => {
     const text = selectedRows.map((r) => `${buyerBaseUrl}/o/${r.original.shortCode || r.original.publicToken}`).join('\n')
     try {
@@ -278,6 +323,18 @@ export default function BulkActionBar({
               >
                 <Icon icon={dispatchDone !== null ? 'loader-2' : 'truck-delivery'} className={`size-4.5 ${dispatchDone !== null ? 'animate-spin' : ''}`} />
                 {dispatchDone !== null ? `กำลังบันทึก ${dispatchDone}/${dispatchRows.length}` : `จัดส่งแล้ว (${dispatchRows.length})`}
+              </button>
+            )}
+            {/* Base: ปุ่ม "จัดส่งแล้ว" ด้านบน (primitive ชุดเดียวกันทุกตัว) */}
+            {canShip && deliveredRows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleBulkDelivered()}
+                disabled={deliveredDone !== null}
+                className="btn text-white/80 hover:text-white hover:bg-white/10 rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Icon icon={deliveredDone !== null ? 'loader-2' : 'circle-check'} className={`size-4.5 ${deliveredDone !== null ? 'animate-spin' : ''}`} />
+                {deliveredDone !== null ? `กำลังบันทึก ${deliveredDone}/${deliveredRows.length}` : `ส่งสำเร็จ (${deliveredRows.length})`}
               </button>
             )}
             {ishipEnabled && canShip && (
