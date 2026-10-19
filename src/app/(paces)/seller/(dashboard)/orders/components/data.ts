@@ -64,6 +64,10 @@ export type OrderRow = {
    * ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่ จึงไม่มีตัวกรองนี้)
    */
   shippingStage?: ShippingStageKey
+  /** 00080 ext — กด "ส่งสำเร็จ" ได้ (canMarkDelivered ที่ server) · undefined = ร้านไม่ใช่ ONLINE_SALES */
+  manualDeliverable?: boolean
+  /** เก็บเงินปลายทางที่ยังไม่บันทึกรับเงิน (isCodUnpaidOrder) — ใช้เตือนตอนปิดงานหลายใบ */
+  codUnpaid?: boolean
   /**
    * พัสดุใบล่าสุดที่ยัง active — null = ยังไม่ได้เปิดพัสดุ (แถวจะไม่ขึ้นบรรทัดพัสดุเลย)
    * user สั่ง 2026-08-04: กดจากไทล์เข้ามาแล้วต้องเห็นเลขพัสดุชัด ๆ ว่าเจ้าไหน เปิดผ่านอะไร
