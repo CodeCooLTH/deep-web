@@ -36,6 +36,7 @@ import {
 import { recordOurSendAsMetaOwner } from '@/services/meta-owner-on-send'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
+import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { runAfterResponse } from '@/lib/run-after-response'
 import { chatCardPreview } from '@/lib/chat-vocab'
 import { pushChatSendFailed } from '@/services/seller-push.service'
@@ -362,6 +363,8 @@ export async function enqueueOutbound(params: SendOutboundParams): Promise<Outbo
    * ตัวกรอง "บอทเป็นผู้ส่ง" ไม่ได้อยู่ตรงนี้ แต่อยู่ใน `detectAutoOrderTrigger` เอง
    * (อ่าน `autoReplyKind` จากแถว) — ด่านต้องอยู่ที่จุดตัดสิน ไม่ใช่ไล่แปะทุกผู้เรียก
    */
+  // feature 00083 — ติดแท็กตามคำสำคัญ (ไม่ await · ก่อน 00061 ตาม SDS TD-004)
+  runAfterResponse(() => applyKeywordTags(row.id))
   runAfterResponse(() => detectAutoOrderTrigger(row.id))
   return row
 }
