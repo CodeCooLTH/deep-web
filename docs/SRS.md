@@ -398,6 +398,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 **ส่งอัตโนมัติถึงลูกค้า (feature 00078 — เอกสารอนุมัติแล้ว 2026-10-17 · ยังไม่ implement)** — หน้า **`/settings/auto-notify`** (ไฟล์ `(paces)/seller/(dashboard)/settings/auto-notify/page.tsx` · ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" ด้านล่างโดยเจตนา) · เมนู slug `seller:settings-auto-notify` · อ่านหน้า = **H1** (`gatePage`; TECHNICIAN/BILLING ไม่มี H1 → `NoPermissionCard`) · แก้ค่า = **X8** · 🛑 **กลุ่มเมนู sidebar ปรับเป็น 7 กลุ่ม** ตาม SDS TD-012: `seller-daily` · `seller-chat` (คงเดิม) · `seller-finance` · `seller-trust` · `seller-chat-settings` · `seller-setting` (คงเดิม) · `seller-team` — เลิก slug กลุ่ม `seller-analytics/manage/shops` และถอดกลุ่มว่างท้าย `resolveVisibleSellerMenu` (ชื่อรายการเมนูเดิม 3 หน้า "…อัตโนมัติ" และแถบล่างมือถือ `resolveMobileNav` ไม่เปลี่ยน — OOS-17) · ไม่มีหน้าใหม่อื่น (แถบแจ้งในห้องแชท/ฟอร์มสร้างออเดอร์เป็นคอมโพเนนต์ ไม่ใช่ route; `/orders/new` เต็มจอไม่ผูกห้อง — D-6) · ดู `docs/20 - Features/00078 - Chat Customer Signals & Auto Notify/{SRS,SDS}.md`
 
+**จัดการแท็ก (feature 00083 — เอกสารอนุมัติแล้ว 2026-10-21 · ยังไม่ implement)** — หน้า **`/settings/tags`** (`(paces)/seller/(dashboard)/settings/tags/page.tsx` — ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" เหมือน `/settings/auto-notify`) · เมนู "จัดการแท็ก" slug `seller:settings-tags` ในกลุ่ม CHAT ต่อจาก "ส่งอัตโนมัติถึงลูกค้า" · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · เปิดหน้า/เรียก API = **H3** (OWNER, MANAGER; CHAT เข้า URL ตรง = `NoPermissionCard`/403) · ดู `docs/20 - Features/00083 - Auto Tag By Keyword/{SRS,SDS}.md`
+
 **รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — สถานะ ณ 2026-10-05 (ตรวจจากโค้ด): เมนู sidebar (`seller:line-reports`) + **`page.tsx` ของ 3 หน้าแรกมีในโค้ดแล้ว** (`(paces)/seller/(dashboard)/business/line-reports/{page,new/page,[groupId]/page}.tsx`) · ~~🛑 หน้า `/template` (ส่วนต่อขยาย EXT) = กำลังสร้าง ยังไม่ commit~~ **sync 2026-10-15: `page.tsx` ของ `/template` มีในโค้ดแล้ว (ดูตารางด้านล่าง) — ยังไม่ได้ตรวจสถานะ commit/ผล QA บนจอจริง**
 
 | เมนู | Path | สถานะ |
@@ -590,6 +592,7 @@ ShopChannel (1) ─── (N) CommentReplyLog          [feature 00038 — onDele
 PageComment (1) ─── (0..1) CommentReplyLog       [feature 00038 — commentId, onDelete Cascade]
 ExternalContact (1) ─ (N) CustomerFile           [feature 00048 — onDelete Cascade]
 Conversation (1) ──── (N) CustomerFile           [feature 00048 — เฉพาะเธรด DEEP ที่ไม่มี ExternalContact]
+Shop (1) ─ (N) ShopTag · Shop (1) ─ (N) ShopTagEvent   [feature 00083 — onDelete Cascade] · ShopTag ผูกกับ ExternalContact.tags ด้วย **ชื่อ** (ไม่มี FK)
 Shop (1) ──────── (N) CustomerFollowUp           [feature 00066 — onDelete Cascade]
 Conversation (1) ─ (N) CustomerFollowUp          [feature 00066 — onDelete Cascade · ผูก "ห้องแชท" ไม่ผูก Customer]
 User (1) ──────── (N) CustomerFollowUp           [feature 00066 — 3 บทบาท assignee/doneBy/createdBy ทั้งหมด onDelete SetNull]
@@ -1690,6 +1693,17 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 **Rollback:** ย้อนโค้ดก่อนแล้วปล่อย schema ไว้ (additive + inert) · M1/M2/M3/M5/M6 ย้อน = DROP ที่เสียข้อมูล (ต้อง Controller สั่งชัด) · M3 ต้องปิดสวิตช์ทุกร้านก่อน · M4 forward-only · HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง (ปักหมุด URL localhost), migrate ล้ม = deploy ไม่ขึ้น
 
+### 6.73 ติด tag อัตโนมัติจากคำที่ร้านพิมพ์ — `ShopTag` + `ShopTagEvent` (feature 00083)
+
+> สถานะ: ออกแบบแล้ว อนุมัติ 2026-10-21 · migration `20261021100000_00083_shop_tags` เขียนแล้ว ยังไม่ apply · ต้นทาง: `docs/20 - Features/00083 - Auto Tag By Keyword/DATABASE.md` · additive ล้วน ไม่ backfill ไม่ DROP · CHECK เป็น unmanaged SQL → ห้าม `db pull`/`migrate dev` กับฐานแชร์ (HR13/14) · **ไม่เปลี่ยนรูปแบบเก็บ tag ของห้อง** (`ExternalContact.tags TEXT[]` ยังเป็นชื่อ ไม่มี FK)
+
+| ตาราง | คอลัมน์/คีย์หลัก | กติกา |
+|---|---|---|
+| `ShopTag` | `id` · `shopId` (FK Shop, CASCADE) · `name` · `nameKey` · `keywords text[]` · `removeOnOrderCreate bool default false` · `createdByUserId?` · `createdAt`/`updatedAt` timestamptz(3) | UNIQUE `(shopId, nameKey)` · CHECK `ShopTag_name_len` (`char_length(name)` 1..30) · CHECK `ShopTag_keywords_max10` · `nameKey = name.normalize('NFC').toLowerCase().trim()` (คำนวณใน service) · เพดาน 50 tag/ร้าน, 20 tag ที่มีคำ, คำละ 2-50 ตรวจใน service ใต้ lock `Shop FOR UPDATE` |
+| `ShopTagEvent` (append-only) | `id` · `shopId` (FK, CASCADE) · `externalContactId` · `conversationId?` · `tagName` · `action` · `source` · `chatMessageId?` · `orderId?` · `matchedKeyword?` · `createdAt` | CHECK `action IN ('ADD','REMOVE')` · `source IN ('KEYWORD','ORDER_CREATED')` · id ที่ไม่ใช่ shopId เป็น String เปล่าโดยตั้งใจ (ประวัติอยู่รอดเมื่อห้อง/ข้อความ/ออเดอร์ถูกลบ) · เขียนเมื่อ tag เปลี่ยนจริงเท่านั้น · ไม่เก็บเนื้อข้อความ · ไม่มีหน้าดู/retention (OOS-7) · index `(shopId,createdAt)` `(externalContactId,createdAt)` `(chatMessageId)` `(orderId)` |
+
+**กติกาเขียน `ExternalContact.tags`:** ติด = `updateMany … tags:{push}` + `NOT has` (อะตอมมิก) · ถอด/เปลี่ยนชื่อ/ลบ = `$executeRaw` (`array_remove` / unnest-dedupe) ผูกร้านผ่าน `ShopChannel.shopId` · **"tag เดียวกัน" = `tagNameKey` ที่เดียว** (variant `VIP`/`vip` ถือเป็นตัวเดียว) · Rollback: `DROP TABLE "ShopTagEvent"; DROP TABLE "ShopTag";` (Controller สั่งเท่านั้น; tag ในห้องไม่เสีย)
+
 ---
 
 ## §7 API Reference
@@ -2594,6 +2608,19 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 
 body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settings` เพิ่ม `trackingNoticeTiming` (ดู §7.29) · `GET …/auto-notify` และ `GET /api/seller/iship/order-context` ตอบค่า/ขั้น/ปุ่มที่กดได้เพิ่ม
 
+### 7.31 จัดการ tag ของร้าน (`/api/shops/current/tags/**`) — feature 00083
+
+> สถานะ: สัญญาออกแบบแล้ว 2026-10-21 · ยังไม่ implement · สัญญาละเอียด = `docs/20 - Features/00083 - Auto Tag By Keyword/API.md` · ทุก route: `requireShopCapability(session,'H3')` → Valibot `strictObject` → service → `jsonNoStore()` · error `{ error: CODE, message?, issues? }` · เขียนเมื่อร้านถูกล็อกแพ็กเกจ = 403 `SHOP_LOCKED` · ลง `route-capabilities.ts` + MATRIX ของ `role-contract.test.ts` ในคอมมิตเดียวกับ route
+
+| Method | Path | Cap | Purpose |
+|---|---|---|---|
+| GET | `/api/shops/current/tags` | **H3** | `{tags[] (registered + unregistered, rooms), counts, limits}` |
+| POST | `/api/shops/current/tags` | **H3** | `{name, keywords?, removeOnOrderCreate?}` → 201 `{tag}` · 409 `TAG_NAME_TAKEN` / `TAG_LIMIT_REACHED` (50) / `KEYWORD_TAG_LIMIT_REACHED` (20) · 400 `VALIDATION_ERROR` |
+| PATCH | `/api/shops/current/tags/[tagId]` | **H3** | เปลี่ยนชื่อ (ไล่ทุกห้องของร้านใน tx) / แทนที่คำ / สวิตช์ → 200 `{tag, renamedRooms}` · 404 `TAG_NOT_FOUND` |
+| DELETE | `/api/shops/current/tags/[tagId]` | **H3** | ถอดจากทุกห้อง + ลบกติกา → 200 `{ok, removedFromRooms}` |
+
+**ตัวติด/ถอดอัตโนมัติ (ไม่ใช่ endpoint):** `applyKeywordTags(chatMessageId)` เรียกจาก 3 จุดเดียวกับ 00061 (`chat.service` · `chat-outbox.service` · webhook echo) ไม่ await · `removeTagsOnOrderCreated(order)` เรียกหลัง commit ใน `createOrder`/`promoteDraftCore` ไม่ throw · ไม่มี error ต้อง map ที่ route
+
 ---
 
 ## §8 Enums & Constants
@@ -3088,6 +3115,17 @@ HTTP ตามตาราง §7.21
 | `OrderEvent.type` | +`MANUAL_DISPATCHED` · +`SELLER_DELIVERED` — ดู §8.1b |
 | `Order.status` | **ไม่เพิ่มค่า** (TD-001) |
 
+### 8.17 ติด tag อัตโนมัติ (feature 00083 — SSOT ฝั่งโค้ด: `src/lib/shop-tag-match.ts` + `src/services/shop-tag-auto.service.ts`)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `ShopTagEvent.action` | `ADD` · `REMOVE` |
+| `ShopTagEvent.source` | `KEYWORD` (ร้านพิมพ์ข้อความที่มีคำ) · `ORDER_CREATED` (สร้างคำสั่งซื้อผูกห้อง) |
+| `SHOP_TAG_LIMITS` | tag ต่อร้าน **50** · tag ที่มีคำ **20** · คำต่อ tag **10** · ชื่อ **1-30** code point · คำ **2-50** code point |
+| ผลของตัวติด (`ApplyOutcome.reason`) | `MESSAGE_NOT_FOUND` `NOT_SHOP` `NOT_TEXT` `BOT_MESSAGE` `STANDBY` `META_AI_ECHO` `EMPTY_BODY` `NO_CONTACT` `NO_RULES` `NO_MATCH` `ORDER_ALREADY_CREATED` |
+| `ShopTagError.code` → HTTP | `VALIDATION_ERROR` 400 · `TAG_NAME_TAKEN` 409 · `TAG_LIMIT_REACHED` 409 · `KEYWORD_TAG_LIMIT_REACHED` 409 · `TAG_NOT_FOUND` 404 (+ `SHOP_LOCKED` 403 ที่ route) |
+| ตัวเทียบ | `matchesTriggerPhrase` ของ 00061 (NFC · lowercase · ยุบช่องว่าง · ไม่ลบสัญลักษณ์ · substring) — ห้ามใช้ `normalizeMessage` ของ auto-reply |
+
 ---
 
 ## §9 Authorization Matrix
@@ -3302,6 +3340,17 @@ HTTP ตามตาราง §7.21
 
 - ทะเบียน `route-capabilities.ts`: `auto-notify/route.ts` `{GET:'H1'}` · `settings` `{PATCH:'X8'}` · `switches/[kind]` `{PUT:'X8'}` · `templates/[kind]` `{PUT:'X8', DELETE:'X8'}` · `strip-context` `{GET:'O1'}` · `orders/[token]/start` `{POST:'O4'}` · `orders/[token]/shipping-cost` `{PATCH:'S1'}` · หน้า `settings/auto-notify/page.tsx` `{page:'H1'}` · ต้องมีเทสสิทธิ์ทุกคู่ (บทบาท × cap) เป็นไฟล์ใหม่
 - หน้า/คอมโพเนนต์ที่ไม่ถือ X8 ต้องไม่แสดงปุ่มแก้ (ซ่อนหรือ disabled ตาม `canEdit`) — แต่ด่านจริงอยู่ที่ route/service ไม่ใช่ UI
+
+### 9.13 จัดการ tag (feature 00083)
+
+| การกระทำ | cap | บทบาทที่ผ่าน | ที่ตัดสิน |
+|---|---|---|---|
+| เปิดหน้า `/settings/tags` · GET/POST/PATCH/DELETE `…/shops/current/tags/**` | **`H3`** (ไม่สร้าง capability ใหม่ — มติ P-6) | OWNER · MANAGER (CHAT/TECHNICIAN/BILLING → `NoPermissionCard` / 403 `FORBIDDEN_ROLE`) | page `gatePage` + route `requireShopCapability` |
+| เขียนเมื่อร้านถูกล็อกแพ็กเกจ | — | ทุกบทบาท → 403 `SHOP_LOCKED` | route |
+| ติด/ถอด tag ต่อห้องด้วยมือ · `GET /api/chat/tags` | (เดิม) `X2` | OWNER · MANAGER · CHAT | route เดิม |
+| ติด/ถอดอัตโนมัติ | — (ระบบ) | `shopId` มาจากแถวข้อความ→ห้าม / `order.shopId`; query ผูก shopId ทุกตัว | service |
+
+ทะเบียน `route-capabilities.ts`: `settings/tags/page.tsx {page:'H3'}` · `shops/current/tags/route.ts {GET:'H3',POST:'H3'}` · `shops/current/tags/[tagId]/route.ts {PATCH:'H3',DELETE:'H3'}`
 
 ---
 
@@ -3765,6 +3814,17 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | `ShipOrderSchema` | ไม่เปลี่ยน (`provider`/`trackingNo` ≥ 1 ตัวอักษร · `outboundShippingCost` optional) |
 | `POST …/dispatch`, `POST …/delivered` | ไม่มี body · ขั้น/สิทธิ์ตัดสินที่ server ด้วย conditional `updateMany` (เงื่อนไขขั้นอยู่ใน WHERE) ไม่เชื่อสถานะจาก client |
 | ขั้นที่กดได้ | `canMarkDispatched = ส่งเอง && status = PENDING` · `canMarkDelivered = ส่งเอง && status = SHIPPED` (ส่งเอง = มีแถว tracking && ไม่มี live iShip && `fulfillmentMode = SHIPPED`) |
+
+### §10.22 จัดการ tag (feature 00083 — `src/lib/shop-tag-schemas.ts`)
+
+| Field | กฎ |
+|---|---|
+| `name` | string · NFC · trim · **1-30 code point** · `nameKey` ไม่ซ้ำในร้าน (อังกฤษไม่สนตัวพิมพ์) |
+| `keywords` | array **≤10** (นับก่อน dedupe) · แต่ละคำ clean (NFC + ยุบช่องว่าง + trim) **2-50 code point** และ `normalizeTriggerPhrase` แล้วยาว ≥2 · dedupe ด้วย `normalizeTriggerPhrase` เก็บสะกดตัวแรก |
+| `removeOnOrderCreate` | boolean · ค่าเริ่มต้น `false` |
+| body | `strictObject` (คีย์เกิน เช่น `shopId` = 400) · PATCH ต้องมี ≥1 คีย์ |
+| `tagId` | uuid · ไม่ใช่ uuid = 404 `TAG_NOT_FOUND` |
+| เพดานร้าน | ≤50 tag · ≤20 tag ที่มีคำ (ตรวจใน service ใต้ lock `Shop`) |
 
 ### 10.11 หมายเหตุ
 
