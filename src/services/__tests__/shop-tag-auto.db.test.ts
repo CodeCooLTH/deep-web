@@ -202,9 +202,16 @@ describe.skipIf(!isLocal)('shop-tag-auto (DB จริง)', () => {
 
   it('TC-039 ตัวติดล้ม → ห่อ .catch แล้วไม่มี unhandled · ข้อความยังอยู่', async () => {
     const r = await mkRoom(A); const id = await mkMsg(r.conv)
-    vi.spyOn(appPrisma.shopTag, 'findMany').mockRejectedValue(new Error('boom'))
+    // vi.spyOn + restore บน delegate ของ Prisma (Proxy) ทำ findMany หายถึงเทสถัดไป ⇒ สลับค่าเองแล้วคืนเอง
+    const d = appPrisma.shopTag as unknown as Record<string, unknown>
+    const orig = d.findMany
+    d.findMany = () => Promise.reject(new Error('boom'))
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await applyKeywordTags(id).catch((e) => console.error('[shop-tag-auto]', e))
+    try {
+      await applyKeywordTags(id).catch((e) => console.error('[shop-tag-auto]', e))
+    } finally {
+      d.findMany = orig
+    }
     expect(err).toHaveBeenCalled()
     expect(await prisma.chatMessage.count({ where: { id } })).toBe(1)
     expect(await tagsOf(r.contact)).toEqual([])

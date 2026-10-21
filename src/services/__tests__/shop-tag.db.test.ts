@@ -124,16 +124,22 @@ describe.skipIf(!isLocal)('00083 shop-tag.service (DB จริง)', () => {
     const r1 = await room(a, ['เก่า', 'k']); const r2 = await room(a, ['เก่า'])
     const t = await createShopTag(a.shopId, a.userId, { name: 'เก่า' })
     const orig = svcPrisma.$transaction.bind(svcPrisma) as unknown as (fn: (tx: never) => unknown, o?: unknown) => Promise<unknown>
-    const spy = vi.spyOn(svcPrisma, '$transaction').mockImplementationOnce(((fn: (tx: unknown) => unknown, o?: unknown) =>
+    // vi.spyOn + mockRestore บน Prisma client (Proxy) ทำ method หายทั้งไฟล์ ⇒ สลับค่าเองแล้วคืนเอง
+    const c = svcPrisma as unknown as Record<string, unknown>
+    const raw = c.$transaction
+    c.$transaction = ((fn: (tx: unknown) => unknown, o?: unknown) =>
       orig((tx) => fn(new Proxy(tx as object, {
         get(target, p) {
           if (p === 'shopTag') return { ...(target as never as { shopTag: object }).shopTag, findFirst: (target as never as { shopTag: { findFirst: Function } }).shopTag.findFirst.bind((target as never as { shopTag: object }).shopTag), findUnique: (target as never as { shopTag: { findUnique: Function } }).shopTag.findUnique.bind((target as never as { shopTag: object }).shopTag), update: () => { throw new Error('boom') } }
           const v = (target as Record<string | symbol, unknown>)[p]
           return typeof v === 'function' ? (v as Function).bind(target) : v
         },
-      })) as never, o)) as never)
-    await expect(updateShopTag(a.shopId, t.id, { name: 'ใหม่' })).rejects.toThrow('boom')
-    spy.mockRestore()
+      })) as never, o))
+    try {
+      await expect(updateShopTag(a.shopId, t.id, { name: 'ใหม่' })).rejects.toThrow('boom')
+    } finally {
+      c.$transaction = raw
+    }
     expect(await tagsOf(r1)).toEqual(['เก่า', 'k'])
     expect(await tagsOf(r2)).toEqual(['เก่า'])
     expect((await db.shopTag.findUniqueOrThrow({ where: { id: t.id } })).name).toBe('เก่า')
@@ -182,7 +188,7 @@ describe.skipIf(!isLocal)('00083 shop-tag.service (DB จริง)', () => {
     await createShopTag(a.shopId, a.userId, { name: 'ใหม่' }); await room(a, ['เก่า', 'ใหม่'])
     await createShopTag(b.shopId, b.userId, { name: 'ร้านบี' })
     expect(await getShopTags([a.shopId])).toEqual(['เก่า', 'ใหม่'])
-    expect(await getShopTags([a.shopId, b.shopId])).toEqual(['เก่า', 'ใหม่', 'ร้านบี'])
+    expect(await getShopTags([a.shopId, b.shopId])).toEqual(['เก่า', 'ร้านบี', 'ใหม่']) // localeCompare('th') ข้ามสระหน้า ใ ⇒ ใหม่ เรียงแบบ หม
   })
 
   it('TC-025 ค่าเริ่มต้น + อ่านกลับตรง', async () => {

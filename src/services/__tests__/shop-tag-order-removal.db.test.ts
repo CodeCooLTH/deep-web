@@ -137,7 +137,7 @@ describe.skipIf(!isLocal)('00083 ตัวถอด tag ตอนสร้าง
 
     const back = await mk(A, { conversationId: A.conv, createdAt: new Date(Date.now() - 5 * 86400_000).toISOString() })
     expect(await tagsOf(A)).toEqual(['vip', 'ปิดสวิตช์'])
-    await cancelOrder(back.publicToken, 'seller', undefined, A.user)
+    await cancelOrder(back.publicToken, 'seller', 'BUYER_REQUESTED', A.user)
     expect(await tagsOf(A)).toEqual(['vip', 'ปิดสวิตช์'])
   })
 
