@@ -16,7 +16,9 @@ export async function getShopTags(shopIds: string[]): Promise<string[]> {
     where: { channel: { shopId: { in: shopIds } } },
     select: { tags: true },
   })
-  const set = new Set<string>()
+  // 00083 — รวมแท็กที่ลงทะเบียนไว้ (ยังไม่มีห้องไหนติดก็ต้องโผล่ในตัวช่วยพิมพ์)
+  const registered = await prisma.shopTag.findMany({ where: { shopId: { in: shopIds } }, select: { name: true } })
+  const set = new Set<string>(registered.map((r) => r.name))
   for (const c of contacts) for (const t of c.tags) set.add(t)
   return [...set].sort((a, b) => a.localeCompare(b, 'th'))
 }
