@@ -96,6 +96,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings-comment-reply',
         // 00078 — ส่งอัตโนมัติถึงลูกค้า (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
         'seller:settings-auto-notify',
+        // 00083 — จัดการแท็ก (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:settings-tags',
         'seller:shop',
         'seller:subscriptions',
         'seller:verification',

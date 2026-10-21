@@ -23,6 +23,7 @@ import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { removeTagsOnOrderCreated } from "@/services/shop-tag-auto.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
 import { canMarkDispatched, canMarkDelivered, isManualShipment } from "@/lib/manual-shipment";
@@ -807,6 +808,8 @@ export async function createOrder(shopId: string, data: {
         return order;
       });
       dispatchAutoNotifyAfterCommit(ledgerId);
+      // 00083 TD-003 — ถอด tag หลัง commit นอก tx/retry loop (ใช้ conversationId ของแถวที่สร้างจริง · ไม่ throw)
+      await removeTagsOnOrderCreated({ id: created.id, shopId, conversationId: created.conversationId, isDryRun: created.isDryRun });
       return created;
     } catch (e) {
       // P2002 = unique violation (ชน shortCode) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่น
@@ -1052,6 +1055,8 @@ async function promoteDraftCore(
     return order;
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
+  // 00083 TD-003 — ถอด tag หลัง commit (ใช้ห้องของแถวที่ผ่าน WHERE shopId แล้ว)
+  await removeTagsOnOrderCreated({ id: promoted.id, shopId, conversationId: promoted.conversationId, isDryRun: promoted.isDryRun });
   return promoted;
 }
 

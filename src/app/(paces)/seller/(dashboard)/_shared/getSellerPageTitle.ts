@@ -44,6 +44,7 @@ const FALLBACK = 'Deep ผู้ขาย'
 const EXTRA_TITLES: Record<string, string> = {
   '/notifications': 'การแจ้งเตือน',
   '/settings/auto-notify': 'ส่งอัตโนมัติถึงลูกค้า',
+  '/settings/tags': 'จัดการแท็ก',
 }
 
 /**

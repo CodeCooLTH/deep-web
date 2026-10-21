@@ -6,6 +6,7 @@ import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent, ingestPostbackEvent, answerIceBreaker } from '@/services/channel-chat.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
+import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { parseIceBreakerPayload } from '@/lib/ice-breaker'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
@@ -400,6 +401,8 @@ export async function POST(request: NextRequest) {
           ingested.senderRole === 'SHOP'
         ) {
           const { headMessageId } = ingested
+          // feature 00083 — ติดแท็กตามคำสำคัญ (ก่อน 00061 ตาม SDS TD-004)
+          after(() => applyKeywordTags(headMessageId).catch((e) => console.error('[shop-tag-auto] webhook', e)))
           after(() =>
             detectAutoOrderTrigger(headMessageId).catch((e) =>
               // กลืน error: การแกะข้อความล้มต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง

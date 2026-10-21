@@ -425,6 +425,9 @@ model Shop {
   @@index([deletedAt, purgedAt], map: "Shop_deletedAt_purgedAt_idx") // NEW — cron: purge expired retention
   @@index([vertical], map: "Shop_vertical_idx") // NEW (feature 00017) — กรองธุรกิจตามประเภทกิจการ
   lineReportGroupShops LineReportGroupShop[]
+
+  shopTags      ShopTag[] // feature 00083 — รายการ tag + คำอัตโนมัติของร้าน
+  shopTagEvents ShopTagEvent[] // feature 00083 — ประวัติติด/ถอด tag อัตโนมัติ
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -5335,4 +5338,47 @@ model AutoNotifyLedger {
   @@index([conversationId, createdAt])
   @@index([status, createdAt]) // sweeper: INTENT ที่ค้าง
   @@index([chatMessageId])
+}
+
+/// feature 00083 — tag ที่ร้านลงทะเบียน + คำที่ทำให้ติดอัตโนมัติ
+/// ชื่อ tag จริงในห้องยังเก็บเป็นชื่อใน ExternalContact.tags (ไม่มี FK) — ตารางนี้คือ "กติกา" ต่อชื่อ
+/// nameKey = lowercase + NFC ของ name (app คำนวณ) ใช้ unique ต่อร้าน · keywords ≤10 คำ คำละ 2-50 (DB CHECK)
+model ShopTag {
+  id                  String   @id @default(uuid())
+  shopId              String
+  name                String
+  nameKey             String
+  keywords            String[] @default([])
+  removeOnOrderCreate Boolean  @default(false)
+  createdByUserId     String?
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, nameKey])
+}
+
+/// feature 00083 — ประวัติติด/ถอด tag อัตโนมัติ (append-only, เขียนเมื่อ tag เปลี่ยนจริงเท่านั้น)
+/// conversationId/chatMessageId/orderId เป็น String เปล่า ไม่มี FK — ประวัติต้องอยู่รอดแม้ห้อง/ข้อความ/ออเดอร์ถูกลบ
+/// action: "ADD" | "REMOVE" · source: "KEYWORD" | "ORDER_CREATED" (DB CHECK) · ไม่เก็บเนื้อข้อความเต็ม
+model ShopTagEvent {
+  id                String   @id @default(uuid())
+  shopId            String
+  externalContactId String
+  conversationId    String?
+  tagName           String
+  action            String
+  source            String
+  chatMessageId     String?
+  orderId           String?
+  matchedKeyword    String?
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+  @@index([externalContactId, createdAt])
+  @@index([chatMessageId])
+  @@index([orderId])
 }

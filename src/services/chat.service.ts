@@ -17,6 +17,7 @@ import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
+import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { runAfterResponse } from '@/lib/run-after-response'
 import { AUTO_ORDER_RESULT_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
@@ -1024,6 +1025,9 @@ export async function sendMessage(params: {
   // ถ้าล้มก็ไม่ควรพา rollback ข้อความที่ส่งถึงลูกค้าไปแล้ว (ตัวฟังก์ชันเองก็กลืน error อยู่แล้ว)
   if (params.senderRole === 'SHOP') {
     await pauseForHumanTakeover(params.conversationId)
+
+    // feature 00083 — ติดแท็กห้องตามคำสำคัญ (ไม่ await · อยู่ก่อน 00061 ตาม SDS TD-004)
+    runAfterResponse(() => applyKeywordTags(sent.id))
 
     // feature 00061 — จุดเข้าที่ 1 ของตัวสร้างออเดอร์อัตโนมัติ (ร้านพิมพ์จากกล่องแชทของเรา)
     //
