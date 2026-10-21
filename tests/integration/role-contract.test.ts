@@ -293,6 +293,7 @@ const MATRIX: Entry[] = [
   E({ key: R('shops/current/service-resources'), name: 'service resources', load: () => import('@/app/api/shops/current/service-resources/route'), url: () => '/api/shops/current/service-resources' }),
   E({ key: R('shops/current/auto-notify'), name: 'auto-notify settings', load: () => import('@/app/api/shops/current/auto-notify/route'), url: () => '/api/shops/current/auto-notify' }),
   E({ key: R('shops/current/auto-notify/strip-context'), name: 'auto-notify strip-context', load: () => import('@/app/api/shops/current/auto-notify/strip-context/route'), url: (c) => `/api/shops/current/auto-notify/strip-context?orderToken=${c.token}` }),
+  E({ key: R('shops/current/tags'), name: 'shop tags', load: () => import('@/app/api/shops/current/tags/route'), url: () => '/api/shops/current/tags' }),
   E({ key: R('wallet'), name: 'wallet', load: () => import('@/app/api/wallet/route'), url: () => '/api/wallet' }),
   E({ key: R('expenses'), name: 'expenses', load: () => import('@/app/api/expenses/route'), url: () => '/api/expenses' }),
   E({ key: R('expenses/report'), name: 'expenses report', load: () => import('@/app/api/expenses/report/route'), url: () => '/api/expenses/report?range=month' }),

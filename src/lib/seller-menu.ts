@@ -184,6 +184,8 @@ export const sellerMenuItems: MenuItemType[] = [
        * การซ่อนเมนูทำหน้าที่แค่ "ไม่รกตา" เท่านั้น
        */
       { url: '/settings/auto-reply/order-agent', slug: 'seller:settings-order-agent', label: 'สร้างออเดอร์จากแชท', icon: 'file-invoice' },
+      // feature 00083 — จัดการแท็ก · เห็นทุก vertical (ห้ามใส่ใน *_ONLY_SLUGS) · ด่านจริง = H3 ที่ route-capabilities · icon 'tags' ไม่ชนกับรายการอื่นในกลุ่ม
+      { url: '/settings/tags', slug: 'seller:settings-tags', label: 'จัดการแท็ก', icon: 'tags' },
     ],
   },
   /**
@@ -1070,6 +1072,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-comment-reply': m.settingsCommentReply,
     'seller:settings-chatbot': m.settingsChatbot,
     'seller:settings-auto-notify': m.settingsAutoNotify,
+    'seller:settings-tags': m.settingsTags,
     'seller:reviews': m.reviews,
     'seller:verification': m.verification,
     'seller:badges': m.badges,

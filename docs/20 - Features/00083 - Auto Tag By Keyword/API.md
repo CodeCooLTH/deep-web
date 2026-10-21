@@ -85,7 +85,7 @@ route ใต้ `src/app/api/shops/current/tags/` (Next.js 16 App Router) · ผ
 
 body เป็น `strictObject` — คีย์อื่น (เช่น `shopId`) = 400
 
-**Response 201:** `{ "tag": <TagRow> }` (รูปเดียวกับ `tags[]` ใน 4.1; `rooms` = จำนวนห้องที่มีสตริงนี้อยู่แล้ว — การ "ลงทะเบียน" ไม่แตะห้อง)
+**Response 201:** `{ "tag": {id, name, registered:true, keywords, removeOnOrderCreate, createdAt} }` (ไม่มี `rooms` — หน้าโหลดรายการใหม่หลังแก้ · ไม่ส่งคอลัมน์ภายใน shopId/nameKey/createdByUserId) — การ "ลงทะเบียน" ไม่แตะห้อง
 
 | HTTP | `error` | เงื่อนไข |
 |---|---|---|
@@ -101,7 +101,7 @@ body: อย่างน้อย 1 คีย์จาก `name` · `keywords` (
 
 พฤติกรรม `name` เปลี่ยน: ทุกห้องของ**ร้านนี้**ที่มี tag นี้ (รวม variant) เปลี่ยนเป็นชื่อใหม่ในทรานแซกชันเดียว · ห้องที่มีทั้งชื่อเก่า/ใหม่เหลือชื่อเดียว · ล้ม = ไม่มีห้องเปลี่ยน
 
-**Response 200:** `{ "tag": <TagRow>, "renamedRooms": number }` (`renamedRooms` = 0 เมื่อไม่ได้เปลี่ยนชื่อ)
+**Response 200:** `{ "tag": <รูปเดียวกับ 201>, "renamedRooms": number }` (`renamedRooms` = 0 เมื่อไม่ได้เปลี่ยนชื่อ)
 
 | HTTP | `error` | เงื่อนไข |
 |---|---|---|

@@ -94,7 +94,7 @@ flowchart LR
 
 ### TFR-002: เพิ่ม tag (create / adopt) — FR-002
 - **ไฟล์:** `shop-tag.service.ts::createShopTag(shopId, userId, input)`
-- **ลำดับใน `$transaction`:** (1) `SELECT id FROM "Shop" WHERE id=$1 FOR UPDATE` (2) ตรวจ nameKey ซ้ำใน `ShopTag` ของร้าน → `TAG_NAME_TAKEN` (3) `count(ShopTag)` ≥ 50 → `TAG_LIMIT_REACHED` (4) ถ้า `keywords.length>0` และ `count(ShopTag มี keywords)` ≥ 20 → `KEYWORD_TAG_LIMIT_REACHED` (5) insert (`name` = cleaned · `nameKey` = `tagNameKey(name)` · `keywords` = deduped · `createdByUserId`)
+- **ลำดับใน `$transaction`:** (1) `SELECT id FROM "Shop" WHERE id=$1 FOR NO KEY UPDATE` (2) ตรวจ nameKey ซ้ำใน `ShopTag` ของร้าน → `TAG_NAME_TAKEN` (3) `count(ShopTag)` ≥ 50 → `TAG_LIMIT_REACHED` (4) ถ้า `keywords.length>0` และ `count(ShopTag มี keywords)` ≥ 20 → `KEYWORD_TAG_LIMIT_REACHED` (5) insert (`name` = cleaned · `nameKey` = `tagNameKey(name)` · `keywords` = deduped · `createdByUserId`)
 - **Adopt:** สร้างด้วยชื่อที่ตรงกับ tag ที่ยังไม่ลงทะเบียนได้ตามปกติ — **ไม่แตะห้อง** (ห้องเดิมยังมีสตริงนั้น = กลายเป็น registered ทันทีเพราะ nameKey ตรง)
 - **Edge:** P2002 (ชน unique ขณะแข่งกันเกิน lock) → แปลงเป็น `TAG_NAME_TAKEN` · ชื่อซ้ำเฉพาะตัวพิมพ์ (`VIP` vs `vip`) ถือซ้ำ
 - **AC:** AC-AT-06..10, 20, 21

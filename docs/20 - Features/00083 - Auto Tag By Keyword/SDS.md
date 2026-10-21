@@ -130,7 +130,7 @@ sequenceDiagram
     participant DB as Postgres
     P->>R: PATCH name / DELETE
     R->>S: update/delete(shopId จาก gate, tagId)
-    S->>DB: BEGIN · SELECT … FROM Shop FOR UPDATE
+    S->>DB: BEGIN · SELECT … FROM Shop FOR NO KEY UPDATE
     S->>DB: โหลด ShopTag WHERE id AND shopId
     S->>DB: หา variants จากห้องของร้าน
     S->>DB: UPDATE ExternalContact (rewrite/dedupe หรือ remove) JOIN ShopChannel.shopId
@@ -161,6 +161,7 @@ sequenceDiagram
 - ด่านทั้งหมด (SHOP/TEXT/บอท/standby/AI echo) อยู่ **ในตัวติด** ไม่ไล่แปะทุกจุดเข้า (หลักเดียวกับ 00061)
 - hook ที่ `chat.service` จบด้วย `NO_CONTACT` เสมอสำหรับห้อง DEEP (dead-by-design) แต่คงไว้ตามมติ P-5 + กัน `sendMessage` ถูกใช้กับช่องทางนอกในอนาคต
 - เรียก 00083 **ก่อน** 00061 ในทุกจุด (R-1)
+- **ข้อจำกัดที่ยอมรับ (known limitation, reviewer 2026-10-21):** ตัวติดกับ 00061 รันใน `after` ทั้งคู่ ถ้าตัวติดผ่านขั้น 5 (ยังไม่มีออเดอร์) แล้ว 00061 สร้างออเดอร์และตัวถอดรันจบก่อนตัวติด push → แท็กค้างทั้งที่มีออเดอร์แล้ว · ช่องแคบ (ms) · แอดมินถอดเองได้ ไม่มีข้อมูลหาย · ถ้าเจอจริงบน prod ให้ปิดด้วยการเช็คขั้น 5 ซ้ำหลัง push (แล้วถอดคืน) เป็นงานต่อ
 
 ### TD-005: ใช้ `matchesTriggerPhrase` ของ 00061 ตรง ๆ (P-4)
 - ได้ semantics เดียวกันโดยโครงสร้าง ไม่ต้องคอยซิงก์ · เทส parity บน corpus สุ่มยืนยัน `matchTagKeywords` ≡ `matchesTriggerPhrase` ต่อ tag
@@ -173,8 +174,8 @@ sequenceDiagram
 - UI ทำสองคำขอต่อกันอย่างโปร่งใส · เมื่อร้านเต็มเพดาน 50 และต้องการลบ ghost: ได้ `TAG_LIMIT_REACHED` พร้อมข้อความ "ครบ 50 แล้ว ลบ tag ที่ไม่ใช้ก่อน" (ทางออกชัด) · ถ้า POST สำเร็จแล้ว DELETE ล้ม → ghost กลายเป็น registered ที่เห็นและลบได้ ไม่ใช่ข้อมูลหาย
 - เหตุผลที่ไม่เพิ่ม `?name=`: endpoint ที่รับชื่อดิบ = ช่องให้ client ชี้สตริงที่ไม่ผ่าน `ShopTag` และเพิ่มพื้นที่ทดสอบ 2 เท่า
 
-### TD-008: lock แถว `Shop` (`FOR UPDATE`) ตอน create/update — ไม่ lock ตอน delete
-- เพดาน 50/20 นับข้ามแถว DB บังคับไม่ได้ (DATABASE §7) · ใช้ `SELECT id FROM "Shop" WHERE id=$1 FOR UPDATE` เป็นบรรทัดแรกใน tx · rename ใช้ lock เดียวกันเพื่อกัน rename ชนกัน
+### TD-008: lock แถว `Shop` (`FOR NO KEY UPDATE`) ตอน create/update/delete
+- เพดาน 50/20 นับข้ามแถว DB บังคับไม่ได้ (DATABASE §7) · ใช้ `SELECT id FROM "Shop" WHERE id=$1 FOR NO KEY UPDATE` เป็นบรรทัดแรกใน tx · rename/delete ใช้ lock เดียวกันเพื่อเรียงคิว · 🛑 ห้าม `FOR UPDATE` — ชนกับ `FOR KEY SHARE` ของ FK check ทำให้สร้างออเดอร์/รับข้อความของร้านค้างระหว่าง rename (security review 2026-10-21)
 
 ### TD-009: error ของ service = คลาสเดียว `ShopTagError(code)` + `Record<ShopTagErrorCode,…>`
 - แก้คลาสบั๊ก "throw ใหม่ไม่มี route catch" (00003 `OutOfStockError`) ที่ต้นทาง: เพิ่ม code ใหม่โดยไม่เพิ่มรายการใน map = **tsc ไม่ผ่าน** · map เป็น `Map` (ไม่ใช่ object literal) กัน key ของ prototype · + เทสสแกน `throw new ShopTagError('X')` ทุกตัวต้องอยู่ใน union

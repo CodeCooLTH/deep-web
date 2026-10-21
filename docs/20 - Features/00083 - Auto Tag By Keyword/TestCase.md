@@ -107,7 +107,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[SDS]]"]
 - **Linked:** S-1 · TD-008 · AC-AT-08
 - **Steps:** มี 49 · `Promise.all` create 5 ชื่อต่างกัน
 - **Expected:** สำเร็จ 1 ล้ม 4 (`TAG_LIMIT_REACHED`) · count = 50
-- **Mutation:** ถอด `FOR UPDATE` ออกจาก `createShopTag` → ต้องแดง (เกิน 50)
+- **Mutation:** ถอด `FOR NO KEY UPDATE` ออกจาก `createShopTag` → ต้องแดง (เกิน 50)
 
 #### TC-017: รายการ = ลงทะเบียน + ยังไม่ลงทะเบียน + variant
 - **Linked:** S-3 · AC-AT-01..04
