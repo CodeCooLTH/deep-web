@@ -432,7 +432,7 @@ export type {
   EligibilityResult,
 } from "@/lib/iship/eligibility";
 
-function toShipmentView(s: {
+export function toShipmentView(s: {
   id: string;
   orderId: string;
   status: string;
@@ -504,7 +504,7 @@ async function resolveCourierName(
   }
 }
 
-const SHIPMENT_SELECT = {
+export const SHIPMENT_SELECT = {
   id: true,
   orderId: true,
   status: true,

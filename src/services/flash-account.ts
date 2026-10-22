@@ -12,11 +12,10 @@ export type FlashAccountRow = Prisma.ShopShippingAccountGetPayload<object>;
 export type FlashCred = { mchId: string; secretKey: string };
 export type LoadedFlashAccount = { account: FlashAccountRow; cred: FlashCred; webhookSecret: string };
 
-const flashWhere = (shopId: string) => ({ shopId_provider: { shopId, provider: FLASH } });
 
 /** แถว FLASH ของร้าน (ทุกสถานะ) — ไม่ถอดรหัส */
 export function findFlashAccount(shopId: string): Promise<FlashAccountRow | null> {
-  return prisma.shopShippingAccount.findUnique({ where: flashWhere(shopId) });
+  return prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: FLASH } } });
 }
 
 /** บัญชีที่ใช้ยิง Flash ได้ (ไม่ DISCONNECTED, มี mchId และ envelope) — null = ใช้ไม่ได้ */
@@ -63,10 +62,10 @@ export async function recordFlashAudit(
   const entry: FlashAuditEntry = { at: new Date().toISOString(), ...e };
   console.info(`[flash-audit] ${JSON.stringify({ shopId, ...entry })}`);
   try {
-    const row = await prisma.shopShippingAccount.findUnique({ where: flashWhere(shopId), select: { auditLog: true } });
+    const row = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: FLASH } }, select: { auditLog: true } });
     if (!row) return;
     await prisma.shopShippingAccount.update({
-      where: flashWhere(shopId),
+      where: { shopId_provider: { shopId, provider: FLASH } },
       data: { auditLog: appendAudit(row.auditLog, entry) as unknown as Prisma.InputJsonValue },
     });
   } catch (err) {
