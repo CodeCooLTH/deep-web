@@ -34,7 +34,7 @@ erDiagram
         string shopId FK
         string name "1-30 ตัวอักษร"
         string nameKey "lowercase+NFC · UNIQUE(shopId,nameKey)"
-        text_array keywords "<=10 คำ (CHECK) · คำ 2-50 ตรวจที่ service"
+        text_array keywords "<=50 คำ (CHECK · เดิม 10 ขยาย 2026-10-22) · คำ 2-50 ตรวจที่ service"
         boolean removeOnOrderCreate "default false"
         string createdByUserId "nullable ไม่มี FK"
         timestamptz createdAt

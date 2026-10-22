@@ -59,7 +59,7 @@ route ใต้ `src/app/api/shops/current/tags/` (Next.js 16 App Router) · ผ
 | `tags[].removeOnOrderCreate` | boolean | |
 | `tags[].createdAt` | string(ISO) \| null | |
 | `counts` | `{registered, withKeywords}` | ใช้แสดงโควตา "12/50" "3/20" |
-| `limits` | object | `{maxTags:50, maxKeywordTags:20, maxKeywords:10, nameMax:30, keywordMin:2, keywordMax:50}` |
+| `limits` | object | `{maxTags:50, maxKeywordTags:20, maxKeywords:50, nameMax:30, keywordMin:2, keywordMax:50}` |
 
 ```json
 {
@@ -71,7 +71,7 @@ route ใต้ `src/app/api/shops/current/tags/` (Next.js 16 App Router) · ผ
       "keywords": [], "removeOnOrderCreate": false, "createdAt": null }
   ],
   "counts": { "registered": 1, "withKeywords": 1 },
-  "limits": { "maxTags": 50, "maxKeywordTags": 20, "maxKeywords": 10, "nameMax": 30, "keywordMin": 2, "keywordMax": 50 }
+  "limits": { "maxTags": 50, "maxKeywordTags": 20, "maxKeywords": 50, "nameMax": 30, "keywordMin": 2, "keywordMax": 50 }
 }
 ```
 
@@ -129,7 +129,7 @@ body: อย่างน้อย 1 คีย์จาก `name` · `keywords` (
 
 | HTTP | `error` | ข้อความไทยที่เสนอ (ปรับได้ถ้าไม่เปลี่ยนความหมาย) |
 |---|---|---|
-| 400 | `VALIDATION_ERROR` | ตาม `issues[].message` เช่น "ชื่อต้องยาว 1-30 ตัวอักษร" · "คำต้องยาว 2-50 ตัวอักษร" · "ตั้งคำได้ไม่เกิน 10 คำ" |
+| 400 | `VALIDATION_ERROR` | ตาม `issues[].message` เช่น "ชื่อต้องยาว 1-30 ตัวอักษร" · "คำต้องยาว 2-50 ตัวอักษร" · "ใส่คำได้ไม่เกิน 50 คำต่อแท็ก" |
 | 403 | `SHOP_LOCKED` | "ร้านนี้ถูกระงับการแก้ไขชั่วคราวตามสถานะแพ็กเกจ" |
 | 404 | `TAG_NOT_FOUND` | "ไม่พบแท็กนี้ในร้าน" |
 | 409 | `TAG_NAME_TAKEN` | "มีแท็กชื่อนี้ในร้านแล้ว — ใช้ชื่ออื่น หรือแก้ตัวเดิมแทน" |

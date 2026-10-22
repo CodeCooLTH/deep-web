@@ -79,7 +79,7 @@ describe.skipIf(!isLocal)('00083 shop-tag.service (DB จริง)', () => {
     const a = await newShop()
     await expect(db.shopTag.create({ data: { shopId: a.shopId, name: 'x'.repeat(31), nameKey: 'long' } })).rejects.toThrow()
     await expect(
-      db.shopTag.create({ data: { shopId: a.shopId, name: 'kw', nameKey: 'kw', keywords: Array.from({ length: 11 }, (_, i) => `คำ${i}`) } }),
+      db.shopTag.create({ data: { shopId: a.shopId, name: 'kw', nameKey: 'kw', keywords: Array.from({ length: 51 }, (_, i) => `คำ${i}`) } }),
     ).rejects.toThrow()
   })
 

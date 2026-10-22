@@ -24,8 +24,8 @@ describe("TC-009 name", () => {
 describe("TC-010 keywords", () => {
   const kw = (keywords: string[]) => ok(C, { name: "x", keywords });
   it("จำนวน/ความยาว", () => {
-    expect(kw(Array.from({ length: 10 }, (_, i) => `คำ${i}`))).toBe(true);
-    expect(kw(Array.from({ length: 11 }, (_, i) => `คำ${i}`))).toBe(false);
+    expect(kw(Array.from({ length: 50 }, (_, i) => `คำ${i}`))).toBe(true);
+    expect(kw(Array.from({ length: 51 }, (_, i) => `คำ${i}`))).toBe(false);
     expect(kw(["a"])).toBe(false);
     expect(kw(["ab"])).toBe(true);
     expect(kw(["a".repeat(50)])).toBe(true);
@@ -33,7 +33,7 @@ describe("TC-010 keywords", () => {
   });
   it("ZWSP ล้วนตก · นับก่อน dedupe · dedupe หลังผ่าน", () => {
     expect(kw(["​​"])).toBe(false);
-    expect(kw(Array.from({ length: 11 }, () => "vip"))).toBe(false);
+    expect(kw(Array.from({ length: 51 }, () => "vip"))).toBe(false);
     const r = v.parse(C, { name: " x ", keywords: ["VIP", " vip ", "ab  cd"] });
     expect(r).toEqual({ name: "x", keywords: ["VIP", "ab cd"], removeOnOrderCreate: false });
   });

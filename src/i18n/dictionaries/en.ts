@@ -236,7 +236,7 @@ export const en: Dictionary = {
     errKwTooShort: 'A word must be at least 2 characters',
     errKwTooLong: 'A word can be at most 50 characters',
     errKwDuplicate: 'This tag already has this word',
-    errKwTooMany: 'A tag can have at most 10 words',
+    errKwTooMany: 'A tag can have at most 50 words',
     errTagLimit: 'The shop has 50 tags already. Delete a tag you no longer use, then add a new one.',
     errKeywordTagLimit: 'The shop can have at most 20 auto-tags. Remove words from another tag first, or remove this tag’s words to save it as a manual tag.',
 
