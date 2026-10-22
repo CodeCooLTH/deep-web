@@ -47,7 +47,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 | **tag ที่ยังไม่ลงทะเบียน** | สตริงที่ติดอยู่ในห้องของร้านแต่ไม่มี `ShopTag` ที่ `nameKey` ตรง |
 | **nameKey** | `tagNameKey(s) = s.normalize('NFC').toLowerCase().trim()` — **SSOT ของคำว่า "tag เดียวกัน"** (HR16) |
 | **variant** | สตริงบนห้องที่ `tagNameKey` เท่ากับ `nameKey` ของ tag ที่ลงทะเบียน (เช่น `vip` กับ `VIP`) — ถือเป็น tag เดียวกัน |
-| **ข้อความร้านพิมพ์** | `ChatMessage` ที่ `senderRole='SHOP'` ∧ `type='TEXT'` ∧ `autoReplyKind IS NULL` ∧ `viaStandby=false` ∧ `echoAiGenerated IS DISTINCT FROM true` |
+| **ข้อความร้านพิมพ์** | `ChatMessage` ที่ `senderRole='SHOP'` ∧ `type='TEXT'` ∧ `autoReplyKind IS NULL` — รวมข้อความ standby/Meta AI (เปลี่ยน 2026-10-22: ร้านที่ให้ Meta AI ปิดการขายส่งสรุปทาง standby) |
 
 ---
 
@@ -129,7 +129,7 @@ flowchart LR
 - **ไฟล์:** `src/services/shop-tag-auto.service.ts::applyKeywordTags(chatMessageId): Promise<ApplyOutcome>`
 - **ลำดับด่าน (ถูกก่อน แตะ DB น้อยก่อน):**
   1. โหลดข้อความ 1 query (`id senderRole type body autoReplyKind viaStandby echoAiGenerated conversationId conversation{shopId externalContactId}`) — ไม่เจอ → `SKIPPED MESSAGE_NOT_FOUND`
-  2. `senderRole !== 'SHOP'` → `NOT_SHOP` · `type !== 'TEXT'` → `NOT_TEXT` · `autoReplyKind != null` (ทุกค่า รวม `AUTO_NOTICE`) → `BOT_MESSAGE` · `viaStandby` → `STANDBY` · `echoAiGenerated === true` → `META_AI_ECHO` · body ว่างหลัง trim → `EMPTY_BODY` · `conversation.externalContactId == null` → `NO_CONTACT`
+  2. `senderRole !== 'SHOP'` → `NOT_SHOP` · `type !== 'TEXT'` → `NOT_TEXT` · `autoReplyKind != null` (ทุกค่า รวม `AUTO_NOTICE`) → `BOT_MESSAGE` · body ว่างหลัง trim → `EMPTY_BODY` · `conversation.externalContactId == null` → `NO_CONTACT`
   3. `ShopTag where shopId = conversation.shopId AND keywords ไม่ว่าง` → ว่าง = `NO_RULES`
   4. `matchTagKeywords` → ว่าง = `NO_MATCH`
   5. **ข้อความนี้กลายเป็นคำสั่งซื้อจริงแล้วหรือยัง:** `order.findFirst({ where:{ sourceChatMessageId: id, status:{ not:'DRAFTED' }, isDryRun:false } })` → มี = `ORDER_ALREADY_CREATED` (unique index `Order_sourceChatMessageId_key`)

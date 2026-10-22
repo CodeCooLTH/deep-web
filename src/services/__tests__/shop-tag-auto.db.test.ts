@@ -110,12 +110,12 @@ describe.skipIf(!isLocal)('shop-tag-auto (DB จริง)', () => {
     }
   })
 
-  it('TC-030 standby + AI echo ไม่ติด · echo มนุษย์ติด', async () => {
+  it('TC-030 standby + Meta AI echo ติดด้วย (user สั่ง 2026-10-22) · echo มนุษย์ติด', async () => {
     const a = await mkRoom(A); const b = await mkRoom(A); const c = await mkRoom(A)
-    expect(outcomeOf(await applyKeywordTags(await mkMsg(a.conv, { viaStandby: true })))).toBe('SKIPPED:STANDBY')
-    expect(outcomeOf(await applyKeywordTags(await mkMsg(b.conv, { echoAiGenerated: true })))).toBe('SKIPPED:META_AI_ECHO')
+    expect(outcomeOf(await applyKeywordTags(await mkMsg(a.conv, { viaStandby: true })))).toBe('APPLIED')
+    expect(outcomeOf(await applyKeywordTags(await mkMsg(b.conv, { echoAiGenerated: true })))).toBe('APPLIED')
     expect((await applyKeywordTags(await mkMsg(c.conv, { echoAiGenerated: false, echoAppId: '263902037430900' }))).outcome).toBe('APPLIED')
-    expect(await tagsOf(a.contact)).toEqual([]); expect(await tagsOf(b.contact)).toEqual([])
+    expect(await tagsOf(a.contact)).toEqual(['VIP']); expect(await tagsOf(b.contact)).toEqual(['VIP'])
     expect(await tagsOf(c.contact)).toEqual(['VIP'])
   })
 

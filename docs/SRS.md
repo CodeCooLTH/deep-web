@@ -3122,7 +3122,7 @@ HTTP ตามตาราง §7.21
 | `ShopTagEvent.action` | `ADD` · `REMOVE` |
 | `ShopTagEvent.source` | `KEYWORD` (ร้านพิมพ์ข้อความที่มีคำ) · `ORDER_CREATED` (สร้างคำสั่งซื้อผูกห้อง) |
 | `SHOP_TAG_LIMITS` | tag ต่อร้าน **50** · tag ที่มีคำ **20** · คำต่อ tag **10** · ชื่อ **1-30** code point · คำ **2-50** code point |
-| ผลของตัวติด (`ApplyOutcome.reason`) | `MESSAGE_NOT_FOUND` `NOT_SHOP` `NOT_TEXT` `BOT_MESSAGE` `STANDBY` `META_AI_ECHO` `EMPTY_BODY` `NO_CONTACT` `NO_RULES` `NO_MATCH` `ORDER_ALREADY_CREATED` |
+| ผลของตัวติด (`ApplyOutcome.reason`) | `MESSAGE_NOT_FOUND` `NOT_SHOP` `NOT_TEXT` `BOT_MESSAGE` `EMPTY_BODY` `NO_CONTACT` `NO_RULES` `NO_MATCH` `ORDER_ALREADY_CREATED` |
 | `ShopTagError.code` → HTTP | `VALIDATION_ERROR` 400 · `TAG_NAME_TAKEN` 409 · `TAG_LIMIT_REACHED` 409 · `KEYWORD_TAG_LIMIT_REACHED` 409 · `TAG_NOT_FOUND` 404 (+ `SHOP_LOCKED` 403 ที่ route) |
 | ตัวเทียบ | `matchesTriggerPhrase` ของ 00061 (NFC · lowercase · ยุบช่องว่าง · ไม่ลบสัญลักษณ์ · substring) — ห้ามใช้ `normalizeMessage` ของ auto-reply |
 
