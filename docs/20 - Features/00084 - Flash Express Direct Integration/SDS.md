@@ -461,6 +461,7 @@ Flash ล่ม/ช้า: create ⇒ FAILED (ออเดอร์ไม่ก�
 
 ### 10.1 มติของ Controller (2026-10-22)
 - ยอมรับค่าที่ spec ใช้ทุกข้อ (DD-1..DD-10, G-2..G-6)
+- **สัญญาร่วมที่ล็อก (Controller เขียนเอง):** `src/services/flash-account.ts` = `findFlashAccount, unpackFlashAccount, loadFlashAccount, loadFlashAccountByWebhookSecret, markFlashTokenInvalid, recordFlashAudit, appendAudit` — `loadFlashAccount`/`recordFlashAudit` ย้ายจาก flash.service มาที่นี่ (ทุก service ของ Flash นำเข้าจากไฟล์นี้)
 - **G-1 แก้:** เพิ่ม `ShopShippingAccount.auditLog Json?` ใน migration `20261022120000_00084_flash_express` (ยังไม่ apply) — `recordFlashAudit` เขียนลงคอลัมน์นี้ (append, เก็บล่าสุด 50 รายการ) **และ** log บรรทัดเดียว `[flash-audit]`
 
 ---
