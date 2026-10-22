@@ -386,8 +386,9 @@ export default function OrdersTable({
         <input
           type="checkbox"
           className="form-checkbox form-checkbox-light size-4.5"
-          checked={table.getIsAllRowsSelected()}
-          onChange={table.getToggleAllRowsSelectedHandler()}
+          // เลือกเฉพาะแถวที่เห็นในหน้านี้ — AllRows เลือกทุกใบที่โหลดมา (เคยได้ 1,415 ใบทั้งที่หน้าโชว์ 10)
+          checked={table.getIsAllPageRowsSelected()}
+          onChange={table.getToggleAllPageRowsSelectedHandler()}
         />
       ),
       cell: () => null,
@@ -1339,7 +1340,7 @@ export default function OrdersTable({
     {showMoney && (
       <BulkActionBar
         ishipEnabled={ishipEnabled}
-        selectedRows={table.getSelectedRowModel().rows}
+        selectedRows={table.getFilteredSelectedRowModel().rows}
         onClear={() => table.resetRowSelection()}
         buyerBaseUrl={buyerBaseUrl}
         orderWord={orderNoun}
