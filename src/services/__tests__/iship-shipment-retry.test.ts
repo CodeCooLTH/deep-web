@@ -69,6 +69,7 @@ const shipmentRow = {
   shopId: SHOP,
   status: 'PENDING',
   source: 'CREATED',
+  provider: 'ISHIP', // 00084: ใบ iShip จริงมีคอลัมน์นี้ (default) — guard CS-13 อ่านค่านี้
   idempotencyKey: `${ORDER}:1`,
   courierCode: 'FlashExpressA',
   courierName: 'Flash Thunder',

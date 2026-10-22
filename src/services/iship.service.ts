@@ -25,6 +25,7 @@ import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
 import type { TrackingNoticeTiming } from "@/lib/auto-notify/ledger-constants";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
+import { flashUserMessage, type FlashErrorCode } from "@/lib/flash/errors";
 import {
   carrierStatusCodeFromId,
   carrierTrackingSettled,
@@ -120,6 +121,8 @@ export interface ShipmentView {
   status: string;
   /** "CREATED" = Deep เปิดใบนี้เอง | "LINKED" = ร้านเปิดไว้บน iShip แล้วเอามาผูก */
   source: string;
+  /** ผู้ให้บริการของใบนี้: "ISHIP" | "FLASH" (00084) */
+  provider: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;
@@ -216,7 +219,7 @@ function toConnectionView(a: AccountRow | null): ConnectionView {
 async function loadAccount(
   shopId: string,
 ): Promise<{ account: AccountRow; token: string }> {
-  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   if (!account || account.status === "DISCONNECTED") {
     throw new IShipServiceError(
       "NOT_CONNECTED",
@@ -234,7 +237,7 @@ async function loadAccount(
  */
 async function markTokenInvalid(shopId: string, message?: string): Promise<void> {
   await prisma.shopShippingAccount.updateMany({
-    where: { shopId },
+    where: { shopId, provider: "ISHIP" },
     data: { status: "TOKEN_INVALID", lastVerifyError: message ?? null },
   });
 }
@@ -254,7 +257,7 @@ async function withTokenGuard<T>(shopId: string, fn: () => Promise<T>): Promise<
 // ─── การเชื่อมต่อ ───────────────────────────────────────────────────────────
 
 export async function getConnection(shopId: string): Promise<ConnectionView> {
-  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   return toConnectionView(account);
 }
 
@@ -278,9 +281,10 @@ export async function connect(
   const encrypted = encryptToken(token);
 
   const account = await prisma.shopShippingAccount.upsert({
-    where: { shopId },
+    where: { shopId_provider: { shopId, provider: "ISHIP" } },
     create: {
       shopId,
+      provider: "ISHIP",
       accessTokenEnc: encrypted,
       tokenLast4,
       status: "ACTIVE",
@@ -311,13 +315,13 @@ export async function verifyConnection(shopId: string): Promise<ConnectionView> 
     if (err instanceof IShipError && err.invalidatesConnection) {
       await markTokenInvalid(shopId, err.userMessage);
       return toConnectionView(
-        await prisma.shopShippingAccount.findUnique({ where: { shopId } }),
+        await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } }),
       );
     }
     throw err;
   }
   const account = await prisma.shopShippingAccount.update({
-    where: { shopId },
+    where: { shopId_provider: { shopId, provider: "ISHIP" } },
     data: { status: "ACTIVE", lastVerifiedAt: new Date(), lastVerifyError: null },
   });
   return toConnectionView(account);
@@ -332,7 +336,7 @@ export async function verifyConnection(shopId: string): Promise<ConnectionView> 
  */
 export async function disconnect(shopId: string): Promise<void> {
   await prisma.shopShippingAccount.updateMany({
-    where: { shopId },
+    where: { shopId, provider: "ISHIP" },
     data: {
       accessTokenEnc: "",
       tokenLast4: null,
@@ -369,7 +373,7 @@ export interface SettingsInput {
 }
 
 export async function getSettings(shopId: string) {
-  const a = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const a = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   if (!a || a.status === "DISCONNECTED") {
     throw new IShipServiceError("NOT_CONNECTED", "ร้านนี้ยังไม่ได้เชื่อมต่อกับ iShip");
   }
@@ -399,11 +403,11 @@ export async function getSettings(shopId: string) {
 }
 
 export async function updateSettings(shopId: string, input: SettingsInput) {
-  const existing = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const existing = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   if (!existing || existing.status === "DISCONNECTED") {
     throw new IShipServiceError("NOT_CONNECTED", "ร้านนี้ยังไม่ได้เชื่อมต่อกับ iShip");
   }
-  await prisma.shopShippingAccount.update({ where: { shopId }, data: input });
+  await prisma.shopShippingAccount.update({ where: { shopId_provider: { shopId, provider: "ISHIP" } }, data: input });
   return getSettings(shopId);
 }
 
@@ -433,6 +437,7 @@ function toShipmentView(s: {
   orderId: string;
   status: string;
   source: string;
+  provider: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;
@@ -469,10 +474,13 @@ function toShipmentView(s: {
     // "สิ่งที่ร้านต้องแก้" — ไม่ส่งเข้าไป ข้อยกเว้นนั้นก็ไม่เคยทำงานสักครั้ง ร้านเห็นแต่
     // ประโยคกลาง ๆ แล้วกดลองใหม่วนไปโดยไม่มีทางรู้ว่าขาดอะไร (ตัวกรองอยู่ใน IShipError
     // อยู่แล้ว — code อื่นไม่เปิดเผยข้อความดิบ)
+    // ใบ Flash: รหัสเป็นของ Flash — ส่งเข้า IShipError จะได้ userMessage = undefined (00084 CS-19)
     lastErrorMessage: s.lastErrorCode
-      ? new IShipError(s.lastErrorCode as never, {
-          upstreamMessage: s.lastErrorMessage ?? undefined,
-        }).userMessage
+      ? s.provider === "FLASH"
+        ? flashUserMessage(s.lastErrorCode as FlashErrorCode, s.lastErrorMessage ?? undefined)
+        : new IShipError(s.lastErrorCode as never, {
+            upstreamMessage: s.lastErrorMessage ?? undefined,
+          }).userMessage
       : null,
   };
 }
@@ -501,6 +509,7 @@ const SHIPMENT_SELECT = {
   orderId: true,
   status: true,
   source: true,
+  provider: true,
   courierCode: true,
   courierName: true,
   trackingNo: true,
@@ -580,7 +589,7 @@ export async function getShipmentPanelOrReason(
   shopId: string,
   orderId: string,
 ): Promise<{ ctx: ShipmentContext } | { reason: string }> {
-  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   if (!account) {
     return { reason: "ร้านยังไม่ได้เชื่อมต่อ iShip — เชื่อมต่อได้ที่หน้าตั้งค่าการจัดส่ง" };
   }
@@ -752,7 +761,7 @@ export async function getShipmentPanelState(
     vertical: order.shop.vertical as string,
   };
   const account = await prisma.shopShippingAccount.findUnique({
-    where: { shopId },
+    where: { shopId_provider: { shopId, provider: "ISHIP" } },
     select: { status: true },
   });
   if (!account || account.status === "DISCONNECTED") {
@@ -806,7 +815,7 @@ export interface ReceiverPatch {
  * ทั้งใบ (ลบ item เดิม คืนสต็อก สร้างใหม่) เอามาแก้แค่ที่อยู่จะพังสต็อกและรายการสินค้า
  * จึงเขียนเฉพาะ 3 คอลัมน์ที่เกี่ยวข้องจริง ๆ เท่านั้น
  */
-async function applyReceiverPatch(
+export async function applyReceiverPatch(
   shopId: string,
   orderId: string,
   patch: ReceiverPatch,
@@ -938,6 +947,13 @@ export async function createShipment(
     select: SHIPMENT_SELECT,
   });
   if (active) {
+    // ใบ Flash (แม้ FAILED) ห้ามเข้าทาง retry ของ iShip — จัดการที่การ์ด Flash (00084 CS-13)
+    if (active.provider !== "ISHIP") {
+      throw new IShipServiceError(
+        "SHIPMENT_EXISTS",
+        "มีพัสดุ Flash อยู่แล้ว — จัดการที่การ์ด Flash",
+      );
+    }
     if (active.status !== "FAILED") {
       throw new IShipServiceError(
         "SHIPMENT_EXISTS",
@@ -1243,7 +1259,7 @@ export async function retryShipment(
 ): Promise<ShipmentView> {
   const { token } = await loadAccount(shopId);
   const existing = await prisma.orderShipment.findFirst({
-    where: { id: shipmentId, shopId },
+    where: { id: shipmentId, shopId, provider: "ISHIP" },
     select: {
       id: true,
       status: true,
@@ -1445,7 +1461,7 @@ export async function cancelShipment(
 ): Promise<ShipmentView> {
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
-    where: { id: shipmentId, shopId },
+    where: { id: shipmentId, shopId, provider: "ISHIP" },
     select: {
       id: true,
       status: true,
@@ -1517,11 +1533,10 @@ export async function getLabelPdf(
   shopId: string,
   shipmentIds: string[],
 ): Promise<{ pdf: ArrayBuffer; skipped: SkippedLabel[] }> {
-  const { token } = await loadAccount(shopId);
-
+  // แยกใบก่อน แล้วค่อย loadAccount — เลือกมีแต่ใบ Flash ต้องไม่ติด NOT_CONNECTED ของ iShip (00084 CS-15)
   const rows = await prisma.orderShipment.findMany({
     where: { id: { in: shipmentIds }, shopId },
-    select: { id: true, status: true, trackingNo: true },
+    select: { id: true, status: true, trackingNo: true, provider: true },
   });
 
   const skipped: SkippedLabel[] = [];
@@ -1533,6 +1548,10 @@ export async function getLabelPdf(
     const row = found.get(id);
     if (!row) {
       skipped.push({ shipmentId: id, reason: "ไม่พบพัสดุนี้ในร้านของคุณ" });
+      continue;
+    }
+    if (row.provider !== "ISHIP") {
+      skipped.push({ shipmentId: id, reason: "ใบปะหน้า Flash พิมพ์ได้ทีละใบ" });
       continue;
     }
     if (row.status === "CANCELLED") {
@@ -1547,16 +1566,21 @@ export async function getLabelPdf(
   }
 
   if (tracks.length === 0) {
+    const flashOnly = skipped.some((k) => k.reason === "ใบปะหน้า Flash พิมพ์ได้ทีละใบ");
     throw new IShipServiceError(
       "INVALID_STATE",
-      "ไม่มีพัสดุที่พิมพ์ใบปะหน้าได้ในรายการที่เลือก",
+      flashOnly
+        ? "ใบปะหน้า Flash พิมพ์ได้ทีละใบ — เปิดพัสดุแต่ละใบเพื่อพิมพ์"
+        : "ไม่มีพัสดุที่พิมพ์ใบปะหน้าได้ในรายการที่เลือก",
     );
   }
+
+  const { token } = await loadAccount(shopId);
 
   const pdf = await withTokenGuard(shopId, () => iship.downloadLabel(token, tracks));
 
   await prisma.orderShipment.updateMany({
-    where: { id: { in: shipmentIds }, shopId, trackingNo: { not: null } },
+    where: { id: { in: shipmentIds }, shopId, provider: "ISHIP", trackingNo: { not: null } },
     data: { labelPrintedAt: new Date(), labelPrintCount: { increment: 1 } },
   });
 
@@ -1714,7 +1738,7 @@ export async function getTraces(
 ): Promise<TraceResult> {
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
-    where: { id: shipmentId, shopId },
+    where: { id: shipmentId, shopId, provider: "ISHIP" },
     select: {
       id: true,
       trackingNo: true,
@@ -1908,6 +1932,7 @@ export async function requestPickup(
     return prisma.shipmentPickup.create({
       data: {
         shopId,
+        provider: "ISHIP",
         courierCode: input.courierCode,
         ticketPickupId: result.ticketPickupId != null ? String(result.ticketPickupId) : null,
         parcelCount: input.parcelCount,
@@ -2039,7 +2064,7 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
 
   // จับคู่ด้วย refCode ก่อน (เจาะจงกว่า) แล้วค่อย trackingNo
   const shipment = await prisma.orderShipment.findFirst({
-    where: refCode ? { refCode } : { trackingNo: tracking! },
+    where: { provider: "ISHIP", ...(refCode ? { refCode } : { trackingNo: tracking! }) },
     select: { id: true, orderId: true },
   });
   if (!shipment) {
@@ -2120,7 +2145,7 @@ export async function handlePickupWebhook(payload: unknown): Promise<void> {
   if (!ticketPickupId) return;
 
   const pickup = await prisma.shipmentPickup.findFirst({
-    where: { ticketPickupId },
+    where: { ticketPickupId, provider: "ISHIP" },
     select: { id: true },
   });
   if (!pickup) return;
@@ -2146,7 +2171,7 @@ export async function handlePickupWebhook(payload: unknown): Promise<void> {
 export async function cancelPickup(shopId: string, pickupId: string) {
   const { token } = await loadAccount(shopId);
   const row = await prisma.shipmentPickup.findFirst({
-    where: { id: pickupId, shopId },
+    where: { id: pickupId, shopId, provider: "ISHIP" },
     select: { id: true, ticketPickupId: true, status: true },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำขอเข้ารับนี้");
@@ -2385,6 +2410,8 @@ export async function backfillShipmentEvidence(opts?: {
       // 🛑 carve-out ของ feature 00056 โดยเจตนา: **ไม่กรอง `direction`**
       // หลักฐานข้อพิพาทเป็นของ *พัสดุ* ไม่ใช่ของ *ทิศทาง* — พัสดุขากลับที่หายระหว่างทาง
       // ก็ต้องมีหลักฐานเหมือนกัน (ของหายคือของหาย ไม่ว่ากำลังไปหรือกำลังกลับ)
+      // เรียก iShip ด้วย pno ของ Flash ไม่ได้ — Flash เก็บหลักฐานเองใน flash-status (00084 CS-18)
+      provider: "ISHIP",
       isDryRun: false,
       trackingNo: { not: null },
       carrierStatus: { in: [...EVIDENCE_CARRIER_STATUSES] },
@@ -2458,7 +2485,7 @@ export async function syncShipmentStatuses(
   shopId: string,
   opts?: { force?: boolean },
 ): Promise<number> {
-  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId } });
+  const account = await prisma.shopShippingAccount.findUnique({ where: { shopId_provider: { shopId, provider: "ISHIP" } } });
   if (!account || account.status !== "ACTIVE") return 0;
 
   const now = Date.now();
@@ -2479,6 +2506,8 @@ export async function syncShipmentStatuses(
   const tracking = await prisma.orderShipment.findMany({
     where: {
       shopId,
+      // กันเลข pno ของ Flash หลุดไปถาม iShip (00084 CS-11)
+      provider: "ISHIP",
       status: "CREATED",
       trackingNo: { not: null },
       OR: [
@@ -2512,7 +2541,7 @@ export async function syncShipmentStatuses(
   });
   if (tracking.length === 0) {
     await prisma.shopShippingAccount.update({
-      where: { shopId },
+      where: { shopId_provider: { shopId, provider: "ISHIP" } },
       data: { statusSyncedAt: new Date() },
     });
     return 0;
@@ -2648,7 +2677,7 @@ export async function syncShipmentStatuses(
   }
 
   await prisma.shopShippingAccount.update({
-    where: { shopId },
+    where: { shopId_provider: { shopId, provider: "ISHIP" } },
     data: { statusSyncedAt: new Date() },
   });
   return changed;
@@ -3214,7 +3243,7 @@ export async function unlinkShipment(
   shipmentId: string,
 ): Promise<void> {
   const row = await prisma.orderShipment.findFirst({
-    where: { id: shipmentId, shopId },
+    where: { id: shipmentId, shopId, provider: "ISHIP" },
     select: { id: true, orderId: true, source: true, trackingNo: true },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");

@@ -23,6 +23,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { orderCardTapAction } from '@/lib/order-display'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { hasUsableShipment } from '@/lib/shipping/provider'
 import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 export type OrderCardViewData = {
@@ -217,7 +218,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
   }
 
   // ยังไม่มีพัสดุ (หรือใบล่าสุดสร้างไม่สำเร็จ) — บอกสถานะออเดอร์แทน
-  if (!sh || sh.status === 'FAILED') {
+  if (!sh || !hasUsableShipment(sh.status)) {
     return (
       <div className="bg-card px-4">
         <div className="border-default-200 flex items-center justify-between gap-2 border-t border-dashed py-2.5">

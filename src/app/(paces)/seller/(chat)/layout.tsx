@@ -175,7 +175,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
-        .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
+        .findUnique({ where: { shopId_provider: { shopId, provider: 'ISHIP' } }, select: { status: true, createMode: true } })
         .then(a => {
           // อ่านแถวเดียวได้สองคำตอบ — ห้ามยิง query เพิ่มเพื่อถามโหมด (ข้อมูลชุดเดียวกันเป๊ะ)
           ishipCreateMode = resolveChatIshipCreateMode(a)

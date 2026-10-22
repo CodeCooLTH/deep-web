@@ -2839,7 +2839,7 @@ model OrderShipment {
   // ON ("returnedPno") WHERE "returnedPno" IS NOT NULL · lookup webhook ต้องค้นทั้ง trackingNo และ returnedPno
   returnedPno      String?
   // status เพิ่มค่า "NEEDS_REVIEW" (ไม่มี migration — status เป็น String ไม่มี CHECK) = Flash ตอบ 1003
-  // (outTradeNo ซ้ำ) โดยเราไม่มี pno (BR-FLASH-23) · ยังนับเป็น active ใน OrderShipment_active_order_key
+  // (outTradeNo ซ้ำ) โดยเราไม่มี pno (BR-FLASH-23) · ยังนับเป็น active ใน OrderShipment_active_order_key (ต่อ orderId + direction)
   // (<> 'CANCELLED') จึงกัน Flash ทับใบอื่นได้ · ไม่เข้า ACTIVE_FORWARD_SHIPMENT (status='CREATED')
   // ผู้ยืนยันเปิดใหม่ทาง (ข) บันทึกใน OrderEvent ไม่เพิ่มคอลัมน์
   lastErrorCode    String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)

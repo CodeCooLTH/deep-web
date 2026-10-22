@@ -8,6 +8,7 @@
  */
 
 import { isProblemCarrierStatus } from './iship/status'
+import { hasUsableShipment } from './shipping/provider'
 import {
   deriveShippingStage,
   PROBLEM_RETRY_LABEL_SHORT,
@@ -50,7 +51,7 @@ export interface ProgressOrderInput {
 export function orderShippingStage(o: ProgressOrderInput): ShippingStageKey {
   const sh = o.shipment ?? null
   // FAILED = การสร้างพัสดุล้มเหลว ยังไม่มีพัสดุจริงบนขนส่ง — เทียบเท่า "ยังไม่เปิดพัสดุ"
-  const hasShipment = !!sh && sh.status !== 'FAILED'
+  const hasShipment = !!sh && hasUsableShipment(sh.status)
   return deriveShippingStage({
     status: o.status,
     carrierStatus: hasShipment ? sh.carrierStatus : null,
