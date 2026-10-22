@@ -394,6 +394,12 @@ export async function POST(request: NextRequest) {
          * standby: ข้ามเช่นกัน — ตอนที่ AI ของ Meta ถือห้อง ข้อความที่ไหลผ่าน standby ไม่ใช่
          * การกระทำของร้านในกล่องงานของเรา และเราไม่มีสิทธิ์ตอบกลับอยู่แล้ว
          */
+        if (ingested.status === 'STORED' && ingested.headMessageId && ingested.senderRole === 'SHOP') {
+          const { headMessageId } = ingested
+          // feature 00083 — ติดแท็กตามคำสำคัญ (ก่อน 00061 ตาม SDS TD-004) · รวม standby/Meta AI ด้วย:
+          // ร้านที่ให้ Meta AI ปิดการขาย สรุปคำสั่งซื้อมาทาง standby ทั้งหมด (user สั่ง 2026-10-22)
+          after(() => applyKeywordTags(headMessageId).catch((e) => console.error('[shop-tag-auto] webhook', e)))
+        }
         if (
           !standby &&
           ingested.status === 'STORED' &&
@@ -401,8 +407,6 @@ export async function POST(request: NextRequest) {
           ingested.senderRole === 'SHOP'
         ) {
           const { headMessageId } = ingested
-          // feature 00083 — ติดแท็กตามคำสำคัญ (ก่อน 00061 ตาม SDS TD-004)
-          after(() => applyKeywordTags(headMessageId).catch((e) => console.error('[shop-tag-auto] webhook', e)))
           after(() =>
             detectAutoOrderTrigger(headMessageId).catch((e) =>
               // กลืน error: การแกะข้อความล้มต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง

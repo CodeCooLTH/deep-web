@@ -179,7 +179,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[SDS]]"]
 - **Linked:** AC-AT-25,28,30 · P-3
 - **Steps:** (ก) `viaStandby=true` (ข) `echoAiGenerated=true` (ค) echo ธรรมดา `echoAiGenerated=null/false` `echoAppId` ของ Page Inbox
 - **Expected:** ก,ข ไม่ติด · ค ติด
-- **Mutation:** ถอด `viaStandby` / `echoAiGenerated` ทีละตัว → ข้อที่ตรงต้องแดง
+- **Expected (แก้ 2026-10-22):** ทั้ง 3 เคสติดแท็ก — standby/Meta AI ไม่ถูกข้ามแล้ว
 
 #### TC-031: ห้อง DEEP / ไม่มี contact → ไม่ error
 - **Linked:** AC-AT-31

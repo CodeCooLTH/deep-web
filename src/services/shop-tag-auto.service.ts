@@ -23,7 +23,7 @@ export async function applyKeywordTags(chatMessageId: string): Promise<ApplyOutc
     where: { id: chatMessageId },
     select: {
       id: true, senderRole: true, type: true, body: true, autoReplyKind: true,
-      viaStandby: true, echoAiGenerated: true, conversationId: true,
+      conversationId: true,
       conversation: { select: { shopId: true, externalContactId: true } },
     },
   })
@@ -31,8 +31,6 @@ export async function applyKeywordTags(chatMessageId: string): Promise<ApplyOutc
   if (msg.senderRole !== 'SHOP') return skip('NOT_SHOP')
   if (msg.type !== 'TEXT') return skip('NOT_TEXT')
   if (msg.autoReplyKind != null) return skip('BOT_MESSAGE')
-  if (msg.viaStandby) return skip('STANDBY')
-  if (msg.echoAiGenerated === true) return skip('META_AI_ECHO')
   if (!msg.body?.trim()) return skip('EMPTY_BODY')
   const { shopId, externalContactId } = msg.conversation
   if (!externalContactId) return skip('NO_CONTACT')
