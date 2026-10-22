@@ -1,7 +1,7 @@
 ---
 title: "PRD — Flash Express Direct Integration (เชื่อม Flash Express ตรง ไม่ผ่าน iShip)"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-10-22
 tags: [prd, feature, 00084, flash-express, shipping, logistics]
 related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[Feature-Docs-Ownership]]", "[[00022 - iShip Shipping Integration]]"]

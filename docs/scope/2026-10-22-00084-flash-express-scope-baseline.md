@@ -1,6 +1,6 @@
 # Scope Baseline — 00084 เชื่อม Flash Express ตรง (ไม่ผ่าน iShip)
 
-สถานะ: ACTIVE เมื่อ user อนุมัติ PRD+BRD v0.1 (หรือเวอร์ชันที่แก้) · ก่อนหน้านั้นเป็นร่าง (DRAFT-PENDING-APPROVAL)
+สถานะ: ACTIVE (user อนุมัติ PRD+BRD v0.1 เมื่อ 2026-10-22 พร้อมค่าที่เสนอทั้ง 5 ข้อ)
 อ้างอิง PRD: `docs/20 - Features/00084 - Flash Express Direct Integration/PRD.md` §3.1-3.7, §10.4 · BRD: FR-FLASH-001..071, BR-FLASH-01..85 · งานวิจัย: `docs/research/2026-10-22-flash-express-open-api.md` · ฟีเจอร์พี่น้อง: 00022 iShip · spec: SRS/SDS/DATABASE/API (เขียนหลัง PRD+BRD ผ่าน user)
 
 ## Goal
@@ -87,3 +87,4 @@
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
 | 2026-10-22 | baseline สร้าง (ร่าง) | user สั่ง feature 00084; มติ 3 ข้อล็อกแล้ว (ร้านใช้ mchId/key ของตัวเอง · iShip+Flash ใช้พร้อมกันได้ → unique (shopId, provider) · เป้าหมายสี่ข้อ: ราคาสัญญา/สถานะ+POD/ร้านใช้ Flash อยู่แล้ว/ลดคนกลาง) | user (รอยืนยัน PRD+BRD v0.1 เพื่อเปลี่ยนเป็น ACTIVE) |
+| 2026-10-22 | ACTIVE + ล็อกคำถามเปิด 5 ข้อตามค่าที่เสนอ: นิยามต้นทุน BR-FLASH-52 ตามร่าง · ปุ่มเชื่อมซ่อนจนผ่าน BR-FLASH-63 · พิมพ์ Flash ทีละใบ (OOS-8) · S-7 ผูกด้วย pno อยู่ใน v1 · COD ยืนยันเอง + ไม่ทับ webhook เดิม | user ตอบ "อนุมัติ" | user |
