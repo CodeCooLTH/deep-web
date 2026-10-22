@@ -5342,7 +5342,7 @@ model AutoNotifyLedger {
 
 /// feature 00083 — tag ที่ร้านลงทะเบียน + คำที่ทำให้ติดอัตโนมัติ
 /// ชื่อ tag จริงในห้องยังเก็บเป็นชื่อใน ExternalContact.tags (ไม่มี FK) — ตารางนี้คือ "กติกา" ต่อชื่อ
-/// nameKey = lowercase + NFC ของ name (app คำนวณ) ใช้ unique ต่อร้าน · keywords ≤10 คำ คำละ 2-50 (DB CHECK)
+/// nameKey = lowercase + NFC ของ name (app คำนวณ) ใช้ unique ต่อร้าน · keywords ≤50 คำ คำละ 2-50 (DB CHECK)
 model ShopTag {
   id                  String   @id @default(uuid())
   shopId              String

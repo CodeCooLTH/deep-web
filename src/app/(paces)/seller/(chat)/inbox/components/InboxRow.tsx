@@ -189,17 +189,10 @@ function InboxRowImpl({
               ),
             }]
           : []),
-        // แท็กผู้ใช้พิมพ์เองยาวได้ไม่จำกัด จึงต้อง max-w-28 + truncate กันดันแถว
-        ...contactTags.map((tag) => ({
-          name: tag,
-          node: (
-            <span key={`tag:${tag}`} className="badge bg-primary/15 text-primary-ink text-2xs max-w-28 truncate" title={tag}>
-              {tag}
-            </span>
-          ),
-        })),
       ]
       const chipOverflow = rowChipOverflow(rowChips.map((x) => x.name))
+      // แท็กแยกเป็นบรรทัดล่างสุดของแถว (user 2026-10-22) — เดิมอยู่ท้ายบรรทัดป้ายแล้วถูกยุบเป็น +N จนมองไม่เห็น
+      const tagOverflow = rowChipOverflow(contactTags, 3)
       return (
         // S-7: แยก <Link> (เนื้อหาแถว) ออกจาก kebab (sibling) — nested button ใน anchor เป็น
         // invalid HTML + คลิก kebab จะ propagate ไป navigate. outer div รับ hover ทั้งแถว
@@ -435,7 +428,7 @@ function InboxRowImpl({
                 {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
                     + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
                 {/* บรรทัดป้าย (00078 S-8): สูงสุด 2 ใบ + "+N" ทุกขนาดจอ — ลำดับ = ความสำคัญ
-                    ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id → แท็ก · +N นับรวมแท็กส่วนเกิน
+                    ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id · แท็กแยกไปบรรทัดล่างสุด (2026-10-22)
                     (เดิมไม่มีเพดาน แถวสูงต่างกันได้ 2.4 เท่า — impeccable critique 2026-08-09) */}
                 {rowChips.length > 0 && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">
@@ -518,6 +511,26 @@ function InboxRowImpl({
                     </span>
                   )
                 })()}
+                {contactTags.length > 0 && (
+                  <span className="mt-1 flex min-w-0 items-center gap-1">
+                    {/* แท็กผู้ใช้พิมพ์เองยาวได้ไม่จำกัด จึงต้อง max-w-28 + truncate กันดันแถว */}
+                    {contactTags.slice(0, tagOverflow.visible).map((tag) => (
+                      <span key={`tag:${tag}`} className="badge bg-primary/15 text-primary-ink text-2xs max-w-28 truncate" title={tag}>
+                        {tag}
+                      </span>
+                    ))}
+                    {tagOverflow.more && (
+                      <span
+                        role="img"
+                        aria-label={fmt(t.chatSignals.moreBadgesAria, { n: tagOverflow.more.names.length, names: tagOverflow.more.names.join(', ') })}
+                        title={tagOverflow.more.names.join(', ')}
+                        className="badge bg-default-100 text-default-700 text-2xs shrink-0"
+                      >
+                        {tagOverflow.more.text}
+                      </span>
+                    )}
+                  </span>
+                )}
               </span>
             </div>
 

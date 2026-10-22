@@ -101,7 +101,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]", "[[SDS]]"]
 #### TC-015: DB CHECK ชน (ชั้นสอง)
 - **Linked:** S-1
 - **Steps:** (ข้าม service) insert ตรง `name` 31 ตัว / keywords 11 ตัว ด้วย id ของเทส
-- **Expected:** DB ปฏิเสธ (`ShopTag_name_len` / `ShopTag_keywords_max10`) — พิสูจน์ว่าไม่ได้พึ่ง service ชั้นเดียว
+- **Expected:** DB ปฏิเสธ (`ShopTag_name_len` / `ShopTag_keywords_max50`) — พิสูจน์ว่าไม่ได้พึ่ง service ชั้นเดียว
 
 #### TC-016: `[blocker]` race สร้างพร้อมกันที่ 49 → ได้ 50 พอดี
 - **Linked:** S-1 · TD-008 · AC-AT-08

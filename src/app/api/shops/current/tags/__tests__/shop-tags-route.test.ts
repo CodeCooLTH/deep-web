@@ -77,7 +77,7 @@ describe('TC-054 gate + validation', () => {
     ['ชื่อว่าง', { name: '  ' }],
     ['คีย์เกิน shopId', { name: 'vip', shopId: 'other' }],
     ['คำสั้นเกิน', { name: 'vip', keywords: ['ก'] }],
-    ['คำเกิน 10', { name: 'vip', keywords: Array.from({ length: 11 }, (_, i) => `คำที่${i}x`) }],
+    ['คำเกิน 50', { name: 'vip', keywords: Array.from({ length: 51 }, (_, i) => `คำที่${i}x`) }],
   ])('POST %s → 400 VALIDATION_ERROR + issues', async (_n, body) => {
     const res = await coll.POST(req('POST', body))
     expect(res.status).toBe(400)

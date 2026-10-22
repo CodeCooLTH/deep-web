@@ -11,7 +11,7 @@ import { matchesTriggerPhrase } from "@/lib/auto-order-parser";
 export const SHOP_TAG_LIMITS = {
   maxTags: 50,
   maxKeywordTags: 20,
-  maxKeywords: 10,
+  maxKeywords: 50,
   nameMax: 30,
   keywordMin: 2,
   keywordMax: 50,
