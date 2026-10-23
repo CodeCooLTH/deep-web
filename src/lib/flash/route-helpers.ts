@@ -2,7 +2,7 @@
 // รวมไว้ที่เดียวเพื่อไม่ให้แต่ละ route แมปเอง (บทเรียน feedback_service_error_mapping)
 
 import { NextResponse } from "next/server";
-import { IShipServiceError } from "@/services/iship.service";
+import { IShipServiceError, resolveOrderIdByToken } from "@/services/iship.service";
 import { mapIShipError } from "@/lib/iship/route-helpers";
 import { FlashError, FlashServiceError, redactFlash, type FlashErrorCode, type FlashServiceErrorCode } from "./errors";
 import { FlashUnitError } from "./units";
@@ -80,4 +80,13 @@ export function mapFlashError(err: unknown, opts?: { context?: "connection" | st
   // ไม่รู้จัก — log เฉพาะข้อความที่ redact แล้ว ไม่ส่งรายละเอียดออก
   console.error("[flash] unhandled error", redactFlash(err instanceof Error ? err.message : String(err)));
   return flashError("UPSTREAM_ERROR", "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง", 500);
+}
+
+/** orderId หรือ orderToken อย่างใดอย่างหนึ่ง — ไม่มีทั้งคู่ = null (route ตอบ 400) */
+export async function resolveFlashOrderId(
+  shopId: string,
+  ref: { orderId?: string; orderToken?: string },
+): Promise<string | null> {
+  if (ref.orderId) return ref.orderId;
+  return ref.orderToken ? resolveOrderIdByToken(shopId, ref.orderToken) : null;
 }

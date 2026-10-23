@@ -392,6 +392,18 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/flash/price/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/seller/flash/settings/route.ts': { GET: 'S1', PUT: 'S2', status: 'DECLARED' },
   'src/app/api/seller/flash/webhook/sync/route.ts': { POST: 'S2', status: 'DECLARED' },
+  // ── feature 00084 (Flash) T8b ──
+  'src/app/api/seller/flash/shipments/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/preview/route.ts': { GET: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/link/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/retry/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/cancel/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/resolve/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/unlink/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/label/route.ts': { GET: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/shipments/[id]/traces/route.ts': { GET: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/pickups/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/pickups/[id]/cancel/route.ts': { POST: 'S1', status: 'DECLARED' },
   // ── จบ feature 00084 (Flash) T8a ──
   'src/app/api/seller/iship/boxes/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/connection/route.ts': { GET: 'S1', POST: 'S2', DELETE: 'S2', status: 'DECLARED' },
