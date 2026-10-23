@@ -385,6 +385,14 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/inspection/route.ts': { GET: 'X6', status: 'DECLARED' },
   'src/app/api/seller/inspection/subscribe/route.ts': { POST: 'T4', status: 'DECLARED' },
   'src/app/api/seller/inspection/upgrade/route.ts': { POST: 'T4', status: 'DECLARED' },
+  // ── feature 00084 (Flash) T8a — OWNER-only ตัดสินในไฟล์ route ด้วย requireFlashOwner ──
+  'src/app/api/seller/flash/connection/route.ts': { GET: 'S1', POST: 'S2', DELETE: 'S2', status: 'DECLARED' },
+  'src/app/api/seller/flash/connection/verify/route.ts': { POST: 'S2', status: 'DECLARED' },
+  'src/app/api/seller/flash/order-context/route.ts': { GET: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/price/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/flash/settings/route.ts': { GET: 'S1', PUT: 'S2', status: 'DECLARED' },
+  'src/app/api/seller/flash/webhook/sync/route.ts': { POST: 'S2', status: 'DECLARED' },
+  // ── จบ feature 00084 (Flash) T8a ──
   'src/app/api/seller/iship/boxes/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/connection/route.ts': { GET: 'S1', POST: 'S2', DELETE: 'S2', status: 'DECLARED' },
   'src/app/api/seller/iship/connection/verify/route.ts': { POST: 'S2', status: 'DECLARED' },
