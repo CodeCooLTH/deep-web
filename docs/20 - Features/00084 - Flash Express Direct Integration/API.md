@@ -117,6 +117,11 @@ type FlashConnectionView = {
   createMode: "AUTO" | "ASK" | "OFF"
   labelSize: "BIG" | "SMALL"
   webhook: { status: "NOT_SET" | "REGISTERED" | "FAILED" | "EXTERNAL"; registeredAt: string | null }
+  lastPickup: {                            // ShipmentPickup FLASH ล่าสุดที่ไม่ CANCELLED/CLOSED · ไม่มี/ไม่เชื่อม = null
+    id: string; status: string; ticketPickupId: string | null; currentTicketPickupId: string | null
+    staffName: string | null; staffPhone: string | null; timeoutAtText: string | null
+    ticketMessage: string | null; isDryRun: boolean; createdAt: string   // ISO
+  } | null
 }
 // ไม่มี accessTokenEnc / envelope / key / webhookSecret / webhookSecretHash ในชนิดใด ๆ
 
@@ -204,7 +209,7 @@ export const FlashWebhookSyncSchema = v.object({
   overrideKinds: v.optional(v.array(v.picklist(["status","routes","weight","price","courier"])), []),
 });
 ```
-เรียกครั้งแรกไม่ส่ง `overrideKinds`: อ่านแล้วตั้งเฉพาะชนิดว่าง · ชนิดที่เป็นของคนอื่นได้ `state:"EXTERNAL", action:"SKIPPED", host:"hooks.example.com"` (เฉพาะ host) · เจ้าของยืนยันแล้วเรียกซ้ำพร้อม `overrideKinds:["status"]` ⇒ ทับเฉพาะชนิดนั้น (`UNKNOWN` ถูกทับไม่ได้แม้ส่งมา) · 200 `{ connection, webhook: WebhookReport }` · ล้มทั้งก้อนเพราะ Flash ⇒ 200 พร้อม `webhook.status:"FAILED"` (ไม่ใช่ error; ปุ่มลองใหม่ = เรียกซ้ำ) · Errors: 403 · 409 `NOT_CONNECTED` · 400
+เรียกครั้งแรกไม่ส่ง `overrideKinds`: อ่านแล้วตั้งชนิดว่าง + ชนิดที่เป็น URL ของ Deep เอง (`OTHER_DEEP`) อัตโนมัติ · ชนิดที่เป็นของคนอื่นได้ `state:"EXTERNAL", action:"SKIPPED", host:"hooks.example.com"` (เฉพาะ host) · เจ้าของยืนยันแล้วเรียกซ้ำพร้อม `overrideKinds:["status"]` ⇒ ทับเฉพาะชนิดนั้น (`UNKNOWN` ถูกทับไม่ได้แม้ส่งมา) · 200 `{ connection, webhook: WebhookReport }` · ล้มทั้งก้อนเพราะ Flash ⇒ 200 พร้อม `webhook.status:"FAILED"` (ไม่ใช่ error; ปุ่มลองใหม่ = เรียกซ้ำ) · Errors: 403 · 409 `NOT_CONNECTED` · 400
 
 ### 4.7 `GET /api/seller/flash/order-context?orderId|orderToken` (S1)
 คืน `FlashPanelJson`:

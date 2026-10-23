@@ -130,6 +130,21 @@ describe.skipIf(!isLocal)("flash.service", () => {
       expect(c.setWebhook.mock.calls[0][1]).toMatchObject({ serviceCategory: 1 });
     });
 
+    it("lastPickup = คำขอ FLASH ล่าสุดที่ไม่ CANCELLED/CLOSED · ไม่มี = null", async () => {
+      await connectOk();
+      expect((await getFlashConnection(S.shop)).lastPickup).toBeNull();
+      const mk = (status: string, extra: object = {}) =>
+        prisma.shipmentPickup.create({ data: { shopId: S.shop, provider: "FLASH", courierCode: "FLASH", status, createdByUserId: S.user, ...extra } });
+      await mk("CLOSED");
+      expect((await getFlashConnection(S.shop)).lastPickup).toBeNull();
+      const live = await mk("ACCEPTED", { staffName: "สมชาย", ticketPickupId: "T1", currentTicketPickupId: "T2", isDryRun: true });
+      await mk("CANCELLED");
+      await prisma.shipmentPickup.create({ data: { shopId: S.shop, provider: "ISHIP", courierCode: "X", createdByUserId: S.user } });
+      const lp = (await getFlashConnection(S.shop)).lastPickup;
+      expect(lp).toMatchObject({ id: live.id, status: "ACCEPTED", staffName: "สมชาย", ticketPickupId: "T1", currentTicketPickupId: "T2", isDryRun: true });
+      expect(lp!.createdAt).toBe(live.createdAt.toISOString());
+    });
+
     it("ไม่ใช่ OWNER → ไม่เห็น mchId เต็ม", async () => {
       await connectOk();
       expect((await getFlashConnection(S.shop)).merchantId).toBeNull();
@@ -231,6 +246,18 @@ describe.skipIf(!isLocal)("flash.service", () => {
       expect(JSON.stringify(r)).not.toMatch(/SECRET123|\/hook|token/);
       expect(r.status).toBe("EXTERNAL");
       expect((await row())!.webhookStatus).toBe("EXTERNAL");
+    });
+
+    it("OTHER_DEEP (URL Deep ที่ไม่ใช่ secret ปัจจุบัน) → ตั้งใหม่เองโดยไม่ต้อง override", async () => {
+      await connectOk();
+      Object.values(c).forEach((f) => f.mockReset());
+      const w = await secretOf();
+      c.webhookInfos.mockResolvedValue(infosOf({ status: ours(w, "status"), weight: ours(w, "weight"), price: ours(w, "price"), courier: ours(w, "courier"), routes: ours("OLDSECRET", "routes") }));
+      c.setWebhook.mockResolvedValue({});
+      const r = await syncFlashWebhooks(S.shop, S.user);
+      expect(r.kinds.find((k) => k.kind === "routes")).toMatchObject({ state: "OTHER_DEEP", action: "SET" });
+      expect(c.setWebhook.mock.calls.map((x) => x[1].webhookApiCode)).toEqual([4]);
+      expect(r.status).toBe("REGISTERED");
     });
 
     it("override → ทับเฉพาะชนิดที่เลือก · UNKNOWN ไม่ทับแม้อยู่ใน override", async () => {

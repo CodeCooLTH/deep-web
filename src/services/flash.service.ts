@@ -59,6 +59,21 @@ export interface FlashConnectionView {
   createMode: "AUTO" | "ASK" | "OFF";
   labelSize: "BIG" | "SMALL";
   webhook: { status: FlashWebhookStatus; registeredAt: string | null };
+  /** คำขอเรียกรถล่าสุดที่ยังไม่ CANCELLED/CLOSED (null = ไม่มี) */
+  lastPickup: FlashLastPickup | null;
+}
+
+export interface FlashLastPickup {
+  id: string;
+  status: string;
+  ticketPickupId: string | null;
+  currentTicketPickupId: string | null;
+  staffName: string | null;
+  staffPhone: string | null;
+  timeoutAtText: string | null;
+  ticketMessage: string | null;
+  isDryRun: boolean;
+  createdAt: string;
 }
 
 export interface FlashWebhookReport {
@@ -143,7 +158,7 @@ export async function withFlashGuard<T>(shopId: string, fn: () => Promise<T>): P
   }
 }
 
-function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}): FlashConnectionView {
+function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}, lastPickup: FlashLastPickup | null = null): FlashConnectionView {
   const available = isFlashDirectEnabled();
   const webhookOf = (row: FlashAccountRow | null) => ({
     status: ((row?.webhookStatus as FlashWebhookStatus | null) ?? "NOT_SET") as FlashWebhookStatus,
@@ -165,6 +180,7 @@ function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}): Flash
       createMode: "OFF",
       labelSize: "BIG",
       webhook: { status: "NOT_SET", registeredAt: null },
+      lastPickup: null,
     };
   }
   return {
@@ -181,7 +197,29 @@ function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}): Flash
     createMode: a.createMode as FlashConnectionView["createMode"],
     labelSize: a.labelSize === "SMALL" ? "SMALL" : "BIG",
     webhook: webhookOf(a),
+    lastPickup,
   };
+}
+
+/** view + คำขอเรียกรถล่าสุด (อ่านเฉพาะเมื่อเชื่อมอยู่) — ทุกทางที่คืน connection ผ่านที่นี่ */
+async function viewOf(shopId: string, a: FlashAccountRow | null, opts: ViewOpts = {}): Promise<FlashConnectionView> {
+  if (!a || a.status === "DISCONNECTED") return toConnectionView(a, opts);
+  const p = await prisma.shipmentPickup.findFirst({
+    where: { shopId, provider: FLASH, status: { notIn: ["CANCELLED", "CLOSED"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  return toConnectionView(a, opts, p && {
+    id: p.id,
+    status: p.status,
+    ticketPickupId: p.ticketPickupId,
+    currentTicketPickupId: p.currentTicketPickupId,
+    staffName: p.staffName,
+    staffPhone: p.staffPhone,
+    timeoutAtText: p.timeoutAtText,
+    ticketMessage: p.ticketMessage,
+    isDryRun: p.isDryRun,
+    createdAt: p.createdAt.toISOString(),
+  });
 }
 
 function toSettings(a: FlashAccountRow): FlashSettings {
@@ -212,7 +250,7 @@ function toSettings(a: FlashAccountRow): FlashSettings {
 // ─── การเชื่อมต่อ ───────────────────────────────────────────────────────────
 
 export async function getFlashConnection(shopId: string, opts: ViewOpts = {}): Promise<FlashConnectionView> {
-  return toConnectionView(await findFlashAccount(shopId), opts);
+  return viewOf(shopId, await findFlashAccount(shopId), opts);
 }
 
 /**
@@ -293,7 +331,7 @@ export async function connectFlash(
   } catch {
     webhook = { status: "FAILED", kinds: [] };
   }
-  return { connection: toConnectionView(await findFlashAccount(shopId), opts), webhook, created };
+  return { connection: await viewOf(shopId, await findFlashAccount(shopId), opts), webhook, created };
 }
 
 /** ทดสอบ key ปัจจุบัน — 1001/1002 → TOKEN_INVALID (คืนเป็น view ไม่ใช่ error) · timeout/อื่น ๆ ไม่เปลี่ยนสถานะ */
@@ -303,7 +341,7 @@ export async function verifyFlash(shopId: string, opts: ViewOpts = {}): Promise<
     await withFlashGuard(shopId, () => flash.warehouses(cred));
   } catch (err) {
     if (err instanceof FlashError && err.invalidatesConnection) {
-      return toConnectionView(await findFlashAccount(shopId), opts);
+      return viewOf(shopId, await findFlashAccount(shopId), opts);
     }
     throw err;
   }
@@ -311,7 +349,7 @@ export async function verifyFlash(shopId: string, opts: ViewOpts = {}): Promise<
     where: { shopId_provider: { shopId, provider: FLASH } },
     data: { status: "ACTIVE", lastVerifiedAt: new Date(), lastVerifyError: null },
   });
-  return toConnectionView(row, opts);
+  return await viewOf(shopId, row, opts);
 }
 
 /**
@@ -375,7 +413,7 @@ async function requireLiveRow(shopId: string): Promise<FlashAccountRow> {
 
 export async function getFlashSettings(shopId: string, opts: ViewOpts = {}) {
   const a = await requireLiveRow(shopId);
-  return { connection: toConnectionView(a, opts), settings: toSettings(a) };
+  return { connection: await viewOf(shopId, a, opts), settings: toSettings(a) };
 }
 
 export async function updateFlashSettings(shopId: string, input: FlashSettingsInput, opts: ViewOpts = {}) {
@@ -383,7 +421,7 @@ export async function updateFlashSettings(shopId: string, input: FlashSettingsIn
   const data: Record<string, unknown> = {};
   for (const k of SETTINGS_KEYS) if (input[k] !== undefined) data[k] = input[k];
   const a = await prisma.shopShippingAccount.update({ where: { shopId_provider: { shopId, provider: FLASH } }, data });
-  return { connection: toConnectionView(a, opts), settings: toSettings(a) };
+  return { connection: await viewOf(shopId, a, opts), settings: toSettings(a) };
 }
 
 // ─── webhook ────────────────────────────────────────────────────────────────
@@ -449,7 +487,7 @@ function classifyInfos(data: unknown, secretHash: string): Record<FlashWebhookKi
 }
 
 /**
- * syncFlashWebhooks — อ่านก่อนเสมอ แล้วตั้งเฉพาะ EMPTY + ชนิดที่เจ้าของยืนยัน override (TFR-FLASH-006)
+ * syncFlashWebhooks — อ่านก่อนเสมอ แล้วตั้ง EMPTY + OTHER_DEEP อัตโนมัติ · EXTERNAL เฉพาะชนิดที่เจ้าของยืนยัน override (TFR-FLASH-006)
  *
  * 🛑 ห้ามข้ามขั้นอ่าน infos · UNKNOWN ไม่ทับเด็ดขาดแม้อยู่ใน overrideKinds · คืนเฉพาะ hostname
  */
@@ -495,7 +533,8 @@ export async function syncFlashWebhooks(
   let anyFailed = false;
   for (const kind of FLASH_WEBHOOK_KINDS) {
     const { state, host } = states[kind];
-    const mayWrite = state === "EMPTY" || ((state === "EXTERNAL" || state === "OTHER_DEEP") && override.has(kind));
+    // OTHER_DEEP (URL ของ Deep ที่ไม่ใช่ secret ปัจจุบัน) ตั้งใหม่เองได้ · EXTERNAL ต้อง override · UNKNOWN ไม่ทับ
+    const mayWrite = state === "EMPTY" || state === "OTHER_DEEP" || (state === "EXTERNAL" && override.has(kind));
     let action: FlashWebhookReport["kinds"][number]["action"] = state === "OURS" ? "KEPT" : "SKIPPED";
     if (mayWrite) {
       try {
