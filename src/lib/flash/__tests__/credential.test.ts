@@ -1,10 +1,9 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import { decodeCredential, encodeCredential, hashWebhookSecret, maskMerchantId, newWebhookSecret } from "../credential";
 
-beforeAll(() => {
-  process.env.CHANNEL_TOKEN_KEY ||= "00".repeat(32); // key เทสเท่านั้น
-});
+// ตั้งระดับไฟล์ ไม่ใช่ beforeAll: it.each ด้านล่างเรียก encryptToken ตอน collect (CI ไม่มี env นี้)
+process.env.CHANNEL_TOKEN_KEY ||= "00".repeat(32); // key เทสเท่านั้น
 
 describe("credential envelope", () => {
   it("round-trip และ plaintext เป็น envelope v1", () => {
