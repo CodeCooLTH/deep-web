@@ -41,7 +41,9 @@ import { getReceiptNoForOrder } from '@/services/receipt.service'
 import { getActiveReturnForTimeline } from '@/services/order-return.service'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
 import { getShipmentPanel } from '@/services/iship.service'
-import { toShipmentContextJson } from '@/lib/iship/context'
+import { getFlashPanelOrReason } from '@/services/flash.service'
+import { isFlashDirectEnabled } from '@/lib/flash/gate'
+import { toShipmentContextJson, type ShipmentViewJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -260,6 +262,27 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
+  // 00084 — แผง Flash (บัญชีของร้านเอง) · null = ปิดฟีเจอร์/ออเดอร์ไม่ต้องจัดส่ง → ร้าน iShip เห็นเหมือนเดิม
+  const flashPanelRaw = isFlashDirectEnabled() ? await getFlashPanelOrReason(shop.id, order.id) : null
+  const flashPanel = flashPanelRaw && !('reason' in flashPanelRaw) ? flashPanelRaw : null
+  /**
+   * พัสดุล่าสุดของออเดอร์ "ทุกผู้ให้บริการ" (รูป Date เหมือน shipmentPanel.shipment)
+   * ร้าน Flash อย่างเดียวไม่มี shipmentPanel (ไม่ได้เชื่อม iShip) → ใช้ใบจากแผง Flash (JSON) แปลงกลับเป็น Date
+   * ทุกจุดข้างล่างที่เคยอ่าน shipmentPanel?.shipment อ่านจากตัวนี้แทน จึงเห็นใบ Flash เหมือนใบ iShip
+   */
+  const dateOrNull = (v: string | null) => (v ? new Date(v) : null)
+  const reviveShipment = (j: ShipmentViewJson) => ({
+    ...j,
+    carrierStatusAt: dateOrNull(j.carrierStatusAt),
+    problemAt: dateOrNull(j.problemAt),
+    returnStartedAt: dateOrNull(j.returnStartedAt),
+    returnedAt: dateOrNull(j.returnedAt),
+    returnDispatchedAt: dateOrNull(j.returnDispatchedAt),
+    labelPrintedAt: dateOrNull(j.labelPrintedAt),
+    createdAt: new Date(j.createdAt),
+  })
+  const panelShipment: NonNullable<NonNullable<typeof shipmentPanel>['shipment']> | null =
+    shipmentPanel?.shipment ?? (flashPanel?.shipment ? reviveShipment(flashPanel.shipment) : null)
   /**
    * ใบคืนของ (00056) — ให้แถบสถานะพัสดุวาด "แถวขากลับ" ของเคสคืนของได้
    *
@@ -395,14 +418,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // MANUAL (order.shipmentTracking) — ทั้งสองไม่ควรมีพร้อมกันตาม business flow ปกติของระบบ
   // (feat 00022: ห้ามเขียน ShipmentTracking ให้ออเดอร์ที่ใช้ iShip) แต่ถ้าเกิดขึ้นจริง ให้ ISHIP
   // ชนะเพราะเป็น system-generated source of truth
-  const shipmentSource: ShipmentSource = shipmentPanel?.shipment ? 'ISHIP' : order.shipmentTracking ? 'MANUAL' : null
+  const shipmentSource: ShipmentSource = panelShipment ? 'ISHIP' : order.shipmentTracking ? 'MANUAL' : null
 
   // "มีพัสดุ iShip แล้ว" ต้องใช้นิยามเดียวกับ hasShipment ข้างล่าง (CREATED && !isDryRun) —
   // ใบที่ยิงไม่ผ่าน (FAILED) ต้องไม่นับ เพราะ ShipmentEntryModal ใช้ค่านี้ซ่อนตัวเลือก "ส่งเอง"
   // ทั้งแถบ (`showSegmented`) ผลคือร้านที่เปิดพัสดุกับ iShip ไม่ได้ (เครดิตหมด/token เสีย) จะกรอก
   // เลขพัสดุที่ไปส่งเองมาก็ไม่ได้ด้วย = ทางตันทั้งที่ของส่งไปแล้ว
   // (บั๊กคลาสเดียวกับนิยาม "ออเดอร์นี้มีพัสดุแล้ว" ที่ปิดไป 2026-08-06 แต่รอดมาที่ call site นี้)
-  const hasLiveIshipShipment = hasLiveIshipShipmentOf(shipmentPanel?.shipment)
+  const hasLiveIshipShipment = hasLiveIshipShipmentOf(panelShipment)
 
   /**
    * ขนส่งตีกลับของมาที่ร้านแล้ว — ใช้ `isReturnedCarrierStatus` ตัวเดียวกับที่ `order-stats`
@@ -421,15 +444,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
   }
 
   const parcelReturned =
-    hasLiveIshipShipment && isReturnedCarrierStatus(shipmentPanel?.shipment?.carrierStatus)
+    hasLiveIshipShipment && isReturnedCarrierStatus(panelShipment?.carrierStatus)
 
   // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
   const shippingInfo: OrderFactsShipping | null =
     shipmentSource === 'ISHIP'
       ? {
-          courier: shipmentPanel!.shipment!.courierName ?? '—',
-          trackingNo: shipmentPanel!.shipment!.trackingNo ?? '—',
-          shippedAtISO: shipmentPanel!.shipment!.createdAt.toISOString(),
+          courier: panelShipment!.courierName ?? '—',
+          trackingNo: panelShipment!.trackingNo ?? '—',
+          shippedAtISO: panelShipment!.createdAt.toISOString(),
           isIship: true
         }
       : shipmentSource === 'MANUAL'
@@ -452,7 +475,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     shop.vertical === 'ONLINE_SALES'
       ? deriveShippingStage({
           status: order.status,
-          carrierStatus: shipmentPanel?.shipment?.carrierStatus ?? null,
+          carrierStatus: panelShipment?.carrierStatus ?? null,
           // "มีพัสดุ" ต้องหมายถึงใบที่เปิดสำเร็จจริงเท่านั้น (นิยามเดียวกับ getShippingStageCounts) —
           // ใบที่ยิงไม่ผ่าน (FAILED) ยังต้องอยู่กอง "รอเลขพัสดุ" ไม่ใช่ "รอรับเข้า" เพราะยังไม่มี
           // อะไรให้ขนส่งมารับ (user เจอบน prod 2026-08-06: DP256908A896B1BE)
@@ -460,7 +483,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           paymentMethod: order.paymentMethod ?? null,
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
-          problemAt: shipmentPanel?.shipment?.problemAt ?? null,
+          problemAt: panelShipment?.problemAt ?? null,
           // ส่งเอง (00080): มีเลขที่ร้านกรอกแล้ว — สาขา hasShipment ชนะเองเมื่อมีใบ iShip live
           hasManualTracking: !!order.shipmentTracking,
         })
@@ -497,7 +520,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         shortCode={order.shortCode ?? null}
         status={order.status}
         shippingStage={shippingStage}
-        carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
+        carrierStatus={panelShipment?.carrierStatus ?? null}
         type={order.type}
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
@@ -511,6 +534,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         paymentConfirmedAtISO={order.paymentConfirmedAt ? (order.paymentConfirmedAt as Date).toISOString() : null}
         shipmentSource={shipmentSource}
         ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
+        flashPanel={flashPanel}
         hasIshipShipment={hasLiveIshipShipment}
         parcelReturned={parcelReturned}
         trackingNo={shippingInfo?.trackingNo ?? null}
@@ -673,28 +697,31 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}
             <ShippingCard
               iship={
-                shipmentPanel?.shipment
+                panelShipment
                   ? {
-                      id: shipmentPanel.shipment.id,
-                      status: shipmentPanel.shipment.status,
-                      carrierStatus: shipmentPanel.shipment.carrierStatus ?? null,
-                      courierName: shipmentPanel.shipment.courierName ?? null,
-                      courierCode: shipmentPanel.shipment.courierCode ?? null,
-                      trackingNo: shipmentPanel.shipment.trackingNo ?? null,
-                      isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
-                      lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
-                        ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
+                      id: panelShipment.id,
+                      status: panelShipment.status,
+                      carrierStatus: panelShipment.carrierStatus ?? null,
+                      courierName: panelShipment.courierName ?? null,
+                      courierCode: panelShipment.courierCode ?? null,
+                      trackingNo: panelShipment.trackingNo ?? null,
+                      isDryRun: Boolean(panelShipment.isDryRun),
+                      // 00084 — ผู้ให้บริการของใบ + ยอด COD (ป้าย "Flash ไม่แจ้งการโอนเงิน COD")
+                      provider: panelShipment.provider,
+                      codAmount: panelShipment.codAmount,
+                      lastTracedAtISO: panelShipment.carrierStatusAt
+                        ? (panelShipment.carrierStatusAt as Date).toISOString()
                         : null,
                       // เวลาของ "ขากลับ" — แถวที่ 2 ของแถบอ่านจากสองช่องนี้
                       // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (จุดสว่างตัดสินจาก carrierStatus)
-                      returnStartedAtISO: shipmentPanel.shipment.returnStartedAt
-                        ? (shipmentPanel.shipment.returnStartedAt as Date).toISOString()
+                      returnStartedAtISO: panelShipment.returnStartedAt
+                        ? (panelShipment.returnStartedAt as Date).toISOString()
                         : null,
-                      returnedAtISO: shipmentPanel.shipment.returnedAt
-                        ? (shipmentPanel.shipment.returnedAt as Date).toISOString()
+                      returnedAtISO: panelShipment.returnedAt
+                        ? (panelShipment.returnedAt as Date).toISOString()
                         : null,
-                      returnDispatchedAtISO: shipmentPanel.shipment.returnDispatchedAt
-                        ? (shipmentPanel.shipment.returnDispatchedAt as Date).toISOString()
+                      returnDispatchedAtISO: panelShipment.returnDispatchedAt
+                        ? (panelShipment.returnDispatchedAt as Date).toISOString()
                         : null,
                     }
                   : null

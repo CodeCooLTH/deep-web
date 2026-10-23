@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
@@ -29,6 +29,12 @@ import {
 } from '@/lib/iship/status'
 import type { ReceiverData, ShipmentReviewItem, ShipmentViewJson } from '@/lib/iship/context'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
+import { shipmentApiBase, shipmentSourceLabel } from '@/lib/shipping/provider'
+import { cancelOutcome, codNoticeText, markerReasonLine } from '@/lib/shipping/flash-order-ui'
+import FlashLogo from '@/components/safepay/flash/FlashLogo'
+import FlashFailedPanel from '@/components/safepay/flash/FlashFailedPanel'
+import FlashReviewPanel from '@/components/safepay/flash/FlashReviewPanel'
+import { readApiError } from '@/components/safepay/flash/flash-api'
 
 interface TraceEvent {
   status: string
@@ -78,6 +84,13 @@ interface Props {
   onRetried: (shipment: ShipmentViewJson) => void
   /** "แก้ข้อมูลแล้วลองใหม่" — ผู้เรียกสลับกลับไปแสดงฟอร์ม */
   onEditRequest?: () => void
+  /**
+   * 00084 — เจ้าของร้าน (ใช้กับใบ Flash ที่ key ถูกปฏิเสธ: เจ้าของวางคีย์ใหม่ได้ ที่เหลือต้องแจ้งเจ้าของ)
+   * ไม่ส่ง = ปิด (ค่าตั้งต้นปิดเสมอ — permission-gate-follows-the-row)
+   */
+  isShopOwner?: boolean
+  /** 00084 — "ส่งเองแทน" บนใบ Flash ที่ล้มเหลว · เฉพาะผู้เรียกที่พาไปส่งเองได้ (แชท) ไม่ส่ง = ไม่มีปุ่ม */
+  onSelfShipRequest?: () => void
 }
 
 /**
@@ -124,9 +137,15 @@ export default function ShipmentStatusView({
   onCancelled,
   onRetried,
   onEditRequest,
+  isShopOwner = false,
+  onSelfShipRequest,
 }: Props) {
-  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  // URL ของผู้ให้บริการต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context) — useIShipUrl ใช้กับ
+  // ทั้ง iShip และ Flash (ต่อ ?shopId= ให้ path ใด ๆ) · base path ตามผู้ให้บริการของ "ใบนี้"
   const ishipUrl = useIShipUrl()
+  const isFlash = shipment.provider === 'FLASH'
+  const apiBase = shipmentApiBase(shipment.provider)
+  const svcName = isFlash ? 'Flash' : 'iShip'
   const [busy, setBusy] = useState(false)
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   /**
@@ -190,7 +209,7 @@ export default function ShipmentStatusView({
     if (busy) return
     setBusy(true)
     try {
-      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/retry`), {
+      const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/retry`), {
         method: 'POST',
         cache: 'no-store',
       })
@@ -203,6 +222,7 @@ export default function ShipmentStatusView({
       // ตัวนี้จะไปทับสถานะของใบใหม่ด้วยสถานะของใบที่เพิ่งล้มเหลว
       setLiveCarrier(null)
       if (body.status === 'CREATED') pacesToast.success('สร้างพัสดุสำเร็จ')
+      else if (body.status === 'NEEDS_REVIEW') pacesToast.warning(body.lastErrorMessage ?? 'ต้องตรวจสอบพัสดุที่ Flash')
       else pacesToast.error(body.lastErrorMessage ?? 'ยังสร้างพัสดุไม่สำเร็จ')
       onRetried(body)
     } catch {
@@ -221,14 +241,14 @@ export default function ShipmentStatusView({
     if (busy) return
     const ok = await pacesConfirm.question(
       'ยกเลิกการผูกพัสดุนี้',
-      'พัสดุใบนี้จะไม่ผูกกับคำสั่งซื้อนี้อีก — พัสดุจริงที่ iShip จะไม่ถูกยกเลิก คุณเลือกผูกใบอื่นหรือสร้างใหม่ได้ทันที',
+      `พัสดุใบนี้จะไม่ผูกกับคำสั่งซื้อนี้อีก — พัสดุจริงที่ ${svcName} จะไม่ถูกยกเลิก คุณเลือกผูกใบอื่นหรือสร้างใหม่ได้ทันที`,
       { confirmButtonText: 'ยกเลิกการผูก', cancelButtonText: 'ไม่ยกเลิก' },
     )
     if (!ok) return
 
     setBusy(true)
     try {
-      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/unlink`), {
+      const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/unlink`), {
         method: 'POST',
         cache: 'no-store',
       })
@@ -248,19 +268,35 @@ export default function ShipmentStatusView({
   async function handleCancel() {
     if (busy) return
     const ok = await pacesConfirm.danger(
-      'ยกเลิกพัสดุ',
-      'ยกเลิกได้เฉพาะตอนที่ขนส่งยังไม่รับของ — ยกเลิกแล้วเปิดพัสดุใบใหม่สำหรับคำสั่งซื้อนี้ได้',
+      isFlash ? 'ยกเลิกพัสดุที่ Flash?' : 'ยกเลิกพัสดุ',
+      isFlash
+        ? 'ยกเลิกได้เฉพาะตอนที่ Flash ยังไม่รับของ ยกเลิกแล้วเปิดพัสดุใบใหม่สำหรับคำสั่งซื้อนี้ได้ ระบบจะบันทึกชื่อคุณและเวลา'
+        : 'ยกเลิกได้เฉพาะตอนที่ขนส่งยังไม่รับของ — ยกเลิกแล้วเปิดพัสดุใบใหม่สำหรับคำสั่งซื้อนี้ได้',
       { confirmButtonText: 'ยกเลิกพัสดุ', cancelButtonText: 'ไม่ยกเลิก' },
     )
     if (!ok) return
 
     setBusy(true)
     try {
-      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/cancel`), {
+      const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/cancel`), {
         method: 'POST',
         cache: 'no-store',
       })
       if (!res.ok) {
+        if (isFlash) {
+          const e = await readApiError(res)
+          // Flash รับของแล้ว (1015) = ผลที่ต้องรับทราบ จึงเป็น Swal ไม่ใช่ toast · สถานะพัสดุใน Deep ไม่เปลี่ยน
+          if (cancelOutcome(false, res.status, e.code) === 'taken') {
+            await pacesAlert({
+              title: 'Flash รับพัสดุไปแล้ว',
+              text: 'ยกเลิกจาก Deep ไม่ได้ ต้องติดต่อ Flash โดยตรง สถานะพัสดุใน Deep ไม่เปลี่ยน',
+              icon: 'info',
+            })
+            return
+          }
+          pacesToast.error(e.message)
+          return
+        }
         pacesToast.error(await readError(res))
         return
       }
@@ -285,6 +321,30 @@ export default function ShipmentStatusView({
   }
 
   /**
+   * ใบปะหน้า Flash — ดึง PDF เองแล้วเปิดจาก blob (ไม่ใช้ <a target=_blank> แบบ iShip)
+   * เพราะเส้นทาง Flash มีผล JSON error จริง (409 key ใช้ไม่ได้) ถ้าเปิดตรงร้านจะเจอแท็บ JSON (Design-Spec §4.5)
+   */
+  async function handlePrintFlashLabel() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/label`), { cache: 'no-store' })
+      if (!res.ok) {
+        pacesToast.error((await readApiError(res, 'พิมพ์ใบปะหน้าไม่สำเร็จ')).message)
+        return
+      }
+      const url = URL.createObjectURL(await res.blob())
+      window.open(url, '_blank', 'noopener')
+      // ปล่อย object URL หลังแท็บใหม่โหลดเสร็จ — revoke ทันทีจะได้แท็บว่าง
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch {
+      pacesToast.error('พิมพ์ใบปะหน้าไม่สำเร็จ กรุณาลองใหม่')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
    * โหลดการเดินทางของพัสดุ — ยิงเองตอนเปิดดู ไม่ต้องให้ร้านกดอีกที (user request 2026-07-29)
    *
    * เงียบเมื่อล้มเหลว (ไม่ขึ้น toast) เพราะเป็นการยิงอัตโนมัติที่ร้านไม่ได้สั่ง —
@@ -295,7 +355,7 @@ export default function ShipmentStatusView({
     async (opts?: { silent?: boolean }) => {
       setLoadingTraces(true)
       try {
-        const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/traces`), {
+        const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/traces`), {
           cache: 'no-store',
         })
         if (!res.ok) {
@@ -311,7 +371,7 @@ export default function ShipmentStatusView({
         setLoadingTraces(false)
       }
     },
-    [shipment.id],
+    [shipment.id, apiBase],
   )
 
   // ยิงครั้งเดียวตอนเปิด — พัสดุที่ยังไม่มีเลขติดตามยังไม่มีอะไรให้ติดตาม จึงข้าม
@@ -327,7 +387,10 @@ export default function ShipmentStatusView({
   }, [shipment.id])
 
   const logo = courierLogoUrl(shipment.courierCode, shipment.courierName)
-  const courierLabel = shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง'
+  // ใบ Flash: ป้ายที่มาจาก shipmentSourceLabel ตัวเดียว (HR16) · ใบ iShip คงเดิมทุกตัวอักษร
+  const courierLabel = isFlash
+    ? shipmentSourceLabel(shipment)
+    : (shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง')
   const addressLines = receiver
     ? [
         receiver.line1,
@@ -347,7 +410,28 @@ export default function ShipmentStatusView({
    */
   const orderedTraces = useMemo(() => (traces ? sortTracesNewestFirst(traces) : null), [traces])
 
+  // ── 00084: กิ่งของ Flash อยู่ใต้ hook ทุกตัวเสมอ (shipment-status-view-hooks.test.ts) ──
+  // NEEDS_REVIEW (1003 ไม่มีเลขพัสดุ) — ยังไม่มีพัสดุจริงให้ติดตาม แผงเลือกผูก/เปิดใหม่แทนทั้งจอ
+  if (shipment.status === 'NEEDS_REVIEW') {
+    return <FlashReviewPanel shipment={shipment} onResolved={onRetried} />
+  }
+
   // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
+  if (shipment.status === 'FAILED' && isFlash) {
+    return (
+      <FlashFailedPanel
+        shipment={shipment}
+        receiver={receiver}
+        isOwner={isShopOwner}
+        busy={busy}
+        onRetry={handleRetry}
+        onEditRequest={onEditRequest}
+        onSelfShipRequest={onSelfShipRequest}
+      />
+    )
+  }
+
+  // ── สร้างไม่สำเร็จ (iShip) — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
   if (shipment.status === 'FAILED') {
     /**
      * ปุ่มไหนได้สีทึบ ตัดสินจากชนิดของ error ไม่ใช่ตำแหน่งตายตัว (classifyRetryUX ใน lib/iship/errors.ts)
@@ -562,6 +646,8 @@ export default function ShipmentStatusView({
       ? orderedTraces
       : orderedTraces.slice(0, TRACE_PREVIEW)
     : []
+  const markerLine = isFlash ? markerReasonLine(carrier.carrierStatus, traces) : null
+  const codNotice = codNoticeText(shipment.provider, shipment.codAmount)
   const hasReceiver = Boolean(receiver && (receiver.name || receiver.phone || addressLines.length > 0))
   const itemCount = items?.reduce((n, it) => n + it.qty, 0) ?? 0
 
@@ -609,7 +695,9 @@ export default function ShipmentStatusView({
         <div className="flex items-start gap-3">
           {/* โลโก้ขนส่งจาก COURIER_LOGO ที่เดียว (lib/iship/courier.ts) — ไม่มีไฟล์ = ตัวย่อ
               object-contain + ring: โลโก้พื้นขาวจะกลืนการ์ดขาว (บทเรียนเดียวกับ OrderCard.tsx) */}
-          {logo ? (
+          {isFlash ? (
+            <FlashLogo />
+          ) : logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logo}
@@ -664,7 +752,7 @@ export default function ShipmentStatusView({
         {shipment.source === 'LINKED' && (
           <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2 text-xs text-info-ink">
             <Icon icon="tabler:link" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-            ผูกจาก iShip — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
+            ผูกจาก {svcName} — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
           </p>
         )}
 
@@ -682,14 +770,18 @@ export default function ShipmentStatusView({
           />
         </div>
 
-        {progress.notice && (
+        {(progress.notice || markerLine) && (
           <p
             className={`mb-0 mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
-              NOTICE_BOX[progress.notice.tone] ?? NOTICE_BOX.secondary
+              NOTICE_BOX[progress.notice?.tone ?? 'warning'] ?? NOTICE_BOX.secondary
             }`}
           >
             <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-            <span>{progress.notice.text}</span>
+            <span>
+              {progress.notice?.text}
+              {/* สาเหตุที่ Flash บันทึก อยู่ในกล่องเดียวกับข้อความเตือน ไม่สร้างกล่องที่สอง (Design-Spec §4.5) */}
+              {markerLine && <span className="block">{markerLine}</span>}
+            </span>
           </p>
         )}
       </section>
@@ -865,6 +957,13 @@ export default function ShipmentStatusView({
               <span className="text-base font-bold">฿{shipment.codAmount.toLocaleString('th-TH')}</span>
             </div>
           )}
+          {/* ป้ายถาวรทุกสถานะ (รวมส่งถึงแล้ว) ปิดไม่ได้ — Flash ไม่แจ้งการโอนเงิน COD จึงไม่ใช่เขียว/แดง แต่เป็นข้อเท็จจริง */}
+          {codNotice && (
+            <p className={`mb-0 mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${NOTICE_BOX.info}`}>
+              <Icon icon="tabler:cash" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              <span>{codNotice}</span>
+            </p>
+          )}
         </section>
       )}
 
@@ -958,16 +1057,29 @@ export default function ShipmentStatusView({
           </button>
         )}
 
-        <a
-          href={`/api/seller/iship/shipments/${shipment.id}/label`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="พิมพ์ใบปะหน้า"
-          title="พิมพ์ใบปะหน้า"
-          className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0"
-        >
-          <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
-        </a>
+        {isFlash ? (
+          <button
+            type="button"
+            onClick={() => void handlePrintFlashLabel()}
+            disabled={busy}
+            aria-label="พิมพ์ใบปะหน้า"
+            title="พิมพ์ใบปะหน้า"
+            className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0 disabled:opacity-50"
+          >
+            <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
+          </button>
+        ) : (
+          <a
+            href={`/api/seller/iship/shipments/${shipment.id}/label`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="พิมพ์ใบปะหน้า"
+            title="พิมพ์ใบปะหน้า"
+            className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0"
+          >
+            <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
+          </a>
+        )}
 
         <div ref={menuRef} className="relative shrink-0">
           <button
@@ -1011,19 +1123,22 @@ export default function ShipmentStatusView({
                   <span>ยกเลิกการผูก</span>
                 </button>
               )}
-              <button
-                type="button"
-                role="menuitem"
-                disabled={busy}
-                onClick={() => {
-                  setMenuOpen(false)
-                  void handleCancel()
-                }}
-                className="dropdown-item text-danger-ink min-h-11 text-sm disabled:opacity-50"
-              >
-                <Icon icon="tabler:package-off" className="size-4" />
-                <span>ยกเลิกพัสดุ</span>
-              </button>
+              {/* ใบ Flash ที่ผูกมา ยกเลิกจาก Deep ไม่ได้ (409 INVALID_STATE) — ใช้ "ยกเลิกการผูก" เท่านั้น */}
+              {!(isFlash && shipment.source === 'LINKED') && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    void handleCancel()
+                  }}
+                  className="dropdown-item text-danger-ink min-h-11 text-sm disabled:opacity-50"
+                >
+                  <Icon icon="tabler:package-off" className="size-4" />
+                  <span>ยกเลิกพัสดุ</span>
+                </button>
+              )}
             </div>
           )}
         </div>

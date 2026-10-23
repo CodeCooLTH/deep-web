@@ -47,6 +47,7 @@ import { canSellerConfirmPayment, type OrderStatus } from '@/lib/order-display'
 import { shouldPromptCloseReturnedOrder, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
+import type { FlashPanelJson } from '@/services/flash.service'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import CodCard from './CodCard'
 import PaymentReceivedCard from './PaymentReceivedCard'
@@ -135,6 +136,8 @@ export interface OrderDetailClientProps {
 
   // ── ShipmentEntryModal (T9) ──────────────────────────────────────────────
   ishipContext: ShipmentContextJson | null
+  /** 00084 — แผง Flash (บัญชีของร้านเอง) · null = ปิดฟีเจอร์ → โมดัลทำงานเหมือนเดิม */
+  flashPanel?: FlashPanelJson | null
   hasIshipShipment: boolean
   /**
    * ขนส่งตีกลับของมาที่ร้านแล้ว (`carrierStatus` ของพัสดุที่มีอยู่จริง ∈ return/return_success)
@@ -244,6 +247,7 @@ export default function OrderDetailClient({
   paymentConfirmedAtISO,
   shipmentSource,
   ishipContext,
+  flashPanel = null,
   hasIshipShipment,
   parcelReturned = false,
   trackingNo,
@@ -988,6 +992,8 @@ export default function OrderDetailClient({
           orderToken={publicToken}
           mode={modalMode}
           ishipContext={ishipContext}
+          flashPanel={flashPanel}
+          isOwner={viewerRoles.includes('OWNER')}
           hasIshipShipment={hasIshipShipment}
           initialTrackingNo={trackingNo}
           initialProvider={provider}
