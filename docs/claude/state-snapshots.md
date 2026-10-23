@@ -512,6 +512,7 @@
 
 **กับดัก**
 - `PublicOrderClient` มี `key={status-hasReview}` ⇒ ห้าม `router.refresh()` ระหว่างแผ่นให้คะแนนเปิด (remount ปิดแผ่น) — refresh ตอนแผ่นปิด
+- ext 2026-10-23: ร้านบริการไม่เด้งแผ่นให้คะแนนหลังยืนยันแล้ว (ลูกค้ากดผิดตอนจอสลับ) ⇒ refresh ทันที · รีวิวจากการ์ดบนหน้า · ร้านอื่นยังเด้ง
 - `OrderPayment`/`OrderEvent.id` ไม่มี default ในฐาน · เวลาไม่มีโซน vs `serviceClosedAt` มีโซน ⇒ migration ใช้ `gen_random_uuid()` + `AT TIME ZONE 'UTC'`
 - หมายเหตุ migration ต้องตรง `BUYER_CONFIRM_PAYMENT_NOTE`
 

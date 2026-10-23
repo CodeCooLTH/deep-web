@@ -76,7 +76,7 @@ merge → `prisma migrate deploy` บน prod อัตโนมัติ (HR15)
 ปิดในขั้นนี้ ⇒ `SERVICE_CLOSED { actorUserId = ลูกค้า, meta { outcome SERVED, closedBy BUYER, amount? } }` · ไม่เรียก `reserveAutoNotifyIntent` (BR FR-003/004)
 
 ### TFR-005: หน้าลูกค้า
-ร้านบริการ: ยืนยันแล้วไม่มีแผ่นให้คะแนน ⇒ `router.refresh()` ทันที · มีแผ่น ⇒ `router.refresh()` ตอนแผ่นปิด (`refreshAfterServiceConfirm`) — ไม่ refresh ระหว่างแผ่นเปิด เพราะ `key` ของ `PublicOrderClient` ผูก `status` แล้ว remount จะปิดแผ่น (BR FR-005)
+ร้านบริการ: ยืนยันแล้ว `router.refresh()` ทันที และ **ไม่เด้งแผ่นให้คะแนน** (ext 2026-10-23 — ลูกค้ากดผิดตอนจอสลับ) · รีวิวจากการ์ดบนหน้า (`canReview` → `ReviewForm`) · toast "ยืนยันรับบริการแล้ว" แทนหัวแผ่น · ร้านอื่นเด้งแผ่นแบบเดิม (BR FR-005)
 
 ### TFR-006: migration
 3 คำสั่ง รันซ้ำได้ กั้น `vertical = 'SERVICE_QUEUE'` ทุกคำสั่ง — ดู [[DATABASE]] (BR FR-007)
