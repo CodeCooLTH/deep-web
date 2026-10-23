@@ -127,7 +127,8 @@ export function buildCreateOrderParams(input: BuildFlashCreateInput): FlashParam
   };
   const dims = [parcel.width, parcel.length, parcel.height];
   if (dims.every((d) => d != null && d > 0)) {
-    p.width = parcel.width!; p.length = parcel.length!; p.height = parcel.height!;
+    // Flash รับ ซม. เป็นจำนวนเต็ม แต่ร้านเก็บทศนิยมได้ — ปัดขึ้น (ขนส่งคิดราคาตามขนาด ปัดลง = ราคาต่ำกว่าจริง)
+    p.width = Math.ceil(parcel.width!); p.length = Math.ceil(parcel.length!); p.height = Math.ceil(parcel.height!);
   }
 
   p.insured = options?.isInsured ? 1 : 0;
@@ -178,7 +179,7 @@ export function buildEstimateParams(i: BuildFlashEstimateInput): FlashParams {
     pricingTable: i.pricingTable ?? 0,
   };
   if ([i.width, i.length, i.height].every((d) => d != null && d > 0)) {
-    p.width = i.width!; p.length = i.length!; p.height = i.height!;
+    p.width = Math.ceil(i.width!); p.length = Math.ceil(i.length!); p.height = Math.ceil(i.height!);
   }
   return p;
 }

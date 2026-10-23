@@ -170,8 +170,9 @@ function validateSettings(s: SettingsState): FieldErrors {
   }
   for (const k of ['defaultWidth', 'defaultLength', 'defaultHeight'] as const) {
     const v = num(s[k])
-    if (v !== null && (!Number.isInteger(v) || v < 1 || v > 300)) {
-      e[k] = 'ต้องเป็นจำนวนเต็ม 1–300 ซม.'
+    // ทศนิยม ≤2 ตรงกับคอลัมน์ Decimal(6,2) และ parcelDimCm ฝั่ง server (กล่องบน iShip มีทศนิยม เช่น 20.8)
+    if (v !== null && (v < 1 || v > 300 || Math.abs(v * 100 - Math.round(v * 100)) > 1e-6)) {
+      e[k] = 'ต้องอยู่ระหว่าง 1–300 ซม. ทศนิยมไม่เกิน 2 ตำแหน่ง'
     }
   }
   // กฎเดียวที่เป็น cross-field และ backend ปฏิเสธจริง (settings/route.ts) — ข้อความตรงกัน
@@ -951,25 +952,25 @@ export default function ShippingSettingsRow({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="form-label" htmlFor="iship-defaultWidth">กว้าง</label>
-                  <input id="iship-defaultWidth" type="number" min="1" className={inputCls('defaultWidth')}
+                  <input id="iship-defaultWidth" type="number" step="any" min="1" className={inputCls('defaultWidth')}
                     value={settings.defaultWidth ?? ''}
                     onChange={(e) => patch({ defaultWidth: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultLength">ยาว</label>
-                  <input id="iship-defaultLength" type="number" min="1" className={inputCls('defaultLength')}
+                  <input id="iship-defaultLength" type="number" step="any" min="1" className={inputCls('defaultLength')}
                     value={settings.defaultLength ?? ''}
                     onChange={(e) => patch({ defaultLength: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
                 <div>
                   <label className="form-label" htmlFor="iship-defaultHeight">สูง</label>
-                  <input id="iship-defaultHeight" type="number" min="1" className={inputCls('defaultHeight')}
+                  <input id="iship-defaultHeight" type="number" step="any" min="1" className={inputCls('defaultHeight')}
                     value={settings.defaultHeight ?? ''}
                     onChange={(e) => patch({ defaultHeight: e.target.value === '' ? null : Number(e.target.value) })} />
                 </div>
               </div>
               {(errors.defaultWidth || errors.defaultLength || errors.defaultHeight) && (
-                <p className="mb-0 text-xs text-danger sm:col-span-2">ต้องเป็นจำนวนเต็ม 1–300 ซม.</p>
+                <p className="mb-0 text-xs text-danger sm:col-span-2">ต้องอยู่ระหว่าง 1–300 ซม. ทศนิยมไม่เกิน 2 ตำแหน่ง</p>
               )}
 
               <div className="sm:col-span-2">

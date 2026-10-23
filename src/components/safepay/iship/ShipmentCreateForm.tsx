@@ -790,6 +790,7 @@ export default function ShipmentCreateForm({
             <input
               id="shp-width"
               type="number"
+              step="any"
               min="1"
               className="form-input"
               aria-label="กว้าง (ซม.)"
@@ -798,6 +799,7 @@ export default function ShipmentCreateForm({
             />
             <input
               type="number"
+              step="any"
               min="1"
               className="form-input"
               aria-label="ยาว (ซม.)"
@@ -806,6 +808,7 @@ export default function ShipmentCreateForm({
             />
             <input
               type="number"
+              step="any"
               min="1"
               className="form-input"
               aria-label="สูง (ซม.)"

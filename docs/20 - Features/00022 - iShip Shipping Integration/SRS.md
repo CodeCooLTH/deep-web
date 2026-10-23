@@ -249,7 +249,7 @@ sequenceDiagram
 | `defaultCourierCode` | string 1–50 — **ต้องมีอยู่ในรายชื่อที่ดึงจาก iShip จริง** ไม่ใช่รายการที่เขียนตายในโค้ด |
 | `defaultCategoryId` | integer ที่อยู่ในชุด `0–11, 99` |
 | `weight` | > 0 และ ≤ 100 (กก.) |
-| `width`/`length`/`height` | integer 1–300 (ซม.) |
+| `width`/`length`/`height` | 1–300 (ซม.) ทศนิยม ≤2 ตำแหน่ง (แก้ 2026-10-23 — เดิม integer, ดู SRS หลัก §6.75) |
 | `codAmount` | ≥ 0, ทศนิยม ≤ 2, และเมื่อ > 0 ต้องเท่ากับ `Order.totalAmount` |
 | `optProductValue` | > 0 เมื่อ `optIsInsured` เปิด |
 | `optServiceType` | 1 หรือ 2 เท่านั้น |
@@ -496,9 +496,9 @@ backfill แล้วทั้ง 26 แถว (23 สลับ + 3 "อ.เม�
     postcode?: string | null
   }
   weight: number   // 0.01–100 kg
-  width: number    // 1–300 cm (integer)
-  length: number   // 1–300 cm (integer)
-  height: number   // 1–300 cm (integer)
+  width: number    // 1–300 cm (ทศนิยม ≤2)
+  length: number   // 1–300 cm (ทศนิยม ≤2)
+  height: number   // 1–300 cm (ทศนิยม ≤2)
 }
 ```
 ไม่มี `courierCode` — server เป็นคนไล่ทุกขนส่งของร้านเอง ที่อยู่ผู้ส่งไม่รับจาก body (อ่านจาก

@@ -1391,6 +1391,15 @@ export const IShipConnectSchema = v.object({
 const thaiPostcode = v.pipe(v.string(), v.regex(/^[0-9]{5}$/, "รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก"));
 const shortText = (max: number) => v.pipe(v.string(), v.trim(), v.maxLength(max));
 
+// ขนาดกล่อง (ซม.) — ทศนิยมได้ ≤2 ตำแหน่งตรงกับคอลัมน์ Decimal(6,2) (กล่องบน iShip เช่น 20.8×42.2 · 2026-10-23)
+// ใช้ร่วมทั้ง iShip และ Flash · Flash รับจำนวนเต็ม ตัวประกอบ payload ของ Flash เป็นคนปัดขึ้นเอง
+const parcelDimCm = v.pipe(
+  v.number(),
+  v.minValue(1),
+  v.maxValue(300),
+  v.check((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "ขนาดทศนิยมไม่เกิน 2 ตำแหน่ง"),
+);
+
 // ค่าตั้งต้นของร้าน — nullable ทุกช่อง เพราะร้านทยอยกรอกได้ ความครบถ้วนบังคับตอน
 // "จะเปิดพัสดุ" ไม่ใช่ตอนบันทึกฟอร์ม (BR-ISHIP-30 บังคับที่ service ไม่ใช่ที่ schema)
 // senderSubdistrict = ตำบล/แขวง, senderDistrict = อำเภอ/เขต — ดู BR-ISHIP-31
@@ -1404,9 +1413,9 @@ export const IShipSettingsSchema = v.object({
   senderPostcode: v.nullish(thaiPostcode),
   defaultCourierCode: v.nullish(shortText(50)),
   defaultWeight: v.nullish(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
-  defaultWidth: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-  defaultLength: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-  defaultHeight: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  defaultWidth: v.nullish(parcelDimCm),
+  defaultLength: v.nullish(parcelDimCm),
+  defaultHeight: v.nullish(parcelDimCm),
   // หมวดพัสดุตามที่ iShip กำหนด (0-11 และ 99) — ไม่ใช่ช่วงต่อเนื่อง จึงใช้ picklist
   defaultCategoryId: v.nullish(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
   // 🛑 ไม่มี `defaultCodEnabled` แล้วโดยเจตนา (2026-09-05) — ยอดเก็บปลายทางของพัสดุตัดสิน
@@ -1445,9 +1454,9 @@ export const IShipCreateShipmentSchema = v.object({
     v.object({
       courierCode: v.optional(shortText(50)),
       weight: v.optional(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
-      width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-      length: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-      height: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+      width: v.optional(parcelDimCm),
+      length: v.optional(parcelDimCm),
+      height: v.optional(parcelDimCm),
       categoryId: v.optional(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
       codAmount: v.optional(v.pipe(v.number(), v.minValue(0))),
       remark: v.nullish(shortText(255)),
@@ -1532,9 +1541,9 @@ export const IShipPriceQuoteSchema = v.object({
     postcode: v.nullish(shortText(10)),
   }),
   weight: v.pipe(v.number(), v.minValue(0.01), v.maxValue(100)),
-  width: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
-  length: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
-  height: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
+  width: parcelDimCm,
+  length: parcelDimCm,
+  height: parcelDimCm,
 });
 
 // ส่วนขยาย 00022 — เทียบราคาทุกขนส่งในคำขอเดียว (ปุ่ม "เทียบราคา")
@@ -2427,7 +2436,6 @@ export const FlashConnectSchema = v.object({
   ),
 });
 
-const flashDim = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300));
 const flashWeight = v.pipe(v.number(), v.minValue(0.01), v.maxValue(100));
 
 export const FlashSettingsSchema = v.object({
@@ -2439,9 +2447,9 @@ export const FlashSettingsSchema = v.object({
   senderProvince: v.nullish(shortText(100)),
   senderPostcode: v.nullish(thaiPostcode),
   defaultWeight: v.nullish(flashWeight),
-  defaultWidth: v.nullish(flashDim),
-  defaultLength: v.nullish(flashDim),
-  defaultHeight: v.nullish(flashDim),
+  defaultWidth: v.nullish(parcelDimCm),
+  defaultLength: v.nullish(parcelDimCm),
+  defaultHeight: v.nullish(parcelDimCm),
   defaultCategoryId: v.nullish(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
   optOnTime: v.optional(v.boolean()),
   optBoxShield: v.optional(v.boolean()),
@@ -2464,9 +2472,9 @@ export const FlashPriceQuoteSchema = v.object({
     subdistrict: v.nullish(shortText(120)),
   }),
   weight: flashWeight,
-  width: v.optional(flashDim),
-  length: v.optional(flashDim),
-  height: v.optional(flashDim),
+  width: v.optional(parcelDimCm),
+  length: v.optional(parcelDimCm),
+  height: v.optional(parcelDimCm),
 });
 // ── T8b: พัสดุ/เรียกรถ ──
 const flashPno = v.pipe(v.string(), v.regex(/^[A-Za-z0-9]{6,32}$/, "เลขพัสดุไม่ถูกต้อง"));
@@ -2477,9 +2485,9 @@ const flashOrderRef = {
 
 export const FlashCreateOverrideSchema = v.object({
   weight: v.optional(flashWeight),
-  width: v.optional(flashDim),
-  length: v.optional(flashDim),
-  height: v.optional(flashDim),
+  width: v.optional(parcelDimCm),
+  length: v.optional(parcelDimCm),
+  height: v.optional(parcelDimCm),
   categoryId: v.optional(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
   codAmount: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(1_000_000))),
   remark: v.nullish(shortText(200)),

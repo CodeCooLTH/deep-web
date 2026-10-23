@@ -178,6 +178,12 @@ function senderOf(a: AccountRow): SenderAddress {
   };
 }
 
+// Decimal ของ Prisma → number (null คงเป็น null) — ขนาด/น้ำหนักพัสดุห้ามปล่อย Decimal ไหลต่อ
+// ไปถึง payload ของ iShip หรือข้ามขอบเขต RSC/HTTP
+function dec(v: unknown): number | null {
+  return v == null ? null : Number(v);
+}
+
 function toConnectionView(a: AccountRow | null): ConnectionView {
   if (!a || a.status === "DISCONNECTED") {
     return {
@@ -388,9 +394,9 @@ export async function getSettings(shopId: string) {
     senderPostcode: a.senderPostcode,
     defaultCourierCode: a.defaultCourierCode,
     defaultWeight: a.defaultWeight ? Number(a.defaultWeight) : null,
-    defaultWidth: a.defaultWidth,
-    defaultLength: a.defaultLength,
-    defaultHeight: a.defaultHeight,
+    defaultWidth: dec(a.defaultWidth),
+    defaultLength: dec(a.defaultLength),
+    defaultHeight: dec(a.defaultHeight),
     defaultCategoryId: a.defaultCategoryId,
     optOnTime: a.optOnTime,
     optBoxShield: a.optBoxShield,
@@ -452,9 +458,9 @@ export function toShipmentView(s: {
   lastErrorCode: string | null;
   lastErrorMessage: string | null;
   weight: unknown;
-  width: number | null;
-  length: number | null;
-  height: number | null;
+  width: unknown;
+  length: unknown;
+  height: unknown;
   codAmount: unknown;
   createdAt: Date;
   problemAt: Date | null;
@@ -466,6 +472,9 @@ export function toShipmentView(s: {
     ...s,
     // Decimal ของ Prisma → number ก่อนข้ามขอบเขต (Decimal serialize ข้าม RSC/HTTP ไม่ได้)
     weight: s.weight == null ? null : Number(s.weight),
+    width: dec(s.width),
+    length: dec(s.length),
+    height: dec(s.height),
     codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
     //
@@ -684,9 +693,9 @@ export async function getShipmentPanelOrReason(
     defaults: {
       courierCode: account.defaultCourierCode,
       weight: account.defaultWeight ? Number(account.defaultWeight) : null,
-      width: account.defaultWidth,
-      length: account.defaultLength,
-      height: account.defaultHeight,
+      width: dec(account.defaultWidth),
+      length: dec(account.defaultLength),
+      height: dec(account.defaultHeight),
       categoryId: account.defaultCategoryId,
       remark: account.defaultRemark,
       optOnTime: account.optOnTime,
@@ -981,9 +990,9 @@ export async function createShipment(
   const courierCode = override?.courierCode ?? account.defaultCourierCode;
   const categoryId = override?.categoryId ?? account.defaultCategoryId;
   const weight = override?.weight ?? (account.defaultWeight ? Number(account.defaultWeight) : null);
-  const width = override?.width ?? account.defaultWidth;
-  const length = override?.length ?? account.defaultLength;
-  const height = override?.height ?? account.defaultHeight;
+  const width = override?.width ?? dec(account.defaultWidth);
+  const length = override?.length ?? dec(account.defaultLength);
+  const height = override?.height ?? dec(account.defaultHeight);
 
   // ตรวจก่อนยิงเสมอ — ปล่อยให้ iShip ปฏิเสธแล้วค่อยรู้ = ร้านได้ข้อความปลายทางที่อ่านไม่ออก
   // และเสียเวลาไปหนึ่งรอบ บอกเป็นช่อง ๆ ว่าขาดอะไร ไม่ใช่ "ข้อมูลไม่ครบ" ลอย ๆ
@@ -1151,13 +1160,10 @@ export async function createReturnShipment(
 
   const fwd = order.shipments[0];
   const courierCode = override?.courierCode ?? fwd?.courierCode ?? account.defaultCourierCode;
-  // Decimal → number ที่จุดเดียว — `findMissingParcelFields`/payload ของ iShip รับ number
-  // (ท่าเดียวกับ createShipment บรรทัด 843 ห้ามปล่อย Decimal ไหลต่อ)
-  const dec = (v: unknown) => (v == null ? null : Number(v));
   const weight = override?.weight ?? dec(fwd?.weight) ?? dec(account.defaultWeight);
-  const width = override?.width ?? fwd?.width ?? account.defaultWidth;
-  const length = override?.length ?? fwd?.length ?? account.defaultLength;
-  const height = override?.height ?? fwd?.height ?? account.defaultHeight;
+  const width = override?.width ?? dec(fwd?.width) ?? dec(account.defaultWidth);
+  const length = override?.length ?? dec(fwd?.length) ?? dec(account.defaultLength);
+  const height = override?.height ?? dec(fwd?.height) ?? dec(account.defaultHeight);
   const categoryId = override?.categoryId ?? fwd?.categoryId ?? account.defaultCategoryId;
 
   const missing = findMissingParcelFields({ courierCode, categoryId, weight, width, length, height });
@@ -1318,9 +1324,9 @@ export async function retryShipment(
       courierCode: override.courierCode ?? existing.courierCode,
       categoryId: override.categoryId ?? existing.categoryId,
       weight: override.weight ?? (existing.weight == null ? null : Number(existing.weight)),
-      width: override.width ?? existing.width,
-      length: override.length ?? existing.length,
-      height: override.height ?? existing.height,
+      width: override.width ?? dec(existing.width),
+      length: override.length ?? dec(existing.length),
+      height: override.height ?? dec(existing.height),
     };
     const missing = findMissingParcelFields(merged);
     if (missing.length > 0) {
@@ -1386,9 +1392,9 @@ async function dispatchShipment(
     receiver: { name: receiver.name, phone: receiver.phone, address: receiver },
     parcel: {
       weight: Number(row.weight),
-      width: row.width!,
-      length: row.length!,
-      height: row.height!,
+      width: Number(row.width),
+      length: Number(row.length),
+      height: Number(row.height),
       categoryId: row.categoryId!,
     },
     codAmount: Number(row.codAmount),

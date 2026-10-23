@@ -89,9 +89,9 @@ erDiagram
         string senderPostcode
         string defaultCourierCode
         decimal defaultWeight
-        int defaultWidth
-        int defaultLength
-        int defaultHeight
+        decimal defaultWidth
+        decimal defaultLength
+        decimal defaultHeight
         int defaultCategoryId
         boolean defaultCodEnabled "default false"
         boolean optOnTime
@@ -115,9 +115,9 @@ erDiagram
         string idempotencyKey "UNIQUE — กันเปิดซ้ำ"
         decimal codAmount
         decimal weight
-        int width
-        int length
-        int height
+        decimal width
+        decimal length
+        decimal height
         int categoryId
         json senderSnapshot
         json receiverSnapshot
@@ -185,9 +185,9 @@ erDiagram
 | `senderPostcode` | String | ✓ | null | |
 | `defaultCourierCode` | String | ✓ | null | รหัสขนส่งจาก `GET /api/courier_code` |
 | `defaultWeight` | Decimal(6,2) | ✓ | null | กิโลกรัม |
-| `defaultWidth` | Int | ✓ | null | เซนติเมตร |
-| `defaultLength` | Int | ✓ | null | เซนติเมตร |
-| `defaultHeight` | Int | ✓ | null | เซนติเมตร |
+| `defaultWidth` | Decimal(6,2) | ✓ | null | เซนติเมตร · ทศนิยมได้ (เดิม Int — แก้ 2026-10-23 migration `20261023150000_shipping_dims_decimal`) |
+| `defaultLength` | Decimal(6,2) | ✓ | null | เซนติเมตร |
+| `defaultHeight` | Decimal(6,2) | ✓ | null | เซนติเมตร |
 | `defaultCategoryId` | Int | ✓ | null | 0-11, 99 ตามที่ iShip กำหนด |
 | `defaultCodEnabled` | Boolean | ✗ | `false` | 🛑 **เลิกใช้ 2026-09-05 (BR-ISHIP-90)** — คอลัมน์ยังอยู่แต่ไม่มีโค้ดอ่าน/เขียนอีกแล้ว ยอด COD ตัดสินจากวิธีชำระเงินของคำสั่งซื้อ (`resolveDefaultCodAmount`) การลบคอลัมน์ต้องเป็น migration รอบของตัวเอง |
 | `optOnTime` | Boolean | ✗ | `false` | ส่งตรงเวลา |
@@ -224,7 +224,7 @@ erDiagram
 | `idempotencyKey` | String | ✗ | — | **@unique** — คีย์กันเปิดซ้ำ (BR-ISHIP-22/26) รูปแบบใน §3.2.1 |
 | `codAmount` | Decimal(12,2) | ✗ | `0` | ยอดเก็บเงินปลายทางที่ส่งไปจริง |
 | `weight` | Decimal(6,2) | ✓ | null | กิโลกรัม (ค่าที่ร้านแจ้ง) |
-| `width` / `length` / `height` | Int | ✓ | null | เซนติเมตร |
+| `width` / `length` / `height` | Decimal(6,2) | ✓ | null | เซนติเมตร · ทศนิยมได้ (เดิม Int — แก้ 2026-10-23) |
 | `categoryId` | Int | ✓ | null | |
 | `senderSnapshot` | Json | ✓ | null | ที่อยู่ผู้ส่ง ณ เวลาส่ง — freeze ไม่อ้างอิงสด |
 | `receiverSnapshot` | Json | ✓ | null | ที่อยู่ผู้รับ ณ เวลาส่ง — freeze |

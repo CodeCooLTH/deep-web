@@ -233,9 +233,9 @@ function toSettings(a: FlashAccountRow): FlashSettings {
     senderProvince: a.senderProvince,
     senderPostcode: a.senderPostcode,
     defaultWeight: a.defaultWeight != null ? Number(a.defaultWeight) : null,
-    defaultWidth: a.defaultWidth,
-    defaultLength: a.defaultLength,
-    defaultHeight: a.defaultHeight,
+    defaultWidth: a.defaultWidth != null ? Number(a.defaultWidth) : null,
+    defaultLength: a.defaultLength != null ? Number(a.defaultLength) : null,
+    defaultHeight: a.defaultHeight != null ? Number(a.defaultHeight) : null,
     defaultCategoryId: a.defaultCategoryId,
     optOnTime: a.optOnTime,
     optBoxShield: a.optBoxShield,
@@ -834,7 +834,7 @@ export async function getFlashPanelOrReason(shopId: string, orderId: string): Pr
     defaults: {
       courierCode: null, // Flash ไม่มีตัวเลือกขนส่ง
       weight: acct.defaultWeight != null ? Number(acct.defaultWeight) : null,
-      width: acct.defaultWidth, length: acct.defaultLength, height: acct.defaultHeight,
+      width: acct.defaultWidth != null ? Number(acct.defaultWidth) : null, length: acct.defaultLength != null ? Number(acct.defaultLength) : null, height: acct.defaultHeight != null ? Number(acct.defaultHeight) : null,
       categoryId: acct.defaultCategoryId, remark: acct.defaultRemark,
       optOnTime: acct.optOnTime, optBoxShield: acct.optBoxShield, optIsInsured: acct.optIsInsured,
       optProductValue: acct.optProductValue != null ? Number(acct.optProductValue) : null,

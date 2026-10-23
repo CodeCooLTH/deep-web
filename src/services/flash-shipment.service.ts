@@ -308,9 +308,9 @@ export async function createFlashShipment(
   const o = override?.options;
   const parcel: ParcelSnap = {
     weight: override?.weight ?? (account.defaultWeight != null ? Number(account.defaultWeight) : null),
-    width: override?.width ?? account.defaultWidth,
-    length: override?.length ?? account.defaultLength,
-    height: override?.height ?? account.defaultHeight,
+    width: override?.width ?? (account.defaultWidth != null ? Number(account.defaultWidth) : null),
+    length: override?.length ?? (account.defaultLength != null ? Number(account.defaultLength) : null),
+    height: override?.height ?? (account.defaultHeight != null ? Number(account.defaultHeight) : null),
     categoryId: override?.categoryId ?? account.defaultCategoryId,
   };
   const options: OptionsSnap = {
@@ -397,9 +397,9 @@ export async function retryFlashShipment(
   // เขียนทับเฉพาะช่องที่ส่งมา — ไม่ fallback ไปค่าตั้งต้นร้าน (ใบนี้อาจเปิดด้วยค่าอื่นมาแต่แรก)
   const parcel: ParcelSnap = {
     weight: override?.weight ?? (existing.weight == null ? null : Number(existing.weight)),
-    width: override?.width ?? existing.width,
-    length: override?.length ?? existing.length,
-    height: override?.height ?? existing.height,
+    width: override?.width ?? (existing.width != null ? Number(existing.width) : null),
+    length: override?.length ?? (existing.length != null ? Number(existing.length) : null),
+    height: override?.height ?? (existing.height != null ? Number(existing.height) : null),
     categoryId: override?.categoryId ?? existing.categoryId,
   };
   const codAmount = override?.codAmount ?? Number(existing.codAmount);
