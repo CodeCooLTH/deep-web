@@ -26,7 +26,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[00022 -
 ### 1.2 ขอบเขตเชิงระบบ
 - **อยู่ใน:** `src/lib/flash/**` (ใหม่) · `src/services/flash*.service.ts` (ใหม่) · `src/app/api/seller/flash/**` · `src/app/api/webhooks/flash/[secret]` · `src/app/api/cron/flash-status-sync` · จุดเชื่อม provider-aware ในโค้ด 00022 ตามตาราง CS ใน [[SDS]] §8
 - **ไม่อยู่ใน:** OOS-1..19 ของ scope baseline (ปิดงาน COD อัตโนมัติ, sub-account, หลายกล่อง, ขากลับ, รวม PDF, แก้พัสดุ, POD ให้ผู้ซื้อ, `warehouseNo`, ยอดเครดิต Flash, capability ใหม่, ตรรกะ iShip)
-- **Schema:** ล็อกแล้วใน [[DATABASE]] + `prisma/migrations/20261022120000_00084_flash_express/` — SRS นี้ไม่เปลี่ยนสัญญา DB (ช่องว่างที่พบอยู่ใน SDS §10 G-1)
+- **Schema:** ล็อกแล้วใน [[DATABASE]] + `prisma/migrations/20261023120000_00084_flash_express/` — SRS นี้ไม่เปลี่ยนสัญญา DB (ช่องว่างที่พบอยู่ใน SDS §10 G-1)
 
 ### 1.3 เอกสารอ้างอิง
 | เอกสาร | ความสัมพันธ์ |
@@ -271,7 +271,7 @@ Serverless (Vercel) — ไม่มีตัวจับเวลาในห�
 ### TFR-FLASH-024: Audit
 - **Trace to:** BR-FLASH-66/79
 - ผู้ทำ+เวลาที่คงอยู่ในข้อมูลเดิม: `connectedByUserId/lastVerifiedAt` (บัญชี) · `createdByUserId` · `cancelledByUserId/cancelledAt` (พัสดุ) · `ShipmentPickup.createdByUserId` · `OrderEvent` (สร้าง/ยกเลิก/ผูก) · `webhookRegisteredAt/webhookStatus`
-- การกระทำระดับร้านที่ไม่มีคอลัมน์รองรับ (ตั้ง/ทับ/ปิด webhook รายชนิด, เชื่อม, เปลี่ยน key, ถอน): `recordFlashAudit` (`src/services/flash-account.ts`) append ลง `ShopShippingAccount.auditLog Json?` (ล่าสุด 50 รายการ `{at,userId,action,kinds?,result?}`) **และ** log JSON บรรทัดเดียว prefix `[flash-audit]` ไม่มีความลับ — **G-1 ปิดแล้ว** (Controller เลือกขยาย schema ใน migration `20261022120000_00084_flash_express`)
+- การกระทำระดับร้านที่ไม่มีคอลัมน์รองรับ (ตั้ง/ทับ/ปิด webhook รายชนิด, เชื่อม, เปลี่ยน key, ถอน): `recordFlashAudit` (`src/services/flash-account.ts`) append ลง `ShopShippingAccount.auditLog Json?` (ล่าสุด 50 รายการ `{at,userId,action,kinds?,result?}`) **และ** log JSON บรรทัดเดียว prefix `[flash-audit]` ไม่มีความลับ — **G-1 ปิดแล้ว** (Controller เลือกขยาย schema ใน migration `20261023120000_00084_flash_express`)
 
 ---
 
@@ -349,7 +349,7 @@ sequenceDiagram
 | คำขอรถ | `ShipmentPickup{provider:'FLASH'}` + `currentTicketPickupId` |
 
 ### 5.3 Migration
-`20261022120000_00084_flash_express` additive (ดู [[DATABASE]] §5) · HR15: push `main` = `migrate deploy` บน prod — ต้องบอก user 3 ข้อก่อน push · ห้าม `prisma db pull` (partial index 3 ตัวเป็น unmanaged SQL)
+`20261023120000_00084_flash_express` additive (ดู [[DATABASE]] §5) · HR15: push `main` = `migrate deploy` บน prod — ต้องบอก user 3 ข้อก่อน push · ห้าม `prisma db pull` (partial index 3 ตัวเป็น unmanaged SQL)
 
 ---
 

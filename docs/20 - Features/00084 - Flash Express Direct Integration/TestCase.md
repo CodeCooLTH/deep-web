@@ -376,7 +376,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]",
 
 - **Traces:** S-2 · BR-FLASH-67 · DATABASE.md
 - **Level:** process
-- **Precondition:** ไฟล์ `20261022120000_00084_flash_express/migration.sql`
+- **Precondition:** ไฟล์ `20261023120000_00084_flash_express/migration.sql`
 - **Steps:**
   1. สแกน SQL หา `DROP TABLE/COLUMN`, `DELETE`, `TRUNCATE`, `UPDATE` ไม่มี WHERE
   2. ตรวจ partial unique + คอลัมน์ใหม่ nullable/มี default

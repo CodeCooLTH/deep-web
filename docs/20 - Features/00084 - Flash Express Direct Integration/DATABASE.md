@@ -155,7 +155,7 @@ Prisma relation เปลี่ยน: `Shop.shippingAccount ShopShippingAccount
 
 ## 5. Migration Plan
 
-ไฟล์: `prisma/migrations/20261022120000_00084_flash_express/migration.sql` (เขียนมือ, `IF NOT EXISTS`/`IF EXISTS`)
+ไฟล์: `prisma/migrations/20261023120000_00084_flash_express/migration.sql` (เขียนมือ, `IF NOT EXISTS`/`IF EXISTS`)
 
 ### 5.1 ลำดับ
 

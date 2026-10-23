@@ -1718,7 +1718,7 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 ### 6.74 Flash Express ตรง — คอลัมน์ที่เพิ่มบนตารางของ 00022 (feature 00084)
 
-> สถานะ: อยู่ใน `prisma/schema.prisma` แล้ว · migration `20261022120000_00084_flash_express` เขียนแล้ว (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง, migrate ล้ม = deploy ไม่ขึ้น) · ต้นทาง `docs/20 - Features/00084 - Flash Express Direct Integration/DATABASE.md` · additive ล้วน ไม่มีตารางใหม่ ไม่ backfill · partial unique 3 ตัว (`ShopShippingAccount_flash_merchant_key`, `OrderShipment_returnedPno_key`, `OrderShipment_active_order_key` ของเดิม) เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14)** · คอลัมน์เดิมของ `ShopShippingAccount`/`OrderShipment`/`ShipmentPickup` อยู่ใน `docs/20 - Features/00022 - iShip Shipping Integration/DATABASE.md`
+> สถานะ: อยู่ใน `prisma/schema.prisma` แล้ว · migration `20261023120000_00084_flash_express` เขียนแล้ว (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง, migrate ล้ม = deploy ไม่ขึ้น) · ต้นทาง `docs/20 - Features/00084 - Flash Express Direct Integration/DATABASE.md` · additive ล้วน ไม่มีตารางใหม่ ไม่ backfill · partial unique 3 ตัว (`ShopShippingAccount_flash_merchant_key`, `OrderShipment_returnedPno_key`, `OrderShipment_active_order_key` ของเดิม) เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14)** · คอลัมน์เดิมของ `ShopShippingAccount`/`OrderShipment`/`ShipmentPickup` อยู่ใน `docs/20 - Features/00022 - iShip Shipping Integration/DATABASE.md`
 
 | ตาราง.คอลัมน์ | ชนิด | กติกา |
 |---|---|---|

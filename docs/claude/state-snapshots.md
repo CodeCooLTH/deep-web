@@ -519,7 +519,7 @@
 
 ## 2026-10-23 (00084) — เชื่อม Flash Express ตรง (ร้านใส่ mchId/key ของตัวเอง)
 
-**สถานะ**: branch `integrate/flash-express` ยังไม่ merge · มี migration `20261022120000_00084_flash_express` (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง) · เอกสาร `docs/20 - Features/00084 - Flash Express Direct Integration/` + `docs/SRS.md` §5.4 §6.74 §7.32 §8.18 §9.14
+**สถานะ**: branch `integrate/flash-express` ยังไม่ merge · มี migration `20261023120000_00084_flash_express` (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง) · เอกสาร `docs/20 - Features/00084 - Flash Express Direct Integration/` + `docs/SRS.md` §5.4 §6.74 §7.32 §8.18 §9.14
 
 **มติที่ห้ามกลับ**
 - ความลับเป็นของร้านเอง: **mchId + secret key ต่อร้าน** (envelope `{v,k,w}` ใน `accessTokenEnc`, `token-crypto`) ไม่มีบัญชีกลางของ Deep · ตั้งค่า/เชื่อม/ถอน/ทับ webhook = S2 **และ OWNER** (`requireFlashOwner`) · แอดมิน Deep ไม่มีทางอ่าน key
