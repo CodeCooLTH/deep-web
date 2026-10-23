@@ -457,9 +457,9 @@ export default function FlashCreateForm({
           <div>
             <label className="form-label" htmlFor="fl-width">ขนาดกล่อง (กว้าง × ยาว × สูง · ซม. ไม่บังคับ)</label>
             <div className="grid grid-cols-3 gap-2">
-              <input id="fl-width" type="number" min="1" className="form-input" aria-label="กว้าง (ซม.)" value={width} onChange={(e) => setWidth(e.target.value)} />
-              <input type="number" min="1" className="form-input" aria-label="ยาว (ซม.)" value={length} onChange={(e) => setLength(e.target.value)} />
-              <input type="number" min="1" className="form-input" aria-label="สูง (ซม.)" value={height} onChange={(e) => setHeight(e.target.value)} />
+              <input id="fl-width" type="number" step="any" min="1" className="form-input" aria-label="กว้าง (ซม.)" value={width} onChange={(e) => setWidth(e.target.value)} />
+              <input type="number" step="any" min="1" className="form-input" aria-label="ยาว (ซม.)" value={length} onChange={(e) => setLength(e.target.value)} />
+              <input type="number" step="any" min="1" className="form-input" aria-label="สูง (ซม.)" value={height} onChange={(e) => setHeight(e.target.value)} />
             </div>
           </div>
         </div>

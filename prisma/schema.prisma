@@ -2593,9 +2593,9 @@ model ShopShippingAccount {
   // --- ค่าตั้งต้นของพัสดุ (แก้รายออเดอร์ได้ก่อนยืนยัน) ---
   defaultCourierCode String?
   defaultWeight      Decimal? @db.Decimal(6, 2) // กิโลกรัม
-  defaultWidth       Int? // เซนติเมตร
-  defaultLength      Int?
-  defaultHeight      Int?
+  defaultWidth       Decimal? @db.Decimal(6, 2) // เซนติเมตร — ทศนิยมได้ (กล่องบน iShip เช่น 20.8×42.2)
+  defaultLength      Decimal? @db.Decimal(6, 2)
+  defaultHeight      Decimal? @db.Decimal(6, 2)
   defaultCategoryId  Int? // 0-11, 99 ตามที่ iShip กำหนด
   // 🛑 default false ตั้งใจ (BR-ISHIP-27) — เผลอเปิด COD = เงินจริงที่ร้านจะได้รับผิดจำนวน
   defaultCodEnabled  Boolean  @default(false)
@@ -2711,9 +2711,9 @@ model OrderShipment {
 
   codAmount  Decimal  @default(0) @db.Decimal(12, 2)
   weight     Decimal? @db.Decimal(6, 2)
-  width      Int?
-  length     Int?
-  height     Int?
+  width      Decimal? @db.Decimal(6, 2)
+  length     Decimal? @db.Decimal(6, 2)
+  height     Decimal? @db.Decimal(6, 2)
   categoryId Int?
 
   // snapshot: freeze ค่าที่ส่งไปจริง ไม่อ้างอิงสด — ถ้าอ้างอิงสด แล้วร้านแก้ค่าตั้งต้นทีหลัง

@@ -360,14 +360,14 @@ export default function FlashSettingsModal({
                   {([['defaultWidth', 'กว้าง'], ['defaultLength', 'ยาว'], ['defaultHeight', 'สูง']] as const).map(([k, label]) => (
                     <div key={k}>
                       <label className="form-label" htmlFor={`flash-${k}`}>{label} (ซม.)</label>
-                      <input id={`flash-${k}`} type="number" min="1" className={inputCls(k)}
+                      <input id={`flash-${k}`} type="number" step="any" min="1" className={inputCls(k)}
                         aria-describedby={describedBy(k)}
                         value={s[k] ?? ''} onChange={(e) => patch({ [k]: toNum(e.target.value) })} />
                     </div>
                   ))}
                 </div>
                 {(errors.defaultWidth || errors.defaultLength || errors.defaultHeight) && (
-                  <p className="mb-0 mt-1 text-xs text-danger-ink">ต้องเป็นจำนวนเต็ม 1–300 ซม.</p>
+                  <p className="mb-0 mt-1 text-xs text-danger-ink">ต้องอยู่ระหว่าง 1–300 ซม. ทศนิยมไม่เกิน 2 ตำแหน่ง</p>
                 )}
                 <p className="mb-0 mt-1 text-xs text-default-600">Flash ไม่บังคับขนาดกล่อง</p>
               </div>

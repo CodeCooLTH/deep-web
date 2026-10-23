@@ -188,9 +188,9 @@ export const FlashSettingsSchema = v.object({
   senderProvince: v.nullish(shortText(100)),
   senderPostcode: v.nullish(thaiPostcode),
   defaultWeight: v.nullish(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
-  defaultWidth: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-  defaultLength: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
-  defaultHeight: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  defaultWidth: v.nullish(parcelDimCm),
+  defaultLength: v.nullish(parcelDimCm),
+  defaultHeight: v.nullish(parcelDimCm),
   defaultCategoryId: v.nullish(v.picklist([0,1,2,3,4,5,6,7,8,9,10,11,99])),
   optOnTime: v.optional(v.boolean()),
   optBoxShield: v.optional(v.boolean()),
@@ -232,7 +232,7 @@ export const FlashPriceQuoteSchema = v.object({
   receiver: v.object({ district: shortText(120), province: shortText(120), postcode: thaiPostcode,
                        subdistrict: v.nullish(shortText(120)) }),
   weight: v.pipe(v.number(), v.minValue(0.01), v.maxValue(100)),
-  width: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300))),
+  width: v.optional(parcelDimCm)   // 1–300 ทศนิยม ≤2 (แก้ 2026-10-23) · payload ปัดขึ้นเป็นจำนวนเต็ม,
   length: v.optional(...), height: v.optional(...),
 });
 ```
@@ -246,7 +246,7 @@ export const FlashCreateShipmentSchema = v.object({
   receiver: v.optional(IShipReceiverPatchSchema),     // ใช้ของเดิม
   override: v.optional(v.object({
     weight: v.optional(v.pipe(v.number(), v.minValue(0.01), v.maxValue(100))),
-    width/length/height: v.optional(int 1..300),
+    width/length/height: v.optional(parcelDimCm),
     categoryId: v.optional(v.picklist([0,1,2,3,4,5,6,7,8,9,10,11,99])),
     codAmount: v.optional(v.pipe(v.number(), v.minValue(0))),
     remark: v.nullish(shortText(200)),

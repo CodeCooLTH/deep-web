@@ -1736,6 +1736,17 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | `ShipmentEvidence` (ใบ FLASH) | — | `reason='flash_pod'` · `parcel` = `{kind:'FLASH_POD', signer, signerTypeText, podUrl, photos[], lat, lng, stateDate}` · `error` ไม่ว่าง = ล้ม รอ poll ลองใหม่ |
 | `ShipmentPickup.currentTicketPickupId` | `String?` | รหัสคำขอปัจจุบันของ Flash (เปลี่ยนได้เมื่อโอนงาน) · `ticketPickupId` เดิม = รหัสแรก |
 
+### 6.75 ขนาดกล่องพัสดุเป็นทศนิยม (แก้บั๊ก 2026-10-23)
+
+> migration `20261023150000_shipping_dims_decimal` (HR15: push `main` = `migrate deploy` บน prod · local ต้อง apply เอง · migrate ล้ม = deploy ไม่ขึ้น) · ขยายชนิดอย่างเดียว ค่าเดิมทุกแถวแปลงตรงตัว
+
+| คอลัมน์ | ชนิด | กติกา |
+|---|---|---|
+| `ShopShippingAccount.defaultWidth` / `defaultLength` / `defaultHeight` | `Decimal(6,2)?` (เดิม `Int?`) | ซม. 1–300 ทศนิยม ≤2 ตำแหน่ง — กล่องที่ร้านสร้างบน iShip มีทศนิยมได้ (เช่น 20.8×42.2×15) เดิมด่าน `v.integer()` ของเราเองตีกลับ `INVALID_INPUT Invalid integer` |
+| `OrderShipment.width` / `length` / `height` | `Decimal(6,2)?` (เดิม `Int?`) | เหมือนข้างบน · อ่านแล้วต้องแปลงเป็น number ก่อนส่งต่อ (`dec()` ใน `iship.service.ts` — ท่าเดียวกับ `weight`) |
+
+**Validation:** `parcelDimCm` ใน `src/lib/validations.ts` ใช้ร่วมทุก schema ขนาด (iShip settings/create/price + Flash settings/create/price) · **payload:** iShip ส่งทศนิยมตามจริง (เอกสาร iShip ระบุชนิด `number`) · Flash ปัดขึ้นเป็นจำนวนเต็มใน `src/lib/flash/mapping.ts` (Flash รับ ซม. จำนวนเต็ม — ปัดลงจะได้ราคาต่ำกว่าจริง) · เทส `src/lib/__tests__/parcel-dim-decimal.test.ts`
+
 **Rollback:** ย้อนได้เฉพาะเมื่อยังไม่มีแถว `provider='FLASH'` (ดูบล็อกท้าย migration.sql — DELETE/DROP COLUMN เป็น destructive ต้อง Controller สั่ง)
 
 ---

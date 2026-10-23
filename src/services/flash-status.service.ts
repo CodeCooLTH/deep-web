@@ -201,7 +201,7 @@ export async function captureFlashCharges(shipment: FlashShipmentRow, kind: "pri
   } else {
     const w = readFlashWeight(data, {
       weightKg: shipment.weight === null ? null : Number(shipment.weight),
-      width: shipment.width, length: shipment.length, height: shipment.height,
+      width: shipment.width != null ? Number(shipment.width) : null, length: shipment.length != null ? Number(shipment.length) : null, height: shipment.height != null ? Number(shipment.height) : null,
     });
     if (w) {
       if (differs(w.actualWeightKg, shipment.actualWeight)) upd.actualWeight = w.actualWeightKg;
