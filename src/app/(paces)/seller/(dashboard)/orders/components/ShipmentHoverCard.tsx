@@ -28,6 +28,8 @@ import { SHIPMENT_STAGES, describeCarrierStatus, describeProgress } from '@/lib/
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
+import { providerLabel } from '@/lib/shipping/provider'
+import { hoverFetchPlan } from '@/lib/shipping/orders-list'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
@@ -78,6 +80,11 @@ interface Props {
   returnDispatchedAt?: string | Date | null
   /** id ของ OrderShipment — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม) */
   shipmentId: string | null
+  /**
+   * feature 00084 — ผู้ให้บริการของพัสดุ (ISHIP | FLASH | MANUAL) เลือก API base ของ traces
+   * ไม่ส่ง = ISHIP (พฤติกรรมเดิม)
+   */
+  provider?: string | null
   trackingNo: string | null
   courierName: string | null
   logoUrl: string | null
@@ -93,6 +100,7 @@ export default function ShipmentHoverCard({
   returnedAt,
   returnDispatchedAt,
   shipmentId,
+  provider,
   trackingNo,
   courierName,
   logoUrl,
@@ -101,12 +109,16 @@ export default function ShipmentHoverCard({
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
 
+  /** NEEDS_REVIEW ไม่มี pno ⇒ ไม่ยิง traces (ตัดสินใน orders-list.ts ให้เทสได้) */
+  const plan = hoverFetchPlan({ provider, shipmentId, status: shipmentStatus })
+  const fetchUrl = plan.kind === 'fetch' ? plan.url : null
+
   const load = useCallback(() => {
-    if (state !== 'idle' || !shipmentId) return
+    if (state !== 'idle' || !fetchUrl) return
     setState('loading')
     void (async () => {
       try {
-        const res = await fetch(`/api/seller/iship/shipments/${shipmentId}/traces`, {
+        const res = await fetch(fetchUrl, {
           cache: 'no-store',
         })
         if (!res.ok) throw new Error('failed')
@@ -121,7 +133,7 @@ export default function ShipmentHoverCard({
         setState('error')
       }
     })()
-  }, [shipmentId, state])
+  }, [fetchUrl, state])
 
   /**
    * ล่าสุดอยู่บนสุด — เรียงเอง ไม่พึ่งลำดับที่ API ส่งมา
@@ -263,18 +275,29 @@ export default function ShipmentHoverCard({
           </div>
         )}
 
-        {/* สถานะล่าสุด — ยิงถาม iShip ตอน hover ครั้งแรก */}
-        {shipmentId && (
+        {/* สถานะล่าสุด — ยิงถามผู้ให้บริการ (iShip/Flash) ตอน hover ครั้งแรก */}
+        {plan.kind === 'review' && (
+          <p
+            className={cn(
+              'text-2xs mt-3.5 mb-0 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5',
+              NOTICE_BOX.warning,
+            )}
+          >
+            <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            <span>ต้องตรวจสอบพัสดุ เปิดหน้าคำสั่งซื้อเพื่อจัดการ</span>
+          </p>
+        )}
+        {plan.kind === 'fetch' && (
           <div className="border-default-200 mt-3.5 border-t border-dashed pt-3">
             <p className="text-default-800 mb-2 text-xs font-semibold">สถานะล่าสุด</p>
             {state === 'loading' || state === 'idle' ? (
               <p className="text-default-700 mb-0 flex items-center gap-2 text-xs">
                 <Icon icon="loader-2" className="animate-spin text-sm" aria-hidden="true" />
-                กำลังดึงสถานะจาก iShip…
+                กำลังดึงสถานะจาก {providerLabel(provider)}…
               </p>
             ) : state === 'error' ? (
               <p className="text-default-700 mb-0 text-xs">
-                ดึงสถานะไม่สำเร็จ — เปิดหน้าคำสั่งซื้อเพื่อลองใหม่
+                ดึงสถานะไม่สำเร็จ เปิดหน้าคำสั่งซื้อเพื่อลองใหม่
               </p>
             ) : visible.length === 0 ? (
               <p className="text-default-700 mb-0 text-xs">ขนส่งยังไม่บันทึกการเดินทางของพัสดุใบนี้</p>

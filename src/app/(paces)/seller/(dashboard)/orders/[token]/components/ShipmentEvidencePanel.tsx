@@ -11,7 +11,11 @@
  *
  * ถ้อยคำเป็นกลางตาม BR-BR-09 — เล่าว่า "ขนส่งบันทึกอะไรไว้" ไม่ตัดสินว่าใครผิด
  *
+ * feature 00084 §4.8 — แถว `flash_pod` = หลักฐานการส่งจาก Flash (ผู้เซ็น/เวลา/พิกัด/รูป) ฝั่งร้านเท่านั้น
+ *
  * Base: การ์ด `.card` + `.card-header` ของ Paces (โครงเดียวกับ ShippingCard ข้าง ๆ)
+ * Base (POD): theme/paces/Admin/TS/src/app/(admin)/pages/gallery/components/Gallery.tsx
+ *   → รูปย่อ+lightbox ผ่าน PodPhotoGallery (โครงจาก reviews/components/ReviewImageGallery.tsx)
  */
 
 import { useCallback, useState } from 'react'
@@ -19,6 +23,8 @@ import { useCallback, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
+import { podCopyLines, podMapUrl, podTimeIso, type PodView } from '@/lib/shipping/orders-list'
+import PodPhotoGallery, { type PodPhoto } from './PodPhotoGallery'
 
 type EvidenceTrace = {
   status: string | null
@@ -36,6 +42,61 @@ type EvidenceRow = {
   traceCount: number
   error: string | null
   traces: EvidenceTrace[]
+  /** มีเฉพาะแถว flash_pod (API.md §4.21) */
+  pod?: PodView | null
+}
+
+/** รูปทั้งหมดของ POD: ลายเซ็น (podUrl) ก่อน ตามด้วยรูปหน้างาน */
+const podPhotos = (pod: PodView): PodPhoto[] => [
+  ...(pod.podUrl ? [{ url: pod.podUrl, label: 'ลายเซ็นผู้รับ' }] : []),
+  ...pod.photos.map((url, i) => ({ url, label: `รูปหลักฐานที่ ${i + 1}` })),
+]
+
+/** แถวข้อมูลของ POD — ป้ายซ้าย/ค่าขวา เส้นประคั่น (โครงเดียวกับ StatRow ของ ShipmentStatusView) */
+const PodRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="border-default-200 flex gap-3 border-b border-dashed py-1.5 text-xs last:border-b-0">
+    <span className="text-default-600 w-28 shrink-0">{label}</span>
+    <span className="text-default-900 min-w-0 break-words">{children}</span>
+  </div>
+)
+
+/** เนื้อ POD — ช่องไม่มีค่าซ่อนทั้งแถว ไม่แสดงช่องว่าง */
+function PodBody({ pod }: { pod: PodView }) {
+  const at = podTimeIso(pod.deliveredAt)
+  const map = podMapUrl(pod.lat, pod.lng)
+  const photos = podPhotos(pod)
+  return (
+    <div className="px-3 py-2">
+      {pod.signer && (
+        <PodRow label="ผู้เซ็นรับ">
+          {pod.signer}
+          {pod.signerTypeText && ` (${pod.signerTypeText})`}
+        </PodRow>
+      )}
+      {at && <PodRow label="ส่งถึงเมื่อ">{formatDateTime(at)}</PodRow>}
+      {map && (
+        <PodRow label="ตำแหน่งพนักงานตอนส่ง">
+          <span className="tabular-nums">
+            {pod.lat}, {pod.lng}
+          </span>
+          <a
+            href={map}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-ink mt-1 flex min-h-11 items-center gap-1 text-xs underline"
+          >
+            <Icon icon="map-pin" className="size-4" aria-hidden="true" />
+            ดูบนแผนที่
+          </a>
+        </PodRow>
+      )}
+      {photos.length > 0 && (
+        <PodRow label="รูป">
+          <PodPhotoGallery photos={photos} />
+        </PodRow>
+      )}
+    </div>
+  )
 }
 
 export default function ShipmentEvidencePanel({
@@ -77,6 +138,9 @@ export default function ShipmentEvidencePanel({
     if (!rows) return
     const text = rows
       .map((r) => {
+        if (r.pod && !r.error) {
+          return [`[${r.reasonText}] บันทึกเมื่อ ${formatDateTime(r.capturedAt)}`, ...podCopyLines(r.pod, formatDateTime)].join('\n')
+        }
         const head = `[${r.reasonText}] บันทึกเมื่อ ${formatDateTime(r.capturedAt)} — ${r.traceCount} เหตุการณ์`
         const body = r.traces
           .map(
@@ -129,27 +193,32 @@ export default function ShipmentEvidencePanel({
             <>
               {/* บอกให้ชัดว่านี่คือ "บันทึกของขนส่ง" ไม่ใช่คำตัดสินของเรา (BR-BR-09) */}
               <p className="text-default-600 mb-3 text-xs">
-                บันทึกที่ระบบเก็บไว้อัตโนมัติจากขนส่ง ณ เวลาที่พัสดุเปลี่ยนเป็นสถานะมีปัญหา
-                ใช้อ้างอิงเมื่อมีข้อโต้แย้ง
+                {rows.some((r) => !r.pod)
+                  ? 'บันทึกที่ระบบเก็บไว้อัตโนมัติจากขนส่ง ณ เวลาที่พัสดุเปลี่ยนเป็นสถานะมีปัญหา ใช้อ้างอิงเมื่อมีข้อโต้แย้ง'
+                  : 'บันทึกที่ระบบเก็บไว้อัตโนมัติจากขนส่ง ใช้อ้างอิงเมื่อมีข้อโต้แย้ง'}
               </p>
 
               {rows.map((r) => (
                 <div key={r.id} className="border-default-200 mb-3 rounded-lg border last:mb-0">
                   <div className="border-default-200 flex flex-wrap items-center gap-2 border-b border-dashed px-3 py-2">
-                    <span className="badge bg-warning/15 text-warning-ink text-2xs">
+                    {/* POD = info (หลักฐานที่บันทึกไว้ ไม่ใช่สถานะยืนยันความเชื่อใจ จึงไม่ใช้เขียว) */}
+                    <span className={`badge text-2xs ${r.pod ? 'bg-info/15 text-info-ink' : 'bg-warning/15 text-warning-ink'}`}>
                       {r.reasonText}
                     </span>
                     <span className="text-default-600 text-2xs">
                       บันทึกเมื่อ {formatDateTime(r.capturedAt)}
                     </span>
-                    <span className="text-default-600 text-2xs">· {r.traceCount} เหตุการณ์</span>
+                    {!r.pod && <span className="text-default-600 text-2xs">· {r.traceCount} เหตุการณ์</span>}
                   </div>
 
                   {r.error ? (
                     <p className="text-danger-ink mb-0 px-3 py-2 text-xs">
-                      ดึงข้อมูลจากขนส่งไม่สำเร็จ ({r.error}) — แถวนี้บันทึกไว้เพื่อให้รู้ว่า
-                      ระบบพยายามแล้ว ไม่ใช่ไม่เคยพยายาม
+                      {r.pod || r.reason === 'flash_pod'
+                        ? `ดึงหลักฐานการส่งจาก Flash ไม่สำเร็จ (${r.error}) ระบบจะลองใหม่ในรอบเช็คสถานะถัดไป`
+                        : `ดึงข้อมูลจากขนส่งไม่สำเร็จ (${r.error}) — แถวนี้บันทึกไว้เพื่อให้รู้ว่า ระบบพยายามแล้ว ไม่ใช่ไม่เคยพยายาม`}
                     </p>
+                  ) : r.pod ? (
+                    <PodBody pod={r.pod} />
                   ) : r.traces.length === 0 ? (
                     /* 0 เหตุการณ์เป็นหลักฐานในตัวมันเอง ไม่ใช่ "โหลดไม่ขึ้น" — ต้องพูดตรง ๆ */
                     <p className="text-default-700 mb-0 px-3 py-2 text-xs">

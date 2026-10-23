@@ -55,6 +55,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import ShipmentHoverCard from './ShipmentHoverCard'
+import { shipmentSourceLabel } from '@/lib/shipping/provider'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -139,18 +140,21 @@ const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) =>
   matchesOrderDateFilter(row.original.createdAtISO, (selectedRange as string) ?? 'All')
 
 /** ชื่อขนส่งที่ใช้เป็นคีย์ตัวกรอง — null = ใบที่ยังไม่ได้เปิดพัสดุ */
+// feature 00084 — ใช้ป้ายเดียวกับที่แสดงจริง (shipmentSourceLabel) ⇒ กรอง "Flash (บัญชีของร้านเอง)" แยกจาก "Flash ผ่าน iShip" ได้
 function courierKeyOf(o: OrderRow): string | null {
   const s = o.shipment
   if (!s) return null
-  return s.courierName ?? s.courierCode ?? null
+  // MANUAL (ร้านแจ้งเลขเอง) ไม่มี provider ระบบ — ใช้ชื่อขนส่งตามเดิม
+  if (s.provider !== 'FLASH' && !(s.courierName ?? s.courierCode)) return null
+  return shipmentSourceLabel(s.provider === 'MANUAL' ? { courierName: s.courierName, courierCode: s.courierCode } : s)
 }
 
 const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
   orders: OrderRow[]
-  /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
-  ishipEnabled?: boolean
+  /** ร้านเชื่อมต่อ iShip หรือ Flash + เป็นร้านขายออนไลน์ (feature 00022/00084) — คุมปุ่มพิมพ์ใบปะหน้า */
+  shippingEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList ที่รับมาจาก RSC */
   vocab: OrderVocab
   /** ประเภทกิจการของร้าน (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก */
@@ -244,7 +248,7 @@ type Props = {
 
 export default function OrdersTable({
   orders,
-  ishipEnabled = false,
+  shippingEnabled = false,
   vocab,
   vertical,
   stageFilter,
@@ -584,8 +588,9 @@ export default function OrdersTable({
       cell: ({ row }: { row: TableRow<OrderRow> }) => {
         const a = row.original.shipTo
         const s = row.original.shipment
-        const hasCourier = Boolean(s && (s.courierName || s.courierCode))
+        const hasCourier = Boolean(s && (s.courierName || s.courierCode || s.provider === 'FLASH'))
         const logo = s ? courierLogoUrl(s.courierCode, s.courierName) : null
+        const sourceLabel = s ? courierKeyOf(row.original) : null
         return (
           <>
             {a ? (
@@ -624,9 +629,10 @@ export default function OrdersTable({
                   returnStartedAt={s!.returnStartedAt}
                   returnedAt={s!.returnedAt}
                   returnDispatchedAt={s!.returnDispatchedAt}
-                  shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
+                  shipmentId={s!.provider === 'ISHIP' || s!.provider === 'FLASH' ? (s!.id ?? null) : null}
+                  provider={s!.provider}
                   trackingNo={s!.trackingNo}
-                  courierName={s!.courierName ?? s!.courierCode}
+                  courierName={sourceLabel}
                   logoUrl={logo}
                   courierInitials={courierInitials(s!.courierName, s!.courierCode)}
                 >
@@ -646,7 +652,7 @@ export default function OrdersTable({
                       </span>
                     )}
                     <span className="font-medium text-default-800">
-                      {s!.courierName ?? s!.courierCode}
+                      {sourceLabel}
                     </span>
                   </p>
                   {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
@@ -1339,7 +1345,7 @@ export default function OrdersTable({
     {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
     {showMoney && (
       <BulkActionBar
-        ishipEnabled={ishipEnabled}
+        shippingEnabled={shippingEnabled}
         selectedRows={table.getFilteredSelectedRowModel().rows}
         onClear={() => table.resetRowSelection()}
         buyerBaseUrl={buyerBaseUrl}
