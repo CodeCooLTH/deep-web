@@ -18,7 +18,7 @@ import {
 } from "@/lib/flash/status";
 import { inferFlashWebhookKind, type FlashWebhookKind, type ParsedWebhook } from "@/lib/flash/webhook-parse";
 import { describeCarrierStatus, isProblemCarrierStatus, returnLegStampOf } from "@/lib/iship/status";
-import { ACTIVE_FORWARD_SHIPMENT } from "@/lib/shipment-direction";
+import { ACTIVE_FORWARD_SHIPMENT, FORWARD_SHIPMENT } from "@/lib/shipment-direction";
 import { loadFlashAccount, markFlashTokenInvalid, type LoadedFlashAccount } from "@/services/flash-account";
 
 // ─── ชนิดและค่าคงที่ ────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ export async function applyFlashRoutes(
     changed = r.count > 0 && shipment.carrierStatus !== code;
     if (code === "cancelled" && r.count > 0) {
       await prisma.orderShipment.updateMany({
-        where: { id: shipment.id, status: "CREATED" },
+        where: { id: shipment.id, status: "CREATED", direction: FORWARD_SHIPMENT },
         data: { status: "CANCELLED", cancelledAt: at ?? new Date() },
       });
     }
