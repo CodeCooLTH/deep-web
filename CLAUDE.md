@@ -184,6 +184,7 @@ theme/
 - **2026-10-18 (00069 ext):** การ์ดมือถือ "ยอดขายรวม" ของ Personal ที่เป็นเจ้าของหลายธุรกิจ (แท่งซ้อนตามธุรกิจ + แท่งค่าใช้จ่าย · วันนี้ = ยอดสะสมรายชั่วโมง · แตะแถวสลับร้าน) — ไม่มี migration · ร้านเดี่ยว/desktop ไม่เปลี่ยน · ดู [[docs/claude/state-snapshots]]
 - **2026-10-18 (00080):** ส่งเอง 3 ขั้น รอจัดส่ง → "จัดส่งแล้ว" (เลิกทำ 5 วิ) → "ส่งสำเร็จ" + จังหวะแจ้งเลข ON_SAVE/ON_DISPATCH — "รอจัดส่ง" คำนวณ ไม่ใช่ค่า Order.status · migration 4 ตัว (HR15) · ดู [[docs/claude/state-snapshots]]
 - **2026-10-18 (00078 T18/T23/T24):** ขอบรูปม่วงลูกค้า 3 จุด · ชิปแถวแชท ≤2+N · ตัวแก้เทมเพลตส่งอัตโนมัติแบบชิป (contenteditable) — ไม่มี migration · 🛑 ยังไม่ทดสอบพิมพ์ไทยบนมือถือจริง · ดู [[docs/claude/state-snapshots]]
+- **2026-10-23 (00082):** ลูกค้ายืนยันรับบริการ = ปิดงาน + ชำระครบ + ใบเสร็จ (ร้านบริการเท่านั้น · `settleServiceJobOnBuyerConfirm` ใน `confirmOrder`) — migration ข้อมูล (HR15) · 🛑 ห้าม refresh หน้า `/o/[token]` ระหว่างแผ่นให้คะแนนเปิด · ดู [[docs/claude/state-snapshots]]
 - **2026-10-10 (00071 P2+P3):** 5 บทบาทถือหลายบทบาทได้ + ทุก route ประกาศ capability (`src/lib/route-capabilities.ts`) — branch `feat/00071-p2-roles` ยังไม่ push · มี migration (HR15) · 🛑 browser QA ยังไม่ทำ
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.

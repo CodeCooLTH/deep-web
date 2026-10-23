@@ -1019,12 +1019,24 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       // แบบ Grab: ยืนยันรับสำเร็จ → แผ่นให้คะแนนขึ้นทันที (ข้ามได้ การ์ดรีวิวบนหน้ายังอยู่)
       // เปิดหลัง await เท่านั้น — Dialog ยืนยันถูกปิดไปก่อนยิงแล้ว สองแผ่นจึงไม่มีทางซ้อนกัน
       if (!order.hasReview) setReviewSheetOpen(true)
+      // feature 00082 — ร้านบริการ: ยืนยัน = ปิดงาน + ชำระครบ ฝั่ง server ⇒ ดึงหน้าใหม่ให้ป้าย/เงิน/ปุ่มใบเสร็จตรง
+      // (ไม่มีแผ่นให้คะแนน = ดึงเลย · มีแผ่น = ดึงตอนแผ่นปิด ดู refreshAfterServiceConfirm — ดึงตอนนี้ key เปลี่ยนแล้วแผ่นหาย)
+      else if (order.isServiceShop) router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
       toast.error(message)
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /**
+   * feature 00082 — แผ่นให้คะแนนปิด (ส่งหรือข้าม) หลังลูกค้าเพิ่งยืนยันงานบริการ ⇒ ดึงหน้าใหม่จาก server
+   * ป้ายสถานะ · เงินที่รับ · ปุ่ม "ดูใบเสร็จ" ใช้ตัวคำนวณเดิมของ page.tsx (ไม่เขียนซ้ำฝั่ง client)
+   * ร้านอื่น / ยังไม่ยืนยัน (แผ่นแบบส่งคะแนน = ยืนยัน ซึ่ง ReviewForm ดึงหน้าเองอยู่แล้ว) / มีใบเสร็จแล้ว ⇒ ไม่ทำอะไร
+   */
+  const refreshAfterServiceConfirm = () => {
+    if (order.isServiceShop && order.status === 'CONFIRMED' && !order.receiptAvailable) router.refresh()
   }
 
   /** feature 00073 FR-013 — ออกเลข/อ่านใบเดิมก่อน แล้วค่อยไปหน้าใบเสร็จ (หน้าใบเสร็จไม่ออกเลขเอง) */
@@ -3076,7 +3088,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
       <ReviewSheet
         open={reviewSheetOpen}
-        onClose={() => setReviewSheetOpen(false)}
+        onClose={() => {
+          setReviewSheetOpen(false)
+          refreshAfterServiceConfirm()
+        }}
         token={order.publicToken}
         shopName={order.shop.shopName}
         shopAvatar={order.shop.user.avatar}

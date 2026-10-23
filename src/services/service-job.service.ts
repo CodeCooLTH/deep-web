@@ -13,7 +13,9 @@ import { prisma } from '@/lib/prisma'
 import { APPOINTMENT_STATUS, AppointmentNotStartedError } from '@/lib/appointments'
 import type { OrderPaymentMethod } from '@/lib/order-payment'
 import { canCloseServiceJob, canReopenServiceJob } from '@/lib/service-status'
+import type { Prisma } from '@prisma/client'
 import {
+  BUYER_CONFIRM_PAYMENT_NOTE,
   NO_SHOW_REFUND_REASON,
   ServiceJobAlreadyClosedError,
   ServiceJobNoShowWithoutAppointmentError,
@@ -246,4 +248,73 @@ export async function reopenServiceJob(args: { shopId: string; orderToken: strin
     })
     return { serviceClosedAt: null }
   })
+}
+
+/**
+ * feature 00082 — ลูกค้ากด "ยืนยันรับบริการ" = ปิดงาน + ชำระครบ (ร้านบริการเท่านั้น · มติ user 2026-10-21/23)
+ *
+ * เรียกจาก `confirmOrder` **ในทรานแซกชันเดียวกับ** การตั้ง `status = CONFIRMED` (ผู้ชนะ updateMany เท่านั้น)
+ * ⇒ ยืนยัน + ปิด + เงิน สำเร็จพร้อมกันหรือไม่เกิดเลย · ทางเข้าเว็บ/แอป/ส่งคะแนน ผ่าน `confirmOrder` ทั้งหมด
+ *
+ * 1. ร้านยังไม่ปิด ⇒ ปิดให้ (ผล = ให้บริการแล้ว · วันปิด = ตอนลูกค้ากด · มีนัด ⇒ COMPLETED)
+ *    🛑 ไม่ตรวจเวลานัด (ร้านปิดก่อนเวลาไม่ได้ BR-RSV-34 แต่ลูกค้ายืนยันเองว่าได้รับบริการแล้ว)
+ *    🛑 ไม่จองข้อความ "ร้านให้บริการแล้ว" (ลูกค้ากดเอง ไม่ต้องบอกซ้ำ)
+ * 2. ยังค้างเงิน ⇒ บันทึกยอดค้างเป็นรายการรับเงิน 1 แถว (ทั้งใบที่เพิ่งปิด และใบที่ร้านปิดไว้แบบค้าง — D-5)
+ *    `method = OTHER` ⇒ ใบเสร็จไม่ติ๊กเงินสด/โอน (BR-RCP-13: ไม่รู้ = เว้นว่าง) · `receivedByUserId` = ลูกค้าที่กด
+ *    🛑 ข้อยกเว้นกฎ 00050 "ระบบห้ามบันทึกรับเงินเอง" ที่ user ตัดสินแล้ว (PRD 00082 §5) — ร้านแก้ด้วย void ตามเดิม
+ *
+ * 🛑 ผู้เรียกต้องกั้น `usesServiceFinanceRules(vertical)` มาก่อน — ฟังก์ชันนี้ไม่ตัดสินประเภทร้าน
+ */
+export async function settleServiceJobOnBuyerConfirm(
+  tx: Prisma.TransactionClient,
+  args: { orderId: string; buyerUserId: string; now: Date },
+): Promise<{ closed: boolean; paid: number }> {
+  const order = await tx.order.findUniqueOrThrow({
+    where: { id: args.orderId },
+    select: { serviceStart: true, serviceClosedAt: true, appointmentStatus: true },
+  })
+  // ไม่มาตามนัดถูกกันที่ confirmOrder แล้ว — กันซ้ำไว้: ใบที่ไม่ได้ให้บริการต้องไม่ถูกบันทึกว่าจ่ายครบ
+  if (order.appointmentStatus === APPOINTMENT_STATUS.NO_SHOW) return { closed: false, paid: 0 }
+
+  let closed = false
+  if (order.serviceClosedAt == null) {
+    // เงื่อนไขซ้ำใน where = ร้านกดปิดแทรกเข้ามาพร้อมกัน ⇒ ฝั่งเราไม่ปิดทับ (เหลือแค่เติมเงิน)
+    const r = await tx.order.updateMany({
+      where: { id: args.orderId, serviceClosedAt: null },
+      data: {
+        serviceClosedAt: args.now,
+        ...(order.serviceStart != null ? { appointmentStatus: APPOINTMENT_STATUS.COMPLETED } : {}),
+      },
+    })
+    closed = r.count === 1
+  }
+
+  // อ่านเงินหลังปิด — ร้านอาจเพิ่งบันทึกรับเงินตอนปิด (แข่งกัน) ⇒ ยอดค้างต้องคิดจากแถวล่าสุด
+  const row = await tx.order.findUniqueOrThrow({ where: { id: args.orderId }, select: MONEY_SELECT })
+  const paid = toMoney(row).outstanding
+  if (paid > 0) {
+    await tx.orderPayment.create({
+      data: {
+        orderId: args.orderId,
+        shopId: row.shopId,
+        kind: 'BALANCE',
+        amount: paid,
+        method: 'OTHER',
+        note: BUYER_CONFIRM_PAYMENT_NOTE,
+        receivedByUserId: args.buyerUserId,
+        receivedAt: args.now,
+      },
+    })
+  }
+
+  if (closed) {
+    await recordOrderEvent(tx, {
+      orderId: args.orderId,
+      type: 'SERVICE_CLOSED',
+      actorUserId: args.buyerUserId,
+      meta: { outcome: 'SERVED', closedBy: 'BUYER', ...(paid > 0 ? { amount: paid } : {}) },
+      occurredAt: args.now,
+    })
+  }
+  return { closed, paid }
 }

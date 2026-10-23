@@ -23,6 +23,7 @@ import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { settleServiceJobOnBuyerConfirm } from "@/services/service-job.service";
 import { removeTagsOnOrderCreated } from "@/services/shop-tag-auto.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
@@ -1573,17 +1574,23 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   // feature 00031 — BUYER_CONFIRMED ใน tx เดียวกับการ mark CONFIRMED
   // conditional: ปิดงานได้เฉพาะที่ยัง PENDING/SHIPPED — ร้านกด "ส่งสำเร็จ" / ขนส่งโอน COD / ลูกค้าอีกแท็บ
   // อาจปิดไปก่อนเสี้ยววินาที (00080) · แพ้ = คืนแถวปัจจุบัน ไม่เขียน BUYER_CONFIRMED ไม่รันผลข้างเคียงซ้ำ
+  // feature 00082 — ร้านบริการ: ลูกค้ายืนยัน = ปิดงาน + ชำระครบ (มติ user 2026-10-21/23) · ร้านอื่นไม่เข้าทางนี้
+  const settlesServiceJob = usesServiceFinanceRules(order.shop.vertical);
   const won = await prisma.$transaction(async (tx) => {
     const r = await tx.order.updateMany({
       where: { publicToken, status: { in: ["PENDING", "SHIPPED"] } },
       data: { status: "CONFIRMED" },
     });
     if (r.count === 0) return false;
+    const now = new Date();
     await recordOrderEvent(tx, {
       orderId: order.id,
       type: "BUYER_CONFIRMED",
       actorUserId: buyerUserId,
+      occurredAt: now,
     });
+    // ทรานแซกชันเดียวกัน + เฉพาะผู้ชนะ updateMany ⇒ กดซ้ำ/สองแท็บ = ปิดครั้งเดียว เงินแถวเดียว
+    if (settlesServiceJob) await settleServiceJobOnBuyerConfirm(tx, { orderId: order.id, buyerUserId, now });
     return true;
   });
   const updated = await prisma.order.findUniqueOrThrow({ where: { publicToken } });
