@@ -15,8 +15,10 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerEmptyState from '../_shared/SellerEmptyState'
 import type { Metadata } from 'next'
 import ShippingSettingsRow from './ShippingSettingsRow'
+import FlashSettingsRow from './FlashSettingsRow'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
+import { getFlashConnection, getFlashSettings } from '@/services/flash.service'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
@@ -78,6 +80,29 @@ export default async function SettingsPage() {
   }
   const isOwner = activeCtx?.role === 'OWNER'
 
+  // feature 00084 T9 — การ์ด Flash (บัญชีของร้านเอง): available=false → ไม่ render เลย (ไม่ใช่ disabled)
+  // ตัดสินที่ server เพราะ flag ปิดอยู่ ร้านต้องไม่เห็นอะไรเปลี่ยน · อยู่ใต้ showShipping (ONLINE_SALES) เหมือนการ์ด iShip
+  const flashConnection =
+    showShipping && activeCtx ? await getFlashConnection(activeCtx.shopId, { isOwner }) : null
+  const showFlash = !!flashConnection?.available
+  const flashSettings =
+    showFlash && flashConnection?.connected && activeCtx
+      ? await getFlashSettings(activeCtx.shopId, { isOwner }).then((r) => r.settings).catch(() => null)
+      : null
+  // ปุ่ม "ใช้ที่อยู่ที่ตั้งไว้กับ iShip" — ส่งเฉพาะเจ้าของร้านที่ iShip ตั้งที่อยู่ผู้ส่งครบ (ข้อมูลร้านเอง ไม่ใช่ PII ลูกค้า)
+  const ishipSender =
+    isOwner && shippingSettings && shipping?.senderComplete
+      ? {
+          senderName: shippingSettings.senderName,
+          senderPhone: shippingSettings.senderPhone,
+          senderAddress: shippingSettings.senderAddress,
+          senderSubdistrict: shippingSettings.senderSubdistrict,
+          senderDistrict: shippingSettings.senderDistrict,
+          senderProvince: shippingSettings.senderProvince,
+          senderPostcode: shippingSettings.senderPostcode,
+        }
+      : null
+
   return (
     <>
       <PageBreadcrumb title="การจัดส่ง" trail={[{ label: 'ภาพรวม' }]} />
@@ -96,6 +121,25 @@ export default async function SettingsPage() {
               isOwner={isOwner}
               initialConnection={shipping}
               initialSettings={shippingSettings}
+            />
+          </div>
+        </div>
+      )}
+
+      {showFlash && flashConnection && (
+        <div className="card mb-4">
+          <div className="card-header">
+            <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
+              Flash Express (บัญชีของร้านเอง)
+            </h5>
+          </div>
+          <div className="card-body">
+            <FlashSettingsRow
+              isOwner={isOwner}
+              initialConnection={flashConnection}
+              initialSettings={flashSettings}
+              ishipSender={ishipSender}
+              ishipConnected={!!shipping?.connected}
             />
           </div>
         </div>
