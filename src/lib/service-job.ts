@@ -15,6 +15,13 @@ export type ServiceNoShowDeposit = (typeof SERVICE_NO_SHOW_DEPOSIT)[number]
 /** เหตุผลที่บันทึกลงรายการเงินที่ถูก void ตอนคืนมัดจำ — ประวัติเงินต้องอ่านออกว่าทำไมหาย */
 export const NO_SHOW_REFUND_REASON = 'คืนมัดจำ — ลูกค้าไม่มาตามนัด'
 
+/**
+ * feature 00082 — หมายเหตุบนรายการรับเงินที่ระบบบันทึกให้ตอนลูกค้ากด "ยืนยันรับบริการ"
+ * (ลูกค้ายืนยัน = ชำระแล้ว · มติ user 2026-10-21/23) — ร้านเห็นว่าใครยืนยัน และยกเลิกรายการนี้ได้ถ้าไม่จริง
+ * 🛑 migration ปิดย้อนหลัง (`…_service_buyer_confirm_settle`) ใช้ข้อความเดียวกันนี้ — แก้ที่หนึ่งต้องแก้อีกที่
+ */
+export const BUYER_CONFIRM_PAYMENT_NOTE = 'ลูกค้ายืนยันรับบริการและชำระแล้ว'
+
 /** หาไม่เจอ (token ผิดร้าน/ไม่มีจริง) */
 export class ServiceJobNotFoundError extends Error {
   constructor() {

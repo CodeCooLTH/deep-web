@@ -117,7 +117,8 @@ export const ORDER_EVENT_META: Record<
   PAYMENT_CONFIRM_REVERTED: { label: 'ยกเลิกการยืนยันรับเงิน', icon: 'coin', tone: 'neutral' },
   // feature 00073 — neutral ไม่ใช่ success: ร้านปิดงานเป็นการรายงานของร้านเอง (นับเงินภายใน)
   // เขียวสงวนให้ลูกค้ายืนยันรับบริการ (BUYER_CONFIRMED) ซึ่งเป็นหลักฐานบนโปรไฟล์สาธารณะ
-  SERVICE_CLOSED: { label: 'ร้านปิดงาน', icon: 'clipboard-check', tone: 'neutral' },
+  // 00082: "ปิดงาน" (เดิม "ร้านปิดงาน") — ลูกค้ากดยืนยันแล้วระบบปิดให้ได้ด้วย ⇒ ใครปิดบอกที่ผู้กระทำ + บรรทัดรายละเอียด
+  SERVICE_CLOSED: { label: 'ปิดงาน', icon: 'clipboard-check', tone: 'neutral' },
   SERVICE_REOPENED: { label: 'เปิดงานอีกครั้ง', icon: 'clipboard-x', tone: 'neutral' },
   // feature 00078 — neutral ทั้งหมด: เริ่มงาน/แจ้งลูกค้าเป็นข้อเท็จจริงของร้าน ไม่ใช่ความสำเร็จของธุรกรรม
   // AUTO_NOTICE_FAILED ไม่ใช้ danger — แจ้งไม่สำเร็จไม่ได้ทำให้ออเดอร์เสีย (ผลละเอียดอยู่ที่ ledger)
@@ -215,6 +216,8 @@ export type OrderEventMeta = {
   outcome?: string
   /** feature 00073 — มัดจำตอนปิดงานแบบไม่มาตามนัด (SERVICE_CLOSED): 'KEPT' | 'REFUNDED' */
   deposit?: string
+  /** feature 00082 — ระบบปิดให้เพราะลูกค้ายืนยันรับบริการ (SERVICE_CLOSED): 'BUYER' · ไม่มี = ร้านกดปิด */
+  closedBy?: string
 }
 
 export type OrderEventView = {
@@ -282,6 +285,7 @@ export function describeOrderEvent(
       } else if (e.meta.outcome === 'SERVED') {
         parts.push('ให้บริการแล้ว')
       }
+      if (e.meta.closedBy === 'BUYER') parts.unshift(`ปิดให้อัตโนมัติเมื่อ${service ? service.buyerNoun : 'ลูกค้า'}ยืนยันรับบริการ`)
       if (typeof e.meta.amount === 'number' && e.meta.amount > 0) {
         parts.push(`รับเงิน ฿${e.meta.amount.toLocaleString('th-TH')}`)
       }
