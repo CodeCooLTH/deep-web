@@ -21,6 +21,14 @@ describe("credential envelope", () => {
   });
 });
 
+describe("L5 decode ล้มทุกแบบ -> ข้อความคงที่ ไม่รั่ว inner message", () => {
+  it.each([["junk"], ["not-hex-at-all-zzzz"], [encryptToken("{not json")], [encryptToken("null")]])("%#", (enc) => {
+    let msg = "";
+    try { decodeCredential(enc); } catch (e) { msg = (e as Error).message; }
+    expect(msg).toBe("FLASH_CREDENTIAL_MALFORMED");
+  });
+});
+
 describe("mask / webhook secret", () => {
   it("maskMerchantId ไม่เผยเกินท้าย 3 ตัว", () => {
     expect(maskMerchantId("AB1234567")).toBe("••••••567");

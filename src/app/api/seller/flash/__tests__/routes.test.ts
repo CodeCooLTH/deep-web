@@ -77,6 +77,33 @@ describe("ด่าน guard", () => {
   });
 });
 
+describe("M1 throttle key ผิดซ้ำ", () => {
+  const body = { mchId: "AB1234", secretKey: KEY };
+  it("ล้ม 1001 ครบ 5 ครั้ง → POST/verify ถัดไป 429 RATE_LIMITED ไม่ยิง service · ล้มแบบ timeout ไม่นับ", async () => {
+    guardMock.mockResolvedValue({ ...owner, userId: "u-rl", shopId: "shop-rl" });
+    svc.connectFlash.mockRejectedValue(new FlashError("UPSTREAM_TIMEOUT"));
+    for (let i = 0; i < 6; i++) expect((await connection.POST(req("/c", "POST", body))).status).toBe(504);
+    svc.connectFlash.mockRejectedValue(new FlashError("MERCHANT_NOT_FOUND", { flashCode: 1001 }));
+    for (let i = 0; i < 5; i++) expect((await connection.POST(req("/c", "POST", body))).status).toBe(422);
+    svc.connectFlash.mockClear();
+    const r = await json(await connection.POST(req("/c", "POST", body)));
+    expect(r).toEqual({ status: 429, body: { error: { code: "RATE_LIMITED", message: "ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่" } } });
+    expect(svc.connectFlash).not.toHaveBeenCalled();
+    expect((await verify.POST(req("/c", "POST"))).status).toBe(429);
+    expect(svc.verifyFlash).not.toHaveBeenCalled();
+    // คนอื่น/ร้านอื่นไม่โดนด้วย
+    guardMock.mockResolvedValue({ ...owner, userId: "u-other", shopId: "shop-rl" });
+    svc.verifyFlash.mockResolvedValue({ status: "ACTIVE" });
+    expect((await verify.POST(req("/c", "POST"))).status).toBe(200);
+  });
+  it("verify ที่ได้ view TOKEN_INVALID นับเป็นความล้มเหลว", async () => {
+    guardMock.mockResolvedValue({ ...owner, userId: "u-rl2", shopId: "shop-rl2" });
+    svc.verifyFlash.mockResolvedValue({ status: "TOKEN_INVALID" });
+    for (let i = 0; i < 5; i++) expect((await verify.POST(req("/c", "POST"))).status).toBe(200);
+    expect((await verify.POST(req("/c", "POST"))).status).toBe(429);
+  });
+});
+
 describe("connection", () => {
   it("POST ใหม่ → 201, เปลี่ยน key → 200, ไม่มี key ใน body และส่ง trimmed input", async () => {
     svc.connectFlash.mockResolvedValue({ connection: { connected: true }, webhook: { status: "REGISTERED", kinds: [] }, created: true });

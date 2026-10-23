@@ -59,6 +59,13 @@ describe("invalidatesConnection (BR-FLASH-14)", () => {
   });
 });
 
+describe("redactFlash M2", () => {
+  it("path webhook ที่มี secret ถูกปิด", () => {
+    const out = redactFlash("POST https://deepthailand.app/api/webhooks/flash/AbC_d-123xyz failed");
+    expect(out).toBe("POST https://deepthailand.app/api/webhooks/flash/[redacted] failed");
+  });
+});
+
 describe("redactFlash", () => {
   const HEX = "A".repeat(34) + "0123456789".repeat(3);
   it("ตัด key / sign / hex 64", () => {

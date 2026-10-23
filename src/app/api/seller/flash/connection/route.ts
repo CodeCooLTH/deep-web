@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 import * as v from "valibot";
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { FlashConnectSchema } from "@/lib/validations";
+import { FlashError, FlashServiceError } from "@/lib/flash/errors";
+import { isFlashVerifyLimited, recordFlashVerifyFailure } from "@/lib/flash/verify-rl";
 import { flashError, flashJson, mapFlashError } from "@/lib/flash/route-helpers";
 import { isFlashOwner, requireFlashOwner } from "@/lib/flash/owner-guard";
 import { readJson } from "@/lib/iship/route-helpers";
@@ -11,6 +13,8 @@ import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 import { connectFlash, disconnectFlash, getFlashConnection } from "@/services/flash.service";
 
 export const dynamic = "force-dynamic";
+
+const RATE_LIMITED = () => new FlashServiceError("RATE_LIMITED", "ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่");
 
 export async function GET(request: NextRequest) {
   const guard = await requireGeneralShop({ cap: "S1", shopId: readIShipShopIdFromQuery(request) });
@@ -31,11 +35,14 @@ export async function POST(request: NextRequest) {
   const parsed = v.safeParse(FlashConnectSchema, await readJson(request));
   if (!parsed.success) return flashError("INVALID_INPUT", parsed.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง", 400);
 
+  // M1: key ผิดซ้ำเกินโควตา → ไม่ยิง Flash
+  if (isFlashVerifyLimited(guard.userId, guard.shopId)) return mapFlashError(RATE_LIMITED());
   try {
     // connectFlash พิสูจน์ key กับ Flash ก่อนบันทึกเสมอ — ไม่ผ่านจะไม่มีอะไรถูกเขียน
     const { created, ...body } = await connectFlash(guard.shopId, guard.userId, parsed.output, { isOwner: true });
     return flashJson(body, created ? 201 : 200);
   } catch (err) {
+    if (err instanceof FlashError && err.invalidatesConnection) recordFlashVerifyFailure(guard.userId, guard.shopId);
     return mapFlashError(err, { context: "connection" });
   }
 }

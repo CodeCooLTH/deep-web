@@ -37,7 +37,9 @@ const BrokenNote = ({ url }: { url: string }) => (
   </>
 )
 
-export default function PodPhotoGallery({ photos }: { photos: PodPhoto[] }) {
+export default function PodPhotoGallery({ photos: allPhotos }: { photos: PodPhoto[] }) {
+  // L2: เรนเดอร์เฉพาะ https — ข้อมูลเก่าในฐาน/ช่องทางอื่นอาจมี javascript:/data:/http
+  const photos = allPhotos.filter((p) => /^https:\/\//i.test(p.url))
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const [broken, setBroken] = useState<Record<string, boolean>>({})
   const isOpen = openIndex !== null

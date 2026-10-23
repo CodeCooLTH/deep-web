@@ -38,8 +38,8 @@ function shapeFlashPod(parcel: unknown) {
   return {
     signer: str(p.signer),
     signerTypeText: str(p.signerTypeText),
-    podUrl: str(p.podUrl),
-    photos: Array.isArray(p.photos) ? p.photos.filter((x): x is string => typeof x === 'string' && x !== '') : [],
+    podUrl: httpsOnly(p.podUrl),
+    photos: Array.isArray(p.photos) ? p.photos.filter((x): x is string => httpsOnly(x) !== null) : [],
     lat: num(p.lat),
     lng: num(p.lng),
     deliveredAt: str(p.deliveredAt) ?? str(p.stateDate),
@@ -47,6 +47,8 @@ function shapeFlashPod(parcel: unknown) {
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+// L2: URL ที่จะไปเป็น img src / href ต้องเป็น https เท่านั้น (กัน javascript:/data:/http)
+const httpsOnly = (v: unknown): string | null => (typeof v === 'string' && /^https:\/\//i.test(v) ? v : null)
 
 export async function GET(
   _request: NextRequest,

@@ -12,7 +12,7 @@ const h = vi.hoisted(() => {
   process.env.FLASH_DRY_RUN = "";
   process.env.CHANNEL_TOKEN_KEY ??= "0".repeat(64);
   return {
-    c: { createOrder: vi.fn(), routes: vi.fn(), estimateRate: vi.fn() },
+    c: { createOrder: vi.fn(), routes: vi.fn(), estimateRate: vi.fn(), cancelOrder: vi.fn() },
     reserve: vi.fn(async () => null),
     sync: vi.fn(),
   };
@@ -104,6 +104,33 @@ describe.skipIf(!isLocal)("flash-shipment.service", () => {
     process.env.FLASH_DIRECT_ENABLED = "0";
     await expect(createFlashShipment(S.shop, S.user, randomUUID())).rejects.toMatchObject({ code: "FEATURE_DISABLED" });
     expect(h.c.createOrder).not.toHaveBeenCalled();
+  });
+
+  it("ยกเลิกแทรกระหว่างยิง create: แถวคง CANCELLED ไม่โดนทับ · ยกเลิก pno ที่ Flash ตาม · ไม่มี event/แจ้งเลข", async () => {
+    const id = await mkOrder();
+    const pno = nextPno();
+    h.c.createOrder.mockImplementation(async () => {
+      await prisma.orderShipment.updateMany({ where: { orderId: id }, data: { status: "CANCELLED", cancelledAt: new Date() } });
+      return { pno, sortCode: "SC1" };
+    });
+    h.c.cancelOrder.mockResolvedValue({});
+    const v = await createFlashShipment(S.shop, S.user, id);
+    expect(v.status).toBe("CANCELLED");
+    const [row] = await shipments(id);
+    expect(row).toMatchObject({ status: "CANCELLED", trackingNo: null });
+    expect(h.c.cancelOrder).toHaveBeenCalledWith(expect.anything(), pno);
+    expect(await events(id, "SHIPMENT_CREATED")).toHaveLength(0);
+    expect(h.reserve).not.toHaveBeenCalled();
+  });
+
+  it("ยกเลิกแทรกระหว่างยิง แล้ว create ล้ม: ไม่ทับ CANCELLED เป็น FAILED", async () => {
+    const id = await mkOrder();
+    h.c.createOrder.mockImplementation(async () => {
+      await prisma.orderShipment.updateMany({ where: { orderId: id }, data: { status: "CANCELLED", cancelledAt: new Date() } });
+      throw fe("UPSTREAM_ERROR");
+    });
+    expect((await createFlashShipment(S.shop, S.user, id)).status).toBe("CANCELLED");
+    expect((await shipments(id))[0].status).toBe("CANCELLED");
   });
 
   it("สำเร็จ: pno/snapshot/ผู้กด/OrderEvent/ราคาประมาณ · ไม่แตะแถว Order ทั้งแถว (รวม status)", async () => {
@@ -311,10 +338,18 @@ describe.skipIf(!isLocal)("flash-shipment.service", () => {
       await expect(linkFlashShipment(S.shop, S.user, id, nextPno())).rejects.toMatchObject({ code: "NOT_MERCHANT_PARCEL" });
       expect(await shipments(id)).toHaveLength(0);
       const taken = (await shipments(await mkOrderWithShipment()))[0].trackingNo!;
+      h.c.routes.mockResolvedValue({ pno: taken, state: 1, routes: [] });
       await expect(linkFlashShipment(S.shop, S.user, id, taken)).rejects.toMatchObject({ code: "PNO_TAKEN" });
       const busy = await mkOrderWithShipment();
       await expect(linkFlashShipment(S.shop, S.user, busy, nextPno())).rejects.toMatchObject({ code: "SHIPMENT_EXISTS" });
     });
+  });
+
+  it("ผูก pno ของคนอื่น (routes 1019) ที่ตรงกับเลขในระบบ → NOT_MERCHANT_PARCEL ไม่รั่ว PNO_TAKEN", async () => {
+    const id = await mkOrder();
+    const taken = (await shipments(await mkOrderWithShipment()))[0].trackingNo!;
+    h.c.routes.mockRejectedValue(fe("NOT_MERCHANT_PARCEL", "1019"));
+    await expect(linkFlashShipment(S.shop, S.user, id, taken)).rejects.toMatchObject({ code: "NOT_MERCHANT_PARCEL" });
   });
 
   it("previewFlashPno: ล่าสุด ≤3 · ไม่มี route = order_success · 1019 โยนต่อ", async () => {

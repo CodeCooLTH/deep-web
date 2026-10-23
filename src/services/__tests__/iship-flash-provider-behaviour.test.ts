@@ -9,7 +9,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     shopShippingAccount: { findUnique: vi.fn(), updateMany: vi.fn() },
     shipmentTracking: { findUnique: vi.fn(async () => null) },
-    orderShipment: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn(), count: vi.fn() },
+    orderShipment: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn(), count: vi.fn(), create: vi.fn() },
     order: { findFirst: vi.fn(), findFirstOrThrow: vi.fn(), findUniqueOrThrow: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -25,7 +25,7 @@ vi.mock('@/services/order-event.service', () => ({ recordOrderEvent: vi.fn() }))
 
 import { prisma } from '@/lib/prisma'
 import * as iship from '@/lib/iship/client'
-import { createShipment, getLabelPdf, getShipmentPanelOrReason, IShipServiceError } from '@/services/iship.service'
+import { createShipment, createReturnShipment, getLabelPdf, getShipmentPanelOrReason, IShipServiceError } from '@/services/iship.service'
 import { carrierTrackingSettled, describeShipmentStatus } from '@/lib/iship/status'
 import { orderShippingStage } from '@/lib/chat-order-progress'
 
@@ -137,5 +137,32 @@ describe('NEEDS_REVIEW', () => {
       .toBe(orderShippingStage({ ...base, shipment: sh('FAILED') }))
     expect(orderShippingStage({ ...base, shipment: sh('NEEDS_REVIEW') }))
       .not.toBe(orderShippingStage({ ...base, shipment: sh('CREATED') }))
+  })
+})
+
+describe('createReturnShipment — ขาไปเป็น Flash', () => {
+  it('ไม่เอา courier/category/ขนาดของใบ Flash มาเป็นค่าตั้งต้น ใช้ค่าบัญชี iShip', async () => {
+    const fwd = [
+      { provider: 'FLASH', courierCode: 'FLASH', categoryId: 99, weight: 9, width: 9, length: 9, height: 9 },
+    ]
+    // จำลอง DB: เคารพ where.provider ของ nested select — ถอด provider ออกแล้ว Flash หลุดเข้ามา
+    vi.mocked(prisma.order.findFirst).mockImplementation((async (args: any) => {
+      const w = args.select.shipments.where
+      return {
+        id: 'o1', buyerName: 'ก', buyerContact: '0631360508', shippingAddress: FIXED,
+        shipments: fwd.filter((r) => !w.provider || r.provider === w.provider).slice(0, 1),
+      }
+    }) as never)
+    vi.mocked(prisma.shopShippingAccount.findUnique).mockResolvedValue({
+      ...ACCOUNT, defaultCourierCode: 'KERRY', defaultWeight: 2, defaultWidth: 10, defaultLength: 10,
+      defaultHeight: 10, defaultCategoryId: 3,
+    } as never)
+    vi.mocked(prisma.orderShipment.findFirst).mockResolvedValue(null as never)
+    const stop = new Error('stop-before-dispatch')
+    vi.mocked(prisma.orderShipment.create).mockRejectedValue(stop)
+    await expect(createReturnShipment(SHOP, 'u1', 'o1')).rejects.toBe(stop)
+    expect(vi.mocked(prisma.orderShipment.create).mock.calls[0][0].data).toMatchObject({
+      courierCode: 'KERRY', categoryId: 3, weight: 2,
+    })
   })
 })

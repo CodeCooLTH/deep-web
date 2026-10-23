@@ -160,6 +160,9 @@ async function captureEstimate(shopId: string, shipmentId: string, receiver: Dee
   }
 }
 
+/** ยกเลิกแทรกระหว่างยิง create — แถวไม่ใช่ PENDING แล้ว ห้ามเขียนผลทับ */
+class LostCreateRace extends Error {}
+
 /**
  * ยิง /open/v3/orders แล้วบันทึกผล — ใช้ร่วมทั้งสร้างครั้งแรก/ลองใหม่
  * ไม่ยิงใน $transaction (คำขอ ≤20s) · ล้มทุกชนิด = คืน view ที่ FAILED/NEEDS_REVIEW ไม่ throw (BR-FLASH-20)
@@ -177,8 +180,9 @@ async function dispatchFlash(a: {
     const dryRun = isFlashDryRun();
     let ledgerId: string | null = null;
     const updated = await prisma.$transaction(async (tx) => {
-      const u = await tx.orderShipment.update({
-        where: { id: a.shipmentId },
+      // conditional: ถ้าระหว่างยิงแถวถูกยกเลิก (ไม่ใช่ PENDING แล้ว) ห้ามทับ
+      const r = await tx.orderShipment.updateMany({
+        where: { id: a.shipmentId, status: "PENDING" },
         data: {
           status: "CREATED",
           trackingNo: pno,
@@ -191,8 +195,9 @@ async function dispatchFlash(a: {
             flash: { sortCode: result.sortCode, sortingLineCode: result.sortingLineCode, dstStoreName: result.dstStoreName },
           } as object,
         },
-        select: SHIPMENT_SELECT,
       });
+      if (r.count === 0) throw new LostCreateRace();
+      const u = await tx.orderShipment.findUniqueOrThrow({ where: { id: a.shipmentId }, select: SHIPMENT_SELECT });
       await recordOrderEvent(tx, {
         orderId: a.orderId, type: "SHIPMENT_CREATED", actorUserId: a.userId,
         meta: { shipmentId: a.shipmentId, courierName: a.courierName ?? undefined, provider: FLASH },
@@ -205,6 +210,18 @@ async function dispatchFlash(a: {
     await captureEstimate(a.shopId, a.shipmentId, a.receiver, a.parcel);
     return toShipmentView(updated);
   } catch (err) {
+    if (err instanceof LostCreateRace) {
+      // Flash เปิดใบจริงแล้วแต่แถวถูกยกเลิกไปก่อน → ยกเลิกฝั่ง Flash ตามให้ (best-effort) ไม่งั้นใบกำพร้ามีค่าใช้จ่าย
+      if (createdPno) {
+        try {
+          await withFlashGuard(a.shopId, () => flash.cancelOrder(a.cred, createdPno!));
+        } catch (e) {
+          console.error(`[flash-create] cancel-after-race ล้ม pno=${createdPno}`, e instanceof Error ? e.name : "error");
+        }
+      }
+      console.warn(`[flash-create] lost race (cancelled during create) ${a.outTradeNo} pno=${createdPno}`);
+      return toShipmentView(await prisma.orderShipment.findUniqueOrThrow({ where: { id: a.shipmentId }, select: SHIPMENT_SELECT }));
+    }
     const fe = err instanceof FlashError ? err : null;
     const code = fe?.code ?? "UPSTREAM_ERROR";
     // 1003 = outTradeNo ซ้ำ โดยเราไม่มี pno → ห้ามเดา/ห้ามเปิดใบใหม่ ให้คนตัดสิน (BR-FLASH-23)
@@ -213,12 +230,11 @@ async function dispatchFlash(a: {
     console.warn(`[flash-create] ${code} ${a.outTradeNo}`, raw.slice(0, 200), createdPno ? `pno=${createdPno}` : "");
     // เก็บรหัสดิบของ Flash (ถ้ามี) เพราะ toShipmentView ใช้ค่านี้เลือกข้อความไทยเฉพาะรหัส; ไม่มี → ข้อความ (+pno กรณี DB ล้มหลัง Flash สำเร็จ)
     const message = fe?.flashCode ?? (createdPno ? `${raw} pno=${createdPno}`.trim() : raw) ?? null;
-    const updated = await prisma.orderShipment.update({
-      where: { id: a.shipmentId },
+    await prisma.orderShipment.updateMany({
+      where: { id: a.shipmentId, status: "PENDING" }, // ถูกยกเลิกระหว่างยิง = คง CANCELLED
       data: { status, attemptCount: { increment: 1 }, lastErrorCode: code, lastErrorMessage: message ? message.slice(0, 500) : null },
-      select: SHIPMENT_SELECT,
     });
-    return toShipmentView(updated);
+    return toShipmentView(await prisma.orderShipment.findUniqueOrThrow({ where: { id: a.shipmentId }, select: SHIPMENT_SELECT }));
   }
 }
 
@@ -541,12 +557,12 @@ export async function linkFlashShipment(
 
   const active = await prisma.orderShipment.findFirst({ where: { orderId, ...LATEST_FORWARD_SHIPMENT }, select: { id: true } });
   if (active) throw new FlashServiceError("SHIPMENT_EXISTS", "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว");
+  // พิสูจน์ว่า pno เป็นของบัญชีนี้ก่อน — ไม่งั้น PNO_TAKEN เป็น oracle บอกว่าเลขของคนอื่นมีในระบบ
+  const routes = normalizeRoutes(await withFlashGuard(shopId, () => flash.routes(cred, pno)));
   const taken = await prisma.orderShipment.findFirst({ where: { trackingNo: pno }, select: { orderId: true } });
   if (taken) {
     throw new FlashServiceError("PNO_TAKEN", taken.orderId === orderId ? "พัสดุใบนี้ผูกกับคำสั่งซื้อนี้อยู่แล้ว" : "พัสดุใบนี้ถูกผูกกับคำสั่งซื้ออื่นไปแล้ว");
   }
-
-  const routes = normalizeRoutes(await withFlashGuard(shopId, () => flash.routes(cred, pno)));
   const cancelledCount = await prisma.orderShipment.count({ where: { orderId, status: "CANCELLED" } });
 
   let ledgerId: string | null = null;

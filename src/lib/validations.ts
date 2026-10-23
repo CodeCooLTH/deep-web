@@ -2481,7 +2481,7 @@ export const FlashCreateOverrideSchema = v.object({
   length: v.optional(flashDim),
   height: v.optional(flashDim),
   categoryId: v.optional(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
-  codAmount: v.optional(v.pipe(v.number(), v.minValue(0))),
+  codAmount: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(1_000_000))),
   remark: v.nullish(shortText(200)),
   options: v.optional(
     v.object({

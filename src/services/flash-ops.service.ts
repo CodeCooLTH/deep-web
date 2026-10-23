@@ -37,6 +37,8 @@ export async function cancelFlashShipment(shopId: string, userId: string, shipme
   });
   if (!row) throw notFound();
   if (row.status === "CANCELLED") throw new FlashServiceError("INVALID_STATE", "พัสดุนี้ถูกยกเลิกไปแล้ว");
+  // PENDING = กำลังยิง create อยู่ — ยกเลิกตอนนี้จะแย่งกับการเขียนผล (ผลสร้างจะทับ CANCELLED)
+  if (row.status === "PENDING") throw new FlashServiceError("INVALID_STATE", "พัสดุกำลังสร้างอยู่ รอผลก่อนแล้วค่อยยกเลิก");
   if (row.status === "NEEDS_REVIEW") throw new FlashServiceError("NEEDS_REVIEW", "พัสดุนี้รอตรวจสอบ — ยืนยันที่การ์ดตรวจสอบก่อน");
   if (row.source !== "CREATED") {
     throw new FlashServiceError("INVALID_STATE", "พัสดุใบนี้ผูกเลขจาก Flash — ใช้ปุ่มเลิกผูก ไม่ใช่ยกเลิก");

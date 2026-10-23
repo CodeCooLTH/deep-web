@@ -67,7 +67,9 @@ export function classifyFlashRetryUX(code: FlashErrorCode): FlashRetryUX {
 export function redactFlash(text: string): string {
   return text
     .replace(/(?<![A-Za-z])((?:key|secretKey|sign)["']?\s*[=:]\s*["']?)[^&\s"',}]*/gi, "$1[redacted]")
-    .replace(/\b[A-Fa-f0-9]{64}\b/g, "[redacted]");
+    .replace(/\b[A-Fa-f0-9]{64}\b/g, "[redacted]")
+    // path webhook มี secret ของร้านฝังอยู่ (M2)
+    .replace(/\/api\/webhooks\/flash\/[A-Za-z0-9_-]+/g, "/api/webhooks/flash/[redacted]");
 }
 
 export class FlashError extends Error {
@@ -79,13 +81,13 @@ export class FlashError extends Error {
 
   constructor(
     code: FlashErrorCode,
-    opts?: { upstreamMessage?: string; httpStatus?: number; flashCode?: string | number | null },
+    opts?: { upstreamMessage?: string; httpStatus?: number; flashCode?: string | number | null; userMessage?: string },
   ) {
     super(`FlashError(${code})`);
     this.name = "FlashError";
     this.code = code;
     this.flashCode = opts?.flashCode == null ? undefined : String(opts.flashCode);
-    this.userMessage = flashUserMessage(code, this.flashCode);
+    this.userMessage = opts?.userMessage ?? flashUserMessage(code, this.flashCode);
     this.upstreamMessage = opts?.upstreamMessage == null ? undefined : redactFlash(opts.upstreamMessage);
     this.httpStatus = opts?.httpStatus;
   }
@@ -103,7 +105,7 @@ export class FlashError extends Error {
 export type FlashServiceErrorCode =
   | "NOT_CONNECTED" | "FEATURE_DISABLED" | "SHIPMENT_EXISTS" | "NEEDS_REVIEW" | "INCOMPLETE_DATA"
   | "NOT_ELIGIBLE" | "NOT_FOUND" | "INVALID_STATE" | "MERCHANT_IN_USE" | "MERCHANT_CHANGE_NOT_ALLOWED"
-  | "PNO_TAKEN" | "INVALID_INPUT";
+  | "PNO_TAKEN" | "INVALID_INPUT" | "RATE_LIMITED";
 
 export class FlashServiceError extends Error {
   constructor(

@@ -55,6 +55,15 @@ type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" || typeof v === "number") && String(v).trim() !== "" ? String(v).trim() : null;
 const stateNum = (v: unknown): number | null => { const s = str(v); return s !== null && /^\d{1,2}$/.test(s) ? Number(s) : null; };
+/** ข้อความจาก webhook body ที่เก็บลงฐาน — ตัดความยาว (M3: body ไม่น่าเชื่อ) */
+const str200 = (v: unknown): string | null => str(v)?.slice(0, 200) ?? null;
+/** เวลาเหตุการณ์จาก body ห้ามอยู่ในอนาคตเกิน 5 นาที — ไม่งั้นเวลาปลอมล็อกสถานะ (ทุกเหตุการณ์จริงจะถูกมองว่า "เก่ากว่า") */
+const clampFuture = (d: Date | null): Date | null => {
+  const cap = Date.now() + 5 * 60_000;
+  return d && d.getTime() > cap ? new Date(cap) : d;
+};
+const RAW_PAYLOAD_MAX_BYTES = 8 * 1024;
+const RAW_ROWS_PER_SHIPMENT_MAX = 200;
 const sha = (s: string, n: number) => createHash("sha256").update(s).digest("hex").slice(0, n);
 const isVerifyState = (n: number | null) => n !== null && FLASH_VERIFY_STATES.includes(n);
 const errText = (e: unknown) => redactFlash(e instanceof FlashError ? `${e.code}${e.upstreamMessage ? `: ${e.upstreamMessage}` : ""}` : e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -207,14 +216,20 @@ export async function captureFlashCharges(shipment: FlashShipmentRow, kind: "pri
 
 // ─── POD (TFR-FLASH-020) ────────────────────────────────────────────────────
 
-function shapePod(data: unknown, stateDate: unknown): Prisma.InputJsonObject | null {
+/** L2: URL ที่จะไปอยู่ใน <img src>/<a href> ต้องเป็น https เท่านั้น (กัน javascript:/data:/http) */
+const httpsOnly = (v: unknown): string | null => {
+  const u = str(v);
+  return u && /^https:\/\//i.test(u) ? u : null;
+};
+
+export function shapePod(data: unknown, stateDate: unknown): Prisma.InputJsonObject | null {
   if (!isRec(data)) return null;
   const photoSrc = [data.photos, data.images, data.deliveredPhotos].find(Array.isArray) as unknown[] | undefined;
-  const photos = (photoSrc ?? [data.photo1, data.photo2, data.podPhoto]).map(str).filter((x): x is string => !!x).slice(0, 2);
+  const photos = (photoSrc ?? [data.photo1, data.photo2, data.podPhoto]).map(httpsOnly).filter((x): x is string => !!x).slice(0, 2);
   const num = (v: unknown) => { const n = typeof v === "number" ? v : Number(str(v)); return Number.isFinite(n) ? n : null; };
   return {
     kind: "FLASH_POD", signer: str(data.signer) ?? str(data.signerName), signerTypeText: str(data.signerTypeText) ?? str(data.signerType),
-    podUrl: str(data.podUrl) ?? str(data.signaturePicUrl), photos, lat: num(data.lat ?? data.latitude), lng: num(data.lng ?? data.longitude),
+    podUrl: httpsOnly(data.podUrl) ?? httpsOnly(data.signaturePicUrl), photos, lat: num(data.lat ?? data.latitude), lng: num(data.lng ?? data.longitude),
     stateDate: str(data.stateDate) ?? str(stateDate),
   };
 }
@@ -278,10 +293,17 @@ export async function handleFlashWebhook(
     }
 
     // raw ก่อน apply เสมอ — parse/apply พังแล้วหลักฐานดิบยังอยู่
-    await recordEvent(ship.id, {
-      status: `raw:${kind}`, occurredAt: new Date(), source: "WEBHOOK_RAW",
-      dedupeKey: `raw:${kind}:${sha(JSON.stringify(data), 32)}`, payload: data as Prisma.InputJsonObject,
-    });
+    // M3: ครบโควตาแถว raw ต่อใบ = ไม่เก็บเพิ่ม (ยังประมวลผลต่อ) · body เกิน 8KB เก็บแค่ marker + sha
+    const json = JSON.stringify(data);
+    const rawCount = await prisma.shipmentEvent.count({ where: { shipmentId: ship.id, source: "WEBHOOK_RAW" } });
+    if (rawCount < RAW_ROWS_PER_SHIPMENT_MAX) {
+      const bytes = Buffer.byteLength(json);
+      await recordEvent(ship.id, {
+        status: `raw:${kind}`, occurredAt: new Date(), source: "WEBHOOK_RAW",
+        dedupeKey: `raw:${kind}:${sha(json, 32)}`,
+        payload: bytes > RAW_PAYLOAD_MAX_BYTES ? { truncated: true, bytes, sha256: sha(json, 64) } : (data as Prisma.InputJsonObject),
+      });
+    }
 
     const isReturnLeg = !!ship.returnedPno && pno === ship.returnedPno && pno !== ship.trackingNo;
     if (kind === "price" || kind === "weight") {
@@ -318,12 +340,12 @@ async function applyStatusLikeWebhook(
     const r = await applyFlashRoutes(ship, { ...routes, pno: routes.pno ?? pno }, "WEBHOOK", { pno, ...marker });
     return { outcome: "APPLIED", after: r.deliveredConfirmed ? podAfter(loaded, ship) : undefined };
   }
-  const at = parseFlashTime(data.stateDate ?? data.stateChangeAt);
-  const routedAt = parseFlashTime(data.routedAt);
+  const at = clampFuture(parseFlashTime(data.stateDate ?? data.stateChangeAt));
+  const routedAt = clampFuture(parseFlashTime(data.routedAt));
   const action = str(data.routeAction) ?? str(data.routedAction);
   const body: FlashRoutes = {
     pno, state: claimed, stateChangeAt: at, returnedPno: null, customaryPno: null,
-    routes: kind === "routes" && (routedAt || action) ? [{ routedAt, action, message: str(data.message), state: claimed }] : [],
+    routes: kind === "routes" && (routedAt || action) ? [{ routedAt, action, message: str200(data.message), state: claimed }] : [],
   };
   await applyFlashRoutes(ship, body, "WEBHOOK", { pno, untrusted: true, ...marker });
   return { outcome: "APPLIED" };
@@ -358,10 +380,10 @@ async function applyCourierWebhook(shopId: string, data: Rec): Promise<boolean> 
       ...(next === "ACCEPTED" && !terminal && !pickup.acceptedAt ? { acceptedAt: now } : {}),
       ...(next === "CLOSED" && !terminal ? { closedAt: now } : {}),
       ...(next === "CANCELLED" && !terminal ? { cancelledAt: now } : {}),
-      ...(str(data.staffInfoName) ? { staffName: str(data.staffInfoName)! } : {}),
-      ...(str(data.staffInfoPhone) ? { staffPhone: str(data.staffInfoPhone)! } : {}),
-      ...(str(data.timeoutAtText) ? { timeoutAtText: str(data.timeoutAtText)! } : {}),
-      ...(str(data.ticketMessage) ? { ticketMessage: str(data.ticketMessage)! } : {}),
+      ...(str200(data.staffInfoName) ? { staffName: str200(data.staffInfoName)! } : {}),
+      ...(str200(data.staffInfoPhone) ? { staffPhone: str200(data.staffInfoPhone)! } : {}),
+      ...(str200(data.timeoutAtText) ? { timeoutAtText: str200(data.timeoutAtText)! } : {}),
+      ...(str200(data.ticketMessage) ? { ticketMessage: str200(data.ticketMessage)! } : {}),
     },
   });
   return true;

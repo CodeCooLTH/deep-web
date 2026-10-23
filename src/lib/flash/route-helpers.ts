@@ -50,6 +50,7 @@ const SERVICE_STATUS: Record<FlashServiceErrorCode, number> = {
   MERCHANT_CHANGE_NOT_ALLOWED: 409,
   PNO_TAKEN: 409,
   INVALID_INPUT: 400,
+  RATE_LIMITED: 429,
 };
 
 /**

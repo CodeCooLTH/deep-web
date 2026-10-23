@@ -1131,7 +1131,8 @@ export async function createReturnShipment(
       shippingAddress: true,
       // สเปกกล่องของขาไป — ใช้เป็นค่าตั้งต้นของขากลับ (ของชิ้นเดิมกล่องเดิม)
       shipments: {
-        where: { direction: FORWARD_SHIPMENT },
+        // ISHIP เท่านั้น: ขาไปเป็น Flash แล้ว courierCode "FLASH"/category ของ Flash ใช้กับ iShip ไม่ได้ → ตกไปค่าบัญชี iShip
+        where: { direction: FORWARD_SHIPMENT, provider: "ISHIP" },
         orderBy: { createdAt: "desc" },
         take: 1,
         select: { courierCode: true, categoryId: true, weight: true, width: true, length: true, height: true },
@@ -1159,7 +1160,7 @@ export async function createReturnShipment(
   const height = override?.height ?? fwd?.height ?? account.defaultHeight;
   const categoryId = override?.categoryId ?? fwd?.categoryId ?? account.defaultCategoryId;
 
-  const missing = findMissingParcelFields({ courierCode, weight, width, length, height });
+  const missing = findMissingParcelFields({ courierCode, categoryId, weight, width, length, height });
   if (missing.length > 0) {
     throw new IShipServiceError(
       "INCOMPLETE_DATA",

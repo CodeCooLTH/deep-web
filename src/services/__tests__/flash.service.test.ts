@@ -380,6 +380,16 @@ describe.skipIf(!isLocal)("flash.service", () => {
       expect(c.notify).toHaveBeenCalledTimes(1);
       expect(await prisma.shipmentPickup.count({ where: { shopId: S.shop, status: "FAILED", provider: "FLASH" } })).toBe(1);
     });
+    it("timeout ตอนเรียกรถ → ข้อความเตือนว่าคำขออาจถูกส่งไปแล้ว (ไม่ใช่ 'กดลองใหม่ได้') · code ยัง UPSTREAM_TIMEOUT", async () => {
+      await connectOk();
+      await updateFlashSettings(S.shop, SENDER);
+      c.notify.mockReset();
+      c.notify.mockRejectedValue(fe("UPSTREAM_TIMEOUT"));
+      const MSG = "Flash ไม่ตอบกลับทันเวลา คำขออาจถูกส่งไปแล้ว ตรวจกับ Flash ก่อนเรียกรถอีกครั้ง";
+      await expect(requestFlashPickup(S.shop, S.user, { parcelCount: 1 })).rejects.toMatchObject({ code: "UPSTREAM_TIMEOUT", userMessage: MSG });
+      const failed = await prisma.shipmentPickup.findFirst({ where: { shopId: S.shop, status: "FAILED", lastErrorMessage: MSG } });
+      expect(failed).not.toBeNull();
+    });
     it("ยกเลิกใช้ currentTicketPickupId · 1011 → อ่านรหัสล่าสุดแล้วลองครั้งเดียว · ล้มซ้ำ → PICKUP_NOT_CANCELLABLE", async () => {
       await connectOk();
       const mk = (cur: string | null) =>

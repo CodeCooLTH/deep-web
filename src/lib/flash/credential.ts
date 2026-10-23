@@ -8,8 +8,14 @@ export const encodeCredential = (c: FlashCredential): string =>
   encryptToken(JSON.stringify({ v: 1, k: c.secretKey, w: c.webhookSecret }));
 
 export function decodeCredential(enc: string): FlashCredential {
-  const o = JSON.parse(decryptToken(enc)) as { v?: unknown; k?: unknown; w?: unknown };
-  if (o.v !== 1 || typeof o.k !== "string" || !o.k || typeof o.w !== "string" || !o.w) {
+  let o: { v?: unknown; k?: unknown; w?: unknown };
+  try {
+    o = JSON.parse(decryptToken(enc));
+  } catch {
+    // ห้ามเอา message ของ decrypt/JSON.parse ติดไป — อาจมีชิ้นส่วนของ ciphertext/plaintext (L5)
+    throw new Error("FLASH_CREDENTIAL_MALFORMED");
+  }
+  if (!o || typeof o !== "object" || o.v !== 1 || typeof o.k !== "string" || !o.k || typeof o.w !== "string" || !o.w) {
     throw new Error("FLASH_CREDENTIAL_MALFORMED");
   }
   return { secretKey: o.k, webhookSecret: o.w };

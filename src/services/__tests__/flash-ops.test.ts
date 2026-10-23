@@ -84,6 +84,12 @@ describe.skipIf(!isLocal)('flash-ops.service (DB จริง)', () => {
       expect((await ship(s.id)).status).toBe('CREATED')
       expect(await db.orderEvent.count({ where: { orderId: s.orderId, type: 'SHIPMENT_CANCELLED' } })).toBe(0)
     })
+    it('PENDING (กำลังสร้าง) → INVALID_STATE ไม่เรียก Flash ไม่เปลี่ยนสถานะ', async () => {
+      const s = await mkShip({ status: 'PENDING', trackingNo: null })
+      await expect(cancelFlashShipment(S.shop, S.user, s.id)).rejects.toMatchObject({ code: 'INVALID_STATE', userMessage: expect.stringContaining('กำลังสร้างอยู่') })
+      expect(fx.cancelOrder).not.toHaveBeenCalled()
+      expect((await ship(s.id)).status).toBe('PENDING')
+    })
     it('FAILED ไม่มี pno → ปิดโดยไม่เรียก Flash', async () => {
       const s = await mkShip({ status: 'FAILED', trackingNo: null })
       expect((await cancelFlashShipment(S.shop, S.user, s.id)).status).toBe('CANCELLED')

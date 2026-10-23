@@ -11,7 +11,7 @@ vi.mock('server-only', () => ({}))
 const fx = vi.hoisted(() => ({ routes: vi.fn(), routesBatch: vi.fn(), deliveredInfo: vi.fn() }))
 vi.mock('@/lib/flash/client', () => fx)
 
-import { handleFlashWebhook, syncFlashStatuses, runFlashStatusSyncCron, applyFlashRoutes } from '@/services/flash-status.service'
+import { handleFlashWebhook, syncFlashStatuses, runFlashStatusSyncCron, applyFlashRoutes, shapePod } from '@/services/flash-status.service'
 import { loadFlashAccount, type LoadedFlashAccount } from '@/services/flash-account'
 import { prisma } from '@/lib/prisma'
 import { FlashError } from '@/lib/flash/errors'
@@ -101,7 +101,7 @@ describe.skipIf(!isLocal)('flash-status.service (DB จริง)', () => {
     const s = await mkShip()
     const t1 = T('2026-10-02T04:00:00Z')
     fx.routes.mockResolvedValue({ pno: s.trackingNo, state: 5, stateChangeAt: t1, routes: [{ routedAt: t1, routeAction: 'DELIVERY_CONFIRM', message: 'ส่งสำเร็จ', state: 5 }] })
-    fx.deliveredInfo.mockResolvedValue({ signer: 'สมชาย', signerTypeText: 'ผู้รับ', podUrl: 'https://f/x.png', photos: ['a', 'b', 'c'], lat: '13.7', lng: '100.5' })
+    fx.deliveredInfo.mockResolvedValue({ signer: 'สมชาย', signerTypeText: 'ผู้รับ', podUrl: 'https://f/x.png', photos: ['https://f/a', 'https://f/b', 'https://f/c'], lat: '13.7', lng: '100.5' })
     const res = await handleFlashWebhook(loaded, wh({ pno: s.trackingNo, state: '5', stateDate: '1', markerCategory: '' }))
     expect(res.after).toBeTypeOf('function')
     const r1 = await ship(s.id)
@@ -241,6 +241,53 @@ describe.skipIf(!isLocal)('flash-status.service (DB จริง)', () => {
     const before = await db.shipmentPickup.count({ where: { shopId: S.shop } })
     expect((await handleFlashWebhook(loaded, wh({ ticketPickupId: 'NOPE', state: '1' }))).outcome).toBe('IGNORED_NO_SHIPMENT')
     expect(await db.shipmentPickup.count({ where: { shopId: S.shop } })).toBe(before)
+  })
+
+  it('M3: เวลาเหตุการณ์จาก body ในอนาคตไกล → ถูก clamp ไม่เกิน now+5 นาที (ไม่ล็อกสถานะ)', async () => {
+    const s = await mkShip()
+    const before = Date.now()
+    await handleFlashWebhook(loaded, wh({ pno: s.trackingNo, state: '1', stateDate: String(T('2099-01-01T00:00:00Z')) }))
+    const r = await ship(s.id)
+    expect(r.carrierStatus).toBe('picked_up')
+    expect(r.carrierStatusAt!.getTime()).toBeLessThanOrEqual(Date.now() + 5 * 60_000)
+    expect(r.carrierStatusAt!.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('M3: ข้อความพนักงาน/ticket จาก courier webhook ถูกตัด 200 ตัว', async () => {
+    const pk = await db.shipmentPickup.create({ data: { shopId: S.shop, provider: 'FLASH', courierCode: 'FLASH', ticketPickupId: `LG${run}`, currentTicketPickupId: `LG${run}`, createdByUserId: S.user } })
+    ids.pickups.push(pk.id)
+    const long = 'ก'.repeat(5000)
+    await handleFlashWebhook(loaded, wh({ ticketPickupId: `LG${run}`, state: '1', staffInfoName: long, staffInfoPhone: long, timeoutAtText: long, ticketMessage: long }))
+    const r = await db.shipmentPickup.findUniqueOrThrow({ where: { id: pk.id } })
+    expect([r.staffName, r.staffPhone, r.timeoutAtText, r.ticketMessage].map((x) => x?.length)).toEqual([200, 200, 200, 200])
+  })
+
+  it('M3: raw payload เกิน 8KB เก็บแค่ marker+sha · ครบ 200 แถว raw แล้วไม่เก็บเพิ่มแต่ยังประมวลผล', async () => {
+    const s = await mkShip()
+    await handleFlashWebhook(loaded, wh({ pno: s.trackingNo, state: '12', stateDate: '1', blob: 'x'.repeat(20_000) }))
+    const raw = (await evs(s.id)).filter((e) => e.source === 'WEBHOOK_RAW')
+    expect(raw).toHaveLength(1)
+    expect(raw[0].payload).toMatchObject({ truncated: true, sha256: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    expect(JSON.stringify(raw[0].payload).length).toBeLessThan(500)
+
+    const t = await mkShip()
+    await db.shipmentEvent.createMany({
+      data: Array.from({ length: 200 }, (_, i) => ({ shipmentId: t.id, status: 'raw:routes', statusText: 'raw', occurredAt: new Date(), source: 'WEBHOOK_RAW', dedupeKey: `seed:${i}` })),
+    })
+    const res = await handleFlashWebhook(loaded, wh({ pno: t.trackingNo, state: '1', stateDate: String(T('2026-10-01T03:00:00Z')) }))
+    expect(res.outcome).toBe('APPLIED')
+    expect((await evs(t.id)).filter((e) => e.source === 'WEBHOOK_RAW')).toHaveLength(200)
+    expect((await ship(t.id)).carrierStatus).toBe('picked_up') // ยังประมวลผล
+  })
+
+  it('L2: shapePod รับเฉพาะ https (podUrl + photos)', () => {
+    const pod = shapePod({
+      podUrl: 'javascript:alert(1)', signaturePicUrl: 'https://f/sig.png',
+      photos: ['http://f/a.jpg', 'data:image/png;base64,AAA', 'https://f/b.jpg', 'HTTPS://f/c.jpg'],
+    }, null) as { podUrl: string | null; photos: string[] }
+    expect(pod.podUrl).toBe('https://f/sig.png')
+    expect(pod.photos).toEqual(['https://f/b.jpg', 'HTTPS://f/c.jpg'])
+    expect((shapePod({ podUrl: 'http://f/x' }, null) as { podUrl: string | null }).podUrl).toBeNull()
   })
 
   it('POD ล้ม → แถว error · ลองใหม่สำเร็จ → อัปเดตแถวเดิม (ยังแถวเดียว)', async () => {

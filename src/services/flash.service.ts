@@ -687,7 +687,15 @@ export async function requestFlashPickup(
       },
     });
     return toPickupView(row);
-  } catch (err) {
+  } catch (e) {
+    // timeout ตอนเรียกรถ: Flash อาจรับคำขอไปแล้ว — ข้อความ "ลองใหม่ได้" ของ create ใช้ไม่ได้ (เรียกซ้ำ = รถมาสองคัน)
+    const err =
+      e instanceof FlashError && e.code === "UPSTREAM_TIMEOUT"
+        ? new FlashError("UPSTREAM_TIMEOUT", {
+            upstreamMessage: e.upstreamMessage, httpStatus: e.httpStatus,
+            userMessage: "Flash ไม่ตอบกลับทันเวลา คำขออาจถูกส่งไปแล้ว ตรวจกับ Flash ก่อนเรียกรถอีกครั้ง",
+          })
+        : e;
     // บันทึกความพยายามที่ล้มไว้ (ผู้ทำ+เวลา) — ข้อความเป็นของเราเท่านั้น ไม่ใช่ข้อความดิบจาก Flash
     await prisma.shipmentPickup.create({
       data: {

@@ -35,6 +35,15 @@ describe("shipment-evidence flash_pod", () => {
     expect(evidence[1].traces).toHaveLength(1);
     expect(findMany.mock.calls[0][0].select.parcel).toBe(true);
   });
+  it("L2: podUrl/photos ที่ไม่ใช่ https ถูกตัด (javascript:/data:/http)", async () => {
+    findMany.mockResolvedValue([
+      { ...base, id: "e4", reason: "flash_pod", traceCount: 0, traces: null,
+        parcel: { podUrl: "javascript:alert(1)", photos: ["http://p/1.jpg", "data:text/html,x", "https://p/ok.jpg"] } },
+    ]);
+    const { evidence } = await (await GET(new NextRequest("http://x.test/e"), { params: Promise.resolve({ token: "t" }) })).json();
+    expect(evidence[0].pod.podUrl).toBeNull();
+    expect(evidence[0].pod.photos).toEqual(["https://p/ok.jpg"]);
+  });
   it("flash_pod ที่ parcel ว่าง (แถว error) → pod ช่องเป็น null/[] ไม่ throw", async () => {
     findMany.mockResolvedValue([{ ...base, id: "e3", reason: "flash_pod", traceCount: 0, traces: null, parcel: null, error: "x" }]);
     const { evidence } = await (await GET(new NextRequest("http://x.test/e"), { params: Promise.resolve({ token: "t" }) })).json();
