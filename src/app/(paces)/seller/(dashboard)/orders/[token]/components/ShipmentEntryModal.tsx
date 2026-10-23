@@ -495,6 +495,8 @@ export default function ShipmentEntryModal({
             ishipMode={method === 'ISHIP_LINK' ? 'LINK' : 'CREATE'}
             formId={ISHIP_FORM_ID}
             onFooterChange={setPanelFooter}
+            // 00084 §4.4 — แผงเทียบราคามีบล็อก Flash เฉพาะร้านสองเจ้า (ไม่พกค่าที่แก้ในฟอร์มข้ามไป: ฟอร์ม Flash โหลดจากออเดอร์เอง)
+            onUseFlash={entry === 'both' ? () => setMethod('FLASH') : undefined}
           />
         )}
       </div>

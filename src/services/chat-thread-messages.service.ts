@@ -132,6 +132,8 @@ export async function getThreadMessagesPage(params: {
               take: 1,
               select: {
                 trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true,
+                // 00084 — ป้ายชื่อขนส่งแยก "Flash ตรง" กับ "Flash ผ่าน iShip" (shipmentSourceLabel)
+                provider: true,
                 // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
                 problemAt: true,
                 // แถวที่ 2 ของ stepper ในการ์ดแชท ("ขากลับ")
@@ -172,6 +174,7 @@ export async function getThreadMessagesPage(params: {
                 trackingNo: o.shipments[0].trackingNo,
                 courierName: o.shipments[0].courierName,
                 courierCode: o.shipments[0].courierCode,
+                provider: o.shipments[0].provider,
                 status: o.shipments[0].status,
                 carrierStatus: o.shipments[0].carrierStatus,
                 problemAt: o.shipments[0].problemAt?.toISOString() ?? null,

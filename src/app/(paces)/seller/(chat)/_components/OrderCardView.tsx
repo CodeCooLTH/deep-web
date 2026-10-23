@@ -23,7 +23,9 @@ import { pacesToast } from '@/lib/paces-toast'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { orderCardTapAction } from '@/lib/order-display'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { hasUsableShipment } from '@/lib/shipping/provider'
+import { hasUsableShipment, shipmentSourceLabel } from '@/lib/shipping/provider'
+import { describeShipmentStatus } from '@/lib/iship/status'
+import { TONE_BADGE } from '@/components/safepay/iship/tone'
 import { resolveServiceStatusBadge } from '@/lib/service-status'
 
 export type OrderCardViewData = {
@@ -38,6 +40,8 @@ export type OrderCardViewData = {
     trackingNo: string | null
     courierName: string | null
     courierCode?: string | null
+    /** 00084 — ISHIP | FLASH · ไม่ส่ง (caller เก่า) = ชื่อขนส่งเดิม */
+    provider?: string | null
     status?: string
     carrierStatus?: string | null
     /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14)
@@ -209,7 +213,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
         <div className="border-default-200 flex items-center justify-between gap-2 border-t border-dashed py-2.5 text-xs">
         <span className="text-default-700">พัสดุ</span>
         <span className="text-success min-w-0 truncate font-semibold">
-          {sh.courierName ? `${sh.courierName} · ` : ''}
+          {sh.courierName ? `${shipmentSourceLabel(sh)} · ` : ''}
           {sh.trackingNo}
         </span>
         </div>
@@ -219,11 +223,20 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
 
   // ยังไม่มีพัสดุ (หรือใบล่าสุดสร้างไม่สำเร็จ) — บอกสถานะออเดอร์แทน
   if (!sh || !hasUsableShipment(sh.status)) {
+    // Flash 1003 ยังไม่มีเลขพัสดุ — ชิปเตือนแทนเลข (ข้อความ/โทนจาก describeShipmentStatus ชุดเดียวกับทุกจอ)
+    const review = sh?.status === 'NEEDS_REVIEW' ? describeShipmentStatus('NEEDS_REVIEW') : null
     return (
       <div className="bg-card px-4">
         <div className="border-default-200 flex items-center justify-between gap-2 border-t border-dashed py-2.5">
-          <span className="text-default-700 text-sm">สถานะ</span>
-          {stageChip}
+          <span className="text-default-700 text-sm">{review ? 'พัสดุ' : 'สถานะ'}</span>
+          {review ? (
+            <span className={`${TONE_BADGE[review.tone]} inline-flex items-center gap-1`}>
+              <Icon icon="alert-triangle" className="text-sm" aria-hidden="true" />
+              {review.text}
+            </span>
+          ) : (
+            stageChip
+          )}
         </div>
       </div>
     )
@@ -273,7 +286,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
           </span>
         )}
         <div className="min-w-0 flex-1">
-          {sh.courierName && <p className="text-default-700 mb-0 truncate text-2xs">{sh.courierName}</p>}
+          {sh.courierName && <p className="text-default-700 mb-0 truncate text-2xs">{shipmentSourceLabel(sh)}</p>}
           <p className="text-default-900 mb-0 truncate text-xs font-bold tabular-nums">{sh.trackingNo ?? '—'}</p>
         </div>
         {sh.trackingNo && (

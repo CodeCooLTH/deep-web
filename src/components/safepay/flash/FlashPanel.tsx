@@ -42,6 +42,12 @@ interface Props {
   onSelfShipRequest?: () => void
   /** หลังสร้าง/ผูก/ยกเลิก/แก้สถานะ — ผู้เรียกรับทราบ (หน้านี้ refresh เองอยู่แล้ว) */
   onChanged?: (shipment: ShipmentViewJson | null) => void
+  /** T10b — เฉพาะ "สร้าง/ผูกสำเร็จ" (ทุกผลที่แถวถูกสร้าง) — แชทใช้ปิดแผง/แจ้งเลขต่อ */
+  onCreated?: (shipment: ShipmentViewJson) => void
+  /** T10b — ช่องเพิ่มเติมท้ายฟอร์มสร้าง (ติ๊กแจ้งเลขในแชท) */
+  extraFields?: () => React.ReactNode
+  /** false = ไม่ router.refresh() (แชทไม่ต้องรีเฟรชหน้า inbox ทั้งหน้า) · ค่าตั้งต้น true เหมือนเดิม */
+  refreshOnChange?: boolean
 }
 
 export default function FlashPanel({
@@ -54,6 +60,9 @@ export default function FlashPanel({
   statusActions,
   onSelfShipRequest,
   onChanged,
+  onCreated,
+  extraFields,
+  refreshOnChange = true,
 }: Props) {
   const router = useRouter()
   const [shipment, setShipment] = useState<ShipmentViewJson | null>(panel.shipment)
@@ -64,7 +73,12 @@ export default function FlashPanel({
     setShipment(next)
     setForceForm(false)
     onChanged?.(next)
-    router.refresh()
+    if (refreshOnChange) router.refresh()
+  }
+
+  function afterCreated(next: ShipmentViewJson) {
+    afterChange(next)
+    onCreated?.(next)
   }
 
   // ใบของ iShip ที่ใช้งานอยู่ขวางอยู่ — เปิดใบ Flash ซ้อนไม่ได้ ต้องยกเลิกใบเดิมก่อน
@@ -157,7 +171,7 @@ export default function FlashPanel({
     return (
       <FlashLinkPanel
         orderToken={orderToken}
-        onLinked={afterChange}
+        onLinked={afterCreated}
         onSwitchToCreate={() => setLinkMode(false)}
         formId={formId}
         hideSubmit={Boolean(formId)}
@@ -178,7 +192,8 @@ export default function FlashPanel({
       items={ready.items}
       codSuggested={ready.codSuggested}
       defaults={ready.defaults}
-      onCreated={afterChange}
+      extraFields={extraFields}
+      onCreated={afterCreated}
       onExists={() => router.refresh()}
     />
   )

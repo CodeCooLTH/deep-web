@@ -45,6 +45,8 @@ interface Props {
   formId?: string
   /** รายงานปุ่มหลักของแผงลูกขึ้นไปให้ผู้เรียกวาด footer เอง */
   onFooterChange?: ShipmentFooterReporter
+  /** 00084 — ร้านสองเจ้า: ปุ่ม "ใช้ Flash ของร้านเปิดพัสดุ" ในแผงเทียบราคา · ไม่ส่ง = ไม่มีบล็อก Flash */
+  onUseFlash?: () => void
 }
 
 export default function ShipmentPanel({
@@ -54,6 +56,7 @@ export default function ShipmentPanel({
   ishipMode = 'CREATE',
   formId,
   onFooterChange,
+  onUseFlash,
 }: Props) {
   const router = useRouter()
   const { couriers, error: couriersError } = useIShipCouriers(!context.blockedBy)
@@ -111,6 +114,7 @@ export default function ShipmentPanel({
           formId={formId}
           hideSubmit={Boolean(formId)}
           onFooterChange={onFooterChange}
+          flashOffer={onUseFlash ? { onUse: onUseFlash } : undefined}
           missingReceiver={context.missingReceiver}
           receiver={context.receiver}
           sender={context.sender}

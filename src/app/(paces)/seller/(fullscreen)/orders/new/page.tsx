@@ -10,6 +10,7 @@ import { getProductsByShop, getBestSellerProducts } from '@/services/product.ser
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
+import { getFlashConnection } from '@/services/flash.service'
 // feature 00024 — ทรัพยากรที่จองได้ + ตัวกั้นฟีเจอร์ (ใช้ตัวเดียวกับ API/เมนู กติกาไม่แตกเป็นสองชุด)
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -106,6 +107,16 @@ export default async function NewOrderPage() {
           .catch(() => 'OFF' as const)
       : ('OFF' as const)
 
+  // feature 00084 CS-25 — Flash (บัญชีของร้านเอง) คนละบัญชีกับ iShip: ส่งโหมดของเจ้านั้นลงฟอร์มด้วย
+  // เพื่อให้ decideAfterCreate รู้ว่ามีกี่เจ้า (สองเจ้า = ถามเลือกเสมอ) · ฟีเจอร์ปิด/ไม่ได้เชื่อม/ไม่ ACTIVE → 'OFF'
+  // ร้าน iShip อย่างเดียวจึงได้ 'OFF' เหมือนเดิมและเส้นทางเดิมไม่เปลี่ยน
+  const flashCreateMode =
+    shop.vertical === 'ONLINE_SALES' && !billingOnly
+      ? await getFlashConnection(shop.id)
+          .then((c) => (c.available && c.connected && c.status === 'ACTIVE' ? c.createMode : 'OFF'))
+          .catch(() => 'OFF' as const)
+      : ('OFF' as const)
+
   // feature 00024/00028 — ระบบนัดหมายเปิดให้เฉพาะร้าน vertical=SERVICE_QUEUE (BR-RSV-01,
   // BR-SBT-11 ตัดเงื่อนไข kind=BUSINESS ออกแล้ว — บัญชีบุคคลใช้ได้ด้วย)
   // ร้านที่ไม่เข้าเงื่อนไขจะไม่ได้รับทรัพยากรเลย → ฟอร์มไม่ render บล็อกวันนัด DOM เหมือนเดิมทุกจุด
@@ -169,7 +180,7 @@ export default async function NewOrderPage() {
         backHref="/orders"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} showCost={canSeeCost} billingOnly={billingOnly} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
+      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} showCost={canSeeCost} billingOnly={billingOnly} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} flashCreateMode={flashCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

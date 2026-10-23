@@ -31,8 +31,24 @@ import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/Shi
 import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
 import ShipmentStatusView from '@/components/safepay/iship/ShipmentStatusView'
 import { useIShipCouriers } from '@/components/safepay/iship/useIShipCouriers'
+import FlashPanel from '@/components/safepay/flash/FlashPanel'
+import { NOTICE_BOX } from '@/components/safepay/iship/tone'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import ShipForm from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/ShipForm'
 import type { ShipmentPanelJson, ShipmentViewJson } from '@/lib/iship/context'
+import type { FlashPanelJson } from '@/services/flash.service'
+import { NEEDS_REVIEW_TOAST } from '@/lib/shipping/after-create'
+import {
+  PROVIDER_CHOICES,
+  entryMode,
+  flashOffered,
+  isLinkMethod,
+  methodFor,
+  providerOf,
+  singleTierSegments,
+  type EntryMethod,
+  type EntryProvider,
+} from '@/lib/shipping/flash-order-ui'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import {
   decidePanelView,
@@ -53,9 +69,13 @@ interface Props {
    * ฟอร์มได้ในตัวเอง ตัวที่รู้ความจริงจึงเป็นแผง (ตัดสินจาก decidePanelView ใน lib)
    */
   onViewOnlyChange?: (viewOnly: boolean) => void
+  /** 00084 — Flash ของร้านนี้ (shopCtx[shopId].flash) · ไม่ส่ง = ร้านไม่มี Flash ⇒ แผงทำงานเหมือนเดิมทุกอย่าง */
+  flash?: { available: boolean; connected: boolean }
+  /** เจ้าของร้าน — ลิงก์/ปุ่มวางคีย์ Flash ใหม่ (ค่าตั้งต้นปิด) */
+  isOwner?: boolean
 }
 
-type Method = 'MANUAL' | 'ISHIP' | 'ISHIP_LINK'
+type Method = EntryMethod
 
 /** id คงที่ — ปุ่มยืนยันอยู่นอก <form> ของ ShipForm จึงอ้างผ่าน attribute form= */
 const MANUAL_FORM_ID = 'chat-shipment-manual-form'
@@ -65,14 +85,105 @@ const MANUAL_FORM_ID = 'chat-shipment-manual-form'
  * แก้ที่นี่ด้วย) ต่างแค่ไอคอนอยู่บนป้ายอยู่ล่าง เพราะหน้าต่างแชทแคบ (328px) ป้าย "สร้างพัสดุ iShip"
  * แนวนอนจะหักหลายบรรทัด
  */
-const SEGMENTS: { value: Method; label: string; icon: string }[] = [
-  { value: 'MANUAL', label: 'ส่งเอง', icon: 'edit' },
-  { value: 'ISHIP', label: 'สร้างพัสดุ iShip', icon: 'package-export' },
-  { value: 'ISHIP_LINK', label: 'เลือกจาก iShip', icon: 'link' },
+const SEG = 'btn inline-flex flex-1 flex-col items-center justify-center gap-1 px-1 text-xs min-h-11'
+
+interface SegItem {
+  value: string
+  label: string
+  icon: string
+}
+
+/**
+ * radiogroup + roving tabindex (APG) — markup เดียวกับ segmented เดิมของแผงนี้ทุกตัวอักษร (ร้าน iShip อย่างเดียวไม่เปลี่ยน)
+ * ประกาศระดับ module ไม่ใช่ใน render (convention component-declared-in-render)
+ * tint = ร้านสองเจ้า: ปุ่มที่เลือกเป็นสีอ่อน เพราะปุ่มทึบมีได้ใบเดียวต่อจอ (ปุ่มสร้างพัสดุในฟอร์ม)
+ */
+function SegGroup({
+  label,
+  items,
+  value,
+  onChange,
+  disabled,
+  tint = false,
+  className = 'flex px-4 pt-4',
+}: {
+  label: string
+  items: SegItem[]
+  value: string | null
+  onChange: (v: string) => void
+  disabled: boolean
+  tint?: boolean
+  className?: string
+}) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const onKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const delta =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+    let next = -1
+    if (delta !== 0) next = (index + delta + items.length) % items.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = items.length - 1
+    if (next < 0) return
+    e.preventDefault()
+    onChange(items[next].value)
+    refs.current[next]?.focus()
+  }
+  // ยังไม่เลือกอะไร (ร้านสองเจ้า) → ช่องแรกเป็น tab stop เดียวของกลุ่ม
+  const focusIdx = Math.max(0, items.findIndex((i) => i.value === value))
+  return (
+    <div className={className} role="radiogroup" aria-label={label}>
+      {items.map((seg, i) => {
+        const active = value === seg.value
+        const cls = active
+          ? tint
+            ? `${SEG} bg-primary/15 text-primary-ink border border-primary`
+            : `${SEG} bg-primary text-white border border-primary`
+          : `${SEG} border border-default-300 bg-card text-default-700 hover:bg-default-50`
+        return (
+          <button
+            key={seg.value}
+            ref={(el) => {
+              refs.current[i] = el
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={i === focusIdx ? 0 : -1}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            onClick={() => onChange(seg.value)}
+            disabled={disabled}
+            className={`${cls} ${
+              i === 0 ? 'rounded-e-none' : i === items.length - 1 ? '-ms-px rounded-s-none' : '-ms-px rounded-none'
+            } ${tint ? 'text-center leading-tight' : ''} disabled:opacity-60`}
+          >
+            <Icon icon={`tabler:${seg.icon}`} className="text-sm" aria-hidden="true" />
+            {seg.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const TIER2: SegItem[] = [
+  { value: 'CREATE', label: 'สร้างพัสดุ', icon: 'package-export' },
+  { value: 'LINK', label: 'ผูกพัสดุที่มีอยู่', icon: 'link' },
 ]
 
-export default function ShipmentDraftPanel({ conversationId, orderToken, onDone, onViewOnlyChange }: Props) {
+export default function ShipmentDraftPanel({
+  conversationId,
+  orderToken,
+  onDone,
+  onViewOnlyChange,
+  flash,
+  isOwner = false,
+}: Props) {
+  const ishipUrl = useIShipUrl()
+  const flashAvailable = flash?.available === true
+  const flashConnected = flash?.connected === true
   const [ctx, setCtx] = useState<ShipmentPanelJson | null>(null)
+  // 00084 — null = ไม่มี Flash ในร้านนี้/ดึงไม่ได้ (ร้านที่ Flash ไม่ได้เชื่อมไม่เห็นอะไรต่างจากเดิม)
+  const [flashCtx, setFlashCtx] = useState<FlashPanelJson | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   /**
@@ -82,24 +193,34 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    */
   const [notify, setNotify] = useState(false)
   const [forceForm, setForceForm] = useState(false)
-  // ค่าเริ่มต้นของร้านที่เชื่อม iShip = "สร้างพัสดุ iShip" (พฤติกรรมเดิมของแผงนี้)
-  const [method, setMethod] = useState<Method>('ISHIP')
+  // undefined = ยังไม่แตะ → ใช้ค่าเริ่มต้นตามชนิดร้าน (defaultMethod): iShip เจ้าเดียว "สร้างพัสดุ iShip" (พฤติกรรมเดิม)
+  // Flash เจ้าเดียว "สร้างพัสดุ Flash" · สองเจ้า = null (DD-5: ระบบไม่เลือกผู้ให้บริการแทนร้าน)
+  const [methodPick, setMethodPick] = useState<Method | null | undefined>(undefined)
   const [sending, setSending] = useState(false)
   const [manualSubmitting, setManualSubmitting] = useState(false)
   // ขนส่งที่เลือกอยู่ในฟอร์มส่งเอง — ให้ตัวอย่างข้อความตรงกับที่จะส่งจริง
   const [manualProvider, setManualProvider] = useState<string | null>(null)
   const stepLock = useRef(false)
-  const segRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const ready = ctx?.ishipState === 'READY' ? ctx : null
+  const flashReady = flashCtx?.flashState === 'READY' ? flashCtx : null
+  const flashIsOffered = flashCtx ? flashOffered(flashCtx.flashState) : false
+  const entry = entryMode(ready !== null, flashIsOffered)
+  const defaultMethod: Method | null = entry === 'both' ? null : entry === 'flash' ? 'FLASH' : 'ISHIP'
+  const method = methodPick === undefined ? defaultMethod : methodPick
+  const setMethod = setMethodPick
+  // iShip context คืนใบ LATEST ทุกผู้ให้บริการ — ใบ Flash ให้ตัวตัดสินฝั่ง Flash ดูแทน (ไม่ให้นับเป็นใบ iShip)
+  const ishipShipment = flashCtx && ctx?.shipment?.provider === 'FLASH' ? null : (ctx?.shipment ?? null)
   const view = ctx
     ? decidePanelView({
         ishipState: ctx.ishipState,
         orderStatus: ctx.orderStatus,
-        ishipShipment: ctx.shipment,
+        ishipShipment,
         hasManual: ctx.manualShipment !== null,
         senderBlocked: Boolean(ready?.blockedBy),
         forceForm,
+        flashOffered: flashIsOffered,
+        flashShipment: flashCtx?.shipment ?? null,
       })
     : null
 
@@ -119,17 +240,33 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     setLoadError(null)
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/seller/iship/order-context?orderToken=${encodeURIComponent(orderToken)}`,
-          { cache: 'no-store' },
-        )
+        const [res, flashRes] = await Promise.all([
+          fetch(ishipUrl(`/api/seller/iship/order-context?orderToken=${encodeURIComponent(orderToken)}`), {
+            cache: 'no-store',
+          }),
+          // 00084 — ขนานกับ iShip; ร้านที่ไม่มี Flash ไม่ยิงเพิ่มเลย
+          flashAvailable
+            ? fetch(ishipUrl(`/api/seller/flash/order-context?orderToken=${encodeURIComponent(orderToken)}`), {
+                cache: 'no-store',
+              }).catch(() => null)
+            : Promise.resolve(null),
+        ])
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } }
           if (alive) setLoadError(body.error?.message ?? 'โหลดข้อมูลการจัดส่งไม่สำเร็จ')
           return
         }
         const body = (await res.json()) as ShipmentPanelJson
-        if (alive) setCtx(body)
+        // ดึง Flash ไม่ได้: ร้านที่เชื่อม Flash อยู่ = โหลดไม่สำเร็จ (ไม่ซ่อนตัวเลือกเงียบ ๆ) · ร้านอื่น = ไม่เสนอ Flash
+        const flashBody = flashRes?.ok ? ((await flashRes.json()) as FlashPanelJson) : null
+        if (flashConnected && !flashRes?.ok) {
+          if (alive) setLoadError('โหลดข้อมูลการจัดส่งไม่สำเร็จ')
+          return
+        }
+        if (alive) {
+          setCtx(body)
+          setFlashCtx(flashBody)
+        }
       } catch {
         if (alive) setLoadError('โหลดข้อมูลการจัดส่งไม่สำเร็จ')
       }
@@ -137,11 +274,14 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     return () => {
       alive = false
     }
-  }, [orderToken, reloadKey])
+  }, [orderToken, reloadKey, ishipUrl, flashAvailable, flashConnected])
 
   /** แทนที่ใบ iShip ใน context */
   const patchShipment = (shipment: ShipmentViewJson | null) =>
     setCtx((c) => (c ? { ...c, shipment } : c))
+  /** แทนที่ใบ Flash ใน flash context (ใช้ตัดสิน view + view-only) */
+  const patchFlash = (shipment: ShipmentViewJson | null) =>
+    setFlashCtx((c) => (c ? { ...c, shipment } : c))
 
   /**
    * แจ้งเลขติดตามในห้องนี้ — ข้อความประกอบที่ server (renderer ตัวเดียวกับส่งอัตโนมัติ, 00078 T14)
@@ -157,9 +297,14 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   }, [conversationId, orderToken])
 
   async function handleCreated(shipment: ShipmentViewJson) {
+    const isFlash = shipment.provider === 'FLASH'
     // สร้างไม่ผ่าน → ไม่มีเลขให้แจ้ง ปล่อยให้หน้าสถานะแสดงเหตุผลและปุ่มลองใหม่
     if (shipment.status !== 'CREATED' || !shipment.trackingNo) {
-      patchShipment(shipment)
+      if (isFlash) {
+        patchFlash(shipment)
+        // 1003 ไม่มีเลข: ไม่ใช่ล้มเหลวและไม่ใช่สำเร็จ — แผงค้างที่หน้าตรวจสอบ (ปิดแล้วต้องถามยืนยัน)
+        if (shipment.status === 'NEEDS_REVIEW') pacesToast.warning(NEEDS_REVIEW_TOAST)
+      } else patchShipment(shipment)
       setForceForm(false)
       return
     }
@@ -172,7 +317,8 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
         pacesToast.warning(
           `สร้างพัสดุแล้ว (${shipment.trackingNo}) แต่ส่งข้อความไม่สำเร็จ กรุณาแจ้งลูกค้าเอง`,
         )
-        patchShipment(shipment)
+        if (isFlash) patchFlash(shipment)
+        else patchShipment(shipment)
         setForceForm(false)
         return
       }
@@ -288,20 +434,6 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
       // clipboard ต้องการ https — บน dev ที่ไม่ใช่ https จะล้มเหลว ให้บอกตามตรง
       pacesToast.warning('คัดลอกอัตโนมัติไม่ได้ กรุณาเลือกและคัดลอกด้วยตัวเอง')
     }
-  }
-
-  // ลูกศรซ้าย/ขวา + Home/End ตาม APG ของ radiogroup (เหมือน ShipmentEntryModal)
-  const onSegKeyDown = (e: React.KeyboardEvent, index: number) => {
-    const delta =
-      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
-    let next = -1
-    if (delta !== 0) next = (index + delta + SEGMENTS.length) % SEGMENTS.length
-    else if (e.key === 'Home') next = 0
-    else if (e.key === 'End') next = SEGMENTS.length - 1
-    if (next < 0) return
-    e.preventDefault()
-    setMethod(SEGMENTS[next].value)
-    segRefs.current[next]?.focus()
   }
 
   /** ช่องติ๊กแจ้งในแชท + ตัวอย่างข้อความ — ใช้ร่วมกันทั้งฟอร์ม iShip และฟอร์มส่งเอง */
@@ -485,6 +617,35 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     )
   }
 
+  // 00084 — สถานะ/ตรวจสอบพัสดุ Flash: คอมโพเนนต์ร่วมชุดเดียวกับหน้าคำสั่งซื้อ (ShipmentStatusView / FlashReviewPanel ข้างใน)
+  if ((view === 'FLASH_STATUS' || view === 'FLASH_REVIEW') && flashCtx) {
+    return (
+      <FlashPanel
+        orderToken={orderToken}
+        panel={flashCtx}
+        isOwner={isOwner}
+        refreshOnChange={false}
+        onChanged={patchFlash}
+        onSelfShipRequest={goManual}
+        statusActions={
+          <button
+            type="button"
+            onClick={() => void notifyNow(flashCtx.shipment?.trackingNo ?? null)}
+            disabled={sending || !flashCtx.shipment?.trackingNo}
+            className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
+          >
+            {sending ? (
+              <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Icon icon="tabler:send" className="text-base" aria-hidden="true" />
+            )}
+            แจ้งเลขในแชท
+          </button>
+        }
+      />
+    )
+  }
+
   if (view === 'ISHIP_STATUS' && ctx.shipment) {
     return (
       <>
@@ -566,7 +727,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
   )
 
   // ร้านไม่เชื่อม iShip / ผู้ส่งไม่ครบแล้วเลือกส่งเองแทน — "ส่งเอง" คือทั้งหน้าต่าง ไม่มีแถบเลือก
-  if (view === 'MANUAL_ONLY' || !ready) return manualSection
+  if (view === 'MANUAL_ONLY' || (!ready && !flashIsOffered)) return manualSection
 
   /**
    * segmented 3 ทาง — โครง/ลำดับ/ป้ายตาม ShipmentEntryModal (radiogroup + roving tabindex)
@@ -575,37 +736,91 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
    * คือเคสที่กด "ลองใหม่" ซ้ำเท่าไรก็ไม่ช่วย ต้องมาหาใบที่เกิดขึ้นจริงแล้วผูกเอง
    * ปิดทั้งแถบตอนกำลังบันทึกส่งเอง กันสลับแท็บแล้ว unmount ฟอร์มที่กำลังรอ response
    */
-  const SEG = 'btn inline-flex flex-1 flex-col items-center justify-center gap-1 px-1 text-xs min-h-11'
-  const segCls = (active: boolean) =>
-    active
-      ? `${SEG} bg-primary text-white border border-primary`
-      : `${SEG} border border-default-300 bg-card text-default-700 hover:bg-default-50`
+  const provider = providerOf(method)
+  const busy = manualSubmitting
 
-  const modeSwitch = (
-    <div className="flex px-4 pt-4" role="radiogroup" aria-label="เลือกวิธีจัดส่ง">
-      {SEGMENTS.map((seg, i) => (
-        <button
-          key={seg.value}
-          ref={(el) => {
-            segRefs.current[i] = el
-          }}
-          type="button"
-          role="radio"
-          aria-checked={method === seg.value}
-          tabIndex={method === seg.value ? 0 : -1}
-          onKeyDown={(e) => onSegKeyDown(e, i)}
-          onClick={() => setMethod(seg.value)}
-          disabled={manualSubmitting}
-          className={`${segCls(method === seg.value)} ${
-            i === 0 ? 'rounded-e-none' : i === SEGMENTS.length - 1 ? '-ms-px rounded-s-none' : '-ms-px rounded-none'
-          } disabled:opacity-60`}
-        >
-          <Icon icon={`tabler:${seg.icon}`} className="text-sm" aria-hidden="true" />
-          {seg.label}
-        </button>
-      ))}
-    </div>
-  )
+  // ร้านสองเจ้า: ชั้น 1 เลือกผู้ให้บริการ (ไม่เลือกค่าเริ่มต้น) ชั้น 2 สร้าง/ผูก · เจ้าเดียว: segmented 3 ช่องชุดเดิม
+  const modeSwitch =
+    entry === 'both' ? (
+      <>
+        <p className="mb-0 px-4 pt-4 text-xs font-semibold text-default-700">เปิดพัสดุกับใคร (เลือก 1)</p>
+        <SegGroup
+          label="เลือกผู้ให้บริการเปิดพัสดุ"
+          items={PROVIDER_CHOICES}
+          value={provider}
+          onChange={(v) => setMethod(methodFor(v as EntryProvider, false))}
+          disabled={busy}
+          tint
+          className="flex px-4 pt-2"
+        />
+        {provider && provider !== 'MANUAL' && (
+          <SegGroup
+            label="เลือกวิธี"
+            items={TIER2}
+            value={isLinkMethod(method) ? 'LINK' : 'CREATE'}
+            onChange={(v) => setMethod(methodFor(provider, v === 'LINK'))}
+            disabled={busy}
+            tint
+            className="flex px-4 pt-2"
+          />
+        )}
+      </>
+    ) : (
+      <SegGroup
+        label="เลือกวิธีจัดส่ง"
+        items={singleTierSegments(entry === 'flash' ? 'flash' : 'iship')}
+        value={method}
+        onChange={(v) => setMethod(v as Method)}
+        disabled={busy}
+      />
+    )
+
+  // ร้านสองเจ้ายังไม่ได้เลือกใคร → คำชี้แจงอย่างเดียว (เหมือน ShipmentEntryModal)
+  if (method === null) {
+    return (
+      <div>
+        {modeSwitch}
+        <div className="p-4">
+          <div className={`rounded-lg px-3 py-2.5 text-sm ${NOTICE_BOX.info}`}>
+            <p className="mb-1.5 font-semibold">เลือกก่อนว่าจะเปิดพัสดุกับใคร</p>
+            <ul className="mb-0 flex list-disc flex-col gap-1 ps-5">
+              <li>Flash (บัญชีของร้านเอง) ใช้ราคาสัญญา บิลกับ Flash โดยตรง</li>
+              <li>iShip เทียบราคาหลายขนส่ง บิลผ่าน iShip</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (provider === 'FLASH' && flashCtx) {
+    return (
+      <div>
+        {modeSwitch}
+        <FlashPanel
+          // key = method: สลับสร้าง/ผูกแล้วต้อง mount ใหม่ ไม่งั้นโหมดข้างในค้างค่าเดิม
+          key={method}
+          orderToken={orderToken}
+          panel={flashCtx}
+          isOwner={isOwner}
+          initialLink={method === 'FLASH_LINK'}
+          refreshOnChange={false}
+          onChanged={patchFlash}
+          onCreated={(s) => void handleCreated(s)}
+          onSelfShipRequest={goManual}
+          extraFields={() => notifyBlock('FLASH', 'Flash Express', 'สร้าง')}
+        />
+        {flashReady?.blockedBy && (
+          <div className="px-4 pb-4">
+            <button type="button" onClick={goManual} className={ghostBtn}>
+              <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
+              ส่งเองแทน
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (method === 'MANUAL') {
     return (
@@ -629,6 +844,25 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
     )
   }
 
+  // iShip ทั้งสองแท็บต้องมีบริบทพร้อม — เกิดไม่ได้เมื่อแถบเลือกไม่มีช่องให้ แต่กันไว้ไม่ให้ ready! พัง
+  if (!ready) return manualSection
+
+  // iShip ผู้ส่งไม่ครบ (มาถึงตรงนี้ได้เมื่อมีแถบเลือกสองเจ้า) — แจ้งในแท็บของ iShip + ทางออกส่งเอง
+  if (ready.blockedBy) {
+    return (
+      <div>
+        {modeSwitch}
+        <div className="flex flex-col gap-3 p-4">
+          <SenderIncompleteNotice missing={ready.blockedBy.missing} missingReceiver={ready.missingReceiver} />
+          <button type="button" onClick={goManual} className={ghostBtn}>
+            <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
+            ส่งเองแทน
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
       {modeSwitch}
@@ -648,6 +882,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone,
           setReloadKey((k) => k + 1)
         }}
         extraFields={({ courierName }) => notifyBlock('ISHIP', courierName, 'สร้าง')}
+        flashOffer={entry === 'both' ? { onUse: () => setMethod('FLASH') } : undefined}
       />
     </div>
   )

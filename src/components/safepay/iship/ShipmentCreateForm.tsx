@@ -75,6 +75,8 @@ interface Props {
   hideSubmit?: boolean
   /** รายงานสถานะปุ่มขึ้นไปให้ผู้เรียกวาด footer + กันปิดโมดัลระหว่างส่ง */
   onFooterChange?: ShipmentFooterReporter
+  /** 00084 §4.4 — ร้านที่เชื่อม Flash ด้วย: ส่งต่อให้แผงเทียบราคาแสดงบล็อก Flash · ไม่ส่ง = เหมือนเดิม */
+  flashOffer?: { onUse: () => void }
 }
 
 async function readError(res: Response): Promise<string> {
@@ -198,6 +200,7 @@ export default function ShipmentCreateForm({
   formId,
   hideSubmit = false,
   onFooterChange,
+  flashOffer,
 }: Props) {
   // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
   const ishipUrl = useIShipUrl()
@@ -535,6 +538,7 @@ export default function ShipmentCreateForm({
           closeCompare()
         }}
         onClose={closeCompare}
+        flash={flashOffer}
       />
 
       {/* เนื้อฟอร์มทั้งก้อน — ซ่อนระหว่างเทียบราคา (ไม่ unmount: ทุกช่องคง state) */}

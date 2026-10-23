@@ -113,6 +113,11 @@ interface Props {
    * หรือร้านบ้านพัก จะไม่มีอะไรเกิดขึ้นเลย)
    */
   ishipCreateMode?: IShipCreateMode
+  /**
+   * โหมดสร้างพัสดุ Flash (บัญชีของร้านเอง, feature 00084) — ผู้เรียกพับ "เชื่อม+เปิดฟีเจอร์" เข้าเป็น 'OFF' มาแล้ว
+   * ไม่ส่ง = 'OFF' ⇒ ร้าน iShip อย่างเดียวเดินเส้นทางเดิมทุกตัวอักษร (decideAfterCreate)
+   */
+  flashCreateMode?: IShipCreateMode
   /** เรียกเมื่อสร้างสำเร็จ — ถ้ามี จะไม่ router.push (โมดัลจัดการปิด+refresh เอง); ไม่มี = behavior เดิม (/orders/new) */
   onSuccess?: (token: string | null) => void
   /** feature 00018 (user 2026-07-24): เธรดแชทที่สร้างออเดอร์นี้ — ส่งไป API เพื่อผูก ExternalContact
@@ -339,6 +344,7 @@ export default function OrderCreateForm({
   showCost = false,
   billingOnly = false,
   ishipCreateMode = 'OFF',
+  flashCreateMode = 'OFF',
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
@@ -974,7 +980,7 @@ export default function OrderCreateForm({
       // ฟังก์ชันนี้ไม่โยน error ออกมา ความล้มเหลวของขนส่งจึงไม่กระทบออเดอร์ (BR-ISHIP-21)
       // แก้ไขออเดอร์เดิม (PATCH) ไม่เข้าเงื่อนไข — เปิดพัสดุเฉพาะตอนสร้างใหม่
       if (!editOrderToken) {
-        await runAfterOrderCreate(ishipCreateMode, order?.id ?? order?.order?.id ?? null, shopId)
+        await runAfterOrderCreate({ iship: ishipCreateMode, flash: flashCreateMode }, order?.id ?? order?.order?.id ?? null, shopId)
       }
       // โมดัลสร้างคำสั่งซื้อจากแชท (feature 00018): ไม่ navigate ออก — ให้ manager ปิด draft + refresh เอง
       if (onSuccess) {
