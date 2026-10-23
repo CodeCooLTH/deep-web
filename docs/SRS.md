@@ -566,6 +566,17 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 |---|---|---|
 | `FB_CHAT_APP_ID` (**มีอยู่แล้ว**) | `src/lib/facebook/app-id.ts::ourMetaAppId()` (ไฟล์ใหม่) — ตัดสินว่า echo/ผู้ถือห้อง "เป็นของเรา" หรือไม่ | 🛑 **ไม่มี env ชื่อ `META_APP_ID` ในโค้ด** (เอกสาร 00078 รุ่นก่อนเขียนผิด — แก้แล้วตาม D-5) · ใช้ตัวเดียวกับ `graph.ts` / `connect/route.ts` |
 
+### 5.4 env ใหม่ของ feature 00084 (Flash Express ตรง · 2026-10-22)
+
+> เอกสารต้นทาง: `docs/20 - Features/00084 - Flash Express Direct Integration/SDS.md` §9.3 · ไม่มี secret ใหม่ (ใช้ `CHANNEL_TOKEN_KEY` + `CRON_SECRET` เดิม) · โค้ดอ่านเฉพาะ 4 ตัวนี้ใน `src/lib/flash/gate.ts`
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `FLASH_API_BASE_URL` | `gate.ts::flashBaseUrl` | ไม่ | ว่าง = production `https://open-api.flashexpress.com` · training = `https://open-api-tra.flashexpress.com` · ฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามรับจากผู้ใช้ (BR-FLASH-18) |
+| `FLASH_DIRECT_ENABLED` | `gate.ts::isFlashDirectEnabled` | ไม่ | ต้องเป็น `1` ถึงจะเปิดปุ่มเชื่อม · ว่าง = **ปิดทุกร้าน** (BR-FLASH-63) · **บน production ต้องมี `1` และค่าคงที่ `TRAINING_VECTOR_VERIFIED = true` ในโค้ด** (ตอนนี้ `false` — ปุ่มเชื่อมบน prod ปิดจนกว่าจะพิสูจน์ลายเซ็นกับ training จริง) |
+| `FLASH_DRY_RUN` | `gate.ts::isFlashDryRun` | ไม่ | `1` = ไม่ยิง create/notify จริง · ไม่มีผลบน production (เช็ค `NODE_ENV` ซ้ำ) |
+| `FLASH_WEBHOOK_BASE_URL` | `gate.ts::flashWebhookBase` | ไม่ | ว่าง = `NEXTAUTH_URL` · dev ต้องเป็น tunnel ที่ Flash ยิงถึง · ว่างทั้งคู่ = ลงทะเบียน webhook ไม่ได้ (`webhookStatus=FAILED`) |
+
 ---
 
 ## §6 Data Model & Schema
@@ -1705,6 +1716,28 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 **กติกาเขียน `ExternalContact.tags`:** ติด = `updateMany … tags:{push}` + `NOT has` (อะตอมมิก) · ถอด/เปลี่ยนชื่อ/ลบ = `$executeRaw` (`array_remove` / unnest-dedupe) ผูกร้านผ่าน `ShopChannel.shopId` · **"tag เดียวกัน" = `tagNameKey` ที่เดียว** (variant `VIP`/`vip` ถือเป็นตัวเดียว) · Rollback: `DROP TABLE "ShopTagEvent"; DROP TABLE "ShopTag";` (Controller สั่งเท่านั้น; tag ในห้องไม่เสีย)
 
+### 6.74 Flash Express ตรง — คอลัมน์ที่เพิ่มบนตารางของ 00022 (feature 00084)
+
+> สถานะ: อยู่ใน `prisma/schema.prisma` แล้ว · migration `20261023120000_00084_flash_express` เขียนแล้ว (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง, migrate ล้ม = deploy ไม่ขึ้น) · ต้นทาง `docs/20 - Features/00084 - Flash Express Direct Integration/DATABASE.md` · additive ล้วน ไม่มีตารางใหม่ ไม่ backfill · partial unique 3 ตัว (`ShopShippingAccount_flash_merchant_key`, `OrderShipment_returnedPno_key`, `OrderShipment_active_order_key` ของเดิม) เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14)** · คอลัมน์เดิมของ `ShopShippingAccount`/`OrderShipment`/`ShipmentPickup` อยู่ใน `docs/20 - Features/00022 - iShip Shipping Integration/DATABASE.md`
+
+| ตาราง.คอลัมน์ | ชนิด | กติกา |
+|---|---|---|
+| `ShopShippingAccount` unique | `@@unique([shopId, provider])` แทน `shopId @unique` | 1 ร้านมี `ISHIP` 1 + `FLASH` 1 · **ทุก query ต้องระบุ provider** (`shopId_provider`) — tsc ไม่จับ `updateMany`/`findMany` ที่ไม่ใส่ provider จึงมีเทส blocker `iship-provider-scoping.test.ts` · relation `Shop.shippingAccount` → `Shop.shippingAccounts[]` |
+| `ShopShippingAccount.merchantId` | `String?` | mchId ของ Flash (เห็นเต็มเฉพาะ OWNER) · partial UNIQUE `ShopShippingAccount_flash_merchant_key` WHERE `provider='FLASH' AND status<>'DISCONNECTED' AND merchantId IS NOT NULL` |
+| `ShopShippingAccount.labelSize` | `String?` | `BIG`(100×180, ค่าเริ่มต้นเมื่อ null) \| `SMALL`(100×75) · CHECK `ShopShippingAccount_labelSize_check` |
+| `ShopShippingAccount.webhookSecretHash` | `String? @unique` | sha256 (hex) ของ secret ใน path webhook ต่อร้าน (เก็บแต่ hash) |
+| `ShopShippingAccount.webhookRegisteredAt` / `webhookStatus` | `DateTime?` / `String?` | `NOT_SET` · `REGISTERED` · `FAILED` · `EXTERNAL` |
+| `ShopShippingAccount.auditLog` | `Json?` | `[{at,userId,action,kinds?,result?}]` เก็บล่าสุด 50 รายการ (เชื่อม/เปลี่ยน key/ถอน/ตั้ง-ทับ-ปิด webhook) · ไม่มีความลับ (BR-FLASH-79) |
+| `ShopShippingAccount.accessTokenEnc` (แถว FLASH) | `String` | AES-256-GCM (`token-crypto`) ของ envelope JSON `{"v":1,"k":<secret key>,"w":<webhook secret>}` (`src/lib/flash/credential.ts`) · `tokenLast4` = 4 ตัวท้ายของ key · DISCONNECTED = `''` |
+| `OrderShipment.returnedPno` | `String?` | เลขใหม่ที่ Flash ออกตอนตีกลับ (state 7) · INDEX `OrderShipment_returnedPno_idx` + partial UNIQUE `OrderShipment_returnedPno_key` WHERE NOT NULL |
+| `OrderShipment.status` | String | **เพิ่มค่า `NEEDS_REVIEW`** (1003 โดยไม่มี pno) — ไม่มี CHECK/ไม่ต้อง migration · ยังจองช่อง `OrderShipment_active_order_key` · ไม่ใช่ `CREATED` จึงไม่เข้ากองงาน/กำไร |
+| `OrderShipment` (ใบ FLASH) | — | `provider='FLASH'` · `trackingNo`=pno · `idempotencyKey`=outTradeNo (`F<uuid ไม่มีขีด>A<n>`) · `courierCode='FLASH'` · `courierName='Flash Express'` · `optionsSnapshot.flash` = `{sortCode, sortingLineCode, dstStoreName}` + `pricingTable` (เขียนเมื่อประเมินราคา) |
+| `ShipmentEvent` (ใบ FLASH) | — | `source='WEBHOOK_RAW'`, `status='raw:<kind>'` เก็บ payload ดิบ (ไม่ใช่ไทม์ไลน์ — ฝั่งอ่านของ Flash กรองออก) |
+| `ShipmentEvidence` (ใบ FLASH) | — | `reason='flash_pod'` · `parcel` = `{kind:'FLASH_POD', signer, signerTypeText, podUrl, photos[], lat, lng, stateDate}` · `error` ไม่ว่าง = ล้ม รอ poll ลองใหม่ |
+| `ShipmentPickup.currentTicketPickupId` | `String?` | รหัสคำขอปัจจุบันของ Flash (เปลี่ยนได้เมื่อโอนงาน) · `ticketPickupId` เดิม = รหัสแรก |
+
+**Rollback:** ย้อนได้เฉพาะเมื่อยังไม่มีแถว `provider='FLASH'` (ดูบล็อกท้าย migration.sql — DELETE/DROP COLUMN เป็น destructive ต้อง Controller สั่ง)
+
 ---
 
 ## §7 API Reference
@@ -2224,6 +2257,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | `/api/cron/auto-confirm-delivered` | `0 18 * * *` | 01:00 |
 | `/api/cron/line-token-health` | `0 19 * * *` | 02:00 |
 | `/api/cron/iship-status-sync` | `*/5 * * * *` | ทุก 5 นาที |
+| `/api/cron/flash-status-sync` (feature 00084 — `vercel.json` ยืนยัน) | `*/5 * * * *` | ทุก 5 นาที · route แยกจาก iShip · throttle 15 นาที/ร้านด้วย `statusSyncedAt` ของแถว FLASH · `maxDuration` 120 · ร้านละ try/catch |
 | `/api/cron/comment-attachment-repair` | `0 17 * * *` | 00:00 |
 | `/api/cron/chat-outbox` | `* * * * *` | ทุกนาที |
 | **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
@@ -2518,7 +2552,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 | `POST /api/orders` | ด่าน `O2s` (BILLING ผ่านได้) · **ถ้าผู้เรียกมี O2s แต่ไม่มี O2 (`isBillingOnly` ใน `order-role-rules.ts` — คือ BILLING โดยไม่ถือ CHAT/MANAGER/OWNER) service บังคับ `type = SERVICE` เสมอ** และปฏิเสธบรรทัดที่อ้าง `productId` ของสินค้าที่ไม่ใช่ SERVICE → `403 FORBIDDEN_ROLE` (`OrderRoleRestrictedError`) · `conversationId` ใน body **ถูกทิ้งเงียบถ้าผู้เรียกไม่มี H1** (กันดึงข้อมูลติดต่อจากเธรดแชทเข้าออเดอร์) · `items[].cost` ทิ้งเงียบถ้าไม่มี P3 (เหมือน P1) |
 | `PATCH /api/orders/[token]` | ด่าน `O3` · BILLING แก้ได้เฉพาะ SERVICE ที่ยังไม่ชำระ (`isOrderUnpaid` ใน `src/lib/order-payment-state.ts`: `computeOrderMoney(...).unpaid` — แถว `OrderPayment` ที่ยังไม่ void · ∧ `paymentConfirmedAt` null ∧ `codReceivedAt` null) · "BILLING เท่านั้น" = `isBillingOnlyEditor` (`src/lib/order-role-rules.ts`): ถือ BILLING แล้วถ้าตัด BILLING ออกจะไม่มี O3 — ถือ CHAT/MANAGER ร่วมด้วยแก้ได้ไม่มีเงื่อนไข มิฉะนั้น `403 FORBIDDEN_ROLE` (`OrderLockedForRoleError`) · body 403 ไม่มี field บอกเหตุ (ชำระแล้ว vs ไม่ใช่บริการ แยกไม่ได้ที่ฝั่ง client) |
 | ออเดอร์ที่ช่าง (NONE) เห็น | `GET /api/orders` · `GET /api/orders/[token]` · นัดหมาย (`appointments`, `appointment-summary`) ผ่าน allow-list `toNoMoneyOrder` / `toNoMoneyAppointmentDay` / `filterOrderEventsForNoMoney` (`src/lib/order-view-by-level.ts`) — ไม่มีราคา ยอด การชำระ ต้นทุน |
-| ตัวอย่างการจัดหมวด | แชท `H1` อ่าน / `H2` เขียน / `H3` ตั้งค่า (+ `X2` เครื่องมือเสริม) · `ship`/`handover`/`shipment-evidence` = `S1` · ตั้งค่า/เชื่อม iShip = `S2` (GET connection/settings = S1) · ยกเลิก/คืนเงิน/ข้อพิพาท/void การชำระ = `O6` · บันทึกชำระ/COD = `O5` · ซื้อด้วยเครดิตกระเป๋า (`inventory/{subscribe,upgrade,reactivate}`, `seller/pin-slots/buy`) = `F4` · แพ็กเกจ/โอน/ลบร้าน/ตรวจสอบร้าน = `T4` · ดูตารางเต็มที่ทะเบียน (SSOT ของ "route ไหนใช้ cap อะไร") |
+| ตัวอย่างการจัดหมวด | แชท `H1` อ่าน / `H2` เขียน / `H3` ตั้งค่า (+ `X2` เครื่องมือเสริม) · `ship`/`handover`/`shipment-evidence` = `S1` · ตั้งค่า/เชื่อม iShip = `S2` (GET connection/settings = S1) · Flash ตรง (00084): ใช้งาน = `S1`, ตั้งค่า/เชื่อม/ถอน/ทับ webhook = `S2` **และต้องเป็น OWNER** (`requireFlashOwner`) · GET connection/settings = `S1` · ยกเลิก/คืนเงิน/ข้อพิพาท/void การชำระ = `O6` · บันทึกชำระ/COD = `O5` · ซื้อด้วยเครดิตกระเป๋า (`inventory/{subscribe,upgrade,reactivate}`, `seller/pin-slots/buy`) = `F4` · แพ็กเกจ/โอน/ลบร้าน/ตรวจสอบร้าน = `T4` · ดูตารางเต็มที่ทะเบียน (SSOT ของ "route ไหนใช้ cap อะไร") |
 | หน้าแอดมินแพลตฟอร์ม | `src/app/(paces)/admin/**/page.tsx` ทุกหน้า (ยกเว้น `admin/auth/`) **เรียก `requireAdmin()` ในหน้าเองก่อนดึงข้อมูลแรก** (ไม่พึ่ง layout — layout ถูกข้ามได้ตอน client navigation) · `api/admin/**` ทุก handler เรียก `requireAdmin`/`requireAdminActor` · cron = `CRON_SECRET` · webhook = ลายเซ็น/secret — เทส `route-capability-inventory.test.ts` (PREFIX_GUARDS) บังคับ |
 | การตัดต้นทุนระดับ Prisma | `OrderItem.cost` / `Product.cost` ถูกตัดโดยค่าตั้งต้น (global `omit`) · เจ้าของ opt-in เอง — ดู §6.71 |
 
@@ -2622,6 +2656,35 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 **ตัวติด/ถอดอัตโนมัติ (ไม่ใช่ endpoint):** `applyKeywordTags(chatMessageId)` เรียกจาก 3 จุดเดียวกับ 00061 (`chat.service` · `chat-outbox.service` · webhook echo) ไม่ await · `removeTagsOnOrderCreated(order)` เรียกหลัง commit ใน `createOrder`/`promoteDraftCore` ไม่ throw · ไม่มี error ต้อง map ที่ route
 
+### 7.32 Flash Express ตรง (`/api/seller/flash/**`, `/api/webhooks/flash/[secret]`, `/api/cron/flash-status-sync`) — feature 00084
+
+> สถานะ: implement แล้ว (branch `integrate/flash-express` ยังไม่ merge) · สัญญาละเอียด = `docs/20 - Features/00084 - Flash Express Direct Integration/API.md` · ทุก route ฝั่งร้าน: `requireGeneralShop({cap, shopId: readIShipShopIdFromQuery})` (ร้านต้อง `ONLINE_SALES`) → Valibot → service → `flashJson()` (`private, no-store`) · error `{ error: { code, message, missing?, retryable? } }` แมปที่ `mapFlashError` (`src/lib/flash/route-helpers.ts`) ตัวเดียว (delegate `IShipServiceError` → `mapIShipError`) · ลง `route-capabilities.ts` คู่ไฟล์ route (OWNER-only ตัดสินในไฟล์ route ด้วย `requireFlashOwner` จาก `src/lib/flash/owner-guard.ts` → 403 `FORBIDDEN_ROLE`) · เมื่อ `FLASH_DIRECT_ENABLED` ปิด (หรือ prod ที่ `TRAINING_VECTOR_VERIFIED=false`) service ที่ **เริ่มงานใหม่** โยน 404 `FEATURE_DISABLED`: `POST connection`, `price`, `pickups`, `shipments` (create) · `retry` · `resolve` · `preview` · `link` — ส่วน GET connection/settings, PUT settings, verify, webhook/sync, cancel, label, traces, unlink, pickups cancel, DELETE connection, webhook และ cron **ไม่ติด** gate (ร้านที่เชื่อมแล้วยังถอน/รับ webhook ได้)
+
+| Method | Path | Cap | Purpose |
+|---|---|---|---|
+| GET | `/api/seller/flash/connection` | **S1** | `FlashConnectionView` (`available`, `connected`, `status`, `merchantIdMasked`, `merchantId` เต็มเฉพาะ OWNER, `keyLast4`, `labelSize`, `webhook`, `lastPickup`, …) |
+| POST | `/api/seller/flash/connection` | **S2 + OWNER** | `{mchId, secretKey}` → พิสูจน์ `warehouses` ก่อนบันทึก → 201 (สร้างใหม่) / 200 `{connection, webhook}` · 422 `MERCHANT_NOT_FOUND`/`SIGN_INVALID` (บนเส้น `/connection*` เท่านั้น — เส้นอื่น 409) · 409 `MERCHANT_IN_USE`/`MERCHANT_CHANGE_NOT_ALLOWED` · **429 `RATE_LIMITED`** (key ผิด 1001/1002 ครบ 5 ครั้ง/15 นาที ต่อ user+ร้าน — `src/lib/flash/verify-rl.ts` นับใน process เดียว) |
+| DELETE | `/api/seller/flash/connection` | **S2 + OWNER** | ปิด webhook ของเรา (best-effort) + ลบ key · ประวัติพัสดุอยู่ |
+| POST | `/api/seller/flash/connection/verify` | **S2** (MANAGER ทำได้) | ทดสอบ · 1001/1002 → status `TOKEN_INVALID` ใน view (ไม่ใช่ error) · 429 `RATE_LIMITED` ใช้โควตาเดียวกับ connect |
+| GET / PUT | `/api/seller/flash/settings` | **S1 / S2 + OWNER** | ค่าตั้งต้น (ที่อยู่ผู้ส่ง น้ำหนัก หมวด ตัวเลือก โหมด `createMode` `labelSize`) |
+| POST | `/api/seller/flash/webhook/sync` | **S2 + OWNER** | อ่าน `infos` ก่อน → ตั้งเฉพาะชนิด `EMPTY` และ `OTHER_DEEP` (URL ของ Deep ที่ไม่ตรง secret ปัจจุบัน — ตั้งทับให้เองอัตโนมัติ) · `overrideKinds[]` (`status\|routes\|weight\|price\|courier`) ทับเฉพาะชนิด `EXTERNAL` ที่เจ้าของยืนยัน · `UNKNOWN` ไม่ทับเด็ดขาด · ตอบ `FlashWebhookReport` (host เท่านั้น) |
+| GET | `/api/seller/flash/order-context` | **S1** | แผงสร้างพัสดุ Flash (+`activeElsewhere`) |
+| POST | `/api/seller/flash/price` | **S1** | `{totalBaht, pricingTable: CONTRACT\|STANDARD}` |
+| POST | `/api/seller/flash/shipments` | **S1** | 201 `ShipmentViewJson` ทุกผลที่แถวถูกสร้าง (FAILED/NEEDS_REVIEW อยู่ใน payload) · 409 `SHIPMENT_EXISTS`/`NEEDS_REVIEW` |
+| GET | `/api/seller/flash/shipments/preview?pno=` | **S1** | สถานะปัจจุบันก่อนผูก · 422 `NOT_MERCHANT_PARCEL` |
+| POST | `/api/seller/flash/shipments/link` | **S1** | ผูก pno → 201 `LINKED` · 409 `PNO_TAKEN` |
+| POST | `/api/seller/flash/shipments/[id]/retry` | **S1** | FAILED เท่านั้น |
+| POST | `/api/seller/flash/shipments/[id]/cancel` | **S1** | 409 `NOT_CANCELLABLE` (1015) สถานะคงเดิม |
+| POST | `/api/seller/flash/shipments/[id]/resolve` | **S1** | `LINK_PNO {pno}` → 200 / `REOPEN {confirmNoExistingParcel:true}` → 201 |
+| POST | `/api/seller/flash/shipments/[id]/unlink` | **S1** | LINKED เท่านั้น |
+| GET | `/api/seller/flash/shipments/[id]/label` | **S1** | PDF (ตรวจ `%PDF`) ตาม `labelSize` |
+| GET | `/api/seller/flash/shipments/[id]/traces` | **S1** | ไทม์ไลน์ (ไม่รวม raw) |
+| POST | `/api/seller/flash/pickups` · `/pickups/[id]/cancel` | **S1** | เรียกรถ (201) / ยกเลิกด้วย `currentTicketPickupId` |
+| POST | `/api/webhooks/flash/[secret]` | (class WEBHOOK) | secret→sha256→บัญชี FLASH · secret ไม่รู้จัก **404 body ว่าง** · body >256KB / อ่าน-parse ไม่ได้ **200 success โดยไม่เขียน** · `mchId` ไม่ตรงบัญชีหรือ sign ผิด **401** `{"errorCode":"0","state":"unauthorized"}` · สำเร็จ **200** `{"errorCode":"1","state":"success"}` · ล้มชั่วคราว **503** `{"errorCode":"0","state":"retry"}` · `?k=<kind>` เป็น hint ชนิด |
+| GET | `/api/cron/flash-status-sync` | (class CRON) | `Bearer CRON_SECRET` เต็มสตริง (env ว่าง = 401) · `routesBatch` ≤500 ตัวอักษร/คำขอ · throttle 15 นาที/ร้าน · ≤40 ร้าน/รอบ · `maxDuration` 120 |
+
+**ส่วนที่เปลี่ยนของ endpoint เดิม:** `POST /api/seller/iship/labels/bulk` — ใบ Flash เข้า `x-skipped-detail` (พิมพ์ทีละใบ) · `GET /api/orders/[token]/shipment-evidence` — แถว `flash_pod` + `pod` whitelist · `GET /api/chat/shop-context` — บล็อก `flash` · `PATCH /api/orders/[token]/ship` (§7.5/§7.30) — "ปฏิเสธเมื่อมี live iShip" ครอบใบ Flash ที่ live ด้วย (นิยามกลาง `CREATED ∧ !isDryRun`)
+
 ---
 
 ## §8 Enums & Constants
@@ -2720,7 +2783,7 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 | `ORDER_EDITED` | แก้ไขคำสั่งซื้อ |
 | `ORDER_CANCELLED` | ยกเลิกคำสั่งซื้อ |
 | `TRACKING_ADDED` | แจ้งเลขพัสดุ (manual) |
-| `SHIPMENT_CREATED` | เปิดพัสดุกับขนส่ง (iShip) |
+| `SHIPMENT_CREATED` | เปิดพัสดุกับขนส่ง (iShip หรือ Flash ตรง — แยกด้วย `meta.courierName`) |
 | `SHIPMENT_CANCELLED` | ยกเลิกพัสดุ |
 | `SHIPMENT_LINKED` | ผูกพัสดุที่มีอยู่แล้ว |
 | `SMS_LINK_SENT` | ส่งลิงก์ทาง SMS |
@@ -2743,6 +2806,8 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 | `MANUAL_DISPATCHED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "จัดส่งแล้ว" (ส่งเอง) · `actorUserId` = ผู้กด |
 | `SELLER_DELIVERED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "ส่งสำเร็จ" ปิดงาน · แยกจาก `BUYER_CONFIRMED`/`SYSTEM_CONFIRMED` (BR-MS-21) · `actorUserId` = ผู้กด |
+
+> 00084 **ไม่เพิ่มชนิด event ใหม่** — การยืนยันเปิดพัสดุ Flash ใหม่หลัง 1003 ใช้ `SHIPMENT_CANCELLED` meta `{reason:'FLASH_REVIEW_REOPEN'}` ของใบเดิม + `SHIPMENT_CREATED` ของใบใหม่ (CHECK `OrderEvent_type_check` ไม่ถูกขยาย)
 
 > 00080 เพิ่มอีก 2 ค่า (CHECK ขยายแบบ additive อ่านนิยามเดิมจาก `pg_get_constraintdef` แล้วต่อท้าย — ห้าม hardcode ทับ) · ต้องแก้ `ORDER_EVENT_TYPES` + `ORDER_EVENT_META` (tsc บังคับ) + หัวข้อจำนวนค่าพร้อมกัน
 
@@ -3127,6 +3192,30 @@ HTTP ตามตาราง §7.21
 | `ShopTagError.code` → HTTP | `VALIDATION_ERROR` 400 · `TAG_NAME_TAKEN` 409 · `TAG_LIMIT_REACHED` 409 · `KEYWORD_TAG_LIMIT_REACHED` 409 · `TAG_NOT_FOUND` 404 (+ `SHOP_LOCKED` 403 ที่ route) |
 | ตัวเทียบ | `matchesTriggerPhrase` ของ 00061 (NFC · lowercase · ยุบช่องว่าง · ไม่ลบสัญลักษณ์ · substring) — ห้ามใช้ `normalizeMessage` ของ auto-reply |
 
+### 8.18 Flash Express ตรง (feature 00084 — SSOT ฝั่งโค้ด: `src/lib/flash/{status,errors,constants,gate,webhook-parse}.ts` · ทุกค่าเก็บเป็น String)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `ShopShippingAccount.provider` | `ISHIP` (ค่าเดิมทุกแถว) · `FLASH` |
+| `OrderShipment.status` (เพิ่ม) | `NEEDS_REVIEW` — Flash ตอบ 1003 โดยไม่มี pno · ออกได้ทางเดียวด้วย resolve `LINK_PNO` / `REOPEN` · **ไม่นับเป็น "ลองใหม่ได้"** |
+| `ShopShippingAccount.webhookStatus` | `NOT_SET` · `REGISTERED` · `FAILED` · `EXTERNAL` |
+| สถานะต่อชนิด webhook (`FlashWebhookReport.kinds[].state`) | `EMPTY` · `OURS` · `OTHER_DEEP` · `EXTERNAL` · `UNKNOWN` — action: `SET` · `KEPT` · `SKIPPED` · `FAILED` (ตั้งอัตโนมัติ: EMPTY + OTHER_DEEP · ต้อง override: EXTERNAL · ไม่ทับ: UNKNOWN) |
+| `ShopShippingAccount.labelSize` | `BIG` (100×180 มม. ค่าเริ่มต้น) · `SMALL` (100×75) |
+| ชนิด webhook ของ Flash (`FlashWebhookKind` → `webhookApiCode`) | `status`=0 · `weight`=1 · `price`=2 · `courier`=3 · `routes`=4 (`serviceCategory` = 1) |
+| Flash `state` → `carrierStatus` (`mapFlashState`) | (ไม่มี route)→`order_success` · 1→`picked_up` · 2→`in_transit` · 3→`progress` · 4→`issue` · 5→`delivered` · 6→`issue` · 7→`return` · 8→`close` · 9→`cancelled` · ค่าอื่น = คงสถานะเดิม (null) · **ไม่มีทางได้ `payment_success`/`codSettledAt`** |
+| state ที่ต้องยืนยันด้วย `routes` ก่อนประทับ (`FLASH_VERIFY_STATES`) | 4 · 5 · 6 · 7 · 8 · 9 |
+| `markerCategory` (`describeMarker`) | 14 ผู้รับเลื่อนวันรับ · 40 ไม่อยู่/ไม่รับสาย · 17 ปฏิเสธรับ · 23 ที่อยู่ผิด · 25 เบอร์ผิด · 26 ยอด COD ไม่ถูก · 29 เบอร์ไม่มีอยู่จริง · อื่น ๆ = "พัสดุมีปัญหา (สาเหตุตามที่ Flash แจ้ง)" |
+| Flash courier `state` → `ShipmentPickup.status` (`FLASH_PICKUP_STATE`) | 0→`REQUESTED` · 1→`ACCEPTED` · 2→`CLOSED` · 3→`ACCEPTED` (อัปเดต `currentTicketPickupId`) · 4→`CANCELLED` · นอกชุด=คงเดิม |
+| `FLASH_COST_COMPONENTS` (→ `carrierPrice`) | `freightPrice` + `remoteAreaFee` + `speedFee` + `valueInsuranceFee` + `opdInsureFee` + `packagingFee` + `labelFee` (สตางค์) · `codFee` แยกเสมอ ไม่รวม · `carrierPrice` เป็น null ถ้า `freightPrice` ไม่ >0 |
+| `FLASH_LIMITS` (`constants.ts`) | `carrierPriceMaxBaht` 10,000 · `codFeeMaxBaht` 10,000 · `codItemsMax` 10 · `itemQuantityMax` 999 · `remarkMax` 200 · `outTradeNoMax` 64 · น้ำหนักจริงจาก webhook 1–100,000 กรัม (`readFlashWeight`) |
+| `FLASH_POLL` | `throttleMs` 15 นาที/ร้าน · `maxShopsPerRun` 40 · `pnoChunkChars` 500 (`routesBatch`) · `lookbackDays` 45 · `fallbackRoutesPerShop` 8 · `podRepairPerShop` 5 |
+| `FlashWebhookOutcome` (`handleFlashWebhook`) | `APPLIED` · `IGNORED_NO_DATA` · `IGNORED_VERTICAL` · `IGNORED_UNKNOWN_KIND` · `IGNORED_NO_SHIPMENT` · `TOKEN_INVALID` · `RETRY` — เฉพาะ `RETRY` ตอบ 503 ที่เหลือ 200 success |
+| `ShipmentEvent.source` (เพิ่ม) | `WEBHOOK_RAW` — payload ดิบของ Flash (ฝั่งอ่านไทม์ไลน์ของ Flash กรองออก) |
+| `ShipmentEvidence.reason` (เพิ่ม) | `flash_pod` |
+| `FlashErrorCode` (→ HTTP) | `MERCHANT_NOT_FOUND` 409* · `SIGN_INVALID` 409* · `DUPLICATE_ORDER` 409 · `SENDER_ADDRESS_INVALID` 422 · `RECEIVER_ADDRESS_INVALID` 422 · `PARCEL_NOT_FOUND` 404 · `COD_NOT_ENABLED` 422 · `PICKUP_PENDING` 409 · `PICKUP_NOT_CANCELLABLE` 409 · `NOT_CANCELLABLE` 409 · `NOT_MERCHANT_PARCEL` 422 · `POSTCODE_INVALID` 422 · `SENDER_OUT_OF_AREA` 422 · `INVALID_REQUEST` 422 · `UPSTREAM_ERROR` 502 · `UPSTREAM_TIMEOUT` 504 · `UNKNOWN_CODE` 502 · (*2 ตัวแรก = 422 บนเส้น `/connection*`; `invalidatesConnection` = เฉพาะ 2 ตัวแรก) |
+| `FlashServiceError.code` → HTTP | `NOT_CONNECTED` 409 · `FEATURE_DISABLED` 404 · `SHIPMENT_EXISTS` 409 · `NEEDS_REVIEW` 409 · `INCOMPLETE_DATA` 422 · `NOT_ELIGIBLE` 403 · `NOT_FOUND` 404 · `INVALID_STATE` 409 · `MERCHANT_IN_USE` 409 · `MERCHANT_CHANGE_NOT_ALLOWED` 409 · `PNO_TAKEN` 409 · `INVALID_INPUT` 400 · `RATE_LIMITED` 429 (verify/connect key ผิดครบ `FLASH_VERIFY_MAX_FAILURES`=5 ใน 15 นาที) |
+| ตัวตัดสิน "จบแล้ว" | `isFlashTrackingSettled`: `delivered`/`close`/`cancelled`/`return_success` จบ (**Flash COD จบที่ delivered**) · iShip: `carrierTrackingSettled` เดิม (`delivered`+COD รอ `payment_success`) |
+
 ---
 
 ## §9 Authorization Matrix
@@ -3352,6 +3441,27 @@ HTTP ตามตาราง §7.21
 | ติด/ถอดอัตโนมัติ | — (ระบบ) | `shopId` มาจากแถวข้อความ→ห้าม / `order.shopId`; query ผูก shopId ทุกตัว | service |
 
 ทะเบียน `route-capabilities.ts`: `settings/tags/page.tsx {page:'H3'}` · `shops/current/tags/route.ts {GET:'H3',POST:'H3'}` · `shops/current/tags/[tagId]/route.ts {PATCH:'H3',DELETE:'H3'}`
+
+### 9.14 Flash Express ตรง (feature 00084)
+
+> ทุก route ฝั่งร้านผ่าน `requireGeneralShop` (สมาชิกร้านนั้นจริง · `Shop.vertical='ONLINE_SALES'` · capability) — การซ่อนเมนูไม่ใช่ด่านสิทธิ์ (BR-FLASH-02) · คอลัมน์ OWNER = บทบาทที่มีผล `OWNER` (`requireFlashOwner` / `isFlashOwner` ที่ `src/lib/flash/owner-guard.ts`; ร้าน PERSONAL = เจ้าของเสมอ)
+
+| การกระทำ | Guest / ผู้ซื้อ | CHAT (S1) | MANAGER (S1+S2) | OWNER | แอดมิน Deep |
+|---|---|---|---|---|---|
+| ดูสถานะการเชื่อมต่อ / ตั้งค่า (mchId ปิดบังบางส่วน) | — | ได้ (masked) | ได้ (masked) | ได้ (เห็น mchId เต็ม) | **ไม่เห็น key / ไม่มีเส้นทางอ่าน** |
+| เชื่อม / เปลี่ยน key / ถอน / บันทึกตั้งค่า / ตั้ง-ทับ webhook | — | 403 | **403 `FORBIDDEN_ROLE`** (DD-1) | ได้ | — |
+| ทดสอบการเชื่อมต่อ (verify) | — | 403 | ได้ | ได้ | — |
+| สร้าง / ลองใหม่ / ยกเลิก / resolve / ผูก pno / เลิกผูก | — | ได้ | ได้ | ได้ | — |
+| พิมพ์ใบปะหน้า / ดูไทม์ไลน์ / เรียกรถ / ยกเลิกรถ | — | ได้ | ได้ | ได้ | — |
+| ดูเลขพัสดุ + ชื่อขนส่ง (`/o/{token}`) | ได้ (ออเดอร์ตัวเอง) | — | — | — | — |
+| ดูหลักฐานการส่ง (POD) | **ไม่เห็น** | ได้ (S1) | ได้ | ได้ | — |
+| ร้านไม่ใช่ `ONLINE_SALES` | — | 403 `NOT_ELIGIBLE` ทุก route | เหมือนกัน | เหมือนกัน | — |
+
+- **Webhook:** ไม่มี session — `sha256(secret)`→บัญชี FLASH ที่ไม่ DISCONNECTED (ไม่พบ = 404) · `mchId` ใน body = `merchantId` ของบัญชี · `verifyWebhookSign` (sign **ไม่ครอบ `data`** → ข้อมูลที่กระทบเงิน/ปิดงานต้องยืนยันซ้ำด้วย `routes` ที่ route/service เอง, BR-FLASH-73) · ไม่ผ่าน = 401 ไม่เขียน
+- **Cron:** `Bearer CRON_SECRET` เต็มสตริง · env ว่าง = ปฏิเสธ
+- **Rate limit:** `POST connection` + `POST connection/verify` — key ผิด (1001/1002) ครบ 5 ครั้ง/15 นาที ต่อ (user, ร้าน) → 429 `RATE_LIMITED` ไม่ยิง Flash (`src/lib/flash/verify-rl.ts` นับใน process เดียว)
+- `mchId` เดียวกันผูกสถานะใช้งานได้ร้านเดียว (DB) · ข้อความปฏิเสธไม่เผยว่าเป็นร้านไหน
+- แถว FLASH ของร้านอื่นเข้าถึงไม่ได้ทุกกรณี: ทุก query ใส่ `shopId` ใน `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · pno ของ `routes`/`deliveredInfo` ที่ไม่ใช่ของ mchId นั้น Flash ตอบ 1019
 
 ---
 

@@ -2413,3 +2413,108 @@ export const ChangeMemberRoleSchema = v.pipe(
   v.check((x) => x.role !== undefined || x.roles !== undefined, "ต้องส่ง role หรือ roles"),
 );
 export const TransferOwnershipSchema = v.object({ memberId: v.pipe(v.string(), v.minLength(1)) });
+
+// ═══ feature 00084 (Flash) — route ฝั่งร้าน /api/seller/flash/* (T8a) ═══════════════════════════
+// mchId/secretKey: กฎตาม API.md §4.2 — ห้าม log/echo ค่า secretKey ที่ไหนทั้งสิ้น
+export const FlashConnectSchema = v.object({
+  mchId: v.pipe(v.string(), v.trim(), v.regex(/^[A-Za-z0-9_-]{2,32}$/, "รหัสร้านค้า (mchId) ไม่ถูกต้อง")),
+  secretKey: v.pipe(
+    v.string(),
+    v.trim(),
+    v.minLength(16, "Secret Key สั้นเกินไป กรุณาตรวจว่าคัดลอกมาครบ"),
+    v.maxLength(128, "Secret Key ยาวเกินกว่าที่ระบบรองรับ"),
+    v.regex(/^\S+$/, "Secret Key ต้องไม่มีช่องว่าง กรุณาคัดลอกใหม่"),
+  ),
+});
+
+const flashDim = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300));
+const flashWeight = v.pipe(v.number(), v.minValue(0.01), v.maxValue(100));
+
+export const FlashSettingsSchema = v.object({
+  senderName: v.nullish(shortText(120)),
+  senderPhone: v.nullish(v.pipe(v.string(), v.regex(MOBILE_PHONE_RE, "เบอร์โทรไม่ถูกต้อง"))),
+  senderAddress: v.nullish(shortText(255)),
+  senderSubdistrict: v.nullish(shortText(100)),
+  senderDistrict: v.nullish(shortText(100)),
+  senderProvince: v.nullish(shortText(100)),
+  senderPostcode: v.nullish(thaiPostcode),
+  defaultWeight: v.nullish(flashWeight),
+  defaultWidth: v.nullish(flashDim),
+  defaultLength: v.nullish(flashDim),
+  defaultHeight: v.nullish(flashDim),
+  defaultCategoryId: v.nullish(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
+  optOnTime: v.optional(v.boolean()),
+  optBoxShield: v.optional(v.boolean()),
+  optIsInsured: v.optional(v.boolean()),
+  optProductValue: v.nullish(v.pipe(v.number(), v.minValue(1))),
+  defaultRemark: v.nullish(shortText(200)),
+  createMode: v.optional(v.picklist(["AUTO", "ASK", "OFF"])),
+  labelSize: v.optional(v.picklist(["BIG", "SMALL"])),
+});
+
+export const FlashWebhookSyncSchema = v.object({
+  overrideKinds: v.optional(v.array(v.picklist(["status", "routes", "weight", "price", "courier"])), []),
+});
+
+export const FlashPriceQuoteSchema = v.object({
+  receiver: v.object({
+    district: v.pipe(v.string(), v.trim(), v.minLength(1, "ต้องระบุอำเภอ"), v.maxLength(120)),
+    province: v.pipe(v.string(), v.trim(), v.minLength(1, "ต้องระบุจังหวัด"), v.maxLength(120)),
+    postcode: thaiPostcode,
+    subdistrict: v.nullish(shortText(120)),
+  }),
+  weight: flashWeight,
+  width: v.optional(flashDim),
+  length: v.optional(flashDim),
+  height: v.optional(flashDim),
+});
+// ── T8b: พัสดุ/เรียกรถ ──
+const flashPno = v.pipe(v.string(), v.regex(/^[A-Za-z0-9]{6,32}$/, "เลขพัสดุไม่ถูกต้อง"));
+const flashOrderRef = {
+  orderId: v.optional(v.pipe(v.string(), v.uuid())),
+  orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+};
+
+export const FlashCreateOverrideSchema = v.object({
+  weight: v.optional(flashWeight),
+  width: v.optional(flashDim),
+  length: v.optional(flashDim),
+  height: v.optional(flashDim),
+  categoryId: v.optional(v.picklist([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99])),
+  codAmount: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(1_000_000))),
+  remark: v.nullish(shortText(200)),
+  options: v.optional(
+    v.object({
+      onTime: v.optional(v.boolean()),
+      boxShield: v.optional(v.boolean()),
+      isInsured: v.optional(v.boolean()),
+      productValue: v.nullish(v.pipe(v.number(), v.minValue(1))),
+    }),
+  ),
+});
+
+export const FlashCreateShipmentSchema = v.object({
+  ...flashOrderRef,
+  receiver: v.optional(IShipReceiverPatchSchema),
+  override: v.optional(FlashCreateOverrideSchema),
+});
+
+export const FlashLinkSchema = v.object({ ...flashOrderRef, pno: flashPno });
+
+export const FlashPnoQuerySchema = v.object({ pno: flashPno });
+
+// literal(true) — truthy ("true", 1) ไม่ผ่าน: REOPEN คือคำยืนยันว่า "ไม่มีพัสดุเดิมที่ Flash" ผิดแล้วเสียเงินซ้ำ
+export const FlashResolveSchema = v.variant("action", [
+  v.object({ action: v.literal("LINK_PNO"), pno: flashPno }),
+  v.object({
+    action: v.literal("REOPEN"),
+    confirmNoExistingParcel: v.literal(true, "ต้องยืนยันว่าไม่มีพัสดุเดิมที่ Flash"),
+    override: v.optional(FlashCreateOverrideSchema),
+  }),
+]);
+
+export const FlashPickupSchema = v.object({
+  parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),
+  remark: v.nullish(shortText(200)),
+});
+// ═══ จบ feature 00084 (Flash) T8a ═══════════════════════════════════════════════════════════════

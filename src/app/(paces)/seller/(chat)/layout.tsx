@@ -61,6 +61,7 @@ import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointme
 import { listServiceResources } from '@/services/service-resource.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { resolveChatIshipCreateMode, type ChatIShipCreateMode } from '@/lib/iship/chat-create-mode'
+import { isFlashDirectEnabled } from '@/lib/flash/gate'
 import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 
 /**
@@ -147,6 +148,8 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // feature 00022 × 00037 — โหมดเปิดพัสดุ "ของร้านนี้" (เดิม DraftOrderProvider ถามเองครั้งเดียว
   // ตอน mount แล้วใช้ค่าเดียวกับทุกร่างไม่ว่าร้านไหน ดู resolveChatIshipCreateMode)
   let ishipCreateMode: ChatIShipCreateMode = 'OFF'
+  // 00084 — Flash (บัญชีของร้านเอง) ของร้าน active; undefined = ฟีเจอร์ปิด/ดึงไม่ได้ ⇒ ไม่มีอะไรเปลี่ยน
+  let flashSeed: { available: boolean; connected: boolean; createMode: ChatIShipCreateMode } | undefined
   /**
    * เมนูของ ChatNavRail (แถบไอคอนซ้ายสุด, ≥1024px) — user สั่ง 2026-08-25
    *
@@ -165,6 +168,13 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const canSeeCost = scope ? can(rolesFromMembership(scope.activeRole, scope.activeRoles), 'P3') : false
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
+    // ปิดฟีเจอร์อยู่ = ไม่ยิง query เพิ่ม (ร้าน iShip อย่างเดียวไม่ช้าลง) · ขนานกับชุดข้างล่าง
+    const flashSeedP = isFlashDirectEnabled()
+      ? prisma.shopShippingAccount
+          .findUnique({ where: { shopId_provider: { shopId, provider: 'FLASH' } }, select: { status: true, createMode: true } })
+          .then(a => ({ available: true, connected: a?.status === 'ACTIVE', createMode: resolveChatIshipCreateMode(a) }))
+          .catch(() => undefined)
+      : Promise.resolve(undefined)
     let shopRow: { vertical: string; appointmentGranularity: string; reportSettings: unknown } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow, unreadChatCount, hidePayments] = await Promise.all([
       getProductsByShop(shopId, undefined, { withCost: canSeeCost })
@@ -175,7 +185,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         .catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
-        .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
+        .findUnique({ where: { shopId_provider: { shopId, provider: 'ISHIP' } }, select: { status: true, createMode: true } })
         .then(a => {
           // อ่านแถวเดียวได้สองคำตอบ — ห้ามยิง query เพิ่มเพื่อถามโหมด (ข้อมูลชุดเดียวกันเป๊ะ)
           ishipCreateMode = resolveChatIshipCreateMode(a)
@@ -190,6 +200,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       shouldHidePayments()
     ])
     shopVertical = shopRow?.vertical ?? ''
+    flashSeed = await flashSeedP
 
     // ต้องรอ shopVertical ก่อน (ป้าย/ตัวกรองเมนูผันตามประเภทกิจการ) จึงยิงชุดนี้ตามหลัง
     navMenuItems = await resolveSellerMenuItems({
@@ -367,6 +378,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       serviceResources={serviceResources}
       appointmentGranularity={appointmentGranularity}
       ishipCreateMode={ishipCreateMode}
+      flash={flashSeed}
       canSeeCost={canSeeCost}
     >
       {shell}

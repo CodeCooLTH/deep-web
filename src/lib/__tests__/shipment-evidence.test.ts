@@ -204,8 +204,10 @@ describe('[blocker] หน้าจอดูหลักฐาน (BRD §6.7)', 
    */
   it('[blocker] ห้าม serve คอลัมน์ parcel ออกไป', () => {
     const sel = route.slice(route.indexOf('select:'), route.indexOf('orderBy:'))
-    expect(sel).not.toMatch(/\bparcel\b/)
+    // 00084 §4.21: select parcel ได้เพราะ flash_pod — แต่ต้องออกผ่าน whitelist (shapeFlashPod) เท่านั้น ห้ามใส่ parcel ลง payload ตรง ๆ
     expect(sel).toContain('traces')
+    expect(route).toContain('shapeFlashPod(r.parcel)')
+    expect(route.replace('shapeFlashPod(r.parcel)', '').match(/r\.parcel/g) ?? []).toHaveLength(0)
   })
 
   it('[blocker] ต้องกันสิทธิ์ด้วยร้านเจ้าของออเดอร์', () => {

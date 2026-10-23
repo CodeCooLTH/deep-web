@@ -55,7 +55,8 @@ export async function GET(request: Request) {
 
   try {
     const accounts = await prisma.shopShippingAccount.findMany({
-      where: { status: "ACTIVE" },
+      // Flash มี cron ของตัวเอง — ไม่งั้นร้านที่มีทั้งสองบัญชีถูกนับซ้ำ (00084 CS-21)
+      where: { status: "ACTIVE", provider: "ISHIP" },
       // ร้านที่ยังไม่เคย sync เลยต้องมาก่อน — Postgres เรียง NULL ไว้ท้ายสุดใน ASC ตามค่าตั้งต้น
       // ซึ่งจะทำให้ร้านที่เพิ่งเชื่อม iShip เป็นกลุ่มสุดท้ายที่ได้คิว (กลับหัวกับที่ควรเป็น)
       orderBy: { statusSyncedAt: { sort: "asc", nulls: "first" } },

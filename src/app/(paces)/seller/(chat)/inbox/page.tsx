@@ -158,6 +158,7 @@ export default async function SellerInboxPage() {
   // ถามจาก DB ที่นี่ (RSC) ไม่ต้องให้ client ยิง API เพิ่มอีกรอบ
   // โหมดรวม: ร้านใดร้านหนึ่งเชื่อม iShip ก็พอให้ตัวกรอง "พัสดุ" มีความหมาย (ถ้าต้องเชื่อมครบ
   // ทุกร้านถึงจะโชว์ ร้านที่ใช้อยู่จริงจะเสียตัวกรองไปเพราะร้านอื่นที่ไม่เกี่ยวยังไม่ได้เชื่อม)
+  // ตั้งใจไม่กรอง provider: นับทั้ง iShip และ Flash = "ร้านมีขนส่งที่ติดตามสถานะได้" (00084 CS-22)
   const shippingAccountCount = await prisma.shopShippingAccount.count({
     where: { shopId: { in: shopIds }, status: 'ACTIVE' },
   })

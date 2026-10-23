@@ -46,6 +46,8 @@ const svc = vi.hoisted(() => ({
 vi.mock('@/services/order.service', () => ({ getOrdersByShop: svc.getOrdersByShop, getOrderForShop: svc.getOrderForShop }))
 vi.mock('@/services/receipt.service', () => ({ getReceiptNoForOrder: svc.getReceiptNoForOrder }))
 vi.mock('@/services/iship.service', () => ({ getShipmentPanel: svc.getShipmentPanel, getConnection: svc.getConnection }))
+// 00084: หน้าออเดอร์อ่านการเชื่อม Flash ด้วย — mock ทั้งโมดูล ไม่ให้ไปโหลด SHIPMENT_SELECT จาก iship.service ที่ถูก mock
+vi.mock('@/services/flash.service', () => ({ getFlashConnection: vi.fn().mockResolvedValue(null), getFlashPanelOrReason: vi.fn().mockResolvedValue(null) }))
 vi.mock('@/services/order-return.service', () => ({ getActiveReturnForTimeline: svc.getActiveReturnForTimeline }))
 vi.mock('@/services/customer.service', () => ({ getCustomerSummary: svc.getCustomerSummary }))
 vi.mock('@/services/expense-access.service', () => ({ resolveExpenseAccess: svc.resolveExpenseAccess }))

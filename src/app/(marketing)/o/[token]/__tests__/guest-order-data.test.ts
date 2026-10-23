@@ -425,3 +425,37 @@ describe('[blocker] feature 00073 — หัวข้อสถานะงาน
     expect(out.serviceStatus).toBeNull()
   })
 })
+
+// feature 00084 §7 — ใบ Flash ตรง: ผู้ซื้อเห็นชื่อ+เลขพัสดุ แต่ไม่เห็นค่าส่ง/รหัสอ้างอิง/ข้อความ error ภายใน (BRD FR-065)
+describe('buildGuestOrderData — พัสดุ Flash ตรง (00084)', () => {
+  it("courierName 'Flash Express' แสดงเป็นชื่อขนส่ง และ payload ไม่มีช่องภายใน", () => {
+    const out = buildGuestOrderData(
+      makeOrder({
+        shipments: [
+          {
+            trackingNo: 'TH0123456789',
+            courierName: 'Flash Express',
+            courierCode: 'FLASH',
+            carrierStatus: 'in_transit',
+            // ช่องภายในที่ query จริงไม่ select — ใส่ไว้พิสูจน์ว่า builder ไม่ copy ทั้งก้อน
+            provider: 'FLASH',
+            shippingCost: 38,
+            outTradeNo: 'F-INTERNAL-REF-9',
+            lastError: 'internal flash error 1003',
+            flashSecretHint: 'k-9999',
+          },
+        ],
+      }),
+      1,
+    )
+    expect(out.shipmentTracking).toEqual({
+      provider: 'Flash Express',
+      trackingNo: 'TH0123456789',
+      courierCode: 'FLASH',
+    })
+    const json = JSON.stringify(out)
+    for (const leak of ['F-INTERNAL-REF-9', 'internal flash error', 'k-9999', 'shippingCost', 'outTradeNo', 'lastError']) {
+      expect(json).not.toContain(leak)
+    }
+  })
+})

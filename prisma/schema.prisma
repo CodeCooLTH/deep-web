@@ -368,7 +368,7 @@ model Shop {
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
   aiSuggestDailyUsages AiSuggestDailyUsage[] // NEW (feature 00019 ext 2026-07-29) — ตัวนับโควตาฟรี ai-suggest ต่อวัน (เฉพาะร้าน non-paid, ≤1 แถวต่อวัน)
   aiSuggestUsageEvents AiSuggestUsageEvent[] // NEW (feature 00019 ext 2026-07-29) — audit log ai-suggest ทุก path (FREE/CREDIT/UNLIMITED_PLAN)
-  shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=ONLINE_SALES)
+  shippingAccounts     ShopShippingAccount[] // NEW (feature 00022; 00084 เปลี่ยน 1:1 → 1:N) — การเชื่อมต่อขนส่ง + ค่าตั้งต้น ต่อ (ร้าน, provider) ได้ ISHIP 1 + FLASH 1 (เฉพาะ vertical=ONLINE_SALES)
   orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
   commentReplyRules    CommentReplyRule[] // NEW (feature 00038 E2) — กฎตอบคอมเมนต์ตามคีย์เวิร์ดของร้านนี้
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
@@ -2560,11 +2560,15 @@ model AiSuggestUsageEvent {
 // ไม่แยกตาราง settings เพราะค่าเหล่านี้ไม่มีความหมายถ้าไม่มีการเชื่อมต่อ และเป็น 1:1 กับ Shop อยู่แล้ว
 model ShopShippingAccount {
   id             String  @id @default(uuid())
-  // shopId @unique = 1 ร้าน 1 บัญชีขนส่ง (BR-ISHIP-10) บังคับที่ DB ไม่พึ่งวินัยของโค้ด
-  shopId         String  @unique
-  provider       String  @default("ISHIP") // เผื่อผู้ให้บริการรายอื่นในอนาคต ไม่ต้อง migrate ซ้ำ
+  // 🛑 00084: เดิม shopId @unique (1 ร้าน 1 บัญชี BR-ISHIP-10) → ผ่อนเป็น @@unique([shopId, provider])
+  //    = 1 ร้านมีได้ 1 บัญชีต่อผู้ให้บริการ (ISHIP 1 + FLASH 1) · ทุก query ที่หาด้วย shopId เดี่ยว
+  //    ต้องระบุ provider เสมอ ไม่งั้นได้แถวผิดเจ้าแบบเงียบ ๆ
+  shopId         String
+  provider       String  @default("ISHIP") // "ISHIP" | "FLASH" — แถวเดิมทุกแถวคือ ISHIP
   // accessTokenEnc: token ที่ร้านวางเอง ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts ตัวเดียวกับ
   // ShopChannel ของ feature 00018) 🛑 ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
+  // 00084: แถว provider=FLASH ใช้ช่องนี้เก็บ secret key ของ Flash (กลไก token-crypto เดียวกัน) —
+  //        ความหมายตรงกัน "ความลับของการเชื่อมต่อที่ร้านวางเอง" ไม่เพิ่มคอลัมน์ซ้ำซ้อน
   accessTokenEnc String
   tokenLast4     String? // 4 ตัวท้ายไว้ให้ร้านยืนยันว่าใช่ใบที่ตั้งใจ (BR-ISHIP-13)
   status         String  @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
@@ -2602,6 +2606,21 @@ model ShopShippingAccount {
   optServiceType     Int? // 1=เข้ารับ 2=นำไปส่งเอง; null = ตามตั้งค่าฝั่ง iShip
   defaultRemark      String?
 
+  // --- 00084 Flash Express ตรง (ใช้เฉพาะแถว provider='FLASH' · แถว ISHIP เป็น NULL ทั้งหมด) ---
+  // merchantId = mchId ของ Flash — ตัวระบุตัวตน ไม่ใช่ความลับเต็มระดับ (เห็นเต็มเฉพาะเจ้าของร้าน)
+  // 🛑 partial unique ที่ Prisma DSL ประกาศไม่ได้ (unmanaged SQL — ห้าม prisma db pull):
+  //    ShopShippingAccount_flash_merchant_key ON ("merchantId")
+  //    WHERE provider='FLASH' AND status<>'DISCONNECTED' AND "merchantId" IS NOT NULL
+  //    = mchId เดียวกันผูกได้ทีละร้าน (BR-FLASH-17) แต่ถอดแล้วร้านอื่นผูกต่อได้
+  merchantId          String?
+  labelSize           String? // "BIG" (100x180) | "SMALL" — ตั้งต่อร้าน (CHECK ใน SQL) · null = ตามค่าเริ่มต้น BIG
+  // webhookSecretHash: sha256 ของ secret ที่ฝังใน path webhook ต่อร้าน (เก็บแต่ hash) — ไว้หาร้านจาก URL
+  // ก่อนตรวจลายเซ็นด้วย key ของร้านนั้น (BR-FLASH-72)
+  webhookSecretHash   String?   @unique
+  webhookRegisteredAt DateTime? // ลงทะเบียน webhook กับ Flash สำเร็จล่าสุดเมื่อไหร่
+  webhookStatus       String? // snapshot: "NOT_SET" | "REGISTERED" | "FAILED" | "EXTERNAL" (มีของเดิมที่ไม่ใช่เรา ไม่ทับ)
+  auditLog            Json? // 00084 BR-FLASH-79: [{at,userId,action,kinds?}] เก็บล่าสุด 50 รายการ (เชื่อม/เปลี่ยน key/ถอน/ตั้ง-ทับ-ปิด webhook) · ไม่มีความลับ
+
   lastVerifiedAt    DateTime? // ทดสอบ token ผ่านล่าสุดเมื่อไหร่
   // statusSyncedAt: ดึงสถานะพัสดุยกชุดจาก iShip สำเร็จล่าสุดเมื่อไหร่ (feature 00022)
   // เก็บใน DB ไม่ใช่หน่วยความจำ เพราะบน serverless แต่ละคำขออาจคนละ instance —
@@ -2614,6 +2633,7 @@ model ShopShippingAccount {
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
+  @@unique([shopId, provider])
   // 🛑 ไม่มีคอลัมน์ยอดเงินคงเหลือของบัญชี iShip โดยเจตนา (BR-ISHIP-53) — เก็บแล้วจะสื่อผิดว่า
   //    Deep เป็นผู้ดูแลเงินก้อนนั้น ทั้งที่เป็นความสัมพันธ์ระหว่างร้านกับ iShip โดยตรง
   @@index([status])
@@ -2814,6 +2834,14 @@ model OrderShipment {
   // และต้องกรองออกจากสถิติทุกชนิด ไม่งั้น KPI เพี้ยนเพราะนับพัสดุที่ไม่มีอยู่จริง
   isDryRun        Boolean   @default(false)
 
+  // 00084: เลขพัสดุใหม่ที่ Flash ออกให้ตอนตีกลับ (state 7) — webhook ของเลขนี้ต้องวิ่งกลับเข้าแถวเดิม
+  // ไม่สร้างพัสดุใหม่ (BR-FLASH-43) · partial unique ใน SQL: OrderShipment_returnedPno_key
+  // ON ("returnedPno") WHERE "returnedPno" IS NOT NULL · lookup webhook ต้องค้นทั้ง trackingNo และ returnedPno
+  returnedPno      String?
+  // status เพิ่มค่า "NEEDS_REVIEW" (ไม่มี migration — status เป็น String ไม่มี CHECK) = Flash ตอบ 1003
+  // (outTradeNo ซ้ำ) โดยเราไม่มี pno (BR-FLASH-23) · ยังนับเป็น active ใน OrderShipment_active_order_key (ต่อ orderId + direction)
+  // (<> 'CANCELLED') จึงกัน Flash ทับใบอื่นได้ · ไม่เข้า ACTIVE_FORWARD_SHIPMENT (status='CREATED')
+  // ผู้ยืนยันเปิดใหม่ทาง (ข) บันทึกใน OrderEvent ไม่เพิ่มคอลัมน์
   lastErrorCode    String? // รหัสที่จับกลุ่มแล้วของเรา (TOKEN_INVALID / ADDRESS_INVALID / ...)
   // lastErrorMessage: ข้อความดิบจาก iShip ไว้ให้ทีมงานตรวจสอบ 🛑 ห้ามแสดงตรงต่อผู้ใช้
   // และต้อง redact token ออกก่อนบันทึกทุกครั้ง
@@ -2863,6 +2891,7 @@ model OrderShipment {
   @@index([orderId])
   @@index([shopId, status])
   @@index([shopId, source])
+  @@index([returnedPno])
 }
 
 // ShipmentEvent — ประวัติการเดินทางของพัสดุ (จาก webhook หรือจากการ poll traces)
@@ -3053,6 +3082,8 @@ model ShipmentPickup {
   provider       String  @default("ISHIP")
   courierCode    String
   ticketPickupId String? // หมายเลขคำขอฝั่ง iShip
+  // 00084: Flash — รหัสคำขอ "ปัจจุบัน" ที่เปลี่ยนได้ (webhook คนขับ / ยกเลิกแล้วขอใหม่) · ticketPickupId เดิมคือรหัสแรก
+  currentTicketPickupId String?
   parcelCount    Int     @default(1)
   pickupAddress  String? // snapshot ที่อยู่ที่ใช้เรียก ณ เวลานั้น
   remark         String?

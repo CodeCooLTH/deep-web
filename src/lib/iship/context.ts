@@ -87,6 +87,8 @@ export interface ShipmentViewJson {
   status: string;
   /** "CREATED" = Deep เปิดใบนี้เอง | "LINKED" = ผูกใบที่ร้านเปิดไว้บน iShip เข้ามา */
   source: string;
+  /** ผู้ให้บริการของใบนี้: "ISHIP" | "FLASH" (00084) — UI เลือก base path/ตัวตัดสินปุ่มตามนี้ */
+  provider: string;
   courierCode: string | null;
   courierName: string | null;
   trackingNo: string | null;

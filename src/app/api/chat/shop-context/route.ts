@@ -11,6 +11,7 @@ import { listServiceResources } from "@/services/service-resource.service";
 import { canUseAppointments } from "@/lib/appointments";
 import { resolveOrderVocab } from "@/lib/seller-menu";
 import { resolveChatIshipCreateMode } from "@/lib/iship/chat-create-mode";
+import { isFlashDirectEnabled } from "@/lib/flash/gate";
 import { isShopOwnerOfShop } from "@/lib/shop-owner";
 import { sessionUserId } from "@/lib/session-user";
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
   try {
     // ต้นทุนสินค้า (00071 S-3): ตัดสินจากบทบาทของ "ร้านที่ขอ" ไม่ใช่ร้าน active — กล่องแชทรวมหลายร้าน
     const canSeeCost = await isShopOwnerOfShop(shopId, userId, "P3");
-    const [catalog, bestSellers, inventoryEnabled, shopRow, shipping] = await Promise.all([
+    const [catalog, bestSellers, inventoryEnabled, shopRow, shipping, flashAccount] = await Promise.all([
       getProductsByShop(shopId, undefined, { withCost: canSeeCost }),
       getBestSellerProducts(shopId, 8, { withCost: canSeeCost }),
       isEntitlementActive(shopId).catch(() => false),
@@ -67,7 +68,16 @@ export async function GET(request: NextRequest) {
         select: { kind: true, vertical: true, appointmentGranularity: true },
       }),
       prisma.shopShippingAccount
-        .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
+        .findUnique({
+          where: { shopId_provider: { shopId, provider: "ISHIP" } },
+          select: { status: true, createMode: true },
+        })
+        .catch(() => null),
+      prisma.shopShippingAccount
+        .findUnique({
+          where: { shopId_provider: { shopId, provider: "FLASH" } },
+          select: { status: true, createMode: true },
+        })
         .catch(() => null),
     ]);
     if (!shopRow) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
@@ -106,6 +116,12 @@ export async function GET(request: NextRequest) {
         // ต้องคำนวณด้วย resolveChatIshipCreateMode ตัวเดียวกับที่ (chat)/layout.tsx ใช้ seed
         ishipCreateMode: resolveChatIshipCreateMode(shipping),
         hasShipping: shipping?.status === "ACTIVE",
+        // 00084 CS-23: Flash คนละบัญชีกับ iShip — โหมดสร้างใช้ตัวคำนวณเดียวกัน
+        flash: {
+          available: isFlashDirectEnabled(),
+          connected: flashAccount?.status === "ACTIVE",
+          createMode: resolveChatIshipCreateMode(flashAccount),
+        },
       },
       { headers: NO_STORE_HEADERS },
     );

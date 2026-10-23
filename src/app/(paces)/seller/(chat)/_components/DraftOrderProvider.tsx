@@ -307,6 +307,8 @@ type ShopChatContextReady = {
   /** feature 00022 × 00037 — โหมดเปิดพัสดุของ "ร้านนี้" (ดู resolveChatIshipCreateMode)
    *  เดิมเป็น state ตัวเดียวทั้ง provider จึงใช้ค่าของร้าน active กับร่างของทุกร้าน */
   ishipCreateMode: IShipCreateMode
+  /** 00084 — Flash (บัญชีของร้านเอง) ของ "ร้านนี้": เปิดฟีเจอร์/เชื่อมต่อ/โหมดสร้าง · ไม่มี = ไม่มี Flash */
+  flash?: { available: boolean; connected: boolean; createMode: IShipCreateMode }
   /** เจ้าของร้านนี้ไหม (00071 S-3) — ตัดสินต้นทุนรายบรรทัด · undefined = false */
   canSeeCost?: boolean
 }
@@ -400,6 +402,8 @@ type ProviderProps = {
   appointmentGranularity?: AppointmentGranularity
   /** feature 00022 — โหมดเปิดพัสดุของร้าน active (layout seed; ร้านอื่นมาทาง shop-context) */
   ishipCreateMode?: IShipCreateMode
+  /** 00084 — Flash ของร้าน active (layout seed; ร้านอื่นมาทาง shop-context) */
+  flash?: { available: boolean; connected: boolean; createMode: IShipCreateMode }
   /** เจ้าของร้าน active ไหม — seed ให้ shopCtx ของร้าน active (ร้านอื่นมาทาง shop-context) */
   canSeeCost?: boolean
   children: React.ReactNode
@@ -417,6 +421,7 @@ export default function DraftOrderProvider({
   serviceResources = [],
   appointmentGranularity = 'DAY',
   ishipCreateMode = 'OFF',
+  flash,
   canSeeCost = false,
   children,
 }: ProviderProps) {
@@ -443,6 +448,7 @@ export default function DraftOrderProvider({
       serviceResources,
       appointmentGranularity,
       ishipCreateMode,
+      flash,
       canSeeCost,
     },
   }))
@@ -761,6 +767,15 @@ export default function DraftOrderProvider({
                 orderToken={d.shipmentOrderToken}
                 onDone={() => handleShipmentDone(d)}
                 onViewOnlyChange={(v) => setViewOnly(d.id, v)}
+                // 00084 — Flash ของ "ร้านของร่างใบนี้" · เจ้าของ = canSeeCost (P3 owner-only, ชุดเดียวกับ shopCtx)
+                flash={(() => {
+                  const c = shopCtx[d.shopId]
+                  return c?.status === 'ready' ? c.flash : undefined
+                })()}
+                isOwner={(() => {
+                  const c = shopCtx[d.shopId]
+                  return c?.status === 'ready' && c.canSeeCost === true
+                })()}
               />
               </IShipShopProvider>
             ) : (() => {
@@ -802,6 +817,7 @@ export default function DraftOrderProvider({
                 prefillParseText={d.prefillText ?? undefined}
                 /* ของ "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active — ctx มาจาก shopCtx[d.shopId] */
                 ishipCreateMode={ctx.ishipCreateMode}
+                flashCreateMode={ctx.flash?.available && ctx.flash.connected ? ctx.flash.createMode : 'OFF'}
                 showCost={ctx.canSeeCost === true}
                 serviceResourcesEnabled={ctx.serviceResourcesEnabled}
                 serviceResources={ctx.serviceResources}

@@ -106,6 +106,8 @@ type Props = {
   activeStatus: string
   /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
   ishipEnabled?: boolean
+  /** iShip หรือ Flash เชื่อมอยู่ (00084) — คุมปุ่มพิมพ์ใบปะหน้าหลายใบ */
+  shippingEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — มาจาก RSC ที่รู้จัก shop.vertical ของ request */
   vocab: OrderVocab
   /** ประเภทกิจการของร้าน (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก */
@@ -128,6 +130,7 @@ export default function OrdersList({
   orders,
   activeStatus,
   ishipEnabled = false,
+  shippingEnabled = false,
   vocab,
   vertical,
   hasShippingAxis = true,
@@ -713,7 +716,7 @@ export default function OrdersList({
           onSearchChange={setSearch}
           wholeShopMatches={wholeShopMatches}
           onClearFilters={clearFiltersKeepSearch}
-          ishipEnabled={ishipEnabled}
+          shippingEnabled={shippingEnabled}
           vocab={vocab}
           vertical={vertical}
           busy={busy}

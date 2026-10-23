@@ -146,3 +146,37 @@ describe('manualDoneStep (00080)', () => {
     expect(manualDoneStep('CANCELLED').action).toBeNull()
   })
 })
+
+describe('decidePanelView — Flash (00084)', () => {
+  const flash = (status: string, extra: Record<string, unknown> = {}) => ({ provider: 'FLASH', status, isDryRun: false, ...extra })
+  it('ไม่ส่งข้อมูล Flash = เหมือนเดิมทุกกรณี (ร้าน iShip อย่างเดียว)', () => {
+    expect(v({})).toBe('CHOOSE')
+    expect(v({ senderBlocked: true })).toBe('SENDER_BLOCKED')
+    expect(v({ ishipState: 'NOT_CONNECTED' })).toBe('MANUAL_ONLY')
+  })
+  it('ใบ Flash จริง = FLASH_STATUS แม้ iShip context หยิบใบเดียวกันมาเป็นใบ iShip', () => {
+    expect(v({ flashShipment: flash('CREATED'), ishipShipment: created })).toBe('FLASH_STATUS')
+  })
+  it('NEEDS_REVIEW = FLASH_REVIEW และไม่ใช่ view-only (ปิดต้องถามยืนยัน)', () => {
+    const view = v({ flashShipment: flash('NEEDS_REVIEW'), forceForm: true })
+    expect(view).toBe('FLASH_REVIEW')
+    expect(isViewOnlyPanelView(view)).toBe(false)
+    expect(isViewOnlyPanelView('FLASH_STATUS')).toBe(true)
+  })
+  it('Flash FAILED: เห็นสถานะ · ส่งเองแทน (forceForm) หรือส่งเองไปแล้วชนะ', () => {
+    expect(v({ flashShipment: flash('FAILED') })).toBe('FLASH_STATUS')
+    expect(v({ flashShipment: flash('FAILED'), forceForm: true, flashOffered: true })).toBe('CHOOSE')
+    expect(v({ flashShipment: flash('FAILED'), hasManual: true, orderStatus: 'SHIPPED' })).toBe('MANUAL_DONE')
+  })
+  it('Flash ถูกเสนอ = แถบเลือกแม้ iShip ไม่ได้เชื่อม/ผู้ส่งไม่ครบ', () => {
+    expect(v({ flashOffered: true, ishipState: 'NOT_CONNECTED' })).toBe('CHOOSE')
+    expect(v({ flashOffered: true, senderBlocked: true })).toBe('CHOOSE')
+  })
+  it('ใบ iShip live ชนะแถบเลือก · สถานะไม่ใช่ PENDING ก็ยังบล็อก', () => {
+    expect(v({ flashOffered: true, ishipShipment: created })).toBe('ISHIP_STATUS')
+    expect(v({ flashOffered: true, orderStatus: 'CONFIRMED' })).toBe('STATUS_BLOCKED')
+  })
+  it('trackingMessage FLASH ไม่แนบลิงก์ iShip', () => {
+    expect(trackingMessage('FLASH', 'TH123', null)).toBe('จัดส่งด้วย Flash Express\nเลขติดตามพัสดุ: TH123')
+  })
+})

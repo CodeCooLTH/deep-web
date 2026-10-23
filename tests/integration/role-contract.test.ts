@@ -311,6 +311,7 @@ const MATRIX: Entry[] = [
   E({ key: R('follow-ups/board'), name: 'follow-ups board', load: () => import('@/app/api/follow-ups/board/route'), url: () => '/api/follow-ups/board' }),
   E({ key: R('seller/iship/unlinked'), name: 'iship unlinked', load: () => import('@/app/api/seller/iship/unlinked/route'), url: (c) => `/api/seller/iship/unlinked?shopId=${c.shop2}`, shop: 'shop2', okStatuses: [200, 404, 409], non403Standard: 'iShip ห่อ error เป็น { error: { code, message } }' }),
   E({ key: R('seller/iship/order-context'), name: 'iship order-context', load: () => import('@/app/api/seller/iship/order-context/route'), url: (c) => `/api/seller/iship/order-context?shopId=${c.shop2}&orderToken=${c.token2}`, shop: 'shop2', okStatuses: [200, 404], non403Standard: 'iShip ห่อ error เป็น { error: { code, message } }' }),
+  E({ key: R('seller/flash/order-context'), name: 'flash order-context', load: () => import('@/app/api/seller/flash/order-context/route'), url: (c) => `/api/seller/flash/order-context?shopId=${c.shop2}&orderToken=${c.token2}`, shop: 'shop2', okStatuses: [200, 404], non403Standard: 'Flash ห่อ error เป็น { error: { code, message } }' }),
   E({ key: R('inventory/movements'), name: 'inventory movements', load: () => import('@/app/api/inventory/movements/route'), url: (c) => `/api/inventory/movements?productId=${c.product2Id}`, shop: 'shop2' }),
   E({ key: R('inventory/csv/export'), name: 'inventory csv export', load: () => import('@/app/api/inventory/csv/export/route'), url: () => '/api/inventory/csv/export', text: true, shop: 'shop2' }),
 ]
@@ -336,6 +337,9 @@ const COVERED: Record<string, string> = {
   'src/app/api/seller/iship/settings/': 'ตั้งค่า iShip (S1) — config',
   'src/app/api/seller/iship/shipments/': 'พัสดุรายใบ (label/traces) S1 — ไบนารี/ไทม์ไลน์ขนส่ง ไม่มีต้นทุนสินค้า · ค่าส่งอยู่ที่ order-context (อยู่ใน MATRIX)',
   'src/app/api/seller/iship/unlinked/preview/': 'พรีวิวนำเข้าพัสดุ (S1) — ข้อมูลขนส่งดิบ ไม่ผูกต้นทุน',
+  'src/app/api/seller/flash/connection/': 'สถานะเชื่อม Flash (S1) — ไม่มีเงิน · ไม่มี key ในคำตอบ (00084)',
+  'src/app/api/seller/flash/settings/': 'ตั้งค่า Flash (S1) — config (00084)',
+  'src/app/api/seller/flash/shipments/': 'พัสดุ Flash รายใบ (preview/label/traces) S1 — ไบนารี/ไทม์ไลน์ขนส่ง ไม่มีต้นทุนสินค้า · ค่าส่งอยู่ที่ order-context (อยู่ใน MATRIX) (00084)',
   'src/app/api/seller/reports/agents/': 'รายงานแอดมินรายคน — ครอบด้วย agents (อยู่ใน MATRIX) + redactAgent* unit test',
   'src/app/api/chat-desk/': 'โต๊ะแชท 00077 (X7 เจ้าของเท่านั้น) — snapshot/preview อ่านอย่างเดียว ไม่มีเงิน/ต้นทุน · สิทธิ์ครอบด้วย route.test 3 บัญชี + chat-desk-sources',
   'src/app/api/chat/presence-keys/': 'คีย์ presence ทึบของผู้เรียกเอง (H1 · 00077) — ไม่มีข้อมูลร้าน/เงิน',

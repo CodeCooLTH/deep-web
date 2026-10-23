@@ -23,6 +23,10 @@ import type { CompareResult, CompareRow } from '@/lib/iship/compare'
 import type { MissingReceiverField, MissingSenderField } from '@/lib/iship/mapping'
 import SenderIncompleteNotice from './SenderIncompleteNotice'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
+import { TONE_BADGE } from './tone'
+import FlashLogo from '@/components/safepay/flash/FlashLogo'
+import { readApiError } from '@/components/safepay/flash/flash-api'
+import { flashPriceBadge } from '@/lib/shipping/flash-order-ui'
 
 export interface CompareInput {
   receiver: { subdistrict: string; district: string; province: string; postcode: string }
@@ -49,6 +53,12 @@ interface Props {
   onPick: (courierCode: string) => void
   /** กลับไปหน้าฟอร์ม — ผู้เรียกเป็นคนคืน focus ให้ปุ่มเทียบราคา */
   onClose: () => void
+  /**
+   * 00084 §4.4 — ร้านที่เชื่อม Flash (บัญชีของร้านเอง) ด้วย: แสดงบล็อก Flash แยกด้านบน
+   * ไม่ส่ง = ไม่มีบล็อก ⇒ ร้าน iShip อย่างเดียวเห็นเหมือนเดิมทุกอย่าง
+   * onUse = สลับไปเปิดพัสดุกับ Flash (ผู้เรียกรู้ว่าสลับอย่างไร)
+   */
+  flash?: { onUse: () => void }
 }
 
 type SheetState =
@@ -69,6 +79,7 @@ export default function PriceCompareSheet({
   missingReceiver,
   onPick,
   onClose,
+  flash,
 }: Props) {
   // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
   const ishipUrl = useIShipUrl()
@@ -246,6 +257,9 @@ export default function PriceCompareSheet({
         </p>
       </div>
 
+      {/* ── Flash (บัญชีของร้านเอง) — คนละบิล ไม่รวมอันดับ "ถูกที่สุด/เร็วที่สุด" ล้มแยกจาก iShip ── */}
+      {flash && <FlashQuoteBlock open={open} input={input} inputKey={inputKey} onUse={flash.onUse} />}
+
       {/* ── เนื้อหาตามสถานะ ── */}
       {state.kind === 'loading' && (
         <div className="p-4">
@@ -335,6 +349,7 @@ export default function PriceCompareSheet({
 
       {state.kind === 'data' && rows.length > 0 && (
         <div className="flex flex-col gap-3 p-4">
+          {flash && <p className="mb-0 text-xs font-semibold text-default-700">ขนส่งผ่าน iShip</p>}
           {rows.map((row, i) => (
             <CourierCard
               key={row.courierCode}
@@ -362,6 +377,121 @@ export default function PriceCompareSheet({
         </div>
       )}
     </div>
+  )
+}
+
+type FlashQuoteState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'quote'; totalBaht: number; pricingTable: string }
+  | { kind: 'error'; message: string }
+
+/**
+ * บล็อกราคา Flash — ยิง POST /api/seller/flash/price เอง ไม่พึ่งผล iShip (ล้มแยกกัน)
+ * ราคาเป็น "ประมาณการ" เสมอ (BR-FLASH-53) ปุ่มเป็นแบบขอบเพื่อไม่ชนะปุ่ม "ใช้ขนส่งนี้" ของแถวที่ถูกที่สุด
+ * ประกาศระดับ module ไม่ใช่ใน render (convention component-declared-in-render)
+ */
+function FlashQuoteBlock({
+  open,
+  input,
+  inputKey,
+  onUse,
+}: {
+  open: boolean
+  input: CompareInput
+  inputKey: string
+  onUse: () => void
+}) {
+  const flashUrl = useIShipUrl()
+  const [state, setState] = useState<FlashQuoteState>({ kind: 'idle' })
+  const [loadedKey, setLoadedKey] = useState('')
+
+  async function load() {
+    setState({ kind: 'loading' })
+    try {
+      const res = await fetch(flashUrl('/api/seller/flash/price'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          receiver: {
+            district: input.receiver.district,
+            province: input.receiver.province,
+            postcode: input.receiver.postcode,
+            ...(input.receiver.subdistrict ? { subdistrict: input.receiver.subdistrict } : {}),
+          },
+          weight: input.weight,
+          width: input.width,
+          length: input.length,
+          height: input.height,
+        }),
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        setState({ kind: 'error', message: (await readApiError(res, 'ติดต่อ Flash ไม่ได้')).message })
+        return
+      }
+      const q = (await res.json()) as { totalBaht: number; pricingTable: string }
+      setState({ kind: 'quote', totalBaht: q.totalBaht, pricingTable: q.pricingTable })
+    } catch {
+      setState({ kind: 'error', message: 'ติดต่อ Flash ไม่ได้' })
+    }
+  }
+
+  useEffect(() => {
+    if (!open || loadedKey === inputKey) return
+    setLoadedKey(inputKey)
+    void load()
+    // load อ่านค่าจาก input ปัจจุบันซึ่ง inputKey ครอบอยู่แล้ว
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, inputKey, loadedKey])
+
+  const badge = state.kind === 'quote' ? flashPriceBadge(state.pricingTable) : null
+
+  return (
+    <section className="flex flex-col gap-2 border-b border-default-200 p-4">
+      <p className="mb-0 text-xs font-semibold text-default-700">
+        Flash (บัญชีของร้านเอง) · คนละบิลกับรายการด้านล่าง
+      </p>
+      <div className="rounded-lg border border-default-300 p-3">
+        <div className="flex items-center gap-2.5">
+          <FlashLogo className="size-10" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-default-900">Flash (บัญชีของร้านเอง)</span>
+            {state.kind === 'quote' && badge && (
+              <span className="mt-0.5 flex flex-wrap gap-1">
+                <span className={TONE_BADGE.secondary}>ประมาณการ</span>
+                <span className={TONE_BADGE[badge.tone]}>{badge.label}</span>
+              </span>
+            )}
+          </span>
+          {state.kind === 'quote' && (
+            <span className="text-lg font-bold tabular-nums text-default-900">
+              ฿{state.totalBaht.toLocaleString('th-TH')}
+            </span>
+          )}
+          {(state.kind === 'loading' || state.kind === 'idle') && (
+            <span role="status" className="text-sm text-default-700">
+              กำลังถามราคา…
+            </span>
+          )}
+        </div>
+        {state.kind === 'error' && (
+          <p className="mb-0 mt-2 flex flex-wrap items-center gap-x-2 text-xs text-warning-ink">
+            <span>ประเมินราคาไม่ได้ ({state.message})</span>
+            <button type="button" onClick={() => void load()} className="font-medium text-primary hover:underline">
+              ลองใหม่
+            </button>
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onUse}
+          className="btn mt-2.5 min-h-11 w-full border border-primary py-3 text-primary hover:bg-primary hover:text-white"
+        >
+          ใช้ Flash ของร้านเปิดพัสดุ
+        </button>
+      </div>
+    </section>
   )
 }
 

@@ -215,10 +215,13 @@ export function carrierTrackingSettled(row: {
   carrierStatus?: string | null;
   codAmount?: number | null;
   codSettledAt?: Date | string | null;
+  /** 00084: Flash ไม่แจ้งเงิน COD เลย — ส่งถึงแล้วจบทันที ไม่ค้างรอ payment_success (undefined = iShip เดิม) */
+  provider?: string | null;
 }): boolean {
   const code = row.carrierStatus;
   if (!code) return false;
   if (isFinalCarrierStatus(code)) return true;
+  if (row.provider === "FLASH" && code === "delivered") return true;
   const codPending = (row.codAmount ?? 0) > 0 && !row.codSettledAt;
   if (code === "payment_success") return true;
   if (code === "delivered") return !codPending;
@@ -315,6 +318,8 @@ export function describeShipmentStatus(
       return { text: "สร้างพัสดุไม่สำเร็จ", tone: "danger" };
     case "CANCELLED":
       return { text: "ยกเลิกพัสดุแล้ว", tone: "secondary" };
+    case "NEEDS_REVIEW":
+      return { text: "ต้องตรวจสอบพัสดุ", tone: "warning" };
     default:
       return { text: status, tone: "secondary" };
   }

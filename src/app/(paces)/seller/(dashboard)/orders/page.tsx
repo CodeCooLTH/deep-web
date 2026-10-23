@@ -28,6 +28,7 @@ import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
+import { getFlashConnection } from '@/services/flash.service'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
@@ -126,6 +127,15 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           .then((c) => c.connected && c.status === 'ACTIVE')
           .catch(() => false)
       : false
+  // feature 00084 — ปุ่มพิมพ์ใบปะหน้าหลายใบขึ้นเมื่อเชื่อม iShip หรือ Flash อย่างใดอย่างหนึ่ง
+  // (ปุ่ม "ดึงจาก iShip" ยังผูก ishipEnabled ตามเดิม)
+  const shippingEnabled =
+    ishipEnabled ||
+    (shop.vertical === 'ONLINE_SALES' && can(viewerRoles, 'S1')
+      ? await getFlashConnection(shop.id)
+          .then((c) => c.connected && c.status === 'ACTIVE')
+          .catch(() => false)
+      : false)
 
   /**
    * แกน "สถานะนัดหมาย" ของร้านคิวงาน (feature 00036) — คู่ขนานกับแกนพัสดุด้านล่าง
@@ -618,6 +628,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           orders={orders}
           activeStatus={activeStatus}
           ishipEnabled={ishipEnabled}
+          shippingEnabled={shippingEnabled}
           vocab={vocab}
           vertical={resolveShopVertical(shop.vertical)}
           hasShippingAxis={isOnlineSales}

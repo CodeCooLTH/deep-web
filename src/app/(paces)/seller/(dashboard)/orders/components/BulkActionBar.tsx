@@ -24,6 +24,8 @@
  * "multi-phase progress ไม่เหมาะกับ Swal" ซึ่งจริงแค่กับสองขั้นหลัง ไม่ใช่กับขั้นแรก
  * ตอนนี้เหลือ overlay เฉพาะ sending (progress bar ของ loop) → done (สรุปสำเร็จ/ล้มเหลว)
  * ซึ่งเป็น progress/result panel ที่ Swal ทำไม่ได้จริง
+ * Base (00084 รายการใบปะหน้าที่ถูกข้าม): theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx
+ *   (Swal html list — ไม่มีรูปแบบรายการ "ถูกข้ามเพราะ…" ใน theme; ตรรกะ/markup อยู่ที่ src/lib/shipping/orders-list.ts)
  * Base (clipboard fallback): ../[token]/components/CopyLinkButton.tsx
  * Base (ปุ่ม "พิมพ์ใบปะหน้า" feature 00022): ปุ่ม "ส่ง SMS กลุ่ม" ในไฟล์เดียวกันนี้
  *   — ใช้ primitive ชุดเดิมทั้งหมด (btn + text-white/80 + rounded-full + gap-1.5 + spinner
@@ -38,7 +40,12 @@ import { INSUFFICIENT_CREDIT_TEXT, NON_OWNER_INSUFFICIENT_CREDIT_TEXT } from '@/
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { postManualStep } from '@/lib/manual-shipment-client'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
+import { hasUsableShipment } from '@/lib/shipping/provider'
+import {
+  FLASH_ONE_BY_ONE, buildSkippedEntries, parseSkippedDetail, planBulkPrint, skippedListHtml,
+  type BulkLabelRow, type SkippedEntry,
+} from '@/lib/shipping/orders-list'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
 import { useViewerCan } from './OrderViewerRoles'
@@ -50,11 +57,11 @@ interface BulkActionBarProps {
   /** buyer base URL (resolve ครั้งเดียวใน OrdersTable กัน hydration mismatch) */
   buyerBaseUrl: string
   /**
-   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028)
+   * ร้านเชื่อมต่อ iShip หรือ Flash (00084) อยู่และเป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028)
    * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านสินค้าและบริการ/บ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
    * ต้องไม่เห็นปุ่มนี้ ไม่ใช่เห็นแล้วกดไม่ได้ (BR-ISHIP-01)
    */
-  ishipEnabled?: boolean
+  shippingEnabled?: boolean
   /**
    * คำเรียกของร้าน — ส่งมาจาก OrdersTable (ร้านบริการผันเป็นงานบริการ/ลูกค้า) · ไม่ส่ง = คำเดิมของร้านขายของ
    * orderWord = "ออเดอร์" ในจำนวนนับ · linkNoun = "คำสั่งซื้อ" ในประโยคลิงก์ · buyerNoun = "ผู้ซื้อ"
@@ -71,7 +78,7 @@ export default function BulkActionBar({
   selectedRows,
   onClear,
   buyerBaseUrl,
-  ishipEnabled = false,
+  shippingEnabled = false,
   orderWord = 'ออเดอร์',
   linkNoun = 'คำสั่งซื้อ',
   buyerNoun = 'ผู้ซื้อ',
@@ -96,47 +103,99 @@ export default function BulkActionBar({
    */
   const handlePrintLabels = async () => {
     setPrinting(true)
+    const labelRows: BulkLabelRow[] = selectedRows.map((r) => ({
+      token: r.original.shortCode || r.original.publicToken,
+      orderLabel: `#${r.original.id}`,
+      recipient: r.original.buyerName,
+      shipmentId: r.original.shipment?.id ?? null,
+      provider: r.original.shipment?.provider ?? null,
+      status: r.original.shipment?.status ?? null,
+    }))
+    /** รายการ Swal ของใบที่ไม่ถูกพิมพ์ — ปิด printing ก่อนรอ Swal ไม่งั้นปุ่มค้าง disabled ระหว่างที่ร้านเปิดลิงก์ทีละใบ */
+    const showList = async (entries: SkippedEntry[], title: string, intro: string, icon: 'warning' | 'info') => {
+      setPrinting(false)
+      await pacesAlert({ title, html: skippedListHtml(entries, intro), icon, allowOutsideClick: true })
+    }
+    const readError = async (res: Response) => {
+      try {
+        const body = (await res.json()) as { error?: { message?: string } }
+        return body.error?.message ?? 'พิมพ์ใบปะหน้าไม่สำเร็จ'
+      } catch {
+        return 'พิมพ์ใบปะหน้าไม่สำเร็จ'
+      }
+    }
+    const openBlob = async (res: Response) => {
+      const url = URL.createObjectURL(await res.blob())
+      window.open(url, '_blank', 'noopener')
+      // ปล่อย object URL หลังแท็บใหม่โหลดเสร็จ — revoke ทันทีจะทำให้แท็บว่างเปล่า
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    }
+
     try {
+      const mode = planBulkPrint(labelRows)
+
+      // 00084 §6.3 — มีแต่ใบ Flash: ไม่เรียก bulk (iShip พิมพ์รวมให้ไม่ได้)
+      if (mode === 'flash-list') {
+        const { entries } = buildSkippedEntries(labelRows, [])
+        await showList(entries, FLASH_ONE_BY_ONE, 'กดเปิดใบปะหน้าทีละใบด้านล่าง', 'info')
+        return
+      }
+      if (mode === 'single-flash') {
+        const only = labelRows[0]
+        if (!only.shipmentId || !hasUsableShipment(only.status)) {
+          const { entries } = buildSkippedEntries(labelRows, [])
+          await showList(entries, 'ยังเปิดใบปะหน้าไม่ได้', 'ออเดอร์นี้ยังไม่มีพัสดุ Flash ที่ใช้ได้', 'info')
+          return
+        }
+        // blob (ไม่ใช่ <a>) เพราะเส้นทาง Flash ตอบ JSON error จริง — ต้องอ่านข้อความมาบอกร้านได้
+        const res = await fetch(`/api/seller/flash/shipments/${only.shipmentId}/label`, { cache: 'no-store' })
+        if (!res.ok) {
+          pacesToast.error(await readError(res))
+          return
+        }
+        await openBlob(res)
+        pacesToast.success('เปิดใบปะหน้า 1 ใบแล้ว')
+        return
+      }
+
       const res = await fetch('/api/seller/iship/labels/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderTokens: selectedRows.map((r) => r.original.shortCode || r.original.publicToken),
-        }),
+        body: JSON.stringify({ orderTokens: labelRows.map((r) => r.token) }),
         cache: 'no-store',
       })
 
       if (!res.ok) {
-        let message = 'พิมพ์ใบปะหน้าไม่สำเร็จ'
-        try {
-          const body = (await res.json()) as { error?: { message?: string } }
-          if (body.error?.message) message = body.error.message
-        } catch {
-          // ใช้ข้อความ default
+        pacesToast.error(await readError(res))
+        // ใบที่เหลือเป็น Flash หมด (ใบอื่นถูกข้ามหมด) server ตอบ 409 — ยังต้องให้ทางไปเปิดใบ Flash ทีละใบ ไม่ปล่อยให้ตัน
+        if (labelRows.some((r) => r.provider === 'FLASH')) {
+          const { entries } = buildSkippedEntries(labelRows.filter((r) => r.provider === 'FLASH'), [])
+          await showList(entries, FLASH_ONE_BY_ONE, 'กดเปิดใบปะหน้าทีละใบด้านล่าง', 'info')
         }
-        pacesToast.error(message)
         return
       }
 
+      // FR-ISHIP-031 — ใบที่ถูกข้ามต้องบอกเสมอ ห้ามตัดทิ้งเงียบ ไม่งั้นร้านนึกว่าพิมพ์ครบแล้วปิดงาน
       const skippedCountHeader = Number(res.headers.get('x-skipped-count') ?? '0')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank', 'noopener')
-      // ปล่อย object URL หลังแท็บใหม่โหลดเสร็จ — revoke ทันทีจะทำให้แท็บว่างเปล่า
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      await openBlob(res)
 
-      if (skippedCountHeader > 0) {
-        const detail = res.headers.get('x-skipped-detail')
-        let reason = ''
-        try {
-          const items = JSON.parse(decodeURIComponent(detail ?? '[]')) as { reason: string }[]
-          reason = items[0]?.reason ? ` (${items[0].reason})` : ''
-        } catch {
-          // ไม่ต้องมีเหตุผลก็ยังต้องบอกจำนวนที่ข้าม
-        }
-        pacesToast.warning(`พิมพ์แล้ว แต่ข้าม ${skippedCountHeader} รายการ${reason}`)
+      const { entries, printed } = buildSkippedEntries(
+        labelRows,
+        parseSkippedDetail(res.headers.get('x-skipped-detail')),
+        skippedCountHeader,
+      )
+      if (entries.length > 0 || skippedCountHeader > 0) {
+        const total = Math.max(entries.length, skippedCountHeader)
+        const hasFlashLink = entries.some((e) => e.flashShipmentId)
+        await showList(
+          entries,
+          `พิมพ์แล้ว แต่ข้าม ${total} รายการ`,
+          hasFlashLink ? `${FLASH_ONE_BY_ONE} กดเปิดทีละใบด้านล่าง` : 'รายการที่ไม่ได้พิมพ์และเหตุผล',
+          'warning',
+        )
       } else {
-        pacesToast.success(`เปิดใบปะหน้า ${selectedRows.length} ใบแล้ว`)
+        // นับเฉพาะที่พิมพ์จริง ไม่ใช่จำนวนที่เลือก
+        pacesToast.success(`เปิดใบปะหน้า ${printed} ใบแล้ว`)
       }
     } catch {
       pacesToast.error('พิมพ์ใบปะหน้าไม่สำเร็จ กรุณาลองใหม่')
@@ -337,7 +396,7 @@ export default function BulkActionBar({
                 {deliveredDone !== null ? `กำลังบันทึก ${deliveredDone}/${deliveredRows.length}` : `ส่งสำเร็จ (${deliveredRows.length})`}
               </button>
             )}
-            {ishipEnabled && canShip && (
+            {shippingEnabled && canShip && (
               <button
                 type="button"
                 onClick={handlePrintLabels}

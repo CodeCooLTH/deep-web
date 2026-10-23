@@ -37,6 +37,7 @@ import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
+import { shipmentSourceLabel } from '@/lib/shipping/provider'
 import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
@@ -389,7 +390,8 @@ export default function OrderCard({
             )}
 
             <span className="truncate text-xs text-default-700">
-              {order.shipment.courierName ?? order.shipment.courierCode ?? 'ขนส่ง'}
+              {/* 00084: Flash ตรง / Flash ผ่าน iShip แยกกันด้วยป้ายเดียวกับตาราง desktop */}
+              {shipmentSourceLabel(order.shipment.provider === 'MANUAL' ? { courierName: order.shipment.courierName, courierCode: order.shipment.courierCode } : order.shipment)}
             </span>
             <span className="ms-auto truncate text-xs font-semibold tabular-nums text-default-900">
               <HighlightText text={order.shipment.trackingNo} query={searchQuery} />

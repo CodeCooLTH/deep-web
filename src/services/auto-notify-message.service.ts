@@ -73,7 +73,7 @@ async function loadOrder(shopId: string, orderId: string) {
       shipments: {
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: 'desc' },
-        select: { trackingNo: true, courierName: true, courierCode: true },
+        select: { trackingNo: true, courierName: true, courierCode: true, provider: true },
       },
     },
   })
@@ -129,7 +129,8 @@ function trackingCandidates(o: OrderRow): TrackingCandidate[] {
       trackingNo: s.trackingNo!.trim(),
       courierName: s.courierName,
       courierCode: s.courierCode,
-      source: 'ISHIP',
+      // ลิงก์ติดตามของ iShip ใช้กับพัสดุ Flash ตรงไม่ได้ — ให้เป็น MANUAL จนกว่าจะมี URL ที่พิสูจน์แล้ว (00084 CS-29)
+      source: s.provider === 'ISHIP' ? 'ISHIP' : 'MANUAL',
     }))
   const t = o.shipmentTracking
   if (t?.trackingNo?.trim()) {

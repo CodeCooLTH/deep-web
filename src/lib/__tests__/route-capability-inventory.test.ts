@@ -283,7 +283,7 @@ type PrefixGuard = { prefix: string; scope: 'method' | 'file'; rx: RegExp; what:
 export const PREFIX_GUARDS: PrefixGuard[] = [
   { prefix: 'src/app/api/admin/', scope: 'method', rx: /(?<![\w.])(?<!function\s+)requireAdmin(?:Actor)?\s*\(/, what: 'admin session — requireAdmin/requireAdminActor' },
   { prefix: 'src/app/api/cron/', scope: 'method', rx: /process\.env\.CRON_SECRET/, what: 'CRON_SECRET (Authorization: Bearer)' },
-  { prefix: 'src/app/api/webhooks/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)(?:timingSafeEqual|verifyAppleJws)\s*(?:<[^>]*>)?\s*\(/, what: 'secret ใน path เทียบแบบ timing-safe (iShip) หรือลายเซ็น JWS ของ Apple' },
+  { prefix: 'src/app/api/webhooks/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)(?:timingSafeEqual|verifyAppleJws|verifyWebhookSign)\s*(?:<[^>]*>)?\s*\(/, what: 'secret ใน path เทียบแบบ timing-safe (iShip) หรือลายเซ็น JWS ของ Apple หรือ verifyWebhookSign ของ Flash' },
   { prefix: 'src/app/api/channels/facebook/webhook/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)(?:verifyWebhookSignature|timingSafeEqual)\s*\(/, what: 'ลายเซ็น x-hub-signature ของ Meta' },
   { prefix: 'src/app/api/channels/line/webhook/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)validateSignature\s*\(/, what: 'ลายเซ็น x-line-signature' },
   { prefix: 'src/app/api/line-report/webhook/', scope: 'file', rx: /(?<![\w.])(?<!function\s+)validateSignature\s*\(/, what: 'ลายเซ็น x-line-signature (OA กลาง)' },

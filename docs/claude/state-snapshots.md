@@ -516,3 +516,27 @@
 - หมายเหตุ migration ต้องตรง `BUYER_CONFIRM_PAYMENT_NOTE`
 
 **carry**: นับใบที่ migration จะแตะบน prod ก่อน merge · หน้าร้านไม่แสดงหมายเหตุของรายการรับเงิน (รู้จากประวัติ "ปิดให้อัตโนมัติ…" แทน)
+
+## 2026-10-23 (00084) — เชื่อม Flash Express ตรง (ร้านใส่ mchId/key ของตัวเอง)
+
+**สถานะ**: branch `integrate/flash-express` ยังไม่ merge · มี migration `20261023120000_00084_flash_express` (HR15: push `main` = `migrate deploy` บน prod, local ต้อง apply เอง) · เอกสาร `docs/20 - Features/00084 - Flash Express Direct Integration/` + `docs/SRS.md` §5.4 §6.74 §7.32 §8.18 §9.14
+
+**มติที่ห้ามกลับ**
+- ความลับเป็นของร้านเอง: **mchId + secret key ต่อร้าน** (envelope `{v,k,w}` ใน `accessTokenEnc`, `token-crypto`) ไม่มีบัญชีกลางของ Deep · ตั้งค่า/เชื่อม/ถอน/ทับ webhook = S2 **และ OWNER** (`requireFlashOwner`) · แอดมิน Deep ไม่มีทางอ่าน key
+- iShip กับ Flash **อยู่คู่กันได้**: `ShopShippingAccount @@unique([shopId, provider])` แทน `shopId @unique` · ทุก query ต้องระบุ provider
+- **Flash COD ไม่ปิดงานเองเด็ดขาด**: ไม่มีสัญญาณยืนยันเงินโอน → ห้ามผลิต `payment_success`/`codSettledAt` (เทสสแกนซอร์ส `flash*` บังคับ) · ร้านกดยืนยันรับเงินเอง · `delivered` ของ Flash จบที่ delivered
+- ลายเซ็น webhook **ไม่ครอบ `data`** → ทุก state ที่กระทบเงิน/ปิดงาน (4–9) ต้องยืนยันซ้ำด้วย `routes(pno)` ก่อนประทับ (webhook = ตัวกระตุ้น, routes = ความจริง)
+- ปุ่มเชื่อมถูกกั้นด้วย `FLASH_DIRECT_ENABLED=1` **และ** `TRAINING_VECTOR_VERIFIED` (ค่าคงที่ใน `src/lib/flash/gate.ts` ตอนนี้ `false`) — บน prod ปิดจนกว่าจะมี `training-vectors.json` จริง ≥6 รายการที่ `signParams` ผ่าน (พลิกเป็น `true` ได้เฉพาะคอมมิตที่เพิ่มไฟล์นั้น)
+- 1003 โดยไม่มี pno → `OrderShipment.status=NEEDS_REVIEW` (ไม่ใช่ FAILED, ไม่ลองใหม่เอง) ออกได้ด้วย resolve `LINK_PNO`/`REOPEN` · ไม่เพิ่มชนิด `OrderEvent` (ใช้ `SHIPMENT_CANCELLED` meta `FLASH_REVIEW_REOPEN`)
+
+**กับดัก**
+- 🛑 tsc ไม่จับ `updateMany`/`findMany` ที่ไม่ใส่ `provider` (จับได้แค่ `findUnique/update/upsert where {shopId}`) → ด่านจริงคือเทส blocker `src/services/__tests__/iship-provider-scoping.test.ts` — ห้ามผ่อน/ข้าม · เคสร้ายแรง: iShip 401 mark แถว FLASH เป็น TOKEN_INVALID, ถอด iShip ล้างแถว FLASH
+- partial unique index (`ShopShippingAccount_flash_merchant_key`, `OrderShipment_returnedPno_key`, `OrderShipment_active_order_key`) เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev`** กับฐานแชร์
+- webhook ใหม่ต้องค้นพัสดุทั้ง `trackingNo` และ `returnedPno` · secret ของ webhook ฝังใน path → `redactFlash` ต้องกรอง `/api/webhooks/flash/<secret>` ออกจากทุก log/error
+- `/connection` + `/verify` มี rate-limit key ผิดในหน่วยความจำ (5/15 นาที ต่อ user+ร้าน, ต่อ process) → 429 `RATE_LIMITED` — ไม่ใช่ทั้ง cluster
+
+**carry**
+- 🛑 **P0 พิสูจน์กับ training ยังไม่ทำ** (ลายเซ็น/รูปสะกดจังหวัด `FLASH_PROVINCE_TABLE`/`FLASH_RETURN_DELIVERED_MEANS_RETURNED=false`) · browser QA ยังไม่ทำเลยสักหน้า
+- ยังไม่มีปุ่ม rotate webhook secret (หมุนได้เฉพาะเชื่อมใหม่)
+- ปุ่ม "ใช้ Flash ของร้านเปิดพัสดุ" ไม่พาค่าที่แก้ในฟอร์มข้ามไปด้วย (ใช้ค่าตั้งต้นของร้าน)
+- G-4 หลักฐาน problem/return (00055) ของ Flash และ G-5 URL ติดตามพัสดุ Flash อยู่นอก v1

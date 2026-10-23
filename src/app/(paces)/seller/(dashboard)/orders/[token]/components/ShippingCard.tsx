@@ -12,6 +12,10 @@
  *   - รายละเอียดเต็ม (น้ำหนัก/ค่าส่ง/ที่อยู่ผู้ส่ง/ปุ่มยกเลิก) อยู่ในโมดัลเดิมที่ ShipmentStatusView
  *     ทำอยู่แล้ว — **ไม่ทำซ้ำ** ตรรกะขั้น/สถานะดึงจาก lib/iship/status.ts ตัวเดียวกันทั้งสองที่
  *
+ * 00084: การ์ดเดียวกันรองรับใบ Flash (บัญชีของร้านเอง) — ป้ายหัวการ์ด/ข้อความรีเฟรช/path ดึงสถานะผันตาม
+ * provider · ใบ COD ของ Flash มีป้ายถาวร "Flash ไม่แจ้งการโอนเงิน COD…" · NEEDS_REVIEW แสดงแค่ป้ายเตือน
+ * + ลิงก์เปิดโมดัล (ยังไม่มีเลขพัสดุ จึงไม่ดึงไทม์ไลน์) · ร้าน iShip เห็นเหมือนเดิมทุกตัวอักษร
+ *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/
  *       ShippingActivity.tsx (card + card-header + card-body) — โครงการ์ดเดียวกับพี่น้องในหน้านี้
  */
@@ -27,8 +31,11 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
-import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
+import { NOTICE_BOX, TONE_BADGE, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
+import { providerLabel, shipmentApiBase, shipmentSourceLabel } from '@/lib/shipping/provider'
+import { codNoticeText } from '@/lib/shipping/flash-order-ui'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา */
 type TraceEvent = {
@@ -49,6 +56,10 @@ export type ShippingCardProps = {
     courierCode: string | null
     trackingNo: string | null
     isDryRun: boolean
+    /** 00084 — ผู้ให้บริการของใบนี้ ("ISHIP" | "FLASH") · ไม่ส่ง = iShip */
+    provider?: string | null
+    /** 00084 — ยอดเก็บปลายทางของใบ (ใช้ตัดสินป้าย COD ของ Flash) */
+    codAmount?: number
     /** เหตุการณ์ล่าสุดที่ server มีอยู่แล้ว — ไม่ต้องรอ fetch ถึงจะเห็นอะไร */
     lastTracedAtISO: string | null
     /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
@@ -86,15 +97,21 @@ export type ShippingCardProps = {
 }
 
 export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail }: ShippingCardProps) {
+  // 00084 — ใบเดียวกันดึงสถานะจาก route ของผู้ให้บริการตัวเอง (พก ?shopId= ถ้ามี provider ครอบ)
+  const providerUrl = useIShipUrl()
+  const isFlash = iship?.provider === 'FLASH'
+  const needsReview = iship?.status === 'NEEDS_REVIEW'
+  /** ชื่อบริการที่ผู้ขายเห็นในข้อความ (ป้ายหัวการ์ดใช้ shipmentSourceLabel ตัวเดียวกันทั้งระบบ) */
+  const svcName = isFlash ? 'Flash' : 'iShip'
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<string | null>(iship?.lastTracedAtISO ?? null)
 
   const note = manualShippingNote(manual?.status)
-  const courierName = iship?.courierName ?? manual?.provider ?? null
+  const courierName = iship?.courierName ?? (isFlash ? providerLabel('FLASH') : null) ?? manual?.provider ?? null
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
-  const logo = courierLogoUrl(courierCode, courierName)
+  const logo = isFlash ? courierLogoUrl('FLASH', 'Flash Express') : courierLogoUrl(courierCode, courierName)
   const progress = iship ? describeProgress(iship.status, iship.carrierStatus, 'seller') : null
   /** แถวที่ 2 ("ขากลับ") — null = ออเดอร์ปกติ ไม่วาดแถว 2 เลย */
   const leg = describeReturnLeg({
@@ -140,14 +157,16 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
    * ดึงสถานะจากฝั่ง iShip เดี๋ยวนั้น — มีเฉพาะพัสดุที่เปิดผ่าน iShip
    * ร้านที่พิมพ์เลขพัสดุเองไม่มีปุ่มนี้ เพราะเราไม่ได้เป็นคนคุยกับขนส่งให้ จะไปถามแทนไม่ได้
    */
-  const shipmentId = iship?.id ?? null
+  // NEEDS_REVIEW ยังไม่มี pno ให้ตามสถานะ — ไม่ดึงไทม์ไลน์ (Design-Spec §4.5)
+  const shipmentId = iship && !needsReview ? iship.id : null
+  const apiBase = shipmentApiBase(iship?.provider)
   const fetchTraces = useCallback(
     async (announce: boolean) => {
       if (!shipmentId) return
       setLoading(true)
       try {
-        const res = await fetch(`/api/seller/iship/shipments/${shipmentId}/traces`, { cache: 'no-store' })
-        if (!res.ok) throw new Error('ดึงสถานะจาก iShip ไม่สำเร็จ')
+        const res = await fetch(providerUrl(`${apiBase}/shipments/${shipmentId}/traces`), { cache: 'no-store' })
+        if (!res.ok) throw new Error(`ดึงสถานะจาก ${svcName} ไม่สำเร็จ`)
         /**
          * 🛑 รูปร่างคือ `{ events, carrier }` — route เปลี่ยนมาคืนแบบนี้ตั้งแต่ 2026-08-20
          * (เพื่อส่งสถานะที่เพิ่ง sync กลับมาด้วย) แต่ตัวอ่านตรงนี้ยังเป็นของเดิมที่คาด
@@ -166,13 +185,13 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
       } catch (err) {
         // ตอนเปิดหน้าไม่ต้องเด้ง toast — ผู้ใช้ไม่ได้สั่งอะไร เด้ง error ใส่เท่ากับรบกวนเปล่า ๆ
         // (กล่องด้านล่างขึ้นข้อความบอกเองว่าดึงไม่ได้ พร้อมปุ่มให้ลองใหม่)
-        if (announce) pacesToast.error(err instanceof Error ? err.message : 'ดึงสถานะจาก iShip ไม่สำเร็จ')
+        if (announce) pacesToast.error(err instanceof Error ? err.message : `ดึงสถานะจาก ${svcName} ไม่สำเร็จ`)
         setTraces([])
       } finally {
         setLoading(false)
       }
     },
-    [shipmentId],
+    [shipmentId, providerUrl, apiBase, svcName],
   )
 
   /**
@@ -208,19 +227,25 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
               ร้านต้องแยกออกว่าใบนี้เราเปิดให้ (ยกเลิก/ตามได้) หรือร้านไปเปิดเองที่เคาน์เตอร์ */}
           {iship ? (
             <span className="badge bg-default-100 text-default-800 flex items-center gap-1.5 ps-1">
-              <Image alt="" className="size-4.5 shrink-0 rounded object-cover" height={18} src="/images/logos/iship.jpeg" width={18} />
-              เปิดพัสดุผ่าน iShip
+              <Image
+                alt=""
+                className="size-4.5 shrink-0 rounded object-cover"
+                height={18}
+                src={isFlash ? (courierLogoUrl('FLASH', 'Flash Express') ?? '/images/logos/iship.jpeg') : '/images/logos/iship.jpeg'}
+                width={18}
+              />
+              {isFlash ? `เปิดพัสดุผ่าน ${shipmentSourceLabel({ provider: 'FLASH' })}` : 'เปิดพัสดุผ่าน iShip'}
             </span>
           ) : (
             <span className="badge bg-default-100 text-default-800">ร้านแจ้งเลขเอง</span>
           )}
-          {iship && (
+          {iship && !needsReview && (
             <button
-              aria-label="ดึงสถานะจาก iShip เดี๋ยวนี้"
+              aria-label={`ดึงสถานะจาก ${svcName} เดี๋ยวนี้`}
               className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-11! lg:size-8! rounded-full border disabled:opacity-60"
               disabled={loading}
               onClick={() => void fetchTraces(true)}
-              title="ดึงสถานะจาก iShip เดี๋ยวนี้"
+              title={`ดึงสถานะจาก ${svcName} เดี๋ยวนี้`}
               type="button"
             >
               <Icon icon={loading ? 'loader-2' : 'refresh'} className={cn('text-base', loading && 'animate-spin')} aria-hidden="true" />
@@ -270,7 +295,26 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
 
         {/* แถบ 4 ขั้น — เฉพาะพัสดุ iShip เพราะมีแต่ใบนั้นที่เรารู้สถานะจากขนส่งจริง
             เลขที่ร้านพิมพ์เอง เรารู้แค่ว่า "ร้านบอกว่าส่งแล้ว" จะวาดแถบความคืบหน้าไม่ได้ */}
-        {progress && (
+        {needsReview && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <span className={`${TONE_BADGE.warning} inline-flex items-center gap-1`}>
+              <Icon icon="alert-triangle" className="text-sm" aria-hidden="true" />
+              ต้องตรวจสอบพัสดุ
+            </span>
+            {onOpenDetail && (
+              <button
+                className="text-primary hover:text-primary-hover inline-flex items-center gap-0.5 text-xs font-semibold"
+                onClick={onOpenDetail}
+                type="button"
+              >
+                จัดการพัสดุ
+                <Icon icon="chevron-right" className="text-sm" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {progress && !needsReview && (
           <>
             {/* จุดแรก/สุดท้ายชิดขอบ content เท่าแนวโลโก้ (user 2026-08-06) — เดิมเป็น
                 grid 4 คอลัมน์ที่จุดอยู่กลางคอลัมน์ ทำให้ทั้งแถบดูหดเข้ามาจากขอบทั้งสองข้าง
@@ -300,14 +344,22 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
           </>
         )}
 
-        {iship && (
+        {/* ป้ายถาวรของใบ Flash ที่เป็น COD — แสดงทุกสถานะ ปิดไม่ได้ (Flash ไม่แจ้งการโอนเงิน) */}
+        {iship && codNoticeText(iship.provider, iship.codAmount) && (
+          <p className={`mt-4 mb-0 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${NOTICE_BOX.info}`}>
+            <Icon icon="cash" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+            <span>{codNoticeText(iship.provider, iship.codAmount)}</span>
+          </p>
+        )}
+
+        {iship && !needsReview && (
           <div className="border-default-200 mt-5 border-t border-dashed pt-4">
             <p className="text-default-800 mb-2.5 text-xs font-semibold">การเดินทางล่าสุด</p>
 
             {traces === null || (loading && visibleTraces.length === 0) ? (
               <p className="text-default-700 mb-0 flex items-center gap-2 text-xs">
                 <Icon icon="loader-2" className="animate-spin text-sm" aria-hidden="true" />
-                กำลังดึงสถานะจาก iShip…
+                กำลังดึงสถานะจาก {svcName}…
               </p>
             ) : visibleTraces.length === 0 ? (
               <p className="text-default-700 mb-0 text-xs">
@@ -354,7 +406,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
                 </button>
               )}
               {/* บอกความสดของข้อมูล ไม่งั้นร้านไม่รู้ว่าที่เห็นคือของเมื่อไร */}
-              {checkedAt && <span className="text-default-700 text-xs">ตรวจกับ iShip ล่าสุด {formatDateTimeTH(checkedAt)}</span>}
+              {checkedAt && <span className="text-default-700 text-xs">ตรวจกับ {svcName} ล่าสุด {formatDateTimeTH(checkedAt)}</span>}
             </div>
           </div>
         )}

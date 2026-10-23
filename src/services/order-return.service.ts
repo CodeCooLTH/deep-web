@@ -246,7 +246,8 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
    * ยกเลิกการเชื่อมต่อ แล้วร้านจะเห็นตัวเลือกที่กดแล้วตายที่ปลายทาง
    */
   const ishipAccount = await prisma.shopShippingAccount.findUnique({
-    where: { shopId },
+    // ขากลับ = iShip เท่านั้น (00084 OOS-7)
+    where: { shopId_provider: { shopId, provider: 'ISHIP' } },
     select: { status: true },
   })
   const ishipConnected = ishipAccount != null && ishipAccount.status !== 'DISCONNECTED'
