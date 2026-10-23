@@ -261,7 +261,7 @@ Serverless (Vercel) — ไม่มีตัวจับเวลาในห�
 ### TFR-FLASH-022: ประตูปล่อย (BR-FLASH-63) และโหมดทดสอบ
 - **Trace to:** FR-FLASH-001/071 · BR-FLASH-18/60/61/63 · S-1
 - `isFlashDirectEnabled()` = `process.env.FLASH_DIRECT_ENABLED==='1' ∧ (TRAINING_VECTOR_VERIFIED ∨ NODE_ENV≠'production')` · `TRAINING_VECTOR_VERIFIED` เป็นค่าคงที่ใน `lib/flash/gate.ts` (เริ่ม `false`) พลิกเป็น `true` ได้เฉพาะคอมมิตที่เพิ่ม `training-vectors.json` จริง — มี blocker test: ถ้า `true` ต้องมีไฟล์ vector ≥ 6 รายการและ `signParams` ผ่านทุกรายการ (บังคับด้วยโค้ด ไม่ใช่คำบรรยาย)
-- ผลเมื่อปิด: `connect`, `createFlashShipment`, `requestFlashPickup`, `estimateFlashPrice`, `link` ⇒ `FEATURE_DISABLED` (404) · `GET connection` คืน `available:false` ให้ UI ซ่อนปุ่ม/การ์ด · ร้านที่มีแถว FLASH อยู่แล้ว **ยังรับ webhook/poll/ถอนการเชื่อมต่อได้** (ไม่ทิ้งข้อมูล)
+- ผลเมื่อปิด: `connect`, `createFlashShipment`, `retryFlashShipment`, `resolveReviewShipment`, `previewFlashPno`, `link`, `requestFlashPickup`, `estimateFlashPrice` ⇒ `FEATURE_DISABLED` (404) (ตรงกับ `assertEnabled()` ใน `flash.service.ts` / `flash-shipment.service.ts`) · `GET connection` คืน `available:false` ให้ UI ซ่อนปุ่ม/การ์ด · ร้านที่มีแถว FLASH อยู่แล้ว **ยังรับ webhook/poll/ถอนการเชื่อมต่อได้** (ไม่ทิ้งข้อมูล)
 
 ### TFR-FLASH-023: สิทธิ์
 - **Trace to:** BR-FLASH-01..05 · BRD §1.3
@@ -271,7 +271,7 @@ Serverless (Vercel) — ไม่มีตัวจับเวลาในห�
 ### TFR-FLASH-024: Audit
 - **Trace to:** BR-FLASH-66/79
 - ผู้ทำ+เวลาที่คงอยู่ในข้อมูลเดิม: `connectedByUserId/lastVerifiedAt` (บัญชี) · `createdByUserId` · `cancelledByUserId/cancelledAt` (พัสดุ) · `ShipmentPickup.createdByUserId` · `OrderEvent` (สร้าง/ยกเลิก/ผูก) · `webhookRegisteredAt/webhookStatus`
-- การกระทำระดับร้านที่ไม่มีคอลัมน์รองรับ (ตั้ง/ทับ/ปิด webhook รายชนิด, เชื่อม, เปลี่ยน key, ถอน): `recordFlashAudit({shopId,userId,action,kinds?,at})` เขียน log JSON บรรทัดเดียว prefix `[flash-audit]` ไม่มีความลับ — **ช่องว่าง G-1** (retention ของ log สั้น) ให้ Controller ตัดสินว่าจะขยาย schema (`ShopShippingAccount.auditLog Json?`) ก่อน migrate หรือยอมรับ log-only
+- การกระทำระดับร้านที่ไม่มีคอลัมน์รองรับ (ตั้ง/ทับ/ปิด webhook รายชนิด, เชื่อม, เปลี่ยน key, ถอน): `recordFlashAudit` (`src/services/flash-account.ts`) append ลง `ShopShippingAccount.auditLog Json?` (ล่าสุด 50 รายการ `{at,userId,action,kinds?,result?}`) **และ** log JSON บรรทัดเดียว prefix `[flash-audit]` ไม่มีความลับ — **G-1 ปิดแล้ว** (Controller เลือกขยาย schema ใน migration `20261022120000_00084_flash_express`)
 
 ---
 

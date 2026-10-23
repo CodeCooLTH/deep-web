@@ -112,13 +112,19 @@ Vercel serverless เดิม · `vercel.json` เพิ่ม 1 cron `/api/cro
 | `src/lib/flash/mapping.ts` | params | `buildCreateOrderParams`, `buildEstimateParams`, `foldCodItems`, `normalizeFlashProvince`, `buildFlashOutTradeNo`, `findMissingFlashParcelFields` |
 | `src/lib/flash/status.ts` | สถานะ/ตัวอ่าน | `mapFlashState`, `describeMarker`, `parseFlashTime`, `isFlashTrackingSettled`, `FLASH_PICKUP_STATE`, `readFlashPrice`, `readFlashWeight`, `normalizeRoutes`, `normalizeBatchRoutes` |
 | `src/lib/flash/webhook-parse.ts` | ตัวแกะ body | `parseWebhookBody(contentType, text)`, `inferFlashWebhookKind`, `classifyWebhookUrl` |
-| `src/lib/flash/route-helpers.ts` | แมป error → HTTP | `mapFlashError(err, {context})` (delegate `IShipServiceError` → `mapIShipError`), `flashJson`, `flashError` |
-| `src/lib/shipping/provider.ts` | helper ข้ามผู้ให้บริการ (pure) | `providerLabel`, `shipmentSourceLabel`, `shipmentApiBase(provider)`, `hasUsableShipment(status)`, `isCodManualConfirmNotice(provider,codAmount)` |
-| `src/lib/shipping/after-create.ts` | ตัดสิน AUTO/ASK/CHOOSE (pure) | `decideAfterCreate(providers)` |
-| `src/services/flash.service.ts` | บัญชี/ตั้งค่า/webhook sync/pickup/estimate/panel | `getFlashConnection, connectFlash, verifyFlash, disconnectFlash, getFlashSettings, updateFlashSettings, syncFlashWebhooks, getFlashPanelOrReason, estimateFlashPrice, requestFlashPickup, cancelFlashPickup, loadFlashAccount, withFlashGuard, recordFlashAudit` |
+| `src/lib/flash/route-helpers.ts` | แมป error → HTTP | `mapFlashError(err, {context})` (delegate `IShipServiceError` → `mapIShipError`), `flashJson`, `flashError`, `resolveFlashOrderId` |
+| `src/lib/flash/owner-guard.ts` | OWNER-only ของ route (DD-1) | `requireFlashOwner(guard)` (→ 403 `FORBIDDEN_ROLE`), `isFlashOwner(guard)` |
+| `src/lib/flash/verify-rl.ts` | กันเดา key ที่ `/connection` + `/connection/verify` (security M1) | `isFlashVerifyLimited(userId, shopId)`, `recordFlashVerifyFailure`, `FLASH_VERIFY_MAX_FAILURES` (5 ครั้ง/15 นาที ต่อ user+ร้าน · globalThis ต่อ process) |
+| `src/lib/shipping/provider.ts` | helper ข้ามผู้ให้บริการ (pure) | `providerLabel`, `shipmentSourceLabel`, `shipmentApiBase(provider)`, `hasUsableShipment(status)`, `isCodManualConfirmNotice(provider,codAmount)`, type `ShipmentProvider` |
+| `src/lib/shipping/after-create.ts` | ตัดสิน AUTO/ASK/CHOOSE + ข้อความ/Swal (pure) | `decideAfterCreate(providers)`, `shipmentOutcomeToast`, `flashAskRows`, `escapeHtml`, ค่าคงที่ข้อความ (`FLASH_ASK_TITLE`, `CHOOSE_TITLE`, `NEEDS_REVIEW_TOAST` …) |
+| `src/lib/shipping/flash-settings-view.ts` | ตรรกะ UI การ์ดตั้งค่า Flash (pure, เทสได้) | `flashStatusBadge`, `flashRowButtons`, `flashRowWarnings`, `flashKindBadge`, `overridableKinds`, `webhookBlockState`, `validateConnectForm`, `connectErrorText`, `validateFlashSettings`, `canCopyIshipSender`, `pickupModalState`, `pickupErrorText` … |
+| `src/lib/shipping/flash-order-ui.ts` | ตรรกะ UI สร้าง/จัดการพัสดุ Flash ในหน้าออเดอร์ (pure) | `entryMode`, `methodFor`, `shipmentLock`, `flashFailedView` (แทน `retryUxFor` ที่ออกแบบไว้เดิม), `pnoStep`/`pnoFormatError`, `linkErrorText`, `cancelOutcome`, `flashItemNotices`, `flashPriceBadge`, `markerReasonLine`, `codNoticeText` |
+| `src/lib/shipping/orders-list.ts` | ตรรกะหน้ารายการออเดอร์ (พิมพ์หลายใบ/POD) (pure) | `planBulkPrint`, `parseSkippedDetail`, `buildSkippedEntries`, `skippedListHtml`, `podCopyLines`, `podMapUrl`, `hoverFetchPlan` |
+| `src/services/flash-account.ts` | **สัญญาร่วมของทุก service Flash** (ไม่มี `.service` ในชื่อ) | `FLASH`, `findFlashAccount`, `unpackFlashAccount`, `loadFlashAccount`, `loadFlashAccountByWebhookSecret`, `markFlashTokenInvalid`, `recordFlashAudit`, `appendAudit`, types `LoadedFlashAccount`/`FlashCred`/`FlashAuditEntry` |
+| `src/services/flash.service.ts` | บัญชี/ตั้งค่า/webhook sync/pickup/estimate/panel | `getFlashConnection, connectFlash, verifyFlash, disconnectFlash, getFlashSettings, updateFlashSettings, syncFlashWebhooks, getFlashPanelOrReason, estimateFlashPrice, estimatePrice, requestFlashPickup, cancelFlashPickup, withFlashGuard, toFlashShipmentView, FLASH_SHIPMENT_SELECT` (+ re-export `loadFlashAccount`, `recordFlashAudit`) · types `FlashConnectionView`, `FlashLastPickup`, `FlashWebhookReport`, `FlashSettings` |
 | `src/services/flash-shipment.service.ts` | สร้าง/ลองใหม่/resolve/ผูก | `createFlashShipment, retryFlashShipment, resolveReviewShipment, previewFlashPno, linkFlashShipment` |
 | `src/services/flash-ops.service.ts` | ยกเลิก/ใบปะหน้า/traces/เลิกผูก | `cancelFlashShipment, getFlashLabelPdf, getFlashTraces, unlinkFlashShipment` |
-| `src/services/flash-status.service.ts` | apply สถานะ/ต้นทุน/POD/ซิงก์ | `applyFlashRoutes, handleFlashWebhook, syncFlashStatuses, captureFlashPod, captureFlashCharges, stampFlashMilestones` |
+| `src/services/flash-status.service.ts` | apply สถานะ/ต้นทุน/POD/ซิงก์ | `applyFlashRoutes, handleFlashWebhook, syncFlashStatuses, runFlashStatusSyncCron, captureFlashPod, captureFlashCharges, stampFlashMilestones, shapePod, chunkPnos` · outcomes ของ `handleFlashWebhook`: `APPLIED \| IGNORED_NO_DATA \| IGNORED_VERTICAL \| IGNORED_UNKNOWN_KIND \| IGNORED_NO_SHIPMENT \| TOKEN_INVALID \| RETRY` (เฉพาะ `RETRY` → 503) |
 
 ### 3.2 จุดที่ตัดสิน provider (dispatch)
 | ชั้น | วิธี | เหตุผล |
@@ -151,7 +157,7 @@ sequenceDiagram
         S->>D: upsert FLASH row (envelope, hash, ACTIVE)
         S->>F: webhook/setting/infos (อ่านก่อนเสมอ)
         F-->>S: ค่าเดิม 5 ชนิด
-        S->>F: web_hook_service เฉพาะชนิด EMPTY (best-effort)
+        S->>F: web_hook_service เฉพาะชนิด EMPTY และ OTHER_DEEP (best-effort · EXTERNAL ต้อง override)
         S->>D: webhookStatus
         S-->>U: 201 view + webhook report
     else 1001 / 1002 / timeout
@@ -279,7 +285,7 @@ cron → เลือกร้าน ACTIVE → throttle 15 นาที → ก
 
 ### TD-FLASH-10: `outTradeNo` อักขระล้วน (P0-5) — กันกรณี Flash ปฏิเสธ `:` / `-`
 
-### TD-FLASH-11: audit ระดับร้านเป็น log-only (G-1) — รอ Controller
+### TD-FLASH-11: audit ระดับร้านเก็บที่ `ShopShippingAccount.auditLog` (G-1 แก้แล้ว — ดู §10.1) — ไม่ใช่ log-only
 
 ---
 
@@ -340,7 +346,7 @@ cron → เลือกร้าน ACTIVE → throttle 15 นาที → ก
 | 32 | `lib/validations.ts`, `lib/route-capabilities.ts` | | เติมของ Flash (§8.5) | — |
 | 33 | tests เดิมที่ mock/สร้าง `shopShippingAccount` (`services/__tests__/iship-shipment-retry.test.ts:16,108`, `manual-dispatch.test.ts:98`) | mock ด้วย `findUnique: vi.fn()` | ปรับ mock ให้รับ compound where; ห้ามเปลี่ยนความหมายเทส | — |
 
-**blocker test ใหม่ `src/lib/iship/__tests__/iship-provider-scoping.test.ts`** (สแกนซอร์ส): (ก) ไม่มี `shopShippingAccount.(findUnique|update|upsert)\(\{\s*where:\s*\{\s*shopId` (ข) ทุก `shopShippingAccount.(updateMany|findMany)` ในไฟล์ iship/cron/order-return มี `provider` (ค) ทุก `orderShipment.(findFirst|findMany|updateMany)` ใน `iship.service.ts` ที่ผูก id/trackingNo/refCode มี `provider` หรือ `direction`+เหตุผลใน allow-list (ง) `flash*.ts` ไม่มี `advanceOrderOnCarrierMove|settleCodFromCarrier|codSettledAt|payment_success` (จ) `src/components/safepay/iship` ไม่ fetch `/api/seller/flash` ตรง ๆ โดยไม่ผ่าน `useIShipUrl()`
+**blocker test ใหม่ `src/services/__tests__/iship-provider-scoping.test.ts`** (ที่จริงอยู่ใต้ `services/__tests__` ไม่ใช่ `lib/iship/__tests__`) (สแกนซอร์ส): (ก) ไม่มี `shopShippingAccount.(findUnique|update|upsert)\(\{\s*where:\s*\{\s*shopId` (ข) ทุก `shopShippingAccount.(updateMany|findMany)` ในไฟล์ iship/cron/order-return มี `provider` (ค) ทุก `orderShipment.(findFirst|findMany|updateMany)` ใน `iship.service.ts` ที่ผูก id/trackingNo/refCode มี `provider` หรือ `direction`+เหตุผลใน allow-list (ง) `flash*.ts` ไม่มี `advanceOrderOnCarrierMove|settleCodFromCarrier|codSettledAt|payment_success` (จ) `src/components/safepay/iship` ไม่ fetch `/api/seller/flash` ตรง ๆ โดยไม่ผ่าน `useIShipUrl()`
 
 ### 8.2 ทุกที่ที่ `status==='FAILED'` ถือเป็น "ลองใหม่ได้" และการกัน `NEEDS_REVIEW`
 
@@ -355,7 +361,7 @@ cron → เลือกร้าน ACTIVE → throttle 15 นาที → ก
 | `(chat)/_components/OrderCardView.tsx:220` | FAILED ⇒ แสดงชิปสถานะแทนเลขพัสดุ | ปฏิบัติเหมือน FAILED (CS-28) |
 | `lib/chat-order-progress.ts:53` | FAILED ⇒ `hasShipment=false` | ปฏิบัติเหมือน FAILED (CS-28) |
 | `lib/iship/status.ts:306` describeShipmentStatus | | ข้อความเฉพาะ (CS-27) |
-| `lib/iship/errors.ts classifyRetryUX` (UI ใช้ตัดสินปุ่มเด่น) | code ไม่รู้จัก ⇒ `retry` | Flash ใช้ `classifyFlashRetryUX` ของตัวเอง (`DUPLICATE_ORDER`⇒`review`) — **UI ต้องเลือกตัวตัดสินตาม `provider`** (`lib/shipping/provider.ts: retryUxFor(provider, code)`) |
+| `lib/iship/errors.ts classifyRetryUX` (UI ใช้ตัดสินปุ่มเด่น) | code ไม่รู้จัก ⇒ `retry` | Flash ใช้ `classifyFlashRetryUX` ของตัวเอง (`DUPLICATE_ORDER`⇒`review`) — **UI ต้องเลือกตัวตัดสินตาม `provider`** (ในโค้ดจริงเป็น `flashFailedView` ที่ `lib/shipping/flash-order-ui.ts` — ไม่มี `retryUxFor` ใน `provider.ts`) |
 | SQL/where ที่ `status:'CREATED'` (กองงาน/กำไร) | | NEEDS_REVIEW ไม่ใช่ CREATED ⇒ ไม่ปนกองโดยอัตโนมัติ |
 | `OrderShipment_active_order_key` | | `status<>'CANCELLED'` ⇒ จองช่อง (กัน Flash/iShip เปิดซ้อน) |
 
@@ -366,7 +372,7 @@ cron → เลือกร้าน ACTIVE → throttle 15 นาที → ก
 | Error ที่ throw | throw ที่ | ผู้เรียก (route) | catch → HTTP | task |
 |-----------------|-----------|------------------|--------------|------|
 | `FlashError` ทุก code (ตาราง SRS App.A) | `lib/flash/client.ts` → `flash*.service` | ทุก route `/api/seller/flash/**` | `mapFlashError`: `UPSTREAM_TIMEOUT`→504 · `UPSTREAM_ERROR`/`UNKNOWN_CODE`→502 · `MERCHANT_NOT_FOUND`/`SIGN_INVALID`→**422 ที่ `/connection`+`/connection/verify`**, **409 ที่เหลือ** · `SENDER_ADDRESS_INVALID`/`RECEIVER_ADDRESS_INVALID`/`POSTCODE_INVALID`/`SENDER_OUT_OF_AREA`/`COD_NOT_ENABLED`/`INVALID_REQUEST`→422 · `DUPLICATE_ORDER`→409 · `NOT_CANCELLABLE`/`PICKUP_PENDING`/`PICKUP_NOT_CANCELLABLE`→409 · `PARCEL_NOT_FOUND`→404 · `NOT_MERCHANT_PARCEL`→422 | T8a/T8b |
-| `FlashServiceError` (`NOT_CONNECTED`409 · `FEATURE_DISABLED`404 · `SHIPMENT_EXISTS`409 · `NEEDS_REVIEW`409 · `INCOMPLETE_DATA`422 · `NOT_ELIGIBLE`403 · `NOT_FOUND`404 · `INVALID_STATE`409 · `MERCHANT_IN_USE`409 · `MERCHANT_CHANGE_NOT_ALLOWED`409 · `PNO_TAKEN`409 · `INVALID_INPUT`400) | `flash*.service` | ทุก route Flash | `mapFlashError` ตาม `SERVICE_STATUS` ตารางเดียวกัน | T8a |
+| `FlashServiceError` (`NOT_CONNECTED`409 · `FEATURE_DISABLED`404 · `SHIPMENT_EXISTS`409 · `NEEDS_REVIEW`409 · `INCOMPLETE_DATA`422 · `NOT_ELIGIBLE`403 · `NOT_FOUND`404 · `INVALID_STATE`409 · `MERCHANT_IN_USE`409 · `MERCHANT_CHANGE_NOT_ALLOWED`409 · `PNO_TAKEN`409 · `INVALID_INPUT`400 · `RATE_LIMITED`429 — `/connection` POST + `/connection/verify` เมื่อ key ผิดครบโควตา `verify-rl.ts`) | `flash*.service` | ทุก route Flash | `mapFlashError` ตาม `SERVICE_STATUS` ตารางเดียวกัน | T8a |
 | `FlashUnitError` (ทศนิยมเกิน/ติดลบ/NaN) | `lib/flash/units.ts` ← `mapping` | create/estimate/pickup | **แปลงเป็น `FlashServiceError("INCOMPLETE_DATA")` ที่ service** (ไม่ปล่อยถึง route) → 422 | T6a |
 | `FlashValidationError` (COD >999, ประกันไม่มีมูลค่า, รหัสไปรษณีย์) | `mapping` | create | แปลงเป็น `INCOMPLETE_DATA`+ข้อความ ที่ service → 422 | T6a |
 | `IShipServiceError` (`NOT_FOUND` จาก `resolveOrderIdByToken`) | `iship.service` ที่ route Flash เรียก | route Flash | `mapFlashError` ต้อง `instanceof IShipServiceError` → delegate `mapIShipError` | T8a |
@@ -400,7 +406,7 @@ Flash ล่ม/ช้า: create ⇒ FAILED (ออเดอร์ไม่ก�
 ### 8.8 Affected files (absolute)
 
 **Create** (ใต้ `/Users/craftman/orca/workspaces/safepay/FlashExpress`):
-`src/lib/flash/{constants,sign,units,errors,gate,credential,client,mapping,status,webhook-parse,route-helpers}.ts` · `src/lib/flash/__tests__/*` · `src/lib/flash/__fixtures__/*` (redacted) · `src/lib/shipping/{provider,after-create}.ts` (+tests) · `src/services/{flash,flash-shipment,flash-ops,flash-status}.service.ts` (+`__tests__`) · `src/app/api/seller/flash/{connection,connection/verify,settings,webhook/sync,order-context,price,shipments,shipments/preview,shipments/link,shipments/[id]/{retry,cancel,resolve,unlink,label,traces},pickups,pickups/[id]/cancel}/route.ts` · `src/app/api/webhooks/flash/[secret]/route.ts` · `src/app/api/cron/flash-status-sync/route.ts` · `src/lib/iship/__tests__/iship-provider-scoping.test.ts` · UI: `src/app/(paces)/seller/(dashboard)/settings/FlashSettingsRow.tsx`, `src/components/safepay/flash/{FlashCreateForm,FlashReviewPanel,FlashLinkPanel,FlashPickupSheet}.tsx`
+`src/lib/flash/{constants,sign,units,errors,gate,credential,client,mapping,status,webhook-parse,route-helpers,owner-guard,verify-rl}.ts` · `src/lib/flash/__tests__/*` · `src/lib/flash/__fixtures__/*` (redacted) · `src/lib/shipping/{provider,after-create,flash-settings-view,flash-order-ui,orders-list}.ts` (+tests) · `src/services/flash-account.ts` · `src/services/{flash,flash-shipment,flash-ops,flash-status}.service.ts` (+`__tests__`) · `src/app/api/seller/flash/{connection,connection/verify,settings,webhook/sync,order-context,price,shipments,shipments/preview,shipments/link,shipments/[id]/{retry,cancel,resolve,unlink,label,traces},pickups,pickups/[id]/cancel}/route.ts` · `src/app/api/webhooks/flash/[secret]/route.ts` · `src/app/api/cron/flash-status-sync/route.ts` · `src/lib/iship/__tests__/iship-provider-scoping.test.ts` · UI: `src/app/(paces)/seller/(dashboard)/settings/FlashSettingsRow.tsx`, `src/components/safepay/flash/{FlashCreateForm,FlashReviewPanel,FlashLinkPanel,FlashPickupSheet}.tsx`
 
 **Modify:** `prisma/schema.prisma` (มีแล้ว) · `src/services/iship.service.ts` (CS-01..19,31) · `src/services/order-return.service.ts` · `src/app/api/cron/iship-status-sync/route.ts` · `src/app/api/chat/shop-context/route.ts` · `src/app/(paces)/seller/(chat)/layout.tsx` · `src/app/(paces)/seller/(chat)/inbox/page.tsx` (คอมเมนต์) · `src/app/(paces)/seller/(fullscreen)/orders/new/page.tsx` · `src/lib/iship/{status,context}.ts` · `src/lib/chat-order-progress.ts` · `src/services/auto-notify-message.service.ts` · `src/lib/validations.ts` · `src/lib/route-capabilities.ts` · `src/app/api/orders/[token]/shipment-evidence/route.ts` · `src/lib/iship/after-order-create.ts` · UI ที่ §9 · `vercel.json` · `.env.example` · `docs/SRS.md` · `CLAUDE.md`
 
@@ -445,7 +451,7 @@ Flash ล่ม/ช้า: create ⇒ FAILED (ออเดอร์ไม่ก�
 | DD-1 | BRD บอก STAFF วาง/เปลี่ยน/ถอน key และตั้งค่าไม่ได้ แต่ cap `S2` ของ 00022 = [OWNER, MANAGER] | `S2` + `requireFlashOwner` (OWNER เท่านั้น) | ถ้าต้องการเท่า iShip: ลบ helper 1 บรรทัดต่อ route |
 | DD-2 | FR-062 เขียน "สาขาใน cron iShip" | route cron แยก schedule เท่ากัน | ถ้ายืนยันสาขา: ย้าย loop เข้า route เดิม (เสี่ยงลาม) |
 | DD-3 | key/secret เก็บอย่างไร | envelope JSON เข้ารหัสใน `accessTokenEnc` (ต่างจากข้อความ DATABASE.md D-2 เล็กน้อย: ยังเป็นความลับเดียวกัน คอลัมน์เดียว) | เพิ่มคอลัมน์ = ต้องแก้ migration ที่ยังไม่ apply |
-| DD-4/G-1 | Audit ระดับร้าน (ตั้งค่า/ทับ webhook, เชื่อม/ถอน) ไม่มีตารางรองรับถาวร | `recordFlashAudit` = log บรรทัดเดียว | ขอ `safepay-database` เพิ่ม `ShopShippingAccount.auditLog Json?` (migration ยังไม่ apply แก้ได้) |
+| DD-4/G-1 | Audit ระดับร้าน (ตั้งค่า/ทับ webhook, เชื่อม/ถอน) ไม่มีตารางรองรับถาวร | **แก้แล้ว (§10.1):** `recordFlashAudit` เขียน `auditLog` + log บรรทัดเดียว — เดิมเสนอ log อย่างเดียว | ขอ `safepay-database` เพิ่ม `ShopShippingAccount.auditLog Json?` (migration ยังไม่ apply แก้ได้) |
 | DD-5/G-2 | ไม่มีคอลัมน์ "ผู้ให้บริการเริ่มต้น" | ถามทุกครั้งเมื่อมีสองเจ้า | เพิ่มคอลัมน์ในร้าน/บัญชี |
 | DD-6 | 00039 ปิดออเดอร์ 7 วันหลัง `deliveredAt` ครอบ Flash COD | ปล่อยตามเดิม | เพิ่มเงื่อนไข COD ใน auto-confirm = แก้ 00039 (OOS-18) |
 | DD-7 | `advanceOrderOnCarrierMove` ไม่ทำงานกับ Flash | ไม่เรียก (ร้านกดจัดส่งแล้วเอง) | |

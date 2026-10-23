@@ -186,6 +186,7 @@ theme/
 - **2026-10-18 (00078 T18/T23/T24):** ขอบรูปม่วงลูกค้า 3 จุด · ชิปแถวแชท ≤2+N · ตัวแก้เทมเพลตส่งอัตโนมัติแบบชิป (contenteditable) — ไม่มี migration · 🛑 ยังไม่ทดสอบพิมพ์ไทยบนมือถือจริง · ดู [[docs/claude/state-snapshots]]
 - **2026-10-23 (00082):** ลูกค้ายืนยันรับบริการ = ปิดงาน + ชำระครบ + ใบเสร็จ (ร้านบริการเท่านั้น · `settleServiceJobOnBuyerConfirm` ใน `confirmOrder`) — migration ข้อมูล (HR15) · 🛑 ห้าม refresh หน้า `/o/[token]` ระหว่างแผ่นให้คะแนนเปิด · ดู [[docs/claude/state-snapshots]]
 - **2026-10-10 (00071 P2+P3):** 5 บทบาทถือหลายบทบาทได้ + ทุก route ประกาศ capability (`src/lib/route-capabilities.ts`) — branch `feat/00071-p2-roles` ยังไม่ push · มี migration (HR15) · 🛑 browser QA ยังไม่ทำ
+- **2026-10-23 (00084):** เชื่อม Flash Express ตรง (ร้านใส่ mchId/key เอง · ใช้คู่ iShip ได้) — branch `integrate/flash-express` ยังไม่ merge · มี migration (HR15) · 🛑 ปุ่มเชื่อมปิดจนกว่าจะพิสูจน์ลายเซ็นกับ training · ดู [[docs/claude/state-snapshots]]
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

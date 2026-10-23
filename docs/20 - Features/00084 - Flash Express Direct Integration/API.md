@@ -159,7 +159,7 @@ export const FlashConnectSchema = v.object({
 
 **Response 201 (เชื่อมใหม่) / 200 (เปลี่ยน key ภายใต้ mchId เดิม):** `{ connection: FlashConnectionView, webhook: WebhookReport }`
 
-**Errors:** 400 `INVALID_INPUT` · 403 `NOT_ELIGIBLE`/`FORBIDDEN_ROLE` · 404 `FEATURE_DISABLED` · 409 `MERCHANT_IN_USE` ("mchId นี้ถูกใช้งานอยู่กับร้านอื่น" — ไม่บอกร้าน) · 409 `MERCHANT_CHANGE_NOT_ALLOWED` · 422 `MERCHANT_NOT_FOUND` (1001) · 422 `SIGN_INVALID` (1002) · 502/504 `UPSTREAM_ERROR`/`UPSTREAM_TIMEOUT` (**ไม่บันทึก**)
+**Errors:** 400 `INVALID_INPUT` · 403 `NOT_ELIGIBLE`/`FORBIDDEN_ROLE` · 404 `FEATURE_DISABLED` · 409 `MERCHANT_IN_USE` ("mchId นี้ถูกใช้งานอยู่กับร้านอื่น" — ไม่บอกร้าน) · 409 `MERCHANT_CHANGE_NOT_ALLOWED` · 422 `MERCHANT_NOT_FOUND` (1001) · 422 `SIGN_INVALID` (1002) · 429 `RATE_LIMITED` (key ผิด 1001/1002 ครบ 5 ครั้ง/15 นาที ต่อ user+ร้าน — ไม่ยิง Flash · `src/lib/flash/verify-rl.ts`) · 502/504 `UPSTREAM_ERROR`/`UPSTREAM_TIMEOUT` (**ไม่บันทึก**)
 
 ```json
 // Request
@@ -173,7 +173,7 @@ export const FlashConnectSchema = v.object({
 ปิด webhook ที่ชี้มา Deep (best-effort) → ล้าง key → `DISCONNECTED` · 200 `{ "ok": true }` · ประวัติพัสดุคงอยู่ · Errors: 401/403/409 `NOT_CONNECTED`
 
 ### 4.4 `POST /api/seller/flash/connection/verify` (S2)
-ไม่มี body · เรียก `warehouses` · 200 `FlashConnectionView` (`1001/1002` ⇒ status `TOKEN_INVALID` ในคำตอบ **ไม่ใช่ error**; timeout/อื่น ⇒ status เดิม + 502/504) · 409 `NOT_CONNECTED`
+ไม่มี body · เรียก `warehouses` · 200 `FlashConnectionView` (`1001/1002` ⇒ status `TOKEN_INVALID` ในคำตอบ **ไม่ใช่ error**; timeout/อื่น ⇒ status เดิม + 502/504) · 409 `NOT_CONNECTED` · 429 `RATE_LIMITED` (โควตาเดียวกับ `POST /connection`; verify ที่ได้ `TOKEN_INVALID` นับเป็นความล้มเหลว 1 ครั้ง)
 
 ### 4.5 `GET|PUT /api/seller/flash/settings`
 GET (S1) ⇒ `{ connection: FlashConnectionView, settings: FlashSettings }` · PUT (S2+OWNER) body `FlashSettingsSchema` ⇒ 200 `{ connection, settings }`
@@ -348,6 +348,7 @@ Header ตอบ: `content-type: application/json`, `cache-control: no-store` ·
 | `FEATURE_DISABLED` | 404 | `isFlashDirectEnabled()` ปิดอยู่ |
 | `NOT_FOUND` | 404 | ไม่พบออเดอร์/พัสดุ (รวม id ของ ISHIP) |
 | `PARCEL_NOT_FOUND` | 404 | Flash ไม่พบ pno (1006) |
+| `RATE_LIMITED` | 429 | key ผิดซ้ำเกินโควตาที่ `/connection` + `/connection/verify` (ไม่ยิง Flash) |
 | `NOT_CONNECTED` | 409 | ยังไม่เชื่อม/ถอนแล้ว |
 | `SHIPMENT_EXISTS` | 409 | มีพัสดุ active ของผู้ให้บริการใดก็ได้ |
 | `NEEDS_REVIEW` | 409 | ใบรอตรวจมือ — ลองใหม่ธรรมดาไม่ได้ |
