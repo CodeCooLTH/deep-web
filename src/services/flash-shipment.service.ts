@@ -54,8 +54,8 @@ export type FlashResolveInput =
 
 // ─── helper ภายใน ───────────────────────────────────────────────────────────
 
-function assertEnabled(): void {
-  if (!isFlashDirectEnabled()) throw new FlashServiceError("FEATURE_DISABLED", "ยังไม่เปิดให้เชื่อม Flash ตรง");
+function assertEnabled(shopId: string): void {
+  if (!isFlashDirectEnabled(shopId)) throw new FlashServiceError("FEATURE_DISABLED", "ยังไม่เปิดให้เชื่อม Flash ตรง");
 }
 
 async function requireAccount(shopId: string): Promise<LoadedFlashAccount> {
@@ -253,7 +253,7 @@ export async function createFlashShipment(
   override?: FlashShipmentOverride,
   receiverPatch?: ReceiverPatch,
 ): Promise<ShipmentView> {
-  assertEnabled();
+  assertEnabled(shopId);
   const { account, cred } = await requireAccount(shopId);
 
   // เขียนที่อยู่กลับออเดอร์ "ก่อน" ตรวจ (บทเรียน 00022)
@@ -372,7 +372,7 @@ export async function retryFlashShipment(
   receiverPatch?: ReceiverPatch,
   override?: FlashShipmentOverride,
 ): Promise<ShipmentView> {
-  assertEnabled();
+  assertEnabled(shopId);
   const { account, cred } = await requireAccount(shopId);
   const existing = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId, provider: FLASH },
@@ -434,7 +434,7 @@ export async function resolveReviewShipment(
   shipmentId: string,
   input: FlashResolveInput,
 ): Promise<ShipmentView> {
-  assertEnabled();
+  assertEnabled(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId, provider: FLASH },
     select: { id: true, orderId: true, status: true },
@@ -515,7 +515,7 @@ export interface FlashPnoPreview {
 }
 
 export async function previewFlashPno(shopId: string, pno: string): Promise<FlashPnoPreview> {
-  assertEnabled();
+  assertEnabled(shopId);
   if (!PNO_RE.test(pno)) throw new FlashServiceError("INVALID_INPUT", "เลขพัสดุไม่ถูกต้อง");
   const { cred } = await requireAccount(shopId);
   // 1019/1006 โยนต่อ — ข้อความ "เลขนี้ไม่ใช่ของบัญชี Flash ของร้านนี้" อยู่ใน FlashError.userMessage
@@ -545,7 +545,7 @@ export async function linkFlashShipment(
   orderId: string,
   pno: string,
 ): Promise<ShipmentView> {
-  assertEnabled();
+  assertEnabled(shopId);
   if (!PNO_RE.test(pno)) throw new FlashServiceError("INVALID_INPUT", "เลขพัสดุไม่ถูกต้อง");
   const { cred } = await requireAccount(shopId);
   const order = await prisma.order.findFirst({

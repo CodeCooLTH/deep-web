@@ -134,8 +134,8 @@ const maskId = (id: string) => (id.length <= 5 ? "•".repeat(id.length) : "•"
 const notConnected = () => new FlashServiceError("NOT_CONNECTED", "ร้านนี้ยังไม่ได้เชื่อมต่อกับ Flash");
 
 /** gate ปิด = ไม่ให้เริ่มงานใหม่ (ร้านที่มีแถวอยู่แล้วยังถอน/รับ webhook ได้ — ไม่เรียกฟังก์ชันนี้ในทางเหล่านั้น) */
-function assertEnabled(): void {
-  if (!isFlashDirectEnabled()) throw new FlashServiceError("FEATURE_DISABLED", "ยังไม่เปิดให้เชื่อม Flash ตรง");
+function assertEnabled(shopId: string): void {
+  if (!isFlashDirectEnabled(shopId)) throw new FlashServiceError("FEATURE_DISABLED", "ยังไม่เปิดให้เชื่อม Flash ตรง");
 }
 
 /** บัญชีที่ใช้ยิง Flash ได้ (TOKEN_INVALID ผ่าน — ร้านอาจกำลังวาง key ใหม่/ทดสอบซ้ำ) */
@@ -158,8 +158,8 @@ export async function withFlashGuard<T>(shopId: string, fn: () => Promise<T>): P
   }
 }
 
-function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}, lastPickup: FlashLastPickup | null = null): FlashConnectionView {
-  const available = isFlashDirectEnabled();
+function toConnectionView(shopId: string, a: FlashAccountRow | null, opts: ViewOpts = {}, lastPickup: FlashLastPickup | null = null): FlashConnectionView {
+  const available = isFlashDirectEnabled(shopId);
   const webhookOf = (row: FlashAccountRow | null) => ({
     status: ((row?.webhookStatus as FlashWebhookStatus | null) ?? "NOT_SET") as FlashWebhookStatus,
     registeredAt: row?.webhookRegisteredAt?.toISOString() ?? null,
@@ -203,12 +203,12 @@ function toConnectionView(a: FlashAccountRow | null, opts: ViewOpts = {}, lastPi
 
 /** view + คำขอเรียกรถล่าสุด (อ่านเฉพาะเมื่อเชื่อมอยู่) — ทุกทางที่คืน connection ผ่านที่นี่ */
 async function viewOf(shopId: string, a: FlashAccountRow | null, opts: ViewOpts = {}): Promise<FlashConnectionView> {
-  if (!a || a.status === "DISCONNECTED") return toConnectionView(a, opts);
+  if (!a || a.status === "DISCONNECTED") return toConnectionView(shopId, a, opts);
   const p = await prisma.shipmentPickup.findFirst({
     where: { shopId, provider: FLASH, status: { notIn: ["CANCELLED", "CLOSED"] } },
     orderBy: { createdAt: "desc" },
   });
-  return toConnectionView(a, opts, p && {
+  return toConnectionView(shopId, a, opts, p && {
     id: p.id,
     status: p.status,
     ticketPickupId: p.ticketPickupId,
@@ -264,7 +264,7 @@ export async function connectFlash(
   input: { mchId: string; secretKey: string },
   opts: ViewOpts = {},
 ): Promise<{ connection: FlashConnectionView; webhook: FlashWebhookReport; created: boolean }> {
-  assertEnabled();
+  assertEnabled(shopId);
   const mchId = input.mchId.trim();
   const secretKey = input.secretKey.trim();
 
@@ -584,7 +584,7 @@ export async function estimateFlashPrice(
   shopId: string,
   input: FlashPriceInput,
 ): Promise<{ totalBaht: number; pricingTable: "CONTRACT" | "STANDARD"; estimate: true }> {
-  assertEnabled();
+  assertEnabled(shopId);
   const { account, cred } = await requireAccount(shopId);
   const sender = senderOf(account);
   const missing = findMissingSenderFields(sender);
@@ -642,7 +642,7 @@ export async function requestFlashPickup(
   userId: string,
   input: { parcelCount: number; remark?: string | null },
 ): Promise<FlashPickupView> {
-  assertEnabled();
+  assertEnabled(shopId);
   if (!Number.isInteger(input.parcelCount) || input.parcelCount < 1 || input.parcelCount > 100) {
     throw new FlashServiceError("INVALID_INPUT", "จำนวนพัสดุต้องเป็นจำนวนเต็ม 1–100");
   }
@@ -791,7 +791,7 @@ export async function getFlashPanelOrReason(shopId: string, orderId: string): Pr
       : null;
 
   const account = await findFlashAccount(shopId);
-  const flashState = !isFlashDirectEnabled()
+  const flashState = !isFlashDirectEnabled(shopId)
     ? "UNAVAILABLE"
     : !account
       ? "NOT_CONNECTED"

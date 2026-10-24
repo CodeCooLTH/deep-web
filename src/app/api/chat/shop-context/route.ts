@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
         hasShipping: shipping?.status === "ACTIVE",
         // 00084 CS-23: Flash คนละบัญชีกับ iShip — โหมดสร้างใช้ตัวคำนวณเดียวกัน
         flash: {
-          available: isFlashDirectEnabled(),
+          available: isFlashDirectEnabled(shopId),
           connected: flashAccount?.status === "ACTIVE",
           createMode: resolveChatIshipCreateMode(flashAccount),
         },

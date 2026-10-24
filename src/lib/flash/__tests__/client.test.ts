@@ -32,7 +32,7 @@ const sent = () => {
 
 describe("flashCall — คำขอ", () => {
   it("form-urlencoded + sign ตรงกับ signParams + header + base URL", async () => {
-    vi.stubEnv("FLASH_API_BASE_URL", "https://open-api-tra.flashexpress.com/");
+    vi.stubEnv("OPEN_FLASH_EXPRESS", "uat");
     fetchMock.mockResolvedValue(ok({ x: 1 }));
     await expect(client.flashCall(cred, "/open/v3/orders", { outTradeNo: "T1", zero: 0, blank: " ", dstName: "สมชาย" })).resolves.toEqual({ x: 1 });
     const { url, init, form, headers } = sent();
@@ -51,8 +51,8 @@ describe("flashCall — คำขอ", () => {
     expect(init.body as string).not.toContain(KEY);
   });
 
-  it("ไม่ตั้ง FLASH_API_BASE_URL = production", async () => {
-    vi.stubEnv("FLASH_API_BASE_URL", "");
+  it("OPEN_FLASH_EXPRESS=prod = production", async () => {
+    vi.stubEnv("OPEN_FLASH_EXPRESS", "prod");
     fetchMock.mockResolvedValue(ok());
     await client.warehouses(cred);
     expect(sent().url).toBe("https://open-api.flashexpress.com/open/v1/warehouses");

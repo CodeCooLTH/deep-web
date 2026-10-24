@@ -113,7 +113,7 @@ Serverless (Vercel) — ไม่มีตัวจับเวลาในห�
 - **Webhook ขาเข้า:** `verifyWebhookSign({mchId,nonceStr,sign}, key)` = เทียบ `signParams({mchId,nonceStr}, key)` กับ `sign.toUpperCase()` ด้วย `timingSafeEqual` (ตรวจความยาวก่อน) — เอกสาร Flash ระบุว่าเซ็นเฉพาะ `mchId`+`nonceStr`
 - **Header:** `Accept-Language: th` ทุกคำขอ · `Accept: application/json` (ใบปะหน้า `application/pdf`)
 - **Timeout:** read 10s · estimate 12s · write (create/cancel/notify) 20s · label 30s · verify-ใน-webhook 5s (หมดเวลา = `UPSTREAM_TIMEOUT`)
-- **Base URL:** `FLASH_API_BASE_URL` (ฝั่งเซิร์ฟเวอร์เท่านั้น; ไม่ตั้ง = production; BR-FLASH-18) ไม่รับจากผู้ใช้
+- **Base URL:** ฝังในโค้ดตาม `OPEN_FLASH_EXPRESS` (`prod` → `open-api` · `uat` → `open-api-tra`; ปิด = production) ไม่รับจากผู้ใช้ (BR-FLASH-18)
 - **Postcondition:** ไม่มี key/sign ใน log, ข้อความ error, payload ที่เก็บ, response ทุกชนิด (redact ที่ทุกทางออก)
 - **Edge:** key ที่มีช่องว่างภายในถูกปฏิเสธตั้งแต่ Valibot · ค่า `0` ต้องอยู่ในลายเซ็น (mutation test)
 
@@ -260,6 +260,7 @@ Serverless (Vercel) — ไม่มีตัวจับเวลาในห�
 
 ### TFR-FLASH-022: ประตูปล่อย (BR-FLASH-63) และโหมดทดสอบ
 - **Trace to:** FR-FLASH-001/071 · BR-FLASH-18/60/61/63 · S-1
+> 🔁 **แก้ 2026-10-24 (user สั่ง):** สวิตช์เปิดฟีเจอร์เหลือ env ตัวเดียว `OPEN_FLASH_EXPRESS=prod|uat` (ไม่ตั้ง = ปิด · URL ฝังในโค้ด) + `FLASH_PILOT_SHOP_IDS` (ไม่บังคับ) · เลิกใช้ `FLASH_DIRECT_ENABLED` / `FLASH_API_BASE_URL` / ค่าคงที่ `TRAINING_VECTOR_VERIFIED` — การเชื่อมด้วย key จริงคือการพิสูจน์ลายเซ็นกับ Flash ในตัว (ลายเซ็นผิด = 1002 ไม่บันทึก)
 - `isFlashDirectEnabled()` = `process.env.FLASH_DIRECT_ENABLED==='1' ∧ (TRAINING_VECTOR_VERIFIED ∨ NODE_ENV≠'production')` · `TRAINING_VECTOR_VERIFIED` เป็นค่าคงที่ใน `lib/flash/gate.ts` (เริ่ม `false`) พลิกเป็น `true` ได้เฉพาะคอมมิตที่เพิ่ม `training-vectors.json` จริง — มี blocker test: ถ้า `true` ต้องมีไฟล์ vector ≥ 6 รายการและ `signParams` ผ่านทุกรายการ (บังคับด้วยโค้ด ไม่ใช่คำบรรยาย)
 - ผลเมื่อปิด: `connect`, `createFlashShipment`, `retryFlashShipment`, `resolveReviewShipment`, `previewFlashPno`, `link`, `requestFlashPickup`, `estimateFlashPrice` ⇒ `FEATURE_DISABLED` (404) (ตรงกับ `assertEnabled()` ใน `flash.service.ts` / `flash-shipment.service.ts`) · `GET connection` คืน `available:false` ให้ UI ซ่อนปุ่ม/การ์ด · ร้านที่มีแถว FLASH อยู่แล้ว **ยังรับ webhook/poll/ถอนการเชื่อมต่อได้** (ไม่ทิ้งข้อมูล)
 

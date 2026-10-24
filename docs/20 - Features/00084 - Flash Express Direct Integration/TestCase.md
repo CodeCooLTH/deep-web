@@ -18,6 +18,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]",
 
 # Test Case: เชื่อม Flash Express ตรง (Flash Express Direct Integration)
 
+> 🔁 TC ที่อ้าง `FLASH_DIRECT_ENABLED`/`FLASH_API_BASE_URL`/`TRAINING_VECTOR_VERIFIED` ให้อ่านเป็น `OPEN_FLASH_EXPRESS` — **แก้ 2026-10-24 (user สั่ง):** สวิตช์เปิดฟีเจอร์เหลือ env ตัวเดียว `OPEN_FLASH_EXPRESS=prod|uat` (ไม่ตั้ง = ปิด · URL ฝังในโค้ด) + `FLASH_PILOT_SHOP_IDS` (ไม่บังคับ) · เลิกใช้ `FLASH_DIRECT_ENABLED` / `FLASH_API_BASE_URL` / ค่าคงที่ `TRAINING_VECTOR_VERIFIED` — การเชื่อมด้วย key จริงคือการพิสูจน์ลายเซ็นกับ Flash ในตัว (ลายเซ็นผิด = 1002 ไม่บันทึก)
+
 ---
 
 ## 1. Overview

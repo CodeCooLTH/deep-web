@@ -106,7 +106,7 @@ Vercel serverless เดิม · `vercel.json` เพิ่ม 1 cron `/api/cro
 | `src/lib/flash/sign.ts` | ลายเซ็น | `isBlankValue`, `signParams`, `buildFormBody`, `newNonce`, `verifyWebhookSign` |
 | `src/lib/flash/units.ts` | หน่วย | `bahtToSatang`, `satangToBaht`, `kgToGram`, `gramToKg`, `FlashUnitError`, `parseSatangStrict` |
 | `src/lib/flash/errors.ts` | error | `FlashError`, `FlashErrorCode`, `mapFlashCode`, `redactFlash`, `classifyFlashRetryUX`, `flashUserMessage(code, upstream?)`, `FlashServiceError` |
-| `src/lib/flash/gate.ts` | ประตู/โหมด | `TRAINING_VECTOR_VERIFIED`, `isFlashDirectEnabled`, `isFlashDryRun`, `flashBaseUrl`, `flashWebhookBase` |
+| `src/lib/flash/gate.ts` | ประตู/โหมด | `flashEnv`, `flashPilotShopIds`, `isFlashDirectEnabled(shopId?)`, `isFlashDryRun`, `flashBaseUrl`, `flashWebhookBase` |
 | `src/lib/flash/credential.ts` | envelope/masking | `encodeCredential`, `decodeCredential` (ใช้ `token-crypto`), `maskMerchantId`, `newWebhookSecret`, `hashWebhookSecret` |
 | `src/lib/flash/client.ts` | HTTP | `flashCall` + ฟังก์ชันต่อ endpoint (`warehouses, createOrder, cancelOrder, routes, routesBatch, deliveredInfo, labelPdf, estimateRate, notify, cancelNotify, webhookInfos, setWebhook`) |
 | `src/lib/flash/mapping.ts` | params | `buildCreateOrderParams`, `buildEstimateParams`, `foldCodItems`, `normalizeFlashProvince`, `buildFlashOutTradeNo`, `findMissingFlashParcelFields` |
@@ -437,8 +437,8 @@ Flash ล่ม/ช้า: create ⇒ FAILED (ออเดอร์ไม่ก�
 ### 9.3 env / config
 | env | ใช้ที่ | ค่าเริ่มต้น |
 |-----|-------|-------------|
-| `FLASH_API_BASE_URL` | `flashBaseUrl()` | ว่าง = `https://open-api.flashexpress.com` (training = `https://open-api-tra.flashexpress.com`) |
-| `FLASH_DIRECT_ENABLED` | `isFlashDirectEnabled()` | ว่าง = ปิด (ต้อง `1`; prod ต้องผ่าน `TRAINING_VECTOR_VERIFIED` ด้วย) |
+| `OPEN_FLASH_EXPRESS` | `flashEnv()` · `flashBaseUrl()` · `isFlashDirectEnabled()` | `prod`/`uat` = เปิด + เลือกระบบ Flash · ว่าง/ค่าอื่น = ปิด |
+| `FLASH_PILOT_SHOP_IDS` | `isFlashDirectEnabled(shopId)` | ไม่บังคับ · ตั้งไว้ = เฉพาะร้านในรายชื่อ |
 | `FLASH_DRY_RUN` | `isFlashDryRun()` | ว่าง; `1` ใช้ได้เฉพาะ `NODE_ENV≠production` |
 | `FLASH_WEBHOOK_BASE_URL` | URL ที่ลงทะเบียนกับ Flash | ว่าง = `NEXTAUTH_URL` (dev ต้องตั้งเป็น tunnel ที่ Flash เข้าถึงได้) |
 
