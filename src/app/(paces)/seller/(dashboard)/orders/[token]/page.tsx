@@ -263,7 +263,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
   // 00084 — แผง Flash (บัญชีของร้านเอง) · null = ปิดฟีเจอร์/ออเดอร์ไม่ต้องจัดส่ง → ร้าน iShip เห็นเหมือนเดิม
-  const flashPanelRaw = isFlashDirectEnabled() ? await getFlashPanelOrReason(shop.id, order.id) : null
+  const flashPanelRaw = isFlashDirectEnabled(shop.id) ? await getFlashPanelOrReason(shop.id, order.id) : null
   const flashPanel = flashPanelRaw && !('reason' in flashPanelRaw) ? flashPanelRaw : null
   /**
    * พัสดุล่าสุดของออเดอร์ "ทุกผู้ให้บริการ" (รูป Date เหมือน shipmentPanel.shipment)

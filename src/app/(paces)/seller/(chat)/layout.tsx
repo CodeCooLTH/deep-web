@@ -169,7 +169,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     // ปิดฟีเจอร์อยู่ = ไม่ยิง query เพิ่ม (ร้าน iShip อย่างเดียวไม่ช้าลง) · ขนานกับชุดข้างล่าง
-    const flashSeedP = isFlashDirectEnabled()
+    const flashSeedP = isFlashDirectEnabled(shopId)
       ? prisma.shopShippingAccount
           .findUnique({ where: { shopId_provider: { shopId, provider: 'FLASH' } }, select: { status: true, createMode: true } })
           .then(a => ({ available: true, connected: a?.status === 'ACTIVE', createMode: resolveChatIshipCreateMode(a) }))

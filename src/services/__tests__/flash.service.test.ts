@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import { randomUUID } from "node:crypto";
 
 const { c, env } = vi.hoisted(() => {
-  process.env.FLASH_DIRECT_ENABLED = "1";
+  process.env.OPEN_FLASH_EXPRESS = "uat";
   process.env.FLASH_WEBHOOK_BASE_URL = "https://deep.test";
   process.env.FLASH_DRY_RUN = "";
   process.env.CHANNEL_TOKEN_KEY ??= "0".repeat(64);
@@ -85,13 +85,13 @@ describe.skipIf(!isLocal)("flash.service", () => {
   });
   beforeEach(async () => {
     Object.values(c).forEach((f) => f.mockReset());
-    env.FLASH_DIRECT_ENABLED = "1";
+    env.OPEN_FLASH_EXPRESS = "uat";
     await resetFlash();
   });
 
   describe("gate", () => {
     it("ปิดฟีเจอร์ → connect/estimate/pickup = FEATURE_DISABLED และไม่ยิง Flash", async () => {
-      env.FLASH_DIRECT_ENABLED = "0";
+      env.OPEN_FLASH_EXPRESS = "";
       await expect(connectFlash(S.shop, S.user, { mchId: MCH, secretKey: KEY })).rejects.toMatchObject({ code: "FEATURE_DISABLED" });
       await expect(estimateFlashPrice(S.shop, { receiver: { district: "a", province: "b", postcode: "10110" }, weight: 1 })).rejects.toMatchObject({ code: "FEATURE_DISABLED" });
       await expect(requestFlashPickup(S.shop, S.user, { parcelCount: 1 })).rejects.toMatchObject({ code: "FEATURE_DISABLED" });
@@ -454,7 +454,7 @@ describe.skipIf(!isLocal)("flash.service", () => {
       expect(ready).toMatchObject({ flashState: "READY", provider: "FLASH", canShip: false, blockedBy: { kind: "SENDER" } });
       await updateFlashSettings(S.shop, { ...SENDER, defaultWeight: 1, defaultCategoryId: 2 });
       expect(await getFlashPanelOrReason(S.shop, id)).toMatchObject({ canShip: true, blockedBy: null, defaults: { courierCode: null, weight: 1 } });
-      env.FLASH_DIRECT_ENABLED = "0";
+      env.OPEN_FLASH_EXPRESS = "";
       expect(await getFlashPanelOrReason(S.shop, id)).toMatchObject({ flashState: "UNAVAILABLE" });
     });
     it("ใบ iShip ที่ยังอยู่ → activeElsewhere + canShip=false", async () => {

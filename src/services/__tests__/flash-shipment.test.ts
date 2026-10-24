@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } 
 import { randomUUID } from "node:crypto";
 
 const h = vi.hoisted(() => {
-  process.env.FLASH_DIRECT_ENABLED = "1";
+  process.env.OPEN_FLASH_EXPRESS = "uat";
   process.env.FLASH_DRY_RUN = "";
   process.env.CHANNEL_TOKEN_KEY ??= "0".repeat(64);
   return {
@@ -93,7 +93,7 @@ describe.skipIf(!isLocal)("flash-shipment.service", () => {
     Object.values(h.c).forEach((f) => f.mockReset());
     h.reserve.mockClear();
     h.sync.mockClear();
-    process.env.FLASH_DIRECT_ENABLED = "1";
+    process.env.OPEN_FLASH_EXPRESS = "uat";
     process.env.FLASH_DRY_RUN = "";
     h.c.createOrder.mockImplementation(async () => ({ pno: nextPno(), sortCode: "SC1", sortingLineCode: "L2", dstStoreName: "สาขา" }));
     h.c.estimateRate.mockResolvedValue({ estimatePrice: "6500" });
@@ -101,7 +101,7 @@ describe.skipIf(!isLocal)("flash-shipment.service", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("gate: ปิดฟีเจอร์ → FEATURE_DISABLED ไม่ยิง", async () => {
-    process.env.FLASH_DIRECT_ENABLED = "0";
+    process.env.OPEN_FLASH_EXPRESS = "";
     await expect(createFlashShipment(S.shop, S.user, randomUUID())).rejects.toMatchObject({ code: "FEATURE_DISABLED" });
     expect(h.c.createOrder).not.toHaveBeenCalled();
   });

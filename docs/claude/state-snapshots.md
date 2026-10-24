@@ -527,7 +527,7 @@
 - iShip กับ Flash **อยู่คู่กันได้**: `ShopShippingAccount @@unique([shopId, provider])` แทน `shopId @unique` · ทุก query ต้องระบุ provider
 - **Flash COD ไม่ปิดงานเองเด็ดขาด**: ไม่มีสัญญาณยืนยันเงินโอน → ห้ามผลิต `payment_success`/`codSettledAt` (เทสสแกนซอร์ส `flash*` บังคับ) · ร้านกดยืนยันรับเงินเอง · `delivered` ของ Flash จบที่ delivered
 - ลายเซ็น webhook **ไม่ครอบ `data`** → ทุก state ที่กระทบเงิน/ปิดงาน (4–9) ต้องยืนยันซ้ำด้วย `routes(pno)` ก่อนประทับ (webhook = ตัวกระตุ้น, routes = ความจริง)
-- ปุ่มเชื่อมถูกกั้นด้วย `FLASH_DIRECT_ENABLED=1` **และ** `TRAINING_VECTOR_VERIFIED` (ค่าคงที่ใน `src/lib/flash/gate.ts` ตอนนี้ `false`) — บน prod ปิดจนกว่าจะมี `training-vectors.json` จริง ≥6 รายการที่ `signParams` ผ่าน (พลิกเป็น `true` ได้เฉพาะคอมมิตที่เพิ่มไฟล์นั้น)
+- เปิด/ปิดด้วย env ตัวเดียว `OPEN_FLASH_EXPRESS=prod|uat` (ไม่ตั้ง = ปิดทุกร้าน · URL ฝังในโค้ด) + `FLASH_PILOT_SHOP_IDS` จำกัดร้าน (แก้ 2026-10-24 ตาม user — เลิก `FLASH_DIRECT_ENABLED`/`FLASH_API_BASE_URL`/`TRAINING_VECTOR_VERIFIED`) · 🛑 สลับ uat↔prod แล้วร้านที่เชื่อมไว้ต้องวาง key ใหม่
 - 1003 โดยไม่มี pno → `OrderShipment.status=NEEDS_REVIEW` (ไม่ใช่ FAILED, ไม่ลองใหม่เอง) ออกได้ด้วย resolve `LINK_PNO`/`REOPEN` · ไม่เพิ่มชนิด `OrderEvent` (ใช้ `SHIPMENT_CANCELLED` meta `FLASH_REVIEW_REOPEN`)
 
 **กับดัก**
