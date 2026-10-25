@@ -107,7 +107,7 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
   })
 
   it('ร่าง (DRAFTED) + คืนของครบใบ (RETURNED) ไม่ถูกนับ — ชุดแถวเดียวกับ receivable.service และชีต', () => {
-    expect(page).toMatch(/o\.status !== DRAFTED_STATUS && o\.status !== 'RETURNED'/)
+    expect(page).toMatch(/o\.status !== DRAFTED_STATUS && !\(newRules && o\.status === 'RETURNED'\)/)
     const recv = readFileSync(join(process.cwd(), 'src/services/receivable.service.ts'), 'utf8')
     // 00073: ค้างรับ = งานที่ร้านปิดแล้ว (serviceRevenueOrderWhere ตัด DRAFTED/CANCELLED/RETURNED ในตัว — SERVICE_NON_REVENUE_STATUSES)
     expect(recv).toMatch(/\.\.\.serviceRevenueOrderWhere\(range\.orderRange\)/)
@@ -116,7 +116,8 @@ describe('[blocker] แท็บยอดเก็บเงินร้านบ
     const dash = readFileSync(join(process.cwd(), 'src/services/dashboard.service.ts'), 'utf8')
     // ร้านบริการเท่านั้นที่ตัด RETURNED (ร้านอื่นของเดิม — มติ user 2026-10-02)
     expect(dash).toMatch(/withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/)
-    expect(page).toMatch(/const allOrders = newRules\s*\?\s*shopOrders\.filter/)
+    // ร่างตัดทุกร้าน (ชีตมือถือ withoutDrafted ทุกร้าน — user 2026-10-25) · RETURNED เฉพาะร้านบริการ
+    expect(page).toMatch(/const allOrders = shopOrders\.filter/)
   })
 
   it('กราฟ/ตารางร้านบริการแยก รับจริง | ค้างรับ รายวัน จาก receivable.daily', () => {

@@ -7,7 +7,7 @@
  * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate, thaiDayKey, localDayKey } from '@/lib/format-date'
+import { formatDate, thaiDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import NoPermissionCard from '../_shared/NoPermissionCard'
@@ -24,7 +24,7 @@ import type { DailyRow, SummaryData } from './components/data'
 import { resolveRangeFromParams, thaiMidnightUtc, todayThaiIsoDate } from '@/lib/date-range'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { DRAFTED_STATUS } from '@/lib/order-visibility'
-import { countsAsServiceRevenue, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
+import { countsAsRevenueFor, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { resolveShopVertical } from '@/lib/lodging'
@@ -42,6 +42,7 @@ import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
 import ServiceReportPanel from '../_shared/service-report/ServiceReportPanel'
 import { getServiceReportData } from '@/services/service-report.service'
 import { SERVICE_REPORT_WORDS } from '@/lib/service-report/words'
+import { serviceReportPeriodFromRange } from '@/lib/service-report/period-from-range'
 import ServiceFinanceChart from './components/ServiceFinanceChart'
 import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, serviceReportChart, serviceReportView, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
 import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
@@ -70,17 +71,14 @@ function eachDay(from: Date, toExcl: Date): string[] {
  * ต้องได้ตัวเลขและ %เทียบช่วงก่อนเท่าเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
  */
 function legacyMonthRange(): { from: Date; toExcl: Date; label: { start: string; end: string } } {
-  const fromLocal = new Date()
-  fromLocal.setDate(1)
-  fromLocal.setHours(0, 0, 0, 0)
-  const toLocal = new Date(fromLocal)
-  toLocal.setMonth(toLocal.getMonth() + 1)
-  toLocal.setDate(0)
-  toLocal.setHours(23, 59, 59, 999)
+  // เดือนตามปฏิทินไทย — เดิมใช้ getter ของ server (UTC บน Vercel) ⇒ 7 ชม.แรกของเดือนได้เดือนก่อน
+  const [y, m] = todayThaiIsoDate().split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const pad = (n: number) => String(n).padStart(2, '0')
   return {
-    from: thaiMidnightUtc(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate()),
-    toExcl: thaiMidnightUtc(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1),
-    label: { start: localDayKey(fromLocal), end: localDayKey(toLocal) },
+    from: thaiMidnightUtc(y, m - 1, 1),
+    toExcl: thaiMidnightUtc(y, m, 1),
+    label: { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}` },
   }
 }
 
@@ -165,9 +163,9 @@ export default async function SalesPage({
       if (typeof sp.end === 'string') qs.set('end', sp.end)
       redirect(`/expenses${qs.size ? `?${qs}` : ''}`)
     }
-    const [nowYear, nowMonth] = todayThaiIsoDate().split('-').map(Number)
     const settings = resolveReportSettings(shop.reportSettings, shop.vertical)
-    const initial = await getServiceReportData(shop.id, shop.vertical, 'daily', { year: nowYear, month: nowMonth })
+    const { mode, ...reportPeriod } = serviceReportPeriodFromRange(period.resolved.label)
+    const initial = await getServiceReportData(shop.id, shop.vertical, mode, reportPeriod)
     return (
       <>
         <PageBreadcrumb title={SERVICE_REPORT_WORDS.pageTitle} trail={[{ label: 'ธุรกิจ' }]} />
@@ -306,14 +304,13 @@ export default async function SalesPage({
     newRules && isServiceNoShow(o)
       ? serviceNoShowRevenue(o.payments ?? [])
       : netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
-  const allOrders = newRules
-    ? shopOrders.filter((o) => o.status !== DRAFTED_STATUS && o.status !== 'RETURNED')
-    : shopOrders
+  // ร่างออเดอร์ตัดทุกร้าน (ชุดเดียวกับชีตมือถือ getSalesSeries · withoutDrafted) · RETURNED ตัดเฉพาะร้านบริการ
+  const allOrders = shopOrders.filter((o) => o.status !== DRAFTED_STATUS && !(newRules && o.status === 'RETURNED'))
   /**
-   * นับเป็นยอดขายไหม — ร้านบริการ: งานที่ร้านปิดแล้ว (feature 00073 · SSOT order-revenue.ts)
-   * ร้านอื่น: status === 'CONFIRMED' ตามเดิม
+   * นับเป็นยอดขายไหม — ตัวกลางเดียวกับชีตมือถือ (getSalesSeries) · ร้านบริการ: งานที่ร้านปิดแล้ว (00073)
+   * ร้านอื่น: countsAsRevenue (ลูกค้ายืนยัน หรือขนส่งรับของแล้ว) — เดิม CONFIRMED อย่างเดียว ⇒ ยอดไม่ตรงมือถือ (user 2026-10-25)
    */
-  const isSale = (o: (typeof shopOrders)[number]) => (newRules ? countsAsServiceRevenue(o) : o.status === 'CONFIRMED')
+  const isSale = (o: (typeof shopOrders)[number]) => countsAsRevenueFor(o, shop.vertical)
   /**
    * วันที่ของแถว — ร้านบริการ: งานที่ปิดแล้วอยู่วันปิดงาน · งานที่ยังไม่ปิดอยู่วันที่สร้าง (ยังไม่มีวันปิด)
    * ร้านอื่น: createdAt ตามเดิม · 🛑 ช่วงเวลา/ตาราง/กราฟใช้ตัวนี้ตัวเดียว ไม่งั้นแถวกับยอดคนละวัน
@@ -343,8 +340,8 @@ export default async function SalesPage({
       else if (isSale(o)) { revenue += amountOf(o); completed++ }
       else { unconfirmed += amountOf(o) }
     }
-    // orders = ร้านบริการไม่นับใบยกเลิก (นิยามเดียวกับชีต) · ร้านอื่นนับทุกใบตามเดิม
-    return { revenue, unconfirmed, completed, cancelled, orders: newRules ? rows.length - cancelled : rows.length }
+    // orders = ไม่นับใบยกเลิก (นิยามเดียวกับ orderCounts ของชีตมือถือ)
+    return { revenue, unconfirmed, completed, cancelled, orders: rows.length - cancelled }
   }
   const prevWindow = sumWindow(inPrevRange)
 
@@ -398,9 +395,6 @@ export default async function SalesPage({
       // "ออเดอร์" ของวันไม่นับใบยกเลิก — นิยามเดียวกับชีตหน้าหลัก (orderCounts) · ใบยกเลิกนับแยกที่การ์ด
       ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
       billPerDay[day] = (billPerDay[day] ?? 0) + 1
-    } else if (!newRules) {
-      // ร้านที่ไม่ใช่บริการ: นับใบยกเลิกในจำนวนออเดอร์ของวันตามเดิม
-      ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
     }
     /**
      * 🛑 "ขายแล้ว/ยืนยันแล้ว" = countsAsRevenue (SSOT `lib/order-revenue.ts` — user เคาะ 2026-08-05:
@@ -484,8 +478,8 @@ export default async function SalesPage({
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
   const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
-  // ร้านบริการ: totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว · ร้านอื่น: สูตรเดิม (หักยกเลิก)
-  const unconfirmedCount = newRules ? totalOrders - totalCompleted : totalOrders - totalCompleted - cancelledCount
+  // totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว
+  const unconfirmedCount = totalOrders - totalCompleted
   const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
 
   const summary: SummaryData = {

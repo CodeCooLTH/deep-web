@@ -69,16 +69,15 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
  * src/services/__tests__/finance-rules-by-vertical.test.ts — ไฟล์นี้ปักหมุดว่าทุกจุด "แยกตามประเภทร้าน" จริง
  */
 describe('[blocker] นิยามใหม่ใช้กับร้านบริการ — ร้านอื่นได้ของเดิม', () => {
-  it('/sales: ร้านบริการนับงานที่ปิดแล้วตามวันปิดงาน (00073) · ร้านอื่นนับ status === CONFIRMED ตามเดิม', () => {
+  it('/sales: ตัวตัดสินเดียวกับชีตมือถือ (countsAsRevenueFor) — ร้านบริการนับงานที่ปิดแล้ว · ร้านอื่น countsAsRevenue (user 2026-10-25)', () => {
     const page = read(D + 'sales/page.tsx')
     expect(page).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
-    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? countsAsServiceRevenue\(o\) : o\.status === 'CONFIRMED'\)/)
+    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => countsAsRevenueFor\(o, shop\.vertical\)/)
     expect(page).toMatch(/o\.status !== 'CANCELLED' && isSale\(o\)/)
     // แกนวันที่: ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ตัวตัดสินเดียว revenueDateFor)
     expect(page).toMatch(/const dateOf = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? revenueDateFor\(o, shop\.vertical\) : new Date\(o\.createdAt\)\)/)
-    // ห้ามมีที่ไหนเรียกตัวตัดสินตรง ๆ แบบไม่ผ่าน isSale (จะหลุดไปใช้กับร้านขายของ)
-    expect(page.match(/countsAsServiceRevenue\(o\)/g)?.length).toBe(1)
-    expect(page).not.toMatch(/countsAsRevenue\(o\)/)
+    // ห้ามเรียกตัวตัดสินตรง ๆ แบบไม่ผ่าน isSale
+    expect(page).not.toMatch(/countsAsServiceRevenue\(o\)|countsAsRevenue\(o\)|o\.status === 'CONFIRMED'/)
   })
 
   it('ชีตหน้าหลัก: ร้านบริการ = ยืนยันแล้ว − … · ร้านอื่น = ยอดทุกบิล − ต้นทุนทุกบิล − ค่าส่งทุกบิล (สูตรเดิม)', () => {

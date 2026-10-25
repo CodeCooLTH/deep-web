@@ -3493,7 +3493,21 @@ export default function ChatThread({
 
             wrap ไม่ย้ายจุดยึดของแผงอิโมจิ/สติกเกอร์ — แผงพวกนั้นเป็น absolute ที่ยึดกับ
             `div.relative` ของ *ปุ่มตัวเอง* ไม่ใช่ยึดกับแถว (เหตุผลเต็มอยู่ที่ปุ่มสติกเกอร์) */}
-        <div className="mb-2 flex flex-wrap items-center gap-1">
+        <div className="relative mb-2 flex flex-wrap items-center gap-1">
+          {/* ชิป "เปิดให้ Meta AI ตอบ" — bubble ลอยเหนือแถวเครื่องมือ (user สั่ง 2026-10-25) ไม่กินบรรทัดของ composer
+              Base: ปุ่ม "ส่ง" ในไฟล์นี้ (btn-sm + rounded-full + min-h-11 sm:min-h-0) — พื้น card + เงาให้ลอยเหนือรายการข้อความ
+              · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) · ซ่อนตอนแผงข้อความสำเร็จรูป/AI/สินค้ากางอยู่ (ไม่ให้ทับแผง) */}
+          {showReleaseToAiChip && activePanel === null && (
+            <button
+              type="button"
+              onClick={releaseToMetaAi}
+              disabled={releaseBusy}
+              className="btn btn-sm bg-card text-default-700 hover:bg-default-100 border-default-200 absolute start-0 bottom-full z-10 mb-2 min-h-11 gap-1 rounded-full border shadow-md disabled:opacity-60 sm:min-h-0"
+            >
+              <Icon icon={releaseBusy ? 'loader-2' : 'robot'} className={releaseBusy ? 'animate-spin text-base' : 'text-base'} aria-hidden="true" />
+              เปิดให้ Meta AI ตอบ
+            </button>
+          )}
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
             type="button"
@@ -3724,19 +3738,6 @@ export default function ChatThread({
         {/* tone info→success (2026-08-26): แถบนี้โผล่ได้เฉพาะตอน Meta **ยืนยันแล้วจริง** ว่าเรา
             ถือสิทธิ์ (outcome TAKEN) ไม่ใช่ "เรากดปุ่มแล้ว" เหมือนก่อนหน้านี้ — success ของ Paces
             เป็น token ของสกินนี้เอง คนละตัวกับ Verified Green ของฝั่ง buyer */}
-        {/* Base: ปุ่ม "ส่ง" ในไฟล์นี้ (btn-sm + rounded-full + min-h-11 sm:min-h-0) — เปลี่ยนสีเป็น
-            bg-default-100 ให้เป็นปุ่มรองแบบชิปของ Business Suite · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) */}
-        {showReleaseToAiChip && (
-          <button
-            type="button"
-            onClick={releaseToMetaAi}
-            disabled={releaseBusy}
-            className="btn btn-sm bg-default-100 text-default-700 hover:bg-default-200 mb-2 min-h-11 gap-1 rounded-full disabled:opacity-60 sm:min-h-0"
-          >
-            <Icon icon={releaseBusy ? 'loader-2' : 'robot'} className={releaseBusy ? 'animate-spin text-base' : 'text-base'} aria-hidden="true" />
-            เปิดให้ Meta AI ตอบ
-          </button>
-        )}
         {showManualOverrideStrip && (
           <div className="border-success bg-success/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
             <Icon icon="robot" className="text-success-ink mt-0.5 shrink-0 text-base" />
