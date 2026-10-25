@@ -762,6 +762,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           <button
             type="button"
             onClick={() => switchMode('daily')}
+            aria-pressed={mode === 'daily'}
             className={`min-h-11 rounded-md px-3 text-xs font-medium transition-colors ${
               mode === 'daily' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
@@ -771,6 +772,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           <button
             type="button"
             onClick={() => switchMode('monthly')}
+            aria-pressed={mode === 'monthly'}
             className={`min-h-11 rounded-md px-3 text-xs font-medium transition-colors ${
               mode === 'monthly' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
@@ -1003,7 +1005,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             </div>
           ) : loading ? (
             // skeleton บน chart area เท่านั้น — ไม่กระพริบทั้ง sheet (total/subtitle ด้านบนยังโชว์ค่าเดิมค้างไว้)
-            <div className="animate-pulse rounded-lg bg-default-100" style={{ height: 220 }} />
+            <div className="animate-pulse rounded-lg bg-default-100" style={{ height: isPage ? 280 : 220 }} /* สูงเท่ากราฟจริง — ไม่งั้นหน้ากระโดดตอนโหลดเสร็จ */ />
           ) : isEmpty ? (
             <SellerEmptyState compact icon="chart-bar-off" title="ยังไม่มียอดขายในช่วงนี้" />
           ) : (
@@ -1066,7 +1068,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               — 12 ตัวอักษรใน min-w-14 ตกบรรทัดแน่นอน แล้วหัวตารางจะสูงเป็นสองเท่าทั้งแถว */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
             <div className={`mt-5 overflow-x-auto ${isPage ? 'lg:mt-0' : ''}`}>
-              <div className="flex items-center gap-1.5 border-b border-default-200 py-2 text-xs text-default-700">
+              <div className={`flex items-center gap-1.5 border-b border-default-200 py-2 text-xs text-default-700 ${isPage ? 'lg:text-sm' : ''}`}>
                 {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
                     ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
                 <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
@@ -1108,7 +1110,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                   // สูตรเดียวกับ hero เป๊ะ — ทุกแถวบวกกันแล้วต้องได้ตัวเลขใหญ่ด้านบน
                   const rowProfit = r.value - r.cogs - r.expense
                   return (
-                    <div key={r.label} className="flex items-center gap-1.5 py-2.5 text-xs">
+                    <div key={r.label} className={`flex items-center gap-1.5 py-2.5 text-xs ${isPage ? 'lg:text-sm' : ''}` /* desktop อ่านจากระยะจอ — 12px เล็กเกิน */}>
                       <span className="w-8 shrink-0 text-center text-default-800">{r.label}</span>
                       {(!isService || rs.jobCount) && (
                       <span className="w-11 shrink-0 text-center text-default-800 tabular-nums">
