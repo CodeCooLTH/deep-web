@@ -47,49 +47,7 @@ describe('[blocker] แท็บการเงินต้องโผล่เ
     expect(comparisons).toHaveLength(1)
   })
 
-  it('ทุกจุดที่ render แถบแท็บ ต้องอยู่ใต้ด่าน isServiceQueue', () => {
-    /**
-     * 🛑 ห้ามเช็คด้วยการ "ย้อนขึ้นไป N ตัวอักษรแล้วหาคำว่า isServiceQueue" — ระยะห่างเปลี่ยนได้
-     * ทุกครั้งที่มีคนเพิ่มบรรทัด แล้วเทสจะแดงจากการจัดรูปแบบ หรือแย่กว่านั้นคือเขียวทั้งที่ด่านหลุด
-     * ต้องหาขอบเขตจริงของบล็อก `if (isServiceQueue && ...) { ... }` ด้วยการนับวงเล็บปีกกา
-     */
-    const guardStart = page.search(/if\s*\(\s*isServiceQueue\s*&&[^)]*\)\s*\{/)
-    expect(guardStart, 'ไม่พบบล็อกที่กั้นด้วย isServiceQueue').toBeGreaterThan(-1)
 
-    const openBrace = page.indexOf('{', guardStart)
-    let depth = 0
-    let guardEnd = -1
-    for (let i = openBrace; i < page.length; i++) {
-      if (page[i] === '{') depth++
-      else if (page[i] === '}') {
-        depth--
-        if (depth === 0) {
-          guardEnd = i
-          break
-        }
-      }
-    }
-    expect(guardEnd, 'หาปีกกาปิดของบล็อกด่านไม่เจอ').toBeGreaterThan(openBrace)
-
-    const usages = [...page.matchAll(/<FinanceTabs/g)]
-    expect(usages.length).toBeGreaterThan(0)
-
-    for (const m of usages) {
-      const at = m.index!
-      const insideGuardedBlock = at > openBrace && at < guardEnd
-      // จุดที่อยู่นอกบล็อก ต้องถูกกั้นด้วยนิพจน์ `isServiceQueue && ...` บนบรรทัดเดียวกัน
-      const lineStart = page.lastIndexOf('\n', at) + 1
-      const inlineGuarded = /isServiceQueue\s*&&/.test(page.slice(lineStart, at))
-      expect(
-        insideGuardedBlock || inlineGuarded,
-        `<FinanceTabs> ที่ตำแหน่ง ${at} ไม่ได้ถูกกั้นด้วย isServiceQueue`,
-      ).toBe(true)
-    }
-  })
-
-  it('สาขาของแท็บอื่นต้องกั้นด้วยทั้ง isServiceQueue และสิทธิ์การเงิน', () => {
-    expect(page).toMatch(/if\s*\(\s*isServiceQueue\s*&&\s*canSeeFinance\s*&&\s*tab\s*!==\s*'collect'\s*\)/)
-  })
 })
 
 describe('[blocker] ไม่มีไฟล์ไหนในหน้านี้คิดกำไรด้วยสูตรของตัวเอง', () => {

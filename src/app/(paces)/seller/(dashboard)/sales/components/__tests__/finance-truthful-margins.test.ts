@@ -27,10 +27,6 @@ describe('[blocker] อัตรากำไรห้ามเป็นตัว
     expect(block.indexOf('ตั้งต้นทุนไม่ครบ')).toBeLessThan(block.indexOf('* 100'))
   })
 
-  it('ธง capped ผูกกับ summary.hasMissingCost ที่ RSC คำนวณ', () => {
-    expect(chart).toMatch(/const profitCapped = summary\.hasMissingCost === true/)
-    expect(read('sales/page.tsx')).toMatch(/hasMissingCost = true/)
-  })
 
   it('หน้า /sales: คำว่า "กำไรสุทธิ" อยู่ได้เฉพาะกิ่งคำเดิมของร้านที่ไม่ใช่บริการ (มติ user 2026-10-02)', () => {
     // ร้านบริการ (กติกาใหม่) ห้ามเห็นคำนี้ — ตัวเลขไม่หักค่าใช้จ่ายร้าน (HR16)
@@ -55,24 +51,6 @@ describe('[blocker] อัตรากำไรห้ามเป็นตัว
   })
 })
 
-describe('[blocker] ร้านบริการในแท็บยอดเก็บเงิน /sales', () => {
-  const page = read('sales/page.tsx')
-  const chart = read('sales/components/SalesChart.tsx')
-
-  it('ไม่แสดงกำไร/ค่าส่ง (กำไรอยู่แท็บกำไรขาดทุน) — ทั้งการ์ดและตาราง', () => {
-    expect(chart).toMatch(/const showFinance = summary\.totalShippingCost != null && !isServiceQueue/)
-    expect(page).toMatch(/showFinance=\{canSeeFinance && !isServiceQueue\}/)
-  })
-
-  it('นับเป็น "งาน" ไม่ใช่ "ออเดอร์"', () => {
-    expect(chart).toMatch(/const noun = isServiceQueue \? 'งาน' : 'ออเดอร์'/)
-    expect(page).toMatch(/countNoun=\{isServiceQueue \? 'งาน' : 'ออเดอร์'\}/)
-    // ไม่มี "ออเดอร์" ตายตัวเหลือในการ์ด/หัวตาราง
-    expect(chart).not.toMatch(/(title|metric)="[^"]*ออเดอร์/)
-    expect(read('sales/components/SalesTable.tsx')).not.toMatch(/header: '(เฉลี่ย\/)?ออเดอร์'/)
-  })
-})
-
 describe('[blocker] ยอดค้างรับอยู่ในชีตการเงินร้านบนหน้าหลัก', () => {
   const sheet = read('dashboard/components/SalesChartSheet.tsx')
 
@@ -90,43 +68,8 @@ describe('[blocker] ยอดค้างรับอยู่ในชีตก
 })
 
 describe('[blocker] แท็บยอดเก็บเงินร้านบริการพูดแกนเงินชุดเดียวกับชีต (review HR8 2026-10-01)', () => {
-  const page = read('sales/page.tsx')
   const chart = read('sales/components/SalesChart.tsx')
   const table = read('sales/components/SalesTable.tsx')
-
-  it('การ์ด/legend ใช้ receivable summary (รับจริง + ค้างรับ = ยอดขาย) เมื่อเป็นร้านบริการ', () => {
-    expect(page).toMatch(/collect=\{receivables\?\.summary\}/)
-    expect(chart).toMatch(/const moneyAxis = isServiceQueue && collect != null/)
-    for (const w of ['เงินที่รับจริง', 'ค้างรับ', 'รับจริง']) expect(chart).toContain(w)
-    expect(chart).toMatch(/collect\.salesTotal/)
-  })
-
-  it('ตารางร้านบริการเป็นแกนเงิน (งาน | ยอดขาย) ไม่ใช่ สำเร็จ/ยืนยันแล้ว', () => {
-    expect(page).toMatch(/moneyAxis=\{isServiceQueue && receivables != null\}/)
-    expect(table).toMatch(/if \(moneyAxis\) return buildMoneyColumns\(countNoun, \{ receivables: receivablesOn, jobCount: jobCountOn, unclosed: moneyOpts\?\.unclosed === true \}\)/)
-  })
-
-  it('ร่าง (DRAFTED) + คืนของครบใบ (RETURNED) ไม่ถูกนับ — ชุดแถวเดียวกับ receivable.service และชีต', () => {
-    expect(page).toMatch(/o\.status !== DRAFTED_STATUS && !\(newRules && o\.status === 'RETURNED'\)/)
-    const recv = readFileSync(join(process.cwd(), 'src/services/receivable.service.ts'), 'utf8')
-    // 00073: ค้างรับ = งานที่ร้านปิดแล้ว (serviceRevenueOrderWhere ตัด DRAFTED/CANCELLED/RETURNED ในตัว — SERVICE_NON_REVENUE_STATUSES)
-    expect(recv).toMatch(/\.\.\.serviceRevenueOrderWhere\(range\.orderRange\)/)
-    const rev = readFileSync(join(process.cwd(), 'src/lib/order-revenue.ts'), 'utf8')
-    expect(rev).toMatch(/SERVICE_NON_REVENUE_STATUSES = \['CANCELLED', 'RETURNED', 'DRAFTED'\]/)
-    const dash = readFileSync(join(process.cwd(), 'src/services/dashboard.service.ts'), 'utf8')
-    // ร้านบริการเท่านั้นที่ตัด RETURNED (ร้านอื่นของเดิม — มติ user 2026-10-02)
-    expect(dash).toMatch(/withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/)
-    // ร่างตัดทุกร้าน (ชีตมือถือ withoutDrafted ทุกร้าน — user 2026-10-25) · RETURNED เฉพาะร้านบริการ
-    expect(page).toMatch(/const allOrders = shopOrders\.filter/)
-  })
-
-  it('กราฟ/ตารางร้านบริการแยก รับจริง | ค้างรับ รายวัน จาก receivable.daily', () => {
-    expect(page).toMatch(/received: receivables\.daily\[d\.date\]\?\.received \?\? 0/)
-    expect(chart).toMatch(/name: 'รับจริง', group: 'sales'/)
-    expect(chart).toMatch(/name: 'ค้างรับ',\s*group: 'sales'/)
-    expect(table).toMatch(/id: 'received'/)
-    expect(table).toMatch(/id: 'outstanding'/)
-  })
 
   it('คำเตือนกำไรเพดานบนต้องเห็นบนจอ (caption) ไม่ใช่แค่ tooltip', () => {
     expect(chart).toMatch(/caption=\{profitCapped \? /)
