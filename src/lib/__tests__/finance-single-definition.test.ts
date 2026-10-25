@@ -45,7 +45,6 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
       ['src/services/receivable.service.ts', /totalAmount: netOfReturns\(Number\(r\.totalAmount\), returnAdj\.get\(r\.id\)\)/],
       ['src/services/product-sales-series.service.ts', /it\.qty - \(returnAdj\.get\(it\.orderId\)\?\.returnedQtyByItem\[it\.id\]/],
       ['src/services/customer-directory.service.ts', /: netOfReturns\(Number\(o\.totalAmount\), returnAdj\.get\(o\.id\)\)/],
-      [D + 'sales/page.tsx', /netOfReturns\(Number\(o\.totalAmount \?\? 0\), returnAdj\.get\(o\.id\)\)/],
       [D + 'dashboard/page.tsx', /netOfReturns\(Number\(o\.totalAmount\), returnAdj\.get\(o\.id\)\)/],
       [D + 'orders/[token]/page.tsx', /\(await getReturnAdjustments\(shop\.id\)\)\.get\(order\.id\)/],
     ]
@@ -69,16 +68,6 @@ describe('[blocker] คืนบางส่วน — ตัวกลางเ�
  * src/services/__tests__/finance-rules-by-vertical.test.ts — ไฟล์นี้ปักหมุดว่าทุกจุด "แยกตามประเภทร้าน" จริง
  */
 describe('[blocker] นิยามใหม่ใช้กับร้านบริการ — ร้านอื่นได้ของเดิม', () => {
-  it('/sales: ตัวตัดสินเดียวกับชีตมือถือ (countsAsRevenueFor) — ร้านบริการนับงานที่ปิดแล้ว · ร้านอื่น countsAsRevenue (user 2026-10-25)', () => {
-    const page = read(D + 'sales/page.tsx')
-    expect(page).toMatch(/const newRules = usesServiceFinanceRules\(shop\.vertical\)/)
-    expect(page).toMatch(/const isSale = \(o: \(typeof shopOrders\)\[number\]\) => countsAsRevenueFor\(o, shop\.vertical\)/)
-    expect(page).toMatch(/o\.status !== 'CANCELLED' && isSale\(o\)/)
-    // แกนวันที่: ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ตัวตัดสินเดียว revenueDateFor)
-    expect(page).toMatch(/const dateOf = \(o: \(typeof shopOrders\)\[number\]\) => \(newRules \? revenueDateFor\(o, shop\.vertical\) : new Date\(o\.createdAt\)\)/)
-    // ห้ามเรียกตัวตัดสินตรง ๆ แบบไม่ผ่าน isSale
-    expect(page).not.toMatch(/countsAsServiceRevenue\(o\)|countsAsRevenue\(o\)|o\.status === 'CONFIRMED'/)
-  })
 
   it('ชีตหน้าหลัก: ร้านบริการ = ยืนยันแล้ว − … · ร้านอื่น = ยอดทุกบิล − ต้นทุนทุกบิล − ค่าส่งทุกบิล (สูตรเดิม)', () => {
     const sheet = read(D + 'dashboard/components/SalesChartSheet.tsx')
@@ -109,7 +98,7 @@ describe('[blocker] นิยามใหม่ใช้กับร้านบ
     expect(pnl).toMatch(/const shippingCost = newRules \? round2\(shipping\) : 0/)
     expect(pnl).toMatch(/\(newRules \? prevSums\.shipping : 0\)/)
     // ผู้เรียกทุกรายต้องส่ง vertical (ไม่มีค่าเริ่มต้นให้หลุดไปทางใดทางหนึ่งเงียบ ๆ)
-    for (const f of [D + 'sales/page.tsx', D + 'expenses/page.tsx', 'src/app/api/expenses/report/route.ts']) {
+    for (const f of [D + 'expenses/page.tsx', 'src/app/api/expenses/report/route.ts']) {
       const src = read(f)
       const calls = src.match(/getPnlReport\([^)]*\)/g) ?? []
       expect(calls.length, f).toBeGreaterThan(0)

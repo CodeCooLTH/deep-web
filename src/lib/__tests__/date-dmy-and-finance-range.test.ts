@@ -122,12 +122,6 @@ describe('[blocker] ช่วงเวลาหน้าการเงิน �
     expect(src).not.toMatch(/router\.push\(`\?from=/)
   })
 
-  it('แท็บกำไรขาดทุนมีตัวเลือกช่วงเวลา และทุกแท็บอ่านช่วงจาก resolveRangeFromParams ตัวเดียว', () => {
-    const page = readFileSync(join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/sales/page.tsx'), 'utf8')
-    expect(page.match(/resolveRangeFromParams\(/g)).toHaveLength(1)
-    expect(page.match(/\{rangeFilter\}/g)?.length).toBeGreaterThanOrEqual(2)
-    expect(page).not.toMatch(/label\.start\} – \$\{range\.label\.end/)
-  })
 })
 
 describe('formatBahtCompact — ป้ายแกนกราฟ', () => {
@@ -178,11 +172,6 @@ describe('[blocker] review 2026-10-01 — ตัวเลือกวันท�
     expect(src).toMatch(/onCustomChangeRef\.current\(pair\)/)
   })
 
-  it('รายการต้องตามเก็บบน /sales รีเซ็ตเมื่อช่วงเปลี่ยน (key)', () => {
-    const page = read('src/app/(paces)/seller/(dashboard)/sales/page.tsx')
-    const at = page.indexOf('<ReceivableList')
-    expect(page.slice(at, at + 600)).toMatch(/key=\{`\$\{period\.resolved\.label\.start\}/)
-  })
 
   it('การ์ดกำไรสุทธิในแท็บค่าใช้จ่าย//expenses ได้ capped + costNoun', () => {
     const ws = read('src/app/(paces)/seller/(dashboard)/expenses/components/ExpenseWorkspace.tsx')

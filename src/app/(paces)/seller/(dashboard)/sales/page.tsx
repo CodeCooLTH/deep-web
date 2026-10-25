@@ -1,15 +1,14 @@
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/page.tsx
  *
- * Re-sourced S15 (Phase B): single-card layout (chart-on-top, table-below) จาก Paces theme.
- * ตัด Flatpickr ออกจาก page — ย้ายไปอยู่ใน SalesDateRange client component แทน
- * (SalesDateRange ขับ real date filtering ผ่าน ?from=&to= searchParams → real data).
- * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
+ * หน้า "ยอดขายและกำไร" — เนื้อในเป็นคอมโพเนนต์ตัวเดียวกับชีตบนมือถือทุกประเภทร้าน
+ * - ร้านบริการ: ServiceReportPanel (00078) · ข้อมูล getServiceReportData
+ * - ร้านอื่น: SalesChartSheet layout="page" · ข้อมูล getSalesSeries + withShippingExpenses ชุดเดียวกับหน้าแรก
+ * 🛑 เดิมร้านอื่นคิดยอดเองจากออเดอร์ทั้งร้าน (กำไร = เฉพาะใบยืนยัน) ⇒ ยอด/การ์ด/ลำดับแถวไม่ตรงมือถือ
+ *    (user 2026-10-25: วันที่ 24 มือถือกำไร 4,311 เว็บได้น้อยกว่า) — ห้ามกลับไปคำนวณเองที่หน้านี้
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate, thaiDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
-import { getOrdersByShop } from '@/services/order.service'
 import NoPermissionCard from '../_shared/NoPermissionCard'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
@@ -17,70 +16,19 @@ import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
-import SalesChart from './components/SalesChart'
-import SalesTable from './components/SalesTable'
-import SalesDateRange from './components/SalesDateRange'
-import type { DailyRow, SummaryData } from './components/data'
-import { resolveRangeFromParams, thaiMidnightUtc, todayThaiIsoDate } from '@/lib/date-range'
-import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { DRAFTED_STATUS } from '@/lib/order-visibility'
-import { countsAsRevenueFor, isServiceNoShow, isServiceUnclosed, revenueDateFor, serviceNoShowRevenue } from '@/lib/order-revenue'
-import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
-import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { resolveRangeFromParams, todayThaiIsoDate } from '@/lib/date-range'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveOrderVocab, FINANCE_MENU_LABEL } from '@/lib/seller-menu'
-import { resolveDataCompleteness, FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
-import { getPnlReport } from '@/services/pnl.service'
-import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
-import { getCostCoverage } from '@/services/cost-coverage.service'
-import { getReceivables, RECEIVABLE_BASIS_NOTE } from '@/services/receivable.service'
-import FinanceTabs from './components/FinanceTabs'
-import IncompleteDataNotice from './components/IncompleteDataNotice'
-import ReceivableList from './components/ReceivableList'
-import PnlReportCard from '../expenses/components/PnlReportCard'
-import ExpenseWorkspace from '../expenses/components/ExpenseWorkspace'
+import { FINANCE_TAB_PARAM } from '@/lib/finance-tabs'
 import ServiceReportPanel from '../_shared/service-report/ServiceReportPanel'
 import { getServiceReportData } from '@/services/service-report.service'
 import { SERVICE_REPORT_WORDS } from '@/lib/service-report/words'
 import { serviceReportPeriodFromRange } from '@/lib/service-report/period-from-range'
-import ServiceFinanceChart from './components/ServiceFinanceChart'
-import { collectTabLabel, resolveReportSettings, resolveVisibleFinanceTab, serviceReportChart, serviceReportView, showsUnclosedInCharts, showsUnclosedSummary, visibleFinanceTabs } from '@/lib/report-settings'
-import { getAdvanceDeposits, getFinanceChartData } from '@/services/finance-chart.service'
-import { resolveOutboundShippingCost } from '@/lib/shipping-cost'
+import { resolveReportSettings, serviceReportChart, serviceReportView } from '@/lib/report-settings'
+import { getSalesSeries, withShippingExpenses } from '@/services/dashboard.service'
+import SalesChartSheet from '../dashboard/components/SalesChartSheet'
 
-export const metadata: Metadata = { title: 'ภาพรวมยอดขาย' }
-
-/**
- * สร้างรายการวันตามปฏิทินไทย จาก from (เที่ยงคืนไทย, รวม) ถึง toExcl (เที่ยงคืนไทย, ไม่รวม)
- * feature 00033 §5.3 — เดินทีละ 24 ชม.บน UTC instant แล้วแปลงเป็นคีย์ด้วย thaiDayKey เท่านั้น
- * ห้ามใช้ setDate/setHours (local time ของ server = UTC บน Vercel) ไม่งั้นคีย์จะไม่ตรงกับ
- * thaiDayKey ที่ใช้ bucket ข้อมูลด้านล่าง → กราฟกลายเป็น 0 ทั้งแถบแบบเงียบ ๆ
- */
-function eachDay(from: Date, toExcl: Date): string[] {
-  const DAY_MS = 24 * 60 * 60 * 1000
-  const days: string[] = []
-  for (let t = from.getTime(); t < toExcl.getTime(); t += DAY_MS) {
-    days.push(thaiDayKey(new Date(t)))
-  }
-  return days
-}
-
-/**
- * "เดือนนี้" แบบเดิมของร้านที่ไม่ใช่บริการ — **ทั้งเดือนปฏิทิน** (วันที่ 1 ถึงวันสุดท้าย) ไม่ใช่ 1 ถึงวันนี้
- * คัดลอกจากโค้ดก่อน 00067 (commit e3a52782 · monthRange + parseDate) ทุกบรรทัด — ร้านขายของ/บ้านพัก
- * ต้องได้ตัวเลขและ %เทียบช่วงก่อนเท่าเดิม (มติ user 2026-10-02 · src/lib/finance-rules.ts)
- */
-function legacyMonthRange(): { from: Date; toExcl: Date; label: { start: string; end: string } } {
-  // เดือนตามปฏิทินไทย — เดิมใช้ getter ของ server (UTC บน Vercel) ⇒ 7 ชม.แรกของเดือนได้เดือนก่อน
-  const [y, m] = todayThaiIsoDate().split('-').map(Number)
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return {
-    from: thaiMidnightUtc(y, m - 1, 1),
-    toExcl: thaiMidnightUtc(y, m, 1),
-    label: { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}` },
-  }
-}
+export const metadata: Metadata = { title: 'ยอดขายและกำไร' }
 
 export default async function SalesPage({
   searchParams,
@@ -109,51 +57,12 @@ export default async function SalesPage({
   }
   const shop = gate.active.shop
 
-  /**
-   * ช่วงเวลา — **ชุดเดียวทุกแท็บ** (`?range=` + `start`/`end`) ผ่าน resolveRangeFromParams (2026-10-01)
-   *
-   * 🛑 เดิมแท็บยอดเก็บเงินอ่าน `?from=&to=` แต่แท็บกำไร/ค่าใช้จ่ายอ่าน `?range=` ⇒ สลับแท็บแล้ว
-   * ช่วงเวลาหาย และ default ไม่ตรงกัน (ทั้งเดือน vs 30 วัน) · ตอนนี้ default = "เดือนนี้" ทุกแท็บ
-   * (วันที่ 1 ถึงวันนี้ ตามนิยามเดียวของ resolveDateRange) · `?from=&to=` ยังรับเป็นลิงก์เก่า
-   *
-   * ขอบวันเป็นเที่ยงคืนเวลาไทยจาก resolveDateRange (feature 00033 §5.3) — ห้ามคำนวณจาก getter
-   * ของ Date ที่ server (UTC บน Vercel) ซึ่งเคยทำให้ออเดอร์เช้ามืดตกไปผิดวัน
-   */
-  const period = resolveRangeFromParams(sp, 'month')
-  /**
-   * กติกาการเงินชุดใหม่ (00067) — **ร้านบริการเท่านั้น** · ร้านอื่นกลับเป็นของเดิม (มติ user 2026-10-02)
-   * ของเดิม: นับยอดจาก status === 'CONFIRMED' · ไม่ตัดร่าง/คืนของ · ไม่หักคืนบางส่วน · นับใบยกเลิกในจำนวนออเดอร์
-   * · "เดือนนี้" = ทั้งเดือนปฏิทิน · ถ้อยคำ/สีเดิมของกราฟ/ตาราง
-   */
-  const newRules = usesServiceFinanceRules(shop.vertical)
-  const legacyMonth = !newRules && period.preset === 'month' ? legacyMonthRange() : null
-  const from = legacyMonth?.from ?? period.resolved.orderRange.gte
-  const toExcl = legacyMonth?.toExcl ?? period.resolved.orderRange.lt
-  const rangeLabelDays = legacyMonth?.label ?? period.resolved.label
-  /** ป้ายช่วงเวลาที่ผู้ใช้อ่าน — วัน-เดือน-ปี พ.ศ. ผ่านตัวกลาง (เดิมหัวการ์ดกำไรโชว์ "2026-09-01" ดิบ) */
-  const periodLabel = `${formatDate(rangeLabelDays.start)} – ${formatDate(rangeLabelDays.end)}`
-  const rangeFilter = <SalesDateRange range={period.preset} customDates={period.custom} />
-
-  /** ผ่านด่านเจ้าของร้านข้างบนแล้ว = เห็นการเงินเสมอ (ตัวแปรคงไว้ให้โค้ดเดิมด้านล่างอ่านง่าย) */
-  const canSeeFinance = true
-
-  /**
-   * ── การเงินร้าน 3 แท็บ (feature 00067) ─────────────────────────────────────
-   *
-   * 🛑 ตัดสิน vertical ที่นี่ **จุดเดียว** ไม่กระจายเงื่อนไขลงไปในคอมโพเนนต์ลูก —
-   * เงื่อนไขที่กระจายจะเงียบเมื่อมี vertical ที่สี่ (บทเรียน 00028) และ `resolveShopVertical`
-   * fail-closed ให้แล้ว ห้ามเทียบสตริงเอง
-   *
-   * 🛑 ร้าน vertical อื่นต้องไม่เห็นความเปลี่ยนแปลงใด ๆ — โค้ดข้างล่างทั้งหมดคงเดิมทุกบรรทัด
-   * และไม่มีการ import คอมโพเนนต์แท็บเข้ามาในเส้นทางนั้น
-   */
+  /** ตัดสิน vertical จุดเดียว — resolveShopVertical fail-closed (ห้ามเทียบสตริงเอง) */
   const isServiceQueue = resolveShopVertical(shop.vertical) === 'SERVICE_QUEUE'
 
   /**
-   * ── feature 00078: ร้านบริการได้หน้าเดียว "ยอดขายและกำไร" (โครงเดียวกับร้านขายของ) ─────────────
-   * แทน 3 แท็บของ 00067/00073 ทั้งหมด · ร้านอื่นไม่เข้าบล็อกนี้ (โค้ดข้างล่างคงเดิมทุกบรรทัด)
+   * ── feature 00078: ร้านบริการได้หน้าเดียว "ยอดขายและกำไร" ─────────────
    * ลิงก์เก่า `?tab=expense` (บุ๊กมาร์ก/ทางลัด/เมนูเดิม) → หน้า /expenses เดิม (มติ Q-1 2026-10-17)
-   * 🛑 ไม่ดึงออเดอร์ทั้งร้านอีก — ข้อมูลจาก getServiceReportData (series + ค่าใช้จ่าย) ช่วงเดียว
    */
   if (isServiceQueue) {
     if (sp[FINANCE_TAB_PARAM] === 'expense') {
@@ -164,6 +73,7 @@ export default async function SalesPage({
       redirect(`/expenses${qs.size ? `?${qs}` : ''}`)
     }
     const settings = resolveReportSettings(shop.reportSettings, shop.vertical)
+    const period = resolveRangeFromParams(sp, 'month')
     const { mode, ...reportPeriod } = serviceReportPeriodFromRange(period.resolved.label)
     const initial = await getServiceReportData(shop.id, shop.vertical, mode, reportPeriod)
     return (
@@ -173,467 +83,16 @@ export default async function SalesPage({
       </>
     )
   }
-  /**
-   * feature 00073 เฟส B — ตั้งค่ารายงานของร้านบริการ (ร้านอื่น = ค่าตั้งต้นเสมอ และไม่ถูกอ่านในเส้นทางนั้น)
-   * แท็บที่ถูกปิด/URL ที่ไม่รู้จัก ถอยไปแท็บที่มองเห็น (resolveVisibleFinanceTab — fail-closed)
-   */
-  const reportSettings = resolveReportSettings(shop.reportSettings, shop.vertical)
-  const financeTabs = visibleFinanceTabs(reportSettings)
-  const tab = isServiceQueue ? resolveVisibleFinanceTab(sp[FINANCE_TAB_PARAM], reportSettings) : 'collect'
-  const vocab = resolveOrderVocab(shop.vertical)
-  /** กราฟการเงิน (เฟส B) — เริ่มโหลดตั้งแต่ตรงนี้ขนานกับ query ของแต่ละแท็บ · ล้ม = ให้ client โหลดเอง */
-  const chartInitialP = isServiceQueue
-    ? getFinanceChartData(shop.id, shop.vertical, reportSettings.defaultRange, {}).catch(() => null)
-    : Promise.resolve(null)
 
-  if (isServiceQueue && canSeeFinance && tab !== 'collect') {
-    const range = period.resolved
-    const rangeQs = new URLSearchParams({ range: period.preset })
-    if (period.custom) {
-      rangeQs.set('start', period.custom[0])
-      rangeQs.set('end', period.custom[1])
-    }
-
-    if (tab === 'expense') {
-      // แท็บนี้คือหน้า /expenses ทั้งหน้า — ดึงชุดเดียวกับที่หน้านั้นดึง ไม่แตะ getOrdersByShop
-      // (การ query ออเดอร์ทั้งร้านเพื่อแสดงรายการค่าใช้จ่ายคือการจ่ายฟรี — NFR-01/03)
-      const [report, expenses, everRecorded] = await Promise.all([
-        getPnlReport(shop.id, range, shop.vertical),
-        listExpenses(shop.id, { range: range.expenseRange }),
-        hasAnyExpense(shop.id),
-      ])
-      return (
-        <>
-          <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
-          <FinanceTabs active={tab} panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />
-          <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
-            <ServiceFinanceChart kind="expense" settings={reportSettings} costNoun={vocab.costNoun} initial={await chartInitialP} />
-            <ExpenseWorkspace
-              initialRange={period.preset}
-              initialCustom={period.custom}
-              initialReport={report}
-              initialExpenses={expenses.map(serializeExpense)}
-              hasAnyExpenseEver={everRecorded}
-              orderNoun={vocab.noun}
-              costNoun={vocab.costNoun}
-              serviceRules
-              settings={reportSettings}
-              revenue={{ label: vocab.revenueLabel, basis: vocab.revenueBasis, countMetric: vocab.revenueCountMetric }}
-            />
-          </div>
-        </>
-      )
-    }
-
-    // tab === 'pnl'
-    const [report, expenses, coverage] = await Promise.all([
-      getPnlReport(shop.id, range, shop.vertical),
-      listExpenses(shop.id, { range: range.expenseRange }),
-      getCostCoverage(shop.id, range, shop.vertical),
-    ])
-    const completeness = resolveDataCompleteness({
-      // ธงมาจาก pnl.service ตัวเดียว ห้ามคำนวณซ้ำที่นี่ (สูตรเดียวต้องอยู่ที่เดียว)
-      // feature 00073 เฟส B — ปิดต้นทุน/ค่าใช้จ่ายในตั้งค่า = ไม่ได้หัก ⇒ ไม่นับว่า "ขาดข้อมูล" (ไม่เตือนเรื่องที่ร้านเลือกไม่ใช้)
-      hasMissingCost: reportSettings.partCost && report.hasMissingCost,
-      expenseCount: reportSettings.shopExpense ? expenses.length : 1,
-      uncostedItemCount: coverage.uncostedItemCount,
-      soldItemCount: coverage.soldItemCount,
-    })
-
-    return (
-      <>
-        <PageBreadcrumb title={FINANCE_MENU_LABEL} trail={[{ label: 'ธุรกิจ' }]} />
-        <FinanceTabs active={tab} panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />
-        <div id="finance-panel" role="tabpanel" aria-labelledby={`finance-tab-${tab}`}>
-          <ServiceFinanceChart kind="overview" settings={reportSettings} costNoun={vocab.costNoun} initial={await chartInitialP} />
-          {/* แท็บนี้เคยไม่มีตัวเลือกช่วงเวลาเลย — เปลี่ยนได้ทาง URL อย่างเดียว (พบ 2026-10-01) */}
-          <div className="mb-1.25 flex min-w-0 justify-start sm:justify-end">{rangeFilter}</div>
-          <IncompleteDataNotice
-            completeness={completeness}
-            costNoun={vocab.costNoun}
-            costSetupHref="/products?cost=missing"
-            expenseSetupHref={`/sales?${FINANCE_TAB_PARAM}=expense&${rangeQs.toString()}`}
-          />
-          <PnlReportCard
-            report={report}
-            expenses={expenses.map(serializeExpense)}
-            rangeLabel={periodLabel}
-            orderNoun={vocab.noun}
-            costNoun={vocab.costNoun}
-            capped={!completeness.complete}
-            serviceRules
-            settings={reportSettings}
-            revenue={{ label: vocab.revenueLabel, basis: vocab.revenueBasis, countMetric: vocab.revenueCountMetric }}
-          />
-        </div>
-      </>
-    )
-  }
-
-  /**
-   * ช่วงก่อนหน้า — ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน `from` (นิยามเดียวกับ pnl.service)
-   * getOrdersByShop ดึงออเดอร์ทั้งหมดอยู่แล้วแล้วค่อยกรองในหน่วยความจำ → คิดช่วงก่อนหน้าได้ฟรี
-   * ไม่มี query เพิ่ม ส่วนค่าใช้จ่ายแค่ขยายช่วงของ query เดิมให้คลุมทั้งสองช่วง
-   */
-  const spanMs = toExcl.getTime() - from.getTime()
-  const prevFrom = new Date(from.getTime() - spanMs)
-
-  /**
-   * ไม่ query ตาราง `Expense` ที่หน้านี้แล้ว (มติ user 2026-08-09) — หน้านี้เหลือ
-   * ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง) เท่านั้น ค่าใช้จ่ายอื่นของร้านยังอยู่ที่หน้า /expenses
-   */
-  /**
-   * 🛑 ตัดร่างออเดอร์ (DRAFTED, feature 00061) ทิ้ง — getOrdersByShop คืนทุกสถานะ แล้ว else-branch ข้างล่าง
-   * (ไม่ใช่ CONFIRMED/CANCELLED) เคยนับร่างเป็น "รอลูกค้ายืนยัน" + จำนวนออเดอร์ ทั้งที่ร่างยังไม่ใช่บิลจริง
-   * (พบ 2026-10-01 ตอนเทียบกับ receivable.service ซึ่งใช้ withoutDrafted อยู่แล้ว — ชุดแถวต้องตรงกัน)
-   */
-  // + `RETURNED` (คืนของครบทั้งใบ) ตัดเหมือนกัน — การขายถูกยกเลิกแล้ว หลักใบลดหนี้ · ตรงกับ P&L/receivable (มติ 2026-10-01)
-  // คืนบางส่วนที่รับของแล้ว — หักยอด/ต้นทุนผ่านตัวกลางเดียวกับ P&L และชีต (มติ 2026-10-01)
-  // ร้านที่ไม่ใช่บริการ: ไม่ดึง/ไม่หักยอดคืน และไม่ตัดร่าง/คืนของ — ของเดิม (Map ว่าง ⇒ amountOf = totalAmount)
-  const [shopOrders, returnAdj] = await Promise.all([
-    // withCost: หน้านี้ผ่าน gatePage F1 ข้างบนแล้ว (ไม่ถึงบรรทัดนี้ถ้าไม่ใช่เจ้าของ/ผู้ดูแล) — ใช้คิด COGS
-    // withPayments เฉพาะร้านบริการ — งานไม่มาตามนัดมียอด = มัดจำที่เก็บ (00073) · ร้านอื่น query เดิม
-    getOrdersByShop(shop.id, undefined, { withCost: true, withPayments: newRules }),
-    newRules ? getReturnAdjustments(shop.id) : Promise.resolve(new Map<string, ReturnAdjustment>()),
-  ])
-  /**
-   * ยอดบิลหลังหักคืนบางส่วน — ใช้แทน totalAmount ดิบทุกจุดในหน้านี้
-   * feature 00073 — ร้านบริการปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ (คืนมัดจำ = 0)
-   */
-  const amountOf = (o: (typeof shopOrders)[number]) =>
-    newRules && isServiceNoShow(o)
-      ? serviceNoShowRevenue(o.payments ?? [])
-      : netOfReturns(Number(o.totalAmount ?? 0), returnAdj.get(o.id))
-  // ร่างออเดอร์ตัดทุกร้าน (ชุดเดียวกับชีตมือถือ getSalesSeries · withoutDrafted) · RETURNED ตัดเฉพาะร้านบริการ
-  const allOrders = shopOrders.filter((o) => o.status !== DRAFTED_STATUS && !(newRules && o.status === 'RETURNED'))
-  /**
-   * นับเป็นยอดขายไหม — ตัวกลางเดียวกับชีตมือถือ (getSalesSeries) · ร้านบริการ: งานที่ร้านปิดแล้ว (00073)
-   * ร้านอื่น: countsAsRevenue (ลูกค้ายืนยัน หรือขนส่งรับของแล้ว) — เดิม CONFIRMED อย่างเดียว ⇒ ยอดไม่ตรงมือถือ (user 2026-10-25)
-   */
-  const isSale = (o: (typeof shopOrders)[number]) => countsAsRevenueFor(o, shop.vertical)
-  /**
-   * วันที่ของแถว — ร้านบริการ: งานที่ปิดแล้วอยู่วันปิดงาน · งานที่ยังไม่ปิดอยู่วันที่สร้าง (ยังไม่มีวันปิด)
-   * ร้านอื่น: createdAt ตามเดิม · 🛑 ช่วงเวลา/ตาราง/กราฟใช้ตัวนี้ตัวเดียว ไม่งั้นแถวกับยอดคนละวัน
-   */
-  const dateOf = (o: (typeof shopOrders)[number]) => (newRules ? revenueDateFor(o, shop.vertical) : new Date(o.createdAt))
-
-  // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
-  type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
-
-  const inRange = allOrders.filter((o: OrderItem) => {
-    const t = dateOf(o).getTime()
-    return t >= from.getTime() && t < toExcl.getTime()
-  })
-  const inPrevRange = allOrders.filter((o: OrderItem) => {
-    const t = dateOf(o).getTime()
-    return t >= prevFrom.getTime() && t < from.getTime()
-  })
-
-  /** รวมยอดของช่วงหนึ่ง — ใช้กับทั้งช่วงปัจจุบันและช่วงก่อนหน้า กันสูตรสองชุดหลุดจากกัน */
-  const sumWindow = (rows: OrderItem[]) => {
-    let revenue = 0, unconfirmed = 0, completed = 0, cancelled = 0
-    for (const o of rows) {
-      // feature 00073 — ร้านบริการ: งานที่ยังไม่ปิดไม่ใช่ยอดขายและไม่ใช่ "รอยืนยัน" (ชุดเดียวกับชีต/ค้างรับ)
-      if (newRules && o.status !== 'CANCELLED' && !isSale(o)) continue
-      // 🛑 countsAsRevenue (SSOT order-revenue.ts) ไม่ใช่ status==='CONFIRMED' — ดูหมายเหตุที่ลูปรายวัน
-      if (o.status === 'CANCELLED') cancelled++
-      else if (isSale(o)) { revenue += amountOf(o); completed++ }
-      else { unconfirmed += amountOf(o) }
-    }
-    // orders = ไม่นับใบยกเลิก (นิยามเดียวกับ orderCounts ของชีตมือถือ)
-    return { revenue, unconfirmed, completed, cancelled, orders: rows.length - cancelled }
-  }
-  const prevWindow = sumWindow(inPrevRange)
-
-  /**
-   * ค่าส่งจริงของ "ช่วงก่อนหน้า" — ต้องนับด้วยเกณฑ์เดียวกับช่วงปัจจุบันเป๊ะ (CONFIRMED + พัสดุ active
-   * ที่รู้ราคาแล้ว) ไม่งั้น badge %เปลี่ยนแปลงบนการ์ดค่าใช้จ่ายจะเทียบของคนละชนิดกัน: ตัวตั้งรวมค่าส่ง
-   * ตัวเทียบไม่รวม → ขึ้นเป็น "เพิ่มขึ้นมหาศาล" ทุกร้านในวันที่ deploy ทั้งที่ไม่มีใครจ่ายเพิ่มสักบาท
-   */
-  const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
-    if (o.status === 'CANCELLED' || !isSale(o)) return sum
-    const sp = o.shipments?.[0]
-    if (!sp && !o.shipmentTracking) return sum
-    return sum + resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost }).amount
-  }, 0)
-
-  // Build bucket maps
-  const ordersPerDay: Record<string, number> = {}
-  const completedPerDay: Record<string, number> = {}
-  const revenuePerDay: Record<string, number> = {}
-  // ยอดที่ลูกค้ายังไม่กดยืนยัน (ไม่นับที่ยกเลิก) — ชีตยอดขายบนมือถือแยกสองยอดนี้มาตั้งแต่แรก
-  // แต่หน้าเว็บเก็บแค่ยอดที่ยืนยันแล้ว ทำให้สอง surface เล่าเรื่องคนละแบบจากข้อมูลชุดเดียวกัน
-  const unconfirmedPerDay: Record<string, number> = {}
-  /** บิลที่ไม่ถูกยกเลิกต่อวัน — คู่กับยอดบิล (revenue + unconfirmed) ของตารางร้านบริการ */
-  const billPerDay: Record<string, number> = {}
-
-  // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
-  // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
-  const cogsPerDay: Record<string, number> = {}
-  /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อวัน — ส่วนหนึ่งของ "ค่าใช้จ่าย" ไม่ใช่ต้นทุนสินค้า (D-EXT-10) */
-  const shippingCostPerDay: Record<string, number> = {}
-  /** พัสดุที่ยังไม่รู้ค่าส่งจริงต่อวัน — ทำให้กำไรของวันนั้นเป็นเพดานบน ต้องมีป้ายกำกับ */
-  const pendingShipmentPerDay: Record<string, number> = {}
-  /** ใบส่งเองที่ร้านยังไม่กรอกค่าส่ง (00078) — แยกจากราคาประมาณ: ป้ายต่างกัน */
-  let shippingMissingCount = 0
-  /** ยอดค่าธรรมเนียม COD ทั้งช่วง — ส่วนย่อยของค่าส่งข้างบน ใช้โชว์บนการ์ดเท่านั้น */
-  let codFeeTotal = 0
-  /** มีรายการที่ยืนยันแล้วแต่ยังไม่ตั้งต้นทุน — กำไร/อัตรากำไรเป็นเพดานบน (นิยามเดียวกับ isMissingCost) */
-  let hasMissingCost = false
-
-  for (const o of inRange) {
-    // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
-    // ไม่งั้นค่าใน map นี้จะไม่ตรงกับวันที่ eachDay ไล่มา แล้วกราฟกลายเป็น 0 ทั้งแถบโดยไม่มี error
-    const day = thaiDayKey(dateOf(o))
-    /**
-     * feature 00073 — ร้านบริการ: งานที่ยังไม่ปิดไม่เข้าตาราง/กราฟยอดขายเลย (ไม่ใช่ยอดขาย ไม่มีวันปิดให้ลงแถว)
-     * 🛑 ถ้าปล่อยเข้า unconfirmed กราฟแกนเงินจะบวกงานค้างเข้าแท่ง "ค้างรับ" แต่แถบสมการ (receivables)
-     * นับเฉพาะงานที่ปิด ⇒ แท่งกับตัวเลขบนการ์ดเดียวกันไม่ตรงกัน
-     */
-    if (newRules && o.status !== 'CANCELLED' && !isSale(o)) continue
-    if (o.status !== 'CANCELLED') {
-      // "ออเดอร์" ของวันไม่นับใบยกเลิก — นิยามเดียวกับชีตหน้าหลัก (orderCounts) · ใบยกเลิกนับแยกที่การ์ด
-      ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
-      billPerDay[day] = (billPerDay[day] ?? 0) + 1
-    }
-    /**
-     * 🛑 "ขายแล้ว/ยืนยันแล้ว" = countsAsRevenue (SSOT `lib/order-revenue.ts` — user เคาะ 2026-08-05:
-     * ลูกค้ากดยืนยัน **หรือ** ขนส่งรับของไปแล้วจริง) ไม่ใช่ status==='CONFIRMED' อย่างเดียว
-     * เดิมหน้านี้ใช้ CONFIRMED ล้วน ขณะที่ชีตหน้าหลัก/P&L/การ์ดหน้าแรกใช้ SSOT ⇒ ป้าย "ยืนยันแล้ว"
-     * เดียวกันคนละตัวเลข (ข้อมูลจริง ส.ค.: ชีต 114,230 · /sales 86,040 — audit 2026-10-01)
-     * COGS/ค่าส่ง/hasMissingCost ใช้ชุดแถวเดียวกัน (ตัวลบต้องอยู่ในขอบเขตเดียวกับตัวตั้ง)
-     */
-    if (o.status !== 'CANCELLED' && isSale(o)) {
-      completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
-      revenuePerDay[day] = (revenuePerDay[day] ?? 0) + amountOf(o)
-      // ต้นทุนของชิ้นที่คืนบางส่วน — หักครั้งเดียวต่อใบ (ตัวกลาง return-adjustment)
-      // ไม่มาตามนัด (ร้านบริการ) — ไม่ได้ให้บริการ จึงไม่มีต้นทุน/ค่าส่ง · ยอด = มัดจำที่เก็บ (amountOf)
-      if (newRules && isServiceNoShow(o)) continue
-      const returnedCost = returnAdj.get(o.id)?.returnedCost ?? 0
-      if (returnedCost) cogsPerDay[day] = (cogsPerDay[day] ?? 0) - returnedCost
-      for (const item of o.items) {
-        // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
-        if (item.cost == null) {
-          hasMissingCost = true
-          continue
-        }
-        cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
-      }
-      /**
-       * ค่าส่งจริง + ค่าธรรมเนียม COD จาก iShip = **ค่าใช้จ่าย** (D-EXT-10) ไม่ใช่ต้นทุนสินค้า
-       * จึงไม่เข้า `cogsPerDay` แต่นับแยกใน `shippingCostPerDay`
-       *
-       * 🛑 นับเฉพาะออเดอร์ที่ CONFIRMED เหมือน COGS โดยตั้งใจ — ต้องเป็น **แถวชุดเดียวกับตัวตั้ง**
-       * ไม่งั้นแถวรายวันจะหักค่าส่งของออเดอร์ที่ยังไม่ถูกนับเป็นยอดขาย แล้วกำไรของวันนั้นต่ำกว่าจริง
-       * (บทเรียน `feedback_subtrahend_must_match_minuend_scope`) — ค่าส่งของใบที่ยังไม่ยืนยันจะโผล่
-       * เองในวันที่ลูกค้ากดยืนยัน เพราะ bucket ยึด "วันที่สั่งซื้อ" ตัวเดียวกัน ไม่หายไปไหน
-       *
-       * `carrierPrice == null` = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน — นับเป็น "ยังไม่รู้"
-       * ห้ามตีเป็น 0 (จะอ่านว่าส่งฟรี) และ `codFee` แยกก้อนกับค่าส่ง ไม่ทับซ้อนกัน
-       */
-      const shipment = o.shipments?.[0]
-      if (shipment || o.shipmentTracking) {
-        // ตัวกลาง resolveOutboundShippingCost (SSOT): ราคาจริง → ประมาณ → ที่ร้านกรอก → ยังไม่ระบุ(pending)
-        // ค่าธรรมเนียม COD บวกได้เสมอเมื่อมีใบ iShip — รู้ตั้งแต่วินาทีที่สร้างพัสดุ
-        const cost = resolveOutboundShippingCost({ forward: shipment ?? null, manual: o.shipmentTracking?.outboundShippingCost })
-        shippingCostPerDay[day] = (shippingCostPerDay[day] ?? 0) + cost.amount
-        codFeeTotal += Number(shipment?.codFee ?? 0)
-        // ยังไม่ใช่ราคาจริง = ตัวเลขของวันนั้นยังขยับได้ ต้องมีป้ายกำกับ
-        if (cost.pendingReason === 'MISSING') shippingMissingCount += 1
-        if (cost.pendingReason === 'ESTIMATE') {
-          pendingShipmentPerDay[day] = (pendingShipmentPerDay[day] ?? 0) + 1
-        }
-      }
-    } else if (o.status !== 'CANCELLED') {
-      // ยังไม่นับเป็นยอดขาย (ลูกค้ายังไม่ยืนยัน และขนส่งยังไม่รับของ) — นิยามเดียวกับ getSalesSeries ของชีต
-      unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + amountOf(o)
-    }
-  }
-
-  // Zero-fill every day in range
-  const days = eachDay(from, toExcl)
-  const daily: DailyRow[] = days.map((date) => {
-    const orders = ordersPerDay[date] ?? 0
-    const completed = completedPerDay[date] ?? 0
-    const revenue = revenuePerDay[date] ?? 0
-    const avgOrder = completed > 0 ? revenue / completed : 0
-    const label = formatDate(date)
-    const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
-    const billCount = billPerDay[date] ?? 0
-    if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder, billCount }
-    const shippingCost = shippingCostPerDay[date] ?? 0
-    const pendingShipmentCount = pendingShipmentPerDay[date] ?? 0
-    return {
-      date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder, billCount,
-      shippingCost,
-      netProfit: revenue - (cogsPerDay[date] ?? 0) - shippingCost,
-      pendingShipmentCount,
-    }
-  })
-
-  const totalOrders = daily.reduce((s, d) => s + d.orders, 0)
-  const totalCompleted = daily.reduce((s, d) => s + d.completed, 0)
-  const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0)
-  const totalUnconfirmed = daily.reduce((s, d) => s + d.unconfirmedRevenue, 0)
-  const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
-
-  const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
-  // totalOrders ไม่รวมใบยกเลิกแล้ว ⇒ รอยืนยัน = ทั้งหมด − ขายแล้ว
-  const unconfirmedCount = totalOrders - totalCompleted
-  const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
-
-  const summary: SummaryData = {
-    totalOrders,
-    totalCompleted,
-    totalRevenue,
-    totalUnconfirmed,
-    avgOrderValue,
-    unconfirmedCount,
-    cancelledCount,
-    days: days.length,
-    prevRevenue: prevWindow.orders === 0 ? null : prevWindow.revenue,
-    prevUnconfirmed: prevWindow.orders === 0 ? null : prevWindow.unconfirmed,
-    prevOrders: prevWindow.orders === 0 ? null : prevWindow.orders,
-    prevAvgOrder: prevWindow.completed === 0 ? null : prevAvgOrder,
-    ...(canSeeFinance && {
-      totalShippingCost: daily.reduce((s, d) => s + (d.shippingCost ?? 0), 0),
-      totalCodFee: codFeeTotal,
-      netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
-      prevShippingCost: prevShippingTotal,
-      pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
-      shippingMissingCount,
-      // ป้าย "ไม่เกิน" เมื่อตั้งต้นทุนไม่ครบ — กติกาใหม่ ร้านบริการเท่านั้น (ร้านอื่นแสดงแบบเดิม)
-      ...(newRules && { hasMissingCost }),
-    }),
-  }
-
-  /**
-   * รายการที่ยังเก็บเงินไม่ครบ — เฉพาะแท็บ "ยอดเก็บเงิน" ของร้านบริการที่มีสิทธิ์ดูการเงิน
-   * ร้าน vertical อื่นไม่ยิง query นี้เลยสักครั้ง (NFR-01)
-   *
-   * 🛑 ใช้ช่วงเดียวกับการ์ด/กราฟ/ตารางของแท็บนี้ (`period` จาก resolveRangeFromParams ตัวเดียวทุกแท็บ) —
-   * ยอดรวมบนการ์ดกับรายการที่ตามเก็บต้องมาจากช่วงเดียวกัน ไม่งั้นสองก้อนบนจอเดียวขัดกันเอง
-   */
-  const receivables =
-    isServiceQueue && canSeeFinance
-      ? await getReceivables(shop.id, {
-          orderRange: { gte: from, lt: toExcl },
-          expenseRange: { gte: from, lt: toExcl },
-          label: period.resolved.label,
-          prevRange: {
-            orderRange: { gte: prevFrom, lt: from },
-            expenseRange: { gte: prevFrom, lt: from },
-          },
-        })
-      : null
-  /** มัดจำรับล่วงหน้า (เฟส B) — ภาพ ณ ตอนนี้ของงานที่ยังไม่ปิด · เปิดในตั้งค่าเท่านั้น (ปิด = ไม่ query) */
-  const advance = isServiceQueue && reportSettings.advanceDeposit ? await getAdvanceDeposits(shop.id) : null
-  /**
-   * 00073 ภาคต่อ (FR-014) — งานที่ยังไม่ปิด ตามวันเปิดบิล ในช่วงที่เลือก (ไม่ใช่ยอดขาย · ไม่อยู่ในการ์ด/กราฟ/ตารางอื่น)
-   * จากรายการที่โหลดแล้ว (getOrdersByShop ทั้งร้าน) ไม่ query เพิ่ม · หักคืนด้วย amountOf ตัวเดียวกับยอดขาย
-   */
-  const unclosedInRange = isServiceQueue
-    ? shopOrders.filter((o) => isServiceUnclosed(o) && new Date(o.createdAt) >= from && new Date(o.createdAt) < toExcl)
-    : []
-  // FR-016 — ตั้งค่า "งานที่ยังไม่ปิด" = ไม่แสดง ⇒ ไม่มีการ์ดสรุป
-  const unclosed = isServiceQueue && showsUnclosedSummary(reportSettings)
-    ? { amount: unclosedInRange.reduce((s, o) => s + amountOf(o), 0), jobs: unclosedInRange.length }
-    : null
-  /** FR-016 — คอลัมน์ "ยังไม่ปิด" รายวัน (ตั้งค่า ทุกจอ) · วันที่ = วันเปิดบิล ปฏิทินไทย (ชุดเดียวกับ eachDay) */
-  const unclosedCols = isServiceQueue && showsUnclosedInCharts(reportSettings)
-  const unclosedPerDay: Record<string, number> = {}
-  if (unclosedCols) {
-    for (const o of unclosedInRange) {
-      const key = thaiDayKey(new Date(o.createdAt)) // ตัวเดียวกับ eachDay/ordersPerDay
-      unclosedPerDay[key] = (unclosedPerDay[key] ?? 0) + amountOf(o)
-    }
-  }
-
-  /**
-   * แกนเงินของร้านบริการ: เติม "รับจริง" รายวันจาก receivable.service (แถวชุดเดียวกับ summary)
-   * ⇒ กราฟ/ตารางแยก รับจริง | ค้างรับ ได้ทุกวัน เหมือนชีตหน้าหลัก (เดิมแท่งเดียวเพราะไม่มีข้อมูลนี้)
-   */
-  const dailyView: DailyRow[] = (receivables
-    ? daily.map((d) => ({ ...d, received: receivables.daily[d.date]?.received ?? 0 }))
-    : daily
-  ).map((d) => (unclosedCols ? { ...d, unclosed: unclosedPerDay[d.date] ?? 0 } : d))
-
+  // ร้านอื่น — ชุดเดียวกับการ์ด/ชีตยอดขายหน้าแรก (dashboard/page.tsx) เดือนปัจจุบันรายวัน · ชีตเลื่อนช่วงเองผ่าน /api/seller/sales-series
+  const [year, month] = todayThaiIsoDate().split('-').map(Number)
+  const initialSeries = await getSalesSeries(shop.id, 'daily', { year, month }, true, shop.vertical).then((s) =>
+    withShippingExpenses(shop.id, s, 'daily', { year, month }, shop.vertical),
+  )
   return (
     <>
-      <PageBreadcrumb
-        title={isServiceQueue ? FINANCE_MENU_LABEL : 'ภาพรวมยอดขาย'}
-        trail={[{ label: 'ภาพรวม' }]}
-      />
-      {isServiceQueue && canSeeFinance && <FinanceTabs active="collect" panelId="finance-panel" tabs={financeTabs} collectLabel={collectTabLabel(reportSettings)} />}
-      <div id="finance-panel" role={isServiceQueue && canSeeFinance ? 'tabpanel' : undefined} aria-labelledby={isServiceQueue && canSeeFinance ? 'finance-tab-collect' : undefined}>
-
-      {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
-          ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
-      <div className="mb-1.25 flex min-w-0 flex-wrap items-center justify-start gap-3 sm:justify-end">
-        {rangeFilter}
-      </div>
-
-      <SalesChart
-        daily={dailyView}
-        summary={summary}
-        periodLabel={periodLabel}
-        isServiceQueue={isServiceQueue}
-        collect={receivables?.summary}
-        serviceOpts={
-          isServiceQueue
-            ? {
-                receivables: reportSettings.receivables,
-                jobCount: reportSettings.jobCount,
-                advance: advance,
-                unclosed,
-                revenueLabel: vocab.revenueLabel,
-                hideChart: true,
-              }
-            : undefined
-        }
-      />
-
-      {/* feature 00073 เฟส B — กราฟยอดขายแบบใหม่ (ช่วงรายวัน/รายเดือน · กดแท่งดูยอด) แทนกราฟรายวันเดิม */}
-      {isServiceQueue && (
-        <div className="mt-1.25">
-          <ServiceFinanceChart
-            kind="sales"
-            settings={reportSettings}
-            costNoun={vocab.costNoun}
-            initial={await chartInitialP}
-            receivablesHref={reportSettings.receivables ? '#receivables' : undefined}
-          />
-        </div>
-      )}
-
-      <div className="card mt-1.25">
-        <SalesTable
-          rows={dailyView}
-          showFinance={canSeeFinance && !isServiceQueue}
-          countNoun={isServiceQueue ? 'งาน' : 'ออเดอร์'}
-          moneyAxis={isServiceQueue && receivables != null}
-          moneyOpts={isServiceQueue ? { receivables: reportSettings.receivables, jobCount: reportSettings.jobCount, unclosed: unclosedCols } : undefined}
-          profitCapped={summary.hasMissingCost === true}
-        />
-      </div>
-
-      {/* 00073 เฟส B — ปิด "รับเงินแล้ว/ค้างรับ" ⇒ รายการต้องตามเก็บหาย */}
-      {receivables && reportSettings.receivables && (
-        <div className="mt-1.25" id="receivables">
-          <ReceivableList
-            /* key = ช่วงเวลา — ReceivableList ก๊อป initialItems/cursor ลง useState และ Next 16 คง state ของ
-               client component ข้ามการเปลี่ยน search params ⇒ ไม่มี key จะค้างรายการของช่วงเก่า แล้ว
-               "ดูเพิ่ม" ส่ง cursor เก่าไปกับช่วงใหม่ ได้บิลปนกันสองช่วง (review 2026-10-01) */
-            key={`${period.resolved.label.start}_${period.resolved.label.end}`}
-            summary={receivables.summary}
-            initialItems={receivables.items}
-            initialCursor={receivables.nextCursor}
-            rangeQuery={`range=custom&start=${period.resolved.label.start}&end=${period.resolved.label.end}`}
-            basisNote={RECEIVABLE_BASIS_NOTE}
-          />
-        </div>
-      )}
-      </div>
+      <PageBreadcrumb title="ยอดขายและกำไร" trail={[{ label: 'ภาพรวม' }]} />
+      <SalesChartSheet layout="page" initialSeries={initialSeries} costNoun={resolveOrderVocab(shop.vertical).costNoun} />
     </>
   )
 }

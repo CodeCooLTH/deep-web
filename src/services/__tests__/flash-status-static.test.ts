@@ -80,7 +80,7 @@ describe('parity ต้นทุนค่าส่ง: แถว FLASH = แถ�
     expect(resolveOutboundShippingCost({ forward: { carrierPrice: null, estimatedPrice: null, codFee: null }, manual: null })).toMatchObject({ amount: 0, pending: true })
   })
   it('ผู้เรียกทั้ง 3 พื้นผิวยังเรียกฟังก์ชันกลางเดียวกัน', () => {
-    for (const f of ['src/services/pnl.service.ts', 'src/services/dashboard.service.ts', 'src/app/(paces)/seller/(dashboard)/sales/page.tsx']) {
+    for (const f of ['src/services/pnl.service.ts', 'src/services/dashboard.service.ts']) {
       const text = readFileSync(join(root, f), 'utf8')
       expect(text, f).toContain('resolveOutboundShippingCost')
       expect(text, f).not.toMatch(/provider\s*===?\s*['"]FLASH['"]/)
