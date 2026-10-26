@@ -36,6 +36,7 @@
  * ก่อนส่งลง prop นี้ — RSC PII rule: หน้า seller อยู่ใต้ client VerticalLayout ทุก prop ที่ผ่านลงมา
  * ถูก serialize เข้า flight payload หมด ไม่ว่าจะ render จริงหรือไม่
  */
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
@@ -129,6 +130,8 @@ export type CustomerPanelOrder = {
     /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง
      *  บังคับ: มี 2 ตัว serialize ที่ป้อนลิสต์นี้ ต้องส่งครบทั้งคู่ ไม่งั้นการ์ดสลับกองตอนเลื่อน */
     problemAt: string | null
+    /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับ (2 ตัว serialize ต้องตรงกัน) null = ยังไม่ปิด */
+    problemCloseOutcome: ParcelCloseOutcome | null
     /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
     returnStartedAt?: string | null
     returnedAt?: string | null

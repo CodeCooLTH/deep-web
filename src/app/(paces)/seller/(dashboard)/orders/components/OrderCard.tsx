@@ -404,7 +404,7 @@ export default function OrderCard({
             ซ่อนตอนยกเลิกเหมือนบล็อกพัสดุ — ยกเลิกแล้วไม่มีอะไรต้องมอบอีก */}
         {order.pickupStage && order.status !== 'CANCELLED' && (
           <div className="mt-2.5 border-t border-dashed border-default-200 pt-2.5">
-            <MiniShipmentTimeline pickupStage={order.pickupStage} inline />
+            <MiniShipmentTimeline pickupStage={order.pickupStage} parcelClose={null} inline />
           </div>
         )}
 
@@ -419,6 +419,7 @@ export default function OrderCard({
               returnStartedAt={order.shipment.returnStartedAt}
               returnedAt={order.shipment.returnedAt}
               returnDispatchedAt={order.shipment.returnDispatchedAt}
+              parcelClose={order.shipment.problemCloseOutcome}
               hasShipment
               cancelled={false}
               /* มือถือไม่มี hover — ต้องวาดแถบเต็มลงในการ์ดเลย ไม่งั้นแตะยังไงก็ไม่ขึ้น

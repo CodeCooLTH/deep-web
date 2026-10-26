@@ -19,6 +19,8 @@ import type { PayoutSnapshot } from '@/lib/shop-payout'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { resolveServiceStatusBadge } from '@/lib/service-status'
 import type { OrderStatusTone } from '@/lib/order-display'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
+import { asParcelClose } from '@/services/parcel-close-input'
 
 export type GuestOrderData = {
   publicToken: string
@@ -84,6 +86,8 @@ export type GuestOrderData = {
   /** "เคยมีปัญหาครั้งแรกเมื่อไร" — ตัวทำให้กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14)
    *  ต้องมาจากใบเดียวกับ carrierStatus ไม่งั้นจอผู้ซื้อกับจอร้านบอกคนละกอง (BR-BOE-12) */
   problemAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุมีปัญหา · 🛑 ผู้ซื้อได้แค่ "ผล" เท่านั้น (ห้าม note/ผู้ปิด/คืนเงิน/ตัดยอด) · null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
@@ -214,6 +218,8 @@ type OrderLike = {
     courierCode: string | null
     carrierStatus: string | null
     problemAt: Date | null
+    /** 00085 — คอลัมน์เดียวที่ guest อ่านจากชุด problemClose* (select ที่ order.service เลือกมาแค่คู่นี้) */
+    problemCloseOutcome?: string | null
     /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" */
     returnStartedAt: Date | null
     returnedAt: Date | null
@@ -340,6 +346,7 @@ export function buildGuestOrderData(
     hasIshipTracking: !!shipment?.trackingNo,
     carrierStatus: shipment?.carrierStatus ?? null,
     problemAt: shipment?.problemAt?.toISOString() ?? null,
+    parcelClose: asParcelClose(shipment?.problemCloseOutcome),
     // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ — ผู้ซื้อต้องรู้ว่าของที่ส่งไม่ถึงกำลังกลับไปที่ร้าน
     // หรือถึงแล้ว ก่อนจะไปทวงร้านว่าของหาย (feature 00055 นับใบตีกลับเป็นสถิติของเขาอยู่แล้ว)
     returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,

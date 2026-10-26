@@ -6,9 +6,10 @@
  * สำหรับออเดอร์ใบเดียวกัน โดยไม่มี tsc/เทสตัวไหนฟ้อง เพราะทั้งสองคำ "ถูก" ในตัวเอง (HR16)
  */
 
-import { deriveShippingStage, SHIPPING_STAGE_LABEL, type ShippingStageInput } from '@/lib/order-stage'
+import { deriveShippingStage, isActionableShippingStage, SHIPPING_STAGE_LABEL, type ShippingStageInput } from '@/lib/order-stage'
 import { isProblemCarrierStatus } from '@/lib/iship/status'
 import { isPickupOrder } from '@/lib/order-pickup'
+import { PARCEL_CLOSE_META } from '@/lib/parcel-close'
 
 export type OrderStatusCandidate = ShippingStageInput & {
   /** เลขออเดอร์ที่ผู้ใช้อ่านได้ — ต้องบอกในข้อความเสมอ ลูกค้าที่มีหลายใบจะได้ตรวจเองได้ */
@@ -19,7 +20,7 @@ export type OrderStatusCandidate = ShippingStageInput & {
 /**
  * เลือกออเดอร์ที่จะตอบ = **ใบล่าสุดที่ยังไม่จบเส้นทาง**
  *
- * "ยังไม่จบ" ตัดสินด้วย `deriveShippingStage() !== 'DONE'` ไม่ใช่ `Order.status` ดิบ — เพราะใบ COD
+ * "ยังไม่จบ" ตัดสินด้วย `isActionableShippingStage(deriveShippingStage())` (ไม่ใช่ DONE/ปิดแล้ว/ไม่มีการส่ง) ไม่ใช่ `Order.status` ดิบ — เพราะใบ COD
  * ที่ของถึงแล้วแต่ร้านยังไม่กดรับเงิน ยังเป็นงานค้างอยู่ (บทเรียน DP2569085F97153B) และนั่นคือ
  * ใบที่ลูกค้าน่าจะกำลังถามถึงที่สุด
  *
@@ -27,7 +28,7 @@ export type OrderStatusCandidate = ShippingStageInput & {
  */
 export function pickOrderForStatusReply<T extends OrderStatusCandidate>(newestFirst: T[]): T | null {
   for (const o of newestFirst) {
-    if (deriveShippingStage(o) !== 'DONE') return o
+    if (isActionableShippingStage(deriveShippingStage(o))) return o
   }
   return null
 }
@@ -52,6 +53,10 @@ export function buildOrderStatusText(order: OrderStatusCandidate): string {
    * ไม่ตอบ "ไม่พบข้อมูล" เช่นกัน — ออเดอร์มีอยู่จริง แค่ไม่ได้เดินทางด้วยขนส่ง
    * บอกสิ่งที่เขาทำต่อได้จริงแทน (หลักเดียวกับ NO_ORDER_REPLY_TEXT ข้างล่าง)
    */
+  // ร้านปิดพัสดุแล้วแบบส่งไม่สำเร็จ (00085) — ข้อความเดียวกับที่ผู้ซื้อเห็นบนหน้าลิงก์ (HR16)
+  if (stage === 'DELIVERY_FAILED') {
+    return `คำสั่งซื้อ ${order.orderNo}: ${PARCEL_CLOSE_META.DELIVERY_FAILED.buyerMessage}`
+  }
   if (stage === 'NOT_SHIPPING') {
     return isPickupOrder(order.fulfillmentMode)
       ? `คำสั่งซื้อ ${order.orderNo}: นัดรับที่ร้าน — ทักแชทกับร้านเพื่อนัดวันเวลารับสินค้าได้เลยครับ/ค่ะ`

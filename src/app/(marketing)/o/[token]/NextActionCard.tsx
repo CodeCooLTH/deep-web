@@ -13,6 +13,7 @@
  * Base: ./PayoutAccountCard.tsx (`<Card>` + หัวข้อ) · ./PickupInfoCard.tsx — sibling ที่ยกโครงมา ไม่ได้ port ตรงจากไฟล์ธีม
  */
 
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import Box from '@mui/material/Box'
 
 import { Icon } from '@iconify/react'
@@ -44,6 +45,8 @@ export type NextActionOrder = {
   shipmentTracking: { provider: string; trackingNo: string; courierCode: string | null } | null
   carrierStatus: string | null
   problemAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุมีปัญหา (ผู้ซื้อเห็นแค่ผล) · null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
@@ -125,6 +128,7 @@ export default function NextActionCard({ action, order, paymentBadge, ctaLabel, 
         shipmentTracking={order.shipmentTracking}
         carrierStatus={order.carrierStatus}
         problemAt={order.problemAt}
+        parcelClose={order.parcelClose}
         returnStartedAt={order.returnStartedAt}
         returnedAt={order.returnedAt}
         returnDispatchedAt={order.returnDispatchedAt}

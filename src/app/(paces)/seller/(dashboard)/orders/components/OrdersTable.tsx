@@ -617,6 +617,7 @@ export default function OrdersTable({
                    ทั้งที่ความจริงคือ "ไม่มีการจัดส่งเลย" คนละความหมาย) */
                 <MiniShipmentTimeline
                   pickupStage={row.original.pickupStage}
+                  parcelClose={null}
                   cancelled={row.original.status === 'CANCELLED'}
                   plain
                 />
@@ -629,6 +630,7 @@ export default function OrdersTable({
                   returnStartedAt={s!.returnStartedAt}
                   returnedAt={s!.returnedAt}
                   returnDispatchedAt={s!.returnDispatchedAt}
+                  parcelClose={s!.problemCloseOutcome}
                   shipmentId={s!.provider === 'ISHIP' || s!.provider === 'FLASH' ? (s!.id ?? null) : null}
                   provider={s!.provider}
                   trackingNo={s!.trackingNo}
@@ -683,6 +685,7 @@ export default function OrdersTable({
                       returnStartedAt={s!.returnStartedAt}
                       returnedAt={s!.returnedAt}
                       returnDispatchedAt={s!.returnDispatchedAt}
+                  parcelClose={s!.problemCloseOutcome}
                       hasShipment={Boolean(s!.trackingNo)}
                       cancelled={row.original.status === 'CANCELLED'}
                       plain

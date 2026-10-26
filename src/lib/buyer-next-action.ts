@@ -12,6 +12,7 @@ import {
 } from './order-display'
 import { deriveShippingStage, resolveOrderStatusBadge, type ShippingStageKey } from './order-stage'
 import { resolveOrderStatusHeadline } from './order-status-headline'
+import type { ParcelCloseOutcome } from './parcel-close'
 import { isPickupOrder } from './order-pickup'
 import { needsPayoutAccount } from './shop-payout'
 
@@ -115,6 +116,8 @@ export function buyerShipmentStatus(i: {
   paymentMethod: string | null
   fulfillmentMode: string
   problemAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุ (BuyerShipmentView.problemCloseOutcome); null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
 }): {
   hasShipment: boolean
   stage: ShippingStageKey

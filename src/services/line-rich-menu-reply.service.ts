@@ -24,6 +24,7 @@ import {
 } from '@/lib/line/order-status-reply'
 import { formatOrderNo } from '@/lib/order-no'
 import { sendOutboundMessage } from './channel-chat.service'
+import { asParcelClose } from './parcel-close-input'
 
 export type OrderStatusReplyOutcome =
   | 'REPLIED'
@@ -91,7 +92,7 @@ export async function replyOrderStatus(params: {
           where: ACTIVE_FORWARD_SHIPMENT,
           orderBy: { createdAt: 'desc' },
           take: 1,
-          select: { carrierStatus: true, problemAt: true },
+          select: { carrierStatus: true, problemAt: true, problemClosedAt: true, problemCloseOutcome: true },
         },
       },
     })
@@ -105,6 +106,7 @@ export async function replyOrderStatus(params: {
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
       problemAt: o.shipments[0]?.problemAt ?? null,
+      parcelClose: asParcelClose(o.shipments[0]?.problemCloseOutcome),
       hasManualTracking: !!o.shipmentTracking,
     }))
 

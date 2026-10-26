@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { deriveOrderStage as deriveOrderStageStrict } from '@/lib/order-stage'
 
 // feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
-const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking'> & { hasManualTracking?: boolean }) | null, now?: number) =>
-  deriveOrderStageStrict(o && { hasManualTracking: false, ...o }, now)
+// feature 00085 — ค่าตั้งต้นของฟิลด์ปิดพัสดุ = ไม่ปิด
+const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking' | 'parcelClose' | 'problemClosedAt'> & { hasManualTracking?: boolean; parcelClose?: 'DELIVERY_FAILED' | 'LOST_ON_RETURN' | null; problemClosedAt?: Date | string | null }) | null, now?: number) =>
+  deriveOrderStageStrict(o && { hasManualTracking: false, parcelClose: null, problemClosedAt: null, ...o }, now)
 
 // เวลาอ้างอิงคงที่ — ห้ามใช้ Date.now() จริงในเทส (ผลจะเปลี่ยนตามเวลาที่รัน)
 const NOW = new Date('2026-07-29T12:00:00Z').getTime()

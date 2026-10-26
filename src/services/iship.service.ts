@@ -131,6 +131,15 @@ export interface ShipmentView {
   carrierStatusAt: Date | null;
   /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนกว่าของจะถึงที่ใดที่หนึ่ง */
   problemAt: Date | null;
+  /** 00085 — ร้านปิดพัสดุมีปัญหา (คอลัมน์ดิบ · ฝั่งร้านเท่านั้น) */
+  problemClosedAt: Date | null;
+  problemClosedByUserId: string | null;
+  problemCloseReason: string | null;
+  problemCloseNote: string | null;
+  problemCloseOutcome: string | null;
+  problemCloseBasis: string | null;
+  problemCloseRefunded: boolean | null;
+  problemCloseExcludesRevenue: boolean | null;
   /** เวลาของ "ขากลับ" — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (ดู schema.prisma) */
   returnStartedAt: Date | null;
   returnedAt: Date | null;
@@ -464,6 +473,14 @@ export function toShipmentView(s: {
   codAmount: unknown;
   createdAt: Date;
   problemAt: Date | null;
+  problemClosedAt: Date | null;
+  problemClosedByUserId: string | null;
+  problemCloseReason: string | null;
+  problemCloseNote: string | null;
+  problemCloseOutcome: string | null;
+  problemCloseBasis: string | null;
+  problemCloseRefunded: boolean | null;
+  problemCloseExcludesRevenue: boolean | null;
   returnStartedAt: Date | null;
   returnedAt: Date | null;
   returnDispatchedAt: Date | null;
@@ -526,6 +543,14 @@ export const SHIPMENT_SELECT = {
   carrierStatusText: true,
   carrierStatusAt: true,
   problemAt: true,
+  problemClosedAt: true,
+  problemClosedByUserId: true,
+  problemCloseReason: true,
+  problemCloseNote: true,
+  problemCloseOutcome: true,
+  problemCloseBasis: true,
+  problemCloseRefunded: true,
+  problemCloseExcludesRevenue: true,
   returnStartedAt: true,
   returnedAt: true,
   returnDispatchedAt: true,

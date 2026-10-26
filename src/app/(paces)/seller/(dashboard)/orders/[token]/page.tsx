@@ -80,6 +80,7 @@ import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { countsAsRevenueFor, isServiceNoShow } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { asParcelClose } from '@/services/parcel-close-input'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { resolveReportSettings } from '@/lib/report-settings'
 import { resolveOrderSource } from '@/lib/order-source-channel'
@@ -275,6 +276,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
     ...j,
     carrierStatusAt: dateOrNull(j.carrierStatusAt),
     problemAt: dateOrNull(j.problemAt),
+    // 00085 — คืนรูป "คอลัมน์ดิบ" ให้เท่ากับ ShipmentView ฝั่ง iShip (ผู้ใช้ต่อไปอ่านจาก panelShipment ที่เดียว)
+    problemClosedAt: dateOrNull(j.problemClose?.closedAt ?? null),
+    problemClosedByUserId: null,
+    problemCloseReason: j.problemClose?.reason ?? null,
+    problemCloseNote: j.problemClose?.note ?? null,
+    problemCloseOutcome: j.problemClose?.outcome ?? null,
+    problemCloseBasis: j.problemClose?.basis ?? null,
+    problemCloseRefunded: j.problemClose?.refunded ?? null,
+    problemCloseExcludesRevenue: j.problemClose?.excludesRevenue ?? null,
     returnStartedAt: dateOrNull(j.returnStartedAt),
     returnedAt: dateOrNull(j.returnedAt),
     returnDispatchedAt: dateOrNull(j.returnDispatchedAt),
@@ -484,6 +494,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           fulfillmentMode: order.fulfillmentMode,
           codReceivedAt: order.codReceivedAt ?? null,
           problemAt: panelShipment?.problemAt ?? null,
+          parcelClose: asParcelClose(panelShipment?.problemCloseOutcome),
           // ส่งเอง (00080): มีเลขที่ร้านกรอกแล้ว — สาขา hasShipment ชนะเองเมื่อมีใบ iShip live
           hasManualTracking: !!order.shipmentTracking,
         })
@@ -708,6 +719,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       isDryRun: Boolean(panelShipment.isDryRun),
                       // 00084 — ผู้ให้บริการของใบ + ยอด COD (ป้าย "Flash ไม่แจ้งการโอนเงิน COD")
                       provider: panelShipment.provider,
+                      parcelClose: asParcelClose(panelShipment.problemCloseOutcome),
                       codAmount: panelShipment.codAmount,
                       lastTracedAtISO: panelShipment.carrierStatusAt
                         ? (panelShipment.carrierStatusAt as Date).toISOString()

@@ -14,6 +14,7 @@ import type {
   MissingSenderField,
   SenderAddress,
 } from "./mapping";
+import type { ParcelCloseBasis, ParcelCloseOutcome, ParcelCloseReason } from "../parcel-close";
 
 /** สินค้า 1 บรรทัดในบล็อก "ตรวจก่อนสร้างพัสดุ" — อ่านอย่างเดียว ไม่ใช่ตัวแก้ออเดอร์ */
 export interface ShipmentReviewItem {
@@ -81,6 +82,19 @@ interface ShipmentContextBase {
   defaults: ParcelDefaults;
 }
 
+/** ร้านปิดพัสดุขาไปที่มีปัญหา (00085) — ฝั่งร้านเท่านั้น ห้ามส่งฟิลด์เหล่านี้ไปหน้าผู้ซื้อ (มีแค่ outcome) */
+export interface ParcelCloseViewJson {
+  closedAt: string; // ISO
+  /** null = ไม่ทราบ/ถูกลบ → UI แสดง "ผู้ดูแลร้าน" */
+  closedByName: string | null;
+  reason: ParcelCloseReason;
+  note: string | null;
+  outcome: ParcelCloseOutcome;
+  basis: ParcelCloseBasis;
+  refunded: boolean | null;
+  excludesRevenue: boolean;
+}
+
 export interface ShipmentViewJson {
   id: string;
   orderId: string;
@@ -118,6 +132,8 @@ export interface ShipmentViewJson {
   height: number | null;
   codAmount: number;
   createdAt: string;
+  /** null = ยังไม่ปิด (00085) */
+  problemClose: ParcelCloseViewJson | null;
   /**
    * ข้อความเรื่องวิธีชำระเงินที่ต้องบอกร้านทันทีหลังเปิด/ผูกพัสดุ (ส่วนขยาย 2026-08-06)
    *   changed — พัสดุเก็บเงินปลายทางแต่คำสั่งซื้อไม่ได้บอก ระบบแก้ให้แล้ว
@@ -146,7 +162,19 @@ type ShipmentViewDates = Omit<
   | "returnStartedAt"
   | "returnedAt"
   | "returnDispatchedAt"
+  | "problemClose"
 > & {
+  // คอลัมน์ problemClose* ดิบจาก OrderShipment (00085) — toShipmentViewJson ประกอบเป็น problemClose
+  // problemClosedByName: ผู้เรียก resolve จาก user ถ้าทำได้ถูก ไม่งั้นไม่ส่ง = null
+  problemClosedAt: Date | null;
+  problemClosedByUserId?: string | null;
+  problemClosedByName?: string | null;
+  problemCloseReason: string | null;
+  problemCloseNote: string | null;
+  problemCloseOutcome: string | null;
+  problemCloseBasis: string | null;
+  problemCloseRefunded: boolean | null;
+  problemCloseExcludesRevenue: boolean | null;
   carrierStatusAt: Date | null;
   problemAt: Date | null;
   returnStartedAt: Date | null;
@@ -156,9 +184,36 @@ type ShipmentViewDates = Omit<
   createdAt: Date;
 };
 
-export function toShipmentViewJson(s: ShipmentViewDates): ShipmentViewJson {
+export function toShipmentViewJson(input: ShipmentViewDates): ShipmentViewJson {
+  // แยกคอลัมน์ดิบออก ไม่ให้รั่วเข้า JSON ที่ส่งถึง client (โดยเฉพาะ problemClosedByUserId)
+  const {
+    problemClosedAt,
+    problemClosedByUserId: _byId,
+    problemClosedByName,
+    problemCloseReason,
+    problemCloseNote,
+    problemCloseOutcome,
+    problemCloseBasis,
+    problemCloseRefunded,
+    problemCloseExcludesRevenue,
+    ...s
+  } = input;
   return {
     ...s,
+    // CHECK ในฐาน: problemClosedAt null ⇔ outcome null — ใช้ทั้งสองเป็นด่านกัน cast พัง
+    problemClose:
+      problemClosedAt && problemCloseOutcome
+        ? {
+            closedAt: problemClosedAt.toISOString(),
+            closedByName: problemClosedByName ?? null,
+            reason: problemCloseReason as ParcelCloseReason,
+            note: problemCloseNote ?? null,
+            outcome: problemCloseOutcome as ParcelCloseOutcome,
+            basis: problemCloseBasis as ParcelCloseBasis,
+            refunded: problemCloseRefunded ?? null,
+            excludesRevenue: problemCloseExcludesRevenue === true,
+          }
+        : null,
     carrierStatusAt: s.carrierStatusAt?.toISOString() ?? null,
     problemAt: s.problemAt?.toISOString() ?? null,
     returnStartedAt: s.returnStartedAt?.toISOString() ?? null,

@@ -12,6 +12,7 @@
  *   (ParcelTimeline ยกมาจาก src/components/safepay/iship/ShipmentStatusView.tsx ฝั่งผู้ขายของเรา ไม่ใช่ ShippingActivityCard ของธีม)
  */
 
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import Typography from '@mui/material/Typography'
 
 import { buyerShipmentStatus } from '@/lib/buyer-next-action'
@@ -25,6 +26,8 @@ type Props = {
   shipmentTracking: { provider: string; trackingNo: string; courierCode: string | null } | null
   carrierStatus: string | null
   problemAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุมีปัญหา (ผู้ซื้อเห็นแค่ผล) · null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
@@ -43,6 +46,7 @@ export default function NextActionShipment({
   shipmentTracking,
   carrierStatus,
   problemAt,
+  parcelClose,
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
@@ -60,6 +64,7 @@ export default function NextActionShipment({
     paymentMethod,
     fulfillmentMode,
     problemAt,
+    parcelClose,
   })
 
   return (
@@ -76,6 +81,7 @@ export default function NextActionShipment({
           returnStartedAt={returnStartedAt}
           returnedAt={returnedAt}
           returnDispatchedAt={returnDispatchedAt}
+          parcelClose={parcelClose}
           hasShipment
           tracking={shipmentTracking}
         />

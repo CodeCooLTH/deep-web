@@ -7,6 +7,7 @@ import { AUTO_ORDER_RESULT_TYPE } from '@/lib/auto-order-message-type'
 import { getMessages } from '@/services/chat.service'
 import type { Capability } from '@/lib/shop-permissions'
 import { getProductsByIds } from '@/services/product.service'
+import { asParcelClose } from './parcel-close-input'
 
 /**
  * getThreadMessagesPage — "ข้อความหนึ่งหน้าของเธรด พร้อมตกแต่งครบ" สำหรับ **ทั้ง 2 ทางเข้า**
@@ -136,6 +137,8 @@ export async function getThreadMessagesPage(params: {
                 provider: true,
                 // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
                 problemAt: true,
+                // 00085 — ร้านปิดพัสดุมีปัญหาแล้ว ⇒ ออกจากกอง PROBLEM
+                problemClosedAt: true, problemCloseOutcome: true,
                 // แถวที่ 2 ของ stepper ในการ์ดแชท ("ขากลับ")
                 returnStartedAt: true, returnedAt: true,
               },
@@ -178,6 +181,7 @@ export async function getThreadMessagesPage(params: {
                 status: o.shipments[0].status,
                 carrierStatus: o.shipments[0].carrierStatus,
                 problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
+                problemCloseOutcome: asParcelClose(o.shipments[0].problemCloseOutcome),
                 // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้นมาเป็น JSON ไม่ได้
                 returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
                 returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,

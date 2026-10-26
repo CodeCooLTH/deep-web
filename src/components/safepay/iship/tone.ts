@@ -1,3 +1,5 @@
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
+
 /**
  * ชุดสีตาม tone ที่แผง iShip ใช้ร่วมกัน — SSOT ตัวเดียว
  *
@@ -108,6 +110,11 @@ const CURRENT_DOT: Record<string, string> = {
   secondary: TONE_DOT_SOLID.success,
 }
 
-export function shipmentCurrentDotCls(notice?: { tone: string } | null): string {
+export function shipmentCurrentDotCls(
+  notice: { tone: string } | null | undefined,
+  parcelClose: ParcelCloseOutcome | null,
+): string {
+  // ปิดแบบส่งไม่สำเร็จ = เทาตรง ๆ (Design-Spec §3) ห้ามผ่าน CURRENT_DOT.secondary ที่เป็นเขียว
+  if (parcelClose === 'DELIVERY_FAILED') return TONE_DOT_SOLID.secondary
   return notice ? (CURRENT_DOT[notice.tone] ?? CURRENT_DOT.primary) : CURRENT_DOT.primary
 }

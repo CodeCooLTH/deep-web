@@ -2,8 +2,10 @@ import { PrismaClient } from '@prisma/client'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { deriveShippingStage } from '../order-stage'
-import { buildShippingStageSql } from '../order-stage-sql'
+import { buildProblemHoldSql, buildShippingStageSql } from '../order-stage-sql'
+import { PARCEL_CLOSE_OUTCOMES, type ParcelCloseOutcome } from '../parcel-close'
 import {
+  holdsParcelProblem,
   IN_TRANSIT_CARRIER_STATUSES,
   PROBLEM_CARRIER_STATUSES,
   PROBLEM_HOLD_RELEASE_STATUSES,
@@ -88,6 +90,8 @@ type Row = {
   problemAt: string | null
   /** มีแถว ShipmentTracking (ส่งเอง) — feature 00080 */
   hasManualTracking: boolean
+  /** ผลที่ร้านปิดพัสดุ (00085) — null = ยังไม่ปิด · ในคอร์ปัสใหญ่เป็น null ทั้งหมด (คอร์ปัสปิดแยกอยู่ด้านล่าง) */
+  problemCloseOutcome: ParcelCloseOutcome | null
 }
 
 function buildCorpus(): Row[] {
@@ -111,6 +115,7 @@ function buildCorpus(): Row[] {
                 fulfillmentMode: 'SHIPPED',
                 problemAt,
                 hasManualTracking,
+                problemCloseOutcome: null,
               })
 
   /**
@@ -136,33 +141,53 @@ function buildCorpus(): Row[] {
             // ใบที่เคยมีปัญหาต้องไม่หลุดออกจากกิ่ง NOT_SHIPPING เช่นกัน
             problemAt: '2026-09-01T03:00:00.000Z',
             hasManualTracking,
+            problemCloseOutcome: null,
           })
+  return rows
+}
+
+/**
+ * คอร์ปัสแยกสำหรับ "ร้านปิดพัสดุแล้ว" (00085) — 🛑 ไม่คูณเข้าคอร์ปัสเต็ม (ใหญ่อยู่แล้ว)
+ * status × hasShipment × carrierStatus(ทุกค่า) × payment{COD,โอน} × problemAt{null,มี} × outcome(2 ค่า)
+ * fulfillmentMode คงที่ SHIPPED (ฝั่ง NOT_SHIPPING พิสูจน์แล้วในคอร์ปัสใหญ่ว่าชนะทุกแกน)
+ */
+function buildClosedCorpus(): Row[] {
+  const rows: Row[] = []
+  let i = 0
+  for (const status of ORDER_STATUSES)
+    for (const hasShipment of [true, false])
+      for (const carrierStatus of CARRIER_CODES)
+        for (const paymentMethod of ['COD', 'TRANSFER'])
+          for (const problemAt of PROBLEM_AT)
+            for (const problemCloseOutcome of PARCEL_CLOSE_OUTCOMES)
+              rows.push({
+                i: i++,
+                status,
+                hasShipment,
+                carrierStatus,
+                paymentMethod,
+                codReceivedAt: null,
+                fulfillmentMode: 'SHIPPED',
+                problemAt,
+                hasManualTracking: false,
+                problemCloseOutcome,
+              })
   return rows
 }
 
 const sqlLit = (v: string | null) => (v === null ? 'NULL' : `'${v.replace(/'/g, "''")}'`)
 
-describe('สูตรกองงานตามสถานะพัสดุ — TypeScript กับ SQL ต้องให้ผลตรงกัน', () => {
-  it('[blocker] ตรงกันทุกคอมบิเนชันของ input', async () => {
-    if (!CAN_RUN) {
-      // ไม่เงียบ — เวิร์กทรีที่ไม่มี .env จะเห็นข้อความนี้แทนการผ่านไปเฉย ๆ
-      console.warn(
-        '[order-stage-sql] ข้ามการเทียบกับ SQL จริง: ต้องมี DATABASE_URL ที่ชี้ localhost ' +
-          `(ค่าปัจจุบัน ${DB_URL ? 'ไม่ใช่ localhost' : 'ไม่ได้ตั้ง'}) — ` +
-          'เทสนี้เป็นด่านของ CR 2026-08-25 อย่าปล่อยให้ข้ามถาวร',
-      )
-      expect(CAN_RUN).toBe(false) // บันทึกไว้ว่าข้ามจริง ไม่ใช่ผ่าน
-      return
-    }
-
-    const corpus = buildCorpus()
+async function parityMismatches(corpus: Row[]): Promise<string[]> {
     const values = corpus
       .map(
         (r) =>
           `(${r.i}, ${sqlLit(r.status)}, ${r.hasShipment}, ${sqlLit(r.carrierStatus)}, ` +
           `${sqlLit(r.paymentMethod)}, ${r.codReceivedAt === null ? 'NULL' : `TIMESTAMP ${sqlLit(r.codReceivedAt.replace('T', ' ').replace('Z', ''))}`}, ` +
           `${sqlLit(r.fulfillmentMode)}, ` +
-          `${r.problemAt === null ? 'NULL::timestamp' : `TIMESTAMP ${sqlLit(r.problemAt.replace('T', ' ').replace('Z', ''))}`}, ${r.hasManualTracking})`,
+          `${r.problemAt === null ? 'NULL::timestamp' : `TIMESTAMP ${sqlLit(r.problemAt.replace('T', ' ').replace('Z', ''))}`}, ${r.hasManualTracking}, ` +
+          // CHECK ในฐาน: problemClosedAt null ⇔ outcome null ⇒ ใช้คู่กันในคอร์ปัส
+          `${r.problemCloseOutcome === null ? 'NULL::text' : sqlLit(r.problemCloseOutcome)}, ` +
+          `${r.problemCloseOutcome === null ? 'NULL::timestamp' : "TIMESTAMP '2026-09-02 03:00:00'"})`,
       )
       .join(',\n')
 
@@ -175,12 +200,14 @@ describe('สูตรกองงานตามสถานะพัสดุ 
       fulfillmentMode: 't.fulfillment_mode',
       problemAt: 't.problem_at',
       hasManualTracking: 't.has_manual_tracking',
+      problemCloseOutcome: 't.problem_close_outcome',
     })
+    const holdExpr = buildProblemHoldSql('t.carrier_status', 't.problem_at', 't.problem_closed_at')
 
     // SELECT บนค่าคงที่ล้วน — ไม่มีชื่อตารางจริงปรากฏใน query นี้เลยแม้แต่ตัวเดียว
-    const sql = `SELECT t.i, ${stageExpr} AS stage FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode, problem_at, has_manual_tracking) ORDER BY t.i`
+    const sql = `SELECT t.i, ${stageExpr} AS stage, (${holdExpr}) AS hold FROM (VALUES\n${values}\n) AS t(i, order_status, has_shipment, carrier_status, payment_method, cod_received_at, fulfillment_mode, problem_at, has_manual_tracking, problem_close_outcome, problem_closed_at) ORDER BY t.i`
 
-    const result = await prisma!.$queryRawUnsafe<{ i: number; stage: string }[]>(sql)
+    const result = await prisma!.$queryRawUnsafe<{ i: number; stage: string; hold: boolean }[]>(sql)
     expect(result).toHaveLength(corpus.length)
 
     const mismatches: string[] = []
@@ -195,19 +222,98 @@ describe('สูตรกองงานตามสถานะพัสดุ 
         fulfillmentMode: input.fulfillmentMode,
         problemAt: input.problemAt ? new Date(input.problemAt) : null,
         hasManualTracking: input.hasManualTracking,
+        parcelClose: input.problemCloseOutcome,
       })
+      const holdTs = holdsParcelProblem(
+        input.carrierStatus,
+        input.problemAt ? new Date(input.problemAt) : null,
+        input.problemCloseOutcome !== null,
+      )
+      // SQL คืน NULL เมื่อ carrierStatus ว่าง (inList ของ NULL) — ใน WHERE/CASE WHEN NULL = เท็จ จึงเทียบแบบ truthy
+      if (holdTs !== !!row.hold) mismatches.push(`HOLD ${JSON.stringify(input)} → TS=${holdTs} SQL=${row.hold}`)
       if (fromTs !== row.stage) {
         mismatches.push(
           `status=${input.status} hasShipment=${input.hasShipment} ` +
             `carrier=${input.carrierStatus} pay=${input.paymentMethod} cod=${input.codReceivedAt} ` +
-            `fulfillment=${input.fulfillmentMode} problemAt=${input.problemAt} manual=${input.hasManualTracking} ` +
+            `fulfillment=${input.fulfillmentMode} problemAt=${input.problemAt} manual=${input.hasManualTracking} close=${input.problemCloseOutcome} ` +
             `→ TS=${fromTs} SQL=${row.stage}`,
         )
       }
     }
-    expect(mismatches).toEqual([])
+    return mismatches
+}
+
+describe('สูตรกองงานตามสถานะพัสดุ — TypeScript กับ SQL ต้องให้ผลตรงกัน', () => {
+  it('[blocker] ตรงกันทุกคอมบิเนชันของ input', async () => {
+    if (!CAN_RUN) {
+      // ไม่เงียบ — เวิร์กทรีที่ไม่มี .env จะเห็นข้อความนี้แทนการผ่านไปเฉย ๆ
+      console.warn(
+        '[order-stage-sql] ข้ามการเทียบกับ SQL จริง: ต้องมี DATABASE_URL ที่ชี้ localhost ' +
+          `(ค่าปัจจุบัน ${DB_URL ? 'ไม่ใช่ localhost' : 'ไม่ได้ตั้ง'}) — ` +
+          'เทสนี้เป็นด่านของ CR 2026-08-25 อย่าปล่อยให้ข้ามถาวร',
+      )
+      expect(CAN_RUN).toBe(false) // บันทึกไว้ว่าข้ามจริง ไม่ใช่ผ่าน
+      return
+    }
+
+    expect(await parityMismatches(buildCorpus())).toEqual([])
   }, 60_000)
 })
+
+describe('ร้านปิดพัสดุแล้ว (00085) — TS กับ SQL ตรงกัน และกองไม่ขยับตามขนส่ง', () => {
+  const skip = () => {
+    if (CAN_RUN) return false
+    console.warn('[order-stage-sql] ข้ามคอร์ปัสปิดพัสดุ: ต้องมี DATABASE_URL ชี้ localhost')
+    return true
+  }
+
+  it('[blocker] คอร์ปัสปิดพัสดุทั้งชุด: stage + hold ตรงกันทุกแถว', async () => {
+    if (skip()) return
+    expect(await parityMismatches(buildClosedCorpus())).toEqual([])
+  }, 60_000)
+
+  it('[blocker] ปิดผล A → DELIVERY_FAILED ทุกสถานะขนส่ง · ไม่เป็นงานค้าง (ทั้ง COD และโอน)', async () => {
+    for (const r of buildClosedCorpus().filter(
+      (x) => x.hasShipment && x.problemCloseOutcome === 'DELIVERY_FAILED' && x.status !== 'DRAFTED' && x.status !== 'CANCELLED' && x.status !== 'RETURNED',
+    )) {
+      expect(stageOf(r), JSON.stringify(r)).toBe('DELIVERY_FAILED')
+    }
+  })
+
+  it('[blocker] ปิดผล B → DONE ไม่ใช่ AWAITING_COD แม้ COD + ยังไม่รับเงิน', async () => {
+    for (const r of buildClosedCorpus().filter(
+      (x) => x.hasShipment && x.problemCloseOutcome === 'LOST_ON_RETURN' && x.paymentMethod === 'COD' && !['DRAFTED', 'CANCELLED', 'RETURNED'].includes(x.status),
+    )) {
+      expect(stageOf(r), JSON.stringify(r)).toBe('DONE')
+    }
+  })
+
+  it('[blocker] ปิดแล้วแต่สถานะขนส่งขยับต่อ → กองไม่เปลี่ยน (A × delivered/return/progress · B × issue/return_success)', () => {
+    const closed = buildClosedCorpus().filter((x) => x.hasShipment && x.status === 'PENDING')
+    const pick = (o: ParcelCloseOutcome, codes: string[]) =>
+      closed.filter((x) => x.problemCloseOutcome === o && x.carrierStatus && codes.includes(x.carrierStatus))
+    const a = pick('DELIVERY_FAILED', ['delivered', 'return', 'return_success', 'progress'])
+    const b = pick('LOST_ON_RETURN', ['issue', 'return_success'])
+    expect(a.length).toBeGreaterThan(0)
+    expect(b.length).toBeGreaterThan(0)
+    for (const r of a) expect(stageOf(r), JSON.stringify(r)).toBe('DELIVERY_FAILED')
+    for (const r of b) expect(stageOf(r), JSON.stringify(r)).toBe('DONE')
+  })
+})
+
+function stageOf(r: Row) {
+  return deriveShippingStage({
+    status: r.status,
+    hasShipment: r.hasShipment,
+    carrierStatus: r.carrierStatus,
+    paymentMethod: r.paymentMethod,
+    codReceivedAt: r.codReceivedAt ? new Date(r.codReceivedAt) : null,
+    fulfillmentMode: r.fulfillmentMode,
+    problemAt: r.problemAt ? new Date(r.problemAt) : null,
+    hasManualTracking: r.hasManualTracking,
+    parcelClose: r.problemCloseOutcome,
+  })
+}
 
 describe('รายชื่อสถานะใน SQL ต้องมาจาก SSOT ไม่ใช่พิมพ์เอง', () => {
   const sql = buildShippingStageSql({
@@ -219,6 +325,7 @@ describe('รายชื่อสถานะใน SQL ต้องมาจ�
     fulfillmentMode: 'fm',
     problemAt: 'pa',
     hasManualTracking: 'hm',
+    problemCloseOutcome: 'pco',
   })
 
   it('[blocker] ทุกรหัสใน 4 ชุดของ iship/status.ts ต้องโผล่ใน SQL', () => {

@@ -21,6 +21,7 @@
  *   - Timeline/payment/tracking/digital cards: bespoke Box/Card — recolor ผ่าน theme.palette.* เท่านั้น
  */
 
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { useEffect, useRef, useState } from 'react'
 
 import Link from 'next/link'
@@ -185,6 +186,8 @@ export type PublicOrderData = {
   // 00068 — ฟิลด์พัสดุจาก buildBuyerShipmentView (ชุดเดียวกับ GuestOrderData)
   carrierStatus: string | null
   problemAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุมีปัญหา (ผู้ซื้อเห็นแค่ผล) · null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
@@ -1173,6 +1176,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           paymentMethod: order.paymentMethod ?? null,
           fulfillmentMode: order.fulfillmentMode,
           problemAt: order.problemAt,
+          parcelClose: order.parcelClose,
         }).stage === 'AWAITING_DISPATCH',
       )
 

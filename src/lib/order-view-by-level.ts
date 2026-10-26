@@ -30,7 +30,7 @@ export const NO_MONEY_ITEM_KEYS = ['id', 'productId', 'name', 'description', 'qt
 /** ไม่มี carrierPrice / estimatedPrice / codFee / codAmount */
 export const NO_MONEY_SHIPMENT_KEYS = [
   'id', 'trackingNo', 'courierCode', 'courierName', 'provider', 'carrierStatus', 'carrierStatusAt', 'status',
-  'isDryRun', 'direction', 'problemAt', 'returnStartedAt', 'returnedAt', 'returnDispatchedAt', 'createdAt',
+  'isDryRun', 'direction', 'problemAt', 'problemClosedAt', 'problemCloseOutcome', 'returnStartedAt', 'returnedAt', 'returnDispatchedAt', 'createdAt',
 ] as const
 const TRACKING_KEYS = ['trackingNo', 'provider', 'createdAt'] as const
 const RESOURCE_KEYS = ['id', 'name', 'capacity'] as const

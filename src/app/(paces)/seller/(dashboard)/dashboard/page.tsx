@@ -168,7 +168,7 @@ export default async function SellerDashboardPage() {
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
   // พิมพ์จาก ShippingStageKey ไม่ใช่ไล่ชื่อช่องเอง (ดูเหตุผลที่ CommandCenterData.shippingStageCounts)
-  let shippingStageCounts: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, number> | undefined
+  let shippingStageCounts: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING' | 'DELIVERY_FAILED'>, number> | undefined
   // จำนวนนัดวันนี้ — เฉพาะร้านที่ใช้ระบบคิวงานได้ (SERVICE_QUEUE); undefined = ไทล์ที่ 2 คงเป็น "กำลังจัดส่ง"
   let appointmentTodayCount: number | undefined
   // ขั้นงานของร้านบริการ (4 ไทล์) — undefined = ใช้ชุดเดิม

@@ -14,6 +14,7 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
+import { PARCEL_CLOSE_META, type ParcelCloseOutcome } from './parcel-close'
 import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from './appointment-stage'
 import { APPOINTMENT_STATUS } from './appointments'
 import { formatDayMonthShortYearTH } from './format-date'
@@ -46,6 +47,8 @@ export type OrderStageKey =
   | 'RETURNED'
   /** feature 00080 — ส่งเอง: มีเลขพัสดุแล้ว แต่ร้านยังไม่กด "จัดส่งแล้ว" (ของยังไม่ออกจากร้าน) */
   | 'AWAITING_DISPATCH'
+  /** feature 00085 — ร้านปิดพัสดุขาไป ผล A (ส่งไม่สำเร็จ) · ผล B ใช้ 'DELIVERED' */
+  | 'DELIVERY_FAILED'
 
 /**
  * cls ใช้ pattern เดียวกับ ORDER_STATUS_META (`bg-{semantic}/15 text-{semantic}-ink`) — Paces token ล้วน
@@ -79,6 +82,12 @@ export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: strin
   RETURNED: { label: 'คืนของแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'arrow-back-up' },
   // feature 00080 — คำ/สี/ไอคอนเดียวกับ STAGE_BADGE_OVERRIDE.AWAITING_DISPATCH (HR16)
   AWAITING_DISPATCH: { label: 'รอจัดส่ง', cls: 'bg-warning/15 text-warning-ink', icon: 'package-export' },
+  // feature 00085 — เทาเสมอ: เรื่องจบแล้วและไม่ใช่ความสำเร็จ (เขียว) ไม่ใช่เรื่องด่วน (แดง/เหลือง) · คำเดียวกับ PARCEL_CLOSE_META (HR16)
+  DELIVERY_FAILED: {
+    label: PARCEL_CLOSE_META.DELIVERY_FAILED.label,
+    cls: 'bg-default-100 text-default-800',
+    icon: PARCEL_CLOSE_META.DELIVERY_FAILED.icon,
+  },
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -148,6 +157,12 @@ export type ShippingStageKey =
    * (`src/lib/order-pickup.ts`) เท่านั้น คนละแกน คนละคำ
    */
   | 'NOT_SHIPPING'
+  /**
+   * feature 00085 — ร้านปิดพัสดุขาไปแบบ "ส่งไม่สำเร็จ" (ผล A) · งานจบแล้วแต่ไม่ใช่ความสำเร็จ
+   * ⇒ ไม่ใช่ DONE (เขียว "ส่งถึงแล้ว") และไม่ใช่งานค้าง · ผล B ใช้ 'DONE'
+   * 🛑 ห้ามใส่ใน `SHIPPING_STAGE_LABEL` (จะเกิดตัวกรอง ?stage= ที่ไม่มีชิปพาไป) — คำอยู่ที่ STAGE_BADGE_OVERRIDE
+   */
+  | 'DELIVERY_FAILED'
 
 /**
  * จุดที่ไฮไลต์บนแถบพัสดุ 4 จุด (`SHIPMENT_STAGES`) ต่อ stage หนึ่งค่า
@@ -179,6 +194,8 @@ export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> =
   DONE: 4,
   // ไม่มีพัสดุให้วาดแถบเลยโดยนิยาม (feature 00062) — เหมือน AWAITING_PARCEL
   NOT_SHIPPING: null,
+  // ปักที่จุดรถ — ห้าม 4 (แถบเขียวครบ = ส่งถึง) ซึ่งตรงข้ามกับสิ่งที่ร้านบันทึกไว้
+  DELIVERY_FAILED: 2,
 }
 
 export interface ShippingStageInput {
@@ -218,6 +235,11 @@ export interface ShippingStageInput {
    * เป็น "รอเลขพัสดุ" เงียบ ๆ เฉพาะจอตัวเอง แล้วไทล์กับตัวกรองจะนับไม่ตรงกัน (HR16) — ให้ `tsc` ไล่แทน
    */
   hasManualTracking: boolean
+  /**
+   * `OrderShipment.problemCloseOutcome` ของใบเดียวกับ `carrierStatus` (feature 00085) — null = ยังไม่ปิด
+   * 🛑 บังคับ ด้วยเหตุผลเดียวกับ `problemAt`: ผู้เรียกที่ลืมส่งจะดึงใบที่ปิดแล้วกลับเข้ากองปัญหาเงียบ ๆ
+   */
+  parcelClose: ParcelCloseOutcome | null
 }
 
 /**
@@ -266,6 +288,10 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   if (o.status === 'CANCELLED' || o.status === 'RETURNED') return 'DONE'
 
   if (o.hasShipment) {
+    // 🛑 ร้านปิดพัสดุแล้ว (00085) ต้องอยู่ **เหนือ** RETURNED/PROBLEM/terminal: ขนส่งยังส่งสถานะมาต่อได้
+    // (เช่น return_success หลังปิดว่าหาย) ถ้าไว้ใต้ มันจะพากองกลับเอง ทั้งที่ร้านตัดสินแล้ว
+    if (o.parcelClose === 'DELIVERY_FAILED') return 'DELIVERY_FAILED'
+    if (o.parcelClose === 'LOST_ON_RETURN') return 'DONE'
     // ลำดับเดียวกับ deriveOrderStage: ของที่ไม่ได้เดินหน้าตามปกติมาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
     //
     // ตีกลับกับ "มีปัญหา" เป็นคนละกอง (2026-08-24) — และตั้งแต่ 2026-09-14 ที่กอง PROBLEM
@@ -291,7 +317,7 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
      * เกณฑ์ทั้งก้อนอยู่ที่ `holdsParcelProblem()` ที่เดียว (lib/iship/status.ts) — ห้ามเขียน
      * เงื่อนไขซ้ำที่นี่ เพราะมีอีก 2 ระบบที่ต้องตอบเหมือนกันเป๊ะ (ป้ายในแถวแชท + สูตรฉบับ SQL)
      */
-    if (holdsParcelProblem(o.carrierStatus, o.problemAt)) return 'PROBLEM'
+    if (holdsParcelProblem(o.carrierStatus, o.problemAt, false)) return 'PROBLEM'
     if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
@@ -315,6 +341,14 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
 }
 
 /**
+ * กองนี้ยังเป็นงานค้างของร้านไหม — false สำหรับ DONE, DELIVERY_FAILED (ร้านปิดแล้ว), NOT_SHIPPING
+ * (feature 00085) ไซต์ที่เคยเขียน `stage !== 'DONE'` ต้องใช้ตัวนี้ ไม่งั้นใบที่ปิดแล้วถูกนับเป็นงานค้าง
+ */
+export function isActionableShippingStage(stage: ShippingStageKey): boolean {
+  return stage !== 'DONE' && stage !== 'DELIVERY_FAILED' && stage !== 'NOT_SHIPPING'
+}
+
+/**
  * ทุกกองรวม `DONE` — สำหรับตัวนับที่ต้องขึ้น 0 ให้กองที่ไม่มีแถว (ไม่ใช่หายไปจากชิป)
  *
  * 🛑 ประกาศผ่าน `Record<ShippingStageKey, true>` โดยตั้งใจ ไม่ใช่ array ธรรมดา —
@@ -335,6 +369,7 @@ const ALL_SHIPPING_STAGES: Record<ShippingStageKey, true> = {
   // เหมือน DONE — ไม่มีชิป/ไทล์ไหนพากอง NOT_SHIPPING ไปดู แต่ยังต้องขึ้น 0 ในตัวนับรวม
   // ไม่ใช่หายไปเงียบ ๆ (feature 00062)
   NOT_SHIPPING: true,
+  DELIVERY_FAILED: true,
 }
 export const SHIPPING_STAGE_KEYS_ALL = Object.keys(ALL_SHIPPING_STAGES) as ShippingStageKey[]
 
@@ -348,7 +383,7 @@ export const SHIPPING_STAGE_KEYS_ALL = Object.keys(ALL_SHIPPING_STAGES) as Shipp
  * 🛑 `DRAFT` **อยู่ในนี้** ต่างจาก `NOT_SHIPPING` โดยตั้งใจ (feature 00061) — ร่างมีชิปพาไปดูจริง
  * ที่ `/orders?stage=DRAFT` และเป็นกองเดียวที่มีเส้นตาย (หายเองใน 7 วัน) ⇒ ต้องมีคำ
  */
-export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, string> = {
+export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING' | 'DELIVERY_FAILED'>, string> = {
   // feature 00061 — คำเดียวกับ `ORDER_STATUS_META.DRAFTED.label` (HR16: ป้ายเดียวกันต้องพูดคำเดียวกัน)
   DRAFT: 'ร่าง',
   AWAITING_PARCEL: 'รอเลขพัสดุ',
@@ -426,6 +461,13 @@ const STAGE_BADGE_OVERRIDE: Partial<
    * Verified-Means-Green: เขียวได้เพราะขนส่งยืนยันแล้วว่าถึงปลายทาง + ไม่มีเงินค้าง —
    * เป็นข้อเท็จจริงที่ตรวจสอบได้ ไม่ใช่การเดา. คนละเขียวกับ CONFIRMED (ผู้ซื้อยืนยันเอง)
    */
+  // 00085 — เทาเหมือน ORDER_STAGE_META.DELIVERY_FAILED
+  DELIVERY_FAILED: {
+    label: PARCEL_CLOSE_META.DELIVERY_FAILED.label,
+    cls: 'bg-default-100 text-default-800',
+    icon: PARCEL_CLOSE_META.DELIVERY_FAILED.icon,
+    tone: 'neutral',
+  },
   DONE: {
     label: 'ส่งถึงแล้ว',
     cls: 'bg-success/15 text-success-ink',
@@ -559,6 +601,10 @@ export interface OrderStageInput {
    * (ห้ามตีเป็น 0 เพราะ "ไม่รู้" กับ "รู้ว่าไม่มี" ไม่เหมือนกัน)
    */
   problemOrderCount?: number | null
+  /** OrderShipment.problemCloseOutcome (feature 00085) — บังคับ; null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
+  /** OrderShipment.problemClosedAt (00085) — บังคับ; ป้าย "ปิดแล้ว" นับ 3 วันจากเวลาปิด ไม่ใช่เวลาขนส่ง */
+  problemClosedAt: Date | string | null
 }
 
 export interface OrderStageResult {
@@ -636,7 +682,13 @@ export function deriveOrderStage(
     // ปัญหามาก่อนทุกอย่างและไม่มีวันหมดอายุ: ก่อนหน้านี้ issue/return/cannot_pickup/
     // is_expired/cod_refund ตกลงไปเป็น "สร้างพัสดุแล้ว" ทั้งหมด — เคสที่ต้องเห็นด่วนที่สุด
     // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
-    if (isReturnedCarrierStatus(order.carrierStatus)) {
+    if (order.parcelClose) {
+      // ร้านปิดพัสดุแล้ว (00085) — เหนือ RETURNED/PROBLEM เหมือน deriveShippingStage
+      // แสดง 3 วันนับจากเวลาปิด ไม่ใช่เวลาที่ขนส่งขยับ (ไม่งั้นขนส่งอัปเดตทีหลังต่ออายุป้ายให้เอง)
+      const closeAge = order.problemClosedAt ? now - new Date(order.problemClosedAt).getTime() : age
+      if (closeAge > DELIVERED_VISIBLE_MS) return null
+      key = order.parcelClose === 'DELIVERY_FAILED' ? 'DELIVERY_FAILED' : 'DELIVERED'
+    } else if (isReturnedCarrierStatus(order.carrierStatus)) {
       /**
        * 🛑 ตีกลับ = **ไม่ขึ้นชิปสถานะเลย** ในแถวรายการแชท (user สั่ง 2026-08-24)
        *
@@ -654,7 +706,7 @@ export function deriveOrderStage(
        * ค้างเหนียว (2026-09-14) — เกณฑ์เดียวกับ `deriveShippingStage()` ผ่าน SSOT ตัวเดียว
        * ⇒ ป้ายในแถวแชทกับกองในหน้า /orders พูดตรงกันเสมอ แม้ขนส่งจะกลับไปเดินต่อแล้ว
        */
-    } else if (holdsParcelProblem(order.carrierStatus, order.problemAt)) {
+    } else if (holdsParcelProblem(order.carrierStatus, order.problemAt, false)) {
       key = 'PARCEL_PROBLEM'
       // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
       // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"

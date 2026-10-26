@@ -33,6 +33,7 @@
  *       แถบปุ่มท้ายชีตยกทั้งดุ้นจาก `RecordPaymentSheet.tsx:580` (ชีตพี่น้องในโดเมนเดียวกัน)
  */
 
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useLockBodyScroll from '@/hooks/useLockBodyScroll'
 import useDialogFocus from '@/hooks/useDialogFocus'
@@ -144,6 +145,8 @@ type ForwardParcel = {
   carrierStatus: string | null
   /** คู่กับ carrierStatus — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง (2026-09-14) */
   problemAt: string | Date | null
+  /** 00085 — ผลปิดพัสดุขาไปโดยร้าน (null = ยังไม่ปิด) */
+  parcelClose: ParcelCloseOutcome | null
   box: ReturnParcelBox | null
 }
 
@@ -1139,6 +1142,7 @@ export default function ReturnPanel({
         status: eligibility.orderStatus,
         carrierStatus: forward.carrierStatus,
         problemAt: forward.problemAt,
+        parcelClose: forward.parcelClose,
         hasShipment: forward.trackingNo != null,
         /* แถบนี้เรนเดอร์ต่อเมื่อ `forward` ไม่ null = ใบนี้มีพัสดุขาไปจริง ⇒ เป็นออเดอร์ที่
            ส่งของแน่นอน ไม่ใช่นัดรับ/ดิจิทัล (ค่านี้จึงเป็นข้อเท็จจริงที่อนุมานได้จากเงื่อนไข

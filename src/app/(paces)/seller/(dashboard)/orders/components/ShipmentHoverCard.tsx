@@ -31,6 +31,7 @@ import { sortTracesNewestFirst } from '@/lib/iship/traces'
 import { providerLabel } from '@/lib/shipping/provider'
 import { hoverFetchPlan } from '@/lib/shipping/orders-list'
 import type { ShippingStageKey } from '@/lib/order-stage'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 /** เหตุการณ์ที่ /api/seller/iship/shipments/[id]/traces คืนมา (รูปเดียวกับ ShippingCard) */
@@ -55,6 +56,8 @@ const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
   SHIPPING: 2,
   PROBLEM: 2,
   RETURNED: 2,
+  // 00085 — ร้านปิดแบบส่งไม่สำเร็จ: ปักจุดรถเหมือน SHIPPING_STAGE_DOT_INDEX (ห้าม 4 = แถบเขียวครบ)
+  DELIVERY_FAILED: 2,
   AWAITING_COD: 4,
   DONE: 4,
 }
@@ -78,6 +81,8 @@ interface Props {
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
   returnDispatchedAt?: string | Date | null
+  /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับส่ง (null = ยังไม่ปิด) กันลืมแล้วแถบพูดคนละขั้นกับจอข้างใน */
+  parcelClose: ParcelCloseOutcome | null
   /** id ของ OrderShipment — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม) */
   shipmentId: string | null
   /**
@@ -99,6 +104,7 @@ export default function ShipmentHoverCard({
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
+  parcelClose,
   shipmentId,
   provider,
   trackingNo,
@@ -164,11 +170,11 @@ export default function ShipmentHoverCard({
    *
    * ไม่มี carrierStatus (ร้านแจ้งเลขเอง) → ถอยไปใช้ตารางหยาบเหมือนเดิม
    */
-  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller') : null
+  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller', parcelClose) : null
   const rawCur = progress ? progress.stage : stage != null ? CURRENT_INDEX[stage] : null
   const cur = rawCur != null && rawCur >= 0 ? rawCur : null
   /** สีจุดปัจจุบัน + คำขั้นสุดท้าย — SSOT ร่วมกับ MiniShipmentTimeline และ ShippingCard */
-  const currentDot = shipmentCurrentDotCls(progress?.notice)
+  const currentDot = shipmentCurrentDotCls(progress?.notice, parcelClose)
 
   /**
    * แถวที่ 2 ("ขากลับ") — `null` = ออเดอร์ปกติ ไม่วาดแถว 2 เลย

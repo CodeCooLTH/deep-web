@@ -186,7 +186,8 @@ export default function ShipmentStatusView({
 
   /** ความจริงล่าสุดของ "พัสดุใบนี้อยู่สถานะไหน" — ทุกจุดในไฟล์นี้ต้องอ่านจากตัวนี้ */
   const carrier: TraceCarrierState = liveCarrier ?? shipment
-  const progress = describeProgress(carrier.status, carrier.carrierStatus, 'seller')
+  const parcelClose = shipment.problemClose?.outcome ?? null
+  const progress = describeProgress(carrier.status, carrier.carrierStatus, 'seller', parcelClose)
   /**
    * แถวที่ 2 ("ขากลับ") — อ่านเวลาจาก `shipment` (prop) ไม่ใช่จาก `carrier` (ค่าที่ traces
    * ส่งกลับมา) เพราะ endpoint นั้นคืนเฉพาะสถานะ ไม่ได้คืนเวลาขากลับ · จุดสว่างยังตัดสินจาก
@@ -764,7 +765,7 @@ export default function ShipmentStatusView({
             stage={progress.stage}
             lastLabel={progress.lastLabel}
             lastIcon={progress.lastIcon}
-            currentDotCls={shipmentCurrentDotCls(progress.notice)}
+            currentDotCls={shipmentCurrentDotCls(progress.notice, parcelClose)}
             leg={leg}
             ariaLabel={railAriaLabel(railCurrentLabel, leg)}
           />

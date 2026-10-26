@@ -16,6 +16,7 @@ import { NOTICE_BOX } from '@/components/safepay/iship/tone'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 
 export default function ShipmentStepper({
@@ -24,6 +25,7 @@ export default function ShipmentStepper({
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
+  parcelClose,
   size = 'md',
   showNotice = true,
 }: {
@@ -35,12 +37,14 @@ export default function ShipmentStepper({
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
   returnDispatchedAt?: string | Date | null
+  /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับส่ง (null = ยังไม่ปิด) */
+  parcelClose: ParcelCloseOutcome | null
   /** md = ในการ์ดออเดอร์ (dot size-7) · sm = แถบสถานะใต้หัวเธรด (dot size-6 เท่าโมดัลพัสดุย่อ) */
   size?: 'md' | 'sm'
   /** แถบปักพื้นที่จำกัด — ปิด notice ได้ (การ์ดเปิดเสมอ) */
   showNotice?: boolean
 }) {
-  const progress = describeProgress(shipmentStatus, carrierStatus, 'seller')
+  const progress = describeProgress(shipmentStatus, carrierStatus, 'seller', parcelClose)
 
   /**
    * แถวที่ 2 ("ขากลับ") — `null` = ออเดอร์ปกติ ไม่วาดแถว 2 เลย
@@ -61,7 +65,7 @@ export default function ShipmentStepper({
         stage={progress.stage}
         lastLabel={progress.lastLabel}
         lastIcon={progress.lastIcon}
-        currentDotCls={shipmentCurrentDotCls(progress.notice)}
+        currentDotCls={shipmentCurrentDotCls(progress.notice, parcelClose)}
         leg={leg}
         size={size === 'md' ? 'lg' : 'sm'}
         ariaLabel={railAriaLabel(currentLabel, leg)}

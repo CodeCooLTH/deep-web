@@ -25,6 +25,7 @@ import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/ord
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { asParcelClose } from './parcel-close-input'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
 
@@ -53,6 +54,8 @@ type StageRow = {
     carrierStatus: string | null
     /** กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมาจากใบเดียวกับ carrierStatus */
     problemAt: Date | null
+    /** 00085 — ร้านปิดพัสดุมีปัญหาแล้ว (ผลของการปิด; null = ยังไม่ปิด) */
+    problemCloseOutcome?: string | null
     createdAt: Date
   }[] | null
 }
@@ -68,6 +71,7 @@ const toShippingStageInput = (r: StageRow) => {
     codReceivedAt: r.codReceivedAt ?? null,
     fulfillmentMode: r.fulfillmentMode,
     problemAt: active[0]?.problemAt ?? null,
+    parcelClose: asParcelClose(active[0]?.problemCloseOutcome),
     hasManualTracking: !!r.shipmentTracking,
   }
 }
@@ -362,6 +366,8 @@ export async function getSalesSeries(
             direction: true,
             carrierStatus: true,
             problemAt: true,
+            problemClosedAt: true,
+            problemCloseOutcome: true,
             createdAt: true,
             carrierPrice: true,
             estimatedPrice: true,
@@ -860,7 +866,7 @@ export async function getProvinceSales(
       shippingAddress: true,
       status: true,
       // direction: countsAsRevenue() บังคับ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, problemAt: true, direction: true } },
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, problemAt: true, problemClosedAt: true, problemCloseOutcome: true, direction: true } },
     },
   })
 

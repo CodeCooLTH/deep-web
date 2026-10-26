@@ -91,8 +91,8 @@ export function canCloseParcelProblem(f: CanCloseInput): { ok: true } | { ok: fa
   if (['CANCELLED', 'RETURNED', 'DRAFTED'].includes(o.status)) return no('ORDER_FINISHED')
   if (o.fulfillmentMode !== 'SHIPPED') return no('NOT_SHIPPED_MODE')
   if (usesServiceFinanceRules(o.vertical)) return no('SERVICE_SHOP_UNSUPPORTED')
-  // TODO(T3): holdsParcelProblem จะรับ arg ที่ 3 (parcelClosed)
-  if (!holdsParcelProblem(s.carrierStatus, s.problemAt)) return no('NOT_IN_PROBLEM')
+  // arg 3 = false: ตรวจ ALREADY_CLOSED ไว้ด้านบนแล้ว ที่นี่ถามแค่ว่า "อยู่กองปัญหาไหม"
+  if (!holdsParcelProblem(s.carrierStatus, s.problemAt, false)) return no('NOT_IN_PROBLEM')
   return { ok: true }
 }
 

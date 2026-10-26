@@ -175,6 +175,8 @@ describe('buildGuestOrderData', () => {
         // feature 00080 — ธง boolean ตัดสินขั้น "รอจัดส่ง" เท่านั้น (ไม่มีเลข/ชื่อ/เบอร์) — ดู GuestOrderData
         'hasManualTracking',
         'hasIshipTracking',
+        // feature 00085 — ผลที่ร้านปิดพัสดุ (DELIVERY_FAILED/LOST_ON_RETURN) เท่านั้น — เหตุผล/ผู้ปิด/คืนเงิน ห้ามมา
+        'parcelClose',
         // feature 00062 (2026-08-29) — บัญชีรับเงินของ "ร้าน" ไม่ใช่ PII ของผู้ซื้อ ร้าน
         // ต้องการให้ผู้ถือลิงก์เห็นอยู่แล้ว (เหตุผลเต็มที่ประกาศฟิลด์ใน guest-order-data.ts)
         'payoutSnapshot',

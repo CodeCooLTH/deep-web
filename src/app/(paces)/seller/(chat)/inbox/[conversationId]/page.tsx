@@ -85,6 +85,7 @@ import { listSavedFileIds } from '@/services/customer-file-library.service'
 import { sellerContactDisplay } from '@/lib/seller-contact-display'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { getServiceCustomerSpend } from '@/services/customer-directory.service'
+import { asParcelClose } from '@/services/parcel-close-input'
 import { behaviorByShopCustomer, behaviorKey } from '@/services/customer-behavior.service'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
@@ -641,6 +642,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
               isDryRun: true,
               // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — carrierStatus เดินถอยหลังได้
               problemAt: true,
+              // 00085 — ร้านปิดพัสดุมีปัญหาแล้ว ⇒ ออกจากกอง PROBLEM (คู่กับ getThreadPanelOrders)
+              problemClosedAt: true, problemCloseOutcome: true,
             },
           },
         },
@@ -737,6 +740,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           carrierStatus: o.shipments[0].carrierStatus,
           isDryRun: o.shipments[0].isDryRun,
           problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
+          problemCloseOutcome: asParcelClose(o.shipments[0].problemCloseOutcome),
         }
       : null,
   }))
