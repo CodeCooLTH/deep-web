@@ -58,6 +58,9 @@ export const ORDER_EVENT_TYPES = [
   'SELLER_DELIVERED',
   // TD-010 — เลิกทำ "จัดส่งแล้ว" ภายในหน้าต่างเวลา · DB CHECK: 20261018100300_order_event_manual_dispatch_undone
   'MANUAL_DISPATCH_UNDONE',
+  // feature 00085 — ร้านปิด/เลิกปิดพัสดุที่มีปัญหา · DB CHECK: 20261026100100_00085_order_event_parcel_close_types
+  'PARCEL_PROBLEM_CLOSED',
+  'PARCEL_PROBLEM_REOPENED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -129,6 +132,8 @@ export const ORDER_EVENT_META: Record<
   MANUAL_DISPATCHED: { label: 'แจ้งจัดส่งแล้ว (ส่งเอง)', icon: 'truck-delivery', tone: 'neutral' },
   SELLER_DELIVERED: { label: 'ร้านยืนยันส่งสำเร็จ', icon: 'package-import', tone: 'neutral' },
   MANUAL_DISPATCH_UNDONE: { label: 'เลิกทำแจ้งจัดส่ง (ส่งเอง)', icon: 'arrow-back-up', tone: 'neutral' },
+  PARCEL_PROBLEM_CLOSED: { label: 'ปิดพัสดุที่มีปัญหา', icon: 'package-off', tone: 'neutral' },
+  PARCEL_PROBLEM_REOPENED: { label: 'เลิกปิดพัสดุ', icon: 'arrow-back-up', tone: 'neutral' },
 }
 
 /**
@@ -218,6 +223,14 @@ export type OrderEventMeta = {
   deposit?: string
   /** feature 00082 — ระบบปิดให้เพราะลูกค้ายืนยันรับบริการ (SERVICE_CLOSED): 'BUYER' · ไม่มี = ร้านกดปิด */
   closedBy?: string
+  /** feature 00085 — เหตุผลปิดพัสดุ (PARCEL_PROBLEM_CLOSED): FIRE | LOST | DAMAGED | OTHER · `outcome` ใช้ร่วมกับด้านบน */
+  closeReason?: string
+  /** feature 00085 — หมายเหตุเฉพาะ OTHER · ไม่ใช่ PII ผู้ซื้อ (ร้านพิมพ์เอง ≤200) */
+  closeNote?: string
+  /** feature 00085 — ฐานเวลาที่ใช้ตัดสินยอดขาย: DELIVERED_AT | EVENT | ORDER_CONFIRMED | NONE */
+  basis?: string
+  /** feature 00085 — ร้านระบุว่าคืนเงินแล้ว (null/ไม่มี = ไม่ได้ถาม) */
+  refunded?: boolean | null
 }
 
 export type OrderEventView = {
@@ -290,6 +303,16 @@ export function describeOrderEvent(
         parts.push(`รับเงิน ฿${e.meta.amount.toLocaleString('th-TH')}`)
       }
       if (e.meta.backfilled) parts.push('บันทึกย้อนหลัง')
+      return parts.length ? parts.join(' · ') : null
+    }
+    case 'PARCEL_PROBLEM_CLOSED': {
+      const reasons: Record<string, string> = { FIRE: 'ไฟไหม้', LOST: 'สูญหาย', DAMAGED: 'เสียหาย' }
+      const parts: string[] = []
+      if (e.meta.closeReason === 'OTHER') parts.push(e.meta.closeNote ? `เหตุผล: ${e.meta.closeNote}` : 'เหตุผล: อื่น ๆ')
+      else if (e.meta.closeReason && reasons[e.meta.closeReason]) parts.push(`เหตุผล: ${reasons[e.meta.closeReason]}`)
+      if (e.meta.outcome === 'DELIVERY_FAILED') parts.push('ส่งไม่สำเร็จ')
+      if (e.meta.outcome === 'LOST_ON_RETURN') parts.push('สูญหายระหว่างตีกลับ')
+      if (e.meta.refunded === true) parts.push('คืนเงินแล้ว')
       return parts.length ? parts.join(' · ') : null
     }
     default:

@@ -2754,6 +2754,24 @@ model OrderShipment {
   /// ไม่ใช่การล้างคอลัมน์นี้ — คอลัมน์นี้คือ *ประวัติ* ว่าเคยมีปัญหา ซึ่งเป็นจริงตลอดไป
   problemAt DateTime?
 
+  /// feature 00085 — ร้านปิดพัสดุที่มีปัญหา (ทุกคอลัมน์ nullable: ใบเก่า/ใบที่ยังไม่ปิด = null)
+  /// problemClosedAt = เวลาปิด (ตัวบอกว่าปิดแล้ว) · problemClosedByUserId = ผู้ปิด (ไม่ทำ FK ตามแบบ doneByUserId)
+  /// 🛑 problemCloseNote/ClosedByUserId/Refunded/ExcludesRevenue ห้ามออกหน้า guest (/o/{token})
+  problemClosedAt DateTime?
+  problemClosedByUserId String?
+  /// FIRE | LOST | DAMAGED | OTHER
+  problemCloseReason String? @db.VarChar(16)
+  /// หมายเหตุ เฉพาะเหตุผล OTHER (5-200 ตัวอักษร)
+  problemCloseNote String? @db.VarChar(200)
+  /// DELIVERY_FAILED | LOST_ON_RETURN
+  problemCloseOutcome String? @db.VarChar(24)
+  /// DELIVERED_AT | EVENT | ORDER_CONFIRMED | NONE
+  problemCloseBasis String? @db.VarChar(24)
+  /// null = ไม่ได้ถามว่าคืนเงินแล้วหรือไม่
+  problemCloseRefunded Boolean?
+  /// ผลตัดสินว่าตัดออกจากยอดขายหรือไม่ ณ ตอนปิด (แช่แข็ง — F2)
+  problemCloseExcludesRevenue Boolean?
+
   /// วันเวลาที่พัสดุ "เริ่มเดินทางกลับ" และ "กลับมาถึงร้าน" — ฝาแฝดขากลับของ deliveredAt
   ///
   /// 🛑 เขียนครั้งเดียวทั้งคู่ ห้ามอัปเดตทับ (conditional update: WHERE <col> IS NULL) —
