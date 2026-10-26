@@ -274,6 +274,27 @@ stateDiagram-v2
 - ใบที่มี live iShip **ไม่อยู่ใต้กฎนี้** (iShip ชนะ) · ร้านบริการไม่เกี่ยว
 - ตัวตัดสินเดียว `src/lib/manual-shipment.ts` (`isManualShipment` · `canMarkDispatched` · `canMarkDelivered`) + `deriveShippingStage`
 
+### 2.1b ร้านปิดพัสดุที่มีปัญหา — กอง `DELIVERY_FAILED` (feature 00085 · implement แล้ว 2026-10-26)
+
+พัสดุ **ขาไป** (iShip/Flash, `ACTIVE_FORWARD_SHIPMENT`) ที่อยู่กอง PROBLEM ร้านกด "ยืนยันปิดพัสดุ" ได้ — **ไม่เปลี่ยน `Order.status`** (คงเดิม, BR-ISHIP-41) ไม่ใช่ค่าที่เก็บใน status แต่เป็นคอลัมน์ `OrderShipment.problemClose*` (§6.76) แล้วกองถูกคำนวณจากมัน:
+
+```mermaid
+stateDiagram-v2
+    [*] --> PROBLEM: carrierStatus=issue หรือ problemAt ไม่ว่าง
+    PROBLEM --> DELIVERY_FAILED: ปิด · ระบบตัดสิน A (ไม่ถึงผู้รับ / ไม่มีหลักฐาน)
+    PROBLEM --> DONE: ปิด · ระบบตัดสิน B (ถึงผู้รับแล้ว คืนไม่สำเร็จ)
+    DELIVERY_FAILED --> PROBLEM: เลิกปิด (DELETE)
+    DONE --> PROBLEM: เลิกปิด (DELETE)
+```
+
+- **ปุ่มปิดแสดงเมื่อ** `canCloseParcelProblem` = ok: ขาไป ∧ `status='CREATED'` ∧ ไม่ dry-run ∧ ยังไม่ปิด ∧ `holdsParcelProblem(...,false)` ∧ ออเดอร์ ∉ {CANCELLED,RETURNED,DRAFTED} ∧ `fulfillmentMode='SHIPPED'` ∧ ไม่ใช่ร้านบริการ
+- **ระบบตัดสินช่วงที่หาย** (`decideLossPhase`): `deliveredAt` → `ShipmentEvent` ถึงผู้รับ → `Order.status='CONFIRMED'` ⇒ B (`LOST_ON_RETURN`) · ไม่มีหลักฐานเลย ⇒ A (`DELIVERY_FAILED`) — ร้านเลือกได้แค่ **เหตุผล** (`FIRE/LOST/DAMAGED/OTHER`) ไม่ได้เลือกผล
+- **กองที่ได้:** ผล A → `ShippingStageKey = DELIVERY_FAILED` ("ส่งไม่สำเร็จ" เทา — จบแล้วแต่ไม่ใช่ความสำเร็จ จึงไม่ใช่ `DONE`/ไม่ใช่งานค้าง) · ผล B → `DONE` (+ ป้ายรอง "ส่งสำเร็จ · คืนไม่สำเร็จ" ในแผงพัสดุ) · ชิปแถวแชท: A → `OrderStageKey = DELIVERY_FAILED` · B → `DELIVERED` · แสดง 3 วันนับจากเวลาปิด
+- **ลำดับใน `deriveShippingStage`:** สาขา "ปิดแล้ว" อยู่ใน `if (hasShipment)` เป็น **สาขาแรก เหนือ RETURNED/PROBLEM/terminal** (ใต้ DRAFTED / `fulfillmentMode` / CANCELLED|RETURNED เดิม) — ขนส่งส่งสถานะมาต่อ (เช่น `return_success`) กองไม่ขยับเอง; ถ้าสถานะใหม่ขัดกับที่ร้านบันทึก แผงขึ้นแถบเตือน + ปุ่ม "เลิกปิด" (§8.19 `hasParcelCloseConflict`)
+- `deriveOrderStage` (ชิปแถวแชท) ใช้ตรรกะเดียวกัน · ฉบับ SQL (`order-stage-sql.ts`: `buildProblemHoldSql(carrierStatus, problemAt, problemClosedAt)` ขึ้นต้น `<arg3> IS NULL AND (...)` — ผู้เรียกใน `CASE` ส่ง **`c.problemCloseOutcome`** เข้าช่อง arg3 (ใช้ได้เพราะ CHECK coherent บังคับ null คู่กัน) · `StageSqlColumns.problemCloseOutcome` บังคับ · `CASE hasShipment` เพิ่ม 2 WHEN ก่อน RETURNED: `outcome=DELIVERY_FAILED→'DELIVERY_FAILED'` / `LOST_ON_RETURN→'DONE'` โดยค่า literal ดึงจาก `PARCEL_CLOSE_OUTCOMES` ผ่าน `lit()`) ผูกกับฉบับ TS ด้วยเทส parity `src/lib/__tests__/order-stage-sql.test.ts`
+- **เงิน:** ดู §7.13 (กติกายอดขาย) — A/B+COD/B+คืนเงิน = ไม่นับยอดขาย · B+โอน+ไม่คืนเงิน = นับ
+- **เลิกปิดได้** (`DELETE`) ตราบที่ออเดอร์ยังไม่ CANCELLED/RETURNED/DRAFTED — ยอดและกองคำนวณสดทันที ไม่มี cache
+
 ### 2.2 ร้านบริการ (SERVICE_QUEUE) — flow 4 ขั้น (feature 00073 · 2026-10-11)
 
 `Order.status` ของร้านบริการเดินแค่ `PENDING → CONFIRMED` (ไม่มี SHIPPED — บังคับ `NO_SHIPPING` ตั้งแต่สร้าง) แต่ **"ร้านปิดงาน" เป็นสถานะแยก** ที่ `Order.serviceClosedAt`:
@@ -867,7 +888,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
 | `orderId` | String FK → Order | cascade delete |
-| `type` | String | **27 ค่า** (ณ 00073 · เดิมเขียน 13 ซึ่งค้างมาตั้งแต่ 00033) — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) · **feature 00078 ออกแบบเพิ่ม +3 → 30 ค่า (ยังไม่ implement · M4 — ดู §6.72)** · **feature 00080 ออกแบบเพิ่ม +2** (`MANUAL_DISPATCHED`, `SELLER_DELIVERED` — ดู §8.1b; จำนวนรวมให้ตรวจกับ `ORDER_EVENT_TYPES` ตอน implement) |
+| `type` | String | **ปัจจุบัน 35 ค่า** ใน `ORDER_EVENT_TYPES` (นับจากโค้ด 2026-10-26: 27 ณ 00073 + 00078 ×3 + 00080 ×3 [`MANUAL_DISPATCHED`/`SELLER_DELIVERED`/`MANUAL_DISPATCH_UNDONE`] + **00085 ×2** [`PARCEL_PROBLEM_CLOSED`/`PARCEL_PROBLEM_REOPENED`]) — ข้อความ "27/30/+2" ที่ตามหลังเป็นประวัติการออกแบบ · ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) · **feature 00078 ออกแบบเพิ่ม +3 → 30 ค่า (ยังไม่ implement · M4 — ดู §6.72)** · **feature 00080 ออกแบบเพิ่ม +2** (`MANUAL_DISPATCHED`, `SELLER_DELIVERED` — ดู §8.1b; จำนวนรวมให้ตรวจกับ `ORDER_EVENT_TYPES` ตอน implement) |
 | `actorUserId` | String? FK → User | `SetNull` เมื่อลบ user — ห้าม fallback เป็นเจ้าของร้าน |
 | `meta` | Json default `{}` | โครงต่างกันตาม `type` — **ห้ามมี PII ผู้ซื้อดิบ** (เบอร์/อีเมล/ที่อยู่) เด็ดขาด |
 | `occurredAt` | DateTime (ไม่มี default) | 🛑 **เวลาจริงที่เหตุการณ์เกิด เสมอ — ห้ามย้อนตามวันที่ที่ผู้ใช้กรอก** (เช่น `Order.createdAt` ที่ backdate ได้ตาม feature 00033). วันที่สั่งซื้อที่ผู้ขายเลือกอยู่ใน `meta.orderedAt`/`orderedAtFrom`/`orderedAtTo` เท่านั้น — ประวัติคือหลักฐาน |
@@ -1749,6 +1770,34 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 **Rollback:** ย้อนได้เฉพาะเมื่อยังไม่มีแถว `provider='FLASH'` (ดูบล็อกท้าย migration.sql — DELETE/DROP COLUMN เป็น destructive ต้อง Controller สั่ง)
 
+### 6.76 ร้านปิดพัสดุที่มีปัญหา — คอลัมน์บน `OrderShipment` (feature 00085)
+
+> สถานะ: อยู่ใน `prisma/schema.prisma` แล้ว · migration 2 ตัว (HR15: push `main` = `migrate deploy` บน prod · local ต้อง apply เอง · migrate ล้ม = deploy ไม่ขึ้น) · additive ล้วน · **ไม่มี backfill** (ใบเก่า = null = ไม่ปิด) · ไม่มีตารางใหม่/relation ใหม่ · ต้นทาง `docs/20 - Features/00085 - Seller Closes Problem Parcel/DATABASE.md` · CHECK เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14)**
+
+| คอลัมน์ (ทุกตัว nullable) | ชนิด | กติกา |
+|---|---|---|
+| `problemClosedAt` | `DateTime?` | เวลาปิด = **ตัวบอกว่าปิดแล้ว** · ผู้เรียกทุกจุดอ่านผ่าน `parcel-close.ts` |
+| `problemClosedByUserId` | `String?` | ผู้ปิด · **ไม่ทำ FK** (ตามแบบ `doneByUserId`) · ไม่ออกหน้า guest |
+| `problemCloseReason` | `String? @db.VarChar(16)` | `FIRE`\|`LOST`\|`DAMAGED`\|`OTHER` |
+| `problemCloseNote` | `String? @db.VarChar(200)` | เฉพาะ `OTHER` (5-200) · ไม่ออกหน้า guest |
+| `problemCloseOutcome` | `String? @db.VarChar(24)` | `DELIVERY_FAILED`\|`LOST_ON_RETURN` · ฉบับ SQL ของกอง (`order-stage-sql.ts`) ใช้คอลัมน์นี้เป็นตัวแทน "ปิดแล้ว" (CHECK coherent บังคับ null คู่กับ `problemClosedAt`) |
+| `problemCloseBasis` | `String? @db.VarChar(24)` | `DELIVERED_AT`\|`EVENT`\|`ORDER_CONFIRMED`\|`NONE` |
+| `problemCloseRefunded` | `Boolean?` | null = ไม่ได้ถาม (A หรือ COD) · true/false = ร้านตอบแล้ว (B+โอน) · ไม่ออกหน้า guest |
+| `problemCloseExcludesRevenue` | `Boolean?` | **ผลตัดสินแช่แข็ง ณ ตอนปิด** ว่าตัดออกจากยอดขายไหม (§7.13) · ไม่ออกหน้า guest |
+
+**CHECK บน `OrderShipment`** (migration `20261026100000_00085_parcel_problem_close_columns` — ADD COLUMN IF NOT EXISTS + เช็ค `pg_constraint` ก่อนสร้าง รันซ้ำได้ · `SET LOCAL lock_timeout='5s'`):
+
+| ชื่อ | กติกา |
+|---|---|
+| `OrderShipment_problem_close_coherent` | `(problemClosedAt, problemCloseOutcome, problemCloseExcludesRevenue)` เป็น null ทั้งสามพร้อมกัน **หรือ** ไม่ null ทั้งสามพร้อมกัน |
+| `OrderShipment_problem_close_outcome_check` | null หรือ ∈ {`DELIVERY_FAILED`,`LOST_ON_RETURN`} |
+| `OrderShipment_problem_close_reason_check` | null หรือ ∈ {`FIRE`,`LOST`,`DAMAGED`,`OTHER`} |
+| `OrderShipment_problem_close_basis_check` | null หรือ ∈ {`DELIVERED_AT`,`EVENT`,`ORDER_CONFIRMED`,`NONE`} |
+
+**`OrderEvent_type_check`** ขยายเป็น **35 ค่า** (+`PARCEL_PROBLEM_CLOSED`, `PARCEL_PROBLEM_REOPENED`) ที่ migration `20261026100100_00085_order_event_parcel_close_types` — อ่านนิยามเดิมจาก `pg_get_constraintdef` แล้วต่อท้าย (ข้ามถ้ามีค่าใหม่แล้ว · ล้มเสียงดังถ้า regex จับค่าได้ไม่ครบ · ถ้าไม่มี constraint เลยสร้างใหม่ด้วย 35 ค่า)
+
+**ข้อควรรู้:** query พัสดุที่นับยอดต้องผ่าน `ACTIVE_FORWARD_SHIPMENT` (`CREATED ∧ ¬isDryRun ∧ FORWARD`) — คอลัมน์ปิดบนพัสดุที่ถูกยกเลิกไม่ล้างแต่ไม่มีผู้อ่านเพราะทุก query กรอง ACTIVE · **Rollback:** `DROP CONSTRAINT` 4 ตัว แล้ว `DROP COLUMN` 8 ตัว (เฉพาะก่อนมีข้อมูลปิดจริง — หลังมีข้อมูลเป็น destructive ต้อง Controller สั่ง/ถาม user)
+
 ---
 
 ## §7 API Reference
@@ -2058,6 +2107,11 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 **สูตร P&L (`pnl.service.ts` — SSOT ห้ามคิดใหม่ที่อื่น):**
 `Revenue − COGS = กำไรขั้นต้น` → `− ค่าใช้จ่าย = กำไรสุทธิ`
 - Revenue/COGS นับเฉพาะออเดอร์ที่ผ่าน `revenueOrderWhere` (`src/lib/order-revenue.ts`) — **ห้ามเขียน `status: 'CONFIRMED'` เองซ้ำ**
+- **feature 00085 — ใบที่ร้านปิดพัสดุแบบ "ไม่นับ" ไม่เป็นยอดขาย:** `revenueOrderWhere` ขึ้นต้นด้วย `parcelCloseNotExcludedWhere` = `NOT { shipments.some({...ACTIVE_FORWARD_SHIPMENT, problemCloseExcludesRevenue:true}) }` (ทับ `status='CONFIRMED'` ด้วย) ⇒ `revenueWindowWhere` · `soldItemsWindowWhere`/สินค้าขายดี · P&L · cost-coverage ได้ผลตาม · ฉบับในหน่วยความจำ `countsAsRevenue` ต้องให้ผลตรงกัน (ฟิลด์ `shipments[].problemCloseExcludesRevenue` **บังคับ** ใน type — ลืม select = tsc แดง) · `countsAsSoldFor` (ร้านไม่ใช่บริการ) = `CONFIRMED ∧ ¬excludedFromRevenueByParcelClose`
+  - ไม่นับ (`excludes=true`): ผล A ทุกกรณี · ผล B + COD · ผล B + โอน + ร้านตอบ "คืนเงินแล้ว"
+  - **นับ (`excludes=false`): ผล B + โอน + ไม่คืนเงิน** — `carrierStatus='issue'` ไม่อยู่ใน `REVENUE_CARRIER_STATUSES` จึงมีสาขา OR เพิ่มใน `revenueOrderWhere` / `countsAsRevenue`: `status='SHIPPED' ∧ shipments.some({ACTIVE_FORWARD, problemCloseExcludesRevenue:false})` (ใบ `CONFIRMED` นับอยู่แล้ว)
+  - ใบ `excludes=null` (ไม่เคยปิด/เลิกปิด) = พฤติกรรมเดิมทุกประการ
+  - ค่าส่งขาไปของใบ "ไม่นับ" **ยังเป็นต้นทุนร้าน** (ตัวอย่างบังคับ: COD 360 · ค่าส่ง 30 · codFee 7.70 · ผล A ⇒ ยอด 0 · ต้นทุนสินค้า 0 · ค่าส่ง 30 ⇒ ออเดอร์ −30) แต่ `resolveOutboundShippingCost` รับ `dropCodFee: boolean` **บังคับ** — ใบไม่นับส่ง `true` ⇒ ไม่บวก `codFee` · ไม่นับเป็นต้นทุนสินค้าสูญหายและไม่รวมเงินเคลมขนส่ง
 - `OrderItem.cost == null` ถูก **ข้าม** ไม่ใช่นับเป็น 0 → COGS ต่ำกว่าจริง กำไรที่ได้เป็น**เพดานบน** จึงต้องมีธง `hasMissingCost` กำกับบนหน้าจอเสมอ
 
 **กำไรรายออเดอร์ (2026-08-07):** คำนวณใน RSC ของ `/orders/[token]` **ไม่มี endpoint แยก** (จุดบังคับสิทธิ์จุดเดียว) — ต้องส่ง `null` ออกจาก server เมื่อไม่ `GRANTED` ห้ามคำนวณแล้วซ่อนที่ client
@@ -2696,6 +2750,42 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 **ส่วนที่เปลี่ยนของ endpoint เดิม:** `POST /api/seller/iship/labels/bulk` — ใบ Flash เข้า `x-skipped-detail` (พิมพ์ทีละใบ) · `GET /api/orders/[token]/shipment-evidence` — แถว `flash_pod` + `pod` whitelist · `GET /api/chat/shop-context` — บล็อก `flash` · `PATCH /api/orders/[token]/ship` (§7.5/§7.30) — "ปฏิเสธเมื่อมี live iShip" ครอบใบ Flash ที่ live ด้วย (นิยามกลาง `CREATED ∧ !isDryRun`)
 
+### 7.33 ปิด/เลิกปิดพัสดุที่มีปัญหา (`/api/seller/shipments/[id]/problem-close`) — feature 00085
+
+> สถานะ: implement แล้ว (branch `feat/00085-close-problem-parcel` ยังไม่ merge) · สัญญาละเอียด = `docs/20 - Features/00085 - Seller Closes Problem Parcel/API.md` · ไฟล์ `src/app/api/seller/shipments/[id]/problem-close/route.ts` + `src/services/parcel-close.service.ts` + SSOT pure `src/lib/parcel-close.ts` · `dynamic = "force-dynamic"` · ตอบผ่าน `ishipJson` (`private, no-store`) · ใช้ได้กับพัสดุขาไปทั้ง iShip และ Flash (ไม่ผูก provider)
+
+ทุกเมธอด: `requireGeneralShop({cap:'S1', shopId: readIShipShopIdFromQuery(request)})` → (POST) Valibot `ParcelCloseBodySchema` (§10.23) → service · `?shopId=` ที่ query · error body `{ error: { code, message }, preview? }` (`preview` เฉพาะ `OUTCOME_CHANGED`) · service โยน `ParcelCloseError` → `mapParcelCloseError()` ในไฟล์ route (`Record<ParcelCloseErrorCode, number>` — เพิ่ม code แล้วลืมแมป = tsc แดง) · error อื่น fallback `mapIShipError` (500 + `console.error`)
+
+| Method | Path | Cap | Purpose |
+|---|---|---|---|
+| GET | `/api/seller/shipments/[id]/problem-close` | **S1** | preview ผลตัดสิน **ไม่เขียนอะไร** · ตอบ 200 เสมอแม้ปิดไม่ได้ (`eligible:false` + `blockedBy`) เพื่อให้ UI ซ่อนปุ่ม |
+| POST | `…/problem-close` | **S1** | ปิด — body `{reason, note?, expectedOutcome, refunded?}` → 200 `{closed:true, outcome, basis, excludesRevenue, shipment: ShipmentViewJson}` |
+| DELETE | `…/problem-close` | **S1** | เลิกปิด (ล้างทั้ง 8 คอลัมน์) → 200 `{reopened:true, shipment: ShipmentViewJson}` |
+
+**GET 200 (`ParcelClosePreview`):** `{eligible, blockedBy: ParcelCloseBlockCode|null, outcome, basis, deliveredAt: ISO|null, eventCount, paymentIsCod, needsRefundAnswer, effect:{countsAsSale: boolean|null, outboundShippingCostKept:true}, shippingCost: OutboundShippingCost}` — `countsAsSale`: `needsRefundAnswer ? null : false` (A → false · B+COD → false · B+โอน → null ขึ้นกับคำตอบ) · `shippingCost` คำนวณด้วย `dropCodFee:true` (ใบไม่นับไม่รวม codFee)
+
+**ลำดับใน `closeParcelProblem`:** โหลดแถว + เทียบ `shipment.shopId` → `canCloseParcelProblem` → คำนวณ preview (outcome/basis ใหม่ทุกครั้ง) → `expectedOutcome` ≠ outcome = `OUTCOME_CHANGED` → `needsRefundAnswer` ∧ ไม่มี `refunded` = `REFUND_ANSWER_REQUIRED` → `excludes = parcelCloseExcludesRevenue(...)` → `$transaction`: conditional `updateMany` + `recordOrderEvent('PARCEL_PROBLEM_CLOSED', meta {outcome, closeReason, closeNote?, basis, refunded})` · **ไม่แตะ `Order.status`/Trust Score/`OrderReturn`**
+
+| code | HTTP | เมื่อ |
+|---|---|---|
+| `VALIDATION` | 400 | body ไม่ผ่าน Valibot (รวม `OTHER` ไม่มี `note` 5-200) |
+| `REFUND_ANSWER_REQUIRED` | 400 | ผล B + ไม่ใช่ COD + ไม่ส่ง `refunded` |
+| (guard) | 401 / 403 `FORBIDDEN` / 403 `NOT_ELIGIBLE` | ไม่ล็อกอิน / ไม่ใช่สมาชิกร้านหรือไม่มี S1 / ร้านไม่ใช่ `ONLINE_SALES` |
+| `NOT_FOUND` | 404 | ไม่มีพัสดุ หรือ `shipment.shopId` ไม่ตรงร้านที่ guard ได้ |
+| `ALREADY_CLOSED` | 409 | ปิดซ้ำ / แพ้ conditional update ให้คำขอที่มาก่อน |
+| `NOT_IN_PROBLEM` | 409 | ไม่อยู่กองปัญหา (`holdsParcelProblem(...,false)` เป็น false — รวมสถานะเปลี่ยนระหว่างอ่านกับเขียน และเป็น fallback เมื่อแพ้ update แต่อ่านใหม่แล้วปิดได้) |
+| `NOT_FORWARD` / `NOT_ACTIVE` | 409 | พัสดุขากลับ / `status≠CREATED` หรือ dry-run |
+| `ORDER_FINISHED` | 409 | ออเดอร์ CANCELLED/RETURNED/DRAFTED (ทั้งปิดและเลิกปิด) |
+| `NOT_SHIPPED_MODE` | 409 | `fulfillmentMode ≠ SHIPPED` |
+| `SERVICE_SHOP_UNSUPPORTED` | 409 | ด่านสำรองที่ service (ปกติ guard ตอบ 403 ก่อน) |
+| `OUTCOME_CHANGED` | 409 | `expectedOutcome` ≠ ผลที่ server คำนวณ — body มี `preview` ใหม่ให้ UI วาดกล่องผลใหม่ |
+| `NOT_CLOSED` | 409 | `DELETE` ใบที่ไม่ได้ปิด (รวมแพ้ update) |
+| อื่น ๆ | 500 | `console.error` ใน `mapIShipError` ข้อความทั่วไป ไม่รั่ว stack |
+
+**ความพร้อมกัน:** POST = `updateMany` WHERE `id ∧ status='CREATED' ∧ isDryRun=false ∧ direction='FORWARD' ∧ problemClosedAt IS NULL ∧ carrierStatus=<ค่าที่อ่านมา> ∧ problemAt=<ค่าที่อ่านมา> ∧ order.status NOT IN (CANCELLED,RETURNED,DRAFTED)` — คำขอพร้อมกันได้ผู้ชนะ 1, `OrderEvent` 1 แถว (อยู่ใน tx เดียวกัน) · count=0 → อ่านซ้ำแล้วจัดประเภทด้วย `canCloseParcelProblem` · DELETE = `updateMany` WHERE `problemClosedAt IS NOT NULL ∧ status='CREATED' ∧ direction='FORWARD' ∧ order.status NOT IN (...)` + event `PARCEL_PROBLEM_REOPENED` (meta `{outcome, closeReason}`) ใน tx เดียว · ไม่มี rate limit เพิ่ม
+
+**ตัวเขียน carrier ไม่แตะคอลัมน์ปิด:** `iship.service` / `flash-status.service` / `flash-shipment.service` / `flash-ops.service` เขียนเฉพาะคอลัมน์ carrier/วันที่ write-once — ปิดแล้วกองไม่ขยับแม้ขนส่งส่งสถานะมาต่อ (สาขา "ปิดแล้ว" ใน `deriveShippingStage` อยู่เหนือทุกสาขาพัสดุ)
+
 ---
 
 ## §8 Enums & Constants
@@ -2817,6 +2907,10 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 | `MANUAL_DISPATCHED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "จัดส่งแล้ว" (ส่งเอง) · `actorUserId` = ผู้กด |
 | `SELLER_DELIVERED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "ส่งสำเร็จ" ปิดงาน · แยกจาก `BUYER_CONFIRMED`/`SYSTEM_CONFIRMED` (BR-MS-21) · `actorUserId` = ผู้กด |
+| `PARCEL_PROBLEM_CLOSED` | **feature 00085** — ร้านปิดพัสดุขาไปที่มีปัญหา · `actorUserId` = ผู้กด · `meta` = `{outcome, closeReason, closeNote? (เฉพาะ OTHER), basis, refunded (boolean\|null)}` · 🛑 `closeNote` ห้ามไปฝั่งผู้ซื้อ |
+| `PARCEL_PROBLEM_REOPENED` | **feature 00085** — เลิกปิด · `actorUserId` = ผู้กด · `meta` = `{outcome?, closeReason?}` (ของที่ถูกล้าง) |
+
+> **นับจริงจากโค้ด (2026-10-26): `ORDER_EVENT_TYPES` = 35 ค่า** — ตารางนี้ยังไม่ครบทุกค่า (ขาด `MANUAL_DISPATCH_UNDONE` ของ 00080/TD-010 ที่โค้ดมีแล้ว) · ใช้ `src/lib/order-event.ts` เป็น SSOT
 
 > 00084 **ไม่เพิ่มชนิด event ใหม่** — การยืนยันเปิดพัสดุ Flash ใหม่หลัง 1003 ใช้ `SHIPMENT_CANCELLED` meta `{reason:'FLASH_REVIEW_REOPEN'}` ของใบเดิม + `SHIPMENT_CREATED` ของใบใหม่ (CHECK `OrderEvent_type_check` ไม่ถูกขยาย)
 
@@ -3227,6 +3321,26 @@ HTTP ตามตาราง §7.21
 | `FlashServiceError.code` → HTTP | `NOT_CONNECTED` 409 · `FEATURE_DISABLED` 404 · `SHIPMENT_EXISTS` 409 · `NEEDS_REVIEW` 409 · `INCOMPLETE_DATA` 422 · `NOT_ELIGIBLE` 403 · `NOT_FOUND` 404 · `INVALID_STATE` 409 · `MERCHANT_IN_USE` 409 · `MERCHANT_CHANGE_NOT_ALLOWED` 409 · `PNO_TAKEN` 409 · `INVALID_INPUT` 400 · `RATE_LIMITED` 429 (verify/connect key ผิดครบ `FLASH_VERIFY_MAX_FAILURES`=5 ใน 15 นาที) |
 | ตัวตัดสิน "จบแล้ว" | `isFlashTrackingSettled`: `delivered`/`close`/`cancelled`/`return_success` จบ (**Flash COD จบที่ delivered**) · iShip: `carrierTrackingSettled` เดิม (`delivered`+COD รอ `payment_success`) |
 
+### 8.19 ปิดพัสดุที่มีปัญหา (feature 00085 — SSOT ฝั่งโค้ด: `src/lib/parcel-close.ts` · ทุกค่าเก็บเป็น String + CHECK ที่ DB)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `PARCEL_CLOSE_REASONS` → `problemCloseReason` | `FIRE` ไฟไหม้ · `LOST` ของหาย · `DAMAGED` สินค้าเสียหาย · `OTHER` อื่น ๆ (ต้องมี `problemCloseNote` 5-200) — ป้ายใน `PARCEL_CLOSE_REASON_LABEL` |
+| `PARCEL_CLOSE_OUTCOMES` → `problemCloseOutcome` | `DELIVERY_FAILED` = ผล A "ส่งไม่สำเร็จ" (ของไม่ถึงผู้รับ) · `LOST_ON_RETURN` = ผล B "ส่งสำเร็จ · คืนไม่สำเร็จ" (ถึงผู้รับแล้วหายตอนส่งคืน) — ป้าย/ไอคอน/ข้อความผู้ซื้อใน `PARCEL_CLOSE_META` (`package-off` / `arrow-back-up`) |
+| `PARCEL_CLOSE_BASES` → `problemCloseBasis` | หลักฐานที่ใช้ตัดสินช่วงที่หาย เรียงแรง→อ่อน: `DELIVERED_AT` (`deliveredAt` ไม่ว่าง) · `EVENT` (มี `ShipmentEvent` สถานะ ∈ `DELIVERED_CARRIER_STATUSES`) · `ORDER_CONFIRMED` (`Order.status='CONFIRMED'`) · `NONE` (ไม่มีหลักฐาน ⇒ ถือว่าไม่ถึงผู้รับ = A) |
+| `decideLossPhase` | `deliveredAt`→B/`DELIVERED_AT` · `hasDeliveredEvent`→B/`EVENT` · `orderStatus==='CONFIRMED'`→B/`ORDER_CONFIRMED` · ไม่มี→A/`NONE` |
+| `needsRefundAnswer(outcome,isCod)` | `outcome==='LOST_ON_RETURN' && !isCod` (COD ไม่เคยได้เงิน จึงไม่ถาม) |
+| `parcelCloseExcludesRevenue(outcome,isCod,refunded)` | `outcome==='DELIVERY_FAILED' \|\| isCod \|\| refunded===true` → เก็บแช่แข็งที่ `problemCloseExcludesRevenue` ตอนปิด (แก้ `paymentMethod` ทีหลังไม่ตาม — เลิกปิดแล้วปิดใหม่) |
+| `ParcelCloseBlockCode` (`canCloseParcelProblem`) | `NOT_FORWARD` · `NOT_ACTIVE` · `ALREADY_CLOSED` · `NOT_IN_PROBLEM` · `ORDER_FINISHED` · `NOT_SHIPPED_MODE` · `SERVICE_SHOP_UNSUPPORTED` — เช็คตามลำดับนี้ |
+| `ParcelCloseErrorCode` (`PARCEL_CLOSE_ERROR_CODES`, service) | block code ทั้ง 7 + `REFUND_ANSWER_REQUIRED` · `NOT_FOUND` · `OUTCOME_CHANGED` · `NOT_CLOSED` (11 ค่า) → HTTP ดู §7.33 |
+| `ShippingStageKey` (เพิ่ม) | **`DELIVERY_FAILED`** — ป้าย "ส่งไม่สำเร็จ" เทา (`bg-default-100 text-default-800`) · ผล A เท่านั้น · ผล B ใช้ `DONE` เดิม · **ห้ามอยู่ใน `SHIPPING_STAGE_LABEL`** (`Exclude<…,'DONE'\|'NOT_SHIPPING'\|'DELIVERY_FAILED'>`) เพื่อไม่ให้มีตัวกรอง `?stage=DELIVERY_FAILED` ที่ไม่มีชิปพาไป · ป้ายอยู่ที่ `STAGE_BADGE_OVERRIDE.DELIVERY_FAILED` · `SHIPMENT_STAGE_DOT_INDEX.DELIVERY_FAILED = 2` (ห้าม 4 = แถบเขียวครบ) · อยู่ใน `ALL_SHIPPING_STAGES` (ตัวนับขึ้น 0 ได้) |
+| `OrderStageKey` (เพิ่ม) | **`DELIVERY_FAILED`** (ชิปแถวแชท · `ORDER_STAGE_META` คำ/สี/ไอคอนเดียวกับ stage ข้างบน) · ผล B ใช้ `DELIVERED` เดิม · **แสดง 3 วันนับจาก `problemClosedAt`** (`DELIVERED_VISIBLE_MS`) ไม่ใช่เวลาที่ขนส่งขยับ แล้วชิปหาย |
+| `isActionableShippingStage(stage)` | `stage` ∉ {`DONE`,`DELIVERY_FAILED`,`NOT_SHIPPING`} = ยังเป็นงานค้างของร้าน — ไซต์ที่เคยเขียน `stage !== 'DONE'` ต้องเรียกตัวนี้ (กันใบที่ปิดแล้วถูกนับเป็นงานค้าง) |
+| `holdsParcelProblem(code, problemAt, parcelClosed)` | พารามิเตอร์ที่ 3 **บังคับ** (`src/lib/iship/status.ts`): `parcelClosed===true` → คืน `false` บรรทัดแรก ชนะสถานะ `issue` ที่ขนส่งส่งมาทีหลัง |
+| `OrderEvent.type` | +`PARCEL_PROBLEM_CLOSED` · +`PARCEL_PROBLEM_REOPENED` (35 ค่ารวม) — ดู §8.1b · `ORDER_EVENT_META`: ป้าย "ปิดพัสดุที่มีปัญหา" (`package-off`) / "เลิกปิดพัสดุ" (`arrow-back-up`) โทน `neutral` ทั้งคู่ |
+| `hasParcelCloseConflict` (แถบเตือน) | `carrierStatusAt <= closedAt` → false (ยังไม่มีข้อมูลใหม่) · A: ขัดเมื่อสถานะใหม่ ∈ `DELIVERED_CARRIER_STATUSES` ∪ `RETURNED_CARRIER_STATUSES` ∪ `IN_TRANSIT_CARRIER_STATUSES` · B: ขัดเมื่อ `return_success` เท่านั้น (`issue` ไม่ขัด) · แค่เตือน + ปุ่ม "เลิกปิด" **ไม่พลิกเงิน/กองเอง** |
+| `shouldOfferParcelClose` (UI แผงพัสดุ) | `status==='CREATED' && !isDryRun && !problemClose && holdsParcelProblem(carrierStatus, problemAt, false)` — ไม่มีสถานะออเดอร์ในมุมมองนี้ ออเดอร์จบแล้ว server ตอบ 409 แล้ว UI แจ้ง |
+
 ---
 
 ## §9 Authorization Matrix
@@ -3473,6 +3587,17 @@ HTTP ตามตาราง §7.21
 - **Rate limit:** `POST connection` + `POST connection/verify` — key ผิด (1001/1002) ครบ 5 ครั้ง/15 นาที ต่อ (user, ร้าน) → 429 `RATE_LIMITED` ไม่ยิง Flash (`src/lib/flash/verify-rl.ts` นับใน process เดียว)
 - `mchId` เดียวกันผูกสถานะใช้งานได้ร้านเดียว (DB) · ข้อความปฏิเสธไม่เผยว่าเป็นร้านไหน
 - แถว FLASH ของร้านอื่นเข้าถึงไม่ได้ทุกกรณี: ทุก query ใส่ `shopId` ใน `WHERE` แรก (ไม่ดึงแล้วเทียบทีหลัง) · pno ของ `routes`/`deliveredInfo` ที่ไม่ใช่ของ mchId นั้น Flash ตอบ 1019
+
+### 9.15 ปิด/เลิกปิดพัสดุที่มีปัญหา (feature 00085)
+
+| การกระทำ | Guest / ผู้ซื้อ | สมาชิกร้านที่ไม่มี S1 | S1 (CHAT / MANAGER / OWNER ตาม `can(roles,'S1')`) | ร้านไม่ใช่ `ONLINE_SALES` (รวมร้านบริการ) |
+|---|---|---|---|---|
+| `GET` preview / `POST` ปิด / `DELETE` เลิกปิด `/api/seller/shipments/[id]/problem-close` | — (ไม่มีเส้นทาง) | 403 `FORBIDDEN` | ได้ | 403 `NOT_ELIGIBLE` (จาก `requireGeneralShop`) |
+
+- ทะเบียน `route-capabilities.ts`: `'src/app/api/seller/shipments/[id]/problem-close/route.ts': { GET:'S1', POST:'S1', DELETE:'S1', status:'DECLARED' }` — ประกาศ literal ต่อเมธอดในตัว handler (เทส `route-capability-inventory` ตรวจ)
+- **ตามแถว ไม่ใช่ตามร้าน active ของ session (`permission-gate-follows-the-row`):** guard ได้ `shopId` จาก query แล้ว service โหลด `OrderShipment` เทียบ `shipment.shopId === guard.shopId` ไม่ตรง = **404 `NOT_FOUND`** (ไม่บอกว่ามีอยู่)
+- ผู้ซื้อ/guest ไม่เห็น `problemCloseNote` · `problemClosedByUserId` · `problemCloseRefunded` · `problemCloseExcludesRevenue` (comment ใน schema บังคับ — ห้ามออกหน้า `/o/{token}`)
+- ร้านบริการ (`usesServiceFinanceRules`) ถูกกั้นสองชั้น: guard (403) และ `canCloseParcelProblem` (409 `SERVICE_SHOP_UNSUPPORTED`)
 
 ---
 
@@ -3948,6 +4073,18 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | `tagId` | uuid · ไม่ใช่ uuid = 404 `TAG_NOT_FOUND` |
 | เพดานร้าน | ≤50 tag · ≤20 tag ที่มีคำ (ตรวจใน service ใต้ lock `Shop`) |
 
+### §10.23 ปิดพัสดุที่มีปัญหา — `ParcelCloseBodySchema` (feature 00085 — `src/lib/validations.ts`)
+
+| Field | กฎ |
+|---|---|
+| `reason` | `v.picklist(['FIRE','LOST','DAMAGED','OTHER'])` · จำเป็น |
+| `note` | optional · `string` → `trim` → **5-200 ตัวอักษร** · **จำเป็นเมื่อ `reason='OTHER'`** (`v.forward(v.check(...), ['note'])` — ข้อความ error "OTHER ต้องมีข้อความ 5–200 ตัวอักษร" ชี้ที่ `note`) · เหตุผลอื่นที่ส่ง `note` มา: ผ่าน schema แต่ **service ทิ้ง เก็บ null** |
+| `expectedOutcome` | `v.picklist(['DELIVERY_FAILED','LOST_ON_RETURN'])` · จำเป็น · เป็นโทเค็นกัน race ที่ server เทียบกับผลที่คำนวณเอง (ไม่ตรง = 409 `OUTCOME_CHANGED`) — **ไม่เคยใช้ตัดสินเงิน** |
+| `refunded` | `v.optional(v.boolean())` · จำเป็นเฉพาะผลที่ `needsRefundAnswer` (`LOST_ON_RETURN` ∧ ไม่ใช่ COD) — ขาด = 400 `REFUND_ANSWER_REQUIRED` (ตรวจที่ service หลังเทียบ outcome) · กรณีไม่ต้องตอบแต่ส่งมา: **ทิ้ง เก็บ null** |
+| route | `v.safeParse` → ไม่ผ่าน = 400 `VALIDATION` (ข้อความจาก issue แรก) · `POST` อ่าน body ผ่าน `readJson` · `GET`/`DELETE` ไม่มี body |
+| `shopId` | query `?shopId=` ผ่าน `readIShipShopIdFromQuery` (แบบเดียวกับ `/api/seller/iship/**`) |
+| DB | CHECK ตรงชุดค่าเดียวกัน (`reason` 4 ค่า · `outcome` 2 ค่า · `basis` 4 ค่า) + coherent (§6.76) — อีกชั้นกันค่านอกชุด |
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -3955,6 +4092,8 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-10-26 (HR11): sync feature 00085 ร้านปิดพัสดุที่มีปัญหา — **เขียนจากโค้ดที่ implement แล้ว** (worktree `safepay-sales-fix`, branch `feat/00085-close-problem-parcel`) — §2.1b (กอง `DELIVERY_FAILED`) · §6.2 OrderEvent (35 ค่า) · §6.76 (คอลัมน์ `OrderShipment.problemClose*` 8 ตัว + CHECK 4 + migration 2) · §7.13 (กติกายอดขาย) · §7.33 (API 3 เมธอด) · §8.1b + §8.19 (enum) · §9.15 (S1) · §10.23 (Valibot)._
 
 _อัปเดต 2026-10-18 (HR11): sync **การออกแบบ** ของ feature 00080 ขั้นตอนจัดส่งแบบส่งเอง (ยังไม่ implement — เขียนจาก SDS/API 00080 + โค้ด `ship/route.ts` ปัจจุบัน) — §2.1a (state) · §6.2 ShipmentTracking.dispatchedAt + OrderEvent · §6.72 AutoNotifyConfig.trackingNoticeTiming · §7.29/§7.30 (API) · §8.1b + §8.16 (enum) · §9 (S1/X8) · §10.21 (validation). ตรวจกับ `prisma/schema.prisma` + โค้ดจริงเมื่อ dev เสร็จ แล้วลบคำว่า "ยังไม่ implement"._
 
