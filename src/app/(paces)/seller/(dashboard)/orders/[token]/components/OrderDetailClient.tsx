@@ -994,6 +994,7 @@ export default function OrderDetailClient({
           ishipContext={ishipContext}
           flashPanel={flashPanel}
           isOwner={viewerRoles.includes('OWNER')}
+          canManageParcel={can(viewerRoles, 'S1')}
           hasIshipShipment={hasIshipShipment}
           initialTrackingNo={trackingNo}
           initialProvider={provider}

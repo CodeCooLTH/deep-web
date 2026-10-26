@@ -151,3 +151,18 @@ export function hasParcelCloseConflict(i: {
   }
   return i.carrierStatus === 'return_success'
 }
+
+/**
+ * แผงพัสดุควรเสนอปุ่ม "ยืนยันปิดพัสดุ" ไหม — ตัดสินจากสิ่งที่ ShipmentViewJson มี
+ * (ไม่มีสถานะออเดอร์/fulfillmentMode ในมุมมองนี้: ถ้าออเดอร์จบแล้ว server ตอบ 409/eligible:false แล้ว UI แจ้ง)
+ * ใบในแผงเป็นขาไปเสมอ จึงไม่มีเช็ค direction
+ */
+export function shouldOfferParcelClose(v: {
+  status: string
+  isDryRun: boolean
+  carrierStatus: string | null | undefined
+  problemAt: Date | string | null | undefined
+  problemClose: unknown
+}): boolean {
+  return v.status === 'CREATED' && !v.isDryRun && !v.problemClose && holdsParcelProblem(v.carrierStatus, v.problemAt, false)
+}

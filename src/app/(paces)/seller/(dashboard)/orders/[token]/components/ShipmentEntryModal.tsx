@@ -200,6 +200,8 @@ interface ShipmentEntryModalProps {
   flashPanel?: FlashPanelJson | null
   /** 00084 — เจ้าของร้าน (ปุ่มวางคีย์ใหม่ของใบ Flash) · ไม่ส่ง = ปิด */
   isOwner?: boolean
+  /** 00085 — ผู้ดูถือ S1 (ปิดพัสดุมีปัญหา) · ไม่ส่ง = ปิด */
+  canManageParcel?: boolean
 }
 
 export default function ShipmentEntryModal({
@@ -216,6 +218,7 @@ export default function ShipmentEntryModal({
   initialOutboundShippingCost,
   flashPanel = null,
   isOwner = false,
+  canManageParcel = false,
 }: ShipmentEntryModalProps) {
   const canUseIship = mode === 'create' && ishipContext !== null
   // พัสดุล่าสุดของออเดอร์ (ทุกผู้ให้บริการ) — ตัวตัดสินว่าเข้าหน้าสถานะ/ตรวจสอบ หรือให้เลือกวิธี
@@ -483,6 +486,7 @@ export default function ShipmentEntryModal({
             initialLink={method === 'FLASH_LINK'}
             formId={FLASH_FORM_ID}
             onFooterChange={setPanelFooter}
+            canManageParcel={canManageParcel}
           />
         ) : (
           // ShipmentPanel มีกรอบการ์ดของตัวเอง — ที่นี่ต้องการเฉพาะเนื้อใน จึงส่ง bare
@@ -497,6 +501,7 @@ export default function ShipmentEntryModal({
             onFooterChange={setPanelFooter}
             // 00084 §4.4 — แผงเทียบราคามีบล็อก Flash เฉพาะร้านสองเจ้า (ไม่พกค่าที่แก้ในฟอร์มข้ามไป: ฟอร์ม Flash โหลดจากออเดอร์เอง)
             onUseFlash={entry === 'both' ? () => setMethod('FLASH') : undefined}
+            canManageParcel={canManageParcel}
           />
         )}
       </div>

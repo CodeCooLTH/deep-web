@@ -7,6 +7,7 @@ import {
   parcelCloseExcludesRevenue,
   isCodForParcelClose,
   hasParcelCloseConflict,
+  shouldOfferParcelClose,
   type CanCloseInput,
 } from '@/lib/parcel-close'
 import { ParcelCloseBodySchema } from '@/lib/validations'
@@ -118,5 +119,19 @@ describe('ParcelCloseBodySchema', () => {
     expect(ok({ reason: 'OTHER', note: 'a'.repeat(201) })).toBe(false)
     expect(ok({ reason: 'XXX' })).toBe(false)
     expect(ok({ reason: 'FIRE' })).toBe(true)
+  })
+})
+
+describe('shouldOfferParcelClose', () => {
+  const base = { status: 'CREATED', isDryRun: false, carrierStatus: 'issue', problemAt: null, problemClose: null }
+  it('issue → true', () => expect(shouldOfferParcelClose(base)).toBe(true))
+  it('ใบ progress ที่เคยมีปัญหา (problemAt) → true', () =>
+    expect(shouldOfferParcelClose({ ...base, carrierStatus: 'progress', problemAt: '2026-10-20T00:00:00Z' })).toBe(true))
+  it('ปกติ ไม่เคยมีปัญหา → false', () =>
+    expect(shouldOfferParcelClose({ ...base, carrierStatus: 'progress' })).toBe(false))
+  it('ปิดแล้ว / dry-run / ไม่ใช่ CREATED → false', () => {
+    expect(shouldOfferParcelClose({ ...base, problemClose: { outcome: 'DELIVERY_FAILED' } })).toBe(false)
+    expect(shouldOfferParcelClose({ ...base, isDryRun: true })).toBe(false)
+    expect(shouldOfferParcelClose({ ...base, status: 'CANCELLED' })).toBe(false)
   })
 })
