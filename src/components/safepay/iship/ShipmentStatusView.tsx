@@ -368,6 +368,7 @@ export default function ShipmentStatusView({
       courierLabel,
       loadPreview: async () => {
         const res = await fetch(closeUrl, { cache: 'no-store' })
+        if (res.status === 403) throw Object.assign(new Error('forbidden'), { forbidden: true })
         if (!res.ok) throw new Error('preview')
         return res.json()
       },
@@ -919,7 +920,7 @@ export default function ShipmentStatusView({
         {pc ? (
           <>
             {conflictText && (
-              <div className={`mt-3 rounded-lg px-3 py-2.5 text-xs ${NOTICE_BOX.warning}`} role="alert">
+              <div className={`mt-3 rounded-lg px-3 py-2.5 text-xs ${NOTICE_BOX.warning}`} role="status">
                 <div className="flex items-start gap-2">
                   <Icon icon="tabler:alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
                   <span>{conflictText}</span>
@@ -949,6 +950,8 @@ export default function ShipmentStatusView({
                 ปิดโดย {pc.closedByName ?? 'ผู้ดูแลร้าน'} · {formatDateTime(pc.closedAt)}
               </p>
               <p className="mb-0 text-xs text-default-700">{parcelCloseMoneyLine(pc)}</p>
+              {/* สาเหตุที่ Flash บันทึกยังเป็นบริบทของเรื่องที่ปิด — ไม่ให้หายพร้อมกล่องเตือน */}
+              {markerLine && <p className="mb-0 text-xs text-default-700">{markerLine}</p>}
               {canManageParcel && !conflictText && (
                 <button
                   type="button"
@@ -981,6 +984,7 @@ export default function ShipmentStatusView({
                   <button
                     type="button"
                     onClick={() => void handleCloseParcel()}
+                    disabled={busy}
                     className="btn mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 border border-default-300 bg-card p-3 text-default-900 hover:bg-default-100 disabled:opacity-60"
                   >
                     <Icon icon="tabler:archive" className="text-base" aria-hidden="true" />

@@ -199,7 +199,8 @@ export async function closeParcelProblem(i: {
         problemClosedAt: null,
         carrierStatus: row.carrierStatus,
         problemAt: row.problemAt,
-        order: { status: { notIn: FINISHED } },
+        // ล็อกสถานะที่อ่านมาตอนตัดสินผล (decideLossPhase ใช้ ORDER_CONFIRMED) — เปลี่ยนระหว่างทาง = แพ้ race
+        order: { status: row.order.status },
       },
       data: {
         problemClosedAt: new Date(),

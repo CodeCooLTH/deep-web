@@ -26,6 +26,7 @@ import {
   type ExpenseRow,
 } from '@/lib/line-report/detail-snapshot'
 import { bucketLabels, classifyBucket, ruleOf, toExpenseRow, toOrderRow } from '@/lib/line-report/detail-snapshot-rows'
+import { excludedFromRevenueByParcelClose } from '@/lib/parcel-close'
 import { resolveOrderSource } from '@/lib/order-source-channel'
 import { chatChannelToSalesChannel } from '@/lib/chat-sales-channel'
 import { SALES_CHANNEL_LABELS } from '@/app/(paces)/seller/(dashboard)/orders/components/data'
@@ -59,8 +60,8 @@ type CardOrder = {
 }
 
 /** query A: แคบ ทั้งชุด — ใหม่→เก่า (id เป็นตัวตัดเสมอให้ลำดับนิ่ง) */
-const queryA = (shopId: string, w: Window): Promise<CardOrder[]> =>
-  prisma.order.findMany({
+const queryA = async (shopId: string, w: Window): Promise<CardOrder[]> =>
+  (await prisma.order.findMany({
     where: cardOrderSetWhere(shopId, w),
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: {
@@ -71,7 +72,8 @@ const queryA = (shopId: string, w: Window): Promise<CardOrder[]> =>
       serviceClosedAt: true,
       shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true, problemCloseExcludesRevenue: true } },
     },
-  })
+  // 00085: ใบที่ร้านปิดพัสดุแบบไม่นับยอดขาย getSalesSeries ให้ยอด 0 และไม่นับจำนวนใบ ⇒ ตัดออกจากชุด A ให้ parity/ก้อน/แถวตรงการ์ด
+  })).filter((o) => !excludedFromRevenueByParcelClose(o))
 
 const sumAmount = (os: CardOrder[]) => round2(os.reduce((a, o) => a + Number(o.totalAmount), 0))
 

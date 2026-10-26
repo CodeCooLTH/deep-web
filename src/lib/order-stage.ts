@@ -317,7 +317,7 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
      * เกณฑ์ทั้งก้อนอยู่ที่ `holdsParcelProblem()` ที่เดียว (lib/iship/status.ts) — ห้ามเขียน
      * เงื่อนไขซ้ำที่นี่ เพราะมีอีก 2 ระบบที่ต้องตอบเหมือนกันเป๊ะ (ป้ายในแถวแชท + สูตรฉบับ SQL)
      */
-    if (holdsParcelProblem(o.carrierStatus, o.problemAt, false)) return 'PROBLEM'
+    if (holdsParcelProblem(o.carrierStatus, o.problemAt, o.parcelClose != null)) return 'PROBLEM'
     if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
@@ -706,7 +706,7 @@ export function deriveOrderStage(
        * ค้างเหนียว (2026-09-14) — เกณฑ์เดียวกับ `deriveShippingStage()` ผ่าน SSOT ตัวเดียว
        * ⇒ ป้ายในแถวแชทกับกองในหน้า /orders พูดตรงกันเสมอ แม้ขนส่งจะกลับไปเดินต่อแล้ว
        */
-    } else if (holdsParcelProblem(order.carrierStatus, order.problemAt, false)) {
+    } else if (holdsParcelProblem(order.carrierStatus, order.problemAt, order.parcelClose != null)) {
       key = 'PARCEL_PROBLEM'
       // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
       // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"
