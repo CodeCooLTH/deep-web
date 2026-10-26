@@ -705,43 +705,11 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
     // ไม่ใช่ต้องเลื่อนผ่านทั้งเดือนไปหาแถวล่างสุด
     .reverse()
 
-  /**
-   * ตัวเลื่อนช่วง — ชีตมือถือวางใต้หัว · หน้า /sales (layout="page") วางในหัวการ์ดคู่กับรายวัน/รายเดือน
-   * ตามหน้าพี่น้อง ServiceReportPanel layout="page" (ร้านบริการ) — หน้าเดียวกันสองประเภทร้านต้องหน้าตาเดียวกัน
-   */
-  const periodNav = (
-    <div className={isPage ? 'flex items-center gap-1' : 'mb-4 flex items-center justify-between gap-2'}>
-      <button
-        type="button"
-        onClick={goPrev}
-        aria-label="ช่วงก่อนหน้า"
-        className="btn btn-icon min-h-11 min-w-11 border-default-300"
-      >
-        <Icon icon="chevron-left" className="size-5" />
-      </button>
-      {/* ตัด "1 – 31 ส.ค." ออก — ซ้ำกับชื่อเดือนที่อยู่บรรทัดเดียวกัน และแกน x ก็บอกช่วงวันอยู่แล้ว */}
-      <div className={isPage ? 'min-w-28 text-center' : 'text-center'}>
-        <p className="text-lg font-bold text-dark">{periodLabel}</p>
-      </div>
-      <button
-        type="button"
-        onClick={goNext}
-        disabled={isCurrentPeriod}
-        aria-label="ช่วงถัดไป"
-        className={`btn btn-icon min-h-11 min-w-11 border-default-300 ${
-          isCurrentPeriod ? 'pointer-events-none opacity-40' : ''
-        }`}
-      >
-        <Icon icon="chevron-right" className="size-5" />
-      </button>
-    </div>
-  )
-
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
     // layout="page" (/sales) = การ์ดในหน้า ไม่ใช่ overlay — เนื้อในทุกบรรทัดเหมือนมือถือ
     <div className={isPage ? 'card flex flex-col' : 'fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]'} role={isPage ? 'region' : 'dialog'} aria-label={isService ? 'การเงินร้าน' : 'รายงานยอดขายและกำไร'}> {/* carve-out: safe-area ไม่มี token — เปลือก fixed inset-0 เป็นคนรับ inset (ios-safe-area.md) */}
-      <div className={`flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3 ${isPage ? 'flex-wrap justify-between sm:px-5' : ''}`}>
+      <div className={`flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3 ${isPage ? 'justify-end' : ''}`}>
         {/* 44px — ปุ่มเปล่าไม่มี .btn จึงไม่โดนกฎ 44px ของระบบ เดิมพื้นที่กดเท่าไอคอน 24px (audit 2026-10-01) */}
         {onClose && (
           <button type="button" onClick={onClose} aria-label="ปิด" className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-default-700">
@@ -751,7 +719,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
         {/* ร้านบริการไม่มีต้นทุนสินค้า ⇒ "กำไร" = ยอดขายเป๊ะ ๆ · ชื่อหน้าจึงต้องพูดถึงสิ่งที่
                     หน้านี้บอกเขาได้จริง คือ "เก็บเงินได้เท่าไหร่แล้ว" (ดูเหตุผลเต็มที่ heroLabel) */}
               {/* หน้า /sales มีชื่อที่ breadcrumb แล้ว — หัวการ์ดซ้ำชื่อเดียวกัน = ชื่อสองชั้น (user 2026-10-25) */}
-              {isPage ? null : (
+              {!isPage && (
                 <h3 className="flex-1 text-base font-semibold text-dark">
                   {isService ? 'การเงินร้าน' : 'ยอดขายและกำไร'}
                 </h3>
@@ -762,6 +730,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           <button
             type="button"
             onClick={() => switchMode('daily')}
+            aria-pressed={mode === 'daily'}
             className={`min-h-11 rounded-md px-3 text-xs font-medium transition-colors ${
               mode === 'daily' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
@@ -771,6 +740,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           <button
             type="button"
             onClick={() => switchMode('monthly')}
+            aria-pressed={mode === 'monthly'}
             className={`min-h-11 rounded-md px-3 text-xs font-medium transition-colors ${
               mode === 'monthly' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
@@ -778,7 +748,6 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             รายเดือน
           </button>
         </div>
-        {isPage && periodNav}
       </div>
 
       {/* แถบแท็บการเงิน (00067) — เฉพาะร้านบริการ · อยู่นอกกล่องเลื่อนจึงค้างอยู่เสมอ
@@ -826,7 +795,31 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
       <div className={isPage ? 'px-4' : 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4'}>
         {/* tablet: content จำกัดความกว้าง max-w-lg (mobile เต็มจอ) · หน้า /sales กว้างตามการ์ด */}
         <div className={`mx-auto w-full py-4 ${isPage ? '' : 'max-w-lg'}`}>
-          {!isPage && periodNav}
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label="ช่วงก่อนหน้า"
+              className="btn btn-icon min-h-11 min-w-11 border-default-300"
+            >
+              <Icon icon="chevron-left" className="size-5" />
+            </button>
+            {/* ตัด "1 – 31 ส.ค." ออก — ซ้ำกับชื่อเดือนที่อยู่บรรทัดเดียวกัน และแกน x ก็บอกช่วงวันอยู่แล้ว */}
+            <div className="text-center">
+              <p className="text-lg font-bold text-dark">{periodLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={isCurrentPeriod}
+              aria-label="ช่วงถัดไป"
+              className={`btn btn-icon min-h-11 min-w-11 border-default-300 ${
+                isCurrentPeriod ? 'pointer-events-none opacity-40' : ''
+              }`}
+            >
+              <Icon icon="chevron-right" className="size-5" />
+            </button>
+          </div>
 
           {/* แท็บกำไรขาดทุน / ค่าใช้จ่าย — โหลดตอนเปิดแท็บเท่านั้น
               คนที่เปิดชีตมาดูยอดเก็บเงินอย่างเดียวไม่ต้องจ่ายค่า query ของแท็บอื่น */}
@@ -845,11 +838,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           )}
 
           {(!isService || financeTab === 'collect') && (
-          /* หน้า /sales (lg+) — สองคอลัมน์: ซ้าย = ตัวเลข + สมการ + กราฟ (ตรึงขณะเลื่อน) · ขวา = ตาราง
-             เดิมยืดชีตมือถือเต็มจอ 2,000px: ตัวเลขลอยกลางที่ว่าง ตารางห่างกันจนอ่านแถวไม่ออก (user 2026-10-25)
-             ชีตมือถือ: div ธรรมดาไม่มีคลาส = โครงเดิม */
-          <div className={isPage ? 'lg:grid lg:grid-cols-5 lg:items-start lg:gap-8' : ''}>
-          <div className={isPage ? 'lg:sticky lg:top-24 lg:col-span-3' : ''}>
+          <>
           {/* HERO = กำไร/ขาดทุนของช่วงนี้ (ร้านที่ไม่ผ่าน gate สิทธิ์ = ยอดขายแทน)
               ไม่มี ฿ — user สั่งตรง ๆ ว่าแค่ตัวเลขพอ (2026-08-04) ทิศทางสื่อด้วยเครื่องหมายลบ + สี
               ป้ายบอก "มันคือตัวเลขอะไร" ตรง ๆ ว่า "กำไร/ขาดทุน" (user สั่ง 2026-08-07 — เดิมเขียนว่า
@@ -1016,7 +1005,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
                 getOptions={() => buildSalesChartOptions(series, mode, { unclosed: isService && showsUnclosedInCharts(rs) })}
                 series={buildSalesChartOptions(series, mode, { unclosed: isService && showsUnclosedInCharts(rs) }).series}
                 type="line"
-                height={isPage ? 280 : 220}
+                height={220}
               />
               {/**
                 * ป้ายของ "เส้น" — 🛑 จำเป็น ไม่ใช่ของประดับ
@@ -1048,8 +1037,6 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
             </>
           )}
 
-          </div>
-          <div className={isPage ? 'lg:col-span-2' : ''}>
           {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์ชื่อคอลัมน์ซ้ำในทุกแถว (เดือนละสูงสุด 155 คำ)
               คอลัมน์ v5 (user สั่ง 2026-08-08): วันที่ · คำสั่งซื้อ · ยอดขาย · ต้นทุน · ค่าใช้จ่าย · กำไร
               — "รอ COD" ถูกถอดออกทั้งคอลัมน์ตามคำสั่งเดียวกัน (ยังดูได้จากไทล์หน้าแรก/ชิปใน /orders)
@@ -1065,7 +1052,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
               หัวคอลัมน์ย่อเป็น "ต้นทุน" (คำเต็ม "ต้นทุนสินค้า" อยู่บนแถบสมการเหนือตารางบรรทัดเดียวกัน)
               — 12 ตัวอักษรใน min-w-14 ตกบรรทัดแน่นอน แล้วหัวตารางจะสูงเป็นสองเท่าทั้งแถว */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
-            <div className={`mt-5 overflow-x-auto ${isPage ? 'lg:mt-0' : ''}`}>
+            <div className="mt-5 overflow-x-auto">
               <div className="flex items-center gap-1.5 border-b border-default-200 py-2 text-xs text-default-700">
                 {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
                     ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
@@ -1230,8 +1217,7 @@ export default function SalesChartSheet({ initialSeries, onClose, costNoun = '�
           {/* ต้องตามเก็บ — เฉพาะร้านบริการที่ดูการเงินได้ ช่วงเดียวกับที่ชีตแสดง (2026-10-01)
               เดิมมีแค่หน้า /sales ซึ่งแถบล่างของแอปไปไม่ถึง */}
           {isService && hasFinance && rs.receivables && <ReceivablesPanel start={financeStart} end={financeEnd} />}
-          </div>
-          </div>
+          </>
           )}
         </div>
       </div>
