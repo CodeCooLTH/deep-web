@@ -59,17 +59,29 @@ export function unattributedShopReplySql(m: MessageColumns): string {
  */
 export function revenueOrderSql(o: string): string {
   const statuses = REVENUE_CARRIER_STATUSES.map(lit).join(', ')
+  // 00085: NOT EXISTS = ใบที่ร้านปิดพัสดุแบบไม่นับยอดขายหลุดแม้ CONFIRMED · `problemCloseExcludesRevenue = false`
+  // = สาขา OR "ปิดแล้ว ไม่คืนเงิน" นับแม้ carrierStatus = issue (คู่แฝดของ revenueOrderWhere)
   return `(
-    ${o}."status" = 'CONFIRMED'
-    OR (
-      ${o}."status" = 'SHIPPED'
-      AND EXISTS (
-        SELECT 1 FROM "OrderShipment" rs
-        WHERE rs."orderId" = ${o}."id"
-          AND rs."status" = 'CREATED'
-          AND rs."isDryRun" = false
-          AND rs."direction" = 'FORWARD'
-          AND rs."carrierStatus" IN (${statuses})
+    NOT EXISTS (
+      SELECT 1 FROM "OrderShipment" xs
+      WHERE xs."orderId" = ${o}."id"
+        AND xs."status" = 'CREATED'
+        AND xs."isDryRun" = false
+        AND xs."direction" = 'FORWARD'
+        AND xs."problemCloseExcludesRevenue" = true
+    )
+    AND (
+      ${o}."status" = 'CONFIRMED'
+      OR (
+        ${o}."status" = 'SHIPPED'
+        AND EXISTS (
+          SELECT 1 FROM "OrderShipment" rs
+          WHERE rs."orderId" = ${o}."id"
+            AND rs."status" = 'CREATED'
+            AND rs."isDryRun" = false
+            AND rs."direction" = 'FORWARD'
+            AND (rs."carrierStatus" IN (${statuses}) OR rs."problemCloseExcludesRevenue" = false)
+        )
       )
     )
   )`

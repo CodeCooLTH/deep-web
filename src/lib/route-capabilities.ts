@@ -423,6 +423,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/iship/shipments/[id]/unlink/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/shipments/link/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/shipments/route.ts': { POST: 'S1', status: 'DECLARED' },
+  'src/app/api/seller/shipments/[id]/problem-close/route.ts': { GET: 'S1', POST: 'S1', DELETE: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/unlinked/import/route.ts': { POST: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/unlinked/preview/route.ts': { GET: 'S1', status: 'DECLARED' },
   'src/app/api/seller/iship/unlinked/route.ts': { GET: 'S1', status: 'DECLARED' },

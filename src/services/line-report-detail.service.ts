@@ -55,7 +55,7 @@ type CardOrder = {
   status: string
   totalAmount: unknown
   serviceClosedAt: Date | null
-  shipments: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[]
+  shipments: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string; problemCloseExcludesRevenue: boolean | null }[]
 }
 
 /** query A: แคบ ทั้งชุด — ใหม่→เก่า (id เป็นตัวตัดเสมอให้ลำดับนิ่ง) */
@@ -69,7 +69,7 @@ const queryA = (shopId: string, w: Window): Promise<CardOrder[]> =>
       status: true,
       totalAmount: true,
       serviceClosedAt: true,
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true } },
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true, problemCloseExcludesRevenue: true } },
     },
   })
 

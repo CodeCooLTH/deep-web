@@ -119,8 +119,9 @@ describe('[blocker] นิยามใหม่ใช้กับร้านบ
     const prod = read('src/services/product.service.ts')
     // feature 00073 (มติ user 2026-10-11) — ร้านบริการนับ "ขายแล้ว/ขายดี" เฉพาะงานที่ปิดแล้วว่าให้บริการจริง
     // (serviceDeliveredOrderWhere ตัวกลางเดียวกับรายงานรายสินค้า) · ร้านอื่นเกณฑ์เดิม withoutDrafted("CANCELLED") ทั้งสองจุด
-    expect(prod.match(/newRules \? \{ shopId, \.\.\.serviceDeliveredOrderWhere\(\) \} : \{ shopId, \.\.\.withoutDrafted\("CANCELLED"\) \}/g)?.length).toBe(1)
-    expect(prod.match(/newRules \? serviceDeliveredOrderWhere\(\) : withoutDrafted\("CANCELLED"\)/g)?.length).toBe(1)
+    // 00085: ร้านอื่นตัดใบที่ร้านปิดพัสดุแบบไม่นับยอดขายด้วย (parcelCloseNotExcludedWhere ตัวเดียวกับ revenueOrderWhere)
+    expect(prod.match(/newRules \? \{ shopId, \.\.\.serviceDeliveredOrderWhere\(\) \} : \{ shopId, \.\.\.withoutDrafted\("CANCELLED"\), \.\.\.parcelCloseNotExcludedWhere/g)?.length).toBe(1)
+    expect(prod.match(/newRules \? serviceDeliveredOrderWhere\(\) : \{ \.\.\.withoutDrafted\("CANCELLED"\), \.\.\.parcelCloseNotExcludedWhere \}/g)?.length).toBe(1)
     expect(read('src/services/product-sales-series.service.ts')).toMatch(
       /withoutDrafted\(newRules \? \['CANCELLED', 'RETURNED'\] : 'CANCELLED'\)/,
     )

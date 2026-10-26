@@ -92,7 +92,7 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
        */
       shipments: {
         orderBy: { createdAt: 'desc' },
-        select: { status: true, isDryRun: true, carrierStatus: true, direction: true },
+        select: { status: true, isDryRun: true, carrierStatus: true, direction: true, problemCloseExcludesRevenue: true },
       },
       buyer: {
         select: { id: true, username: true, displayName: true, avatar: true, deletedAt: true },

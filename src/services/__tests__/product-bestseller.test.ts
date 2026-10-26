@@ -1,3 +1,4 @@
+import { parcelCloseNotExcludedWhere } from '@/lib/order-revenue'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // mock prisma ทั้ง module (test env ไม่มี DB) — pattern เดียวกับ badge.service.test
@@ -56,7 +57,8 @@ describe('getBestSellerProducts', () => {
         by: ['productId'],
         where: {
           productId: { not: null },
-          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED'] } },
+          // 00085 — ใบที่ร้านปิดพัสดุแบบไม่นับยอดขาย ไม่ใช่ของขายออก
+          order: { shopId: 'shopX', status: { notIn: ['DRAFTED', 'CANCELLED'] }, ...parcelCloseNotExcludedWhere },
         },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },

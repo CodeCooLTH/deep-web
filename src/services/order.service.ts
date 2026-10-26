@@ -2172,7 +2172,8 @@ export async function getOrderForShop(
       //
       // select แคบไว้โดยตั้งใจ: หน้านี้อยู่ใต้ client layout ทุก field ที่ include
       // ถูก serialize เข้า flight payload เสมอ
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+      // 00085: direction + problemCloseExcludesRevenue บังคับสำหรับ countsAsRevenue (เดิมขาด direction ⇒ SHIPPED ไม่เคยนับในจอนี้)
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true, problemCloseExcludesRevenue: true } },
       shipmentTracking: true,
       review: true,
       // ช่องทางที่ลูกค้าทักเข้ามาจริง (2026-08-10) — หัวการ์ดออเดอร์อ่านรูป+provider จากตัวนี้
@@ -2542,6 +2543,8 @@ function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean })
           problemAt: true,
           problemClosedAt: true,
           problemCloseOutcome: true,
+          // 00085 — countsAsRevenue() บังคับ: ใบที่ร้านปิดแบบไม่นับยอดขายต้องไม่นับ
+          problemCloseExcludesRevenue: true,
           // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
           // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว
           status: true,

@@ -26,7 +26,7 @@ import { thaiDayKey } from '@/lib/format-date'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import { fileUrlOf } from '@/lib/file-url'
 import { withoutDrafted } from '@/lib/order-visibility'
-import { serviceDeliveredOrderWhere } from '@/lib/order-revenue'
+import { parcelCloseNotExcludedWhere, serviceDeliveredOrderWhere } from '@/lib/order-revenue'
 import {
   CUSTOM_ITEM_KEY,
   CUSTOM_ITEM_LABEL,
@@ -121,6 +121,8 @@ export async function getProductSalesMonth(
           : {
               shopId,
               ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+              // 00085 — ปิดพัสดุแบบไม่นับยอดขาย = ไม่ใช่ของขายออก (ชุดเดียวกับ getBestSellerProducts)
+              ...parcelCloseNotExcludedWhere,
               createdAt: { gte, lt },
             },
       },

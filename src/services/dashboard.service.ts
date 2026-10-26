@@ -19,6 +19,7 @@ import {
   serviceRevenueOrderWhere,
   serviceUnclosedOrderWhere,
 } from '@/lib/order-revenue'
+import { excludedFromRevenueByParcelClose } from '@/lib/parcel-close'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { resolveOutboundShippingCost } from '@/lib/shipping-cost'
 import { netOfReturns, costNetOfReturns, type ReturnAdjustment } from '@/lib/order-return'
@@ -368,6 +369,8 @@ export async function getSalesSeries(
             problemAt: true,
             problemClosedAt: true,
             problemCloseOutcome: true,
+            // 00085: countsAsRevenue()/excludedFromRevenueByParcelClose() บังคับ field นี้
+            problemCloseExcludesRevenue: true,
             createdAt: true,
             carrierPrice: true,
             estimatedPrice: true,
@@ -476,7 +479,11 @@ export async function getSalesSeries(
     const noShow = isServiceShop && isServiceNoShow(r)
     const livePayments = (r as { payments?: { amount: unknown }[] }).payments ?? []
     // Prisma Decimal → number · หักยอดคืนบางส่วน (มติ 2026-10-01 หลักใบลดหนี้ — ตัวกลางเดียวกับ P&L/sales)
-    const amt = noShow
+    // 00085: ร้านปิดพัสดุแบบไม่นับยอดขาย ⇒ ยอด/ต้นทุน/จำนวนใบ = 0 แต่แถวยังอยู่ และค่าส่งขาไปยังเป็นต้นทุน
+    const excluded = excludedFromRevenueByParcelClose(r as Parameters<typeof excludedFromRevenueByParcelClose>[0])
+    const amt = excluded
+      ? 0
+      : noShow
       ? serviceNoShowRevenue(livePayments.map((p) => ({ amount: p.amount, voidedAt: null })))
       : netOfReturns(Number(r.totalAmount), adj)
     /** แกนเวลา — ร้านบริการ = วันปิดงาน · ร้านอื่น = createdAt (ชื่อตัวแปรคงเดิม ใช้ทั้งลูป) */
@@ -499,7 +506,7 @@ export async function getSalesSeries(
       const idx = bucketOf(shifted)
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
-        orderCounts[idx] += 1
+        if (!excluded) orderCounts[idx] += 1
 
         if (receivedValues && unrecordedValues) {
           const payments = (r as { payments?: { amount: unknown }[] }).payments
@@ -519,7 +526,7 @@ export async function getSalesSeries(
          * ทั้งที่คอลัมน์ "ยอดขาย" บรรทัดเดียวกันมีตัวเลข → กำไรของแถวนั้นจะสูงเกินจริง
          */
         // ไม่มาตามนัด = ไม่ได้ให้บริการ ⇒ ไม่มีต้นทุนอะไหล่/บริการที่ขายออก
-        const items = noShow ? [] : (r as { items?: { cost: unknown; qty: number }[] }).items
+        const items = noShow || excluded ? [] : (r as { items?: { cost: unknown; qty: number }[] }).items
         let rowCogs = 0
         let rowMissingCost = false
         for (const item of items ?? []) {
@@ -573,7 +580,12 @@ export async function getSalesSeries(
            * ค่าประมาณคิดจากน้ำหนักที่ร้านแจ้ง ซึ่งมักน้อยกว่าที่ชั่งได้จริง (92/151 ใบ) จึง **ต้องนับ pending**
            * `codFee` บวกได้เสมอเมื่อมีใบ iShip — iShip คิดจาก % ของยอด COD รู้ตั้งแต่สร้างพัสดุ
            */
-          const c = resolveOutboundShippingCost({ forward: activeShipment ?? null, manual: tracking?.outboundShippingCost })
+          const c = resolveOutboundShippingCost({
+            forward: activeShipment ?? null,
+            manual: tracking?.outboundShippingCost,
+            // ใบที่ร้านปิดแบบไม่นับยอดขายไม่มีการเก็บเงิน ⇒ ไม่รวม codFee
+            dropCodFee: excluded,
+          })
           rowShipping = c.amount
           shippingValues[idx] += rowShipping
           if (c.pendingReason === 'MISSING') shippingMissingCount += 1
@@ -585,7 +597,11 @@ export async function getSalesSeries(
           confirmedValues[idx] += amt
           cogsConfirmedValues[idx] += rowCogs
           shippingConfirmedValues[idx] += rowShipping
-        } else unconfirmedValues[idx] += amt
+        } else {
+          unconfirmedValues[idx] += amt
+          // 00085: ค่าส่งของใบที่ปิดแบบไม่นับยอดขายเป็นต้นทุนที่ยืนยันแล้ว ⇒ กำไรยืนยันของวันนั้น −ค่าส่ง
+          if (excluded) shippingConfirmedValues[idx] += rowShipping
+        }
 
         // "รอเงิน COD" ของวันนั้น — ยอดเต็มของใบที่ยังอยู่กองนี้ (ไม่ใช่ codAmount ของพัสดุ
         // เพราะใบที่ร้านแจ้งเลขเองไม่มีแถว OrderShipment ให้อ่าน แต่ก็ยังเป็นเงินที่รอเก็บอยู่ดี)
@@ -866,7 +882,7 @@ export async function getProvinceSales(
       shippingAddress: true,
       status: true,
       // direction: countsAsRevenue() บังคับ (feature 00056) — พัสดุขากลับไม่ใช่ยอดขาย
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, problemAt: true, problemClosedAt: true, problemCloseOutcome: true, direction: true } },
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, problemAt: true, problemClosedAt: true, problemCloseOutcome: true, problemCloseExcludesRevenue: true, direction: true } },
     },
   })
 

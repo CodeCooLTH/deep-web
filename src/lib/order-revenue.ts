@@ -22,6 +22,7 @@
  */
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
+import { excludedFromRevenueByParcelClose } from '@/lib/parcel-close'
 
 export const REVENUE_CARRIER_STATUSES = [
   "picked_up", // พัสดุเข้าระบบ
@@ -40,7 +41,18 @@ export const REVENUE_CARRIER_STATUSES = [
  */
 // ไม่ใส่ `as const` โดยตั้งใจ — Prisma ต้องการ `OrderWhereInput[]` ที่แก้ไขได้ ถ้าเป็น readonly
 // tuple จะ assign ไม่ผ่านแล้ว TS จะเลิก infer ทั้ง query (error ลามไปถึง select ที่ไม่เกี่ยวเลย)
+/**
+ * 00085: ร้านปิดพัสดุแบบ "ไม่นับเป็นยอดขาย" (ผล A / B-COD / B-คืนเงินแล้ว) — ไม่ใช่ยอดขาย และไม่ใช่ "ของขายออก"
+ * ใช้ร่วมกับเกณฑ์สินค้าขายดี/ยอดขายรายสินค้า (not-CANCELLED) ด้วย — ของที่ไม่ถึงมือลูกค้าไม่ใช่ของที่ขายได้
+ */
+export const parcelCloseNotExcludedWhere = {
+  NOT: {
+    shipments: { some: { ...ACTIVE_FORWARD_SHIPMENT, problemCloseExcludesRevenue: true } },
+  },
+}
+
 export const revenueOrderWhere = {
+  ...parcelCloseNotExcludedWhere,
   OR: [
     { status: "CONFIRMED" },
     {
@@ -53,6 +65,12 @@ export const revenueOrderWhere = {
           carrierStatus: { in: [...REVENUE_CARRIER_STATUSES] },
         },
       },
+    },
+    // 00085 FR-PC-08: ปิดแล้วแบบ "นับเป็นยอดขาย" (B-โอน-ไม่คืนเงิน) — carrierStatus = issue ไม่อยู่ใน
+    // REVENUE_CARRIER_STATUSES จึงต้องมีสาขานี้ ไม่งั้นใบ SHIPPED ที่ปิดแล้วจะหลุดยอดขาย
+    {
+      status: "SHIPPED",
+      shipments: { some: { ...ACTIVE_FORWARD_SHIPMENT, problemCloseExcludesRevenue: false } },
     },
   ],
 };
@@ -70,9 +88,17 @@ export function countsAsRevenue(order: {
    * แล้วเงื่อนไขข้างล่างเป็นเท็จตลอด = ยอดขายหายทั้งระบบ หรือถ้าเขียนกลับด้านก็เฟ้อทั้งระบบ)
    */
   shipments?:
-    | { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[]
+    | {
+        status: string;
+        isDryRun: boolean;
+        carrierStatus: string | null;
+        direction: string;
+        /** 00085: บังคับ (ไม่ optional) — ลืม select แล้ว compile ไม่ผ่าน ไม่ใช่ยอดขายเฟ้อเงียบ ๆ */
+        problemCloseExcludesRevenue: boolean | null;
+      }[]
     | null;
 }): boolean {
+  if (excludedFromRevenueByParcelClose({ shipments: order.shipments ?? [] })) return false;
   if (order.status === "CONFIRMED") return true;
   if (order.status !== "SHIPPED") return false;
   return (order.shipments ?? []).some(
@@ -80,8 +106,9 @@ export function countsAsRevenue(order: {
       s.status === "CREATED" &&
       !s.isDryRun &&
       s.direction === "FORWARD" &&
-      s.carrierStatus != null &&
-      (REVENUE_CARRIER_STATUSES as readonly string[]).includes(s.carrierStatus),
+      (s.problemCloseExcludesRevenue === false ||
+        (s.carrierStatus != null &&
+          (REVENUE_CARRIER_STATUSES as readonly string[]).includes(s.carrierStatus))),
   );
 }
 
@@ -227,10 +254,16 @@ export function countsAsServiceDelivered(order: {
  * (จอพวกนี้ไม่เคยใช้ countsAsRevenue — ห้ามเปลี่ยนให้ร้านขายของ)
  */
 export function countsAsSoldFor(
-  order: { status: string; serviceClosedAt?: Date | string | null; appointmentStatus?: string | null },
+  order: {
+    status: string
+    serviceClosedAt?: Date | string | null
+    appointmentStatus?: string | null
+    /** 00085: บังคับ — ใบที่ร้านปิดแบบไม่นับต้องไม่เป็นของขายออก (F6) */
+    shipments: Parameters<typeof excludedFromRevenueByParcelClose>[0]['shipments']
+  },
   vertical: string | null | undefined,
 ): boolean {
-  if (!usesServiceFinanceRules(vertical)) return order.status === 'CONFIRMED'
+  if (!usesServiceFinanceRules(vertical)) return order.status === 'CONFIRMED' && !excludedFromRevenueByParcelClose(order)
   return countsAsServiceDelivered({
     status: order.status,
     serviceClosedAt: order.serviceClosedAt ?? null,
