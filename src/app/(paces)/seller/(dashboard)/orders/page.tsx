@@ -29,6 +29,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
 import { getFlashConnection } from '@/services/flash.service'
+import { asParcelClose } from '@/services/parcel-close-input'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
@@ -257,6 +258,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             // ซึ่งหยาบกว่า (6 ค่า) แล้วพูดคนละขั้นกับจอข้างในบนออเดอร์ใบเดียวกัน (HR16)
             carrierStatus: o.shipments[0].carrierStatus ?? null,
             status: o.shipments[0].status ?? 'CREATED',
+            // 00085 — ผลปิดพัสดุมีปัญหา (input ตัวที่ 4 ของ describeProgress) · ฝั่งร้านเห็นผลเท่านั้นในรายการ
+            problemCloseOutcome: asParcelClose(o.shipments[0].problemCloseOutcome),
             // เวลาของ "ขากลับ" — Date ข้ามเส้น RSC ตรง ๆ ไม่ได้ ต้องเป็นสตริง
             // null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด" (แถบตัดสินจุดจาก carrierStatus)
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
@@ -275,6 +278,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
               // ปลายทางจะถอยไปใช้ SHIPMENT_STAGE_DOT_INDEX (หยาบแต่เป็นข้อมูลเท่าที่มีจริง)
               carrierStatus: null,
               status: 'CREATED',
+              problemCloseOutcome: null,
               // ร้านแจ้งเลขเอง = ไม่มีใครคอยบอกว่าพัสดุตีกลับ ⇒ ไม่มีทางมีเวลาขากลับ
               // (แถว 2 จะไม่โผล่เลยสำหรับใบพวกนี้ ซึ่งถูกแล้ว — เราไม่รู้จริง ๆ)
               returnStartedAt: null,
@@ -387,6 +391,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           fulfillmentMode: o.fulfillmentMode,
           // ค้างเหนียว: ใบที่เคยมีปัญหาต้องอยู่กอง "พัสดุมีปัญหา" ต่อ แม้ขนส่งจะกลับไปเดินแล้ว
           problemAt: o.shipments?.[0]?.problemAt ?? null,
+          parcelClose: asParcelClose(o.shipments?.[0]?.problemCloseOutcome),
           // ส่งเอง (00080) — ต้องตรงกับ LEFT JOIN "ShipmentTracking" ในสูตร SQL ของตัวกรอง/ตัวนับ
           hasManualTracking: !!o.shipmentTracking,
         })

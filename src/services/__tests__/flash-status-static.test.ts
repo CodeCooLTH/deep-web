@@ -73,11 +73,11 @@ describe('parity ต้นทุนค่าส่ง: แถว FLASH = แถ�
   it.each(cases)('ผลเท่ากัน %o', (f) => {
     const ishipRow = { provider: 'ISHIP', ...f }
     const flashRow = { provider: 'FLASH', ...f }
-    expect(resolveOutboundShippingCost({ forward: flashRow, manual: null })).toEqual(resolveOutboundShippingCost({ forward: ishipRow, manual: null }))
-    expect(resolveOutboundShippingCost({ forward: flashRow, manual: 30 })).toEqual(resolveOutboundShippingCost({ forward: ishipRow, manual: 30 }))
+    expect(resolveOutboundShippingCost({ forward: flashRow, manual: null, dropCodFee: false })).toEqual(resolveOutboundShippingCost({ forward: ishipRow, manual: null, dropCodFee: false }))
+    expect(resolveOutboundShippingCost({ forward: flashRow, manual: 30, dropCodFee: false })).toEqual(resolveOutboundShippingCost({ forward: ishipRow, manual: 30, dropCodFee: false }))
   })
   it('Flash ยังไม่มีราคาจริง = pending (ไม่บวม 0 เงียบ ๆ)', () => {
-    expect(resolveOutboundShippingCost({ forward: { carrierPrice: null, estimatedPrice: null, codFee: null }, manual: null })).toMatchObject({ amount: 0, pending: true })
+    expect(resolveOutboundShippingCost({ forward: { carrierPrice: null, estimatedPrice: null, codFee: null }, manual: null, dropCodFee: false })).toMatchObject({ amount: 0, pending: true })
   })
   it('ผู้เรียกทั้ง 3 พื้นผิวยังเรียกฟังก์ชันกลางเดียวกัน', () => {
     for (const f of ['src/services/pnl.service.ts', 'src/services/dashboard.service.ts']) {

@@ -132,7 +132,7 @@ describe('NEEDS_REVIEW', () => {
   })
   it('chat-order-progress: NEEDS_REVIEW เหมือน FAILED (ไม่นับว่ามีพัสดุ)', () => {
     const base = { status: 'CONFIRMED', fulfillmentMode: 'SHIPPED', hasManualTracking: false }
-    const sh = (status: string) => ({ status, carrierStatus: 'in_transit', problemAt: null })
+    const sh = (status: string) => ({ status, carrierStatus: 'in_transit', problemAt: null, problemCloseOutcome: null })
     expect(orderShippingStage({ ...base, shipment: sh('NEEDS_REVIEW') }))
       .toBe(orderShippingStage({ ...base, shipment: sh('FAILED') }))
     expect(orderShippingStage({ ...base, shipment: sh('NEEDS_REVIEW') }))

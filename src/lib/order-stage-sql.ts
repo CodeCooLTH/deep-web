@@ -26,6 +26,7 @@
 
 import { COD_PAYMENT_PATTERN } from './order-display'
 import { APPOINTMENT_STAGE_KEYS } from './appointment-stage'
+import { PARCEL_CLOSE_OUTCOMES } from './parcel-close'
 import {
   IN_TRANSIT_CARRIER_STATUSES,
   PROBLEM_CARRIER_STATUSES,
@@ -33,6 +34,9 @@ import {
   RETURNED_CARRIER_STATUSES,
   TERMINAL_CARRIER_STATUSES,
 } from './iship/status'
+
+// literal ของผลปิดพัสดุ ดึงจากค่าคงที่ใน parcel-close.ts (ห้ามพิมพ์สตริงเอง — HR16)
+const [PARCEL_CLOSE_FAILED, PARCEL_CLOSE_LOST] = PARCEL_CLOSE_OUTCOMES
 
 /** ชื่อคอลัมน์ที่สูตรต้องอ่าน — ผู้เรียกส่ง alias ของตัวเองเข้ามา */
 export type StageSqlColumns = {
@@ -66,6 +70,12 @@ export type StageSqlColumns = {
    * 🛑 ห้ามส่ง `'false'` เพื่อให้คอมไพล์ผ่าน — ไทล์จะนับใบรอจัดส่งเป็น "รอเลขพัสดุ" ขณะที่หน้าอื่นบอกคนละกอง
    */
   hasManualTracking: string
+  /**
+   * `OrderShipment.problemCloseOutcome` ของใบล่าสุด (feature 00085, null ได้) — ผู้เรียก join มาให้
+   * 🛑 ห้ามส่ง `'NULL'` เพื่อให้คอมไพล์ผ่าน: ใบที่ร้านปิดแล้วจะกลับไปอยู่กองปัญหาในรายการ ขณะที่ฝั่ง TS บอกปิดแล้ว
+   * (CHECK ในฐานบังคับ problemClosedAt null ⇔ outcome null จึงใช้ outcome เป็นตัวแทนได้)
+   */
+  problemCloseOutcome: string
 }
 
 /** ใส่ quote ให้ literal สตริงแบบปลอดภัย — ใช้กับค่าคงที่ในโค้ดเท่านั้น ไม่ใช่ input ผู้ใช้ */
@@ -102,12 +112,13 @@ function notInList(column: string, values: readonly string[]): string {
  *
  * ต้องให้ผลตรงกับ `holdsParcelProblem()` ทุกอินพุต — มีเทส parity เป็นด่าน
  */
-export function buildProblemHoldSql(carrierStatus: string, problemAt: string): string {
+export function buildProblemHoldSql(carrierStatus: string, problemAt: string, problemClosedAt: string): string {
+  // ขึ้นต้นด้วย IS NULL ของเวลาปิด = ปิดแล้วไม่อยู่กองปัญหา (คู่กับ arg 3 ของ holdsParcelProblem)
   return (
-    `(${inList(carrierStatus, PROBLEM_CARRIER_STATUSES)}` +
+    `(${problemClosedAt} IS NULL AND (${inList(carrierStatus, PROBLEM_CARRIER_STATUSES)}` +
     ` OR (${problemAt} IS NOT NULL` +
     ` AND ${notInList(carrierStatus, RETURNED_CARRIER_STATUSES)}` +
-    ` AND ${notInList(carrierStatus, PROBLEM_HOLD_RELEASE_STATUSES)}))`
+    ` AND ${notInList(carrierStatus, PROBLEM_HOLD_RELEASE_STATUSES)})))`
   )
 }
 
@@ -115,7 +126,7 @@ export function buildProblemHoldSql(carrierStatus: string, problemAt: string): s
  * คืน SQL expression ที่ให้ค่าเดียวกับ `deriveShippingStage()`
  *
  * ผลลัพธ์เป็นสตริงของ `CASE … END` ที่เอาไปวางใน `SELECT`, `WHERE` หรือ `GROUP BY` ได้
- * ค่าที่คืน: `DRAFT` | `NOT_SHIPPING` | `AWAITING_PARCEL` | `AWAITING_DISPATCH` | `AWAITING_PICKUP` | `SHIPPING`
+ * ค่าที่คืน: `DRAFT` | `DELIVERY_FAILED` | `NOT_SHIPPING` | `AWAITING_PARCEL` | `AWAITING_DISPATCH` | `AWAITING_PICKUP` | `SHIPPING`
  *          | `AWAITING_COD` | `PROBLEM` | `RETURNED` | `DONE`
  */
 export function buildShippingStageSql(c: StageSqlColumns): string {
@@ -135,10 +146,14 @@ export function buildShippingStageSql(c: StageSqlColumns): string {
     --    ตีกลับ → มีปัญหา(รวม "เคยมีปัญหา" ที่ค้างเหนียว) → ปลายทาง → ระหว่างทาง
     WHEN ${c.hasShipment} THEN (
       CASE
+        -- 00085 ร้านปิดพัสดุแล้ว — ต้องอยู่ **เหนือ** RETURNED/PROBLEM/terminal เหมือน TS เป๊ะ
+        -- (ขนส่งส่งสถานะมาต่อหลังปิดได้ จึงห้ามให้สถานะขนส่งพากองกลับ) ผล A = ส่งไม่สำเร็จ · ผล B = DONE
+        WHEN ${c.problemCloseOutcome} = ${lit(PARCEL_CLOSE_FAILED)} THEN 'DELIVERY_FAILED'
+        WHEN ${c.problemCloseOutcome} = ${lit(PARCEL_CLOSE_LOST)} THEN 'DONE'
         WHEN ${inList(c.carrierStatus, RETURNED_CARRIER_STATUSES)} THEN 'RETURNED'
         -- ค้างเหนียว (2026-09-14): "เคยมีปัญหา" นับเป็นกองนี้ต่อ จนกว่าของจะถึงที่ใดที่หนึ่ง
         -- [สำคัญ] ต้องอยู่ **ใต้** กิ่งตีกลับเหมือนฝั่ง TS เป๊ะ — สองเงื่อนไขนี้เป็นจริงพร้อมกันได้
-        WHEN ${buildProblemHoldSql(c.carrierStatus, c.problemAt)} THEN 'PROBLEM'
+        WHEN ${buildProblemHoldSql(c.carrierStatus, c.problemAt, c.problemCloseOutcome)} THEN 'PROBLEM'
         WHEN ${inList(c.carrierStatus, TERMINAL_CARRIER_STATUSES)} THEN (
           -- ของถึงแล้วแต่ยังไม่ได้เงินปลายทาง = ยังมีงานค้างจริง (ตามเงิน)
           CASE WHEN ${isCod} AND ${c.codReceivedAt} IS NULL THEN 'AWAITING_COD' ELSE 'DONE' END

@@ -1,5 +1,6 @@
 import type { CustomerBehavior } from '@/lib/customer-behavior'
 import type { AppointmentStatus } from '@/lib/appointments'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import type { ShippingStageKey } from '@/lib/order-stage'
 import type { ServiceWorkStage } from '@/lib/service-work-stage'
 import type { PickupStageKey } from '@/lib/order-pickup'
@@ -106,6 +107,8 @@ export type OrderRow = {
     returnStartedAt: string | null
     returnedAt: string | null
     returnDispatchedAt: string | null
+    /** 00085 — ผลปิดพัสดุมีปัญหาโดยร้าน (null = ยังไม่ปิด) · ส่งต่อให้ describeProgress arg 4 */
+    problemCloseOutcome: ParcelCloseOutcome | null
   } | null
   /**
    * นัดหมายของใบนี้ (feature 00036) — null = ไม่มีนัด (walk-in) ซึ่งแปลว่า "ไม่อยู่ในแกนนี้"

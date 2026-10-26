@@ -94,6 +94,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     codReceivedAt: null,
     fulfillmentMode: order.fulfillmentMode,
     problemAt: order.problemAt,
+    parcelClose: order.parcelClose,
   })
 
   const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
@@ -392,6 +393,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   returnStartedAt={order.returnStartedAt}
                   returnedAt={order.returnedAt}
                   returnDispatchedAt={order.returnDispatchedAt}
+                  parcelClose={order.parcelClose}
                   hasShipment
                   tracking={order.shipmentTracking}
                 />

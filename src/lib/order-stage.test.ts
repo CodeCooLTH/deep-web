@@ -5,10 +5,12 @@
 //   2. พัสดุมีปัญหาถูกกลืนเป็น "สร้างพัสดุแล้ว" → ร้านมองไม่เห็นของที่ต้องรีบจัดการ (2026-07-31)
 
 import { describe, expect, it } from "vitest";
-import { holdsParcelProblem } from "./iship/status";
+import { describeProgress, holdsParcelProblem } from "./iship/status";
+import type { ParcelCloseOutcome } from "./parcel-close";
 import {
   deriveOrderStage as deriveOrderStageStrict,
   deriveShippingStage as deriveShippingStageStrict,
+  isActionableShippingStage,
   resolveOrderStatusBadge,
   SHIPPING_STAGE_LABEL,
   orderStageChipLabel,
@@ -16,10 +18,11 @@ import {
 } from "./order-stage";
 
 // feature 00080 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับส่งเอง ⇒ ค่าตั้งต้น false · เคสส่งเอง ส่ง hasManualTracking: true เป็นรายเคส
-const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking'> & { hasManualTracking?: boolean }) | null, now?: number) =>
-  deriveOrderStageStrict(o && { hasManualTracking: false, ...o }, now);
-const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking'> & { hasManualTracking?: boolean }) =>
-  deriveShippingStageStrict({ hasManualTracking: false, ...o });
+// feature 00085 — ฟิกซ์เจอร์เดิมไม่เกี่ยวกับการปิดพัสดุ ⇒ ค่าตั้งต้น null · เคสปิดพัสดุส่ง parcelClose เป็นรายเคส
+const deriveOrderStage = (o: (Omit<NonNullable<Parameters<typeof deriveOrderStageStrict>[0]>, 'hasManualTracking' | 'parcelClose' | 'problemClosedAt'> & { hasManualTracking?: boolean; parcelClose?: ParcelCloseOutcome | null; problemClosedAt?: Date | string | null }) | null, now?: number) =>
+  deriveOrderStageStrict(o && { hasManualTracking: false, parcelClose: null, problemClosedAt: null, ...o }, now);
+const deriveShippingStage = (o: Omit<Parameters<typeof deriveShippingStageStrict>[0], 'hasManualTracking' | 'parcelClose'> & { hasManualTracking?: boolean; parcelClose?: ParcelCloseOutcome | null }) =>
+  deriveShippingStageStrict({ hasManualTracking: false, parcelClose: null, ...o });
 
 const NOW = new Date("2026-07-31T12:00:00Z").getTime();
 const base = {
@@ -496,13 +499,13 @@ describe("resolveOrderStatusBadge — กอง PROBLEM มีสองหน้
 // กับตัวนับ SQL ซึ่งอ่านฟังก์ชันนี้ตรง ๆ (deriveOrderStage ไม่มีสาขา RETURNED มากั้นให้)
 describe("holdsParcelProblem — เกณฑ์กลางของ 'ใบนี้อยู่กองพัสดุมีปัญหาไหม'", () => {
   it("[blocker] ตอนนี้ติดปัญหาอยู่จริง = ใช่ (ไม่ต้องพึ่ง problemAt)", () => {
-    expect(holdsParcelProblem("issue", null)).toBe(true);
-    expect(holdsParcelProblem("cannot_pickup", null)).toBe(true);
+    expect(holdsParcelProblem("issue", null, false)).toBe(true);
+    expect(holdsParcelProblem("cannot_pickup", null, false)).toBe(true);
   });
 
   it("[blocker] เคยมีปัญหา + ขนส่งกลับไปเดินต่อ = ยังใช่ (นี่คือทั้งหมดของฟีเจอร์นี้)", () => {
-    expect(holdsParcelProblem("progress", PROBLEM_AT)).toBe(true);
-    expect(holdsParcelProblem("in_transit", PROBLEM_AT)).toBe(true);
+    expect(holdsParcelProblem("progress", PROBLEM_AT, false)).toBe(true);
+    expect(holdsParcelProblem("in_transit", PROBLEM_AT, false)).toBe(true);
   });
 
   it("[blocker] กำลังตีกลับ = ไม่ใช่ แม้เคยมีปัญหา — กอง RETURNED เป็นเจ้าของเรื่องนี้", () => {
@@ -511,24 +514,86 @@ describe("holdsParcelProblem — เกณฑ์กลางของ 'ใบน
      * (ป้ายในแถวแชท) กับตัวนับ SQL เรียกตรงนี้โดยไม่มีสาขา RETURNED มากั้นให้ ถ้าถอด
      * บรรทัดนั้นออก แถวแชทจะขึ้น "พัสดุมีปัญหา" ซ้อนกับชิป "ตีกลับ N รายการ" อีกครั้ง
      */
-    expect(holdsParcelProblem("return", PROBLEM_AT)).toBe(false);
-    expect(holdsParcelProblem("return_success", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("return", PROBLEM_AT, false)).toBe(false);
+    expect(holdsParcelProblem("return_success", PROBLEM_AT, false)).toBe(false);
   });
 
   it("[blocker] ของถึงมือผู้รับ / สายทางจบแล้ว = ปลดการค้าง", () => {
-    expect(holdsParcelProblem("delivered", PROBLEM_AT)).toBe(false);
-    expect(holdsParcelProblem("payment_success", PROBLEM_AT)).toBe(false);
-    expect(holdsParcelProblem("close", PROBLEM_AT)).toBe(false);
-    expect(holdsParcelProblem("cancelled", PROBLEM_AT)).toBe(false);
+    expect(holdsParcelProblem("delivered", PROBLEM_AT, false)).toBe(false);
+    expect(holdsParcelProblem("payment_success", PROBLEM_AT, false)).toBe(false);
+    expect(holdsParcelProblem("close", PROBLEM_AT, false)).toBe(false);
+    expect(holdsParcelProblem("cancelled", PROBLEM_AT, false)).toBe(false);
   });
 
   it("ไม่เคยมีปัญหา = ไม่ใช่ ไม่ว่าสถานะปัจจุบันจะเป็นอะไร", () => {
     for (const code of ["progress", "in_transit", "delivered", "order_success", null]) {
-      expect(holdsParcelProblem(code, null)).toBe(false);
+      expect(holdsParcelProblem(code, null, false)).toBe(false);
     }
   });
 
   it("รหัสที่ไม่รู้จัก + เคยมีปัญหา = ยังค้าง (fail-closed: ไม่รู้ว่าจบ ⇒ ยังไม่จบ)", () => {
-    expect(holdsParcelProblem("a_code_we_have_never_seen", PROBLEM_AT)).toBe(true);
+    expect(holdsParcelProblem("a_code_we_have_never_seen", PROBLEM_AT, false)).toBe(true);
+  });
+});
+
+// ─── ร้านปิดพัสดุขาไปที่มีปัญหา (00085) ─────────────────────────────────────
+describe("ปิดพัสดุแล้ว (00085) — สาขาปิดอยู่เหนือสถานะขนส่งทุกตัว", () => {
+  const ship = { ...base, hasShipment: true, paymentMethod: "COD", codReceivedAt: null, problemAt: null };
+
+  it("[blocker] ผล A → DELIVERY_FAILED แม้ขนส่งอัปเดตต่อเป็น delivered/return/return_success/issue/progress", () => {
+    for (const carrierStatus of ["delivered", "return", "return_success", "issue", "progress"]) {
+      expect(deriveShippingStage({ ...ship, carrierStatus, parcelClose: "DELIVERY_FAILED" }), carrierStatus).toBe("DELIVERY_FAILED");
+    }
+  });
+
+  it("[blocker] ผล B → DONE (ไม่ใช่ AWAITING_COD แม้ COD ยังไม่รับเงิน) แม้ขนส่งส่ง issue/return_success มาทีหลัง", () => {
+    for (const carrierStatus of ["issue", "return_success", "delivered", "progress"]) {
+      expect(deriveShippingStage({ ...ship, carrierStatus, parcelClose: "LOST_ON_RETURN" }), carrierStatus).toBe("DONE");
+    }
+  });
+
+  it("ไม่ปิด = พฤติกรรมเดิม (return_success ยัง RETURNED · issue ยัง PROBLEM)", () => {
+    expect(deriveShippingStage({ ...ship, carrierStatus: "return_success" })).toBe("RETURNED");
+    expect(deriveShippingStage({ ...ship, carrierStatus: "issue" })).toBe("PROBLEM");
+  });
+
+  it("isActionableShippingStage: DONE / DELIVERY_FAILED / NOT_SHIPPING ไม่ใช่งานค้าง ที่เหลือใช่", () => {
+    expect(isActionableShippingStage("DONE")).toBe(false);
+    expect(isActionableShippingStage("DELIVERY_FAILED")).toBe(false);
+    expect(isActionableShippingStage("NOT_SHIPPING")).toBe(false);
+    for (const k of ["DRAFT", "AWAITING_PARCEL", "AWAITING_DISPATCH", "AWAITING_PICKUP", "SHIPPING", "AWAITING_COD", "PROBLEM", "RETURNED"] as const) {
+      expect(isActionableShippingStage(k), k).toBe(true);
+    }
+  });
+
+  it("holdsParcelProblem arg 3 = true ชนะทุกอย่าง แม้ issue อยู่", () => {
+    expect(holdsParcelProblem("issue", PROBLEM_AT, true)).toBe(false);
+    expect(holdsParcelProblem("issue", PROBLEM_AT, false)).toBe(true);
+  });
+
+  it("ป้ายแถวแชท: ผล A = DELIVERY_FAILED · ผล B = DELIVERED · นับ 3 วันจาก problemClosedAt ไม่ใช่เวลาขนส่ง", () => {
+    const closedAt = new Date(NOW - 1 * 24 * 3600 * 1000);
+    const open = { ...base, carrierStatus: "issue", problemAt: PROBLEM_AT, problemClosedAt: closedAt, statusAt: new Date(NOW) };
+    expect(deriveOrderStage({ ...open, parcelClose: "DELIVERY_FAILED" }, NOW)?.key).toBe("DELIVERY_FAILED");
+    expect(deriveOrderStage({ ...open, parcelClose: "LOST_ON_RETURN" }, NOW)?.key).toBe("DELIVERED");
+    // ขนส่งขยับล่าสุด (statusAt = NOW) แต่ปิดเมื่อ 4 วันก่อน ⇒ หมดอายุ
+    const old = new Date(NOW - 4 * 24 * 3600 * 1000);
+    expect(deriveOrderStage({ ...open, problemClosedAt: old, parcelClose: "DELIVERY_FAILED" }, NOW)).toBeNull();
+  });
+
+  it("ป้ายสถานะออเดอร์ DELIVERY_FAILED = 'ส่งไม่สำเร็จ' เทา ไม่มีใน SHIPPING_STAGE_LABEL", () => {
+    const b = resolveOrderStatusBadge("PENDING", "DELIVERY_FAILED");
+    expect(b.label).toBe("ส่งไม่สำเร็จ");
+    expect(b.tone).toBe("neutral");
+    expect("DELIVERY_FAILED" in SHIPPING_STAGE_LABEL).toBe(false);
+  });
+
+  it("describeProgress: ปิดแล้ว notice เปลี่ยนตามผู้อ่าน · ไม่ปิดใช้ของเดิม", () => {
+    expect(describeProgress("CREATED", "issue", "seller", "DELIVERY_FAILED").notice?.text).toBe("ปิดพัสดุแล้ว · ส่งไม่สำเร็จ");
+    expect(describeProgress("CREATED", "issue", "seller", "LOST_ON_RETURN").notice?.text).toBe("ปิดพัสดุแล้ว · ส่งสำเร็จ · คืนไม่สำเร็จ");
+    const buyer = describeProgress("CREATED", "issue", "buyer", "DELIVERY_FAILED").notice;
+    expect(buyer?.tone).toBe("warning");
+    expect(buyer?.text).toContain("ส่งไม่สำเร็จ");
+    expect(describeProgress("CREATED", "issue", "seller", null).notice?.text).toContain("พัสดุมีปัญหา");
   });
 });

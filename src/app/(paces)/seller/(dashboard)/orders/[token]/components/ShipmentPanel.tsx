@@ -47,6 +47,8 @@ interface Props {
   onFooterChange?: ShipmentFooterReporter
   /** 00084 — ร้านสองเจ้า: ปุ่ม "ใช้ Flash ของร้านเปิดพัสดุ" ในแผงเทียบราคา · ไม่ส่ง = ไม่มีบล็อก Flash */
   onUseFlash?: () => void
+  /** 00085 — ผู้ดูถือ S1 (ปิดพัสดุมีปัญหา) · ไม่ส่ง = ปิด */
+  canManageParcel?: boolean
 }
 
 export default function ShipmentPanel({
@@ -57,6 +59,7 @@ export default function ShipmentPanel({
   formId,
   onFooterChange,
   onUseFlash,
+  canManageParcel = false,
 }: Props) {
   const router = useRouter()
   const { couriers, error: couriersError } = useIShipCouriers(!context.blockedBy)
@@ -98,6 +101,7 @@ export default function ShipmentPanel({
           onCancelled={() => afterChange(null)}
           onRetried={afterChange}
           onEditRequest={() => setForceForm(true)}
+          canManageParcel={canManageParcel}
         />
       ) : linkMode ? (
         <ShipmentLinkPanel

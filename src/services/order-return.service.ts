@@ -5,6 +5,8 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { recordOrderEvent } from '@/services/order-event.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
+import { asParcelClose } from './parcel-close-input'
 import {
   OPEN_RETURN_STATUSES,
   RETURN_BLOCK_TEXT,
@@ -57,6 +59,9 @@ const forwardShipmentQuery = {
     // "เคยมีปัญหาครั้งแรกเมื่อไร" — ชิปบนแถบ "ขาไป" ใช้ SSOT เดียวกับหน้าอื่น จึงต้องรู้ด้วย
     // ไม่งั้นชิปในชีตคืนของจะบอก "กำลังจัดส่ง" ขณะที่การ์ดข้างนอกบอก "พัสดุมีปัญหา"
     problemAt: true,
+    // 00085 — ร้านปิดพัสดุมีปัญหาแล้ว ⇒ ชิป "ขาไป" ต้องไม่ขึ้นพัสดุมีปัญหาอีก
+    problemClosedAt: true,
+    problemCloseOutcome: true,
     courierCode: true,
     courierName: true,
     trackingNo: true,
@@ -154,6 +159,9 @@ export type ForwardParcelFacts = {
   carrierStatus: string | null
   /** คู่กับ `carrierStatus` เสมอ — `deriveShippingStage` ต้องใช้ทั้งคู่ถึงจะตอบกองได้ถูก */
   problemAt: Date | null
+  problemClosedAt: Date | null
+  /** ผลปิดพัสดุมีปัญหา (00085) — null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   /** กล่องของขาไป = ค่าตั้งต้นของขากลับ (D-5) · null ทั้งก้อนเมื่อไม่ครบ 4 ช่อง */
   box: ReturnParcelBox | null
 }
@@ -261,6 +269,8 @@ export async function getReturnEligibility(shopId: string, orderId: string) {
     trackingNo: fwd?.trackingNo ?? order.shipmentTracking?.trackingNo ?? null,
     carrierStatus: fwd?.carrierStatus ?? null,
     problemAt: fwd?.problemAt ?? null,
+    problemClosedAt: fwd?.problemClosedAt ?? null,
+    parcelClose: asParcelClose(fwd?.problemCloseOutcome),
     box: parseReturnParcel({
       weight: dec(fwd?.weight),
       width: fwd?.width,

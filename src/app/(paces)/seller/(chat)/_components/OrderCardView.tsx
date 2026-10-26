@@ -10,6 +10,7 @@
  * onEdit = แตะตัวการ์ด (ส่วน body) เปิดโมดัลแก้ไข — เฉพาะใบที่แก้ได้และยังไม่มีเลขพัสดุ นอกนั้นแตะ =
  *   ไปหน้ารายละเอียด /orders/{token} (`orderCardTapAction`); footer เป็น action แยก (stopPropagation ที่ caller)
  */
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import ShipmentStepper from './ShipmentStepper'
@@ -51,6 +52,8 @@ export type OrderCardViewData = {
     /** เวลาของ "ขากลับ" — แถวที่ 2 ของ stepper อ่านจากสองช่องนี้ (null = ขนส่งไม่ได้แจ้ง) */
     returnStartedAt?: string | null
     returnedAt?: string | null
+    /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับ (2 ตัว serialize ต้องตรงกัน) null = ยังไม่ปิด */
+    problemCloseOutcome: ParcelCloseOutcome | null
   } | null
   /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING = งานไม่มีการส่งของ ไม่แสดง stepper (ห้ามเช็ค Order.type
    *  — ดู src/lib/iship/eligibility.ts) · ไม่ส่งมา (caller เก่า) = ปฏิบัติเหมือน SHIPPED */
@@ -120,6 +123,9 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
       carrierStatus: null,
       hasShipment: false,
       hasManualTracking: data.hasManualTracking,
+      // 00085 — ชิปนี้ไม่มีพัสดุ (hasShipment:false) จึงไม่มีผลปิด
+      parcelClose: null,
+      problemClosedAt: null,
       // ร้านคิวงาน/บ้านพักไม่ได้เรียกใบของตัวเองว่า "สั่งซื้อแล้ว" (user report 2026-08-12)
       vertical: data.vertical,
     },
@@ -259,6 +265,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
         status: sh.status ?? 'CREATED',
         carrierStatus: sh.carrierStatus ?? null,
         problemAt: sh.problemAt ?? null,
+        problemCloseOutcome: sh.problemCloseOutcome,
       },
     }) === 'AWAITING_COD'
 
@@ -306,6 +313,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
           carrierStatus={sh.carrierStatus ?? null}
           returnStartedAt={sh.returnStartedAt ?? null}
           returnedAt={sh.returnedAt ?? null}
+          parcelClose={sh.problemCloseOutcome}
           size="md"
         />
       </div>

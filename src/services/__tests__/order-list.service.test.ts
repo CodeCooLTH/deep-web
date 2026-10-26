@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 
 import { deriveShippingStage } from '@/lib/order-stage'
 import { buildShippingStageSql } from '@/lib/order-stage-sql'
+import { asParcelClose } from '../parcel-close-input'
 
 /**
  * เทสยืนยันว่า "นับ/กรองที่ SQL" ให้ผลตรงกับ "derive ที่ TypeScript" **บนข้อมูลจริง**
@@ -43,11 +44,14 @@ const STAGE_COLUMNS = {
   fulfillmentMode: 'o."fulfillmentMode"',
   // feature 00080 — ต้องตรงกับของจริง (LEFT JOIN "ShipmentTracking" st ด้านล่าง)
   hasManualTracking: 'st."orderId" IS NOT NULL',
+  // 00085 — ต้องตรงกับของจริง
+  problemClosedAt: 's."problemClosedAt"',
+  problemCloseOutcome: 's."problemCloseOutcome"',
 }
 
 const LATERAL = `
   LEFT JOIN LATERAL (
-    SELECT sh."id", sh."carrierStatus", sh."problemAt"
+    SELECT sh."id", sh."carrierStatus", sh."problemAt", sh."problemClosedAt", sh."problemCloseOutcome"
     FROM "OrderShipment" sh
     WHERE sh."orderId" = o."id"
       AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
@@ -80,6 +84,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
         fulfillment_mode: string
         has_manual_tracking: boolean
         problem_at: Date | null
+        problem_close_outcome: string | null
         sql_stage: string
       }[]
     >(`
@@ -92,6 +97,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
              o."fulfillmentMode"  AS fulfillment_mode,
              (st."orderId" IS NOT NULL) AS has_manual_tracking,
              s."problemAt"        AS problem_at,
+             s."problemCloseOutcome" AS problem_close_outcome,
              (${stageExpr})       AS sql_stage
       FROM "Order" o
       ${LATERAL}
@@ -112,6 +118,7 @@ describe('order-list — กองงานที่นับด้วย SQL �
           fulfillmentMode: r.fulfillment_mode,
           hasManualTracking: r.has_manual_tracking,
           problemAt: r.problem_at,
+          parcelClose: asParcelClose(r.problem_close_outcome),
         })
         return fromTs === r.sql_stage
           ? null

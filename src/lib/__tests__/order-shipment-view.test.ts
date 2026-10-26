@@ -11,10 +11,11 @@ const ship = {
   returnStartedAt: D,
   returnedAt: null,
   returnDispatchedAt: null,
+  problemCloseOutcome: null,
 }
 
 const B = { status: 'SHIPPED', trackingNoticeTiming: 'ON_SAVE' as const }
-const KEYS = ['carrierStatus', 'hasIshipTracking', 'hasManualTracking', 'problemAt', 'returnDispatchedAt', 'returnStartedAt', 'returnedAt', 'shipmentTracking']
+const KEYS = ['carrierStatus', 'hasIshipTracking', 'hasManualTracking', 'problemAt', 'problemCloseOutcome', 'returnDispatchedAt', 'returnStartedAt', 'returnedAt', 'shipmentTracking']
 
 describe('buildBuyerShipmentView', () => {
   it('iShip fallback ส่ง courierCode ไปด้วย', () => {

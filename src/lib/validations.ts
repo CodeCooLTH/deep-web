@@ -2526,3 +2526,14 @@ export const FlashPickupSchema = v.object({
   remark: v.nullish(shortText(200)),
 });
 // ═══ จบ feature 00084 (Flash) T8a ═══════════════════════════════════════════════════════════════
+
+// ═══ feature 00085 — ปิดพัสดุมีปัญหาโดยร้าน ═══
+export const ParcelCloseBodySchema = v.pipe(
+  v.object({
+    reason: v.picklist(["FIRE", "LOST", "DAMAGED", "OTHER"]),
+    note: v.optional(v.pipe(v.string(), v.trim(), v.minLength(5), v.maxLength(200))),
+    expectedOutcome: v.picklist(["DELIVERY_FAILED", "LOST_ON_RETURN"]),
+    refunded: v.optional(v.boolean()),
+  }),
+  v.forward(v.check((b) => b.reason !== "OTHER" || !!b.note, "OTHER ต้องมีข้อความ 5–200 ตัวอักษร"), ["note"]),
+)

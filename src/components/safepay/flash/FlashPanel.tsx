@@ -48,6 +48,8 @@ interface Props {
   extraFields?: () => React.ReactNode
   /** false = ไม่ router.refresh() (แชทไม่ต้องรีเฟรชหน้า inbox ทั้งหน้า) · ค่าตั้งต้น true เหมือนเดิม */
   refreshOnChange?: boolean
+  /** 00085 — ผู้ดูถือ S1 (ปิดพัสดุมีปัญหา) · ไม่ส่ง = ปิด */
+  canManageParcel?: boolean
 }
 
 export default function FlashPanel({
@@ -63,6 +65,7 @@ export default function FlashPanel({
   onCreated,
   extraFields,
   refreshOnChange = true,
+  canManageParcel = false,
 }: Props) {
   const router = useRouter()
   const [shipment, setShipment] = useState<ShipmentViewJson | null>(panel.shipment)
@@ -106,6 +109,7 @@ export default function FlashPanel({
         onRetried={afterChange}
         onEditRequest={() => setForceForm(true)}
         onSelfShipRequest={onSelfShipRequest}
+        canManageParcel={canManageParcel}
       />
     )
   }

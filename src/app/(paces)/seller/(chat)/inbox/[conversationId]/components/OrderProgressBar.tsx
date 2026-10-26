@@ -604,6 +604,7 @@ export default function OrderProgressBar({
                           carrierStatus={sh.carrierStatus ?? null}
                           returnStartedAt={sh.returnStartedAt ?? null}
                           returnedAt={sh.returnedAt ?? null}
+                          parcelClose={sh.problemCloseOutcome}
                           size="sm"
                           showNotice={false}
                         />

@@ -11,6 +11,7 @@
  * ยกมาตรง ๆ ไม่เปลี่ยน behavior; render/JSX ยังอยู่ที่ caller แต่ละที่ (full page การ์ด/header
  * ต่างจาก widget panel ที่ h-full ไม่มี .card ซ้ำ)
  */
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { markLocalRead } from '@/lib/chat-local-read'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect'
@@ -130,6 +131,8 @@ export type ChatOrderCard = {
     carrierStatus: string | null
     /** "เคยมีปัญหาครั้งแรกเมื่อไร" — กอง "พัสดุมีปัญหา" ค้างเหนียวจนของถึงที่ใดที่หนึ่ง */
     problemAt?: string | null
+    /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับ (2 ตัว serialize ต้องตรงกัน) null = ยังไม่ปิด */
+    problemCloseOutcome: ParcelCloseOutcome | null
   } | null
   paymentMethod?: string | null
   codReceivedAt?: string | null

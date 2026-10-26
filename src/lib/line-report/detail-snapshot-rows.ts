@@ -32,7 +32,7 @@ export interface OrderRowInput {
   room: { name: string } | null
   imageUrl?: string
   channel?: string | null
-  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string }[] | null
+  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; direction: string; problemCloseExcludesRevenue: boolean | null }[] | null
 }
 
 /**

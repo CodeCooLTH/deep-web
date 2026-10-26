@@ -73,7 +73,7 @@ describe('buyerShipmentStatus (R-6 — stage ตัวเดียวป้อ�
   const base: ShipIn = {
     status: 'SHIPPED', carrierStatus: null, hasShipment: true, paymentMethod: 'TRANSFER',
     hasManualTracking: false, hasIshipTracking: true, // 00080 — ดู GuestOrderData
-    fulfillmentMode: 'SHIPPED', problemAt: null,
+    fulfillmentMode: 'SHIPPED', problemAt: null, parcelClose: null,
   }
   const guest = (i: ShipIn) => {
     // อาร์กิวเมนต์เหมือน GuestOrderView ทุกตัว (codReceivedAt: null)
@@ -201,7 +201,7 @@ describe('buildTransferView (D-4 / R-3)', () => {
 describe('buyerShipmentStatus — รอจัดส่ง (00080)', () => {
   const awaiting: Parameters<typeof buyerShipmentStatus>[0] = {
     status: 'PENDING', carrierStatus: null, hasShipment: false, hasManualTracking: true, hasIshipTracking: false,
-    paymentMethod: 'TRANSFER', fulfillmentMode: 'SHIPPED', problemAt: null,
+    paymentMethod: 'TRANSFER', fulfillmentMode: 'SHIPPED', problemAt: null, parcelClose: null,
   }
   it('เลขถูกซ่อน (hasShipment=false) ก็ยังขึ้น "รอจัดส่ง" ไม่ใช่ "ส่งแล้ว/กำลังจัดส่ง"', () => {
     const r = buyerShipmentStatus(awaiting)

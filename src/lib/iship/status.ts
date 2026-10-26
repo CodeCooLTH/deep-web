@@ -7,6 +7,9 @@
 // ข้อควรระวัง: สถานะพัสดุคนละชุดกับ Order.status ของเรา (BR-ISHIP-40)
 // ห้ามเอามาปนกัน และห้ามให้สถานะพัสดุไปเปลี่ยนสถานะคำสั่งซื้อเอง (BR-ISHIP-41)
 
+// ใช้แค่ในตัวฟังก์ชัน (ไม่มีการใช้ตอน load module) จึงไม่ติด cycle กับ parcel-close.ts ที่ import ไฟล์นี้
+import { PARCEL_CLOSE_META, type ParcelCloseOutcome } from "@/lib/parcel-close";
+
 /** โทนสีตาม semantic token ของ Paces — ไม่ hardcode hex */
 export type ShipmentTone = "primary" | "info" | "success" | "warning" | "danger" | "secondary";
 
@@ -524,6 +527,8 @@ export function describeProgress(
    * ทำให้เป็นพารามิเตอร์บังคับ = `tsc` ไล่ให้ครบทุกจุดแทนเรา
    */
   audience: TimelineAudience,
+  /** ผลที่ร้านปิดพัสดุ (00085) — บังคับด้วยเหตุผลเดียวกับ audience; null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null,
 ): ShipmentProgress {
   if (shipmentStatus === "CANCELLED") {
     return {
@@ -561,7 +566,7 @@ export function describeProgress(
      * เดิม `return_success` เขียนว่า "ส่งคืนสำเร็จ" ทับช่องของ "จัดส่งสำเร็จ" ⇒ แถบอ่านว่า
      * "เดินหน้าครบ 4 ขั้น จบสวย" ทั้งที่ของกลับมากองที่ร้าน (user เจอบน prod TH6504915C3K3F)
      */
-    lastLabel: isReturnedCarrierStatus(code)
+    lastLabel: isReturnedCarrierStatus(code) || parcelClose === "DELIVERY_FAILED"
       ? FORWARD_OUTCOME.failed.label
       : // ปิดงานโดยไม่รู้ว่าสำเร็จหรือไม่ — ห้ามเขียน "ส่งสำเร็จ" ทับจุดสุดท้าย
         code === "close"
@@ -574,13 +579,19 @@ export function describeProgress(
      * 🛑 `arrow-back-up` ถูกถอดออกจากจุดนี้แล้ว — ทุกจอวาดแถว 2 จริงหมด (รวมแถวในตาราง
      * ตั้งแต่ 2026-08-26) จึงไม่มีที่ไหนต้องยุบ 2 แถวเหลือสัญลักษณ์เดียวอีก
      */
-    lastIcon: isReturnedCarrierStatus(code)
+    lastIcon: isReturnedCarrierStatus(code) || parcelClose === "DELIVERY_FAILED"
       ? `tabler:${FORWARD_OUTCOME.failed.icon}`
       : code === "close"
         ? `tabler:${CARRIER_STATUS[code].icon}`
         : undefined,
     // `null` ของฝั่ง buyer = จงใจไม่แสดง (เรื่องระหว่างร้านกับขนส่ง) ไม่ใช่ "ไม่มีข้อมูล"
-    notice: code ? (NOTICE_OF[code]?.[audience] ?? undefined) : undefined,
+    notice: parcelClose
+      ? audience === "seller"
+        ? { tone: "secondary", text: `ปิดพัสดุแล้ว · ${PARCEL_CLOSE_META[parcelClose].label}` }
+        : { tone: "warning", text: PARCEL_CLOSE_META[parcelClose].buyerMessage }
+      : code
+        ? (NOTICE_OF[code]?.[audience] ?? undefined)
+        : undefined,
   };
 }
 
@@ -713,7 +724,11 @@ export function releasesProblemHold(code?: string | null): boolean {
 export function holdsParcelProblem(
   code: string | null | undefined,
   problemAt: Date | string | null | undefined,
+  /** ร้านปิดพัสดุแล้ว (00085) — บังคับ: ผู้เรียกที่ลืมส่งจะดึงใบที่ปิดแล้วกลับเข้ากองปัญหาเงียบ ๆ */
+  parcelClosed: boolean,
 ): boolean {
+  // ปิดแล้ว = เรื่องจบ ต้องชนะทุกอย่างรวมถึงสถานะ issue ที่ขนส่งส่งมาทีหลัง
+  if (parcelClosed) return false;
   if (isProblemCarrierStatus(code)) return true;
   if (!problemAt) return false;
   if (isReturnedCarrierStatus(code)) return false;

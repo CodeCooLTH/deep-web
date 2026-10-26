@@ -25,6 +25,7 @@
  * `ShippingStageKey` แล้ว ค่าที่ไม่มีในตารางจึงเป็น compile error ไม่ใช่จุดแรกเงียบ ๆ
  */
 
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import ButtonBase from '@mui/material/ButtonBase'
@@ -51,6 +52,8 @@ type Props = {
   returnStartedAt?: string | null
   returnedAt?: string | null
   returnDispatchedAt?: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุมีปัญหา (ผู้ซื้อเห็นแค่ผล) · null = ยังไม่ปิด */
+  parcelClose: ParcelCloseOutcome | null
   /**
    * มีพัสดุจริงไหม — ออเดอร์ที่จบโดยไม่เคยมีพัสดุ (รับเอง/บริการ) ได้ stage `DONE` เหมือนกัน
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
@@ -72,6 +75,7 @@ export default function ParcelTimeline({
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
+  parcelClose,
   hasShipment,
   tracking,
 }: Props) {
@@ -85,7 +89,7 @@ export default function ParcelTimeline({
    */
   const leg = describeReturnLeg({ audience: 'buyer', carrierStatus, returnStartedAt, returnedAt, returnDispatchedAt })
   // ขนส่งบอกเองชนะกองงานที่ระบบจัดให้ — ดูเหตุผลเต็มที่ MiniShipmentTimeline ฝั่งร้าน
-  const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus, 'buyer') : null
+  const progress = carrierStatus != null ? describeProgress('CREATED', carrierStatus, 'buyer', parcelClose) : null
   const raw = progress ? progress.stage : SHIPMENT_STAGE_DOT_INDEX[stage]
 
   // ยังไม่มีพัสดุให้วาด / พัสดุถูกยกเลิก — ไม่ใช่ error แค่ไม่มีเส้นทางให้เล่า

@@ -30,10 +30,12 @@ const num = (v: unknown): number | null => (v == null ? null : Number(v))
 export function resolveOutboundShippingCost(input: {
   forward: ForwardShippingPrice | null
   manual: unknown
+  /** 00085: ใบที่ร้านปิดแบบไม่นับยอดขาย ⇒ ไม่รวม codFee (ไม่มีการเก็บเงิน) · บังคับ ไม่ให้ลืมส่ง */
+  dropCodFee: boolean
 }): OutboundShippingCost {
   const manual = num(input.manual)
   const f = input.forward
-  const codFee = num(f?.codFee) ?? 0
+  const codFee = input.dropCodFee ? 0 : (num(f?.codFee) ?? 0)
   const real = num(f?.carrierPrice)
   const price = real ?? num(f?.estimatedPrice)
 

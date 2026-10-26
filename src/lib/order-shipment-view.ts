@@ -1,3 +1,5 @@
+import type { ParcelCloseOutcome } from './parcel-close'
+
 /**
  * ข้อมูลพัสดุที่ผู้ซื้อเห็น — allow-list ทีละฟิลด์ (feature 00068 TD-003)
  *
@@ -25,6 +27,8 @@ export type ShipmentViewInput = {
     returnStartedAt: Date | null
     returnedAt: Date | null
     returnDispatchedAt: Date | null
+    /** 00085 — ผู้ซื้อได้แค่ outcome (ห้าม note/ผู้ปิด/refunded/excludesRevenue) */
+    problemCloseOutcome: ParcelCloseOutcome | null
   }>
 }
 
@@ -35,6 +39,8 @@ export type BuyerShipmentView = {
   returnStartedAt: string | null
   returnedAt: string | null
   returnDispatchedAt: string | null
+  /** 00085 — ผลที่ร้านปิดพัสดุ (ผู้ซื้อเห็นแค่ผล ไม่เห็นเหตุผล/หมายเหตุ/เรื่องเงิน) */
+  problemCloseOutcome: ParcelCloseOutcome | null
   /**
    * feature 00080 — ป้อน `deriveShippingStage` ฝั่งผู้ซื้อ (ไม่ใช่ตัวแสดงเลข)
    * `shipmentTracking` ข้างบนอาจเป็น null เพราะร้านตั้งซ่อนเลขจนกด "จัดส่งแล้ว" (S-12) จึงใช้ตัดสินขั้นไม่ได้
@@ -88,5 +94,6 @@ export function buildBuyerShipmentView(order: ShipmentViewInput): BuyerShipmentV
     returnStartedAt: shipment?.returnStartedAt?.toISOString() ?? null,
     returnedAt: shipment?.returnedAt?.toISOString() ?? null,
     returnDispatchedAt: shipment?.returnDispatchedAt?.toISOString() ?? null,
+    problemCloseOutcome: shipment?.problemCloseOutcome ?? null,
   }
 }

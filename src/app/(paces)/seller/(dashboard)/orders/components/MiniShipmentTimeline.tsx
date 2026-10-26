@@ -20,6 +20,7 @@ import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { SHIPMENT_STAGE_DOT_INDEX, SHIPPING_STAGE_LABEL, type ShippingStageKey } from '@/lib/order-stage'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { NOTICE_BOX, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 // สถานะกองนัดรับ (feature 00062 U18) — SSOT เดียวกับ badge บนการ์ด A2/A4 ในหน้ารายละเอียด (HR16)
 import { PICKUP_STAGE_LABEL, type PickupStageKey } from '@/lib/order-pickup'
@@ -58,6 +59,8 @@ interface Props {
   returnStartedAt?: string | Date | null
   returnedAt?: string | Date | null
   returnDispatchedAt?: string | Date | null
+  /** 00085 — ผลปิดพัสดุโดยร้าน · บังคับส่ง (null = ยังไม่ปิด) กันลืมแล้วแถบพูดคนละขั้นกับจอข้างใน */
+  parcelClose: ParcelCloseOutcome | null
   /**
    * มีพัสดุ/เลขแทรคจริงไหม — DONE ของออเดอร์ที่ไม่เคยมีพัสดุต้องไม่วาดแถบเขียวลอย ๆ
    *
@@ -96,6 +99,7 @@ export default function MiniShipmentTimeline({
   returnStartedAt,
   returnedAt,
   returnDispatchedAt,
+  parcelClose,
   hasShipment = false,
   cancelled,
   plain,
@@ -148,7 +152,7 @@ export default function MiniShipmentTimeline({
    * "กำลังจัดส่ง" ตัวหนา (user เจอบน prod 2026-08-24) — คำที่ขัดกับความจริงบนจอที่ผู้ขาย
    * ใช้ตัดสินใจ แย่กว่าไม่มีคำเลย
    */
-  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller') : null
+  const progress = carrierStatus != null ? describeProgress(shipmentStatus ?? 'CREATED', carrierStatus, 'seller', parcelClose) : null
   const cur = progress ? progress.stage : stage != null ? SHIPMENT_STAGE_DOT_INDEX[stage] : null
   if (cur == null || cur < 0 || !hasShipment || cancelled) {
     return <span className="text-default-400 text-sm">—</span>
@@ -182,7 +186,7 @@ export default function MiniShipmentTimeline({
       : SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label
   const ariaLabel = railAriaLabel(currentLabel, leg)
   /** สีจุดปัจจุบัน — SSOT เดียวกับหน้ารายละเอียด ห้ามตัดสินเองที่นี่ */
-  const currentDot = shipmentCurrentDotCls(progress?.notice)
+  const currentDot = shipmentCurrentDotCls(progress?.notice, parcelClose)
 
   const dot = (i: number, size: 'sm' | 'lg') => {
     const reached = i <= cur

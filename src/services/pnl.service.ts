@@ -126,7 +126,8 @@ function sumOrders(
     // ค่าส่งขาไป: ตัวกลาง resolveOutboundShippingCost (กติกาเดียวกับ /sales · ชีต — D-EXT-10 · 00078)
     const sp = o.shipments[0]
     if (sp || o.shipmentTracking) {
-      const c = resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost })
+      const c = resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost, dropCodFee: false })
+      // dropCodFee:false — ใบที่ร้านปิดแบบไม่นับยอดขายหลุดจาก where ก่อนถึงตรงนี้แล้ว (00085) · P&L ร้านขายของไม่เพิ่มค่าส่งขาไปของใบนั้น
       shipping += c.amount
       if (c.pendingReason === 'ESTIMATE') shippingPending += 1
       else if (c.pendingReason === 'MISSING') shippingMissing += 1

@@ -9,8 +9,10 @@
 
 import { isProblemCarrierStatus } from './iship/status'
 import { hasUsableShipment } from './shipping/provider'
+import { PARCEL_CLOSE_META, type ParcelCloseOutcome } from './parcel-close'
 import {
   deriveShippingStage,
+  isActionableShippingStage,
   PROBLEM_RETRY_LABEL_SHORT,
   SHIPPING_STAGE_LABEL,
   type ShippingStageKey,
@@ -44,6 +46,11 @@ export interface ProgressOrderInput {
      * ถ้าเป็น optional แล้วมีที่ไหนลืมส่ง การ์ดจะสลับกองระหว่างเลื่อนดูรายการเดียวกัน
      */
     problemAt: string | Date | null
+    /**
+     * OrderShipment.problemCloseOutcome (00085) — บังคับด้วยเหตุผลเดียวกับ `problemAt`:
+     * การ์ดแชทมี 2 ตัว serialize ถ้าตัวใดลืม ใบที่ร้านปิดแล้วจะกลับไปอยู่กองปัญหาเฉพาะจอนั้น
+     */
+    problemCloseOutcome: ParcelCloseOutcome | null
   } | null
 }
 
@@ -61,12 +68,13 @@ export function orderShippingStage(o: ProgressOrderInput): ShippingStageKey {
     fulfillmentMode: o.fulfillmentMode,
     problemAt: hasShipment ? (sh.problemAt ?? null) : null,
     hasManualTracking: o.hasManualTracking,
+    parcelClose: hasShipment ? (sh.problemCloseOutcome ?? null) : null,
   })
 }
 
-/** เฉพาะใบที่ยังเป็นงานค้าง (stage !== DONE) — ลำดับคงเดิมตามที่ caller เรียงมา (ล่าสุดก่อน) */
+/** เฉพาะใบที่ยังเป็นงานค้าง (isActionableShippingStage — ไม่รวมใบที่ร้านปิดแล้ว) — ลำดับคงเดิมตามที่ caller เรียงมา (ล่าสุดก่อน) */
 export function filterActiveOrders<T extends ProgressOrderInput>(orders: T[]): T[] {
-  return orders.filter((o) => orderShippingStage(o) !== 'DONE')
+  return orders.filter((o) => isActionableShippingStage(orderShippingStage(o)))
 }
 
 /**
@@ -74,7 +82,7 @@ export function filterActiveOrders<T extends ProgressOrderInput>(orders: T[]): T
  * เขียนเต็มคำทุกตัว (Tailwind สแกน static) · โทนล้อความหมายเดียวกับป้ายในรายการแชท:
  * ปัญหา = danger, กำลังเดินทาง = info, รอเงิน = warning, ที่เหลือ = primary (งานปกติ)
  */
-export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING'>, string> = {
+export const STAGE_CHIP_CLS: Record<Exclude<ShippingStageKey, 'DONE' | 'NOT_SHIPPING' | 'DELIVERY_FAILED'>, string> = {
   // feature 00061 — warning ตรงกับ `ORDER_STATUS_META.DRAFTED` (ใบเดียวกันสามจอต้องโทนเดียวกัน)
   DRAFT: 'bg-warning/15 text-warning-ink',
   AWAITING_PARCEL: 'bg-primary/15 text-primary-ink',
@@ -104,6 +112,10 @@ export function shippingChipFor(
   stage: ShippingStageKey,
   carrierStatus?: string | null,
 ): { cls: string; label: string } | null {
+  if (stage === 'DELIVERY_FAILED') {
+    // ใบที่ร้านปิดแล้ว (00085) — เทากับ STAGE_BADGE_OVERRIDE.DELIVERY_FAILED ใบเดียวกันทุกจอโทนเดียวกัน
+    return { cls: 'bg-default-100 text-default-800', label: PARCEL_CLOSE_META.DELIVERY_FAILED.label }
+  }
   if (stage === 'DONE' || stage === 'NOT_SHIPPING') return null
   /**
    * กอง PROBLEM ที่ค้างเหนียว (2026-09-14) — ชิปนี้ถูกวางไว้ **เหนือ `ShipmentStepper` ในการ์ด

@@ -4,13 +4,25 @@
 // แล้วไม่มีใครรู้ — เทสจึงเป็นด่านเดียวที่ส่งเสียงได้
 
 import { describe, expect, it } from 'vitest'
-import { countsAsRevenue, REVENUE_CARRIER_STATUSES, revenueOrderWhere } from './order-revenue'
+import {
+  countsAsRevenue,
+  countsAsSoldFor,
+  REVENUE_CARRIER_STATUSES,
+  revenueOrderWhere,
+  revenueWindowWhere,
+  soldItemsWindowWhere,
+} from './order-revenue'
 
-const parcel = (carrierStatus: string | null, direction = 'FORWARD') => ({
+const parcel = (
+  carrierStatus: string | null,
+  direction = 'FORWARD',
+  problemCloseExcludesRevenue: boolean | null = null,
+) => ({
   status: 'CREATED',
   isDryRun: false,
   carrierStatus,
   direction,
+  problemCloseExcludesRevenue,
 })
 
 describe('countsAsRevenue', () => {
@@ -56,8 +68,8 @@ describe('countsAsRevenue', () => {
 })
 
 describe('revenueOrderWhere ต้องสื่อเกณฑ์เดียวกับ countsAsRevenue', () => {
-  it('ครอบ 2 กรณี: ยืนยันแล้ว หรือ จัดส่งแล้ว+ขนส่งรับของ', () => {
-    expect(revenueOrderWhere.OR).toHaveLength(2)
+  it('ครอบ 3 กรณี: ยืนยันแล้ว · จัดส่งแล้ว+ขนส่งรับของ · ปิดพัสดุแบบนับยอดขาย (00085)', () => {
+    expect(revenueOrderWhere.OR).toHaveLength(3)
     expect(revenueOrderWhere.OR[0]).toEqual({ status: 'CONFIRMED' })
     const shipped = revenueOrderWhere.OR[1] as {
       status: string
@@ -103,5 +115,53 @@ describe('[blocker] ทิศทางพัสดุ (feature 00056)', () => {
         shipments: [parcel(code, 'RETURN'), parcel(code, 'FORWARD')],
       }),
     ).toBe(true)
+  })
+})
+
+/**
+ * feature 00085 — ร้านปิดพัสดุที่มีปัญหา: ผล A / B-COD / B-คืนเงินแล้ว (excludes=true) ไม่นับ,
+ * B-โอน-ไม่คืนเงิน (excludes=false) นับแม้ carrierStatus = issue
+ */
+describe('[blocker] 00085 ปิดพัสดุมีปัญหา', () => {
+  it('T-REV-1: ปิดแบบไม่นับ → ไม่นับ แม้ CONFIRMED / SHIPPED(progress)', () => {
+    expect(countsAsRevenue({ status: 'CONFIRMED', shipments: [parcel('issue', 'FORWARD', true)] })).toBe(false)
+    expect(countsAsRevenue({ status: 'SHIPPED', shipments: [parcel('progress', 'FORWARD', true)] })).toBe(false)
+  })
+
+  it('T-REV-2: ปิดแบบนับ (B-โอน-ไม่คืน) + SHIPPED + issue → นับ', () => {
+    expect(countsAsRevenue({ status: 'SHIPPED', shipments: [parcel('issue', 'FORWARD', false)] })).toBe(true)
+    // ยังไม่ปิด + issue → ไม่นับเหมือนเดิม
+    expect(countsAsRevenue({ status: 'SHIPPED', shipments: [parcel('issue')] })).toBe(false)
+  })
+
+  it('ธงบนพัสดุขากลับ/ไม่ active ไม่มีผล', () => {
+    expect(countsAsRevenue({ status: 'CONFIRMED', shipments: [parcel('issue', 'RETURN', true)] })).toBe(true)
+    expect(
+      countsAsRevenue({ status: 'CONFIRMED', shipments: [{ ...parcel('issue', 'FORWARD', true), status: 'CANCELLED' }] }),
+    ).toBe(true)
+  })
+
+  it('T-REV-3: revenueOrderWhere มี NOT + สาขา OR ที่ประกาศ · window ทั้งสองใช้ร่วมกัน', () => {
+    const w = revenueOrderWhere as any
+    expect(w.NOT.shipments.some).toMatchObject({
+      status: 'CREATED', isDryRun: false, direction: 'FORWARD', problemCloseExcludesRevenue: true,
+    })
+    expect(w.OR[2]).toMatchObject({
+      status: 'SHIPPED',
+      shipments: { some: { status: 'CREATED', isDryRun: false, direction: 'FORWARD', problemCloseExcludesRevenue: false } },
+    })
+    const win = { gte: new Date(0), lt: new Date(1) }
+    for (const f of [revenueWindowWhere('RETAIL', win), soldItemsWindowWhere('RETAIL', win)] as any[]) {
+      expect(f.NOT).toEqual(w.NOT)
+      expect(f.OR).toEqual(w.OR)
+    }
+  })
+
+  it('T-SOLD-1: countsAsSoldFor ปิดไม่นับ → false · ไม่ปิด → CONFIRMED เดิม', () => {
+    const mk = (status: string, ex: boolean | null) => ({ status, shipments: [parcel('issue', 'FORWARD', ex)] })
+    expect(countsAsSoldFor(mk('CONFIRMED', true), 'RETAIL')).toBe(false)
+    expect(countsAsSoldFor(mk('CONFIRMED', null), 'RETAIL')).toBe(true)
+    expect(countsAsSoldFor(mk('CONFIRMED', false), 'RETAIL')).toBe(true)
+    expect(countsAsSoldFor(mk('SHIPPED', null), 'RETAIL')).toBe(false)
   })
 })

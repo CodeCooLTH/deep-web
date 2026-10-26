@@ -15,6 +15,14 @@
  * client-only: เรียกจาก event handler ใน 'use client' component เท่านั้น (Swal แตะ window/DOM)
  */
 import { type SweetAlertIcon } from 'sweetalert2'
+import { formatDateTime } from '@/lib/format-date'
+import {
+  PARCEL_CLOSE_META,
+  PARCEL_CLOSE_REASONS,
+  PARCEL_CLOSE_REASON_LABEL,
+  type ParcelCloseOutcome,
+  type ParcelCloseReason,
+} from '@/lib/parcel-close'
 
 /**
  * โหลด sweetalert2 ตอนจะใช้จริง ไม่ใช่ตอนโหลดหน้า (Impeccable optimize 2026-08-04)
@@ -460,4 +468,296 @@ export const pacesEditTextFields = async (options: {
   })
 
   return result.isConfirmed && result.value ? (result.value as { name: string; note: string }) : null
+}
+
+// ─── 00085 ปิดพัสดุที่มีปัญหา ────────────────────────────────────────────────
+
+/** รูป GET problem-close (ตรงกับ ParcelClosePreview ของ service — type เท่านั้น ไม่ลาก prisma เข้า client) */
+export type ParcelClosePreviewJson = import('@/services/parcel-close.service').ParcelClosePreview
+
+export interface ParcelCloseSubmitBody {
+  reason: ParcelCloseReason
+  note?: string
+  expectedOutcome: ParcelCloseOutcome
+  refunded?: boolean
+}
+
+/**
+ * ผลของ submit — ผู้เรียกแปลง HTTP เป็นสามแบบนี้ (throw = เน็ตหลุด/500 เท่านั้น ⇒ โมดัลไม่ปิด)
+ *   ok              — 200 โมดัลปิด
+ *   outcome-changed — 409 OUTCOME_CHANGED โมดัลไม่ปิด วาดผลใหม่ให้ร้านตรวจ
+ *   conflict        — 409 อื่น ๆ โมดัลปิด ผู้เรียกแจ้ง + โหลดแผงใหม่
+ *   forbidden       — 403 โมดัลปิด ผู้เรียกแจ้ง
+ */
+export type ParcelCloseSubmitResult<T> =
+  | { kind: 'ok'; data: T }
+  | { kind: 'outcome-changed'; preview: ParcelClosePreviewJson }
+  | { kind: 'conflict' }
+  | { kind: 'forbidden' }
+
+/** ค่าที่ helper คืน — 'not-eligible' = GET บอกว่าปิดไม่ได้แล้ว (ผู้เรียกแจ้ง) · null = ร้านกดไม่ปิด */
+export type ParcelCloseModalResult<T> =
+  | Exclude<ParcelCloseSubmitResult<T>, { kind: 'outcome-changed' }>
+  | { kind: 'not-eligible' }
+  | null
+
+const escHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+const PCP_BOX = 'rounded-lg bg-default-100 p-4'
+
+function pcpResultHtml(p: ParcelClosePreviewJson, refunded: boolean | null): string {
+  const meta = PARCEL_CLOSE_META[p.outcome]
+  const cost = p.shippingCost
+  const costText =
+    cost.pendingReason === 'MISSING'
+      ? 'นับเป็นต้นทุนของร้าน'
+      : `฿${cost.amount.toLocaleString('th-TH')} นับเป็นต้นทุนของร้าน`
+  const costFull = p.paymentIsCod ? `${costText} (ไม่รวมค่าธรรมเนียมเก็บเงินปลายทาง)` : costText
+  const row = (label: string, value: string) =>
+    `<div class="flex items-center justify-between gap-3 border-b border-dashed border-default-200 py-2 text-sm last:border-0"><span class="text-default-700">${escHtml(label)}</span><span class="text-end font-semibold text-default-900">${escHtml(value)}</span></div>`
+
+  let desc: string
+  let salesRow = ''
+  if (p.outcome === 'DELIVERY_FAILED') {
+    desc = 'ไม่พบประวัติว่าพัสดุถึงผู้รับ จึงบันทึกเป็น ส่งไม่สำเร็จ'
+    salesRow = row('ยอดขาย', 'ไม่นับเป็นยอดขาย')
+  } else {
+    desc = p.deliveredAt
+      ? `พบว่าพัสดุถึงผู้รับแล้วเมื่อ ${formatDateTime(p.deliveredAt)} ปัญหาเกิดตอนส่งคืนร้าน`
+      : 'พบว่าพัสดุถึงผู้รับแล้ว ปัญหาเกิดตอนส่งคืนร้าน'
+    desc += p.basis === 'ORDER_CONFIRMED' ? ' · ผู้ซื้อกดยืนยันรับของแล้ว' : ' · จากประวัติขนส่ง'
+    if (p.paymentIsCod) salesRow = row('ยอดขาย', 'ไม่นับเป็นยอดขาย เพราะยังไม่ได้รับเงินปลายทาง')
+  }
+
+  const refundBlock = p.needsRefundAnswer
+    ? `<fieldset class="mt-3 border-0 p-0" id="pcp-refund">
+        <legend class="mb-1 text-sm font-semibold text-default-900">ร้านคืนเงินให้ลูกค้าไหม</legend>
+        <label class="flex min-h-11 items-start gap-2 py-2 text-sm text-default-800">
+          <input type="radio" name="pcp-refunded" value="yes" class="form-radio mt-0.5 shrink-0 rounded-full!" ${refunded === true ? 'checked' : ''} />
+          <span>คืน (หรือจะคืน)<span class="block text-xs text-default-700">ยอดขายออเดอร์นี้จะถูกหักออก ค่าส่งขาไปนับเป็นต้นทุน</span></span>
+        </label>
+        <label class="flex min-h-11 items-start gap-2 py-2 text-sm text-default-800">
+          <input type="radio" name="pcp-refunded" value="no" class="form-radio mt-0.5 shrink-0 rounded-full!" ${refunded === false ? 'checked' : ''} />
+          <span>ไม่คืนเงิน<span class="block text-xs text-default-700">ยอดขายออเดอร์นี้นับตามเดิม</span></span>
+        </label>
+        <p class="mb-0 mt-1 text-xs text-default-700">ระบบไม่ได้โอนเงินคืนให้ แค่บันทึกว่าร้านตัดสินใจอย่างไร</p>
+      </fieldset>`
+    : ''
+
+  const incomplete =
+    p.basis === 'NONE' && p.eventCount === 0
+      ? `<p class="mb-0 mt-3 rounded-lg px-3 py-2 text-xs ${NOTICE_INFO}">ประวัติขนส่งของพัสดุใบนี้ไม่ครบ ผลที่ระบบตัดสินอาจคลาดเคลื่อน ถ้าพัสดุถึงผู้รับแล้ว ให้ตรวจกับขนส่งก่อน หรือปิดไปก่อนแล้วเลิกปิดได้ภายหลัง</p>`
+      : ''
+
+  return `<div class="${PCP_BOX}">
+      <p class="mb-1 text-base font-semibold text-default-900">${escHtml(meta.label)}</p>
+      <p class="mb-2 text-sm text-default-700">${escHtml(desc)}</p>
+      ${salesRow}${row('ค่าส่งขาไป', costFull)}
+    </div>${refundBlock}${incomplete}`
+}
+
+// สีกล่อง info/danger ของ NOTICE_BOX — เขียนซ้ำเป็นสตริงเต็มเพราะไฟล์นี้ไม่ import components (Tailwind สแกนข้อความ)
+const NOTICE_INFO = 'bg-info/15 text-info-ink'
+const NOTICE_DANGER = 'bg-danger/15 text-danger-ink'
+
+/**
+ * pacesCloseParcelProblem — โมดัลปิดพัสดุที่มีปัญหา (feature 00085 Design-Spec §2)
+ *
+ * ประกอบจาก pacesConfirmTerms (didOpen + ปิดปุ่มยืนยันจนครบ) + pacesEditTextFields (html + อ่าน DOM)
+ * + pacesConfirmAsync (showLoaderOnConfirm; throw = ไม่ปิดโมดัล)
+ *
+ * เหตุผล+หมายเหตุอยู่นอก #pcp-result เพื่อให้วาดผลใหม่ (OUTCOME_CHANGED / ลองใหม่) แล้วค่าที่ร้านพิมพ์ไม่หาย
+ * ไม่ใส่ไอคอนในโมดัล: เนื้อเป็น HTML ดิบ (ไม่มี React tree ให้ Icon) และสเปกสั่งไม่ใส่ icon ของ Swal อยู่แล้ว
+ */
+export const pacesCloseParcelProblem = async <T>(options: {
+  trackingNo: string | null
+  courierLabel: string
+  loadPreview: () => Promise<ParcelClosePreviewJson>
+  submit: (body: ParcelCloseSubmitBody) => Promise<ParcelCloseSubmitResult<T>>
+}): Promise<ParcelCloseModalResult<T>> => {
+  const Swal = await loadSwal()
+  const $ = <E extends HTMLElement>(id: string) => document.getElementById(id) as E | null
+
+  let preview: ParcelClosePreviewJson | null = null
+  let loadFailed = false
+  let refunded: boolean | null = null
+  let notEligible = false
+  let forbidden = false
+
+  const noteOf = () => ($<HTMLTextAreaElement>('pcp-note')?.value ?? '').trim()
+  const reasonOf = () => ($<HTMLSelectElement>('pcp-reason')?.value ?? '') as ParcelCloseReason | ''
+
+  const isComplete = () => {
+    if (!preview || !preview.eligible) return false
+    const reason = reasonOf()
+    if (!reason) return false
+    if (reason === 'OTHER' && (noteOf().length < 5 || noteOf().length > 200)) return false
+    if (preview.needsRefundAnswer && refunded === null) return false
+    return true
+  }
+  /** ข้อแรกที่ยังขาด (ตามลำดับบนจอ) — null = ครบ */
+  const firstMissing = (): { msg: string; el: HTMLElement | null } | null => {
+    if (!reasonOf()) return { msg: 'เลือกเหตุผลที่ปิด', el: $('pcp-reason') }
+    if (reasonOf() === 'OTHER' && noteOf().length < 5) return { msg: 'พิมพ์เหตุผลอย่างน้อย 5 ตัวอักษร', el: $('pcp-note') }
+    if (preview?.needsRefundAnswer && refunded === null)
+      return { msg: 'ตอบว่าร้านคืนเงินให้ลูกค้าไหม', el: document.querySelector<HTMLElement>('input[name="pcp-refunded"]') }
+    return null
+  }
+  // ปุ่มกดได้เมื่อผลโหลดเสร็จ — ข้อที่ขาดบอกใน preConfirm (ปุ่มที่ปิดเงียบไม่บอกว่าขาดอะไร)
+  const syncConfirm = () => {
+    const btn = Swal.getConfirmButton()
+    if (btn) btn.disabled = !(preview && preview.eligible)
+  }
+  const setBusy = (busy: boolean) => {
+    const popup = Swal.getPopup()
+    popup?.querySelectorAll<HTMLElement>('#pcp-reason, #pcp-note, input[name="pcp-refunded"]').forEach((el) => {
+      ;(el as HTMLInputElement).disabled = busy
+    })
+  }
+  const showNoteError = (msg: string) => {
+    const err = $('pcp-note-err')
+    if (err) err.textContent = msg
+    $('pcp-note')?.setAttribute('aria-invalid', msg ? 'true' : 'false')
+  }
+
+  const paintResult = () => {
+    const box = $('pcp-result')
+    if (!box) return
+    if (loadFailed) {
+      box.innerHTML = `<div class="rounded-lg px-3 py-2.5 text-sm ${NOTICE_DANGER}" role="alert">โหลดผลที่ระบบตัดสินไม่สำเร็จ
+        <button type="button" data-pcp-retry class="btn min-h-11 px-2 font-semibold underline">ลองใหม่</button></div>`
+    } else if (!preview) {
+      box.innerHTML = `<div class="flex flex-col gap-2" aria-busy="true">
+        <span class="h-4 w-2/3 animate-pulse rounded bg-default-100"></span>
+        <span class="h-4 w-1/2 animate-pulse rounded bg-default-100"></span>
+        <span class="h-4 w-3/4 animate-pulse rounded bg-default-100"></span></div>`
+    } else {
+      box.innerHTML = pcpResultHtml(preview, refunded)
+    }
+    syncConfirm()
+  }
+
+  const load = async () => {
+    preview = null
+    loadFailed = false
+    paintResult()
+    try {
+      const p = await options.loadPreview()
+      if (!p.eligible) {
+        notEligible = true
+        Swal.close()
+        return
+      }
+      preview = p
+    } catch (e) {
+      // 403 = บัญชีนี้ไม่มีสิทธิ์ปิด — ลองใหม่ไม่ช่วย ปิดโมดัลให้ผู้เรียกแจ้งเหตุผล
+      if ((e as { forbidden?: boolean } | null)?.forbidden) {
+        forbidden = true
+        Swal.close()
+        return
+      }
+      loadFailed = true
+    }
+    paintResult()
+  }
+
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    allowOutsideClick: false,
+    title: 'ปิดพัสดุที่มีปัญหา',
+    width: '32em',
+    html: `
+      <div class="text-start">
+        <p class="text-default-700 mb-3 truncate text-xs">${escHtml([options.trackingNo, options.courierLabel].filter(Boolean).join(' · '))}</p>
+        <label for="pcp-reason" class="text-default-700 mb-1 block text-xs">เหตุผลที่ปิด</label>
+        <select id="pcp-reason" class="form-select mb-3 h-11 w-full">
+          <option value="">เลือกเหตุผล</option>
+          ${PARCEL_CLOSE_REASONS.map((r) => `<option value="${r}">${escHtml(PARCEL_CLOSE_REASON_LABEL[r])}</option>`).join('')}
+        </select>
+        <div id="pcp-note-wrap" class="mb-3 hidden">
+          <label for="pcp-note" class="text-default-700 mb-1 block text-xs">ระบุเหตุผล</label>
+          <textarea id="pcp-note" maxlength="200" aria-describedby="pcp-note-err pcp-note-count" aria-invalid="false" placeholder="เช่น ขนส่งแจ้งว่าพัสดุตกน้ำ"
+                    class="border-default-300 text-default-900 min-h-24 w-full rounded-lg border px-3 py-2 text-sm"></textarea>
+          <div class="flex justify-between text-xs"><span id="pcp-note-err" class="text-danger-ink" aria-live="polite"></span><span id="pcp-note-count" class="text-default-700">0/200</span></div>
+        </div>
+        <div id="pcp-result"></div>
+      </div>`,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'ยืนยันปิดพัสดุ',
+    cancelButtonText: 'ยังไม่ปิด',
+    customClass: { confirmButton: CONFIRM_BTN.primary, cancelButton: CANCEL_BTN },
+    showLoaderOnConfirm: true,
+    didOpen: () => {
+      const confirmBtn = Swal.getConfirmButton()
+      if (confirmBtn) confirmBtn.disabled = true
+      const popup = Swal.getPopup()
+      $('pcp-reason')?.addEventListener('change', () => {
+        $('pcp-note-wrap')?.classList.toggle('hidden', reasonOf() !== 'OTHER')
+        syncConfirm()
+      })
+      $('pcp-note')?.addEventListener('input', () => {
+        const n = noteOf().length
+        const raw = $<HTMLTextAreaElement>('pcp-note')?.value.length ?? 0
+        const cnt = $('pcp-note-count')
+        if (cnt) cnt.textContent = `${raw}/200`
+        showNoteError(n > 0 && n < 5 ? 'พิมพ์อย่างน้อย 5 ตัวอักษร' : '')
+        syncConfirm()
+      })
+      // ผลถูกวาดใหม่ได้ (ลองใหม่ / OUTCOME_CHANGED) จึงผูกที่ popup ครั้งเดียวแทนผูกกับ radio แต่ละตัว
+      popup?.addEventListener('change', (e) => {
+        const t = e.target as HTMLInputElement
+        if (t.name === 'pcp-refunded') {
+          refunded = t.value === 'yes'
+          syncConfirm()
+        }
+      })
+      popup?.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('[data-pcp-retry]')) void load()
+      })
+      void load()
+    },
+    preConfirm: async () => {
+      const reason = reasonOf()
+      const missing = firstMissing()
+      if (missing || !preview || !reason || !isComplete()) {
+        Swal.showValidationMessage(missing?.msg ?? 'กรอกข้อมูลให้ครบก่อนกดยืนยัน')
+        if (missing?.el === $('pcp-note')) showNoteError(missing.msg)
+        missing?.el?.scrollIntoView({ block: 'center' })
+        missing?.el?.focus()
+        return false
+      }
+      // ระหว่างส่งห้ามแก้ค่า — เปิดคืนทุกทางออกที่ไม่ปิดโมดัล
+      setBusy(true)
+      const body: ParcelCloseSubmitBody = {
+        reason,
+        expectedOutcome: preview.outcome,
+        ...(reason === 'OTHER' ? { note: noteOf() } : {}),
+        ...(preview.needsRefundAnswer ? { refunded: refunded === true } : {}),
+      }
+      try {
+        const res = await options.submit(body)
+        if (res.kind === 'outcome-changed') {
+          // ผลเปลี่ยนระหว่างเปิดหน้าต่าง: วาดผลใหม่ + ล้างคำตอบคืนเงิน แต่ไม่ปิดโมดัล
+          preview = res.preview
+          refunded = null
+          paintResult()
+          Swal.showValidationMessage('ผลที่ระบบตัดสินเปลี่ยนไประหว่างที่เปิดหน้าต่าง ตรวจผลด้านบนแล้วกดยืนยันอีกครั้ง')
+          setBusy(false)
+          return false
+        }
+        return res
+      } catch {
+        setBusy(false)
+        Swal.showValidationMessage('ปิดพัสดุไม่สำเร็จ ลองกดยืนยันอีกครั้ง ถ้ายังไม่ได้ให้รีเฟรชหน้านี้')
+        return false
+      }
+    },
+  })
+
+  if (notEligible) return { kind: 'not-eligible' }
+  if (forbidden) return { kind: 'forbidden' }
+  if (!result.isConfirmed || !result.value) return null
+  return result.value as Exclude<ParcelCloseSubmitResult<T>, { kind: 'outcome-changed' }>
 }

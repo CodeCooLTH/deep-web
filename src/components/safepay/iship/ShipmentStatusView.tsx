@@ -12,7 +12,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { pacesAlert, pacesConfirm } from '@/lib/paces-swal'
+import {
+  pacesAlert,
+  pacesCloseParcelProblem,
+  pacesConfirm,
+  pacesConfirmAsync,
+  type ParcelClosePreviewJson,
+} from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
@@ -26,7 +32,16 @@ import {
   describeCarrierStatus,
   describeProgress,
   describeShipmentStatus,
+  isDeliveredCarrierStatus,
+  isReturnedCarrierStatus,
 } from '@/lib/iship/status'
+import {
+  PARCEL_CLOSE_META,
+  PARCEL_CLOSE_REASON_LABEL,
+  type ParcelCloseOutcome,
+  hasParcelCloseConflict,
+  shouldOfferParcelClose,
+} from '@/lib/parcel-close'
 import type { ReceiverData, ShipmentReviewItem, ShipmentViewJson } from '@/lib/iship/context'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import { shipmentApiBase, shipmentSourceLabel } from '@/lib/shipping/provider'
@@ -91,6 +106,11 @@ interface Props {
   isShopOwner?: boolean
   /** 00084 — "ส่งเองแทน" บนใบ Flash ที่ล้มเหลว · เฉพาะผู้เรียกที่พาไปส่งเองได้ (แชท) ไม่ส่ง = ไม่มีปุ่ม */
   onSelfShipRequest?: () => void
+  /**
+   * 00085 — ผู้ดูถือ S1 (ปิด/เลิกปิดพัสดุมีปัญหา) · ไม่ส่ง = ปิด (permission-gate-follows-the-row)
+   * ตัวบังคับจริงคือ route (S1) ที่นี่แค่ไม่ให้ปุ่มโผล่แล้วกดแล้ว 403
+   */
+  canManageParcel?: boolean
 }
 
 /**
@@ -126,6 +146,34 @@ function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
+/** บรรทัดเงินของกล่องสรุปหลังปิด — อ่านจากค่าที่แช่แข็งตอนปิด ไม่คำนวณสูตรใหม่ */
+function parcelCloseMoneyLine(pc: NonNullable<ShipmentViewJson['problemClose']>): string {
+  if (!pc.excludesRevenue) return 'นับเป็นยอดขายตามเดิม · เลือกไม่คืนเงิน'
+  if (pc.outcome === 'DELIVERY_FAILED') return 'ไม่นับเป็นยอดขาย · ค่าส่งขาไปนับเป็นต้นทุน'
+  if (pc.refunded === true) return 'หักออกจากยอดขาย · ค่าส่งขาไปนับเป็นต้นทุน'
+  return 'ไม่นับเป็นยอดขาย เพราะยังไม่ได้รับเงินปลายทาง · ค่าส่งขาไปนับเป็นต้นทุน'
+}
+
+/** ข้อความเตือนเมื่อขนส่งส่งสถานะที่ขัดกับผลที่ปิด — null = ไม่ขัด (ตัดสินที่ hasParcelCloseConflict) */
+function parcelCloseConflictText(
+  pc: NonNullable<ShipmentViewJson['problemClose']>,
+  c: TraceCarrierState,
+): string | null {
+  if (!hasParcelCloseConflict({ outcome: pc.outcome, carrierStatus: c.carrierStatus, carrierStatusAt: c.carrierStatusAt, closedAt: pc.closedAt })) {
+    return null
+  }
+  const at = formatDateTime(c.carrierStatusAt)
+  const label = PARCEL_CLOSE_META[pc.outcome].label
+  if (pc.outcome === 'DELIVERY_FAILED' && isDeliveredCarrierStatus(c.carrierStatus)) {
+    return `ขนส่งแจ้งว่าพัสดุถึงผู้รับแล้ว (${at}) หลังที่ปิดเป็น ${label} ระบบยังไม่เปลี่ยนยอดให้ ถ้าพัสดุถึงจริงให้เลิกปิด`
+  }
+  if (pc.outcome === 'DELIVERY_FAILED' && isReturnedCarrierStatus(c.carrierStatus)) {
+    return `ขนส่งแจ้งว่าพัสดุกำลังตีกลับหรือกลับถึงร้านแล้ว (${at}) หลังที่ปิดเป็น ${label} ระบบยังไม่เปลี่ยนยอดให้ ตรวจกับขนส่ง ถ้าไม่ตรงให้เลิกปิด`
+  }
+  // สถานะอื่นที่ hasParcelCloseConflict นับว่าขัด (เช่น กำลังขนส่ง / ผล B แล้วตีกลับถึงร้าน) — สเปกยังไม่มีข้อความเฉพาะ
+  return `ขนส่งแจ้งสถานะใหม่ (${c.carrierStatusText ?? c.carrierStatus ?? at}) หลังที่ปิดเป็น ${label} ระบบยังไม่เปลี่ยนผลที่ปิดไว้ ตรวจกับขนส่ง ถ้าไม่ตรงให้เลิกปิด`
+}
+
 /** จำนวนเหตุการณ์ที่โชว์ก่อนกด "ดูทั้งหมด" — 3 พอเล่าเรื่อง "ตอนนี้อยู่ไหน มาจากไหน" */
 const TRACE_PREVIEW = 3
 
@@ -139,6 +187,7 @@ export default function ShipmentStatusView({
   onEditRequest,
   isShopOwner = false,
   onSelfShipRequest,
+  canManageParcel = false,
 }: Props) {
   // URL ของผู้ให้บริการต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context) — useIShipUrl ใช้กับ
   // ทั้ง iShip และ Flash (ต่อ ?shopId= ให้ path ใด ๆ) · base path ตามผู้ให้บริการของ "ใบนี้"
@@ -186,7 +235,8 @@ export default function ShipmentStatusView({
 
   /** ความจริงล่าสุดของ "พัสดุใบนี้อยู่สถานะไหน" — ทุกจุดในไฟล์นี้ต้องอ่านจากตัวนี้ */
   const carrier: TraceCarrierState = liveCarrier ?? shipment
-  const progress = describeProgress(carrier.status, carrier.carrierStatus, 'seller')
+  const parcelClose = shipment.problemClose?.outcome ?? null
+  const progress = describeProgress(carrier.status, carrier.carrierStatus, 'seller', parcelClose)
   /**
    * แถวที่ 2 ("ขากลับ") — อ่านเวลาจาก `shipment` (prop) ไม่ใช่จาก `carrier` (ค่าที่ traces
    * ส่งกลับมา) เพราะ endpoint นั้นคืนเฉพาะสถานะ ไม่ได้คืนเวลาขากลับ · จุดสว่างยังตัดสินจาก
@@ -307,6 +357,91 @@ export default function ShipmentStatusView({
     } finally {
       setBusy(false)
     }
+  }
+
+  /** 00085 — โมดัลเดียวทำ preview → เลือกเหตุผล → ยืนยัน (pacesCloseParcelProblem); URL เดียวกันทั้ง iShip/Flash */
+  async function handleCloseParcel() {
+    if (busy) return
+    const closeUrl = ishipUrl(`/api/seller/shipments/${shipment.id}/problem-close`)
+    const out = await pacesCloseParcelProblem<{ shipment: ShipmentViewJson; outcome: ParcelCloseOutcome }>({
+      trackingNo: shipment.trackingNo,
+      courierLabel,
+      loadPreview: async () => {
+        const res = await fetch(closeUrl, { cache: 'no-store' })
+        if (res.status === 403) throw Object.assign(new Error('forbidden'), { forbidden: true })
+        if (!res.ok) throw new Error('preview')
+        return res.json()
+      },
+      submit: async (body) => {
+        const res = await fetch(closeUrl, {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        if (res.status === 403) return { kind: 'forbidden' }
+        if (res.status === 409) {
+          const b = (await res.json().catch(() => null)) as {
+            error?: { code?: string }
+            preview?: ParcelClosePreviewJson
+          } | null
+          if (b?.error?.code === 'OUTCOME_CHANGED' && b.preview) return { kind: 'outcome-changed', preview: b.preview }
+          return { kind: 'conflict' }
+        }
+        if (!res.ok) throw new Error('submit') // เน็ตหลุด/500 ⇒ โมดัลไม่ปิด ให้กดซ้ำ
+        return { kind: 'ok', data: await res.json() }
+      },
+    })
+    if (!out) return
+    if (out.kind === 'ok') {
+      pacesToast.success(`ปิดพัสดุแล้ว บันทึกเป็น ${PARCEL_CLOSE_META[out.data.outcome].label}`)
+      setLiveCarrier(null)
+      onRetried(out.data.shipment) // ผู้เรียกทุกที่ patch แผงด้วยแถวใหม่ทางเดียวกับ retry
+    } else if (out.kind === 'forbidden') {
+      await pacesAlert({
+        title: 'บัญชีนี้ปิดพัสดุไม่ได้',
+        text: 'ให้ผู้ดูแลร้านที่จัดการพัสดุได้เป็นคนปิดแทน',
+        icon: 'info',
+      })
+    } else {
+      await pacesAlert({
+        title: 'สถานะพัสดุนี้เปลี่ยนไปแล้ว',
+        text: 'มีคนปิดหรือขนส่งอัปเดตไปก่อนหน้านี้ แผงจะโหลดสถานะล่าสุดให้',
+        icon: 'info',
+      })
+      void loadTraces({ silent: true })
+    }
+  }
+
+  /** เลิกปิด — ถอนคืนได้จึงเป็น primary ไม่ใช่ danger */
+  async function handleReopenParcel() {
+    if (busy) return
+    const out = await pacesConfirmAsync<ShipmentViewJson | 'stale'>({
+      title: 'เลิกปิดพัสดุนี้?',
+      text: 'พัสดุจะกลับไปตามสถานะล่าสุดจากขนส่ง ถ้ายังมีปัญหาจะกลับไปอยู่ในกอง "พัสดุมีปัญหา" และยอดขายของออเดอร์นี้จะคำนวณใหม่ตามปกติ',
+      icon: 'question',
+      confirmSemantic: 'primary',
+      confirmButtonText: 'เลิกปิด',
+      cancelButtonText: 'ยังปิดไว้',
+      errorText: 'เลิกปิดไม่สำเร็จ ลองกดยืนยันอีกครั้ง ถ้ายังไม่ได้ให้รีเฟรชหน้านี้',
+      run: async () => {
+        const res = await fetch(ishipUrl(`/api/seller/shipments/${shipment.id}/problem-close`), {
+          method: 'DELETE',
+          cache: 'no-store',
+        })
+        if (res.status === 409 || res.status === 403) return 'stale'
+        if (!res.ok) throw new Error('reopen')
+        return ((await res.json()) as { shipment: ShipmentViewJson }).shipment
+      },
+    })
+    if (!out) return
+    if (out === 'stale') {
+      pacesToast.warning('สถานะพัสดุนี้เปลี่ยนไปแล้ว หรือบัญชีนี้ไม่มีสิทธิ์เลิกปิด')
+      return
+    }
+    pacesToast.success('เลิกปิดแล้ว')
+    setLiveCarrier(null)
+    onRetried(out)
   }
 
   async function handleCopy() {
@@ -648,6 +783,10 @@ export default function ShipmentStatusView({
     : []
   const markerLine = isFlash ? markerReasonLine(carrier.carrierStatus, traces) : null
   const codNotice = codNoticeText(shipment.provider, shipment.codAmount)
+  const pc = shipment.problemClose
+  // เงื่อนไขกองปัญหาอยู่ใน shouldOfferParcelClose (SSOT) — ใช้สถานะสดจาก carrier ไม่ใช่ภาพนิ่งของ prop
+  const offerClose = canManageParcel && shouldOfferParcelClose({ ...shipment, carrierStatus: carrier.carrierStatus })
+  const conflictText = pc ? parcelCloseConflictText(pc, carrier) : null
   const hasReceiver = Boolean(receiver && (receiver.name || receiver.phone || addressLines.length > 0))
   const itemCount = items?.reduce((n, it) => n + it.qty, 0) ?? 0
 
@@ -728,7 +867,15 @@ export default function ShipmentStatusView({
               )}
             </button>
             <p className="mb-0 mt-1">
-              <span className={TONE_BADGE[badge.tone] ?? TONE_BADGE.secondary}>{badgeText}</span>
+              {pc ? (
+                // ปิดแล้ว = เทา ไม่ใช้ TONE_BADGE.secondary (ม่วง) — Design-Spec §3
+                <span className="inline-flex items-center gap-1 rounded-full bg-default-100 px-2.5 py-0.5 text-xs font-semibold text-default-800">
+                  <Icon icon={`tabler:${PARCEL_CLOSE_META[pc.outcome].icon}`} className="text-sm" aria-hidden="true" />
+                  {PARCEL_CLOSE_META[pc.outcome].label}
+                </span>
+              ) : (
+                <span className={TONE_BADGE[badge.tone] ?? TONE_BADGE.secondary}>{badgeText}</span>
+              )}
             </p>
             <p className="text-default-700 mb-0 mt-1.5 text-xs">
               {courierLabel}
@@ -764,25 +911,90 @@ export default function ShipmentStatusView({
             stage={progress.stage}
             lastLabel={progress.lastLabel}
             lastIcon={progress.lastIcon}
-            currentDotCls={shipmentCurrentDotCls(progress.notice)}
+            currentDotCls={shipmentCurrentDotCls(progress.notice, parcelClose)}
             leg={leg}
             ariaLabel={railAriaLabel(railCurrentLabel, leg)}
           />
         </div>
 
-        {(progress.notice || markerLine) && (
-          <p
-            className={`mb-0 mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
-              NOTICE_BOX[progress.notice?.tone ?? 'warning'] ?? NOTICE_BOX.secondary
-            }`}
-          >
-            <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-            <span>
-              {progress.notice?.text}
-              {/* สาเหตุที่ Flash บันทึก อยู่ในกล่องเดียวกับข้อความเตือน ไม่สร้างกล่องที่สอง (Design-Spec §4.5) */}
-              {markerLine && <span className="block">{markerLine}</span>}
-            </span>
-          </p>
+        {pc ? (
+          <>
+            {conflictText && (
+              <div className={`mt-3 rounded-lg px-3 py-2.5 text-xs ${NOTICE_BOX.warning}`} role="status">
+                <div className="flex items-start gap-2">
+                  <Icon icon="tabler:alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+                  <span>{conflictText}</span>
+                </div>
+                {canManageParcel && (
+                  <button
+                    type="button"
+                    onClick={() => void handleReopenParcel()}
+                    className="btn mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 border border-default-300 bg-card p-3 text-default-900 hover:bg-default-100"
+                  >
+                    <Icon icon="tabler:arrow-back-up" className="text-base" aria-hidden="true" />
+                    เลิกปิด
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="mt-3 rounded-lg bg-default-100 px-3 py-2.5">
+              <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-default-900">
+                <Icon icon={`tabler:${PARCEL_CLOSE_META[pc.outcome].icon}`} className="shrink-0 text-base" aria-hidden="true" />
+                ปิดพัสดุแล้ว · {PARCEL_CLOSE_META[pc.outcome].label}
+              </p>
+              <p className="mb-0 break-words text-xs text-default-700">
+                เหตุผล {PARCEL_CLOSE_REASON_LABEL[pc.reason]}
+                {pc.reason === 'OTHER' && pc.note ? ` — ${pc.note}` : ''}
+              </p>
+              <p className="mb-0 text-xs text-default-700">
+                ปิดโดย {pc.closedByName ?? 'ผู้ดูแลร้าน'} · {formatDateTime(pc.closedAt)}
+              </p>
+              <p className="mb-0 text-xs text-default-700">{parcelCloseMoneyLine(pc)}</p>
+              {/* สาเหตุที่ Flash บันทึกยังเป็นบริบทของเรื่องที่ปิด — ไม่ให้หายพร้อมกล่องเตือน */}
+              {markerLine && <p className="mb-0 text-xs text-default-700">{markerLine}</p>}
+              {canManageParcel && !conflictText && (
+                <button
+                  type="button"
+                  onClick={() => void handleReopenParcel()}
+                  className="btn inline-flex min-h-11 items-center gap-1 px-0 text-primary hover:underline"
+                >
+                  <Icon icon="tabler:arrow-back-up" className="text-base" aria-hidden="true" />
+                  เลิกปิด
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          (progress.notice || markerLine || offerClose) && (
+            <div
+              className={`mt-3 rounded-lg px-3 py-2.5 text-xs ${
+                NOTICE_BOX[progress.notice?.tone ?? (offerClose ? 'danger' : 'warning')] ?? NOTICE_BOX.secondary
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+                <span>
+                  {progress.notice?.text ?? (offerClose ? 'พัสดุเคยมีปัญหาระหว่างทาง — ติดต่อขนส่งเพื่อตรวจสอบรายละเอียด' : null)}
+                  {/* สาเหตุที่ Flash บันทึก อยู่ในกล่องเดียวกับข้อความเตือน ไม่สร้างกล่องที่สอง (Design-Spec §4.5) */}
+                  {markerLine && <span className="block">{markerLine}</span>}
+                </span>
+              </div>
+              {offerClose && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleCloseParcel()}
+                    disabled={busy}
+                    className="btn mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 border border-default-300 bg-card p-3 text-default-900 hover:bg-default-100 disabled:opacity-60"
+                  >
+                    <Icon icon="tabler:archive" className="text-base" aria-hidden="true" />
+                    ยืนยันปิดพัสดุ
+                  </button>
+                  <p className="mb-0 mt-1.5 text-xs">ปิดแล้วเลิกปิดได้ภายหลัง</p>
+                </>
+              )}
+            </div>
+          )
         )}
       </section>
 

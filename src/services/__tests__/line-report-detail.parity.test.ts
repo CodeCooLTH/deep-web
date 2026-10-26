@@ -43,7 +43,7 @@ type Spec = {
   status: string
   at: Date
   closed?: Date
-  shipments?: { direction: string; carrierStatus: string; carrierPrice?: number }[]
+  shipments?: { direction: string; carrierStatus: string; carrierPrice?: number; excl?: boolean }[]
   ret?: boolean
 }
 const SERVICE: Spec[] = [
@@ -71,6 +71,8 @@ const GENERAL: Spec[] = [
   { amount: 900, status: 'CONFIRMED', at: th('2026-09-10', 0, 0, 0) },
   { amount: 1000, status: 'CANCELLED', at: th('2026-09-10', 9) },
   { amount: 1100, status: 'DRAFTED', at: th('2026-09-10', 9) },
+  // 00085: ร้านปิดพัสดุแบบไม่นับยอดขาย — การ์ดไม่นับจำนวนใบ/ยอด ⇒ detail ต้องไม่นับด้วย (ถอดการตัดใน queryA ⇒ MISMATCH)
+  { amount: 1200, status: 'SHIPPED', at: th('2026-09-10', 16), shipments: [{ direction: 'FORWARD', carrierStatus: 'delivered', excl: true }] },
 ]
 const LODGING: Spec[] = [
   { amount: 100, status: 'CONFIRMED', at: th('2026-09-10', 10) },
@@ -106,7 +108,7 @@ describe.skipIf(!isLocal)('00070 EXT-LINK parity: buildDetailSnapshot vs กา�
           await prisma.orderShipment.create({
             data: {
               orderId: row.id, shopId: s.id, status: 'CREATED', isDryRun: false, direction: sp.direction,
-              carrierStatus: sp.carrierStatus, carrierPrice: sp.carrierPrice ?? null, idempotencyKey: `dp-${run}-${seq}-${k}`,
+              carrierStatus: sp.carrierStatus, carrierPrice: sp.carrierPrice ?? null, ...(sp.excl ? { problemClosedAt: th('2026-09-10', 18), problemCloseOutcome: 'DELIVERY_FAILED', problemCloseExcludesRevenue: true } : {}), idempotencyKey: `dp-${run}-${seq}-${k}`,
             },
           })
         }

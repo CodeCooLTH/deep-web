@@ -20,6 +20,7 @@
  */
 import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 import { buildBuyerShipmentView } from '@/lib/order-shipment-view'
+import { asParcelClose } from '@/services/parcel-close-input'
 import { getTrackingNoticeTiming } from '@/services/auto-notify-config.service'
 import { shopCompletedLabel } from '@/lib/shop-stat-vocab'
 import type { Metadata } from 'next'
@@ -502,8 +503,11 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
         status: order.status,
         trackingNoticeTiming,
         shipmentTracking: order.shipmentTracking,
-        shipments: order.shipments,
+        // คอลัมน์ DB เป็น string — แคบเป็น union ก่อนเข้า lib
+        shipments: order.shipments.map((s) => ({ ...s, problemCloseOutcome: asParcelClose(s.problemCloseOutcome) })),
       }),
+      // 00085 — ผลปิดพัสดุมีปัญหา (ผู้ซื้อเห็นแค่ผล) · ชื่อ field ตาม PublicOrderData ไม่ใช่ของ BuyerShipmentView
+      parcelClose: asParcelClose(order.shipments[0]?.problemCloseOutcome),
       // 00068 R-7 — ธงให้ resolveBuyerNextAction ตัดสิน TRANSFER_NO_ACCOUNT (นิยามเดียวกับที่ UI เช็ค payoutSnapshot)
       hasPayoutAccount: order.payoutSnapshot != null,
       // 00068 D-11 — นิยามเดียวกับ ShopCover ที่ใช้อยู่ (completedOrders == null) ไม่นิยามใหม่

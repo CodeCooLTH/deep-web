@@ -12,7 +12,7 @@ const base: OrderRowInput = {
   room: null,
 }
 const row = (o: Partial<OrderRowInput>, rule: 'SERVICE' | 'GENERAL' = 'GENERAL') => toOrderRow({ ...base, ...o }, rule)
-const fwd = (carrierStatus: string | null) => [{ status: 'CREATED', isDryRun: false, carrierStatus, direction: 'FORWARD' }]
+const fwd = (carrierStatus: string | null) => [{ status: 'CREATED', isDryRun: false, carrierStatus, direction: 'FORWARD', problemCloseExcludesRevenue: null }]
 
 describe('เบอร์ลูกค้า', () => {
   it.each([

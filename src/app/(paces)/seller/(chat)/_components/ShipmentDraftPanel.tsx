@@ -624,6 +624,7 @@ export default function ShipmentDraftPanel({
         orderToken={orderToken}
         panel={flashCtx}
         isOwner={isOwner}
+        canManageParcel={ctx?.canShip === true}
         refreshOnChange={false}
         onChanged={patchFlash}
         onSelfShipRequest={goManual}
@@ -660,6 +661,7 @@ export default function ShipmentDraftPanel({
           }}
           onRetried={(s) => patchShipment(s)}
           onEditRequest={() => setForceForm(true)}
+          canManageParcel={ctx.canShip === true}
           actions={
             <button
               type="button"
@@ -803,6 +805,7 @@ export default function ShipmentDraftPanel({
           orderToken={orderToken}
           panel={flashCtx}
           isOwner={isOwner}
+          canManageParcel={ctx?.canShip === true}
           initialLink={method === 'FLASH_LINK'}
           refreshOnChange={false}
           onChanged={patchFlash}

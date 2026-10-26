@@ -287,7 +287,7 @@ describe('7. เธรดที่มีออเดอร์ถูกยกเ�
     expect(
       countsAsRevenue({
         status: 'SHIPPED',
-        shipments: [{ status: 'CREATED', isDryRun: false, direction: 'FORWARD', carrierStatus: 'delivered' }],
+        shipments: [{ status: 'CREATED', isDryRun: false, direction: 'FORWARD', carrierStatus: 'delivered', problemCloseExcludesRevenue: null }],
       }),
     ).toBe(true)
   })

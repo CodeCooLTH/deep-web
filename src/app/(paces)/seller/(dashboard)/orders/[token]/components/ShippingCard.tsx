@@ -31,6 +31,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPMENT_STAGES, describeProgress } from '@/lib/iship/status'
 import { describeReturnLeg, railAriaLabel } from '@/lib/iship/return-timeline'
 import ShipmentRail from '@/components/safepay/iship/ShipmentRail'
+import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { NOTICE_BOX, TONE_BADGE, shipmentCurrentDotCls } from '@/components/safepay/iship/tone'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import { sortTracesNewestFirst } from '@/lib/iship/traces'
@@ -66,6 +67,8 @@ export type ShippingCardProps = {
     returnStartedAtISO?: string | null
     returnedAtISO?: string | null
     returnDispatchedAtISO?: string | null
+    /** 00085 — ผลปิดพัสดุโดยร้าน (null = ยังไม่ปิด) */
+    parcelClose: ParcelCloseOutcome | null
   } | null
   /**
    * ใบคืนของ (00056) ที่ยังไม่ถูกยกเลิก — `null` = ไม่มี
@@ -112,7 +115,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
   const logo = isFlash ? courierLogoUrl('FLASH', 'Flash Express') : courierLogoUrl(courierCode, courierName)
-  const progress = iship ? describeProgress(iship.status, iship.carrierStatus, 'seller') : null
+  const progress = iship ? describeProgress(iship.status, iship.carrierStatus, 'seller', iship.parcelClose) : null
   /** แถวที่ 2 ("ขากลับ") — null = ออเดอร์ปกติ ไม่วาดแถว 2 เลย */
   const leg = describeReturnLeg({
     audience: 'seller',
@@ -329,7 +332,7 @@ export default function ShippingCard({ iship, manual, orderReturn, onOpenDetail 
                 /* 🛑 เดิมจอนี้ hardcode `bg-primary` ให้จุดปัจจุบัน ซึ่งเป็นบั๊กเดียวกับที่
                    `shipmentCurrentDotCls` ถูกสร้างมาแก้ (พัสดุที่ตีกลับกับพัสดุที่ส่งถึงได้
                    จุดสีเดียวกันที่ตำแหน่งเดียวกัน) — จอนี้เป็นตัวสุดท้ายที่ยังค้างอยู่ */
-                currentDotCls={shipmentCurrentDotCls(progress.notice)}
+                currentDotCls={shipmentCurrentDotCls(progress.notice, iship?.parcelClose ?? null)}
                 leg={leg}
                 ariaLabel={railAriaLabel(railCurrentLabel, leg)}
               />

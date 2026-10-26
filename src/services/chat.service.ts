@@ -264,7 +264,7 @@ export async function conversationIdsByShipmentState(
           SELECT 1
           FROM "Order" o
           JOIN LATERAL (
-            SELECT sh."carrierStatus", sh."problemAt"
+            SELECT sh."carrierStatus", sh."problemAt", sh."problemClosedAt"
             FROM "OrderShipment" sh
             -- นิยาม "มีพัสดุจริง" ชุดเดียวกับ enrichWithOrderStage/getOrdersByShop เป๊ะ ๆ
             WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false AND sh."direction" = 'FORWARD'
@@ -277,7 +277,7 @@ export async function conversationIdsByShipmentState(
             AND o."status" NOT IN ('CANCELLED', 'DRAFTED') -- 00061: ร่างไม่มีพัสดุ จึงไม่ใช่งานค้าง
             -- [สำคัญ] SSOT เดียวกับป้ายในแถว (enrichWithOrderStage) และกองในหน้า /orders —
             -- ตัวกรองกับป้ายต้องนับชุดเดียวกัน ไม่งั้นกดกรองแล้วเจอแถวที่ไม่มีป้าย (2026-09-14)
-            AND ${Prisma.raw(buildProblemHoldSql('s."carrierStatus"', 's."problemAt"'))}
+            AND ${Prisma.raw(buildProblemHoldSql('s."carrierStatus"', 's."problemAt"', 's."problemClosedAt"'))}
         )
     `
     return problemRows.map((r) => r.id)

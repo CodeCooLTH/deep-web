@@ -15,7 +15,8 @@ import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
 import { usesServiceFinanceRules } from "@/lib/finance-rules";
 import { ServiceJobClosedLockedError, ServiceJobNoShowConfirmError } from "@/lib/service-job";
 import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
-import { deriveShippingStage, type ShippingStageKey } from "@/lib/order-stage";
+import { deriveShippingStage, isActionableShippingStage, type ShippingStageKey } from "@/lib/order-stage";
+import { asParcelClose } from "./parcel-close-input";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { shouldRelinkThreadCustomer } from "@/lib/thread-customer-link";
 import type { ThreadOrderFilter } from "@/lib/chat-thread-orders";
@@ -2108,6 +2109,8 @@ export async function getOrderByToken(publicToken: string) {
           trackingNo: true, courierName: true, courierCode: true, carrierStatus: true,
           // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมาจากใบเดียวกับ carrierStatus
           problemAt: true,
+          // 00085 — ผู้ซื้อเห็นแค่ "ผล" ของการปิด (ห้าม note/ผู้ปิด/คืนเงิน — PII)
+          problemClosedAt: true, problemCloseOutcome: true,
           // แถวที่ 2 ของไทม์ไลน์ฝั่งผู้ซื้อ ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา
           returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
@@ -2169,7 +2172,8 @@ export async function getOrderForShop(
       //
       // select แคบไว้โดยตั้งใจ: หน้านี้อยู่ใต้ client layout ทุก field ที่ include
       // ถูก serialize เข้า flight payload เสมอ
-      shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+      // 00085: direction + problemCloseExcludesRevenue บังคับสำหรับ countsAsRevenue (เดิมขาด direction ⇒ SHIPPED ไม่เคยนับในจอนี้)
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true, direction: true, problemCloseExcludesRevenue: true } },
       shipmentTracking: true,
       review: true,
       // ช่องทางที่ลูกค้าทักเข้ามาจริง (2026-08-10) — หัวการ์ดออเดอร์อ่านรูป+provider จากตัวนี้
@@ -2537,6 +2541,10 @@ function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean })
           // กอง "พัสดุมีปัญหา" แบบค้างเหนียว (2026-09-14) — `carrierStatus` เดินถอยหลังได้
           // (ไม่เจอผู้รับ → ลองส่งใหม่) ช่องนี้คือสิ่งเดียวที่จำได้ว่าเคยมีปัญหา
           problemAt: true,
+          problemClosedAt: true,
+          problemCloseOutcome: true,
+          // 00085 — countsAsRevenue() บังคับ: ใบที่ร้านปิดแบบไม่นับยอดขายต้องไม่นับ
+          problemCloseExcludesRevenue: true,
           // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
           // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว
           status: true,
@@ -2767,6 +2775,7 @@ export async function getThreadPanelOrders(
           // กอง "พัสดุมีปัญหา" ค้างเหนียว (2026-09-14) — ต้องมีคู่กับ select ใน
           // inbox/[conversationId]/page.tsx เสมอ (สองที่นี้ป้อนลิสต์เดียวกันคนละหน้า)
           problemAt: true,
+          problemClosedAt: true, problemCloseOutcome: true,
           // แถวที่ 2 ของ stepper ในแชท ("ขากลับ") — null = ขนส่งไม่ได้แจ้งเวลา ไม่ใช่ "ไม่เกิด"
           returnStartedAt: true, returnedAt: true, returnDispatchedAt: true,
         },
@@ -2816,6 +2825,7 @@ export async function getThreadPanelOrders(
             carrierStatus: o.shipments[0].carrierStatus,
             isDryRun: o.shipments[0].isDryRun,
             problemAt: o.shipments[0].problemAt?.toISOString() ?? null,
+            problemCloseOutcome: asParcelClose(o.shipments[0].problemCloseOutcome),
             // แถวที่ 2 ของ stepper ("ขากลับ") — Date ข้ามเส้น RSC/JSON ไม่ได้ ต้องเป็นสตริง
             returnStartedAt: o.shipments[0].returnStartedAt?.toISOString() ?? null,
             returnedAt: o.shipments[0].returnedAt?.toISOString() ?? null,
@@ -2911,7 +2921,7 @@ export async function getOrderStatusCounts(
  */
 export async function getShippingStageCounts(
   shopId: string,
-): Promise<Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING">, number>> {
+): Promise<Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING" | "DELIVERY_FAILED">, number>> {
   const rows = await prisma.order.findMany({
     where: { shopId, ...withoutDrafted("CANCELLED") },
     select: {
@@ -2928,12 +2938,12 @@ export async function getShippingStageCounts(
         where: ACTIVE_FORWARD_SHIPMENT,
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { carrierStatus: true, problemAt: true },
+        select: { carrierStatus: true, problemAt: true, problemCloseOutcome: true },
       },
     },
   });
 
-  const counts: Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING">, number> = {
+  const counts: Record<Exclude<ShippingStageKey, "DONE" | "NOT_SHIPPING" | "DELIVERY_FAILED">, number> = {
     // feature 00061 — ร่างเป็นกองของตัวเอง ไม่ปนกับกองพัสดุ (BR-ACO-20e)
     // 🛑 ประกาศชนิดให้ `tsc` บังคับความครบ แทน object literal เปล่า ๆ ที่เงียบเมื่อมีกองใหม่
     DRAFT: 0,
@@ -2954,10 +2964,11 @@ export async function getShippingStageCounts(
       codReceivedAt: o.codReceivedAt,
       fulfillmentMode: o.fulfillmentMode,
       problemAt: o.shipments[0]?.problemAt ?? null,
+      parcelClose: asParcelClose(o.shipments[0]?.problemCloseOutcome),
       hasManualTracking: !!o.shipmentTracking,
     });
-    // สองกองที่ไม่มีไทล์: DONE (จบแล้ว) และ NOT_SHIPPING (ไม่เคยมีการส่งของเลย)
-    if (stage !== "DONE" && stage !== "NOT_SHIPPING") counts[stage] += 1;
+    // ไม่มีไทล์: DONE · NOT_SHIPPING · DELIVERY_FAILED (ร้านปิดพัสดุมีปัญหาแล้ว) — predicate ใน lib เป็นตัวตัดสิน
+    if (isActionableShippingStage(stage)) counts[stage as keyof typeof counts] += 1;
   }
   return counts;
 }
