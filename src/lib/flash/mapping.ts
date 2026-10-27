@@ -142,10 +142,9 @@ export function buildCreateOrderParams(input: BuildFlashCreateInput): FlashParam
   const cod = input.codAmount ?? 0;
   if (cod < 0) throw new FlashServiceError("INVALID_INPUT", "ยอดเก็บเงินปลายทางติดลบไม่ได้");
   p.codEnabled = cod > 0 ? 1 : 0; // ส่งทุกครั้ง
-  if (cod > 0) {
-    p.codAmount = bahtToSatang(cod);
-    p.subItemTypes = JSON.stringify(foldCodItems(input.items));
-  }
+  // ไม่ส่ง subItemTypes: UAT 2026-10-27 ส่งแล้วได้ 1000 "subItemTypes.itemWeightSize ต้องระบุ" · ทีม Flash ยืนยันว่าใช้เฉพาะพัสดุหลายกล่อง
+  // shortcut: foldCodItems + ข้อความ "เกิน 10 รายการ" ใน UI ยังค้างอยู่ ลบเมื่อยืนยัน COD ผ่านบน UAT
+  if (cod > 0) p.codAmount = bahtToSatang(cod);
   const remark = input.remark?.trim();
   if (remark) p.remark = remark.slice(0, FLASH_LIMITS.remarkMax);
   return p;

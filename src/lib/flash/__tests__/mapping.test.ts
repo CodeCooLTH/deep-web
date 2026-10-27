@@ -56,11 +56,11 @@ describe("params พื้นฐาน", () => {
 });
 
 describe("COD", () => {
-  it("ส่ง codAmount เป็นสตางค์ + subItemTypes", () => {
+  it("ส่ง codAmount เป็นสตางค์ · ไม่ส่ง subItemTypes (Flash: ใช้เฉพาะพัสดุหลายกล่อง — UAT 2026-10-27)", () => {
     const i = { ...base(), codAmount: 350.5, items: [{ name: "เสื้อ", qty: 2 }] };
     const p = buildCreateOrderParams(i);
     expect(p).toMatchObject({ codEnabled: 1, codAmount: 35050 });
-    expect(JSON.parse(String(p.subItemTypes))).toEqual([{ itemName: "เสื้อ", itemQuantity: 2 }]);
+    expect(p).not.toHaveProperty("subItemTypes");
   });
   it("พับ 12 รายการ -> 10 รายการ รายการที่ 10 = สินค้าอื่น ๆ ผลรวมเท่าเดิม", () => {
     const f = foldCodItems(items(12, 3));
@@ -81,8 +81,8 @@ describe("COD", () => {
   it("ผลรวม 'อื่น ๆ' >999 ปฏิเสธ", () => {
     expect(() => foldCodItems(items(12, 500))).toThrow(FlashServiceError);
   });
-  it("COD ไม่มีรายการ / ยอดติดลบ ปฏิเสธ", () => {
-    expect(() => buildCreateOrderParams({ ...base(), codAmount: 100 })).toThrow(FlashServiceError);
+  it("COD ไม่มีรายการยังส่งได้ (ไม่ใช้ subItemTypes แล้ว) · ยอดติดลบ ปฏิเสธ", () => {
+    expect(buildCreateOrderParams({ ...base(), codAmount: 100 })).toMatchObject({ codEnabled: 1, codAmount: 10000 });
     expect(() => buildCreateOrderParams({ ...base(), codAmount: -1, items: items(1) })).toThrow(FlashServiceError);
   });
 });

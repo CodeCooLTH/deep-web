@@ -158,7 +158,7 @@ describe.skipIf(!isLocal)("flash-shipment.service", () => {
     await createFlashShipment(S.shop, S.user, id);
     const p = h.c.createOrder.mock.calls[0][1];
     expect(p).toMatchObject({ codEnabled: 1, codAmount: 123456, dstDistrictName: "คลองตัน", dstCityName: "วัฒนา", weight: 1500 });
-    expect(JSON.parse(p.subItemTypes)).toEqual([{ itemName: "เสื้อ", itemQuantity: 2 }]);
+    expect(p).not.toHaveProperty("subItemTypes");
     expect(Number((await shipments(id))[0].codAmount)).toBe(1234.56);
     const id2 = await mkOrder({ totalAmount: 1234.56, paymentMethod: "TRANSFER" });
     await createFlashShipment(S.shop, S.user, id2);
