@@ -35,7 +35,8 @@ function unwrap(text: string, httpStatus: number): unknown {
   throw new FlashError(mapFlashCode(json.code as string | number | null), {
     httpStatus,
     flashCode: json.code as string | number | null,
-    upstreamMessage: String(json.message ?? "").slice(0, 300),
+    // data ของ 1000 บอกชื่อฟิลด์ที่ไม่ผ่าน (เช่น "subItemTypes.itemWeightSizeต้องระบุ") — เก็บไว้ใน log
+    upstreamMessage: [json.message, typeof json.data === "string" ? json.data : null].filter(Boolean).join(" · ").slice(0, 300),
   });
 }
 
