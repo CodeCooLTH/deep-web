@@ -465,6 +465,14 @@ function readInfoUrls(data: unknown): Record<FlashWebhookKind, string | null | u
   }
   if (isRec(data)) {
     for (const k of FLASH_WEBHOOK_KINDS) {
+      // รูปตามเอกสาร infos: webHookStatusUrl + webHookStatusEnabled (ตารางเขียน snake_case) · url=null เป็นค่าจริง ไม่ใช่ "ไม่มีคีย์"
+      const urlKeys = [`webHook${cap(k)}Url`, `web_hook_${k}_url`, `webhook${cap(k)}Url`];
+      const enabled = pickKey(data, [`webHook${cap(k)}Enabled`, `web_hook_${k}_enabled`, `webhook${cap(k)}Enabled`]);
+      const urlKey = urlKeys.find((key) => key in data);
+      if (urlKey) {
+        out[k] = enabled === false ? null : urlOf(data[urlKey] ?? "");
+        continue;
+      }
       const v = pickKey(data, [k, `web_hook_${k}`, `webhook_${k}`, `webHook${cap(k)}`, `webhook${cap(k)}`, `${k}Url`, `${k}_url`]);
       if (v !== undefined) out[k] = isRec(v) ? urlOf(pickKey(v, URL_ALIASES)) : urlOf(v);
     }
