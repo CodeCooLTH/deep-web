@@ -248,6 +248,28 @@ describe.skipIf(!isLocal)("flash.service", () => {
       expect((await row())!.webhookStatus).toBe("EXTERNAL");
     });
 
+    it("infos รูปตามเอกสาร (webHook{Kind}Url/Enabled) → อ่านออก ไม่เป็น UNKNOWN · override ทับได้", async () => {
+      await connectOk();
+      Object.values(c).forEach((f) => f.mockReset());
+      // ตัวอย่าง response body ของ /webhook/setting/infos ในเอกสาร Flash (UAT 2026-10-27 ได้ UNKNOWN ทุกชนิดเพราะอ่านรูปนี้ไม่ออก)
+      c.webhookInfos.mockResolvedValue({
+        webHookStatusEnabled: true, webHookStatusUrl: "https://example.com/example_url",
+        webHookWeightEnabled: false, webHookWeightUrl: null,
+        webHookPriceEnabled: false, webHookPriceUrl: null,
+        webHookCourierEnabled: false, webHookCourierUrl: null,
+        webHookRoutesEnabled: false, webHookRoutesUrl: "https://old.example/disabled",
+        updatedAt: 1682481262,
+      });
+      c.setWebhook.mockResolvedValue({});
+      const r = await syncFlashWebhooks(S.shop, S.user);
+      expect(r.kinds.find((k) => k.kind === "status")).toMatchObject({ state: "EXTERNAL", action: "SKIPPED", host: "example.com" });
+      for (const k of ["weight", "price", "courier", "routes"]) expect(r.kinds.find((x) => x.kind === k)).toMatchObject({ state: "EMPTY", action: "SET" });
+
+      const r2 = await syncFlashWebhooks(S.shop, S.user, { overrideKinds: ["status"] });
+      expect(r2.kinds.find((k) => k.kind === "status")).toMatchObject({ state: "EXTERNAL", action: "SET" });
+      expect(r2.kinds.every((k) => k.state !== "UNKNOWN")).toBe(true);
+    });
+
     it("OTHER_DEEP (URL Deep ที่ไม่ใช่ secret ปัจจุบัน) → ตั้งใหม่เองโดยไม่ต้อง override", async () => {
       await connectOk();
       Object.values(c).forEach((f) => f.mockReset());
