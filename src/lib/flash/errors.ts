@@ -13,6 +13,8 @@ type Row = { code: FlashErrorCode; ux: FlashRetryUX; msg: string };
 
 // ตารางตามรหัสดิบของ Flash — INVALID_REQUEST มีหลายข้อความจึงต้องคีย์ด้วยรหัสดิบ
 const BY_FLASH_CODE: Record<string, Row> = {
+  // UAT 2026-10-27: 1000 = ข้อมูลไม่ผ่านการตรวจ ("ตรวจสอบข้อมูลผิดพลาด" + ชื่อฟิลด์ใน data) ไม่ใช่ Flash ล่ม — ลองซ้ำไม่หาย
+  "1000": { code: "INVALID_REQUEST", ux: "fix-data", msg: "Flash ไม่รับข้อมูลพัสดุนี้ (ตรวจสอบข้อมูลผิดพลาด) — ตรวจที่อยู่ น้ำหนัก และยอดเก็บเงินปลายทาง แล้วลองใหม่" },
   "1001": { code: "MERCHANT_NOT_FOUND", ux: "connection", msg: "ไม่พบ mchId นี้ที่ Flash — ตรวจรหัสร้านค้า (mchId) ให้ตรงกับที่ Flash ออกให้" },
   "1002": { code: "SIGN_INVALID", ux: "connection", msg: "Secret Key ไม่ถูกต้องหรือถูกเปลี่ยนที่ Flash — กรุณาวาง key ใหม่" },
   "1003": { code: "DUPLICATE_ORDER", ux: "review", msg: "อาจมีพัสดุถูกสร้างไว้แล้วที่ Flash — ตรวจที่ Flash Printer แล้วใส่เลขพัสดุเพื่อผูก หรือยืนยันว่าไม่มีใบเดิมเพื่อเปิดใหม่" },
@@ -42,10 +44,10 @@ const BY_CODE = new Map<FlashErrorCode, Row>();
 for (const r of Object.values(BY_FLASH_CODE)) if (!BY_CODE.has(r.code)) BY_CODE.set(r.code, r);
 for (const r of Object.values(FALLBACK)) BY_CODE.set(r.code, r); // ข้อความทั่วไปของ INVALID_REQUEST ใช้แทน 1007
 
-/** รหัสดิบ 0/1000 = ระบบ Flash ขัดข้อง; ไม่รู้จัก = UNKNOWN_CODE (HTTP 5xx/ไม่ใช่ JSON/timeout ให้ client ตัดสินเอง) */
+/** รหัสดิบ 0 = ระบบ Flash ขัดข้อง; ไม่รู้จัก = UNKNOWN_CODE (HTTP 5xx/ไม่ใช่ JSON/timeout ให้ client ตัดสินเอง) */
 export function mapFlashCode(flashCode: string | number | null | undefined): FlashErrorCode {
   const k = String(flashCode ?? "").trim();
-  if (k === "0" || k === "1000") return "UPSTREAM_ERROR";
+  if (k === "0") return "UPSTREAM_ERROR";
   return BY_FLASH_CODE[k]?.code ?? "UNKNOWN_CODE";
 }
 

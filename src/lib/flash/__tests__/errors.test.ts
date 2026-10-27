@@ -15,7 +15,7 @@ const TABLE: [string, FlashErrorCode, string][] = [
   ["1018", "INVALID_REQUEST", "fix-data"], ["1019", "NOT_MERCHANT_PARCEL", "none"],
   ["1020", "INVALID_REQUEST", "fix-data"], ["1021", "POSTCODE_INVALID", "fix-data"],
   ["1022", "SENDER_OUT_OF_AREA", "fix-data"], ["0", "UPSTREAM_ERROR", "retry"],
-  ["1000", "UPSTREAM_ERROR", "retry"], ["9999", "UNKNOWN_CODE", "retry"],
+  ["1000", "INVALID_REQUEST", "fix-data"], ["9999", "UNKNOWN_CODE", "retry"],
 ];
 
 describe("mapFlashCode + ข้อความ + UX ครบ Appendix A", () => {

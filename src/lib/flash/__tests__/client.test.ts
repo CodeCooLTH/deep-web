@@ -78,7 +78,7 @@ describe("flashCall — ข้อผิดพลาด", () => {
     [1001, "MERCHANT_NOT_FOUND"], [1002, "SIGN_INVALID"], [1003, "DUPLICATE_ORDER"], [1004, "SENDER_ADDRESS_INVALID"],
     [1005, "RECEIVER_ADDRESS_INVALID"], [1006, "PARCEL_NOT_FOUND"], [1008, "COD_NOT_ENABLED"], [1010, "PICKUP_PENDING"],
     [1011, "PICKUP_NOT_CANCELLABLE"], [1015, "NOT_CANCELLABLE"], [1018, "INVALID_REQUEST"], [1019, "NOT_MERCHANT_PARCEL"],
-    [1021, "POSTCODE_INVALID"], [1022, "SENDER_OUT_OF_AREA"], [0, "UPSTREAM_ERROR"], [1000, "UPSTREAM_ERROR"], [9999, "UNKNOWN_CODE"],
+    [1021, "POSTCODE_INVALID"], [1022, "SENDER_OUT_OF_AREA"], [0, "UPSTREAM_ERROR"], [1000, "INVALID_REQUEST"], [9999, "UNKNOWN_CODE"],
   ];
   it.each(cases)("code %i → %s", async (code, expected) => {
     fetchMock.mockResolvedValue(json({ code, message: "boom" }));
