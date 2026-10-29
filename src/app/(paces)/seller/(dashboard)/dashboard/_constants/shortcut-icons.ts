@@ -58,6 +58,8 @@ const SHORTCUT_ICON_MAP: Record<string, ShortcutTileIcon> = {
   // bag ไม่ใช่ box: box ถูกการ์ด "รอรับเข้า" ด้านบนใช้ไปแล้ว (ดูหมายเหตุด้านบน)
   'seller:products': { icon: 'solar:bag-4-bold-duotone', tone: 'text-primary' },
   'seller:inventory': { icon: 'solar:archive-bold-duotone', tone: 'text-info' },
+  // 00087 — รถส่งของ: ต่างจาก seller:settings (scooter) และตรงคำว่า "เรียกรถ"
+  'seller:pickups': { icon: 'solar:delivery-bold-duotone', tone: 'text-primary' },
   'seller:queues': { icon: 'solar:armchair-2-bold-duotone', tone: 'text-warning' },
   'seller:rooms': { icon: 'solar:bed-bold-duotone', tone: 'text-info' },
   'seller:calendar': { icon: 'solar:calendar-bold-duotone', tone: 'text-primary' },

@@ -29,6 +29,8 @@ export const TONE_BADGE: Record<string, string> = {
   warning: 'badge bg-warning/15 text-warning-ink',
   danger: 'badge bg-danger/15 text-danger-ink',
   secondary: 'badge bg-secondary/15 text-default-700',
+  // 00087 — เทาจริง: secondary ของธีมคือม่วง (#7b70ef) ใช้กับสถานะ "จบแบบเป็นกลาง" ไม่ได้
+  neutral: 'badge bg-default-100 text-default-700',
 }
 
 /** กล่องข้อความแจ้งเตือน (ไม่มีกรอบ badge) — พื้น tint + ตัวหนังสือ ink */

@@ -9,7 +9,7 @@
  *
  * โมดัล 3 ตัว (ทั้งหมด lazy — เปิดเมื่อกดเท่านั้น):
  *   เชื่อมต่อ  — สถานะ/ทดสอบ/ยกเลิกการเชื่อมต่อ/วาง token
- *   เรียกรถ    — จำนวนกล่อง + บอกว่าจะเรียกขนส่งเจ้าไหน (เดิมเป็น Swal ที่มี input ในตัว)
+ *   เรียกรถ    — IShipPickupModal (แยกไฟล์ใน 00087 ให้หน้า /pickups ใช้ร่วม)
  *   ตั้งค่า     — 3 แท็บ (ที่อยู่ผู้ส่ง / ค่าตั้งต้นพัสดุ / โหมดการสร้างพัสดุ) + validate + submit เดียว
  *
  * Base: settings/shipping/ShippingClient.tsx (ฟอร์ม/handler ทั้งหมด port มา 1:1 — ไม่เขียนใหม่)
@@ -28,6 +28,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { formatDateTime } from '@/lib/format-date'
 import { ISHIP_CATEGORIES } from '@/lib/iship/mapping'
 import IShipModalShell from '@/components/safepay/iship/IShipModalShell'
+import IShipPickupModal from './IShipPickupModal'
 import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
 import AddressSearchSheet, {
   type SelectedLocality,
@@ -236,9 +237,6 @@ export default function ShippingSettingsRow({
   const [errors, setErrors] = useState<FieldErrors>({})
   const [dirty, setDirty] = useState(false)
 
-  const [parcelCount, setParcelCount] = useState('1')
-  const [pickupBusy, setPickupBusy] = useState(false)
-
   const [couriers, setCouriers] = useState<Courier[]>([])
   const [boxes, setBoxes] = useState<Box[]>([])
   const refLoaded = useRef(false)
@@ -423,42 +421,7 @@ export default function ShippingSettingsRow({
       pacesToast.warning('กรุณาเลือกขนส่งเริ่มต้นก่อน')
       return
     }
-    setParcelCount('1')
     setModal('pickup')
-  }
-
-  async function handlePickup() {
-    if (!settings?.defaultCourierCode || pickupBusy) return
-    const count = Number(parcelCount)
-    if (!Number.isInteger(count) || count < 1 || count > 100) {
-      pacesToast.warning('จำนวนกล่องต้องเป็นจำนวนเต็ม 1–100')
-      return
-    }
-    setPickupBusy(true)
-    try {
-      const res = await fetch('/api/seller/iship/pickups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courierCode: settings.defaultCourierCode,
-          parcelCount: count,
-        }),
-        cache: 'no-store',
-      })
-      if (!res.ok) {
-        pacesToast.error(await readError(res))
-        return
-      }
-      const body = (await res.json()) as { timeoutAtText?: string | null }
-      setModal(null)
-      pacesToast.success(
-        body.timeoutAtText
-          ? `เรียกรถสำเร็จ — เข้ารับ ${body.timeoutAtText}`
-          : 'เรียกรถเข้ารับสำเร็จแล้ว',
-      )
-    } finally {
-      setPickupBusy(false)
-    }
   }
 
   // ── สถานะการเชื่อมต่อ ────────────────────────────────────────────────────
@@ -666,60 +629,12 @@ export default function ShippingSettingsRow({
       )}
 
       {/* ── โมดัลเรียกรถ ───────────────────────────────────────────────── */}
-      {modal === 'pickup' && settings && (
-        <IShipModalShell
-          title="เรียกรถเข้ารับพัสดุ"
-          size="sm"
+      {modal === 'pickup' && settings?.defaultCourierCode && (
+        <IShipPickupModal
+          courierCode={settings.defaultCourierCode}
+          courierName={couriers.find((c) => c.code === settings.defaultCourierCode)?.name ?? null}
           onClose={() => setModal(null)}
-          footer={
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setModal(null)}
-                disabled={pickupBusy}
-                className="btn inline-flex items-center justify-center border border-default-300 py-2.5 text-default-700 disabled:opacity-60"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handlePickup}
-                disabled={pickupBusy}
-                className="btn inline-flex items-center justify-center gap-2 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
-              >
-                {pickupBusy ? (
-                  <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <Icon icon="truck" className="text-base" aria-hidden="true" />
-                )}
-                เรียกรถ
-              </button>
-            </div>
-          }
-        >
-          <p className="mb-3 text-sm text-default-500">
-            พนักงานขนส่งจะมารับที่อยู่ผู้ส่งที่ตั้งไว้
-          </p>
-          <p className="mb-4 flex items-center gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info">
-            <Icon icon="truck-delivery" className="shrink-0 text-base" aria-hidden="true" />
-            ขนส่ง:{' '}
-            {couriers.find((c) => c.code === settings.defaultCourierCode)?.name ??
-              settings.defaultCourierCode}{' '}
-            (ค่าตั้งต้น)
-          </p>
-          <label className="form-label" htmlFor="iship-parcel-count">
-            จำนวนกล่องที่จะส่ง
-          </label>
-          <input
-            id="iship-parcel-count"
-            type="number"
-            min="1"
-            max="100"
-            className="form-input"
-            value={parcelCount}
-            onChange={(e) => setParcelCount(e.target.value)}
-          />
-        </IShipModalShell>
+        />
       )}
 
       {/* ── โมดัลตั้งค่า (3 แท็บ) ──────────────────────────────────────── */}

@@ -72,6 +72,7 @@ import {
 import type { ShipmentContext } from "@/lib/iship/context";
 import { MOBILE_PHONE_RE } from "@/lib/phone";
 import { isCodUnpaidOrder } from "@/lib/order-display";
+import { canCancelPickup } from "@/lib/shipping/pickup-list-view";
 
 // ─── error ของชั้น service ที่ route แมปเป็น HTTP ได้ตรง ๆ ──────────────────
 
@@ -2209,6 +2210,10 @@ export async function cancelPickup(shopId: string, pickupId: string) {
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบคำขอเข้ารับนี้");
   if (row.status === "CANCELLED") {
     throw new IShipServiceError("INVALID_STATE", "คำขอนี้ถูกยกเลิกไปแล้ว");
+  }
+  // 00087 BR-5: เข้ารับเสร็จ/ล้มเหลวแล้ว ห้ามยิงยกเลิก (เดิมกันแค่ CANCELLED)
+  if (!canCancelPickup(row.status)) {
+    throw new IShipServiceError("INVALID_STATE", "คำขอนี้ยกเลิกไม่ได้ในสถานะปัจจุบัน");
   }
   if (row.ticketPickupId) {
     await withTokenGuard(shopId, () => iship.cancelPickup(token, row.ticketPickupId!));

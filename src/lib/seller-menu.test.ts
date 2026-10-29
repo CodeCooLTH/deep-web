@@ -66,6 +66,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:inspection',
         'seller:inventory',
         'seller:orders',
+        // 00087 — เมนู "เรียกรถ" (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:pickups',
         'seller:products',
         'seller:public-profile',
         // เพิ่ม 2026-08-26 — เมนู "ผลงานแอดมิน" (feature 00059)
