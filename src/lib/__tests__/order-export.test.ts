@@ -105,7 +105,7 @@ describe('order-export: คอลัมน์ตามประเภทร้�
 })
 
 describe('order-export: ไฟล์', () => {
-  it('[blocker] กันสูตร: ค่าที่ขึ้นต้นด้วย = + - @ ได้ \' นำหน้าใน CSV', () => {
+  it('กันสูตร: ค่าที่ขึ้นต้นด้วย = + - @ ได้ \' นำหน้าใน CSV', () => {
     for (const s of ['=1+1', '+1', '-1', '@SUM(A1)']) expect(guardFormula(s)).toBe(`'${s}`)
     expect(guardFormula('สมชาย')).toBe('สมชาย')
     const csv = toCsv(exportColumns('ONLINE_SALES'), [buildExportRow(base({ buyerName: '=HYPERLINK("x")' }), 'ONLINE_SALES', undefined)])

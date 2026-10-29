@@ -44,7 +44,7 @@ async function seedOrder(shopId: string, name: string, createdAt: Date) {
 }
 
 d('loadOrderExport (integration)', () => {
-  it('[blocker] token ของร้านอื่นที่ปนมาถูกทิ้ง — ไฟล์มีเฉพาะร้าน active', async () => {
+  it('token ของร้านอื่นที่ปนมาถูกทิ้ง — ไฟล์มีเฉพาะร้าน active', async () => {
     const mine = await seedShop()
     const other = await seedShop()
     const a = await seedOrder(mine.id, 'mine', new Date('2026-10-01'))
