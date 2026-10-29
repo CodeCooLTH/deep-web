@@ -30,6 +30,7 @@ import {
 } from '@/lib/order-search'
 import OrderCard from './OrderCard'
 import { useViewerCan } from './OrderViewerRoles'
+import OrdersExport from './OrdersExport'
 import IShipImportModal from './IShipImportModal'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
@@ -138,6 +139,8 @@ export default function OrdersList({
 }: Props) {
   // ปุ่มสร้าง/ลิงก์สร้างในหน้านี้ = O2s (ผู้ไม่มี O2s ไม่เห็น — ช่างเปิดบิลไม่ได้)
   const canCreate = useViewerCan('O2s')
+  // 00086 แถว "แสดง N ใบ + ส่งออก" บนมือถือ — เจ้าของร้านเท่านั้น (ปุ่มเช็ค P3 เองอีกชั้น)
+  const canExport = useViewerCan('P3')
   const STATUS_TABS = useMemo(() => buildStatusTabs(vocab), [vocab])
   // คำเรียกของที่ขาย/คำว่าออเดอร์ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB/ORDER_VOCAB)
   const itemVocab = orderItemVocab(vertical)
@@ -709,6 +712,7 @@ export default function OrdersList({
             (user 2026-08-06) — state/ตัวนับยังอยู่ที่นี่ symbol เดียวกับชิปมือถือ */}
         <OrdersTable
           showMoney={showMoney}
+          totalCount={orders.length}
           orders={stageFiltered}
           /* คำค้นเดียวกับมือถือ — state เดียว ผูก `?q=` เดียว ให้ผลเดียวกัน (feature 00058) */
           search={search}
@@ -913,6 +917,22 @@ export default function OrdersList({
             (docs/conventions/aria-name-requires-supporting-role.md) + py-2 ดัน hit-area ให้ถึงนิ้ว */}
         {/* ขั้นงานบริการ (?work=) — แถบเดียวกับ "นัดวันนี้" ด้านล่าง: บริบทที่ผู้ใช้ถูกพามาจากไทล์
             ต้องเห็นและล้างได้ ไม่งั้นกรองค้างแล้วรายการหดโดยไม่รู้สาเหตุ · ปุ่มล้างเป็น <button> จริง */}
+        {/* 00086 ส่งออก (มือถือ) — แถวใต้หัว ไม่ยัดในหัว: ที่ 320px หัวเหลือที่ให้ช่องค้นหา ~80px แล้ว
+            `filtered` = ชุดเดียวกับที่การ์ดด้านล่าง render (ทุกใบ ไม่ใช่แค่ที่เลื่อนโหลดมาแล้ว) */}
+        {canExport && (
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-default-600 mb-0 text-xs">
+              แสดง <span className="tabular-nums">{filtered.length.toLocaleString('th-TH')}</span> ใบ
+            </p>
+            <OrdersExport
+              getTokens={() => filtered.map((o) => o.publicToken)}
+              filteredCount={filtered.length}
+              totalCount={orders.length}
+              noun={vocab.noun}
+              className="inline-flex min-h-11 items-center sm:min-h-0"
+            />
+          </div>
+        )}
         {work && workLabel && (
           <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
             <Icon icon="clipboard-check" className="text-primary shrink-0 text-base" aria-hidden="true" />

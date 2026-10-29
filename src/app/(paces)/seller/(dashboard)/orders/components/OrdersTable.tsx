@@ -62,6 +62,7 @@ import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
 import { useViewerCan } from './OrderViewerRoles'
+import OrdersExport from './OrdersExport'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import OrderDateFilterDropdown from './OrderDateFilterDropdown'
@@ -152,6 +153,8 @@ function courierKeyOf(o: OrderRow): string | null {
 const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
+  /** 00086 — จำนวนออเดอร์ทั้งร้าน (ก่อนตัวกรองทุกแกน) สำหรับตัวเลือก "ทั้งหมด" ของปุ่มส่งออก */
+  totalCount: number
   orders: OrderRow[]
   /** ร้านเชื่อมต่อ iShip หรือ Flash + เป็นร้านขายออนไลน์ (feature 00022/00084) — คุมปุ่มพิมพ์ใบปะหน้า */
   shippingEnabled?: boolean
@@ -264,6 +267,7 @@ export default function OrdersTable({
   wholeShopMatches,
   onClearFilters,
   showMoney = false,
+  totalCount,
 }: Props) {
   const t = useT()
   // ปุ่มสร้าง = O2s · ทักแชทจากหัวแถว = H1 (ตัวบังคับจริงอยู่ที่ route/หน้า — ที่นี่แค่ไม่ให้ปุ่มโผล่แล้วกดแล้ว 403)
@@ -1180,6 +1184,13 @@ export default function OrdersTable({
 
         {/* ขวา: เส้นคั่นบางแยกโซนตัวกรองออกจาก action + สร้างออเดอร์ */}
         <div className="flex items-center gap-2.5">
+          {/* 00086 ส่งออก — แถวหลังตัวกรอง+เรียงทั้งหมด (ทุกหน้า) ตามลำดับที่ตารางแสดง */}
+          <OrdersExport
+            getTokens={() => table.getPrePaginationRowModel().rows.map((r) => r.original.publicToken)}
+            filteredCount={totalItems}
+            totalCount={totalCount}
+            noun={vocab.noun}
+          />
           {canCreate && (
             <>
               {/* เส้นคั่นอยู่กับปุ่มสร้าง — ไม่มีปุ่ม (ไม่มีสิทธิ์) ก็ไม่มีเส้นลอย */}
