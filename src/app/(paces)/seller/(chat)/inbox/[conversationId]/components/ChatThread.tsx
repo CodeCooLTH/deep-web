@@ -2290,6 +2290,9 @@ export default function ChatThread({
     activePanel,
     composerDisabled,
   })
+  // เงื่อนไขเดียวกับที่ render AiSuggestInline — ชิป Meta AI ใช้ซ่อนตัวเองไม่ให้ลอยทับแผงนี้
+  const aiInlineShown =
+    autoSuggestOn && (aiView === 'thinking' || aiView === 'ready') && !!aiState && aiKey !== null && aiAnchorId !== null
   const aiLive = aiLocal && aiLocal.key === aiKey ? aiLocal : null
   const aiFeedback = aiLive ? aiLive.feedback : aiState?.status === 'READY' ? aiState.feedback : null
   const sendAiFeedback = (next: { feedback: AutoSuggestFeedback; reason?: AutoSuggestFeedbackReason; note?: string }) => {
@@ -3396,11 +3399,7 @@ export default function ChatThread({
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
             ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
             เลือกสินค้า = info) */}
-        {autoSuggestOn &&
-          (aiView === 'thinking' || aiView === 'ready') &&
-          aiState &&
-          aiKey !== null &&
-          aiAnchorId !== null && (
+        {aiInlineShown && aiState && (
             <AiSuggestInline
               key={aiKey}
               view={aiView}
@@ -3496,8 +3495,8 @@ export default function ChatThread({
         <div className="relative mb-2 flex flex-wrap items-center gap-1">
           {/* ชิป "เปิดให้ Meta AI ตอบ" — bubble ลอยเหนือแถวเครื่องมือ (user สั่ง 2026-10-25) ไม่กินบรรทัดของ composer
               Base: ปุ่ม "ส่ง" ในไฟล์นี้ (btn-sm + rounded-full + min-h-11 sm:min-h-0) — พื้น card + เงาให้ลอยเหนือรายการข้อความ
-              · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) · ซ่อนตอนแผงข้อความสำเร็จรูป/AI/สินค้ากางอยู่ (ไม่ให้ทับแผง) */}
-          {showReleaseToAiChip && activePanel === null && (
+              · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) · ซ่อนตอนแผงข้อความสำเร็จรูป/AI/สินค้ากางอยู่ รวมแผงคำตอบแนะนำอัตโนมัติ (ไม่ให้ทับแผง) */}
+          {showReleaseToAiChip && activePanel === null && !aiInlineShown && (
             <button
               type="button"
               onClick={releaseToMetaAi}
