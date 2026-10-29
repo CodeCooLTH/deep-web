@@ -354,6 +354,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/orders/[token]/slip/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/[token]/verify-phone/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/customers/route.ts': { GET: 'C1', status: 'DECLARED' },
+  'src/app/api/orders/export/route.ts': { POST: 'P3', status: 'DECLARED' }, // 00086 ไฟล์มีต้นทุน/กำไร — เจ้าของเท่านั้น
   'src/app/api/orders/parse-address/route.ts': { POST: 'O2s', status: 'DECLARED' },
   'src/app/api/orders/route.ts': { GET: 'O1', POST: 'O2s', status: 'DECLARED' },
   'src/app/api/otp/send/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
