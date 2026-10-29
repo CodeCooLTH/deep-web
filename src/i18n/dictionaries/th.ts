@@ -462,7 +462,7 @@ export const th = {
     metaAiAria: 'Meta AI กำลังควบคุมห้องนี้',
     metaAiTitle: 'Meta AI กำลังตอบลูกค้าห้องนี้แทนร้าน',
     metaAiCardHead: 'Meta AI กำลังตอบลูกค้าห้องนี้แทนร้าน',
-    metaAiCardBody: 'ช่องพิมพ์ยังใช้ได้ แต่ถ้าพิมพ์จาก Deep ตอนนี้ Meta อาจปฏิเสธข้อความ จะตอบเองให้ไปรับดูแลแชทนี้ที่ Business Suite ของเพจก่อน',
+    metaAiCardBody: 'ช่องพิมพ์ปิดไว้ระหว่างที่ AI ตอบ จะตอบเองให้กด "ตอบเอง" ที่ท้ายแชท',
     customerNewTip: 'ซื้อแล้ว 1 {noun}',
     customerRegularTip: 'ซื้อแล้ว {n} {noun}',
     customerNewAria: 'ลูกค้าใหม่ ซื้อแล้ว 1 {noun}',

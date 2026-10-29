@@ -1697,13 +1697,18 @@ export default function ChatThread({
   }, [isExternal, messages])
 
   // 00078 — ชิป "Meta AI คุมอยู่" หมดอายุเองเมื่อเปิดห้องค้างไว้ (bucket หยาบ 5 นาที ไม่ใช่ทุกวินาที)
-  // ไม่แตะ aiAgentActive — สองสัญญาณขัดกันได้ตาม Q-10 (ช่องพิมพ์ยังใช้ได้เสมอ)
+  // 2026-10-29 กลับมติ Q-10 (user: "ต้อง block กล่องพิมพ์") — ป้ายนี้ขึ้นเมื่อไหร่ ช่องพิมพ์ถูกแทนด้วยบล็อก
+  // "ตอบเอง" เหมือน marker บอกว่า AI คุม (aiHoldsRoom) · ไม่ใช่ล็อกตาย: กด "ตอบเอง" ขอสิทธิ์คืนได้ทันที
+  // (บทเรียน 2026-08-09 = ล็อกโดยไม่มีทางออก ไม่ใช่ล็อกที่กดปลดได้)
   const [metaAiNow, setMetaAiNow] = useState(() => metaAiNowBucket(Date.now()))
   useEffect(() => {
     if (metaAiHoldUntilMs == null) return
     const id = setInterval(() => setMetaAiNow(metaAiNowBucket(Date.now())), META_AI_NOW_BUCKET_MS)
     return () => clearInterval(id)
   }, [metaAiHoldUntilMs])
+  const metaAiHoldingNow =
+    (channel === 'MESSENGER' || channel === 'INSTAGRAM') && isMetaAiHolding(metaAiHoldUntilMs, metaAiNow)
+  const aiHoldsRoom = aiAgentActive || metaAiHoldingNow
   // ป้าย "Meta AI" รายบับเบิล (Task 7, 2026-09-14) — derive จาก marker ชุดเดียวกับ aiAgentActive
   // ไม่มี marker = ไม่ติดป้าย (ดูเหตุผลที่ attributeMetaAi) · เฉพาะ Messenger เพราะ marker มาจากที่นั่นที่เดียว
   const metaAiMessageIds = useMemo(
@@ -1728,14 +1733,14 @@ export default function ChatThread({
   const [manualOverrideStatus, setManualOverrideStatus] = useState<'none' | 'taken'>('none')
   const [takeoverFailed, setTakeoverFailed] = useState(false)
   const [takeoverBusy, setTakeoverBusy] = useState(false)
-  const prevAiAgentActiveRef = useRef(aiAgentActive)
+  const prevAiAgentActiveRef = useRef(aiHoldsRoom)
   useEffect(() => {
-    if (!prevAiAgentActiveRef.current && aiAgentActive) {
+    if (!prevAiAgentActiveRef.current && aiHoldsRoom) {
       setManualOverrideStatus('none')
       setTakeoverFailed(false)
     }
-    prevAiAgentActiveRef.current = aiAgentActive
-  }, [aiAgentActive])
+    prevAiAgentActiveRef.current = aiHoldsRoom
+  }, [aiHoldsRoom])
 
   // แสดง "composer replacement block" (แทนที่ทั้งแถบเครื่องมือ+textarea) เฉพาะตอน AI คุมอยู่จริง
   // ยังไม่ยืนยันตอบเอง และ token ยังไม่ตาย — tokenInvalid ชนะเสมอ (คงพฤติกรรม dim เดิม เพราะ
@@ -1756,11 +1761,11 @@ export default function ChatThread({
   const showTokenInvalidComposer = isExternal && tokenInvalid && channel === 'LINE'
   // ลำดับความสำคัญเดิมคงเดิมทุกประการ (composerDisabled > tokenInvalid > กลุ่ม AI) —
   // งานนี้แค่แตกกิ่ง "กลุ่ม AI" ออกเป็น 2 ทางตามว่าครั้งล่าสุดขอสิทธิ์แล้วโดนปฏิเสธหรือยัง
-  const aiComposerSlot = !composerDisabled && !showTokenInvalidComposer && aiAgentActive && manualOverrideStatus === 'none'
+  const aiComposerSlot = !composerDisabled && !showTokenInvalidComposer && aiHoldsRoom && manualOverrideStatus === 'none'
   const showAiTakeoverComposer = aiComposerSlot && !takeoverFailed
   const showAiTakeoverFailedComposer = aiComposerSlot && takeoverFailed
   // แถบเหนือช่องพิมพ์หลังขอสิทธิ์แล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
-  const showManualOverrideStrip = !composerDisabled && aiAgentActive && manualOverrideStatus === 'taken'
+  const showManualOverrideStrip = !composerDisabled && aiHoldsRoom && manualOverrideStatus === 'taken'
 
   /**
    * ยิงขอสิทธิ์คุมเธรดจริง แล้วแปลผล 3 แบบเป็นสิ่งที่ผู้ขายเห็น
@@ -1821,7 +1826,9 @@ export default function ChatThread({
     }
   }
 
-  // ── ชิป "เปิดให้ Meta AI ตอบ" (2026-10-18 · ท่าเดียวกับชิป "Turn on AI responses" ของ Business Suite)
+  // ── ปุ่ม "เปิดให้ Meta AI ตอบ" (2026-10-18 · ท่าเดียวกับชิป "Turn on AI responses" ของ Business Suite)
+  // 2026-10-29 ย้ายจาก bubble ลอยเหนือแถวเครื่องมือ ไปเป็นไอคอนที่หัวห้อง (user เลือกแบบ gochat v3) —
+  // bubble ลอยบังข้อความล่าสุดของลูกค้าและทับแผงคำตอบแนะนำ
   // โชว์เฉพาะห้อง Messenger ที่ Meta AI เคยเข้ามา (มี marker) — ห้องที่ไม่เคยมี AI ยิงไปก็ล้มเปล่า ๆ
   // ตอน AI ถือห้องอยู่ (และเรายังไม่ได้ดึงคืน) ไม่ต้องโชว์ เพราะ AI ตอบอยู่แล้ว
   const [releaseBusy, setReleaseBusy] = useState(false)
@@ -1829,7 +1836,7 @@ export default function ChatThread({
     () => channel === 'MESSENGER' && messages.some(m => readMetaAiControlMarker(m.body) !== null),
     [channel, messages],
   )
-  const showReleaseToAiChip = !composerDisabled && hadMetaAi && (!aiAgentActive || manualOverrideStatus === 'taken')
+  const showReleaseToAiChip = !composerDisabled && hadMetaAi && (!aiHoldsRoom || manualOverrideStatus === 'taken')
 
   const releaseToMetaAi = async () => {
     if (releaseBusy) return
@@ -2290,9 +2297,6 @@ export default function ChatThread({
     activePanel,
     composerDisabled,
   })
-  // เงื่อนไขเดียวกับที่ render AiSuggestInline — ชิป Meta AI ใช้ซ่อนตัวเองไม่ให้ลอยทับแผงนี้
-  const aiInlineShown =
-    autoSuggestOn && (aiView === 'thinking' || aiView === 'ready') && !!aiState && aiKey !== null && aiAnchorId !== null
   const aiLive = aiLocal && aiLocal.key === aiKey ? aiLocal : null
   const aiFeedback = aiLive ? aiLive.feedback : aiState?.status === 'READY' ? aiState.feedback : null
   const sendAiFeedback = (next: { feedback: AutoSuggestFeedback; reason?: AutoSuggestFeedbackReason; note?: string }) => {
@@ -2576,7 +2580,7 @@ export default function ChatThread({
     })
   }
   // 00078 S-4 — Meta AI ถือห้อง (เฉพาะ Messenger/IG) · ก่อนชิป 'bot' เพราะกระทบการส่งมากกว่า · ข้อมูลอย่างเดียว ไม่มีปุ่ม
-  if ((channel === 'MESSENGER' || channel === 'INSTAGRAM') && isMetaAiHolding(metaAiHoldUntilMs, metaAiNow)) {
+  if (metaAiHoldingNow) {
     threadStatuses.push({
       key: 'meta-ai',
       tone: 'neutral',
@@ -3026,6 +3030,21 @@ export default function ChatThread({
           />
         )}
 
+        {/* เปิดให้ Meta AI ตอบ — ไอคอนที่หัวห้องแบบ gochat v3 (user เลือก 2026-10-29) แทน bubble ลอยเหนือ composer
+            ที่บังข้อความลูกค้า · โชว์เฉพาะห้อง Messenger ที่ Meta AI เคยเข้ามาและตอนนี้ร้านถือห้องอยู่
+            · ไอคอน robot เหมือนเดิม (sparkles ผูกกับ DeepAI แล้ว) · ที่ 320px ชื่อลูกค้าเหลือแคบลงอีก 41px */}
+        {showReleaseToAiChip && (
+          <button
+            type="button"
+            onClick={releaseToMetaAi}
+            disabled={releaseBusy}
+            title="เปิดให้ Meta AI ตอบ"
+            aria-label="เปิดให้ Meta AI ตอบ"
+            className="btn btn-icon border-default-300 text-default-700 hover:bg-default-100 shrink-0 disabled:opacity-60"
+          >
+            <Icon icon={releaseBusy ? 'loader-2' : 'robot'} className={releaseBusy ? 'animate-spin text-lg' : 'text-lg'} aria-hidden="true" />
+          </button>
+        )}
         {/* เสียงแจ้งเตือนของแชทนี้ — ≥768px เป็นปุ่มกระดิ่งของตัวเอง (user: "ไม่ต้องมี dropdown
             บน desktop ให้ desktop แสดง icon เต็ม ๆ ไปเลย") · จอแคบอยู่ในเมนู `⋯` ท้ายแถว
             (เหตุผลเดิมของ 2026-08-10 ยังอยู่: บนมือถือในห้องแชทต้องกดถึงสวิตช์เสียงได้เสมอ) */}
@@ -3399,7 +3418,11 @@ export default function ChatThread({
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
             ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
             เลือกสินค้า = info) */}
-        {aiInlineShown && aiState && (
+        {autoSuggestOn &&
+          (aiView === 'thinking' || aiView === 'ready') &&
+          aiState &&
+          aiKey !== null &&
+          aiAnchorId !== null && (
             <AiSuggestInline
               key={aiKey}
               view={aiView}
@@ -3493,20 +3516,6 @@ export default function ChatThread({
             wrap ไม่ย้ายจุดยึดของแผงอิโมจิ/สติกเกอร์ — แผงพวกนั้นเป็น absolute ที่ยึดกับ
             `div.relative` ของ *ปุ่มตัวเอง* ไม่ใช่ยึดกับแถว (เหตุผลเต็มอยู่ที่ปุ่มสติกเกอร์) */}
         <div className="relative mb-2 flex flex-wrap items-center gap-1">
-          {/* ชิป "เปิดให้ Meta AI ตอบ" — bubble ลอยเหนือแถวเครื่องมือ (user สั่ง 2026-10-25) ไม่กินบรรทัดของ composer
-              Base: ปุ่ม "ส่ง" ในไฟล์นี้ (btn-sm + rounded-full + min-h-11 sm:min-h-0) — พื้น card + เงาให้ลอยเหนือรายการข้อความ
-              · ไอคอน robot (sparkles ผูกกับ DeepAI แล้ว) · ซ่อนตอนแผงข้อความสำเร็จรูป/AI/สินค้ากางอยู่ รวมแผงคำตอบแนะนำอัตโนมัติ (ไม่ให้ทับแผง) */}
-          {showReleaseToAiChip && activePanel === null && !aiInlineShown && (
-            <button
-              type="button"
-              onClick={releaseToMetaAi}
-              disabled={releaseBusy}
-              className="btn btn-sm bg-card text-default-700 hover:bg-default-100 border-default-200 absolute start-0 bottom-full z-10 mb-2 min-h-11 gap-1 rounded-full border shadow-md disabled:opacity-60 sm:min-h-0"
-            >
-              <Icon icon={releaseBusy ? 'loader-2' : 'robot'} className={releaseBusy ? 'animate-spin text-base' : 'text-base'} aria-hidden="true" />
-              เปิดให้ Meta AI ตอบ
-            </button>
-          )}
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
             type="button"
