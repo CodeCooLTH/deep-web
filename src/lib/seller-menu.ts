@@ -96,6 +96,8 @@ export const sellerMenuItems: MenuItemType[] = [
     children: [
       // ป้ายผันตามประเภทกิจการด้วย applyOrderLabel ด้านล่าง — ค่าในอาเรย์นี้คือของ ONLINE_SALES
       { url: '/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
+      // feature 00087 — รายการคำขอเรียกรถ (iShip + Flash) · เห็นเฉพาะ ONLINE_SALES (ไม่มีพัสดุ = ไม่มีรถให้เรียก)
+      { url: '/pickups', slug: 'seller:pickups', label: 'เรียกรถ', icon: 'truck' },
       { url: '/auctions', slug: 'seller:auctions', label: 'การประมูล', icon: 'gavel' },
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
       // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
@@ -380,6 +382,7 @@ const ONLINE_SALES_ONLY_SLUGS = [
   'seller:auctions',
   'seller:reports-products',
   'seller:settings-order-agent',
+  'seller:pickups',
   // /settings เหลือแค่การตั้งค่าขนส่ง (iShip) ซึ่งหน้าเองแสดงเฉพาะ ONLINE_SALES — vertical อื่น
   // กดเข้าไปเจอ empty state "ยังไม่มีการตั้งค่าการจัดส่ง" จึงซ่อนเมนูให้ตรงกับหน้า
   'seller:settings',
@@ -1083,6 +1086,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:shop': m.shop,
     'seller:public-profile': m.publicProfile,
     'seller:settings': m.settings,
+    'seller:pickups': m.pickups,
     'seller:settings-channels': m.settingsChannels,
     'seller:settings-job-types': m.settingsJobTypes,
     'seller:settings-reports': m.settingsReports,

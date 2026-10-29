@@ -361,6 +361,7 @@ export const en: Dictionary = {
     salesFinance: 'Sales and profit',
     reportsAgents: 'Agent Chat Response',
     reportsProducts: 'Sales by Product',
+    pickups: 'Courier Pickups',
     followUps: 'Customer follow-ups',
     lineReports: 'LINE group reports',
     orders: {

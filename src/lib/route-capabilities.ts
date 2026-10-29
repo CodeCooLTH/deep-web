@@ -99,6 +99,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/notifications/page.tsx': { class: 'MEMBER', reason: 'หน้ารวมของสมาชิกทุกคน — ความสำเร็จ/แจ้งเตือน/หน้าแรก/หน้าร้าน (C-1/C-8) · ตัวเลขเงินตัดตามระดับเงินใน service ไม่ใช่ด่านหน้า', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/orders/[token]/page.tsx': { page: 'O1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/orders/page.tsx': { page: 'O1', status: 'DECLARED' },
+  // 00087 — สิทธิ์เดียวกับ API เรียกรถ (S1)
+  'src/app/(paces)/seller/(dashboard)/pickups/page.tsx': { page: 'S1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/products/[id]/page.tsx': { page: 'P1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/products/page.tsx': { page: 'P1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/public-profile/page.tsx': { page: 'T1', status: 'DECLARED' },
