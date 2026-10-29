@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — ชิป "เปิดให้ Meta AI ตอบ" กับข้อความลูกค้า / แผงคำตอบแนะนำ</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  :root { --primary:#236dc9; --success:#0ab39c; --border:#e7e9eb; --muted:#6c757d; --text:#313a46; --bg:#f4f6f9; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Anuphan,sans-serif; background:var(--bg); color:var(--text); padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .lead { color:var(--muted); margin:0 0 16px; font-size:14px; }
+  .devices { display:flex; gap:8px; margin-bottom:20px; }
+  .devices button { font:inherit; padding:6px 14px; border-radius:999px; border:1px solid var(--border); background:#fff; cursor:pointer; }
+  .devices button.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .grid { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+  .case { display:flex; flex-direction:column; gap:8px; }
+  .case h2 { font-size:15px; margin:0; }
+  .case p { font-size:13px; color:var(--muted); margin:0; max-width:var(--w); }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-right:6px; vertical-align:middle; }
+  .tag.bad { background:#fde8e8; color:#c0392b; } .tag.ok { background:#e3f6f3; color:#0a7d6d; } .tag.alt { background:#e8f0fb; color:var(--primary); }
+  .frame { width:var(--w); height:520px; background:#fff; border:1px solid var(--border); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+  .head { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px; }
+  .av { width:32px; height:32px; border-radius:50%; background:#e8eef7; color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; }
+  .list { flex:1; overflow:hidden; padding:16px 16px 0; display:flex; flex-direction:column; justify-content:flex-end; gap:10px; }
+  .list.pad { padding-bottom:56px; }
+  .row { display:flex; gap:8px; align-items:flex-end; }
+  .row.me { justify-content:flex-end; }
+  .bub { max-width:75%; padding:8px 12px; border-radius:14px; font-size:14px; line-height:1.5; background:#f1f3f5; }
+  .row.me .bub { background:var(--primary); color:#fff; }
+  .like { font-size:56px; color:#1877f2; line-height:1; }
+  .composer { position:relative; border-top:1px dashed var(--border); padding:10px 16px 14px; }
+  .ai { border-bottom:1px dashed var(--border); padding:10px 16px; font-size:13px; }
+  .ai .t { color:var(--muted); display:flex; align-items:center; gap:4px; margin-bottom:4px; }
+  .ai .s { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tools { display:flex; gap:14px; color:#5b6670; font-size:18px; padding:4px 0 10px; position:relative; }
+  .input { border:1px solid var(--border); border-radius:10px; padding:12px; color:#98a2ab; font-size:14px; }
+  .chip { position:absolute; left:0; bottom:100%; margin-bottom:8px; display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:13px; box-shadow:0 4px 12px rgba(0,0,0,.12); white-space:nowrap; }
+  .hbtn { margin-left:auto; display:flex; gap:4px; }
+  .hbtn span { width:37px; height:37px; border:1px solid #dee2e6; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#4a5560; font-size:18px; }
+  .hbtn span.meta { outline:2px solid var(--primary); outline-offset:2px; }
+  .chip.bug { outline:2px dashed #e74c3c; outline-offset:3px; }
+  .note { font-size:12px; color:#c0392b; }
+</style>
+</head>
+<body>
+<h1>ชิป "เปิดให้ Meta AI ตอบ": ลอยทับข้อความ / ตอนมีคำตอบแนะนำ</h1>
+<p class="lead">4 สถานะเทียบกัน · สลับขนาดจอด้านล่าง · ชิปยังเป็น bubble ลอยเหนือแถวเครื่องมือเหมือนเดิม (มติ 2026-10-25)</p>
+<div class="devices">
+  <button data-w="375" class="on">มือถือ 375</button>
+  <button data-w="560">แท็บเล็ต (คอลัมน์แชท) 560</button>
+  <button data-w="760">เดสก์ท็อป (คอลัมน์แชท) 760</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<template id="tpl">
+  <div class="case">
+    <h2></h2>
+    <div class="frame">
+      <div class="head"><div class="av">เค</div>คุณเค · Messenger</div>
+      <div class="list">
+        <div class="row me"><div class="bub">ได้รับยอดโอนแล้วนะคะ ขอบคุณค่ะ</div></div>
+        <div class="row"><div class="av">เค</div><div class="bub">ส่งของวันไหนครับ</div></div>
+        <div class="row me"><div class="bub">พรุ่งนี้เช้าจัดส่งให้เลยค่ะ</div></div>
+        <div class="row"><div class="av">เค</div><div class="like"><iconify-icon icon="tabler:thumb-up-filled"></iconify-icon></div></div>
+      </div>
+      <div class="ai" hidden>
+        <div class="t"><iconify-icon icon="tabler:sparkles"></iconify-icon> AI · คำตอบแนะนำ</div>
+        <div class="s">ขอบคุณสำหรับการยืนยันนะคะ สินค้าอยู่ระหว่างดำเนินการจัดส่งให้เร็วที่สุดค่ะ</div>
+      </div>
+      <div class="composer">
+        <div class="tools">
+          <iconify-icon icon="tabler:bolt"></iconify-icon><iconify-icon icon="tabler:package"></iconify-icon>
+          <iconify-icon icon="tabler:paperclip"></iconify-icon><iconify-icon icon="tabler:mood-smile"></iconify-icon>
+          <iconify-icon icon="tabler:chart-pie"></iconify-icon>
+        </div>
+        <div class="input">พิมพ์ข้อความ หรือวางไฟล์ที่นี่...</div>
+      </div>
+    </div>
+    <p></p>
+  </div>
+</template>
+
+<script>
+const chip = '<span class="chip"><iconify-icon icon="tabler:robot"></iconify-icon>เปิดให้ Meta AI ตอบ</span>'
+const cases = [
+  { tag:'ok', label:'มติ 2026-10-29', title:'4 · ปุ่มย้ายไปหัวห้อง (แบบ gochat v3)',
+    desc:'ไอคอนหุ่นยนต์ที่หัวห้อง (กรอบน้ำเงินในภาพ ใส่ไว้ชี้ตำแหน่งเท่านั้น) กดแล้วคืนห้องให้ Meta AI · ไม่มีอะไรลอยเหนือช่องพิมพ์แล้ว ข้อความและแผงคำตอบแนะนำจึงไม่ถูกบัง',
+    pad:false, ai:true, chipAt:null, header:true },
+  { tag:'bad', label:'ก่อนแก้', title:'1 · มีข้อความ: ชิปบังข้อความลูกค้า',
+    desc:'ชิปลอยขึ้นไปในพื้นที่รายการข้อความ แต่รายการไม่ได้เว้นที่ให้ ข้อความล่าสุดของลูกค้า (นิ้วโป้ง) จมอยู่ใต้ชิป',
+    pad:false, ai:false, chipAt:'tools', bug:true },
+  { tag:'ok', label:'หลังแก้', title:'2 · มีข้อความ: รายการเว้นที่ล่างให้ชิป',
+    desc:'รายการข้อความเว้นที่ด้านล่างเท่าความสูงชิป ข้อความล่าสุดอยู่เหนือชิปพอดี และถ้าอยู่ล่างสุดอยู่แล้วจะเลื่อนตามลงไปเอง',
+    pad:true, ai:false, chipAt:'tools' },
+  { tag:'ok', label:'อยู่บน prod ตอนนี้ (#211)', title:'3A · มีคำตอบแนะนำ: ซ่อนชิป',
+    desc:'ระหว่างที่แผงคำตอบแนะนำโชว์ ชิปจะหายไป ปิดแผงหรือเริ่มพิมพ์แล้วชิปถึงกลับมา (เหมือนตอนเปิดแผงอื่น) ข้อเสีย: ตอนนั้นกดให้ Meta AI ตอบไม่ได้',
+    pad:false, ai:true, chipAt:null },
+  { tag:'alt', label:'อีกทางเลือก', title:'3B · มีคำตอบแนะนำ: ชิปลอยเหนือแผง AI',
+    desc:'ชิปย้ายขึ้นไปลอยเหนือแผงคำตอบแนะนำ และรายการเว้นที่ล่างให้เหมือนข้อ 2 ข้อดี: กดได้ตลอด ข้อเสีย: ตรงนั้นมีของ 3 ชั้นซ้อนกัน (ชิป, แผง AI, เครื่องมือ)',
+    pad:true, ai:true, chipAt:'ai' },
+]
+function render(w) {
+  const grid = document.getElementById('grid'); grid.innerHTML = ''
+  grid.style.setProperty('--w', w + 'px')
+  for (const c of cases) {
+    const n = document.getElementById('tpl').content.cloneNode(true)
+    n.querySelector('h2').innerHTML = `<span class="tag ${c.tag}">${c.label}</span>${c.title}`
+    n.querySelector('.case > p').textContent = c.desc
+    if (c.pad) n.querySelector('.list').classList.add('pad')
+    const ai = n.querySelector('.ai'); if (c.ai) { ai.hidden = false; ai.style.position = 'relative' }
+    if (c.chipAt === 'tools') n.querySelector('.tools').insertAdjacentHTML('afterbegin', chip)
+    if (c.chipAt === 'ai') ai.insertAdjacentHTML('afterbegin', chip.replace('class="chip"', 'class="chip" style="left:16px"'))
+    if (c.header) n.querySelector('.head').insertAdjacentHTML('beforeend', '<div class="hbtn"><span class="meta"><iconify-icon icon="tabler:robot"></iconify-icon></span><span><iconify-icon icon="tabler:bell"></iconify-icon></span><span><iconify-icon icon="tabler:user-circle"></iconify-icon></span></div>')
+    if (c.bug) n.querySelector('.chip').classList.add('bug')
+    grid.appendChild(n)
+  }
+}
+document.querySelectorAll('.devices button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.devices button').forEach(x => x.classList.toggle('on', x === b)); render(+b.dataset.w)
+})
+render(375)
+</script>
+</body>
+</html>

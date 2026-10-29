@@ -294,7 +294,7 @@ export const en: Dictionary = {
     metaAiAria: 'Meta AI is controlling this room',
     metaAiTitle: 'Meta AI is answering this customer for the shop',
     metaAiCardHead: 'Meta AI is answering this customer for the shop',
-    metaAiCardBody: 'You can still type, but Meta may reject messages sent from Deep right now. To reply yourself, take over this chat in the page Business Suite first.',
+    metaAiCardBody: 'The message box is closed while the AI is replying. To reply yourself, use the take-over button at the bottom of the chat.',
     customerNewTip: 'Bought 1 {noun}',
     customerRegularTip: 'Bought {n} {noun}',
     customerNewAria: 'New customer, bought 1 {noun}',
