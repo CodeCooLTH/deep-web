@@ -290,6 +290,27 @@ describe.skipIf(!isLocal)('flash-status.service (DB จริง)', () => {
     expect((shapePod({ podUrl: 'http://f/x' }, null) as { podUrl: string | null }).podUrl).toBeNull()
   })
 
+  it('shapePod รูปตาม Flash จริง: photo เป็นสตริง JSON/ก้อน · pod = ลายเซ็น · พิกัด ticketDeliveryStaff · ไม่มีพิกัด = null', () => {
+    const photo = { photo1: 'https://f/1.jpg', photo2: 'https://f/2.jpg' }
+    const a = shapePod({ signer: 'x', photo: JSON.stringify(photo), pod: 'https://f/sig.png', ticketDeliveryStaffLat: '13.5', ticketDeliveryStaffLng: 100.6 }, null) as Record<string, unknown>
+    expect(a).toMatchObject({ photos: ['https://f/1.jpg', 'https://f/2.jpg'], podUrl: 'https://f/sig.png', lat: 13.5, lng: 100.6 })
+    expect((shapePod({ photo }, null) as { photos: string[] }).photos).toHaveLength(2)
+    expect(shapePod({ signer: 'x', photo: '{bad' }, null)).toMatchObject({ photos: [], lat: null, lng: null })
+  })
+
+  it('routes ยังไม่มีแถวของ state ใหม่ (6/8 มาก่อน route) → ไทม์ไลน์ยังได้บรรทัดสถานะนั้น', async () => {
+    const s = await mkShip()
+    const t3 = T('2026-10-06T01:00:00Z')
+    const r3 = { routedAt: t3, routeAction: 'DELIVERY_TICKET_CREATION_SCAN', message: 'กำลังนำส่ง', state: 3 }
+    fx.routes.mockResolvedValue({ pno: s.trackingNo, state: 6, stateChangeAt: t3 + 2, routes: [r3] })
+    await handleFlashWebhook(loaded, wh({ pno: s.trackingNo, state: '6' }))
+    fx.routes.mockResolvedValue({ pno: s.trackingNo, state: 8, stateChangeAt: t3 + 600, routes: [r3] })
+    await handleFlashWebhook(loaded, wh({ pno: s.trackingNo, state: '8' }))
+    const st = (await evs(s.id)).filter((e) => e.source === 'WEBHOOK').map((e) => e.status)
+    expect(st).toEqual(expect.arrayContaining(['progress', 'issue', 'close']))
+    expect(await ship(s.id)).toMatchObject({ carrierStatus: 'close' })
+  })
+
   it('POD ล้ม → แถว error · ลองใหม่สำเร็จ → อัปเดตแถวเดิม (ยังแถวเดียว)', async () => {
     const s = await mkShip({ carrierStatus: 'delivered', carrierStatusAt: new Date(), deliveredAt: new Date() }, S.shop2)
     const l2 = (await loadFlashAccount(S.shop2))!

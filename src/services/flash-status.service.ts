@@ -120,7 +120,7 @@ export async function applyFlashRoutes(
   const at = routes.stateChangeAt ?? latestRouted;
 
   // ไทม์ไลน์: ทุก route ที่มีเวลา (route สุดท้ายที่ไม่มี state ของตัวเองรับสถานะรวม)
-  let wrote = 0;
+  let wroteCode = false;
   for (const r of routes.routes) {
     if (!r.routedAt) continue;
     const own = mapFlashState(r.state);
@@ -130,9 +130,10 @@ export async function applyFlashRoutes(
       status, statusDesc: r.message ?? (isLatest ? marker : null), occurredAt: r.routedAt, source,
       dedupeKey: `${r.action ?? "route"}:${r.routedAt.getTime()}`,
     });
-    wrote++;
+    if (status === code) wroteCode = true;
   }
-  if (code && wrote === 0) {
+  // routes ยังไม่มีแถวของ state ใหม่ (UAT 2026-10-29: state 6/8 มาก่อน route ของมัน) → ลงแถวสถานะเอง ไม่งั้นไทม์ไลน์ไม่มีบรรทัดปัญหา
+  if (code && !wroteCode) {
     await recordEvent(shipment.id, {
       status: code, statusDesc: marker, occurredAt: at ?? new Date(), source,
       dedupeKey: `${routes.state}:${at ? at.getTime() : `h${sha(`${pno}:${routes.state}`, 12)}`}`,
@@ -224,12 +225,18 @@ const httpsOnly = (v: unknown): string | null => {
 
 export function shapePod(data: unknown, stateDate: unknown): Prisma.InputJsonObject | null {
   if (!isRec(data)) return null;
+  // Flash ส่ง `photo` เป็น {photo1,photo2} หรือสตริง JSON ของก้อนเดียวกัน (UAT 2026-10-29 webhook state 5)
+  let photoObj: unknown = data.photo;
+  if (typeof photoObj === "string") { try { photoObj = JSON.parse(photoObj); } catch { photoObj = null; } }
+  const po = isRec(photoObj) ? photoObj : {};
   const photoSrc = [data.photos, data.images, data.deliveredPhotos].find(Array.isArray) as unknown[] | undefined;
-  const photos = (photoSrc ?? [data.photo1, data.photo2, data.podPhoto]).map(httpsOnly).filter((x): x is string => !!x).slice(0, 2);
-  const num = (v: unknown) => { const n = typeof v === "number" ? v : Number(str(v)); return Number.isFinite(n) ? n : null; };
+  const photos = (photoSrc ?? [po.photo1, po.photo2, data.photo1, data.photo2, data.podPhoto]).map(httpsOnly).filter((x): x is string => !!x).slice(0, 2);
+  // ไม่มีค่า = null (Number(null) = 0 ทำให้พิกัด 0,0 ปลอม)
+  const num = (v: unknown) => { const t = str(v); return t !== null && Number.isFinite(Number(t)) ? Number(t) : null; };
   return {
     kind: "FLASH_POD", signer: str(data.signer) ?? str(data.signerName), signerTypeText: str(data.signerTypeText) ?? str(data.signerType),
-    podUrl: httpsOnly(data.podUrl) ?? httpsOnly(data.signaturePicUrl), photos, lat: num(data.lat ?? data.latitude), lng: num(data.lng ?? data.longitude),
+    podUrl: httpsOnly(data.pod) ?? httpsOnly(data.podUrl) ?? httpsOnly(data.signaturePicUrl) ?? httpsOnly(data.eSignature), photos,
+    lat: num(data.ticketDeliveryStaffLat ?? data.lat ?? data.latitude), lng: num(data.ticketDeliveryStaffLng ?? data.lng ?? data.longitude),
     stateDate: str(data.stateDate) ?? str(stateDate),
   };
 }
