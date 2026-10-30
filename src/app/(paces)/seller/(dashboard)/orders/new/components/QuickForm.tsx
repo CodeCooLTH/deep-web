@@ -8,6 +8,13 @@
  * Base: FullscreenPageHeader.tsx (-mx-4 md:-mx-8 bleed pattern)
  *
  * ลำดับ: ลูกค้า → ช่องทาง/ชำระเงิน → สินค้า → เพิ่มเติม; footer = QuickSummaryPanel (collapsible)
+ *
+ * ร้านบริการตอนสร้าง (serviceLayout · feature 00086 P2-T4 · prototype v13):
+ *   ลูกค้า → วันที่สั่งซื้อ → ลูกค้ามาแบบไหน → รายการงานบริการ → นัด/เข้าคิว → ผู้รับผิดชอบ (P3-T8)
+ *   → เพิ่มเติม (ช่องทาง/ชำระเงินแบบแถว + ส่วนลด/VAT/หมายเหตุ); footer เดิม
+ *   ช่องทาง/ชำระเงินถูกย้ายลง "เพิ่มเติม" เพราะร้านบริการแทบไม่เคยเปลี่ยนจากหน้าร้าน/เงินสด
+ *   Base (ปุ่มเลือก): theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx ผ่าน ./ArrivalModePicker
+ *   ร้านอื่น + หน้าแก้ไข = ลำดับเดิมทุกตัวอักษร (SSOT: usesServiceCreateLayout)
  */
 
 import { useState, useMemo } from 'react'
@@ -19,12 +26,14 @@ import { orderNeedsShippingAddress, toOrderItemShippingKind } from '@/lib/shippi
 import QuickLineItem from './QuickLineItem'
 import ProductPickerSheet from './ProductPickerSheet'
 import ChannelPaymentSelect from './ChannelPaymentSelect'
+import ArrivalModePicker from './ArrivalModePicker'
 import CustomerQuickBlock from './CustomerQuickBlock'
 import MoreOptions from './MoreOptions'
 import OrderDateRow from './OrderDateRow'
 import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 import type { OrderFormWords } from './order-form-words'
+import type { OrderArrivalChoice } from '@/lib/order-form-arrival'
 
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
@@ -68,6 +77,15 @@ interface Props {
   orderDateLabel?: string
   /** feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" เฉพาะร้าน ONLINE_SALES (SSOT: OrderCreateForm) */
   showDeliveryToggle?: boolean
+  /** feature 00086 P2-T4 — ลำดับร้านบริการตอนสร้าง (SSOT: usesServiceCreateLayout) · ไม่ส่ง = ลำดับเดิม */
+  serviceLayout?: boolean
+  /** feature 00086 P2-T4 — แสดงปุ่มเลือก "ลูกค้ามาแบบไหน" (SSOT: sendsArrivalMode — ต้องมีคิวงาน) */
+  showArrivalPicker?: boolean
+  /**
+   * feature 00086 P3-T8 — ส่วน "ผู้รับผิดชอบ" (AssigneePicker variant="section") จาก OrderCreateForm
+   * null/ไม่ส่ง = ไม่มีส่วนนี้ (SSOT: showsAssigneePicker) · วางเฉพาะลำดับร้านบริการ
+   */
+  assigneeBlock?: ReactNode
 }
 
 export default function QuickForm({
@@ -96,6 +114,9 @@ export default function QuickForm({
   shipsGoods = true,
   channelLocked = false,
   showDeliveryToggle = false,
+  serviceLayout = false,
+  showArrivalPicker = false,
+  assigneeBlock,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -104,6 +125,8 @@ export default function QuickForm({
   // ที่เดียว → หน้าจอ "ขอ" ที่อยู่ในสิ่งที่ตัวบล็อกจริงไม่ได้บังคับ (ดูเหตุผลเต็มใน lib/shipping-address-status)
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' })
+  // 00086 v13 — ปุ่มบันทึกของงานหน้าร้านบอกผล "· เข้าคิววันนี้" (เฉพาะฟอร์มที่มีปุ่มเลือกแบบการมา)
+  const watchedArrival = useWatch({ control, name: 'arrivalMode' }) as OrderArrivalChoice | undefined
   // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" อยู่ใน CustomerQuickBlock (มือถือ) แต่ needsShipping
   // ต้องรู้ค่านี้ที่นี่ด้วย เพราะ QuickForm เป็นเจ้าของ SSOT call ที่ต้องส่งลงเป็น prop `needsShipping`
   const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
@@ -130,9 +153,8 @@ export default function QuickForm({
 
   const rootCls = compact ? '' : '-mx-4 md:-mx-8'
   const secX = compact ? 'px-4' : 'px-4 md:px-8'
-  return (
-    <div className={rootCls}>
-      {/* SECTION 1: ลูกค้า (phone-first + wand paste + address) */}
+  const customerSection = (
+      /* SECTION 1: ลูกค้า (phone-first + wand paste + address) */
       <section className={`border-b-8 border-default-100 ${secX} py-4`}>
         <CustomerQuickBlock
           control={control}
@@ -144,14 +166,18 @@ export default function QuickForm({
           words={words}
         />
       </section>
+  )
 
-      {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
+  const channelSection = (
+      /* SECTION 2: ช่องทางการขาย + การชำระเงิน */
       <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
         <ChannelPaymentSelect control={control} compact={compact} channelLocked={channelLocked} />
       </section>
+  )
 
-      {/* SECTION 2.5: วันที่สั่งซื้อ (feature 00033) — ยุบไว้ + ปุ่มเปลี่ยน ตาม D-7
-          ห้ามห่อด้วย accordion ซ้ำ (ux ruling) — ยุบ/ขยายในตัวอยู่แล้ว */}
+  const dateSection = (
+      /* SECTION 2.5: วันที่สั่งซื้อ (feature 00033) — ยุบไว้ + ปุ่มเปลี่ยน ตาม D-7
+          ห้ามห่อด้วย accordion ซ้ำ (ux ruling) — ยุบ/ขยายในตัวอยู่แล้ว */
       <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
         <OrderDateRow
           control={control}
@@ -161,7 +187,10 @@ export default function QuickForm({
           dateLabel={orderDateLabel}
         />
       </section>
+  )
 
+  const itemsSection = (
+    <>
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
       {/* scroll-mt-24: onInvalid เลื่อนมาที่ section นี้ด้วย block:'start' ซึ่งจะเอาหัวข้อ + ป้าย
           "ต้องแก้" ไปนอนใต้ FullscreenPageHeader ที่เป็น sticky top-0 สูงราว 90px บนมือถือพอดี —
@@ -200,22 +229,13 @@ export default function QuickForm({
           </p>
         )}
       </section>
+    </>
+  )
 
-      {/* SECTION 3.5: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน)
-          หลังเลือกสินค้า/บริการแล้วค่อยนัดวัน ตาม Design Spec ส่วน C */}
-      {appointmentBlock}
-
-      {/* SECTION 4: เพิ่มเติม — ส่วนลด/VAT/หมายเหตุ (ไม่ collapse; สไตล์เดียวกับ section อื่น) */}
-      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
-        <div className="mb-3 flex items-center gap-2">
-          <Icon icon="adjustments" className="size-5 text-primary" />
-          <h2 className="text-base font-bold text-dark">เพิ่มเติม</h2>
-        </div>
-        <MoreOptions control={control} />
-      </section>
-
+  const footerAndPicker = (
+    <>
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
-      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} showCost={showCost} />
+      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} showCost={showCost} arrivalMode={showArrivalPicker ? (watchedArrival ?? 'BOOKED') : undefined} />
 
       {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
       <ProductPickerSheet
@@ -233,6 +253,72 @@ export default function QuickForm({
         }}
         onClose={() => setPickerIndex(null)}
       />
+    </>
+  )
+
+  if (serviceLayout) {
+    return (
+      <div className={rootCls}>
+        {customerSection}
+        {dateSection}
+
+        {/* ลูกค้ามาแบบไหน (00086 P2-T4) — ก่อนรายการงาน เพราะคำตอบเปลี่ยนสิ่งที่ต้องกรอกข้างล่าง */}
+        {showArrivalPicker && (
+          <section className={`border-b-8 border-default-100 ${secX} py-4`}>
+            <h2 className="mb-3 text-base font-bold text-dark">ลูกค้ามาแบบไหน</h2>
+            <ArrivalModePicker control={control} />
+          </section>
+        )}
+
+        {itemsSection}
+
+        {/* นัด (จองล่วงหน้า) หรือ เข้าคิววันนี้ (หน้าร้าน) — mode มาจาก OrderCreateForm */}
+        {appointmentBlock}
+
+        {/* ผู้รับผิดชอบ (00086 P3-T8) — ระหว่างนัด/คิว กับ เพิ่มเติม · ไม่มีรายชื่อช่าง = ไม่มีส่วนนี้ */}
+        {assigneeBlock}
+
+        {/* เพิ่มเติม — ช่องทาง/ชำระเงินแบบแถว (ค่า + [เปลี่ยน]) แล้วต่อด้วยส่วนลด/VAT/หมายเหตุเดิม */}
+        <section className={`border-b-8 border-default-100 ${secX} py-4`}>
+          <div className="mb-3 flex items-center gap-2">
+            <Icon icon="adjustments" className="size-5 text-primary" />
+            <h2 className="text-base font-bold text-dark">เพิ่มเติม</h2>
+          </div>
+          <div className="mb-3 border-b border-default-100 pb-1">
+            <ChannelPaymentSelect control={control} compact={compact} channelLocked={channelLocked} variant="row" />
+          </div>
+          <MoreOptions control={control} />
+        </section>
+
+        {footerAndPicker}
+      </div>
+    )
+  }
+
+  return (
+    <div className={rootCls}>
+      {customerSection}
+
+      {channelSection}
+
+      {dateSection}
+
+      {itemsSection}
+
+      {/* SECTION 3.5: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน)
+          หลังเลือกสินค้า/บริการแล้วค่อยนัดวัน ตาม Design Spec ส่วน C */}
+      {appointmentBlock}
+
+      {/* SECTION 4: เพิ่มเติม — ส่วนลด/VAT/หมายเหตุ (ไม่ collapse; สไตล์เดียวกับ section อื่น) */}
+      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
+        <div className="mb-3 flex items-center gap-2">
+          <Icon icon="adjustments" className="size-5 text-primary" />
+          <h2 className="text-base font-bold text-dark">เพิ่มเติม</h2>
+        </div>
+        <MoreOptions control={control} />
+      </section>
+
+      {footerAndPicker}
     </div>
   )
 }

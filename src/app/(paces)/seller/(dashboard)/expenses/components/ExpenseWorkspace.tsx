@@ -74,6 +74,8 @@ type Props = {
   serviceRules?: boolean
   /** feature 00078 — false = ไม่มีการ์ดกำไร/แถบเตือนต้นทุน (ร้านบริการ: กำไรอยู่หน้ายอดขายและกำไร) · ไม่ส่ง = เดิม */
   showReport?: boolean
+  /** 00086 FR-019 — ผู้ใช้ที่เปิดหน้า (เจ้าของ) ใช้ติดป้าย "บันทึกโดย" ให้แถวที่คนอื่นบันทึก */
+  viewerUserId?: string | null
 }
 
 export default function ExpenseWorkspace({
@@ -89,6 +91,7 @@ export default function ExpenseWorkspace({
   revenue,
   settings,
   showReport = true,
+  viewerUserId = null,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -267,6 +270,7 @@ export default function ExpenseWorkspace({
         onEdit={(expense) => setModal({ mode: 'edit', editing: expense })}
         onAdd={openCreate}
         onMutated={handleMutated}
+        viewerUserId={viewerUserId}
       />
 
       {/* ปุ่มหลักบนมือถือ — fixed เหนือ SellerBottomNav (ดู carve-out ในคอมเมนต์ด้านล่าง) */}

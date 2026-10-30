@@ -26,6 +26,7 @@ import {
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
   EXPENSE_CATEGORY_AVATAR,
+  expenseRecordedByLabel,
   type ExpenseCategory,
 } from '@/lib/expense'
 import { formatDateTH } from '@/lib/format-date'
@@ -53,6 +54,8 @@ type Props = {
   onEdit: (expense: SerializedExpense) => void
   onAdd: () => void
   onMutated: () => void
+  /** 00086 FR-019 — ผู้ดู (เจ้าของ) · แถวที่คนอื่นบันทึกขึ้น "บันทึกโดย {ชื่อ}" · ไม่ส่ง = ไม่แสดงป้าย (พฤติกรรมเดิม) */
+  viewerUserId?: string | null
 }
 
 export default function ExpenseList({
@@ -62,6 +65,7 @@ export default function ExpenseList({
   onEdit,
   onAdd,
   onMutated,
+  viewerUserId = null,
 }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | ExpenseCategory>('ALL')
   const [search, setSearch] = useState('')
@@ -239,6 +243,7 @@ export default function ExpenseList({
 
               {g.rows.map((expense) => {
                 const category = expense.category as ExpenseCategory
+                const recordedBy = expenseRecordedByLabel(expense, viewerUserId)
                 return (
                   <div
                     key={expense.id}
@@ -260,6 +265,13 @@ export default function ExpenseList({
                         </span>
                         {expense.note && (
                           <span className="text-default-700 block truncate text-xs">{expense.note}</span>
+                        )}
+                        {/* 00086 FR-019 — รายการที่พนักงานบันทึก: บอกผู้บันทึก (เจ้าของยังแก้/ลบได้ทุกแถวเหมือนเดิม) */}
+                        {recordedBy && (
+                          <span className="text-success-ink mt-0.5 flex items-center gap-1 text-xs font-medium">
+                            <Icon icon="user" className="shrink-0 text-sm" aria-hidden="true" />
+                            <span className="truncate">{recordedBy}</span>
+                          </span>
                         )}
                       </span>
                       <span className="text-default-900 shrink-0 font-bold">{formatBaht(expense.amount)}</span>

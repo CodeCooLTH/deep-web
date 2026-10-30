@@ -19,7 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { computeOrderMoneyFromSerialized } from '@/lib/order-payment'
 import { chatMoneySummary, chatOrderActions } from '@/lib/chat-order-actions'
-import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
+import { arrivalChipMeta, arrivalModeOf } from '@/lib/arrival-mode'
 import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
 import StartWalkInSheet from '../../../_components/StartWalkInSheet'
 import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
@@ -36,6 +36,7 @@ import { appointmentRangeText } from '@/lib/appointment-summary'
 import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import ShipmentStepper from '../../../_components/ShipmentStepper'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
+import { isServiceJobStarted } from '@/lib/service-status'
 import type { CustomerPanelOrder } from './CustomerPanel'
 import type { ShopVertical } from '@/lib/lodging'
 import { canEditOrder } from '@/lib/order-display'
@@ -95,6 +96,7 @@ export default function OrderProgressBar({
   pageAvatarUrl,
   shopId,
   canVoidPayment,
+  canCloseJob,
   variant = 'bar',
 }: {
   orders: CustomerPanelOrder[]
@@ -120,6 +122,8 @@ export default function OrderProgressBar({
   shopId: string | null
   /** ผู้ดูยกเลิกรายการรับเงินได้ไหม (O6) ในร้านของเธรด — ดู `CustomerPanelData.canVoidPayment` */
   canVoidPayment: boolean
+  /** 00086 S-5 — ผู้ดูปิดงานได้ไหมในร้านของเธรด — ดู `CustomerPanelData.canCloseJob` (false = ไม่มีปุ่ม "ปิดงาน") */
+  canCloseJob: boolean
   /**
    * 'bar' (เดิม) = แถบยุบ/กางของตัวเอง · 'detail' = เนื้อหาที่กางแล้วล้วน ๆ ไม่มีแถบ ไม่มีปุ่มย่อ
    *
@@ -257,6 +261,7 @@ export default function OrderProgressBar({
           orderLabel={displayNo(closeOrder)}
           shopId={shopId}
           hasAppointment={Boolean(closeOrder.serviceStart)}
+          serviceStarted={isServiceJobStarted(closeOrder)}
           money={computeOrderMoneyFromSerialized({
             totalAmount: closeOrder.totalAmount,
             depositAmount: closeOrder.depositAmount ?? null,
@@ -304,11 +309,13 @@ export default function OrderProgressBar({
                 : null
               /**
                * วิธีเข้ารับบริการ (หัวหน้าถาม 2026-08-15: *"อยากรู้ว่าคนนี้เข้ามารับบริการยังไง"*)
-               * derive จาก serviceStart เทียบ createdAt — ไม่มีคอลัมน์ใหม่ ตอบข้อมูลเก่าได้ทันที
+               * 00086: ค่าที่ร้านเลือกตอนเปิดบิล (`o.arrivalMode`) ชนะ · ใบเก่าไม่มีค่าเก็บ ⇒ สูตรเดิมจาก serviceStart/createdAt
                */
               const arrival = isService
-                ? resolveArrivalMode({ serviceStart: o.serviceStart ?? null, createdAt: o.createdAt })
+                ? arrivalModeOf({ arrivalMode: o.arrivalMode, serviceStart: o.serviceStart ?? null, createdAt: o.createdAt })
                 : null
+              // 00086 FR-002 — ชิปทั้งจองล่วงหน้า/หน้าร้าน · "ยังไม่ระบุเวลา" คงไว้ (สัญญาณให้กด "เริ่มงานเลย")
+              const arrivalChip = arrivalChipMeta(arrival, { includeUnscheduled: true })
               const payActions =
                 money !== null
                   ? chatOrderActions({
@@ -316,6 +323,7 @@ export default function OrderProgressBar({
                       appointmentStatus: o.appointmentStatus ?? null,
                       hasAppointment: Boolean(o.serviceStart),
                       serviceClosed: Boolean(o.serviceClosedAt),
+                      canClose: canCloseJob,
                       money,
                     })
                   : []
@@ -374,17 +382,17 @@ export default function OrderProgressBar({
                     {/**
                       * ชิป "วิธีเข้ารับบริการ" — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับยังไง"*
                       *
-                      * 🛑 แสดงเฉพาะตอนที่ **มีอะไรให้รู้จริง** — "จองล่วงหน้า" เป็นค่าปกติของร้านจอง
-                      * ติดป้ายทุกใบจะกลายเป็นเสียงรบกวนที่ตาข้ามไปเอง แล้ววันที่มีใบ "ยังไม่ระบุเวลา"
-                      * (ซึ่งเป็นใบที่ต้องลงมือ) ป้ายนั้นก็จะถูกข้ามไปด้วย
+                      * 00086 FR-002: ติดทั้ง "จองล่วงหน้า" และ "หน้าร้าน" — ร้านเลือกเองตอนเปิดบิลแล้ว
+                      * ไม่ใช่ค่าปกติที่ระบบเดา (เดิมซ่อนจองล่วงหน้าเพราะเดาจากเวลา) · "ยังไม่ระบุเวลา" ยังติด
+                      * เพราะเป็นใบที่ต้องลงมือ (กด "เริ่มงานเลย")
                       */}
-                    {arrival && arrival !== 'BOOKED' && (
+                    {arrivalChip && (
                       <span
-                        className={`${ARRIVAL_MODE_META[arrival].cls} inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium`}
-                        title={ARRIVAL_MODE_META[arrival].hint}
+                        className={`${arrivalChip.cls} inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs font-medium`}
+                        title={arrivalChip.hint}
                       >
-                        <Icon icon={ARRIVAL_MODE_META[arrival].icon} className="text-2xs" aria-hidden="true" />
-                        {ARRIVAL_MODE_META[arrival].label}
+                        <Icon icon={arrivalChip.icon} className="text-2xs" aria-hidden="true" />
+                        {arrivalChip.label}
                       </span>
                     )}
                     <span className="text-primary ms-auto text-xs font-bold">

@@ -135,10 +135,18 @@ describe('homeBlocks — spec §3 ทีละบทบาท', () => {
 })
 
 describe('bottomNavHiddenPages — ซ่อนแถบล่างเฉพาะบทบาทที่หน้านั้นวาดแถบเอง', () => {
-  it('ช่างล้วนไม่ซ่อนทั้งสองหน้า · เจ้าของ/ตอบแชท/เปิดบิลซ่อน', () => {
-    expect(bottomNavHiddenPages(['TECHNICIAN'])).toEqual({ orderDetail: false, queues: false })
+  const SERVICE = { kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' }
+  const ONLINE = { kind: 'BUSINESS', vertical: 'ONLINE_SALES' }
+  it('ช่างล้วนไม่ซ่อนทั้งสองหน้า · เจ้าของ/ตอบแชท/เปิดบิลซ่อน (ร้านที่ไม่ใช่ร้านบริการ)', () => {
+    expect(bottomNavHiddenPages(['TECHNICIAN'], ONLINE)).toEqual({ orderDetail: false, queues: false })
     for (const r of ['OWNER', 'MANAGER', 'CHAT', 'BILLING'] as const) {
-      expect(bottomNavHiddenPages([r])).toEqual({ orderDetail: true, queues: true })
+      expect(bottomNavHiddenPages([r], ONLINE)).toEqual({ orderDetail: true, queues: true })
+    }
+  })
+  it('ร้านบริการ (00086 · 2026-10-27): /queues ไม่ซ่อนทุกบทบาท · /orders/<token> คงเดิม', () => {
+    expect(bottomNavHiddenPages(['TECHNICIAN'], SERVICE)).toEqual({ orderDetail: false, queues: false })
+    for (const r of ['OWNER', 'MANAGER', 'CHAT', 'BILLING'] as const) {
+      expect(bottomNavHiddenPages([r], SERVICE)).toEqual({ orderDetail: true, queues: false })
     }
   })
 })
@@ -162,8 +170,8 @@ describe('layout/page: ตัดที่ต้นทาง ไม่ใช่�
   it('page: สินค้าขายดี/โดนัท query ตามธง · TodayJobs mount ตามธงทั้งสองที่', () => {
     expect(page).toMatch(/blocks\.bestSellerStrip \|\| money\.topSelling \? getBestSellerProducts/)
     expect(page).toMatch(/blocks\.salesChannelDonut \? getSalesChannelBreakdown/)
-    expect(page).toMatch(/\{blocks\.todayJobs && \(\s*<div className="xl:col-span-7">\s*<TodayJobs/)
-    expect(cc).toMatch(/\{blocks\.todayJobs && <TodayJobs \/>\}/)
+    expect(page).toMatch(/\{blocks\.todayJobs && \(\s*<div className="xl:col-span-7">\s*(\{\/\*[^*]*\*\/\}\s*)?<TodayJobs/)
+    expect(cc).toMatch(/\{blocks\.todayJobs && <TodayJobs viewerUserId=\{viewerUserId\} \/>\}/)
     expect(cc).toMatch(/\{blocks\.bestSellerStrip && <BestSellerStrip/)
   })
   it('page: ยอดรายใบข้ามเส้น RSC เฉพาะเมื่อ recentOrderAmount', () => {
@@ -171,5 +179,43 @@ describe('layout/page: ตัดที่ต้นทาง ไม่ใช่�
   })
   it('ฟีดกิจกรรมที่ช่างเห็น: รายการเงิน (เติมเงิน) ถูกกันด้วย money.topups (FULL) เท่านั้น', () => {
     expect(page).toMatch(/includeTopups: money\.topups &&/)
+  })
+})
+
+// ─── showsStaffExpenseCard (00086 · FR-018) — การ์ด "ค่าใช้จ่ายที่ฉันบันทึก" + ด่านหน้า /expenses/mine ─────────────
+import { showsStaffExpenseCard } from '../dashboard-money'
+
+describe('showsStaffExpenseCard — ร้านบริการ ∧ ADMIN ∧ ธง ∧ ไม่มี F1', () => {
+  const SVC = { kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' }
+  const ON = { canRecordExpense: true }
+
+  it.each(['CHAT', 'BILLING', 'TECHNICIAN', 'MANAGER'] as const)('พนักงาน %s + ธงเปิด ในร้านบริการ = เห็น', (r) => {
+    expect(showsStaffExpenseCard(SVC, 'ADMIN', [r], ON)).toBe(true)
+  })
+  it('ธงปิด / ไม่ส่งธง / ธงไม่ใช่ true = ไม่เห็น (ไม่มีค่าตั้งต้นที่เปิด)', () => {
+    expect(showsStaffExpenseCard(SVC, 'ADMIN', ['CHAT'], { canRecordExpense: false })).toBe(false)
+    expect(showsStaffExpenseCard(SVC, 'ADMIN', ['CHAT'])).toBe(false)
+    expect(showsStaffExpenseCard(SVC, 'ADMIN', ['CHAT'], {})).toBe(false)
+  })
+  it('เจ้าของ (OWNER / มี F1) = ไม่เห็น แม้ธงค้างเป็น true', () => {
+    expect(showsStaffExpenseCard(SVC, 'OWNER', ['OWNER'], ON)).toBe(false)
+    expect(showsStaffExpenseCard(SVC, 'ADMIN', ['OWNER'], ON)).toBe(false)
+  })
+  it('ร้านไม่ใช่บริการ = ไม่เห็น แม้ธงค้าง (stored-flag-vs-owner-truth)', () => {
+    for (const vertical of ['ONLINE_SALES', 'LODGING']) {
+      expect(showsStaffExpenseCard({ kind: 'BUSINESS', vertical }, 'ADMIN', ['CHAT'], ON)).toBe(false)
+    }
+  })
+  it('ร้านส่วนตัว = ไม่เห็น', () => {
+    expect(showsStaffExpenseCard({ kind: 'PERSONAL', vertical: 'SERVICE_QUEUE' }, 'OWNER', ['OWNER'], ON)).toBe(false)
+  })
+})
+
+describe('dashboard/page.tsx: การ์ดค่าใช้จ่ายพนักงานผูกกับ showsStaffExpenseCard', () => {
+  const src = readFileSync(join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/dashboard/page.tsx'), 'utf8')
+  it('นับรายการเฉพาะเมื่อผ่านด่าน และ render ทั้งมือถือ/คอมจากค่าเดียว', () => {
+    expect(src).toMatch(/showsStaffExpenseCard\([\s\S]*?\)\s*\)\s*\{\s*\/\/[^\n]*\n\s*staffExpenseCount = await countOwnExpenses/)
+    expect(src).toContain('staffExpenseCount={staffExpenseCount}')
+    expect(src).toContain('{staffExpenseCount !== null && (')
   })
 })

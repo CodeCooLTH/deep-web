@@ -65,17 +65,17 @@ beforeAll(async () => {
 
   const A = await job('A', 3500, th('2026-10-02', 9))
   await pay(A.id, 2000, 'BALANCE')
-  await closeServiceJob({ shopId: svc.id, orderToken: A.publicToken, actorUserId: owner.id, outcome: 'SERVED', now: th('2026-10-02', 15) })
+  await closeServiceJob({ shopId: svc.id, orderToken: A.publicToken, actorUserId: owner.id, actorRoles: ['OWNER'], outcome: 'SERVED', now: th('2026-10-02', 15) })
 
   await job('B', 1000, th('2026-10-04', 9), { status: 'CONFIRMED' })
 
   const C = await job('C', 2000, th('2026-10-03', 9))
   await pay(C.id, 300)
-  await closeServiceJob({ shopId: svc.id, orderToken: C.publicToken, actorUserId: owner.id, outcome: 'NO_SHOW', now: th('2026-10-03', 15) })
+  await closeServiceJob({ shopId: svc.id, orderToken: C.publicToken, actorUserId: owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW', now: th('2026-10-03', 15) })
 
   const D = await job('D', 2000, th('2026-10-03', 10))
   await pay(D.id, 500)
-  await closeServiceJob({ shopId: svc.id, orderToken: D.publicToken, actorUserId: owner.id, outcome: 'NO_SHOW', deposit: 'REFUND', now: th('2026-10-03', 16) })
+  await closeServiceJob({ shopId: svc.id, orderToken: D.publicToken, actorUserId: owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW', deposit: 'REFUND', now: th('2026-10-03', 16) })
 
   await job('E', 900, th('2026-10-05', 9), { status: 'CANCELLED' })
 

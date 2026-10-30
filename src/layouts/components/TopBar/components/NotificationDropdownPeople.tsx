@@ -17,12 +17,21 @@
  *
  * Spec: docs/20 - Features/00011 - Deep Chat/UX-Design-Spec-Bell.md §Seller bell
  * ไม่มีปุ่ม "ดูทั้งหมด" ท้าย dropdown ตามข้อสรุป OQ1 (v1 dropdown-only)
+ *
+ * 00086 FR-020 (user ตัดสิน 2026-10-27): แจ้งเตือนที่ผูกร้าน (shopId) — ไอคอน/ลิงก์จาก src/lib/shop-notification.ts
+ * · เป็นของ "ร้านอื่น" ที่ไม่ใช่ร้านที่เปิดอยู่ → โชว์ชื่อร้าน และกดแล้วสลับร้านก่อน (useShopSwitcher
+ *   แบบเดียวกับ ChatShopAutoSwitch: overlay สั้น 800ms แล้ว hard-navigate ไปลิงก์ของแจ้งเตือน)
+ *   เพราะหน้าปลายทางอ่านร้านจาก activeShopId — ไม่สลับก่อน = เปิดหน้าของผิดร้าน
  */
 
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
+import { useShopSwitcher } from '@/hooks/useShopSwitcher'
+import { isOtherShopNotification, shopNotificationHref, shopNotificationStyle } from '@/lib/shop-notification'
 import { useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 
@@ -34,6 +43,9 @@ type NotificationItem = {
   refId: string | null
   read: boolean
   createdAt: string
+  // 00086 — null = แจ้งเตือนระดับบัญชี (badge/แชท)
+  shopId?: string | null
+  shopName?: string | null
 }
 
 type NotificationsResponse = {
@@ -46,17 +58,25 @@ type NotificationsResponse = {
 function iconForKind(kind: string): { icon: string; className: string } {
   if (kind === 'chat_message') return { icon: 'message-circle', className: 'text-primary' }
   if (kind === 'badge_earned') return { icon: 'award', className: 'text-warning' }
-  return { icon: 'bell', className: 'text-default-500' }
+  // แจ้งเตือนของร้าน (staff_expense → receipt ฯลฯ) · kind ที่ไม่รู้จัก = bell เหมือนเดิม
+  const st = shopNotificationStyle(kind)
+  return { icon: st.icon, className: st.colorClass }
 }
 
 // deep-link ตาม kind — chat_message ไปที่ inbox ของ conversation, kind อื่นแค่ mark-read ไม่ navigate
-function deepLinkForKind(item: NotificationItem): string | null {
+// แจ้งเตือนของร้าน: ลิงก์รายแถว (service_job_* → /orders/{refId} · 00086 T11) หรือคงที่ตาม kind (staff_expense → /expenses)
+export function deepLinkForKind(item: Pick<NotificationItem, 'kind' | 'refId' | 'shopId'>): string | null {
   if (item.kind === 'chat_message' && item.refId) return `/inbox/${item.refId}`
+  if (item.shopId) return shopNotificationHref(item.kind, item.refId)
   return null
 }
 
 const NotificationDropdownPeople = () => {
   const router = useRouter()
+  const { data: session } = useSession()
+  const activeShopId = (session?.user as { activeShopId?: string | null } | undefined)?.activeShopId ?? null
+  // ผู้ใช้ตั้งใจ "อ่านแจ้งเตือน" ไม่ได้ตั้งใจสลับร้าน — overlay สั้น (เหตุผลเดียวกับ ChatShopAutoSwitch)
+  const { switching, target, switchShop } = useShopSwitcher({ minOverlayMs: 800 })
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -124,6 +144,10 @@ const NotificationDropdownPeople = () => {
 
     const link = deepLinkForKind(item)
     setOpen(false)
+    if (link && isOtherShopNotification(item.shopId, activeShopId)) {
+      switchShop(item.shopId as string, { name: item.shopName ?? undefined }, { landingPath: link })
+      return
+    }
     if (link) router.push(link)
   }
 
@@ -249,6 +273,12 @@ const NotificationDropdownPeople = () => {
                     <span className="grow min-w-0 text-default-400">
                       <span className="font-medium text-body-color block truncate">{item.title}</span>
                       <span className="block truncate">{item.body}</span>
+                      {item.shopName && isOtherShopNotification(item.shopId, activeShopId) && (
+                        <span className="flex items-center gap-1 text-xs min-w-0">
+                          <Icon icon="building-store" className="shrink-0" />
+                          <span className="truncate">{item.shopName}</span>
+                        </span>
+                      )}
                       <span className="text-xs">{relativeTimeTh(new Date(item.createdAt).getTime())}</span>
                     </span>
                   </button>
@@ -257,6 +287,7 @@ const NotificationDropdownPeople = () => {
           </SimpleBar>
         </div>
       )}
+      <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
     </div>
   )
 }

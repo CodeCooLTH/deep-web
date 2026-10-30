@@ -670,6 +670,8 @@ export const th = {
     /** {create} = vocab.createLabel — ของเดิมคือ `${createLabel}แรกเลย` */
     activityEmptyTitle: '{create}แรกเลย',
     activityEmptyDesc: 'กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน',
+    // ฟีดว่างของบทบาทที่สร้างรายการไม่ได้ (ช่างล้วนร้านบริการ) — ไม่ชวนสร้าง
+    activityEmptyTitleNoCreate: 'ยังไม่มีกิจกรรม',
     /** ตัวมือถือ (ActivityTimeline) ใช้หัวข้อสั้นกว่า — ไม่มีปุ่ม CTA ใต้ข้อความ */
     activityEmptyNone: 'ยังไม่มีกิจกรรม',
 
@@ -717,6 +719,9 @@ export const th = {
     navCreate: 'สร้าง',
     navChat: 'แชท',
     navShop: 'ร้านค้า',
+    /** 00086 FR-016: แท็บเติมของแถบล่าง — ใช้เฉพาะร้านบริการ (ร้านอื่นไม่มีแท็บนี้) */
+    navQueues: 'ตารางงาน',
+    navCustomers: 'ลูกค้า',
     navShopAlertAria: 'มีรายงานเข้ากลุ่ม LINE ที่ต้องดูแล',
     navCreateOpen: 'เปิดเมนูสร้าง',
     navCreateClose: 'ปิดเมนูสร้าง',
@@ -746,6 +751,16 @@ export const th = {
     todayJobsEmpty: 'วันนี้ยังไม่มีงาน',
     todayJobsMonth: 'ดูตารางงานทั้งเดือน',
     todayJobsAllToday: 'ดูทั้งหมดวันนี้ ({n})',
+    // 00086 P3 — หน้าแรกช่างล้วน ร้านบริการ (FR-008)
+    todayMineTitle: 'งานของฉันวันนี้',
+    todayMineTitleCount: 'งานของฉันวันนี้ · {n} งาน',
+    todayMineSeeAll: 'ดูทั้งหมด',
+    todayMineEmpty: 'วันนี้ยังไม่มีงานของคุณ',
+    todayMineAll: 'ดูงานของฉันทั้งหมด ({n})',
+    todayUnassignedTitleCount: 'ยังไม่มีคนรับ · {n} งาน',
+    todayUnassignedHint: 'แตะงานแล้วกด "รับงานนี้" งานจะย้ายมาอยู่ในงานของคุณ',
+    // หัวการ์ดตัวนับบนหน้าแรกช่างล้วนร้านบริการ — ตัวเลขเป็นของทั้งร้าน แยกจาก "งานของฉันวันนี้" (homeBlocks().shopWideJobLabels)
+    technicianShopJobs: 'งานทั้งร้าน',
   },
 
   /**

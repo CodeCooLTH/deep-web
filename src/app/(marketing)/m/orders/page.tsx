@@ -11,7 +11,7 @@ import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
 import { MPageTitle, MEmpty, MChip, type SemColor } from '../_components/ui'
 import { sessionUserId } from '@/lib/session-user'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import type { OrderStatusTone } from '@/lib/order-display'
 
 export const metadata: Metadata = { title: 'คำสั่งซื้อของฉัน' }
@@ -120,6 +120,8 @@ export default async function MobileOrdersPage({
                     status: o.status,
                     appointmentStatus: o.appointmentStatus ?? null,
                     hasAppointment: Boolean(o.serviceStart),
+                    // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+                    arrivalMode: serviceArrivalOf(o),
                     serviceClosedAt: o.serviceClosedAt ?? null,
                     outstanding: null,
                   },

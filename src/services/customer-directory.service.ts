@@ -24,7 +24,7 @@ import {
   serviceRevenueOrderWhere,
 } from '@/lib/order-revenue'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -81,6 +81,11 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
       // feature 00073 — ร้านบริการ: ยอดสะสมนับงานที่ร้านปิดแล้ว · ไม่มาตามนัด = มัดจำที่เก็บไว้
       ...SERVICE_REVENUE_SELECT,
       serviceStart: true,
+      // feature 00086 FR-001 — งานหน้าร้านขึ้น "รอเริ่มงาน" (serviceArrivalOf อ่านคู่กับ createdAt)
+      arrivalMode: true,
+      // feature 00086 — กำลังให้บริการ / ทำเสร็จ · รอปิดงาน (ป้ายเดียวกับการ์ดงาน)
+      serviceStartedAt: true,
+      serviceFinishedAt: true,
       /**
        * 🛑 ดึงพัสดุ "ทุกใบ" ของออเดอร์ ไม่ใช่ take 1 — เพราะที่นี่ต้องตอบ 2 คำถามที่ใช้ชุดพัสดุ
        * ต่างกัน จาก query เดียว:
@@ -164,7 +169,11 @@ export async function aggregateShopCustomers(shopId: string): Promise<CustomerDi
                 status: o.status,
                 appointmentStatus: o.appointmentStatus ?? null,
                 hasAppointment: Boolean(o.serviceStart),
+                // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+                arrivalMode: serviceArrivalOf(o),
                 serviceClosedAt: o.serviceClosedAt ?? null,
+                serviceStartedAt: o.serviceStartedAt ?? null,
+                serviceFinishedAt: o.serviceFinishedAt ?? null,
                 outstanding: null,
               },
               'seller',

@@ -85,6 +85,7 @@ import { deliveredConfirmCopy, MANUAL_STEP_FAILED, manualStepToast, postManualSt
 import { isCodUnpaidOrder } from '@/lib/order-display'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import { toFileUrl } from '@/lib/file-url'
+import { isServiceJobStarted } from '@/lib/service-status'
 
 export type CustomerPanelOrder = {
   id: string
@@ -106,6 +107,12 @@ export type CustomerPanelOrder = {
   appointmentStatus?: string | null
   /** feature 00073 — วันปิดงาน (ISO) · null = ยังไม่ปิด */
   serviceClosedAt?: string | null
+  /** feature 00086 — เวลากดเริ่มงาน (ISO) · null = ยังไม่เริ่ม ⇒ ชีตปิดงานซ่อน "ไม่มาตามนัด" เมื่อเริ่มแล้ว (isServiceJobStarted) */
+  serviceStartedAt?: string | null
+  /** feature 00086 — เวลากดทำเสร็จ (ISO) · แถบงานในแชทขึ้น "ทำเสร็จ · รอปิดงาน" (serviceProgressStage) */
+  serviceFinishedAt?: string | null
+  /** feature 00086 — แบบการมาที่ร้านเลือก (BOOKED|WALK_IN) · null = ใบเก่า ⇒ จออ่านผ่าน arrivalModeOf */
+  arrivalMode?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — snapshot ตอนสร้าง ไม่ใช่สูตรสด (BR-RSV-46/47)
    *  IMPORTANT: ค่านี้คือ **ข้อตกลง** ไม่ใช่เงินที่เข้าแล้ว — ห้ามแสดงเป็นสถานะที่สื่อว่า
    *  "เก็บแล้ว" (BR-SQ-02) · เงินที่รับจริงอยู่ที่ตาราง `OrderPayment` ตั้งแต่ feature 00050
@@ -159,6 +166,11 @@ export type CustomerPanelData = {
   vertical: ShopVertical
   /** ผู้ดูยกเลิกรายการรับเงินได้ไหม (O6) ในร้านของเธรดนี้ — server คำนวณจากบทบาทจริงของร้านนั้น (BR-UNI-07) ไม่ใช่ร้านที่ active */
   canVoidPayment: boolean
+  /**
+   * 00086 S-5 (FR-005/FR-011) — ผู้ดูปิดงานได้ไหมในร้านของเธรดนี้ (`canCloseJobInShop(Conversation.shopId)`)
+   * false = ไม่มีปุ่ม "ปิดงาน" บนการ์ดงาน (แผงขวา + แถบมือถือ) · "เริ่มงานเลย" ไม่ขึ้นกับค่านี้
+   */
+  canCloseJob: boolean
   /**
    * ร้านของเธรดนี้ (feature 00050) — ส่งต่อเป็น `?shopId=` ให้ API ที่ปุ่มบนการ์ดยิง
    *
@@ -323,6 +335,7 @@ function OrderCard({
   vertical,
   shopId,
   canVoidPayment,
+  canCloseJob,
   onCancelled,
 }: {
   o: CustomerPanelOrder
@@ -336,6 +349,8 @@ function OrderCard({
   shopId: string
   /** ดู `CustomerPanelData.canVoidPayment` */
   canVoidPayment: boolean
+  /** ดู `CustomerPanelData.canCloseJob` */
+  canCloseJob: boolean
   /** แจ้ง OrdersList อัปเดต status ใน local state — ไม่ router.refresh() เพราะจะรบกวน
    *  scroll/​state ของห้องแชทที่เปิดค้างอยู่ (pattern เดียวกับ CRM section ในไฟล์นี้) */
   onCancelled: (id: string) => void
@@ -384,6 +399,7 @@ function OrderCard({
         appointmentStatus: o.appointmentStatus ?? null,
         hasAppointment: Boolean(o.serviceStart),
         serviceClosed: Boolean(o.serviceClosedAt),
+        canClose: canCloseJob,
         money,
       })
     : []
@@ -580,6 +596,12 @@ function OrderCard({
         serviceEnd: o.serviceEnd,
         appointmentStatus: o.appointmentStatus,
         serviceClosedAt: o.serviceClosedAt ?? null,
+        // feature 00086 — ป้ายงานหน้าร้าน + ชิปจองล่วงหน้า/หน้าร้าน (ชุดเดียวกับแถบมือถือ)
+        arrivalMode: o.arrivalMode ?? null,
+        createdAt: o.createdAt,
+        // feature 00086 — ขั้นระหว่างทำงาน ให้ป้ายการ์ดตรงกับแถบงานในแชท
+        serviceStartedAt: o.serviceStartedAt ?? null,
+        serviceFinishedAt: o.serviceFinishedAt ?? null,
         depositAmount: o.depositAmount,
       }}
       onEdit={openEdit}
@@ -747,6 +769,7 @@ function OrderCard({
         orderLabel={o.orderNo || o.token.slice(0, 8).toUpperCase()}
         shopId={shopId}
         hasAppointment={Boolean(o.serviceStart)}
+        serviceStarted={isServiceJobStarted(o)}
         money={money}
         canRefundDeposit={canVoidPayment}
         onClosed={() => router.refresh()}
@@ -802,6 +825,7 @@ function OrdersList({
   vertical,
   shopId,
   canVoidPayment,
+  canCloseJob,
 }: {
   conversationId: string
   initial: CustomerPanelOrder[]
@@ -814,6 +838,8 @@ function OrdersList({
   shopId: string
   /** ดู `CustomerPanelData.canVoidPayment` */
   canVoidPayment: boolean
+  /** ดู `CustomerPanelData.canCloseJob` */
+  canCloseJob: boolean
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
 
@@ -856,7 +882,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} shopId={shopId} canVoidPayment={canVoidPayment} onCancelled={markCancelled} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} shopId={shopId} canVoidPayment={canVoidPayment} canCloseJob={canCloseJob} onCancelled={markCancelled} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -1257,7 +1283,7 @@ export function CustomerPanelBody({
             <p className="text-default-700 mb-3 text-xs">
               {fmt(t.inbox.customerPanel.listScopeNote, { noun: tabNoun })}
             </p>
-            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} canVoidPayment={data.canVoidPayment} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} shopId={data.shopId} canVoidPayment={data.canVoidPayment} canCloseJob={data.canCloseJob} />
           </>
         ) : (
           <p className="text-default-700 mb-0 text-sm">

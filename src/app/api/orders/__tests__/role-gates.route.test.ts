@@ -76,17 +76,21 @@ const PRODUCT = '22222222-2222-4222-8222-222222222222'
 const TOKEN = 'tok-1'
 const params = { params: Promise.resolve({ token: TOKEN }) }
 
-/** ผู้ใช้เป็นสมาชิก ADMIN ของร้านที่มี `roles` ตามนี้ (ร้าน BUSINESS ประเภท `vertical`) */
-function asRole(roles: string[], vertical = 'SERVICE_QUEUE') {
+/** ผู้ใช้เป็นสมาชิก ADMIN ของร้านที่มี `roles` ตามนี้ (ร้าน BUSINESS ประเภท `vertical`) · `flags` = ธง 00086 ของแถวสมาชิก */
+function asRole(roles: string[], vertical = 'SERVICE_QUEUE', flags: { canCloseJob?: boolean; canRecordExpense?: boolean } = {}) {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1', activeShopId: SHOP } } as never)
   const shopRow = {
     id: SHOP, userId: 'owner-x', kind: 'BUSINESS', vertical, deletedAt: null, packageLockedAt: null, packageLockReason: null,
     payoutBankCode: null, payoutAccountNo: null, payoutAccountName: null, payoutPromptPayId: null,
-    members: [{ role: 'ADMIN', roles }],
+    members: [{ role: memberRole(roles), roles: memberRoles(roles), canCloseJob: false, canRecordExpense: false, ...flags }],
   }
   db.shop.findUnique.mockResolvedValue(shopRow)
-  db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles })
+  db.shopMember.findUnique.mockResolvedValue({ role: memberRole(roles), roles: memberRoles(roles), canCloseJob: false, canRecordExpense: false, ...flags })
 }
+const CLOSE_FLAG = { canCloseJob: true }
+// ['OWNER'] = แถวเจ้าของร่วม (role OWNER · roles ว่าง) — บทบาทพนักงานอื่น = role ADMIN + roles
+function memberRole(roles: string[]) { return roles.includes('OWNER') ? 'OWNER' : 'ADMIN' }
+function memberRoles(roles: string[]) { return roles.includes('OWNER') ? [] : roles }
 
 const json = (url: string, method: string, body: unknown) =>
   new NextRequest(`http://seller.deepth.local${url}`, { method, body: JSON.stringify(body) })
@@ -277,22 +281,22 @@ describe('สิทธิ์แยกราย action', () => {
     expect(svc.recordPayment).not.toHaveBeenCalled()
   })
 
-  it('TECHNICIAN ปิดผลนัด (O4) → 200', async () => {
-    asRole(['TECHNICIAN'])
+  it('TECHNICIAN (+ธงปิดงาน 00086) ปิดผลนัด (O4) → 200', async () => {
+    asRole(['TECHNICIAN'], 'SERVICE_QUEUE', CLOSE_FLAG)
     const res = await outcomePost(json(`/api/orders/${TOKEN}/appointment/outcome`, 'POST', { outcome: 'COMPLETED' }), params)
     expect(res.status).toBe(200)
     expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'SERVED', deposit: 'KEEP' }))
   })
 
   // ── feature 00073 — ปิดงาน: O4 ด่านหลัก · เงินต้อง O5 · คืนมัดจำต้อง O6 · เปิดงานอีกครั้งต้อง O6 ──
-  it('[00073] TECHNICIAN ปิดงานไม่มีเงิน → 200 และไม่ได้ยอดเงินกลับไป', async () => {
-    asRole(['TECHNICIAN'])
+  it('[00073] TECHNICIAN (+ธงปิดงาน) ปิดงานไม่มีเงิน → 200 และไม่ได้ยอดเงินกลับไป', async () => {
+    asRole(['TECHNICIAN'], 'SERVICE_QUEUE', CLOSE_FLAG)
     const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED' }), params)
     expect(res.status).toBe(200)
     expect(await res.json()).not.toHaveProperty('money')
   })
-  it('[00073] TECHNICIAN ปิดงานพร้อมรับเงิน (ไม่มี O5) → 403', async () => {
-    asRole(['TECHNICIAN'])
+  it('[00073] TECHNICIAN (+ธงปิดงาน) ปิดงานพร้อมรับเงิน (ไม่มี O5) → 403', async () => {
+    asRole(['TECHNICIAN'], 'SERVICE_QUEUE', CLOSE_FLAG)
     const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED', payment: { amount: 500 } }), params)
     expect(res.status).toBe(403)
     expect(svc.closeServiceJob).not.toHaveBeenCalled()
@@ -302,8 +306,8 @@ describe('สิทธิ์แยกราย action', () => {
     const res = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED' }), params)
     expect(res.status).toBe(403)
   })
-  it('[00073] CHAT (O4+O5 ไม่มี O6) ปิดไม่มาตามนัดแบบคืนมัดจำ → 403 · เก็บมัดจำ → 200', async () => {
-    asRole(['CHAT'])
+  it('[00073] CHAT (+ธงปิดงาน · O4+O5 ไม่มี O6) ปิดไม่มาตามนัดแบบคืนมัดจำ → 403 · เก็บมัดจำ → 200', async () => {
+    asRole(['CHAT'], 'SERVICE_QUEUE', CLOSE_FLAG)
     const refund = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'NO_SHOW', deposit: 'REFUND' }), params)
     expect(refund.status).toBe(403)
     const keep = await closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'NO_SHOW', deposit: 'KEEP' }), params)
@@ -379,6 +383,79 @@ describe('สิทธิ์แยกราย action', () => {
     svc.setOrRescheduleAppointment.mockResolvedValue({})
     const res = await reschedulePatch(json(`/api/orders/${TOKEN}/appointment`, 'PATCH', {}), params)
     expect(res.status).not.toBe(403)
+  })
+})
+
+describe('[00086 S-5] ปิดงานตามสิทธิ์ — /close และ /appointment/outcome กั้นเท่ากัน (FR-005)', () => {
+  const closeCall = () => closePost(json(`/api/orders/${TOKEN}/close`, 'POST', { outcome: 'SERVED' }), params)
+  const outcomeCall = () => outcomePost(json(`/api/orders/${TOKEN}/appointment/outcome`, 'POST', { outcome: 'COMPLETED' }), params)
+  const ROUTES = [['POST /close', closeCall], ['POST /appointment/outcome', outcomeCall]] as const
+
+  type Case = [label: string, status: 200 | 403, roles: string[], flags: { canCloseJob?: boolean }]
+  const SERVICE: Case[] = [
+    ['OWNER (ไม่มีธง)', 200, ['OWNER'], {}],
+    ['MANAGER (ไม่มีธง)', 200, ['MANAGER'], {}],
+    ['CHAT + ธง', 200, ['CHAT'], { canCloseJob: true }],
+    ['CHAT ไม่มีธง', 403, ['CHAT'], {}],
+    ['TECHNICIAN + ธง', 200, ['TECHNICIAN'], { canCloseJob: true }],
+    ['TECHNICIAN ไม่มีธง', 403, ['TECHNICIAN'], {}],
+    ['TECHNICIAN+CHAT ไม่มีธง', 403, ['TECHNICIAN', 'CHAT'], {}],
+    ['BILLING ไม่มีธง', 403, ['BILLING'], {}],
+    // BILLING ไม่มี O4 ⇒ ตกตั้งแต่ด่านเดิม · ธงที่ค้างในแถว (ไม่ควรเกิด — CHECK กันไว้) ต้องไม่เปิดทาง
+    ['BILLING + ธง', 403, ['BILLING'], { canCloseJob: true }],
+  ]
+
+  describe.each(ROUTES)('%s — ร้านบริการ (SERVICE_QUEUE)', (_r, call) => {
+    it.each(SERVICE)('%s → %d', async (_l, status, roles, flags) => {
+      asRole(roles, 'SERVICE_QUEUE', flags)
+      const res = await call()
+      expect(res.status).toBe(status)
+      if (status === 403) {
+        expect(await res.json()).toEqual({ error: 'FORBIDDEN_ROLE' })
+        expect(svc.closeServiceJob).not.toHaveBeenCalled()
+      } else {
+        expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ shopId: SHOP, orderToken: TOKEN }))
+      }
+    })
+  })
+
+  // ร้านอื่น: กติกาเดิม (O4) ทุกประการ — ไม่มีธงก็ปิดได้ถ้าบทบาทมี O4
+  const NON_SERVICE: Case[] = [
+    ['CHAT ไม่มีธง', 200, ['CHAT'], {}],
+    ['TECHNICIAN ไม่มีธง', 200, ['TECHNICIAN'], {}],
+    ['MANAGER', 200, ['MANAGER'], {}],
+    ['BILLING (ถูกตัดทิ้งนอกร้านบริการ)', 403, ['BILLING'], {}],
+  ]
+  describe.each(['ONLINE_SALES', 'LODGING'])('ร้าน %s — เท่ากับ O4 เดิม', (vertical) => {
+    describe.each(ROUTES)('%s', (_r, call) => {
+      it.each(NON_SERVICE)('%s → %d', async (_l, status, roles, flags) => {
+        asRole(roles, vertical, flags)
+        expect((await call()).status).toBe(status)
+      })
+    })
+  })
+
+  it('?shopId= ร้านอื่น: ตัดสินด้วยธงของแถวสมาชิก "ร้านนั้น" และส่ง shopId เดียวกันเข้า service', async () => {
+    const OTHER = '33333333-3333-4333-8333-333333333333'
+    asRole(['TECHNICIAN'], 'SERVICE_QUEUE', CLOSE_FLAG)
+    db.shop.findUnique.mockResolvedValue({
+      id: OTHER, userId: 'owner-y', kind: 'BUSINESS', vertical: 'SERVICE_QUEUE', deletedAt: null, packageLockedAt: null, packageLockReason: null,
+    })
+    // แถวสมาชิกของร้าน OTHER ไม่มีธง ⇒ ต้องโดนปฏิเสธแม้ร้าน active (SHOP) จะมีธง
+    db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['TECHNICIAN'], canCloseJob: false, canRecordExpense: false })
+    const res = await outcomePost(json(`/api/orders/${TOKEN}/appointment/outcome?shopId=${OTHER}`, 'POST', { outcome: 'COMPLETED' }), params)
+    expect(res.status).toBe(403)
+    expect(svc.closeServiceJob).not.toHaveBeenCalled()
+
+    db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['TECHNICIAN'], canCloseJob: true, canRecordExpense: false })
+    const ok = await closePost(json(`/api/orders/${TOKEN}/close?shopId=${OTHER}`, 'POST', { outcome: 'SERVED' }), params)
+    expect(ok.status).toBe(200)
+    expect(svc.closeServiceJob).toHaveBeenCalledWith(expect.objectContaining({ shopId: OTHER }))
+  })
+
+  it('เปิดงานอีกครั้ง (DELETE, O6) และพรีวิวเงิน (GET) ไม่เปลี่ยน — MANAGER ไม่ต้องมีธง', async () => {
+    asRole(['MANAGER'])
+    expect((await reopenDelete(json(`/api/orders/${TOKEN}/close`, 'DELETE', {}), params)).status).toBe(200)
   })
 })
 

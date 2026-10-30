@@ -6,6 +6,8 @@
  * (มิเรอร์ Order.status/Shop.kind) เพิ่ม/แก้หมวดในอนาคต = แก้ constant array นี้
  * ไม่ต้อง migration
  */
+import { canUseAppointments } from '@/lib/appointments'
+
 export const EXPENSE_CATEGORIES = [
   'RENT', 'PACKAGING', 'ADVERTISING', 'SHIPPING', 'SALARY', 'UTILITIES', 'OTHER',
 ] as const
@@ -94,4 +96,64 @@ export function groupExpensesByCategory(
       percent: total > 0 ? (amount / total) * 100 : 0,
     }))
     .sort((a, b) => b.amount - a.amount)
+}
+
+// ─── 00086 Service Staff Workflow (FR-018/019) ────────────────────────────────────────────────────
+
+/**
+ * ผู้ดูที่ใช้ตัดสินป้าย "บันทึกโดย" — ร้านบริการเท่านั้น (00086 คือฟีเจอร์ของร้านบริการ)
+ * ร้านขายของ/ที่พักที่มีเจ้าของร่วมหลายคนต้องเห็นรายการเหมือนเดิมทุกตัวอักษร ⇒ คืน null = ไม่มีป้ายเลย
+ * ตัดสินที่นี่ (ไม่ใช่ในหน้า) เพื่อให้เทสพิสูจน์ได้ว่าไม่รั่วข้าม vertical
+ */
+export function expenseRecordedByViewer(
+  shop: { kind: string; vertical: string } | null | undefined,
+  viewerUserId: string | null | undefined,
+): string | null {
+  return canUseAppointments(shop) && viewerUserId ? viewerUserId : null
+}
+
+/**
+ * ปลายทาง API ของค่าใช้จ่าย ตามขอบเขตผู้ใช้ — ExpenseFormModal ตัวเดียวใช้ได้ทั้งเจ้าของและพนักงาน
+ *  - 'shop' (ค่าตั้งต้น) = เจ้าของ (F1/F2) · /api/expenses เดิมทุกตัวอักษร
+ *  - 'mine' = พนักงานที่ได้ธง canRecordExpense · /api/expenses/mine (แถวของตัวเองเท่านั้น)
+ * แยกเป็นฟังก์ชันบริสุทธิ์เพื่อให้เทสพิสูจน์ได้ว่าฝั่งพนักงานไม่มีทางยิงเข้าเส้นทางของเจ้าของ
+ */
+export type ExpenseApiScope = 'shop' | 'mine'
+
+export function expenseApi(scope: ExpenseApiScope = 'shop') {
+  const base = scope === 'mine' ? '/api/expenses/mine' : '/api/expenses'
+  return { collection: base, item: (id: string) => `${base}/${id}` }
+}
+
+/**
+ * ผลของการกดลบใน ExpenseFormModal — ตัดสินจาก status (+ body ของ 404 ฝั่ง 'mine')
+ *  - 'shop' (เจ้าของ): พฤติกรรมเดิมทุกตัวอักษร — 404 ใด ๆ = ถูกลบไปแล้ว
+ *  - 'mine' (พนักงาน): ถือว่า "ถูกลบไปแล้ว" เฉพาะ 404 {error:'Not found'} (แถวไม่มี/ไม่ใช่ของฉัน)
+ *    อย่างอื่นทั้งหมด (409 NO_SHOP, 403 ถูกถอนธง ฯลฯ) = error — กันขึ้น "ลบแล้ว" ทั้งที่แถวยังอยู่ (MINOR-4)
+ */
+export type ExpenseDeleteOutcome = 'deleted' | 'already-gone' | 'error'
+
+export function expenseDeleteOutcome(
+  scope: ExpenseApiScope,
+  status: number,
+  body: unknown,
+): ExpenseDeleteOutcome {
+  if (status >= 200 && status < 300) return 'deleted'
+  if (status !== 404) return 'error'
+  if (scope !== 'mine') return 'already-gone'
+  const error = body && typeof body === 'object' ? (body as { error?: unknown }).error : undefined
+  return error === 'Not found' ? 'already-gone' : 'error'
+}
+
+/**
+ * ป้าย "บันทึกโดย {ชื่อ}" ในรายการของเจ้าของ (FR-019) — แสดงเฉพาะแถวที่คนอื่นบันทึก
+ * แถวของผู้ดูเอง / ไม่รู้ผู้ดู / ไม่มีชื่อ (แถวดิบที่ไม่ได้ join ผู้ใช้) = null (ไม่แสดง ไม่เดาชื่อ)
+ */
+export function expenseRecordedByLabel(
+  expense: { createdByUserId: string; createdByName: string | null },
+  viewerUserId: string | null | undefined,
+): string | null {
+  if (!viewerUserId || expense.createdByUserId === viewerUserId) return null
+  const name = expense.createdByName?.trim()
+  return name ? `บันทึกโดย ${name}` : null
 }

@@ -22,7 +22,7 @@
 
 import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from "./appointment-stage";
 import { isTerminalAppointmentStatus, type AppointmentStatus } from "./appointments";
-import { SERVICE_STATUS_META } from "./service-status";
+import { SERVICE_STATUS_META, serviceArrivalOf } from "./service-status";
 
 /**
  * กองของออเดอร์บริการ 1 ใบ
@@ -40,6 +40,9 @@ export type ServiceProgressStageKey =
   | "PENDING"
   /** feature 00073 — ลูกค้ายืนยันรับบริการแล้ว แต่ร้านยังไม่ปิดงาน (ยอดยังไม่เข้า) */
   | "AWAITING_CLOSE"
+  /** feature 00086 — ร้านกดเริ่มงานแล้ว / ทำเสร็จแล้วรอปิด (ป้ายชุดเดียวกับการ์ดงาน · service-status) */
+  | "IN_SERVICE"
+  | "FINISHED_AWAITING_CLOSE"
   | "DONE";
 
 export interface ServiceProgressOrderInput {
@@ -48,6 +51,16 @@ export interface ServiceProgressOrderInput {
   appointmentStatus?: string | null;
   /** feature 00073 — ร้านปิดงานแล้ว = จบจากมุมของร้าน (หายจากรายการงานค้าง) */
   serviceClosedAt?: string | Date | null;
+  /**
+   * feature 00086 FR-001 — แบบการมาที่ร้านเลือก (BOOKED|WALK_IN) + createdAt (สูตรเดิมของใบที่ไม่มีค่าเก็บ)
+   * งานหน้าร้านมีเวลาเริ่มตั้งแต่สร้าง ⇒ ตกกอง SCHEDULED ("นัดแล้ว") ถ้าไม่รู้ว่ามาหน้าร้าน
+   * ไม่ส่งทั้งคู่ = ผลเดิมทุกตัว
+   */
+  arrivalMode?: string | null;
+  createdAt?: string | Date | null;
+  /** feature 00086 — Order.serviceStartedAt/serviceFinishedAt · ไม่ส่ง = ผลเดิมทุกตัว */
+  serviceStartedAt?: string | Date | null;
+  serviceFinishedAt?: string | Date | null;
 }
 
 export function serviceProgressStage(
@@ -58,6 +71,11 @@ export function serviceProgressStage(
   if (o.serviceClosedAt) return "DONE";
   // ลูกค้ายืนยันไปก่อนแต่ร้านยังไม่ปิด — ยังเป็นงานค้างของร้าน (ต้องปิดเพื่อให้ยอดเข้า)
   if (o.status === "CONFIRMED") return "AWAITING_CLOSE";
+  // 00086 — ขั้นระหว่างทำงานชนะป้ายนัด (ลำดับเดียวกับ deriveServiceStatus) · ไม่มาตามนัด/ให้บริการแล้วยังจบก่อน
+  if (o.appointmentStatus !== "NO_SHOW" && o.appointmentStatus !== "COMPLETED") {
+    if (o.serviceFinishedAt) return "FINISHED_AWAITING_CLOSE";
+    if (o.serviceStartedAt) return "IN_SERVICE";
+  }
   const stage = deriveAppointmentStage({
     serviceStart: o.serviceStart ?? null,
     appointmentStatus: o.appointmentStatus ?? null,
@@ -67,6 +85,8 @@ export function serviceProgressStage(
     // บรรทัดบนตัด COMPLETED/NO_SHOW ออกไปแล้ว แต่ isTerminalAppointmentStatus เป็นฟังก์ชัน
     // คืน boolean ไม่ใช่ type guard TS จึงยังไม่แคบชนิดให้ — ยืนยันด้วย cast ตรงนี้แทนการ
     // เขียนรายชื่อสถานะซ้ำ (รายชื่อต้องอยู่ที่ TERMINAL_APPOINTMENT_STATUSES ที่เดียว)
+    // 00086 FR-001: งานหน้าร้านที่ยังไม่มีความเคลื่อนไหวของนัด = กอง PENDING ("รอเริ่มงาน") ไม่ใช่ "นัดแล้ว"
+    if (stage === "SCHEDULED" && serviceArrivalOf(o) === "WALK_IN") return "PENDING";
     return stage as Exclude<AppointmentStatus, "COMPLETED" | "NO_SHOW">;
   }
   // ไม่มีนัดผูก (walk-in) ที่ยังไม่ปิด
@@ -93,7 +113,7 @@ export const SERVICE_STAGE_CHIP_META: Record<
   SCHEDULED: APPOINTMENT_STAGE_META.SCHEDULED,
   CONFIRMED_BY_BUYER: APPOINTMENT_STAGE_META.CONFIRMED_BY_BUYER,
   RESCHEDULE_REQUESTED: APPOINTMENT_STAGE_META.RESCHEDULE_REQUESTED,
-  // feature 00073 — walk-in ใช้คำของงานบริการ "รับงานแล้ว" (เดิม "รอดำเนินการ" ของ Order.status = คำกลาง)
+  // feature 00073 — walk-in ใช้คำของงานบริการ (เดิม "รอดำเนินการ" ของ Order.status = คำกลาง) · 00086 = "รอเริ่มงาน"
   PENDING: {
     label: SERVICE_STATUS_META.WALK_IN.seller,
     cls: SERVICE_STATUS_META.WALK_IN.cls,
@@ -103,5 +123,15 @@ export const SERVICE_STAGE_CHIP_META: Record<
     label: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.seller,
     cls: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.cls,
     icon: SERVICE_STATUS_META.BUYER_CONFIRMED_AWAITING_CLOSE.icon,
+  },
+  IN_SERVICE: {
+    label: SERVICE_STATUS_META.IN_SERVICE.seller,
+    cls: SERVICE_STATUS_META.IN_SERVICE.cls,
+    icon: SERVICE_STATUS_META.IN_SERVICE.icon,
+  },
+  FINISHED_AWAITING_CLOSE: {
+    label: SERVICE_STATUS_META.FINISHED_AWAITING_CLOSE.seller,
+    cls: SERVICE_STATUS_META.FINISHED_AWAITING_CLOSE.cls,
+    icon: SERVICE_STATUS_META.FINISHED_AWAITING_CLOSE.icon,
   },
 };

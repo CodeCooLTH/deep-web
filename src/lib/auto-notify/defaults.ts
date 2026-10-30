@@ -12,6 +12,7 @@ import type { AutoNotifyKind } from './ledger-constants'
  * TRACKING: `trackingMessage('ISHIP')` ใน chat-shipment-panel.ts — บรรทัดขนส่งว่าง ("อื่นๆ"/ไม่มี) ถูกตัดด้วยกติกา renderer
  * SERVICE_BOOKED: สรุปนัดเดิม (buildAppointmentSummary) — ไม่มีเบอร์โทร (PII ไม่อยู่ในชุดตัวแปร) และไม่มีบรรทัดชื่อบริการ·ช่าง แยก
  * SERVICE_STARTED/CLOSED: ร่างจาก BRD FR-CS-26/27 (รอ user เคาะถ้อยคำ)
+ * SERVICE_FINISHED (00086 FR-015): ถ้อยคำตาม BRD ตรงตัว · ไม่มีแถวเทมเพลตให้แก้ (IMPLICIT_KINDS) — ใช้ค่านี้เสมอ
  */
 export const DEFAULT_TEMPLATES: Record<AutoNotifyKind, string> = {
   ORDER_SUMMARY: '{คำเรียกรายการ}: {รายการสินค้า}\nยอดสุทธิ {ยอดสุทธิ}\n{ลิงก์คำสั่งซื้อ}',
@@ -29,6 +30,7 @@ export const DEFAULT_TEMPLATES: Record<AutoNotifyKind, string> = {
   ].join('\n'),
   SERVICE_STARTED: 'ร้านเริ่มงาน {บริการ} แล้วเมื่อ {เวลาเริ่มงาน}\nดูรายละเอียด {ลิงก์งาน}',
   SERVICE_CLOSED: 'งาน {บริการ} เสร็จเรียบร้อยเมื่อ {เวลาปิดงาน}\nดูรายละเอียดและยืนยันรับบริการ {ลิงก์งาน}',
+  SERVICE_FINISHED: 'ทำเสร็จแล้ว ดูรูปก่อน-หลังได้ที่ลิงก์งานบริการ\n{ลิงก์งาน}',
 }
 
 export interface TemplateExample {
@@ -103,4 +105,6 @@ export const TEMPLATE_EXAMPLES: Record<AutoNotifyKind, readonly TemplateExample[
       body: 'เสร็จแล้ว คุณ{ชื่อลูกค้า}\n{บริการ} เรียบร้อยเมื่อ {เวลาปิดงาน}\nกดยืนยันรับบริการได้ที่ {ลิงก์งาน}',
     },
   ],
+  // ไม่มีตัวแก้เทมเพลตของชนิดนี้ (IMPLICIT_KINDS — ไม่มีแถวในหน้าตั้งค่า) จึงไม่มีตัวอย่าง
+  SERVICE_FINISHED: [],
 }

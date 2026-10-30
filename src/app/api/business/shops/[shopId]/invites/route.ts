@@ -7,6 +7,7 @@ import { keepErrorCode } from "@/lib/legacy-forbidden";
 import { InviteShopMemberSchema } from "@/lib/validations";
 import { inviteShopMember, listInvites } from "@/services/shop-member.service";
 import { maskPhone } from "@/lib/phone-mask";
+import { staffFlagsErrorBody } from "@/lib/shop-member-errors";
 
 /**
  * mask invitedContact ก่อนคืน client — RSC boundary neutralize-at-source (feedback_rsc_pii_neutralize_at_source)
@@ -42,12 +43,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const invite = await inviteShopMember(ownerId, shopId, parsed.output.contact, parsed.output.contactType, parsed.output.roles);
-    return NextResponse.json({ inviteId: invite.id, status: invite.status }, { status: 201 });
+    const { contact, contactType, roles, canCloseJob, canRecordExpense } = parsed.output;
+    const invite = await inviteShopMember(ownerId, shopId, contact, contactType, roles, { canCloseJob, canRecordExpense });
+    return NextResponse.json({
+      inviteId: invite.id, status: invite.status, canCloseJob: invite.canCloseJob, canRecordExpense: invite.canRecordExpense,
+    }, { status: 201 });
   } catch (e: unknown) {
     if (e instanceof Error && (e.message === "INVALID_ROLES" || e.message === "BILLING_NOT_AVAILABLE")) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
+    const flagBody = e instanceof Error ? staffFlagsErrorBody(e.message) : null; // 00086
+    if (flagBody) return NextResponse.json(flagBody, { status: 400 });
     if (e instanceof Error && e.message === "NOT_OWNER") {
       return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
     }
@@ -91,6 +97,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         contactType: i.contactType,
         status: i.status,
         roles: i.roles,
+        canCloseJob: i.canCloseJob,
+        canRecordExpense: i.canRecordExpense,
         createdAt: i.createdAt,
       })),
     });

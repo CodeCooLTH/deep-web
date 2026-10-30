@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // เพื่อพิสูจน์ว่า helper ต่อเข้ากับกฎสมาชิกเดิม ไม่ได้เขียนกฎสมาชิกชุดที่สอง
 const db = vi.hoisted(() => ({
   shop: null as null | Record<string, unknown>,
-  member: null as null | { role: string; roles: string[] },
+  member: null as null | { role: string; roles: string[]; canCloseJob?: boolean; canRecordExpense?: boolean },
   many: [] as Record<string, unknown>[],
 }))
 vi.mock('@/lib/prisma', () => ({
@@ -19,12 +19,12 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-import { canAccessShopWith, effectiveRoles, ForbiddenRoleError, gatePage, listAccessibleShopIds, requireShopCapability } from '@/lib/shop-capability'
+import { canAccessShopWith, canCloseJobInShop, effectiveRoles, ForbiddenRoleError, gatePage, listAccessibleShopIds, requireShopCapability } from '@/lib/shop-capability'
 import type { Capability } from '@/lib/shop-permissions'
 
 const SESSION = { user: { id: 'u1', activeShopId: 's1' } }
 
-type Setup = { kind?: 'PERSONAL' | 'BUSINESS'; vertical?: string; shopUserId?: string; member?: { role: string; roles: string[] } | null; deleted?: boolean }
+type Setup = { kind?: 'PERSONAL' | 'BUSINESS'; vertical?: string; shopUserId?: string; member?: { role: string; roles: string[]; canCloseJob?: boolean; canRecordExpense?: boolean } | null; deleted?: boolean }
 function setup({ kind = 'BUSINESS', vertical = 'ONLINE_SALES', shopUserId = 'owner', member = null, deleted = false }: Setup) {
   db.shop = { id: 's1', kind, vertical, userId: shopUserId, deletedAt: deleted ? new Date() : null, packageLockedAt: null, packageLockReason: null }
   db.member = member
@@ -173,5 +173,33 @@ describe('ForbiddenRoleError', () => {
     const e = new ForbiddenRoleError()
     expect(e).toBeInstanceOf(Error)
     expect({ m: e.message, c: e.code }).toEqual({ m: 'FORBIDDEN', c: 'FORBIDDEN_ROLE' })
+  })
+})
+
+describe('00086 — ธงสิทธิ์รายคนผ่านด่านกลาง', () => {
+  it('requireShopCapability(...).active มีธงจากแถวสมาชิก', async () => {
+    setup({ vertical: 'SERVICE_QUEUE', member: { ...admin('CHAT'), canCloseJob: true, canRecordExpense: true } })
+    const r = await requireShopCapability(SESSION, 'O1')
+    expect(r.ok && { c: r.active.canCloseJob, e: r.active.canRecordExpense }).toEqual({ c: true, e: true })
+  })
+  it('canCloseJobInShop: ร้านบริการ CHAT ต้องมีธง · MANAGER/OWNER ไม่ต้อง · BILLING+ธงไม่ผ่าน [blocker]', async () => {
+    const svc = (member: Setup['member']) => setup({ vertical: 'SERVICE_QUEUE', member })
+    svc(admin('CHAT')); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
+    svc({ ...admin('CHAT'), canCloseJob: true }); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+    svc({ ...admin('TECHNICIAN'), canCloseJob: true }); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+    svc({ ...admin('BILLING'), canCloseJob: true }); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
+    svc(admin('MANAGER')); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+    svc({ role: 'OWNER', roles: [] }); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+  })
+  it('canCloseJobInShop: ร้านขายของ = O4 เดิม (CHAT ไม่มีธงผ่าน · BILLING ไม่ผ่าน)', async () => {
+    setup({ member: admin('CHAT') }); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+    setup({ member: { ...admin('BILLING'), canCloseJob: true } }); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
+  })
+  it('canCloseJobInShop: ไม่ใช่สมาชิก/ร้านถูกลบ/ไม่มีร้าน = false · PERSONAL ของตัวเอง = true', async () => {
+    setup({ vertical: 'SERVICE_QUEUE', member: null }); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
+    setup({ vertical: 'SERVICE_QUEUE', member: admin('MANAGER'), deleted: true }); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
+    expect(await canCloseJobInShop('nope', 'u1')).toBe(false)
+    setup({ kind: 'PERSONAL', vertical: 'SERVICE_QUEUE', shopUserId: 'u1' }); expect(await canCloseJobInShop('s1', 'u1')).toBe(true)
+    setup({ kind: 'PERSONAL', vertical: 'SERVICE_QUEUE', shopUserId: 'other' }); expect(await canCloseJobInShop('s1', 'u1')).toBe(false)
   })
 })

@@ -35,7 +35,16 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import StaffRolePicker from '@/components/paces/StaffRolePicker'
 import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 import { STAFF_ROLES } from '@/lib/shop-permissions'
-import { STAFF_ROLE_COPY, canSubmitRoles, rolesSummary, type StaffRole } from '@/lib/shop-role-picker'
+import {
+  NO_STAFF_FLAGS,
+  STAFF_ROLE_COPY,
+  canSubmitRoles,
+  flagsPayload,
+  rolesSummary,
+  staffFlagChips,
+  type StaffFlags,
+  type StaffRole,
+} from '@/lib/shop-role-picker'
 import { memberErrorText } from '../../business/[shopId]/invites/components/member-error-text'
 
 export interface InviteLinkRow {
@@ -44,12 +53,17 @@ export interface InviteLinkRow {
   expiresAt: string
   /** บทบาทที่ลิงก์นี้ให้ (InviteLink.roles) */
   roles: string[]
+  /** 00086 ธงที่ลิงก์นี้ให้ (InviteLink.canCloseJob / canRecordExpense) */
+  canCloseJob: boolean
+  canRecordExpense: boolean
 }
 
 interface InviteLinkModalProps {
   links: InviteLinkRow[]
   /** บังคับส่ง ไม่มีค่าตั้งต้น — ร้านเปิดบทบาทเปิดบิลได้ไหม (คำนวณฝั่ง server) */
   billingAvailable: boolean
+  /** บังคับส่ง ไม่มีค่าตั้งต้น — ร้านบริการเท่านั้นที่ตั้งปิดงานได้/บันทึกค่าใช้จ่ายได้ (canUseAppointments) */
+  serviceFlagsAvailable: boolean
 }
 
 /**
@@ -71,7 +85,7 @@ const CREATE_ERROR_MESSAGE: Record<string, string> = {
   VALIDATION_ERROR: 'ข้อมูลลิงก์ไม่ถูกต้อง เลือกบทบาทและอายุลิงก์ใหม่ แล้วกดสร้างลิงก์อีกครั้ง',
 }
 
-export default function InviteLinkModal({ links, billingAvailable }: InviteLinkModalProps) {
+export default function InviteLinkModal({ links, billingAvailable, serviceFlagsAvailable }: InviteLinkModalProps) {
   const router = useRouter()
   const askToBuy = useCanAskToBuy()
   const [open, setOpen] = useState(false)
@@ -80,6 +94,8 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
   const [expiryKey, setExpiryKey] = useState<InviteExpiryKey>('7d')
   // ค่าตั้งต้น = ผู้ดูแล (เท่ากับพฤติกรรมเดิมก่อน P2) — เก็บค่าไว้หลังสร้างเพื่อสร้างลิงก์ชุดเดิมซ้ำได้
   const [roles, setRoles] = useState<StaffRole[]>(['MANAGER'])
+  // 00086 ค่าตั้งต้นไม่ติ๊กทั้งคู่ (ไม่เปิดสิทธิ์เกินโดยไม่ตั้งใจ) — เก็บค่าไว้หลังสร้างเหมือน roles
+  const [flags, setFlags] = useState<StaffFlags>(NO_STAFF_FLAGS)
   const canCreate = canSubmitRoles(roles, billingAvailable)
   const [creating, setCreating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -117,7 +133,7 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
       const res = await fetch('/api/shops/current/invite-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expiryKey, roles }),
+        body: JSON.stringify({ expiryKey, roles, ...flagsPayload(serviceFlagsAvailable, flags) }),
       })
       if (res.ok) {
         pacesToast.success(`สร้างลิงก์เชิญแล้ว (${rolesSummary(roles)})`)
@@ -194,6 +210,9 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
                   selected={roles}
                   onChange={setRoles}
                   billingAvailable={billingAvailable}
+                  serviceFlagsAvailable={serviceFlagsAvailable}
+                  flags={flags}
+                  onFlagsChange={setFlags}
                   action="create"
                   disabled={creating}
                 />
@@ -291,6 +310,11 @@ export default function InviteLinkModal({ links, billingAvailable }: InviteLinkM
                               {STAFF_ROLES.filter((r) => link.roles.includes(r)).map((r) => (
                                 <span key={r} className="badge bg-default-100 text-default-700">
                                   {STAFF_ROLE_COPY[r].label}
+                                </span>
+                              ))}
+                              {staffFlagChips(serviceFlagsAvailable, link.roles, link).map((label) => (
+                                <span key={label} className="badge bg-default-100 text-default-700">
+                                  {label}
                                 </span>
                               ))}
                             </div>

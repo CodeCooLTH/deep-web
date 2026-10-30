@@ -78,7 +78,9 @@ import { getSalesSeries, withShippingExpenses } from '@/services/dashboard.servi
 import { moneyLevel, effectiveRoles, type MoneyLevel } from '@/lib/shop-permissions'
 import { DEFAULT_REPORT_SETTINGS, resolveReportSettings, serviceReportChart, serviceReportView, showsUnclosedOnCard, type ReportSettings, type ServiceReportChart, type ServiceReportView } from '@/lib/report-settings'
 import { getAdvanceDeposits } from '@/services/finance-chart.service'
-import { dashboardMoney, homeBlocks, redactCommandCenterData } from '@/lib/dashboard-money'
+import { activityWithOpenableLinks, dashboardMoney, homeBlocks, redactCommandCenterData, showsStaffExpenseCard } from '@/lib/dashboard-money'
+import { countOwnExpenses } from '@/services/expense.service'
+import StaffExpenseCard from './components/StaffExpenseCard'
 import TodayJobs from './components/TodayJobs'
 import { resolveShortcutState } from '@/services/shortcut.service'
 import type { ShortcutCatalogItemDto } from './_constants/command-center'
@@ -103,7 +105,7 @@ import { DRAFTED_STATUS } from '@/lib/order-visibility'
 import { netOfReturns, type ReturnAdjustment } from '@/lib/order-return'
 import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 
 /**
  * ชื่อแท็บเบราว์เซอร์ต้องตามภาษาที่ผู้ใช้เลือกด้วย ⇒ ต้องเป็น `generateMetadata` (async)
@@ -232,6 +234,9 @@ export default async function SellerDashboardPage() {
   let moneyLvl: MoneyLevel = 'NONE'
   // 00071 P3 S-15: บล็อกหน้าแรกตามบทบาท — fail-closed (ไม่รู้บทบาท = ไม่มีบทบาท → ไม่มีสินค้าขายดี/ไม่มีงานวันนี้ ฯลฯ)
   let blocks = homeBlocks([], { kind: '', vertical: '' })
+  // 00086 FR-018 — การ์ด "ค่าใช้จ่ายที่ฉันบันทึก" (พนักงานร้านบริการที่ได้ธง) · null = ไม่ render (fail-closed)
+  // เก็บแค่จำนวนรายการของตัวเอง ไม่มียอดเงิน (พนักงานไม่มี F1)
+  let staffExpenseCount: number | null = null
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -247,6 +252,18 @@ export default async function SellerDashboardPage() {
       const viewerRoles = active ? effectiveRoles({ kind: active.kind, vertical: active.shop.vertical }, active.role, active.roles) : []
       moneyLvl = moneyLevel(viewerRoles)
       if (active) blocks = homeBlocks(viewerRoles, { kind: active.kind, vertical: active.shop.vertical })
+      if (
+        active &&
+        showsStaffExpenseCard({ kind: active.kind, vertical: active.shop.vertical }, active.role, viewerRoles, {
+          canRecordExpense: active.canRecordExpense === true,
+        })
+      ) {
+        // ล้ม = 0 (honest-zero ของ "จำนวนรายการ") — การ์ดยังมีปุ่มเพิ่มให้ใช้ได้ ไม่ควรหายเพราะนับไม่สำเร็จ
+        staffExpenseCount = await countOwnExpenses(active.shop.id, user.id).catch((err) => {
+          console.error('[dashboard] countOwnExpenses failed', err)
+          return 0
+        })
+      }
       const money = dashboardMoney(moneyLvl)
       // เจ้าของ: ล้ม = 0 ตามเดิม (honest-zero) · ผู้ไม่ใช่เจ้าของ: คง null
       if (money.walletHero) walletBalance = 0
@@ -293,7 +310,8 @@ export default async function SellerDashboardPage() {
         }
 
         packageCanManage = shop.userId === user?.id // เจ้าของหลักเท่านั้น (EXT 00012 BR-MR-08)
-        try {
+        // 00086: ช่างล้วนร้านบริการไม่มีชิปแพ็กเกจ (blocks.shopPackage) ⇒ ไม่ query เลย · บทบาทอื่น query เดิม
+        if (blocks.shopPackage) try {
           const subscription = await getSubscriptionStatus(shop.userId)
           if (subscription) {
             packageStatus = subscription.status as BusinessPackageStatusApp
@@ -508,7 +526,9 @@ export default async function SellerDashboardPage() {
         else console.error('[dashboard] getSalesChannelBreakdown failed', channelRes.reason)
 
         // กิจกรรมล่าสุด — ล้ม = [] → RecentActivityFeed มี empty state พร้อม CTA ของตัวเองอยู่แล้ว
-        if (activityRes.status === 'fulfilled') recentActivity = activityRes.value
+        // 00086: ช่างล้วนร้านบริการ — ลิงก์ในฟีดเหลือเฉพาะหน้าที่เปิดได้ (รายการยังอยู่ครบ) · บทบาทอื่นค่าเดิม
+        if (activityRes.status === 'fulfilled')
+          recentActivity = blocks.activityLinksByPage ? activityWithOpenableLinks(activityRes.value, viewerRoles) : activityRes.value
         else console.error('[dashboard] getRecentActivity failed', activityRes.reason)
 
         // ยอดขายรายจังหวัด — null (ร้านไม่ใช่ขายออนไลน์) หรือล้ม = ไม่ render การ์ดแผนที่เลย
@@ -599,7 +619,12 @@ export default async function SellerDashboardPage() {
                     status: o.status,
                     appointmentStatus: o.appointmentStatus ?? null,
                     hasAppointment: Boolean(o.serviceStart),
+                    // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+                    arrivalMode: serviceArrivalOf(o),
                     serviceClosedAt: o.serviceClosedAt ?? null,
+                    // 00086 — กำลังให้บริการ / ทำเสร็จ · รอปิดงาน (ตัวตัดสินเดียวกับการ์ดงาน · /orders)
+                    serviceStartedAt: o.serviceStartedAt ?? null,
+                    serviceFinishedAt: o.serviceFinishedAt ?? null,
                     outstanding: null,
                   },
                   'seller',
@@ -703,7 +728,8 @@ export default async function SellerDashboardPage() {
     // feature 00073 เฟส B — ร้านบริการปิด "จำนวนงาน" ในตั้งค่ารายงาน ⇒ ไม่มีการ์ดจำนวนงาน (ร้านอื่น: ค่าตั้งต้น = มีเสมอ)
     ...(reportSettings.jobCount
       ? [{ // ร้านบริการเห็นคำของตัวเอง (ORDER_VOCAB.noun ผ่าน t.vocab) · ร้านอื่นคงคำเดิม "ออเดอร์"
-          title: shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' } satisfies StatType]
+          // 00086: ช่างล้วนร้านบริการ = "งานทั้งร้าน" (ตัวเลขของทั้งร้าน ไม่ใช่ของช่าง — แยกจาก "งานของฉันวันนี้")
+          title: blocks.shopWideJobLabels ? t.dashboard.technicianShopJobs : shopVertical === 'SERVICE_QUEUE' ? byVertical(t.vocab.orderNoun, shopVertical) : t.dashboard.statOrders, value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' } satisfies StatType]
       : []),
     ...(canSeeRevenue
       ? [
@@ -730,7 +756,12 @@ export default async function SellerDashboardPage() {
       showTools={blocks.recentOrderTools}
     />
   )
-  const activityEl = <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} />
+  // 00086: ช่างล้วนร้านบริการสร้างงานไม่ได้ (ไม่มี O2) ⇒ ฟีดว่างไม่มีปุ่มชวนสร้าง · บทบาทอื่นเดิม
+  const activityEl = (
+    <RecentActivityFeed items={recentActivity} createLabel={byVertical(t.vocab.createLabel, shopVertical)} canCreate={!blocks.activityLinksByPage} />
+  )
+  // หัวการ์ดตัวนับงาน (มือถือ + เดสก์ท็อป ชุดเดียวกัน) — ช่างล้วนร้านบริการ = "งานทั้งร้าน" · บทบาทอื่นคำเดิม
+  const orderStatusTitle = blocks.shopWideJobLabels ? t.dashboard.technicianShopJobs : byVertical(t.vocab.orderNounTitle, shopVertical)
   const achievementEl = (
     <AchievementLevel
       score={score}
@@ -762,7 +793,7 @@ export default async function SellerDashboardPage() {
             // 🛑 เดิมส่ง `orderNoun` (ไทยเสมอ) ทำให้หัวการ์ดบนมือถืออ่านว่า "Status of คำสั่งซื้อ"
             //    เมื่อผู้ใช้ตั้งภาษาเป็นอังกฤษ — เทมเพลตแปลแล้วแต่คำที่เสียบเข้าไปยังเป็นไทย
             orderNoun: byVertical(t.vocab.orderNoun, shopVertical),
-            orderNounTitle: byVertical(t.vocab.orderNounTitle, shopVertical),
+            orderNounTitle: orderStatusTitle,
             shopVertical,
             reportSettings,
             advanceDeposit,
@@ -798,6 +829,8 @@ export default async function SellerDashboardPage() {
             shortcutTiles,
           }, moneyLvl)}
           blocks={blocks}
+          staffExpenseCount={staffExpenseCount}
+          viewerUserId={sessionUserId(session)}
         />
       </div>
 
@@ -832,6 +865,15 @@ export default async function SellerDashboardPage() {
             โดนัทกิน 7 คอลเต็มจึงเตี้ยที่สุด: layout ข้างในเป็น chart ซ้าย + legend ขวา ยิ่งกว้าง
             legend ยิ่งไม่ wrap (AchievementLevel ย้ายไปแถว 5 ที่มีเพื่อนสูงพอ ๆ กัน) */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
+          {/* 00071: ช่างล้วน — งานวันนี้ (7 คอล) แทนที่โดนัท · ไม่ mount ให้บทบาทอื่น
+              00086 (user 2026-10-30 "ทำให้ช่างใช้งานง่าย"): วางเป็นช่องแรกของแถว — งานของฉันมาก่อนการ์ดร้าน/ตัวนับ
+              (todayJobs มีเฉพาะช่างล้วนร้านบริการ ⇒ บทบาทอื่นลำดับในแถวเท่าเดิม: ซ้าย การ์ดร้าน · ขวา โดนัท) */}
+          {blocks.todayJobs && (
+            <div className="xl:col-span-7">
+              {/* 00086 P3 — แยก "งานของฉัน" / "ยังไม่มีคนรับ" ด้วยตัวผู้ดูจาก session (ไม่ใช่ชื่อ) */}
+              <TodayJobs className="h-full" viewerUserId={sessionUserId(session)} />
+            </div>
+          )}
           {/* ช่างล้วนในร้านที่ไม่รับนัด: ไม่มีทั้งโดนัทและงานวันนี้ → ฝั่งซ้ายกินเต็มแถว ไม่ปล่อยช่องว่าง */}
           <div className={blocks.salesChannelDonut || blocks.todayJobs ? 'xl:col-span-5' : 'xl:col-span-12'}>
             <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
@@ -853,12 +895,6 @@ export default async function SellerDashboardPage() {
               <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} rangeLabelInline={rangeLabelInline} vertical={shopVertical} />
             </div>
           )}
-          {/* 00071: ช่างล้วน — งานวันนี้ (7 คอล) แทนที่โดนัท · ไม่ mount ให้บทบาทอื่น */}
-          {blocks.todayJobs && (
-            <div className="xl:col-span-7">
-              <TodayJobs className="h-full" />
-            </div>
-          )}
         </div>
 
         {/* แถว 2: สถานะคำสั่งซื้อเต็มความกว้าง — component ตัวเดียวกับบนมือถือ (user เคาะ 2026-08-04)
@@ -874,9 +910,17 @@ export default async function SellerDashboardPage() {
             appointmentToday={appointmentTodayCount}
             serviceWork={serviceWorkCounts}
             orderNoun={byVertical(t.vocab.orderNoun, shopVertical)}
-            orderNounTitle={byVertical(t.vocab.orderNounTitle, shopVertical)}
+            orderNounTitle={orderStatusTitle}
           />
         </div>
+
+        {/* 00086 FR-018 — พนักงานร้านบริการที่ได้ธงบันทึกค่าใช้จ่าย: ต่อจากงานค้าง (ตำแหน่งเดียวกับมือถือที่อยู่ใต้งานวันนี้)
+            ไม่ mount ให้คนอื่น (showsStaffExpenseCard ตัดสินที่ server) */}
+        {staffExpenseCount !== null && (
+          <div className="mb-base">
+            <StaffExpenseCard count={staffExpenseCount} />
+          </div>
+        )}
 
         {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน)
             00071: ยอดขายรวม = เจ้าของเท่านั้น (ผู้ไม่ใช่เจ้าของไม่ถูก query ตั้งแต่ต้น ไม่ใช่แค่ซ่อน) */}

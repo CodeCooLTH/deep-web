@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const auth = await requireAppUser(request)
   if ('response' in auth) return auth.response
   const rows = await prisma.notification.findMany({
-    where: { userId: auth.user.id },
+    // 00086: แอปผู้ซื้อเห็นเฉพาะแจ้งเตือนส่วนตัว — แจ้งเตือนของร้าน (shopId ไม่ว่าง) อยู่ฝั่งร้านเท่านั้น
+    where: { userId: auth.user.id, shopId: null },
     orderBy: { createdAt: 'desc' },
     take: 50,
   })

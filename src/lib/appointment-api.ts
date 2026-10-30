@@ -2,6 +2,8 @@ import { jsonNoStore } from "@/lib/shop-api-guard";
 import {
   AppointmentFeatureUnavailableError,
   AppointmentNotFoundError,
+  ArrivalModeError,
+  type ArrivalModeErrorCode,
   AppointmentNotStartedError,
   AppointmentPastError,
   AppointmentSlotFullError,
@@ -24,7 +26,17 @@ import {
  *
  * คืน null ถ้าไม่ใช่ error ของโดเมนนี้ → ผู้เรียกต้อง log แล้วคืน 500 เอง
  */
+/** ข้อความของ ArrivalModeError — บอกสิ่งที่ต้องทำ ไม่ใช่ชื่อฟิลด์ (feature 00086 API.md §4.3) */
+const ARRIVAL_MODE_MESSAGE: Record<ArrivalModeErrorCode, string> = {
+  ARRIVAL_MODE_REQUIRED: "เลือกว่าลูกค้าจองล่วงหน้าหรือมาหน้าร้าน",
+  ARRIVAL_BOOKED_NEEDS_TIME: "เลือกวันและเวลานัด",
+  ARRIVAL_WALK_IN_NEEDS_QUEUE: "เลือกคิวงาน",
+};
+
 export function appointmentErrorResponse(e: unknown): Response | null {
+  if (e instanceof ArrivalModeError) {
+    return jsonNoStore({ error: e.code, message: ARRIVAL_MODE_MESSAGE[e.code] }, { status: 400 });
+  }
   if (e instanceof AppointmentFeatureUnavailableError) {
     return jsonNoStore(
       {

@@ -329,6 +329,8 @@ export const NotificationsQuerySchema = v.object({
 // POST /api/notifications/read body — id ไม่ระบุ = mark ทั้งหมดอ่านแล้ว
 export const MarkNotificationReadSchema = v.object({
   id: v.optional(v.pipe(v.string(), v.uuid())),
+  // 00086: ไม่มี id + มี shopId = อ่านทั้งหมด "เฉพาะร้านนี้" (หน้า /notifications ของร้าน)
+  shopId: v.optional(v.pipe(v.string(), v.uuid())),
 })
 
 // เวลาส่งเป็น ISO-8601 ที่มี offset เสมอ — การไม่มี offset ทำให้ตีความเวลาเพี้ยนข้ามเขตเวลา
@@ -853,10 +855,14 @@ export const StaffRolesSchema = v.pipe(
   v.check((a) => new Set(a).size === a.length, "roles ซ้ำ"),
 );
 
+// 00086: ธงสิทธิ์รายคน (ปิดงานได้ / บันทึกค่าใช้จ่ายได้) ตอนเชิญ — ไม่ส่ง = false (ห้ามค่าตั้งต้นที่เปิด)
+// กติกาตามร้าน/บทบาทเช็คที่ service (validateStaffFlags)
 export const InviteShopMemberSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
   contactType: v.picklist(["PHONE", "EMAIL"]),
   roles: v.optional(StaffRolesSchema),
+  canCloseJob: v.optional(v.boolean(), false),
+  canRecordExpense: v.optional(v.boolean(), false),
 });
 
 export const SwitchActiveShopSchema = v.object({
@@ -1134,6 +1140,9 @@ export const inviteLinkCreateSchema = v.object({
   // omit ได้ — route ใช้ DEFAULT_INVITE_EXPIRY_KEY (@/lib/invite-link) แทนถ้าไม่ส่งมา
   expiryKey: v.optional(v.picklist(["24h", "7d", "30d"])),
   roles: v.optional(StaffRolesSchema),
+  // 00086: ธงสิทธิ์รายคน — ไม่ส่ง = false
+  canCloseJob: v.optional(v.boolean(), false),
+  canRecordExpense: v.optional(v.boolean(), false),
 });
 
 // ── feature 00016 Expense & Cost Tracking (SDS §4.1 / API.md §4.1/§4.3/§4.5) ─
@@ -1937,6 +1946,9 @@ export const SetAppointmentSchema = v.object({
   start: IsoDateTimeWithOffset,
   end: IsoDateTimeWithOffset,
   reason: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
+  // feature 00086 (API.md §4.4) — ใบที่ยังไม่ระบุเวลา: ส่ง WALK_IN = เริ่มงานหน้าร้าน · ไม่ส่ง = จองล่วงหน้า
+  // ใบที่มีแบบการมาแล้ว (เลื่อนนัด) ค่านี้ถูกละ · BOOKED รับได้ (= ค่าตั้งต้น ส่งหรือไม่ส่งผลเท่ากัน)
+  arrivalMode: v.optional(v.picklist(["BOOKED", "WALK_IN"])),
 })
 
 // ปิดผลนัด — ฝั่งร้าน
@@ -1960,6 +1972,33 @@ export const CloseServiceJobSchema = v.object({
   deposit: v.optional(v.picklist(["KEEP", "REFUND"]), "KEEP"),
 })
 
+// feature 00086 P3 (API §4.5/§4.6) — เริ่มงาน / ทำเสร็จแล้ว: รูป (fileId จาก uploadToStorage) + บันทึก · body ไม่บังคับ
+// ตัวไฟล์ห้ามมากับ body (upload-body-size-limit) — รับแค่ fileId · note trim แล้วว่าง = ไม่มีบันทึก (service normalize)
+// เพดานต้องตรง SERVICE_JOB_MAX_PHOTOS / SERVICE_JOB_NOTE_MAX (= CHECK ของ ServiceJobRecord)
+export const ServiceJobStepSchema = v.object({
+  photoFileIds: v.optional(
+    v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(300))), v.maxLength(10)),
+  ),
+  note: v.optional(v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(1000)))),
+})
+
+// feature 00086 P3 (API §4.7) — มอบงาน
+export const AssignServiceJobSchema = v.object({
+  userId: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
+})
+
+// feature 00086 P3 (API §4.3) — ผู้รับผิดชอบตอนสร้างงาน (parse แยกจาก CreateOrderSchema แบบ arrivalMode) · null = ไม่ระบุ
+export const OrderAssignedUserIdSchema = v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(100)))
+
+// feature 00086 P3 (API §4.11) — ตั้งค่ารูปก่อน-หลัง · ส่งทีละฟิลด์ได้ แต่ต้องมีอย่างน้อยหนึ่ง
+export const ServiceJobPhotoSettingsSchema = v.pipe(
+  v.object({
+    mode: v.optional(v.picklist(["REQUIRED", "OPTIONAL", "NONE"])),
+    buyerVisible: v.optional(v.boolean()),
+  }),
+  v.check((o) => o.mode !== undefined || o.buyerVisible !== undefined, "ต้องส่ง mode หรือ buyerVisible"),
+)
+
 // ขอเลื่อนนัด — ฝั่งลูกค้า (ขอได้อย่างเดียว เปลี่ยนเวลาเองไม่ได้ BR-RSV-23)
 export const RequestRescheduleSchema = v.object({
   note: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
@@ -1975,6 +2014,16 @@ export const OrderAppointmentSchema = v.object({
   // ส่งมา = ใช้ค่านี้ (ร้านแก้เองได้เสมอ, BR-RSV-48). DecimalString กันค่าติดลบแล้ว
   // เพดาน "ไม่เกินยอดรวม" บังคับที่ service เพราะต้องรู้ totalAmount ก่อน (BR-RSV-47)
   depositAmount: v.optional(DecimalString),
+})
+
+// feature 00086 (API.md §4.3) — ลูกค้ามาแบบไหน (ร้านบริการ) · parse แยกจาก CreateOrderSchema เหตุผลเดียวกับ appointment
+export const OrderArrivalModeSchema = v.picklist(["BOOKED", "WALK_IN"]);
+
+// feature 00086 — นัดของงาน "หน้าร้าน": รับแค่คิวงาน (+ระยะเวลา) · server ตั้งเวลาเริ่ม = ตอนนี้เอง
+// start/end/depositAmount ที่ client ส่งมาไม่อยู่ใน schema นี้ = ถูกละโดยการก่อสร้าง (ไม่เก็บมัดจำ)
+export const OrderWalkInAppointmentSchema = v.object({
+  resourceId: v.pipe(v.string(), v.minLength(1)),
+  durationMin: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(24 * 60))),
 })
 
 // ── Shop Page Builder (feature 00035) — ดู API.md §4 ของโมดูลนี้ (contract ห้ามเปลี่ยนชื่อ/ชนิด) ──
@@ -2417,9 +2466,18 @@ export const UpdateInspectorRoleSchema = v.object({
 });
 
 // ส่วนขยาย 00012 (2026-10-05) — เปลี่ยนบทบาทสมาชิก / โอนเจ้าของหลัก
+// 00086: ธงไม่มีค่าตั้งต้นที่นี่ — ไม่ส่ง = "คงค่าเดิม" (planMemberRoleChange) ไม่ใช่ false
 export const ChangeMemberRoleSchema = v.pipe(
-  v.object({ role: v.optional(v.picklist(["OWNER", "ADMIN"])), roles: v.optional(StaffRolesSchema) }),
-  v.check((x) => x.role !== undefined || x.roles !== undefined, "ต้องส่ง role หรือ roles"),
+  v.object({
+    role: v.optional(v.picklist(["OWNER", "ADMIN"])),
+    roles: v.optional(StaffRolesSchema),
+    canCloseJob: v.optional(v.boolean()),
+    canRecordExpense: v.optional(v.boolean()),
+  }),
+  v.check(
+    (x) => x.role !== undefined || x.roles !== undefined || x.canCloseJob !== undefined || x.canRecordExpense !== undefined,
+    "ต้องส่ง role, roles หรือธงสิทธิ์อย่างน้อยหนึ่งค่า",
+  ),
 );
 export const TransferOwnershipSchema = v.object({ memberId: v.pipe(v.string(), v.minLength(1)) });
 

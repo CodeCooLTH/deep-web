@@ -16,6 +16,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
+import { withUnassignedJobsNote } from '@/lib/shop-role-picker'
 
 interface RowActionDeleteButtonProps {
   endpoint: string
@@ -57,7 +58,8 @@ export default function RowActionDeleteButton({
       preConfirm: async () => {
         try {
           const res = await fetch(endpoint, { method: 'DELETE' })
-          if (res.ok) return true
+          // 00086 P3: ลบสมาชิก → งานบริการที่ยังเปิดของเขากลับเป็น "ยังไม่มีคนรับ" · ยกเลิกคำเชิญไม่มีค่านี้ ⇒ 0
+          if (res.ok) return { unassignedJobCount: ((await res.json().catch(() => ({}))) as { unassignedJobCount?: unknown }).unassignedJobCount }
           const data = await res.json().catch(() => ({}))
           Swal.showValidationMessage(errorMessages[data?.error as string] ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่')
           return false
@@ -68,8 +70,8 @@ export default function RowActionDeleteButton({
       },
     })
 
-    if (result.isConfirmed && result.value === true) {
-      pacesToast.success(successMessage)
+    if (result.isConfirmed && result.value) {
+      pacesToast.success(withUnassignedJobsNote(successMessage, result.value.unassignedJobCount))
       router.refresh()
     }
   }

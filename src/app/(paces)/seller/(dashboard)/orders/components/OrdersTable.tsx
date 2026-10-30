@@ -15,6 +15,7 @@ import HighlightText from './HighlightText'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import AssigneeWhoLine from '@/components/safepay/appointment-board/AssigneeWhoLine'
 import { CustomerBehaviorIcons } from '@/components/safepay/CustomerBehaviorBadges'
 import type { OrderVocab } from '@/lib/seller-menu'
 import {
@@ -565,6 +566,10 @@ export default function OrdersTable({
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
               <HighlightText text={row.original.buyerPhone ?? row.original.buyer} query={searchQuery} />
             </p>
+            {/* 00086 P3 (FR-008) — ผู้รับผิดชอบ · มีคีย์เฉพาะร้านบริการ (undefined = ร้านอื่น ไม่มีบรรทัดนี้) */}
+            {row.original.assigneeName !== undefined && (
+              <AssigneeWhoLine name={row.original.assigneeName} className="mt-0.5" />
+            )}
           </>
         )
       },
@@ -721,7 +726,7 @@ export default function OrdersTable({
         const a = row.original.appointment
         // ไม่มีนัด = ขีดคั่นที่อ่านออกว่าตั้งใจ ไม่ใช่ช่องว่างที่ดูเหมือนข้อมูลหาย (AC-5.2)
         if (!a) return <span className="text-xs text-default-400">ไม่มีนัด</span>
-        const meta = APPOINTMENT_STAGE_META[a.stage]
+        const meta = a.badge ?? APPOINTMENT_STAGE_META[a.stage]
         return (
           <>
             <p className="mb-0 text-xs font-medium text-default-800">

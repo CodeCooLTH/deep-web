@@ -16,7 +16,7 @@ import { ownsAnyShop } from '@/services/line-report-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import { resolveVisibleSellerMenu, flattenSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
 import { effectiveRoles } from '@/lib/shop-permissions'
-import { slugsHiddenByRole } from '@/lib/role-nav'
+import { slugsHiddenByRole, technicianUnusableShortcutSlugs } from '@/lib/role-nav'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 
 /** จำนวนช่องสูงสุดบนการ์ด — ตรงกับ CHECK ที่ DB และกริด 4x2 ของ CarouselGrid */
@@ -160,8 +160,11 @@ async function buildEligibleCatalog(
     offerIap: shell.offerIap,
   })
 
+  // 00086: ช่างล้วนร้านบริการ — ทางลัดไปหน้าที่เปิดได้แต่ทำอะไรไม่ได้ (ฟอร์มตั้งค่าร้าน) ถอดออก · บทบาทอื่น = ชุดว่าง
+  const unusable = technicianUnusableShortcutSlugs(roleContext(active, userId).roles, { kind: active.kind, vertical: shop.vertical })
+
   return flattenSellerMenu(visible)
-    .filter((item) => item.slug && item.url && !EXCLUDED_SLUGS.has(item.slug))
+    .filter((item) => item.slug && item.url && !EXCLUDED_SLUGS.has(item.slug) && !unusable.has(item.slug))
     .map((item) => ({
       slug: item.slug!,
       label: item.label ?? item.slug!,
@@ -174,7 +177,10 @@ async function buildEligibleCatalog(
 /** slug ที่บทบาทปัจจุบันถอด (จาก SSOT ดิบ) — ใช้แยก unavailableByRole ออกจาก unavailable */
 function hiddenByRole(active: ActiveShop, userId: string): Set<string> {
   const rc = roleContext(active, userId)
-  return slugsHiddenByRole(sellerMenuItems, rc.roles, rc.shop)
+  const hidden = slugsHiddenByRole(sellerMenuItems, rc.roles, rc.shop)
+  // ทางลัดที่ช่างล้วนร้านบริการใช้ไม่ได้ = "บทบาทถอด" (ซ่อนทั้งการ์ดและชีต ไม่ใช่ "ไม่พร้อมใช้งาน")
+  for (const slug of technicianUnusableShortcutSlugs(rc.roles, { kind: active.kind, vertical: active.shop.vertical })) hidden.add(slug)
+  return hidden
 }
 
 /** ค่าเริ่มต้น = 8 รายการแรกตามลำดับ sidebar ของแคตตาล็อกที่ผู้ใช้คนนี้มองเห็นจริง */

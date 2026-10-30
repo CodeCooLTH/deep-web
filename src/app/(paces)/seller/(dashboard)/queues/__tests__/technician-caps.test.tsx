@@ -20,13 +20,13 @@ import { LocaleProvider } from '@/i18n/LocaleProvider'
 import WorkSchedulePage from '../page'
 
 const SHOP = '11111111-1111-4111-8111-111111111111'
-function asRole(roles: string[]) {
+function asRole(roles: string[], flags: { canCloseJob?: boolean } = {}) {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1', activeShopId: SHOP } } as never)
   db.shop.findUnique.mockResolvedValue({
     id: SHOP, userId: 'owner-x', kind: 'BUSINESS', vertical: 'SERVICE_QUEUE', deletedAt: null, appointmentGranularity: 'TIME',
-    members: [{ role: 'ADMIN', roles }],
+    members: [{ role: 'ADMIN', roles, ...flags }],
   })
-  db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles })
+  db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles, ...flags })
 }
 type El = { type?: { name?: string }; props?: Record<string, unknown> }
 function find(node: unknown, name: string): El | undefined {
@@ -48,12 +48,28 @@ describe('WorkSchedulePage — สิทธิ์ที่ส่งลงปฏ�
   it('TECHNICIAN: ไม่เห็นเงิน/แชท/เลื่อนนัด/สร้างงาน', async () => {
     asRole(['TECHNICIAN'])
     const tree = await WorkSchedulePage()
-    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false })
+    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false, canClose: false, viewerUserId: 'u1', technicianOnly: true })
   })
   it('MANAGER: ครบ', async () => {
     asRole(['MANAGER'])
     const tree = await WorkSchedulePage()
-    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: true, canChat: true, canReschedule: true, canCreate: true, canRefundDeposit: true })
+    expect(find(tree, 'AppointmentBoardCapsProvider')!.props!.value).toEqual({ showMoney: true, canChat: true, canReschedule: true, canCreate: true, canRefundDeposit: true, canClose: true, viewerUserId: 'u1', technicianOnly: false })
+  })
+  it('00086 S-5 — CHAT/TECHNICIAN ปิดงานได้เฉพาะเมื่อติ๊ก "ปิดงานได้"', async () => {
+    asRole(['CHAT'])
+    expect(find(await WorkSchedulePage(), 'AppointmentBoardCapsProvider')!.props!.value).toMatchObject({ canClose: false })
+    asRole(['CHAT'], { canCloseJob: true })
+    expect(find(await WorkSchedulePage(), 'AppointmentBoardCapsProvider')!.props!.value).toMatchObject({ canClose: true })
+    asRole(['TECHNICIAN'], { canCloseJob: true })
+    expect(find(await WorkSchedulePage(), 'AppointmentBoardCapsProvider')!.props!.value).toMatchObject({ canClose: true })
+  })
+  it('[blocker] 00086 P3 — technicianOnly เฉพาะช่างล้วน · viewerUserId มาจาก session (ไม่ใช่ค่าคงที่)', async () => {
+    asRole(['TECHNICIAN'], { canCloseJob: true })
+    expect(find(await WorkSchedulePage(), 'AppointmentBoardCapsProvider')!.props!.value).toMatchObject({ technicianOnly: true, viewerUserId: 'u1' })
+    for (const roles of [['TECHNICIAN', 'CHAT'], ['TECHNICIAN', 'BILLING'], ['MANAGER'], ['CHAT']]) {
+      asRole(roles)
+      expect(find(await WorkSchedulePage(), 'AppointmentBoardCapsProvider')!.props!.value, roles.join('+')).toMatchObject({ technicianOnly: false })
+    }
   })
   it('TECHNICIAN+CHAT: union — เห็นเงิน ทักแชท และเลื่อนนัดได้ (CHAT มี O3)', async () => {
     asRole(['TECHNICIAN', 'CHAT'])

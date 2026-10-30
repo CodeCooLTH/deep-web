@@ -33,6 +33,10 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
+// 00086 M2 — ตัวปลดงานมีเทส DB ของตัวเอง (service-job-payload-roles.db.test) · ที่นี่วัดแค่ว่าถูกเรียกใน tx หลังลบสมาชิก
+const svcJob = vi.hoisted(() => ({ unassignUserOpenJobsEverywhere: vi.fn(async () => 0) }))
+vi.mock('@/services/service-job.service', () => svcJob)
+
 import { prisma } from '@/lib/prisma'
 import {
   checkAccountDeletable,
@@ -215,6 +219,11 @@ describe('deleteAccount', () => {
     expect(tx.shop.updateMany).toHaveBeenCalled()
     expect(tx.pushToken.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID } })
     expect(tx.shopMember.deleteMany).toHaveBeenCalledWith({ where: { userId: USER_ID } })
+    // 00086 M2 — งานบริการที่มอบให้บัญชีนี้ถูกปลด (ทุกร้าน) ใน tx เดียวกัน **หลัง** ลบแถวสมาชิก (ลำดับกันแข่งกับการมอบงาน)
+    expect(svcJob.unassignUserOpenJobsEverywhere).toHaveBeenCalledWith(tx, { userId: USER_ID, actorUserId: USER_ID, now: result.deletedAt })
+    expect(svcJob.unassignUserOpenJobsEverywhere.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tx.shopMember.deleteMany.mock.invocationCallOrder[0],
+    )
     // purgeAt = 30 วันหลัง deletedAt
     const days = (result.purgeAt.getTime() - result.deletedAt.getTime()) / 86_400_000
     expect(days).toBe(30)

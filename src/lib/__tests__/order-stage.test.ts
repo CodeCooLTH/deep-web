@@ -239,7 +239,7 @@ describe('deriveOrderStage', () => {
   describe('ป้ายขั้นแรกผันตามประเภทกิจการ', () => {
     it.each([
       ['ONLINE_SALES', 'สั่งซื้อแล้ว'],
-      ['SERVICE_QUEUE', 'รับงานแล้ว'],
+      ['SERVICE_QUEUE', 'รอเริ่มงาน'],
       ['LODGING', 'เปิดบิลแล้ว'],
     ])('[blocker] %s → "%s"', (vertical, label) => {
       const s = deriveOrderStage({ ...base, vertical }, NOW)
@@ -256,14 +256,39 @@ describe('deriveOrderStage', () => {
       expect(deriveOrderStage({ ...base, vertical: null }, NOW)?.label).toBe('สั่งซื้อแล้ว')
     })
 
-    it('[blocker] นัดหมายชนะคำของ vertical — ร้านคิวงานที่มีนัดต้องได้ "นัด <วันที่>" ไม่ใช่ "รับงานแล้ว"', () => {
+    it('[blocker] นัดหมายชนะคำของ vertical — ร้านคิวงานที่มีนัดต้องได้ "นัด <วันที่>" ไม่ใช่ "รอเริ่มงาน"', () => {
       // สองตัวผันคำนี้ทับช่องเดียวกัน (ORDERED) ลำดับจึงเป็นเรื่องความหมาย ไม่ใช่เรื่องสไตล์:
-      // "นัดวันไหน" คือสิ่งที่ร้านต้องรู้ระหว่างคุย ส่วน "รับงานแล้ว" บอกแค่ว่าใบถูกเปิดขึ้นมา
+      // "นัดวันไหน" คือสิ่งที่ร้านต้องรู้ระหว่างคุย ส่วน "รอเริ่มงาน" บอกแค่ว่าใบถูกเปิดขึ้นมา
       const s = deriveOrderStage(
         { ...base, vertical: 'SERVICE_QUEUE', serviceStart: new Date('2026-08-16T02:00:00Z') },
         NOW,
       )
       expect(s?.label).toBe('นัด 16 ส.ค. 69')
+    })
+
+    // 00086 — แถวกล่องแชทของร้านบริการ: งานหน้าร้านไม่ขึ้น "นัด {วัน}" · เริ่ม/ทำเสร็จแล้วขึ้นขั้นเดียวกับการ์ดงาน
+    describe('serviceProgressFace (00086)', () => {
+      const svc = { ...base, vertical: 'SERVICE_QUEUE', serviceStart: new Date('2026-08-16T02:00:00Z') }
+      it('[blocker] งานหน้าร้าน (ค่าที่ร้านเลือก) ยังไม่เริ่ม ⇒ "รอเริ่มงาน" ไม่ใช่ "นัด 16 ส.ค. 69"', () => {
+        expect(deriveOrderStage({ ...svc, arrivalMode: 'WALK_IN' }, NOW)?.label).toBe('รอเริ่มงาน')
+      })
+      it('[blocker] เริ่มแล้ว ⇒ "กำลังให้บริการ" · ทำเสร็จแล้ว ⇒ "ทำเสร็จ · รอปิดงาน" (ทั้งหน้าร้านและจองล่วงหน้า)', () => {
+        const t = new Date('2026-08-16T03:00:00Z')
+        for (const arrivalMode of ['WALK_IN', 'BOOKED']) {
+          expect(deriveOrderStage({ ...svc, arrivalMode, serviceStartedAt: t }, NOW)?.label).toBe('กำลังให้บริการ')
+          expect(deriveOrderStage({ ...svc, arrivalMode, serviceStartedAt: t, serviceFinishedAt: t }, NOW)?.label).toBe('ทำเสร็จ · รอปิดงาน')
+        }
+      })
+      it('[blocker] คำขอเลื่อน / ปิดงานแล้ว / ไม่มาตามนัด ชนะ · จองล่วงหน้ายังขึ้นวันนัด', () => {
+        expect(deriveOrderStage({ ...svc, arrivalMode: 'WALK_IN', appointmentStatus: 'RESCHEDULE_REQUESTED' }, NOW)?.label).not.toBe('รอเริ่มงาน')
+        expect(deriveOrderStage({ ...svc, arrivalMode: 'WALK_IN', serviceClosedAt: new Date('2026-08-16T05:00:00Z') }, NOW)?.label).toBe('ปิดงานแล้ว')
+        expect(deriveOrderStage({ ...svc, arrivalMode: 'WALK_IN', appointmentStatus: 'NO_SHOW', serviceStartedAt: new Date() }, NOW)?.label).not.toBe('กำลังให้บริการ')
+        expect(deriveOrderStage({ ...svc, arrivalMode: 'BOOKED' }, NOW)?.label).toBe('นัด 16 ส.ค. 69')
+      })
+      it('[blocker] ร้านอื่นไม่ถูกแตะแม้ส่งค่ามา', () => {
+        const t = new Date('2026-08-16T03:00:00Z')
+        expect(deriveOrderStage({ ...base, vertical: 'ONLINE_SALES', arrivalMode: 'WALK_IN', serviceStartedAt: t }, NOW)?.label).toBe('สั่งซื้อแล้ว')
+      })
     })
 
     it('ขั้นอื่นไม่ถูกแตะ — vertical ผันแค่ ORDERED ขั้นเดียว', () => {

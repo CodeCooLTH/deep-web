@@ -29,7 +29,9 @@ import QueuesCalendarSwitch from './components/QueuesCalendarSwitch'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
-import { can, moneyLevel } from '@/lib/shop-permissions'
+import { can, isTechnicianOnly, memberCanCloseJob, moneyLevel } from '@/lib/shop-permissions'
+import { sessionUserId } from '@/lib/session-user'
+import { queuesCreateBarRenders } from '@/lib/role-nav'
 import { AppointmentBoardCapsProvider } from '@/components/safepay/appointment-board/AppointmentBoardCaps'
 
 export const metadata: Metadata = { title: 'ตารางงาน' }
@@ -68,6 +70,11 @@ export default async function WorkSchedulePage() {
     canCreate: can(viewerRoles, 'O2s'),
     // feature 00073 — ชีตปิดงาน: คืนมัดจำตอนไม่มาตามนัด = O6 (เจ้าของ/ผู้จัดการ)
     canRefundDeposit: can(viewerRoles, 'O6'),
+    // 00086 S-5 (FR-005) — ปุ่มปิดงาน/ไม่มาตามนัดบนการ์ดคิว: ร้าน+ธงจากแถวที่ด่านเพิ่ง resolve (ตัวเดียวกับ POST /close)
+    canClose: gate.ok && memberCanCloseJob(gate.active.shop, viewerRoles, gate.active),
+    // 00086 P3 — ช่างล้วนปิดได้เฉพาะงานของตัวเองที่ทำเสร็จแล้ว (dayCardControls) · ผู้ดูจาก session เท่านั้น
+    viewerUserId: sessionUserId(session),
+    technicianOnly: isTechnicianOnly(viewerRoles),
   }
   // ตั้งประเภทงาน = Q2 (เจ้าของ+ผู้ดูแล) — ผู้ไม่มี Q2 ไม่เห็นปุ่มไปหน้าตั้งค่า
   const canSetupJobTypes = can(viewerRoles, 'Q2')
@@ -95,6 +102,8 @@ export default async function WorkSchedulePage() {
             }))}
             byDay={(active.shop.appointmentGranularity as AppointmentGranularity) !== 'TIME'}
             createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
+            // แถบสร้างงานติดล่างจอมีเฉพาะตอนแถบล่างถูกซ่อน — ร้านบริการแถบล่างโชว์ (FAB คือทางสร้าง) จึงไม่วาด (00086)
+            showCreateBar={queuesCreateBarRenders(viewerRoles, { kind: active.kind, vertical: active.shop.vertical })}
           />
         </AppointmentBoardCapsProvider>
       ) : (

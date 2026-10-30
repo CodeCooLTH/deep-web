@@ -21,6 +21,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   appointmentCardAction,
+  dayCardControls,
   groupAppointmentsBySlot,
   isClosedAppointment,
   isSlotFullyClosed,
@@ -205,5 +206,65 @@ describe('shiftDayKey', () => {
   it('ปีอธิกสุรทิน', () => {
     expect(shiftDayKey('2028-02-28', 1)).toBe('2028-02-29')
     expect(shiftDayKey('2026-02-28', 1)).toBe('2026-03-01')
+  })
+})
+
+describe('dayCardControls — 00086 S-5 ปุ่มปิดงาน/เมนูตามสิทธิ์', () => {
+  // ผู้ดูที่ไม่ใช่ช่างล้วน + งานยังไม่เริ่ม = กติกา S-5 เดิมทุกตัว
+  const caps = (c: { canClose: boolean; canReschedule: boolean }) => ({ ...c, technicianOnly: false })
+  const NOT_STARTED = { isMine: false, started: false, finished: false }
+  it('[blocker] ถึงเวลานัด + ปิดงานไม่ได้ + เลื่อนนัดไม่ได้ → ไม่มีปุ่มหลัก ไม่มีเมนู', () => {
+    expect(dayCardControls('close', caps({ canClose: false, canReschedule: false }), NOT_STARTED)).toEqual({ primary: null, menu: null })
+  })
+  it('[blocker] ถึงเวลานัด + ปิดงานได้ → ปุ่มปิดงาน + เมนูมีไม่มาตามนัด', () => {
+    expect(dayCardControls('close', caps({ canClose: true, canReschedule: false }), NOT_STARTED)).toEqual({
+      primary: 'close',
+      menu: { reschedule: false, noShow: true },
+    })
+  })
+  it('[blocker] ปิดงานไม่ได้แต่เลื่อนนัดได้ → ไม่มีปุ่มปิดงาน · เมนูมีแค่เลื่อนนัด', () => {
+    expect(dayCardControls('close', caps({ canClose: false, canReschedule: true }), NOT_STARTED)).toEqual({
+      primary: null,
+      menu: { reschedule: true, noShow: false },
+    })
+  })
+  it('ขอเลื่อนนัด: เลื่อนได้ = ลิงก์ · เลื่อนไม่ได้ = ข้อความบอกใคร (ไม่ขึ้นกับ canClose)', () => {
+    expect(dayCardControls('reschedule', caps({ canClose: false, canReschedule: true }), NOT_STARTED).primary).toBe('reschedule')
+    expect(dayCardControls('reschedule', caps({ canClose: false, canReschedule: false }), NOT_STARTED).primary).toBe('reschedule-hint')
+    expect(dayCardControls('reschedule', caps({ canClose: true, canReschedule: false }), NOT_STARTED).menu).toEqual({ reschedule: false, noShow: true })
+  })
+  it('none → ไม่มีอะไรเลยแม้มีสิทธิ์ครบ', () => {
+    expect(dayCardControls('none', caps({ canClose: true, canReschedule: true }), NOT_STARTED)).toEqual({ primary: null, menu: null })
+  })
+})
+
+describe('dayCardControls — 00086 P3 ช่างล้วน + ไม่มาตามนัดหลังเริ่มงาน', () => {
+  const TECH = { canClose: true, canReschedule: false, technicianOnly: true }
+  it('[blocker] ช่างล้วน (ติ๊กปิดงานได้) งานของคนอื่น/ไม่มีคนรับ → ไม่มีปุ่มปิด แม้ทำเสร็จแล้ว', () => {
+    expect(dayCardControls('close', TECH, { isMine: false, started: true, finished: true })).toEqual({ primary: null, menu: null })
+  })
+  it('[blocker] ช่างล้วน งานของตัวเองที่ยังไม่ทำเสร็จ → ไม่มีปุ่มปิด', () => {
+    expect(dayCardControls('close', TECH, { isMine: true, started: false, finished: false }).primary).toBeNull()
+    expect(dayCardControls('close', TECH, { isMine: true, started: true, finished: false }).primary).toBeNull()
+  })
+  it('[blocker] ช่างล้วน งานของตัวเองที่ทำเสร็จแล้ว → ปุ่มปิดงาน · ไม่มีเมนูไม่มาตามนัด', () => {
+    expect(dayCardControls('close', TECH, { isMine: true, started: true, finished: true })).toEqual({ primary: 'close', menu: null })
+  })
+  it('[blocker] ช่างล้วนที่ไม่ได้ติ๊กปิดงาน → ไม่มีปุ่มปิดแม้งานของตัวเองทำเสร็จ', () => {
+    expect(dayCardControls('close', { ...TECH, canClose: false }, { isMine: true, started: true, finished: true }).primary).toBeNull()
+  })
+  it('ช่างล้วน: ไม่มี "ไม่มาตามนัด" แม้ยังไม่เริ่ม', () => {
+    expect(dayCardControls('close', TECH, { isMine: true, started: false, finished: false }).menu).toBeNull()
+  })
+  it('[blocker] คนที่ไม่ใช่ช่างล้วน: ปิดก่อนเริ่ม/ก่อนทำเสร็จได้เหมือนเดิม (FR-010) · งานใครก็ได้', () => {
+    const OWNER = { canClose: true, canReschedule: true, technicianOnly: false }
+    expect(dayCardControls('close', OWNER, { isMine: false, started: false, finished: false }).primary).toBe('close')
+    expect(dayCardControls('close', OWNER, { isMine: false, started: true, finished: false }).primary).toBe('close')
+  })
+  it('[blocker] เริ่มงานแล้ว → ซ่อน "ไม่มาตามนัด" ทุกบทบาท (เริ่มงาน = ลูกค้ามาแล้ว)', () => {
+    const OWNER = { canClose: true, canReschedule: true, technicianOnly: false }
+    expect(dayCardControls('close', OWNER, { isMine: false, started: true, finished: false }).menu).toEqual({ reschedule: true, noShow: false })
+    expect(dayCardControls('close', { ...OWNER, canReschedule: false }, { isMine: false, started: true, finished: true }).menu).toBeNull()
+    expect(dayCardControls('close', OWNER, { isMine: false, started: false, finished: false }).menu).toEqual({ reschedule: true, noShow: true })
   })
 })

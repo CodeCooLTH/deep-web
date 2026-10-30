@@ -34,6 +34,7 @@ import {
 } from '@/services/service-resource.service'
 import ResourceList from './components/ResourceList'
 import GranularitySetting from './components/GranularitySetting'
+import ServiceJobPhotoSettings from './components/ServiceJobPhotoSettings'
 
 export const metadata: Metadata = { title: 'ประเภทงาน' }
 
@@ -81,6 +82,15 @@ export default async function JobTypesPage() {
         {resources.length > 0 && (
           <GranularitySetting
             value={(active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'}
+          />
+        )}
+
+        {/* 00086 P3-T10 — รูปก่อน-หลังงาน (S-11) · การ์ดตั้งค่าทั้งร้านใบที่สอง เงื่อนไขเดียวกับพี่น้อง
+            หน้านี้กั้น Q2 + ร้านบริการไว้แล้วข้างบน (gatePage + canUseAppointments) · API กั้นซ้ำ (Q2 + 403 ร้านอื่น) */}
+        {resources.length > 0 && (
+          <ServiceJobPhotoSettings
+            mode={active.shop.serviceJobPhotoMode}
+            buyerVisible={active.shop.serviceJobPhotosBuyerVisible}
           />
         )}
       </div>

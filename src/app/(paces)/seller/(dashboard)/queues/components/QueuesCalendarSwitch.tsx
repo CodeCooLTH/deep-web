@@ -58,9 +58,11 @@ type Props = {
   resources: ResourceOption[]
   byDay: boolean
   createLabelShort: string
+  /** แถบสร้างงานติดล่างจอของบอร์ดมือถือ — ตัดสินที่ `queuesCreateBarRenders` (role-nav) ส่งผ่านเฉย ๆ */
+  showCreateBar: boolean
 }
 
-export default function QueuesCalendarSwitch({ resources, byDay, createLabelShort }: Props) {
+export default function QueuesCalendarSwitch({ resources, byDay, createLabelShort, showCreateBar }: Props) {
   /**
    * null = ยังไม่รู้ความกว้าง (เฟรมแรก/SSR) — ต้องเป็นสามสถานะ ไม่ใช่ boolean ที่เดาว่า false
    * ไม่งั้นเดสก์ท็อปจะ mount บอร์ดมือถือหนึ่งเฟรมแล้วสลับ ซึ่งยิง API ทิ้งไปหนึ่งครั้งพอดี
@@ -85,6 +87,7 @@ export default function QueuesCalendarSwitch({ resources, byDay, createLabelShor
       resources={resources}
       byDay={byDay}
       createLabelShort={createLabelShort}
+      showCreateBar={showCreateBar}
     />
   )
 }

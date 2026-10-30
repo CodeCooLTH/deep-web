@@ -17,10 +17,11 @@ describe('TodayJobs i18n', () => {
     expect(thaiInCode(readFileSync(FILE, 'utf8'))).toEqual([])
   })
 
-  it('ใช้ useT().dashboard และทุกคีย์ todayJobs* ที่อ้างมีใน th และ en (en ไม่มีไทย)', () => {
+  // 00086 P3: การ์ดช่างใช้ todayMine*/todayUnassigned* เพิ่ม (หัว "งานของฉันวันนี้" / "ยังไม่มีคนรับ") — ตรวจทุกตระกูล
+  it('ใช้ useT().dashboard และทุกคีย์ todayJobs*/todayMine*/todayUnassigned* ที่อ้างมีใน th และ en (en ไม่มีไทย)', () => {
     const src = readFileSync(FILE, 'utf8')
     expect(src).toMatch(/useT\(\)\.dashboard/)
-    const keys = [...new Set([...src.matchAll(/\bt\.(todayJobs\w+)/g)].map((m) => m[1]))]
+    const keys = [...new Set([...src.matchAll(/\bt\.(today(?:Jobs|Mine|Unassigned)\w+)/g)].map((m) => m[1]))]
     expect(keys.length).toBeGreaterThanOrEqual(8)
     for (const k of keys) {
       expect(typeof (th.dashboard as Record<string, unknown>)[k], `th.dashboard.${k}`).toBe('string')

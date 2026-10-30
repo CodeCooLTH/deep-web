@@ -41,3 +41,25 @@ describe('shop-context — roles จากแถว ShopMember', () => {
     expect((await resolveActiveShopContext(session))?.roles).toEqual([])
   })
 })
+
+describe('shop-context — ธงสิทธิ์รายคน 00086 (อ่านจากแถว ShopMember query เดิม)', () => {
+  it('select ธงใน query เดิม (ไม่ยิงเพิ่ม) และส่งต่อถึง ActiveShop ทั้งสองทาง', async () => {
+    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'], canCloseJob: true, canRecordExpense: false })
+    const ctx = await resolveActiveShopContext(session)
+    expect(ctx).toMatchObject({ canCloseJob: true, canRecordExpense: false })
+    expect(prismaMock.shopMember.findUnique).toHaveBeenCalledTimes(1)
+    expect(prismaMock.shopMember.findUnique.mock.calls[0][0].select).toMatchObject({ canCloseJob: true, canRecordExpense: true })
+    expect(await requireActiveShop(session)).toMatchObject({ canCloseJob: true, canRecordExpense: false })
+    const r = await requireShopForRequest(session, 's1')
+    expect(r.ok && { c: r.target.canCloseJob, e: r.target.canRecordExpense }).toEqual({ c: true, e: false })
+  })
+  it('แถวไม่มีคีย์ธง (ค่าแปลก/undefined) = false (fail-closed)', async () => {
+    prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'] })
+    expect(await resolveActiveShopContext(session)).toMatchObject({ canCloseJob: false, canRecordExpense: false })
+    expect(await requireActiveShop(session)).toMatchObject({ canCloseJob: false, canRecordExpense: false })
+  })
+  it('PERSONAL = false ทั้งคู่', async () => {
+    prismaMock.shop.findUnique.mockResolvedValue({ ...SHOP, kind: 'PERSONAL', userId: 'u1' })
+    expect(await resolveActiveShopContext(session)).toMatchObject({ canCloseJob: false, canRecordExpense: false })
+  })
+})

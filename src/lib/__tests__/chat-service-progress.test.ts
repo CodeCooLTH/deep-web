@@ -97,3 +97,48 @@ describe('SERVICE_STAGE_CHIP_META', () => {
     }
   })
 })
+
+describe('serviceProgressStage — ขั้นระหว่างทำงาน (00086 · มติ 2026-10-30)', () => {
+  const T = '2026-08-16T03:00:00.000Z'
+  it('[blocker] เริ่มแล้ว ⇒ IN_SERVICE ("กำลังให้บริการ") · ทำเสร็จแล้ว ⇒ FINISHED_AWAITING_CLOSE — ยังเป็นงานค้าง', () => {
+    const started = { ...WITH_APPT, serviceStartedAt: T }
+    expect(serviceProgressStage(started)).toBe('IN_SERVICE')
+    expect(SERVICE_STAGE_CHIP_META.IN_SERVICE.label).toBe('กำลังให้บริการ')
+    const finished = { ...started, serviceFinishedAt: T }
+    expect(serviceProgressStage(finished)).toBe('FINISHED_AWAITING_CLOSE')
+    expect(SERVICE_STAGE_CHIP_META.FINISHED_AWAITING_CLOSE.label).toBe('ทำเสร็จ · รอปิดงาน')
+    expect(filterActiveServiceOrders([started, finished])).toHaveLength(2)
+  })
+  it('[blocker] ปิดงานแล้ว / ลูกค้ายืนยัน / ไม่มาตามนัด ชนะขั้นระหว่างทำงาน', () => {
+    const o = { ...WITH_APPT, serviceStartedAt: T, serviceFinishedAt: T }
+    expect(serviceProgressStage({ ...o, serviceClosedAt: T })).toBe('DONE')
+    expect(serviceProgressStage({ ...o, status: 'CONFIRMED' })).toBe('AWAITING_CLOSE')
+    expect(serviceProgressStage({ ...o, appointmentStatus: 'NO_SHOW' })).toBe('DONE')
+  })
+})
+
+describe('serviceProgressStage — งานหน้าร้าน (00086 FR-001)', () => {
+  const CREATED = '2026-08-15T12:00:00.000Z'
+  it('[blocker] มีเวลาเริ่ม + ร้านเลือกหน้าร้าน ⇒ PENDING ("รอเริ่มงาน") ไม่ใช่ SCHEDULED ("นัดแล้ว")', () => {
+    const o = { ...WITH_APPT, arrivalMode: 'WALK_IN', createdAt: '2026-08-10T00:00:00.000Z' }
+    expect(serviceProgressStage(o)).toBe('PENDING')
+    expect(SERVICE_STAGE_CHIP_META.PENDING.label).toBe('รอเริ่มงาน')
+    // ยังเป็นงานค้าง (ไม่หลุดรายการ)
+    expect(filterActiveServiceOrders([o])).toHaveLength(1)
+  })
+
+  it('ใบเก่าไม่มีค่าเก็บ + เปิดบิลตอนลูกค้ามาถึง ⇒ สูตรเดิม = หน้าร้าน ⇒ PENDING', () => {
+    expect(serviceProgressStage({ ...WITH_APPT, arrivalMode: null, createdAt: CREATED })).toBe('PENDING')
+  })
+
+  it('[blocker] จองล่วงหน้า / ไม่ส่งข้อมูลแบบการมา ⇒ SCHEDULED เหมือนเดิม', () => {
+    expect(serviceProgressStage({ ...WITH_APPT, arrivalMode: 'BOOKED', createdAt: CREATED })).toBe('SCHEDULED')
+    expect(serviceProgressStage(WITH_APPT)).toBe('SCHEDULED')
+  })
+
+  it('หน้าร้านแต่สถานะนัดเดินแล้ว (ลูกค้ายืนยัน/ขอเลื่อน) ⇒ กองเดิมของสถานะนั้น', () => {
+    const o = { ...WITH_APPT, arrivalMode: 'WALK_IN', createdAt: CREATED }
+    expect(serviceProgressStage({ ...o, appointmentStatus: 'CONFIRMED_BY_BUYER' })).toBe('CONFIRMED_BY_BUYER')
+    expect(serviceProgressStage({ ...o, appointmentStatus: 'COMPLETED' })).toBe('DONE')
+  })
+})

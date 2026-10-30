@@ -21,11 +21,13 @@ const db = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 
-const appt = vi.hoisted(() => ({ listAppointmentsForDay: vi.fn(), listAppointments: vi.fn(), closeServiceJob: vi.fn() }))
+const appt = vi.hoisted(() => ({ listAppointmentsForDay: vi.fn(), listAppointments: vi.fn(), listMyCarryOverJobs: vi.fn(), listMyUnscheduledJobs: vi.fn(), closeServiceJob: vi.fn() }))
 vi.mock('@/services/appointment.service', async (orig) => ({
   ...(await orig<object>()),
   listAppointmentsForDay: appt.listAppointmentsForDay,
   listAppointments: appt.listAppointments,
+  listMyCarryOverJobs: appt.listMyCarryOverJobs,
+  listMyUnscheduledJobs: appt.listMyUnscheduledJobs,
 }))
 vi.mock('@/services/service-job.service', () => ({ closeServiceJob: appt.closeServiceJob, reopenServiceJob: vi.fn() }))
 
@@ -35,6 +37,8 @@ import { GET as getOrder } from '../[token]/route'
 import { GET as summaryGet } from '../[token]/appointment-summary/route'
 import { GET as dayGet } from '@/app/api/shops/current/appointments/day/route'
 import { GET as monthGet } from '@/app/api/shops/current/appointments/route'
+import { GET as carryOverGet } from '@/app/api/shops/current/appointments/carry-over/route'
+import { AppointmentFeatureUnavailableError } from '@/lib/appointments'
 import { GET as customersGet } from '../customers/route'
 import { POST as outcomePost } from '../[token]/appointment/outcome/route'
 import { NO_MONEY_FORBIDDEN_KEYS, NO_MONEY_ORDER_KEYS } from '@/lib/order-view-by-level'
@@ -144,6 +148,9 @@ const DAY_ITEM = () => ({
   buyerName: 'สมชาย', buyerContact: '0812345678', resource: { id: 'r1', name: 'ช่าง A', capacity: 1 },
   source: null, salesChannel: 'LINE', customerAvatarUrl: null, conversationId: 'conv-1', firstItemName: 'ตัดผม', itemCount: 1,
   totalAmount: '900', depositAmount: '300',
+  // 00086 P3 — คน/เวลา ไม่ใช่เงิน ⇒ ช่างต้องได้
+  assignee: { userId: 'u1', displayName: 'ช่างนิด' },
+  serviceStartedAt: new Date('2026-10-12T03:05:00Z'), serviceFinishedAt: null, serviceClosedAt: null,
 })
 
 describe('GET /api/shops/current/appointments/day — คิวรายวัน', () => {
@@ -157,6 +164,11 @@ describe('GET /api/shops/current/appointments/day — คิวรายวั�
     expect(moneyKeysIn(items)).toEqual([])
     expect(items[0].conversationId).toBeNull()
     expect(items[0]).toMatchObject({ buyerName: 'สมชาย', buyerContact: '0812345678', firstItemName: 'ตัดผม' })
+    // 00086 P3 — ผู้รับผิดชอบ + ขั้นของงานรอดผ่าน toNoMoneyAppointmentDay (Date → ISO ที่ boundary)
+    expect(items[0]).toMatchObject({
+      assignee: { userId: 'u1', displayName: 'ช่างนิด' },
+      serviceStartedAt: '2026-10-12T03:05:00.000Z', serviceFinishedAt: null, serviceClosedAt: null,
+    })
   })
 
   it('MANAGER: ยอด/มัดจำ/ห้องแชทคงเดิม', async () => {
@@ -169,6 +181,51 @@ describe('GET /api/shops/current/appointments/day — คิวรายวั�
     asRole(['TECHNICIAN', 'CHAT'])
     const { items } = await (await dayGet(req('/api/shops/current/appointments/day?date=2026-10-12'))).json()
     expect(items[0]).toMatchObject({ totalAmount: '900', conversationId: 'conv-1' })
+  })
+})
+
+describe('GET /api/shops/current/appointments/carry-over — งานของฉันที่ค้างจากวันก่อน (00086 P3)', () => {
+  // 🛑 ต้องมีปีกกา: beforeEach ที่ "คืนฟังก์ชัน" = vitest เรียกฟังก์ชันนั้นเป็น teardown หลังเทส (คืน vi.fn = เรียก mock ซ้ำ)
+  beforeEach(() => {
+    appt.listMyCarryOverJobs.mockResolvedValue([DAY_ITEM()])
+    // 00086 M1 — งานของฉันที่ยังไม่ระบุเวลา: แถวทรงเดียวกัน start/end = null
+    appt.listMyUnscheduledJobs.mockResolvedValue([{ ...DAY_ITEM(), orderToken: 'tok-u', start: null, end: null, serviceStartedAt: null }])
+  })
+
+  it('TECHNICIAN: ของผู้เรียกเท่านั้น (userId จาก session) · ไม่มียอด/มัดจำ/ห้องแชท · ผู้รับผิดชอบ+เวลาเริ่มอยู่', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await carryOverGet()
+    expect(res.status).toBe(200)
+    expect(appt.listMyCarryOverJobs).toHaveBeenCalledWith({ shopId: SHOP, userId: 'u1' })
+    const { items } = await res.json()
+    expect(moneyKeysIn(items)).toEqual([])
+    expect(items[0].conversationId).toBeNull()
+    expect(items[0]).toMatchObject({ assignee: { userId: 'u1', displayName: 'ช่างนิด' }, serviceStartedAt: '2026-10-12T03:05:00.000Z', start: '2026-10-12T03:00:00.000Z' })
+  })
+
+  it('MANAGER: ตัดด้วยกติกาเดียวกับ day — ยอด/มัดจำ/ห้องแชทคงอยู่', async () => {
+    asRole(['MANAGER'])
+    const { items, unscheduled } = await (await carryOverGet()).json()
+    expect(items[0]).toMatchObject({ totalAmount: '900', depositAmount: '300', conversationId: 'conv-1' })
+    expect(unscheduled[0]).toMatchObject({ totalAmount: '900', depositAmount: '300', conversationId: 'conv-1' })
+  })
+
+  it('M1 unscheduled: ของผู้เรียกเท่านั้น · start/end = null · ช่างไม่มียอด/มัดจำ/ห้องแชท (ทางออกเงินเดียวกับ items)', async () => {
+    asRole(['TECHNICIAN'])
+    const res = await carryOverGet()
+    expect(appt.listMyUnscheduledJobs).toHaveBeenCalledWith({ shopId: SHOP, userId: 'u1' })
+    const { unscheduled } = await res.json()
+    expect(unscheduled).toHaveLength(1)
+    expect(moneyKeysIn(unscheduled)).toEqual([])
+    expect(unscheduled[0]).toMatchObject({ orderToken: 'tok-u', start: null, end: null, conversationId: null, assignee: { userId: 'u1', displayName: 'ช่างนิด' } })
+  })
+
+  it('ร้านไม่ใช่บริการ → 403 FEATURE_NOT_AVAILABLE (เหมือน day)', async () => {
+    asRole(['TECHNICIAN'], 'ONLINE_SALES')
+    appt.listMyCarryOverJobs.mockRejectedValue(new AppointmentFeatureUnavailableError())
+    const res = await carryOverGet()
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toBe('FEATURE_NOT_AVAILABLE')
   })
 })
 
@@ -230,8 +287,10 @@ describe('ของที่ช่างต้องไม่ได้ / ต้�
     expect(await res.json()).toEqual({ error: 'FORBIDDEN_ROLE' })
   })
 
-  it('POST appointment/outcome — TECHNICIAN (O4) ปิดผลนัดได้ → 200', async () => {
+  // 00086 S-5: ร้านบริการ ช่างต้องมีธง canCloseJob ถึงปิดได้ (ไม่มีธง = 403 · matrix อยู่ใน role-gates.route.test.ts)
+  it('POST appointment/outcome — TECHNICIAN (O4 + ธงปิดงาน) ปิดผลนัดได้ → 200', async () => {
     asRole(['TECHNICIAN'])
+    db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles: ['TECHNICIAN'], canCloseJob: true, canRecordExpense: false })
     appt.closeServiceJob.mockResolvedValue({ appointmentStatus: 'COMPLETED', serviceClosedAt: new Date(), money: { totalAmount: 1 } })
     const res = await outcomePost(
       new NextRequest('http://seller.deepth.local/api/orders/tok-1/appointment/outcome', { method: 'POST', body: JSON.stringify({ outcome: 'COMPLETED' }) }),

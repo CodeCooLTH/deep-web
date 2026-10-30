@@ -5,6 +5,8 @@ import * as v from "valibot";
 import { AppointmentOutcomeSchema } from "@/lib/validations";
 import { jsonNoStore } from "@/lib/shop-api-guard";
 import { requireShopCapability } from "@/lib/shop-capability";
+import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { memberCanCloseJob } from "@/lib/shop-permissions";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { serviceJobErrorResponse } from "@/lib/service-job-api";
 import { closeServiceJob } from "@/services/service-job.service";
@@ -37,6 +39,9 @@ export async function POST(
   const gate = await requireShopCapability(await getServerSession(authOptions), "O4", { shopId: request.nextUrl.searchParams.get("shopId") });
   if (!gate.ok) return gate.response;
   const ctx = gate;
+  // 00086 S-5 (FR-005) — ทางปิดงานที่ 2 (ไม่มีเงิน) ต้องกั้นเท่ากับ /close: ร้านบริการ = เจ้าของ/ผู้จัดการ/ธง canCloseJob
+  // ร้าน/ธงมาจากแถวที่ด่านเพิ่ง resolve (ร้านเดียวกับ ctx.shopId ที่ส่งเข้า closeServiceJob)
+  if (!memberCanCloseJob(ctx.active.shop, ctx.roles, ctx.active)) return forbiddenRoleResponse();
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(AppointmentOutcomeSchema, body ?? {});
@@ -49,6 +54,8 @@ export async function POST(
       shopId: ctx.shopId,
       orderToken: token,
       actorUserId: ctx.userId,
+      // 00086 — ด่านช่างล้วน (งานของตัวเอง + ทำเสร็จแล้ว) อยู่ใน closeServiceJob ⇒ ทางปิดงานทั้งสองทางกั้นเท่ากัน
+      actorRoles: ctx.roles,
       outcome: parsed.output.outcome === "NO_SHOW" ? "NO_SHOW" : "SERVED",
       deposit: "KEEP",
     });

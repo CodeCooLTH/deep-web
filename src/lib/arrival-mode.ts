@@ -5,19 +5,25 @@
  * เลยต้องมีหลายแบบ"* — ระบบตอบไม่ได้เลยก่อนหน้านี้ เพราะเก็บแค่ "มีเวลานัดไหม" (มี/ไม่มี)
  * ซึ่งยุบ 3 สถานการณ์ที่ต่างกันสิ้นเชิงให้เหลือ 2 ค่า
  *
- * ## 🛑 ทำไม derive ไม่ใช่เพิ่มคอลัมน์
+ * ## แหล่งความจริง (feature 00086 S-1 — เปลี่ยนจาก "derive อย่างเดียว" เป็น "ร้านเลือกเอง")
  *
- * ธงที่เก็บในแถวคือ **ภาพนิ่ง ณ เวลาที่เขียน** ไม่ใช่ความจริงปัจจุบัน — ร้านเลื่อนนัด/แก้เวลา
- * ทีหลังได้ แล้วธงจะค้างบอกเรื่องเก่า โดยไม่มีอะไรฟ้อง (`stored-flag-vs-owner-truth.md`)
- * ที่สำคัญกว่านั้น: **ออเดอร์ 21 ใบบน prod เกิดก่อนที่จะมีธง** ⇒ เพิ่มคอลัมน์แล้วต้อง backfill
- * ด้วยการเดา ซึ่งคือการแต่งข้อเท็จจริงขึ้นมา · การ derive ให้คำตอบกับข้อมูลเก่าทันทีโดยไม่ต้องเดา
+ * เดิมไฟล์นี้ตั้งใจ *ไม่* เก็บคอลัมน์ เพราะตอนเปิดบิลไม่มีใครบอกว่าลูกค้ามายังไง ระบบจึงได้แต่เดา
+ * จากระยะห่าง `serviceStart - createdAt` · 00086 ให้ร้าน **เลือกเองตอนเปิดบิล** (จองล่วงหน้า / หน้าร้าน)
+ * ⇒ ค่านี้กลายเป็นข้อเท็จจริงที่ร้านระบุ ไม่ใช่ภาพนิ่งที่ระบบเดา — เก็บลง `Order.arrivalMode`
+ * (การเลื่อนนัดทีหลังไม่ได้เปลี่ยนว่าลูกค้า "จองมา" หรือ "มาหน้าร้าน")
  *
- * ## เกณฑ์
+ * ลำดับการตัดสิน = `arrivalModeOf()`: **ค่าที่เก็บในแถว → สูตรเดิม (ใบที่ไม่มีค่าเก็บ) → ยังไม่ระบุเวลา**
+ * ใบเก่าก่อน 00086 ถูก backfill ด้วยสูตรเดียวกับ `resolveArrivalMode` ทุกตัวอักษร (migration
+ * 20261027100200) ผลบนจอจึงไม่เปลี่ยนสักใบ · จอใหม่ทุกจอต้องเรียก `arrivalModeOf` ไม่ใช่สูตรตรง ๆ
+ *
+ * 🛑 DB CHECK `Order_arrivalMode_check`: มีค่าได้ก็ต่อเมื่อมี `serviceStart` — ไม่มีเวลา = NULL เสมอ
+ *
+ * ## เกณฑ์ของสูตรเดิม (`resolveArrivalMode` — ใช้เมื่อแถวไม่มีค่าเก็บ)
  *
  * | ค่า | เกณฑ์ | ความหมายกับร้าน |
  * |---|---|---|
  * | `UNSCHEDULED` | ไม่มี `serviceStart` | **ยังไม่มีที่ยืนในตารางงาน** — ต้องกด "เริ่มงานเลย" ก่อน |
- * | `WALK_IN` | เวลานัด ≈ เวลาที่เปิดบิล | เดินเข้ามาแล้วเปิดบิลตรงนั้น |
+ * | `WALK_IN` | เวลานัด ≈ เวลาที่เปิดบิล | มาหน้าร้านแล้วเปิดบิลตรงนั้น |
  * | `BOOKED` | เวลานัดอยู่หลังเวลาเปิดบิลอย่างมีนัยยะ | จองล่วงหน้าไว้ |
  *
  * เกณฑ์ `WALK_IN` ถูกทำให้ **จริงโดยการก่อสร้าง**: ปุ่ม "เริ่มงานเลย" ตั้ง `serviceStart = เวลาที่กด`
@@ -50,7 +56,7 @@ export const ARRIVAL_MODE_META: Record<ArrivalMode, ArrivalModeMeta> = {
     cls: "bg-warning/15 text-warning-ink",
   },
   WALK_IN: {
-    label: "เดินเข้ามา",
+    label: "หน้าร้าน",
     hint: "ลูกค้ามาถึงร้านแล้วเปิดบิลตรงนั้น ไม่ได้จองล่วงหน้า",
     icon: "walk",
     cls: "bg-default-100 text-default-800",
@@ -101,4 +107,47 @@ export function resolveArrivalMode(order: {
 export function arrivalSummary(mode: ArrivalMode, channelLabel: string | null): string {
   const base = ARRIVAL_MODE_META[mode].label;
   return channelLabel ? `${base} · จาก${channelLabel}` : base;
+}
+
+/** ค่าที่เก็บได้ใน `Order.arrivalMode` (ชุดเดียวกับ CHECK ของ migration 20261027100200) */
+export type StoredArrivalMode = "BOOKED" | "WALK_IN";
+
+export function isStoredArrivalMode(v: unknown): v is StoredArrivalMode {
+  return v === "BOOKED" || v === "WALK_IN";
+}
+
+/**
+ * ลูกค้ารายนี้มาแบบไหน — **ตัวตัดสินเดียวของทุกจอ** (feature 00086)
+ *
+ * ค่าที่ร้านเลือกเก็บในแถวชนะเสมอ · ใบที่ไม่มีค่าเก็บ (ไม่ใช่ร้านบริการ / เกิดจากเส้นทางที่ไม่ได้ถาม)
+ * ตกไปใช้สูตรเดิม `resolveArrivalMode` · ไม่มีเวลานัด = ยังไม่ระบุเวลา
+ *
+ * 🛑 ไม่มีเวลานัดแต่มีค่าเก็บ เกิดไม่ได้ (CHECK) — ถ้าเกิดขึ้นก็ยังเชื่อค่าที่ร้านเลือก
+ * ไม่เดาทับ เพราะนั่นคือข้อเท็จจริงที่คนระบุ
+ */
+export function arrivalModeOf(order: {
+  arrivalMode?: string | null;
+  serviceStart: string | Date | null | undefined;
+  createdAt: string | Date;
+}): ArrivalMode {
+  if (isStoredArrivalMode(order.arrivalMode)) return order.arrivalMode;
+  return resolveArrivalMode(order);
+}
+
+/**
+ * ชิปแบบการมาที่จองานบริการแสดง (feature 00086 FR-002) — คืน meta ของชิป หรือ null = ไม่แสดง
+ *
+ * 00086 เปลี่ยนจาก "ติดเฉพาะ WALK_IN" เป็นติดทั้ง "จองล่วงหน้า" และ "หน้าร้าน": ตอนนี้ร้านเลือกเองตอนเปิดบิล
+ * ⇒ เป็นข้อเท็จจริงที่ร้านระบุ ไม่ใช่ค่าปกติที่ระบบเดา ทั้งสองค่าจึงควรเห็นได้ (prototype v13 ติดป้ายจองด้วย)
+ *
+ * `UNSCHEDULED` แสดงเฉพาะจอที่ขอ (`includeUnscheduled`) — คงพฤติกรรมเดิมของแต่ละจอ:
+ * แถบงานในแชทใช้เป็นสัญญาณ "ต้องกดเริ่มงานเลย" · การ์ดนัด/ตารางงานมีเวลาแล้วเสมอ จึงไม่ติด
+ */
+export function arrivalChipMeta(
+  mode: ArrivalMode | null | undefined,
+  opts: { includeUnscheduled?: boolean } = {},
+): ArrivalModeMeta | null {
+  if (!mode) return null;
+  if (mode === "UNSCHEDULED" && !opts.includeUnscheduled) return null;
+  return ARRIVAL_MODE_META[mode];
 }

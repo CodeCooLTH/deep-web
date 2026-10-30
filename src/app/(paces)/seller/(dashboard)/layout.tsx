@@ -10,7 +10,7 @@ import { isShopOwnerRole } from '@/lib/shop-owner'
 import { FINANCE_MENU_LABEL, mergesFinanceMenu, resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import { getT } from '@/i18n/server'
 import { can, effectiveRoles } from '@/lib/shop-permissions'
-import { bottomNavHiddenPages, resolveMobileNav } from '@/lib/role-nav'
+import { bottomNavHiddenPages, resolveMobileNav, showsShopPackage } from '@/lib/role-nav'
 import { resolveSellerMenuItems } from '@/lib/seller-menu-server'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
@@ -83,7 +83,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
   const orderVocab = resolveOrderVocab(shop.vertical)
   const nav = resolveMobileNav(roles, { kind: active.kind, vertical: shop.vertical }, orderVocab, await getT())
-  const navHidden = bottomNavHiddenPages(roles)
+  const navHidden = bottomNavHiddenPages(roles, { kind: active.kind, vertical: shop.vertical })
 
   // pendingCount สำหรับ SellerBottomNav badge — ดึงเฉพาะเมื่อ shop มี id
   // (shop อาจเป็น null เมื่อเพิ่ง auto-create → skip getOrderStatusCounts กัน error ก่อน redirect ทำงาน)
@@ -128,7 +128,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // ข้าม query ทั้งก้อนเมื่อ active เป็นบัญชีส่วนตัว — การ์ดไม่ถูก render อยู่แล้ว (ดู sidenavHeaderSlot)
   let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
   let businessPackageTier: BusinessPackageTier | null = null
-  if (active.kind === 'BUSINESS') {
+  // 00086 (user 2026-10-30 "ซ่อนเลย"): ช่างล้วนร้านบริการไม่เห็นการ์ดแพ็กเกจ — ตัวตัดสินเดียวกับชิปบนหน้าแรกมือถือ (homeBlocks().shopPackage)
+  const showPackageCard = active.kind === 'BUSINESS' && showsShopPackage(roles, { kind: active.kind, vertical: shop.vertical })
+  if (showPackageCard) {
     try {
       // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
       // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
@@ -215,10 +217,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       //
       // ทุก role ของร้านธุรกิจเห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
       // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
+      // ยกเว้นช่างล้วนร้านบริการ (00086 · user 2026-10-30 "ซ่อนเลย") — showPackageCard / showsShopPackage
       // 🛑 ในแอป iOS ไม่แสดงการ์ดนี้เลย: มันบอกแพ็กเกจปัจจุบันและกดไปหน้าจัดการ/อัปเกรดได้
       //    = ทั้ง "ราคา/ระดับที่ซื้อได้" และ "ลิงก์ไปหน้าจ่ายเงิน" ในใบเดียว
       sidenavHeaderSlot={
-        active.kind === 'BUSINESS' && !hidePayments ? (
+        showPackageCard && !hidePayments ? (
           <ShopPackageSidenavCard
             status={businessPackageStatus}
             tier={businessPackageTier}

@@ -82,7 +82,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
     const ctx = await seed()
     const o = await job(ctx, { deposit: 500 })
     const r = await closeServiceJob({
-      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id,
+      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'],
       outcome: 'SERVED', payment: { amount: 3000, method: 'CASH' },
     })
     expect(r.serviceClosedAt).toBeInstanceOf(Date)
@@ -98,7 +98,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
   it('ปิดทั้งที่ยังค้างเงินได้ (ALLOW_COMPLETE_WITH_OUTSTANDING)', async () => {
     const ctx = await seed()
     const o = await job(ctx, { deposit: 500 })
-    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     expect(r.money.outstanding).toBe(3000)
   })
 
@@ -106,9 +106,9 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
     const ctx = await seed()
     const o = await job(ctx, { appointment: false })
     await expect(
-      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW' }),
+      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW' }),
     ).rejects.toBeInstanceOf(ServiceJobNoShowWithoutAppointmentError)
-    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     expect(r.appointmentStatus).toBeNull()
     expect(r.serviceClosedAt).not.toBeNull()
   })
@@ -116,7 +116,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
   it('ไม่มาตามนัด + เก็บมัดจำ (ค่าตั้งต้น) → มัดจำยังอยู่ · meta KEPT', async () => {
     const ctx = await seed()
     const o = await job(ctx, { deposit: 300 })
-    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW' })
+    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW' })
     expect(r.appointmentStatus).toBe('NO_SHOW')
     expect(r.money.totalReceived).toBe(300)
     const ev = await prisma.orderEvent.findFirstOrThrow({ where: { orderId: o.id, type: 'SERVICE_CLOSED' } })
@@ -127,7 +127,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
     const ctx = await seed()
     const o = await job(ctx, { deposit: 300 })
     const r = await closeServiceJob({
-      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW', deposit: 'REFUND',
+      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW', deposit: 'REFUND',
     })
     expect(r.money.totalReceived).toBe(0)
     const pays = await prisma.orderPayment.findMany({ where: { orderId: o.id } })
@@ -140,7 +140,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
     const ctx = await seed()
     const o = await job(ctx)
     await closeServiceJob({
-      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW', payment: { amount: 999, method: 'CASH' },
+      shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW', payment: { amount: 999, method: 'CASH' },
     })
     expect(await prisma.orderPayment.count({ where: { orderId: o.id } })).toBe(0)
   })
@@ -148,26 +148,26 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
   it('ปิดซ้ำไม่ได้ · ปิดงานยกเลิกไม่ได้ · ปิดก่อนเวลานัดไม่ได้ (BR-RSV-34)', async () => {
     const ctx = await seed()
     const o = await job(ctx)
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await expect(
-      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' }),
+      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' }),
     ).rejects.toBeInstanceOf(ServiceJobAlreadyClosedError)
 
     const cancelled = await job(ctx, { status: 'CANCELLED', startOffsetH: -5 })
     await expect(
-      closeServiceJob({ shopId: ctx.shop.id, orderToken: cancelled.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' }),
+      closeServiceJob({ shopId: ctx.shop.id, orderToken: cancelled.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' }),
     ).rejects.toBeInstanceOf(ServiceJobNotClosableError)
 
     const future = await job(ctx, { startOffsetH: 5 })
     await expect(
-      closeServiceJob({ shopId: ctx.shop.id, orderToken: future.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' }),
+      closeServiceJob({ shopId: ctx.shop.id, orderToken: future.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' }),
     ).rejects.toBeInstanceOf(AppointmentNotStartedError)
   })
 
   it('ลูกค้ายืนยันไปก่อน (CONFIRMED) ร้านยังปิดงานได้ — ยอดเข้าตอนปิด', async () => {
     const ctx = await seed()
     const o = await job(ctx, { status: 'CONFIRMED' })
-    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    const r = await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     expect(r.serviceClosedAt).not.toBeNull()
   })
 
@@ -175,7 +175,7 @@ describe('closeServiceJob — ปิดงานกดครั้งเดี�
     const ctx = await seed('ONLINE_SALES')
     const o = await job(ctx, { appointment: false })
     await expect(
-      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' }),
+      closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' }),
     ).rejects.toBeInstanceOf(AppointmentFeatureUnavailableError)
   })
 })
@@ -184,7 +184,7 @@ describe('reopenServiceJob — เปิดงานอีกครั้ง (�
   it('ล้างวันปิด · สถานะนัดกลับ · บันทึกประวัติ · มัดจำที่คืนไม่ย้อน', async () => {
     const ctx = await seed()
     const o = await job(ctx, { deposit: 300 })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW', deposit: 'REFUND' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW', deposit: 'REFUND' })
     await reopenServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id })
     const after = await prisma.order.findUniqueOrThrow({ where: { id: o.id }, include: { payments: true } })
     expect(after.serviceClosedAt).toBeNull()
@@ -196,7 +196,7 @@ describe('reopenServiceJob — เปิดงานอีกครั้ง (�
   it('ลูกค้ายืนยันแล้ว → เปิดไม่ได้ · ยังไม่ปิด → เปิดไม่ได้', async () => {
     const ctx = await seed()
     const o = await job(ctx, { status: 'CONFIRMED' })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await expect(reopenServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id })).rejects.toBeInstanceOf(
       ServiceJobNotReopenableError,
     )
@@ -211,7 +211,7 @@ describe('ด่านที่ทำให้โปรไฟล์จริง'
   it('ลูกค้ายืนยันงานที่ร้านปิดแบบไม่มาตามนัดไม่ได้', async () => {
     const ctx = await seed()
     const o = await job(ctx)
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW' })
     await expect(confirmOrder(o.publicToken, ctx.buyer.id)).rejects.toBeInstanceOf(ServiceJobNoShowConfirmError)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('PENDING')
   })
@@ -219,7 +219,7 @@ describe('ด่านที่ทำให้โปรไฟล์จริง'
   it('ลูกค้ายืนยันงานที่ให้บริการแล้วได้ตามปกติ', async () => {
     const ctx = await seed()
     const o = await job(ctx)
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await confirmOrder(o.publicToken, ctx.buyer.id)
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe('CONFIRMED')
   })
@@ -227,7 +227,7 @@ describe('ด่านที่ทำให้โปรไฟล์จริง'
   it('งานที่ปิดแล้วยกเลิกไม่ได้ ทั้งร้านและลูกค้า · เปิดงานอีกครั้งแล้วยกเลิกได้', async () => {
     const ctx = await seed()
     const o = await job(ctx)
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await expect(cancelOrder(o.publicToken, 'buyer', undefined, ctx.buyer.id)).rejects.toBeInstanceOf(ServiceJobClosedLockedError)
     await expect(cancelOrder(o.publicToken, 'seller', 'SHOP_ISSUE', ctx.owner.id)).rejects.toBeInstanceOf(ServiceJobClosedLockedError)
     await reopenServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id })
@@ -244,7 +244,7 @@ describe('ด่านที่ทำให้โปรไฟล์จริง'
   it('งานที่ปิดแล้วแก้ไขไม่ได้ (มติ D3)', async () => {
     const ctx = await seed()
     const o = await job(ctx, { appointment: false })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await expect(
       updateOrder(ctx.shop.id, o.publicToken, { items: [{ name: 'ตัดผม', qty: 1, price: 100 }], type: 'SERVICE' } as never, ctx.owner.id),
     ).rejects.toBeInstanceOf(ServiceJobClosedLockedError)

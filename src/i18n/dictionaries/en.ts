@@ -571,6 +571,8 @@ export const en: Dictionary = {
     activityTitle: 'Recent activity',
     activityEmptyTitle: '{create} to get started',
     activityEmptyDesc: 'Activity appears here once you start using Deep.',
+    // empty feed for roles that cannot create (technician-only, service shops) — no create invite
+    activityEmptyTitleNoCreate: 'No activity yet',
     activityEmptyNone: 'No activity yet',
 
     achievementTitle: 'Achievement level',
@@ -612,6 +614,8 @@ export const en: Dictionary = {
     navCreate: 'Create',
     navChat: 'Chat',
     navShop: 'Shop',
+    navQueues: 'Schedule',
+    navCustomers: 'Customers',
     navShopAlertAria: 'A LINE report group needs attention',
     navCreateOpen: 'Open create menu',
     navCreateClose: 'Close create menu',
@@ -636,6 +640,16 @@ export const en: Dictionary = {
     todayJobsEmpty: 'No jobs today',
     todayJobsMonth: 'View the full month schedule',
     todayJobsAllToday: 'View all today ({n})',
+    // 00086 P3 — technician-only home, service shops (FR-008)
+    todayMineTitle: 'My jobs today',
+    todayMineTitleCount: 'My jobs today · {n}',
+    todayMineSeeAll: 'View all',
+    todayMineEmpty: 'You have no jobs today',
+    todayMineAll: 'View all my jobs ({n})',
+    todayUnassignedTitleCount: 'Unassigned · {n}',
+    todayUnassignedHint: 'Open a job and tap "Take this job" to move it into your jobs',
+    // counter-card title on the technician-only home (service shops) — shop-wide numbers, not the technician's own
+    technicianShopJobs: 'All shop jobs',
   },
 
   comments: {

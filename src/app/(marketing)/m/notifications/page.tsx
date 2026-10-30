@@ -25,9 +25,9 @@ export default async function MobileNotificationsPage() {
   const userId = sessionUserId(session)
   if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/dashboard')
 
-  const { items } = await listNotifications(userId, { take: 50 })
+  const { items } = await listNotifications(userId, { take: 50, personalOnly: true })
   // เปิดหน้านี้ = อ่านทั้งหมด (badge บนกระดิ่งเคลียร์รอบถัดไป)
-  await markAllNotificationsRead(userId)
+  await markAllNotificationsRead(userId, { personalOnly: true })
 
   return (
     <div className='flex flex-col gap-4'>

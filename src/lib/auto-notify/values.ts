@@ -118,5 +118,12 @@ export function buildTemplateValues(kind: AutoNotifyKind, s: AutoNotifySnapshot)
         เวลาปิดงาน: dateTimeText(s.serviceClosedAt),
         ลิงก์งาน: url,
       }
+    case 'SERVICE_FINISHED':
+      return {
+        ชื่อร้าน: common.ชื่อร้าน,
+        ชื่อลูกค้า: common.ชื่อลูกค้า,
+        บริการ: service,
+        ลิงก์งาน: url,
+      }
   }
 }

@@ -602,9 +602,10 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     revenueCountMetric: 'จากงานที่ปิดแล้ว',
     // 18 ตัวอักษร — ใต้เพดาน 20 ของ action.label บน LINE (ดูคอมเมนต์ของช่องนี้)
     viewLabel: 'ดูรายละเอียดบริการ',
-    // "รับงานแล้ว" ไม่ใช่ "ปิดงานแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
+    // "รอเริ่มงาน" ไม่ใช่ "ปิดงานแล้ว" (= fulfillLabel ขั้นถัดไป) และไม่ใช่ "นัดแล้ว"
     // (= APPOINTMENT_STATUS_LABEL.SCHEDULED ซึ่งมาแทนที่ป้ายนี้เมื่อใบนั้นมีนัด)
-    stageOrderedLabel: 'รับงานแล้ว',
+    // 00086 (มติ user 2026-10-30): เดิม "รับงานแล้ว" — ชนกับปุ่ม "รับงานนี้" ของช่าง · ตรงกับ SERVICE_STATUS_META.WALK_IN.seller
+    stageOrderedLabel: 'รอเริ่มงาน',
     buyerNoun: 'ลูกค้า',
     // ข้อมูลเก่าที่ค้าง SHIPPED ถูกปิดงานย้อนหลังแล้ว (migration 00073) ⇒ คำเดียวกับ fulfillLabel
     shippedStatusLabel: 'ปิดงานแล้ว',
@@ -863,7 +864,7 @@ export function resolveVisibleSellerMenu(
               offerIap: ctx.offerIap ?? true,
             }),
             roles,
-            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner },
+            { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner, vertical: ctx.shop.vertical },
           ),
           { ownsShop: ctx.ownsShop },
         ),

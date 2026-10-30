@@ -55,7 +55,12 @@ import { buildGuestOrderData } from './guest-order-data'
 import { sessionUserId } from '@/lib/session-user'
 import { canBuyerViewReceipt } from '@/lib/receipt'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
+import {
+  BUYER_SERVICE_JOB_RECORD_SELECT,
+  buyerSeesServiceJobPhotos,
+  toBuyerServiceJobPhotos,
+} from './buyer-service-job-photos'
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ sms?: string }> }
 
@@ -335,7 +340,18 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
        🛑 ยิงพร้อมกันใน Promise.all เดียว ไม่ใช่ต่อคิวทีละตัว — จอนี้ query หนักอยู่แล้ว
        (order + user + guaranteeOrderLink มาก่อนหน้านี้) การเพิ่ม 3 ตัวแบบ sequential
        จะยืดเวลาโหลดจริงตามจำนวน round trip ส่วนแบบขนานเสียเท่าตัวที่ช้าที่สุดตัวเดียว */
-    const [approvedVerifications, statusGroups, ratingAgg, channels] = await Promise.all([
+    /* 00086 T12 — รูปจากร้าน: ด่านตัดสิน "ก่อน query" (ร้านบริการ ∧ เปิดให้ลูกค้าเห็น ∧ โหมด≠NONE)
+       ไม่ผ่าน = ไม่ยิงเลย ⇒ ไม่มีทางที่ note/fileId จะเข้า flight payload · อยู่หลัง grant เท่านั้น
+       (guest/OTP/บล็อก early-return ไปแล้วข้างบน) · select allow-list ไม่มีผู้บันทึก (Controller Q1) */
+    const serviceJobRecordsQuery = buyerSeesServiceJobPhotos(order.shop)
+      ? prisma.serviceJobRecord.findMany({
+          where: { orderId: order.id },
+          select: BUYER_SERVICE_JOB_RECORD_SELECT,
+          orderBy: { createdAt: 'asc' },
+        })
+      : null
+
+    const [approvedVerifications, statusGroups, ratingAgg, channels, serviceJobRecords] = await Promise.all([
       prisma.verificationRecord.findMany({
         where: approvedVerificationWhere(verifyScope),
         select: { level: true },
@@ -359,7 +375,16 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
         select: { provider: true, name: true, avatarUrl: true, externalId: true, followerCount: true },
         take: 3,
       }),
+      serviceJobRecordsQuery,
     ])
+    const serviceJobPhotos = serviceJobRecords
+      ? toBuyerServiceJobPhotos(serviceJobRecords, {
+          status: order.status,
+          serviceFinishedAt: order.serviceFinishedAt ?? null,
+          serviceClosedAt: order.serviceClosedAt ?? null,
+          shopPhotoMode: order.shop.serviceJobPhotoMode,
+        })
+      : null
     const maxVerifyLevel = approvedVerifications.length
       ? Math.max(...approvedVerifications.map((v) => v.level))
       : 0
@@ -583,6 +608,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
               status: order.status,
               appointmentStatus: order.appointmentStatus ?? null,
               hasAppointment: Boolean(order.serviceStart),
+              // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+              arrivalMode: serviceArrivalOf(order),
               serviceClosedAt: order.serviceClosedAt ?? null,
               outstanding: null,
             },
@@ -622,6 +649,8 @@ export default async function PublicOrderPage({ params, searchParams }: Props) {
               rescheduleNote: order.rescheduleRequestNote ?? null,
             }
           : null,
+      // 00086 T12 — ไม่เข้าเงื่อนไข/ไม่มีแถว = ไม่มีคีย์เลย (ไม่ใช่ [] หรือ null)
+      ...(serviceJobPhotos ? { serviceJobPhotos } : {}),
     }
 
     // key ผูกสถานะ+รีวิว: PublicOrderClient ถือ order ใน useState ซึ่งไม่ซิงก์ prop ใหม่หลัง

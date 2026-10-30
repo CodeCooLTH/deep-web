@@ -18,10 +18,14 @@ export const NO_MONEY_ORDER_KEYS = [
   'auctionId', 'internalNote', 'shippingAddress',
   // นัดหมาย
   'serviceStart', 'serviceEnd', 'serviceResourceId', 'appointmentStatus', 'rescheduleRequestNote',
+  // feature 00086 — แบบการมา (จองล่วงหน้า/หน้าร้าน) ไม่ใช่เงิน · ช่างต้องเห็นว่าลูกค้ายืนรออยู่หรือจองมา
+  'arrivalMode',
   // feature 00073 — วันปิดงาน (สถานะงาน ไม่ใช่เงิน) · ช่างปิดงานได้ (O4) จึงต้องเห็นว่าปิดแล้วหรือยัง
   'serviceClosedAt',
   // feature 00078 — เวลาเริ่มงาน (เวลา ไม่ใช่เงิน) · ช่างกดเริ่มงานได้ (O4)
   'serviceStartedAt',
+  // feature 00086 P3 — ผู้รับผิดชอบ + เวลาทำเสร็จ (คน/เวลา ไม่ใช่เงิน) · ช่างต้องรู้ว่างานของใคร และทำเสร็จหรือยัง
+  'assignedUserId', 'serviceFinishedAt',
   // นัดรับ/ข้อพิพาท (สถานะงาน ไม่ใช่เงิน)
   'handedOverAt', 'disputeOpenedAt', 'disputeResolvedAt', 'accessUrl',
 ] as const
@@ -36,6 +40,11 @@ const TRACKING_KEYS = ['trackingNo', 'provider', 'createdAt'] as const
 const RESOURCE_KEYS = ['id', 'name', 'capacity'] as const
 const CHANNEL_KEYS = ['avatarUrl', 'provider', 'name'] as const
 const BUYER_KEYS = ['id', 'displayName', 'username', 'avatar'] as const
+/** feature 00086 — ผู้รับผิดชอบ: ชื่อเท่านั้น (ไม่มีเบอร์/อีเมล/username) */
+const ASSIGNEE_KEYS = ['id', 'displayName'] as const
+/** feature 00086 — รูป/บันทึกก่อน-หลังทำ · ไม่มี orderId/shopId/createdByUserId (ชื่อคนกดมาทาง createdBy.displayName) */
+const JOB_RECORD_KEYS = ['phase', 'note', 'fileIds', 'createdAt'] as const
+const JOB_RECORD_CREATOR_KEYS = ['displayName'] as const
 
 /**
  * คีย์ที่ห้ามโผล่ใน payload ของบทบาทระดับ NONE ที่ความลึกใดก็ตาม — ใช้เป็นฉากกั้นในเทส (ไม่ใช่ตัวกรองจริง)
@@ -63,7 +72,11 @@ function pickOne(src: unknown, keys: readonly string[]): Rec | null | undefined 
   return src == null ? (src as null | undefined) : pick(src, keys)
 }
 
-/** ออเดอร์ (ผลจาก prisma include ใด ๆ) → รูปที่ไม่มีเงินเลย · ลูกที่รู้จักเท่านั้น: items / shipments / shipmentTracking / serviceResource / shopChannel / buyer */
+/**
+ * ออเดอร์ (ผลจาก prisma include ใด ๆ) → รูปที่ไม่มีเงินเลย
+ * ลูกที่รู้จักเท่านั้น: items / shipments / shipmentTracking / serviceResource / shopChannel / buyer
+ *   + (00086) assignedUser / serviceJobRecords[].createdBy — pick ระดับลูกด้วย allow-list เหมือนกัน
+ */
 export function toNoMoneyOrder(order: object): Rec {
   const o = order as Rec
   const out = pick(o, NO_MONEY_ORDER_KEYS)
@@ -80,6 +93,15 @@ export function toNoMoneyOrder(order: object): Rec {
   if ('serviceResource' in o) out.serviceResource = pickOne(o.serviceResource, RESOURCE_KEYS)
   if ('shopChannel' in o) out.shopChannel = pickOne(o.shopChannel, CHANNEL_KEYS)
   if ('buyer' in o) out.buyer = pickOne(o.buyer, BUYER_KEYS)
+  if ('assignedUser' in o) out.assignedUser = pickOne(o.assignedUser, ASSIGNEE_KEYS)
+  if (Array.isArray(o.serviceJobRecords)) {
+    out.serviceJobRecords = o.serviceJobRecords.map((r: unknown) => {
+      const row = pick(r, JOB_RECORD_KEYS)
+      // ลูกของลูกก็ allow-list: include createdBy ทั้งแถว User จะไม่ไหลลง payload ของช่าง
+      if ((r as Rec | null) && 'createdBy' in (r as Rec)) row.createdBy = pickOne((r as Rec).createdBy, JOB_RECORD_CREATOR_KEYS)
+      return row
+    })
+  }
   return out
 }
 

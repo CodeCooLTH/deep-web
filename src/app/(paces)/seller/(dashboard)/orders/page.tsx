@@ -23,7 +23,7 @@ import { deriveShippingStage } from '@/lib/order-stage'
 import { deriveServiceWorkStage } from '@/lib/service-work-stage'
 import { derivePickupStage, isPickupOrder } from '@/lib/order-pickup'
 import { computeOrderMoneyFromSerialized, hasMoneyStory } from '@/lib/order-payment'
-import { deriveAppointmentStage } from '@/lib/appointment-stage'
+import { appointmentStageBadge, deriveAppointmentStage } from '@/lib/appointment-stage'
 import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import { thaiDayKey } from '@/lib/format-date'
@@ -54,7 +54,7 @@ import { can, moneyLevel } from '@/lib/shop-permissions'
 import { toNoMoneyOrder } from '@/lib/order-view-by-level'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf, serviceProgressBadge } from '@/lib/service-status'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 
 /**
@@ -153,7 +153,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   try {
     // ดึงทุก order ของร้าน — client component ทำ status filter เอง
     // ด่าน vertical (AC-SQ-07) — เงินรายใบดึงเฉพาะร้านบริการ ไม่ใช่ทุกร้าน
-    rawOrders = await getOrdersByShop(shop.id, undefined, { withPayments: isServiceQueue && showMoney })
+    // 00086 P3 — ชื่อผู้รับผิดชอบเฉพาะร้านบริการ (who-line) · ร้านอื่นไม่ join
+    rawOrders = await getOrdersByShop(shop.id, undefined, { withPayments: isServiceQueue && showMoney, withAssignee: isServiceQueue })
     if (!showMoney) rawOrders = rawOrders.map(toNoMoneyOrder)
   } catch {
     rawOrders = []
@@ -305,6 +306,16 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             allDay: end ? isAllDayAppointment(start, end) : false,
             resourceName: o.serviceResource?.name ?? null,
             stage,
+            // 00086 — ตัวตัดสินเดียวกับการ์ดตารางงาน (AppointmentDayCard): ขั้นระหว่างทำงาน → แบบการมา → ป้ายนัด
+            badge: (() => {
+              const p = serviceProgressBadge({
+                appointmentStatus: o.appointmentStatus ?? null,
+                serviceStartedAt: o.serviceStartedAt ?? null,
+                serviceFinishedAt: o.serviceFinishedAt ?? null,
+                serviceClosedAt: o.serviceClosedAt ?? null,
+              })
+              return p ? { label: p.label, cls: p.cls, icon: p.icon } : appointmentStageBadge(stage, serviceArrivalOf(o))
+            })(),
           }
         })(),
     // ขั้นงานร้านบริการ (?work=) — deriveServiceWorkStage ตัวเดียวกับตัวนับบนไทล์หน้าแรก
@@ -325,12 +336,19 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     ...(isServiceQueue
       ? {
           serviceClosedAtISO: o.serviceClosedAt ? new Date(o.serviceClosedAt).toISOString() : null,
+          // 00086 P3 (FR-008) — who-line: null = ยังไม่มีคนรับ (ชื่ออย่างเดียว · ไม่มีเบอร์)
+          assigneeName: o.assignedUser?.displayName ?? null,
           serviceStatus: resolveServiceStatusBadge(
             {
               status: o.status,
               appointmentStatus: o.appointmentStatus ?? null,
               hasAppointment: Boolean(o.serviceStart),
+              // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+              arrivalMode: serviceArrivalOf(o),
               serviceClosedAt: o.serviceClosedAt ?? null,
+              // 00086 P3 — กำลังให้บริการ / ทำเสร็จ · รอปิดงาน (ตัวตัดสินเดียวกับการ์ด "งานนี้")
+              serviceStartedAt: o.serviceStartedAt ?? null,
+              serviceFinishedAt: o.serviceFinishedAt ?? null,
               outstanding: showMoney
                 ? computeOrderMoneyFromSerialized({
                     totalAmount: o.totalAmount.toFixed(2),
@@ -584,7 +602,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
    */
   const isServiceShop = usesServiceFinanceRules(shop.vertical)
   const serviceKey = (o: (typeof orders)[number]) => (o as { serviceStatus?: { key: string } }).serviceStatus?.key
-  const SERVICE_OPEN_KEYS = new Set(['BOOKED', 'WALK_IN', 'RESCHEDULE_REQUESTED', 'APPOINTMENT_CONFIRMED', 'BUYER_CONFIRMED_AWAITING_CLOSE'])
+  // 00086 P3 — ป้ายระหว่างทำงาน (เริ่มแล้ว/ทำเสร็จ) ยังไม่ปิดงาน ⇒ อยู่ในกอง "รอปิดงาน" เหมือนเดิม
+  const SERVICE_OPEN_KEYS = new Set(['BOOKED', 'WALK_IN', 'RESCHEDULE_REQUESTED', 'APPOINTMENT_CONFIRMED', 'BUYER_CONFIRMED_AWAITING_CLOSE', 'IN_SERVICE', 'FINISHED_AWAITING_CLOSE'])
   const SERVICE_CLOSED_KEYS = new Set(['CLOSED_PAID', 'CLOSED_OUTSTANDING', 'NO_SHOW'])
   const orderStatData: OrderStatCardData[] = isServiceShop
     ? [

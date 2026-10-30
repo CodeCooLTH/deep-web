@@ -163,7 +163,9 @@ html[data-text-scale="xl"] {
      ไม่ต้องเพิ่ม padding-bottom ให้ — บาร์สูง 12+44+12+1 = 69px ขณะที่ 5.5rem ให้ 88px
      (safe-area บวกเท่ากันทั้งสองฝั่งจึงหักล้างกัน) เหลือช่องหายใจ 19px พอดี
      🛑 อย่าเผลอเพิ่มเป็น 6.5rem ตามสัญชาตญาณ "บาร์สูงกว่า nav" — มันจะกลายเป็นช่องว่างท้ายจอ
-     เกินมา ~35px แทน (เคยเกือบพลาดตอน implement 2026-08-11) */
+     เกินมา ~35px แทน (เคยเกือบพลาดตอน implement 2026-08-11)
+     00086 (2026-10-27): ร้านบริการโชว์ SellerBottomNav บน /queues ทุกบทบาท และบอร์ดไม่วาดแถบของตัวเอง
+     (queuesCreateBarRenders ใน role-nav) ⇒ 5.5rem กลับไปเป็นที่ของแถบล่างตามปกติ — ห้ามมีสองแถบพร้อมกัน */
   /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }

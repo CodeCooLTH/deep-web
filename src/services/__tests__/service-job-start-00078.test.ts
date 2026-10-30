@@ -54,7 +54,7 @@ async function mk(o: { status?: string; linked?: boolean; serviceStart?: Date | 
 }
 const ledger = (orderId: string) => db.autoNotifyLedger.findMany({ where: { orderId } })
 const rowOf = (orderId: string) => db.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true, totalAmount: true, serviceStartedAt: true, appointmentStatus: true } })
-const start = (publicToken: string, shopId = S.shop) => startServiceJob({ shopId, orderToken: publicToken, actorUserId: S.user })
+const start = (publicToken: string, shopId = S.shop) => startServiceJob({ shopId, orderToken: publicToken, actorUserId: S.user, actorRoles: ['OWNER'] })
 
 describe.skipIf(!isLocal)('startServiceJob + hook แจ้งลูกค้า (DB จริง)', () => {
   beforeAll(async () => {
@@ -112,7 +112,7 @@ describe.skipIf(!isLocal)('startServiceJob + hook แจ้งลูกค้า
       expect(await ledger(o.id)).toHaveLength(0)
     }
     const closed = await mk()
-    await closeServiceJob({ shopId: S.shop, orderToken: closed.publicToken, actorUserId: S.user, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: S.shop, orderToken: closed.publicToken, actorUserId: S.user, actorRoles: ['OWNER'], outcome: 'SERVED' })
     await expect(start(closed.publicToken)).rejects.toBeInstanceOf(ServiceJobAlreadyClosedError)
     const o = await mk()
     await expect(start(o.publicToken, S.other)).rejects.toBeInstanceOf(ServiceJobNotFoundError) // ข้ามร้าน = ไม่พบ
@@ -128,13 +128,13 @@ describe.skipIf(!isLocal)('startServiceJob + hook แจ้งลูกค้า
 
   it('ปิดงาน SERVED → SERVICE_CLOSED หนึ่งแถว · NO_SHOW → ไม่มี', async () => {
     const served = await mk()
-    await closeServiceJob({ shopId: S.shop, orderToken: served.publicToken, actorUserId: S.user, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: S.shop, orderToken: served.publicToken, actorUserId: S.user, actorRoles: ['OWNER'], outcome: 'SERVED' })
     expect((await ledger(served.id)).map((r) => r.kind)).toEqual(['SERVICE_CLOSED'])
     expect(dispatch).toHaveBeenCalledTimes(1)
 
     dispatch.mockClear()
     const noShow = await mk({ serviceStart: new Date(Date.now() - 5 * 3600_000) })
-    await closeServiceJob({ shopId: S.shop, orderToken: noShow.publicToken, actorUserId: S.user, outcome: 'NO_SHOW' })
+    await closeServiceJob({ shopId: S.shop, orderToken: noShow.publicToken, actorUserId: S.user, actorRoles: ['OWNER'], outcome: 'NO_SHOW' })
     expect(await ledger(noShow.id)).toHaveLength(0)
     expect(dispatch).not.toHaveBeenCalled()
   })

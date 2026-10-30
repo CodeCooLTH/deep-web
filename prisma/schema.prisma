@@ -162,6 +162,9 @@ model User {
   followUpsAssigned        CustomerFollowUp[]    @relation("FollowUpAssignee") // feature 00066
   followUpsDone            CustomerFollowUp[]    @relation("FollowUpDoneBy")
   followUpsCreated         CustomerFollowUp[]    @relation("FollowUpCreator")
+  // feature 00086 P3 — งานบริการที่คนนี้เป็นผู้รับผิดชอบ · บันทึกก่อน/หลังทำที่คนนี้เป็นคนกด (ทั้งคู่ SetNull ฝั่งลูก)
+  assignedServiceOrders    Order[]               @relation("AssignedServiceOrders")
+  serviceJobRecords        ServiceJobRecord[]    @relation("ServiceJobRecordCreatedBy")
 
   @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
 }
@@ -365,6 +368,7 @@ model Shop {
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
+  notifications        Notification[]         @relation("ShopNotifications") // 00086 — แจ้งเตือนที่ผูกร้านนี้ (เช่น พนักงานบันทึกค่าใช้จ่าย)
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
   aiSuggestDailyUsages AiSuggestDailyUsage[] // NEW (feature 00019 ext 2026-07-29) — ตัวนับโควตาฟรี ai-suggest ต่อวัน (เฉพาะร้าน non-paid, ≤1 แถวต่อวัน)
   aiSuggestUsageEvents AiSuggestUsageEvent[] // NEW (feature 00019 ext 2026-07-29) — audit log ai-suggest ทุก path (FREE/CREDIT/UNLIMITED_PLAN)
@@ -428,6 +432,14 @@ model Shop {
 
   shopTags      ShopTag[] // feature 00083 — รายการ tag + คำอัตโนมัติของร้าน
   shopTagEvents ShopTagEvent[] // feature 00083 — ประวัติติด/ถอด tag อัตโนมัติ
+
+  // --- feature 00086 P3 (S-11) — รูปก่อน-หลังงานของร้านบริการ ---
+  /// "REQUIRED" | "OPTIONAL" | "NONE" · ค่าเริ่มร้านเดิม+ใหม่ = ไม่บังคับ (มติ user 2026-10-27 · DEFAULT ให้ผลทันทีไม่ต้อง UPDATE)
+  /// ร้านประเภทอื่นได้ค่าเดียวกันแต่ไม่มีผู้อ่าน · ⚠️ CHECK Shop_serviceJobPhoto_check เป็น SQL ใน migration
+  serviceJobPhotoMode          String             @default("OPTIONAL")
+  /// ลูกค้าเห็นรูปและบันทึกในหน้า /o/{token} + ข้อความอัตโนมัติ SERVICE_FINISHED · NONE ⇒ false (CHECK)
+  serviceJobPhotosBuyerVisible Boolean            @default(false)
+  serviceJobRecords            ServiceJobRecord[]
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -889,6 +901,18 @@ model Order {
   /// feature 00078 M5 — เวลา "เริ่มงาน" (ไม่ใช่สถานะ) · NULL = ยังไม่กด · เขียนครั้งเดียว (WHERE serviceStartedAt IS NULL)
   /// ผู้กดอยู่ที่ OrderEvent SERVICE_STARTED.actorUserId · ไม่แตะ status/appointmentStatus · reopenServiceJob ไม่ล้างค่า
   serviceStartedAt DateTime? @db.Timestamptz(3)
+  /// feature 00086 S-1 — ลูกค้ามาแบบไหน: "BOOKED" (จองล่วงหน้า) | "WALK_IN" (หน้าร้าน) · ร้านบริการเท่านั้น
+  /// NULL = ยังไม่ระบุเวลา (ไม่มี serviceStart) หรือไม่ใช่ร้านบริการ · ใบเก่า backfill ด้วยสูตร resolveArrivalMode (30 นาที)
+  /// ⚠️ CHECK Order_arrivalMode_check (NULL หรือ ค่าในชุด + ต้องมี serviceStart) เป็น SQL ใน migration — ห้าม db pull / migrate dev
+  arrivalMode      String?
+  /// feature 00086 P3 (S-10) — เวลา "ทำเสร็จ" (ไม่ใช่ปิดงาน · ไม่แตะเงิน) · เขียนครั้งเดียว (WHERE serviceFinishedAt IS NULL)
+  /// ⚠️ CHECK Order_serviceFinished_requires_started (ทำเสร็จได้ต้องเริ่มแล้ว) เป็น SQL ใน migration · reopenServiceJob ไม่ล้างค่า
+  serviceFinishedAt DateTime? @db.Timestamptz(3)
+  /// feature 00086 P3 (S-6) — ผู้รับผิดชอบงาน (ร้านบริการ) · ผูก User ไม่ใช่ ShopMember: ลบสมาชิก = service ล้างค่าเอง
+  /// (removeShopMember) · ลบบัญชี = SetNull · ผู้กดมอบ/รับอยู่ที่ OrderEvent SERVICE_ASSIGNED/CLAIMED.actorUserId
+  assignedUserId    String?
+  assignedUser      User?              @relation("AssignedServiceOrders", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  serviceJobRecords ServiceJobRecord[]
   autoNotifyLedgers AutoNotifyLedger[]
 
   /// คนที่กดสร้างออเดอร์นี้ (2026-08-04) — เจ้าของร้านหรือพนักงานที่ถูกเชิญ (feature 00012)
@@ -1145,6 +1169,8 @@ model Order {
   @@index([fulfillmentMode, status, handedOverAt], map: "Order_fulfillmentMode_status_handedOverAt_idx")
   // feature 00062 — mirror Order_shopId_codReceivedAt_idx สำหรับตัวนับ "โอนเงินแล้วยังไม่ยืนยันรับเงิน"
   @@index([shopId, paymentConfirmedAt], map: "Order_shopId_paymentConfirmedAt_idx")
+  // feature 00086 P3 — "งานของฉันวันนี้" (assignedUserId = me ∧ serviceStart ∈ วันนี้) + ล้างผู้รับผิดชอบตอนลบสมาชิก
+  @@index([assignedUserId, serviceStart], map: "Order_assignedUserId_serviceStart_idx")
 }
 
 // Customer (feat 00014 — Customer Directory) — ตัวตนลูกค้ากลาง keyed by phone (cross-shop identity).
@@ -1416,6 +1442,11 @@ model ShopMember {
   // OWNER = [] เสมอ · ADMIN = 1..4 ค่า ไม่ซ้ำกันไม่บังคับ แต่ต้องอยู่ในชุด
   // ⚠️ CHECK ShopMember_roles_check เป็น SQL ใน migration (Prisma ไม่รู้จัก) — ห้าม db pull / migrate dev
   roles     String[] @default([])
+  // สิทธิ์เพิ่มรายคน (00086 · ร้านบริการเท่านั้น — ร้านอื่นไม่อ่านค่านี้) · ไม่ใส่ใน roles[] เพื่อไม่รั่วเข้า can()/moneyLevel
+  // canCloseJob: ปิดงานได้ (ต้องถือ CHAT/TECHNICIAN) · canRecordExpense: บันทึกค่าใช้จ่ายของตัวเองได้
+  // ⚠️ CHECK ShopMember_flags_admin_only_check (OWNER ต้อง false ทั้งคู่) เป็น SQL ใน migration — ห้าม db pull / migrate dev
+  canCloseJob      Boolean @default(false)
+  canRecordExpense Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1541,6 +1572,9 @@ model ShopInvite {
   role             String    @default("ADMIN")
   // roles: บทบาทย่อยที่จะได้ตอน accept (00071) — 1..4 ค่า · CHECK ShopInvite_roles_check เป็น SQL ใน migration ห้าม db pull / migrate dev
   roles            String[]  @default(["MANAGER"])
+  // สิทธิ์เพิ่มรายคนที่จะคัดลอกไป ShopMember ตอน accept (00086) — คำเชิญเก่าไม่ backfill (เริ่มแบบไม่ติ๊ก)
+  canCloseJob      Boolean   @default(false)
+  canRecordExpense Boolean   @default(false)
   // status: "PENDING" | "ACCEPTED" | "CANCELLED" — String มิเรอร์ TopUpRequest.status
   status           String    @default("PENDING")
   invitedByUserId  String
@@ -1569,6 +1603,9 @@ model ShopInviteLink {
   role            String    @default("ADMIN")
   // roles: บทบาทย่อยที่ผู้รับลิงก์จะได้ (00071) — CHECK ShopInviteLink_roles_check เป็น SQL ใน migration ห้าม db pull / migrate dev
   roles           String[]  @default(["MANAGER"])
+  // สิทธิ์เพิ่มรายคนที่ผู้รับลิงก์จะได้ (00086) — ลิงก์เก่าไม่ backfill (เริ่มแบบไม่ติ๊ก)
+  canCloseJob      Boolean  @default(false)
+  canRecordExpense Boolean  @default(false)
   createdByUserId String
   expiresAt       DateTime
   // revokedAt: NULL = ยังใช้งานได้ (ยัง valid ถ้า expiresAt ยังไม่ถึง); non-NULL = owner สั่งปิดใช้งานเอง
@@ -1774,6 +1811,8 @@ model Notification {
   id        String   @id @default(uuid())
   userId    String
   // kind: "outbid" | "won" | "system" | "badge_earned" — ตรงกับ app type Notification.kind
+  //   ฝั่งร้าน (shopId ไม่ NULL): "staff_expense" (00086 P1) · "service_job_claimed" | "service_job_started" |
+  //   "service_job_finished" | "service_job_closed" (00086 P3 · refId = Order.publicToken · แยก kind เพื่อ dedupe กับ activity)
   kind      String
   title     String
   body      String
@@ -1781,10 +1820,40 @@ model Notification {
   refId     String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  // shopId (00086 FR-020): แจ้งเตือน "ของร้าน" เช่น staff_expense — NULL = แจ้งเตือนระดับบัญชีแบบเดิม
+  // ร้านถูกลบ = แจ้งเตือนของร้านนั้นหายตาม (Cascade) · ฝั่งผู้ซื้อ/แอปไม่อ่านคอลัมน์นี้
+  shopId    String?
 
-  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  user User  @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop? @relation("ShopNotifications", fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  // หน้า /notifications ฝั่งร้าน: WHERE userId=? AND shopId=<ร้านที่ active> ORDER BY createdAt DESC
+  @@index([userId, shopId, createdAt])
+}
+
+// feature 00086 P3 (S-8/S-10) — รูป + บันทึก "ก่อนทำ" (BEFORE ตอนเริ่มงาน) / "หลังทำ" (AFTER ตอนทำเสร็จ) ของงานบริการ
+// 1 แถวต่อ (ใบ, ขั้น) — unique กันกดซ้ำได้แถวที่สอง · insert ในทรานแซกชันเดียวกับการตั้ง serviceStartedAt/serviceFinishedAt
+// 🛑 บันทึก (note) อยู่ที่นี่เท่านั้น ไม่อยู่ใน OrderEvent.meta (กติกา PII order-event.ts · SDS TD-006)
+// fileIds = storage key (ไม่ใช่ URL) ทางเดียวกับ ChatMessage.imageUrl / CustomerFile.fileId
+// shopId denormalize เพื่อ scope query (แจ้งเตือน/รูปย่อ) — ต้องตรง Order.shopId (บังคับที่ service ไม่มี composite FK)
+// ⚠️ CHECK phase / fileIds ≤10 / note 1..1000 เป็น SQL ใน migration 20261027100400 — ห้าม db pull / migrate dev
+model ServiceJobRecord {
+  id              String   @id @default(uuid())
+  orderId         String
+  shopId          String
+  phase           String // "BEFORE" | "AFTER"
+  note            String?  @db.Text
+  fileIds         String[] @default([])
+  createdByUserId String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shop      Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ServiceJobRecordCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, phase])
+  @@index([createdByUserId])
 }
 
 // OtpCode — OTP signup/login/reset เก็บใน DB (shared ข้าม serverless instance)
@@ -2427,7 +2496,7 @@ model Expense {
   // ถ้าไม่ระบุ service layer default เป็นวันนี้ (timezone ไทย) ก่อนเขียนลง DB (FR-EXP-03-AC-04)
   expenseDate     DateTime
   note            String?  @db.Text
-  // createdByUserId: ผู้บันทึก (owner หรือ admin ที่ staffCanViewFinance=true) — audit เบา, ไม่มี
+  // createdByUserId: ผู้บันทึก (เจ้าของ หรือพนักงานที่ติ๊ก canRecordExpense — 00086) — audit เบา, ไม่มี
   // versioning/diff history (Out of Scope PRD §5) — onDelete ไม่ระบุ = Restrict (มิเรอร์ ShopInviteLink)
   createdByUserId String
   createdAt       DateTime @default(now())
@@ -2439,6 +2508,8 @@ model Expense {
   // P&L query หลัก (FR-EXP-08-AC-01): WHERE shopId=X AND expenseDate BETWEEN start,end
   // ครอบคลุมทั้ง list view ของหน้า /expenses (เรียง expenseDate) และ Total Expense sum
   @@index([shopId, expenseDate])
+  // หน้า "ค่าใช้จ่ายของฉัน" ของพนักงาน (00086 S-15/16): WHERE shopId=X AND createdByUserId=Y ORDER BY expenseDate
+  @@index([shopId, createdByUserId, expenseDate], map: "Expense_shopId_createdBy_expenseDate_idx")
 }
 
 // ── feature 00019 AI Reply Assistant ────────────────────────────────────────
@@ -4227,7 +4298,8 @@ model OrderEvent {
   id      String @id @default(uuid())
   orderId String
 
-  // type: 33 ค่า (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง · 00080 +MANUAL_DISPATCHED/SELLER_DELIVERED/MANUAL_DISPATCH_UNDONE)
+  // type: 39 ค่า (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง · 00085 +PARCEL_PROBLEM_CLOSED/REOPENED
+  //   · 00086 +SERVICE_ASSIGNED/SERVICE_CLAIMED/SERVICE_UNASSIGNED/SERVICE_FINISHED)
   // 🛑 คอมเมนต์บรรทัดนี้เคยเขียน "9 ค่า" ค้างไว้ตั้งแต่ตอนมี 13 ค่าแล้ว (หนี้จาก 00033)
   //    ถ้าเพิ่มชนิดใหม่แล้วไม่แก้ตัวเลขตรงนี้ คนอ่านจะเชื่อคอมเมนต์แล้วเขียน migration ผิด
   // String + DB CHECK ไม่ใช่ Prisma enum ตาม

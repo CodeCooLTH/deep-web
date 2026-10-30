@@ -83,6 +83,51 @@ describe('toNoMoneyOrder', () => {
   })
 })
 
+// 00086 P3 — ผู้รับผิดชอบ + รูป/บันทึกก่อน-หลังทำ (FR-012 "ช่างยังไม่เห็นเงินทุกจุด — รูป/บันทึกเพิ่มเข้า allow-list เท่านั้น")
+// mutation ที่ต้องแดง: เปลี่ยน pick ของ createdBy เป็น copy ทั้งแถว / ใส่ row ทั้งแถวของ serviceJobRecords
+describe('toNoMoneyOrder — 00086 assignedUser / serviceJobRecords', () => {
+  const t = new Date('2026-10-27T03:00:00Z')
+  const src = {
+    publicToken: 'tok',
+    totalAmount: '900',
+    assignedUserId: 'u-1',
+    serviceFinishedAt: t,
+    assignedUser: { id: 'u-1', displayName: 'ช่างนิด', phone: '0899999999', email: 'n@x.co', username: 'nid', price: 1 },
+    serviceJobRecords: [
+      {
+        id: 'r1', orderId: 'o1', shopId: 's1', createdByUserId: 'u-1', phase: 'BEFORE', note: 'รอยขีดข่วนเดิม', fileIds: ['k1'], createdAt: t,
+        amount: 5,
+        createdBy: { id: 'u-1', displayName: 'ช่างนิด', phone: '0899999999', username: 'nid', totalAmount: 9 },
+      },
+      { id: 'r2', orderId: 'o1', shopId: 's1', createdByUserId: null, phase: 'AFTER', note: null, fileIds: [], createdAt: t, createdBy: null },
+    ],
+  }
+  const out = toNoMoneyOrder(src)
+
+  it('คงผู้รับผิดชอบ (id + ชื่อ) + เวลาทำเสร็จ', () => {
+    expect(out).toMatchObject({ assignedUserId: 'u-1', serviceFinishedAt: t, assignedUser: { id: 'u-1', displayName: 'ช่างนิด' } })
+    expect(Object.keys(out.assignedUser as object).sort()).toEqual(['displayName', 'id'])
+  })
+
+  it('บันทึก: เหลือ phase/note/fileIds/createdAt + createdBy.displayName เท่านั้น', () => {
+    expect(out.serviceJobRecords).toEqual([
+      { phase: 'BEFORE', note: 'รอยขีดข่วนเดิม', fileIds: ['k1'], createdAt: t, createdBy: { displayName: 'ช่างนิด' } },
+      { phase: 'AFTER', note: null, fileIds: [], createdAt: t, createdBy: null },
+    ])
+  })
+
+  it('ไม่มีคีย์เงิน/เบอร์/อีเมล/id ภายใน ที่ความลึกใดก็ตาม', () => {
+    const keys = allKeys(out)
+    expect(keys.filter((k) => NO_MONEY_FORBIDDEN_KEYS.includes(k))).toEqual([])
+    for (const k of ['phone', 'email', 'username', 'orderId', 'shopId', 'createdByUserId']) expect(keys).not.toContain(k)
+  })
+
+  it('ไม่ include ลูกพวกนี้ = ไม่มีคีย์ (payload ร้านอื่น/จอเดิมไม่เปลี่ยน)', () => {
+    const o = toNoMoneyOrder({ publicToken: 't' })
+    expect(Object.keys(o)).toEqual(['publicToken'])
+  })
+})
+
 describe('toNoMoneyAppointmentDay', () => {
   const row = { orderToken: 't', buyerName: 'a', totalAmount: '900', depositAmount: '300', conversationId: 'c1' }
   it('ตัดยอด/มัดจำ · ไม่มี H1 → conversationId เป็น null', () => {

@@ -125,6 +125,51 @@ export function appointmentCardAction(input: {
 }
 
 /**
+ * ปุ่มบนแถวลงมือของการ์ดคิว + เมนู `⋯` ตามสิทธิ์ผู้ดู (00071 P3 + 00086 S-5)
+ *
+ * - `primary` — `close` ปุ่มปิดงาน · `reschedule` ลิงก์เลือกเวลาใหม่ · `reschedule-hint` ข้อความบอกว่าให้ใครเลือก
+ *   · null = ไม่มีปุ่มหลัก (ถึงเวลานัดแต่ผู้ดูปิดงานไม่ได้ — 00086 FR-005: ไม่โชว์ปุ่มที่กดแล้ว 403)
+ * - `menu` — รายการใน `⋯`: เลื่อนนัด (O3) · ไม่มาตามนัด (= ปิดงานแบบ NO_SHOW ⇒ ต้องมีสิทธิ์ปิดงาน)
+ *   null = ไม่มีอะไรในเมนู ⇒ ไม่ render ปุ่ม `⋯` (เมนูที่มีแต่ "ยกเลิก" คือปุ่มหลอก)
+ * แถวลงมือทั้งแถว render เมื่อ primary หรือ menu มีค่า
+ */
+export type DayCardControls = {
+  primary: 'close' | 'reschedule' | 'reschedule-hint' | null
+  menu: { reschedule: boolean; noShow: boolean } | null
+}
+
+export function dayCardControls(
+  action: DayCardAction,
+  caps: {
+    canClose: boolean
+    canReschedule: boolean
+    /** 00086 P3 — ผู้ดูเป็นฝ่ายช่างล้วน (`isTechnicianOnly`) · ผู้เรียกต้องส่งเสมอ (ไม่มีค่าตั้งต้น) */
+    technicianOnly: boolean
+  },
+  /**
+   * 00086 P3 — ความคืบหน้าของงานใบนี้ (มาจากแถวเอง — permission-gate-follows-the-row)
+   * `isMine` = ผู้รับผิดชอบคือผู้ดู (เทียบ userId) · `started`/`finished` = มี serviceStartedAt/serviceFinishedAt
+   */
+  job: { isMine: boolean; started: boolean; finished: boolean },
+): DayCardControls {
+  if (action === 'none') return { primary: null, menu: null }
+  /**
+   * 00086 P3 (SDS TD-004 · BRD §8.1 · FR-011): ช่างล้วนปิดได้เฉพาะ "งานของตัวเองที่ทำเสร็จแล้ว"
+   * คนอื่นที่ปิดได้ ปิดก่อนเริ่ม/ก่อนทำเสร็จได้เหมือนเดิม (FR-010) — ด่านจริงอยู่ที่ closeServiceJob
+   */
+  const closeAllowed = caps.canClose && (!caps.technicianOnly || (job.isMine && job.finished))
+  /**
+   * "ไม่มาตามนัด" = ลูกค้าไม่มา ⇒ ขัดกับงานที่เริ่มแล้ว (เริ่มงาน = ลูกค้ามาแล้ว · Controller decision 2026-10-29)
+   * ช่างล้วนไม่มีเสมอ — ช่างล้วนปิดได้หลังทำเสร็จเท่านั้น ซึ่งแปลว่าลูกค้ามาแล้ว
+   */
+  const noShow = caps.canClose && !caps.technicianOnly && !job.started
+  const primary =
+    action === 'reschedule' ? (caps.canReschedule ? 'reschedule' : 'reschedule-hint') : closeAllowed ? 'close' : null
+  const menu = caps.canReschedule || noShow ? { reschedule: caps.canReschedule, noShow } : null
+  return { primary, menu }
+}
+
+/**
  * กลุ่มนี้ยุบเหลือบรรทัดเดียวได้ไหม
  *
  * 🛑 ยุบเฉพาะตอน **ทุกใบ** ปิดผลแล้ว — เหลือค้างใบเดียวก็ต้องกางทั้งกลุ่ม เพราะใบที่ยังต้องทำ

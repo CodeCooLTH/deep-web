@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest'
 import { th } from '@/i18n/dictionaries/th'
 import {
   applyCapabilityMenu,
+  bottomNavHiddenPages,
   buildFabActions,
   canSeePage,
   isRegisteredPage,
+  queuesCreateBarRenders,
   resolveMobileNav,
   shopQuickLinks,
   slugsHiddenByRole,
@@ -23,6 +25,8 @@ import { effectiveRoles, type ShopRole } from '@/lib/shop-permissions'
 
 const SERVICE = { kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' }
 const ONLINE = { kind: 'BUSINESS', vertical: 'ONLINE_SALES' }
+const LODGING = { kind: 'BUSINESS', vertical: 'LODGING' }
+const PERSONAL = { kind: 'PERSONAL', vertical: 'ONLINE_SALES' }
 
 /** บทบาทที่มีผลจริงของ ADMIN ที่ถือ roles ชุดนี้ (ผ่านกฎ BILLING เดียวกับ production) */
 const eff = (shop: typeof SERVICE, roles: string[]) => effectiveRoles(shop, 'ADMIN', roles)
@@ -34,12 +38,14 @@ describe('resolveMobileNav — spec §2 ทีละเซลล์', () => {
     // ชื่อ, roles, แท็บ, ชนิด FAB, grid, fabAfter
     ['OWNER', ['OWNER'], ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
     ['MANAGER', ['MANAGER'], ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
-    ['CHAT', ['CHAT'], ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
-    ['BILLING', ['BILLING'], ['home', 'orders'], 'direct', 'grid grid-cols-3', 1],
-    ['TECHNICIAN', ['TECHNICIAN'], ['home', 'work'], 'none', 'grid grid-cols-2', 1],
-    ['CHAT+TECH = CHAT', ['CHAT', 'TECHNICIAN'], ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
-    ['BILLING+TECH = BILLING', ['BILLING', 'TECHNICIAN'], ['home', 'orders'], 'direct', 'grid grid-cols-3', 1],
-    ['CHAT+BILLING = CHAT', ['CHAT', 'BILLING'], ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
+    // 00086 FR-016: ร้านบริการ บทบาทที่มีปุ่ม + เติมแท็บจนครบ 4 (แชท → ร้านค้า → ตารางงาน → ลูกค้า ตามสิทธิ์)
+    ['CHAT', ['CHAT'], ['home', 'orders', 'chat', 'queues'], 'direct', 'grid grid-cols-5', 2],
+    ['BILLING', ['BILLING'], ['home', 'orders', 'queues', 'customers'], 'direct', 'grid grid-cols-5', 2],
+    // 00086 P3 (FR-008): ช่างล้วนร้านบริการ = หน้าหลัก · งานของฉัน · ตารางงาน · ไม่มีปุ่ม +
+    ['TECHNICIAN', ['TECHNICIAN'], ['home', 'mine', 'queues'], 'none', 'grid grid-cols-3', 1],
+    ['CHAT+TECH = CHAT', ['CHAT', 'TECHNICIAN'], ['home', 'orders', 'chat', 'queues'], 'direct', 'grid grid-cols-5', 2],
+    ['BILLING+TECH = BILLING', ['BILLING', 'TECHNICIAN'], ['home', 'orders', 'queues', 'customers'], 'direct', 'grid grid-cols-5', 2],
+    ['CHAT+BILLING = CHAT', ['CHAT', 'BILLING'], ['home', 'orders', 'chat', 'queues'], 'direct', 'grid grid-cols-5', 2],
     ['MANAGER+TECH = MANAGER', ['MANAGER', 'TECHNICIAN'], ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
     ['MANAGER+CHAT+BILLING = MANAGER', ['MANAGER', 'CHAT', 'BILLING'], ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
   ]
@@ -51,11 +57,74 @@ describe('resolveMobileNav — spec §2 ทีละเซลล์', () => {
     if (n.fab) expect(n.fabAfter).toBe(after)
   })
 
-  it('ช่าง: "งาน" ไป /queues (ร้านรับนัด) หรือ /orders (ร้านอื่น) · ไม่มี badge', () => {
-    const svc = nav(['TECHNICIAN'], SERVICE).tabs[1]
-    expect([svc.href, svc.icon, svc.label, svc.badge]).toEqual(['/queues', 'calendar-event', 'งาน', null])
-    const on = nav(['TECHNICIAN'], ONLINE).tabs[1]
-    expect([on.href, on.icon]).toEqual(['/orders', 'clipboard-list'])
+  // ร้านประเภทอื่น: แถบเดิมทุกตัวอักษร (ค่าก่อน 00086)
+  const otherVerticals: [string, ShopRole[], { kind: string; vertical: string }, string[], string, string, number][] = [
+    ['ONLINE OWNER', ['OWNER'], ONLINE, ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
+    ['ONLINE MANAGER', ['MANAGER'], ONLINE, ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
+    ['ONLINE CHAT', ['CHAT'], ONLINE, ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
+    ['ONLINE BILLING (ไม่ผ่าน effectiveRoles)', ['BILLING'], ONLINE, ['home', 'orders'], 'direct', 'grid grid-cols-3', 1],
+    ['ONLINE TECHNICIAN', ['TECHNICIAN'], ONLINE, ['home', 'work'], 'none', 'grid grid-cols-2', 1],
+    ['LODGING TECHNICIAN', ['TECHNICIAN'], LODGING, ['home', 'work'], 'none', 'grid grid-cols-2', 1],
+    ['PERSONAL ONLINE TECHNICIAN', ['TECHNICIAN'], PERSONAL, ['home', 'work'], 'none', 'grid grid-cols-2', 1],
+    ['LODGING OWNER', ['OWNER'], LODGING, ['home', 'orders', 'chat', 'shop'], 'speedDial', 'grid grid-cols-5', 2],
+    ['LODGING CHAT', ['CHAT'], LODGING, ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
+    ['LODGING BILLING (ไม่ผ่าน effectiveRoles)', ['BILLING'], LODGING, ['home', 'orders'], 'direct', 'grid grid-cols-3', 1],
+    ['PERSONAL ONLINE CHAT', ['CHAT'], PERSONAL, ['home', 'orders', 'chat'], 'direct', 'grid grid-cols-4', 2],
+  ]
+  it.each(otherVerticals)('ร้านประเภทอื่นไม่เปลี่ยน: %s', (_n, roles, shop, tabs, fab, grid, after) => {
+    const n = resolveMobileNav(roles, shop, resolveOrderVocab(shop.vertical), th)
+    expect(keys(n)).toEqual(tabs)
+    expect(n.fab?.kind ?? 'none').toBe(fab)
+    expect(n.gridClass).toBe(grid)
+    if (n.fab) expect(n.fabAfter).toBe(after)
+    expect(keys(n)).not.toContain('queues')
+    expect(keys(n)).not.toContain('customers')
+  })
+
+  it('00086 FR-016: แท็บเติมของร้านบริการ — href/icon/ป้าย/ไม่มี badge · ปุ่ม + อยู่กลาง (2 ซ้าย 2 ขวา)', () => {
+    const chat = nav(['CHAT'])
+    expect(chat.tabs.map((t) => t.label)).toEqual(['หน้าหลัก', 'บริการ', 'แชท', 'ตารางงาน'])
+    const billing = nav(['BILLING'])
+    expect(billing.tabs.map((t) => t.label)).toEqual(['หน้าหลัก', 'บริการ', 'ตารางงาน', 'ลูกค้า'])
+    expect(billing.tabs.slice(2).map((t) => [t.href, t.icon, t.exactMatch, t.badge])).toEqual([
+      ['/queues', 'calendar-event', false, null],
+      ['/customers', 'users', false, null],
+    ])
+    for (const n of [chat, billing]) expect([n.tabs.length, n.fabAfter]).toEqual([4, 2])
+    // เจ้าของ/ผู้ดูแล = หน้าหลัก · บริการ · + · แชท · ร้านค้า เหมือนเดิม
+    expect(nav(['OWNER']).tabs.map((t) => t.label)).toEqual(['หน้าหลัก', 'บริการ', 'แชท', 'ร้านค้า'])
+    expect(nav(['MANAGER']).tabs.map((t) => t.label)).toEqual(['หน้าหลัก', 'บริการ', 'แชท', 'ร้านค้า'])
+    // ช่างล้วนไม่มีปุ่ม + → ไม่เข้ากติกาเติมแท็บ (แถบของช่างมาจาก P3 — ดูเทสถัดไป)
+    expect(keys(nav(['TECHNICIAN']))).toEqual(['home', 'mine', 'queues'])
+  })
+
+  it('[blocker] 00086 P3 ช่างล้วนร้านบริการ: งานของฉัน → /my-jobs · ตารางงาน → /queues · ไม่มี badge/FAB', () => {
+    const n = nav(['TECHNICIAN'], SERVICE)
+    expect(n.tabs.map((t) => [t.href, t.icon, t.label, t.badge])).toEqual([
+      ['/dashboard', 'home-2', 'หน้าหลัก', null],
+      ['/my-jobs', 'user-check', 'งานของฉัน', null],
+      ['/queues', 'calendar-event', 'ตารางงาน', null],
+    ])
+    expect(n.fab).toBeNull()
+  })
+
+  it('ช่างล้วนร้านอื่น: "งาน" ไป /orders · แถบเดิม (ไม่มี /my-jobs)', () => {
+    for (const shop of [ONLINE, LODGING, PERSONAL]) {
+      const n = nav(['TECHNICIAN'], shop)
+      expect(n.tabs[1]).toMatchObject({ key: 'work', href: '/orders', icon: 'clipboard-list', label: 'งาน', badge: null })
+      expect(n.tabs.map((t) => t.href)).not.toContain('/my-jobs')
+    }
+  })
+
+  it('[blocker] ช่างที่ถือบทบาทอื่นด้วย (ไม่ใช่ช่างล้วน) ร้านบริการ: ไม่มีแท็บ "งานของฉัน" — แถบเท่า P1', () => {
+    for (const roles of [['CHAT', 'TECHNICIAN'], ['BILLING', 'TECHNICIAN'], ['MANAGER', 'TECHNICIAN'], ['OWNER'], ['CHAT'], ['BILLING']] as ShopRole[][]) {
+      expect(keys(nav(roles)), roles.join('+')).not.toContain('mine')
+    }
+  })
+
+  it('/my-jobs อยู่ในทะเบียน (Q1) — ช่างเปิดได้ · ไม่ตก fail-closed เจ้าของเท่านั้น', () => {
+    expect(isRegisteredPage('/my-jobs')).toBe(true)
+    expect(canSeePage('/my-jobs', ['TECHNICIAN'])).toBe(true)
   })
 
   it('FAB ตรง: /orders/new · ป้ายอ่านจอ = vocab.createLabel · ป้ายใต้ปุ่ม = navCreate', () => {
@@ -297,5 +366,35 @@ describe('shopQuickLinks — spec §6', () => {
   })
   it('ไม่มีในเมนู = ไม่มีแถว (iOS ซ่อนจ่ายเงิน ฯลฯ ตามเมนูอัตโนมัติ)', () => {
     expect(shopQuickLinks(urls())).toEqual([])
+  })
+})
+
+describe('/queues แถบล่าง × แถบสร้างงานของบอร์ด (00086 · user เคาะ 2026-10-27)', () => {
+  const ALL: ShopRole[] = ['OWNER', 'MANAGER', 'CHAT', 'BILLING', 'TECHNICIAN']
+
+  it('ร้านบริการ: แถบล่างไม่ซ่อนทุกบทบาท · บอร์ดไม่วาดแถบสร้างงาน (ไม่มีปุ่มสร้างสองปุ่ม)', () => {
+    for (const r of ALL) {
+      expect(bottomNavHiddenPages([r], SERVICE).queues, r).toBe(false)
+      expect(queuesCreateBarRenders([r], SERVICE), r).toBe(false)
+    }
+  })
+  it('ร้านบริการ: บทบาทที่สร้างงานได้ (O2s) มี FAB ในแถบล่างเสมอ — ทางสร้างไม่หายตอนถอดแถบของบอร์ด', () => {
+    for (const r of ['OWNER', 'MANAGER', 'CHAT', 'BILLING'] as ShopRole[]) {
+      expect(nav([r]).fab, r).not.toBeNull()
+      expect(keys(nav([r])), r).toContain(r === 'OWNER' || r === 'MANAGER' ? 'orders' : 'queues')
+    }
+  })
+  it('ร้านขายออนไลน์/บ้านพัก: คงเดิม — ซ่อนเมื่อ can(O2s) · บอร์ดวาดแถบแทน FAB', () => {
+    for (const shop of [ONLINE, LODGING]) {
+      expect(bottomNavHiddenPages(['OWNER'], shop).queues).toBe(true)
+      expect(bottomNavHiddenPages(['CHAT'], shop).queues).toBe(true)
+      expect(bottomNavHiddenPages(['TECHNICIAN'], shop).queues).toBe(false)
+      expect(queuesCreateBarRenders(['OWNER'], shop)).toBe(true)
+      expect(queuesCreateBarRenders(['TECHNICIAN'], shop)).toBe(false)
+    }
+  })
+  it('orderDetail ไม่ขึ้นกับประเภทร้าน', () => {
+    expect(bottomNavHiddenPages(['OWNER'], SERVICE).orderDetail).toBe(true)
+    expect(bottomNavHiddenPages(['TECHNICIAN'], SERVICE).orderDetail).toBe(false)
   })
 })

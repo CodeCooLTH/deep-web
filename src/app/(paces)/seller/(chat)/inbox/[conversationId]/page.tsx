@@ -53,7 +53,7 @@ import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { viewerRolesOf } from '@/lib/viewer-roles'
-import { canAccessShopWith } from '@/lib/shop-capability'
+import { canAccessShopWith, canCloseJobInShop } from '@/lib/shop-capability'
 import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
@@ -448,6 +448,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     resolveActiveShopContext({ user: { id: user.id as string, activeShopId: threadShopId } }),
   )
   const canVoidPaymentPromise = settle(canAccessShopWith(threadShopId, user.id as string, 'O6'))
+  // 00086 S-5 (FR-005/FR-011) — ปุ่ม "ปิดงาน" ในแชทตามสิทธิ์ใน "ร้านของเธรด" (ไม่ใช่ร้านที่ active) · ตัวบังคับจริง = POST /close
+  const canCloseJobPromise = settle(canCloseJobInShop(threadShopId, user.id as string))
   const hidePaymentsPromise = settle(shouldHidePayments())
   const commentOriginLog = await prisma.commentReplyLog.findFirst({
     where: { conversationId: conversation.id },
@@ -610,8 +612,13 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           serviceStart: true,
           serviceEnd: true,
           appointmentStatus: true,
+          // feature 00086 — แบบการมาที่ร้านเลือก (คู่กับ getThreadPanelOrders)
+          arrivalMode: true,
           // feature 00073 — ปิดงานแล้วหรือยัง (ปุ่ม "ปิดงาน" ในแชท + ป้ายสถานะ)
           serviceClosedAt: true,
+          // feature 00086 — เริ่มงานแล้ว ⇒ ชีตปิดงานซ่อน "ไม่มาตามนัด" (คู่กับ getThreadPanelOrders)
+          serviceStartedAt: true,
+          serviceFinishedAt: true,
           depositAmount: true,
           /**
            * เงินที่ **ได้รับจริง** ของออเดอร์ใบนี้ (feature 00050) — `depositAmount` ข้างบนคือ
@@ -716,7 +723,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
     serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
     appointmentStatus: o.appointmentStatus,
+    arrivalMode: o.arrivalMode,
     serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
+    serviceStartedAt: o.serviceStartedAt ? o.serviceStartedAt.toISOString() : null,
+    serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
     depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
     payments: o.payments.map((p) => ({
       kind: p.kind,
@@ -758,9 +768,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // ยกเลิกรายการรับเงิน = O6 ตามบทบาทของผู้ดูใน "ร้านของเธรด" (BR-UNI-07 · effectiveRoles ของร้านนั้น) ไม่ใช่ร้านที่ active —
   // ซ่อนปุ่มอย่างเดียวไม่พอ: ตัวบังคับจริงคือ DELETE /api/orders/[token]/payments/[paymentId] (O6) · ค่านี้แค่ไม่ให้ UI เสนอปุ่มที่กดแล้ว 403
   const canVoidPayment = await canVoidPaymentPromise
+  const canCloseJob = await canCloseJobPromise
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
     canVoidPayment,
+    canCloseJob,
     // ร้านของเธรด (`threadShopId` = Conversation.shopId) ไม่ใช่ร้านที่ active — BR-UNI-07
     shopId: threadShopId,
     contactName: buyerDisplayName,

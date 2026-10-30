@@ -24,15 +24,20 @@ import SalesChartCard from './SalesChartCard'
 import PortfolioSalesCard from './PortfolioSalesCard'
 import ServiceReportCard from '../../_shared/service-report/ServiceReportCard'
 import TodayJobs from './TodayJobs'
+import StaffExpenseCard from './StaffExpenseCard'
 import type { homeBlocks } from '@/lib/dashboard-money'
 
 type Props = {
   data: CommandCenterData
   /** บล็อกที่บทบาทนี้เห็น (`homeBlocks`) — ตัดสินที่เดียว ที่นี่แค่ "ไม่ render" ตามธง (ห้ามซ่อนด้วย CSS) */
   blocks: ReturnType<typeof homeBlocks>
+  /** 00086 FR-018 — จำนวนค่าใช้จ่ายที่ฉันบันทึก · null/ไม่ส่ง = ไม่ render การ์ด (page ตัดสินด้วย showsStaffExpenseCard) */
+  staffExpenseCount?: number | null
+  /** 00086 P3 — session userId ของผู้ดู สำหรับการ์ด "งานของฉันวันนี้" (TodayJobs) · null = ไม่รู้ตัวผู้ดู */
+  viewerUserId?: string | null
 }
 
-export default function CommandCenter({ data, blocks }: Props) {
+export default function CommandCenter({ data, blocks, staffExpenseCount = null, viewerUserId = null }: Props) {
   // -mx-4: edge-to-edge ทั้ง CC — หักล้าง gutter `.seller-mobile-shell main { padding-inline:1rem }` (16px)
   // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
   // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
@@ -55,6 +60,7 @@ export default function CommandCenter({ data, blocks }: Props) {
         packageStatus={data.packageStatus ?? 'NOT_SUBSCRIBED'}
         packageTier={data.packageTier ?? null}
         hidePayments={data.hidePayments ?? false}
+        showPackageChip={blocks.shopPackage}
       />
 
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
@@ -82,7 +88,10 @@ export default function CommandCenter({ data, blocks }: Props) {
       )}
 
       {/* งานวันนี้ — ฝ่ายช่างล้วนในร้านที่รับนัดเท่านั้น (00071 S-15) · ไม่ mount ให้บทบาทอื่น (endpoint คืนเบอร์ลูกค้า) */}
-      {blocks.todayJobs && <TodayJobs />}
+      {blocks.todayJobs && <TodayJobs viewerUserId={viewerUserId} />}
+
+      {/* ค่าใช้จ่ายที่ฉันบันทึก — พนักงานร้านบริการที่ได้ธง (00086 FR-018) · ไม่มียอดเงิน มีแค่จำนวนรายการของตัวเอง */}
+      {staffExpenseCount !== null && <StaffExpenseCard count={staffExpenseCount} />}
 
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)

@@ -28,6 +28,9 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
+  expenseApi,
+  expenseDeleteOutcome,
+  type ExpenseApiScope,
   type ExpenseCategory,
 } from '@/lib/expense'
 import { todayThaiIsoDate, shiftIsoDate } from '@/lib/date-range'
@@ -60,6 +63,11 @@ type Props = {
   onClose: () => void
   /** เรียกหลัง create/edit/delete สำเร็จ — parent ไป refetch ทั้งก้อน */
   onMutated: () => void
+  /**
+   * 00086 FR-018 — ปลายทาง API: 'shop' (ค่าตั้งต้น) = เจ้าของ /api/expenses เดิม ·
+   * 'mine' = พนักงานที่ได้ธงบันทึกค่าใช้จ่าย /api/expenses/mine (ฟอร์ม/validation ชุดเดียวกันทุกช่อง)
+   */
+  scope?: ExpenseApiScope
 }
 
 function buildDefaultValues(mode: 'create' | 'edit', editing?: SerializedExpense | null): FormValues {
@@ -74,8 +82,9 @@ function buildDefaultValues(mode: 'create' | 'edit', editing?: SerializedExpense
   return { category: '', amount: undefined as unknown as number, expenseDate: todayThaiIsoDate(), note: '' }
 }
 
-export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: Props) {
-  // โมดัลนี้ mount เฉพาะตอนเปิด (ExpenseWorkspace render ใต้ `{modal && …}`) จึงล็อกตลอดอายุของมัน
+export default function ExpenseFormModal({ mode, editing, onClose, onMutated, scope = 'shop' }: Props) {
+  const api = expenseApi(scope)
+  // โมดัลนี้ mount เฉพาะตอนเปิด (ExpenseWorkspace/MyExpenses/StaffExpenseCard render ใต้ `{modal && …}`) จึงล็อกตลอดอายุของมัน
   useLockBodyScroll(true)
 
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -160,7 +169,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
       if (mode === 'edit') body.note = trimmedNote
       else if (trimmedNote) body.note = trimmedNote
 
-      const url = mode === 'edit' ? `/api/expenses/${editing?.id}` : '/api/expenses'
+      const url = mode === 'edit' ? api.item(editing?.id ?? '') : api.collection
       const res = await fetch(url, {
         method: mode === 'edit' ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,12 +203,15 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
 
     setDeleting(true)
     try {
-      const res = await fetch(`/api/expenses/${editing.id}`, { method: 'DELETE' })
-      if (!res.ok && res.status !== 404) {
+      const res = await fetch(api.item(editing.id), { method: 'DELETE' })
+      // 'mine' ต้องอ่าน body ของ 404 เพื่อแยก "ไม่พบแถว" ออกจากเหตุอื่น (expenseDeleteOutcome) · 'shop' ไม่อ่าน (เหมือนเดิม)
+      const body = scope === 'mine' && res.status === 404 ? await res.json().catch(() => null) : null
+      const outcome = expenseDeleteOutcome(scope, res.status, body)
+      if (outcome === 'error') {
         pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
         return
       }
-      pacesToast.success(res.status === 404 ? 'รายการนี้ถูกลบไปแล้ว' : 'ลบค่าใช้จ่ายแล้ว')
+      pacesToast.success(outcome === 'already-gone' ? 'รายการนี้ถูกลบไปแล้ว' : 'ลบค่าใช้จ่ายแล้ว')
       onClose()
       onMutated()
     } catch {
@@ -358,7 +370,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 id="expenseNote"
                 rows={2}
                 maxLength={500}
-                placeholder="เช่น บูสต์โพสต์ TikTok — แคมเปญเปิดร้าน"
+                // ทางพนักงาน ('mine') มีเฉพาะร้านบริการ — ตัวอย่างต้องเป็นค่าใช้จ่ายหน้างาน ไม่ใช่ค่าโฆษณาร้านค้าออนไลน์
+                placeholder={scope === 'mine' ? 'เช่น ค่าอะไหล่ ค่าเดินทางไปหน้างาน' : 'เช่น บูสต์โพสต์ TikTok — แคมเปญเปิดร้าน'}
                 className="form-textarea"
                 {...register('note')}
               />

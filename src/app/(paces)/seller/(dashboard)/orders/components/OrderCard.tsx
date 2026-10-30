@@ -25,6 +25,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { useEffect, useRef, useState } from 'react'
 import HighlightText from './HighlightText'
+import AssigneeWhoLine from '@/components/safepay/appointment-board/AssigneeWhoLine'
 import {
   PAYMENT_ICONS,
   PAYMENT_LABELS,
@@ -271,6 +272,10 @@ export default function OrderCard({
                   </>
                 )}
               </div>
+              {/* 00086 P3 (FR-008) — ผู้รับผิดชอบ · มีคีย์เฉพาะร้านบริการ (undefined = ร้านอื่น ไม่มีบรรทัดนี้) */}
+              {order.assigneeName !== undefined && (
+                <AssigneeWhoLine name={order.assigneeName} className="mt-0.5" />
+              )}
             </div>
           </div>
 
@@ -453,15 +458,15 @@ export default function OrderCard({
             <span
               className={cn(
                 'ms-auto inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-                APPOINTMENT_STAGE_META[order.appointment.stage].cls,
+                (order.appointment.badge ?? APPOINTMENT_STAGE_META[order.appointment.stage]).cls,
               )}
             >
               <Icon
-                icon={`tabler:${APPOINTMENT_STAGE_META[order.appointment.stage].icon}`}
+                icon={`tabler:${(order.appointment.badge ?? APPOINTMENT_STAGE_META[order.appointment.stage]).icon}`}
                 className="shrink-0 text-sm"
                 aria-hidden="true"
               />
-              {APPOINTMENT_STAGE_META[order.appointment.stage].label}
+              {(order.appointment.badge ?? APPOINTMENT_STAGE_META[order.appointment.stage]).label}
             </span>
           </div>
         )}

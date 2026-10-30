@@ -102,6 +102,8 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
     roles: m.roles,
+    canCloseJob: m.canCloseJob,
+    canRecordExpense: m.canRecordExpense,
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     avatar: m.user.avatar,
     providers: [
@@ -147,6 +149,7 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
         )}
         <CurrentMembersTable members={memberRows} shopId={shopId} canManage={members.some((m) => m.userId === userId && m.role === 'OWNER')}
           billingAvailable={canUseAppointments(shop)}
+          serviceFlagsAvailable={canUseAppointments(shop)}
         />
       </div>
     </>

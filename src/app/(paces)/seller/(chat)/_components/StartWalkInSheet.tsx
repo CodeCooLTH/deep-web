@@ -174,6 +174,8 @@ export default function StartWalkInSheet({
           resourceId,
           start: start.toISOString(),
           end: end.toISOString(),
+          // 00086 — ปุ่มนี้คือ "ลูกค้ามาหน้าร้าน" โดยนิยาม ⇒ บอก server ตรง ๆ ไม่ให้เดาจากระยะเวลา
+          arrivalMode: 'WALK_IN',
         }),
       })
       const json: unknown = await res.json().catch(() => ({}))

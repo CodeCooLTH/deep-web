@@ -68,6 +68,11 @@ export interface CompactHeroProps {
    * สถานะบัญชี ไม่ใช่ช่องทางจ่าย และผู้ขายต้องเห็นเพื่อรู้ว่าเครดิตส่ง SMS ใกล้หมดหรือยัง
    */
   hidePayments?: boolean
+  /**
+   * ชิปแพ็กเกจร้านค้า — `homeBlocks().shopPackage` (ช่างล้วนร้านบริการ = false · user 2026-10-30 "ซ่อนเลย")
+   * ไม่ส่ง = แสดงตามเดิม · ด่าน Android (showMoneyStatus) ยังตัดสินซ้อนอยู่ข้างในเหมือนเดิม
+   */
+  showPackageChip?: boolean
   /* หมายเหตุ: prop `packageCanManage` ถูกถอดออก 2026-08-04 — ชิปแพ็กเกจกลายเป็นป้ายอย่างเดียว
      (อยู่ในปุ่มสลับบัญชี จึงเป็นลิงก์ไม่ได้) สิทธิ์กด "จัดการ" จึงไม่มีความหมายที่นี่อีก
      ทางเข้าหน้าแพ็กเกจบนมือถือ = เมนู "แพ็กเกจของฉัน" ใน sidebar */
@@ -87,6 +92,7 @@ export default async function CompactHero({
   packageStatus,
   packageTier,
   hidePayments = false,
+  showPackageChip = true,
 }: CompactHeroProps) {
   const t = await getT()
   /* 🛑 Android (user สั่ง 2026-10-06): ไม่แสดงสถานะเงิน — ชิปแพ็กเกจ ("ต่ออายุไม่สำเร็จ"/ชื่อแพ็กเกจ)
@@ -297,14 +303,18 @@ export default async function CompactHero({
                 </span>
               </div>
 
+              {/* ด่าน Android (showMoneyStatus) เป็นชั้นนอกเสมอ — [blocker] no-payment-in-android-app สแกนรูปนี้
+                  ชั้นในคือบทบาท (showPackageChip: ช่างล้วนร้านบริการไม่เห็น · 00086) */}
               {showMoneyStatus && (
-                <span
-                  className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
-                  aria-label={packageAriaLabel}
-                >
-                  <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
-                  {packageChipLabel}
-                </span>
+                showPackageChip && (
+                  <span
+                    className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
+                    aria-label={packageAriaLabel}
+                  >
+                    <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
+                    {packageChipLabel}
+                  </span>
+                )
               )}
             </div>
           </div>

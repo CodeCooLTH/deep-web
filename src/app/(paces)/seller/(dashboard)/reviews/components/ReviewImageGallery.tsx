@@ -16,14 +16,20 @@ import { useCallback, useEffect, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import { fileUrlOf } from '@/lib/file-url'
 
 type Props = {
   images: string[]
   /** ขนาดรูปย่อ — เดสก์ท็อปในตารางเล็กกว่ามือถือเล็กน้อย */
   thumbClassName?: string
+  /**
+   * ชื่อชุดรูปสำหรับ screen reader (ปุ่มรูปย่อ/หัว lightbox) — ค่าตั้งต้น = รีวิว (ของเดิมไม่ขยับ)
+   * 00086 ใช้ซ้ำกับรูปก่อน-หลังงาน: "รูปก่อนทำ" / "รูปหลังทำ"
+   */
+  label?: string
 }
 
-const ReviewImageGallery = ({ images, thumbClassName = 'size-12' }: Props) => {
+const ReviewImageGallery = ({ images, thumbClassName = 'size-12', label = 'รูปแนบรีวิว' }: Props) => {
   // null = ปิดอยู่ · ตัวเลข = ดัชนีรูปที่กำลังเปิด (0 เป็นค่าที่ถูกต้อง จึงใช้ null ไม่ใช่ falsy)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const [broken, setBroken] = useState<Record<string, boolean>>({})
@@ -74,11 +80,11 @@ const ReviewImageGallery = ({ images, thumbClassName = 'size-12' }: Props) => {
               type="button"
               onClick={() => setOpenIndex(i)}
               className={`${thumbClassName} overflow-hidden rounded-md`}
-              aria-label={`ดูรูปแนบรีวิว ${i + 1}`}
+              aria-label={`ดู${label} ${i + 1}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- fileId เป็น dynamic route ที่ไม่ผ่าน image optimizer */}
               <img
-                src={`/api/files/${fileId}`}
+                src={fileUrlOf(fileId)}
                 // alt ว่างโดยตั้งใจ — ปุ่มที่ครอบมี aria-label อยู่แล้ว ใส่ทั้งคู่ = อ่านซ้ำสองรอบ
                 alt=""
                 className="size-full object-cover"
@@ -94,7 +100,7 @@ const ReviewImageGallery = ({ images, thumbClassName = 'size-12' }: Props) => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-dark/80 p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="รูปแนบรีวิว"
+          aria-label={label}
           onClick={close}
         >
           <button
@@ -143,8 +149,8 @@ const ReviewImageGallery = ({ images, thumbClassName = 'size-12' }: Props) => {
 
           {/* eslint-disable-next-line @next/next/no-img-element -- เหตุผลเดียวกับรูปย่อ */}
           <img
-            src={`/api/files/${images[openIndex]}`}
-            alt={`รูปแนบรีวิว ${openIndex + 1}`}
+            src={fileUrlOf(images[openIndex])}
+            alt={`${label} ${openIndex + 1}`}
             className="max-h-full max-w-full rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />

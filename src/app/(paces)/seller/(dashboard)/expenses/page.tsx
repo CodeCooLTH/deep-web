@@ -29,6 +29,7 @@ import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { resolveShopVertical } from '@/lib/lodging'
 import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getPnlReport } from '@/services/pnl.service'
+import { expenseRecordedByViewer } from '@/lib/expense'
 import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
 import NoPermissionCard from '../_shared/NoPermissionCard'
 import ExpenseWorkspace from './components/ExpenseWorkspace'
@@ -122,6 +123,9 @@ export default async function ExpensesPage({
         initialReport={report}
         initialExpenses={expenses.map(serializeExpense)}
         hasAnyExpenseEver={everRecorded}
+        // 00086 FR-019 — แถวที่พนักงานบันทึกขึ้น "บันทึกโดย {ชื่อ}" (เทียบกับผู้ดูคนนี้)
+        // ร้านบริการเท่านั้น — ร้านอื่นได้ null = ไม่มีป้าย (กันรั่วไปร้านที่มีเจ้าของร่วม)
+        viewerUserId={expenseRecordedByViewer(decision.shop, sessionLike.user.id)}
         // คำผันตามประเภทกิจการ — ร้านคิวงานไม่มี "ออเดอร์" ให้เฉลี่ยต่อใบ (ORDER_VOCAB)
         orderNoun={resolveOrderVocab(decision.shop.vertical).noun}
         itemNoun={chatItemLabel(decision.shop.vertical)}

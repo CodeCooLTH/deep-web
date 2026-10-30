@@ -54,6 +54,12 @@ export interface ChatOrderContext {
    * ปิดแล้ว = ไม่มีปุ่ม "ปิดงาน"/"เริ่มงาน"/"แจ้งมัดจำ" อีก (เหลือ "รับเงินแล้ว" ถ้ายังค้าง)
    */
   serviceClosed: boolean
+  /**
+   * feature 00086 (FR-005/FR-011) — ผู้ดูคนนี้ปิดงานใบนี้ได้ไหม (`memberCanCloseJob` ของร้านเจ้าของใบ) · **บังคับ**
+   * false = ไม่มีปุ่ม "ปิดงาน" (กดไปก็ 403 ที่ POST /close) · ไม่กระทบ "เริ่มงานเลย" (เริ่มงาน = O4 เดิม)
+   * ร้านที่ไม่ใช่บริการ = ค่าเดียวกับ O4 เดิม ⇒ พฤติกรรมเดิมทุกอย่าง
+   */
+  canClose: boolean
   money: OrderMoney
 }
 
@@ -122,7 +128,7 @@ export function chatOrderActions(ctx: ChatOrderContext): ChatOrderAction[] {
    * ปิดงาน (feature 00073) — ทุกงานที่ยังไม่ปิด **รวม walk-in** · ปลายทางคือชีตปิดงาน (POST /close)
    * ซึ่งรองรับงานไม่มีนัดแล้ว (เดิมยิง /appointment/outcome ที่ 404 กับ walk-in จึงต้องกั้นด้วย hasAppointment)
    */
-  if (!served) {
+  if (!served && ctx.canClose) {
     actions.push({
       key: 'MARK_SERVED',
       label: 'ปิดงาน',

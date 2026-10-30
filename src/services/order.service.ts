@@ -24,7 +24,7 @@ import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
-import { settleServiceJobOnBuyerConfirm } from "@/services/service-job.service";
+import { resolveTechnicianAssignee, settleServiceJobOnBuyerConfirm } from "@/services/service-job.service";
 import { removeTagsOnOrderCreated } from "@/services/shop-tag-auto.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
@@ -38,6 +38,8 @@ import { buildPayoutSnapshot, needsPayoutAccount, type ShopPayoutFields } from "
 import { round2 } from "@/lib/round2";
 import { excludeDraftedWhere, withoutDrafted } from "@/lib/order-visibility";
 import { deriveServiceWorkStage, type ServiceWorkStage } from "@/lib/service-work-stage";
+import { ArrivalModeError, canUseAppointments, isAllDayAppointment, walkInWindow } from "@/lib/appointments";
+import type { StoredArrivalMode } from "@/lib/arrival-mode";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -356,6 +358,20 @@ export async function createOrder(shopId: string, data: {
     depositAmount?: string | null;
   };
   /**
+   * feature 00086 (API.md §4.3) — ลูกค้ามาแบบไหน · มีผลเฉพาะร้านบริการ (ร้านอื่นละทิ้ง เก็บ NULL)
+   * BOOKED = ใช้ `appointment` (ต้องมี) · WALK_IN = ใช้ `walkIn` (ต้องมี) แล้ว server ตั้งเวลาเริ่ม = ตอนนี้
+   * ร้านบริการส่ง `appointment` มาโดยไม่ระบุค่านี้ = ArrivalModeError (ARRIVAL_MODE_REQUIRED)
+   */
+  arrivalMode?: StoredArrivalMode;
+  /** feature 00086 — คิวงานของงานหน้าร้าน · ไม่ส่ง durationMin = ระยะเวลามาตรฐานของคิว (→ ค่ามาตรฐานระบบ) */
+  walkIn?: { resourceId: string; durationMin?: number };
+  /**
+   * feature 00086 P3 (S-6 · API.md §4.3) — ผู้รับผิดชอบงานตอนสร้าง · ร้านบริการเท่านั้น (ร้านอื่นละทิ้ง เก็บ NULL)
+   * ต้องเป็นสมาชิกที่ถือ TECHNICIAN (resolveTechnicianAssignee) else AssigneeNotTechnicianError → ทั้งใบ rollback
+   * บันทึก SERVICE_ASSIGNED (ผู้กระทำ = คนสร้าง) · ไม่แจ้งเตือน (FR-014 ไม่มีเหตุการณ์ "มอบงาน")
+   */
+  assignedUserId?: string | null;
+  /**
    * คนที่กดสร้างออเดอร์นี้ (2026-08-04) — route เป็นคนส่ง session.user.id เข้ามา
    *
    * ไม่ส่งมา = ไม่มีคนกด (ระบบออกให้เอง) เก็บเป็น NULL ห้ามเดาว่าเป็นเจ้าของร้าน
@@ -409,9 +425,12 @@ export async function createOrder(shopId: string, data: {
   }
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
-  const appointmentResource = data.appointment
-    ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
-    : null;
+  // feature 00086 — งานหน้าร้านไม่ใช้ data.appointment (ถูกแทนด้วยช่วงเวลาที่ server ตั้งเองด้านล่าง)
+  let appointmentResource =
+    data.appointment && data.arrivalMode !== "WALK_IN"
+      ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
+      : null;
+  let appointment = data.arrivalMode === "WALK_IN" ? undefined : data.appointment;
 
   // feature 00033 — เวลาจริงที่ "มีคนกดสร้าง" จับไว้ครั้งเดียวตั้งแต่ต้น
   // ใช้กับ OrderEvent.occurredAt เสมอ ห้ามใช้ order.createdAt ซึ่งย้อนหลังได้แล้ว
@@ -459,6 +478,8 @@ export async function createOrder(shopId: string, data: {
     where: { id: shopId },
     select: {
       vertical: true,
+      // feature 00086 — จองล่วงหน้าในร้านแบบ "ระบุช่วงเวลา" ต้องมีเวลา (ไม่ใช่นัดทั้งวัน)
+      appointmentGranularity: true,
       payoutBankCode: true,
       payoutAccountNo: true,
       payoutAccountName: true,
@@ -466,6 +487,36 @@ export async function createOrder(shopId: string, data: {
     },
   });
   const shipsGoods = shopShipsGoods(shopRow?.vertical);
+
+  /**
+   * feature 00086 (FR-001/FR-003 · API.md §4.3) — ลูกค้ามาแบบไหน (ร้านบริการเท่านั้น)
+   *
+   * 🛑 ตรวจซ้ำที่นี่แม้ route ตรวจรูปร่างแล้ว — นี่คือเส้นทางสร้างออเดอร์เส้นเดียว ผู้เรียกในอนาคต
+   * ที่ข้าม route ต้องเจอกติกาเดียวกัน · ร้านอื่น: ละทิ้งทั้ง arrivalMode และ walkIn (เก็บ NULL · พฤติกรรมเดิม)
+   * ไม่มีนัดและไม่ระบุแบบการมา = ใบ "ยังไม่ระบุเวลา" แบบเดิม (NULL)
+   */
+  let arrivalMode: StoredArrivalMode | null = null;
+  if (shopRow?.vertical === "SERVICE_QUEUE") {
+    if (data.arrivalMode === "WALK_IN") {
+      if (!data.walkIn?.resourceId) throw new ArrivalModeError("ARRIVAL_WALK_IN_NEEDS_QUEUE");
+      appointmentResource = await resolveResourceForOrder(shopId, data.walkIn.resourceId);
+      // เวลาเริ่ม = ตอนที่กดบันทึก (ปัดวินาที) · ไม่เชื่อเวลาจาก client · ไม่มีมัดจำ (depositAmount ไม่ถูกส่งต่อ)
+      const w = walkInWindow(keyedInAt, data.walkIn.durationMin ?? appointmentResource.durationMinutes);
+      appointment = { resourceId: appointmentResource.id, start: w.start, end: w.end, depositAmount: null };
+      arrivalMode = "WALK_IN";
+    } else if (data.arrivalMode === "BOOKED") {
+      if (!appointment || !appointmentResource) throw new ArrivalModeError("ARRIVAL_BOOKED_NEEDS_TIME");
+      if (
+        shopRow.appointmentGranularity === "TIME" &&
+        isAllDayAppointment(appointment.start, appointment.end)
+      ) {
+        throw new ArrivalModeError("ARRIVAL_BOOKED_NEEDS_TIME");
+      }
+      arrivalMode = "BOOKED";
+    } else if (appointment) {
+      throw new ArrivalModeError("ARRIVAL_MODE_REQUIRED");
+    }
+  }
 
   // ตรวจ item ที่ไม่มี productId (พิมพ์เอง) ก่อน — ถ้า order.type=PHYSICAL → SHIPPED
   // ร้านที่ไม่ส่งของ (คิวงาน/บ้านพัก) ข้ามข้อนี้: งานบริการพิมพ์รายการเองเป็นเรื่องปกติ
@@ -582,11 +633,12 @@ export async function createOrder(shopId: string, data: {
   // ย้ายการ build items ไปทำใน retry loop เพื่อแนบ stockDeducted ต่อ item (Inventory Add-on)
   // feature 00024 — ยอดมัดจำของนัด (FR-RSV-12) คำนวณครั้งเดียวที่นี่แล้ว snapshot ลงออเดอร์
   // ออเดอร์ที่ไม่มีนัด = undefined → คอลัมน์เป็น NULL เหมือนเดิมทุกประการ (BR-RSV-52)
-  const appointmentDeposit = appointmentResource
+  // feature 00086 — งานหน้าร้านไม่เก็บมัดจำ (คอลัมน์เป็น NULL เหมือน walk-in ที่เริ่มงานจากแชท)
+  const appointmentDeposit = appointmentResource && arrivalMode !== "WALK_IN"
     ? computeAppointmentDeposit({
         resource: appointmentResource,
         totalAmount: new Prisma.Decimal(totalAmount),
-        override: data.appointment?.depositAmount,
+        override: appointment?.depositAmount,
       })
     : undefined;
 
@@ -714,9 +766,17 @@ export async function createOrder(shopId: string, data: {
         const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
         const customerId = custPhone ? await findOrCreateCustomer(tx, custPhone) : null;
 
+        // feature 00086 P3 — ผู้รับผิดชอบตอนสร้าง (ร้านบริการเท่านั้น · ร้านอื่นละทิ้งเงียบ = พฤติกรรมเดิม)
+        // ตรวจใน tx: สมาชิกถูกลบ/เปลี่ยนบทบาทระหว่างกรอกฟอร์ม = ไม่สร้างใบ (ไม่ใช่สร้างแล้วผูกชื่อคนที่ไม่ใช่ช่าง)
+        const assignee =
+          shopRow?.vertical === "SERVICE_QUEUE" && data.assignedUserId
+            ? { userId: data.assignedUserId, ...(await resolveTechnicianAssignee(tx, shopId, data.assignedUserId)) }
+            : null;
+
         const order = await tx.order.create({
           data: {
             ...orderDataBase,
+            ...(assignee ? { assignedUserId: assignee.userId } : {}),
             customerId: customerId ?? undefined,
             items: { create: itemsCreateData },
             shortCode: genShortCode(),
@@ -748,6 +808,17 @@ export async function createOrder(shopId: string, data: {
           // ใส่ orderedAt เฉพาะออเดอร์ที่ลงวันที่เอง — ออเดอร์ปกติ meta ว่างเหมือนเดิมทุกประการ
           ...(isBackdated ? { meta: { orderedAt: order.createdAt.toISOString() } } : {}),
         });
+
+        // feature 00086 P3 — ประวัติการมอบงานตอนสร้าง (ตรวจช่าง + เขียนคอลัมน์แล้วก่อน create)
+        if (assignee) {
+          await recordOrderEvent(tx, {
+            orderId: order.id,
+            type: "SERVICE_ASSIGNED",
+            actorUserId: data.createdByUserId ?? null,
+            occurredAt: keyedInAt,
+            meta: { assigneeNameSnapshot: assignee.displayName },
+          });
+        }
 
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
         // เงื่อนไข: มี conversationId + ได้ customerId (มีเบอร์) เท่านั้น. scope ownership ด้วย shopId ใน
@@ -784,30 +855,34 @@ export async function createOrder(shopId: string, data: {
         //
         // ถ้าเต็มทุกที่นั่ง AppointmentSlotFullError จะถูกโยนออกไป → ทั้ง transaction rollback
         // → ออเดอร์ไม่ถูกสร้างเลย ซึ่งถูกต้อง: ร้านตั้งใจสร้างออเดอร์พร้อมนัด ไม่ใช่ออเดอร์เปล่า
-        if (appointmentResource && data.appointment) {
+        if (appointmentResource && appointment) {
           await attachAppointmentInTx(tx, {
             orderId: order.id,
             resource: appointmentResource,
-            start: data.appointment.start,
-            end: data.appointment.end,
+            start: appointment.start,
+            end: appointment.end,
+            // feature 00086 — เขียนพร้อมเวลานัด (CHECK: มีค่าได้เมื่อมี serviceStart เท่านั้น)
+            arrivalMode,
           });
         }
 
         // 00078 — จองเจตนาแจ้งลูกค้าใน tx เดียวกัน (ล้ม = null ไม่พางานหลักล้ม) · มีนัด = SERVICE_BOOKED, ไม่มี = ORDER_SUMMARY
         // ชนิดที่ vertical ไม่รองรับ eligibility ตัดเอง · createdAt = วันที่ผู้ขายระบุ (D-13 ตัดสินแบบ "ต่างวันไทย")
-        if (order.conversationId) {
+        // 🛑 00086 — งานหน้าร้านไม่แจ้ง: ลูกค้ายืนอยู่ตรงหน้าร้าน ข้อความ "จองคิวแล้ว" ผิดความจริง (API.md §4.3)
+        if (order.conversationId && arrivalMode !== "WALK_IN") {
           ledgerId = await reserveAutoNotifyIntent(tx, {
             shopId,
             orderId: order.id,
             conversationId: order.conversationId,
-            kind: appointmentResource && data.appointment ? "SERVICE_BOOKED" : "ORDER_SUMMARY",
+            kind: appointmentResource && appointment ? "SERVICE_BOOKED" : "ORDER_SUMMARY",
             isDryRun: order.isDryRun,
             keyedInAt,
             createdAtInput: orderCreatedAt ?? null,
           });
         }
 
-        return order;
+        // response บอกแบบการมาที่บันทึกจริง (แถวจาก create ยังไม่มีค่านี้ — เขียนตอนผูกนัด)
+        return arrivalMode ? { ...order, arrivalMode } : order;
       });
       dispatchAutoNotifyAfterCommit(ledgerId);
       // 00083 TD-003 — ถอด tag หลัง commit นอก tx/retry loop (ใช้ conversationId ของแถวที่สร้างจริง · ไม่ throw)
@@ -2124,12 +2199,45 @@ export async function getOrderByToken(publicToken: string) {
 
 // DAL pattern: กรอง ownership ตั้งแต่ query layer เพื่อกัน RSC flight-data leak
 // (redirect-after-fetch ไม่เพียงพอเพราะ Next.js serialize object ก่อน redirect throw)
+/**
+ * feature 00086 P3 (T5) — ผู้รับผิดชอบ + รูป/บันทึกก่อน-หลังทำ ของงานบริการ (การ์ด "งานนี้" · "รูปก่อน-หลัง")
+ * select แคบ: ชื่ออย่างเดียว (ไม่มีเบอร์/อีเมล/username) — หน้านี้อยู่ใต้ client layout ทุกคีย์ลง flight payload
+ */
+const SERVICE_JOB_DETAIL_SELECT = {
+  assignedUser: { select: { id: true, displayName: true } },
+  serviceJobRecords: {
+    select: { phase: true, note: true, fileIds: true, createdAt: true, createdBy: { select: { displayName: true } } },
+    orderBy: { createdAt: "asc" },
+  },
+} satisfies Prisma.OrderSelect;
+
+export type ServiceJobDetail = Prisma.OrderGetPayload<{ select: typeof SERVICE_JOB_DETAIL_SELECT }>;
+
 export async function getOrderForShop(
   publicToken: string,
   shopId: string,
   // withCost — ส่ง true เฉพาะเมื่อผู้ดูผ่านด่านกำไร (resolveExpenseAccess GRANTED) · ค่าตั้งต้น = ไม่มีคีย์ cost
   opts: { withCost?: boolean } = {},
 ) {
+  const order = await findOrderForShop(publicToken, shopId, opts);
+  /**
+   * 00086 P3 — ร้านบริการเท่านั้นที่ได้ `assignedUser` + `serviceJobRecords` (ร้านอื่น = แถวเดิมทุกคีย์ ไม่มีคีย์ใหม่)
+   *
+   * 🛑 ทำไมไม่ใส่ใน include ข้างบนตรง ๆ: include ตัดสินก่อนรู้ vertical ของร้าน ⇒ ร้านทุกประเภทจะได้คีย์ใหม่
+   * (และ query ใหม่) ใน payload · แยกเป็นคำขอที่สองหลังรู้ว่าเป็นร้านบริการ = ร้านอื่นไม่จ่ายอะไรเพิ่มเลย
+   * ร้านบริการจ่าย 1 round-trip (เปิดหน้ารายละเอียดทีละใบ ไม่ใช่เส้นทางรายการ)
+   * ตัดสิน vertical จากแถวร้านที่ include มาแล้ว (ไม่เชื่อ caller) — ตัวเดียวกับ canUseAppointments ทั้งระบบ
+   */
+  if (!order || !canUseAppointments(order.shop)) return order as (typeof order & Partial<ServiceJobDetail>) | null;
+  const job = await prisma.order.findUnique({ where: { id: order.id }, select: SERVICE_JOB_DETAIL_SELECT });
+  return {
+    ...order,
+    assignedUser: job?.assignedUser ?? null,
+    serviceJobRecords: job?.serviceJobRecords ?? [],
+  } as typeof order & Partial<ServiceJobDetail>;
+}
+
+async function findOrderForShop(publicToken: string, shopId: string, opts: { withCost?: boolean }) {
   return prisma.order.findFirst({
     where: { publicToken, shopId },
     include: {
@@ -2505,8 +2613,13 @@ export async function settleCodFromCarrier(input: {
  * 🛑 ห้ามก็อปไปเขียนซ้ำ: ถ้าสองที่ include ไม่ตรงกัน หน้าจอจะขาดข้อมูลบางฟิลด์เฉพาะเส้นทางเดียว
  * แล้วอาการจะออกมาเป็น "บางใบไม่มีเลขพัสดุ" ซึ่งไม่มีใครโยงกลับมาที่ include ได้
  */
-function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean }) {
+function orderListInclude(opts?: { withPayments?: boolean; withCost?: boolean; withAssignee?: boolean }) {
   return {
+      /**
+       * 00086 P3 — ชื่อผู้รับผิดชอบสำหรับ who-line ในรายการ (ร้านบริการเท่านั้น — ผู้เรียกกั้น vertical)
+       * id + displayName เท่านั้น (ไม่มีเบอร์/อีเมล) · ร้านอื่นไม่ include = payload เดิม
+       */
+      ...(opts?.withAssignee ? { assignedUser: { select: { id: true, displayName: true } } } : {}),
 
       /**
        * แถวเงินของใบนี้ — ป้ายสถานะในรายการต้องมาจากตัวเลขชุดเดียวกับหน้ารายละเอียด
@@ -2662,6 +2775,8 @@ export async function getOrdersByShop(
     withPayments?: boolean
     /** ต้นทุนรายบรรทัด — ส่ง true เฉพาะหน้าที่ผ่าน gatePage F1 แล้ว (sales COGS) · ค่าตั้งต้น = ไม่มีคีย์ cost */
     withCost?: boolean
+    /** 00086 P3 — `assignedUser {id, displayName}` สำหรับ who-line · ผู้เรียกกั้นด้วยร้านบริการ (ค่าตั้งต้น = ไม่มีคีย์) */
+    withAssignee?: boolean
   },
 ) {
   return prisma.order.findMany({
@@ -2707,9 +2822,15 @@ export async function getThreadPanelOrders(
      *  ถ้าตกหล่น ข้อมูลจะถูกส่งไปจริงแต่ TypeScript บอกว่าไม่มี แล้วไม่มีใครกล้าใช้ */
     serviceStart: string | null;
     serviceEnd: string | null;
+    /** feature 00086 — BOOKED|WALK_IN ที่ร้านเลือก · null = ใบเก่า/ไม่ได้ระบุ ⇒ จอใช้ arrivalModeOf */
+    arrivalMode: string | null;
     appointmentStatus: string | null;
     /** feature 00073 — วันปิดงาน (ISO) · null = ยังไม่ปิด */
     serviceClosedAt: string | null;
+    /** feature 00086 — เวลากดเริ่มงาน (ISO) · null = ยังไม่เริ่ม ⇒ ชีตปิดงานในแชทซ่อน "ไม่มาตามนัด" */
+    serviceStartedAt: string | null;
+    /** feature 00086 — เวลากดทำเสร็จ (ISO) · ป้ายแถบงานในแชท "ทำเสร็จ · รอปิดงาน" */
+    serviceFinishedAt: string | null;
     depositAmount: string | null;
     /** เงินที่ได้รับจริง (feature 00050) — ว่าง = ยังไม่มีใครกดยืนยันรับเงิน */
     payments: { kind: string; amount: string; voidedAt: string | null }[];
@@ -2753,8 +2874,13 @@ export async function getThreadPanelOrders(
       // ส่วนนี่คือใบที่ 21 ขึ้นไป ถ้าไม่ sync กัน ออเดอร์ที่โหลดทีหลังจะกลายเป็น walk-in เงียบ ๆ
       serviceStart: true,
       serviceEnd: true,
+      // feature 00086 — แบบการมาที่ร้านเลือก · ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx (T3)
+      arrivalMode: true,
       appointmentStatus: true,
       serviceClosedAt: true,
+      // feature 00086 — เริ่มงานแล้วหรือยัง · ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx
+      serviceStartedAt: true,
+      serviceFinishedAt: true,
       depositAmount: true,
       // feature 00050 — เงินที่ได้รับจริง (คนละเรื่องกับ depositAmount ซึ่งเป็นข้อตกลง)
       // ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ (ใบที่ 21 ขึ้นไปโหลดผ่านนี่)
@@ -2800,8 +2926,11 @@ export async function getThreadPanelOrders(
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
       serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
       serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
+      arrivalMode: o.arrivalMode,
       appointmentStatus: o.appointmentStatus,
       serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
+      serviceStartedAt: o.serviceStartedAt ? o.serviceStartedAt.toISOString() : null,
+      serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
       depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
       payments: o.payments.map((p) => ({
         kind: p.kind,

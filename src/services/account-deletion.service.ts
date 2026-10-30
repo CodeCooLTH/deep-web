@@ -16,6 +16,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { SHOP_DELETE_REASON } from '@/lib/business-package'
+import { unassignUserOpenJobsEverywhere } from '@/services/service-job.service'
 import {
   ACCOUNT_DELETE_REASON,
   ACCOUNT_DELETE_RETENTION_DAYS,
@@ -220,6 +221,9 @@ export async function deleteAccount(
     // 4) ออกจากร้านที่ถูกเชิญไป — ร้านของคนอื่นต้องไม่ค้างสมาชิกที่ล็อกอินไม่ได้แล้ว
     //    (ทั้งร้านตัวเองและร้านคนอื่น: ร้านตัวเองถูก soft-delete ไปแล้วในขั้น 2 จึงไม่ต้องแยก)
     await tx.shopMember.deleteMany({ where: { userId } })
+    // 4b) 00086 — งานบริการที่ยังเปิดซึ่งมอบให้บัญชีนี้ (ทุกร้าน) กลับเป็น "ยังไม่มีคนรับ" + ประวัติ MEMBER_REMOVED
+    //     ไม่งั้นงานค้างชื่อคนที่ล็อกอินไม่ได้แล้ว = ช่างล้วนคนอื่นรับ/เริ่ม/ปิดงานนั้นไม่ได้ · ต้องอยู่หลัง deleteMany (ดูหัวฟังก์ชัน)
+    await unassignUserOpenJobsEverywhere(tx, { userId, actorUserId: userId, now })
 
     // 5) รายงานกลุ่ม LINE (00070 TFR-24) — ทุกกลุ่มที่ยังไม่ REMOVED → REMOVED + เพิกถอนโค้ดผูกที่ยังใช้ได้
     //    เก็บ lineGroupId ของกลุ่มที่บอทยังอยู่ (ACTIVE) ไว้ให้ผู้เรียกสั่ง leave แบบ best-effort หลัง commit

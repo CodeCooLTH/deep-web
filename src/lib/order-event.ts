@@ -61,6 +61,12 @@ export const ORDER_EVENT_TYPES = [
   // feature 00085 — ร้านปิด/เลิกปิดพัสดุที่มีปัญหา · DB CHECK: 20261026100100_00085_order_event_parcel_close_types
   'PARCEL_PROBLEM_CLOSED',
   'PARCEL_PROBLEM_REOPENED',
+  // feature 00086 P3 — ผู้รับผิดชอบงาน (มอบ/รับ/ยกเลิก) + ขั้น "ทำเสร็จแล้ว" ของร้านบริการ
+  // DB CHECK: 20261027100600_00086_order_event_staff_types
+  'SERVICE_ASSIGNED',
+  'SERVICE_CLAIMED',
+  'SERVICE_UNASSIGNED',
+  'SERVICE_FINISHED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -125,7 +131,8 @@ export const ORDER_EVENT_META: Record<
   SERVICE_REOPENED: { label: 'เปิดงานอีกครั้ง', icon: 'clipboard-x', tone: 'neutral' },
   // feature 00078 — neutral ทั้งหมด: เริ่มงาน/แจ้งลูกค้าเป็นข้อเท็จจริงของร้าน ไม่ใช่ความสำเร็จของธุรกรรม
   // AUTO_NOTICE_FAILED ไม่ใช้ danger — แจ้งไม่สำเร็จไม่ได้ทำให้ออเดอร์เสีย (ผลละเอียดอยู่ที่ ledger)
-  SERVICE_STARTED: { label: 'ร้านเริ่มงาน', icon: 'player-play', tone: 'neutral' },
+  // 00086 critique P1-4 — "เริ่มงาน" ไม่ใช่ "ร้านเริ่มงาน": คนกดอาจเป็นช่างที่มีชื่ออยู่บรรทัด "โดย …" (ชุดเดียวกับ ทำเสร็จแล้ว/รับงานนี้)
+  SERVICE_STARTED: { label: 'เริ่มงาน', icon: 'player-play', tone: 'neutral' },
   AUTO_NOTICE_SENT: { label: 'ระบบแจ้งลูกค้าในแชทแล้ว', icon: 'message-check', tone: 'neutral' },
   AUTO_NOTICE_FAILED: { label: 'แจ้งลูกค้าในแชทไม่สำเร็จ', icon: 'message-off', tone: 'neutral' },
   // feature 00080 — neutral ทั้งคู่: SELLER_DELIVERED เป็นคำรายงานของร้านเอง ไม่ใช่หลักฐานจากบุคคลที่สาม (เขียวสงวน BUYER_CONFIRMED)
@@ -134,6 +141,12 @@ export const ORDER_EVENT_META: Record<
   MANUAL_DISPATCH_UNDONE: { label: 'เลิกทำแจ้งจัดส่ง (ส่งเอง)', icon: 'arrow-back-up', tone: 'neutral' },
   PARCEL_PROBLEM_CLOSED: { label: 'ปิดพัสดุที่มีปัญหา', icon: 'package-off', tone: 'neutral' },
   PARCEL_PROBLEM_REOPENED: { label: 'เลิกปิดพัสดุ', icon: 'arrow-back-up', tone: 'neutral' },
+  // feature 00086 — neutral ทั้งหมด: มอบ/รับ/ทำเสร็จเป็นข้อเท็จจริงภายในร้าน ไม่ใช่หลักฐานจากลูกค้า
+  // "ทำเสร็จแล้ว" ไม่ใช่ success — ยังไม่ปิดงาน ยังไม่นับเงิน (FR-010 · เขียวสงวน BUYER_CONFIRMED)
+  SERVICE_ASSIGNED: { label: 'มอบงาน', icon: 'user-cog', tone: 'neutral' },
+  SERVICE_CLAIMED: { label: 'รับงานนี้', icon: 'user-check', tone: 'neutral' },
+  SERVICE_UNASSIGNED: { label: 'ยกเลิกผู้รับผิดชอบ', icon: 'user-x', tone: 'neutral' },
+  SERVICE_FINISHED: { label: 'ทำเสร็จแล้ว', icon: 'circle-check', tone: 'neutral' },
 }
 
 /**
@@ -231,6 +244,22 @@ export type OrderEventMeta = {
   basis?: string
   /** feature 00085 — ร้านระบุว่าคืนเงินแล้ว (null/ไม่มี = ไม่ได้ถาม) */
   refunded?: boolean | null
+  /**
+   * feature 00086 — ชื่อผู้รับผิดชอบ ณ ตอนมอบ/รับ (SERVICE_ASSIGNED · SERVICE_CLAIMED) · ชื่อพนักงาน ไม่ใช่ PII ผู้ซื้อ
+   * ผู้ซื้อไม่เห็น OrderEvent เลย (getOrderEvents เรียกฝั่งร้านเท่านั้น) ⇒ ไม่หลุดถึงลูกค้า
+   */
+  assigneeNameSnapshot?: string
+  /** feature 00086 — ผู้รับผิดชอบคนก่อน (SERVICE_ASSIGNED แบบเปลี่ยนคน · SERVICE_UNASSIGNED) */
+  previousAssigneeNameSnapshot?: string
+  /** feature 00086 — จำนวนรูปที่แนบตอนเริ่ม/ทำเสร็จ (SERVICE_STARTED · SERVICE_FINISHED) — ตัวรูปอยู่ที่ ServiceJobRecord */
+  photoCount?: number
+  /**
+   * feature 00086 — มีบันทึกไหม (SERVICE_STARTED · SERVICE_FINISHED)
+   * 🛑 ตัวข้อความบันทึกอยู่ที่ ServiceJobRecord.note เท่านั้น ห้ามใส่ใน meta (ข้อความอิสระอาจมีข้อมูลลูกค้า · SDS TD-006)
+   */
+  hasNote?: boolean
+  // SERVICE_UNASSIGNED ใช้ `reason` ด้านบนร่วมกัน: 'MANUAL' (กดยกเลิกเอง) | 'MEMBER_REMOVED' (ถูกลบออกจากร้าน)
+  //   | 'ROLE_REMOVED' (ยังอยู่ในร้านแต่ไม่ได้ถือ "ช่าง" แล้ว — 00086 P3)
 }
 
 export type OrderEventView = {
@@ -303,6 +332,29 @@ export function describeOrderEvent(
         parts.push(`รับเงิน ฿${e.meta.amount.toLocaleString('th-TH')}`)
       }
       if (e.meta.backfilled) parts.push('บันทึกย้อนหลัง')
+      return parts.length ? parts.join(' · ') : null
+    }
+    // feature 00086 — ใครทำ อยู่ที่ป้ายผู้กระทำแล้ว · บรรทัดนี้บอก "ให้ใคร/จากใคร" และ "แนบอะไรมา"
+    case 'SERVICE_ASSIGNED': {
+      if (!e.meta.assigneeNameSnapshot) return null
+      const to = `มอบงานให้ ${e.meta.assigneeNameSnapshot}`
+      return e.meta.previousAssigneeNameSnapshot ? `${to} · แทน ${e.meta.previousAssigneeNameSnapshot}` : to
+    }
+    case 'SERVICE_UNASSIGNED': {
+      const prev = e.meta.previousAssigneeNameSnapshot
+      // 00086 P3 — ยังอยู่ในร้านแต่ไม่ได้ถือ "ช่าง" แล้ว (แก้บทบาท/เลื่อนเป็นเจ้าของ) ⇒ ระบบปลดให้เอง
+      // ประโยคเดียวมีชื่ออยู่แล้ว — ไม่ต่อ "เดิม {ชื่อ}" ซ้ำ
+      if (e.meta.reason === 'ROLE_REMOVED') return prev ? `${prev} ไม่ได้เป็นช่างแล้ว` : 'ผู้รับผิดชอบไม่ได้เป็นช่างแล้ว'
+      const parts: string[] = []
+      if (prev) parts.push(`เดิม ${prev}`)
+      if (e.meta.reason === 'MEMBER_REMOVED') parts.push('ถูกนำออกจากร้าน')
+      return parts.length ? parts.join(' · ') : null
+    }
+    case 'SERVICE_STARTED':
+    case 'SERVICE_FINISHED': {
+      const parts: string[] = []
+      if (typeof e.meta.photoCount === 'number' && e.meta.photoCount > 0) parts.push(`รูป ${e.meta.photoCount} รูป`)
+      if (e.meta.hasNote) parts.push('มีบันทึก')
       return parts.length ? parts.join(' · ') : null
     }
     case 'PARCEL_PROBLEM_CLOSED': {

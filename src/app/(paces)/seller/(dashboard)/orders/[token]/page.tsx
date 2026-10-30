@@ -52,7 +52,7 @@ import { isCODPayment, isCodUnpaidOrder } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
-import { can, moneyLevel } from '@/lib/shop-permissions'
+import { can, canAssignServiceJob, canClaimServiceJob, isTechnicianOnly, memberCanCloseJob, moneyLevel } from '@/lib/shop-permissions'
 import { toNoMoneyOrder } from '@/lib/order-view-by-level'
 import TechnicianOrderDetail from './components/TechnicianOrderDetail'
 import { canEditOrderAs } from '@/lib/order-role-rules'
@@ -62,7 +62,10 @@ import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
 import AppointmentCard from './components/AppointmentCard'
 import ServiceJobCard from './components/ServiceJobCard'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import ServiceJobPhotosCard from '@/components/safepay/service-job/ServiceJobPhotosCard'
+import { serviceJobFacts } from '@/components/safepay/service-job/service-job-facts'
+import type { ServiceJobPhotoMode } from '@/lib/service-job'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { isAllDayAppointment } from '@/lib/appointments'
 import BillingDetails from './components/BillingDetails'
@@ -143,6 +146,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // (OrderItem.cost) ถูก omit ที่ระดับ prisma client (00071 T9) · opt-in เฉพาะผู้ที่ GRANTED เท่านั้น
   // 00071 P3 (S-14): บทบาทที่มีผลจริงของผู้ดู → ซ่อนปุ่มที่ไม่มีสิทธิ์ · บิลที่ผู้เปิดบิลแก้ไม่ได้แล้ว (รับเงินแล้ว/ไม่ใช่บริการ)
   const viewerRoles = gate.ok ? gate.roles : []
+  // 00086 S-5 (FR-005) — ปุ่มปิดงานแยกจากเริ่มงาน: ร้านบริการปิดได้เฉพาะ เจ้าของ/ผู้จัดการ/คนที่ติ๊ก "ปิดงานได้"
+  // (ร้านอื่น = O4 เดิม) · ร้าน+ธงจากแถวที่ด่านเพิ่ง resolve ตัวเดียวกับ POST /close · gate ไม่ ok = ปิด
+  const canCloseJob = gate.ok && memberCanCloseJob(gate.active.shop, viewerRoles, gate.active)
   // ช่าง (NONE) ไม่แตะตัวตัดสินการเงินเลย (S-15) — ตัดสินก่อน resolveExpenseAccess
   const isNoMoney = moneyLevel(viewerRoles) === 'NONE'
   const canSeeProfit = isNoMoney
@@ -161,6 +167,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         shop={shop}
         vocab={vocab}
         viewerRoles={viewerRoles}
+        viewerUserId={String(user.id)}
+        canCloseJob={canCloseJob}
         fbPageAvatar={fbPageAvatar}
       />
     )
@@ -242,7 +250,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
             status: order.status,
             appointmentStatus: order.appointmentStatus ?? null,
             hasAppointment: Boolean(order.serviceStart),
+            // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+            arrivalMode: serviceArrivalOf(order),
             serviceClosedAt: order.serviceClosedAt ?? null,
+            // 00086 P3 — กำลังให้บริการ / ทำเสร็จ · รอปิดงาน (ฝั่งร้าน)
+            serviceStartedAt: order.serviceStartedAt ?? null,
+            serviceFinishedAt: order.serviceFinishedAt ?? null,
             outstanding: can(viewerRoles, 'O5') ? serviceMoney.outstanding : null,
           },
           'seller',
@@ -313,6 +326,10 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
   const orderEvents = await getOrderEvents(order.id)
+
+  // 00086 P3 — ผู้รับผิดชอบ · ชื่อคนเริ่ม/ทำเสร็จ · รูปก่อน-หลัง (ร้านบริการเท่านั้น — serviceJob null = ร้านอื่น ไม่คำนวณ)
+  const jobFacts = serviceJob ? serviceJobFacts(order, orderEvents) : null
+  const photoMode = (shop.serviceJobPhotoMode ?? 'OPTIONAL') as ServiceJobPhotoMode
 
   // ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ (scope shopId เสมอ) — เติมการ์ด "ผู้ซื้อ" ที่ user บอกว่าข้อมูลน้อย
   const customerSummary = await getCustomerSummary(order.customerId ?? null, shop.id)
@@ -591,7 +608,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
         // feature 00065 — เลขใบเสร็จที่ออกแล้ว (เมนู ⋯ "พิมพ์ใบเสร็จ"/"ดูใบเสร็จ")
         receiptNo={receiptNo}
-        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} serviceVocab={shop.vertical === 'SERVICE_QUEUE' ? vocab : undefined} />}
+        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} serviceVocab={shop.vertical === 'SERVICE_QUEUE' ? vocab : undefined} serviceJobRecords={jobFacts?.records} />}
         customerCard={
           <CustomerDetails
             summary={customerSummary}
@@ -625,7 +642,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
           <>
             {/* feature 00073 — การ์ด "งานนี้" (ปิดงาน/เปิดงานอีกครั้ง) ของร้านบริการทุกงาน รวม walk-in
                 วางบนสุด: เป็น action หลักของงานบริการ · ร้านอื่นไม่ render (serviceJob = null) */}
-            {serviceJob && (
+            {serviceJob && jobFacts && (
               <ServiceJobCard
                 publicToken={order.publicToken}
                 orderLabel={order.orderNo ?? order.publicToken.slice(0, 8).toUpperCase()}
@@ -635,15 +652,39 @@ export default async function OrderDetailPage({ params }: PageProps) {
                 badge={serviceJob.badge}
                 hasAppointment={Boolean(order.serviceStart)}
                 startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}
+                endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
                 allDay={
                   order.serviceStart && order.serviceEnd
                     ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
                     : false
                 }
                 {...(can(viewerRoles, 'O5') && serviceMoney ? { money: serviceMoney } : {})}
-                canClose={can(viewerRoles, 'O4')}
+                canStart={can(viewerRoles, 'O4')}
+                canClose={canCloseJob}
                 canManage={can(viewerRoles, 'O6')}
                 editHref={`/orders/${order.publicToken}/edit`}
+                finishedAtISO={order.serviceFinishedAt ? new Date(order.serviceFinishedAt).toISOString() : null}
+                assignee={jobFacts.assignee}
+                viewerUserId={String(user.id)}
+                technicianOnly={isTechnicianOnly(viewerRoles)}
+                canAssign={canAssignServiceJob(viewerRoles)}
+                canClaim={canClaimServiceJob(viewerRoles)}
+                photoMode={photoMode}
+                photosBuyerVisible={Boolean(shop.serviceJobPhotosBuyerVisible)}
+                startedByName={jobFacts.startedByName}
+                finishedByName={jobFacts.finishedByName}
+                jobSummary={jobFacts.jobSummary}
+              />
+            )}
+            {/* 00086 S-10 — รูปก่อน-หลัง ต่อจากการ์ดงานทันที (ลำดับการ์ดอื่นคงเดิม — Controller 2026-10-29) · ไม่มี record = ไม่ render */}
+            {serviceJob && jobFacts && (
+              <ServiceJobPhotosCard
+                records={jobFacts.records}
+                photoMode={photoMode}
+                buyerVisible={Boolean(shop.serviceJobPhotosBuyerVisible)}
+                assigneeName={jobFacts.assignee?.name ?? null}
+                closed={Boolean(order.serviceClosedAt)}
+                finished={Boolean(order.serviceFinishedAt)}
               />
             )}
             {/* การนัดหมาย (feature 00036) — วางเป็นการ์ดแรกของคอลัมน์ข้าง เพราะสำหรับออเดอร์
@@ -655,10 +696,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <AppointmentCard
                 canReschedule={can(viewerRoles, 'O3') && !editLocked && !order.serviceClosedAt}
                 canSendSummary={can(viewerRoles, 'H1')}
+                // 00086 critique P0 — การ์ด "งานนี้" ข้างบนเป็นป้ายสถานะเดียวของหน้า (ร้านอื่น serviceJob = null ⇒ ป้ายเดิม)
+                hideStageBadge={Boolean(serviceJob && jobFacts)}
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
-                // เวลาที่เปิดบิล — ใช้แยก "เดินเข้ามา" ออกจาก "จองล่วงหน้า"
+                // เวลาที่เปิดบิล — ใช้แยก "หน้าร้าน" ออกจาก "จองล่วงหน้า" ของใบเก่า
                 createdAtISO={new Date(order.createdAt).toISOString()}
+                // 00086 — ค่าที่ร้านเลือกตอนเปิดบิล (null = ใบเก่า ⇒ สูตรเดิม)
+                arrivalMode={order.arrivalMode ?? null}
                 endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
                 allDay={
                   order.serviceEnd

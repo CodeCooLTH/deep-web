@@ -17,7 +17,7 @@ import { maskPhoneForGuest, maskShippingAddressForGuest, type MaskedShippingAddr
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 import type { PayoutSnapshot } from '@/lib/shop-payout'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import type { OrderStatusTone } from '@/lib/order-display'
 import type { ParcelCloseOutcome } from '@/lib/parcel-close'
 import { asParcelClose } from '@/services/parcel-close-input'
@@ -367,6 +367,8 @@ export function buildGuestOrderData(
               status: order.status,
               appointmentStatus: order.appointmentStatus,
               hasAppointment: Boolean(order.serviceStart),
+              // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+              arrivalMode: serviceArrivalOf(order),
               serviceClosedAt: order.serviceClosedAt,
               outstanding: null,
             },

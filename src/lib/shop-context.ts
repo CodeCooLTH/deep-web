@@ -80,6 +80,10 @@ export interface ActiveShopContext {
   lockReason: string | null;
   /** ประเภทกิจการของร้าน — มากับ query เดิมอยู่แล้ว ให้หน้าที่ต้องผันคำตามประเภทไม่ต้องยิงเพิ่ม */
   vertical: string;
+  /** 00086 ธงสิทธิ์รายคน (ShopMember) — อ่านสดทุกคำขอ ไม่อยู่ใน JWT · PERSONAL/ไม่ได้อ่าน = false (fail-closed)
+   *  ตัวตัดสินจริงคือ memberCanCloseJob / memberCanRecordStaffExpense (shop-permissions.ts) ไม่ใช่ค่าดิบนี้ */
+  canCloseJob?: boolean;
+  canRecordExpense?: boolean;
 }
 
 /** resolveActiveShopContext — ใช้ใน page/route ที่ต้อง operate บน "shop ปัจจุบัน" ของ session
@@ -92,7 +96,7 @@ export async function resolveActiveShopContext(session: {
   if (!shopId) {
     const personal = await getPersonalShop(session.user.id);
     if (!personal) return null;
-    return { shopId: personal.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: personal.vertical };
+    return { shopId: personal.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: personal.vertical, canCloseJob: false, canRecordExpense: false };
   }
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
@@ -101,17 +105,18 @@ export async function resolveActiveShopContext(session: {
   if (!shop || shop.deletedAt) return null; // soft-deleted/ไม่มี → fallback caller ควรพากลับ Personal
   if (shop.kind === "PERSONAL") {
     if (shop.userId !== session.user.id) return null; // ไม่ควรเกิด (Personal เป็นของ user เดียวเสมอ) — defense
-    return { shopId: shop.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: shop.vertical };
+    return { shopId: shop.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: shop.vertical, canCloseJob: false, canRecordExpense: false };
   }
   // BUSINESS — verify membership จริง (ไม่ trust JWT เพียงอย่างเดียว)
   const member = await prisma.shopMember.findUnique({
     where: { shopId_userId: { shopId: shop.id, userId: session.user.id } },
-    select: { role: true, roles: true },
+    select: { role: true, roles: true, canCloseJob: true, canRecordExpense: true },
   });
   if (!member) return null;
   return {
     shopId: shop.id, kind: "BUSINESS", role: member.role as "OWNER" | "ADMIN", roles: member.roles,
     locked: shop.packageLockedAt !== null, lockReason: shop.packageLockReason, vertical: shop.vertical,
+    canCloseJob: member.canCloseJob === true, canRecordExpense: member.canRecordExpense === true,
   };
 }
 
@@ -126,6 +131,9 @@ export interface ActiveShop {
   /** true = Business ถูก package lock (read-only) — page/route ต้อง gate mutation */
   locked: boolean;
   lockReason: string | null;
+  /** 00086 — ดู ActiveShopContext.canCloseJob (ค่าดิบจากแถวสมาชิก · PERSONAL = false) */
+  canCloseJob?: boolean;
+  canRecordExpense?: boolean;
 }
 
 /** requireActiveShop — Phase 4: resolve "shop ที่ active อยู่" ของ seller (Personal หรือ Business ตาม
@@ -150,11 +158,14 @@ export async function requireActiveShop(
     // fallback → Personal (เช่น activeShopId ชี้ business ที่หลุด membership/ถูกลบ)
     const personal = await getPersonalShop(userId);
     if (!personal) return null;
-    meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: personal.vertical };
+    meta = { shopId: personal.id, kind: "PERSONAL", role: "OWNER", roles: [], locked: false, lockReason: null, vertical: personal.vertical, canCloseJob: false, canRecordExpense: false };
   }
   const shop = await prisma.shop.findUnique({ where: { id: meta.shopId } });
   if (!shop) return null;
-  return { shop, kind: meta.kind, role: meta.role, roles: meta.roles, locked: meta.locked, lockReason: meta.lockReason };
+  return {
+    shop, kind: meta.kind, role: meta.role, roles: meta.roles, locked: meta.locked, lockReason: meta.lockReason,
+    canCloseJob: meta.canCloseJob === true, canRecordExpense: meta.canRecordExpense === true,
+  };
 }
 
 /** ผลลัพธ์ของ requireShopForRequest — บังคับให้ caller แยก "ไม่มีร้าน" ออกจาก "ไม่มีสิทธิ์ร้านที่ขอ"
@@ -203,7 +214,10 @@ export async function requireShopForRequest(
 
   return {
     ok: true,
-    target: { shop, kind: ctx.kind, role: ctx.role, roles: ctx.roles, locked: ctx.locked, lockReason: ctx.lockReason },
+    target: {
+      shop, kind: ctx.kind, role: ctx.role, roles: ctx.roles, locked: ctx.locked, lockReason: ctx.lockReason,
+      canCloseJob: ctx.canCloseJob === true, canRecordExpense: ctx.canRecordExpense === true,
+    },
   };
 }
 

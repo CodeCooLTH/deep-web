@@ -37,6 +37,13 @@ interface Props {
    * หน้า /orders/new เต็มจอที่ไม่มีเธรด
    */
   channelLocked?: boolean
+  /**
+   * 'grid' (ค่าตั้งต้น) = แถว label + ชิปกดได้ แบบเดิมทุกตัวอักษร
+   * 'row' = แถว label + ค่าปัจจุบัน + ปุ่ม [เปลี่ยน] (ร้านบริการตอนสร้าง — อยู่ใน section "เพิ่มเติม"
+   *   ของ QuickForm · feature 00086 P2-T4) ภาษาเดียวกับแถววันที่ (OrderDateRow: ค่า + ปุ่ม "เปลี่ยน")
+   *   เพราะสองค่านี้แทบไม่เคยเปลี่ยน (หน้าร้าน/เงินสด) จึงอ่านเป็นค่านิ่ง ไม่ใช่ช่องที่ต้องกรอก
+   */
+  variant?: 'grid' | 'row'
 }
 
 /**
@@ -58,7 +65,7 @@ function ChannelMark({ value }: { value: string | undefined }) {
   return opt ? <Icon icon={opt.icon} className="size-4 text-primary" /> : null
 }
 
-export default function ChannelPaymentSelect({ control, compact = false, channelLocked = false }: Props) {
+export default function ChannelPaymentSelect({ control, compact = false, channelLocked = false, variant = 'grid' }: Props) {
   const [openSheet, setOpenSheet] = useState<'channel' | 'payment' | null>(null)
   const [defaults, setDefaults] = useState<{ channel: string | null; payment: string | null }>({
     channel: null,
@@ -83,6 +90,88 @@ export default function ChannelPaymentSelect({ control, compact = false, channel
   }
 
   const pmOpt = PAYMENT_OPTIONS.find((o) => o.value === paymentField.value)
+
+  const sheets = (
+    <>
+      <OptionPickerSheet
+        open={openSheet === 'channel'}
+        title="ช่องทางการขาย"
+        options={CHANNEL_OPTIONS}
+        value={channelField.value}
+        defaultValue={defaults.channel}
+        onSelect={(v) => {
+          channelField.onChange(v)
+          setOpenSheet(null)
+        }}
+        onSetDefault={(v) => setDefault('channel', v)}
+        onClose={() => setOpenSheet(null)}
+      />
+      <OptionPickerSheet
+        open={openSheet === 'payment'}
+        title="การชำระเงิน"
+        options={PAYMENT_OPTIONS}
+        value={paymentField.value}
+        defaultValue={defaults.payment}
+        onSelect={(v) => {
+          paymentField.onChange(v)
+          setOpenSheet(null)
+        }}
+        onSetDefault={(v) => setDefault('payment', v)}
+        onClose={() => setOpenSheet(null)}
+      />
+    </>
+  )
+
+  if (variant === 'row') {
+    const channelLabel = labelOf(CHANNEL_OPTIONS, channelField.value) || '—'
+    const paymentLabel = labelOf(PAYMENT_OPTIONS, paymentField.value) || '—'
+    // Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx (divide-y แถวรายการ)
+    // ปุ่ม "เปลี่ยน" คลาสเดียวกับ OrderDateRow (sibling ในฟอร์มเดียวกัน — คำเดียวกัน = หน้าตาเดียวกัน)
+    const changeCls = 'btn min-h-11 shrink-0 text-primary hover:bg-primary hover:text-white'
+    return (
+      <>
+        <div className="divide-y divide-default-100">
+          <div className="py-2.5">
+            <div className="flex w-full items-center gap-3">
+              <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
+              <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold text-default-800">
+                <ChannelMark value={channelField.value} />
+                {channelLabel}
+              </span>
+              {/* ล็อกแล้วไม่มีปุ่ม — เหตุผลเดียวกับ variant grid (ดูคอมเมนต์ <div> ล็อกด้านล่าง) */}
+              {!channelLocked && (
+                <button
+                  type="button"
+                  aria-label={`เปลี่ยนช่องทางการขาย ค่าปัจจุบันคือ ${channelLabel}`}
+                  onClick={() => setOpenSheet('channel')}
+                  className={`${changeCls} ms-auto`}
+                >
+                  เปลี่ยน
+                </button>
+              )}
+            </div>
+            {channelLocked && <p className="mt-1 mb-0 text-xs text-default-400">ล็อกตามช่องทางที่ลูกค้าทักมา</p>}
+          </div>
+          <div className="flex w-full items-center gap-3 py-2.5">
+            <span className="w-28 shrink-0 text-sm font-semibold text-default-700">การชำระเงิน</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold text-default-800">
+              {pmOpt && <Icon icon={pmOpt.icon} className="size-4 text-primary" />}
+              {paymentLabel}
+            </span>
+            <button
+              type="button"
+              aria-label={`เปลี่ยนการชำระเงิน ค่าปัจจุบันคือ ${paymentLabel}`}
+              onClick={() => setOpenSheet('payment')}
+              className={`${changeCls} ms-auto`}
+            >
+              เปลี่ยน
+            </button>
+          </div>
+        </div>
+        {sheets}
+      </>
+    )
+  }
 
   return (
     <>
@@ -142,32 +231,7 @@ export default function ChannelPaymentSelect({ control, compact = false, channel
         </button>
       </div>
 
-      <OptionPickerSheet
-        open={openSheet === 'channel'}
-        title="ช่องทางการขาย"
-        options={CHANNEL_OPTIONS}
-        value={channelField.value}
-        defaultValue={defaults.channel}
-        onSelect={(v) => {
-          channelField.onChange(v)
-          setOpenSheet(null)
-        }}
-        onSetDefault={(v) => setDefault('channel', v)}
-        onClose={() => setOpenSheet(null)}
-      />
-      <OptionPickerSheet
-        open={openSheet === 'payment'}
-        title="การชำระเงิน"
-        options={PAYMENT_OPTIONS}
-        value={paymentField.value}
-        defaultValue={defaults.payment}
-        onSelect={(v) => {
-          paymentField.onChange(v)
-          setOpenSheet(null)
-        }}
-        onSetDefault={(v) => setDefault('payment', v)}
-        onClose={() => setOpenSheet(null)}
-      />
+      {sheets}
     </>
   )
 }

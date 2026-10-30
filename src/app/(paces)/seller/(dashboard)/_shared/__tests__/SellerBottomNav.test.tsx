@@ -30,7 +30,7 @@ const golden = JSON.parse(
 function render(roles: ShopRole[], vertical: 'ONLINE_SALES' | 'SERVICE_QUEUE', path = '/dashboard') {
   pathname = path
   const nav = resolveMobileNav(roles, { kind: 'BUSINESS', vertical }, resolveOrderVocab(vertical), th)
-  const hidden = bottomNavHiddenPages(roles)
+  const hidden = bottomNavHiddenPages(roles, { kind: 'BUSINESS', vertical })
   return renderToStaticMarkup(
     <SellerBottomNav
       nav={nav}
@@ -65,19 +65,52 @@ describe('SellerBottomNav — เปลือกตามบทบาท', () =>
     expect(html).not.toContain('aria-expanded')
     expect(html).toContain(`aria-label="${resolveOrderVocab('ONLINE_SALES').createLabel}"`)
   })
-  it('BILLING (ร้านบริการ): [หน้าหลัก][+][ออเดอร์] · grid-cols-3 · FAB ป้าย createLabel', () => {
+  it('BILLING (ร้านบริการ · 00086 FR-016): [หน้าหลัก][บริการ][+][ตารางงาน][ลูกค้า] · grid-cols-5 · FAB ป้าย createLabel', () => {
     const html = render(['BILLING'], 'SERVICE_QUEUE')
-    expect(html).toContain('grid grid-cols-3')
-    expect(hrefs(html)).toEqual(['/dashboard', '/orders/new', '/orders'])
+    expect(html).toContain('grid grid-cols-5')
+    expect(hrefs(html)).toEqual(['/dashboard', '/orders', '/orders/new', '/queues', '/customers'])
+    expect(html).toContain('>ตารางงาน</span>')
+    expect(html).toContain('>ลูกค้า</span>')
     expect(html).toContain(`aria-label="${resolveOrderVocab('SERVICE_QUEUE').createLabel}"`)
   })
-  it('TECHNICIAN (ร้านบริการ): [หน้าหลัก][งาน→/queues] · grid-cols-2 · ไม่มี FAB/แชท/ร้านค้า', () => {
+  it('CHAT (ร้านบริการ · 00086 FR-016): [หน้าหลัก][บริการ][+][แชท][ตารางงาน] · grid-cols-5', () => {
+    const html = render(['CHAT'], 'SERVICE_QUEUE')
+    expect(html).toContain('grid grid-cols-5')
+    expect(hrefs(html)).toEqual(['/dashboard', '/orders', '/orders/new', '/inbox', '/queues'])
+  })
+  it('แท็บตารางงาน/ลูกค้า active ตาม path (startsWith) · ไม่มี badge', () => {
+    const q = render(['CHAT'], 'SERVICE_QUEUE', '/queues/new')
+    expect(q).toMatch(/<a class="flex [^"]*text-primary" aria-label="ตารางงาน" aria-current="page" href="\/queues">/)
+    const c = render(['BILLING'], 'SERVICE_QUEUE', '/customers/abc')
+    expect(c).toMatch(/<a class="flex [^"]*text-primary" aria-label="ลูกค้า" aria-current="page" href="\/customers">/)
+  })
+  it('BILLING (ร้านขายออนไลน์ ไม่ผ่าน effectiveRoles): แถบเดิม [หน้าหลัก][+][ออเดอร์] · grid-cols-3', () => {
+    const html = render(['BILLING'], 'ONLINE_SALES')
+    expect(html).toContain('grid grid-cols-3')
+    expect(hrefs(html)).toEqual(['/dashboard', '/orders/new', '/orders'])
+  })
+  it('TECHNICIAN (ร้านบริการ · 00086 P3): [หน้าหลัก][งานของฉัน][ตารางงาน] · grid-cols-3 · ไม่มี FAB/แชท/ร้านค้า', () => {
     const html = render(['TECHNICIAN'], 'SERVICE_QUEUE')
-    expect(html).toContain('grid grid-cols-2')
-    expect(hrefs(html)).toEqual(['/dashboard', '/queues'])
+    expect(html).toContain('grid grid-cols-3')
+    expect(hrefs(html)).toEqual(['/dashboard', '/my-jobs', '/queues'])
+    expect(html).toContain('>งานของฉัน</span>')
+    expect(html).toContain('>ตารางงาน</span>')
+    expect(html).not.toContain('aria-expanded')
     expect(html).not.toContain('/orders/new')
     expect(html).not.toContain('/inbox')
     expect(html).not.toContain('/shop')
+  })
+})
+
+describe('SellerBottomNav — ช่างล้วน (00086 P3)', () => {
+  it('/my-jobs: แท็บ "งานของฉัน" active · แถบไม่ซ่อน', () => {
+    const html = render(['TECHNICIAN'], 'SERVICE_QUEUE', '/my-jobs')
+    expect(html).toContain('aria-current="page" href="/my-jobs"')
+  })
+  it('ช่างล้วนร้านขายออนไลน์: แถบเดิม [หน้าหลัก][งาน→/orders] · grid-cols-2 · ไม่มี /my-jobs', () => {
+    const html = render(['TECHNICIAN'], 'ONLINE_SALES')
+    expect(html).toContain('grid grid-cols-2')
+    expect([...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(['/dashboard', '/orders'])
   })
 })
 
@@ -93,9 +126,14 @@ describe('SellerBottomNav — ซ่อนเมื่อหน้านั้�
   it('/orders/new ยังเห็นแถบล่างเสมอ', () => {
     expect(render(['OWNER'], 'ONLINE_SALES', '/orders/new')).not.toBe('')
   })
-  it('/queues: ซ่อนเมื่อ can(O2s) · ช่างเห็นแถบล่าง', () => {
-    expect(render(['OWNER'], 'SERVICE_QUEUE', '/queues')).toBe('')
-    expect(render(['BILLING'], 'SERVICE_QUEUE', '/queues')).toBe('')
-    expect(render(['TECHNICIAN'], 'SERVICE_QUEUE', '/queues')).not.toBe('')
+  it('/queues ร้านบริการ (00086 · 2026-10-27): เห็นแถบล่างทุกบทบาท · แท็บตารางงาน active', () => {
+    for (const r of ['OWNER', 'MANAGER', 'CHAT', 'BILLING', 'TECHNICIAN'] as ShopRole[]) {
+      expect(render([r], 'SERVICE_QUEUE', '/queues'), r).not.toBe('')
+    }
+    expect(render(['CHAT'], 'SERVICE_QUEUE', '/queues')).toMatch(/aria-label="ตารางงาน" aria-current="page" href="\/queues"/)
+  })
+  it('/queues ร้านอื่น: คงเดิม — ซ่อนเมื่อ can(O2s)', () => {
+    expect(render(['OWNER'], 'ONLINE_SALES', '/queues')).toBe('')
+    expect(render(['CHAT'], 'ONLINE_SALES', '/queues')).toBe('')
   })
 })
