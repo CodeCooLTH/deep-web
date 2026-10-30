@@ -868,7 +868,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 
 **Index:** `[slipFileId]` — รองรับ `/api/files` order-slip gate
 
-**`src/lib/chat-service-progress.ts` (ใหม่ 2026-08-08, feature 00024/00018/00036):** adapter pure module ที่แปล `serviceStart`/`serviceEnd`/`appointmentStatus`/`Order.status` เป็นแกน "นัดถึงขั้นไหน" สำหรับแถบสถานะออเดอร์ในห้องแชทของร้าน `SERVICE_QUEUE` (คู่ขนานกับ `chat-order-progress.ts` ของแกนขนส่งที่ร้านอื่นใช้) — walk-in (ไม่มี `serviceStart`) ที่ยังไม่ปิดงาน = `PENDING` ("รับงานแล้ว"), `COMPLETED`/`NO_SHOW`/`CANCELLED`/**ปิดงานแล้ว (`serviceClosedAt`)** = หลุดจากรายการงานค้างทันที · **00073:** ลูกค้ายืนยันก่อนร้านปิด = `AWAITING_CLOSE` (ยังค้าง) · ป้ายมาจาก `src/lib/service-status.ts` (ป้ายชุดเดียว 10 ตัวของงานบริการ — ฝั่งร้าน/ฝั่งลูกค้า)
+**`src/lib/chat-service-progress.ts` (ใหม่ 2026-08-08, feature 00024/00018/00036):** adapter pure module ที่แปล `serviceStart`/`serviceEnd`/`appointmentStatus`/`Order.status` เป็นแกน "นัดถึงขั้นไหน" สำหรับแถบสถานะออเดอร์ในห้องแชทของร้าน `SERVICE_QUEUE` (คู่ขนานกับ `chat-order-progress.ts` ของแกนขนส่งที่ร้านอื่นใช้) — walk-in (ไม่มี `serviceStart`) ที่ยังไม่ปิดงาน = `PENDING` ("รอเริ่มงาน" — 00086 มติ 2026-10-30 · เดิม "รับงานแล้ว" · ป้าย = `SERVICE_STATUS_META.WALK_IN.seller` · งานหน้าร้าน `arrivalMode=WALK_IN` ที่มีเวลาแต่ยังไม่เริ่มก็เป็น `PENDING`) · **00086:** เพิ่มขั้น `IN_SERVICE` "กำลังให้บริการ" (`serviceStartedAt`) และ `FINISHED_AWAITING_CLOSE` "ทำเสร็จ · รอปิดงาน" (`serviceFinishedAt`) ยังค้างจนปิดงาน · `COMPLETED`/`NO_SHOW`/`CANCELLED`/**ปิดงานแล้ว (`serviceClosedAt`)** = หลุดจากรายการงานค้างทันที · **00073:** ลูกค้ายืนยันก่อนร้านปิด = `AWAITING_CLOSE` (ยังค้าง) · ป้ายมาจาก `src/lib/service-status.ts` (ป้ายชุดเดียว 10 ตัวของงานบริการ — ฝั่งร้าน/ฝั่งลูกค้า)
 
 #### OrderItem (`prisma/schema.prisma:183`)
 
@@ -1797,6 +1797,28 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 **`OrderEvent_type_check`** ขยายเป็น **35 ค่า** (+`PARCEL_PROBLEM_CLOSED`, `PARCEL_PROBLEM_REOPENED`) ที่ migration `20261026100100_00085_order_event_parcel_close_types` — อ่านนิยามเดิมจาก `pg_get_constraintdef` แล้วต่อท้าย (ข้ามถ้ามีค่าใหม่แล้ว · ล้มเสียงดังถ้า regex จับค่าได้ไม่ครบ · ถ้าไม่มี constraint เลยสร้างใหม่ด้วย 35 ค่า)
 
 **ข้อควรรู้:** query พัสดุที่นับยอดต้องผ่าน `ACTIVE_FORWARD_SHIPMENT` (`CREATED ∧ ¬isDryRun ∧ FORWARD`) — คอลัมน์ปิดบนพัสดุที่ถูกยกเลิกไม่ล้างแต่ไม่มีผู้อ่านเพราะทุก query กรอง ACTIVE · **Rollback:** `DROP CONSTRAINT` 4 ตัว แล้ว `DROP COLUMN` 8 ตัว (เฉพาะก่อนมีข้อมูลปิดจริง — หลังมีข้อมูลเป็น destructive ต้อง Controller สั่ง/ถาม user)
+
+### 6.77 งานพนักงานร้านบริการ — ค่าติ๊กรายคน · แบบการมา · ผู้รับผิดชอบ · ทำเสร็จ · `ServiceJobRecord` · `Notification.shopId` (feature 00086)
+
+> สถานะ: **implement ครบบน branch `feat/00086-service-staff-workflow` (ยังไม่ commit · ยังไม่ merge · sync 2026-10-29 · มติ UX 2026-10-30)** · migration **11 ตัว** additive (HR15) — ⚠️ `20261027100000` · `100100` · `100150` · `100200` **ขึ้น prod แล้วโดยไม่ตั้งใจ 2026-10-27** (incident · ห้ามแก้ไฟล์ 4 ตัวนี้) · `100210` · `100220` · `100300`..`100700` ยังไม่ขึ้น · ต้นทาง `docs/20 - Features/00086 - Service Staff Workflow/DATABASE.md` §5.0 · CHECK เป็น unmanaged SQL → **ห้าม `prisma db pull` / `migrate dev` กับฐานแชร์ (HR13/14)** · ร้าน `SERVICE_QUEUE` เท่านั้นที่อ่านค่าเหล่านี้
+
+| ตาราง.คอลัมน์ | ชนิด | กติกา |
+|---|---|---|
+| `ShopMember/ShopInvite/ShopInviteLink.canCloseJob` | Boolean NOT NULL default false | "ปิดงานได้" รายคน · ไม่ใช่บทบาท (ไม่อยู่ใน `roles[]`) · CHECK `ShopMember_flags_admin_only_check`: `role='ADMIN' OR (NOT canCloseJob AND NOT canRecordExpense)` ⇒ เขียน `role='OWNER'` ต้องล้าง flag คู่กัน (`planMemberRoleChange` · `transferShopOwnership`) · backfill (100000): ADMIN ร้านบริการที่มี CHAT/TECHNICIAN = true (คำเชิญ/ลิงก์ค้างไม่ backfill) · `100210` ใส่ CHECK ซ้ำแบบ NOT VALID → ล้างธงค้างบนแถว OWNER → VALIDATE (ปลอดภัยทั้งกรณี CHECK บน prod ยังอยู่หรือถูกถอด · มติ user: ปล่อย CHECK บน prod ไว้ตามเดิม) |
+| `…canRecordExpense` | Boolean NOT NULL default false | "บันทึกค่าใช้จ่ายได้" รายคน · รับคำเชิญ/ลิงก์คัดลอกทั้งสอง flag · (มติ 2026-10-30) default `canCloseJob` ใน DB ยัง false — แต่ UI เลือกบทบาทติ๊ก `canCloseJob` ให้เมื่อกด **เพิ่ม** `TECHNICIAN` (`flagsAfterRoleToggle` · ติ๊กออกได้ · แก้บทบาทอื่นไม่ติ๊กกลับ) |
+| `Order.arrivalMode` | String? | `BOOKED`\|`WALK_IN` · NULL = ยังไม่ระบุเวลา / ร้านอื่น · CHECK `Order_arrivalMode_check` (ค่าในชุด ∧ `serviceStart IS NOT NULL`) · backfill 100200 + รอบซ้ำ 100220 (ใบที่ตกช่องระหว่างสอง deploy · เฉพาะ `arrivalMode IS NULL`) ตามสูตร `resolveArrivalMode` (นัด − สร้าง > 30 นาที = BOOKED) · อ่านผ่าน `arrivalModeOf()` เสมอ |
+| `Order.assignedUserId` | String? FK `User` SetNull | ผู้รับผิดชอบ · index `Order_assignedUserId_serviceStart_idx` (🛑 `CREATE INDEX` ใน tx ของ migrate — **นับแถว Order บน prod ก่อน merge**) · ปลดของงานที่ยังเปิดเมื่อ ลบสมาชิก / ถอดบทบาทช่าง / เลื่อน-รับโอนเป็นเจ้าของ / ปิดบัญชี + event `SERVICE_UNASSIGNED` |
+| `Order.serviceFinishedAt` | `DateTime? @db.Timestamptz(3)` | "ทำเสร็จ" เขียนครั้งเดียว · CHECK `Order_serviceFinished_requires_started` · ไม่แตะเงิน/สถานะ (ยอดยังนับที่ `serviceClosedAt`) · `reopenServiceJob` ไม่ล้าง |
+| `Shop.serviceJobPhotoMode` | String NOT NULL default `'OPTIONAL'` | `REQUIRED`\|`OPTIONAL`\|`NONE` · CHECK `Shop_serviceJobPhoto_check` |
+| `Shop.serviceJobPhotosBuyerVisible` | Boolean NOT NULL default false | `NONE` ⇒ false (CHECK เดียวกัน) |
+| `Notification.shopId` | String? FK `Shop` Cascade (NOT VALID) | NULL = แจ้งเตือนระดับบัญชีแบบเดิม (ไม่ backfill) · (มติ 2026-10-30) แถวงานใหม่เขียนเฉพาะ `service_job_finished`/`service_job_closed` (รับงาน/เริ่มงานไม่แจ้งแล้ว · แถวเก่ายังอ่านได้) · index `(userId, shopId, createdAt)` · แถวร้านอ่านได้เฉพาะเจ้าของปัจจุบัน (`service_job_*` + ผู้ดูแลปัจจุบัน) · กระดิ่งโดเมนผู้ซื้อ/แอปผู้ซื้อเห็นเฉพาะ `shopId IS NULL` |
+| `Expense` | — | + index `Expense_shopId_createdBy_expenseDate_idx` (`createdByUserId` มีอยู่แล้ว) |
+
+**`ServiceJobRecord` (ตารางใหม่):** `id` · `orderId` (FK Cascade) · `shopId` (FK Cascade) · `phase` (`BEFORE`\|`AFTER` CHECK) · `note` (1..1000 CHECK) · `fileIds text[]` (≤10 CHECK · storage key) · `createdByUserId` (FK SetNull) · `createdAt timestamptz(3)` · `@@unique(orderId, phase)` · เขียนในทรานแซกชันเดียวกับ `serviceStartedAt`/`serviceFinishedAt` (ไม่มีรูปและบันทึก = ไม่มีแถว) · บันทึกไม่อยู่ใน `OrderEvent.meta` (กติกา PII)
+
+**`OrderEvent_type_check`** ขยายเป็น **39 ค่า** (+`SERVICE_ASSIGNED`, `SERVICE_CLAIMED`, `SERVICE_UNASSIGNED`, `SERVICE_FINISHED`) ตามแบบแผน migration 00085 · **`AutoNotify{Switch,Template,Ledger}_kind_check`** + `SERVICE_FINISHED`
+
+**Rollback:** additive · ห้ามหด CHECK ชนิดเหตุการณ์หลังมีแถว · ห้ามรัน backfill ค่าติ๊ก/arrivalMode ซ้ำด้วยมือหลังขึ้นระบบ · 4 ตัวที่ขึ้น prod แล้วมีข้อมูลจริง ถอย = destructive (ถาม user)
 
 ---
 
@@ -2787,6 +2809,32 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 **ตัวเขียน carrier ไม่แตะคอลัมน์ปิด:** `iship.service` / `flash-status.service` / `flash-shipment.service` / `flash-ops.service` เขียนเฉพาะคอลัมน์ carrier/วันที่ write-once — ปิดแล้วกองไม่ขยับแม้ขนส่งส่งสถานะมาต่อ (สาขา "ปิดแล้ว" ใน `deriveShippingStage` อยู่เหนือทุกสาขาพัสดุ)
 
+### 7.34 งานพนักงานร้านบริการ (`/api/orders/[token]/{start,finish,assign,assign/claim,close}` · `/appointments/carry-over` · `/api/expenses/mine/**` · ส่วนที่เปลี่ยน) — feature 00086
+
+> สถานะ: **implement ครบบน branch (ยังไม่ merge · sync 2026-10-29 · มติ UX 2026-10-30)** · สัญญาละเอียด = `docs/20 - Features/00086 - Service Staff Workflow/API.md` v1.1 · ร้าน `SERVICE_QUEUE` เท่านั้น · ด่านรายคน `memberCanCloseJob` / `memberCanRecordStaffExpense` (`src/lib/shop-permissions.ts`) อ่าน flag สดจาก `ShopMember` ทุกคำขอ · ช่างล้วน (`isTechnicianOnly`) จำกัด "งานของตัวเอง" ที่ service (ซ้ำใน `WHERE`) · 🛑 รับงาน = `assign/claim` (`[token]/claim` เป็น OTP claim ของผู้ซื้อ 00015)
+
+| Method | Path | Cap / ด่าน | สรุป |
+|---|---|---|---|
+| PATCH · DELETE | `/api/business/shops/[shopId]/members/[memberId]` | T2 | + `canCloseJob`, `canRecordExpense` · 400 `STAFF_FLAGS_NOT_AVAILABLE` / `CLOSE_JOB_NEEDS_START_ROLE` · response + `unassignedJobCount` (งานเปิดที่ปลดเพราะไม่ใช่ช่างแล้ว/ถูกลบ) |
+| POST | `/api/business/shops/[shopId]/transfer` | เดิม | ล้าง flag ผู้รับโอน + ปลดงาน · response + `unassignedJobCount` |
+| POST/GET | `/api/shops/current/invite-links` · POST `/api/business/shops/[shopId]/invites` | T2 | + flag สองตัว (ผู้รับได้ตามนั้น) |
+| POST | `/api/orders` | O2s | งานบริการที่ส่งนัด: `arrivalMode` บังคับ (`BOOKED` ต้องมีคิว/วัน/เวลา · `WALK_IN` ต้องมีคิว เวลา = server · ไม่เก็บมัดจำ · ไม่จองข้อความอัตโนมัติใด ๆ) · ไม่ส่งนัด = ยังไม่ระบุเวลา (null) · `assignedUserId?` (ต้องถือ TECHNICIAN · event `SERVICE_ASSIGNED` · ไม่แจ้งเตือน) |
+| PATCH | `/api/orders/[token]/appointment` | O3 | + `arrivalMode?` · ใบยังไม่ระบุเวลา: `WALK_IN` ("เริ่มงานเลย") / ไม่ส่ง = BOOKED · เลื่อนนัดไม่เปลี่ยน |
+| POST | `/api/orders/[token]/start` | O4 (+ ช่างล้วนต้องเป็นผู้รับผิดชอบ) | + `{photoFileIds?≤10, note?≤1000}` ตามโหมดรูปของร้าน · เริ่มแล้ว = `alreadyStarted` ก่อนตรวจรูป · ไม่แจ้งเจ้าของ/ผู้ดูแล (มติ 2026-10-30) |
+| POST | `/api/orders/[token]/finish` | O4 (+ ช่างล้วน) | **ใหม่** · `serviceFinishedAt` + record AFTER + `SERVICE_FINISHED` · ไม่แตะเงิน · AutoNotify `SERVICE_FINISHED` เมื่อร้านเปิดให้ลูกค้าเห็นรูป |
+| POST / DELETE | `/api/orders/[token]/assign` | O2s | **ใหม่** มอบ/เปลี่ยน/เอาออก (ผู้ถูกมอบต้องถือ TECHNICIAN · ล็อกแถวสมาชิก) |
+| POST | `/api/orders/[token]/assign/claim` | O4 + ถือ TECHNICIAN | **ใหม่** รับงานที่ยังว่าง · ไม่แจ้งเจ้าของ/ผู้ดูแล (มติ 2026-10-30) · พร้อมกัน → 409 `SERVICE_JOB_ALREADY_ASSIGNED` + `assigneeName` · ไม่ถือช่าง → 403 `SERVICE_JOB_CLAIM_TECHNICIAN_ONLY` |
+| POST | `/api/orders/[token]/close` · `/appointment/outcome` | O4 + `memberCanCloseJob` | ไม่ผ่าน = 403 `FORBIDDEN_ROLE` · ช่างล้วน: 403 `SERVICE_JOB_NOT_ASSIGNEE` / 409 `SERVICE_JOB_UNASSIGNED` / 409 `SERVICE_JOB_NOT_FINISHED` · `NO_SHOW` หลังเริ่มงาน → 409 `SERVICE_JOB_NO_SHOW_AFTER_START` (ทุกบทบาท) |
+| GET | `/api/shops/current/service-staff` | O2s | **ใหม่** รายชื่อฝ่ายช่าง `{staff:[{userId, displayName}]}` · `?shopId=` · ร้านอื่น `[]` |
+| PATCH | `/api/shops/current/service-job-photo-settings` | Q2 | **ใหม่** `{mode?, buyerVisible?}` (อย่างน้อย 1) · NONE ⇒ buyerVisible false |
+| GET | `/api/shops/current/appointments/carry-over` | Q1 | **ใหม่** `{items, unscheduled}` ของผู้เรียก (ค้างจากวันก่อน · ยังไม่ระบุเวลา) · แถวทรงเดียวกับ `/appointments/day` (ตัวตัดเงิน `toAppointmentDayPayload` ร่วมกัน) |
+| GET | `/api/shops/current/appointments/day` | Q1 | แถว + `assignee {userId, displayName}` · `serviceStartedAt/FinishedAt/ClosedAt` · `arrivalMode` |
+| GET/POST · PATCH/DELETE | `/api/expenses/mine` · `/api/expenses/mine/[id]` | คลาส MEMBER + `resolveStaffExpenseAccess` | **ใหม่** เฉพาะ `createdByUserId = ฉัน` · ของคนอื่น = 404 · ไม่มีร้าน active = 409 `NO_SHOP` · เจ้าของ 403 · ไม่มียอดรวม · แจ้งเจ้าของ |
+| GET | `/api/expenses` | F1 | + `createdByName` ("บันทึกโดย") |
+| GET · POST | `/api/notifications` · `/api/notifications/read` · GET `/api/app/notifications` | SELF | โดเมน seller เห็นแถวส่วนตัว + แถวร้านที่ยังมีสิทธิ์ · โดเมน/แอปผู้ซื้อเห็นเฉพาะแถวส่วนตัว · read รับ `shopId?` |
+
+ผลข้างเคียง: แจ้งเตือน `Notification` ผูก `shopId` — `service_job_finished|closed` → เจ้าของ ∪ ผู้ดูแล (MANAGER) − คนกด (มติ 2026-10-30: ด่าน `SERVICE_JOB_NOTIFY_EVENTS`/`shouldNotifyServiceJob` · รับงาน/เริ่มงานไม่แจ้งแล้ว ยังอยู่ในไทม์ไลน์ `OrderEvent` · kind `service_job_claimed|started` คงไว้อ่านแถวเก่า) · `staff_expense` → เจ้าของเท่านั้น − คนกด · push `{type, url, shopId}` หลัง commit · หน้า `/notifications` ร้านตัด activity "ปิดงาน" ที่ซ้ำแถว `service_job_closed` · `/o/[token]` ได้ `serviceJobPhotos {records, afterPending}` เฉพาะร้านเปิด `serviceJobPhotosBuyerVisible` ∧ mode ≠ NONE (ไม่มีชื่อพนักงาน) · ข้อจำกัดที่ยอมรับ: URL รูปเปิดตรงได้ · ไม่ตรวจผู้อัปโหลด fileId
+
 ---
 
 ## §8 Enums & Constants
@@ -2910,6 +2958,8 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 | `SELLER_DELIVERED` | **feature 00080 (ออกแบบแล้ว · ยังไม่ implement)** — ร้านกด "ส่งสำเร็จ" ปิดงาน · แยกจาก `BUYER_CONFIRMED`/`SYSTEM_CONFIRMED` (BR-MS-21) · `actorUserId` = ผู้กด |
 | `PARCEL_PROBLEM_CLOSED` | **feature 00085** — ร้านปิดพัสดุขาไปที่มีปัญหา · `actorUserId` = ผู้กด · `meta` = `{outcome, closeReason, closeNote? (เฉพาะ OTHER), basis, refunded (boolean\|null)}` · 🛑 `closeNote` ห้ามไปฝั่งผู้ซื้อ |
 | `PARCEL_PROBLEM_REOPENED` | **feature 00085** — เลิกปิด · `actorUserId` = ผู้กด · `meta` = `{outcome?, closeReason?}` (ของที่ถูกล้าง) |
+
+> **00086 (ออกแบบแล้ว ยังไม่ implement) จะเพิ่ม 4 ค่า → 39** (`SERVICE_ASSIGNED` · `SERVICE_CLAIMED` · `SERVICE_UNASSIGNED` · `SERVICE_FINISHED`) — ดู §8.20 · §6.77
 
 > **นับจริงจากโค้ด (2026-10-26): `ORDER_EVENT_TYPES` = 35 ค่า** — ตารางนี้ยังไม่ครบทุกค่า (ขาด `MANUAL_DISPATCH_UNDONE` ของ 00080/TD-010 ที่โค้ดมีแล้ว) · ใช้ `src/lib/order-event.ts` เป็น SSOT
 
@@ -3342,6 +3392,20 @@ HTTP ตามตาราง §7.21
 | `hasParcelCloseConflict` (แถบเตือน) | `carrierStatusAt <= closedAt` → false (ยังไม่มีข้อมูลใหม่) · A: ขัดเมื่อสถานะใหม่ ∈ `DELIVERED_CARRIER_STATUSES` ∪ `RETURNED_CARRIER_STATUSES` ∪ `IN_TRANSIT_CARRIER_STATUSES` · B: ขัดเมื่อ `return_success` เท่านั้น (`issue` ไม่ขัด) · แค่เตือน + ปุ่ม "เลิกปิด" **ไม่พลิกเงิน/กองเอง** |
 | `shouldOfferParcelClose` (UI แผงพัสดุ) | `status==='CREATED' && !isDryRun && !problemClose && holdsParcelProblem(carrierStatus, problemAt, false)` — ไม่มีสถานะออเดอร์ในมุมมองนี้ ออเดอร์จบแล้ว server ตอบ 409 แล้ว UI แจ้ง |
 
+### 8.20 งานพนักงานร้านบริการ (feature 00086 — implement ครบบน branch ยังไม่ merge · ทุกค่าเก็บเป็น String + CHECK ที่ DB)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `Order.arrivalMode` / `ArrivalMode` (`src/lib/arrival-mode.ts`) | เก็บ: `BOOKED` "จองล่วงหน้า" · `WALK_IN` "หน้าร้าน" (เดิม "เดินเข้ามา") · ค่าแสดงเพิ่ม `UNSCHEDULED` "ยังไม่ระบุเวลา" (= NULL ไม่เก็บ) · อ่านผ่าน `arrivalModeOf()` (ค่าเก็บ → สูตรเดิม → ยังไม่ระบุ) · ชิป `arrivalChipMeta` ติดทั้งสองค่า |
+| `ServiceStatusKey` (เพิ่ม · ฝั่งร้าน) | `IN_SERVICE` "กำลังให้บริการ" (primary) · `FINISHED_AWAITING_CLOSE` "ทำเสร็จ · รอปิดงาน" (warning) — ชนะป้ายนัด แพ้ปิดงาน/ไม่มาตามนัด/ลูกค้ายืนยัน · ฝั่งลูกค้าไม่เห็น · งานหน้าร้านยังไม่เริ่ม = `WALK_IN` ฝั่งร้าน **"รอเริ่มงาน"** / ฝั่งลูกค้า "รับงานแล้ว" (มติ 2026-10-30 · เดิมฝั่งร้าน "รับงานแล้ว" ชนกับปุ่ม "รับงานนี้" · คำศัพท์บริการ `stageOrderedLabel` ใน `seller-menu.ts` ตาม) (คำขอเลื่อน/ยืนยันนัดจากลูกค้าชนะ) · แถบสถานะในแชท (`chat-service-progress.ts`) + ขั้น `IN_SERVICE` / `FINISHED_AWAITING_CLOSE` · ชิปรายการแชท (`serviceProgressFace` ใน `order-stage.ts`) งานหน้าร้าน = "รอเริ่มงาน" แทน "นัด {วันที่}" |
+| `Shop.serviceJobPhotoMode` | `REQUIRED` บังคับ ≥1 รูป · `OPTIONAL` ไม่บังคับ (ค่าเริ่มทุกร้าน) · `NONE` ไม่ใช้รูป (บันทึกข้อความอย่างเดียว) |
+| `ServiceJobRecord.phase` | `BEFORE` รูปก่อนทำ (ตอนเริ่ม) · `AFTER` รูปหลังทำ (ตอนทำเสร็จ) · ≤10 รูป (`SERVICE_JOB_MAX_PHOTOS`) |
+| `OrderEvent.type` (เพิ่ม) | `SERVICE_ASSIGNED` "มอบงาน" · `SERVICE_CLAIMED` "รับงาน" · `SERVICE_UNASSIGNED` (`meta.reason` = `MANUAL` \| `MEMBER_REMOVED` "ถูกนำออกจากร้าน" \| `ROLE_REMOVED` "ไม่ได้เป็นช่างแล้ว") · `SERVICE_FINISHED` "ทำเสร็จแล้ว" — meta คีย์ใหม่ `assigneeNameSnapshot`, `previousAssigneeNameSnapshot`, `photoCount`, `hasNote` · รวม **39 ค่า** · ช่างเห็นทั้ง 4 (`filterOrderEventsForNoMoney`) |
+| `AutoNotifyKind` (เพิ่ม) | `SERVICE_FINISHED` "เมื่อทำเสร็จ" · `KINDS_BY_VERTICAL.SERVICE_QUEUE` เท่านั้น · `IMPLICIT_KINDS` (ไม่มีแถวสวิตช์) · ส่งเมื่อ `serviceJobPhotosBuyerVisible` ∧ mode ≠ NONE · ไม่เข้าเงื่อนไข = `PHOTOS_NOT_BUYER_VISIBLE` (ไม่ลง ledger) |
+| `Notification.kind` (เพิ่ม) | `service_job_claimed` · `service_job_started` · `service_job_finished` · `service_job_closed` (refId = publicToken) · `staff_expense` (refId = expense id) — มติ 2026-10-30: เขียนใหม่เฉพาะ `finished`/`closed` (`SERVICE_JOB_NOTIFY_EVENTS`) · `claimed`/`started` คงไว้อ่านแถวเก่า |
+| push `data.type` (เพิ่ม) | `service-job` · `staff-expense` (+ `shopId`) |
+| error code ใหม่ | `STAFF_FLAGS_NOT_AVAILABLE` · `CLOSE_JOB_NEEDS_START_ROLE` · `ARRIVAL_MODE_REQUIRED` · `ARRIVAL_BOOKED_NEEDS_TIME` · `ARRIVAL_WALK_IN_NEEDS_QUEUE` · `ASSIGNEE_NOT_TECHNICIAN` · `SERVICE_JOB_PHOTO_REQUIRED` · `SERVICE_JOB_PHOTOS_DISABLED` · `SERVICE_JOB_PHOTO_MISSING` · `SERVICE_JOB_TOO_MANY_PHOTOS` · `SERVICE_JOB_NOT_ASSIGNEE` · `SERVICE_JOB_CLAIM_TECHNICIAN_ONLY` · `SERVICE_JOB_UNASSIGNED` · `SERVICE_JOB_ALREADY_ASSIGNED` · `SERVICE_JOB_NOT_STARTED` · `SERVICE_JOB_NOT_FINISHED` · `SERVICE_JOB_NO_SHOW_AFTER_START` (ข้อความไทย `SERVICE_JOB_ERROR_MESSAGE` · `src/lib/service-job.ts`) |
+
 ---
 
 ## §9 Authorization Matrix
@@ -3599,6 +3663,35 @@ HTTP ตามตาราง §7.21
 - **ตามแถว ไม่ใช่ตามร้าน active ของ session (`permission-gate-follows-the-row`):** guard ได้ `shopId` จาก query แล้ว service โหลด `OrderShipment` เทียบ `shipment.shopId === guard.shopId` ไม่ตรง = **404 `NOT_FOUND`** (ไม่บอกว่ามีอยู่)
 - ผู้ซื้อ/guest ไม่เห็น `problemCloseNote` · `problemClosedByUserId` · `problemCloseRefunded` · `problemCloseExcludesRevenue` (comment ใน schema บังคับ — ห้ามออกหน้า `/o/{token}`)
 - ร้านบริการ (`usesServiceFinanceRules`) ถูกกั้นสองชั้น: guard (403) และ `canCloseParcelProblem` (409 `SERVICE_SHOP_UNSUPPORTED`)
+
+### 9.16 งานพนักงานร้านบริการ (feature 00086 — implement ครบบน branch ยังไม่ merge)
+
+> ตารางเต็ม + เหตุผล: `docs/20 - Features/00086 - Service Staff Workflow/SRS.md` §9.1 · บทบาทหลัก 4 ตัวของ 00071 ไม่เปลี่ยน — เพิ่มค่าติ๊กรายคน 2 ตัว (ไม่ใช่ capability · ไม่ไหลเข้า `can()`/`moneyLevel()`) · ร้านอื่นทุกแถวเท่าเดิม
+
+| การกระทำ (ร้านบริการ) | เจ้าของ | ผู้ดูแล | ตอบแชท | เปิดบิล | ฝ่ายช่าง (ล้วน) |
+|---|---|---|---|---|---|
+| ปิดงาน (`close`, `appointment/outcome`, ปุ่มหน้างาน/ตารางงาน/แชท) | ✅ | ✅ | ติ๊ก `canCloseJob` | ❌ | ติ๊ก ∧ ผู้รับผิดชอบ ∧ ทำเสร็จแล้ว |
+| บันทึก "ไม่มาตามนัด" กับงานที่เริ่มแล้ว | ❌ | ❌ | ❌ | ❌ | ❌ |
+| เริ่มงาน / ทำเสร็จ | ✅ | ✅ | ✅ | ❌ | เฉพาะงานที่ตนรับผิดชอบ |
+| มอบ/เปลี่ยนผู้รับผิดชอบ (O2s) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| รับงาน (`assign/claim`) | ต้องถือ TECHNICIAN | ต้องถือ TECHNICIAN | ต้องถือ TECHNICIAN | ❌ | ✅ |
+| ตั้งค่ารูปก่อน-หลังระดับร้าน (Q2) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| ตั้งค่าติ๊กรายคน (T2) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| ค่าใช้จ่าย: สร้าง + แก้/ลบของตัวเอง | ✅ (ทุกรายการ ผ่าน F2) | ติ๊ก `canRecordExpense` | ติ๊ก | ติ๊ก | ติ๊ก |
+| ค่าใช้จ่าย: เห็นของคนอื่น / ยอดรวม / กำไร | ✅ | ❌ | ❌ | ❌ | ❌ |
+| แจ้งเตือนงาน `service_job_*` (รับ/อ่าน · ใหม่เฉพาะทำเสร็จ/ปิดงาน — มติ 2026-10-30) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| เห็นการ์ดแพ็กเกจร้านค้า (แถบข้าง + ชิปมือถือ · `showsShopPackage`) | ✅ | ✅ | ✅ | ✅ | ❌ (มติ 2026-10-30) |
+| ทางลัดหน้าแรก "ร้านค้า" (`seller:shop`) | ✅ | ตามสิทธิ์ | ตามสิทธิ์ | ตามสิทธิ์ | ❌ ตัดออก (`technicianUnusableShortcutSlugs` · มติ 2026-10-30) |
+| แจ้งเตือน `staff_expense` (รับ/อ่าน) | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+- (มติ 2026-10-30) หน้าแรกช่างล้วนร้านบริการ (`isServiceTechnicianOnly`): คงตัวนับ + ทางลัด · ตัวนับชื่อ "งานทั้งร้าน" · กิจกรรมที่ลิงก์ไปหน้าที่บทบาทเปิดไม่ได้เป็นข้อความ (`activityLinksByPage`) · ไม่มี CTA "สร้างงานบริการ" · ช่างผู้รับผิดชอบที่ปิดไม่ได้เห็น "ส่งงานแล้ว · รอเจ้าของร้านหรือผู้มีสิทธิ์ปิดงาน" · เลือกบทบาท: เพิ่ม "ฝ่ายช่าง" = ติ๊ก "ปิดงานได้" ให้ (ติ๊กออกได้)
+- ด่านปิดงานเป็นชั้นที่สองหลัง `requireShopCapability('O4')` (ทะเบียน `route-capabilities.ts` ยังเป็น O4) · ไม่ผ่าน = 403 `FORBIDDEN_ROLE` · ลูกค้ายืนยันรับบริการ (00082) ปิดให้เสมอ ไม่ผ่านด่านนี้ ไม่ส่งแจ้งเตือนใหม่ · เปิดงานอีกครั้ง/ยกเลิก/คืนเงินไม่เปลี่ยน
+- ทะเบียนใหม่: `finish` POST O4 · `assign` POST/DELETE O2s · `assign/claim` POST O4 · `service-staff` GET O2s · `service-job-photo-settings` PATCH Q2 · `appointments/carry-over` GET Q1 · หน้า `/my-jobs` page Q1 · `/expenses/mine` (หน้า + 2 route) คลาส MEMBER
+- ค่าใช้จ่ายพนักงาน: endpoint แยก `/api/expenses/mine/**` (คลาส MEMBER + ด่าน flag) · where `createdByUserId` = session ตั้งแต่ query แรก · ของคนอื่น = 404 · endpoint เจ้าของคง F1/F2
+- ค่าติ๊กอ่านสดทุกคำขอ (มีผลทันที ไม่ต้องเข้าระบบใหม่) · ช่างยังไม่เห็นเงิน — allow-list `order-view-by-level.ts` เพิ่มเฉพาะเวลา/ผู้รับผิดชอบ/บันทึกงาน
+- คนที่ไม่ใช่ช่างแล้ว (ลบสมาชิก · ถอดบทบาท · เลื่อน/รับโอนเป็นเจ้าของ · ปิดบัญชี) — งานเปิดที่มอบให้เขากลับเป็น "ยังไม่มีคนรับ" ใน tx เดียวกัน
+- แจ้งเตือนของร้าน: ผู้อ่านต้องตรงกับผู้รับตอนเขียน (ถูกลดสิทธิ์ = ไม่เห็นแถวเดิม)
+- ผู้ซื้อเห็นรูป/บันทึกเฉพาะร้านที่เปิด `serviceJobPhotosBuyerVisible` · **ไม่มีชื่อพนักงาน**
 
 ---
 
