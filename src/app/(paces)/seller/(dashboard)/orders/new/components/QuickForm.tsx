@@ -33,7 +33,6 @@ import OrderDateRow from './OrderDateRow'
 import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 import type { OrderFormWords } from './order-form-words'
-import type { OrderArrivalChoice } from '@/lib/order-form-arrival'
 
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
@@ -125,8 +124,6 @@ export default function QuickForm({
   // ที่เดียว → หน้าจอ "ขอ" ที่อยู่ในสิ่งที่ตัวบล็อกจริงไม่ได้บังคับ (ดูเหตุผลเต็มใน lib/shipping-address-status)
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' })
-  // 00086 v13 — ปุ่มบันทึกของงานหน้าร้านบอกผล "· เข้าคิววันนี้" (เฉพาะฟอร์มที่มีปุ่มเลือกแบบการมา)
-  const watchedArrival = useWatch({ control, name: 'arrivalMode' }) as OrderArrivalChoice | undefined
   // feature 00062 (U15) — ปุ่มคู่ "จัดส่ง | นัดรับ" อยู่ใน CustomerQuickBlock (มือถือ) แต่ needsShipping
   // ต้องรู้ค่านี้ที่นี่ด้วย เพราะ QuickForm เป็นเจ้าของ SSOT call ที่ต้องส่งลงเป็น prop `needsShipping`
   const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
@@ -235,7 +232,7 @@ export default function QuickForm({
   const footerAndPicker = (
     <>
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
-      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} showCost={showCost} arrivalMode={showArrivalPicker ? (watchedArrival ?? 'BOOKED') : undefined} />
+      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} showCost={showCost} />
 
       {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
       <ProductPickerSheet

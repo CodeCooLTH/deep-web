@@ -168,21 +168,17 @@ describe('OrderCardView — ร้านบริการ', () => {
 })
 
 // ── ปุ่มบันทึกมือถือ ───────────────────────────────────────────────────────────
-function SummaryHarness(props: { arrivalMode?: 'BOOKED' | 'WALK_IN'; orderNoun: string }) {
+function SummaryHarness(props: { orderNoun: string }) {
   const { control } = useForm<FormValues>({ defaultValues: { items: [] } as never })
-  return h(QuickSummaryPanel, { control, subtotal: 0, total: 0, orderNoun: props.orderNoun, arrivalMode: props.arrivalMode })
+  return h(QuickSummaryPanel, { control, subtotal: 0, total: 0, orderNoun: props.orderNoun })
 }
 const renderSummary = (p: Parameters<typeof SummaryHarness>[0]) =>
   renderToStaticMarkup(h(SummaryHarness, p) as ReactElement)
 
-describe('QuickSummaryPanel — ปุ่มบันทึก (v13)', () => {
-  it('[blocker] หน้าร้าน ⇒ "บันทึกงานบริการ · เข้าคิววันนี้"', () => {
-    expect(renderSummary({ arrivalMode: 'WALK_IN', orderNoun: 'งานบริการ' })).toContain('บันทึกงานบริการ · เข้าคิววันนี้')
-  })
-  it('[blocker] จองล่วงหน้า / ไม่ส่ง (ร้านอื่น/หน้าแก้ไข) ⇒ คำเดิม', () => {
-    const booked = renderSummary({ arrivalMode: 'BOOKED', orderNoun: 'งานบริการ' })
-    expect(booked).toContain('บันทึกงานบริการ')
-    expect(booked).not.toContain('เข้าคิววันนี้')
-    expect(renderSummary({ orderNoun: 'คำสั่งซื้อ' })).not.toContain('เข้าคิววันนี้')
+describe('QuickSummaryPanel — ปุ่มบันทึก (prototype v19)', () => {
+  it('จองล่วงหน้า/หน้าร้าน คำเดียวกัน "บันทึกงานบริการ" — ไม่มี "· เข้าคิววันนี้" แล้ว', () => {
+    const html = renderSummary({ orderNoun: 'งานบริการ' })
+    expect(html).toContain('บันทึกงานบริการ')
+    expect(html).not.toContain('เข้าคิววันนี้')
   })
 })

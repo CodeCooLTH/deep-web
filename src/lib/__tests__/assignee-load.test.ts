@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ASSIGNEE_CHIPS_MAX,
   assigneeFormWindow,
+  assigneeWindowHint,
   computeStaffLoad,
   loadDayBounds,
   matchesStaffQuery,
@@ -165,5 +166,13 @@ describe('ช่วงเวลาของฟอร์มสร้าง (ส�
   })
   it('ร้านที่ไม่มีปุ่ม "มาแบบไหน" (arrival undefined) ใช้สูตรนัด', () => {
     expect(assigneeFormWindow({ arrival: undefined, date: '2031-03-05', startTime: '14:00', endTime: '15:00', granularity: 'TIME', now })).not.toBeNull()
+  })
+})
+
+describe('assigneeWindowHint (v19 — ชีตบอกว่าต้องเลือกวัน/เวลาก่อน)', () => {
+  it('มีช่วงเวลา (หน้าร้าน/จองครบ) = null · ไม่มี = ข้อความตามแบบรับนัดของร้าน', () => {
+    expect(assigneeWindowHint({ from: at(14), to: at(16) }, 'TIME')).toBeNull()
+    expect(assigneeWindowHint(null, 'TIME')).toBe('เลือกวันและเวลานัดก่อน จะเห็นว่าใครว่าง')
+    expect(assigneeWindowHint(null, 'DAY')).toBe('เลือกวันนัดก่อน จะเห็นว่าใครว่าง')
   })
 })

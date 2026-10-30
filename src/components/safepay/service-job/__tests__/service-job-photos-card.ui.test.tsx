@@ -203,6 +203,15 @@ describe('AssigneeSheet — โหมดเลือกของฟอร์ม�
     )
     expect(noWin).not.toContain('ช่วงงาน')
   })
+  it('โหมดเลือก ไม่มีช่วงเวลา + windowHint = บรรทัดบอกให้เลือกวัน/เวลาก่อน · มีช่วงเวลา = ไม่แสดง (v19)', () => {
+    const hint = 'เลือกวันและเวลานัดก่อน จะเห็นว่าใครว่าง'
+    const pick = (window?: { from: Date; to: Date }) =>
+      renderToStaticMarkup(
+        h(AssigneeSheet, { open: true, onClose: () => {}, shopId: 's1', currentUserId: null, onSelect: () => {}, window, windowHint: hint }),
+      )
+    expect(pick()).toContain(hint)
+    expect(pick({ from: new Date('2031-03-05T07:00:00Z'), to: new Date('2031-03-05T09:00:00Z') })).not.toContain(hint)
+  })
   it('[blocker] โหมดเลือกไม่ยิง API มอบงาน — onSelect คืนก่อน fetch /assign', () => {
     const src = readFileSync(path.resolve(__dirname, '../AssigneeSheet.tsx'), 'utf8')
     const pick = src.slice(src.indexOf('async function pick'), src.indexOf('const sameDay'))

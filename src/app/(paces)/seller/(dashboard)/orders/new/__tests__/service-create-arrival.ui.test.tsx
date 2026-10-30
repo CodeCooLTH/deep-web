@@ -89,9 +89,9 @@ describe('ร้านบริการ — สร้าง (serviceLayout)', (
     )
   })
 
-  it('ค่าเริ่ม = จองล่วงหน้า (aria-pressed) · มีทั้งสองตัวเลือกพร้อมคำอธิบาย', () => {
-    expect(html).toMatch(/aria-pressed="true"[^>]*>.*?จองล่วงหน้า/)
-    expect(html).toMatch(/aria-pressed="false"[^>]*>.*?หน้าร้าน<\/span><span class="text-xs">ลูกค้าอยู่ที่ร้านตอนนี้/)
+  it('ค่าเริ่ม = หน้าร้าน (aria-pressed · prototype v19) · มีทั้งสองตัวเลือกพร้อมคำอธิบาย', () => {
+    expect(html).toMatch(/aria-pressed="false"[^>]*>.*?จองล่วงหน้า/)
+    expect(html).toMatch(/aria-pressed="true"[^>]*>.*?หน้าร้าน<\/span><span class="text-xs">ลูกค้าอยู่ที่ร้านตอนนี้/)
     expect(html).toContain('นัดวันและเวลา')
   })
 
@@ -146,7 +146,11 @@ function Harness(props: {
   })
   return props.render(control, props.appointment)
 }
-function renderBlock(mode: 'BOOKED' | 'WALK_IN' | undefined, appointment: FormValues['appointment'] = {}) {
+function renderBlock(
+  mode: 'BOOKED' | 'WALK_IN' | undefined,
+  appointment: FormValues['appointment'] = {},
+  resources: ServiceResourceOption[] = RESOURCES,
+) {
   return renderToStaticMarkup(
     h(Harness, {
       appointment,
@@ -155,7 +159,7 @@ function renderBlock(mode: 'BOOKED' | 'WALK_IN' | undefined, appointment: FormVa
           control,
           errors: {},
           setValue: () => {},
-          resources: RESOURCES,
+          resources,
           granularity: 'TIME',
           total: 500,
           idPrefix: 'm',
@@ -167,16 +171,39 @@ function renderBlock(mode: 'BOOKED' | 'WALK_IN' | undefined, appointment: FormVa
 }
 
 describe('AppointmentBlock', () => {
-  it('WALK_IN: "เข้าคิววันนี้" + รายการคิว (ชื่อ + N คิว) + บรรทัดเวลา · ไม่มีวัน/เวลา/มัดจำ', () => {
+  it('WALK_IN: บล็อกเดียวกับจอง — "วันเข้าใช้บริการ" + "ประเภทงาน*" การ์ดเดียวกัน + บรรทัดเวลา · ไม่มีวัน/เวลา/มัดจำ (v19)', () => {
     const html = renderBlock('WALK_IN', { resourceId: 'r1' })
-    expect(html).toContain('>เข้าคิววันนี้</h4>')
-    expect(html).toContain('เข้าคิวงานไหน')
-    expect(html).toContain('ช่างเอ')
-    expect(html).toContain('2 คิว')
-    expect(html).toContain('3 คิว')
+    expect(html).toContain('>วันเข้าใช้บริการ</h4>')
+    expect(html).toContain('ประเภทงาน<span class="ms-0.5 text-danger">*</span>')
+    expect(html).toContain('รับพร้อมกัน 2 คิว')
+    expect(html).toContain('รับพร้อมกัน 3 คิว')
     expect(html).toMatch(/aria-pressed="true"[^>]*>.*?ช่างเอ/)
-    expect(html).toMatch(/เริ่ม \d\d:\d\d — ประมาณ \d\d:\d\d น\. ของวันนี้ · ไม่ต้องเลือกวันเวลา · ไม่เก็บมัดจำ/)
-    for (const gone of ['วันที่นัด', 'มัดจำที่เก็บ', 'วันเข้าใช้บริการ', 'ไม่บังคับ']) expect(html).not.toContain(gone)
+    expect(html).toMatch(/วันนี้ · เริ่ม \d\d:\d\d — ประมาณ \d\d:\d\d น\. · ไม่เก็บมัดจำ/)
+    for (const gone of ['เข้าคิววันนี้', 'เข้าคิวงานไหน', 'วันที่นัด', 'มัดจำที่เก็บ', 'ไม่บังคับ', 'ล้างวันนัด']) expect(html).not.toContain(gone)
+  })
+
+  it('ร้านมีประเภทงานแบบเดียว: ไม่มีการ์ด — บอกว่าเลือกให้แล้ว (ทั้งสองโหมด)', () => {
+    const one = [RESOURCES[0]]
+    for (const mode of ['WALK_IN', 'BOOKED'] as const) {
+      const html = renderBlock(mode, { resourceId: 'r1', date: '2026-10-28' }, one)
+      expect(html).toContain('ร้านมีประเภทงานแบบเดียว เลือกให้แล้ว')
+      expect(html).not.toContain('role="group" aria-labelledby="m-appt-resource-label"')
+      expect(html).not.toContain('ล้างวันนัด')
+    }
+  })
+
+  it('เกิน 6 แบบ: ช่องเดียว + ค้นชื่อได้ (ไม่มีการ์ดเรียง)', () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ ...RESOURCES[1], id: `r${i + 1}`, name: `ช่อง ${i + 1}` }))
+    const html = renderBlock('WALK_IN', {}, many)
+    expect(html).toContain('aria-haspopup="dialog"')
+    expect(html).toContain('แตะเพื่อเลือกจาก 7 แบบ · ค้นชื่อได้')
+    expect(html).not.toContain('role="group" aria-labelledby="m-appt-resource-label"')
+  })
+
+  it('[blocker] ไม่ส่ง mode (หน้าแก้ไข/ร้านอื่น) + คิวเดียว = การ์ดเดิม ไม่เลือกให้เอง', () => {
+    const html = renderBlock(undefined, {}, [RESOURCES[0]])
+    expect(html).toContain('role="group" aria-labelledby="m-appt-resource-label"')
+    expect(html).not.toContain('เลือกให้แล้ว')
   })
 
   it('BOOKED: วันที่นัด* + เวลา* + มัดจำ · ไม่มี "ไม่บังคับ"', () => {

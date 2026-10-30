@@ -61,6 +61,8 @@ export type AssigneeSheetProps =
       shopId: string
       /** เลือกแล้ว (ไม่ยิง API) — null = ยังไม่มีคนรับ */
       onSelect: (userId: string | null) => void
+      /** ยังไม่มีช่วงเวลา (จองล่วงหน้าที่ยังไม่เลือกวัน/เวลา) — บอกว่าต้องเลือกก่อนจึงเห็นว่าใครว่าง (assigneeWindowHint) */
+      windowHint?: string | null
       orderToken?: never
     })
 
@@ -82,6 +84,7 @@ export default function AssigneeSheet(props: AssigneeSheetProps) {
   const { open, onClose, currentUserId, window: loadWindow = null } = props
   const orderToken = props.orderToken ?? null
   const shopId = props.onSelect ? props.shopId : null
+  const windowHint = props.onSelect ? (props.windowHint ?? null) : null
   const [staff, setStaff] = useState<Staff[] | 'loading' | 'error'>('loading')
   const [query, setQuery] = useState('')
   // deps ของ fetch เป็นสตริง — ผู้เรียกสร้าง window ใหม่ทุก render ได้โดยไม่ยิงซ้ำ
@@ -224,7 +227,7 @@ export default function AssigneeSheet(props: AssigneeSheetProps) {
           </button>
         </div>
 
-        {(searchable || loadWindow) && (
+        {(searchable || loadWindow || windowHint) && (
           <div className="border-default-200 space-y-2 border-b px-4 py-3">
             {searchable && (
               <div className="bg-light/40 border-default-200 flex min-h-11 w-full min-w-0 items-center gap-2 rounded-full border px-3">
@@ -245,6 +248,7 @@ export default function AssigneeSheet(props: AssigneeSheetProps) {
                 ช่วงงาน {formatTimeHM(loadWindow.from)}–{formatTimeHM(loadWindow.to)} · {sameDay ? 'วันนี้' : formatDayMonthTH(loadWindow.from)} · คนที่ว่างขึ้นก่อน
               </p>
             )}
+            {!loadWindow && windowHint && <p className="text-warning-ink mb-0 text-xs">{windowHint}</p>}
           </div>
         )}
 

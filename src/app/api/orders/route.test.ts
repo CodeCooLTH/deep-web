@@ -205,11 +205,11 @@ describe('[blocker] POST /api/orders — arrivalMode (00086)', () => {
     expect(input.appointment).toEqual({ resourceId: RES, start: new Date(START), end: new Date(END), depositAmount: '100.00' })
   })
 
-  it('WALK_IN ไม่เลือกคิว → 400 ARRIVAL_WALK_IN_NEEDS_QUEUE "เลือกคิวงาน"', async () => {
+  it('WALK_IN ไม่เลือกประเภทงาน → 400 ARRIVAL_WALK_IN_NEEDS_QUEUE "เลือกประเภทงาน"', async () => {
     for (const appointment of [undefined, {}, { resourceId: '' }]) {
       const res = await POST(makeRequest(body({ arrivalMode: 'WALK_IN', ...(appointment ? { appointment } : {}) })))
       expect(res.status).toBe(400)
-      expect(await errOf(res)).toEqual({ error: 'ARRIVAL_WALK_IN_NEEDS_QUEUE', message: 'เลือกคิวงาน' })
+      expect(await errOf(res)).toEqual({ error: 'ARRIVAL_WALK_IN_NEEDS_QUEUE', message: 'เลือกประเภทงาน' })
     }
     expect(createOrderMock).not.toHaveBeenCalled()
   })

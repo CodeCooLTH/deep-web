@@ -5,6 +5,8 @@
  *  - usesServiceCreateLayout: ถอด `&& !editOrderToken` → หน้าแก้ไขได้ฟอร์มใหม่ [blocker] แดง
  *  - sendsArrivalMode: ถอด `resourceCount > 0` → ร้านไม่มีคิวงานถูกบังคับเลือก [blocker] แดง
  *  - arrivalAppointmentProblem: TIME ไม่ตรวจเวลา / WALK_IN ตรวจวัน → แดง
+ *  - resourcePickerKind: ถอด `if (!mode)` → หน้าแก้ไข/ร้านอื่นที่มีคิวเดียวโดนเลือกให้เอง [blocker] แดง
+ *  - DEFAULT_ARRIVAL_CHOICE กลับเป็น BOOKED → แดง (user สั่ง 2026-10-31 ค่าเริ่มต้นหน้าร้าน)
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -12,17 +14,17 @@ import {
   ARRIVAL_CHOICE_COPY,
   ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG,
   arrivalAppointmentProblem,
-  arrivalBlockIcon,
-  arrivalBlockTitle,
-  arrivalSubmitLabel,
+  ARRIVAL_BLOCK_TITLE,
+  DEFAULT_ARRIVAL_CHOICE,
+  RESOURCE_CARDS_MAX,
   arrivalChoiceAfterPrefill,
+  resourcePickerKind,
   sendsArrivalMode,
   usesServiceCreateLayout,
   walkInAppointmentPayload,
   appointmentErrorsToClearOnArrivalChange,
   walkInPreviewText,
 } from '../order-form-arrival'
-import { ARRIVAL_MODE_META } from '../arrival-mode'
 
 describe('usesServiceCreateLayout', () => {
   it('[blocker] เฉพาะร้านบริการตอนสร้าง', () => {
@@ -55,7 +57,7 @@ describe('arrivalChoiceAfterPrefill', () => {
   })
   it('ไม่มี prefill = คงค่าเดิม · ค่าว่าง = BOOKED', () => {
     expect(arrivalChoiceAfterPrefill('WALK_IN', false)).toBe('WALK_IN')
-    expect(arrivalChoiceAfterPrefill(undefined, false)).toBe('BOOKED')
+    expect(arrivalChoiceAfterPrefill(undefined, false)).toBe('WALK_IN')
   })
 })
 
@@ -65,11 +67,11 @@ describe('arrivalAppointmentProblem', () => {
   it('BOOKED ครบ = ไม่มีปัญหา', () => {
     expect(arrivalAppointmentProblem('BOOKED', full, 'TIME')).toBeNull()
   })
-  it('BOOKED ไม่มีคิวงาน → เลือกวันและเวลานัด (ผูกช่องคิวงาน)', () => {
+  it('BOOKED ไม่มีประเภทงาน → เลือกประเภทงาน (ผูกช่องประเภทงาน · คำเดียวกับหน้าร้าน)', () => {
     expect(arrivalAppointmentProblem('BOOKED', { date: '2026-10-28' }, 'TIME')).toEqual({
       code: 'ARRIVAL_BOOKED_NEEDS_TIME',
       field: 'appointment.resourceId',
-      message: ARRIVAL_BOOKED_NEEDS_TIME_MSG,
+      message: ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG,
     })
     expect(arrivalAppointmentProblem('BOOKED', undefined, 'DAY')?.code).toBe('ARRIVAL_BOOKED_NEEDS_TIME')
   })
@@ -92,7 +94,7 @@ describe('arrivalAppointmentProblem', () => {
   })
   it('ข้อความตรงกับที่ API ตอบ', () => {
     expect(ARRIVAL_BOOKED_NEEDS_TIME_MSG).toBe('เลือกวันและเวลานัด')
-    expect(ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG).toBe('เลือกคิวงาน')
+    expect(ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG).toBe('เลือกประเภทงาน')
   })
 })
 
@@ -116,10 +118,10 @@ describe('appointmentErrorsToClearOnArrivalChange (review P2 NIT-3)', () => {
 })
 
 describe('walkInPreviewText', () => {
-  it('เริ่ม HH:MM — ประมาณ HH:MM น. ของวันนี้ ตาม walkInWindow (เวลาไทย)', () => {
+  it('วันนี้ · เริ่ม HH:MM — ประมาณ HH:MM น. ตาม walkInWindow (เวลาไทย · prototype v19)', () => {
     // 2026-10-27 13:04:37 เวลาไทย = 06:04:37Z
     const text = walkInPreviewText(new Date('2026-10-27T06:04:37Z'), 90)
-    expect(text).toBe('เริ่ม 13:04 — ประมาณ 14:34 น. ของวันนี้ · ไม่ต้องเลือกวันเวลา · ไม่เก็บมัดจำ')
+    expect(text).toBe('วันนี้ · เริ่ม 13:04 — ประมาณ 14:34 น. · ไม่เก็บมัดจำ')
   })
 })
 
@@ -130,30 +132,26 @@ describe('ARRIVAL_CHOICE_COPY', () => {
   })
 })
 
-describe('arrivalBlockTitle (00086 P2-T5 — หัวบล็อกนัด/คิว มือถือ + เดสก์ท็อปคำเดียวกัน)', () => {
-  it('WALK_IN = "เข้าคิววันนี้" · BOOKED = "วันเข้าใช้บริการ"', () => {
-    expect(arrivalBlockTitle('WALK_IN')).toBe('เข้าคิววันนี้')
-    expect(arrivalBlockTitle('BOOKED')).toBe('วันเข้าใช้บริการ')
+describe('ARRIVAL_BLOCK_TITLE / DEFAULT_ARRIVAL_CHOICE (user สั่ง 2026-10-31 · prototype v19)', () => {
+  it('จองล่วงหน้า/หน้าร้าน หัวเดียวกัน = คำเดิมของฟอร์ม', () => {
+    expect(ARRIVAL_BLOCK_TITLE).toBe('วันเข้าใช้บริการ')
   })
-  it('[blocker] ไม่มี mode (ร้านอื่น/หน้าแก้ไข) = คำเดิม', () => {
-    expect(arrivalBlockTitle(undefined)).toBe('วันเข้าใช้บริการ')
-  })
-})
-
-describe('arrivalSubmitLabel (00086 v13 — ปุ่มบันทึกบอกผลของงานหน้าร้าน)', () => {
-  it('[blocker] WALK_IN = "บันทึกงานบริการ · เข้าคิววันนี้"', () => {
-    expect(arrivalSubmitLabel('บันทึกงานบริการ', 'WALK_IN')).toBe('บันทึกงานบริการ · เข้าคิววันนี้')
-  })
-  it('[blocker] BOOKED / ไม่มี mode (ร้านอื่น/หน้าแก้ไข) = คำเดิมทุกตัวอักษร', () => {
-    expect(arrivalSubmitLabel('บันทึกงานบริการ', 'BOOKED')).toBe('บันทึกงานบริการ')
-    expect(arrivalSubmitLabel('บันทึกคำสั่งซื้อ', undefined)).toBe('บันทึกคำสั่งซื้อ')
+  it('ค่าเริ่มต้น = หน้าร้าน', () => {
+    expect(DEFAULT_ARRIVAL_CHOICE).toBe('WALK_IN')
   })
 })
 
-describe('arrivalBlockIcon (00086 v13 — ไอคอนเดินหน้า "เข้าคิววันนี้")', () => {
-  it('WALK_IN = ไอคอนเดียวกับชิป "หน้าร้าน" · อื่น ๆ = null', () => {
-    expect(arrivalBlockIcon('WALK_IN')).toBe(ARRIVAL_MODE_META.WALK_IN.icon)
-    expect(arrivalBlockIcon('BOOKED')).toBeNull()
-    expect(arrivalBlockIcon(undefined)).toBeNull()
+describe('resourcePickerKind', () => {
+  it('[blocker] ไม่มี mode (หน้าแก้ไข/ร้านอื่น) = การ์ดเดิมเสมอ แม้มีแบบเดียวหรือเยอะ', () => {
+    expect(resourcePickerKind(1, undefined)).toBe('cards')
+    expect(resourcePickerKind(10, undefined)).toBe('cards')
+  })
+  it('ร้านแบบเดียว = เลือกให้เอง · ไม่เกิน 6 = การ์ด · เกิน 6 = ช่องค้นหา', () => {
+    expect(RESOURCE_CARDS_MAX).toBe(6)
+    expect(resourcePickerKind(1, 'WALK_IN')).toBe('auto')
+    expect(resourcePickerKind(1, 'BOOKED')).toBe('auto')
+    expect(resourcePickerKind(2, 'BOOKED')).toBe('cards')
+    expect(resourcePickerKind(6, 'WALK_IN')).toBe('cards')
+    expect(resourcePickerKind(7, 'WALK_IN')).toBe('search')
   })
 })

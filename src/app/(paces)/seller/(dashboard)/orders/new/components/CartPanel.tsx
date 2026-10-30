@@ -39,7 +39,7 @@ import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
 import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
 import ArrivalModePicker from './ArrivalModePicker'
-import { arrivalBlockIcon, arrivalBlockTitle, arrivalSubmitLabel, type OrderArrivalChoice } from '@/lib/order-form-arrival'
+import { ARRIVAL_BLOCK_TITLE } from '@/lib/order-form-arrival'
 // SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
 import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -144,8 +144,6 @@ export default function CartPanel({
   // แยก — CartPanel มี control อยู่แล้ว การ derive ที่นี่กันไม่ให้ต้องมี state คู่ขนานที่ต้อง sync เอง)
   const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
   const deliveryOverride: 'PICKUP' | undefined = fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined
-  // 00086 P2-T5 — ค่าเดียวกับที่ ArrivalModePicker/AppointmentBlock/submit ใช้ (RHF control ตัวเดียว)
-  const arrivalMode = useWatch({ control, name: 'arrivalMode' }) as OrderArrivalChoice | undefined
 
   const { field: channelField } = useController({ control, name: 'salesChannel' })
   const { field: paymentField } = useController({ control, name: 'paymentMethod' })
@@ -662,9 +660,6 @@ export default function CartPanel({
     </>
   )
 
-  /** หัวบล็อกนัด/คิวของร้านบริการ — คำเดียวกับการ์ดมือถือ (arrivalBlockTitle) */
-  const arrivalChoice = showArrivalPicker ? (arrivalMode ?? 'BOOKED') : undefined
-  const arrivalTitle = arrivalBlockTitle(arrivalChoice)
   /** ส่วนลด/VAT ย้ายเข้า "เพิ่มเติม" — มี error ต้องกางเอง (idiom เดียวกับ shippingOpen) */
   const moreOpen = openKey === 'more' || !!errors?.discount || !!errors?.vatRate
 
@@ -692,11 +687,9 @@ export default function CartPanel({
       {appointmentBlock && (
         <div className="border-t border-default-200">
           <div className="flex items-center gap-2 px-4 py-3">
-            <Icon
-              icon={arrivalBlockIcon(arrivalChoice) ?? 'calendar-event'}
-              className="size-4 text-default-400"
-            />
-            <h5 className="text-sm font-semibold text-dark">{arrivalTitle}</h5>
+            <Icon icon="calendar-event" className="size-4 text-default-400" />
+            {/* จองล่วงหน้า/หน้าร้าน หัวเดียวกับการ์ดมือถือ (prototype v19) */}
+            <h5 className="text-sm font-semibold text-dark">{ARRIVAL_BLOCK_TITLE}</h5>
             {appointmentPrefilledDate && (
               <span className="badge bg-primary/15 text-primary">
                 {formatWeekdayDateTH(appointmentPrefilledDate)}
@@ -853,8 +846,7 @@ export default function CartPanel({
           form={formId}
           className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover"
         >
-          {/* 00086 v13 — หน้าร้าน = "บันทึกงานบริการ · เข้าคิววันนี้" · อื่น ๆ คำเดิม */}
-          {arrivalSubmitLabel(`บันทึก${orderNoun}`, arrivalChoice)}
+          {`บันทึก${orderNoun}`}
         </button>
       </div>
     </div>
