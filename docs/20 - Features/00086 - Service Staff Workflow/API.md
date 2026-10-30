@@ -124,7 +124,7 @@ related: ["[[SRS]]", "[[SDS]]", "[[TestCase]]"]
 |---|---|---|
 | 400 | `ARRIVAL_MODE_REQUIRED` (message "เลือกว่าลูกค้าจองล่วงหน้าหรือมาหน้าร้าน") | ร้านบริการส่ง `appointment` แต่ไม่ส่ง `arrivalMode` |
 | 400 | `ARRIVAL_BOOKED_NEEDS_TIME` (message "เลือกวันและเวลานัด") | `BOOKED` ขาด resourceId/start/end · หรือร้าน TIME ส่งนัดทั้งวัน |
-| 400 | `ARRIVAL_WALK_IN_NEEDS_QUEUE` (message "เลือกคิวงาน") | `WALK_IN` ขาด resourceId |
+| 400 | `ARRIVAL_WALK_IN_NEEDS_QUEUE` (message "เลือกประเภทงาน" · เดิม "เลือกคิวงาน" ถึง 2026-10-31) | `WALK_IN` ขาด resourceId |
 | 400 | `ASSIGNEE_NOT_TECHNICIAN` | ผู้รับผิดชอบไม่ใช่สมาชิกฝ่ายช่างของร้าน |
 | 400 | `Invalid input` | `arrivalMode`/`assignedUserId`/`durationMin` ผิดรูป |
 | 409 | `APPOINTMENT_SLOT_FULL` (รหัสเดิม) | คิวเต็ม |

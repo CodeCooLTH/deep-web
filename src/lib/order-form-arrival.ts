@@ -12,12 +12,15 @@
 
 import { walkInWindow } from './appointments'
 import { formatTimeHM } from './format-date'
-import { ARRIVAL_MODE_META } from './arrival-mode'
 
 /** ค่าที่ผู้ขายเลือกได้ในฟอร์ม — `UNSCHEDULED` ไม่ใช่ตัวเลือก (เป็นผลของการ "ไม่ส่งนัด" เท่านั้น) */
 export type OrderArrivalChoice = 'BOOKED' | 'WALK_IN'
 
-export const DEFAULT_ARRIVAL_CHOICE: OrderArrivalChoice = 'BOOKED'
+/**
+ * ค่าเริ่มต้น = หน้าร้าน (user สั่ง 2026-10-31 · prototype v19) — ร้านบริการสร้างงานตอนลูกค้าอยู่ที่ร้านบ่อยกว่า
+ * เปิดจากปฏิทิน (มีวันที่พามา) ยังเป็นจองล่วงหน้าเสมอ (arrivalChoiceAfterPrefill)
+ */
+export const DEFAULT_ARRIVAL_CHOICE: OrderArrivalChoice = 'WALK_IN'
 
 /** ป้ายของปุ่มเลือก 2 ใบ (prototype v13) */
 export const ARRIVAL_CHOICE_COPY: Record<OrderArrivalChoice, { title: string; hint: string; icon: string }> = {
@@ -26,27 +29,25 @@ export const ARRIVAL_CHOICE_COPY: Record<OrderArrivalChoice, { title: string; hi
 }
 
 /**
- * หัวเรื่องของบล็อกนัด/คิว — มือถือ (การ์ด AppointmentBlock) กับเดสก์ท็อป (หัวบล็อกใน CartPanel)
- * ต้องพูดคำเดียวกัน (00086 P2-T5) · ไม่มี mode (ร้านอื่น/หน้าแก้ไข) = คำเดิม "วันเข้าใช้บริการ"
+ * หัวเรื่องของบล็อกนัด/คิว — ทั้งจองล่วงหน้าและหน้าร้านใช้บล็อกเดียวกัน คำเดียวกัน (user สั่ง 2026-10-31 · prototype v19)
+ * ต่างกันแค่ส่วนเวลาด้านล่าง · มือถือ (การ์ด AppointmentBlock) กับเดสก์ท็อป (หัวบล็อกใน CartPanel) ใช้ค่านี้ทั้งคู่
  */
-export function arrivalBlockTitle(mode: OrderArrivalChoice | undefined): string {
-  return mode === 'WALK_IN' ? 'เข้าคิววันนี้' : 'วันเข้าใช้บริการ'
-}
+export const ARRIVAL_BLOCK_TITLE = 'วันเข้าใช้บริการ'
+
+/** เกินนี้ การ์ดประเภทงานยาวเกิน 3 แถวบนมือถือ → ช่องเดียว + ชีตค้นชื่อ (เกณฑ์เดียวกับผู้รับผิดชอบ) */
+export const RESOURCE_CARDS_MAX = 6
 
 /**
- * ไอคอนหน้าหัวเรื่องบล็อก "เข้าคิววันนี้" (prototype v13: ไอคอนเดินหน้าคำ) — ไอคอนชุดเดียวกับชิป "หน้าร้าน"
- * null = ไม่มีไอคอนประจำโหมด (จองล่วงหน้า/ร้านอื่น) — ผู้เรียกที่มีที่ไอคอนเสมอ (หัวบล็อกเดสก์ท็อป) ใส่ค่าเดิมเอง
+ * ตัวเลือกประเภทงานในฟอร์มสร้างของร้านบริการ (user สั่ง 2026-10-31 · prototype v19)
+ * - `auto`   ร้านมีแบบเดียว — เลือกให้เอง ไม่ต้องเห็นการ์ด (บังคับลงปฏิทินอยู่แล้ว ไม่มีทางเลือกอื่น)
+ * - `search` เกิน RESOURCE_CARDS_MAX — ช่องเดียว + ชีตค้นชื่อ
+ * - `cards`  การ์ดเรียง 2 คอลัมน์แบบเดิม
+ * ไม่มี mode (หน้าแก้ไข/ร้านอื่น) = `cards` เสมอ — ฟอร์มเดิมทุกตัวอักษร
  */
-export function arrivalBlockIcon(mode: OrderArrivalChoice | undefined): string | null {
-  return mode === 'WALK_IN' ? ARRIVAL_MODE_META.WALK_IN.icon : null
-}
-
-/**
- * คำบนปุ่มบันทึกของฟอร์มสร้าง (prototype v13) — หน้าร้าน = "บันทึกงานบริการ · เข้าคิววันนี้"
- * บอกผลของการกดล่วงหน้า (งานเข้าคิววันนี้ทันที ไม่ต้องเลือกวันเวลา) · จองล่วงหน้า/ไม่มี mode = คำเดิม
- */
-export function arrivalSubmitLabel(baseLabel: string, mode: OrderArrivalChoice | undefined): string {
-  return mode === 'WALK_IN' ? `${baseLabel} · ${arrivalBlockTitle('WALK_IN')}` : baseLabel
+export function resourcePickerKind(count: number, mode: OrderArrivalChoice | undefined): 'auto' | 'search' | 'cards' {
+  if (!mode) return 'cards'
+  if (count === 1) return 'auto'
+  return count > RESOURCE_CARDS_MAX ? 'search' : 'cards'
 }
 
 /**
@@ -106,7 +107,9 @@ export function appointmentErrorsToClearOnArrivalChange(
 
 /** ข้อความชุดเดียวกับที่ API ตอบกลับ (appointment-api.ts) — จอกับ server ต้องพูดคำเดียวกัน */
 export const ARRIVAL_BOOKED_NEEDS_TIME_MSG = 'เลือกวันและเวลานัด'
-export const ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG = 'เลือกคิวงาน'
+export const ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG = 'เลือกประเภทงาน'
+/** ยังไม่เลือกประเภทงาน (จองล่วงหน้า) — คำเดียวกับหน้าร้าน เพราะเป็นช่องเดียวกัน */
+export const ARRIVAL_PICK_TYPE_MSG = ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG
 
 /**
  * สิ่งที่ยังขาดก่อนบันทึก — null = ครบ
@@ -125,7 +128,7 @@ export function arrivalAppointmentProblem(
       : { code: 'ARRIVAL_WALK_IN_NEEDS_QUEUE', field: 'appointment.resourceId', message: ARRIVAL_WALK_IN_NEEDS_QUEUE_MSG }
   }
   if (!ap?.resourceId) {
-    return { code: 'ARRIVAL_BOOKED_NEEDS_TIME', field: 'appointment.resourceId', message: ARRIVAL_BOOKED_NEEDS_TIME_MSG }
+    return { code: 'ARRIVAL_BOOKED_NEEDS_TIME', field: 'appointment.resourceId', message: ARRIVAL_PICK_TYPE_MSG }
   }
   if (!ap.date || (granularity === 'TIME' && !(ap.startTime && ap.endTime))) {
     return { code: 'ARRIVAL_BOOKED_NEEDS_TIME', field: 'appointment.endTime', message: ARRIVAL_BOOKED_NEEDS_TIME_MSG }
@@ -147,9 +150,9 @@ export function walkInAppointmentPayload(resourceId: string): { resourceId: stri
 
 /**
  * บรรทัดบอกเวลาที่จะถูกบันทึกจริงของงานหน้าร้าน — ตัวเดียวกับที่ server ใช้ (walkInWindow)
- * ผู้ขายต้องเห็นก่อนกดบันทึก ไม่ใช่ไปรู้ตอนเปิดตารางงาน (คำเดียวกับ StartWalkInSheet)
+ * ผู้ขายต้องเห็นก่อนกดบันทึก ไม่ใช่ไปรู้ตอนเปิดตารางงาน
  */
 export function walkInPreviewText(now: Date, durationMinutes: number | null | undefined): string {
   const { start, end } = walkInWindow(now, durationMinutes)
-  return `เริ่ม ${formatTimeHM(start)} — ประมาณ ${formatTimeHM(end)} น. ของวันนี้ · ไม่ต้องเลือกวันเวลา · ไม่เก็บมัดจำ`
+  return `วันนี้ · เริ่ม ${formatTimeHM(start)} — ประมาณ ${formatTimeHM(end)} น. · ไม่เก็บมัดจำ`
 }

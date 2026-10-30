@@ -257,7 +257,7 @@ export default function StartWalkInSheet({
           ) : (
             <>
               <section>
-                <p className="text-default-700 mb-2 text-xs font-semibold">เข้าคิวงานไหน</p>
+                <p className="text-default-700 mb-2 text-xs font-semibold">ประเภทงาน</p>
                 <div className="space-y-2">
                   {resources.map((r) => (
                     <button

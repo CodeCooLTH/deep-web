@@ -38,12 +38,14 @@ interface Props {
   shopId: string
   /** ช่วงเวลาของงานที่กรอกอยู่ (assigneeFormWindow) — null = ชีตแสดงชื่ออย่างเดียว */
   loadWindow: LoadWindow | null
+  /** ยังไม่มีช่วงเวลา (จองที่ยังไม่เลือกวัน/เวลา) — บรรทัดบอกในชีต (assigneeWindowHint) */
+  loadWindowHint?: string | null
 }
 
 // critique P1-6 — ไม่ใช้คำ "พนักงาน" (lexicon lock lib/no-permission-copy.ts)
 const HINT = 'ไม่บังคับ — ถ้าไม่เลือก ฝ่ายช่างกด "รับงานนี้" เองได้'
 
-export default function AssigneePicker({ control, staff, variant, secX = 'px-4 md:px-8', shopId, loadWindow }: Props) {
+export default function AssigneePicker({ control, staff, variant, secX = 'px-4 md:px-8', shopId, loadWindow, loadWindowHint = null }: Props) {
   const { field } = useController({ control, name: 'assignedUserId', defaultValue: null })
   const current = field.value ?? null
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -127,6 +129,7 @@ export default function AssigneePicker({ control, staff, variant, secX = 'px-4 m
         shopId={shopId}
         currentUserId={picked?.userId ?? null}
         window={loadWindow}
+        windowHint={loadWindowHint}
         onSelect={(userId) => field.onChange(userId)}
       />
     </>

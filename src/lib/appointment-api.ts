@@ -30,7 +30,7 @@ import {
 const ARRIVAL_MODE_MESSAGE: Record<ArrivalModeErrorCode, string> = {
   ARRIVAL_MODE_REQUIRED: "เลือกว่าลูกค้าจองล่วงหน้าหรือมาหน้าร้าน",
   ARRIVAL_BOOKED_NEEDS_TIME: "เลือกวันและเวลานัด",
-  ARRIVAL_WALK_IN_NEEDS_QUEUE: "เลือกคิวงาน",
+  ARRIVAL_WALK_IN_NEEDS_QUEUE: "เลือกประเภทงาน",
 };
 
 export function appointmentErrorResponse(e: unknown): Response | null {

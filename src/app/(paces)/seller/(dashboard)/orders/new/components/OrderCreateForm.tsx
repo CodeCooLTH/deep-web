@@ -61,7 +61,7 @@ import {
   type ServiceStaffOption,
 } from '@/lib/order-form-assignee'
 import AssigneePicker from './AssigneePicker'
-import { assigneeFormWindow } from '@/lib/assignee-load'
+import { assigneeFormWindow, assigneeWindowHint } from '@/lib/assignee-load'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1178,6 +1178,7 @@ export default function OrderCreateForm({
         secX={compact ? 'px-4' : 'px-4 md:px-8'}
         shopId={shopId}
         loadWindow={assigneeWindow}
+        loadWindowHint={assigneeWindowHint(assigneeWindow, appointmentGranularity)}
       />
     ) : null
 

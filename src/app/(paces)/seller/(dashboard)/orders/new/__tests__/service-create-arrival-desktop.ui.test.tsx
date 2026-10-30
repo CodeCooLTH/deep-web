@@ -87,9 +87,9 @@ describe('เดสก์ท็อป ร้านบริการ — สร�
     )
   })
 
-  it('ลูกค้ากางเป็นค่าเริ่ม · ค่าเริ่ม "จองล่วงหน้า" · ไม่มี "ไม่บังคับ"', () => {
+  it('ลูกค้ากางเป็นค่าเริ่ม · ค่าเริ่ม "หน้าร้าน" (prototype v19) · ไม่มี "ไม่บังคับ"', () => {
     expect(html).toContain('id="cust-name"')
-    expect(html).toMatch(/aria-pressed="true"[^>]*>.*?จองล่วงหน้า/)
+    expect(html).toMatch(/aria-pressed="true"[^>]*>.*?หน้าร้าน/)
     expect(html).not.toContain('ไม่บังคับ')
   })
 
@@ -148,16 +148,16 @@ const renderPanel = (p: Parameters<typeof PanelHarness>[0]) =>
   renderToStaticMarkup(h(LocaleProvider, { locale: 'th', children: h(PanelHarness, p) }) as ReactElement)
 
 describe('CartPanel serviceLayout', () => {
-  it('WALK_IN: หัวบล็อก "เข้าคิววันนี้" + รายการคิว · ไม่มีวัน/เวลา/มัดจำ', () => {
+  it('WALK_IN: บล็อกเดียวกับจอง — หัว "วันเข้าใช้บริการ" + "ประเภทงาน" · ไม่มีวัน/เวลา/มัดจำ (prototype v19)', () => {
     const html = renderPanel({ arrivalMode: 'WALK_IN' })
-    expect(html).toContain('>เข้าคิววันนี้</h5>')
-    expect(html).toContain('เข้าคิวงานไหน')
+    expect(html).toContain('>วันเข้าใช้บริการ</h5>')
+    expect(html).toContain('ประเภทงาน')
     expect(html).toMatch(/aria-pressed="true"[^>]*>.*?หน้าร้าน/)
-    for (const gone of ['วันเข้าใช้บริการ', 'วันที่นัด', 'มัดจำที่เก็บ']) expect(html).not.toContain(gone)
+    for (const gone of ['เข้าคิววันนี้', 'เข้าคิวงานไหน', 'วันที่นัด', 'มัดจำที่เก็บ']) expect(html).not.toContain(gone)
   })
 
-  it('[blocker] WALK_IN: ปุ่มบันทึก "… · เข้าคิววันนี้" (v13) · BOOKED: คำเดิม', () => {
-    expect(renderPanel({ arrivalMode: 'WALK_IN' })).toContain('บันทึกคำสั่งซื้อ · เข้าคิววันนี้')
+  it('ปุ่มบันทึกคำเดียวกันทั้งสองโหมด — ไม่มี "· เข้าคิววันนี้" แล้ว', () => {
+    expect(renderPanel({ arrivalMode: 'WALK_IN' })).not.toContain('· เข้าคิววันนี้')
     expect(renderPanel({ arrivalMode: 'BOOKED' })).not.toContain('· เข้าคิววันนี้')
   })
 

@@ -29,7 +29,8 @@ import AppointmentDateSheet from './AppointmentDateSheet'
 import type { FormValues } from './OrderCreateForm'
 import { combineDateTime, type AppointmentGranularity } from '@/lib/appointments'
 import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
-import { arrivalBlockIcon, arrivalBlockTitle, walkInPreviewText, type OrderArrivalChoice } from '@/lib/order-form-arrival'
+import { ARRIVAL_BLOCK_TITLE, resourcePickerKind, walkInPreviewText, type OrderArrivalChoice } from '@/lib/order-form-arrival'
+import ResourceTypeSheet from './ResourceTypeSheet'
 
 export type ServiceResourceOption = {
   id: string
@@ -141,6 +142,19 @@ export default function AppointmentBlock({
   const [pickedForSheet, setPickedForSheet] = useState<ServiceResourceOption | null>(null)
   const sheetResource = selected ?? pickedForSheet
 
+  /**
+   * จองล่วงหน้า / หน้าร้าน ใช้บล็อกเดียวกัน (user สั่ง 2026-10-31 · prototype v19) — ต่างกันแค่ส่วนเวลาข้างล่าง
+   * หน้าร้าน: แตะประเภทงาน = เลือกอย่างเดียว (ไม่เปิดปฏิทิน · server ตั้งเวลาเอง)
+   */
+  const walkIn = mode === 'WALK_IN'
+  const pickerKind = resourcePickerKind(resources.length, mode)
+  const [typeSheetOpen, setTypeSheetOpen] = useState(false)
+  // ร้านมีประเภทงานแบบเดียว = เลือกให้เอง (ไม่มีทางเลือกอื่นอยู่แล้ว · บังคับลงปฏิทิน)
+  const autoResourceId = pickerKind === 'auto' ? resources[0]?.id : undefined
+  useEffect(() => {
+    if (autoResourceId && !value.resourceId) setValue('appointment.resourceId', autoResourceId)
+  }, [autoResourceId, value.resourceId, setValue])
+
   // ── มัดจำตั้งต้นจากคิวงาน (BR-RSV-46/47) — ผู้ใช้แก้ทับได้ ──
   const suggestedDeposit = useMemo(() => {
     if (!selected) return 0
@@ -178,7 +192,7 @@ export default function AppointmentBlock({
             เกิดบ่อยสุดตอนมาจากปฏิทิน ซึ่งส่งมาแค่วันที่ ไม่รู้ว่าผู้ใช้ตั้งใจคิวงานไหน
             ต้องบอกให้รู้ ไม่ใช่ปล่อยให้บันทึกแล้วงงว่าทำไมปฏิทินยังว่าง
             ตั้งใจไม่บล็อกการบันทึก — แค่บอกผลที่จะตามมา (pattern เดียวกับกล่องเตือนวันย้อนหลัง) */}
-        {value.date && !value.resourceId && (
+        {!walkIn && value.date && !value.resourceId && (
           <div className="bg-warning/10 border-warning/30 rounded-lg border p-3">
             <p className="text-default-800 text-sm font-medium">
               {/* ชี้ชื่อ control ที่อยู่ "ด้านล่าง" ให้ตรง — ฟิลด์นั้น label ว่า "บริการ"
@@ -230,12 +244,15 @@ export default function AppointmentBlock({
           <div className="mb-2 flex items-center justify-between gap-2">
             {/* 'รับนัดโดย' → 'บริการ' (user สั่ง 2026-08-07 ชี้ที่หน้าจอตรง ๆ) — คำเดิมอธิบาย
                 *ความสัมพันธ์* (ใครเป็นคนรับนัด) แต่สิ่งที่ร้านเลือกจริงคือรายการบริการที่ลูกค้าจะเข้ารับ */}
-            <span id={`${idPrefix}-appt-resource-label`} className="form-label mb-0">ประเภทงาน</span>
+            <span id={`${idPrefix}-appt-resource-label`} className="form-label mb-0">
+              ประเภทงาน{mode && <span className="ms-0.5 text-danger">*</span>}
+            </span>
             {/* ทางออกจาก "ตั้งวันนัดแล้ว" กลับไป "ไม่ตั้งวันนัด" — แทน <option value=""> เดิม
                 ที่หายไปพร้อม dropdown. ต้องเป็นปุ่มแยกที่อยู่ตำแหน่งเดิมเสมอ ไม่ใช่ให้จิ้ม
                 การ์ดที่เลือกอยู่แล้วเพื่อ deselect เพราะ tap นั้นถูกใช้เปิดปฏิทินแก้วันไปแล้ว
                 (tap เดียวทำ 2 อย่างตามสถานะ = เดาไม่ถูกว่าจะได้อะไร) */}
-            {selected && (
+            {/* หน้าร้าน/ร้านแบบเดียว ไม่มีอะไรให้ล้าง — แตะใบอื่นแทนได้ · ล้างคือทางกลับไป "ไม่มีวันนัด" ของฟอร์มเดิม */}
+            {selected && !walkIn && pickerKind !== 'auto' && (
               <button
                 type="button"
                 onClick={() => {
@@ -257,7 +274,54 @@ export default function AppointmentBlock({
           <Controller
             control={control}
             name="appointment.resourceId"
-            render={({ field }) => (
+            render={({ field }) => pickerKind === 'auto' && selected ? (
+              /* ร้านแบบเดียว — บอกว่าเลือกให้แล้ว ไม่ต้องมีการ์ดให้แตะ */
+              <div className="border-default-200 rounded-lg border px-3 py-2.5">
+                <span className="text-dark block truncate text-sm font-medium">{selected.name}</span>
+                <span className="text-default-700 block text-xs">ร้านมีประเภทงานแบบเดียว เลือกให้แล้ว · รับพร้อมกัน {selected.capacity} คิว</span>
+              </div>
+            ) : pickerKind === 'search' ? (
+              /* เกิน 6 แบบ — ช่องเดียว + ชีตค้นชื่อ (แบบเดียวกับผู้รับผิดชอบ) */
+              <>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-labelledby={`${idPrefix}-appt-resource-label`}
+                  onClick={() => setTypeSheetOpen(true)}
+                  className="border-default-300 hover:border-default-500 flex min-h-13 w-full items-center gap-3 rounded-lg border bg-card px-3 py-2 text-start"
+                >
+                  <span
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
+                      selected ? 'bg-primary/15 text-primary' : 'bg-default-100 text-default-500'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <Icon icon="users" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-dark block truncate text-sm font-semibold">{selected ? selected.name : 'ยังไม่ได้เลือก'}</span>
+                    <span className="text-default-700 block text-xs">
+                      {selected
+                        ? `รับพร้อมกัน ${selected.capacity} คิว · แตะเพื่อเปลี่ยน`
+                        : `แตะเพื่อเลือกจาก ${resources.length} แบบ · ค้นชื่อได้`}
+                    </span>
+                  </span>
+                  <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
+                </button>
+                <ResourceTypeSheet
+                  open={typeSheetOpen}
+                  onClose={() => setTypeSheetOpen(false)}
+                  resources={resources}
+                  currentId={field.value ?? null}
+                  onSelect={(r) => {
+                    field.onChange(r.id)
+                    setPickedForSheet(r)
+                    // จองล่วงหน้า: เลือกแล้วเปิดปฏิทินต่อ (เหมือนแตะการ์ด) · หน้าร้านไม่ต้อง
+                    if (!walkIn) setDateSheetOpen(true)
+                  }}
+                />
+              </>
+            ) : (
               <div
                 role="group"
                 aria-labelledby={`${idPrefix}-appt-resource-label`}
@@ -289,7 +353,7 @@ export default function AppointmentBlock({
                            อีกรอบทั้งที่เพิ่งเลือกไปเมื่อกี้ ซึ่งทำให้ทางลัดที่ตั้งใจ "ลดขั้นตอน"
                            กลายเป็นเพิ่มจอเต็มอีกใบสำหรับร้านที่มีคิวมากกว่าหนึ่ง
                            (กดการ์ดที่เลือกอยู่แล้วซ้ำ ยังเปิดปฏิทินได้ตามเดิม = ทางแก้วันยังอยู่) */
-                        if (!(prefilledFromCalendar && value.date) || active) setDateSheetOpen(true)
+                        if (!walkIn && (!(prefilledFromCalendar && value.date) || active)) setDateSheetOpen(true)
                       }}
                       /* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition
                          เหลือ 0.12s แต่ **ไม่ได้ยกเลิกการย่อ-ขยายตัวการ์ด** — ผู้ใช้ที่เปิด
@@ -341,8 +405,17 @@ export default function AppointmentBlock({
           )}
         </div>
 
+        {/* หน้าร้าน: ส่วนเวลาคือบรรทัดเดียว — เวลามาจาก walkInWindow ตัวเดียวกับที่ server ใช้ตั้งเวลาจริง
+            Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (`bg-info/15` alert) · `text-info-ink` ผ่าน 4.5:1 */}
+        {selected && walkIn && (
+          <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+            <Icon icon="clock" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0">{walkInPreviewText(new Date(), selected.durationMinutes)}</span>
+          </div>
+        )}
+
         {/* ฟิลด์ที่เหลือโผล่ต่อเมื่อเลือกคิวงานแล้ว — ไม่เลือก = ไม่ต้องเห็นอะไรเพิ่ม */}
-        {selected && (
+        {selected && !walkIn && (
           <>
             {mode === 'BOOKED' ? (
               /* 00086 P2-T4 (prototype v13): วันที่นัด* + เวลา* แยกช่อง — บังคับทั้งคู่ จึงต้องเห็นเป็น
@@ -570,78 +643,20 @@ export default function AppointmentBlock({
     </div>
   )
 
-  /**
-   * 00086 P2-T4 — งานหน้าร้าน: เลือกคิวงานอย่างเดียว
-   * Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx (รายการเลือกได้ทีละแถว)
-   *   + sibling ../../../(chat)/_components/StartWalkInSheet.tsx "เข้าคิวงานไหน" (คลาสชุดเดียวกันทุกแถว —
-   *   ผู้ขายเห็นรายการนี้ทั้งจากปุ่ม "เริ่มงานเลย" และจากฟอร์มนี้ ต้องเป็นของหน้าตาเดียวกัน)
-   * Base บรรทัดเวลา: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (`bg-info/15` alert)
-   *   `text-info-ink` แทน `text-info` — ข้อความขนาดปกติบน /15 ต้องผ่าน 4.5:1
-   * เวลาที่โชว์มาจาก walkInWindow ตัวเดียวกับที่ server ใช้ตั้งเวลาจริง
-   */
-  const walkInFields = (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p id={`${idPrefix}-walkin-queue-label`} className="text-default-700 mb-2 text-xs font-semibold">
-          เข้าคิวงานไหน
-        </p>
-        <Controller
-          control={control}
-          name="appointment.resourceId"
-          render={({ field }) => (
-            <div role="group" aria-labelledby={`${idPrefix}-walkin-queue-label`} className="space-y-2">
-              {resources.map((r) => {
-                const active = field.value === r.id
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => field.onChange(r.id)}
-                    aria-pressed={active}
-                    className={`btn min-h-11 w-full items-center justify-start gap-2 text-start ${
-                      active ? 'bg-primary/15 text-primary-ink' : 'bg-default-100 text-default-800 hover:bg-default-200'
-                    }`}
-                  >
-                    <Icon icon={active ? 'circle-check' : 'circle'} className="shrink-0 text-base" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{r.name}</span>
-                    {/* คำว่า "ที่นั่ง" (serviceSeat) เป็นกลไกภายใน ห้ามโผล่บนจอ — ใช้ "คิว" */}
-                    <span className="text-default-600 ms-auto shrink-0 text-xs">{r.capacity} คิว</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        />
-        {errors.appointment?.resourceId && (
-          <p className="text-danger mt-1.5 mb-0 text-sm">{errors.appointment.resourceId.message}</p>
-        )}
-      </div>
-      <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-        <Icon icon="clock" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span className="min-w-0">{walkInPreviewText(new Date(), selected?.durationMinutes)}</span>
-      </div>
-    </div>
-  )
-  const body = mode === 'WALK_IN' ? walkInFields : fields
 
   // embedded = อยู่ใน accordion ของ CartPanel ซึ่งมีหัวเรื่องของตัวเองแล้ว
   // ถ้าห่อการ์ดซ้ำจะกลายเป็นการ์ดซ้อนการ์ด (anti-slop) และดันความสูงแผงขวาจนปุ่มหลุดจอ
-  if (variant === 'embedded') return <div className="px-4 pb-4">{body}</div>
-
-  const titleIcon = arrivalBlockIcon(mode)
+  if (variant === 'embedded') return <div className="px-4 pb-4">{fields}</div>
 
   return (
     <div className="card">
       <div className="card-header">
-        {/* 00086 v13 — "เข้าคิววันนี้" มีไอคอนเดิน (ชุดเดียวกับชิป "หน้าร้าน") · จองล่วงหน้าคงหัวเดิม */}
-        <h4 className="card-title flex items-center gap-1.5">
-          {titleIcon && <Icon icon={titleIcon} className="text-primary size-5 shrink-0" aria-hidden="true" />}
-          {arrivalBlockTitle(mode)}
-        </h4>
+        {/* จองล่วงหน้า/หน้าร้าน หัวเดียวกัน (prototype v19) */}
+        <h4 className="card-title">{ARRIVAL_BLOCK_TITLE}</h4>
         {/* ร้านบริการตอนสร้าง (mode) บังคับนัด/คิวแล้ว — "ไม่บังคับ — ข้ามได้" ไม่จริงอีกต่อไป */}
         {!mode && <p className="text-default-500 mt-0.5 text-sm">ไม่บังคับ — ข้ามได้ถ้าลูกค้ายังไม่ระบุวัน</p>}
       </div>
-      <div className="card-body">{body}</div>
+      <div className="card-body">{fields}</div>
     </div>
   )
 }

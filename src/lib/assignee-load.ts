@@ -151,3 +151,12 @@ export function assigneeFormWindow(args: {
   if (isNaN(from.getTime()) || isNaN(to.getTime()) || to.getTime() <= from.getTime()) return null
   return { from, to }
 }
+
+/**
+ * บรรทัดบอกในชีตเลือกผู้รับผิดชอบเมื่อยังไม่รู้ช่วงเวลาของงาน (prototype v19)
+ * หน้าร้านรู้เวลาเสมอ (เริ่มตอนนี้) → null · จองล่วงหน้าที่ยังไม่เลือกวัน/เวลา → บอกว่าต้องเลือกก่อนจึงเห็นว่าใครว่าง
+ */
+export function assigneeWindowHint(window: LoadWindow | null, granularity: 'DAY' | 'TIME'): string | null {
+  if (window) return null
+  return granularity === 'DAY' ? 'เลือกวันนัดก่อน จะเห็นว่าใครว่าง' : 'เลือกวันและเวลานัดก่อน จะเห็นว่าใครว่าง'
+}
