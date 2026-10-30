@@ -21,7 +21,7 @@
  */
 
 import { useState } from 'react'
-import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
+import { arrivalChipMeta, arrivalModeOf } from '@/lib/arrival-mode'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
@@ -29,9 +29,9 @@ import { generateInitials } from '@/utils/helpers'
 import { normalizePhone } from '@/lib/phone'
 import { formatBaht } from '@/lib/format-money'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
-import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
-import { appointmentCardAction, isClosedAppointment } from '@/lib/appointment-day-view'
+import { type AppointmentStatus } from '@/lib/appointments'
+import { appointmentStageBadge } from '@/lib/appointment-stage'
+import { appointmentCardAction, dayCardControls, isClosedAppointment } from '@/lib/appointment-day-view'
 import type { ServiceCloseOutcome } from '@/lib/service-job'
 import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
 import { getChannelLabel } from '@/lib/chat-channel'
@@ -43,6 +43,9 @@ import {
 import type { AppointmentDayApiItem } from './types'
 import { useAppointmentBoardCaps } from './AppointmentBoardCaps'
 import { toFileUrl } from '@/lib/file-url'
+import { isServiceJobStarted, serviceProgressBadge } from '@/lib/service-status'
+import { assigneeAriaSuffix, isMyJob } from '@/lib/technician-jobs'
+import AssigneeWhoLine from './AssigneeWhoLine'
 
 type Props = {
   item: AppointmentDayApiItem
@@ -69,7 +72,8 @@ function CustomerAvatar({
   pageAvatarUrl: string | null
   /** ไอคอนของช่องทางการขายที่ร้านเลือก — ใช้เมื่อใบนี้ไม่ได้มาจากเธรดแชท */
   fallbackIcon: string
-  fallbackLabel: string
+  /** null = ไม่มีที่มาให้บอก (หน้าร้าน/ไม่ระบุ — 00086 S-3) ⇒ ไม่ติด badge มุมรูป */
+  fallbackLabel: string | null
 }) {
   const [failed, setFailed] = useState(false)
   // ค่าที่ขึ้นต้นด้วย http = URL ดิบ (หมดอายุได้) · ที่เหลือคือ fileId ใน storage — กติกาเดียวกับกล่องแชท
@@ -97,7 +101,7 @@ function CustomerAvatar({
           ต้องมี `role="img"` + `aria-label` คู่กัน (aria-name-requires-supporting-role.md) */}
       {channel ? (
         <ChannelBadgeOverlay channel={channel} imageUrl={pageAvatarUrl} />
-      ) : (
+      ) : fallbackLabel === null ? null : (
         <span
           role="img"
           aria-label={`ช่องทาง ${fallbackLabel}`}
@@ -122,13 +126,16 @@ function CardActionSheet({
   who,
   orderToken,
   canReschedule,
+  canNoShow,
   onNoShow,
   onClose,
 }: {
   who: string
   orderToken: string
-  /** เลื่อนนัด = O3 — ช่างไม่มี เหลือแต่ "ไม่มาตามนัด" (O4) */
+  /** เลื่อนนัด = O3 — ช่างไม่มี */
   canReschedule: boolean
+  /** ไม่มาตามนัด = ปิดงานแบบ NO_SHOW ⇒ ต้องมีสิทธิ์ปิดงาน (00086 S-5) */
+  canNoShow: boolean
   onNoShow: () => void
   onClose: () => void
 }) {
@@ -155,14 +162,16 @@ function CardActionSheet({
             เลื่อนนัด
           </Link>
         )}
-        <button
-          type="button"
-          onClick={onNoShow}
-          className="btn text-danger-ink hover:bg-danger/10 min-h-11 w-full justify-start gap-2.5 rounded-lg px-3"
-        >
-          <Icon icon="clock-off" className="size-4" aria-hidden="true" />
-          ไม่มาตามนัด
-        </button>
+        {canNoShow && (
+          <button
+            type="button"
+            onClick={onNoShow}
+            className="btn text-danger-ink hover:bg-danger/10 min-h-11 w-full justify-start gap-2.5 rounded-lg px-3"
+          >
+            <Icon icon="clock-off" className="size-4" aria-hidden="true" />
+            ไม่มาตามนัด
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -178,11 +187,10 @@ function CardActionSheet({
 export default function AppointmentDayCard({ item, showResourceName = false, now, onChanged }: Props) {
   const [closeSheet, setCloseSheet] = useState<ServiceCloseOutcome | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const { showMoney, canChat, canReschedule, canRefundDeposit } = useAppointmentBoardCaps()
+  const { showMoney, canChat, canReschedule, canRefundDeposit, canClose, viewerUserId, technicianOnly } =
+    useAppointmentBoardCaps()
 
   const status = (item.appointmentStatus ?? 'SCHEDULED') as AppointmentStatus
-  const meta = APPOINTMENT_STAGE_META[status] ?? APPOINTMENT_STAGE_META.SCHEDULED
-  const statusLabel = APPOINTMENT_STATUS_LABEL[status] ?? APPOINTMENT_STATUS_LABEL.SCHEDULED
   const who = item.buyerName || 'ไม่ระบุชื่อ'
   const closed = isClosedAppointment(item.appointmentStatus)
   const action = appointmentCardAction({
@@ -190,6 +198,17 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
     appointmentStatus: item.appointmentStatus,
     now,
   })
+  // 00086 S-5 — ปุ่มปิดงาน/⋯ ตามสิทธิ์ผู้ดู (ตัดสินที่ appointment-day-view ที่เดียว)
+  // 00086 P3 — ช่างล้วนปิดได้เฉพาะงานของตัวเองที่ทำเสร็จ · "ไม่มาตามนัด" ซ่อนเมื่อเริ่มงานแล้ว (ข้อมูลจากแถวนี้เอง)
+  const controls = dayCardControls(
+    action,
+    { canClose, canReschedule, technicianOnly },
+    {
+      isMine: isMyJob(item, viewerUserId),
+      started: isServiceJobStarted(item),
+      finished: item.serviceFinishedAt != null,
+    },
+  )
 
   /* Decimal มาเป็น string จาก API — แปลงครั้งเดียวตรงนี้ ไม่ใช่ในกลาง JSX
      ค่าที่ parse ไม่ได้ตกเป็น 0 = "ไม่แสดง" ซึ่งปลอดภัยกว่าโชว์ NaN */
@@ -199,8 +218,14 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
 
   /** เบอร์ที่โทรออกได้จริง — ค่าที่ไม่ใช่รูปเบอร์ไทย (อีเมล/ข้อความอิสระ) ยังแสดงแต่ไม่มีปุ่มโทร */
   const dialable = item.buyerContact ? normalizePhone(item.buyerContact) : null
-  // วิธีเข้ารับบริการ — derive จากเวลานัดเทียบเวลาเปิดบิล (ไม่มีคอลัมน์ใหม่)
-  const arrival = resolveArrivalMode({ serviceStart: item.start, createdAt: item.createdAt })
+  // วิธีเข้ารับบริการ — 00086: ค่าที่ร้านเลือกตอนเปิดบิลชนะ · ใบเก่าที่ไม่มีค่าเก็บตกไปใช้สูตรเดิม
+  const arrival = arrivalModeOf({ arrivalMode: item.arrivalMode, serviceStart: item.start, createdAt: item.createdAt })
+  // 00086 FR-001 — งานหน้าร้านขึ้น "รอเริ่มงาน" ไม่ใช่ "นัดแล้ว" (สถานะอื่นคงป้ายเดิม)
+  // 00086 P3 — เริ่มแล้ว/ทำเสร็จ ชนะป้ายนัด (ตัวตัดสินเดียวกับการ์ด "งานนี้" และแถวหน้าแรก/งานของฉัน)
+  const meta = serviceProgressBadge(item) ?? appointmentStageBadge(status, arrival)
+  const statusLabel = meta.label
+  // 00086 FR-002 — ชิปแบบการมาทั้งจองล่วงหน้า/หน้าร้าน (ตารางงานมีเวลาเสมอ ⇒ ไม่มี "ยังไม่ระบุเวลา")
+  const arrivalChip = arrivalChipMeta(arrival)
 
   /**
    * "ลูกค้ามาจากไหน" — ทุกคำมาจาก SSOT ห้ามพิมพ์เองที่นี่ (HR16)
@@ -212,16 +237,19 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
    * ทางที่ถูกคือไปอ่านฟิลด์ที่ถือคำตอบอยู่แล้ว: ร้านเลือก `salesChannel` เองตอนสร้าง
    * (ค่าตั้งต้นของฟอร์ม = `STOREFRONT` → "หน้าร้าน") จึงมีคำตอบจริงเกือบทุกใบ
    *
-   * ลำดับ: เธรดจริง → หมวดที่ร้านเลือก → ไม่รู้
+   * ลำดับ: เธรดจริง → หมวดที่ร้านเลือก (ยกเว้น STOREFRONT) → ไม่แสดง
    * เธรดชนะเพราะเป็น *ข้อเท็จจริง* ที่พาย้อนกลับไปห้องแชทได้ ส่วน `salesChannel` ร้านแก้เองได้
    * ตลอด (สองค่านี้ไม่ตรงกันได้และไม่ถือว่าผิด — ดูคอมเมนต์ที่ `Order.shopChannelId` ในสคีมา)
+   *
+   * 00086 S-3 (บอร์ดนี้มีเฉพาะร้านบริการ — canUseAppointments = SERVICE_QUEUE): `STOREFRONT` ("หน้าร้าน")
+   * เป็นค่าตั้งต้นของฟอร์ม ไม่ใช่คำตอบที่ร้านตั้งใจเลือก และชนกับชิปแบบการมา "หน้าร้าน" (คนละแกน
+   * คำเดียวกัน) · null ก็ไม่แสดง — ช่องว่างดีกว่า "ไม่ระบุช่องทาง" ที่อ่านเหมือนข้อมูลหาย
    */
-  const sourceText = item.source
+  const sourceText: string | null = item.source
     ? `${getChannelLabel(item.source.channel)} · ${item.source.pageName}`
-    : item.salesChannel
+    : item.salesChannel && item.salesChannel !== 'STOREFRONT'
       ? (SALES_CHANNEL_LABELS[item.salesChannel] ?? item.salesChannel)
-      : // คำเดียวกับที่ /orders ใช้กับฟิลด์เดียวกัน (OrderSourceLogo) — ไม่ตั้งคำที่สอง
-        'ไม่ระบุช่องทาง'
+      : null
 
   /**
    * feature 00073 — "ให้บริการแล้ว / ไม่มาตามนัด" = เปิดชีต "ปิดงาน" ตัวเดียวกับหน้างาน (ผล + เงิน + วันปิดงาน)
@@ -244,8 +272,11 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           (item.firstItemName ? ` รายการ ${item.firstItemName}` : '') +
           (totalNumber > 0 ? ` ยอด ${formatBaht(totalNumber)}` : '') +
           (depositNumber > 0 ? ` มัดจำ ${formatBaht(depositNumber)}` : '') +
-          ` สถานะ ${statusLabel} ช่องทาง ${sourceText}` +
-          (item.orderNo ? ` เลขที่ ${item.orderNo}` : '')
+          ` สถานะ ${statusLabel}` +
+          (sourceText ? ` ช่องทาง ${sourceText}` : '') +
+          (item.orderNo ? ` เลขที่ ${item.orderNo}` : '') +
+          // 00086 P3 — who-line อยู่ในเนื้อในของลิงก์ ซึ่งถูกชื่อนี้แทนที่ ⇒ ต้องต่อเอง
+          assigneeAriaSuffix(item.assignee)
         }
         className="focus-visible:ring-primary flex items-start gap-2.5 rounded-lg focus-visible:ring-2 focus-visible:outline-none"
       >
@@ -302,22 +333,26 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className={`badge ${meta.cls}`}>{statusLabel}</span>
             {/**
-              * ชิป "เดินเข้ามา" — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับบริการยังไง"*
+              * ชิปแบบการมา (คำจาก ARRIVAL_MODE_META ผ่าน arrivalChipMeta) — ตอบคำถามหัวหน้า *"อยากรู้ว่าคนนี้เข้ามารับบริการยังไง"*
               *
-              * แสดงเฉพาะ walk-in: "จองล่วงหน้า" เป็นค่าปกติของตารางงาน ติดป้ายทุกใบจะกลายเป็น
-              * เสียงรบกวนที่ตากวาดข้ามไปเอง แล้วใบที่ต่างจริงจะถูกข้ามไปด้วย
+              * 00086 FR-002: ติดทั้ง "จองล่วงหน้า" และ "หน้าร้าน" — ร้านเลือกเองตอนเปิดบิลแล้ว ไม่ใช่ค่าที่ระบบเดา
+              * (เดิมติดเฉพาะ walk-in เพราะ "จองล่วงหน้า" เป็นค่าปกติที่เดาจากเวลา)
               * (ตารางงานแสดงเฉพาะใบที่มีเวลานัดแล้ว ⇒ ไม่มีเคส "ยังไม่ระบุเวลา" มาถึงที่นี่)
               */}
-            {arrival === 'WALK_IN' ? (
-              <span className={`badge ${ARRIVAL_MODE_META.WALK_IN.cls}`} title={ARRIVAL_MODE_META.WALK_IN.hint}>
-                {ARRIVAL_MODE_META.WALK_IN.label}
+            {arrivalChip ? (
+              <span className={`badge ${arrivalChip.cls}`} title={arrivalChip.hint}>
+                {arrivalChip.label}
               </span>
             ) : null}
             {showResourceName && item.resource ? (
               <span className="text-default-700 max-w-full truncate text-xs">{item.resource.name}</span>
             ) : null}
-            <span className="text-default-500 max-w-full truncate text-2xs">{sourceText}</span>
+            {sourceText ? (
+              <span className="text-default-500 max-w-full truncate text-2xs">{sourceText}</span>
+            ) : null}
           </span>
+          {/* 00086 P3 (FR-008) — ผู้รับผิดชอบทุกการ์ด (บอร์ดนี้มีเฉพาะร้านบริการ) */}
+          <AssigneeWhoLine name={item.assignee?.displayName ?? null} />
         </span>
         <Icon icon="chevron-right" className="text-default-400 mt-1 size-4 shrink-0" aria-hidden="true" />
       </Link>
@@ -363,12 +398,12 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
       </div>
 
       {/* แถวลงมือ — โผล่เฉพาะตอนกดได้จริง (BR-RSV-34) ไม่ใช่ปุ่มเทาเรียงกันทั้งลิสต์ */}
-      {action !== 'none' ? (
-        <div className="border-default-200 mt-2.5 flex items-center gap-2 border-t border-dashed pt-2.5">
-          {action === 'reschedule' && !canReschedule ? (
+      {controls.primary || controls.menu ? (
+        <div className="border-default-200 mt-2.5 flex items-center justify-end gap-2 border-t border-dashed pt-2.5">
+          {controls.primary === 'reschedule-hint' ? (
             /* ช่างเลื่อนนัดไม่ได้ (O3) — บอกว่าต้องให้ใครทำ (ไม่ใช่ปล่อยแถวว่าง) และคงตำแหน่งปุ่ม ⋯ ไว้ท้ายแถว */
             <p className="text-default-700 mb-0 flex-1 text-xs">ลูกค้าขอเลื่อนนัด ให้เจ้าของร้านหรือผู้ดูแลเลือกเวลาใหม่</p>
-          ) : action === 'reschedule' ? (
+          ) : controls.primary === 'reschedule' ? (
             /* ตัวเลือกเวลาใหม่อยู่ในหน้ารายละเอียดออเดอร์ (RescheduleAppointmentSheet ต้องการ
                resourceId + เหตุผลที่ลูกค้าฝากไว้ ซึ่ง payload ของจอนี้ไม่มีโดยตั้งใจ) — ปุ่มนี้
                จึงพาไปที่นั่น ไม่ใช่เปิดแผงครึ่ง ๆ กลาง ๆ ที่ข้อมูลไม่ครบ */
@@ -379,7 +414,7 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
               <Icon icon="calendar-repeat" className="size-4" aria-hidden="true" />
               เลือกเวลาใหม่ให้ลูกค้า
             </Link>
-          ) : (
+          ) : controls.primary === 'close' ? (
             <button
               type="button"
               onClick={() => openClose('SERVED')}
@@ -388,23 +423,26 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
               <Icon icon="clipboard-check" className="size-4" aria-hidden="true" />
               ปิดงาน
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label={`ตัวเลือกอื่นของนัด ${who}`}
-            className="btn border-default-300 text-default-700 hover:bg-default-50 min-h-11 min-w-11 border"
-          >
-            <Icon icon="dots" className="size-4" aria-hidden="true" />
-          </button>
+          ) : null}
+          {controls.menu ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label={`ตัวเลือกอื่นของนัด ${who}`}
+              className="btn border-default-300 text-default-700 hover:bg-default-50 min-h-11 min-w-11 border"
+            >
+              <Icon icon="dots" className="size-4" aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       ) : null}
 
-      {menuOpen ? (
+      {menuOpen && controls.menu ? (
         <CardActionSheet
           who={who}
           orderToken={item.orderToken}
-          canReschedule={canReschedule}
+          canReschedule={controls.menu.reschedule}
+          canNoShow={controls.menu.noShow}
           onClose={() => setMenuOpen(false)}
           onNoShow={() => {
             setMenuOpen(false)
@@ -419,6 +457,7 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
         orderToken={item.orderToken}
         orderLabel={item.orderNo ?? who}
         hasAppointment
+        serviceStarted={isServiceJobStarted(item)}
         canRefundDeposit={canRefundDeposit}
         initialOutcome={closeSheet ?? 'SERVED'}
         onClosed={onChanged}

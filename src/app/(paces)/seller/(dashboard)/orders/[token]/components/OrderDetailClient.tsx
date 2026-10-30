@@ -343,6 +343,8 @@ export default function OrderDetailClient({
         appointmentStatus,
         hasAppointment,
         serviceClosed,
+        // หยิบแค่ RECORD_PAYMENT (ไม่ขึ้นกับ canClose) — ปุ่มปิดงานของหน้านี้อยู่ที่ ServiceJobCard ซึ่งรับสิทธิ์ของตัวเอง (00086)
+        canClose: false,
         money: serviceMoney,
       }).find((a) => a.key === 'RECORD_PAYMENT')
     : undefined

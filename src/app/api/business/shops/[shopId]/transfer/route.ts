@@ -24,8 +24,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
 
   try {
-    await transferShopOwnership(callerId, shopId, parsed.output.memberId);
-    return NextResponse.json({ status: "TRANSFERRED" });
+    const { unassignedJobCount } = await transferShopOwnership(callerId, shopId, parsed.output.memberId);
+    return NextResponse.json({ status: "TRANSFERRED", unassignedJobCount });
   } catch (e: unknown) {
     const res = memberErrorResponse(e);
     if (res) return res;

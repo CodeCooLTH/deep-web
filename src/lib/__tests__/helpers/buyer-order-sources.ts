@@ -38,6 +38,8 @@ export const BUYER_ORDER_FILES: readonly string[] = [
   'NextActionShipment.tsx',
   'NextActionPickup.tsx',
   'NextActionStatus.tsx',
+  // 00086 T12 — การ์ดรูปจากร้าน (shell import ใน slot การ์ดนัด)
+  'ServiceJobPhotosCard.tsx',
 ]
 
 /** .tsx ในโฟลเดอร์เดียวกันที่ตั้งใจไม่รวม — ต้องมีเหตุผลทุกไฟล์ */

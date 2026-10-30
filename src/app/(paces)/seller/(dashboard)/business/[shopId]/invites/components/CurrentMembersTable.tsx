@@ -15,7 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import RowActionDeleteButton from './RowActionDeleteButton'
 import MemberRoleControls from './MemberRoleControls'
 import MemberRolesEditor from './MemberRolesEditor'
-import { STAFF_ROLE_COPY } from '@/lib/shop-role-picker'
+import { STAFF_ROLE_COPY, staffFlagChips } from '@/lib/shop-role-picker'
 import { STAFF_ROLES } from '@/lib/shop-permissions'
 import TransferOwnershipButton from './TransferOwnershipButton'
 import LoginProviderLogo, { LOGIN_PROVIDER_LABEL, type LoginProvider } from '@/components/safepay/LoginProviderLogo'
@@ -28,6 +28,9 @@ export interface MemberRow {
   role: 'OWNER' | 'ADMIN'
   /** บทบาทพนักงาน (ShopMember.roles) — แถว OWNER เป็น [] */
   roles: string[]
+  /** 00086 ธงสิทธิ์รายคน — แถว OWNER เป็น false เสมอ (CHECK ShopMember_flags_admin_only_check) */
+  canCloseJob: boolean
+  canRecordExpense: boolean
   displayName: string
   /** รูปโปรไฟล์ (User.avatar) — null = แสดงอักษรแรกของชื่อแทน */
   avatar: string | null
@@ -49,6 +52,8 @@ interface CurrentMembersTableProps {
   canManage: boolean
   /** ร้านเปิดบทบาทเปิดบิลได้ไหม (canUseAppointments) — บังคับส่ง ไม่มีค่าตั้งต้น: ตารางนี้ใช้ 2 หน้า ลืมส่ง = เปิดบทบาทที่ใช้ไม่ได้ */
   billingAvailable: boolean
+  /** 00086 ร้านบริการ (canUseAppointments) — บังคับส่ง ไม่มีค่าตั้งต้น: ตั้ง/แสดงปิดงานได้ · บันทึกค่าใช้จ่ายได้ */
+  serviceFlagsAvailable: boolean
   /** card title — default "สมาชิกปัจจุบัน" */
   title?: string
   /** เนื้อหาเสริมฝั่งขวาของ card-header เช่น quota badge (feature 00012 Task 4.3) */
@@ -67,6 +72,7 @@ export default async function CurrentMembersTable({
   shopId,
   canManage,
   billingAvailable,
+  serviceFlagsAvailable,
   title = 'สมาชิกปัจจุบัน',
   headerRight,
 }: CurrentMembersTableProps) {
@@ -141,6 +147,12 @@ export default async function CurrentMembersTable({
                           {STAFF_ROLE_COPY[r].label}
                         </span>
                       ))}
+                      {/* 00086 ป้ายธง — ผู้ดูแลปิดงานได้อยู่แล้วจึงไม่ขึ้นป้ายปิดงาน (กติกาอยู่ใน staffFlagChips) */}
+                      {staffFlagChips(serviceFlagsAvailable, member.roles, member).map((label) => (
+                        <span key={label} className="badge bg-default-100 text-default-700">
+                          {label}
+                        </span>
+                      ))}
                       {/* ข้อมูลเคลื่อน: ADMIN ที่ไม่มีบทบาทที่รู้จักเลย = สิทธิ์ว่าง ต้องบอกเจ้าของ ไม่ซ่อน */}
                       {!STAFF_ROLES.some((r) => member.roles.includes(r)) && (
                         <span className="badge bg-warning/15 text-warning-ink">ยังไม่ได้ตั้งบทบาท</span>
@@ -151,7 +163,9 @@ export default async function CurrentMembersTable({
                           memberId={member.id}
                           name={member.displayName}
                           roles={member.roles}
+                          flags={{ canCloseJob: member.canCloseJob, canRecordExpense: member.canRecordExpense }}
                           billingAvailable={billingAvailable}
+                          serviceFlagsAvailable={serviceFlagsAvailable}
                           primaryOwnerName={primary?.displayName ?? 'เจ้าของหลัก'}
                         />
                       )}

@@ -696,7 +696,7 @@ export async function getMessages(
     /** cap ที่ฝั่งร้านต้องถือ (00071 S-13 · 'H1') — ผู้ซื้อ (buyerUserId) ไม่ใช้; ไม่ส่ง = ฝั่งร้านถูกปฏิเสธ */
     shopCap?: Capability
   } = {},
-): Promise<{ items: ChatMessageView[]; nextCursor: string | null }> {
+): Promise<{ items: ChatMessageView[]; nextCursor: string | null; viewerIsBuyer: boolean }> {
   const conversation = await assertParticipant(conversationId, actorUserId, opts.shopCap)
 
   /**
@@ -727,7 +727,7 @@ export async function getMessages(
       orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
       take: Math.min(take, 100),
     })
-    return { items: await attachAutoReplyTrace(conversationId, deltaRows), nextCursor: null }
+    return { items: await attachAutoReplyTrace(conversationId, deltaRows), nextCursor: null, viewerIsBuyer }
   }
 
   const cursor = parseMessageCursor(opts.cursor)
@@ -760,6 +760,8 @@ export async function getMessages(
   return {
     items: await attachAutoReplyTrace(conversationId, page),
     nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
+    // 00086 — ผู้เรียกที่ตกแต่งข้อความ (chat-thread-messages) ใช้ตัดข้อมูลภายในร้านออกจาก payload ผู้ซื้อ
+    viewerIsBuyer,
   }
 }
 

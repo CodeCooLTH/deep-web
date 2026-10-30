@@ -65,3 +65,39 @@ describe('resolveShortcutState — unavailableByRole', () => {
     for (const bad of ['seller:inbox', 'seller:sales', 'seller:wallet']) expect(s.catalog.map((c) => c.slug)).not.toContain(bad)
   })
 })
+
+// 00086 (user 2026-10-30 "ทำให้ช่างใช้งานง่าย") — ช่างล้วนร้านบริการไม่มีทางลัดไปฟอร์มตั้งค่าร้าน (บันทึก = T1)
+describe('resolveShortcutState — ช่างล้วนร้านบริการ', () => {
+  it('แคตตาล็อก/ค่าเริ่มต้นไม่มี "ร้านค้า" แต่ทางลัดงานยังอยู่ครบ', async () => {
+    as('ADMIN', ['TECHNICIAN'])
+    const s = await resolveShortcutState(session, SHELL)
+    if (s.kind !== 'OK') throw new Error('NO_SHOP')
+    const slugs = s.catalog.map((c) => c.slug)
+    expect(slugs).not.toContain('seller:shop')
+    expect(slugs).toEqual(expect.arrayContaining(['seller:orders', 'seller:queues', 'seller:badges']))
+    expect(s.tiles.map((t) => t.slug)).not.toContain('seller:shop')
+  })
+
+  it('เคยปัก "ร้านค้า" ไว้ = ซ่อนแบบบทบาทถอด (ไม่ขึ้น "ไม่พร้อมใช้งาน") · ยังอยู่ใน pinnedSlugs', async () => {
+    as('ADMIN', ['TECHNICIAN'])
+    pref.slugs = ['seller:orders', 'seller:shop']
+    const s = await resolveShortcutState(session, SHELL)
+    if (s.kind !== 'OK') throw new Error('NO_SHOP')
+    expect(s.tiles.map((t) => t.slug)).toEqual(['seller:orders'])
+    expect(s.unavailable).toEqual([])
+    expect(s.unavailableByRole).toEqual(['seller:shop'])
+  })
+
+  it('เจ้าของ/ผู้ดูแลร้านบริการ และช่างล้วนร้านอื่น ยังมี "ร้านค้า" เหมือนเดิม', async () => {
+    for (const [role, roles, vertical] of [
+      ['OWNER', [], 'SERVICE_QUEUE'],
+      ['ADMIN', ['MANAGER'], 'SERVICE_QUEUE'],
+      ['ADMIN', ['TECHNICIAN'], 'ONLINE_SALES'],
+    ] as const) {
+      as(role, [...roles], vertical)
+      const s = await resolveShortcutState(session, SHELL)
+      if (s.kind !== 'OK') throw new Error('NO_SHOP')
+      expect(s.catalog.map((c) => c.slug), `${role} ${roles} ${vertical}`).toContain('seller:shop')
+    }
+  })
+})

@@ -32,7 +32,7 @@ import { ORDER_STATUS_META, isCODPayment as isCodPayment, type OrderStatusTone }
 // คลังคำตามประเภทกิจการ — SSOT เดียวของคำเหล่านี้ (HR16) ห้ามพิมพ์คำของ vertical ไว้ในไฟล์นี้เอง
 import { resolveOrderVocab } from './seller-menu'
 import { usesServiceFinanceRules } from './finance-rules'
-import { SERVICE_STATUS_META } from './service-status'
+import { SERVICE_STATUS_META, serviceArrivalOf } from './service-status'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -585,9 +585,18 @@ export interface OrderStageInput {
   vertical?: string | null
   /**
    * feature 00073 — Order.serviceClosedAt (ร้านบริการปิดงานแล้ว) · ไม่ส่ง = ไม่รู้ ⇒ ป้ายเดิม
-   * ร้านบริการที่ปิดแล้วต้องขึ้น "ปิดงานแล้ว" ไม่ใช่ "รับงานแล้ว"/"กำลังจัดส่ง" (คำของขั้นก่อน/คำร้านขายของ)
+   * ร้านบริการที่ปิดแล้วต้องขึ้น "ปิดงานแล้ว" ไม่ใช่ "รอเริ่มงาน"/"กำลังจัดส่ง" (คำของขั้นก่อน/คำร้านขายของ)
    */
   serviceClosedAt?: Date | string | null
+  /**
+   * feature 00086 — แบบการมา (ค่าที่ร้านเลือก) + createdAt (สูตรเดิม) · เวลาเริ่ม/ทำเสร็จงาน
+   * ร้านบริการ: งานหน้าร้านไม่ขึ้น "นัด {วัน}" · กดเริ่ม/ทำเสร็จแล้วขึ้นขั้นเดียวกับการ์ดงาน
+   * ไม่ส่ง = ป้ายเดิมทุกตัว
+   */
+  arrivalMode?: string | null
+  createdAt?: Date | string | null
+  serviceStartedAt?: Date | string | null
+  serviceFinishedAt?: Date | string | null
   /**
    * จำนวนออเดอร์ "ที่ยังไม่ถูกยกเลิก" ของลูกค้าคนนี้ในร้านนี้ ที่พัสดุมีปัญหาอยู่ — **นับทุกใบ
    * ไม่ใช่แค่ใบล่าสุด** (user สั่ง 2026-08-20)
@@ -745,7 +754,11 @@ export function deriveOrderStage(
   return {
     key,
     // ลำดับ: นัดหมาย (เจาะจงที่สุด) → คำตามประเภทกิจการ → คำกลางของระบบ
-    ...(serviceClosedFace(key, order) ?? appointmentFace(key, order) ?? verticalFace(key, order) ?? ORDER_STAGE_META[key]),
+    ...(serviceClosedFace(key, order) ??
+      serviceProgressFace(key, order) ??
+      appointmentFace(key, order) ??
+      verticalFace(key, order) ??
+      ORDER_STAGE_META[key]),
     ...(printCount > 0 ? { printCount } : {}),
     // ใบเดียวไม่ต้องบอกจำนวน — "พัสดุมีปัญหา ×1" อ่านแล้วชวนสงสัยว่าอีกใบอยู่ไหน
     ...(key === 'PARCEL_PROBLEM' && problemOrders >= 2 ? { problemCount: problemOrders } : {}),
@@ -781,7 +794,7 @@ export function orderStageChipLabel(stage: {
 /**
  * serviceClosedFace — feature 00073: งานร้านบริการที่ร้าน "ปิดงาน" แล้ว (และลูกค้ายังไม่ยืนยัน)
  *
- * Order.status ยังเป็น PENDING หลังปิดงาน (BR-RSV-33) ⇒ key ค้างที่ ORDERED → ป้ายเดิมจะพูด "รับงานแล้ว"
+ * Order.status ยังเป็น PENDING หลังปิดงาน (BR-RSV-33) ⇒ key ค้างที่ ORDERED → ป้ายเดิมจะพูด "รอเริ่มงาน" (stageOrderedLabel)
  * (walk-in) ทั้งที่งานจบไปแล้ว · ข้อมูลเก่าที่ค้าง SHIPPED (ปิดย้อนหลังแล้ว) จะพูด "กำลังจัดส่ง" = คำร้านขายของ
  * ไม่มาตามนัดปล่อยให้ appointmentFace พูด "ไม่มาตามนัด" ตามเดิม · เปลี่ยนแค่หน้าตา key คงเดิม (เหตุผลเดียวกับด้านล่าง)
  * คำ/สี/ไอคอนมาจากป้ายชุดเดียว (service-status.ts) — ไม่บอกเรื่องเงิน (แถวแชทไม่ถือยอด)
@@ -794,6 +807,30 @@ function serviceClosedFace(
   if (!usesServiceFinanceRules(order.vertical) || !order.serviceClosedAt) return null
   if (order.appointmentStatus === 'NO_SHOW') return null
   return { label: 'ปิดงานแล้ว', cls: 'bg-info/15 text-info-ink', icon: SERVICE_STATUS_META.CLOSED_PAID.icon }
+}
+
+/**
+ * serviceProgressFace — feature 00086 · ร้านบริการที่ยังไม่ปิดงาน: ลำดับเดียวกับ deriveServiceStatus
+ *   ทำเสร็จแล้ว → "ทำเสร็จ · รอปิดงาน" · เริ่มแล้ว → "กำลังให้บริการ"
+ *   งานหน้าร้านที่นัดยังไม่มีความเคลื่อนไหว → ป้าย WALK_IN ("รอเริ่มงาน") แทน "นัด {วัน}"
+ *   (คำขอเลื่อน/ยืนยันนัดจากลูกค้ายังชนะ — ตกไป appointmentFace)
+ * ไม่มีนัดเลย (ใบเก่า) ⇒ null ⇒ verticalFace ซึ่งใช้คำเดียวกัน (stageOrderedLabel)
+ */
+function serviceProgressFace(
+  key: OrderStageKey,
+  order: OrderStageInput,
+): { label: string; cls: string; icon: string } | null {
+  if (key !== 'ORDERED' || !usesServiceFinanceRules(order.vertical) || order.serviceClosedAt) return null
+  if (order.appointmentStatus === 'NO_SHOW' || order.appointmentStatus === 'COMPLETED') return null
+  const pick = (k: 'IN_SERVICE' | 'FINISHED_AWAITING_CLOSE' | 'WALK_IN') => {
+    const m = SERVICE_STATUS_META[k]
+    return { label: m.seller, cls: m.cls, icon: m.icon }
+  }
+  if (order.serviceFinishedAt) return pick('FINISHED_AWAITING_CLOSE')
+  if (order.serviceStartedAt) return pick('IN_SERVICE')
+  const untouched = order.appointmentStatus == null || order.appointmentStatus === APPOINTMENT_STATUS.SCHEDULED
+  if (order.serviceStart && untouched && serviceArrivalOf(order) === 'WALK_IN') return pick('WALK_IN')
+  return null
 }
 
 /**

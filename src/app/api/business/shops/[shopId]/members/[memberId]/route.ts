@@ -10,7 +10,7 @@ import { changeMemberRole, removeShopMember } from "@/services/shop-member.servi
 
 /**
  * /api/business/shops/[shopId]/members/[memberId]
- * - PATCH  { role?, roles? } — เจ้าของ (หลัก/ร่วม) เปลี่ยนบทบาทสมาชิก (EXT 2026-10-05 BR-MR-01/02)
+ * - PATCH  { role?, roles?, canCloseJob?, canRecordExpense? } — เจ้าของ (หลัก/ร่วม) เปลี่ยนบทบาทสมาชิก (EXT 2026-10-05 BR-MR-01/02)
  * - DELETE — เจ้าของ (หลัก/ร่วม) ลบสมาชิก (BR-MR-07)
  *
  * ทำไม callerId derive จาก session เท่านั้น: ดู src/app/api/business/subscribe/route.ts
@@ -30,8 +30,9 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   if (!parsed.success) return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
 
   try {
-    const { role, roles } = await changeMemberRole(callerId, shopId, memberId, parsed.output);
-    return NextResponse.json({ role, roles });
+    const { role, roles, canCloseJob, canRecordExpense, unassignedJobCount } = await changeMemberRole(callerId, shopId, memberId, parsed.output);
+    // unassignedJobCount: งานบริการที่ยังเปิดซึ่งกลับเป็น "ยังไม่มีคนรับ" (00086 P3) — UI ต่อท้าย toast เมื่อ > 0
+    return NextResponse.json({ role, roles, canCloseJob, canRecordExpense, unassignedJobCount });
   } catch (e: unknown) {
     const res = memberErrorResponse(e);
     if (res) return res;
@@ -49,8 +50,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   const callerId = gate.userId;
 
   try {
-    await removeShopMember(callerId, shopId, memberId);
-    return NextResponse.json({ status: "REMOVED" });
+    const { unassignedJobCount } = await removeShopMember(callerId, shopId, memberId);
+    return NextResponse.json({ status: "REMOVED", unassignedJobCount });
   } catch (e: unknown) {
     const res = memberErrorResponse(e);
     if (res) return res;

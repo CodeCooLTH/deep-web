@@ -33,6 +33,7 @@ import { verifyReclaimTicket } from '@/lib/link-intent'
 import { classifyLinkConflict, shouldCloseHolder } from '@/lib/link-conflict'
 import { ACCOUNT_DELETE_REASON } from '@/lib/account-deletion'
 import { SHOP_DELETE_REASON } from '@/lib/business-package'
+import { unassignUserOpenJobsEverywhere } from '@/services/service-job.service'
 
 /** ต้องตรงกับ oauthMap ใน lib/auth.ts — provider ที่แมปเป็น enum ของ AuthAccount ได้ */
 const PROVIDER_ENUM: Record<string, 'FACEBOOK' | 'LINE' | 'INSTAGRAM' | 'APPLE'> = {
@@ -170,6 +171,8 @@ export async function POST(request: Request) {
       })
       await tx.pushToken.deleteMany({ where: { userId: existing.userId } })
       await tx.shopMember.deleteMany({ where: { userId: existing.userId } })
+      // 00086 — ชุดเดียวกับ deleteAccount: งานบริการที่ยังเปิดซึ่งมอบให้บัญชีค้างกลับเป็น "ยังไม่มีคนรับ" (no-op ในทางปฏิบัติ)
+      await unassignUserOpenJobsEverywhere(tx, { userId: existing.userId, actorUserId: existing.userId, now })
     }
   })
 

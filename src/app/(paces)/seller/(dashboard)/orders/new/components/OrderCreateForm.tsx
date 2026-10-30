@@ -41,6 +41,27 @@ import {
 import { resolveProductVocab } from '@/lib/seller-menu'
 import { orderItemVocab } from '@/lib/order-display'
 import { MOBILE_PHONE_RE, MOBILE_RULE_TEXT } from '@/lib/phone'
+import {
+  appointmentErrorsToClearOnArrivalChange,
+  arrivalAppointmentProblem,
+  arrivalChoiceAfterPrefill,
+  DEFAULT_ARRIVAL_CHOICE,
+  sendsArrivalMode,
+  usesServiceCreateLayout,
+  walkInAppointmentPayload,
+  type OrderArrivalChoice,
+} from '@/lib/order-form-arrival'
+// feature 00086 P3-T8 — ผู้รับผิดชอบ (SSOT ของการโหลด/แสดง/ส่ง: lib/order-form-assignee)
+import {
+  assigneePayload,
+  loadsServiceStaff,
+  parseServiceStaff,
+  resetsAssigneeAfterError,
+  showsAssigneePicker,
+  type ServiceStaffOption,
+} from '@/lib/order-form-assignee'
+import AssigneePicker from './AssigneePicker'
+import { assigneeFormWindow } from '@/lib/assignee-load'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -217,6 +238,16 @@ export interface FormValues {
    * orderNeedsShippingAddress() (SSOT: lib/shipping-address-status.ts)
    */
   fulfillmentMode?: 'PICKUP'
+  /**
+   * feature 00086 P2-T4 — ลูกค้ามาแบบไหน (ร้านบริการตอนสร้างเท่านั้น · SSOT: sendsArrivalMode)
+   * ส่งเข้า payload เฉพาะเมื่อ sendsArrivalMode() — ร้านอื่น/หน้าแก้ไขไม่มีคีย์นี้ใน body เลย
+   */
+  arrivalMode?: OrderArrivalChoice
+  /**
+   * feature 00086 P3-T8 — ผู้รับผิดชอบงาน (null = "ยังไม่ระบุ")
+   * ส่งเข้า payload เฉพาะ serviceLayout (SSOT: assigneePayload) — ร้านอื่น/หน้าแก้ไขไม่มีคีย์นี้ใน body เลย
+   */
+  assignedUserId?: string | null
 }
 
 // ─── itemSchema — ใช้ใน Yup schema + ยืม pattern ของ OrderCreateForm เดิม ────
@@ -295,6 +326,10 @@ const schema = Yup.object({
   // feature 00062 (U15) — mirror CreateOrderSchema.fulfillmentMode (SSOT) ค่าที่รับได้มีแค่ 'PICKUP'
   // (ฟอร์มนี้ไม่มีปุ่ม "SHIPPED" ตรง ๆ — ไม่เลือกนัดรับ = ไม่ส่งคีย์นี้เลย)
   fulfillmentMode: Yup.string().oneOf(['PICKUP']).optional(),
+  // feature 00086 P2-T4 — mirror arrivalMode ของ POST /api/orders ('BOOKED' | 'WALK_IN')
+  arrivalMode: Yup.string().oneOf(['BOOKED', 'WALK_IN']).optional(),
+  // feature 00086 P3-T8 — mirror assignedUserId ของ POST /api/orders (string | null) · ความเป็นช่างตรวจที่ server
+  assignedUserId: Yup.string().nullable().optional(),
   shippingAddress: Yup.object({
     line1: Yup.string().optional(),
     subdistrict: Yup.string().optional(),
@@ -385,8 +420,43 @@ export default function OrderCreateForm({
   const usesMessageDate = shopVertical !== 'SERVICE_QUEUE'
   const effectivePrefillCreatedAt = usesMessageDate ? prefillCreatedAt : undefined
   const effectivePrefillTooOld = usesMessageDate ? prefillCreatedAtTooOld : false
+  /**
+   * feature 00086 P2-T4 — ฟอร์มสร้างของร้านบริการ: ลำดับใหม่ + "ลูกค้ามาแบบไหน"
+   * หน้าแก้ไข (editOrderToken) คงฟอร์มเดิม · ร้านอื่นคงฟอร์มเดิม (SSOT + เทส: lib/order-form-arrival)
+   */
+  const serviceLayout = usesServiceCreateLayout(shopVertical, editOrderToken)
+  const arrivalEnabled = sendsArrivalMode({
+    serviceLayout,
+    resourcesEnabled: serviceResourcesEnabled,
+    resourceCount: serviceResources.length,
+  })
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  /**
+   * feature 00086 P3-T8 — รายชื่อช่าง โหลดครั้งเดียว (null = กำลังโหลด/โหลดล้ม → ไม่ render ส่วนนี้ ไม่ toast)
+   * ส่ง shopId ของฟอร์มไปด้วยเสมอ (ดูคอมเมนต์ prop `shopId`) — ในกล่องแชทรวมหลายร้าน รายชื่อต้องเป็นของร้านเธรด
+   * ไม่ใช่ร้าน active ไม่งั้นเลือกคนของอีกร้านแล้วได้ ASSIGNEE_NOT_TECHNICIAN ทุกครั้ง
+   * staffLoadSeq ขยับเมื่อ server บอกว่าคนที่เลือกไม่ใช่ช่างแล้ว → โหลดรายชื่อใหม่
+   */
+  const [serviceStaff, setServiceStaff] = useState<ServiceStaffOption[] | null>(null)
+  const [staffLoadSeq, setStaffLoadSeq] = useState(0)
+  useEffect(() => {
+    if (!loadsServiceStaff(serviceLayout)) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/shops/current/service-staff?shopId=${encodeURIComponent(shopId)}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error(String(res.status))
+        const list = parseServiceStaff(await res.json())
+        if (!cancelled) setServiceStaff(list)
+      } catch {
+        // เงียบ — ช่องไม่บังคับ มอบงานทีหลังได้จากหน้างาน
+        if (!cancelled) setServiceStaff(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [serviceLayout, shopId, staffLoadSeq])
 
   // ── Submit status full-bleed sheet (loading/error) — แทน inline loading + toast เดิม ──
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
@@ -398,6 +468,7 @@ export default function OrderCreateForm({
     control,
     handleSubmit,
     setError,
+    clearErrors,
     setValue,
     getValues,
     reset,
@@ -428,6 +499,8 @@ export default function OrderCreateForm({
       orderedAt: effectivePrefillCreatedAt ? toDatetimeLocalValue(new Date(effectivePrefillCreatedAt)) : undefined,
       // feature 00062 (U15) — ค่าเริ่มต้น = "จัดส่ง" เสมอ (ไม่มีปุ่มดาวจำค่าเริ่มต้นแบบ channel/payment)
       fulfillmentMode: undefined,
+      // feature 00086 P2-T4 — ค่าเริ่ม "จองล่วงหน้า" เฉพาะเมื่อมีปุ่มเลือก (ร้านอื่นไม่มีคีย์นี้ใน payload)
+      arrivalMode: arrivalEnabled ? DEFAULT_ARRIVAL_CHOICE : undefined,
     },
   })
 
@@ -640,6 +713,10 @@ export default function OrderCreateForm({
   useEffect(() => {
     if (!serviceResourcesEnabled) return
     if (appointmentPrefilledDate) setValue('appointment.date', appointmentPrefilledDate)
+    // 00086 P2-T4 — วันที่มาจากปฏิทิน = การจองล่วงหน้าเสมอ (ไม่ปล่อยให้ค้างเป็น "หน้าร้าน")
+    if (arrivalEnabled && appointmentPrefilledDate) {
+      setValue('arrivalMode', arrivalChoiceAfterPrefill(getValues('arrivalMode'), true))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentPrefilledDate, serviceResourcesEnabled])
 
@@ -659,6 +736,9 @@ export default function OrderCreateForm({
     if (appointmentPrefill.startTime) setValue('appointment.startTime', appointmentPrefill.startTime)
     if (appointmentPrefill.endTime) setValue('appointment.endTime', appointmentPrefill.endTime)
     if (appointmentPrefill.resourceId) setValue('appointment.resourceId', appointmentPrefill.resourceId)
+    if (arrivalEnabled) {
+      setValue('arrivalMode', arrivalChoiceAfterPrefill(getValues('arrivalMode'), Boolean(appointmentPrefill.date)))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentPrefillSeq, serviceResourcesEnabled])
 
@@ -689,6 +769,18 @@ export default function OrderCreateForm({
   const appointmentWatch = useWatch({ control, name: 'appointment' }) as
     | FormValues['appointment']
     | undefined
+  // 00086 P2-T4 — ค่าปุ่ม "ลูกค้ามาแบบไหน" ส่งเข้า AppointmentBlock (undefined = บล็อกเดิมทุกตัวอักษร)
+  const arrivalWatch = useWatch({ control, name: 'arrivalMode' }) as OrderArrivalChoice | undefined
+  const arrivalMode: OrderArrivalChoice | undefined = arrivalEnabled
+    ? (arrivalWatch ?? DEFAULT_ARRIVAL_CHOICE)
+    : undefined
+  // review P2 NIT-3 — สลับโหมดแล้ว error ของโหมดเดิมต้องไม่ค้างใต้บล็อก (SSOT: appointmentErrorsToClearOnArrivalChange)
+  const prevArrivalRef = useRef<OrderArrivalChoice | undefined>(arrivalMode)
+  useEffect(() => {
+    const fields = appointmentErrorsToClearOnArrivalChange(prevArrivalRef.current, arrivalMode)
+    prevArrivalRef.current = arrivalMode
+    if (fields.length > 0) clearErrors([...fields])
+  }, [arrivalMode, clearErrors])
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -768,9 +860,25 @@ export default function OrderCreateForm({
       // required ไม่ใช่ optional โดยตั้งใจ — ฟอร์มนี้ต้องพูดยอดมัดจำออกมาเสมอ (ดูคอมเมนต์
       // ตอนประกอบ payload) ถ้าเผลอเอาออก tsc จะฟ้องแทนที่จะเงียบแล้วไปใช้ค่าเริ่มต้นของคิวงาน
       depositAmount: string
-    } | undefined
+    } | { resourceId: string; durationMin?: number } | undefined
     const ap = values.appointment
-    if (serviceResourcesEnabled && ap?.resourceId) {
+    // feature 00086 P2-T4 — ร้านบริการตอนสร้าง: นัด/คิวบังคับตามวิธีที่ลูกค้ามา
+    // ข้อความชุดเดียวกับที่ API ตอบ (ARRIVAL_*) — server ตรวจซ้ำเสมอ ตรงนี้แค่บอกก่อนยิง
+    const submitArrival: OrderArrivalChoice | undefined = arrivalEnabled
+      ? (values.arrivalMode ?? DEFAULT_ARRIVAL_CHOICE)
+      : undefined
+    if (submitArrival) {
+      const problem = arrivalAppointmentProblem(submitArrival, ap, appointmentGranularity)
+      if (problem) {
+        setError(problem.field, { message: problem.message })
+        pacesToast.error(problem.message)
+        return
+      }
+    }
+    if (submitArrival === 'WALK_IN' && ap?.resourceId) {
+      // หน้าร้าน: server ตั้งเวลาเอง (walkInWindow) ไม่เก็บมัดจำ — ไม่ส่ง start/end/deposit เลย
+      appointmentPayload = walkInAppointmentPayload(ap.resourceId)
+    } else if (serviceResourcesEnabled && ap?.resourceId) {
       if (!ap.date) {
         setError('appointment.endTime', { message: 'เลือกวันที่นัดก่อน' })
         pacesToast.error('ยังไม่ได้เลือกวันที่นัด')
@@ -876,6 +984,10 @@ export default function OrderCreateForm({
       ...(vatAmount != null ? { vatAmount } : {}),
       ...(needsShipping && hasShippingData ? { shippingAddress: cleanShipping } : {}),
       ...(appointmentPayload ? { appointment: appointmentPayload } : {}),
+      // feature 00086 P2-T4 — เฉพาะร้านบริการตอนสร้างที่มีคิวงาน (sendsArrivalMode) ร้านอื่นไม่มีคีย์นี้
+      ...(submitArrival ? { arrivalMode: submitArrival } : {}),
+      // feature 00086 P3-T8 — เฉพาะร้านบริการตอนสร้าง (serviceLayout) ร้านอื่น/หน้าแก้ไขไม่มีคีย์นี้
+      ...assigneePayload(serviceLayout, values.assignedUserId),
       // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
       ...(conversationId ? { conversationId } : {}),
       // feature 00033 (C-1/C-2, 2026-08-06) — datetime-local เป็นเวลาเครื่อง แปลงเป็น ISO พร้อม offset (Z) ก่อนส่ง
@@ -926,6 +1038,12 @@ export default function OrderCreateForm({
           editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`,
         )
         console.error('[order-submit] failed', { status: res.status, code: data?.error, message: data?.message })
+        // 00086 P3-T8 — คนที่เลือกถูกถอดจากฝ่ายช่างระหว่างกรอก: กลับเป็น "ยังไม่ระบุ" + โหลดรายชื่อใหม่
+        // (ข้อความยังเป็นของ server ทางเดิม — ผู้ขายเลือกใหม่แล้วกดบันทึกอีกครั้งได้ทันที)
+        if (!editOrderToken && resetsAssigneeAfterError(data?.error)) {
+          setValue('assignedUserId', null)
+          setStaffLoadSeq((n) => n + 1)
+        }
         // 403 FORBIDDEN_ROLE ของบทบาทเปิดบิล = กฎต่อใบ (ไม่ใช่ "ไม่มีสิทธิ์ทั้งหน้า") — บอกทางแก้แทนรหัส
         if (billingOnly && res.status === 403 && data?.error === 'FORBIDDEN_ROLE') {
           setSubmitError(
@@ -1026,6 +1144,7 @@ export default function OrderCreateForm({
         /* วัน/เวลามาจากปฏิทินก่อนเปิดฟอร์ม → บล็อกต้องยืนยันบนจอว่าค่านั้นยังอยู่ และห้ามเปิด
            ปฏิทินซ้ำตอนกดเลือกคิว (เหตุผลเต็มอยู่ที่ prop นี้ใน AppointmentBlock) */
         prefilledFromCalendar={Boolean(appointmentPrefill?.date)}
+        mode={arrivalMode}
         value={{
           resourceId: appointmentWatch?.resourceId,
           date: appointmentWatch?.date,
@@ -1033,6 +1152,32 @@ export default function OrderCreateForm({
           endTime: appointmentWatch?.endTime,
           depositAmount: appointmentWatch?.depositAmount,
         }}
+      />
+    ) : null
+
+  /**
+   * feature 00086 P3-T8 — "ผู้รับผิดชอบ" (ร้านบริการตอนสร้าง · มีรายชื่อช่างอย่างน้อย 1 คน)
+   * สองใบแบบเดียวกับบล็อกนัด: มือถือ (section) + เดสก์ท็อป (panel) อ่าน-เขียน control ตัวเดียวกัน
+   */
+  // มติ 2026-10-30 — ช่วงเวลาของงานที่กรอกอยู่ ส่งเข้าชีตเลือก (ป้ายว่าง/ติดงาน) · สูตรเดียวกับ onSubmit (assignee-load)
+  const assigneeWindow = assigneeFormWindow({
+    arrival: arrivalMode,
+    date: appointmentWatch?.date,
+    startTime: appointmentWatch?.startTime,
+    endTime: appointmentWatch?.endTime,
+    granularity: appointmentGranularity,
+    walkInMinutes: serviceResources.find((r) => r.id === appointmentWatch?.resourceId)?.durationMinutes,
+    now: new Date(),
+  })
+  const renderAssigneeBlock = (variant: 'section' | 'panel') =>
+    showsAssigneePicker(serviceLayout, serviceStaff) ? (
+      <AssigneePicker
+        control={control}
+        staff={serviceStaff ?? []}
+        variant={variant}
+        secX={compact ? 'px-4' : 'px-4 md:px-8'}
+        shopId={shopId}
+        loadWindow={assigneeWindow}
       />
     ) : null
 
@@ -1110,6 +1255,9 @@ export default function OrderCreateForm({
           orderDateLabel={vocab.dateLabel}
           showDeliveryToggle={showDeliveryToggle}
           showCost={showCost}
+          serviceLayout={serviceLayout}
+          showArrivalPicker={arrivalEnabled}
+          assigneeBlock={renderAssigneeBlock('section')}
         />
       </div>
 
@@ -1148,6 +1296,9 @@ export default function OrderCreateForm({
             showCost={showCost}
             cartTitle={vocab.cartTitle}
             addToCartLabel={vocab.addToCartLabel}
+            serviceLayout={serviceLayout}
+            showArrivalPicker={arrivalEnabled}
+            assigneeBlock={renderAssigneeBlock('panel')}
           />
         </div>
       </div>

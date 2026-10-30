@@ -14,29 +14,60 @@
  *   4. **เส้นประเป็น element จริง ไม่ใช่ `::after`** — ของธีมคำนวณ offset จากขนาดจุด พอจุดโตขึ้น
  *      วัดจากหน้าจริงได้ความสูง 0px คือเส้นหายไปทั้งหมดโดยไม่มีอะไรเตือน
  *
+ * 00086 P3 (S-10): แถว "เริ่มงาน"/"ทำเสร็จแล้ว" ล่าสุดผูกกับรูป/บันทึกก่อน-หลัง (prop `serviceJobRecords`)
+ *   → รูปย่อ ≤4 + "+N" + บันทึก 3 บรรทัด (ตัวเต็มอยู่การ์ดรูปก่อน-หลัง) · ผูกแล้วไม่แสดง desc "รูป N รูป · มีบันทึก" ซ้ำ
+ *   รูปย่อ: ReviewImageGallery ← theme/paces/Admin/TS/src/app/(admin)/ui/images/page.tsx
+ *
  * ข้อมูลมาจากตาราง OrderEvent (feature 00031) — ออเดอร์ที่สร้างก่อนระบบเริ่มบันทึกจะมีเฉพาะ
  * เหตุการณ์ที่ backfill ย้อนหลังได้ ซึ่งอาจไม่มีเลย ต้องมี empty-state ที่บอกสาเหตุ ไม่ใช่กล่องว่าง
  */
 
-import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
+import ActivityActorAvatar from './ActivityActorAvatar'
 import { cn } from '@/utils/helpers'
 import { formatDateTH, formatDayMonthShortYearTH, formatTimeHM } from '@/lib/format-date'
 import { ORDER_EVENT_META, describeOrderEvent, resolveOrderEventLabel, type OrderEventView } from '@/lib/order-event'
 import type { OrderVocab } from '@/lib/seller-menu'
+import ReviewImageGallery from '@/app/(paces)/seller/(dashboard)/reviews/components/ReviewImageGallery'
+import type { ServiceJobRecordView } from '@/components/safepay/service-job/service-job-facts'
+
+/** รูปย่อในประวัติไม่เกินเท่านี้ — ที่เหลือบอกเป็น "+N" (ตัวเต็มอยู่การ์ดรูปก่อน-หลัง) */
+const HISTORY_THUMBS = 4
+
+/**
+ * เหตุการณ์ไหนผูกกับรูป/บันทึกแถวไหน — เฉพาะ SERVICE_STARTED/SERVICE_FINISHED **ล่าสุด** (events เรียงใหม่→เก่า)
+ * ServiceJobRecord มีได้เฟสละแถวเดียว (unique orderId+phase) ⇒ ผูกกับเหตุการณ์เดียว ไม่ใช่ทุกแถวที่ชนิดตรง
+ */
+export function linkServiceJobRecords(
+  events: readonly Pick<OrderEventView, 'id' | 'type'>[],
+  records: readonly ServiceJobRecordView[] | undefined,
+): Map<string, ServiceJobRecordView> {
+  const out = new Map<string, ServiceJobRecordView>()
+  if (!records || records.length === 0) return out
+  for (const [type, phase] of [['SERVICE_STARTED', 'BEFORE'], ['SERVICE_FINISHED', 'AFTER']] as const) {
+    const ev = events.find((e) => e.type === type)
+    const rec = records.find((r) => r.phase === phase)
+    if (ev && rec) out.set(ev.id, rec)
+  }
+  return out
+}
 
 export default function ShippingActivity({
   events,
   orderNoun = 'คำสั่งซื้อ',
   createLabel = 'สร้างคำสั่งซื้อ',
   serviceVocab,
+  serviceJobRecords,
 }: {
   events: OrderEventView[]
   orderNoun?: string
   createLabel?: string
   /** คลังคำเต็มของร้านบริการ (ส่งเฉพาะ SERVICE_QUEUE) — ไม่ส่ง = คำกลางเดิม */
   serviceVocab?: OrderVocab
+  /** 00086 — รูป/บันทึกก่อน-หลังทำ (ร้านบริการเท่านั้น) · ไม่ส่ง = ประวัติเดิมทุกแถว */
+  serviceJobRecords?: readonly ServiceJobRecordView[]
 }) {
+  const linked = linkServiceJobRecords(events, serviceJobRecords)
   return (
     <div className="card">
       <div className="card-header">
@@ -58,7 +89,9 @@ export default function ShippingActivity({
           <div>
             {events.map((ev, idx) => {
               const meta = ORDER_EVENT_META[ev.type]
-              const desc = describeOrderEvent(ev, serviceVocab)
+              const rec = linked.get(ev.id)
+              // ผูกรูป/บันทึกแล้ว = ไม่ต้องบอก "รูป N รูป · มีบันทึก" ซ้ำกับของที่เห็นอยู่
+              const desc = rec ? null : describeOrderEvent(ev, serviceVocab)
               const isLast = idx === events.length - 1
               return (
                 <div className="flex gap-x-3 md:gap-x-base" key={ev.id}>
@@ -93,13 +126,8 @@ export default function ShippingActivity({
                       ของเดิมวัดจากหน้าจริงได้สูง 0px คือมองไม่เห็นเลยสักเส้น */}
                   <div className="flex shrink-0 flex-col items-center">
                     {ev.actorAvatar ? (
-                      <Image
-                        alt=""
-                        className="size-9 shrink-0 rounded-full object-cover"
-                        height={36}
-                        src={ev.actorAvatar}
-                        width={36}
-                      />
+                      // critique P2 — รูปภายนอกหมดอายุ/โหลดไม่ขึ้น ⇒ ตกกลับเป็นตัวอักษรแรก (client leaf เพราะต้องมี onError)
+                      <ActivityActorAvatar src={ev.actorAvatar} label={ev.actorLabel ?? null} />
                     ) : ev.actorLabel ? (
                       <span className="bg-default-200 text-default-800 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
                         {ev.actorLabel.charAt(0).toUpperCase()}
@@ -125,6 +153,25 @@ export default function ShippingActivity({
                       {resolveOrderEventLabel(ev.type, { noun: orderNoun, createLabel }, serviceVocab)}
                     </h5>
                     {desc && <p className="text-default-700 mt-0.5 mb-1 text-sm break-words">{desc}</p>}
+                    {rec && rec.fileIds.length > 0 && (
+                      <div className="mb-1 flex flex-wrap items-end gap-1.5">
+                        <ReviewImageGallery
+                          images={rec.fileIds.slice(0, HISTORY_THUMBS)}
+                          thumbClassName="size-12"
+                          label={rec.phase === 'BEFORE' ? 'รูปก่อนทำ' : 'รูปหลังทำ'}
+                        />
+                        {rec.fileIds.length > HISTORY_THUMBS && (
+                          <span className="bg-default-100 text-default-700 flex size-12 items-center justify-center rounded-md text-xs tabular-nums">
+                            +{rec.fileIds.length - HISTORY_THUMBS}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {rec?.note && (
+                      <p className="bg-default-100 text-default-800 mb-1 mt-1 line-clamp-3 whitespace-pre-line break-words rounded-lg px-3 py-2 text-sm">
+                        {rec.note}
+                      </p>
+                    )}
                     {/* ไม่มีทั้ง actor และชื่อที่ freeze ไว้ = ระบบทำเอง — ห้ามเดาชื่อเจ้าของร้านมาเติม */}
                     <span className="text-default-800 text-xs font-semibold">โดย {ev.actorLabel ?? 'ระบบ'}</span>
                   </div>

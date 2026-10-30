@@ -100,7 +100,7 @@ describe('P2 ข้อความ/เลย์เอาต์เล็ก', () 
     expect(read('src/app/(paces)/seller/(dashboard)/products/page.tsx')).toMatch(/canCreate=\{can\([^)]*\)[^}]*'P2'\)\}/)
   })
   it('TodayJobs: หัวการ์ดไม่ขึ้น "· 0 งาน" และข้อความว่างใช้คำว่า "งาน"', async () => {
-    expect(read('src/app/(paces)/seller/(dashboard)/dashboard/components/TodayJobs.tsx')).toContain('items && total > 0 ?')
+    expect(read('src/app/(paces)/seller/(dashboard)/dashboard/components/TodayJobs.tsx')).toContain('groups && mineCount > 0 ?')
     const { th } = await import('@/i18n/dictionaries/th')
     const { en } = await import('@/i18n/dictionaries/en')
     expect(th.dashboard.todayJobsEmpty).toBe('วันนี้ยังไม่มีงาน')

@@ -11,6 +11,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { evaluateAutoNotifyEligibility } from '@/lib/auto-notify/eligibility'
+import { isImplicitKind } from '@/lib/auto-notify/kinds'
 import {
   LEDGER_FIXED_KEY,
   TRACKING_NOTICE_MAX,
@@ -34,6 +35,33 @@ const errTag = (e: unknown): string => {
   // ไม่ log message ของ Prisma (อาจมีค่าพารามิเตอร์) — ชื่อ + code พอสืบได้
   const code = (e as { code?: unknown } | null)?.code
   return `${e instanceof Error ? e.name : typeof e}${typeof code === 'string' ? `:${code}` : ''}`
+}
+
+/**
+ * 00086 — ร้านเปิดให้ลูกค้าเห็นรูปก่อน-หลังไหม (ตัวตัดสิน SERVICE_FINISHED) · NONE = ไม่มีรูปให้ดู ⇒ false เสมอ
+ * อ่านจากแถวร้านตอนจอง/ตอนส่ง (ไม่เชื่อค่าที่ผู้เรียกส่งมา) — ร้านปิดการมองเห็นระหว่างรอส่ง = ไม่ส่ง
+ */
+function photosBuyerVisibleOf(shop: { serviceJobPhotoMode: string; serviceJobPhotosBuyerVisible: boolean }): boolean {
+  return shop.serviceJobPhotosBuyerVisible === true && shop.serviceJobPhotoMode !== 'NONE'
+}
+
+/**
+ * สวิตช์ของชนิดนี้ — ชนิด "implicit" (IMPLICIT_KINDS · PRD §10.2) ไม่มีแถว AutoNotifySwitch:
+ * ถือ "ลูกค้าเห็นรูป" ของร้านเป็นค่าสวิตช์ และ enabledAt = epoch (ไม่มีจังหวะเปิดสวิตช์ให้เทียบ "ก่อนเปิด")
+ * ชนิดอื่นอ่านแถวสวิตช์ตามเดิมทุกประการ
+ */
+async function switchStateOf(
+  db: Tx | typeof prisma,
+  shopId: string,
+  kind: AutoNotifyKind,
+  photosBuyerVisible: boolean,
+): Promise<{ switchEnabled: boolean; enabledAt: Date | null }> {
+  if (isImplicitKind(kind)) return { switchEnabled: photosBuyerVisible, enabledAt: new Date(0) }
+  const sw = await db.autoNotifySwitch.findUnique({
+    where: { shopId_kind: { shopId, kind } },
+    select: { enabled: true, enabledAt: true },
+  })
+  return { switchEnabled: !!sw?.enabled, enabledAt: sw?.enabledAt ?? null }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -86,22 +114,24 @@ async function reserveInner(tx: Tx, p: ReserveInput): Promise<string | null> {
       serviceStart: true,
       appointmentStatus: true,
       serviceClosedAt: true,
-      shop: { select: { vertical: true } },
+      shop: { select: { vertical: true, serviceJobPhotoMode: true, serviceJobPhotosBuyerVisible: true } },
     },
   })
   if (!order) return null
 
   const key = p.kind === 'TRACKING' ? normalizeTrackingKey(p.valueKey ?? '') : LEDGER_FIXED_KEY
+  const photosBuyerVisible = photosBuyerVisibleOf(order.shop)
   const [sw, conv] = await Promise.all([
-    tx.autoNotifySwitch.findUnique({ where: { shopId_kind: { shopId: p.shopId, kind: p.kind } }, select: { enabled: true, enabledAt: true } }),
+    switchStateOf(tx, p.shopId, p.kind, photosBuyerVisible),
     p.conversationId ? tx.conversation.findFirst({ where: { id: p.conversationId, shopId: p.shopId }, select: { id: true } }) : null,
   ])
 
   const e = evaluateAutoNotifyEligibility({
     kind: p.kind,
     vertical: order.shop.vertical,
-    switchEnabled: !!sw?.enabled,
-    enabledAt: sw?.enabledAt ?? null,
+    switchEnabled: sw.switchEnabled,
+    enabledAt: sw.enabledAt,
+    photosBuyerVisible,
     eventAt: now,
     conversationId: conv ? p.conversationId : null,
     isDryRun: p.isDryRun,
@@ -287,24 +317,24 @@ const CHANNELS: readonly FitChannel[] = ['MESSENGER', 'INSTAGRAM', 'LINE', 'DEEP
 /** ตรวจซ้ำตอนส่งจริง — สวิตช์/ออเดอร์/ห้อง อาจเปลี่ยนไปตั้งแต่จอง (BR-CS-C02: ปิดแล้ว INTENT ค้างต้องไม่ถูกส่ง) */
 async function revalidate(l: LedgerRow): Promise<{ ok: true; channel: FitChannel; conversationId: string } | { ok: false }> {
   const kind = l.kind as AutoNotifyKind
-  const [sw, order] = await Promise.all([
-    prisma.autoNotifySwitch.findUnique({ where: { shopId_kind: { shopId: l.shopId, kind } }, select: { enabled: true, enabledAt: true } }),
-    prisma.order.findFirst({
-      where: { id: l.orderId, shopId: l.shopId },
-      select: {
-        status: true, isDryRun: true, conversationId: true, serviceStart: true, appointmentStatus: true, serviceClosedAt: true,
-        shop: { select: { vertical: true } },
-      },
-    }),
-  ])
+  const order = await prisma.order.findFirst({
+    where: { id: l.orderId, shopId: l.shopId },
+    select: {
+      status: true, isDryRun: true, conversationId: true, serviceStart: true, appointmentStatus: true, serviceClosedAt: true,
+      shop: { select: { vertical: true, serviceJobPhotoMode: true, serviceJobPhotosBuyerVisible: true } },
+    },
+  })
   if (!order || !l.conversationId || order.conversationId !== l.conversationId) return { ok: false }
+  const photosBuyerVisible = photosBuyerVisibleOf(order.shop)
+  const sw = await switchStateOf(prisma, l.shopId, kind, photosBuyerVisible)
   const conv = await prisma.conversation.findFirst({ where: { id: l.conversationId, shopId: l.shopId }, select: { id: true, channel: true } })
   if (!conv || !CHANNELS.includes(conv.channel as FitChannel)) return { ok: false }
   const e = evaluateAutoNotifyEligibility({
     kind,
     vertical: order.shop.vertical,
-    switchEnabled: !!sw?.enabled,
-    enabledAt: sw?.enabledAt ?? null,
+    switchEnabled: sw.switchEnabled,
+    enabledAt: sw.enabledAt,
+    photosBuyerVisible,
     // เหตุการณ์ = เวลาจอง: สวิตช์ปิดแล้วเปิดใหม่ (enabledAt ใหม่กว่า) ต้องไม่ส่งของเก่า (TC-139)
     eventAt: l.createdAt,
     conversationId: conv.id,

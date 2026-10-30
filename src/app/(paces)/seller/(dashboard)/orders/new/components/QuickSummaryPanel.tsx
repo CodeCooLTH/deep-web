@@ -12,6 +12,7 @@ import { useWatch } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import type { FormValues } from './OrderCreateForm'
+import { arrivalSubmitLabel, type OrderArrivalChoice } from '@/lib/order-form-arrival'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -29,9 +30,11 @@ interface Props {
   compact?: boolean
   /** เจ้าของร้านเท่านั้น (00071 S-3) — ซ่อนตัวนับต้นทุน */
   showCost?: boolean
+  /** 00086 — แบบการมาที่เลือกในฟอร์มสร้างร้านบริการ · ไม่ส่ง (ร้านอื่น/หน้าแก้ไข) = คำปุ่มเดิม */
+  arrivalMode?: OrderArrivalChoice
 }
 
-export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ', showCost = false }: Props) {
+export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ', showCost = false, arrivalMode }: Props) {
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const costCoverage = countCostCoverage(watchedItems)
   const [expanded, setExpanded] = useState(false)
@@ -107,7 +110,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
         className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover"
       >
         <Icon icon="device-floppy" className="text-lg" />
-        บันทึก{orderNoun}
+        {arrivalSubmitLabel(`บันทึก${orderNoun}`, arrivalMode)}
       </button>
     </div>
   )

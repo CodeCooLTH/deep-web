@@ -71,7 +71,7 @@ async function job(ctx: Awaited<ReturnType<typeof seed>>, opts: { deposit?: numb
 }
 
 const close = (ctx: Awaited<ReturnType<typeof seed>>, token: string, extra: Partial<Parameters<typeof closeServiceJob>[0]> = {}) =>
-  closeServiceJob({ shopId: ctx.shop.id, orderToken: token, actorUserId: ctx.owner.id, outcome: 'SERVED', ...extra })
+  closeServiceJob({ shopId: ctx.shop.id, orderToken: token, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED', ...extra })
 
 describe('FR-012 — ร้านปิดงานแล้ว ส่งคะแนน = ยืนยันรับบริการ', () => {
   it('ปิดงานแล้ว (ลูกค้ายังไม่ยืนยัน) → ส่งคะแนนได้ · งานเป็น CONFIRMED · มีรีวิว · มีเหตุการณ์ยืนยันของลูกค้า', async () => {

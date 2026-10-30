@@ -134,6 +134,12 @@ export type OrderRow = {
     /** ชื่อทรัพยากรที่รับงาน — null = นัดที่ resource ถูกถอดออกภายหลัง */
     resourceName: string | null
     stage: AppointmentStatus
+    /**
+     * 00086 (QA 2026-10-30) — ป้ายที่แสดงจริงของบรรทัดนัด: ขั้นระหว่างทำงาน (กำลังให้บริการ / ทำเสร็จ · รอปิดงาน)
+     * ชนะ · งานหน้าร้านยังไม่เริ่ม = "รอเริ่มงาน" · นอกนั้น = ป้ายนัดเดิม — ให้ตรงกับป้ายสถานะของใบเดียวกัน
+     * `stage` คงไว้สำหรับตัวกรอง/ตัวนับ (ไม่เปลี่ยนความหมาย) · ไม่ส่ง = APPOINTMENT_STAGE_META[stage] (ผลเดิม)
+     */
+    badge?: { label: string; cls: string; icon: string }
   } | null
   /**
    * เงินของใบนี้ (feature 00050 · AC-SQ-04/07) — **undefined = ป้ายสถานะไม่เปลี่ยน**
@@ -154,6 +160,8 @@ export type OrderRow = {
   serviceStatus?: { key: string; label: string; cls: string; icon: string; tone: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }
   /** feature 00073 — ร้านปิดงานเมื่อไร (ISO) · null = ยังไม่ปิด · undefined = ร้านอื่น */
   serviceClosedAtISO?: string | null
+  /** feature 00086 P3 — ชื่อผู้รับผิดชอบ (who-line) · null = ยังไม่มีคนรับ · undefined = ร้านอื่น (ไม่มีบรรทัดนี้) */
+  assigneeName?: string | null
   /** BILLING แก้ใบนี้ไม่ได้ (รับเงินแล้ว/ไม่ใช่บริการ) — คำนวณที่ server ด้วย canEditOrderAs ตัวเดียวกับหน้ารายละเอียด/หน้าแก้ไข · ซ่อนปุ่มแก้ไขในรายการ */
   editLocked?: boolean
   id: string            // publicToken short (8-char)

@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { NotificationsQuerySchema } from "@/lib/validations";
 import { listNotifications, getUnreadNotificationCount } from "@/services/notification.service";
+import { getSubdomain } from "@/lib/subdomain";
 
 /**
  * GET /api/notifications — bell notification บนเว็บ (buyer+seller, NextAuth session)
@@ -33,9 +34,11 @@ export async function GET(request: NextRequest) {
   }
 
   // 3. list + unread count (userId จาก session เท่านั้น — ห้ามรับจาก client)
+  // 00086: โดเมนผู้ซื้อเห็นเฉพาะแจ้งเตือนส่วนตัว · โดเมนร้าน (seller) เห็นของทุกร้าน (dropdown สลับร้านให้)
+  const personalOnly = getSubdomain(request.headers.get("host") ?? "") !== "seller";
   const [result, unreadCount] = await Promise.all([
-    listNotifications(userId, { cursor: parsed.output.cursor, take: parsed.output.take }),
-    getUnreadNotificationCount(userId),
+    listNotifications(userId, { cursor: parsed.output.cursor, take: parsed.output.take, personalOnly }),
+    getUnreadNotificationCount(userId, { personalOnly }),
   ]);
 
   return NextResponse.json({

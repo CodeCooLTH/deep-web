@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const m = vi.hoisted(() => ({ change: vi.fn(), invite: vi.fn(), link: vi.fn(), list: vi.fn(), transfer: vi.fn() }))
+const m = vi.hoisted(() => ({ change: vi.fn(), invite: vi.fn(), link: vi.fn(), list: vi.fn(), transfer: vi.fn(), remove: vi.fn() }))
 vi.mock('next-auth', () => ({ getServerSession: vi.fn().mockResolvedValue({ user: { id: 'owner' } }) }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/session-user', () => ({ sessionUserId: () => 'owner' }))
 vi.mock('@/services/shop-member.service', () => ({
-  changeMemberRole: m.change, removeShopMember: vi.fn(), inviteShopMember: m.invite, listInvites: m.list, transferShopOwnership: m.transfer,
+  changeMemberRole: m.change, removeShopMember: m.remove, inviteShopMember: m.invite, listInvites: m.list, transferShopOwnership: m.transfer,
 }))
 vi.mock('@/services/invite-link.service', () => ({ createInviteLink: m.link, listActiveInviteLinks: vi.fn() }))
 // ด่านจริง (requireShopCapability) ทำงานเต็ม — mock แค่ตัว resolve ร้าน/สมาชิก (ค่าตั้งต้น = เจ้าของหลัก)
@@ -21,7 +21,7 @@ vi.mock('@/lib/shop-context', () => ({
   })),
 }))
 
-import { PATCH } from './route'
+import { PATCH, DELETE } from './route'
 import { POST as invitePost } from '../../invites/route'
 import { POST as linkPost } from '@/app/api/shops/current/invite-links/route'
 import { GET as invitesGet } from '../../invites/route'
@@ -59,9 +59,35 @@ describe('PATCH members/[memberId]', () => {
     expect(r.status).toBe(400)
     expect(await r.json()).toEqual({ error: code })
   })
-  it('สำเร็จคืน role+roles', async () => {
-    m.change.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'] })
-    expect(await (await patch({ roles: ['CHAT'] })).json()).toEqual({ role: 'ADMIN', roles: ['CHAT'] })
+  it('สำเร็จคืน role+roles+ธง+จำนวนงานที่ถูกปลด (00086)', async () => {
+    m.change.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'], canCloseJob: true, canRecordExpense: false, unassignedJobCount: 0 })
+    expect(await (await patch({ roles: ['CHAT'] })).json())
+      .toEqual({ role: 'ADMIN', roles: ['CHAT'], canCloseJob: true, canRecordExpense: false, unassignedJobCount: 0 })
+  })
+  // 00086 P3: ถอดฝ่ายช่าง → service ปลดงานเปิด 3 ใบ ⇒ route ต้องส่งจำนวนให้ toast (ผลข้างเคียงต้องไม่เงียบ)
+  it('ถอดฝ่ายช่างแล้วงานถูกปลด → คืน unassignedJobCount', async () => {
+    m.change.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'], canCloseJob: false, canRecordExpense: false, unassignedJobCount: 3 })
+    expect((await (await patch({ roles: ['CHAT'] })).json()).unassignedJobCount).toBe(3)
+  })
+  // 00086: ส่งธงอย่างเดียว (ไม่มี role/roles) ต้องผ่าน schema · ธงต้องเป็น boolean
+  it('ส่งแค่ธงก็ผ่าน schema และส่งต่อให้ service', async () => {
+    m.change.mockResolvedValue({ role: 'ADMIN', roles: ['CHAT'], canCloseJob: true, canRecordExpense: true })
+    expect((await patch({ canCloseJob: true })).status).toBe(200)
+    expect(m.change.mock.calls[0][3]).toEqual({ canCloseJob: true })
+    expect((await patch({ canRecordExpense: false })).status).toBe(200)
+  })
+  it('ธงไม่ใช่ boolean = 400', async () => {
+    expect((await patch({ canCloseJob: 'yes' })).status).toBe(400)
+    expect(m.change).not.toHaveBeenCalled()
+  })
+  it.each([
+    ['CLOSE_JOB_NEEDS_START_ROLE', 'ปิดงานได้ ต้องใช้คู่กับ ตอบแชท หรือ ฝ่ายช่าง'],
+    ['STAFF_FLAGS_NOT_AVAILABLE', 'ร้านนี้ไม่ได้ขายบริการ จึงตั้งปิดงานได้/บันทึกค่าใช้จ่ายได้ไม่ได้'],
+  ])('%s = 400 + ข้อความไทย', async (code, message) => {
+    m.change.mockRejectedValue(new Error(code))
+    const r = await patch({ canCloseJob: true })
+    expect(r.status).toBe(400)
+    expect(await r.json()).toEqual({ error: code, message })
   })
 })
 
@@ -82,6 +108,36 @@ describe('invite create routes', () => {
     m.invite.mockResolvedValue({ id: 'i', status: 'PENDING' })
     await invite({ contact: '08', contactType: 'PHONE', roles: ['CHAT'] })
     expect(m.invite.mock.calls[0][4]).toEqual(['CHAT'])
+  })
+  // 00086
+  it('ธงไม่ส่ง = false ทั้งสอง route · ส่งมา = ส่งต่อ · คืนธงใน response', async () => {
+    m.invite.mockResolvedValue({ id: 'i', status: 'PENDING', canCloseJob: false, canRecordExpense: false })
+    await invite({ contact: '08', contactType: 'PHONE', roles: ['CHAT'] })
+    expect(m.invite.mock.calls[0][5]).toEqual({ canCloseJob: false, canRecordExpense: false })
+    m.invite.mockResolvedValue({ id: 'i', status: 'PENDING', canCloseJob: true, canRecordExpense: true })
+    const r = await invite({ contact: '08', contactType: 'PHONE', roles: ['CHAT'], canCloseJob: true, canRecordExpense: true })
+    expect(m.invite.mock.calls[1][5]).toEqual({ canCloseJob: true, canRecordExpense: true })
+    expect(await r.json()).toMatchObject({ canCloseJob: true, canRecordExpense: true })
+
+    m.link.mockResolvedValue({ slug: 'abc', expiresAt: new Date(), canCloseJob: false, canRecordExpense: false })
+    await linkPost(req({ roles: ['CHAT'] }))
+    expect(m.link.mock.calls[0][4]).toEqual({ canCloseJob: false, canRecordExpense: false })
+    m.link.mockResolvedValue({ slug: 'abc', expiresAt: new Date(), canCloseJob: true, canRecordExpense: false })
+    const lr = await linkPost(req({ roles: ['CHAT'], canCloseJob: true }))
+    expect(m.link.mock.calls[1][4]).toEqual({ canCloseJob: true, canRecordExpense: false })
+    expect(await lr.json()).toMatchObject({ canCloseJob: true, canRecordExpense: false })
+  })
+  it.each(['CLOSE_JOB_NEEDS_START_ROLE', 'STAFF_FLAGS_NOT_AVAILABLE'])('%s = 400 + message ทั้งสอง route (ไม่ใช่ 500)', async (code) => {
+    m.invite.mockRejectedValue(new Error(code))
+    m.link.mockRejectedValue(new Error(code))
+    const a = await invite({ contact: '08', contactType: 'PHONE', roles: ['CHAT'], canCloseJob: true })
+    const b = await linkPost(req({ roles: ['CHAT'], canCloseJob: true }))
+    for (const r of [a, b]) {
+      expect(r.status).toBe(400)
+      const j = await r.json()
+      expect(j.error).toBe(code)
+      expect(j.message).toMatch(/[ก-๙]/)
+    }
   })
 })
 
@@ -133,7 +189,24 @@ describe('ด่านบทบาทของ API จัดการสมา�
     expect(await denied.json()).toEqual({ error: 'NOT_PRIMARY_OWNER' })
     expect(m.transfer).not.toHaveBeenCalled()
     ctx.shopOwner = 'owner'
-    m.transfer.mockResolvedValue(undefined)
+    m.transfer.mockResolvedValue({ transferred: true, unassignedJobCount: 0 })
     expect((await call()).status).not.toBe(403)
+  })
+})
+
+// 00086 P3 — โอนเจ้าของ/ลบสมาชิก ปลดงานเปิดของผู้รับโอน/ผู้ถูกลบ ⇒ route ส่งจำนวนให้ toast
+describe('unassignedJobCount ใน response (00086 P3)', () => {
+  const params = { params: Promise.resolve({ shopId: 's1' }) }
+  it('โอนเจ้าของหลัก คืนจำนวนจาก service', async () => {
+    m.transfer.mockResolvedValue({ transferred: true, unassignedJobCount: 2 })
+    const r = await transferPost(req({ memberId: 'cm0000000000000000000000a' }), params)
+    expect(r.status).toBe(200)
+    expect(await r.json()).toEqual({ status: 'TRANSFERRED', unassignedJobCount: 2 })
+  })
+  it('ลบสมาชิก คืนจำนวนจาก service', async () => {
+    m.remove.mockResolvedValue({ removed: true, unassignedJobCount: 4 })
+    const r = await DELETE(new NextRequest('http://x/api', { method: 'DELETE' }), { params: Promise.resolve({ shopId: 's1', memberId: 'm1' }) })
+    expect(r.status).toBe(200)
+    expect(await r.json()).toEqual({ status: 'REMOVED', unassignedJobCount: 4 })
   })
 })

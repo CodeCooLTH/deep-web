@@ -54,8 +54,8 @@ describe('getFinanceChartData — ตรงกับแท็บกำไรข�
     const a = await job(ctx, 1200, 300)
     const b = await job(ctx, 800, null, { deposit: 200 })
     await job(ctx, 999, 100) // ยังไม่ปิด — ไม่ใช่ยอดขาย
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: a.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED', payment: { amount: 1200, method: 'CASH' } })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: b.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: a.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED', payment: { amount: 1200, method: 'CASH' } })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: b.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     const { y, m, d } = thaiToday()
     await prisma.expense.create({ data: { shopId: ctx.shop.id, category: 'RENT', amount: 500, expenseDate: new Date(Date.UTC(y, m - 1, d)), createdByUserId: ctx.owner.id } })
 
@@ -80,7 +80,7 @@ describe('getFinanceChartData — ตรงกับแท็บกำไรข�
   it('6 เดือน (รายเดือน): 6 ช่อง · เดือนสุดท้าย = เดือนนี้ · รวมเท่ารายวันของเดือนนี้', async () => {
     const ctx = await seed()
     const a = await job(ctx, 1500, 400)
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: a.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED', payment: { amount: 1500, method: 'CASH' } })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: a.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED', payment: { amount: 1500, method: 'CASH' } })
     const { y, m } = thaiToday()
     const six = await getFinanceChartData(ctx.shop.id, 'SERVICE_QUEUE', 'M6', { year: y, month: m })
     expect(six.buckets).toHaveLength(6)
@@ -96,7 +96,7 @@ describe('getFinanceChartData — ตรงกับแท็บกำไรข�
     const ctx = await seed()
     await job(ctx, 1000, null, { deposit: 300 })
     const closed = await job(ctx, 1000, null, { deposit: 400 })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: closed.publicToken, actorUserId: ctx.owner.id, outcome: 'SERVED' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: closed.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'SERVED' })
     expect(await getAdvanceDeposits(ctx.shop.id)).toEqual({ amount: 300, jobs: 1 })
   })
 })

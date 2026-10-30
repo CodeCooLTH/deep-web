@@ -10,7 +10,7 @@ import { getUnreadNotificationCount } from '@/services/notification.service'
 export default async function AppTopBar() {
   const session = await getServerSession(authOptions)
   const userId = (session?.user as { id?: string } | undefined)?.id
-  const unread = userId ? await getUnreadNotificationCount(userId) : 0
+  const unread = userId ? await getUnreadNotificationCount(userId, { personalOnly: true }) : 0
 
   return (
     <header

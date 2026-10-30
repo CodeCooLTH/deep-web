@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { memberErrorText } from './member-error-text'
+import { withUnassignedJobsNote } from '@/lib/shop-role-picker'
 import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 type Role = 'OWNER' | 'ADMIN'
@@ -79,12 +80,17 @@ export default function MemberRoleControls({
         setValue(role)
         return fail(body.error ?? '')
       }
+      // 00086 P3: เลื่อนเป็นเจ้าของ = ไม่ได้ถือฝ่ายช่างแล้ว → บอกจำนวนงานที่กลับเป็น "ยังไม่มีคนรับ" (0 = ข้อความเดิม)
+      const body = (await res.json().catch(() => ({}))) as { unassignedJobCount?: unknown }
       pacesToast.success(
-        next === 'OWNER'
-          ? `ตั้ง ${name} เป็นเจ้าของแล้ว`
-          : isSelf
-            ? 'คุณเป็นพนักงานแล้ว (บทบาทผู้ดูแล)'
-            : `เปลี่ยน ${name} เป็นพนักงานแล้ว ได้บทบาทผู้ดูแล ปรับได้ที่ปุ่ม “แก้ไขบทบาท”`,
+        withUnassignedJobsNote(
+          next === 'OWNER'
+            ? `ตั้ง ${name} เป็นเจ้าของแล้ว`
+            : isSelf
+              ? 'คุณเป็นพนักงานแล้ว (บทบาทผู้ดูแล)'
+              : `เปลี่ยน ${name} เป็นพนักงานแล้ว ได้บทบาทผู้ดูแล ปรับได้ที่ปุ่ม “แก้ไขบทบาท”`,
+          body.unassignedJobCount,
+        ),
       )
       if (isSelf && next === 'ADMIN') router.push('/dashboard')
       else router.refresh()

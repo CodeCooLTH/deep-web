@@ -79,6 +79,13 @@ describe.skipIf(!isLocal)('auto-notify-config (DB จริง)', () => {
     await expect(resetTemplate(S.service, 'TRACKING', new Date())).rejects.toBeInstanceOf(AutoNotifyKindNotAvailableError)
   })
 
+  // 00086 (PRD §10.2): SERVICE_FINISHED ไม่มีสวิตช์/เทมเพลตให้ตั้ง แม้เป็นร้านบริการ — ส่งตาม "ลูกค้าเห็นรูป" ของร้าน
+  it('SERVICE_FINISHED: ไม่มีแถวในหน้าตั้งค่า · ตั้งสวิตช์/เทมเพลตไม่ได้ (ร้านบริการ)', async () => {
+    expect((await getAutoNotifySettings(S.service, ['OWNER'])).kinds.map((k) => k.kind)).not.toContain('SERVICE_FINISHED')
+    await expect(setSwitch(S.service, 'SERVICE_FINISHED', true, S.user)).rejects.toBeInstanceOf(AutoNotifyKindNotAvailableError)
+    await expect(saveTemplate(S.service, 'SERVICE_FINISHED', 'x {ลิงก์งาน}', null, S.user)).rejects.toBeInstanceOf(AutoNotifyKindNotAvailableError)
+  })
+
   it('เทมเพลต: บันทึกใหม่ → ชน updatedAt → 409 → รีเซ็ต', async () => {
     const a = await saveTemplate(S.online, 'ORDER_SUMMARY', 'สวัสดี {ชื่อลูกค้า}', null, S.user)
     await expect(saveTemplate(S.online, 'ORDER_SUMMARY', 'อีกคน', null, S.user)).rejects.toBeInstanceOf(AutoNotifyTemplateConflictError)

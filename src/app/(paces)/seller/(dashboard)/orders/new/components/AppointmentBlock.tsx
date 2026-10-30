@@ -29,6 +29,7 @@ import AppointmentDateSheet from './AppointmentDateSheet'
 import type { FormValues } from './OrderCreateForm'
 import { combineDateTime, type AppointmentGranularity } from '@/lib/appointments'
 import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
+import { arrivalBlockIcon, arrivalBlockTitle, walkInPreviewText, type OrderArrivalChoice } from '@/lib/order-form-arrival'
 
 export type ServiceResourceOption = {
   id: string
@@ -69,6 +70,13 @@ type Props = {
    * ออเดอร์ปกติที่ไม่มีวันนัด" — อ่านได้ทางเดียวว่าสิ่งที่เพิ่งทำหายไปแล้ว
    */
   prefilledFromCalendar?: boolean
+  /**
+   * feature 00086 P2-T4 — ลูกค้ามาแบบไหน (เฉพาะฟอร์มสร้างของร้านบริการ · SSOT: sendsArrivalMode)
+   * undefined = บล็อกเดิมทุกตัวอักษร ("ไม่บังคับ — ข้ามได้…") สำหรับหน้าแก้ไข/ร้านอื่น
+   * 'BOOKED' = วันนัด + เวลา บังคับ (มีดอกจัน) ไม่มีคำว่า "ไม่บังคับ"
+   * 'WALK_IN' = "เข้าคิววันนี้" เลือกคิวงานอย่างเดียว ไม่ถามวัน/เวลา/มัดจำ (server ตั้งเวลาเอง)
+   */
+  mode?: OrderArrivalChoice
   /** ค่าที่ผู้ใช้กรอกอยู่ (watch จาก form owner) */
   value: {
     resourceId?: string
@@ -106,6 +114,7 @@ export default function AppointmentBlock({
   variant = 'card',
   total,
   value,
+  mode,
 }: Props) {
   const byDay = granularity === 'DAY'
   /**
@@ -194,7 +203,10 @@ export default function AppointmentBlock({
             <p className="text-default-600 mt-1 text-sm">
               {prefilledFromCalendar
                 ? `เลือกบริการด้านล่าง แล้ววันและเวลาข้างบนจะถูกบันทึกเป็นวันนัดของ${ORDER_VOCAB.SERVICE_QUEUE.noun}นี้`
-                : `เลือกประเภทงานด้านล่างก่อน ไม่งั้น${ORDER_VOCAB.SERVICE_QUEUE.noun}นี้จะถูกบันทึกเป็น${ORDER_VOCAB.SERVICE_QUEUE.noun}ปกติที่ไม่มีวันนัด`}
+                : mode
+                  ? // จองล่วงหน้าบังคับเลือกคิวงาน (00086) — ประโยคเดิมเรื่อง "ไม่มีวันนัด" ไม่จริงแล้ว
+                    'เลือกประเภทงานด้านล่างก่อนบันทึก'
+                  : `เลือกประเภทงานด้านล่างก่อน ไม่งั้น${ORDER_VOCAB.SERVICE_QUEUE.noun}นี้จะถูกบันทึกเป็น${ORDER_VOCAB.SERVICE_QUEUE.noun}ปกติที่ไม่มีวันนัด`}
             </p>
           </div>
         )}
@@ -324,11 +336,59 @@ export default function AppointmentBlock({
               </div>
             )}
           />
+          {mode && errors.appointment?.resourceId && (
+            <p className="text-danger mt-1.5 mb-0 text-sm">{errors.appointment.resourceId.message}</p>
+          )}
         </div>
 
         {/* ฟิลด์ที่เหลือโผล่ต่อเมื่อเลือกคิวงานแล้ว — ไม่เลือก = ไม่ต้องเห็นอะไรเพิ่ม */}
         {selected && (
           <>
+            {mode === 'BOOKED' ? (
+              /* 00086 P2-T4 (prototype v13): วันที่นัด* + เวลา* แยกช่อง — บังคับทั้งคู่ จึงต้องเห็นเป็น
+                 2 สิ่งที่ต้องกรอก ไม่ใช่ปุ่มเดียวที่ข้อความเปลี่ยนตามสถานะ · ทั้งสองปุ่มเปิดปฏิทินใบเดิม
+                 (ผู้ใช้สั่ง 2026-08-08: เลือกเวลาในปฏิทินที่เดียว) · `flex!` เหตุผลเดียวกับปุ่ม legacy ด้านล่าง */
+              <>
+                <div>
+                  <label htmlFor={`${idPrefix}-appt-date`} className="form-label">
+                    วันที่นัด<span className="ms-0.5 text-danger">*</span>
+                  </label>
+                  <button
+                    id={`${idPrefix}-appt-date`}
+                    type="button"
+                    onClick={() => setDateSheetOpen(true)}
+                    className="form-input flex! w-full items-center justify-between gap-2 text-start"
+                  >
+                    <span className={`min-w-0 truncate ${value.date ? 'text-dark' : 'text-default-400'}`}>
+                      {value.date ? formatDateTH(`${value.date}T00:00`) : 'เลือกวันนัด'}
+                    </span>
+                    <Icon icon="calendar-event" className="size-4 shrink-0 text-default-400" />
+                  </button>
+                </div>
+                {!byDay && (
+                  <div>
+                    <label htmlFor={`${idPrefix}-appt-time`} className="form-label">
+                      เวลา<span className="ms-0.5 text-danger">*</span>
+                    </label>
+                    <button
+                      id={`${idPrefix}-appt-time`}
+                      type="button"
+                      onClick={() => setDateSheetOpen(true)}
+                      className="form-input flex! w-full items-center justify-between gap-2 text-start"
+                    >
+                      <span
+                        className={`min-w-0 truncate tabular-nums ${
+                          value.startTime && value.endTime ? 'text-dark' : 'text-default-400'
+                        }`}
+                      >
+                        {value.startTime && value.endTime ? `${value.startTime}–${value.endTime}` : 'เลือกเวลา'}
+                      </span>
+                      <Icon icon="clock" className="size-4 shrink-0 text-default-400" />
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
             <div>
               <label htmlFor={`${idPrefix}-appt-date`} className="form-label">
                 {byDay ? 'วันที่นัด' : 'วันและเวลาที่นัด'}
@@ -391,6 +451,7 @@ export default function AppointmentBlock({
                 </p>
               )}
             </div>
+            )}
 
             {/* โหมดรายวันไม่ถามเวลาโดยตั้งใจ — ต้องบอก ไม่ใช่ให้ช่องเวลาหายไปเฉย ๆ
                 (ร้าน BT รายงาน 2026-08-08 ว่า "ไม่มีให้ระบุเวลา" ทั้งที่เป็นค่าตั้งค่าของร้านเอง
@@ -509,17 +570,78 @@ export default function AppointmentBlock({
     </div>
   )
 
+  /**
+   * 00086 P2-T4 — งานหน้าร้าน: เลือกคิวงานอย่างเดียว
+   * Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx (รายการเลือกได้ทีละแถว)
+   *   + sibling ../../../(chat)/_components/StartWalkInSheet.tsx "เข้าคิวงานไหน" (คลาสชุดเดียวกันทุกแถว —
+   *   ผู้ขายเห็นรายการนี้ทั้งจากปุ่ม "เริ่มงานเลย" และจากฟอร์มนี้ ต้องเป็นของหน้าตาเดียวกัน)
+   * Base บรรทัดเวลา: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (`bg-info/15` alert)
+   *   `text-info-ink` แทน `text-info` — ข้อความขนาดปกติบน /15 ต้องผ่าน 4.5:1
+   * เวลาที่โชว์มาจาก walkInWindow ตัวเดียวกับที่ server ใช้ตั้งเวลาจริง
+   */
+  const walkInFields = (
+    <div className="flex flex-col gap-4">
+      <div>
+        <p id={`${idPrefix}-walkin-queue-label`} className="text-default-700 mb-2 text-xs font-semibold">
+          เข้าคิวงานไหน
+        </p>
+        <Controller
+          control={control}
+          name="appointment.resourceId"
+          render={({ field }) => (
+            <div role="group" aria-labelledby={`${idPrefix}-walkin-queue-label`} className="space-y-2">
+              {resources.map((r) => {
+                const active = field.value === r.id
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => field.onChange(r.id)}
+                    aria-pressed={active}
+                    className={`btn min-h-11 w-full items-center justify-start gap-2 text-start ${
+                      active ? 'bg-primary/15 text-primary-ink' : 'bg-default-100 text-default-800 hover:bg-default-200'
+                    }`}
+                  >
+                    <Icon icon={active ? 'circle-check' : 'circle'} className="shrink-0 text-base" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{r.name}</span>
+                    {/* คำว่า "ที่นั่ง" (serviceSeat) เป็นกลไกภายใน ห้ามโผล่บนจอ — ใช้ "คิว" */}
+                    <span className="text-default-600 ms-auto shrink-0 text-xs">{r.capacity} คิว</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        />
+        {errors.appointment?.resourceId && (
+          <p className="text-danger mt-1.5 mb-0 text-sm">{errors.appointment.resourceId.message}</p>
+        )}
+      </div>
+      <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <Icon icon="clock" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">{walkInPreviewText(new Date(), selected?.durationMinutes)}</span>
+      </div>
+    </div>
+  )
+  const body = mode === 'WALK_IN' ? walkInFields : fields
+
   // embedded = อยู่ใน accordion ของ CartPanel ซึ่งมีหัวเรื่องของตัวเองแล้ว
   // ถ้าห่อการ์ดซ้ำจะกลายเป็นการ์ดซ้อนการ์ด (anti-slop) และดันความสูงแผงขวาจนปุ่มหลุดจอ
-  if (variant === 'embedded') return <div className="px-4 pb-4">{fields}</div>
+  if (variant === 'embedded') return <div className="px-4 pb-4">{body}</div>
+
+  const titleIcon = arrivalBlockIcon(mode)
 
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">วันเข้าใช้บริการ</h4>
-        <p className="text-default-500 mt-0.5 text-sm">ไม่บังคับ — ข้ามได้ถ้าลูกค้ายังไม่ระบุวัน</p>
+        {/* 00086 v13 — "เข้าคิววันนี้" มีไอคอนเดิน (ชุดเดียวกับชิป "หน้าร้าน") · จองล่วงหน้าคงหัวเดิม */}
+        <h4 className="card-title flex items-center gap-1.5">
+          {titleIcon && <Icon icon={titleIcon} className="text-primary size-5 shrink-0" aria-hidden="true" />}
+          {arrivalBlockTitle(mode)}
+        </h4>
+        {/* ร้านบริการตอนสร้าง (mode) บังคับนัด/คิวแล้ว — "ไม่บังคับ — ข้ามได้" ไม่จริงอีกต่อไป */}
+        {!mode && <p className="text-default-500 mt-0.5 text-sm">ไม่บังคับ — ข้ามได้ถ้าลูกค้ายังไม่ระบุวัน</p>}
       </div>
-      <div className="card-body">{fields}</div>
+      <div className="card-body">{body}</div>
     </div>
   )
 }

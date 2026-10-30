@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withoutDrafted } from "@/lib/order-visibility";
 import { isExclusionViolation } from "@/lib/prisma-errors";
-import { appointmentDayWhere } from "@/lib/appointment-day";
+import { appointmentDayBounds, appointmentDayWhere } from "@/lib/appointment-day";
 import { ServiceJobClosedLockedError } from "@/lib/service-job";
 import { runAfterResponse } from "@/lib/run-after-response";
 import { dispatchAutoNotify, reserveAutoNotifyIntent } from "@/services/auto-notify.service";
@@ -20,6 +20,7 @@ import {
   canUseAppointments,
   isTerminalAppointmentStatus,
 } from "@/lib/appointments";
+import type { StoredArrivalMode } from "@/lib/arrival-mode";
 
 // ระบบนัดหมายวันเข้าใช้บริการ (feature 00024)
 // SSOT: docs/20 - Features/00024 - Service Appointment Booking/{BRD,SRS,SDS,API}.md
@@ -31,6 +32,12 @@ export type AppointmentInput = {
   resourceId: string;
   start: Date;
   end: Date;
+  /**
+   * feature 00086 (API.md §4.4) — ใช้เฉพาะ "ตั้งเวลาครั้งแรก" ของใบที่ยังไม่ระบุเวลา:
+   * WALK_IN = เริ่มงานหน้าร้าน (เฉพาะเวลาเริ่ม <= ตอนนี้ + 5 นาที ไม่งั้นเก็บ BOOKED — firstScheduleArrivalMode)
+   * · ไม่ส่ง/BOOKED = จองล่วงหน้า · ใบที่มีเวลาอยู่แล้ว (เลื่อนนัด) ไม่เปลี่ยน
+   */
+  arrivalMode?: StoredArrivalMode;
 };
 
 /** ตรวจตัวกั้นฟีเจอร์จาก shopId — โยน 403 ถ้าร้านไม่เข้าเงื่อนไข BR-RSV-01 */
@@ -54,6 +61,8 @@ async function loadActiveResource(shopId: string, resourceId: string) {
       // มัดจำเริ่มต้น (FR-RSV-12) — ใช้คำนวณยอดตั้งต้นตอนสร้างออเดอร์พร้อมนัด
       depositMode: true,
       depositValue: true,
+      // feature 00086 — ระยะเวลามาตรฐานของคิว ใช้เป็นช่วงงานของ "หน้าร้าน" ตอนสร้างบิล (walkInWindow)
+      durationMinutes: true,
     },
   });
   if (!resource) throw new ServiceResourceNotFoundError();
@@ -220,6 +229,28 @@ async function allocateSeat(
   throw new AppointmentSlotFullError(resource.name, resource.capacity);
 }
 
+/** เวลาเริ่มของ "หน้าร้าน" เลยตอนนี้ได้ไม่เกินเท่านี้ (นาฬิกาเครื่องผู้ขายเพี้ยน/กดค้าง) — review P2 MINOR-2 */
+export const WALK_IN_START_TOLERANCE_MS = 5 * 60_000;
+
+/**
+ * แบบการมาที่เก็บจริงตอนใบ "ได้เวลาครั้งแรก" (review P2 MINOR-2)
+ *
+ * WALK_IN = ลูกค้าอยู่ที่ร้านตอนนี้ ⇒ เชื่อได้ก็ต่อเมื่อเวลาเริ่ม <= ตอนนี้ + 5 นาที
+ * ถ้า client ส่ง WALK_IN มากับเวลาในอนาคต (เช่นพรุ่งนี้ 10 โมง) นั่นคือ "นัด" ไม่ใช่หน้าร้าน
+ * ⇒ เก็บเป็น BOOKED (และจึงจองแจ้งลูกค้า SERVICE_BOOKED แบบเดียวกับ BOOKED) — เลือก "ลดเป็น BOOKED"
+ * แทนการตอบ 400 โดยตั้งใจ: StartWalkInSheet ส่งเวลาเริ่ม = ตอนนี้ของเครื่องผู้ขาย ถ้านาฬิกาเครื่องเพี้ยน
+ * ผู้ขายต้องเริ่มงานได้เสมอ ไม่ใช่เจอ error ตอนลูกค้ายืนรออยู่หน้าร้าน · ค่าที่เก็บก็ยังตรงความจริง
+ * ไม่ส่ง = BOOKED (พฤติกรรมเดิม)
+ */
+export function firstScheduleArrivalMode(
+  requested: StoredArrivalMode | undefined,
+  start: Date,
+  nowMs: number,
+): StoredArrivalMode {
+  if (requested === "WALK_IN" && start.getTime() <= nowMs + WALK_IN_START_TOLERANCE_MS) return "WALK_IN";
+  return "BOOKED";
+}
+
 /**
  * ตั้งนัดให้ออเดอร์ที่ยังไม่มีนัด หรือเลื่อนนัดที่มีอยู่ (FR-RSV-03/08)
  *
@@ -253,6 +284,7 @@ export async function setOrRescheduleAppointment(args: {
         serviceClosedAt: true,
         conversationId: true,
         isDryRun: true,
+        arrivalMode: true,
       },
     });
     if (!current) throw new AppointmentNotFoundError();
@@ -263,6 +295,15 @@ export async function setOrRescheduleAppointment(args: {
     if (current.serviceClosedAt != null) throw new ServiceJobClosedLockedError();
 
     const hadAppointment = !!current.serviceStart && !!current.serviceEnd;
+    /**
+     * feature 00086 (API.md §4.4) — แบบการมาถูกตัดสิน "ครั้งเดียว" ตอนใบได้เวลาครั้งแรก
+     * เลื่อนนัด = ไม่แตะ (ลูกค้าจองมาหรือมาหน้าร้านไม่เปลี่ยนเพราะเวลาเลื่อน) · ใบเก่าที่มีเวลาแต่ไม่มีค่าเก็บ
+     * ก็ไม่เติมให้ — ปล่อยให้ arrivalModeOf ใช้สูตรเดิม ไม่เดาทับข้อมูลเก่า
+     */
+    const nowMs = Date.now();
+    const arrivalMode: StoredArrivalMode | undefined = hadAppointment
+      ? undefined
+      : firstScheduleArrivalMode(input.arrivalMode, input.start, nowMs);
     if (hadAppointment) {
       await tx.appointmentReschedule.create({
         data: {
@@ -298,12 +339,15 @@ export async function setOrRescheduleAppointment(args: {
         rescheduleRequestNote: null,
         // นัดถูกย้าย = การยืนยันเดิมของลูกค้าไม่ผูกกับเวลาใหม่อีกต่อไป
         buyerConfirmedAt: hadAppointment ? null : undefined,
+        // undefined = ไม่แตะคอลัมน์ (เลื่อนนัด) · allocateSeat ด้านบนเขียน serviceStart แล้ว ⇒ CHECK ผ่าน
+        arrivalMode,
       },
       select: {
         publicToken: true,
         serviceStart: true,
         serviceEnd: true,
         appointmentStatus: true,
+        arrivalMode: true,
       },
     });
 
@@ -312,7 +356,8 @@ export async function setOrRescheduleAppointment(args: {
     });
 
     // แจ้งลูกค้าอัตโนมัติ (00078) — เฉพาะ "ตั้งนัดครั้งแรก" ในอนาคต; การย้ายนัดไม่ส่ง · createOrder เป็นเจ้าของกรณีสร้างพร้อมนัด (SDS §7.3)
-    if (!hadAppointment && input.start.getTime() > Date.now()) {
+    // 00086 — เริ่มงานหน้าร้านไม่แจ้ง "จองคิวแล้ว" (กันไว้ตรง ๆ ไม่พึ่งว่าเวลาเริ่มไม่อยู่ในอนาคต)
+    if (!hadAppointment && arrivalMode !== "WALK_IN" && input.start.getTime() > nowMs) {
       ledgerId = await reserveAutoNotifyIntent(tx, {
         shopId, orderId: current.id, conversationId: current.conversationId,
         kind: "SERVICE_BOOKED", isDryRun: current.isDryRun, keyedInAt: new Date(),
@@ -340,15 +385,20 @@ export async function attachAppointmentInTx(
     resource: { id: string; name: string; capacity: number };
     start: Date;
     end: Date;
+    /** feature 00086 — แบบการมา (ร้านบริการ) · null/ไม่ส่ง = ไม่แตะคอลัมน์ */
+    arrivalMode?: StoredArrivalMode | null;
   },
 ): Promise<number> {
   assertValidRange(args.start, args.end);
-  const seat = await allocateSeat(tx, args);
+  const { arrivalMode, ...seatArgs } = args;
+  const seat = await allocateSeat(tx, seatArgs);
   await tx.order.update({
     where: { id: args.orderId },
     data: {
       type: APPOINTMENT_ORDER_TYPE,
       appointmentStatus: APPOINTMENT_STATUS.SCHEDULED,
+      // เขียนหลัง allocateSeat (serviceStart มีแล้ว) — CHECK Order_arrivalMode_check
+      arrivalMode: arrivalMode ?? undefined,
     },
   });
   return seat;
@@ -519,6 +569,12 @@ export async function listAppointments(args: {
       buyerName: true,
       serviceResource: { select: { id: true, name: true, capacity: true } },
       // ห้าม select buyerContact / customer.phone ที่นี่ — ไม่ได้ใช้และจะรั่วเข้า payload
+      // 00086 (QA 2026-10-30) — ป้ายรายการวันบนบอร์ด: แบบการมา + ขั้นระหว่างทำงาน (ไม่ใช่ข้อมูลติดต่อ)
+      arrivalMode: true,
+      createdAt: true,
+      serviceStartedAt: true,
+      serviceFinishedAt: true,
+      serviceClosedAt: true,
     },
     orderBy: { serviceStart: "asc" },
   });
@@ -531,6 +587,11 @@ export async function listAppointments(args: {
     end: r.serviceEnd!,
     appointmentStatus: r.appointmentStatus,
     buyerName: r.buyerName,
+    arrivalMode: r.arrivalMode,
+    createdAt: r.createdAt.toISOString(),
+    serviceStartedAt: r.serviceStartedAt ? r.serviceStartedAt.toISOString() : null,
+    serviceFinishedAt: r.serviceFinishedAt ? r.serviceFinishedAt.toISOString() : null,
+    serviceClosedAt: r.serviceClosedAt ? r.serviceClosedAt.toISOString() : null,
   }));
 }
 
@@ -553,6 +614,8 @@ export type AppointmentDayItem = {
    * ไม่ใช่ตัวเวลานัดเอง จึงต้องส่งมาคู่กันเสมอ
    */
   createdAt: Date;
+  /** feature 00086 — แบบการมาที่ร้านเลือก (BOOKED|WALK_IN) · null = ใบเก่า/ไม่ได้ระบุ ⇒ จอใช้ arrivalModeOf */
+  arrivalMode: string | null;
   start: Date;
   end: Date;
   appointmentStatus: string | null;
@@ -601,7 +664,53 @@ export type AppointmentDayItem = {
    * · "0" = ไม่เก็บมัดจำ (BR-RSV-44) ⇒ ไม่ต้องแสดงส่วนมัดจำเลย
    */
   depositAmount: string;
+  /**
+   * feature 00086 P3 — ผู้รับผิดชอบงาน (ชื่ออย่างเดียว ไม่มีเบอร์/อีเมล) · null = ยังไม่มีคนรับ
+   * คน ไม่ใช่เงิน ⇒ ช่าง (ระดับเงิน NONE) ได้คีย์นี้ (toNoMoneyAppointmentDay ตัดแค่ยอด/มัดจำ)
+   */
+  assignee: { userId: string; displayName: string } | null;
+  /** feature 00086 P3 — เวลากดเริ่มงาน / ทำเสร็จ / ปิดงาน (เวลา ไม่ใช่เงิน) · null = ยังไม่ถึงขั้นนั้น */
+  serviceStartedAt: Date | null;
+  serviceFinishedAt: Date | null;
+  serviceClosedAt: Date | null;
 };
+
+/**
+ * select เดียวของ "แถวนัดรายวัน" — ใช้ทั้งรายการของวัน และกลุ่ม "ค้างจากวันก่อน" (00086 P3)
+ * 🛑 ห้ามแยก select สองชุด: สองจอแสดงการ์ดแบบเดียวกัน คอลัมน์ที่เติมฝั่งเดียวคือแถวที่ขาดข้อมูลเงียบ ๆ
+ */
+const APPOINTMENT_DAY_SELECT = {
+  publicToken: true,
+  orderNo: true,
+  createdAt: true,
+  arrivalMode: true,
+  serviceStart: true,
+  serviceEnd: true,
+  appointmentStatus: true,
+  buyerName: true,
+  buyerContact: true,
+  customerId: true,
+  shopChannelId: true,
+  salesChannel: true,
+  // ห้องแชทต้นทางของออเดอร์ใบนี้ (คอลัมน์ที่ main เพิ่ม 2026-08-12) — ดู `originIds` ด้านล่าง
+  conversationId: true,
+  totalAmount: true,
+  depositAmount: true,
+  // ชื่อรายการแรกเท่านั้น + นับทั้งหมดแยก — ไม่ดึงทั้งบิลมาเพื่อแสดงบรรทัดเดียว
+  items: { select: { name: true }, orderBy: { id: "asc" }, take: 1 },
+  _count: { select: { items: true } },
+  serviceResource: { select: { id: true, name: true, capacity: true } },
+  // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
+  shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
+  // 00086 P3 — ผู้รับผิดชอบ (ชื่อเท่านั้น) + ขั้นของงาน
+  assignedUserId: true,
+  assignedUser: { select: { displayName: true } },
+  serviceStartedAt: true,
+  serviceFinishedAt: true,
+  serviceClosedAt: true,
+} satisfies Prisma.OrderSelect;
+
+type AppointmentDayRow = Prisma.OrderGetPayload<{ select: typeof APPOINTMENT_DAY_SELECT }>;
 
 export async function listAppointmentsForDay(args: {
   shopId: string;
@@ -620,32 +729,99 @@ export async function listAppointmentsForDay(args: {
       serviceStart: { lt: to },
       serviceEnd: { gt: from },
     },
-    select: {
-      publicToken: true,
-      orderNo: true,
-      createdAt: true,
-      serviceStart: true,
-      serviceEnd: true,
-      appointmentStatus: true,
-      buyerName: true,
-      buyerContact: true,
-      customerId: true,
-      shopChannelId: true,
-      salesChannel: true,
-      // ห้องแชทต้นทางของออเดอร์ใบนี้ (คอลัมน์ที่ main เพิ่ม 2026-08-12) — ดู `originIds` ด้านล่าง
-      conversationId: true,
-      totalAmount: true,
-      depositAmount: true,
-      // ชื่อรายการแรกเท่านั้น + นับทั้งหมดแยก — ไม่ดึงทั้งบิลมาเพื่อแสดงบรรทัดเดียว
-      items: { select: { name: true }, orderBy: { id: "asc" }, take: 1 },
-      _count: { select: { items: true } },
-      serviceResource: { select: { id: true, name: true, capacity: true } },
-      // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
-      shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
-    },
+    select: APPOINTMENT_DAY_SELECT,
     orderBy: { serviceStart: "asc" },
   });
 
+  return toAppointmentDayItems(shopId, rows);
+}
+
+/**
+ * งานของฉันที่ "ค้างจากวันก่อน" (00086 P3 · มติ user Q2 2026-10-27) — หน้า "งานของฉัน" ของช่าง
+ *
+ * = มอบให้ฉัน ∧ กดเริ่มแล้ว ∧ ยังไม่ทำเสร็จ ∧ ยังไม่ปิด ∧ ไม่ยกเลิก/คืน ∧ นัดจบก่อนวันนี้ (ปฏิทินไทย)
+ *
+ * 🛑 "จบก่อนวันนี้" (serviceEnd ≤ เที่ยงคืนวันนี้) ไม่ใช่แค่ "เริ่มก่อนวันนี้": นัดที่คร่อมเมื่อวาน→วันนี้
+ * อยู่ในรายการของวันนี้ (`listAppointmentsForDay` คัดแบบคาบเกี่ยว) อยู่แล้ว ถ้านับซ้ำที่นี่จอจะขึ้นงานเดียวสองที่
+ * ⇒ สองรายการนี้ไม่ซ้อนกันเสมอ และงานที่เริ่มแล้วไม่หายจากหน้าเพราะข้ามวัน
+ * ขอบวันจาก `appointmentDayBounds` ตัวเดียวกับไทล์/รายการ "วันนี้" (ห้ามตัดวันเองที่นี่ — บทเรียน 00033)
+ *
+ * ไม่บังคับ serviceResourceId (ต่างจากรายการรายวัน): งานที่เริ่มแล้วของฉันต้องไม่หายเพราะคิวถูกถอดภายหลัง
+ * แต่ต้องมี serviceEnd (เงื่อนไขขอบวันบังคับให้มีอยู่แล้ว) — แถวรุ่นเก่าที่ไม่มีช่วงเวลาไม่มีผู้รับผิดชอบอยู่แล้ว (P3 ใหม่กว่า)
+ * เพดาน 100 แถว: endpoint นี้คืนเบอร์ลูกค้า — เพดานต้องอยู่ที่ server ไม่ใช่ความตั้งใจของผู้เรียก (เหตุผลเดียวกับ day route)
+ *
+ * ร้านไม่ใช่บริการ → AppointmentFeatureUnavailableError (เหมือนรายการรายวัน)
+ */
+export const CARRY_OVER_LIMIT = 100;
+
+export async function listMyCarryOverJobs(args: {
+  shopId: string;
+  userId: string;
+  now?: Date;
+}): Promise<AppointmentDayItem[]> {
+  const { shopId, userId } = args;
+  await assertShopCanUseAppointments(shopId);
+  const { from: todayStart } = appointmentDayBounds("today", args.now);
+
+  const rows = await prisma.order.findMany({
+    where: {
+      shopId,
+      assignedUserId: userId,
+      ...withoutDrafted(["CANCELLED", "RETURNED"]),
+      serviceStartedAt: { not: null },
+      serviceFinishedAt: null,
+      serviceClosedAt: null,
+      serviceStart: { lt: todayStart },
+      serviceEnd: { lte: todayStart },
+    },
+    select: APPOINTMENT_DAY_SELECT,
+    orderBy: { serviceStart: "asc" },
+    take: CARRY_OVER_LIMIT,
+  });
+
+  return toAppointmentDayItems(shopId, rows);
+}
+
+/**
+ * งานของฉันที่ "ยังไม่ระบุเวลา" (00086 P3 · M1 · Controller decision (a) 2026-10-29) — หน้า "งานของฉัน" ของช่าง
+ *
+ * = มอบให้ฉัน ∧ ไม่มีเวลานัด (serviceStart IS NULL) ∧ ยังไม่ปิด ∧ ไม่ใช่ร่าง/ยกเลิก/คืน (withoutDrafted ชุดเดียวกับ carry-over)
+ * ทำไมต้องมี: ใบที่ไม่มีเวลาไม่อยู่ทั้งรายการวันนี้ (คัดด้วยช่วงเวลา) และค้างจากวันก่อน (คัดด้วย serviceEnd)
+ * ⇒ งานที่มอบให้ช่างแล้วแต่ไม่มีเวลา "หายจากทุกจอของช่าง" ทั้งที่เป็นงานของเขา
+ * ไม่จำกัดว่าเริ่มแล้วหรือยัง (ต่างจาก carry-over) — ใบไม่มีเวลาไม่มีวันไหนให้โผล่เลย ต้องเห็นตั้งแต่ถูกมอบ
+ * ไม่บังคับ serviceResourceId (เหตุผลเดียวกับ carry-over) · เพดานเดียวกับ carry-over (endpoint คืนเบอร์ลูกค้า)
+ * แถวที่คืน start/end = null (ไม่มีเวลาให้แสดง — จอใช้ป้าย "ยังไม่ระบุเวลา" ของ ARRIVAL_MODE_META แทน)
+ *
+ * ร้านไม่ใช่บริการ → AppointmentFeatureUnavailableError (เหมือนรายการรายวัน)
+ */
+export type UnscheduledJobItem = Omit<AppointmentDayItem, "start" | "end"> & { start: null; end: null };
+
+export async function listMyUnscheduledJobs(args: {
+  shopId: string;
+  userId: string;
+}): Promise<UnscheduledJobItem[]> {
+  const { shopId, userId } = args;
+  await assertShopCanUseAppointments(shopId);
+
+  const rows = await prisma.order.findMany({
+    where: {
+      shopId,
+      assignedUserId: userId,
+      ...withoutDrafted(["CANCELLED", "RETURNED"]),
+      serviceStart: null,
+      serviceClosedAt: null,
+    },
+    select: APPOINTMENT_DAY_SELECT,
+    orderBy: { createdAt: "asc" },
+    take: CARRY_OVER_LIMIT,
+  });
+
+  // toAppointmentDayItems เขียน start/end จาก serviceStart/serviceEnd — แถวกลุ่มนี้ไม่มีเวลา จึงตั้ง null ให้ชัด
+  return (await toAppointmentDayItems(shopId, rows)).map((i) => ({ ...i, start: null, end: null }));
+}
+
+/** แถวนัด (select ร่วม) → AppointmentDayItem พร้อมรูปลูกค้า/ห้องแชท — ownership scope ด้วย shopId ทุกคำขอลูก */
+async function toAppointmentDayItems(shopId: string, rows: AppointmentDayRow[]): Promise<AppointmentDayItem[]> {
   /**
    * รูปโปรไฟล์ + เธรดแชท: Order → คู่ (shopChannelId, customerId) → ExternalContact
    *
@@ -719,6 +895,7 @@ export async function listAppointmentsForDay(args: {
       orderToken: r.publicToken,
       orderNo: r.orderNo,
       createdAt: r.createdAt,
+      arrivalMode: r.arrivalMode,
       start: r.serviceStart!,
       end: r.serviceEnd!,
       appointmentStatus: r.appointmentStatus,
@@ -743,6 +920,13 @@ export async function listAppointmentsForDay(args: {
         r.conversationId && validOrigin.has(r.conversationId)
           ? r.conversationId
           : (contact?.conversations[0]?.id ?? null),
+      assignee:
+        r.assignedUserId && r.assignedUser
+          ? { userId: r.assignedUserId, displayName: r.assignedUser.displayName }
+          : null,
+      serviceStartedAt: r.serviceStartedAt,
+      serviceFinishedAt: r.serviceFinishedAt,
+      serviceClosedAt: r.serviceClosedAt,
     };
   });
 }

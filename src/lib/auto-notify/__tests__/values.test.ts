@@ -113,6 +113,11 @@ describe('ค่าตัวแปรต่อชนิด', () => {
     expect(render('SERVICE_BOOKED', { ...s, depositAmount: '100.00' })).toContain('มัดจำที่ตกลงไว้: ฿100')
     expect(t.endsWith(`ยืนยันคิวเรียบร้อยค่ะ\n${BASE}/o/tok123`)).toBe(true)
   })
+  it('SERVICE_FINISHED (00086): ข้อความ BRD FR-015 + ลิงก์งาน · ไม่มีเงิน/ชื่อช่าง', () => {
+    const s = snap({ vertical: 'SERVICE_QUEUE', serviceName: 'ล้างแอร์' })
+    expect(render('SERVICE_FINISHED', s)).toBe(`ทำเสร็จแล้ว ดูรูปก่อน-หลังได้ที่ลิงก์งานบริการ\n${BASE}/o/tok123`)
+    expect(buildTemplateValues('SERVICE_FINISHED', s)).toEqual({ ชื่อร้าน: 'ร้านดีดี', ชื่อลูกค้า: 'สมชาย', บริการ: 'ล้างแอร์', ลิงก์งาน: `${BASE}/o/tok123` })
+  })
   it('SERVICE_CLOSED: ไม่มีเวลาเริ่มงาน → ตัดบรรทัด (เทมเพลตที่ร้านเขียนเอง) · ไม่มีตัวเลขเงินในค่าตั้งต้น', () => {
     const s = snap({ vertical: 'SERVICE_QUEUE', serviceName: 'ตัดผม', serviceClosedAt: new Date('2026-08-08T12:50:00Z') })
     expect(render('SERVICE_CLOSED', s, 'เริ่ม {เวลาเริ่มงาน}\nปิด {เวลาปิดงาน}')).toBe('ปิด 08 ส.ค. 2569 19:50')

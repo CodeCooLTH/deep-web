@@ -50,6 +50,8 @@ export const TEMPLATE_VARIABLES: Record<AutoNotifyKind, readonly TemplateVariabl
   ],
   SERVICE_STARTED: [SHOP, CUSTOMER, SERVICE, WHEN, START, LINK_JOB],
   SERVICE_CLOSED: [SHOP, CUSTOMER, SERVICE, WHEN, START, v('เวลาปิดงาน', '8 ส.ค. 2569 19:50'), LINK_JOB],
+  // 00086 — ไม่มีเวลาทำเสร็จ/ชื่อช่าง: ชื่อพนักงานภายในไม่ส่งถึงลูกค้า (API §4.16) · รูปอยู่หลังลิงก์
+  SERVICE_FINISHED: [SHOP, CUSTOMER, SERVICE, LINK_JOB],
 }
 
 export const variableNamesOf = (kind: AutoNotifyKind): string[] => TEMPLATE_VARIABLES[kind].map((x) => x.name)

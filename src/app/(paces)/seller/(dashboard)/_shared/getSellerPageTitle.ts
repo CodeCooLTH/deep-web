@@ -45,6 +45,8 @@ const EXTRA_TITLES: Record<string, string> = {
   '/notifications': 'การแจ้งเตือน',
   '/settings/auto-notify': 'ส่งอัตโนมัติถึงลูกค้า',
   '/settings/tags': 'จัดการแท็ก',
+  // 00086 P3 — หน้า "งานของฉัน" ของฝ่ายช่าง (ไม่มีในเมนูซ้าย: เข้าจากแท็บล่าง/การ์ดหน้าแรก)
+  '/my-jobs': 'งานของฉัน',
 }
 
 /**

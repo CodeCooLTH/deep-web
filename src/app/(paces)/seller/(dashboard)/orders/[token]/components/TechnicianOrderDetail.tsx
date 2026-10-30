@@ -8,7 +8,7 @@
  * (docs/conventions/permission-gate-follows-the-row.md) — ที่นี่รับเฉพาะ `toNoMoneyOrder()` (allow-list) แล้วประกอบจอจากมัน
  * ไม่มีทางที่ price/totalAmount/payments จะอยู่ในมือของ component ใดในไฟล์นี้
  *
- * โครง (UX spec §4): มือถือ ลูกค้า → นัดหมาย → สรุป+รายการ+หมายเหตุภายใน → ประวัติ
+ * โครง (UX spec §4 + 00086 P3 ต้นแบบ `screenJob` ช่าง): มือถือ ลูกค้า → งานนี้ → รูปก่อน-หลัง → นัดหมาย → สรุป+รายการ+หมายเหตุภายใน → ประวัติ
  *   เดสก์ท็อป ซ้าย 3/4 = สรุป+ประวัติ · ขวา 1/4 = ลูกค้า+นัดหมาย (`order-first lg:order-none`) · ไม่มี OrderActionBar
  * ไม่ render: Cod/PaymentReceived/Profit/Billing/Shipping/ShippingAddress/ShipmentEvidence/รีวิว
  */
@@ -21,7 +21,7 @@ import { usesTypedBuyerName } from '@/lib/buyer-name'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { isAllDayAppointment } from '@/lib/appointments'
 import { toFileUrl } from '@/lib/file-url'
-import { can, type ShopRole } from '@/lib/shop-permissions'
+import { can, canAssignServiceJob, canClaimServiceJob, isTechnicianOnly, type ShopRole } from '@/lib/shop-permissions'
 import { resolveShopVertical } from '@/lib/lodging'
 import type { OrderVocab } from '@/lib/seller-menu'
 import OrderSummary from './OrderSummary'
@@ -29,20 +29,28 @@ import ShippingActivity from './ShippingActivity'
 import CustomerDetails from './CustomerDetails'
 import AppointmentCard from './AppointmentCard'
 import ServiceJobCard from './ServiceJobCard'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import ServiceJobPhotosCard from '@/components/safepay/service-job/ServiceJobPhotosCard'
+import { serviceJobFacts } from '@/components/safepay/service-job/service-job-facts'
+import type { ServiceJobPhotoMode } from '@/lib/service-job'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import type { ShippingAddressData } from './order-detail-shared'
 
 type Props = {
   /** ผลจาก `toNoMoneyOrder()` เท่านั้น — ห้ามส่งแถวดิบจาก prisma เข้ามา */
   order: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
-  shop: { vertical: string }
+  /** 00086 — แถวร้าน (ค่าตั้งค่ารูปก่อน-หลัง) · ไม่ใช่เงิน — ส่งต่อเฉพาะ mode/visible ลงการ์ด ไม่ส่งทั้งแถว */
+  shop: { vertical: string; serviceJobPhotoMode?: string | null; serviceJobPhotosBuyerVisible?: boolean | null }
   vocab: OrderVocab
   viewerRoles: readonly ShopRole[]
+  /** 00086 — userId ของผู้ดู (ตัดสิน "งานของฉัน") */
+  viewerUserId: string
+  /** 00086 S-5 — memberCanCloseJob ของผู้ดู (page.tsx คำนวณจากแถวสมาชิก) · ช่างที่ไม่ได้ติ๊ก "ปิดงานได้" = false */
+  canCloseJob: boolean
   fbPageAvatar: string | null
 }
 
-export default async function TechnicianOrderDetail({ order, shop, vocab, viewerRoles, fbPageAvatar }: Props) {
+export default async function TechnicianOrderDetail({ order, shop, vocab, viewerRoles, viewerUserId, canCloseJob, fbPageAvatar }: Props) {
   const events = filterOrderEventsForNoMoney(await getOrderEvents(order.id))
   // นับเฉพาะใบที่มีนัดจริง — เหมือนหน้าเต็ม (ownership scope มาแล้วจาก getOrderForShop)
   const rescheduleCount = order.serviceStart
@@ -68,12 +76,22 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
           status: order.status,
           appointmentStatus: order.appointmentStatus ?? null,
           hasAppointment: Boolean(order.serviceStart),
+          // 00086 FR-001 — งานหน้าร้าน (ค่าที่ร้านเลือก → สูตรเดิม) = ป้ายงานหน้าร้าน (ร้าน "รอเริ่มงาน" · ลูกค้า "รับงานแล้ว") แม้มีเวลาเริ่ม
+          arrivalMode: serviceArrivalOf(order),
           serviceClosedAt: order.serviceClosedAt ?? null,
+          // 00086 P3 — กำลังให้บริการ / ทำเสร็จ · รอปิดงาน (ทั้งคีย์อยู่ใน allow-list ของ toNoMoneyOrder)
+          serviceStartedAt: order.serviceStartedAt ?? null,
+          serviceFinishedAt: order.serviceFinishedAt ?? null,
           outstanding: null,
         },
         'seller',
       )
     : null
+
+  // 00086 P3 — ตัวเดียวกับหน้าเจ้าของ (อ่านเฉพาะคีย์ใน allow-list) · ร้านอื่น = null
+  const jobFacts = serviceBadge ? serviceJobFacts(order, events) : null
+  const photoMode = (shop.serviceJobPhotoMode ?? 'OPTIONAL') as ServiceJobPhotoMode
+  const photosBuyerVisible = Boolean(shop.serviceJobPhotosBuyerVisible)
 
   const items = (order.items ?? []).map((item: any) => {
     const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
@@ -113,6 +131,7 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
             orderNoun={vocab.noun}
             createLabel={vocab.createLabel}
             serviceVocab={shop.vertical === 'SERVICE_QUEUE' ? vocab : undefined}
+            serviceJobRecords={jobFacts?.records}
           />
         </div>
 
@@ -134,8 +153,8 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
               shippingAddr,
             }}
           />
-          {/* feature 00073 — ช่างปิดงานได้ (O4) แต่ไม่เห็นเงิน: ไม่มีส่วนรับเงิน · คืนมัดจำ/เปิดงานอีกครั้งตามสิทธิ์ O6 */}
-          {serviceBadge && (
+          {/* feature 00073 — ช่างเริ่มงานได้ (O4) · ปิดงานได้เมื่อได้รับสิทธิ์ (00086) แต่ไม่เห็นเงิน: ไม่มีส่วนรับเงิน · คืนมัดจำ/เปิดงานอีกครั้งตามสิทธิ์ O6 */}
+          {serviceBadge && jobFacts && (
             <ServiceJobCard
               publicToken={order.publicToken}
               orderLabel={order.orderNo ?? String(order.publicToken).slice(0, 8).toUpperCase()}
@@ -145,14 +164,37 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
               badge={serviceBadge}
               hasAppointment={Boolean(order.serviceStart)}
               startISO={order.serviceStart ? new Date(order.serviceStart).toISOString() : null}
+              endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
               allDay={
                 order.serviceStart && order.serviceEnd
                   ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
                   : false
               }
-              canClose={can(viewerRoles, 'O4')}
+              canStart={can(viewerRoles, 'O4')}
+              canClose={canCloseJob}
               canManage={can(viewerRoles, 'O6')}
               editHref={null}
+              finishedAtISO={order.serviceFinishedAt ? new Date(order.serviceFinishedAt).toISOString() : null}
+              assignee={jobFacts.assignee}
+              viewerUserId={viewerUserId}
+              technicianOnly={isTechnicianOnly(viewerRoles)}
+              canAssign={canAssignServiceJob(viewerRoles)}
+              canClaim={canClaimServiceJob(viewerRoles)}
+              photoMode={photoMode}
+              photosBuyerVisible={photosBuyerVisible}
+              startedByName={jobFacts.startedByName}
+              finishedByName={jobFacts.finishedByName}
+              jobSummary={jobFacts.jobSummary}
+            />
+          )}
+          {serviceBadge && jobFacts && (
+            <ServiceJobPhotosCard
+              records={jobFacts.records}
+              photoMode={photoMode}
+              buyerVisible={photosBuyerVisible}
+              assigneeName={jobFacts.assignee?.name ?? null}
+              closed={Boolean(order.serviceClosedAt)}
+              finished={Boolean(order.serviceFinishedAt)}
             />
           )}
           {order.serviceStart && (
@@ -161,9 +203,13 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
               // ปิดงาน (O4) อยู่ที่การ์ด "งานนี้" ข้างบน (feature 00073)
               canReschedule={can(viewerRoles, 'O3') && !order.serviceClosedAt}
               canSendSummary={can(viewerRoles, 'H1')}
+              // 00086 critique P0 — การ์ด "งานนี้" ข้างบนเป็นป้ายสถานะเดียวของหน้า
+              hideStageBadge={Boolean(serviceBadge && jobFacts)}
               publicToken={order.publicToken}
               startISO={new Date(order.serviceStart).toISOString()}
               createdAtISO={new Date(order.createdAt).toISOString()}
+              // 00086 — ค่าที่ร้านเลือกตอนเปิดบิล (null = ใบเก่า ⇒ สูตรเดิม)
+              arrivalMode={order.arrivalMode ?? null}
               endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
               allDay={
                 order.serviceEnd ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd)) : false

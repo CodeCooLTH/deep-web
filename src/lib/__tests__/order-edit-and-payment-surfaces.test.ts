@@ -97,6 +97,7 @@ describe('[blocker] รับเงิน — ต้องกดได้นอ�
       appointmentStatus: null,
       hasAppointment: false,
       serviceClosed: false,
+      canClose: false,
       money: money({ total: 2500 }),
     })
     expect(acts.map((a) => a.key)).toContain('RECORD_PAYMENT')
@@ -108,6 +109,7 @@ describe('[blocker] รับเงิน — ต้องกดได้นอ�
       appointmentStatus: 'COMPLETED',
       hasAppointment: true,
       serviceClosed: true,
+      canClose: false,
       money: money({ total: 2500, received: 2500 }),
     })
     expect(acts.map((a) => a.key)).not.toContain('RECORD_PAYMENT')

@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { memberErrorText } from './member-error-text'
+import { withUnassignedJobsNote } from '@/lib/shop-role-picker'
 import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 const STALE = new Set(['NOT_OWNER', 'NOT_PRIMARY_OWNER', 'PRIMARY_OWNER_LOCKED', 'NOT_A_MEMBER'])
@@ -61,7 +62,10 @@ export default function TransferOwnershipButton({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ memberId }),
           })
-          if (r.ok) return { ok: true as const, memberId }
+          if (r.ok) {
+            const body = (await r.json().catch(() => ({}))) as { unassignedJobCount?: unknown }
+            return { ok: true as const, memberId, unassignedJobCount: body.unassignedJobCount }
+          }
           if (r.status >= 500) throw new Error('server')
           const body = await r.json().catch(() => ({}))
           return { ok: false as const, memberId, code: String(body.error ?? '') }
@@ -78,7 +82,8 @@ export default function TransferOwnershipButton({
       if (STALE.has(res.value.code)) router.refresh()
       return
     }
-    pacesToast.success(`โอนความเป็นเจ้าของหลักให้ ${name} แล้ว · ตอนนี้คุณเป็นเจ้าของร่วม`)
+    // 00086 P3: ผู้รับโอนเป็นเจ้าของแล้ว ไม่ได้ถือฝ่ายช่าง → งานเปิดกลับเป็น "ยังไม่มีคนรับ" (0 = ข้อความเดิม)
+    pacesToast.success(withUnassignedJobsNote(`โอนความเป็นเจ้าของหลักให้ ${name} แล้ว · ตอนนี้คุณเป็นเจ้าของร่วม`, res.value.unassignedJobCount))
     router.refresh()
   }
 

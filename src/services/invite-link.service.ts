@@ -10,8 +10,8 @@ import {
   type InviteExpiryKey,
 } from "@/lib/invite-link";
 import { staffCountWhere } from "@/lib/shop-member-rules";
-import { validateAssignableRoles } from "@/lib/shop-role-assignment";
-import type { STAFF_ROLES } from "@/lib/shop-permissions";
+import { acceptedStaffFlags, validateAssignableRoles, validateStaffFlags } from "@/lib/shop-role-assignment";
+import type { STAFF_ROLES, StaffFlags } from "@/lib/shop-permissions";
 
 /**
  * invite-link.service.ts — Shop Staff Invite Link (feature 00012, Task 1.3)
@@ -37,7 +37,8 @@ export async function createInviteLink(
   shopId: string,
   expiryKey: InviteExpiryKey,
   roles: (typeof STAFF_ROLES)[number][] = ["MANAGER"],
-): Promise<{ slug: string; expiresAt: Date }> {
+  flags: StaffFlags = {}, // 00086: ไม่ส่ง = false ทั้งสอง
+): Promise<{ slug: string; expiresAt: Date; canCloseJob: boolean; canRecordExpense: boolean }> {
   const expiresAt = expiryKeyToDate(expiryKey);
 
   // 🛑 retry loop ต้องครอบ $transaction ทั้งก้อน (mirror order.service.ts TD-001) —
@@ -54,6 +55,8 @@ export async function createInviteLink(
         if (shop.packageLockedAt !== null) throw new Error("SHOP_LOCKED");
         const roleErr = validateAssignableRoles(roles, shop);
         if (roleErr) throw new Error(roleErr);
+        const flagErr = validateStaffFlags(roles, flags, shop);
+        if (flagErr) throw new Error(flagErr);
 
         // lookup tier ของเจ้าของหลัก (Shop.userId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์สร้างลิงก์
         const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } });
@@ -66,11 +69,13 @@ export async function createInviteLink(
             slug,
             role: "ADMIN",
             roles,
+            canCloseJob: flags.canCloseJob === true,
+            canRecordExpense: flags.canRecordExpense === true,
             createdByUserId: ownerId,
             expiresAt,
           },
         });
-        return { slug: link.slug, expiresAt: link.expiresAt };
+        return { slug: link.slug, expiresAt: link.expiresAt, canCloseJob: link.canCloseJob, canRecordExpense: link.canRecordExpense };
       });
     } catch (e) {
       // P2002 = unique violation (ชน slug) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่นไม่ retry
@@ -87,10 +92,10 @@ export async function createInviteLink(
  */
 export async function listActiveInviteLinks(
   shopId: string,
-): Promise<{ slug: string; expiresAt: Date; createdAt: Date; roles: string[] }[]> {
+): Promise<{ slug: string; expiresAt: Date; createdAt: Date; roles: string[]; canCloseJob: boolean; canRecordExpense: boolean }[]> {
   return prisma.shopInviteLink.findMany({
     where: { shopId, revokedAt: null, expiresAt: { gt: new Date() } },
-    select: { slug: true, expiresAt: true, createdAt: true, roles: true },
+    select: { slug: true, expiresAt: true, createdAt: true, roles: true, canCloseJob: true, canRecordExpense: true },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -182,7 +187,8 @@ export async function acceptInviteLink(
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: link.shopId, userId } },
-      create: { shopId: link.shopId, userId, role: "ADMIN", roles: link.roles }, // คัดลอกชุดที่เจ้าของเลือกตอนสร้างลิงก์
+      // คัดลอกชุดบทบาท + ธง (00086) ที่เจ้าของเลือกตอนสร้างลิงก์ — ธงเช็คประเภทร้านปัจจุบันอีกรอบ (acceptedStaffFlags)
+      create: { shopId: link.shopId, userId, role: "ADMIN", roles: link.roles, ...acceptedStaffFlags(link, shop) },
       update: {}, // idempotent กันกด accept ซ้อน (race ระหว่าง existingMember check กับที่นี่)
     });
 

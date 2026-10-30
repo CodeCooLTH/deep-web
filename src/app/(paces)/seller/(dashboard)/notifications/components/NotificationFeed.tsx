@@ -15,13 +15,22 @@
  *  - empty state
  *  - icon Solar Duotone ตาม type (ห้าม Tabler — spec §3 + §5)
  *  - item.href → ครอบ Link (next/link) ตาม Hard Rule 2 (wrapper ไม่ใช่ component={Link})
+ *  - 00086 FR-020: รายการ source='notification' (แถว Notification ของร้านนี้) มีสถานะอ่านจริง —
+ *    tint/จุด = ยังไม่อ่าน · "อ่านทั้งหมด" persist ผ่าน POST /api/notifications/read {shopId} (เฉพาะร้านนี้)
+ *    · กดดูรายละเอียด = mark รายการนั้น · ไอคอน/ลิงก์จาก src/lib/shop-notification.ts
+ *  - 00086 T11 (FR-014): แถวงานบริการ (service_job_*) มีรูปย่อ ≤1 (thumbFileId → toFileUrl) ใต้ข้อความ ก่อนเวลา
+ *    · alt="" (ข้อความแถวบอกเรื่องแล้ว) · รูปพัง = ซ่อน · ไม่ใช่ปุ่ม (ปุ่ม "ดูรายละเอียด" พาไปหน้างาน)
+ *    Base: theme/paces/Admin/TS/src/app/(admin)/ui/notifications/page.tsx + ไฟล์นี้ (in-repo)
  */
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import type { ActivityItem } from '@/services/activity.service'
+import type { SellerFeedItem } from '@/services/seller-notification-feed.service'
+import { shopNotificationStyle } from '@/lib/shop-notification'
 import { formatDate, formatDateTime } from '@/lib/format-date'
+import { toFileUrl } from '@/lib/file-url'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // ค่าคงที่ lazy-load
@@ -66,16 +75,55 @@ type Group = 'today' | 'yesterday' | 'older'
 // Props
 // ──────────────────────────────────────────────────────────────────────────────
 type Props = {
-  items: ActivityItem[]
+  items: SellerFeedItem[]
+  /** ร้านที่ active — ใช้จำกัด "อ่านทั้งหมด" ให้แตะเฉพาะแจ้งเตือนของร้านนี้ */
+  shopId: string | null
+}
+
+function feedIcon(item: SellerFeedItem): { icon: string; className: string } {
+  if (item.source === 'activity') return { icon: ICON_MAP[item.type], className: ICON_COLOR_MAP[item.type] }
+  const st = shopNotificationStyle(item.kind)
+  return { icon: st.feedIcon, className: st.colorClass }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Component
 // ──────────────────────────────────────────────────────────────────────────────
-export default function NotificationFeed({ items }: Props) {
+export default function NotificationFeed({ items, shopId }: Props) {
   const [showCount, setShowCount] = useState(INITIAL_COUNT)
-  // "อ่านทั้งหมด" — local state ซ่อน dot; persist = Phase 2 OOS-2
+  // "อ่านทั้งหมด" — activity: local state ซ่อน dot (persist = Phase 2 OOS-2) · notification: persist จริง
   const [allRead, setAllRead] = useState(false)
+  // id ของแถว Notification ที่อ่านแล้วในรอบนี้ (optimistic) — ไม่ต้องรอ server re-render
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set())
+  // แถวที่รูปย่อโหลดไม่ขึ้น (ไฟล์ถูกลบ/สิทธิ์) — ซ่อนรูป ไม่โชว์กล่องรูปแตก
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(() => new Set())
+
+  const isUnread = (item: SellerFeedItem, isTodayGroup: boolean): boolean => {
+    if (allRead) return false
+    if (item.source === 'notification') return !item.read && !readIds.has(item.id)
+    return isTodayGroup
+  }
+
+  // แจ้งเตือนพลาดก็แค่ยังเห็นเป็นยังไม่อ่าน — ไม่ toast ให้รก (การอ่านไม่ใช่งานที่ผู้ใช้ต้องรู้ผล)
+  const postRead = (body: { id?: string; shopId?: string }) => {
+    void fetch('/api/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {})
+  }
+
+  const handleMarkAll = () => {
+    setAllRead(true)
+    const hasUnreadRow = items.some((i) => i.source === 'notification' && !i.read && !readIds.has(i.id))
+    if (hasUnreadRow && shopId) postRead({ shopId })
+  }
+
+  const handleOpen = (item: SellerFeedItem) => {
+    if (item.source !== 'notification' || item.read || readIds.has(item.id)) return
+    setReadIds((prev) => new Set(prev).add(item.id))
+    postRead({ id: item.id })
+  }
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   // visible slice
@@ -110,9 +158,9 @@ export default function NotificationFeed({ items }: Props) {
     const todayStr = formatDate(new Date())
     const yesterdayStr = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
 
-    const today: ActivityItem[] = []
-    const yesterday: ActivityItem[] = []
-    const older: ActivityItem[] = []
+    const today: SellerFeedItem[] = []
+    const yesterday: SellerFeedItem[] = []
+    const older: SellerFeedItem[] = []
 
     for (const item of visible) {
       const k = formatDate(item.at)
@@ -139,7 +187,7 @@ export default function NotificationFeed({ items }: Props) {
   // ──────────────────────────────────────────────────────────────────────────
   // Render
   // ──────────────────────────────────────────────────────────────────────────
-  const sections: { label: string; key: Group; items: ActivityItem[] }[] = [
+  const sections: { label: string; key: Group; items: SellerFeedItem[] }[] = [
     { label: 'วันนี้',     key: 'today',     items: groupedItems.today     },
     { label: 'เมื่อวานนี้', key: 'yesterday', items: groupedItems.yesterday },
     { label: 'ก่อนหน้า',   key: 'older',     items: groupedItems.older     },
@@ -151,9 +199,9 @@ export default function NotificationFeed({ items }: Props) {
       <div className="flex items-center justify-end px-4 py-2 border-b border-default-100">
         <button
           type="button"
-          onClick={() => setAllRead(true)}
+          onClick={handleMarkAll}
           className="flex min-h-11 items-center gap-1 text-xs text-primary transition-colors hover:text-primary/80 lg:min-h-0"
-          /* UI-only: persist = Phase 2 OOS-2 */
+          /* activity: UI-only (persist = Phase 2 OOS-2) · แจ้งเตือนของร้าน: persist (00086) */
         >
           <Icon icon="solar:check-read-line-duotone" className="text-base" />
           อ่านทั้งหมด
@@ -164,8 +212,9 @@ export default function NotificationFeed({ items }: Props) {
       <div className="space-y-5 p-4">
         {sections.map(({ label, key, items: sectionItems }) => {
           if (sectionItems.length === 0) return null
-          // unread heuristic: เฉพาะกลุ่ม "วันนี้" = unread (UI-only; ActivityItem ไม่มี read flag — Phase 2 OOS-2)
-          const isUnreadGroup = key === 'today' && !allRead
+          // activity: unread heuristic เฉพาะกลุ่ม "วันนี้" (ActivityItem ไม่มี read flag — Phase 2 OOS-2)
+          // notification: ใช้ read flag จริง (isUnread)
+          const isTodayGroup = key === 'today'
 
           return (
             <div key={key}>
@@ -174,11 +223,12 @@ export default function NotificationFeed({ items }: Props) {
 
               {sectionItems.map((item, idx) => {
                 const isLast = idx === sectionItems.length - 1
-                const isUnreadItem = isUnreadGroup
+                const isUnreadItem = isUnread(item, isTodayGroup)
+                const { icon, className } = feedIcon(item)
 
                 return (
                   <div
-                    key={`${item.type}-${item.at.getTime()}-${idx}`}
+                    key={item.key}
                     className={[
                       'flex gap-x-5',
                       /* unread tint: bg-primary/5 — arbitrary opacity utility (HR7: Paces ไม่มี token สำหรับ tint ระดับนี้; ref spec §5 "rgba(primary,.055)"; ใช้ Tailwind /5 ≈ .05 แทน) */
@@ -195,10 +245,7 @@ export default function NotificationFeed({ items }: Props) {
                       <div className="relative z-10">
                         {/* icon: Solar Duotone flat (ไม่มี circle) ตาม spec §3 "Flat + borderless" */}
                         <div className="flex justify-center items-center size-7.5">
-                          <Icon
-                            icon={ICON_MAP[item.type]}
-                            className={`text-2xl ${ICON_COLOR_MAP[item.type]}`}
-                          />
+                          <Icon icon={icon} className={`text-2xl ${className}`} />
                         </div>
                       </div>
                     </div>
@@ -216,6 +263,18 @@ export default function NotificationFeed({ items }: Props) {
                         {item.label}
                       </p>
 
+                      {/* รูปย่องานบริการ ≤1 (00086 T11) — ใต้ข้อความ ก่อนเวลา */}
+                      {item.source === 'notification' && item.thumbFileId && !brokenThumbs.has(item.id) && (
+                        /* eslint-disable-next-line @next/next/no-img-element -- /api/files สตรีมจาก storage ไม่ผ่าน image optimizer */
+                        <img
+                          src={toFileUrl(item.thumbFileId) ?? undefined}
+                          alt=""
+                          loading="lazy"
+                          className="mb-1 block size-12 rounded-md object-cover"
+                          onError={() => setBrokenThumbs((prev) => new Set(prev).add(item.id))}
+                        />
+                      )}
+
                       {/* เวลา — formatDateTime (ห้าม toLocale/date-fns ตาม convention) */}
                       <small className="text-xs text-default-500">
                         {formatDateTime(item.at)}
@@ -226,6 +285,7 @@ export default function NotificationFeed({ items }: Props) {
                         <div className="mt-2">
                           <Link
                             href={item.href}
+                            onClick={() => handleOpen(item)}
                             className="btn btn-sm border-primary text-primary hover:bg-primary hover:text-white inline-flex items-center gap-1"
                           >
                             ดูรายละเอียด

@@ -9,7 +9,7 @@ import {
   variableNamesOf,
 } from '../variables'
 import { DEFAULT_TEMPLATES, TEMPLATE_EXAMPLES } from '../defaults'
-import { kindsForVertical } from '../kinds'
+import { IMPLICIT_KINDS, isImplicitKind, kindsForVertical, switchableKindsForVertical } from '../kinds'
 
 describe('ชุดตัวแปรต่อ kind (TC-111)', () => {
   // ตารางจาก PRD §3.4 พิมพ์ซ้ำตรงนี้โดยเจตนา: เทสนี้คือตัวล็อกให้ SSOT เปลี่ยนต้องแก้เอกสารก่อน
@@ -19,6 +19,8 @@ describe('ชุดตัวแปรต่อ kind (TC-111)', () => {
     SERVICE_BOOKED: ['ชื่อร้าน', 'ชื่อลูกค้า', 'เลขคำสั่งซื้อ', 'วันเวลานัด', 'บริการ', 'ยอดรวม', 'ยอดมัดจำที่ตกลงไว้', 'ลิงก์งาน'],
     SERVICE_STARTED: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'วันเวลานัด', 'เวลาเริ่มงาน', 'ลิงก์งาน'],
     SERVICE_CLOSED: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'วันเวลานัด', 'เวลาเริ่มงาน', 'เวลาปิดงาน', 'ลิงก์งาน'],
+    // 00086 (00086-p3-plan T2 · API §4.16 ไม่มีชื่อพนักงานถึงลูกค้า) — ไม่มีชื่อช่าง/เวลาทำเสร็จ
+    SERVICE_FINISHED: ['ชื่อร้าน', 'ชื่อลูกค้า', 'บริการ', 'ลิงก์งาน'],
   }
   it.each(AUTO_NOTIFY_KINDS)('%s เท่าตาราง PRD เป๊ะ', (k) => {
     expect(variableNamesOf(k)).toEqual(PRD[k])
@@ -35,16 +37,30 @@ describe('ชุดตัวแปรต่อ kind (TC-111)', () => {
     for (const k of AUTO_NOTIFY_KINDS) {
       expect(validateTemplate(k, DEFAULT_TEMPLATES[k])).toEqual([])
       expect(templateHasLinkVariable(DEFAULT_TEMPLATES[k])).toBe(true)
-      expect(TEMPLATE_EXAMPLES[k]).toHaveLength(3)
+      // ชนิดที่ไม่มีสวิตช์ (00086 SERVICE_FINISHED) ไม่มีตัวแก้เทมเพลต จึงไม่มีตัวอย่าง
+      expect(TEMPLATE_EXAMPLES[k]).toHaveLength(isImplicitKind(k) ? 0 : 3)
       for (const ex of TEMPLATE_EXAMPLES[k]) expect(validateTemplate(k, ex.body)).toEqual([])
     }
   })
 
   it('kindsForVertical', () => {
     expect(kindsForVertical('ONLINE_SALES')).toEqual(['ORDER_SUMMARY', 'TRACKING'])
-    expect(kindsForVertical('SERVICE_QUEUE')).toEqual(['SERVICE_BOOKED', 'SERVICE_STARTED', 'SERVICE_CLOSED'])
+    expect(kindsForVertical('SERVICE_QUEUE')).toEqual(['SERVICE_BOOKED', 'SERVICE_STARTED', 'SERVICE_CLOSED', 'SERVICE_FINISHED'])
     expect(kindsForVertical('LODGING')).toEqual([])
     expect(kindsForVertical('???')).toEqual([])
+  })
+
+  // 00086 (PRD §10.2 แถว 2026-10-27): SERVICE_FINISHED ไม่มีแถวสวิตช์ในหน้าตั้งค่า — ส่งตาม "ลูกค้าเห็นรูป" ของร้าน
+  it('switchableKindsForVertical: หน้าตั้งค่าไม่มีแถว SERVICE_FINISHED · ร้านอื่นเท่าเดิม', () => {
+    expect(IMPLICIT_KINDS).toEqual(['SERVICE_FINISHED'])
+    expect(switchableKindsForVertical('SERVICE_QUEUE')).toEqual(['SERVICE_BOOKED', 'SERVICE_STARTED', 'SERVICE_CLOSED'])
+    expect(switchableKindsForVertical('ONLINE_SALES')).toEqual(['ORDER_SUMMARY', 'TRACKING'])
+    expect(switchableKindsForVertical('LODGING')).toEqual([])
+  })
+
+  it('SERVICE_FINISHED: ข้อความตั้งต้นตาม BRD FR-015 ตรงตัว · ไม่มีตัวแปรชื่อช่าง', () => {
+    expect(DEFAULT_TEMPLATES.SERVICE_FINISHED.startsWith('ทำเสร็จแล้ว ดูรูปก่อน-หลังได้ที่ลิงก์งานบริการ')).toBe(true)
+    expect(validateTemplate('SERVICE_FINISHED', '{เวลาปิดงาน}')).toEqual([{ code: 'WRONG_KIND_VARIABLE', name: 'เวลาปิดงาน' }])
   })
 })
 

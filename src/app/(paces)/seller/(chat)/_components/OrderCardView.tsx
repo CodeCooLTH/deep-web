@@ -27,7 +27,8 @@ import { usesServiceFinanceRules } from '@/lib/finance-rules'
 import { hasUsableShipment, shipmentSourceLabel } from '@/lib/shipping/provider'
 import { describeShipmentStatus } from '@/lib/iship/status'
 import { TONE_BADGE } from '@/components/safepay/iship/tone'
-import { resolveServiceStatusBadge } from '@/lib/service-status'
+import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
+import { arrivalChipMeta } from '@/lib/arrival-mode'
 
 export type OrderCardViewData = {
   token: string
@@ -67,6 +68,19 @@ export type OrderCardViewData = {
   appointmentStatus?: string | null
   /** feature 00073 — Order.serviceClosedAt (ISO) · ร้านบริการปิดงานแล้ว ⇒ ป้ายชุดเดียว (service-status.ts) */
   serviceClosedAt?: string | null
+  /**
+   * feature 00086 — แบบการมาที่ร้านเลือก (BOOKED|WALK_IN) + createdAt (ISO · สูตรเดิมของใบที่ไม่มีค่าเก็บ)
+   * ร้านบริการ: งานหน้าร้านขึ้นป้าย WALK_IN (ร้าน "รอเริ่มงาน") (FR-001) + ชิปจองล่วงหน้า/หน้าร้านฝั่งร้าน (FR-002)
+   * ไม่ส่งทั้งคู่ (caller เก่า) = ป้ายเดิม ไม่มีชิป
+   */
+  arrivalMode?: string | null
+  createdAt?: string | null
+  /**
+   * feature 00086 — Order.serviceStartedAt/serviceFinishedAt (ISO) · ป้ายฝั่งร้าน "กำลังให้บริการ" / "ทำเสร็จ · รอปิดงาน"
+   * 🛑 ฝั่งลูกค้าไม่ใช้แม้ส่งมา (ShipmentSection ส่งต่อเฉพาะ side='seller') — ลูกค้าไม่เห็นขั้นภายในร้าน
+   */
+  serviceStartedAt?: string | null
+  serviceFinishedAt?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง จึงแสดงได้แค่จำนวน ห้ามทำเป็นสถานะ */
   depositAmount?: string | null
   paymentMethod?: string | null
@@ -97,9 +111,12 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
   /**
    * feature 00073 — ร้านบริการ: ป้ายชุดเดียวของงานบริการ (service-status.ts) แทนป้ายนัด/ป้ายออเดอร์กลาง
    * (ชิปนัดเดิมค้าง "ลูกค้ายืนยันแล้ว" แม้งานสำเร็จ · walk-in ปิดแล้วยังขึ้น "รับงานแล้ว")
+   * 00086: ฝั่งร้านส่งเวลาเริ่ม/ทำเสร็จด้วย ⇒ การ์ดพูดขั้นเดียวกับการ์ดงาน (หนึ่งหน้า หนึ่งป้ายสถานะ)
    * ไม่บอกยอดเงิน — การ์ดในแชทไม่ใช่ที่ตัดสินเรื่องเงิน (outstanding: null) · ร้านอื่น = null (ป้ายเดิม)
    */
-  const serviceBadge = usesServiceFinanceRules(data.vertical)
+  const isService = usesServiceFinanceRules(data.vertical)
+  const arrival = isService ? serviceArrivalOf(data) : undefined
+  const serviceBadge = isService
     ? resolveServiceStatusBadge(
         {
           status: data.status,
@@ -107,10 +124,28 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
           hasAppointment: Boolean(data.serviceStart),
           serviceClosedAt: data.serviceClosedAt ?? null,
           outstanding: null,
+          arrivalMode: arrival,
+          ...(side === 'seller'
+            ? { serviceStartedAt: data.serviceStartedAt ?? null, serviceFinishedAt: data.serviceFinishedAt ?? null }
+            : {}),
         },
         side,
       )
     : null
+  /**
+   * 00086 FR-002 — ชิปแบบการมา (ฝั่งร้านเท่านั้น) ชุดเดียวกับแถบงานในแชทมือถือ (OrderProgressBar):
+   * จองล่วงหน้า/หน้าร้าน + "ยังไม่ระบุเวลา" (ใบที่ต้องกด "เริ่มงานเลย") · ร้านอื่น/ไม่มีข้อมูล = ไม่มีชิป
+   */
+  const arrivalMeta = side === 'seller' ? arrivalChipMeta(arrival, { includeUnscheduled: true }) : null
+  const arrivalChip = arrivalMeta && (
+    <span
+      className={`${arrivalMeta.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}
+      title={arrivalMeta.hint}
+    >
+      <Icon icon={arrivalMeta.icon} className="text-sm" aria-hidden="true" />
+      {arrivalMeta.label}
+    </span>
+  )
   // ชิปสถานะออเดอร์ — label/icon/cls ชุดเดียวกับป้ายในรายการแชท (ORDER_STAGE_META) แต่ปิด
   // age-decay ด้วยการล็อก now = statusAt: ป้ายในลิสต์หายได้ (กันรก) แต่ชิปในการ์ดหายแล้ว
   // เหลือช่องว่างเปล่า — statusAt ไม่มี (caller เก่า) age = 0 เหมือนกัน จึงไม่มีทางโดนซ่อน
@@ -177,11 +212,14 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
         <div className="border-default-200 border-t border-dashed py-2.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-default-700 text-sm">วันเข้าใช้บริการ</span>
-            <span
-              className={`${meta.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}
-            >
-              <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />
-              {meta.label}
+            <span className="flex flex-wrap items-center justify-end gap-1">
+              {arrivalChip}
+              <span
+                className={`${meta.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}
+              >
+                <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />
+                {meta.label}
+              </span>
             </span>
           </div>
           {when && <p className="text-default-900 mb-0 mt-1 text-sm font-medium">{when}</p>}
@@ -205,7 +243,14 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
       <div className="bg-card px-4">
         <div className="border-default-200 flex items-center justify-between gap-2 border-t border-dashed py-2.5">
           <span className="text-default-700 text-sm">สถานะ</span>
-          {stageChip}
+          {arrivalChip ? (
+            <span className="flex flex-wrap items-center justify-end gap-1">
+              {arrivalChip}
+              {stageChip}
+            </span>
+          ) : (
+            stageChip
+          )}
         </div>
       </div>
     )

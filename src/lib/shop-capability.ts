@@ -16,7 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { forbiddenRoleResponse } from '@/lib/forbidden-role'
 import { sessionUserId } from '@/lib/session-user'
 import { requireShopForRequest, type ActiveShop } from '@/lib/shop-context'
-import { can, effectiveRoles, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
+import { can, effectiveRoles, memberCanCloseJob, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
 
 // NextAuth `Session` ไม่ประกาศ user.id/activeShopId (ไม่มี d.ts augmentation) — รับ object ตรง ๆ ไม่ต้อง cast ที่ผู้เรียก
 // ตัวตนอ่านผ่าน sessionUserId (ตรวจ id จริง) และ requireShopForRequest (re-verify สมาชิกภาพสด)
@@ -100,15 +100,20 @@ export async function canAccessShopWith(shopId: string, userId: string, cap: Cap
     where: { id: shopId },
     select: {
       userId: true, kind: true, vertical: true, deletedAt: true,
-      members: { where: { userId }, select: { role: true, roles: true }, take: 1 },
+      members: { where: { userId }, select: MEMBER_SELECT, take: 1 },
     },
   })
   if (!shop || shop.deletedAt) return false
   return decideForRow(shop, userId, cap)
 }
 
+// 00086: ธงมากับแถวสมาชิกเดิม (ไม่ยิงเพิ่ม) — ด่านทุกตัวในไฟล์นี้อ่าน ShopMember สดทุกคำขอ ไม่ใช่จาก JWT
+// ⇒ เจ้าของติ๊ก/เอาธงออก มีผลคำขอถัดไปทันทีโดยพนักงานไม่ต้องออกจากระบบ
+const MEMBER_SELECT = { role: true, roles: true, canCloseJob: true, canRecordExpense: true } as const
+type MemberRow = { role: string; roles: string[]; canCloseJob: boolean; canRecordExpense: boolean }
+
 function decideForRow(
-  shop: ShopFacts & { members: { role: string; roles: string[] }[] },
+  shop: ShopFacts & { members: MemberRow[] },
   userId: string,
   cap: Capability,
 ): boolean {
@@ -132,8 +137,30 @@ export async function listAccessibleShopIds(userId: string, cap: Capability): Pr
     },
     select: {
       id: true, userId: true, kind: true, vertical: true,
-      members: { where: { userId }, select: { role: true, roles: true }, take: 1 },
+      members: { where: { userId }, select: MEMBER_SELECT, take: 1 },
     },
   })
   return rows.filter((r) => decideForRow(r, userId, cap)).map((r) => r.id)
+}
+
+/**
+ * 00086 S-5 — ผู้ใช้นี้ปิดงานในร้าน "ที่ระบุ" ได้ไหม (เธรดแชท/งานรู้ shopId จากข้อมูล ไม่ใช่จาก session) — 1 query
+ * กฎสมาชิกเดียวกับ canAccessShopWith (ลบแล้ว/ไม่ใช่สมาชิก = false · PERSONAL ต้องเป็นเจ้าของ)
+ * แล้วส่งชุดบทบาทที่มีผลจริง + ธงของแถวสมาชิกให้ memberCanCloseJob ตัดสิน (ร้านไม่ใช่บริการ = O4 เดิม)
+ */
+export async function canCloseJobInShop(shopId: string, userId: string): Promise<boolean> {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: {
+      userId: true, kind: true, vertical: true, deletedAt: true,
+      members: { where: { userId }, select: MEMBER_SELECT, take: 1 },
+    },
+  })
+  if (!shop || shop.deletedAt) return false
+  if (shop.kind === 'PERSONAL') {
+    return shop.userId === userId && memberCanCloseJob(shop, effectiveRoles(shop, 'OWNER', []))
+  }
+  const m = shop.members[0]
+  if (!m) return false
+  return memberCanCloseJob(shop, effectiveRoles(shop, m.role, m.roles), m)
 }

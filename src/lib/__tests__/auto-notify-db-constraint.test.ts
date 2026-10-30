@@ -43,9 +43,11 @@ describe('00078 — TS ↔ migration', () => {
 
   const settingsSql = sqlMentioning('AutoNotifySwitch_kind_check')
   const ledgerSql = sqlMentioning('AutoNotifyLedger_reason_check')
+  // 00086: kind ขยายในไฟล์ใหม่ที่ไม่ได้แตะ reason_check — ต้องหาด้วยชื่อ CHECK ของ kind เอง (DATABASE §5.4)
+  const ledgerKindSql = sqlMentioning('AutoNotifyLedger_kind_check')
   it.each([...AUTO_NOTIFY_KINDS])('kind %s อยู่ใน CHECK ของ Switch/Template/Ledger', (v) => {
     expect(settingsSql.split(`'${v}'`).length - 1).toBeGreaterThanOrEqual(2)
-    expect(ledgerSql).toContain(`'${v}'`)
+    expect(ledgerKindSql).toContain(`'${v}'`)
   })
   it.each([...AUTO_NOTIFY_LEDGER_STATUSES])('status %s อยู่ใน ledger CHECK', (v) => {
     expect(ledgerSql).toContain(`'${v}'`)

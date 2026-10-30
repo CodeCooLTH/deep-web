@@ -1,11 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { planMemberRoleChange, validateAssignableRoles } from "@/lib/shop-role-assignment";
-import type { STAFF_ROLES } from "@/lib/shop-permissions";
+import { acceptedStaffFlags, mustUnassignOpenJobs, planMemberRoleChange, validateAssignableRoles, validateStaffFlags } from "@/lib/shop-role-assignment";
+import type { STAFF_ROLES, StaffFlags } from "@/lib/shop-permissions";
 
 type StaffRole = (typeof STAFF_ROLES)[number];
 import { checkRemove, checkRoleChange, checkTransfer, staffCountWhere, type MemberRole } from "@/lib/shop-member-rules";
 import { recalculateShopTrustScore } from "@/services/trust-score.service";
+import { unassignMemberOpenJobs } from "@/services/service-job.service";
 import {
   BUSINESS_PACKAGE_TIER_CONFIG, SHOP_LOCK_REASON,
   type BusinessPackageTier,
@@ -20,11 +21,14 @@ export async function inviteShopMember(
   contact: string,
   contactType: "PHONE" | "EMAIL",
   roles: StaffRole[] = ["MANAGER"],
+  flags: StaffFlags = {}, // 00086: ไม่ส่ง = false ทั้งสอง
 ) {
   return prisma.$transaction(async (tx) => {
     const shop = await requireOwnerMember(tx, shopId, ownerId);
     const roleErr = validateAssignableRoles(roles, shop);
     if (roleErr) throw new Error(roleErr);
+    const flagErr = validateStaffFlags(roles, flags, shop);
+    if (flagErr) throw new Error(flagErr);
     if (shop.packageLockedAt !== null) throw new Error("SHOP_LOCKED");
 
     // lookup tier ของเจ้าของหลัก (Shop.userId) — ไม่มี/ไม่ ACTIVE = ไม่มีสิทธิ์เชิญ
@@ -43,7 +47,10 @@ export async function inviteShopMember(
     if (duplicatePending) throw new Error("INVITE_ALREADY_PENDING");
 
     return tx.shopInvite.create({
-      data: { shopId, invitedContact: contact, contactType, invitedByUserId: ownerId, status: "PENDING", roles },
+      data: {
+        shopId, invitedContact: contact, contactType, invitedByUserId: ownerId, status: "PENDING", roles,
+        canCloseJob: flags.canCloseJob === true, canRecordExpense: flags.canRecordExpense === true,
+      },
     });
   });
 }
@@ -76,7 +83,8 @@ export async function acceptShopInvite(inviteId: string, currentUserId: string) 
 
     await tx.shopMember.upsert({
       where: { shopId_userId: { shopId: invite.shopId, userId: currentUserId } },
-      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN", roles: invite.roles }, // คัดลอกชุดที่เจ้าของเลือกตอนเชิญ
+      // คัดลอกชุดบทบาท + ธง (00086) ที่เจ้าของเลือกตอนเชิญ — ธงผ่าน acceptedStaffFlags (ร้านเลิกขายบริการระหว่างรอ = false)
+      create: { shopId: invite.shopId, userId: currentUserId, role: "ADMIN", roles: invite.roles, ...acceptedStaffFlags(invite, shop) },
       update: {}, // idempotent กันกด accept ซ้ำ
     });
 
@@ -101,7 +109,7 @@ async function loadPair(tx: Prisma.TransactionClient, shopId: string, callerId: 
   if (!shop || shop.kind !== "BUSINESS") throw new Error("NOT_OWNER");
   const [caller, target] = await Promise.all([
     tx.shopMember.findUnique({ where: { shopId_userId: { shopId, userId: callerId } }, select: { userId: true, role: true } }),
-    tx.shopMember.findUnique({ where: { id: memberId }, select: { id: true, shopId: true, userId: true, role: true, roles: true } }),
+    tx.shopMember.findUnique({ where: { id: memberId }, select: { id: true, shopId: true, userId: true, role: true, roles: true, canCloseJob: true, canRecordExpense: true } }),
   ]);
   return { shop, caller, target: target && target.shopId === shopId ? target : null };
 }
@@ -116,6 +124,11 @@ export async function removeShopMember(callerId: string, shopId: string, memberI
     if (err) throw new Error(err);
 
     await tx.shopMember.delete({ where: { id: memberId } });
+    // 00086 (SDS §3.11) — งานบริการที่ยังเปิดของคนที่ถูกลบ กลับเป็น "ยังไม่มีคนรับ" + ประวัติ MEMBER_REMOVED
+    // ใน tx เดียวกับการลบ: ลบสำเร็จแต่งานยังค้างชื่อคนที่เข้าร้านไม่ได้แล้ว = ไม่มีใครเริ่ม/ปิดงานนั้นได้ (ช่างล้วนคนอื่นติดด่าน)
+    // ร้านที่ไม่ใช่บริการไม่มีแถวที่มอบงาน ⇒ no-op (query เดียวบน index assignedUserId)
+    // จำนวนส่งกลับไปให้ toast — ผลข้างเคียงต้องไม่เงียบ (UX spec 00086 P3 · ร้านอื่นได้ 0 เสมอ ⇒ toast เดิม)
+    const unassignedJobCount = await unassignMemberOpenJobs(tx, { shopId, userId: target!.userId, actorUserId: callerId, reason: "MEMBER_REMOVED" });
 
     if (shop.packageLockReason === SHOP_LOCK_REASON.QUOTA_EXCEEDED_ADMIN_COUNT) {
       const sub = await tx.businessPackageSubscription.findUnique({ where: { ownerId: shop.userId } });
@@ -128,7 +141,7 @@ export async function removeShopMember(callerId: string, shopId: string, memberI
       }
     }
 
-    return { removed: true };
+    return { removed: true, unassignedJobCount };
   });
 }
 
@@ -137,7 +150,7 @@ export async function removeShopMember(callerId: string, shopId: string, memberI
  */
 export async function changeMemberRole(
   callerId: string, shopId: string, memberId: string,
-  input: { role?: MemberRole; roles?: StaffRole[] },
+  input: { role?: MemberRole; roles?: StaffRole[]; canCloseJob?: boolean; canRecordExpense?: boolean },
 ) {
   return prisma.$transaction(async (tx) => {
     const { shop, caller, target } = await loadPair(tx, shopId, callerId, memberId);
@@ -152,8 +165,20 @@ export async function changeMemberRole(
       const roleErr = validateAssignableRoles(plan.roles, shop);
       if (roleErr) throw new Error(roleErr);
     }
-    await tx.shopMember.update({ where: { id: memberId }, data: plan }); // CHECK ShopMember_roles_check: OWNER=[] / ADMIN=1..4
-    return plan;
+    // 00086: ตรวจเฉพาะธงที่ "ส่งมา" กับชุดบทบาทผลลัพธ์ — ธงเดิมที่ไม่ได้แตะห้ามถูกตีกลับ (เหตุผลเดียวกับ BILLING ข้างบน)
+    // ผลเป็น OWNER: แผนล้างธงเป็น false เอง (เจ้าของทำได้ทุกอย่างอยู่แล้ว) จึงไม่ตรวจ
+    if (plan.role === "ADMIN") {
+      const flagErr = validateStaffFlags(plan.roles, { canCloseJob: input.canCloseJob, canRecordExpense: input.canRecordExpense }, shop);
+      if (flagErr) throw new Error(flagErr);
+    }
+    await tx.shopMember.update({ where: { id: memberId }, data: plan }); // CHECK ShopMember_roles_check: OWNER=[] / ADMIN=1..4 · flags_admin_only: OWNER=false/false
+    // 00086 P3 — ไม่ได้ถือ "ช่าง" แล้ว (ถอดบทบาท/เลื่อนเป็นเจ้าของ) → งานบริการที่ยังเปิดของเขากลับเป็น "ยังไม่มีคนรับ"
+    // tx เดียวกับการเปลี่ยนบทบาท: บทบาทเปลี่ยนแต่ชื่อยังค้างบนงาน = ช่างล้วนคนอื่นรับ/เริ่ม/ปิดงานนั้นไม่ได้
+    // จำนวนงานที่ถูกปลด → route ส่งให้ toast (ผลข้างเคียงต้องไม่เงียบ · UX spec 00086 P3)
+    const unassignedJobCount = mustUnassignOpenJobs(shop, plan)
+      ? await unassignMemberOpenJobs(tx, { shopId, userId: target!.userId, actorUserId: callerId, reason: "ROLE_REMOVED" })
+      : 0;
+    return { ...plan, unassignedJobCount };
   });
 }
 
@@ -161,7 +186,7 @@ export async function changeMemberRole(
  *  เจ้าของเดิมคง role OWNER (= เจ้าของร่วม) · L1/Trust Score ของร้านอิงเจ้าของหลัก (FR-2.7) จึงคำนวณใหม่
  */
 export async function transferShopOwnership(callerId: string, shopId: string, memberId: string) {
-  await prisma.$transaction(async (tx) => {
+  const unassignedJobCount = await prisma.$transaction(async (tx) => {
     const { shop, target } = await loadPair(tx, shopId, callerId, memberId);
     const recipientId = target?.userId ?? "";
     const [sub, recipientActiveBusinessCount, memberCount] = await Promise.all([
@@ -181,12 +206,18 @@ export async function transferShopOwnership(callerId: string, shopId: string, me
     if (err) throw new Error(err);
 
     await tx.shop.update({ where: { id: shopId }, data: { userId: recipientId } });
-    await tx.shopMember.update({ where: { id: memberId }, data: { role: "OWNER", roles: [] } });
+    const promoted = { role: "OWNER", roles: [] as string[] };
+    await tx.shopMember.update({ where: { id: memberId }, data: { ...promoted, canCloseJob: false, canRecordExpense: false } }); // 00086: CHECK ShopMember_flags_admin_only_check — ไม่ล้างธง = 23514 → 500
+    // 00086 P3 — ผู้รับโอนกลายเป็นเจ้าของ (บทบาทย่อยถูกล้าง) ⇒ ไม่ได้ถือ "ช่าง" แล้ว: กติกาเดียวกับ changeMemberRole
+    // ผู้โอน (เจ้าของหลักเดิม) เป็นเจ้าของอยู่แล้วก่อนโอน — ไม่มีงานมอบให้ ไม่ต้องแตะ
+    return mustUnassignOpenJobs(shop, promoted)
+      ? await unassignMemberOpenJobs(tx, { shopId, userId: recipientId, actorUserId: callerId, reason: "ROLE_REMOVED" })
+      : 0;
   });
   await recalculateShopTrustScore(shopId).catch((e) =>
     console.error("[transferShopOwnership] trust recalc failed", shopId, e),
   );
-  return { transferred: true };
+  return { transferred: true, unassignedJobCount };
 }
 
 /** cancelInvite — owner ยกเลิกคำเชิญที่ยังค้าง PENDING */
@@ -207,7 +238,7 @@ export async function listMembers(shopId: string) {
   const rows = await prisma.shopMember.findMany({
     where: { shopId },
     select: {
-      id: true, role: true, roles: true, userId: true, createdAt: true,
+      id: true, role: true, roles: true, canCloseJob: true, canRecordExpense: true, userId: true, createdAt: true,
       // authAccounts: คอลัมน์ "ช่องทาง" ในหน้า /admins (เฉพาะชื่อ provider ไม่ดึง token)
       user: { select: { displayName: true, username: true, avatar: true, passwordHash: true, authAccounts: { select: { provider: true } } } },
     },

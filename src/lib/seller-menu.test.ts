@@ -164,7 +164,7 @@ describe('resolveOrderVocab — คลังคำ 11 ช่อง (00030 + date
     // แชทถูกตัดหายครึ่งคำบนจอ 390px จริง
     // noun 'การเข้ารับบริการ' → 'งานบริการ' (user เคาะ 2026-10-10)
     // 00073: ขั้นที่ร้านลงมือ = ปิดงาน (Order.serviceClosedAt) — ไม่มีขั้น SHIPPED "เริ่มให้บริการแล้ว" อีก
-    ['SERVICE_QUEUE', 'งานบริการ', 'บริการ', 'สร้างงานบริการ', 'งานใหม่', 'วันที่สร้าง', 'ปิดงานแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รับงานแล้ว', 'ต้นทุนอะไหล่'],
+    ['SERVICE_QUEUE', 'งานบริการ', 'บริการ', 'สร้างงานบริการ', 'งานใหม่', 'วันที่สร้าง', 'ปิดงานแล้ว', 'รายการบริการ', 'ยืนยันรับบริการ', 'ดูรายละเอียดบริการ', 'รอเริ่มงาน', 'ต้นทุนอะไหล่'],
     ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล', 'รับเข้าพักแล้ว', 'รายการห้องพัก', 'ยืนยันเข้าพักแล้ว', 'ดูบิลเข้าพัก', 'เปิดบิลแล้ว', 'ต้นทุนต่อห้อง'],
   ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel, fulfillLabel, itemsLabel, buyerConfirmLabel, viewLabel, stageOrderedLabel, costNoun) => {
     expect(resolveOrderVocab(vertical)).toMatchObject({
@@ -265,6 +265,27 @@ describe('resolveProductVocab — คลังคำฝั่งสินค้�
     for (const v of Object.keys(PRODUCT_VOCAB)) {
       expect(PRODUCT_VOCAB[v].soldLine('999')).toContain('999')
     }
+  })
+})
+
+// 00086 (user 2026-10-30 "ซ่อนเลย") — ช่างล้วนร้านบริการไม่เห็นเมนู "ร้านค้า" (เปิดได้แต่บันทึกไม่ได้ · ต้อง T1)
+describe('resolveVisibleSellerMenu — เมนู "ร้านค้า" ของช่างล้วนร้านบริการ', () => {
+  const staff = (vertical: string, roles: string[]) => ({
+    ...ctx(vertical),
+    staff: { kind: 'BUSINESS' as const, role: 'ADMIN' as const, roles },
+    shop: { kind: 'BUSINESS', vertical, isPrimaryOwner: false },
+  })
+  const seesShop = (c: Parameters<typeof resolveVisibleSellerMenu>[1]) =>
+    slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, c))).includes('seller:shop')
+  it('[blocker] ช่างล้วนร้านบริการ ⇒ ไม่มี "ร้านค้า" · ยังเห็นตารางงาน', () => {
+    expect(seesShop(staff('SERVICE_QUEUE', ['TECHNICIAN']))).toBe(false)
+    expect(slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, staff('SERVICE_QUEUE', ['TECHNICIAN']))))).toContain('seller:queues')
+  })
+  it('[blocker] เจ้าของ / ผู้ดูแล / ช่าง+ตอบแชท / ช่างร้านประเภทอื่น ⇒ เมนูเดิม (เทียบกับก่อนมีกฎ)', () => {
+    expect(seesShop(ctx('SERVICE_QUEUE'))).toBe(true)
+    expect(seesShop(staff('SERVICE_QUEUE', ['MANAGER']))).toBe(true)
+    expect(seesShop(staff('SERVICE_QUEUE', ['TECHNICIAN', 'CHAT']))).toBe(true)
+    expect(seesShop(staff('ONLINE_SALES', ['TECHNICIAN']))).toBe(true)
   })
 })
 

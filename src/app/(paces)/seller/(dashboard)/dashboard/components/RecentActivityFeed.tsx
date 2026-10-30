@@ -74,10 +74,15 @@ type Props = {
   items: ActivityItem[]
   /** ปุ่ม/ประโยคชวนสร้างรายการแรก ผันตามประเภทกิจการ (ORDER_VOCAB.createLabel) */
   createLabel?: string
+  /**
+   * ว่างแล้วมีปุ่มชวนสร้างรายการแรกไหม — ไม่ส่ง = มี (พฤติกรรมเดิม)
+   * false = บทบาทที่สร้างไม่ได้ (ช่างล้วนร้านบริการ ไม่มี O2) ⇒ เหลือแค่ข้อความว่าง ไม่พาไปหน้าที่เจอ "ไม่มีสิทธิ์"
+   */
+  canCreate?: boolean
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const RecentActivityFeed = async ({ items, createLabel }: Props) => {
+const RecentActivityFeed = async ({ items, createLabel, canCreate = true }: Props) => {
   const t = await getT()
   const create = createLabel || t.vocab.createLabel.ONLINE_SALES
   // "2 ชั่วโมงที่แล้ว" / "2 hours ago" — date-fns มี locale ของตัวเอง ไม่ได้อ่านจาก dictionary
@@ -99,20 +104,25 @@ const RecentActivityFeed = async ({ items, createLabel }: Props) => {
           <div className="flex flex-col items-center justify-center gap-3 py-8 px-4">
             {/* icon จาง — ใช้ opacity-40 เพื่อให้ primary ส่อง neutral ไม่ดึงความสนใจมาก */}
             <span className="opacity-40 text-primary">
-              <Icon icon="shopping-cart-plus" className="text-4xl" />
+              <Icon icon={canCreate ? 'shopping-cart-plus' : 'history'} className="text-4xl" />
             </span>
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold">{fmt(t.dashboard.activityEmptyTitle, { create })}</p>
+              <p className="text-sm font-semibold">
+                {canCreate ? fmt(t.dashboard.activityEmptyTitle, { create }) : t.dashboard.activityEmptyTitleNoCreate}
+              </p>
               <p className="text-xs text-default-500">{t.dashboard.activityEmptyDesc}</p>
             </div>
             {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target
-                convention: .btn bg-primary hover:bg-primary-hover (เหมือน WalletCard / หน้า seller อื่น) */}
-            <Link
-              href="/orders/new"
-              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center active:scale-95 transition-transform"
-            >
-              {createLabel}
-            </Link>
+                convention: .btn bg-primary hover:bg-primary-hover (เหมือน WalletCard / หน้า seller อื่น)
+                ไม่มีสิทธิ์สร้าง (canCreate=false) = ไม่ render ปุ่ม — ห้ามพาไปหน้าที่เจอ "ไม่มีสิทธิ์" */}
+            {canCreate && (
+              <Link
+                href="/orders/new"
+                className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center active:scale-95 transition-transform"
+              >
+                {createLabel}
+              </Link>
+            )}
           </div>
         ) : (
           // timeline: Paces after:border-dashed pattern (copy จาก RecentActivity.tsx)

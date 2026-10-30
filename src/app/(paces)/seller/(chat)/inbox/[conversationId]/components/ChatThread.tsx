@@ -3134,6 +3134,7 @@ export default function ChatThread({
                       // ร้านของเธรด ไม่ใช่ร้านที่ active — เปิดเธรดข้ามร้านได้ (BR-UNI-07)
                       shopId={shopId}
                       canVoidPayment={customerPanelData.canVoidPayment}
+                      canCloseJob={customerPanelData.canCloseJob}
                     />
                   ),
                 },

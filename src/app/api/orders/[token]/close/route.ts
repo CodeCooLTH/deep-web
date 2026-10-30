@@ -6,7 +6,7 @@ import { CloseServiceJobSchema } from '@/lib/validations'
 import { jsonNoStore } from '@/lib/shop-api-guard'
 import { requireShopCapability } from '@/lib/shop-capability'
 import { forbiddenRoleResponse } from '@/lib/forbidden-role'
-import { can } from '@/lib/shop-permissions'
+import { can, memberCanCloseJob } from '@/lib/shop-permissions'
 import { appointmentErrorResponse } from '@/lib/appointment-api'
 import { serviceJobErrorResponse } from '@/lib/service-job-api'
 import { getOrderMoney, OrderPaymentError } from '@/services/order-payment.service'
@@ -17,6 +17,7 @@ import { closeServiceJob, reopenServiceJob } from '@/services/service-job.servic
  *
  * POST   ปิดงาน: ผล (ให้บริการแล้ว/ไม่มาตามนัด) + เงินที่เหลือ + มัดจำ — กดครั้งเดียว
  *        O4 = ลงผลงาน (ด่านหลัก) · ส่งเงินมาด้วยต้องมี O5 · คืนมัดจำต้องมี O6
+ *        + 00086: ร้านบริการต้องผ่าน memberCanCloseJob (เจ้าของ/ผู้จัดการ/ธง canCloseJob) ด้วย
  *        (ช่าง = O4 ไม่มี O5 ⇒ ปิดได้แต่ส่งเงินไม่ได้ — 00071)
  * DELETE เปิดงานอีกครั้ง (มติ D2) — O6 (เจ้าของ/ผู้จัดการ) · ก่อนลูกค้ายืนยันเท่านั้น
  * GET    สถานะเงินของงานสำหรับชีตปิดงาน (บอร์ดคิว/แชทไม่ได้ถือยอดรับแล้ว/ค้างไว้) — O4
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const gate = await requireShopCapability(await getServerSession(authOptions), 'O4', { shopId: shopIdFromQuery(request) })
   if (!gate.ok) return gate.response
   const ctx = gate
+  // 00086 S-5 (FR-005) — ร้านบริการ: ปิดงานได้เฉพาะ เจ้าของ/ผู้จัดการ/คนที่ติ๊ก "ปิดงานได้" (ร้านอื่น = O4 เดิม)
+  // ร้าน/ธงมาจากแถวที่ด่านเพิ่ง resolve (ctx.active = ร้านเดียวกับ ctx.shopId ที่ส่งเข้า closeServiceJob · ?shopId= ไม่ถอยไปร้านอื่น)
+  if (!memberCanCloseJob(ctx.active.shop, ctx.roles, ctx.active)) return forbiddenRoleResponse()
 
   const parsed = v.safeParse(CloseServiceJobSchema, await request.json().catch(() => null))
   if (!parsed.success) return jsonNoStore({ error: 'VALIDATION_ERROR' }, { status: 400 })
@@ -56,6 +60,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       shopId: ctx.shopId,
       orderToken: token,
       actorUserId: ctx.userId,
+      // 00086 — ช่างล้วนปิดได้เฉพาะงานของตัวเองที่ทำเสร็จแล้ว (ตัดสินใน service · ด่าน memberCanCloseJob ด้านบนคงเดิม)
+      actorRoles: ctx.roles,
       outcome: input.outcome,
       payment: input.payment
         ? {

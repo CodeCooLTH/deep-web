@@ -38,6 +38,12 @@ export interface AutoNotifyEligibilityInput {
   serviceClosedAt?: When | null
   /** ผลปิดงาน (SERVICE_CLOSED): ส่งเฉพาะ SERVED */
   closeOutcome?: 'SERVED' | 'NO_SHOW' | null
+  /**
+   * feature 00086 (SERVICE_FINISHED) — Shop.serviceJobPhotosBuyerVisible ณ เวลาตัดสิน
+   * ไม่ส่ง = false (permission-gate-follows-the-row: ห้ามค่าตั้งต้นที่เปิด — ข้อความนี้ชวนลูกค้าดูรูป
+   * ถ้าร้านไม่ได้เปิดให้เห็น ลูกค้าจะเปิดลิงก์แล้วไม่เจออะไร)
+   */
+  photosBuyerVisible?: boolean
   /** เวลาปัจจุบัน — ใช้กับ "นัดต้องอยู่หลัง now" (D-3) ไม่ระบุ = eventAt */
   nowMs?: number
 }
@@ -59,6 +65,8 @@ export type NotEligibleReason =
   | 'APPOINTMENT_TERMINAL'
   | 'ALREADY_CLOSED'
   | 'NOT_SERVED'
+  // 00086 — ร้านไม่เปิดให้ลูกค้าเห็นรูป (SERVICE_FINISHED) · ไม่ถูกบันทึกลง ledger (ดู ledger-constants)
+  | 'PHOTOS_NOT_BUYER_VISIBLE'
 
 export type AutoNotifyEligibility = { eligible: true } | { eligible: false; reason: NotEligibleReason }
 
@@ -96,6 +104,12 @@ export function evaluateAutoNotifyEligibility(i: AutoNotifyEligibilityInput): Au
       return { eligible: true }
     case 'SERVICE_CLOSED':
       if (i.closeOutcome !== 'SERVED') return no('NOT_SERVED') // NO_SHOW ไม่ส่ง
+      return { eligible: true }
+    case 'SERVICE_FINISHED':
+      if (i.orderStatus === 'CANCELLED') return no('ORDER_CANCELLED')
+      // ปิดงานแล้วก่อนส่งทัน = ข้อความ "ปิดงาน" (SERVICE_CLOSED) แทน · ไม่ส่งสองข้อความซ้อน
+      if (i.serviceClosedAt != null) return no('ALREADY_CLOSED')
+      if (i.photosBuyerVisible !== true) return no('PHOTOS_NOT_BUYER_VISIBLE')
       return { eligible: true }
   }
 }

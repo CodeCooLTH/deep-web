@@ -49,7 +49,6 @@ import {
 import AppointmentDayCell from './AppointmentDayCell'
 import AppointmentDayRows from './AppointmentDayRows'
 import AppointmentDaySheet from './AppointmentDaySheet'
-import { useAppointmentBoardCaps } from './AppointmentBoardCaps'
 import { localDateKey, type AppointmentBoardItem } from './types'
 
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
@@ -69,14 +68,20 @@ type Props = {
    * (บอร์ดมือถือ "สร้างงาน" · ปฏิทินเดสก์ท็อป "จองคิว" · SSOT "สร้างการเข้ารับบริการ")
    */
   createLabelShort: string
+  /**
+   * วาดแถบ "สร้างงาน · <วันที่>" ติดล่างจอไหม — มาจาก `queuesCreateBarRenders` (role-nav) = can(O2s) และแถบล่างถูกซ่อน
+   * 🛑 ห้ามตัดสินเองจาก canCreate: ร้านบริการแถบล่าง (มี FAB) โชว์บน /queues แล้ว (00086) — วาดอีกแถบ = ปุ่มสร้างสองปุ่ม
+   * ซ้อนกัน fixed bottom-0 ทั้งคู่ · สร้างแบบติดวันที่ยังทำได้ในชีตรายวัน (AppointmentDaySheet) ซึ่งยังอ่าน canCreate ตามเดิม
+   */
+  showCreateBar: boolean
 }
 
 const ALL = ''
 
-export default function AppointmentMonthBoard({ resources, byDay, createLabelShort }: Props) {
+export default function AppointmentMonthBoard({ resources, byDay, createLabelShort, showCreateBar }: Props) {
   const router = useRouter()
-  // สร้างงานของวันที่เลือก = O2s (ช่างไม่มี → ไม่มีแถบติดล่างเลย · ที่ว่างล่างจอที่ shell เผื่อไว้ยังอยู่ ไม่กระทบเลย์เอาต์)
-  const { canCreate } = useAppointmentBoardCaps()
+  // แถบสร้างงานติดล่างจอ = showCreateBar (prop) ไม่ใช่ canCreate — ดูคอมเมนต์ที่ Props
+  //   (ไม่มีแถบ → ที่ว่างล่างจอที่ shell เผื่อไว้ 5.5rem เป็นของแถบล่างแทน ไม่กระทบเลย์เอาต์)
   const calRef = useRef<FullCalendar>(null)
 
   const [resourceId, setResourceId] = useState<string>(ALL)
@@ -569,6 +574,8 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
               ) : (
                 <AppointmentDayRows
                   items={dayItems}
+                  // 00086 — ป้ายเดียวกับชีตวันบนมือถือ (AppointmentDayCard): หน้าร้าน "รอเริ่มงาน" · ระหว่างทำงาน
+                  serviceBadges
                   // รวมทุกคิว = ต้องบอกว่าแถวไหนของคิวไหน · กรองคิวเดียวแล้วชื่อซ้ำทุกแถว = เสียงรบกวน
                   showResourceName={!resourceId && resources.length > 1}
                   onRowClick={token => router.push(`/orders/${token}`)}
@@ -605,8 +612,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           88px (5.5rem) อยู่แล้ว — safe-area บวกเท่ากันทั้งสองฝั่งจึงหักล้างกัน เหลือช่องหายใจ 19px
 
           Base: src/app/(paces)/seller/(dashboard)/products/components/ProductFormV2.tsx:463-474
-          (แถบบันทึกติดล่างจอของหน้าที่เป็น full-screen เหมือนกัน) */}
-      {canCreate && (
+          (แถบบันทึกติดล่างจอของหน้าที่เป็น full-screen เหมือนกัน)
+
+          00086 (2026-10-27): ร้านบริการไม่ซ่อนแถบล่างบน /queues แล้ว ⇒ showCreateBar = false ⇒ บาร์นี้ไม่ render
+          (FAB ในแถบล่างคือทางสร้าง) — เก็บโค้ดไว้สำหรับกรณีที่แถบล่างยังซ่อนตามเกณฑ์ใน role-nav */}
+      {showCreateBar && (
       <div
         className={[
           'bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden',

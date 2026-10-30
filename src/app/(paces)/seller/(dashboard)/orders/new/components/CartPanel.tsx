@@ -12,6 +12,13 @@
  * S-4 (2026-07-08): ปุ่มดาว ตั้งค่าเริ่มต้น channel/payment บน desktop — เขียน localStorage key เดียวกับมือถือ
  *   (import DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY จาก ChannelPaymentSelect ห้าม hardcode ซ้ำ)
  *   Base ปุ่มดาว: OptionPickerSheet.tsx:86-96 (icon star/star-filled + aria-label pattern, มือถือ — ห้ามแก้ไฟล์นั้น)
+ *
+ * ร้านบริการตอนสร้าง (serviceLayout · feature 00086 P2-T5 · prototype v13 — คู่กับ QuickForm มือถือ T4):
+ *   ลูกค้า → วันที่สั่งซื้อ → ลูกค้ามาแบบไหน → รายการ → นัด/เข้าคิว (กางเสมอ) → ผู้รับผิดชอบ (P3-T8)
+ *   → accordion "เพิ่มเติม" (ช่องทาง/ชำระเงิน + ส่วนลด/VAT ที่ย้ายมาจาก footer + หมายเหตุ); footer = ยอด + บันทึก
+ *   Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-add/page.tsx (form-label + grid ฟิลด์)
+ *     + theme/paces/Admin/TS/src/app/(admin)/ui/accordions/page.tsx (หัว accordion — skin เดิมของแผงนี้)
+ *   ร้านอื่น + หน้าแก้ไข = markup เดิมทุกตัวอักษร (SSOT: usesServiceCreateLayout ใน OrderCreateForm)
  */
 
 import { useMemo, useState, useEffect } from 'react'
@@ -31,6 +38,8 @@ import OrderDateRow from './OrderDateRow'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
 import DeliveryModeToggle, { PickupHint } from './DeliveryModeToggle'
+import ArrivalModePicker from './ArrivalModePicker'
+import { arrivalBlockIcon, arrivalBlockTitle, arrivalSubmitLabel, type OrderArrivalChoice } from '@/lib/order-form-arrival'
 // SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
 import { CHANNEL_OPTIONS, PAYMENT_OPTIONS } from './order-options'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -43,7 +52,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 // mirror ค่าที่ใช้ใน OrderCreateForm/PaymentChannelBlock
 
-type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note'
+type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note' | 'more'
 
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
@@ -92,6 +101,15 @@ interface Props {
   showDeliveryToggle?: boolean
   /** เจ้าของร้านเท่านั้น (00071 S-3) — ส่งต่อไป line item/summary · ไม่ส่ง = false */
   showCost?: boolean
+  /** feature 00086 P2-T5 — ลำดับร้านบริการตอนสร้าง (SSOT: usesServiceCreateLayout) · ไม่ส่ง = ลำดับเดิม */
+  serviceLayout?: boolean
+  /** feature 00086 P2-T5 — ปุ่มเลือก "ลูกค้ามาแบบไหน" (SSOT: sendsArrivalMode — ต้องมีคิวงาน) */
+  showArrivalPicker?: boolean
+  /**
+   * feature 00086 P3-T8 — ส่วน "ผู้รับผิดชอบ" (AssigneePicker variant="panel") จาก OrderCreateForm
+   * null/ไม่ส่ง = ไม่มีส่วนนี้ (SSOT: showsAssigneePicker) · วางเฉพาะลำดับร้านบริการ
+   */
+  assigneeBlock?: ReactNode
 }
 
 export default function CartPanel({
@@ -116,6 +134,9 @@ export default function CartPanel({
   shipsGoods = true,
   showDeliveryToggle = false,
   showCost = false,
+  serviceLayout = false,
+  showArrivalPicker = false,
+  assigneeBlock,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -123,6 +144,8 @@ export default function CartPanel({
   // แยก — CartPanel มี control อยู่แล้ว การ derive ที่นี่กันไม่ให้ต้องมี state คู่ขนานที่ต้อง sync เอง)
   const fulfillmentMode = useWatch({ control, name: 'fulfillmentMode' }) as FormValues['fulfillmentMode']
   const deliveryOverride: 'PICKUP' | undefined = fulfillmentMode === 'PICKUP' ? 'PICKUP' : undefined
+  // 00086 P2-T5 — ค่าเดียวกับที่ ArrivalModePicker/AppointmentBlock/submit ใช้ (RHF control ตัวเดียว)
+  const arrivalMode = useWatch({ control, name: 'arrivalMode' }) as OrderArrivalChoice | undefined
 
   const { field: channelField } = useController({ control, name: 'salesChannel' })
   const { field: paymentField } = useController({ control, name: 'paymentMethod' })
@@ -131,7 +154,8 @@ export default function CartPanel({
   const { field: noteField } = useController({ control, name: 'internalNote' })
   const register = control.register
 
-  const [openKey, setOpenKey] = useState<AccKey | null>(null)
+  // ร้านบริการตอนสร้าง: ลูกค้าเป็นสิ่งแรกที่ต้องกรอก (v13 กางไว้) — ร้านอื่นพับทุกอันเหมือนเดิม
+  const [openKey, setOpenKey] = useState<AccKey | null>(serviceLayout ? 'customer' : null)
   const toggle = (k: AccKey) => setOpenKey((c) => (c === k ? null : k))
   const [manualAddrOpen, setManualAddrOpen] = useState(false) // S-2: fallback "กรอกเอง" ซ่อนช่อง raw ไว้ default
 
@@ -274,19 +298,9 @@ export default function CartPanel({
   )
   const accBtn = 'flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-dark hover:bg-default-50'
 
-  // desktop: fill พาเนล (h-full จาก parent grid ที่ล็อกสูงเท่าจอ) → footer(ปุ่มบันทึก)ตรึงล่างเสมอ, กลาง scroll
-  return (
-    <div className="card flex flex-col lg:h-full">
-      {/* header */}
-      <div className="card-header flex shrink-0 items-center gap-2">
-        <Icon icon="shopping-cart" className="size-5 text-primary" />
-        <h4 className="card-title font-semibold text-dark">{cartTitle}</h4>
-        <span className="badge rounded-full bg-primary/15 text-primary">{count}</span>
-        {itemsHasError && errorBadge}
-      </div>
-
-      {/* scrollable middle — desktop: lines+accordion scroll ในนี้ (header/footer pinned) */}
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+  // ── ชิ้นส่วนของแผง — ประกอบสองลำดับ (เดิม / ร้านบริการตอนสร้าง) จากชิ้นเดียวกัน markup ไม่แตกต่าง ──
+  const linesSection = (
+    <>
       {/* lines — table-like (header row เฉพาะ desktop; rows มี divider เอง) */}
       <div className="p-3">
         {count === 0 ? (
@@ -329,7 +343,10 @@ export default function CartPanel({
           </div>
         )}
       </div>
-
+    </>
+  )
+  const customerAccordion = (
+    <>
       {/* ── accordion: ลูกค้า ── */}
       <div className="border-t border-default-200">
         <button type="button" onClick={() => toggle('customer')} className={accBtn}>
@@ -343,13 +360,9 @@ export default function CartPanel({
           </div>
         )}
       </div>
-
-      {/* ── accordion: ชำระเงิน / ช่องทาง ── */}
-      <div className="border-t border-default-200">
-        <button type="button" onClick={() => toggle('payment')} className={accBtn}>
-          <Icon icon="credit-card" className="size-4 text-default-400" /> ชำระเงิน / ช่องทาง {chevron(openKey === 'payment')}
-        </button>
-        {openKey === 'payment' && (
+    </>
+  )
+  const channelPaymentFields = (
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
               <div className="flex items-center justify-between">
@@ -412,9 +425,20 @@ export default function CartPanel({
               />
             </div>
           </div>
-        )}
+  )
+  const paymentAccordion = (
+    <>
+      {/* ── accordion: ชำระเงิน / ช่องทาง ── */}
+      <div className="border-t border-default-200">
+        <button type="button" onClick={() => toggle('payment')} className={accBtn}>
+          <Icon icon="credit-card" className="size-4 text-default-400" /> ชำระเงิน / ช่องทาง {chevron(openKey === 'payment')}
+        </button>
+        {openKey === 'payment' && channelPaymentFields}
       </div>
-
+    </>
+  )
+  const deliveryRow = (
+    <>
       {/* ── วิธีส่งมอบ (feature 00062 U15, เฉพาะร้าน ONLINE_SALES) ──
           แถวเดี่ยว ไม่ใช่ accordion — มีแค่ 2 ตัวเลือกไม่ต้องกาง/หุบ (UX-Design-Spec §A1) */}
       {showDeliveryToggle && (
@@ -430,7 +454,10 @@ export default function CartPanel({
           <PickupHint control={control} />
         </div>
       )}
-
+    </>
+  )
+  const orderDateRow = (
+    <>
       {/* feature 00033 — แถววันที่สั่งซื้อ (ยุบไว้ + ปุ่มเปลี่ยน) อยู่นอก accordion ตาม D-7
           (ux ruling: ห้ามห่อด้วย accordion ซ้ำ — ยุบ/ขยายในตัวอยู่แล้ว) */}
       <div className="border-t border-default-200 px-4 py-3">
@@ -442,7 +469,10 @@ export default function CartPanel({
           dateLabel={orderDateLabel}
         />
       </div>
-
+    </>
+  )
+  const shippingAccordion = (
+    <>
       {/* ── accordion: ที่อยู่จัดส่ง (เฉพาะ needsShipping) ── */}
       {needsShipping && (
         <div className="border-t border-default-200">
@@ -539,7 +569,10 @@ export default function CartPanel({
           )}
         </div>
       )}
-
+    </>
+  )
+  const appointmentAccordion = (
+    <>
       {/* ── accordion: วันเข้าใช้บริการ (feature 00024 — เฉพาะร้านที่เปิดคิวงาน) ──
            อยู่หลังที่อยู่จัดส่ง ก่อนหมายเหตุ ตาม Design Spec ส่วน C
            ต้องอยู่ "ใน" แผงนี้ ไม่ใช่ลอยเหนือ grid — ไม่งั้นจะไปกินความสูงของ grid
@@ -561,7 +594,10 @@ export default function CartPanel({
           {appointmentOpen && appointmentBlock}
         </div>
       )}
-
+    </>
+  )
+  const noteAccordion = (
+    <>
       {/* ── accordion: หมายเหตุ ── */}
       <div className="border-t border-default-200">
         <button type="button" onClick={() => toggle('note')} className={accBtn}>
@@ -581,26 +617,10 @@ export default function CartPanel({
           </div>
         )}
       </div>
-      </div>
-      {/* /scrollable middle */}
-
-      {/* ── footer: สรุป + บันทึก (pinned ล่างเสมอ) ── */}
-      <div className="shrink-0 space-y-2 border-t border-default-200 p-4">
-        {/* error ของรายการสินค้า — เดิม render เฉพาะใน QuickForm ซึ่งอยู่ใน branch lg:hidden
-            เดสก์ท็อปจึงไม่มีทางเห็นข้อความ "ต้องมีสินค้าอย่างน้อย 1 รายการ" เลย */}
-        {errors?.items?.message && (
-          <p className="text-sm text-danger">{String(errors.items.message)}</p>
-        )}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-default-600">ยอดรวมรายการ</span>
-          <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
-        </div>
-        {/* ความคืบหน้าของต้นทุน — ตัวนับ ไม่ใช่ตัวเลขเงิน (ดู countCostCoverage) */}
-        {showCost && costCoverage.total > 0 && (
-          <p className="text-default-400 text-xs tabular-nums">
-            ตั้งต้นทุนแล้ว {costCoverage.withCost}/{costCoverage.total} รายการ
-          </p>
-        )}
+    </>
+  )
+  const discountVatRows = (
+    <>
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-default-600">ส่วนลด</span>
           <div className="input-group w-28">
@@ -639,6 +659,185 @@ export default function CartPanel({
             <span className="input-group-text">%</span>
           </div>
         </div>
+    </>
+  )
+
+  /** หัวบล็อกนัด/คิวของร้านบริการ — คำเดียวกับการ์ดมือถือ (arrivalBlockTitle) */
+  const arrivalChoice = showArrivalPicker ? (arrivalMode ?? 'BOOKED') : undefined
+  const arrivalTitle = arrivalBlockTitle(arrivalChoice)
+  /** ส่วนลด/VAT ย้ายเข้า "เพิ่มเติม" — มี error ต้องกางเอง (idiom เดียวกับ shippingOpen) */
+  const moreOpen = openKey === 'more' || !!errors?.discount || !!errors?.vatRate
+
+  /**
+   * feature 00086 P2-T5 — ลำดับ v13 ของร้านบริการตอนสร้าง (คู่กับ QuickForm serviceLayout ของ T4)
+   * นัด/คิวไม่อยู่ใน accordion แล้ว: ร้านบริการตอนสร้างบังคับนัดหรือคิว (arrivalAppointmentProblem)
+   * ถ้าพับไว้ error ของบล็อกนี้จะไม่ถูก render (เนื้อใน accordion ไม่ถูก render ตอนพับ — ดู appointmentOpen)
+   */
+  const serviceMiddle = (
+    <>
+      {customerAccordion}
+      {orderDateRow}
+
+      {/* ลูกค้ามาแบบไหน — ก่อนรายการ เพราะคำตอบเปลี่ยนสิ่งที่ต้องกรอกในบล็อกนัด/คิวข้างล่าง */}
+      {showArrivalPicker && (
+        <div className="border-t border-default-200 px-4 py-3">
+          <h5 className="mb-2 text-sm font-semibold text-dark">ลูกค้ามาแบบไหน</h5>
+          <ArrivalModePicker control={control} />
+        </div>
+      )}
+
+      <div className="border-t border-default-200">{linesSection}</div>
+
+      {/* นัด (จองล่วงหน้า) หรือ เข้าคิววันนี้ (หน้าร้าน) — กางเสมอ หัวเรื่องแบบเดียวกับหัว accordion แต่ไม่มีปุ่มพับ */}
+      {appointmentBlock && (
+        <div className="border-t border-default-200">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Icon
+              icon={arrivalBlockIcon(arrivalChoice) ?? 'calendar-event'}
+              className="size-4 text-default-400"
+            />
+            <h5 className="text-sm font-semibold text-dark">{arrivalTitle}</h5>
+            {appointmentPrefilledDate && (
+              <span className="badge bg-primary/15 text-primary">
+                {formatWeekdayDateTH(appointmentPrefilledDate)}
+              </span>
+            )}
+          </div>
+          {appointmentBlock}
+        </div>
+      )}
+
+      {/* ผู้รับผิดชอบ (00086 P3-T8) — ระหว่างนัด/คิว กับ เพิ่มเติม · ไม่มีรายชื่อช่าง = ไม่มีส่วนนี้ */}
+      {assigneeBlock}
+
+      {deliveryRow}
+      {shippingAccordion}
+
+      {/* ── accordion: เพิ่มเติม — ช่องทาง/ชำระเงิน (แทบไม่เคยเปลี่ยนจากหน้าร้าน/เงินสด) + ส่วนลด/VAT + หมายเหตุ ── */}
+      <div className="border-t border-default-200">
+        <button type="button" onClick={() => toggle('more')} className={accBtn} aria-expanded={moreOpen}>
+          <Icon icon="adjustments" className="size-4 text-default-400" /> เพิ่มเติม
+          {(errors?.discount || errors?.vatRate) && errorBadge}
+          {chevron(moreOpen)}
+        </button>
+        {moreOpen && (
+          <div className="pb-4">
+            {channelPaymentFields}
+            <div className="grid gap-3 px-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="cp-discount" className="form-label">ส่วนลด (บาท)</label>
+                <input
+                  id="cp-discount"
+                  type="text" /* ไม่ใช่ number — src/lib/numeric-input.ts */
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="form-input"
+                  value={discountField.value ?? ''}
+                  onChange={(e) => discountField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}
+                  onBlur={() => {
+                    discountField.onChange(finishDecimalInput(discountField.value))
+                    discountField.onBlur()
+                  }}
+                />
+              </div>
+              <div>
+                <label htmlFor="cp-vat" className="form-label">VAT (%)</label>
+                <input
+                  id="cp-vat"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="form-input"
+                  value={vatField.value ?? ''}
+                  onChange={(e) => vatField.onChange(emptyToUndefined(parseDecimalInput(e.target.value)))}
+                  onBlur={() => {
+                    vatField.onChange(finishDecimalInput(vatField.value))
+                    vatField.onBlur()
+                  }}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="cp-note" className="form-label">หมายเหตุ</label>
+                <textarea
+                  id="cp-note"
+                  rows={2}
+                  aria-describedby="cp-note-hint"
+                  className="form-textarea"
+                  value={noteField.value ?? ''}
+                  onChange={noteField.onChange}
+                  onBlur={noteField.onBlur}
+                  ref={noteField.ref}
+                />
+                {/* คำรับประกันความเป็นส่วนตัวต้องอยู่ตลอด (เหตุผลเดียวกับ MoreOptions มือถือ) */}
+                <p id="cp-note-hint" className="mt-1 text-xs text-default-500">
+                  {words.buyerNoun}ไม่เห็นข้อความนี้
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  const legacyMiddle = (
+    <>
+      {linesSection}
+      {customerAccordion}
+      {paymentAccordion}
+      {deliveryRow}
+      {orderDateRow}
+      {shippingAccordion}
+      {appointmentAccordion}
+      {noteAccordion}
+    </>
+  )
+
+  // desktop: fill พาเนล (h-full จาก parent grid ที่ล็อกสูงเท่าจอ) → footer(ปุ่มบันทึก)ตรึงล่างเสมอ, กลาง scroll
+  return (
+    <div className="card flex flex-col lg:h-full">
+      {/* header */}
+      <div className="card-header flex shrink-0 items-center gap-2">
+        <Icon icon="shopping-cart" className="size-5 text-primary" />
+        <h4 className="card-title font-semibold text-dark">{cartTitle}</h4>
+        <span className="badge rounded-full bg-primary/15 text-primary">{count}</span>
+        {itemsHasError && errorBadge}
+      </div>
+
+      {/* scrollable middle — desktop: lines+accordion scroll ในนี้ (header/footer pinned) */}
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      {serviceLayout ? serviceMiddle : legacyMiddle}
+      </div>
+      {/* /scrollable middle */}
+
+      {/* ── footer: สรุป + บันทึก (pinned ล่างเสมอ) ── */}
+      <div className="shrink-0 space-y-2 border-t border-default-200 p-4">
+        {/* error ของรายการสินค้า — เดิม render เฉพาะใน QuickForm ซึ่งอยู่ใน branch lg:hidden
+            เดสก์ท็อปจึงไม่มีทางเห็นข้อความ "ต้องมีสินค้าอย่างน้อย 1 รายการ" เลย */}
+        {errors?.items?.message && (
+          <p className="text-sm text-danger">{String(errors.items.message)}</p>
+        )}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-default-600">ยอดรวมรายการ</span>
+          <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
+        </div>
+        {/* ความคืบหน้าของต้นทุน — ตัวนับ ไม่ใช่ตัวเลขเงิน (ดู countCostCoverage) */}
+        {showCost && costCoverage.total > 0 && (
+          <p className="text-default-400 text-xs tabular-nums">
+            ตั้งต้นทุนแล้ว {costCoverage.withCost}/{costCoverage.total} รายการ
+          </p>
+        )}
+        {/* ร้านบริการตอนสร้าง: ช่องกรอกย้ายไป "เพิ่มเติม" — footer เหลือบรรทัดอ่านอย่างเดียวให้ยอดรวมอธิบายตัวเองได้ */}
+        {serviceLayout ? (
+          discountVal > 0 && (
+            <div className="flex items-center justify-between text-xs text-default-500">
+              <span>ส่วนลด</span>
+              <span>− {formatThb(discountVal)}</span>
+            </div>
+          )
+        ) : (
+          discountVatRows
+        )}
         {vatRate > 0 && (
           <div className="flex items-center justify-between text-xs text-default-500">
             <span>VAT {vatRate}%</span>
@@ -654,7 +853,8 @@ export default function CartPanel({
           form={formId}
           className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover"
         >
-          บันทึก{orderNoun}
+          {/* 00086 v13 — หน้าร้าน = "บันทึกงานบริการ · เข้าคิววันนี้" · อื่น ๆ คำเดิม */}
+          {arrivalSubmitLabel(`บันทึก${orderNoun}`, arrivalChoice)}
         </button>
       </div>
     </div>

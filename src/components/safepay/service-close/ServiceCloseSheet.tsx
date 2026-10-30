@@ -20,7 +20,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_PAYMENT_METHOD_LABEL, type OrderMoney, type OrderPaymentMethod } from '@/lib/order-payment'
-import { SERVICE_JOB_ERROR_MESSAGE, type ServiceCloseOutcome } from '@/lib/service-job'
+import { SERVICE_JOB_ERROR_MESSAGE, serviceCloseFootnote, type ServiceCloseOutcome } from '@/lib/service-job'
 
 export interface ServiceCloseSheetProps {
   open: boolean
@@ -45,6 +45,11 @@ export interface ServiceCloseSheetProps {
   onClosed: () => void
   /** ผลที่เลือกไว้ตอนเปิด — เมนู "ไม่มาตามนัด" ของบอร์ดคิวเปิดชีตด้วย NO_SHOW */
   initialOutcome?: ServiceCloseOutcome
+  /**
+   * 00086 P3 — งานกดเริ่มงานแล้ว (Order.serviceStartedAt) ⇒ ไม่มีตัวเลือก "ไม่มาตามนัด" (เริ่มงาน = ลูกค้ามาแล้ว)
+   * ไม่ส่ง = false = พฤติกรรมเดิม (ผู้เรียกที่ไม่ได้ถือค่านี้ — server ตอบ 409 SERVICE_JOB_NO_SHOW_AFTER_START แทน)
+   */
+  serviceStarted?: boolean
 }
 
 const METHOD_OPTIONS: { value: OrderPaymentMethod; icon: string }[] = [
@@ -77,8 +82,11 @@ export default function ServiceCloseSheet({
   editHref = null,
   onClosed,
   initialOutcome = 'SERVED',
+  serviceStarted = false,
 }: ServiceCloseSheetProps) {
   useLockBodyScroll(open)
+  /** มีตัวเลือก "ไม่มาตามนัด" ไหม — walk-in ไม่มี (มาแล้วโดยนิยาม) · เริ่มงานแล้วไม่มี (00086) */
+  const noShowAllowed = hasAppointment && !serviceStarted
 
   const [outcome, setOutcome] = useState<ServiceCloseOutcome>('SERVED')
   const [amountText, setAmountText] = useState('')
@@ -96,7 +104,7 @@ export default function ServiceCloseSheet({
   // ค่าตั้งต้นทุกครั้งที่เปิด — ชีตถูก render ค้างโดยผู้เรียกที่มีหลายงาน (เหตุผลเดียวกับ Base)
   useEffect(() => {
     if (!open) return
-    setOutcome(hasAppointment ? initialOutcome : 'SERVED')
+    setOutcome(noShowAllowed ? initialOutcome : 'SERVED')
     setMethod('TRANSFER')
     setDeposit('KEEP')
     if (moneyProp !== undefined) {
@@ -119,7 +127,7 @@ export default function ServiceCloseSheet({
     return () => {
       cancelled = true
     }
-  }, [open, moneyProp, orderToken, shopId, hasAppointment, initialOutcome])
+  }, [open, moneyProp, orderToken, shopId, noShowAllowed, initialOutcome])
 
   // เสนอยอดค้างทั้งหมดเมื่อรู้ยอดแล้ว — กรณีส่วนใหญ่คือเก็บส่วนที่เหลือครบตอนจบงาน
   useEffect(() => {
@@ -167,7 +175,9 @@ export default function ServiceCloseSheet({
 
   if (!open) return null
 
-  const served = outcome === 'SERVED'
+  // ไม่มีตัวเลือกไม่มาตามนัด = ส่ง SERVED เสมอ แม้ state ค้างจากรอบก่อน (กันส่ง NO_SHOW ที่จอไม่ได้ให้เลือก)
+  const effectiveOutcome: ServiceCloseOutcome = noShowAllowed ? outcome : 'SERVED'
+  const served = effectiveOutcome === 'SERVED'
   const amount = amountText.trim() === '' ? 0 : Number(amountText)
   const amountInvalid = amountText.trim() !== '' && (!Number.isFinite(amount) || amount <= 0)
   /** ยอดงาน ฿0 — ปิดแล้วถูกล็อก (มติ D3) ⇒ ต้องเตือนให้ใส่ราคาก่อน ไม่ใช่ปล่อยปิดเงียบ ๆ */
@@ -192,7 +202,7 @@ export default function ServiceCloseSheet({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          outcome,
+          outcome: effectiveOutcome,
           payment: served && money && amount > 0 ? { amount, method } : null,
           deposit,
         }),
@@ -244,8 +254,8 @@ export default function ServiceCloseSheet({
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
-          {/* ── ผล ── walk-in ไม่มีตัวเลือกไม่มาตามนัด (ลูกค้ามาแล้วโดยนิยาม) */}
-          {hasAppointment && (
+          {/* ── ผล ── walk-in / เริ่มงานแล้ว ไม่มีตัวเลือกไม่มาตามนัด (ลูกค้ามาแล้ว) */}
+          {noShowAllowed && (
             <section>
               <p className="text-default-700 mb-2 text-xs font-semibold">ผลของงานนี้</p>
               <div className="flex gap-2" role="group" aria-label="ผลของงาน">
@@ -374,10 +384,12 @@ export default function ServiceCloseSheet({
             </>
           )}
 
-          {/* ไม่มีสิทธิ์รับเงิน (เช่น ช่าง) — ปิดได้ เงินให้คนที่มีสิทธิ์บันทึก (00071) */}
+          {/* ไม่มีสิทธิ์รับเงิน (เช่น ช่าง) — ปิดได้ เงินให้คนที่มีสิทธิ์บันทึก (00071)
+              00086 FR-011 ข้อความตรงตัว BRD · คำเดียวทั้ง 3 จุดที่ใช้ชีตนี้ (หน้างาน · บอร์ดคิว · แชท) */}
           {served && !money && loaded !== 'loading' && (
-            <p className="text-default-700 bg-default-100 mb-0 rounded-lg px-3 py-2 text-xs">
-              ปิดงานได้เลย · การรับเงินให้เจ้าของร้าน ผู้จัดการ หรือฝ่ายบิลบันทึก
+            <p className="text-default-700 bg-default-100 mb-0 flex items-start gap-1.5 rounded-lg px-3 py-2 text-xs">
+              <Icon icon="lock" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+              <span className="min-w-0">ปิดงานได้ แต่รับเงินไม่ได้ · ยอดที่เหลือให้เจ้าของร้านหรือฝ่ายเปิดบิลบันทึก</span>
             </p>
           )}
 
@@ -429,9 +441,8 @@ export default function ServiceCloseSheet({
             </section>
           )}
 
-          <p className="text-default-600 mb-0 text-xs">
-            ปิดงานแล้วยอดเข้าการเงินร้านทันที · ลูกค้ายืนยันรับบริการเพื่อขึ้นหน้าร้านและรีวิว
-          </p>
+          {/* ไม่มี O5 (money = null) = ไม่พูดเรื่องเงิน · ระหว่างโหลดก็ยังไม่พูด กันช่างเห็นข้อความเงินแวบหนึ่ง */}
+          <p className="text-default-600 mb-0 text-xs">{serviceCloseFootnote(money !== null)}</p>
         </div>
 
         <div className="border-default-200 shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"> {/* carve-out HR7: safe-area ไม่มี token ในธีม Paces — แถบปุ่มยึดขอบจอจึงต้องรับ inset เอง */}

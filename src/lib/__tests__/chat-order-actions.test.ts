@@ -37,12 +37,41 @@ const pay = (kind: 'DEPOSIT' | 'BALANCE', amount: number): PaymentRow => ({
  * 🛑 ห้าม derive จาก `appointmentStatus != null` เป็นอันขาด: ใบ walk-in ที่ร้านเคยกดปิดผลไว้
  * ก็มีสถานะนัดได้ และค่าที่ derive จากกันเองจะทำให้เทสพิสูจน์อะไรไม่ได้เลยตอนตัวใดตัวหนึ่งเพี้ยน
  */
-const keys = (ctx: Omit<Parameters<typeof chatOrderActions>[0], 'hasAppointment' | 'serviceClosed'> & {
+const keys = (ctx: Omit<Parameters<typeof chatOrderActions>[0], 'hasAppointment' | 'serviceClosed' | 'canClose'> & {
   hasAppointment?: boolean
   serviceClosed?: boolean
-}) => chatOrderActions({ hasAppointment: true, serviceClosed: false, ...ctx }).map((a) => a.key)
+  canClose?: boolean
+}) => chatOrderActions({ hasAppointment: true, serviceClosed: false, canClose: true, ...ctx }).map((a) => a.key)
 
 describe('chatOrderActions', () => {
+  describe('00086 S-5 (FR-005/FR-011) — ปุ่มปิดงานตามสิทธิ์ปิดงาน', () => {
+    it('[blocker] canClose=false → ไม่มี MARK_SERVED (ทั้งใบมีนัดและ walk-in)', () => {
+      expect(
+        keys({ orderStatus: 'PENDING', appointmentStatus: 'SCHEDULED', canClose: false, money: money({ total: 1000, deposit: 0 }) }),
+      ).not.toContain('MARK_SERVED')
+      expect(
+        keys({ orderStatus: 'PENDING', appointmentStatus: null, hasAppointment: false, canClose: false, money: money({ total: 500 }) }),
+      ).not.toContain('MARK_SERVED')
+    })
+
+    it('[blocker] canClose=false ไม่กระทบ "เริ่มงานเลย" (เริ่มงาน = O4 เดิม) และปุ่มเงิน', () => {
+      const k = keys({ orderStatus: 'PENDING', appointmentStatus: null, hasAppointment: false, canClose: false, money: money({ total: 500 }) })
+      expect(k).toEqual(['START_WALK_IN', 'RECORD_PAYMENT'])
+    })
+
+    it('[blocker] canClose=true → MARK_SERVED อยู่เหมือนเดิม', () => {
+      expect(
+        keys({ orderStatus: 'PENDING', appointmentStatus: null, hasAppointment: false, canClose: true, money: money({ total: 500 }) }),
+      ).toEqual(['START_WALK_IN', 'RECORD_PAYMENT', 'MARK_SERVED'])
+    })
+
+    it('canClose=false + ไม่มีปุ่มอื่น → MARK_SERVED ไม่ได้ถูกยกเป็นปุ่มหลักแทน (รายการว่าง)', () => {
+      expect(
+        keys({ orderStatus: 'PENDING', appointmentStatus: 'SCHEDULED', canClose: false, money: money({ total: 1000, paid: [pay('BALANCE', 1000)] }) }),
+      ).toEqual([])
+    })
+  })
+
   it('[blocker] ตกลงมัดจำไว้ ยังไม่ได้รับ → เห็นทั้งแจ้งมัดจำ รับเงิน และเข้ารับบริการ', () => {
     const k = keys({
       orderStatus: 'PENDING',
@@ -133,7 +162,7 @@ describe('chatOrderActions', () => {
       { orderStatus: 'PENDING', appointmentStatus: 'SCHEDULED', money: money({ total: 1000, deposit: 0 }) },
       { orderStatus: 'PENDING', appointmentStatus: 'COMPLETED', money: money({ total: 1000, deposit: 0, paid: [pay('BALANCE', 1000)] }) },
     ]) {
-      const primaries = chatOrderActions({ hasAppointment: true, serviceClosed: false, ...ctx }).filter((a) => a.primary)
+      const primaries = chatOrderActions({ hasAppointment: true, serviceClosed: false, canClose: true, ...ctx }).filter((a) => a.primary)
       expect(primaries.length, `ปุ่มหลักต้อง ≤ 1 (${JSON.stringify(ctx.appointmentStatus)})`).toBeLessThanOrEqual(1)
     }
   })
@@ -189,6 +218,7 @@ describe('chatOrderActions', () => {
       appointmentStatus: null,
       hasAppointment: false,
       serviceClosed: false,
+      canClose: true,
       money: money({ total: 500 }),
     })
     expect(list[0].key).toBe('START_WALK_IN')

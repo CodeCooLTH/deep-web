@@ -97,6 +97,22 @@ describe('ปุ่มบนการ์ดงานบริการในแ�
     })
   }
 
+  it('[blocker] 00086 S-5 — ทั้งสองจอส่งสิทธิ์ปิดงานของร้านเธรด (canCloseJob) เข้า chatOrderActions', () => {
+    /**
+     * จอที่ส่ง `canClose: true` ตายตัว = พนักงานที่ไม่ได้รับสิทธิ์เห็นปุ่ม "ปิดงาน" แล้วกดได้ 403
+     * ค่าต้องมาจาก `canCloseJobInShop(Conversation.shopId)` ที่ page.tsx (ร้านของเธรด ไม่ใช่ร้านที่ active)
+     */
+    for (const s of SURFACES) {
+      const code = stripComments(read(s.path))
+      expect(code, `${s.name}: ต้องส่ง canClose: canCloseJob`).toMatch(/chatOrderActions\(\{[\s\S]{0,400}canClose:\s*canCloseJob\b/)
+    }
+    const page = stripComments(read('src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx'))
+    expect(page, 'ต้องถามสิทธิ์ปิดงานจากร้านของเธรด').toMatch(/canCloseJobInShop\(threadShopId,/)
+    expect(page).toMatch(/customerPanelData: CustomerPanelData = \{[\s\S]*?\n\s+canCloseJob,/)
+    const thread = stripComments(read('src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx'))
+    expect(thread, 'แถบมือถือต้องได้ค่าจาก customerPanelData').toMatch(/canCloseJob=\{customerPanelData\.canCloseJob\}/)
+  })
+
   it('[blocker] ทั้งสองจอต้อง mount ชีตครบทุกตัวที่ปุ่มของมันเปิด', () => {
     /**
      * 🛑 `Record<typeof a.key, …>` บังคับให้ **มี handler** ครบ แต่ไม่ได้บังคับว่า handler นั้น

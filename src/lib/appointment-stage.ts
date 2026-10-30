@@ -19,6 +19,8 @@ import {
   APPOINTMENT_STATUS_LABEL,
   type AppointmentStatus,
 } from './appointments'
+import type { ArrivalMode } from './arrival-mode'
+import { SERVICE_STATUS_META } from './service-status'
 
 /**
  * สีของแต่ละสถานะ — pattern เดียวกับ ORDER_STAGE_META (`bg-{semantic}/15 text-{semantic}-ink`)
@@ -124,4 +126,23 @@ export function countAppointmentStages(
   } satisfies Record<AppointmentStatus, number>
   for (const s of stages) if (s) counts[s] += 1
   return counts
+}
+
+/**
+ * ป้ายสถานะของการ์ดนัด (ตารางงานรายวัน · การ์ด "การนัดหมาย" หน้างาน) — feature 00086 FR-001
+ *
+ * งานหน้าร้านตอนนี้มีเวลาเริ่มตั้งแต่สร้าง จึงมาถึงการ์ดนัดด้วยสถานะ SCHEDULED ("นัดแล้ว")
+ * ซึ่งผิดความหมาย — ลูกค้าไม่ได้นัด มาอยู่ที่ร้านแล้ว ⇒ ใช้ป้าย WALK_IN ("รอเริ่มงาน") ชุดเดียวกับ service-status
+ * สถานะอื่น (ยืนยัน/ขอเลื่อน/ให้บริการแล้ว/ไม่มาตามนัด) คงป้ายเดิม · `arrival` ไม่ส่ง = ผลเดิมทุกตัว
+ * 🛑 การ์ดนัดมีเฉพาะร้าน SERVICE_QUEUE (canUseAppointments) — ไม่กระทบร้านประเภทอื่น
+ */
+export function appointmentStageBadge(
+  status: AppointmentStatus,
+  arrival?: ArrivalMode | null,
+): { label: string; cls: string; icon: string } {
+  if (status === APPOINTMENT_STATUS.SCHEDULED && arrival === 'WALK_IN') {
+    const w = SERVICE_STATUS_META.WALK_IN
+    return { label: w.seller, cls: w.cls, icon: w.icon }
+  }
+  return APPOINTMENT_STAGE_META[status] ?? APPOINTMENT_STAGE_META.SCHEDULED
 }

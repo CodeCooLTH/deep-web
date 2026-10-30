@@ -74,12 +74,13 @@ function makeRequest(payload: Record<string, unknown>) {
 
 /** ร้านทุกใบเป็น BUSINESS ที่ user เป็นสมาชิก ยกเว้น SHOP_OUTSIDER */
 let memberRole = 'OWNER'
+let shopVertical = 'SERVICE_QUEUE'
 function wireShops() {
   prismaMock.shop.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => {
     if (where.id === SHOP_OUTSIDER) {
       return { id: SHOP_OUTSIDER, kind: 'BUSINESS', userId: 'someone-else', packageLockedAt: null, packageLockReason: null, deletedAt: null }
     }
-    return { id: where.id, kind: 'BUSINESS', vertical: 'SERVICE_QUEUE', userId: 'owner-x', packageLockedAt: null, packageLockReason: null, deletedAt: null }
+    return { id: where.id, kind: 'BUSINESS', vertical: shopVertical, userId: 'owner-x', packageLockedAt: null, packageLockReason: null, deletedAt: null }
   })
   prismaMock.shopMember.findUnique.mockImplementation(async ({ where }: { where: { shopId_userId: { shopId: string } } }) => {
     return where.shopId_userId.shopId === SHOP_OUTSIDER ? null : (memberRole === 'OWNER' ? { role: 'OWNER', roles: [] } : { role: 'ADMIN', roles: [memberRole] })
@@ -92,6 +93,7 @@ function wireShops() {
 beforeEach(() => {
   vi.clearAllMocks()
   memberRole = 'OWNER'
+  shopVertical = 'SERVICE_QUEUE'
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: USER_ID, activeShopId: SHOP_A } } as never)
   wireShops()
   prismaMock.conversation.findFirst.mockResolvedValue(null)
@@ -156,5 +158,102 @@ describe('[security] POST /api/orders — conversationId ต้องมี H1',
     const res = await POST(makeRequest(body({ conversationId: CONVERSATION_ID })))
     expect(res.status).toBe(201)
     expect(createOrderMock.mock.calls[0]![1].conversationId).toBe(CONVERSATION_ID)
+  })
+})
+
+/**
+ * feature 00086 S-2 (API.md §4.3) — ลูกค้ามาแบบไหน: บังคับเฉพาะ "ร้านบริการ + ส่งนัดมา"
+ * route ตรวจรูปร่างแล้วตอบรหัสที่บอกทางออก · กติกาที่ต้องรู้ข้อมูลร้าน (หน่วยเวลา/ระยะคิว) อยู่ที่ createOrder (เทส DB)
+ */
+describe('[blocker] POST /api/orders — arrivalMode (00086)', () => {
+  const RES = 'res-1'
+  const START = '2026-11-01T10:00:00+07:00'
+  const END = '2026-11-01T11:00:00+07:00'
+  const errOf = async (res: Response) => (await res.json()) as { error: string; message?: string }
+
+  it('ร้านบริการส่งนัดมาโดยไม่บอกแบบการมา → 400 ARRIVAL_MODE_REQUIRED ไม่บันทึก', async () => {
+    const res = await POST(makeRequest(body({ appointment: { resourceId: RES, start: START, end: END } })))
+    expect(res.status).toBe(400)
+    expect((await errOf(res)).error).toBe('ARRIVAL_MODE_REQUIRED')
+    expect(createOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('ไม่มีนัดและไม่ส่งแบบการมา → ใบยังไม่ระบุเวลาแบบเดิม (ไม่บังคับ)', async () => {
+    const res = await POST(makeRequest(body()))
+    expect(res.status).toBe(201)
+    const input = createOrderMock.mock.calls[0]![1]
+    expect(input.arrivalMode).toBeUndefined()
+    expect(input.appointment).toBeUndefined()
+    expect(input.walkIn).toBeUndefined()
+  })
+
+  it('BOOKED ไม่มีนัด / ขาดเวลา / ขาดคิว → 400 ARRIVAL_BOOKED_NEEDS_TIME "เลือกวันและเวลานัด"', async () => {
+    for (const appointment of [undefined, { resourceId: RES }, { resourceId: RES, start: START }, { start: START, end: END }]) {
+      const res = await POST(makeRequest(body({ arrivalMode: 'BOOKED', ...(appointment ? { appointment } : {}) })))
+      expect(res.status).toBe(400)
+      expect(await errOf(res)).toEqual({ error: 'ARRIVAL_BOOKED_NEEDS_TIME', message: 'เลือกวันและเวลานัด' })
+    }
+    expect(createOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('BOOKED ครบ → ส่งนัด (Date) + BOOKED ต่อให้ createOrder', async () => {
+    const res = await POST(makeRequest(body({ arrivalMode: 'BOOKED', appointment: { resourceId: RES, start: START, end: END, depositAmount: '100.00' } })))
+    expect(res.status).toBe(201)
+    const input = createOrderMock.mock.calls[0]![1]
+    expect(input.arrivalMode).toBe('BOOKED')
+    expect(input.walkIn).toBeUndefined()
+    expect(input.appointment).toEqual({ resourceId: RES, start: new Date(START), end: new Date(END), depositAmount: '100.00' })
+  })
+
+  it('WALK_IN ไม่เลือกคิว → 400 ARRIVAL_WALK_IN_NEEDS_QUEUE "เลือกคิวงาน"', async () => {
+    for (const appointment of [undefined, {}, { resourceId: '' }]) {
+      const res = await POST(makeRequest(body({ arrivalMode: 'WALK_IN', ...(appointment ? { appointment } : {}) })))
+      expect(res.status).toBe(400)
+      expect(await errOf(res)).toEqual({ error: 'ARRIVAL_WALK_IN_NEEDS_QUEUE', message: 'เลือกคิวงาน' })
+    }
+    expect(createOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('WALK_IN ละเวลา/มัดจำจาก client — ส่งแค่คิว+ระยะเวลา ให้ server ตั้งเวลาเอง', async () => {
+    const res = await POST(makeRequest(body({
+      arrivalMode: 'WALK_IN',
+      appointment: { resourceId: RES, durationMin: 45, start: '2030-01-01T10:00:00+07:00', end: '2030-01-01T11:00:00+07:00', depositAmount: '500.00' },
+    })))
+    expect(res.status).toBe(201)
+    const input = createOrderMock.mock.calls[0]![1]
+    expect(input.arrivalMode).toBe('WALK_IN')
+    expect(input.walkIn).toEqual({ resourceId: RES, durationMin: 45 })
+    expect(input.appointment).toBeUndefined()
+  })
+
+  it('[MINOR-1] WALK_IN ส่งแค่คิว → server ใช้ระยะเวลาของคิวงาน (walkIn ไม่มี durationMin)', async () => {
+    const res = await POST(makeRequest(body({ arrivalMode: 'WALK_IN', appointment: { resourceId: RES } })))
+    expect(res.status).toBe(201)
+    const input = createOrderMock.mock.calls[0]![1]
+    expect(input.walkIn).toEqual({ resourceId: RES, durationMin: undefined })
+  })
+
+  it('[MINOR-1] WALK_IN มีคิวแต่ durationMin ผิดรูป/เกิน 1440 → 400 Invalid input (ไม่ใช่ "เลือกคิวงาน")', async () => {
+    for (const durationMin of [1441, 0, -5, 1.5, '45']) {
+      const res = await POST(makeRequest(body({ arrivalMode: 'WALK_IN', appointment: { resourceId: RES, durationMin } })))
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('Invalid input')
+    }
+    expect(createOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('ค่าแบบการมาที่ไม่รู้จัก → 400', async () => {
+    const res = await POST(makeRequest(body({ arrivalMode: 'LATER' })))
+    expect(res.status).toBe(400)
+    expect(createOrderMock).not.toHaveBeenCalled()
+  })
+
+  it('ร้านไม่ใช่บริการ: arrivalMode ถูกละ (พฤติกรรมเดิม)', async () => {
+    shopVertical = 'ONLINE_SALES'
+    const res = await POST(makeRequest(body({ type: 'PHYSICAL', arrivalMode: 'WALK_IN' })))
+    expect(res.status).toBe(201)
+    const input = createOrderMock.mock.calls[0]![1]
+    expect(input.arrivalMode).toBeUndefined()
+    expect(input.walkIn).toBeUndefined()
   })
 })

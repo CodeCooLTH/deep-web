@@ -19,14 +19,14 @@ import { useState } from 'react'
 import AppointmentSummarySheet from '@/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { ARRIVAL_MODE_META, resolveArrivalMode } from '@/lib/arrival-mode'
+import { arrivalChipMeta, arrivalModeOf } from '@/lib/arrival-mode'
 import {
   formatDateTH,
   formatDayMonthTimeRangeTH,
   formatDayMonthTimeTH,
 } from '@/lib/format-date'
 import RescheduleAppointmentSheet from './RescheduleAppointmentSheet'
-import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
+import { appointmentStageBadge } from '@/lib/appointment-stage'
 import { isTerminalAppointmentStatus, type AppointmentStatus } from '@/lib/appointments'
 
 type Props = {
@@ -51,10 +51,15 @@ type Props = {
    * เวลาที่เปิดบิล — ใช้ derive "วิธีเข้ารับบริการ" (หัวหน้าถาม 2026-08-15)
    *
    * 🛑 ต้องรับ `createdAt` เข้ามา ไม่ใช่คำนวณจาก `startISO` อย่างเดียว — ตัวที่แยก
-   * "จองล่วงหน้า" ออกจาก "เดินเข้ามา" คือ *ระยะห่างระหว่างเวลานัดกับเวลาที่เปิดบิล*
+   * "จองล่วงหน้า" ออกจาก "หน้าร้าน" (ใบเก่าที่ไม่มีค่าเก็บ) คือ *ระยะห่างระหว่างเวลานัดกับเวลาที่เปิดบิล*
    * ไม่ใช่ตัวเวลานัดเอง
    */
   createdAtISO: string
+  /**
+   * feature 00086 — แบบการมาที่ร้านเลือกตอนเปิดบิล (`Order.arrivalMode`: BOOKED|WALK_IN)
+   * null = ใบเก่า/ไม่ได้ระบุ ⇒ `arrivalModeOf` ตกไปใช้สูตรเดิมจาก createdAtISO
+   */
+  arrivalMode: string | null
   /**
    * 00071 P3 — เลื่อนนัด = O3 · ซ่อนปุ่มที่บทบาทไม่มีสิทธิ์ (ตัวบังคับจริงอยู่ที่ route)
    * (ปิดผล/ปิดงาน O4 ย้ายไป ServiceJobCard แล้ว — feature 00073)
@@ -65,6 +70,12 @@ type Props = {
    * ค่าตั้งต้น false — ผู้เรียกต้องส่ง `can(roles,'H1')` เอง (00071 P3 · S-15)
    */
   canSendSummary?: boolean
+  /**
+   * 00086 critique P0 — หน้านี้มีการ์ด "งานนี้" (ServiceJobCard) อยู่แล้ว ⇒ ไม่แสดงป้ายขั้นนัดซ้ำ
+   * (ป้ายของการ์ด "งานนี้" คือสถานะเดียวของหน้า — สองป้ายคนละคำในจอเดียวทำให้งงว่าอยู่ขั้นไหน)
+   * เหลือแค่ชิปแบบการมา · ค่าตั้งต้น false = ใบที่ไม่มีการ์ดงาน/ร้านอื่นคงป้ายเดิม
+   */
+  hideStageBadge?: boolean
 }
 
 export default function AppointmentCard({
@@ -78,20 +89,25 @@ export default function AppointmentCard({
   rescheduleCount,
   rescheduleRequestNote,
   createdAtISO,
+  arrivalMode,
   canReschedule = true,
   canSendSummary = false,
+  hideStageBadge = false,
 }: Props) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
   /** ชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — ชีตขอข้อมูลเองจาก token ไม่รับ prop
    *  (สรุปนัดมีเบอร์ลูกค้า ส่งเป็น prop = โยน PII ลง flight payload ทุกครั้งที่เปิดหน้า) */
   const [summaryOpen, setSummaryOpen] = useState(false)
 
-  const meta = APPOINTMENT_STAGE_META[stage]
   const terminal = isTerminalAppointmentStatus(stage)
   /** ลูกค้าขอเลื่อนแล้วรออยู่ — การ์ดต้องชี้ทางแก้ ไม่ใช่แค่ติดป้ายบอกว่ามีปัญหา */
   const awaitingReschedule = stage === 'RESCHEDULE_REQUESTED'
 
-  const arrival = resolveArrivalMode({ serviceStart: startISO, createdAt: createdAtISO })
+  const arrival = arrivalModeOf({ arrivalMode, serviceStart: startISO, createdAt: createdAtISO })
+  // 00086 FR-001 — งานหน้าร้านขึ้น "รอเริ่มงาน" ไม่ใช่ "นัดแล้ว" (สถานะอื่นคงป้ายเดิม)
+  const meta = appointmentStageBadge(stage, arrival)
+  // 00086 FR-002 — ชิปแบบการมาทั้งจองล่วงหน้า/หน้าร้าน
+  const arrivalChip = arrivalChipMeta(arrival)
 
   return (
     <div
@@ -105,31 +121,33 @@ export default function AppointmentCard({
       <div className="card-header flex flex-wrap items-center justify-between gap-2">
         <h4 className="card-title">การนัดหมาย</h4>
         {/**
-          * ชิป "วิธีเข้ารับบริการ" — โผล่เฉพาะ "เดินเข้ามา" (ไม่ใช่ค่าปกติของร้านจอง)
-          * "จองล่วงหน้า" เป็นค่าปกติ ติดป้ายทุกใบจะกลายเป็นเสียงรบกวนที่ตาข้ามไปเอง
+          * ชิป "วิธีเข้ารับบริการ" (คำจาก ARRIVAL_MODE_META ผ่าน arrivalChipMeta) — 00086 FR-002: ติดทั้ง
+          * "จองล่วงหน้า" และ "หน้าร้าน" เพราะร้านเลือกเองตอนเปิดบิลแล้ว (เดิมติดเฉพาะ walk-in ตอนยังเดาจากเวลา)
           * (การ์ดนี้ render เฉพาะใบที่มีเวลานัดแล้ว ⇒ ไม่มีเคส "ยังไม่ระบุเวลา" มาถึงที่นี่)
           */}
-        {arrival === 'WALK_IN' && (
+        {arrivalChip && (
           <span
             className={cn(
               'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-              ARRIVAL_MODE_META.WALK_IN.cls,
+              arrivalChip.cls,
             )}
-            title={ARRIVAL_MODE_META.WALK_IN.hint}
+            title={arrivalChip.hint}
           >
-            <Icon icon={ARRIVAL_MODE_META.WALK_IN.icon} className="shrink-0 text-sm" aria-hidden="true" />
-            {ARRIVAL_MODE_META.WALK_IN.label}
+            <Icon icon={arrivalChip.icon} className="shrink-0 text-sm" aria-hidden="true" />
+            {arrivalChip.label}
           </span>
         )}
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-            meta.cls,
-          )}
-        >
-          <Icon icon={meta.icon} className="shrink-0 text-sm" aria-hidden="true" />
-          {meta.label}
-        </span>
+        {!hideStageBadge && (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+              meta.cls,
+            )}
+          >
+            <Icon icon={meta.icon} className="shrink-0 text-sm" aria-hidden="true" />
+            {meta.label}
+          </span>
+        )}
       </div>
       <div className="card-body">
         <ul className="mb-0 list-none space-y-2.5 p-0">

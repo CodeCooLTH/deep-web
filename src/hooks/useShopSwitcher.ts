@@ -58,7 +58,7 @@ function sleep(ms: number) {
 
 export function useShopSwitcher(options?: UseShopSwitcherOptions) {
   const t = useT()
-  const landingPath = options?.landingPath ?? DASHBOARD_PATH
+  const defaultLandingPath = options?.landingPath ?? DASHBOARD_PATH
   const minOverlayMs = options?.minOverlayMs ?? MIN_OVERLAY_MS
   const { update } = useSession()
   const [switching, setSwitching] = useState(false)
@@ -67,8 +67,11 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
   const switchingRef = useRef(false)
 
   const switchShop = useCallback(
-    async (shopId: string, targetInfo?: ShopSwitchTarget) => {
+    // callOptions.landingPath (00086): ปลายทางต่อครั้ง — กระดิ่ง TopBar มีหลายรายการ ปลายทางต่างกันตามชนิดแจ้งเตือน
+    // จึงผูกไว้ตอนเรียก hook ไม่ได้ · ไม่ส่ง = ค่าของ hook เหมือนเดิม
+    async (shopId: string, targetInfo?: ShopSwitchTarget, callOptions?: { landingPath?: string }) => {
       if (switchingRef.current) return
+      const landingPath = callOptions?.landingPath ?? defaultLandingPath
       switchingRef.current = true
       setSwitching(true)
       setTarget(targetInfo)
@@ -122,7 +125,7 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
     },
     // `t` เป็นค่าคงที่ระดับ module ต่อภาษา (LocaleProvider คืน dictionary ไม่ใช่ object literal)
     // identity จึงเสถียร ใส่ dep ได้โดยไม่เกิดลูป (docs/conventions/hook-return-identity-in-deps.md)
-    [update, landingPath, minOverlayMs, t],
+    [update, defaultLandingPath, minOverlayMs, t],
   )
 
   return { switching, target, switchShop }

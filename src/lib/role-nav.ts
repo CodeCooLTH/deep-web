@@ -9,7 +9,7 @@
  */
 import type { MenuItemType } from '@/types'
 import { ROUTE_CAPABILITIES, isClassEntry } from '@/lib/route-capabilities'
-import { can, moneyLevel, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
+import { can, isTechnicianOnly, moneyLevel, PRIMARY_OWNER_ONLY, type Capability, type ShopRole } from '@/lib/shop-permissions'
 import { canUseAppointments } from '@/lib/appointments'
 import { byVertical } from '@/i18n/vertical'
 import type { Dictionary } from '@/i18n/dictionaries/th'
@@ -86,10 +86,14 @@ const BUSINESS_ONLY_SLUGS = new Set(['seller:admins'])
 export function applyCapabilityMenu(
   items: MenuItemType[],
   roles: readonly ShopRole[],
-  shop: PageShop & { kind: string },
+  shop: PageShop & { kind: string; vertical?: string },
 ): MenuItemType[] {
+  // 00086 (user 2026-10-30 "ซ่อนเลย") — ช่างล้วนร้านบริการ: ถอดเมนูที่เปิดได้แต่ใช้จริงไม่ได้ (ร้านค้า = บันทึกต้อง T1)
+  //   ชุดเดียวกับทางลัดหน้าแรก (technicianUnusableShortcutSlugs) · ไม่ส่ง vertical = ผลเดิมทุกตัว
+  const unusable = shop.vertical !== undefined ? technicianUnusableShortcutSlugs(roles, { kind: shop.kind, vertical: shop.vertical }) : new Set<string>()
   const keep = (i: MenuItemType): boolean => {
     if (i.slug && BUSINESS_ONLY_SLUGS.has(i.slug) && shop.kind !== 'BUSINESS') return false
+    if (i.slug && unusable.has(i.slug)) return false
     return !i.url || canSeePage(i.url, roles, shop)
   }
   const walk = (list: MenuItemType[]): MenuItemType[] =>
@@ -157,7 +161,7 @@ export const buildFabActions = (
 // ─── resolveMobileNav (spec §2) ──────────────────────────────────────────────
 
 export type NavTab = {
-  key: 'home' | 'orders' | 'work' | 'chat' | 'shop'
+  key: 'home' | 'orders' | 'work' | 'mine' | 'chat' | 'shop' | 'queues' | 'customers'
   href: string
   icon: string
   /** true = active เฉพาะ path ตรงตัว (/dashboard) */
@@ -213,7 +217,17 @@ export function resolveMobileNav(
       ariaLabel: byVertical(t.vocab.orderNoun, shop.vertical),
       badge: 'pending',
     })
-  } else if (roles.length > 0 && roles.every((r) => r === 'TECHNICIAN')) {
+  } else if (isTechnicianOnly(roles) && canUseAppointments(shop)) {
+    /**
+     * 00086 P3 (FR-008 · S-7): ร้านบริการ ∧ ช่างล้วน = หน้าหลัก · งานของฉัน · ตารางงาน (ไม่มีปุ่ม +)
+     * ร้านประเภทอื่น ช่างล้วนยังได้แท็บ "งาน" เดิมทุกตัวอักษร (สาขาข้างล่าง)
+     * "งานของฉัน" ไม่มี badge — จำนวนงานอยู่บนหน้าแรก/หน้า /my-jobs แล้ว
+     */
+    tabs.push(
+      { key: 'mine', href: '/my-jobs', icon: 'user-check', exactMatch: false, label: 'งานของฉัน', ariaLabel: 'งานของฉัน', badge: null },
+      { key: 'queues', href: '/queues', icon: 'calendar-event', exactMatch: false, label: t.dashboard.navQueues, ariaLabel: t.dashboard.navQueues, badge: null },
+    )
+  } else if (isTechnicianOnly(roles)) {
     // ช่างล้วน: "งาน" → ตารางงานถ้าร้านรับนัด ไม่งั้นรายการออเดอร์ (มติ 6)
     const queues = canUseAppointments(shop)
     tabs.push({
@@ -221,18 +235,35 @@ export function resolveMobileNav(
       exactMatch: false, label: 'งาน', ariaLabel: 'งาน', badge: null,
     })
   }
-  if (can(roles, 'H1')) {
-    tabs.push({ key: 'chat', href: '/inbox', icon: 'message-circle', exactMatch: false, label: t.dashboard.navChat, ariaLabel: t.dashboard.navChat, badge: 'unread' })
-  }
-  if (can(roles, 'T1')) {
-    tabs.push({ key: 'shop', href: '/shop', icon: 'building-store', exactMatch: false, label: t.dashboard.navShop, ariaLabel: t.dashboard.navShop, badge: 'shopAlert' })
-  }
+  const chatTab: NavTab = { key: 'chat', href: '/inbox', icon: 'message-circle', exactMatch: false, label: t.dashboard.navChat, ariaLabel: t.dashboard.navChat, badge: 'unread' }
+  const shopTab: NavTab = { key: 'shop', href: '/shop', icon: 'building-store', exactMatch: false, label: t.dashboard.navShop, ariaLabel: t.dashboard.navShop, badge: 'shopAlert' }
+  if (can(roles, 'H1')) tabs.push(chatTab)
+  if (can(roles, 'T1')) tabs.push(shopTab)
 
   let fab: MobileNavFab = null
   if (can(roles, 'P2')) {
     fab = { kind: 'speedDial', actions: buildFabActions(vocab, t, shop.vertical, shop.kind) }
   } else if (can(roles, 'O2') || can(roles, 'O2s')) {
     fab = { kind: 'direct', href: '/orders/new', icon: 'plus', ariaLabel: vocab.createLabel, label: t.dashboard.navCreate }
+  }
+
+  /**
+   * 00086 FR-016 (S-14): ร้านบริการ บทบาทที่มีปุ่ม + ต้องได้ 4 แท็บเสมอ ปุ่ม + จึงอยู่กลางจริง (2 ซ้าย · + · 2 ขวา)
+   * ทำไมจำกัดแค่ร้านบริการ: ร้านประเภทอื่นต้องได้แถบเดิมทุกตัวอักษร (ตอบแชท/เปิดบิลของร้านอื่นยังเป็นแถบสั้นแบบเดิม)
+   * เติมตามลำดับ แชท → ร้านค้า → ตารางงาน → ลูกค้า เฉพาะช่องที่บทบาทเปิดหน้าได้จริง (H1/T1/Q1/C1) และยังไม่มีในแถบ
+   * ช่างล้วนไม่มีปุ่ม + → ไม่เข้าเงื่อนไข แถบช่างคงเดิม (ปรับใน P3)
+   */
+  if (canUseAppointments(shop) && fab !== null && tabs.length < 4) {
+    const fill: [Capability, NavTab][] = [
+      ['H1', chatTab],
+      ['T1', shopTab],
+      ['Q1', { key: 'queues', href: '/queues', icon: 'calendar-event', exactMatch: false, label: t.dashboard.navQueues, ariaLabel: t.dashboard.navQueues, badge: null }],
+      ['C1', { key: 'customers', href: '/customers', icon: 'users', exactMatch: false, label: t.dashboard.navCustomers, ariaLabel: t.dashboard.navCustomers, badge: null }],
+    ]
+    for (const [cap, tab] of fill) {
+      if (tabs.length >= 4) break
+      if (can(roles, cap) && !tabs.some((x) => x.key === tab.key)) tabs.push(tab)
+    }
   }
 
   return {
@@ -249,15 +280,31 @@ export function resolveMobileNav(
  * หน้าที่วาดแถบล่างของตัวเองมีเฉพาะบางบทบาท — ซ่อน SellerBottomNav เฉพาะบทบาทนั้น
  * ไม่งั้นช่าง (ไม่มีแถบของหน้า) เหลือหน้าที่ไม่มีแถบล่างอะไรเลย กดกลับไม่ได้
  *  · `/orders/<token>`: OrderActionBar render เมื่อระดับเงิน ≠ NONE (ช่างล้วน = ไม่มี · `getOrderActionSet` ว่าง)
- *  · `/queues`: บอร์ดวาดแถบสร้างงานเมื่อ can(O2s)
+ *  · `/queues`: บอร์ดวาดแถบสร้างงานเมื่อ can(O2s) — **ยกเว้นร้านบริการ** (00086 · user เคาะ 2026-10-27) แถบล่างโชว์ทุกบทบาท
+ *    เพราะตอบแชท/เปิดบิลได้แท็บ "ตารางงาน" แล้ว ถ้าแถบหายตอนกดแท็บนั้น = กดแท็บแล้วแถบที่เพิ่งกดหายไปเอง
  * 🛑 T5 (หน้ารายละเอียดออเดอร์) ต้องใช้ `orderActionBarRenders` ตัวนี้ตัดสินว่าจะ render OrderActionBar ด้วย — สองฝั่งต้องเป็นเกณฑ์เดียว
  */
 export function orderActionBarRenders(roles: readonly ShopRole[]): boolean {
   return moneyLevel(roles) !== 'NONE'
 }
 
-export function bottomNavHiddenPages(roles: readonly ShopRole[]): { orderDetail: boolean; queues: boolean } {
-  return { orderDetail: orderActionBarRenders(roles), queues: can(roles, 'O2s') }
+export function bottomNavHiddenPages(
+  roles: readonly ShopRole[],
+  shop: { kind: string; vertical: string },
+): { orderDetail: boolean; queues: boolean } {
+  return { orderDetail: orderActionBarRenders(roles), queues: !canUseAppointments(shop) && can(roles, 'O2s') }
+}
+
+/**
+ * แถบ "สร้างงาน · <วันที่>" ติดล่างจอของบอร์ด `/queues` มือถือ (AppointmentMonthBoard) render ไหม
+ *
+ * แถบนั้นมีไว้แทน FAB ตอนที่แถบล่างถูกซ่อนเท่านั้น (seller-action-placement §5.1) — เมื่อแถบล่างโชว์ (ร้านบริการ 00086)
+ * FAB "+" อยู่ในแถบล่างแล้ว ถ้ายังวาดแถบของหน้าอีก = ปุ่มสร้างสองปุ่มซ้อนกันล่างจอ และ fixed bottom-0 ทั้งคู่ทับกันพอดี
+ * 🛑 ปลอดภัยเพราะ O2s ⇒ มี FAB เสมอ (resolveMobileNav: P2 → speed-dial · O2/O2s → direct) — ทางสร้างไม่หาย
+ *   ส่วนสร้างแบบติดวันที่ยังอยู่ในชีตรายวัน (AppointmentDaySheet) ที่เปิดเมื่อจิ้มวัน
+ */
+export function queuesCreateBarRenders(roles: readonly ShopRole[], shop: { kind: string; vertical: string }): boolean {
+  return can(roles, 'O2s') && bottomNavHiddenPages(roles, shop).queues
 }
 
 // ─── ShopQuickLinks (spec §6) ────────────────────────────────────────────────
@@ -280,4 +327,46 @@ const QUICK_LINK_URLS = [
 
 export function shopQuickLinks(visibleUrls: ReadonlySet<string>): string[] {
   return QUICK_LINK_URLS.filter((u) => visibleUrls.has(u))
+}
+
+// ─── ช่างล้วนร้านบริการ: หน้าแรก/ทางลัด/การ์ดแพ็กเกจ (00086 · user 2026-10-30 "ทำให้ช่างใช้งานง่าย" · "ซ่อนเลย") ──────
+
+/**
+ * ช่างล้วน ∧ ร้านบริการ — เงื่อนไขเดียวกับสาขาแถบล่าง "งานของฉัน/ตารางงาน" ใน resolveMobileNav และ homeBlocks().todayJobs
+ * ร้านประเภทอื่น (ช่างล้วนในร้านที่ไม่รับนัด) = false ⇒ ผังเดิมทุกตัวอักษร (service-vertical-only)
+ */
+export function isServiceTechnicianOnly(roles: readonly ShopRole[], shop: { kind: string; vertical: string }): boolean {
+  return isTechnicianOnly(roles) && canUseAppointments(shop)
+}
+
+/**
+ * การ์ด/ชิป "แพ็กเกจร้านค้า" (sidebar เดสก์ท็อป `ShopPackageSidenavCard` + ชิปใน CompactHero มือถือ) แสดงไหม
+ *
+ * ไม่มี capability "ดูแพ็กเกจร้าน" ให้กั้น และมติ user 2026-07-29 ให้ "ทุกบทบาทเห็นว่าร้านอยู่แพ็กเกจไหน" ⇒
+ * ตัดเฉพาะช่างล้วนร้านบริการ (user 2026-10-30 "ซ่อนเลย") — เจ้าของ/ผู้ดูแล/ตอบแชท/เปิดบิล/ร้านอื่น เห็นเหมือนเดิม
+ * 🛑 ด่าน App Store (hidePayments / showMoneyStatus) ยังอยู่ที่ผู้เรียกครบ — ตัวนี้ "ถอดเพิ่ม" อย่างเดียว ไม่เปิดคืน
+ */
+export function showsShopPackage(roles: readonly ShopRole[], shop: { kind: string; vertical: string }): boolean {
+  return !isServiceTechnicianOnly(roles, shop)
+}
+
+/**
+ * หน้าที่ "เปิดได้" (MEMBER ในทะเบียน) แต่ของในหน้านั้นต้องใช้ capability เขียน — ทางลัดไปหน้าแบบนี้สำหรับช่างล้วน
+ * คือทางตัน (เปิดฟอร์มตั้งค่าร้านได้แต่กดบันทึกแล้ว 403 · `PATCH /api/shops/[id]` = T1)
+ * ใช้ capability เดียวกับที่ resolveMobileNav ใช้ตัดสินแท็บ "ร้านค้า" (`can(roles, 'T1')`)
+ */
+const TECHNICIAN_SHORTCUT_NEEDS: Readonly<Record<string, Capability>> = {
+  'seller:shop': 'T1',
+}
+
+/**
+ * slug ทางลัดที่ช่างล้วนร้านบริการ "ใช้ไม่ได้จริง" — shortcut.service ถอดจากแคตตาล็อก + นับเป็น unavailableByRole
+ * (ไม่โผล่ทั้งบนการ์ดและในชีตแก้ไข · ได้บทบาทกลับมาแล้วทางลัดที่เคยปักกลับมาเอง) · บทบาทอื่น/ร้านอื่น = ชุดว่าง
+ */
+export function technicianUnusableShortcutSlugs(
+  roles: readonly ShopRole[],
+  shop: { kind: string; vertical: string },
+): Set<string> {
+  if (!isServiceTechnicianOnly(roles, shop)) return new Set()
+  return new Set(Object.entries(TECHNICIAN_SHORTCUT_NEEDS).filter(([, cap]) => !can(roles, cap)).map(([slug]) => slug))
 }

@@ -84,7 +84,7 @@ const shopClose = (ctx: Awaited<ReturnType<typeof seed>>, token: string, payment
   closeServiceJob({
     shopId: ctx.shop.id,
     orderToken: token,
-    actorUserId: ctx.owner.id,
+    actorUserId: ctx.owner.id, actorRoles: ['OWNER'],
     outcome: 'SERVED',
     ...(payment ? { payment: { amount: payment, method: 'CASH' as const } } : {}),
   })
@@ -231,7 +231,7 @@ describe('[blocker] ไม่กระทบ', () => {
   it('ไม่มาตามนัด → ยืนยันไม่ได้ · ไม่มีอะไรถูกเขียน', async () => {
     const ctx = await seed()
     const o = await job(ctx, { deposit: 500 })
-    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, outcome: 'NO_SHOW' })
+    await closeServiceJob({ shopId: ctx.shop.id, orderToken: o.publicToken, actorUserId: ctx.owner.id, actorRoles: ['OWNER'], outcome: 'NO_SHOW' })
     await expect(confirmOrder(o.publicToken, ctx.buyer.id)).rejects.toBeInstanceOf(ServiceJobNoShowConfirmError)
     const after = await load(o.id)
     expect(after.status).toBe('PENDING')

@@ -7,7 +7,8 @@
 import { prisma } from '@/lib/prisma'
 import { can, type ShopRole } from '@/lib/shop-permissions'
 import { AUTO_NOTIFY_DAILY_CAP, type AutoNotifyKind, type TrackingNoticeTiming } from '@/lib/auto-notify/ledger-constants'
-import { isKindAvailable, kindsForVertical } from '@/lib/auto-notify/kinds'
+// 00086: หน้าตั้งค่า/แถบแจ้ง/การเขียนสวิตช์-เทมเพลต ใช้เฉพาะชนิดที่มีสวิตช์ — SERVICE_FINISHED (IMPLICIT_KINDS) ไม่มีแถว (PRD §10.2)
+import { switchableKindsForVertical } from '@/lib/auto-notify/kinds'
 import { DEFAULT_TEMPLATES } from '@/lib/auto-notify/defaults'
 import { TEMPLATE_VARIABLES, validateTemplate, type TemplateIssue } from '@/lib/auto-notify/variables'
 
@@ -40,7 +41,7 @@ async function verticalOf(shopId: string): Promise<string> {
 }
 
 async function assertAvailable(shopId: string, kind: AutoNotifyKind) {
-  if (!isKindAvailable(await verticalOf(shopId), kind)) throw new AutoNotifyKindNotAvailableError(kind)
+  if (!switchableKindsForVertical(await verticalOf(shopId)).includes(kind)) throw new AutoNotifyKindNotAvailableError(kind)
 }
 
 /** จังหวะแจ้งเลขพัสดุของ "ส่งเอง" (00080 TD-003) · ไม่มีแถว config = ON_SAVE (พฤติกรรมเดิม 00078) */
@@ -51,7 +52,7 @@ export async function getTrackingNoticeTiming(shopId: string): Promise<TrackingN
 
 export async function getAutoNotifySettings(shopId: string, roles: readonly ShopRole[]) {
   const vertical = await verticalOf(shopId)
-  const kinds = kindsForVertical(vertical)
+  const kinds = switchableKindsForVertical(vertical)
   const by = { select: { displayName: true } }
   const [cfg, switches, templates] = await Promise.all([
     prisma.autoNotifyConfig.findUnique({ where: { shopId }, select: { dailyCapPerRoom: true, trackingNoticeTiming: true } }),
@@ -179,7 +180,7 @@ export async function getStripContext(
   q: { conversationId?: string | null; orderToken?: string | null },
 ) {
   const vertical = await verticalOf(shopId)
-  const kinds = kindsForVertical(vertical)
+  const kinds = switchableKindsForVertical(vertical)
   const [switches, templates, conv, ord] = await Promise.all([
     prisma.autoNotifySwitch.findMany({ where: { shopId, kind: { in: [...kinds] } }, select: { kind: true, enabled: true, enabledAt: true } }),
     prisma.autoNotifyTemplate.findMany({ where: { shopId, kind: { in: [...kinds] } }, select: { kind: true, body: true } }),

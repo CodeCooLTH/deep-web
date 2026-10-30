@@ -25,6 +25,12 @@ import { AppointmentBoardCapsProvider } from '@/components/safepay/appointment-b
 import { LocaleProvider } from '@/i18n/LocaleProvider'
 import type { OrderRow } from '../components/data'
 import { ORDER_VOCAB } from '@/lib/seller-menu'
+import ServiceJobCard from '../[token]/components/ServiceJobCard'
+import ServiceCloseSheet from '@/components/safepay/service-close/ServiceCloseSheet'
+import ServiceJobPhotosCard from '@/components/safepay/service-job/ServiceJobPhotosCard'
+import { serviceJobFacts } from '@/components/safepay/service-job/service-job-facts'
+import { filterOrderEventsForNoMoney, toNoMoneyOrder } from '@/lib/order-view-by-level'
+import type { OrderEventView } from '@/lib/order-event'
 
 const vocab = ORDER_VOCAB.SERVICE_QUEUE
 
@@ -150,7 +156,7 @@ describe('AppointmentDayCard (คิวรายวัน)', () => {
   const render = (caps: object, it = item) =>
     renderToStaticMarkup(
       h(AppointmentBoardCapsProvider, {
-        value: { showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false, ...caps },
+        value: { showMoney: false, canChat: false, canReschedule: false, canCreate: false, canRefundDeposit: false, canClose: false, viewerUserId: null, technicianOnly: false, ...caps },
         children: h(AppointmentDayCard, { item: it, now: new Date('2099-10-12T03:30:00.000Z'), onChanged: noop }),
       }),
     )
@@ -162,9 +168,32 @@ describe('AppointmentDayCard (คิวรายวัน)', () => {
     expect(html).not.toContain('มัดจำ')
     expect(html).not.toContain('ทักแชท')
     expect(html).not.toContain('เลือกเวลาใหม่ให้ลูกค้า')
-    // ยังโทรหาลูกค้าได้ และมีปุ่มตัวเลือก (ไม่มาตามนัด)
+    // ยังโทรหาลูกค้าได้ · 00086 S-5: ไม่มีสิทธิ์ปิดงาน+เลื่อนนัด ⇒ เมนู ⋯ ว่าง ⇒ ไม่มีปุ่ม ⋯ (ไม่มาตามนัด = ปิดงาน)
     expect(html).toContain('โทรหา สมชาย')
-    expect(html).toContain('ตัวเลือกอื่นของนัด')
+    expect(html).not.toContain('ตัวเลือกอื่นของนัด')
+    // ยังบอกว่าต้องให้ใครเลือกเวลาใหม่
+    expect(html).toContain('ลูกค้าขอเลื่อนนัด ให้เจ้าของร้านหรือผู้ดูแลเลือกเวลาใหม่')
+  })
+
+  describe('00086 S-5 — ปุ่มปิดงาน/⋯ ตาม caps.canClose (ถึงเวลานัดแล้ว)', () => {
+    const due = { ...item, appointmentStatus: 'SCHEDULED' }
+    it('[blocker] canClose=false: ไม่มีปุ่ม "ปิดงาน" และไม่มี ⋯ (ไม่มาตามนัด) · ยังโทร/ทักแชทได้', () => {
+      const html = render({ canChat: true }, due)
+      expect(html).not.toContain('ปิดงาน')
+      expect(html).not.toContain('ตัวเลือกอื่นของนัด')
+      expect(html).toContain('โทรหา สมชาย')
+      expect(html).toContain('ทักแชทหา สมชาย')
+    })
+    it('[blocker] canClose=true: มีปุ่ม "ปิดงาน" + ⋯', () => {
+      const html = render({ canClose: true }, due)
+      expect(html).toContain('ปิดงาน')
+      expect(html).toContain('ตัวเลือกอื่นของนัด')
+    })
+    it('canClose=false แต่เลื่อนนัดได้: ไม่มีปุ่มปิดงาน แต่ยังมี ⋯ (เลื่อนนัด)', () => {
+      const html = render({ canReschedule: true }, due)
+      expect(html).not.toContain('>ปิดงาน<')
+      expect(html).toContain('ตัวเลือกอื่นของนัด')
+    })
   })
 
   it('มีสิทธิ์ครบ: ยอด/มัดจำ/ทักแชท/เลือกเวลาใหม่อยู่ครบ', () => {
@@ -182,5 +211,86 @@ describe('AppointmentDayCard (คิวรายวัน)', () => {
   it('ข้อมูลไม่มีคีย์ยอด (server ตัดแล้ว) ไม่ crash', () => {
     const { totalAmount: _t, depositAmount: _d, ...noMoney } = item
     expect(() => render({}, noMoney as never)).not.toThrow()
+  })
+})
+
+// ─── 00086 P3 (T6/T7) — การ์ดงาน/รูป/ชีตปิดงาน บนจอช่าง: ไม่มีเงิน · ข้อมูลมาจาก toNoMoneyOrder เท่านั้น ───────
+
+describe('00086 P3 — จอช่าง (งานนี้ · รูปก่อน-หลัง · ปิดงาน · ประวัติ)', () => {
+  /** แถวดิบแบบที่ getOrderForShop คืน (มีเงิน) → ผ่าน allow-list ก่อนถึงจอ เหมือน page.tsx */
+  const raw = {
+    id: 'o1', publicToken: 'tok-1', orderNo: 'DP1', status: 'PENDING', totalAmount: 900, depositAmount: 300,
+    payments: [{ amount: 300 }], buyerName: 'สมชาย', items: [{ id: 'i1', name: 'ตัดผม', qty: 1, price: 900 }],
+    assignedUserId: 'u-me', assignedUser: { id: 'u-me', displayName: 'ช่างเอ', phone: '0899999999' },
+    serviceStartedAt: new Date('2026-10-29T03:00:00Z'), serviceFinishedAt: new Date('2026-10-29T04:00:00Z'),
+    serviceJobRecords: [
+      { phase: 'BEFORE', note: 'ก่อน', fileIds: ['b1'], createdAt: new Date('2026-10-29T03:00:00Z'), createdByUserId: 'u-me', createdBy: { displayName: 'ช่างเอ', phone: '08' } },
+    ],
+  }
+  const order = toNoMoneyOrder(raw)
+  const facts = serviceJobFacts(order, [{ type: 'SERVICE_STARTED', actorLabel: 'ช่างเอ' }])
+
+  it('การ์ดงานของช่างล้วน (ไม่มี money) — ไม่มี ฿ · มีชื่อผู้รับผิดชอบ · FR-011 เมื่อทำเสร็จแต่ปิดไม่ได้', () => {
+    const html = renderToStaticMarkup(
+      h(LocaleProvider, {
+        locale: 'th',
+        children: h(ServiceJobCard, {
+          publicToken: 'tok-1', orderLabel: 'DP1', status: 'PENDING', closedAtISO: null,
+          startedAtISO: '2026-10-29T03:00:00.000Z', finishedAtISO: '2026-10-29T04:00:00.000Z',
+          badge: { key: 'FINISHED_AWAITING_CLOSE', label: 'ทำเสร็จ · รอปิดงาน', cls: '', icon: 'clock' },
+          hasAppointment: false, startISO: null, endISO: null, allDay: false,
+          canStart: true, canClose: false, canManage: false, editHref: null,
+          assignee: facts.assignee, viewerUserId: 'u-me', technicianOnly: true, canAssign: false, canClaim: true,
+          photoMode: 'OPTIONAL', photosBuyerVisible: false,
+          startedByName: facts.startedByName, finishedByName: null, jobSummary: facts.jobSummary,
+        }),
+      }),
+    )
+    expect(html).not.toContain('฿')
+    expect(html).toContain('ช่างเอ')
+    expect(html).toContain('ส่งงานแล้ว · รอเจ้าของร้านหรือผู้มีสิทธิ์ปิดงาน')
+    expect(html).not.toContain('คุณไม่มีสิทธิ์ปิดงาน')
+    expect(html).not.toContain('0899999999')
+  })
+
+  it('การ์ดรูปจากข้อมูล allow-list — ไม่มีเบอร์ของคนกด/ไม่มีเงิน', () => {
+    const html = renderToStaticMarkup(
+      h(ServiceJobPhotosCard, { records: facts.records, photoMode: 'OPTIONAL', buyerVisible: false, assigneeName: 'ช่างเอ', closed: false, finished: false }),
+    )
+    expect(html).toContain('ก่อนทำ')
+    expect(html).not.toContain('฿')
+    expect(html).not.toMatch(/08\d{8}|"08"/)
+    expect(JSON.stringify(order)).not.toContain('phone')
+  })
+
+  it('ชีตปิดงานของคนที่ไม่มี O5 — FR-011 ตรงตัว ไม่มี ฿ · เริ่มงานแล้ว = ไม่มีตัวเลือก "ไม่มาตามนัด"', () => {
+    const props = { open: true, onClose: noop, orderToken: 'tok-1', orderLabel: 'DP1', hasAppointment: true, money: null, canRefundDeposit: false, onClosed: noop }
+    const started = renderToStaticMarkup(h(ServiceCloseSheet, { ...props, serviceStarted: true }))
+    expect(started).toContain('ปิดงานได้ แต่รับเงินไม่ได้ · ยอดที่เหลือให้เจ้าของร้านหรือฝ่ายเปิดบิลบันทึก')
+    expect(started).not.toContain('ไม่มาตามนัด')
+    expect(started).not.toContain('฿')
+    // ยังไม่เริ่ม (มีนัด) = ตัวเลือกเดิมอยู่ครบ
+    expect(renderToStaticMarkup(h(ServiceCloseSheet, props))).toContain('ไม่มาตามนัด')
+  })
+
+  it('บรรทัดท้ายชีต: ไม่มี O5 = ไม่มีคำ "การเงินร้าน" · มี O5 = ข้อความเดิมตรงตัว (00086)', () => {
+    const base = { open: true, onClose: noop, orderToken: 'tok-1', orderLabel: 'DP1', hasAppointment: true, canRefundDeposit: false, onClosed: noop }
+    const noMoney = renderToStaticMarkup(h(ServiceCloseSheet, { ...base, money: null }))
+    expect(noMoney).not.toContain('ยอดเข้าการเงินร้าน')
+    expect(noMoney).not.toContain('การเงินร้าน')
+    expect(noMoney).toContain('ลูกค้ายืนยันรับบริการเพื่อขึ้นหน้าร้านและรีวิว')
+    const withMoney = renderToStaticMarkup(
+      h(ServiceCloseSheet, { ...base, money: { totalAmount: 500, totalReceived: 0, outstanding: 500 } as never }),
+    )
+    expect(withMoney).toContain('ปิดงานแล้วยอดเข้าการเงินร้านทันที · ลูกค้ายืนยันรับบริการเพื่อขึ้นหน้าร้านและรีวิว')
+  })
+
+  it('ประวัติของช่าง: 4 เหตุการณ์ใหม่ของ 00086 ผ่าน filterOrderEventsForNoMoney (เหตุการณ์เงินยังถูกตัด)', () => {
+    const mk = (type: OrderEventView['type']): OrderEventView => ({ id: type, type, meta: { amount: 5 }, occurredAtISO: '', actorLabel: null, actorAvatar: null })
+    const out = filterOrderEventsForNoMoney(
+      (['SERVICE_ASSIGNED', 'SERVICE_CLAIMED', 'SERVICE_UNASSIGNED', 'SERVICE_FINISHED', 'PAYMENT_CONFIRMED'] as const).map(mk),
+    )
+    expect(out.map((e) => e.type)).toEqual(['SERVICE_ASSIGNED', 'SERVICE_CLAIMED', 'SERVICE_UNASSIGNED', 'SERVICE_FINISHED'])
+    for (const e of out) expect(e.meta).not.toHaveProperty('amount')
   })
 })

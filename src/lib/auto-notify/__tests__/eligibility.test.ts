@@ -107,6 +107,20 @@ describe('[blocker] เงื่อนไขเฉพาะชนิด', () => 
     // ปิดงานเสร็จแล้ว nowMs ต้องไม่ทำให้ตกเงื่อนไขนัดในอนาคต (ใช้เฉพาะ BOOKED)
     expect(why(cl({ serviceStart: NOW - H }))).toBe('OK')
   })
+  // 00086 FR-015 — mutation ที่ต้องแดง: ลบเงื่อนไข photosBuyerVisible ออกจาก case SERVICE_FINISHED
+  const fin = (o: Partial<AutoNotifyEligibilityInput> = {}) =>
+    base({ kind: 'SERVICE_FINISHED', vertical: 'SERVICE_QUEUE', photosBuyerVisible: true, ...o })
+  it('SERVICE_FINISHED: ร้านเปิดให้ลูกค้าเห็นรูปเท่านั้น · ไม่ส่ง = ไม่เห็น · ไม่ยกเลิก · ไม่ปิดแล้ว', () => {
+    expect(why(fin())).toBe('OK')
+    expect(why(fin({ photosBuyerVisible: false }))).toBe('PHOTOS_NOT_BUYER_VISIBLE')
+    expect(why(fin({ photosBuyerVisible: undefined }))).toBe('PHOTOS_NOT_BUYER_VISIBLE')
+    expect(why(fin({ orderStatus: 'CANCELLED' }))).toBe('ORDER_CANCELLED')
+    expect(why(fin({ serviceClosedAt: NOW - H }))).toBe('ALREADY_CLOSED')
+  })
+  it('SERVICE_FINISHED: ร้านที่ไม่ใช่บริการ = ไม่มีชนิดนี้', () => {
+    expect(why(fin({ vertical: 'ONLINE_SALES' }))).toBe('KIND_NOT_FOR_VERTICAL')
+    expect(why(fin({ vertical: 'LODGING' }))).toBe('KIND_NOT_FOR_VERTICAL')
+  })
 })
 
 describe('[blocker] autoNotifyStripState (TC-320)', () => {

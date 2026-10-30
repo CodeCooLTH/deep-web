@@ -395,6 +395,25 @@ export class InvalidAppointmentRangeError extends Error {
 }
 
 /**
+ * แบบการมาของงานบริการใหม่ไม่ครบ (feature 00086 FR-001 · API.md §4.3) → 400
+ *
+ * - `ARRIVAL_MODE_REQUIRED`     ร้านบริการส่งนัดมาแต่ไม่บอกว่าจองล่วงหน้าหรือหน้าร้าน
+ * - `ARRIVAL_BOOKED_NEEDS_TIME` จองล่วงหน้าแต่ไม่มีคิวงาน/วัน/เวลา (ร้านแบบระบุเวลา ส่งนัดทั้งวันมา = ไม่มีเวลา)
+ * - `ARRIVAL_WALK_IN_NEEDS_QUEUE` หน้าร้านแต่ไม่เลือกคิวงาน
+ */
+export type ArrivalModeErrorCode =
+  | "ARRIVAL_MODE_REQUIRED"
+  | "ARRIVAL_BOOKED_NEEDS_TIME"
+  | "ARRIVAL_WALK_IN_NEEDS_QUEUE";
+
+export class ArrivalModeError extends Error {
+  constructor(readonly code: ArrivalModeErrorCode) {
+    super(code);
+    this.name = "ArrivalModeError";
+  }
+}
+
+/**
  * ช่วงเวลาของงาน walk-in (feature 00050 · BR-SQ-21)
  *
  * 🛑 **walk-in ไม่ใช่ "นัดที่ไม่มีเวลา"** — มันคืองานที่เริ่ม ณ เวลาที่กด ต้องมีเวลาเริ่มจริง

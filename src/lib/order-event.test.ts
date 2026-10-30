@@ -53,3 +53,42 @@ describe('resolveOrderEventLabel', () => {
     expect(describeOrderEvent(created, sv)).toMatch(/^ลงวันที่สร้าง /)
   })
 })
+
+// 00086 P3 — 4 ชนิดใหม่ + บรรทัดรอง (ชื่อ snapshot / จำนวนรูป) · 🛑 note ไม่อยู่ใน meta (TD-006)
+describe('00086 เหตุการณ์ผู้รับผิดชอบ/ทำเสร็จ', () => {
+  it('มีป้ายภาษาไทยครบทั้ง 4 ชนิด · ไม่ใช่สีเขียว (ยังไม่ใช่หลักฐานจากลูกค้า)', () => {
+    for (const t of ['SERVICE_ASSIGNED', 'SERVICE_CLAIMED', 'SERVICE_UNASSIGNED', 'SERVICE_FINISHED'] as const) {
+      expect(ORDER_EVENT_TYPES).toContain(t)
+      expect(ORDER_EVENT_META[t].label).toMatch(/[ก-๙]/)
+      expect(ORDER_EVENT_META[t].tone).toBe('neutral')
+    }
+    expect(ORDER_EVENT_META.SERVICE_CLAIMED.label).toBe('รับงานนี้')
+    expect(ORDER_EVENT_META.SERVICE_FINISHED.label).toBe('ทำเสร็จแล้ว')
+  })
+  it('มอบงาน: "มอบงานให้ {ชื่อ}" (+ แทนคนเดิม) · ยกเลิก: คนเดิม + เหตุผลลบสมาชิก', () => {
+    expect(describeOrderEvent({ type: 'SERVICE_ASSIGNED', meta: { assigneeNameSnapshot: 'ช่างนิด' } })).toBe('มอบงานให้ ช่างนิด')
+    expect(
+      describeOrderEvent({ type: 'SERVICE_ASSIGNED', meta: { assigneeNameSnapshot: 'ช่างนิด', previousAssigneeNameSnapshot: 'ช่างต้น' } }),
+    ).toBe('มอบงานให้ ช่างนิด · แทน ช่างต้น')
+    expect(
+      describeOrderEvent({ type: 'SERVICE_UNASSIGNED', meta: { previousAssigneeNameSnapshot: 'ช่างต้น', reason: 'MEMBER_REMOVED' } }),
+    ).toBe('เดิม ช่างต้น · ถูกนำออกจากร้าน')
+  })
+  it('00086 P3 — ยกเลิกเพราะไม่ได้เป็นช่างแล้ว (ROLE_REMOVED): "{ชื่อ} ไม่ได้เป็นช่างแล้ว" ไม่ซ้ำชื่อ', () => {
+    expect(
+      describeOrderEvent({ type: 'SERVICE_UNASSIGNED', meta: { previousAssigneeNameSnapshot: 'ช่างต้น', reason: 'ROLE_REMOVED' } }),
+    ).toBe('ช่างต้น ไม่ได้เป็นช่างแล้ว')
+    expect(describeOrderEvent({ type: 'SERVICE_UNASSIGNED', meta: { reason: 'ROLE_REMOVED' } })).toBe('ผู้รับผิดชอบไม่ได้เป็นช่างแล้ว')
+    // MANUAL ไม่เปลี่ยน
+    expect(describeOrderEvent({ type: 'SERVICE_UNASSIGNED', meta: { previousAssigneeNameSnapshot: 'ช่างต้น', reason: 'MANUAL' } })).toBe('เดิม ช่างต้น')
+  })
+  it('เริ่ม/ทำเสร็จ: บอกจำนวนรูป + มีบันทึก (ไม่มีตัวบันทึก) · ไม่มีอะไร = ไม่มีบรรทัดรองเหมือนเดิม', () => {
+    expect(describeOrderEvent({ type: 'SERVICE_FINISHED', meta: { photoCount: 3, hasNote: true } })).toBe('รูป 3 รูป · มีบันทึก')
+    expect(describeOrderEvent({ type: 'SERVICE_STARTED', meta: {} })).toBeNull()
+    expect(describeOrderEvent({ type: 'SERVICE_STARTED', meta: { photoCount: 0, hasNote: false } })).toBeNull()
+  })
+  // 00086 critique P1-4 — ป้ายไม่บอกว่า "ร้าน" เป็นคนเริ่ม (คนกดอยู่บรรทัด "โดย …") · ชุดเดียวกับ "ทำเสร็จแล้ว"
+  it('SERVICE_STARTED = "เริ่มงาน" (ไม่ใช่ "ร้านเริ่มงาน")', () => {
+    expect(ORDER_EVENT_META.SERVICE_STARTED.label).toBe('เริ่มงาน')
+  })
+})

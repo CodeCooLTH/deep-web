@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ARRIVAL_MODE_META,
   WALK_IN_WINDOW_MIN,
+  arrivalChipMeta,
+  arrivalModeOf,
   arrivalSummary,
   resolveArrivalMode,
 } from '@/lib/arrival-mode'
@@ -144,16 +146,43 @@ describe('ทุกจอที่แสดง "วิธีเข้ารั�
   ] as const
 
   for (const [name, path] of SURFACES) {
-    it(`[blocker] ${name} — ต้องเรียก resolveArrivalMode()`, async () => {
+    it(`[blocker] ${name} — ต้องเรียก arrivalModeOf() (00086: ค่าที่ร้านเลือกชนะ)`, async () => {
       const { readFileSync } = await import('node:fs')
       const { join } = await import('node:path')
       const src = readFileSync(join(process.cwd(), path), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/(^|[^:])\/\/.*$/gm, '$1')
-      expect(src, 'ต้องเรียกตัวตัดสินกลาง').toContain('resolveArrivalMode(')
-      expect(src, 'คำ/สี/ไอคอน ต้องมาจาก ARRIVAL_MODE_META ห้ามพิมพ์เอง').toContain('ARRIVAL_MODE_META')
+      expect(src, 'ต้องเรียกตัวตัดสินกลาง').toContain('arrivalModeOf(')
+      // สูตรตรง ๆ ข้ามค่าที่ร้านเลือก ⇒ ใบที่ "จองไว้แต่นัดใกล้เวลาเปิดบิล" จะขึ้นเป็นหน้าร้านผิด ๆ
+      expect(src, 'ห้ามเรียกสูตรเดิมตรง ๆ ที่จอ').not.toContain('resolveArrivalMode(')
+      // ต้องส่งค่าที่เก็บเข้าไปจริง — เรียก arrivalModeOf โดยไม่ส่ง arrivalMode = สูตรเดิมแฝง
+      expect(src, 'ต้องส่ง arrivalMode เข้า arrivalModeOf').toMatch(/arrivalModeOf\(\{\s*arrivalMode/)
+      // 00086 FR-002: ชิปอ่านผ่าน arrivalChipMeta (ซึ่งคืน ARRIVAL_MODE_META[mode]) — ทั้งสองทางคือ SSOT เดียว
+      expect(src, 'คำ/สี/ไอคอน ต้องมาจาก ARRIVAL_MODE_META ห้ามพิมพ์เอง').toMatch(/ARRIVAL_MODE_META|arrivalChipMeta\(/)
     })
   }
+
+  it('[blocker] คำว่า "เดินเข้ามา" ต้องไม่โผล่บนจอเลย — ป้ายแบบการมาคือ ARRIVAL_MODE_META.WALK_IN.label', async () => {
+    /**
+     * 00086 S-3: ป้ายเปลี่ยนเป็น "หน้าร้าน" · คำเดิมยังอยู่ในคอมเมนต์อธิบายที่มาได้ (ตัดคอมเมนต์ก่อนนับ)
+     * แต่ถ้าโผล่ในโค้ดที่ render = มีจอที่พิมพ์คำเองแทนที่จะอ่านจาก META
+     */
+    const { readFileSync, readdirSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((n) => {
+        const p = join(dir, n)
+        if (statSync(p).isDirectory()) return n === '__tests__' ? [] : walk(p)
+        return p.endsWith('.tsx') && !/\.test\.tsx$/.test(p) ? [p] : []
+      })
+    const offenders = walk(join(process.cwd(), 'src')).filter((p) =>
+      readFileSync(p, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1')
+        .includes('เดินเข้ามา'),
+    )
+    expect(offenders).toEqual([])
+  })
 
   it('[blocker] การ์ดตารางงานต้องได้ createdAt มาจริง ไม่ใช่เดาจาก start', async () => {
     /**
@@ -166,11 +195,63 @@ describe('ทุกจอที่แสดง "วิธีเข้ารั�
     expect(read('src/services/appointment.service.ts'), 'service ต้อง select createdAt').toMatch(
       /orderNo: true,\s*\n\s*createdAt: true,/,
     )
-    expect(read('src/app/api/shops/current/appointments/day/route.ts'), 'route ต้อง serialize').toContain(
+    // 00086 P3 — การ serialize ย้ายไปตัวกลางที่ day + carry-over ใช้ร่วมกัน (appointment-day-payload.ts)
+    expect(read('src/app/api/shops/current/appointments/day/route.ts'), 'route ต้องผ่านตัวกลาง').toContain(
+      'toAppointmentDayPayload(items, gate.roles)',
+    )
+    expect(read('src/lib/appointment-day-payload.ts'), 'ตัวกลางต้อง serialize').toContain(
       'createdAt: i.createdAt.toISOString()',
     )
     expect(read('src/components/safepay/appointment-board/types.ts'), 'type ต้องมี createdAt').toMatch(
       /createdAt: string/,
     )
+  })
+})
+
+describe('arrivalModeOf (feature 00086) — ค่าที่ร้านเลือก → สูตรเดิม → ยังไม่ระบุเวลา', () => {
+  const created = at('2026-10-27T10:00:00+07:00')
+  const farFuture = at('2026-10-30T10:00:00+07:00')
+  const now = at('2026-10-27T10:01:00+07:00')
+
+  it('[blocker] ค่าที่เก็บชนะสูตร — จองไว้แต่เวลาใกล้เปิดบิล ยังเป็น BOOKED · หน้าร้านแต่เลื่อนไปไกล ยังเป็น WALK_IN', () => {
+    expect(arrivalModeOf({ arrivalMode: 'BOOKED', serviceStart: now, createdAt: created })).toBe('BOOKED')
+    expect(arrivalModeOf({ arrivalMode: 'WALK_IN', serviceStart: farFuture, createdAt: created })).toBe('WALK_IN')
+  })
+
+  it('[blocker] ไม่มีค่าเก็บ (null/undefined) → สูตรเดิมเหมือน resolveArrivalMode ทุกกรณี', () => {
+    for (const serviceStart of [null, now, farFuture]) {
+      for (const arrivalMode of [null, undefined]) {
+        expect(arrivalModeOf({ arrivalMode, serviceStart, createdAt: created })).toBe(
+          resolveArrivalMode({ serviceStart, createdAt: created }),
+        )
+      }
+    }
+  })
+
+  it('ค่าแปลกปลอม (ไม่อยู่ในชุด) ไม่ถูกเชื่อ → ตกไปสูตรเดิม', () => {
+    expect(arrivalModeOf({ arrivalMode: 'LATER', serviceStart: farFuture, createdAt: created })).toBe('BOOKED')
+    expect(arrivalModeOf({ arrivalMode: 'UNSCHEDULED', serviceStart: null, createdAt: created })).toBe('UNSCHEDULED')
+  })
+
+  it('[blocker] ป้ายหน้าร้าน = "หน้าร้าน" (00086) — ไม่ใช่ "เดินเข้ามา"', () => {
+    expect(ARRIVAL_MODE_META.WALK_IN.label).toBe('หน้าร้าน')
+  })
+})
+
+describe('arrivalChipMeta (00086 FR-002) — ชิปแบบการมาที่จองานบริการแสดง', () => {
+  it('[blocker] จองล่วงหน้า + หน้าร้าน ⇒ ชิปทั้งคู่ (meta ชุดเดียวกับ ARRIVAL_MODE_META)', () => {
+    expect(arrivalChipMeta('BOOKED')).toBe(ARRIVAL_MODE_META.BOOKED)
+    expect(arrivalChipMeta('WALK_IN')).toBe(ARRIVAL_MODE_META.WALK_IN)
+    expect(arrivalChipMeta('BOOKED')?.label).toBe('จองล่วงหน้า')
+  })
+
+  it('[blocker] ยังไม่ระบุเวลา ⇒ แสดงเฉพาะจอที่ขอ (แถบงานในแชท) · ค่าตั้งต้นไม่แสดง', () => {
+    expect(arrivalChipMeta('UNSCHEDULED')).toBeNull()
+    expect(arrivalChipMeta('UNSCHEDULED', { includeUnscheduled: true })).toBe(ARRIVAL_MODE_META.UNSCHEDULED)
+  })
+
+  it('ไม่มีค่า (ร้านอื่น/ไม่มีข้อมูล) ⇒ null', () => {
+    expect(arrivalChipMeta(null)).toBeNull()
+    expect(arrivalChipMeta(undefined, { includeUnscheduled: true })).toBeNull()
   })
 })

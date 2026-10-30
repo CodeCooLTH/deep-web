@@ -6,8 +6,7 @@ import { requireShopCapability } from "@/lib/shop-capability";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { thaiDateBounds } from "@/lib/appointment-day";
 import { listAppointmentsForDay } from "@/services/appointment.service";
-import { can, moneyLevel } from "@/lib/shop-permissions";
-import { toNoMoneyAppointmentDay } from "@/lib/order-view-by-level";
+import { toAppointmentDayPayload } from "@/lib/appointment-day-payload";
 
 /**
  * GET /api/shops/current/appointments/day — นัดของ "หนึ่งวัน" พร้อมข้อมูลติดต่อลูกค้า
@@ -54,21 +53,8 @@ export async function GET(request: NextRequest) {
       resourceId: sp.get("resourceId"),
     });
     // ช่าง (ระดับเงิน NONE): ไม่ส่งยอด/มัดจำ · ห้องแชทเฉพาะผู้มี H1 (00071 P3 · S-15)
-    const noMoney = moneyLevel(gate.roles) === "NONE";
-    const canChat = can(gate.roles, "H1");
-    return jsonNoStore({
-      items: items.map((i) => {
-        const row = {
-          ...i,
-          createdAt: i.createdAt.toISOString(),
-          start: i.start.toISOString(),
-          end: i.end.toISOString(),
-        };
-        if (noMoney) return toNoMoneyAppointmentDay(row, { canChat });
-        // ไม่มี H1 = ไม่มีปุ่มทักแชท (BILLING ก็เช่นกัน) — null คือ "ไม่มีเธรดให้เปิด" ตาม type ฝั่งจอ
-        return canChat ? row : { ...row, conversationId: null };
-      }),
-    });
+    // ตัวตัดตัวเดียวกับ carry-over (00086 P3) — appointment-day-payload.ts
+    return jsonNoStore({ items: toAppointmentDayPayload(items, gate.roles) });
   } catch (e: unknown) {
     const mapped = appointmentErrorResponse(e);
     if (mapped) return mapped;

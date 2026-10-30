@@ -67,7 +67,8 @@ export async function PATCH(
     const result = await setOrRescheduleAppointment({
       shopId: ctx.shopId,
       orderToken: token,
-      input: { resourceId: parsed.output.resourceId, start, end },
+      // feature 00086 — มีผลเฉพาะตั้งเวลาครั้งแรก (ใบที่ยังไม่ระบุเวลา) · เลื่อนนัดถูกละใน service
+      input: { resourceId: parsed.output.resourceId, start, end, arrivalMode: parsed.output.arrivalMode },
       actorUserId: ctx.userId,
       reason: parsed.output.reason ?? null,
     });
@@ -79,6 +80,7 @@ export async function PATCH(
         end: result.serviceEnd?.toISOString() ?? null,
         appointmentStatus: result.appointmentStatus,
         rescheduleCount: result.rescheduleCount,
+        arrivalMode: result.arrivalMode,
       },
     });
   } catch (e: unknown) {

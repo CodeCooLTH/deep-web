@@ -17,12 +17,13 @@ import StaffRolePicker from '@/components/paces/StaffRolePicker'
 import { pacesToast } from '@/lib/paces-toast'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { STAFF_ROLES } from '@/lib/shop-permissions'
-import { canSubmitRoles, rolesDiffer, type StaffRole } from '@/lib/shop-role-picker'
+import { canSubmitRoles, flagsPayload, memberDraftChanged, withUnassignedJobsNote, type StaffFlags, type StaffRole } from '@/lib/shop-role-picker'
 import { memberErrorText } from './member-error-text'
 import { useCanAskToBuy } from '@/components/paces/PaymentRestrictionProvider'
 
 // ล้าสมัย = โหลดใหม่ให้เห็นสิทธิ์ปัจจุบัน (NOT_A_MEMBER ปิดโมดัลด้วย)
-const STALE = new Set(['NOT_OWNER', 'FORBIDDEN_ROLE', 'NOT_A_MEMBER', 'PRIMARY_OWNER_LOCKED'])
+// STAFF_FLAGS_NOT_AVAILABLE: ร้านเลิกเป็นร้านบริการระหว่างเปิดหน้า — โหลดใหม่ให้การ์ดธงหายไป
+const STALE = new Set(['NOT_OWNER', 'FORBIDDEN_ROLE', 'NOT_A_MEMBER', 'PRIMARY_OWNER_LOCKED', 'STAFF_FLAGS_NOT_AVAILABLE'])
 
 interface Props {
   shopId: string
@@ -30,11 +31,17 @@ interface Props {
   name: string
   /** roles ปัจจุบันจาก server (ผ่านตัวกรองบทบาทที่รู้จักแล้วเท่านั้น) */
   roles: string[]
+  /** 00086 ธงปัจจุบันจาก server (ShopMember.canCloseJob / canRecordExpense) */
+  flags: StaffFlags
   billingAvailable: boolean
+  /** บังคับส่ง — ร้านบริการ (canUseAppointments) เท่านั้นที่เห็นและส่งธง */
+  serviceFlagsAvailable: boolean
   primaryOwnerName: string
 }
 
-export default function MemberRolesEditor({ shopId, memberId, name, roles, billingAvailable, primaryOwnerName }: Props) {
+export default function MemberRolesEditor({
+  shopId, memberId, name, roles, flags, billingAvailable, serviceFlagsAvailable, primaryOwnerName,
+}: Props) {
   const [open, setOpen] = useState(false)
   const launcherRef = useRef<HTMLButtonElement | null>(null)
   const wasOpen = useRef(false)
@@ -63,7 +70,9 @@ export default function MemberRolesEditor({ shopId, memberId, name, roles, billi
           memberId={memberId}
           name={name}
           roles={roles}
+          flags={flags}
           billingAvailable={billingAvailable}
+          serviceFlagsAvailable={serviceFlagsAvailable}
           primaryOwnerName={primaryOwnerName}
           onClose={() => setOpen(false)}
         />
@@ -74,18 +83,22 @@ export default function MemberRolesEditor({ shopId, memberId, name, roles, billi
 
 // แยก component ระดับ module (ไม่ประกาศใน render) — draft เริ่มจาก props ทุกครั้งที่เปิด เพราะ mount ใหม่
 function RolesDialog({
-  shopId, memberId, name, roles, billingAvailable, primaryOwnerName, onClose,
+  shopId, memberId, name, roles, flags, billingAvailable, serviceFlagsAvailable, primaryOwnerName, onClose,
 }: Props & { onClose: () => void }) {
   const router = useRouter()
   const askToBuy = useCanAskToBuy()
   useLockBodyScroll(true)
   const initial = STAFF_ROLES.filter((r) => roles.includes(r))
   const [draft, setDraft] = useState<StaffRole[]>(initial)
+  const [draftFlags, setDraftFlags] = useState<StaffFlags>(flags)
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
-  const canSave = canSubmitRoles(draft, billingAvailable) && rolesDiffer(draft, initial) && !busy
+  const canSave =
+    canSubmitRoles(draft, billingAvailable) &&
+    memberDraftChanged({ roles: draft, flags: draftFlags }, { roles: initial, flags }, serviceFlagsAvailable) &&
+    !busy
   const close = () => {
     if (!busy) onClose()
   }
@@ -109,10 +122,12 @@ function RolesDialog({
       const res = await fetch(`/api/business/shops/${shopId}/members/${memberId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roles: draft }),
+        body: JSON.stringify({ roles: draft, ...flagsPayload(serviceFlagsAvailable, draftFlags) }),
       })
       if (res.ok) {
-        pacesToast.success(`บันทึกบทบาทของ ${name} แล้ว`)
+        // 00086 P3: ถอดฝ่ายช่าง → งานเปิดกลับเป็น "ยังไม่มีคนรับ" — บอกจำนวน (0 = ข้อความเดิม)
+        const body = (await res.json().catch(() => ({}))) as { unassignedJobCount?: unknown }
+        pacesToast.success(withUnassignedJobsNote(`บันทึกบทบาทของ ${name} แล้ว`, body.unassignedJobCount))
         onClose()
         router.refresh()
         return
@@ -168,6 +183,9 @@ function RolesDialog({
               selected={draft}
               onChange={setDraft}
               billingAvailable={billingAvailable}
+              serviceFlagsAvailable={serviceFlagsAvailable}
+              flags={draftFlags}
+              onFlagsChange={setDraftFlags}
               action="save"
               disabled={busy}
             />

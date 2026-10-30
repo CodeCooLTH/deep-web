@@ -9,8 +9,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
-import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
+import { CreateOrderSchema, OrderAppointmentSchema, OrderArrivalModeSchema, OrderAssignedUserIdSchema, OrderWalkInAppointmentSchema } from "@/lib/validations";
+import { ArrivalModeError, canUseAppointments } from "@/lib/appointments";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
+import { serviceJobErrorResponse } from "@/lib/service-job-api";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError, PickupNotAllowedError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { prisma } from "@/lib/prisma";
@@ -110,13 +112,55 @@ export async function POST(request: NextRequest) {
   // ครอบ try-catch: เดิมไม่มี → exception ใด ๆ จาก createOrder ถูก Next กลืน
   // เป็น 500 ตัวเปล่า วินิจฉัยไม่ได้ (B9 transient ตอน OMS cutover พิสูจน์ปัญหานี้).
   // log server-side ให้เห็น + ตอบ structured ให้ client.
-  // feature 00024 — วันนัดที่แนบมา (ไม่บังคับ). ไม่ส่งมา = เส้นทางเดิมทุกประการ (BR-RSV-04)
-  // parse แยกจาก CreateOrderSchema เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
   let appointment:
     | { resourceId: string; start: Date; end: Date; depositAmount?: string | null }
     | undefined;
   const rawAppointment = (body as { appointment?: unknown })?.appointment;
-  if (rawAppointment !== undefined && rawAppointment !== null) {
+  const hasRawAppointment = rawAppointment !== undefined && rawAppointment !== null;
+
+  /**
+   * feature 00086 (API.md §4.3) — ลูกค้ามาแบบไหน · เฉพาะร้านบริการ ร้านอื่นละทิ้งเงียบ ๆ (พฤติกรรมเดิม)
+   *
+   * บังคับเฉพาะ "ร้านบริการ + ส่งนัดมา" — บิลที่ไม่มีนัดและไม่ส่งแบบการมา = ใบยังไม่ระบุเวลาแบบเดิม (null)
+   * ตรวจ "รูปร่าง" ที่นี่เพื่อตอบรหัสที่บอกทางออกได้ (แทน "ข้อมูลวันนัดไม่ถูกต้อง" ก้อนเดียว)
+   * ส่วนกติกาที่ต้องรู้ข้อมูลร้าน (หน่วยเวลานัด · ระยะเวลาของคิว) อยู่ที่ createOrder ซึ่งตรวจซ้ำทุกข้อ
+   */
+  const isServiceShop = canUseAppointments(shop);
+  let arrivalMode: "BOOKED" | "WALK_IN" | undefined;
+  let walkIn: { resourceId: string; durationMin?: number } | undefined;
+  const rawArrivalMode = (body as { arrivalMode?: unknown })?.arrivalMode;
+  if (isServiceShop && rawArrivalMode !== undefined && rawArrivalMode !== null) {
+    const am = v.safeParse(OrderArrivalModeSchema, rawArrivalMode);
+    if (!am.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    arrivalMode = am.output;
+  }
+  if (isServiceShop && hasRawAppointment && !arrivalMode) {
+    return appointmentErrorResponse(new ArrivalModeError("ARRIVAL_MODE_REQUIRED"))!;
+  }
+
+  if (arrivalMode === "WALK_IN") {
+    // หน้าร้าน: รับแค่คิวงาน (+ระยะเวลา) · start/end/depositAmount ที่ส่งมาถูกละ — server ตั้งเวลาเอง ไม่เก็บมัดจำ
+    // ไม่มีคิวงาน = ยังไม่ได้เลือกคิว (บอกทางออก "เลือกคิวงาน") · มีคิวแต่ durationMin ผิดรูป/เกินเพดาน =
+    // ข้อมูลเสีย ตอบ "Invalid input" แยกกัน (review P2 MINOR-1) — ไม่งั้นผู้ขายที่เลือกคิวแล้วจะเห็น "เลือกคิวงาน" วนไป
+    // ฟอร์มของเราไม่ส่ง durationMin แล้ว (server ใช้ระยะเวลาของคิวงาน) · ค่านี้เหลือไว้ให้ caller อื่นระบุเองได้
+    const rawResourceId = hasRawAppointment ? (rawAppointment as { resourceId?: unknown }).resourceId : undefined;
+    if (typeof rawResourceId !== "string" || rawResourceId.length === 0) {
+      return appointmentErrorResponse(new ArrivalModeError("ARRIVAL_WALK_IN_NEEDS_QUEUE"))!;
+    }
+    const wk = v.safeParse(OrderWalkInAppointmentSchema, rawAppointment);
+    if (!wk.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    walkIn = { resourceId: wk.output.resourceId, durationMin: wk.output.durationMin };
+  } else if (hasRawAppointment || arrivalMode === "BOOKED") {
+    // feature 00024 — วันนัดที่แนบมา (ไม่บังคับ). ไม่ส่งมา = เส้นทางเดิมทุกประการ (BR-RSV-04)
+    // parse แยกจาก CreateOrderSchema เพื่อไม่ให้ blast radius ไปโดน caller เดิมของ schema นั้น
+    if (arrivalMode === "BOOKED") {
+      // จองล่วงหน้าต้องมีคิวงาน + วัน + เวลาครบ — ขาดตัวไหน = ยังไม่ได้เลือกนัด ไม่ใช่ "ข้อมูลเสีย"
+      const ap = (hasRawAppointment ? rawAppointment : {}) as Record<string, unknown>;
+      const filled = (k: string) => typeof ap[k] === "string" && (ap[k] as string).length > 0;
+      if (!filled("resourceId") || !filled("start") || !filled("end")) {
+        return appointmentErrorResponse(new ArrivalModeError("ARRIVAL_BOOKED_NEEDS_TIME"))!;
+      }
+    }
     const ap = v.safeParse(OrderAppointmentSchema, rawAppointment);
     if (!ap.success) {
       return NextResponse.json({ error: "ข้อมูลวันนัดไม่ถูกต้อง" }, { status: 400 });
@@ -134,6 +178,16 @@ export async function POST(request: NextRequest) {
     };
   }
 
+  // feature 00086 P3 (API.md §4.3) — ผู้รับผิดชอบตอนสร้าง · ร้านบริการเท่านั้น (ร้านอื่นละทิ้งเงียบ = พฤติกรรมเดิม)
+  // parse แยกจาก CreateOrderSchema (แบบ arrivalMode) · กติกา "ต้องเป็นช่างของร้าน" อยู่ที่ createOrder (ตรวจใน tx)
+  let assignedUserId: string | null | undefined;
+  const rawAssignedUserId = (body as { assignedUserId?: unknown })?.assignedUserId;
+  if (isServiceShop && rawAssignedUserId !== undefined) {
+    const au = v.safeParse(OrderAssignedUserIdSchema, rawAssignedUserId);
+    if (!au.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    assignedUserId = au.output;
+  }
+
   try {
     // คนที่กดสร้างคือเจ้าของ session นี้ — เอามาจาก session ฝั่ง server เท่านั้น ห้ามรับจาก body
     // (ไม่งั้นใครก็ยิงระบุชื่อคนอื่นเป็นคนสร้างได้) มิเรอร์วิธีเดียวกับ otp-for-password ใน feat 00026
@@ -148,6 +202,9 @@ export async function POST(request: NextRequest) {
       ...parsed.output,
       items,
       appointment,
+      arrivalMode,
+      walkIn,
+      assignedUserId,
       createdByUserId,
       // ไม่ถือ H1 (เช่น BILLING ล้วน) = อ่านเธรดแชทไม่ได้ → ตัด conversationId ทิ้งเงียบ ไม่ให้ดึงข้อมูลติดต่อจากเธรดเข้าออเดอร์
       // (security review 00071 P3) — สร้างบิลปกติยังได้
@@ -162,6 +219,9 @@ export async function POST(request: NextRequest) {
     if (e instanceof ForbiddenRoleError) return forbiddenRoleResponse();
     const appointmentMapped = appointmentErrorResponse(e);
     if (appointmentMapped) return appointmentMapped;
+    // 00086 P3 — ผู้รับผิดชอบไม่ใช่ช่างของร้าน → 400 ASSIGNEE_NOT_TECHNICIAN (service-job-api map ที่เดียว)
+    const serviceJobMapped = serviceJobErrorResponse(e);
+    if (serviceJobMapped) return serviceJobMapped;
     if (e instanceof ShippingAddressRequiredError) {
       return NextResponse.json(
         { error: "ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)" },

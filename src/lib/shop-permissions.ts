@@ -125,3 +125,104 @@ export function effectiveRoles(
   const rs = rolesFromMembership(role, roles)
   return canUseAppointments(shop) ? rs : rs.filter((r) => r !== 'BILLING')
 }
+
+// ─── 00086 Service Staff Workflow — สิทธิ์เพิ่มรายคน (S-4 · S-5 · S-15) ───────────────────────────
+//
+// ธงสองตัวบน ShopMember (`canCloseJob` · `canRecordExpense`) ใช้กับ "ร้านบริการ" เท่านั้น
+// ตัวตัดสินประเภทร้าน = canUseAppointments (ไม่ใช่ usesServiceFinanceRules): เป็นตัวเดียวกับที่ effectiveRoles
+// ใช้ตัด BILLING อยู่แล้ว = โดเมน "สิทธิ์สมาชิกตามประเภทร้าน" · usesServiceFinanceRules เป็นโดเมนตัวเลขเงิน
+// และต้อง import lodging เพิ่ม — ผลลัพธ์เท่ากัน (=== 'SERVICE_QUEUE') แต่ไม่ควรผูกสิทธิ์กับกติกาเงิน
+//
+// 🛑 ธงที่ไม่ได้ส่งมา (undefined) = false เสมอ (permission-gate-follows-the-row: ห้ามค่าตั้งต้นที่เปิด)
+// 🛑 ธงเป็นภาพนิ่ง (stored-flag-vs-owner-truth): ร้านเปลี่ยนจากบริการเป็นประเภทอื่น ธงที่ค้างอยู่ต้องไม่มีผล
+//    ⇒ เช็ค vertical ปัจจุบันก่อนอ่านธงทุกครั้ง
+
+export type StaffFlags = { canCloseJob?: boolean; canRecordExpense?: boolean }
+
+/**
+ * ปิดงาน (ทำเสร็จ / ส่งมอบ) ได้ไหม — `roles` ต้องเป็นชุดที่ผ่าน effectiveRoles แล้ว
+ * (กฎ PERSONAL = เจ้าของเสมอ อยู่ที่ effectiveRoles ที่เดียว — ฟังก์ชันนี้ไม่เขียนซ้ำ)
+ *  - ร้านที่ไม่ใช่บริการ: = can(roles,'O4') เป๊ะ (พฤติกรรมเดิมทุกอย่าง · ธงไม่มีผล)
+ *  - ร้านบริการ: OWNER ∨ MANAGER ∨ (ธง canCloseJob === true ∧ ถือ CHAT หรือ TECHNICIAN)
+ * ชื่อไม่ใช่ canCloseServiceJob — ชื่อนั้นมีแล้วใน service-status.ts (กฎสถานะงาน ไม่ใช่สิทธิ์คน)
+ */
+export function memberCanCloseJob(
+  shop: { vertical: string; kind?: string },
+  roles: readonly ShopRole[],
+  flags?: StaffFlags,
+): boolean {
+  if (!canUseAppointments({ kind: shop.kind ?? '', vertical: shop.vertical })) return can(roles, 'O4')
+  if (roles.includes('OWNER') || roles.includes('MANAGER')) return true
+  return flags?.canCloseJob === true && (roles.includes('CHAT') || roles.includes('TECHNICIAN'))
+}
+
+/**
+ * พนักงาน (ไม่ใช่เจ้าของ) บันทึกค่าใช้จ่ายของตัวเองได้ไหม — ร้านบริการ ∧ role ADMIN ∧ ธง canRecordExpense
+ * เจ้าของไม่ผ่านทางนี้โดยตั้งใจ: เจ้าของใช้เส้นทาง F1/F2 เดิม (เห็น/แก้ค่าใช้จ่ายทั้งร้าน)
+ */
+export function memberCanRecordStaffExpense(
+  shop: { vertical: string; kind?: string },
+  role: string,
+  flags?: StaffFlags,
+): boolean {
+  if (!canUseAppointments({ kind: shop.kind ?? '', vertical: shop.vertical })) return false
+  return role === 'ADMIN' && flags?.canRecordExpense === true
+}
+
+export type CloseJobFlagState = 'LOCKED_ON' | 'DISABLED' | 'EDITABLE'
+
+/**
+ * สถานะช่องติ๊ก "ปิดงานได้" ในฟอร์มสมาชิก
+ *  - LOCKED_ON: มี MANAGER = ปิดงานได้อยู่แล้วโดยบทบาท (ติ๊กค้าง แก้ไม่ได้)
+ *  - DISABLED: ไม่มี CHAT/TECHNICIAN/MANAGER = ไม่มีงานให้ปิด (BILLING ล้วน / ชุดว่าง)
+ *  - EDITABLE: มี CHAT หรือ TECHNICIAN (ไม่มี MANAGER)
+ */
+export function closeJobFlagState(roles: readonly string[]): CloseJobFlagState {
+  if (roles.includes('MANAGER')) return 'LOCKED_ON'
+  if (roles.includes('CHAT') || roles.includes('TECHNICIAN')) return 'EDITABLE'
+  return 'DISABLED'
+}
+
+// ─── 00086 P3 — ผู้รับผิดชอบงาน · ช่างล้วน (S-6 · S-8 · S-9 · BRD §8.1/§8.2) ───────────────────────────
+
+/**
+ * "ช่างล้วน" = ถือ TECHNICIAN อย่างเดียว (ชุดว่าง = ไม่ใช่) — นิยามเดียวทั้งระบบ
+ * (แถบล่าง role-nav · หน้าแรก dashboard-money · ด่านเริ่ม/ทำเสร็จ/ปิดงาน ใช้ตัวนี้)
+ * CHAT+TECHNICIAN ไม่ใช่ช่างล้วน: ทำงานแทนคนอื่นได้แบบตอบแชท (BRD §8.2 "ช่างล้วนเฉพาะงานของตัวเอง")
+ * `roles` ต้องผ่าน effectiveRoles แล้ว · เป็นนิยามบทบาทล้วน (ไม่ดู vertical) — ผู้เรียกกั้นร้านบริการเอง
+ */
+export function isTechnicianOnly(roles: readonly ShopRole[]): boolean {
+  return roles.length > 0 && roles.every((r) => r === 'TECHNICIAN')
+}
+
+export type ServiceJobActorBlock = 'UNASSIGNED' | 'NOT_ASSIGNEE'
+
+/**
+ * ด่าน "งานของตัวเอง" ของการเริ่ม/ทำเสร็จ/ปิดงาน (ร้านบริการ)
+ *  - ไม่ใช่ช่างล้วน → null เสมอ (เจ้าของ/ผู้จัดการ/ตอบแชท ทำแทนได้ทุกใบ)
+ *  - ช่างล้วน ∧ ยังไม่มีคนรับ → 'UNASSIGNED' (ต้องกด "รับงานนี้" ก่อน)
+ *  - ช่างล้วน ∧ งานของคนอื่น → 'NOT_ASSIGNEE'
+ * ไม่ได้ตัดสินสิทธิ์ O4/ปิดงาน — ผู้เรียกตรวจ can()/memberCanCloseJob แยก (ฟังก์ชันนี้ตอบแค่ "ของใคร")
+ */
+export function serviceJobActorBlock(
+  roles: readonly ShopRole[],
+  job: { assignedUserId: string | null },
+  userId: string,
+): ServiceJobActorBlock | null {
+  if (!isTechnicianOnly(roles)) return null
+  if (job.assignedUserId == null) return 'UNASSIGNED'
+  return job.assignedUserId === userId ? null : 'NOT_ASSIGNEE'
+}
+
+/** มอบ/เปลี่ยน/ยกเลิกผู้รับผิดชอบได้ไหม — คนที่แก้งานได้ (O2s · SDS TD-009: เจ้าของ ผู้จัดการ ตอบแชท เปิดบิล) */
+export function canAssignServiceJob(roles: readonly ShopRole[]): boolean {
+  return can(roles, 'O2s')
+}
+
+/**
+ * กด "รับงานนี้" (ตั้งตัวเองเป็นผู้รับผิดชอบ) ได้ไหม — ต้องทำงานได้ (O4) และถือ TECHNICIAN (API §4.8)
+ * เจ้าของ/ตอบแชทที่ไม่ใช่ช่างไม่รับงานเอง (ใช้ "มอบงาน" แทน) · CHAT+TECHNICIAN รับได้
+ */
+export function canClaimServiceJob(roles: readonly ShopRole[]): boolean {
+  return can(roles, 'O4') && roles.includes('TECHNICIAN')
+}

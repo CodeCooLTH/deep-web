@@ -290,6 +290,9 @@ const MATRIX: Entry[] = [
   E({ key: R('seller/customers/[key]/contact'), name: 'customer contact', load: () => import('@/app/api/seller/customers/[key]/contact/route'), url: (c) => `/api/seller/customers/c-${c.customerId}/contact`, params: (c) => ({ key: `c-${c.customerId}` }) }),
   E({ key: R('shops/current/appointments'), name: 'appointments month', load: () => import('@/app/api/shops/current/appointments/route'), url: () => '/api/shops/current/appointments?from=2030-01-01T00:00:00Z&to=2030-02-01T00:00:00Z' }),
   E({ key: R('shops/current/appointments/day'), name: 'appointments day', load: () => import('@/app/api/shops/current/appointments/day/route'), url: (c) => `/api/shops/current/appointments/day?date=${c.apptDate}` }),
+  // 00086 P3 — งานค้างจากวันก่อนของผู้เรียก (ทรงแถวเดียวกับ day) · รายชื่อช่าง (ชื่อเท่านั้น)
+  E({ key: R('shops/current/appointments/carry-over'), name: 'appointments carry-over', load: () => import('@/app/api/shops/current/appointments/carry-over/route'), url: () => '/api/shops/current/appointments/carry-over' }),
+  E({ key: R('shops/current/service-staff'), name: 'service staff', load: () => import('@/app/api/shops/current/service-staff/route'), url: () => '/api/shops/current/service-staff' }),
   E({ key: R('shops/current/service-resources'), name: 'service resources', load: () => import('@/app/api/shops/current/service-resources/route'), url: () => '/api/shops/current/service-resources' }),
   E({ key: R('shops/current/auto-notify'), name: 'auto-notify settings', load: () => import('@/app/api/shops/current/auto-notify/route'), url: () => '/api/shops/current/auto-notify' }),
   E({ key: R('shops/current/auto-notify/strip-context'), name: 'auto-notify strip-context', load: () => import('@/app/api/shops/current/auto-notify/strip-context/route'), url: (c) => `/api/shops/current/auto-notify/strip-context?orderToken=${c.token}` }),

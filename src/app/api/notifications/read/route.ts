@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { MarkNotificationReadSchema } from "@/lib/validations";
 import { markNotificationRead, markAllNotificationsRead } from "@/services/notification.service";
+import { getSubdomain } from "@/lib/subdomain";
 
 /**
  * POST /api/notifications/read — ทำเครื่องหมายอ่านแล้ว (web bell, NextAuth session)
@@ -30,7 +31,10 @@ export async function POST(request: NextRequest) {
   if (parsed.output.id) {
     await markNotificationRead(userId, parsed.output.id);
   } else {
-    await markAllNotificationsRead(userId);
+    // shopId จาก body ใช้แค่ "แคบลง" — where ยังผูก userId จาก session เสมอ จึงแตะของคนอื่นไม่ได้
+    // 00086: "อ่านทั้งหมด" ฝั่งผู้ซื้อแตะเฉพาะแจ้งเตือนส่วนตัว — ไม่กินแจ้งเตือนของร้านที่เจ้าของยังไม่ได้เห็น
+    const personalOnly = getSubdomain(request.headers.get("host") ?? "") !== "seller";
+    await markAllNotificationsRead(userId, { shopId: parsed.output.shopId, personalOnly });
   }
 
   return NextResponse.json({ ok: true });

@@ -121,6 +121,12 @@ export async function getThreadMessagesPage(params: {
             appointmentStatus: true,
             // feature 00073 — ป้ายชุดเดียวของงานบริการ (ปิดงานแล้วหรือยัง)
             serviceClosedAt: true,
+            // feature 00086 — ป้ายงานหน้าร้าน ("รอเริ่มงาน") + ชิปแบบการมา (OrderCardView · ชุดเดียวกับแผงขวา)
+            arrivalMode: true,
+            createdAt: true,
+            // feature 00086 — ขั้นระหว่างทำงาน (กำลังให้บริการ / ทำเสร็จ · รอปิดงาน) · การ์ดใช้เฉพาะฝั่งร้าน
+            serviceStartedAt: true,
+            serviceFinishedAt: true,
             depositAmount: true,
             // ผันคำของการ์ดตามประเภทกิจการ — อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์
             shop: { select: { vertical: true } },
@@ -164,6 +170,15 @@ export async function getThreadMessagesPage(params: {
           serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
           appointmentStatus: o.appointmentStatus,
           serviceClosedAt: o.serviceClosedAt ? o.serviceClosedAt.toISOString() : null,
+          arrivalMode: o.arrivalMode,
+          createdAt: o.createdAt.toISOString(),
+          // 🛑 ขั้นภายในร้าน — ฝั่งร้านเท่านั้น · ผู้ซื้อ (แอป Deep เรียก route เดียวกัน) ไม่ได้คีย์นี้เลย ไม่ใช่แค่ไม่แสดง
+          ...(result.viewerIsBuyer
+            ? {}
+            : {
+                serviceStartedAt: o.serviceStartedAt ? o.serviceStartedAt.toISOString() : null,
+                serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
+              }),
           depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
           items: o.items.map((it) => ({
             name: it.name,

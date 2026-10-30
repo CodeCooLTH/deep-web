@@ -87,6 +87,8 @@ import ConfirmStamp from './ConfirmStamp'
 import SectionTitle from './SectionTitle'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
+import ServiceJobPhotosCard from './ServiceJobPhotosCard'
+import type { BuyerServiceJobPhotos } from './buyer-service-job-photos'
 import PaymentSummaryCard from './PaymentSummaryCard'
 import { getChannelLabel } from '@/lib/chat-channel'
 import { resolveOrderVocab } from '@/lib/seller-menu'
@@ -219,6 +221,11 @@ export type PublicOrderData = {
   accessUrl: string | null
   // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) null = ออเดอร์นี้ไม่มีนัด → ไม่ render การ์ดเลย
   appointment: PublicAppointment | null
+  /**
+   * 00086 T12 — รูป + บันทึกก่อน/หลังทำจากร้าน · **optional โดยตั้งใจ**: ร้านไม่เปิดให้ลูกค้าเห็น /
+   * โหมด NONE / ร้านอื่น / ยังไม่มีแถว = ไม่มีคีย์นี้เลยใน payload (ไม่ใช่ [] หรือ null)
+   */
+  serviceJobPhotos?: BuyerServiceJobPhotos
   /**
    * feature 00050 (AC-SQ-06) — เงินที่ร้าน **ยืนยันว่าได้รับแล้ว** ของใบนี้
    *
@@ -2038,6 +2045,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               orderCancelled={order.status === 'CANCELLED'}
             />
           )}
+          {/* 00086 T12 — รูปจากร้าน ต่อท้ายการ์ดนัด (slot เดียวกัน) · ไม่มีคีย์ = ไม่มี DOM
+              walk-in ไม่มีนัด = อยู่ลำพังใน slot นี้ */}
+          {order.serviceJobPhotos && <ServiceJobPhotosCard photos={order.serviceJobPhotos} />}
           </Box>
 
           {/* ↳ รายการบริการ */}

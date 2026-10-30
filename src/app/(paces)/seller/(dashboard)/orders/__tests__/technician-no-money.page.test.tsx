@@ -61,15 +61,15 @@ import { NO_MONEY_FORBIDDEN_KEYS } from '@/lib/order-view-by-level'
 
 const SHOP = '11111111-1111-4111-8111-111111111111'
 
-function asRole(roles: string[], vertical = 'SERVICE_QUEUE') {
+function asRole(roles: string[], vertical = 'SERVICE_QUEUE', flags: { canCloseJob?: boolean } = {}) {
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'u1', activeShopId: SHOP } } as never)
   const shopRow = {
     id: SHOP, userId: 'owner-x', kind: 'BUSINESS', vertical, deletedAt: null, packageLockedAt: null, packageLockReason: null,
     shopName: 'ร้านทดสอบ', address: null, appointmentGranularity: 'TIME',
-    members: [{ role: 'ADMIN', roles }],
+    members: [{ role: 'ADMIN', roles, ...flags }],
   }
   db.shop.findUnique.mockResolvedValue(shopRow)
-  db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles })
+  db.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN', roles, ...flags })
 }
 
 const dec = (n: number) => ({ toFixed: (d: number) => n.toFixed(d), valueOf: () => n, toString: () => String(n) })
@@ -151,7 +151,7 @@ describe('หน้ารายการออเดอร์ (/orders)', () => 
     expect(row).toMatchObject({ buyerName: 'สมชาย', buyerPhone: '0812345678', conversationId: null, customerStats: null })
     expect('total' in row || 'paymentMethod' in row || 'money' in row || 'editLocked' in row || 'codReceivedAtISO' in row).toBe(false)
     expect((row.items as Record<string, unknown>[])[0]).not.toHaveProperty('price')
-    expect(svc.getOrdersByShop).toHaveBeenCalledWith(SHOP, undefined, { withPayments: false })
+    expect(svc.getOrdersByShop).toHaveBeenCalledWith(SHOP, undefined, { withPayments: false, withAssignee: true })
     expect(db.order.groupBy).not.toHaveBeenCalled()
     // ทักแชทต้องมี H1 — ช่างไม่ต้องหาห้อง
     expect(db.conversation.findMany).not.toHaveBeenCalled()
@@ -180,7 +180,20 @@ describe('หน้ารายการออเดอร์ (/orders)', () => 
     const [row] = list.props.orders as Record<string, any>[]
     expect(row).toMatchObject({ total: 900, paymentMethod: 'COD', conversationId: 'conv-1' })
     expect(row.items[0].price).toBe(900)
-    expect(svc.getOrdersByShop).toHaveBeenCalledWith(SHOP, undefined, { withPayments: true })
+    expect(svc.getOrdersByShop).toHaveBeenCalledWith(SHOP, undefined, { withPayments: true, withAssignee: true })
+  })
+
+  it('00086 P3 — who-line: ร้านบริการได้ assigneeName (ชื่ออย่างเดียว) · ร้านอื่นไม่ join และไม่มีคีย์', async () => {
+    svc.getOrdersByShop.mockResolvedValue([{ ...RAW(), assignedUserId: 'u-t', assignedUser: { id: 'u-t', displayName: 'สมศักดิ์' } }])
+    asRole(['TECHNICIAN'])
+    const svcRow = (find((await OrdersPage({ searchParams: Promise.resolve({}) })) as ReactNode, 'OrdersList')!.props.orders as Record<string, unknown>[])[0]
+    expect(svcRow.assigneeName).toBe('สมศักดิ์')
+
+    svc.getOrdersByShop.mockResolvedValue([RAW()])
+    asRole(['MANAGER'], 'ONLINE_SALES')
+    const onRow = (find((await OrdersPage({ searchParams: Promise.resolve({}) })) as ReactNode, 'OrdersList')!.props.orders as Record<string, unknown>[])[0]
+    expect('assigneeName' in onRow).toBe(false)
+    expect(svc.getOrdersByShop).toHaveBeenLastCalledWith(SHOP, undefined, { withPayments: false, withAssignee: false })
   })
 
   it('TECHNICIAN+CHAT = PER_ORDER: เห็นเงิน (union ของบทบาท) และทักแชทได้', async () => {
@@ -230,10 +243,65 @@ describe('หน้ารายละเอียดออเดอร์ (/orde
 
     const appt = find(tree as ReactNode, 'AppointmentCard')!
     expect(appt.props).toMatchObject({ canReschedule: false, canSendSummary: false })
-    // feature 00073 — ช่างปิดงานได้ (O4) ที่การ์ด "งานนี้" · ไม่มีเงิน (ไม่มีคีย์ money) · เปิดงานอีกครั้ง/คืนมัดจำไม่ได้ (O6)
+    // feature 00073 — ช่างเริ่มงานได้ (O4) ที่การ์ด "งานนี้" · ไม่มีเงิน (ไม่มีคีย์ money) · เปิดงานอีกครั้ง/คืนมัดจำไม่ได้ (O6)
+    // 00086 S-5 — ปิดงานต้องมีธง "ปิดงานได้" ⇒ ช่างที่ไม่ได้ติ๊ก: เริ่มได้ ปิดไม่ได้
     const job = find(tree as ReactNode, 'ServiceJobCard')!
-    expect(job.props).toMatchObject({ canClose: true, canManage: false })
+    expect(job.props).toMatchObject({ canStart: true, canClose: false, canManage: false })
     expect(job.props).not.toHaveProperty('money')
+  })
+
+  it('00086 P3 T5 — ผู้รับผิดชอบ + รูป/บันทึก ถึงหน้าของช่างแบบ allow-list (ชื่ออย่างเดียว · ไม่มีเบอร์/คีย์ภายใน)', async () => {
+    asRole(['TECHNICIAN'])
+    svc.getOrderForShop.mockResolvedValue({
+      ...RAW(),
+      assignedUserId: 'u1', serviceStartedAt: new Date('2026-10-12T03:05:00Z'), serviceFinishedAt: new Date('2026-10-12T03:50:00Z'),
+      assignedUser: { id: 'u1', displayName: 'ช่างนิด', phone: '0899999999', username: 'nid' },
+      serviceJobRecords: [
+        { id: 'r1', orderId: 'o1', shopId: SHOP, createdByUserId: 'u1', phase: 'BEFORE', note: 'ไฟเหลือง', fileIds: ['b.jpg'], createdAt: new Date('2026-10-12T03:05:00Z'), createdBy: { displayName: 'ช่างนิด', phone: '0899999999' } },
+      ],
+    })
+    const tech = find((await run()) as ReactNode, 'TechnicianOrderDetail')!
+    const order = tech.props.order as Record<string, unknown>
+    expect(moneyKeysIn(order)).toEqual([])
+    expect(order).toMatchObject({ assignedUserId: 'u1', serviceFinishedAt: new Date('2026-10-12T03:50:00Z') })
+    expect(order.assignedUser).toEqual({ id: 'u1', displayName: 'ช่างนิด' })
+    expect(order.serviceJobRecords).toEqual([
+      { phase: 'BEFORE', note: 'ไฟเหลือง', fileIds: ['b.jpg'], createdAt: new Date('2026-10-12T03:05:00Z'), createdBy: { displayName: 'ช่างนิด' } },
+    ])
+  })
+
+  it('00086 S-5 — ช่างที่ติ๊ก "ปิดงานได้": การ์ด "งานนี้" ได้ canClose=true (ยังไม่มีเงิน)', async () => {
+    asRole(['TECHNICIAN'], 'SERVICE_QUEUE', { canCloseJob: true })
+    const page = await run()
+    const props = find(page as ReactNode, 'TechnicianOrderDetail')!.props as Parameters<typeof TechnicianOrderDetail>[0]
+    expect(props.canCloseJob).toBe(true)
+    const job = find((await TechnicianOrderDetail(props)) as ReactNode, 'ServiceJobCard')!
+    expect(job.props).toMatchObject({ canStart: true, canClose: true, canManage: false })
+    expect(job.props).not.toHaveProperty('money')
+  })
+
+  // 00086 critique P0 — สถานะเดียวต่อจอ: มีการ์ด "งานนี้" ⇒ การ์ด "การนัดหมาย" ไม่ติดป้ายขั้นนัดซ้ำ (เหลือชิปแบบการมา)
+  // mutation ที่ต้องแดง: ถอด prop hideStageBadge ที่ page.tsx / TechnicianOrderDetail · ส่ง true โดยไม่ผูก serviceJob
+  it('00086 P0 — ช่าง: มีการ์ด "งานนี้" ⇒ AppointmentCard ได้ hideStageBadge=true', async () => {
+    asRole(['TECHNICIAN'])
+    const props = find((await run()) as ReactNode, 'TechnicianOrderDetail')!.props as Parameters<typeof TechnicianOrderDetail>[0]
+    const tree = await TechnicianOrderDetail(props)
+    expect(find(tree as ReactNode, 'ServiceJobCard')).toBeDefined()
+    expect(find(tree as ReactNode, 'AppointmentCard')!.props.hideStageBadge).toBe(true)
+  })
+
+  it('00086 P0 — ผู้ดูแลร้านบริการ (หน้าเต็ม): มีการ์ด "งานนี้" ⇒ AppointmentCard ได้ hideStageBadge=true', async () => {
+    asRole(['MANAGER'])
+    const tree = await run()
+    expect(find(tree as ReactNode, 'ServiceJobCard')).toBeDefined()
+    expect(find(tree as ReactNode, 'AppointmentCard')!.props.hideStageBadge).toBe(true)
+  })
+
+  it('00086 P0 — ร้านที่พัก (ไม่ใช่ร้านบริการ) มีนัด: ไม่มีการ์ด "งานนี้" ⇒ ป้ายขั้นนัดเดิมอยู่ (hideStageBadge=false)', async () => {
+    asRole(['MANAGER'], 'LODGING')
+    const tree = await run()
+    expect(find(tree as ReactNode, 'ServiceJobCard')).toBeUndefined()
+    expect(find(tree as ReactNode, 'AppointmentCard')!.props.hideStageBadge).toBe(false)
   })
 
   it('MANAGER: ยังได้หน้าเต็ม (OrderDetailClient พร้อมยอด) ไม่ใช่หน้าของช่าง', async () => {

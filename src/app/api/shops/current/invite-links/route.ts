@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { inviteLinkCreateSchema } from "@/lib/validations";
 import { requireShopCapability } from "@/lib/shop-capability";
 import { keepErrorCode } from "@/lib/legacy-forbidden";
+import { staffFlagsErrorBody } from "@/lib/shop-member-errors";
 import { createInviteLink, listActiveInviteLinks } from "@/services/invite-link.service";
 import { buildInviteUrl, DEFAULT_INVITE_EXPIRY_KEY, type InviteExpiryKey } from "@/lib/invite-link";
 
@@ -35,12 +36,18 @@ export async function POST(request: NextRequest) {
   const expiryKey: InviteExpiryKey = parsed.output.expiryKey ?? DEFAULT_INVITE_EXPIRY_KEY;
 
   try {
-    const { slug, expiresAt } = await createInviteLink(ownerId, active.shop.id, expiryKey, parsed.output.roles);
-    return NextResponse.json({ url: buildInviteUrl(slug), slug, expiresAt }, { status: 201 });
+    const { canCloseJob, canRecordExpense } = parsed.output;
+    const link = await createInviteLink(ownerId, active.shop.id, expiryKey, parsed.output.roles, { canCloseJob, canRecordExpense });
+    return NextResponse.json({
+      url: buildInviteUrl(link.slug), slug: link.slug, expiresAt: link.expiresAt,
+      canCloseJob: link.canCloseJob, canRecordExpense: link.canRecordExpense,
+    }, { status: 201 });
   } catch (e: unknown) {
     if (e instanceof Error && (e.message === "INVALID_ROLES" || e.message === "BILLING_NOT_AVAILABLE")) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
+    const flagBody = e instanceof Error ? staffFlagsErrorBody(e.message) : null; // 00086
+    if (flagBody) return NextResponse.json(flagBody, { status: 400 });
     if (e instanceof Error && e.message === "NOT_OWNER") {
       return NextResponse.json({ error: "NOT_OWNER" }, { status: 403 });
     }
@@ -71,6 +78,8 @@ export async function GET(_request: NextRequest) {
         expiresAt: l.expiresAt,
         createdAt: l.createdAt,
         roles: l.roles,
+        canCloseJob: l.canCloseJob,
+        canRecordExpense: l.canRecordExpense,
       })),
     });
   } catch (e: unknown) {

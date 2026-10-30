@@ -55,7 +55,8 @@ interface SellerBottomNavProps {
    * (ช่างไม่มี → เห็นแถบล่าง) · ตัดสินที่ `bottomNavHiddenPages(roles)` ใน role-nav
    */
   hideOnOrderDetail: boolean
-  /** `/queues` ซ่อนเพราะบอร์ดวาดแถบสร้างงานเอง (can(O2s)) — ช่างไม่มีแถบนั้น จึงต้องเห็นแถบล่าง */
+  /** `/queues` ซ่อนเพราะบอร์ดวาดแถบสร้างงานเอง (can(O2s)) — ช่างไม่มีแถบนั้น จึงต้องเห็นแถบล่าง
+   *  ร้านบริการ = false ทุกบทบาท (00086 · 2026-10-27) — ตัดสินที่ `bottomNavHiddenPages(roles, shop)` */
   hideOnQueues: boolean
 }
 
@@ -245,6 +246,8 @@ export default function SellerBottomNav({
   //   ไม่งั้นซ้ำรอย /orders ที่เคยสร้างออเดอร์บนมือถือไม่ได้เลยโดยไม่มีอะไรฟ้อง
   //   (docs/conventions/seller-action-placement.md §5.1)
   //   00071: ซ่อนเฉพาะบทบาทที่บอร์ดวาดแถบสร้างงานให้ (can(O2s)) — hideOnQueues · ช่างไม่มีแถบนั้นจึงเห็นแถบล่าง
+  //   00086 (2026-10-27): ร้านบริการ **ไม่ซ่อน** ทุกบทบาท (ตอบแชท/เปิดบิลมีแท็บ "ตารางงาน" แล้ว) — บอร์ดจึงไม่วาดแถบสร้างงานของตัวเอง
+  //   แทน (FAB ในแถบนี้คือทางสร้าง) · คู่กันที่ `queuesCreateBarRenders` ใน role-nav — สองฝั่งต้องเป็นเกณฑ์เดียว
   // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
   const orderDetailMatch = pathname.match(/^\/orders\/([^/]+)$/)
   const isOrderDetail = orderDetailMatch !== null && orderDetailMatch[1] !== 'new'

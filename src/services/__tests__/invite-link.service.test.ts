@@ -251,8 +251,8 @@ describe('acceptInviteLink', () => {
   })
 
   it('happy path — สร้าง ShopMember ADMIN สำเร็จ', async () => {
-    linkFindUnique.mockResolvedValue({ shopId: SHOP_ID, revokedAt: null, expiresAt: new Date(Date.now() + 100000), roles: ['CHAT', 'TECHNICIAN'] })
-    shopFindUnique.mockResolvedValue(businessShop())
+    linkFindUnique.mockResolvedValue({ shopId: SHOP_ID, revokedAt: null, expiresAt: new Date(Date.now() + 100000), roles: ['CHAT', 'TECHNICIAN'], canCloseJob: true, canRecordExpense: true })
+    shopFindUnique.mockResolvedValue({ ...businessShop(), vertical: 'SERVICE_QUEUE' })
     memberFindUnique.mockResolvedValue(null)
     subFindUnique.mockResolvedValue(activeSub) // PRO — maxAdminsPerBusiness=3
     memberCount.mockResolvedValue(0)
@@ -263,7 +263,8 @@ describe('acceptInviteLink', () => {
     expect(memberUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { shopId_userId: { shopId: SHOP_ID, userId: USER_ID } },
-        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN', roles: ['CHAT', 'TECHNICIAN'] },
+        // 00086: ธงจากลิงก์ติดไปกับสมาชิก (ร้านบริการ)
+        create: { shopId: SHOP_ID, userId: USER_ID, role: 'ADMIN', roles: ['CHAT', 'TECHNICIAN'], canCloseJob: true, canRecordExpense: true },
       }),
     )
   })

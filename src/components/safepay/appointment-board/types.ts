@@ -20,6 +20,15 @@ export type AppointmentBoardItem = {
   buyerName: string | null
   /** null = นัดที่คิวงานถูกถอดออกภายหลัง · undefined = ผู้เรียกไม่ได้ขอ field นี้ */
   resource?: { id: string; name: string; capacity?: number } | null
+  /**
+   * 00086 (QA 2026-10-30) — ป้ายของรายการวันบนบอร์ด (หน้าร้าน "รอเริ่มงาน" · กำลังให้บริการ · ทำเสร็จ · รอปิดงาน)
+   * ไม่ใช่ข้อมูลติดต่อ — ไม่ขัดกติกาแยก type (ห้ามเบอร์ในคำขอเดือน) · ISO string
+   */
+  arrivalMode?: string | null
+  createdAt?: string
+  serviceStartedAt?: string | null
+  serviceFinishedAt?: string | null
+  serviceClosedAt?: string | null
 }
 
 /**
@@ -36,13 +45,19 @@ export type AppointmentDayApiItem = {
   orderToken: string
   orderNo: string | null
   /**
-   * เวลาที่เปิดบิล (ISO) — ใช้ derive "วิธีเข้ารับบริการ" ด้วย `resolveArrivalMode()`
+   * เวลาที่เปิดบิล (ISO) — ใช้ derive "วิธีเข้ารับบริการ" ด้วย `arrivalModeOf()` (ใบเก่าที่ยังไม่มีค่าเก็บในแถว)
    *
    * 🛑 อยู่เฉพาะใน type ของ **คำขอรายวัน** ไม่ใส่ใน `AppointmentBoardItem` (คำขอรายเดือน)
    * เพราะปฏิทินเดือนไม่ได้ถามคำถามนี้ — เพิ่ม field ที่ไม่มีใครใช้เข้าคำขอเดือน
    * = โยนข้อมูลลง flight payload ทั้งเดือนเปล่า ๆ (เหตุผลเดียวกับที่แยกสอง type นี้ตั้งแต่แรก)
    */
   createdAt: string
+  /**
+   * feature 00086 — แบบการมาที่ร้านเลือกตอนเปิดบิล (`BOOKED|WALK_IN`) · null = ใบเก่า/ไม่ได้ระบุ
+   * 🛑 จออ่านผ่าน `arrivalModeOf()` เท่านั้น (ค่าเก็บชนะ → สูตรเดิมจาก createdAt/start)
+   * optional เพราะผู้เรียกบางรายสร้างแถวเองในเทส — ไม่มีคีย์ = ตกไปใช้สูตรเดิมเหมือน null
+   */
+  arrivalMode?: string | null
   /** ISO string */
   start: string
   end: string
@@ -73,7 +88,23 @@ export type AppointmentDayApiItem = {
    * UI พูดได้แค่ "มัดจำ ฿900" ห้ามเขียน "จ่ายแล้ว"/"ค้างจ่าย" · "0" = ไม่เก็บมัดจำ ⇒ ไม่ต้องแสดง
    */
   depositAmount?: string
+  /**
+   * feature 00086 P3 — ผู้รับผิดชอบงาน (ชื่ออย่างเดียว) · null = ยังไม่มีคนรับ
+   * optional เหตุผลเดียวกับ `arrivalMode` (แถวที่ผู้เรียกสร้างเองในเทส) — ไม่มีคีย์ = ถือว่า "ยังไม่มีคนรับ"
+   * 🛑 เทียบตัวตนด้วย `userId` เท่านั้น ห้ามเทียบชื่อ (ชื่อซ้ำกันได้)
+   */
+  assignee?: { userId: string; displayName: string } | null
+  /** feature 00086 P3 — ISO · เวลากดเริ่มงาน / ทำเสร็จ / ปิดงาน · null หรือไม่มีคีย์ = ยังไม่ถึงขั้นนั้น */
+  serviceStartedAt?: string | null
+  serviceFinishedAt?: string | null
+  serviceClosedAt?: string | null
 }
+
+/**
+ * 00086 M1 — งานของฉันที่ "ยังไม่ระบุเวลา" (`GET …/appointments/carry-over` คีย์ `unscheduled`)
+ * ทรงเดียวกับแถวรายวันทุกคีย์ (ทางออกเงินเดียวกัน) ต่างแค่ไม่มีเวลา ⇒ start/end = null
+ */
+export type UnscheduledDayApiItem = Omit<AppointmentDayApiItem, 'start' | 'end'> & { start: null; end: null }
 
 /**
  * "YYYY-MM-DD" ตามเวลาเครื่อง — ตรงกับที่ AppointmentBlock เก็บค่าในฟอร์ม
