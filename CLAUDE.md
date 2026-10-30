@@ -78,6 +78,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - [[docs/conventions/mutation-silence-means-weak-corpus]] — mutation แล้วยังเขียว = input อ่อน
   - [[docs/conventions/oauth-signup-unique-collisions]] — P2002 ตอนสมัคร OAuth ต้องแยกตามคอลัมน์
   - [[docs/conventions/permission-gate-follows-the-row]] — ปิดสิทธิ์ข้อมูลไล่ตามแถวไม่ใช่ตามจอ · พารามิเตอร์สิทธิ์ห้าม default เปิด
+  - [[docs/conventions/local-qa-blocks-external-side-effects]] — browser QA กดปุ่มแจ้งเตือน ต้องเปิด dev ด้วย `scripts/qa-block-external.cjs` (ฐาน local มี push token จริง)
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
@@ -187,6 +188,7 @@ theme/
 - **2026-10-23 (00082):** ลูกค้ายืนยันรับบริการ = ปิดงาน + ชำระครบ + ใบเสร็จ (ร้านบริการเท่านั้น · `settleServiceJobOnBuyerConfirm` ใน `confirmOrder`) — migration ข้อมูล (HR15) · 🛑 ห้าม refresh หน้า `/o/[token]` ระหว่างแผ่นให้คะแนนเปิด · ดู [[docs/claude/state-snapshots]]
 - **2026-10-10 (00071 P2+P3):** 5 บทบาทถือหลายบทบาทได้ + ทุก route ประกาศ capability (`src/lib/route-capabilities.ts`) — branch `feat/00071-p2-roles` ยังไม่ push · มี migration (HR15) · 🛑 browser QA ยังไม่ทำ
 - **2026-10-23 (00084):** เชื่อม Flash Express ตรง (ร้านใส่ mchId/key เอง · ใช้คู่ iShip ได้) — prod #197 · เปิดด้วย `OPEN_FLASH_EXPRESS=prod|uat` (+ `FLASH_PILOT_SHOP_IDS`) · ไม่ตั้ง = ปิดทุกร้าน · ดู [[docs/claude/state-snapshots]]
+- **2026-10-29 (00086 Service Staff Workflow — เลขชนกับ 00086 Seller Order Export ของหัวหน้า #212 · คงเลขไว้เพราะชื่อ migration ขึ้น prod แล้ว):** งานพนักงานร้านบริการ (จอง/หน้าร้าน · ติ๊กปิดงาน/ค่าใช้จ่ายรายคน · มุมมองช่าง · แจ้งเตือน `service_job_*`) — **เปิด PR แล้ว 2026-10-30 · ยังไม่ merge** · migration 11 ตัว (🛑 4 ตัวขึ้น prod แล้วจาก incident · HR15 อีก 7 ตัว · นับแถว Order prod ก่อน merge) · ค้าง QA แนบรูปใน WebView แอปผู้ขาย (critique แก้แล้ว) · ดู [[docs/claude/state-snapshots]]
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
