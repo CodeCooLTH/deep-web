@@ -11,6 +11,11 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 
+// service-job-api → shop-api-guard → lib/auth → link-intent โยนตอน import ถ้าไม่มี secret
+// CI ด่าน 2 ไม่ตั้ง NEXTAUTH_SECRET และ import ทำงานก่อน skipIf ⇒ ต้องตั้งก่อน import (vi.hoisted)
+vi.hoisted(() => {
+  process.env.NEXTAUTH_SECRET ||= 'test-secret-noshow-after-start'
+})
 vi.mock('server-only', () => ({}))
 vi.mock('@/services/auto-notify.service', async (orig) => ({
   ...(await orig<typeof import('@/services/auto-notify.service')>()),
