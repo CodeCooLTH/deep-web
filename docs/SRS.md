@@ -2056,6 +2056,7 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 - KYC document (`VerificationRecord.documents`): เจ้าของ หรือ admin เท่านั้น; `Cache-Control: private, no-cache`; ใช้ in-memory TTL cache (60s) แทน per-request scan
 - TopUp slip (`TopUpRequest.slipFileId`): เจ้าของร้าน หรือ admin เท่านั้น
 - Order payment slip (`Order.slipFileId`): เจ้าของร้าน หรือ admin เท่านั้น
+- `?variant=thumb|lg` (00088 · 2026-10-31): รูปย่อ webp (ด้านยาว 480 / 1280 px จาก `IMAGE_VARIANTS`) **หลัง** ด่านสิทธิ์ของคีย์ต้นฉบับทุกชั้น · ใช้ variant ที่สร้างตอนอัปโหลดถ้ามี ไม่งั้นย่อสด **ไม่เก็บ** (`readImageVariant`) · Cache-Control เท่าต้นฉบับ · ค่าไม่รู้จัก/gif/pdf/ย่อแล้วใหญ่กว่า = ต้นฉบับ · ไม่ส่ง = พฤติกรรมเดิม
 
 ### 7.10 Public APIs
 

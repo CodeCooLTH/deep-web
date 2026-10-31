@@ -3,7 +3,7 @@ import { shouldHidePayments } from "@/lib/app-shell-server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { rolesFromMembership } from "@/lib/shop-permissions";
+import { effectiveRoles, memberCanCloseJob, rolesFromMembership } from "@/lib/shop-permissions";
 import { getPersonalShop } from "@/lib/shop-context";
 import { getSubscriptionStatus } from "@/services/business-package.service";
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from "@/lib/business-package";
@@ -58,8 +58,9 @@ export async function GET() {
       select: {
         role: true,
         roles: true,
+        canCloseJob: true,
         shop: {
-          select: { id: true, shopName: true, logo: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
+          select: { id: true, shopName: true, logo: true, kind: true, vertical: true, packageLockedAt: true, packageLockReason: true, deletedAt: true },
         },
       },
     });
@@ -87,6 +88,9 @@ export async function GET() {
       locked: m.shop.packageLockedAt !== null,
       lockReason: m.shop.packageLockReason,
       deletedAt: m.shop.deletedAt,
+      // 00088 — แชท native ในแอปผู้ขายใช้ซ่อนปุ่ม "ปิดงาน" ให้เท่าหน้าแชทเว็บ (กฎเดียวกับ canCloseJobInShop)
+      // แสดงผลเท่านั้น — ด่านจริงอยู่ที่ POST /api/orders/[token]/close
+      canCloseJob: memberCanCloseJob(m.shop, effectiveRoles(m.shop, m.role, m.roles), m),
     }));
 
     return NextResponse.json(

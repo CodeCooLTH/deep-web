@@ -88,3 +88,21 @@ export async function generateImageVariants(
 
   return { created, skipped, failed }
 }
+
+/**
+ * รูปย่อสำหรับ `?variant=` ของ `/api/files` (00088) — **ผู้เรียกต้องผ่านด่านสิทธิ์ของ fileKey มาแล้ว**
+ *
+ * 1. มี variant ที่สร้างตอนอัปโหลดอยู่แล้ว (รูปสาธารณะ) → ใช้ไฟล์นั้น
+ * 2. ไม่มี → ย่อสดจากต้นฉบับ **แล้วไม่เก็บ** — เก็บลง storage = คีย์ variant ที่ไม่มีด่านสิทธิ์ (ดูหัวไฟล์นี้)
+ *    ⇒ ไฟล์ส่วนตัว (สลิป/เอกสาร) จะกลายเป็นสาธารณะ · ค่า CPU ต่อครั้งแลกด้วย Cache-Control เดิมของต้นฉบับ
+ * คืน null = ย่อไม่ได้/ไม่คุ้ม (ใหญ่กว่าต้นฉบับ) → ผู้เรียกเสิร์ฟต้นฉบับ · ไม่ throw
+ */
+export async function readImageVariant(fileKey: string, variant: ImageVariant): Promise<Buffer | null> {
+  const ext = fileKey.split('.').pop() ?? ''
+  if (!canHaveVariants(ext)) return null
+  const stored = await getFile(variantKey(fileKey, variant)).catch(() => null)
+  if (stored) return stored.buffer
+  const source = await getFile(fileKey).catch(() => null)
+  if (!source) return null
+  return buildImageVariant(source.buffer, variant)
+}

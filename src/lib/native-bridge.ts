@@ -37,6 +37,31 @@ export function hasNativeFeature(name: string): boolean {
 }
 
 /**
+ * แอปมีหน้า "ตั้งค่าแอป" แบบ native (โหมดแชท เว็บ/Native · feature 00088 · deep-seller-app 1.0.6 ขึ้นไป)
+ * 🛑 ต้องตรงกับ `APP_SETTINGS_FEATURE` ใน deep-seller-app `src/features/chat-mode/bridge.ts`
+ * build เก่าไม่ประกาศ ⇒ แถว "ตั้งค่าแอป" ไม่แสดง (กดแล้วไม่เกิดอะไร = ปุ่มตาย ห้ามมี)
+ */
+export const NATIVE_FEATURE_APP_SETTINGS = 'app-settings'
+
+/** ชื่อคำสั่งที่แอปรับ — 🛑 ต้องตรงกับ `OPEN_APP_SETTINGS_TYPE` ฝั่งแอป */
+export const OPEN_APP_SETTINGS_TYPE = 'deep:open-app-settings'
+
+/**
+ * ขอให้แอปเปิดหน้า "ตั้งค่าแอป" (native) · ไม่อยู่ในแอป = ไม่ทำอะไร
+ * แยกจาก `openNativeNotificationSettings` โดยตั้งใจ: ตัวนั้นพาไปตั้งค่าแจ้งเตือนของ "เครื่อง" (ห้ามเปลี่ยนความหมาย)
+ */
+export function openNativeAppSettings(): void {
+  if (typeof window === 'undefined') return
+  const bridge = (window as NativeWindow).ReactNativeWebView
+  if (!bridge) return
+  try {
+    bridge.postMessage(JSON.stringify({ type: OPEN_APP_SETTINGS_TYPE }))
+  } catch {
+    // postMessage พัง = ปุ่มไม่ตอบสนอง ไม่ใช่เหตุให้หน้าพัง
+  }
+}
+
+/**
  * ขอให้แอปยิงแจ้งเตือนตัวอย่างด้วยเสียงที่เลือก — ได้ยินเหมือนตอนแชทเข้าจริง
  * (ไฟล์เสียงในแอป + ระดับเสียงแจ้งเตือนของเครื่อง) · ไม่อยู่ในแอป = ไม่ทำอะไร
  * 🛑 type ต้องตรงกับ `PREVIEW_SOUND_TYPE` ฝั่งแอป

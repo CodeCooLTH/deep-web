@@ -68,3 +68,15 @@ export function variantKey(fileKey: string, variant: ImageVariant): string {
 
 /** content-type ของทุก variant — ใช้ตอน PUT ขึ้น storage */
 export const VARIANT_CONTENT_TYPE = 'image/webp'
+
+/**
+ * `?variant=` ของ `/api/files/[...fileId]` (00088 · รูปย่อสดหลังตรวจสิทธิ์) — คืน variant ที่ใช้ได้ หรือ null = เสิร์ฟต้นฉบับ
+ *
+ * ต่างจาก variant ที่สร้างตอนอัปโหลด (`variantKey` · รูปสาธารณะเท่านั้น): ตัวนี้ย่อ **หลัง** ด่านสิทธิ์ของคีย์ต้นฉบับ
+ * ผ่านแล้ว และไม่เขียนไฟล์ใด ๆ ลง storage ⇒ ใช้กับรูปส่วนตัว (สลิป/รูปในแชท) ได้โดยไม่เปิดช่องเดาคีย์
+ * ค่าที่ไม่รู้จัก / นามสกุลที่ย่อไม่ได้ (gif/pdf/…) = null — ไม่ error เพราะผู้เรียกได้ต้นฉบับเหมือนไม่ได้ขอ
+ */
+export function parseVariantParam(value: string | null | undefined, ext: string): ImageVariant | null {
+  if (!value || !Object.prototype.hasOwnProperty.call(IMAGE_VARIANTS, value)) return null
+  return canHaveVariants(ext) ? (value as ImageVariant) : null
+}
