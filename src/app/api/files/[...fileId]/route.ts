@@ -8,6 +8,8 @@ import { EXT_TO_MIME, isInlineExt } from "@/lib/attachment-mime";
 import { parseRangeHeader, contentRangeHeader } from "@/lib/http-range";
 import { canAccessShopWith } from "@/lib/shop-capability";
 import { forbiddenRoleResponse } from "@/lib/forbidden-role";
+import { parseVariantParam, VARIANT_CONTENT_TYPE } from "@/lib/image-variants";
+import { readImageVariant } from "@/services/image-variant.service";
 
 // feature 00018 (user request 2026-07-24 "รองรับทุกอย่าง"): ตาราง ext→content-type ย้ายไป
 // src/lib/attachment-mime.ts (SSOT ร่วมกับ mirror ฝั่ง channel-chat.service). ไฟล์ที่ browser
@@ -289,6 +291,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // ประกาศว่ารองรับ byte-range — iOS ดูค่านี้ก่อนตัดสินใจว่าจะเล่นสื่อได้ไหม
     "Accept-Ranges": "bytes",
   };
+
+  // ---------------------------------------------------------------------------
+  // รูปย่อ `?variant=thumb|lg` (00088 แชท native · 2026-10-31) — มาถึงตรงนี้ = ผ่านด่านสิทธิ์ของคีย์ต้นฉบับแล้ว
+  // ย่อสดไม่เก็บ (readImageVariant) ⇒ รูปส่วนตัวไม่หลุด · Cache-Control เท่าต้นฉบับ · ย่อไม่ได้ = ตกไปต้นฉบับ
+  // ไม่ส่ง `variant` = พฤติกรรมเดิมทุกไบต์
+  // ---------------------------------------------------------------------------
+  const variant = parseVariantParam(request.nextUrl.searchParams.get("variant"), ext);
+  if (variant) {
+    const small = await readImageVariant(fileId, variant);
+    if (small) {
+      return new NextResponse(new Uint8Array(small), {
+        headers: {
+          ...baseHeaders,
+          "Content-Type": VARIANT_CONTENT_TYPE,
+          "Content-Disposition": "inline",
+          "Content-Length": String(small.length),
+        },
+      });
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // HTTP Range (2026-08-03): iOS Safari/WKWebView เล่น <video>/<audio> ไม่ได้เลย

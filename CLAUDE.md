@@ -27,6 +27,7 @@
 | 15 | push `main` = `prisma migrate deploy` บน prod ในตัว — ห้ามสั่ง migrate ชี้ prod เอง; ก่อน migrate ต้องบอก user 3 ข้อ (prod ไม่ต้องสั่ง · local ต้อง apply เอง · migrate ล้ม = deploy ไม่ขึ้น) | Controller |
 | 16 | ศัพท์ธุรกิจ (กำไร/ยอดขาย/ต้นทุน…) นิยามเดียวทั้งระบบ — grep นิยามเดิม + อ่านไฟล์ที่จะ import ให้จบ · ข้อจำกัดที่เอกสารอ้างต้องยืนยันกับโค้ดก่อน | Controller |
 | 17 | rebase สะอาด ≠ ปลอดภัย — ไฟล์ที่สองฝั่งแตะ (`comm -12` ของ diff สองทาง) ต้องอ่าน diff อีกฝั่ง · verify หลัง rebase · เช็ค FF ซ้ำก่อน push | Controller |
+| 18 | แก้แชทเว็บ (`api/chat/**` · `(chat)/**` · ไฟล์ใน `src/lib/native-chat-sync/manifest.ts`) ต้องแก้แชท Native ใน `deep-seller-app` ตาม — เทส `native-chat-sync` แดงจนกว่าจะแก้แอป/ยืนยันไม่กระทบ → `npx tsx scripts/native-chat-sync-pin.ts` + บรรทัด `Native: …` ใน PR · ห้ามปักหมุดเพื่อให้ผ่าน | เทส `native-chat-sync` (CI ด่าน 2) |
 
 Subagents: `safepay-product` `safepay-planner` `safepay-ux` `safepay-database` `safepay-developer` `safepay-reviewer` `safepay-security` `safepay-qa` `safepay-docs` (Controller = main session). `safepay-ux` = gate ของ frontend ทุก task. feature เต็มรูปดู skill `agent-team-feature`.
 
@@ -78,6 +79,8 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - [[docs/conventions/mutation-silence-means-weak-corpus]] — mutation แล้วยังเขียว = input อ่อน
   - [[docs/conventions/oauth-signup-unique-collisions]] — P2002 ตอนสมัคร OAuth ต้องแยกตามคอลัมน์
   - [[docs/conventions/permission-gate-follows-the-row]] — ปิดสิทธิ์ข้อมูลไล่ตามแถวไม่ใช่ตามจอ · พารามิเตอร์สิทธิ์ห้าม default เปิด
+  - [[docs/conventions/image-thumbnails]] — รูปย่อตัวกลางเดียว: สาธารณะ `variantUrlOf` · อื่น ๆ `?variant=` ย่อสดไม่เก็บ · แอป `RemoteImage`/`ChatList`
+  - [[docs/conventions/native-chat-sync]] — แก้แชทเว็บต้องแก้แชท Native ในแอปผู้ขายตาม (HR18 · เทสแดงบอกไฟล์ที่ต้องแก้)
   - [[docs/conventions/local-qa-blocks-external-side-effects]] — browser QA กดปุ่มแจ้งเตือน ต้องเปิด dev ด้วย `scripts/qa-block-external.cjs` (ฐาน local มี push token จริง)
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`

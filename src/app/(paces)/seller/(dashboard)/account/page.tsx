@@ -26,6 +26,7 @@ import DeleteAccountCard from './components/DeleteAccountCard'
 import { toChatPushSound } from '@/services/notification-pref.service'
 import NotificationPrefsCard from './components/NotificationPrefsCard'
 import LanguagePrefsCard from './components/LanguagePrefsCard'
+import AppSettingsRow from './components/AppSettingsRow'
 
 export const metadata: Metadata = { title: 'ข้อมูลส่วนตัว' }
 
@@ -139,6 +140,9 @@ export default async function AccountPage() {
             อยู่หน้านี้ถูกแล้วเพราะเป็น "ฉันอยากอ่านภาษาอะไร" ไม่ใช่ "ร้านนี้ตั้งค่าไว้ยังไง" —
             เส้นแบ่งเดียวกับที่ NotificationPrefsCard ใช้ (พนักงานสองคนในร้านเดียวกันตั้งต่างกันได้) */}
         <LanguagePrefsCard />
+
+        {/* ตั้งค่าแอป (feature 00088) — แสดงเฉพาะในแอปผู้ขายรุ่นที่ประกาศ app-settings · เบราว์เซอร์/แอปเก่าไม่เห็น */}
+        <AppSettingsRow />
 
         {/* การแจ้งเตือน — วางก่อน "ลบบัญชี" เสมอ: ลบบัญชีเป็น destructive ต้องอยู่ท้ายสุดของหน้า
             (ถ้าแทรกการ์ดอื่นต่อจากมัน ปุ่มลบจะไปนอนกลางหน้าแล้วโดนกดพลาดง่ายขึ้น)
