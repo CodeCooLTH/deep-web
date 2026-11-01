@@ -1500,7 +1500,7 @@ export const th = {
     storefront: 'โปรไฟล์',
 
     /** ตัวสลับในห้องแชท (`ChatShopSwitcher`) — มีโหมดมุมมองเพิ่มมาจากตัวอื่น */
-    inboxView: 'มุมมองกล่องข้อความ',
+    inboxView: 'ตั้งค่าข้อความ',
     viewAllShops: 'ร้านทั้งหมด',
     viewThisShop: 'ร้านนี้',
     viewChangeError: 'เปลี่ยนมุมมองไม่สำเร็จ ลองใหม่อีกครั้ง',
