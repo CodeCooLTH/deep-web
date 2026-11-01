@@ -308,6 +308,8 @@ const MATRIX: Entry[] = [
   E({ key: R('chat/conversations/[id]/orders'), name: 'chat customer panel orders', load: () => import('@/app/api/chat/conversations/[id]/orders/route'), url: (c) => `/api/chat/conversations/${c.convId}/orders`, params: (c) => ({ id: c.convId }) }),
   E({ key: R('chat/conversations/[id]/crm'), name: 'chat crm', load: () => import('@/app/api/chat/conversations/[id]/crm/route'), url: (c) => `/api/chat/conversations/${c.convId}/crm`, params: (c) => ({ id: c.convId }) }),
   E({ key: R('chat/conversations/[id]/customer-prefill'), name: 'chat customer-prefill', load: () => import('@/app/api/chat/conversations/[id]/customer-prefill/route'), url: (c) => `/api/chat/conversations/${c.convId}/customer-prefill`, params: (c) => ({ id: c.convId }) }),
+  // 00088 — สถานะห้องสำหรับแชท Native · มี customerStats.totalSpent (F1 เท่านั้น) ⇒ ต้องยิงจริงทุกบทบาท
+  E({ key: R('chat/conversations/[id]/thread-state'), name: 'chat thread-state (native)', load: () => import('@/app/api/chat/conversations/[id]/thread-state/route'), url: (c) => `/api/chat/conversations/${c.convId}/thread-state`, params: (c) => ({ id: c.convId }) }),
   E({ key: R('chat/conversations/[id]/follow-ups'), name: 'chat follow-ups', load: () => import('@/app/api/chat/conversations/[id]/follow-ups/route'), url: (c) => `/api/chat/conversations/${c.convId}/follow-ups`, params: (c) => ({ id: c.convId }) }),
   E({ key: R('chat/shop-context'), name: 'chat shop-context', load: () => import('@/app/api/chat/shop-context/route'), url: (c) => `/api/chat/shop-context?shopId=${c.shop1}` }),
   E({ key: R('chat/ai-quota'), name: 'chat ai-quota', load: () => import('@/app/api/chat/ai-quota/route'), url: () => '/api/chat/ai-quota' }),
@@ -346,6 +348,7 @@ const COVERED: Record<string, string> = {
   'src/app/api/seller/flash/shipments/': 'พัสดุ Flash รายใบ (preview/label/traces) S1 — ไบนารี/ไทม์ไลน์ขนส่ง ไม่มีต้นทุนสินค้า · ค่าส่งอยู่ที่ order-context (อยู่ใน MATRIX) (00084)',
   'src/app/api/seller/reports/agents/': 'รายงานแอดมินรายคน — ครอบด้วย agents (อยู่ใน MATRIX) + redactAgent* unit test',
   'src/app/api/chat-desk/': 'โต๊ะแชท 00077 (X7 เจ้าของเท่านั้น) — snapshot/preview อ่านอย่างเดียว ไม่มีเงิน/ต้นทุน · สิทธิ์ครอบด้วย route.test 3 บัญชี + chat-desk-sources',
+  'src/app/api/chat/scope/': 'ขอบเขตกล่องแชทของผู้เรียก (H1 · 00088 แชท Native) — โหมด · ชื่อ/โลโก้ร้าน · ชื่อเพจ · ข้อความตั้งต้นทักแชท ไม่มีเงิน/ต้นทุน · เทสด่าน: src/app/api/chat/scope/route.test.ts',
   'src/app/api/chat/presence-keys/': 'คีย์ presence ทึบของผู้เรียกเอง (H1 · 00077) — ไม่มีข้อมูลร้าน/เงิน',
   'src/app/api/chat/comments/': 'กล่องคอมเมนต์ (H1) — ข้อความ/โพสต์ ไม่มีเงิน',
   'src/app/api/chat/conversations/[id]/ai-suggest/': 'สถานะ AI ตอบอัตโนมัติ (H1) — config',
