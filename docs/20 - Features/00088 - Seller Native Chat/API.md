@@ -50,6 +50,8 @@ related: ["[[SDS]]", "[[SRS]]", "[[BRD]]"]
 | 4.5 | POST · DELETE | `/api/chat/conversations/{id}/messages/{mid}` | H2 | 1 |
 | 4.6 | POST | `/api/chat/conversations/{id}/read` | H1 | 1 |
 | 4.7 | GET | `/api/chat/conversations/{id}/preview` | H1 | 1 |
+| 4.13 | GET | `/api/chat/conversations/{id}/thread-state` **(ใหม่ 2026-11-01)** | H1 | 4 |
+| 4.14 | GET | `/api/chat/scope` **(ใหม่ 2026-11-01)** | H1 | 4 |
 | 4.8 | GET | `/api/chat/inbox-tab-counts` · `/api/chat/spam-unread` · `/api/chat/problem-count` | H1 | 1 |
 | 4.9 | GET | `/api/chat/quick-messages?shopId=` | X2 | 1 |
 | 4.10 | POST | `/api/uploads/ticket` → PUT → `/api/uploads/commit` | H2 | 1 |
@@ -247,6 +249,26 @@ type Message = {
 🛑 เงินคำนวณด้วยโค้ดเว็บ (`order-payment.ts` · `chat-order-actions.ts`) ผ่าน bundle เท่านั้น — ห้ามเขียนสูตรเอง
 
 ---
+
+### 4.13 `GET /api/chat/conversations/{id}/thread-state` (ใหม่ · user สั่ง 2026-11-01 "แก้ให้ครบ")
+
+ค่าชุดเดียวกับที่หน้าเว็บ `inbox/[conversationId]/page.tsx` คำนวณแล้วส่งเป็น prop — อ่านอย่างเดียว · เว็บไม่เรียก ·
+ด่านเดียวกับ 4.7 (ร้านของเธรด H1 · 404/403) · `Cache-Control: private, no-store` · service `src/services/chat-thread-state.service.ts`
+
+`200 { shopId, botAutoReplyEnabled, botPausedUntil, botHandoffAt, botHandoffReason, isChatbotTestThread, botCouldReply,
+windowOpen, msRemaining, humanAgentOpen, humanAgentExpiresAt, neverInbound, tokenInvalid, contactBlocked,
+lineQuota{type,level,remaining,total,stale}|null, isCommentReplyThread, commentOrigin{message,attachmentUrl,createdTime,postMessage,postThumbnailUrl,postMediaType,url}|null,
+adReferral{adId,adTitle,adBody,permalink,photoFileId}|null, adReferralId, customerCounted, customerStats{orderCount,totalSpent?,since}|null,
+threadOrderCount, aiSuggestMode:'auto'|'manual' }`
+
+🛑 ไม่คืน replyToken / externalUserId / เบอร์โทร · `totalSpent` มีเฉพาะผู้ถือ F1 ในร้านของเธรด · เปิดห้องที่หน้าต่างไม่รู้ = ยิง sync Meta หลังตอบ (เหมือนหน้าเว็บ)
+ครอบรายการ: T2 T3 T7 T8 T10 T11 T13 T14 T16 T17 T48 T49 T57 T60 P1 P3 P5 P6
+
+### 4.14 `GET /api/chat/scope` (ใหม่ · 2026-11-01)
+
+ค่าชุดเดียวกับ `seller/(chat)/layout.tsx` + `inbox/comments/page.tsx` — `200 { storedMode, mode, activeShopId,
+shops[{id,name,logo,vertical}], channels[{id,provider,name,avatarUrl,shopId,shopName,commentPrivateReplyText}] }`
+ร้าน/เพจเฉพาะร้านที่ถือ H1 · `commentPrivateReplyText` เฉพาะ MESSENGER · ไม่คืน externalId/token · ครอบ L5 L10 L46
 
 ## 5. Error Code Table
 

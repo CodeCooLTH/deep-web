@@ -86,7 +86,7 @@ flowchart TB
 | หน้าเว็บทับ | `src/features/chat/ui/WebOverlayScreen.tsx` (route `app/chat/web.tsx`) | ปุ่ม/ส่วนที่ยังไม่ native → หน้าเว็บของห้องนั้นทับแชท Native · ปิด = กลับหน้าเดิม (FR-020) | UA แอปเดียวกับหน้าหลัก (กันปุ่มจ่ายเงินโผล่) · ไม่ฉีดตัวดักลิงก์ · ไม่ประกาศ features · โดเมนผู้ขายเท่านั้น |
 | คำ/ชุดข้อมูลจากเว็บ | `src/features/chat/constants.ts` · `logic/send-failure.ts` (สำเนา `src/lib/chat-send-failure.ts`) · `logic/row-badges.ts` | รีแอค 6 · อิโมจิ 5 หมวด · สติกเกอร์ LINE 15 แพ็ก · เหตุผลส่งไม่สำเร็จ · ป้ายแถว | คนละรีโป — หัวไฟล์ระบุที่มา แก้เว็บต้องตามมาแก้ |
 | UI ตั้งค่า | `app/settings.tsx` | โหมด · เสียง (bridge เดิม `sound-preview`) · ตั้งค่าเครื่อง (`Linking.openSettings`) · รุ่น | |
-| เว็บ: แถวตั้งค่าแอป | `src/app/(paces)/seller/(dashboard)/account/components/AppSettingsRow.tsx` (ใหม่) + วางใน `account/page.tsx` | แสดงเมื่อ `hasNativeFeature('app-settings')` | `native-bridge.ts`: `hasNativeFeature`, `openNativeAppSettings` |
+| เว็บ: แถวตั้งค่าแอป | `src/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow.tsx` + วางท้าย `ShopQuickLinks.tsx` (ย้ายจากหน้าบัญชี 2026-11-01) | แสดงเมื่อ `hasNativeFeature('app-settings')` | `native-bridge.ts`: `hasNativeFeature`, `openNativeAppSettings` |
 
 ### 3.0 ส่วนประกอบเฟส 2 (2026-10-31)
 

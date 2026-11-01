@@ -22,14 +22,14 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]", "[[API]]", "[[DATABASE]]", "[[TestCas
 
 ### 1.1 วัตถุประสงค์ของเอกสาร
 
-กำหนดข้อกำหนดทางเทคนิคของแชท Native ใน `deep-seller-app` ที่เรียก **API เดิมของ deep-web** ด้วยคุกกี้ล็อกอินเดิม และสวิตช์โหมดแชทต่อเครื่อง — โดย deep-web เปลี่ยนจุดเดียว (แถว "ตั้งค่าแอป" ในหน้าบัญชี)
+กำหนดข้อกำหนดทางเทคนิคของแชท Native ใน `deep-seller-app` ที่เรียก **API เดิมของ deep-web** ด้วยคุกกี้ล็อกอินเดิม และสวิตช์โหมดแชทต่อเครื่อง — โดย deep-web เปลี่ยนจุดเดียว (แถว "ตั้งค่าแอป" ท้ายรายการ "จัดการร้าน" (หน้าร้านค้า มือถือ))
 
 ### 1.2 ขอบเขตเชิงระบบ (System Scope)
 
 | ระบบ | สิ่งที่เปลี่ยน |
 |------|---------------|
 | `deep-seller-app` (Expo 57 · RN 0.86 · expo-router) | หน้าจอ native ใหม่ (ตั้งค่าแอป · กล่องข้อความ · ห้อง · แผงต่าง ๆ) · ตัวเรียก API · Realtime · การนำทางตามโหมด · โมดูล native อ่านคุกกี้ |
-| `deep-web` | เพิ่มแถว "ตั้งค่าแอป" ในหน้าบัญชี (เห็นเฉพาะในแอปที่ประกาศ `app-settings`) · **ไม่แก้ API/route/service/schema** |
+| `deep-web` | เพิ่มแถว "ตั้งค่าแอป" ท้ายรายการ "จัดการร้าน" (หน้าร้านค้า มือถือ) (เห็นเฉพาะในแอปที่ประกาศ `app-settings`) · **ไม่แก้ API/route/service/schema** |
 | Supabase Realtime | ใช้ช่อง broadcast เดิม (public) |
 
 ### 1.3 เอกสารอ้างอิง (References)
@@ -99,7 +99,7 @@ flowchart LR
 ## 3. ข้อกำหนดเชิงฟังก์ชันเชิงเทคนิค (Technical Functional Requirements)
 
 ### TFR-001: แยกขาดจากเว็บ (trace BRD FR-001)
-- PR ฝั่ง deep-web แก้ได้เฉพาะ: ไฟล์หน้าบัญชีที่วางแถว · `src/lib/native-bridge.ts` (เพิ่มฟังก์ชัน) · เทสของสองจุดนี้ · เอกสาร 00088
+- PR ฝั่ง deep-web แก้ได้เฉพาะ: `shop/components/AppSettingsRow.tsx` + `ShopQuickLinks.tsx` ที่วางแถว · `src/lib/native-bridge.ts` (เพิ่มฟังก์ชัน) · เทสของสองจุดนี้ · เอกสาร 00088
 - gate: `git diff --name-only main` ต้องไม่มี `src/app/api/**` · `prisma/**` · `src/services/**` · `src/app/(paces)/seller/(chat)/**` · `src/proxy.ts`
 - เทสเดิม `vitest run src/` + `tests/` ผ่านโดยไม่แก้ไฟล์เทสเดิม
 

@@ -116,8 +116,13 @@ function enclosingFunctionName(source: string, atLine: number): string | null {
   return null
 }
 
-describe('[regression] canUseHumanAgent — call site ต้องมี 2 จุดเป๊ะ ไม่มากไม่น้อย', () => {
-  it('รวมทั้ง repo เจอ call site จริง (ไม่ใช่คอมเมนต์) เท่ากับ 2', () => {
+/**
+ * 🛑 เลข 2 → 3 (feature 00088 · 2026-11-01): จุดที่เพิ่มคือ `getNativeThreadState` — สำเนาฝั่งแสดงผลของ page.tsx
+ * สำหรับแชท Native ในแอปผู้ขาย (GET /thread-state) · เป็น "จุดแสดงผล" ชนิดเดียวกับ page.tsx และเรียก SSOT ตัวเดียวกัน
+ * ไม่ใช่เส้นทางยิงใหม่ ⇒ ด่านยังบังคับทั้งสามจุดรายตัว (เคสข้างล่าง)
+ */
+describe('[regression] canUseHumanAgent — call site ต้องมี 3 จุดเป๊ะ ไม่มากไม่น้อย', () => {
+  it('รวมทั้ง repo เจอ call site จริง (ไม่ใช่คอมเมนต์) เท่ากับ 3', () => {
     // สแกนทั้ง src/ ไม่จำกัดเฉพาะ 2 ไฟล์ที่รู้อยู่แล้ว — เผื่อมีจุดใหม่โผล่ขึ้นที่อื่นโดยไม่มีใครรู้ตัว
     const found: { file: string; line: number; text: string }[] = []
     for (const file of walk(SRC_ROOT)) {
@@ -125,7 +130,7 @@ describe('[regression] canUseHumanAgent — call site ต้องมี 2 จ�
       const source = readFileSync(file, 'utf8')
       for (const hit of findCallSites(source)) found.push({ file: rel, ...hit })
     }
-    expect(found, JSON.stringify(found, null, 2)).toHaveLength(2)
+    expect(found, JSON.stringify(found, null, 2)).toHaveLength(3)
   })
 
   it('1 จุดอยู่ใน channel-chat.service.ts ภายใน transmitMetaMessage', () => {
@@ -169,6 +174,12 @@ describe('[regression] canUseHumanAgent — call site ต้องมี 2 จ�
     )
     const source = readFileSync(file, 'utf8')
     expect(findCallSites(source)).toHaveLength(1)
+  })
+
+  it('1 จุดอยู่ที่ chat-thread-state.service.ts ภายใน getNativeThreadState (ฝั่งแสดงผลช่องพิมพ์ของแชท Native · 00088)', () => {
+    const source = readFileSync(join(SRC_ROOT, 'services/chat-thread-state.service.ts'), 'utf8')
+    const hits = findCallSites(source)
+    expect(hits.map((h) => enclosingFunctionName(source, h.line))).toEqual(['getNativeThreadState'])
   })
 
   it('ห้ามมีไฟล์ไหนใน src/ อ่าน process.env.META_HUMAN_AGENT_* ตรง ๆ นอก channel-chat.service.ts (กัน SSOT หลุด)', () => {
