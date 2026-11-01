@@ -58,7 +58,9 @@ export async function GET(
     if (!preview) {
       return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
     }
-    return NextResponse.json(preview, { headers: NO_STORE_HEADERS });
+    // 00088 — แชท native ในแอปผู้ขายเปิดห้องจากแจ้งเตือน/ลิงก์ได้โดยไม่มีแถวรายการ ⇒ ต้องรู้ร้านของเธรด
+    // (ประเภทร้าน → คำ/ปุ่มบริการ) · ค่าเดียวกับที่ด่าน H1 ด้านบนเพิ่ง resolve — ไม่เปิดเผยอะไรเพิ่ม · toast เว็บไม่อ่านฟิลด์นี้
+    return NextResponse.json({ ...preview, shopId: activeCtx.shopId }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     console.error(
       "[GET /api/chat/conversations/[id]/preview]",
