@@ -179,7 +179,8 @@ export const SYNC_ENTRIES: SyncEntry[] = [
   { web: 'src/lib/comment-reply-template.ts', app: ['src/features/chat/logic/comments.ts (renderCommentReplyText สำเนาทั้งตัว)'], why: 'เติม {ชื่อ} ในข้อความทักแชทจากคอมเมนต์ (L46)' },
   { web: 'src/app/api/chat/scope/route.ts', app: ['src/features/chat/logic/thread-state.ts (parseChatScope)'], why: 'shape ของ GET /api/chat/scope' },
   { web: 'src/services/chat-thread-state.service.ts', app: ['src/features/chat/logic/thread-state.ts', 'src/features/chat/api/parse.ts'], why: 'shape ของ GET /thread-state' },
-  { web: 'src/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow.tsx', app: ['app/settings.tsx'], why: 'ทางเข้าหน้า "ตั้งค่าแอป"' },
+  { web: 'src/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow.tsx', app: ['src/features/chat-mode/bridge.ts', 'app/settings.tsx (ทางสำรองของแอปรุ่นก่อน)'], why: 'ทางเข้าหน้า "ตั้งค่าแอป"' },
+  { web: 'src/app/(paces)/seller/(dashboard)/settings/app/components/ChatModeCard.tsx', app: ['src/features/chat-mode/bridge.ts', 'src/features/webview/SellerWebView.tsx (ฉีดค่า/รับคำสั่งโหมดแชท)'], why: 'หน้าเว็บ "ตั้งค่าแอป" — สะพานโหมดแชท' },
   // ── parity 2026-10-31: ไฟล์ที่ bundle ดึงเพิ่ม (esbuild metafile) ──
   { web: 'src/app/(paces)/seller/(dashboard)/orders/new/components/order-form-words.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/appointment-day.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },

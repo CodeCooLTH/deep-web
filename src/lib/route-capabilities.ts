@@ -117,6 +117,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/rooms/new/page.tsx': { page: 'Q2', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/rooms/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/sales/page.tsx': { page: 'F1', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/app/page.tsx': { class: 'SELF', reason: 'ตั้งค่าของเครื่อง (โหมดแชท · 00088) — ค่าอยู่ในแอป ไม่อ่านข้อมูลร้าน/บทบาท', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/reports/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/ai/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx': { page: 'H1', status: 'DECLARED' },

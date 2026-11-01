@@ -21,6 +21,8 @@ type NativeWindow = Window & {
   ReactNativeWebView?: { postMessage: (msg: string) => void }
   /** ความสามารถ native ที่ build นี้มี — SellerWebView ตั้งก่อนหน้าโหลด (build เก่าไม่มี) */
   __DEEP_NATIVE_FEATURES__?: unknown
+  /** โหมดแชทปัจจุบันของเครื่อง — SellerWebView ฉีดให้ (00088 · หน้า /settings/app) */
+  __DEEP_CHAT_MODE__?: unknown
 }
 
 /**
@@ -58,6 +60,42 @@ export function openNativeAppSettings(): void {
     bridge.postMessage(JSON.stringify({ type: OPEN_APP_SETTINGS_TYPE }))
   } catch {
     // postMessage พัง = ปุ่มไม่ตอบสนอง ไม่ใช่เหตุให้หน้าพัง
+  }
+}
+
+// ── หน้า "ตั้งค่าแอป" เป็นหน้าเว็บ `/settings/app` (00088 · user เลือก 2026-11-02 ให้หัว/กระดิ่ง/แถบล่าง/ธีมเดียวกับเว็บ) ──
+// ค่าโหมดแชทเก็บในเครื่อง (แอป) — แอปฉีดค่าปัจจุบันให้ · หน้าเว็บส่งคำสั่งเปลี่ยนกลับไป
+// 🛑 ทุกชื่อต้องตรงกับ deep-seller-app `src/features/chat-mode/bridge.ts`
+
+/** แอปรุ่นที่รองรับหน้าเว็บนี้ — ไม่มี = แถว "ตั้งค่าแอป" ใช้ทางเดิม (เปิดหน้า native) */
+export const NATIVE_FEATURE_CHAT_MODE_BRIDGE = 'chat-mode-bridge'
+export const SET_CHAT_MODE_TYPE = 'deep:set-chat-mode'
+export const CHAT_MODE_EVENT = 'deep:chat-mode'
+
+export type ChatModeState = { mode: 'web' | 'native'; nativeAvailable: boolean }
+
+/** ค่าที่แอปฉีดไว้ (`window.__DEEP_CHAT_MODE__`) · ไม่อยู่ในแอป/รูปแบบผิด = null */
+export function readChatModeState(): ChatModeState | null {
+  if (typeof window === 'undefined') return null
+  return parseChatModeState((window as NativeWindow).__DEEP_CHAT_MODE__)
+}
+
+export function parseChatModeState(raw: unknown): ChatModeState | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as { mode?: unknown; nativeAvailable?: unknown }
+  if (r.mode !== 'web' && r.mode !== 'native') return null
+  return { mode: r.mode, nativeAvailable: r.nativeAvailable === true }
+}
+
+/** ขอให้แอปเปลี่ยนโหมดแชท — แอปบันทึกแล้วฉีดค่าใหม่กลับมา (event `deep:chat-mode`) · ไม่อยู่ในแอป = ไม่ทำอะไร */
+export function setNativeChatMode(mode: 'web' | 'native'): void {
+  if (typeof window === 'undefined') return
+  const bridge = (window as NativeWindow).ReactNativeWebView
+  if (!bridge) return
+  try {
+    bridge.postMessage(JSON.stringify({ type: SET_CHAT_MODE_TYPE, mode }))
+  } catch {
+    // postMessage พัง = ตัวเลือกไม่เปลี่ยน ไม่ใช่เหตุให้หน้าพัง
   }
 }
 

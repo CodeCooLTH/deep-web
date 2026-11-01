@@ -293,3 +293,10 @@ CP = `inbox/[conversationId]/components/CustomerPanel.tsx` · ชีตเงิ
 - ต่างจากเว็บโดยตั้งใจ: T8 ตัดทาง "อัปเกรดแพ็กเกจกับ LINE" (3.1.1 · มติเดียวกับลิงก์เติมเงิน iShip) · ไอคอนบอทใช้ hardware-chip (Ionicons ไม่มีหุ่นยนต์) · P6 ไม่แสดงสถิติจนรู้ประเภทร้าน (ไม่เดาคำ) · T60 dropdown เหตุผลเป็นชีตล่าง
 - สำเนาที่ HR18 เฝ้า: line/quota-caption.ts · auto-suggest-machine.ts · ai-suggest-auto-types.ts · comment-reply-template.ts · page.tsx → service
 
+
+## L. หน้า "ตั้งค่าแอป" เป็นหน้าเว็บ (2026-11-02 · user เลือก ก.)
+
+- `/settings/app` ใต้ (dashboard) ⇒ หัว SellerMobileHeader (← · ชื่อกลาง · กระดิ่ง) + แถบล่าง + การ์ดแบบ "จัดการร้าน" เหมือนทุกหน้าเว็บ
+- ค่าโหมดแชทยังเก็บในเครื่อง: แอปฉีด `window.__DEEP_CHAT_MODE__` + event `deep:chat-mode` · หน้าเว็บส่ง `deep:set-chat-mode` · feature `chat-mode-bridge`
+- แถวท้าย "จัดการร้าน": แอปที่มี `chat-mode-bridge` → ลิงก์ไปหน้าเว็บ · build 21–24 → หน้า native เดิม (ทางสำรอง)
+- หน้าแชทยังเป็น Native เหมือนเดิม — เปลี่ยนเฉพาะหน้าตั้งค่า · แก้ชื่อหน้า /account บนมือถือ (เดิมขึ้น "Deep ผู้ขาย")
