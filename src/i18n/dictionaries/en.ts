@@ -1243,7 +1243,7 @@ export const en: Dictionary = {
     personalInfo: 'Personal info',
     storefront: 'Storefront',
 
-    inboxView: 'Inbox view',
+    inboxView: 'Message settings',
     viewAllShops: 'All shops',
     viewThisShop: 'This shop',
     viewChangeError: "Couldn't change the view. Please try again.",

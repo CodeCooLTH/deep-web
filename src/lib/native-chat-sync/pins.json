@@ -184,7 +184,7 @@
     "public/data/iship-address.json": "a4b4726dadbc6194",
     "src/app/(paces)/seller/(dashboard)/orders/[token]/components/ReturnPanel.tsx": "eb74f2248ee2744b",
     "src/i18n/dictionaries/th.ts#chatSignals: {": "29f99ac4c44f2c5b",
-    "src/i18n/dictionaries/th.ts#accountSwitcher: {": "2d28c9324753667f",
+    "src/i18n/dictionaries/th.ts#accountSwitcher: {": "239d08834f670a8a",
     "src/lib/auto-order-card.ts": "b4919b3a3c915ed1",
     "src/lib/auto-order-message-type.ts": "438d710e8138fd6e",
     "src/lib/auto-order-reason-label.ts": "64a2ae84a2ef32f2",
