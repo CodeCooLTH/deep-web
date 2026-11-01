@@ -171,7 +171,15 @@ export const SYNC_ENTRIES: SyncEntry[] = [
   { web: 'src/lib/shipping-address-status.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/shop-permissions.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   // ── ด่านนี้เอง + แถวตั้งค่าแอป ──────────────────────────────────────
-  { web: 'src/app/(paces)/seller/(dashboard)/account/components/AppSettingsRow.tsx', app: ['app/settings.tsx'], why: 'ทางเข้าหน้า "ตั้งค่าแอป"' },
+  // ── สถานะห้อง/ขอบเขต (2026-11-01 · user สั่ง "แก้ให้ครบ") — สูตรคัดจากหน้าเว็บ ──
+  { web: 'src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx', app: ['deep-web src/services/chat-thread-state.service.ts (สูตรเดียวกันทุกตัว)', 'src/features/chat/logic/thread-state.ts'], why: 'สถานะห้อง: บอท · หน้าต่างตอบ · เพจหลุด · โควตา LINE · คอมเมนต์/โฆษณา · สถิติลูกค้า' },
+  { web: 'src/lib/line/quota-caption.ts', app: ['src/features/chat/logic/line-quota-caption.ts (สำเนาทั้งไฟล์)'], why: 'ป้ายปุ่มส่ง LINE "· ฟรี N วิ" / โควตา (T57)' },
+  { web: 'src/lib/auto-suggest-machine.ts', app: ['src/features/chat/logic/auto-suggest-machine.ts (สำเนาทั้งไฟล์)'], why: 'กติกาจังหวะ AI แนะนำอัตโนมัติ (T60)' },
+  { web: 'src/lib/ai-suggest-auto-types.ts', from: 'AUTO_SUGGEST_OUTCOMES', app: ['src/features/chat/logic/auto-suggest-types.ts'], why: 'ผล/สถานะของ AI แนะนำอัตโนมัติ (T60)' },
+  { web: 'src/lib/comment-reply-template.ts', app: ['src/features/chat/logic/comments.ts (renderCommentReplyText สำเนาทั้งตัว)'], why: 'เติม {ชื่อ} ในข้อความทักแชทจากคอมเมนต์ (L46)' },
+  { web: 'src/app/api/chat/scope/route.ts', app: ['src/features/chat/logic/thread-state.ts (parseChatScope)'], why: 'shape ของ GET /api/chat/scope' },
+  { web: 'src/services/chat-thread-state.service.ts', app: ['src/features/chat/logic/thread-state.ts', 'src/features/chat/api/parse.ts'], why: 'shape ของ GET /thread-state' },
+  { web: 'src/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow.tsx', app: ['app/settings.tsx'], why: 'ทางเข้าหน้า "ตั้งค่าแอป"' },
   // ── parity 2026-10-31: ไฟล์ที่ bundle ดึงเพิ่ม (esbuild metafile) ──
   { web: 'src/app/(paces)/seller/(dashboard)/orders/new/components/order-form-words.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/appointment-day.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },

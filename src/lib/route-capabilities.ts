@@ -249,6 +249,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/conversations/[id]/orders/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/preview/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/read/route.ts': { POST: 'H1', status: 'DECLARED' },
+  // 00088 — สถานะห้องสำหรับแชท Native (อ่านอย่างเดียว · ด่านเดียวกับ /preview)
+  'src/app/api/chat/conversations/[id]/thread-state/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/route.ts': { PATCH: 'H2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/thread-control/route.ts': { POST: 'X2', DELETE: 'X2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/typing/route.ts': { POST: 'H2', status: 'DECLARED' },
@@ -262,6 +264,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/problem-count/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/quick-messages/[id]/route.ts': { PATCH: 'X2', DELETE: 'X2', status: 'DECLARED' },
   'src/app/api/chat/quick-messages/route.ts': { GET: 'X2', POST: 'X2', PATCH: 'X2', status: 'DECLARED' },
+  // 00088 — ขอบเขตกล่องแชทสำหรับแชท Native (resolveChatScope H1)
+  'src/app/api/chat/scope/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/shop-context/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/spam-unread/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/tags/route.ts': { GET: 'X2', status: 'DECLARED' },

@@ -18,7 +18,7 @@ import {
   OPEN_APP_SETTINGS_TYPE,
   openNativeAppSettings,
 } from '../native-bridge'
-import AppSettingsRow from '@/app/(paces)/seller/(dashboard)/account/components/AppSettingsRow'
+import AppSettingsRow from '@/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow'
 
 const g = globalThis as unknown as { window?: Record<string, unknown> }
 afterEach(() => {
@@ -67,10 +67,13 @@ describe('AppSettingsRow', () => {
     g.window = { __DEEP_NATIVE_FEATURES__: ['app-settings'] }
     expect(renderToStaticMarkup(h(AppSettingsRow))).toBe('')
   })
-  it('หน้าบัญชีวางแถวไว้ (ถัดจากภาษา ก่อนการแจ้งเตือน)', () => {
-    const src = readFileSync(join(process.cwd(), 'src/app/(paces)/seller/(dashboard)/account/page.tsx'), 'utf8')
-    const lang = src.indexOf('<LanguagePrefsCard />'), row = src.indexOf('<AppSettingsRow />'), notif = src.indexOf('<NotificationPrefsCard')
-    expect(row).toBeGreaterThan(lang)
-    expect(row).toBeLessThan(notif)
+  it('แถวสุดท้ายของรายการ "จัดการร้าน" (user สั่ง 2026-11-01) · หน้าบัญชีไม่มีแล้ว', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), 'src/app/(paces)/seller/(dashboard)', f), 'utf8')
+    const links = read('shop/components/ShopQuickLinks.tsx')
+    const row = links.indexOf('<AppSettingsRow />')
+    expect(row).toBeGreaterThan(links.lastIndexOf('</Link>'))
+    expect(row).toBeLessThan(links.lastIndexOf('</div>'))
+    expect(read('account/page.tsx')).not.toContain('AppSettingsRow')
   })
+
 })

@@ -24,6 +24,7 @@
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { shopQuickLinks } from '@/lib/role-nav'
+import AppSettingsRow from './AppSettingsRow'
 
 interface ShopQuickLinksProps {
   /**
@@ -177,6 +178,8 @@ export default function ShopQuickLinks({ visibleUrls, hidePayments, offerIap, li
             <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
           </Link>
         ))}
+        {/* 00088 — ท้ายสุดเสมอ (user สั่ง 2026-11-01) · แสดงเฉพาะในแอปผู้ขาย 1.0.6+ · เบราว์เซอร์ไม่เห็น */}
+        <AppSettingsRow />
       </div>
     </div>
   )
