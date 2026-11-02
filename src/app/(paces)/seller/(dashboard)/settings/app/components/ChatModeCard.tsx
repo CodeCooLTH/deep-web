@@ -24,9 +24,10 @@ import {
   type ChatModeState,
 } from '@/lib/native-bridge'
 
-const OPTIONS: { mode: ChatModeState['mode']; label: string; icon: string; tag?: string }[] = [
+// ไม่มีป้าย "ทดลอง" — ขึ้นสโตร์จริง (App Store 2.2 ห้ามของ beta/ทดลอง · user สั่งเอาออก 2026-11-02)
+const OPTIONS: { mode: ChatModeState['mode']; label: string; icon: string }[] = [
   { mode: 'web', label: 'เว็บ (ค่าเริ่มต้น)', icon: 'world' },
-  { mode: 'native', label: 'Native', icon: 'bolt', tag: 'ทดลอง' },
+  { mode: 'native', label: 'Native', icon: 'bolt' },
 ]
 
 export default function ChatModeCard() {
@@ -71,10 +72,7 @@ export default function ChatModeCard() {
                 <div className="bg-light flex size-8 shrink-0 items-center justify-center rounded-full">
                   <Icon icon={o.icon} className="text-lg" />
                 </div>
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <span className="text-default-900 truncate text-sm font-medium">{o.label}</span>
-                  {o.tag && <span className="badge bg-success/15 text-success">{o.tag}</span>}
-                </div>
+                <span className="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">{o.label}</span>
                 <Icon
                   icon={on ? 'circle-check-filled' : 'circle'}
                   className={`shrink-0 text-xl ${on ? 'text-primary' : 'text-default-400'}`}
