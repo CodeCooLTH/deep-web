@@ -123,7 +123,7 @@
     "src/app/api/chat/scope/route.ts": "e60fef95d2d04ad4",
     "src/services/chat-thread-state.service.ts": "cbf89241224f694a",
     "src/app/(paces)/seller/(dashboard)/shop/components/AppSettingsRow.tsx": "86294ff553b77acf",
-    "src/app/(paces)/seller/(dashboard)/settings/app/components/ChatModeCard.tsx": "f2f43db5fc05ebbd",
+    "src/app/(paces)/seller/(dashboard)/settings/app/components/ChatModeCard.tsx": "8d8d93d6cfc33dea",
     "src/app/(paces)/seller/(dashboard)/orders/new/components/order-form-words.ts": "6bf502221a387626",
     "src/lib/appointment-day.ts": "f43c1b7c545e3301",
     "src/lib/assignee-load.ts": "14f3dea97e9b0d4a",
