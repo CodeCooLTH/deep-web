@@ -64,6 +64,7 @@ export default async function ShopSettingsPage() {
   let shopKind: 'PERSONAL' | 'BUSINESS' = 'PERSONAL'
   let shopRole: 'OWNER' | 'ADMIN' = 'OWNER'
   let shopRoles: readonly string[] = []
+  let canRecordExpense = false
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
@@ -71,6 +72,7 @@ export default async function ShopSettingsPage() {
       shopKind = active.kind
       shopRole = active.role
       shopRoles = active.roles
+      canRecordExpense = active.canRecordExpense === true
     }
   } catch {
     shop = null
@@ -101,6 +103,7 @@ export default async function ShopSettingsPage() {
         roles: shopRoles,
         vertical: shop?.vertical ?? '',
         reportSettings: shop?.reportSettings ?? null,
+        canRecordExpense,
         unreadChatCount: 0,
         hidePayments: await shouldHidePayments(),
         hidePaidFeatures: await shouldHidePaidFeatures(),

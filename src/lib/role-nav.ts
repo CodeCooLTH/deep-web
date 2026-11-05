@@ -314,6 +314,7 @@ export function queuesCreateBarRenders(roles: readonly ShopRole[], shop: { kind:
  * `/account` แสดงเสมอ (ไม่อยู่ในนี้) · ทุกแถวต้องอยู่ในเมนูที่ผู้ใช้เห็นจริง ⇒ iOS/ผู้ดูแล/บทบาทอื่นหายตามอัตโนมัติ
  * ลำดับ = ลำดับแสดงผล (ระดับร้าน · หน้าร้าน · แพ็กเกจ · รายงาน LINE · ตั้งค่ารายงาน · จัดส่ง · พนักงาน)
  * `/settings/reports` (00073 ภาคต่อ FR-015) — มือถือไม่มีเมนูซ้าย แถวนี้คือทางเข้าเดียว · เห็นตามเมนูจริง (เจ้าของร้านบริการ)
+ * `/expenses/mine` (00086 FR-018) — พนักงานร้านบริการที่ได้ธง · เห็นตามเมนูจริง (applyStaffExpenseMenu)
  */
 const QUICK_LINK_URLS = [
   '/verification',
@@ -323,6 +324,7 @@ const QUICK_LINK_URLS = [
   '/settings/reports',
   '/settings',
   '/admins',
+  '/expenses/mine',
 ] as const
 
 export function shopQuickLinks(visibleUrls: ReadonlySet<string>): string[] {

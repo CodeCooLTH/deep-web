@@ -176,6 +176,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     isPrimaryOwner: active.shop.userId === user.id,
     // feature 00073 เฟส B — แถวร้านโหลดมาครบแล้ว (requireActiveShop ไม่มี select) ⇒ ไม่มี query เพิ่ม
     reportSettings: active.shop.reportSettings,
+    // 00086 — requireActiveShop อ่านแถวสมาชิกมาแล้ว ไม่ต้องถามซ้ำ
+    canRecordExpense: active.canRecordExpense === true,
     hidePaidFeatures: await shouldHidePaidFeatures(),
     offerIap: await shouldOfferIap(),
   })

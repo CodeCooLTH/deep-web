@@ -126,6 +126,19 @@ export function expenseApi(scope: ExpenseApiScope = 'shop') {
 }
 
 /**
+ * ข้อความเมื่อบันทึก/แก้/ลบไม่สำเร็จ (ยกเว้น 404 ที่โมดัลจัดการเอง)
+ *  - 'mine' + 403 = ไม่มีสิทธิ์ในร้านที่เปิดอยู่ (ถูกถอนธง / สลับไปร้านอื่น) — ลองใหม่ไม่ช่วย ต้องบอกเหตุผลและทางแก้
+ *  - อย่างอื่น (เน็ตหลุด · 5xx · ฝั่งเจ้าของ) = ข้อความเดิม เพราะลองใหม่แล้วผ่านได้จริง
+ */
+export const EXPENSE_RETRY_ERROR = 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+export const STAFF_EXPENSE_NO_ACCESS_ERROR =
+  'คุณยังไม่มีสิทธิ์บันทึกค่าใช้จ่ายในร้านนี้ ขอให้เจ้าของร้านเปิดสิทธิ์ให้ หรือสลับไปร้านที่ได้รับสิทธิ์'
+
+export function expenseWriteErrorMessage(scope: ExpenseApiScope, status: number): string {
+  return scope === 'mine' && status === 403 ? STAFF_EXPENSE_NO_ACCESS_ERROR : EXPENSE_RETRY_ERROR
+}
+
+/**
  * ผลของการกดลบใน ExpenseFormModal — ตัดสินจาก status (+ body ของ 404 ฝั่ง 'mine')
  *  - 'shop' (เจ้าของ): พฤติกรรมเดิมทุกตัวอักษร — 404 ใด ๆ = ถูกลบไปแล้ว
  *  - 'mine' (พนักงาน): ถือว่า "ถูกลบไปแล้ว" เฉพาะ 404 {error:'Not found'} (แถวไม่มี/ไม่ใช่ของฉัน)
