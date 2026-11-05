@@ -2,7 +2,9 @@ import 'server-only'
 
 import { getT } from '@/i18n/server'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
-import { applyChatBadge, applyMenuLocale, resolveVisibleSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { applyChatBadge, applyMenuLocale, applyStaffExpenseMenu, resolveVisibleSellerMenu, sellerMenuItems } from '@/lib/seller-menu'
+import { showsStaffExpenseCard } from '@/lib/dashboard-money'
+import { effectiveRoles } from '@/lib/shop-permissions'
 import { prisma } from '@/lib/prisma'
 import { ownsAnyShop } from '@/services/line-report-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
@@ -57,6 +59,11 @@ export type SellerMenuContext = {
   offerIap: boolean
   /** feature 00073 เฟส B — `Shop.reportSettings` ดิบ · ไม่ส่ง = ค่าตั้งต้น (เมนูเดิม) */
   reportSettings?: unknown
+  /**
+   * 00086 — ธง "บันทึกค่าใช้จ่ายได้" ของผู้ดูในร้านนี้ · ไม่ส่ง = ตัวประกอบเมนูอ่านแถวสมาชิกเอง
+   * (เฉพาะ ADMIN ของร้านบริการ — คนอื่นไม่มี query เพิ่ม · query ล้ม = false)
+   */
+  canRecordExpense?: boolean
 }
 
 export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<MenuItemType[]> {
@@ -73,7 +80,8 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
   let ownsShop = false
   const userId = ctx.session?.user?.id
   // เจ้าของหลักของ "ร้านที่เปิดอยู่" (T4) — fail-closed: query ล้ม/ไม่รู้ = false (ซ่อนเมนูที่เป็น T4 เช่น แพ็กเกจ)
-  const [entitlementResult, ownsResult, primaryResult] = await Promise.allSettled([
+  const flagMatters = ctx.role === 'ADMIN' && ctx.vertical === 'SERVICE_QUEUE'
+  const [entitlementResult, ownsResult, primaryResult, expenseFlagResult] = await Promise.allSettled([
     ctx.shopId ? getEntitlementInfo(ctx.shopId) : Promise.resolve(entitlement),
     userId ? ownsAnyShop(userId) : Promise.resolve(false),
     ctx.isPrimaryOwner !== undefined
@@ -81,7 +89,18 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
       : ctx.shopId && userId
       ? prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { userId: true } }).then((r) => r?.userId === userId)
       : Promise.resolve(false),
+    ctx.canRecordExpense !== undefined
+      ? Promise.resolve(ctx.canRecordExpense)
+      : flagMatters && ctx.shopId && userId
+      ? prisma.shopMember
+          .findUnique({ where: { shopId_userId: { shopId: ctx.shopId, userId } }, select: { canRecordExpense: true } })
+          .then((r) => r?.canRecordExpense === true)
+      : Promise.resolve(false),
   ])
+  const canRecordExpense = expenseFlagResult.status === 'fulfilled' ? expenseFlagResult.value : false
+  if (expenseFlagResult.status === 'rejected') console.error('[seller-menu] expense flag lookup failed, fallback false', expenseFlagResult.reason)
+  const shopRef = { kind: ctx.kind, vertical: ctx.vertical }
+  const showStaffExpense = showsStaffExpenseCard(shopRef, ctx.role, effectiveRoles(shopRef, ctx.role, ctx.roles), { canRecordExpense })
   const isPrimaryOwner = primaryResult.status === 'fulfilled' ? primaryResult.value : false
   if (primaryResult.status === 'rejected') console.error('[seller-menu] primary-owner lookup failed, fallback false', primaryResult.reason)
   if (ownsResult.status === 'fulfilled') ownsShop = ownsResult.value
@@ -100,15 +119,18 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
    */
   return applyMenuLocale(
     applyChatBadge(
-      resolveVisibleSellerMenu(sellerMenuItems, {
-        entitlement,
-        staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
-        ownsShop,
-        shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner, reportSettings: ctx.reportSettings },
-        hidePayments: ctx.hidePayments,
-        hidePaidFeatures: ctx.hidePaidFeatures,
-        offerIap: ctx.offerIap,
-      }),
+      applyStaffExpenseMenu(
+        resolveVisibleSellerMenu(sellerMenuItems, {
+          entitlement,
+          staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
+          ownsShop,
+          shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner, reportSettings: ctx.reportSettings },
+          hidePayments: ctx.hidePayments,
+          hidePaidFeatures: ctx.hidePaidFeatures,
+          offerIap: ctx.offerIap,
+        }),
+        showStaffExpense,
+      ),
       ctx.unreadChatCount,
     ),
     await getT(),

@@ -24,6 +24,9 @@ import { authOptions } from '@/lib/auth'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { gatePage } from '@/lib/shop-capability'
+import { requireActiveShop } from '@/lib/shop-context'
+import { effectiveRoles } from '@/lib/shop-permissions'
+import { showsStaffExpenseCard } from '@/lib/dashboard-money'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
 import { resolveShopVertical } from '@/lib/lodging'
@@ -75,6 +78,16 @@ export default async function ExpensesPage({
   }
 
   if (!gate.ok) {
+    // 00086 FR-018 — พนักงานที่ได้ธงไม่ควรเจอหน้าไม่มีสิทธิ์ · ด่านเดียวกับ /expenses/mine (ไม่วน: showsStaffExpenseCard ต้องไม่มี F1)
+    // อ่านแถวสมาชิกเฉพาะทางที่ถูกปฏิเสธ — เจ้าของไม่มี query เพิ่ม
+    const active = await requireActiveShop(sessionLike)
+    if (active) {
+      const shopRef = { kind: active.kind, vertical: active.shop.vertical }
+      const roles = effectiveRoles(shopRef, active.role, active.roles)
+      if (showsStaffExpenseCard(shopRef, active.role, roles, { canRecordExpense: active.canRecordExpense === true })) {
+        redirect('/expenses/mine')
+      }
+    }
     return (
       <>
         <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />

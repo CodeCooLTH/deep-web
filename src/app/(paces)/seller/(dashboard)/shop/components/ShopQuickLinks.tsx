@@ -128,8 +128,17 @@ const REPORT_SETTINGS_LINK: QuickLink = {
   hint: 'เลือกตัวเลขที่แสดงบนการ์ดและรายงานการเงิน',
 }
 
+// 00086 FR-018 — label/icon/url ตรง STAFF_EXPENSE_MENU_ITEM ใน seller-menu.ts · ไม่มีทางจ่ายเงิน ⇒ ไม่อยู่ในชุดกรอง App Store
+// แท็บ "ร้านค้า" มีเฉพาะเจ้าของ/ผู้ดูแล ⇒ แถวนี้ถึงผู้ดูแล · บทบาทอื่นเข้าจากการ์ดบนหน้าแรก (CommandCenter)
+const STAFF_EXPENSE_LINK: QuickLink = {
+  url: '/expenses/mine',
+  label: 'ค่าใช้จ่าย',
+  icon: 'report-money',
+  hint: 'บันทึกค่าใช้จ่ายหน้างานของคุณ',
+}
+
 const BY_URL = new Map<string, QuickLink>(
-  [...LINKS, LINE_REPORTS_LINK, REPORT_SETTINGS_LINK, STAFF_LINK].map((l) => [l.url, l]),
+  [...LINKS, LINE_REPORTS_LINK, REPORT_SETTINGS_LINK, STAFF_LINK, STAFF_EXPENSE_LINK].map((l) => [l.url, l]),
 )
 
 export default function ShopQuickLinks({ visibleUrls, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {

@@ -76,6 +76,8 @@ d('00086 ค่าใช้จ่ายของพนักงาน (DB local)
     await mkShop('svc', 'SERVICE_QUEUE')
     await add('staffA', 'svcShop', ['CHAT'], true)
     await add('staffB', 'svcShop', ['TECHNICIAN'], true)
+    // เคสลูกค้า 2026-11-05: ผู้ดูแล + ติ๊กบันทึกค่าใช้จ่าย
+    await add('staffMgr', 'svcShop', ['MANAGER'], true)
     await add('staffNoFlag', 'svcShop', ['CHAT'], false)
     await mkShop('onl', 'ONLINE_SALES')
     await add('onlStaff', 'onlShop', ['CHAT'], true)
@@ -118,6 +120,17 @@ d('00086 ค่าใช้จ่ายของพนักงาน (DB local)
 
   // ── route ทั้งเส้น ────────────────────────────────────────────────────────
   describe('/api/expenses/mine', () => {
+    it('[blocker] ผู้ดูแลที่ได้ติ๊ก (เคสลูกค้า) บันทึกได้ 201 · ยังไม่ได้สิทธิ์การเงินทั้งร้าน', async () => {
+      expect(await resolveStaffExpenseAccess(sessionOf(f.staffMgr, f.svcShop))).toEqual({ kind: 'GRANTED', shopId: f.svcShop, userId: f.staffMgr })
+      as(f.staffMgr, f.svcShop)
+      const res = await minePost(req('/api/expenses/mine', { method: 'POST', body: { category: 'UTILITIES', amount: 45, expenseDate: DAY } }))
+      expect(res.status).toBe(201)
+      const body = await res.json()
+      expect(body.createdByUserId).toBe(f.staffMgr)
+      const del = await prisma.expense.delete({ where: { id: body.id }, select: { id: true } })
+      expect(del.id).toBe(body.id)
+    })
+
     it('POST บันทึกด้วยผู้ใช้จาก session เสมอ (body ปลอม createdByUserId ไม่มีผล) + คืนชื่อผู้บันทึก', async () => {
       as(f.staffA, f.svcShop)
       const res = await minePost(req('/api/expenses/mine', {

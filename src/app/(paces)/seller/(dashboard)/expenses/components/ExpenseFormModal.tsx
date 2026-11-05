@@ -30,6 +30,7 @@ import {
   EXPENSE_CATEGORY_ICON,
   expenseApi,
   expenseDeleteOutcome,
+  expenseWriteErrorMessage,
   type ExpenseApiScope,
   type ExpenseCategory,
 } from '@/lib/expense'
@@ -184,7 +185,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated, sc
           onMutated()
           return
         }
-        pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        // ข้อความไม่มีสิทธิ์ยาวกว่าปกติ — ให้เวลาอ่าน
+        pacesToast.error(expenseWriteErrorMessage(scope, res.status), scope === 'mine' && res.status === 403 ? { duration: 6000 } : undefined)
         return
       }
 
@@ -208,7 +210,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated, sc
       const body = scope === 'mine' && res.status === 404 ? await res.json().catch(() => null) : null
       const outcome = expenseDeleteOutcome(scope, res.status, body)
       if (outcome === 'error') {
-        pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        pacesToast.error(expenseWriteErrorMessage(scope, res.status), scope === 'mine' && res.status === 403 ? { duration: 6000 } : undefined)
         return
       }
       pacesToast.success(outcome === 'already-gone' ? 'รายการนี้ถูกลบไปแล้ว' : 'ลบค่าใช้จ่ายแล้ว')

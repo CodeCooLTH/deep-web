@@ -1047,6 +1047,37 @@ export function flattenSellerMenu(items: MenuItemType[]): MenuItemType[] {
  * ป้ายนี้เป็น "คำสั่งซื้อ / การเข้ารับบริการ / บิลเข้าพัก" ตามประเภทร้านมาตั้งแต่ 2026-08-04
  * ถ้าแปลรวบเป็นคำเดียวจะลบความแตกต่างที่ตั้งใจสร้างไว้ทิ้งในภาษาที่สอง (BR-I18N-09)
  */
+/** เมนู "ค่าใช้จ่าย" ของพนักงานที่ได้ธงบันทึกค่าใช้จ่าย (00086 · FR-018) — คนละ slug กับ seller:expenses ของเจ้าของ (F1) */
+export const STAFF_EXPENSE_MENU_ITEM: MenuItemType = {
+  url: '/expenses/mine',
+  slug: 'seller:expenses-mine',
+  label: 'ค่าใช้จ่าย',
+  icon: 'report-money',
+}
+
+/**
+ * เติมเมนู "ค่าใช้จ่าย" ให้พนักงานที่ได้ธง — ผู้เรียกตัดสิน `show` ด้วย showsStaffExpenseCard (ด่านเดียวกับการ์ดหน้าแรก)
+ *
+ * ทำไมต้องมี (ลูกค้าแจ้ง 2026-11-05 "ติ๊กแล้วแต่เพิ่มไม่ได้"): สิทธิ์ทำงานถูกต้อง แต่ `/expenses` เป็น F1 จึงถูกถอดจากเมนู
+ * พนักงานเลยเหลือทางเข้าแค่การ์ดบนหน้าแรก · แถว "จัดการร้าน" อ่านจากเมนูชุดนี้ (shopQuickLinks) จึงได้ตามไปด้วย
+ * 🛑 อยู่นอก sellerMenuItems โดยตั้งใจ: แคตตาล็อกเมนูลัดอ่าน SSOT ตัวนั้น — ถ้าใส่ไว้จะโผล่ให้ทุกคนเลือก
+ * วางต่อจาก "ติดตามลูกค้า"/"ลูกค้า" (ตำแหน่งเดียวกับเมนูของเจ้าของ) · ไม่มีกลุ่มนั้น (ช่างล้วน) = ท้ายกลุ่มสุดท้าย
+ */
+export function applyStaffExpenseMenu(items: MenuItemType[], show: boolean): MenuItemType[] {
+  if (!show) return items
+  const anchors = ['seller:follow-ups', 'seller:customers']
+  const groupIndex = items.findIndex((g) => g.children?.some((c) => c.slug && anchors.includes(c.slug)))
+  const lastGroup = items.reduce((found, g, i) => (g.children ? i : found), -1)
+  const target = groupIndex >= 0 ? groupIndex : lastGroup
+  if (target < 0) return [...items, STAFF_EXPENSE_MENU_ITEM]
+  return items.map((group, i) => {
+    if (i !== target) return group
+    const children = group.children ?? []
+    const after = anchors.map((slug) => children.findIndex((c) => c.slug === slug)).find((at) => at >= 0) ?? children.length - 1
+    return { ...group, children: [...children.slice(0, after + 1), STAFF_EXPENSE_MENU_ITEM, ...children.slice(after + 1)] }
+  })
+}
+
 export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertical: string): MenuItemType[] {
   const m = dict.menu
 
@@ -1069,6 +1100,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:customers': m.customers,
     'seller:follow-ups': m.followUps,
     'seller:expenses': m.expenses,
+    'seller:expenses-mine': m.expenses,
     'seller:inbox': m.inbox,
     'seller:chat-desk': m.chatDesk,
     'seller:settings-auto-reply': m.settingsAutoReply,

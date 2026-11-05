@@ -63,6 +63,10 @@ export default function CommandCenter({ data, blocks, staffExpenseCount = null, 
         showPackageChip={blocks.shopPackage}
       />
 
+      {/* 00086 FR-018 — ค่าใช้จ่ายที่ฉันบันทึก: หน้าแรกเป็นแท็บเดียวที่ทุกบทบาทมี จึงต้องเห็นโดยไม่ต้องเลื่อน
+          (ลูกค้าแจ้ง 2026-11-05 ติ๊กสิทธิ์แล้วหาไม่เจอ เดิมอยู่ใต้กราฟยอดขาย) */}
+      {!blocks.todayJobs && staffExpenseCount !== null && <StaffExpenseCard count={staffExpenseCount} />}
+
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
       {/* 🛑 แถว "รับจริงวันนี้" เคยอยู่ท้ายการ์ดนี้ — ถอดออก 2026-08-23 ตามที่ user สั่ง
           เงินรับจริงย้ายไปเป็น **คอลัมน์รายวัน** (มัดจำ/รับจริง/ค้างรับ) ในตารางของชีตยอดขาย
@@ -90,8 +94,8 @@ export default function CommandCenter({ data, blocks, staffExpenseCount = null, 
       {/* งานวันนี้ — ฝ่ายช่างล้วนในร้านที่รับนัดเท่านั้น (00071 S-15) · ไม่ mount ให้บทบาทอื่น (endpoint คืนเบอร์ลูกค้า) */}
       {blocks.todayJobs && <TodayJobs viewerUserId={viewerUserId} />}
 
-      {/* ค่าใช้จ่ายที่ฉันบันทึก — พนักงานร้านบริการที่ได้ธง (00086 FR-018) · ไม่มียอดเงิน มีแค่จำนวนรายการของตัวเอง */}
-      {staffExpenseCount !== null && <StaffExpenseCard count={staffExpenseCount} />}
+      {/* ฝ่ายช่างล้วน: งานวันนี้สำคัญกว่า การ์ดค่าใช้จ่ายจึงอยู่ถัดจากงาน (บทบาทอื่นอยู่เหนือยอดขาย — ดูด้านบน) */}
+      {blocks.todayJobs && staffExpenseCount !== null && <StaffExpenseCard count={staffExpenseCount} />}
 
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
           vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)

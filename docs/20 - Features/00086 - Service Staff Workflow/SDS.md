@@ -321,6 +321,10 @@ sequenceDiagram
 ### TD-002: ด่านปิดงานเป็น "ชั้นที่สอง" หลัง O4 ไม่ใช่ capability ใหม่
 `route-capability-inventory.test.ts` ต้องการ literal cap ต่อเมธอด และ capability ตัดสินจากบทบาทล้วน · คง `O4` ในทะเบียน (`route-capabilities.ts:315,325`) แล้วเรียก `memberCanCloseJob` ต่อทันทีใน handler · ช่างล้วน (ผู้รับผิดชอบ/ทำเสร็จแล้ว) ตรวจใน service เพราะต้องอ่านแถว
 
+### TD-003a: ทางเข้าค่าใช้จ่ายพนักงาน (เพิ่ม 2026-11-05 · ลูกค้าแจ้งติ๊กแล้วหาไม่เจอ)
+
+ด่านเดียว = `showsStaffExpenseCard` (การ์ด · เมนู · redirect) · เมนูเติมด้วย `applyStaffExpenseMenu` นอก `sellerMenuItems` เพื่อไม่ให้โผล่ในแคตตาล็อกเมนูลัด · แถว "จัดการร้าน" อ่านจากเมนูจริงผ่าน `shopQuickLinks` · ธงไม่ส่งมา (แถบเมนูหน้าแชท) = `resolveSellerMenuItems` อ่านแถวสมาชิกเฉพาะ ADMIN ของร้านบริการ · แท็บ "ร้านค้า" มีเฉพาะเจ้าของ/ผู้ดูแล ⇒ บทบาทอื่นบนมือถือเข้าจากการ์ดหน้าแรก
+
 ### TD-003: ค่าใช้จ่ายพนักงานเป็น endpoint แยก `/api/expenses/mine/**`
 ไม่ขยาย `/api/expenses` เดิม: เดิมเป็น F1/F2 (เจ้าของ) และทะเบียนบังคับ literal cap — ทำให้รองรับพนักงานต้องลดด่านของ endpoint เจ้าของ · แยก endpoint = ด่านเจ้าของคงเดิม 100% และ query ของพนักงานผูก `createdByUserId` ตั้งแต่ where แรก (ไม่มีทางหลุดเป็นรายการทั้งร้าน)
 
