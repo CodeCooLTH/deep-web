@@ -41,12 +41,12 @@ describe('resolveExpenseAccess', () => {
 
   // ── เทสเชิงลบ: เหตุผลที่ไฟล์นี้มีอยู่ ──────────────────────────────────────────
   it('[blocker] ADMIN → FORBIDDEN_ROLE แม้ธง staffCanViewFinance เป็น true (พิสูจน์ว่าธงไม่มีผล · 00071 BR-RP-10)', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['MANAGER'], locked: false })
+    requireActiveShop.mockResolvedValue({ shop: shop(true), role: 'ADMIN', roles: ['CHAT'], locked: false })
     expect(await resolveExpenseAccess(session)).toEqual({ kind: 'FORBIDDEN_ROLE' })
   })
 
   it('[blocker] ADMIN ธง false → FORBIDDEN_ROLE', async () => {
-    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['MANAGER'], locked: false })
+    requireActiveShop.mockResolvedValue({ shop: shop(false), role: 'ADMIN', roles: ['CHAT'], locked: false })
     expect(await resolveExpenseAccess(session)).toEqual({ kind: 'FORBIDDEN_ROLE' })
   })
 

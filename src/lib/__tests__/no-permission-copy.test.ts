@@ -30,7 +30,7 @@ describe('noPermissionCopy', () => {
   })
 
   it('เจ้าของล้วน + detail: ใช้ประโยคเดิมของหน้า (การเงิน P1 ไม่เปลี่ยนสักตัวอักษร) + บรรทัดผู้ดู', () => {
-    const c = noPermissionCopy({ capability: 'F1', viewerRoles: ['MANAGER'], detail: FINANCE_NO_PERMISSION_DETAIL })
+    const c = noPermissionCopy({ capability: 'F3', viewerRoles: ['MANAGER'], detail: FINANCE_NO_PERMISSION_DETAIL })
     expect(c).toEqual({
       title: 'หน้านี้ดูได้เฉพาะเจ้าของร้าน',
       body: 'ข้อมูลการเงินของร้านเปิดให้เจ้าของร้านเท่านั้น ถ้าต้องการตัวเลขส่วนนี้ ขอจากเจ้าของร้านได้โดยตรง',
@@ -72,7 +72,7 @@ describe('noPermissionCopy', () => {
   })
 
   it('ผู้ดู 3 บทบาท: คั่นด้วย ", " และ "และ" ก่อนตัวสุดท้าย', () => {
-    expect(noPermissionCopy({ capability: 'F1', viewerRoles: ['MANAGER', 'CHAT', 'BILLING'] }).viewerLine).toBe('บทบาทของคุณตอนนี้: ผู้ดูแล, ตอบแชท และ เปิดบิล')
+    expect(noPermissionCopy({ capability: 'F3', viewerRoles: ['MANAGER', 'CHAT', 'BILLING'] }).viewerLine).toBe('บทบาทของคุณตอนนี้: ผู้ดูแล, ตอบแชท และ เปิดบิล')
   })
 })
 
