@@ -18,7 +18,7 @@ import { describeReason, MISSED_STATUS_LABEL } from '@/lib/line-report/delivery-
 import type { LineReportAlertKind } from '@/lib/line-report/types'
 import * as v from 'valibot'
 import { CutoffDaySchema, DailyTimesSchema, validateTemplate, type UpdateSettingsInput } from '@/lib/line-report/validations'
-import { isOwnerPaidForReports } from '@/services/line-report-access.service'
+import { isOwnerPaidForReports, readGroupPaidState } from '@/services/line-report-access.service'
 import { testQuotaWhere } from '@/services/line-report-delivery.service'
 import { lockOwnedGroup, readGroupShops, type GroupShopDto } from '@/services/line-report-shop.service'
 
@@ -56,21 +56,23 @@ export async function listGroups(ownerId: string) {
     },
     orderBy: { createdAt: 'desc' },
   })
-  // paused คำนวณสดต่อเจ้าของ (ไม่ใช่ค่าที่เก็บ) — fail-closed ผ่าน isOwnerPaidForReports
+  // paused คำนวณสด (ไม่ใช่ค่าที่เก็บ) · ระดับบัญชี (สร้างกลุ่มใหม่) ยึดเจ้าของ · ระดับกลุ่มยึดร้านในกลุ่มด้วย (readGroupPaidState)
   const paused = !(await isOwnerPaidForReports(ownerId))
+  const groupPaused = new Map(await Promise.all(rows.map(async (g) => [g.id, (await readGroupPaidState({ id: g.id, ownerId })) !== 'PAID'] as const)))
   const rank = (g: { status: string; alertKind: unknown; alertAckAt: Date | null }) =>
     g.status === 'INACTIVE' || (g.alertKind && !g.alertAckAt) ? 0 : g.status === 'PENDING' ? 1 : 2
   const groups = rows
     .map((g) => {
       const verticals = new Set(g.shops.map((s) => s.shop.vertical))
-      const next = g.status === 'ACTIVE' && !paused ? nextSendAtOf(g, now) : null
+      const gPaused = groupPaused.get(g.id) ?? true
+      const next = g.status === 'ACTIVE' && !gPaused ? nextSendAtOf(g, now) : null
       const last = g.deliveries[0]
       return {
         _rank: rank(g),
         id: g.id,
         groupName: g.groupName,
         status: g.status as 'PENDING' | 'ACTIVE' | 'INACTIVE',
-        paused,
+        paused: gPaused,
         shopCount: g.shops.length,
         mixedVertical: verticals.size > 1,
         shops: g.shops.slice(0, 2).map((s) => ({ id: s.shop.id, name: s.shop.shopName, vertical: s.shop.vertical })),
@@ -128,7 +130,7 @@ export async function getGroupDetail(ownerId: string, groupId: string, db: Db | 
     db.lineReportBindCode.findFirst({ where: { groupId: g.id, usedAt: null, revokedAt: null, expiresAt: { gt: now } }, select: { expiresAt: true } }),
     // predicate เดียวกับ sendTest (testQuotaWhere) — ทุกแถว TEST ของวันไทยนี้
     db.lineReportDelivery.count({ where: testQuotaWhere(g.id, now) }),
-    isOwnerPaidForReports(ownerId).then((p) => !p),
+    readGroupPaidState({ id: g.id, ownerId }).then((s) => s !== 'PAID'),
   ])
   const next = g.status === 'ACTIVE' && !paused ? nextSendAtOf(g, now) : null
   const cfg = resolveReportConfig(g) // เทมเพลตเสียในฐาน → แบบมาตรฐาน (template ที่คืนเป็น null ด้วย)

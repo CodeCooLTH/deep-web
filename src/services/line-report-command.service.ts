@@ -26,7 +26,7 @@ import {
 } from '@/lib/line-report/messages'
 import type { Window } from '@/lib/line-report/types'
 import { buildPlainNotice, buildSummaryReportFlex, fitToLimits, titleOf } from '@/lib/line/flex-summary-report'
-import { isOwnerPaidForReports } from '@/services/line-report-access.service'
+import { readGroupPaidState } from '@/services/line-report-access.service'
 import { claimSlots, writeDelivery } from '@/services/line-report-delivery.service'
 import { markInactive } from '@/services/line-report-group.service'
 import { resolveSendableShops } from '@/services/line-report-shop.service'
@@ -138,7 +138,7 @@ async function composeAndReply(
   deliveryId: string,
 ): Promise<ReplyOutcome> {
   // ไม่ ACTIVE = หยุดชั่วคราว — คำนวณสดทุกครั้ง ไม่อ่านจากแถวกลุ่ม (AC-01-6)
-  if (!(await isOwnerPaidForReports(group.ownerId))) {
+  if ((await readGroupPaidState(group)) !== 'PAID') {
     return sentOrFailed(await replyText(ctx, PACKAGE_PAUSED_MESSAGE), 'PACKAGE_PAUSED')
   }
   const today = todayThaiIsoDate(now)
