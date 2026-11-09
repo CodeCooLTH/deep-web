@@ -88,7 +88,8 @@ flowchart LR
 ### TFR-LGS-01 ด่านสิทธิ์ (FR-01)
 - **กลไก:** `isOwnerPaidForReports(ownerId)` = `try { (await getSubscriptionStatus(ownerId))?.status === 'ACTIVE' } catch { false }` (fail-closed; รูปเดียวกับ `isOwnerPaidPlan` ใน `ai-suggest-quota.service.ts:35-40` แต่รับ `ownerId`) · `resolveReportAccess(session)` → `ANON | NOT_OWNER | LOCKED{reason:'NEVER'|'RENEWAL_FAILED'} | OK` โดยระบุตัวตนด้วย `sessionUserId()` (`src/lib/session-user.ts:20`) ห้าม cast · `NOT_OWNER` = ไม่มี `Shop` ที่ `userId=ownerId ∧ deletedAt=null ∧ purgedAt=null`
 - **ระดับ endpoint:** L1 = GET groups/ GET group / DELETE group / POST ack · L2 = POST bind-code (ทั้งสอง) / PATCH / PUT shops / POST test
-- **จุดส่งจริงเรียกซ้ำเสมอ** (AC-01-6): `sendScheduled` · `sendTest` · `replyCommand` · `sendFinalNotice` เรียก `isOwnerPaidForReports(group.ownerId)` ก่อนแตะ LINE — ห้ามอ่านจากแถวกลุ่ม
+- **จุดส่งจริงเรียกซ้ำเสมอ** (AC-01-6): `sendScheduled` · `retryDelivery` · `replyCommand` · `sendFinalNotice` · sweep เรียก `readGroupPaidState(group)` ก่อนแตะ LINE — ห้ามอ่านจากแถวกลุ่ม · `sendTest` (ปุ่มของเจ้าของกลุ่ม) ยังใช้ `isOwnerPaidForReports(ownerId)`
+- **สิทธิ์ส่งยึดร้าน ไม่ยึดคนผูก** (มติ user 2026-11-09 เคส BT): `readGroupPaidState` = PAID ถ้าเจ้าของกลุ่ม **หรือ** เจ้าของร้าน (`Shop.userId` ปัจจุบัน, ไม่นับร้านที่ลบ) ร้านใดในกลุ่ม ACTIVE · ไม่มีใคร ACTIVE แต่อ่านบางคนไม่ได้ = UNKNOWN · `paused` ในรายการ/รายละเอียดกลุ่มใช้ค่าเดียวกัน · ด่านจัดการ (สร้าง/แก้/ผูก/ทดสอบ) ยังยึดเจ้าของกลุ่ม
 - **เหตุที่ DELETE เป็น L1:** มติ user 2026-10-05 ข้อ 11 ("แพ็กเกจหมด → ยกเลิกการผูกได้อย่างเดียว") ขัดกับถ้อยคำ AC-LGS-01-4 ที่ระบุ "ลบ" ในรายการที่ต้องเป็น ACTIVE — ใช้ตามมติ user (issue #4)
 - **Error:** `UNAUTHORIZED 401` · `NOT_OWNER 403` · `PACKAGE_REQUIRED 403`
 

@@ -10,7 +10,7 @@ import { isReportBotReady } from '@/lib/line-report/config'
 import { monthlyFire } from '@/lib/line-report/cycle'
 import { dueSlots } from '@/lib/line-report/schedule'
 import type { DueSlot } from '@/lib/line-report/types'
-import { readOwnerPaidState } from '@/services/line-report-access.service'
+import { readGroupPaidState } from '@/services/line-report-access.service'
 import { cleanupDeliveries, expireRetryable, findRetryable, markMissed } from '@/services/line-report-delivery.service'
 import { createSweepCache } from '@/services/line-report-summary.service'
 import { retryDelivery, sendFinalNotice, sendScheduled, type MonthlyDue, type SweepCtx } from '@/services/line-report-send.service'
@@ -47,7 +47,7 @@ const errTag = (e: unknown) => {
 async function sweepGroup(group: Group, ctx: SweepCtx, over: () => boolean): Promise<'paused' | 'done' | 'unknown' | 'budget'> {
   const { now } = ctx
   // อ่านสดต่อกลุ่ม ไม่ cache ข้ามกลุ่ม (AC-01-6)
-  const paid = await readOwnerPaidState(group.ownerId)
+  const paid = await readGroupPaidState(group)
   if (paid === 'UNKNOWN') {
     // อ่านแพ็กเกจไม่ได้ ≠ แพ็กเกจหยุด: ห้ามเขียนอะไร/ส่งอะไร (ไม่ MISSED ไม่ final notice) รอ tick ถัดไป
     console.error('[line-report] PAID_STATE_UNKNOWN', group.id)

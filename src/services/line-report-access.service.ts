@@ -31,6 +31,27 @@ export async function isOwnerPaidForReports(ownerId: string): Promise<boolean> {
   return (await readOwnerPaidState(ownerId)) === 'PAID'
 }
 
+/**
+ * สิทธิ์ส่งรายงานของ "กลุ่ม" — ยึดร้าน ไม่ยึดคนผูกกลุ่ม (user 2026-11-09 เคส BT: ทีม Deep ผูกให้ แพ็กเกจทีมหมด แต่เจ้าของร้านจ่ายแล้ว)
+ * PAID ถ้าเจ้าของกลุ่ม หรือเจ้าของร้าน (Shop.userId ปัจจุบัน) ร้านใดในกลุ่ม ACTIVE · ไม่มีใคร ACTIVE แต่มีคนอ่านไม่ได้ = UNKNOWN
+ * ใช้ทุกจุดที่ส่ง/ตอบเข้ากลุ่ม — ด่านจัดการกลุ่ม (สร้าง/แก้/ผูก) ยังยึดเจ้าของกลุ่มตามเดิม
+ */
+export async function readGroupPaidState(group: { id: string; ownerId: string }): Promise<PaidState> {
+  let owners: string[]
+  try {
+    const shops = await prisma.lineReportGroupShop.findMany({
+      where: { groupId: group.id, shop: { deletedAt: null, purgedAt: null } },
+      select: { shop: { select: { userId: true } } },
+    })
+    owners = [...new Set([group.ownerId, ...shops.map((s) => s.shop.userId)])]
+  } catch {
+    return 'UNKNOWN'
+  }
+  const states = await Promise.all(owners.map(readOwnerPaidState))
+  if (states.includes('PAID')) return 'PAID'
+  return states.includes('UNKNOWN') ? 'UNKNOWN' : 'UNPAID'
+}
+
 /** เจ้าของร้านจริง (Shop.userId) — ADMIN/พนักงานของร้านคนอื่นไม่นับ */
 export async function ownsAnyShop(ownerId: string): Promise<boolean> {
   const shop = await prisma.shop.findFirst({

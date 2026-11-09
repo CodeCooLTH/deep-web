@@ -4,13 +4,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/prisma', () => ({ prisma: { shop: { findFirst: vi.fn() }, lineReportGroup: { count: vi.fn() } } }))
+vi.mock('@/lib/prisma', () => ({ prisma: { shop: { findFirst: vi.fn() }, lineReportGroup: { count: vi.fn() }, lineReportGroupShop: { findMany: vi.fn() } } }))
 vi.mock('@/services/business-package.service', () => ({ getSubscriptionStatus: vi.fn() }))
 
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import {
-  isOwnerPaidForReports, resolveReportAccess, assertReportAccess, countUnackedAlerts,
+  isOwnerPaidForReports, readGroupPaidState, resolveReportAccess, assertReportAccess, countUnackedAlerts,
 } from '@/services/line-report-access.service'
 import { mergeSettings } from '@/services/line-report-group.service'
 import { shopState, assertShopCount } from '@/services/line-report-shop.service'
@@ -151,5 +151,41 @@ describe('shop helpers', () => {
     expect(code(Array.from({ length: 11 }, (_, i) => `s${i}`))).toBe('SHOP_COUNT_OUT_OF_RANGE')
     expect(code(['a', 'a'])).toBe('VALIDATION')
     expect(code(Array.from({ length: 10 }, (_, i) => `s${i}`))).toBeNull()
+  })
+})
+
+describe('readGroupPaidState — ยึดร้านในกลุ่ม ไม่ใช่แค่คนผูก (เคส BT 2026-11-09)', () => {
+  const groupShops = vi.mocked(prisma.lineReportGroupShop.findMany)
+  const subs = (m: Record<string, string | null | Error>) =>
+    sub.mockImplementation(async (id: string) => {
+      const v = m[id]
+      if (v instanceof Error) throw v
+      return (v ? { status: v } : null) as never
+    })
+  const G = { id: 'g', ownerId: 'deep' }
+
+  it('คนผูกหมด แต่เจ้าของร้านในกลุ่ม ACTIVE = PAID', async () => {
+    groupShops.mockResolvedValue([{ shop: { userId: 'sekson' } }] as never)
+    subs({ deep: 'LOCKED_RENEWAL_FAILED', sekson: 'ACTIVE' })
+    expect(await readGroupPaidState(G)).toBe('PAID')
+  })
+  it('คนผูก ACTIVE แต่ร้านไม่มีแพ็กเกจ = PAID (พฤติกรรมเดิม)', async () => {
+    groupShops.mockResolvedValue([{ shop: { userId: 'other' } }] as never)
+    subs({ deep: 'ACTIVE', other: null })
+    expect(await readGroupPaidState(G)).toBe('PAID')
+  })
+  it('ไม่มีใคร ACTIVE = UNPAID', async () => {
+    groupShops.mockResolvedValue([{ shop: { userId: 'sekson' } }] as never)
+    subs({ deep: 'LOCKED_RENEWAL_FAILED', sekson: null })
+    expect(await readGroupPaidState(G)).toBe('UNPAID')
+  })
+  it('ไม่มีใคร ACTIVE + อ่านบางคนไม่ได้ = UNKNOWN (ห้ามเดาว่าหยุด)', async () => {
+    groupShops.mockResolvedValue([{ shop: { userId: 'sekson' } }] as never)
+    subs({ deep: 'LOCKED_RENEWAL_FAILED', sekson: new Error('blip') })
+    expect(await readGroupPaidState(G)).toBe('UNKNOWN')
+  })
+  it('อ่านร้านในกลุ่มไม่ได้ = UNKNOWN', async () => {
+    groupShops.mockRejectedValue(new Error('db down'))
+    expect(await readGroupPaidState(G)).toBe('UNKNOWN')
   })
 })

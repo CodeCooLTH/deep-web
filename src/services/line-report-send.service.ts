@@ -21,7 +21,7 @@ import { retryKeyFor } from '@/lib/line-report/retry-key'
 import { parseSlot, resolveDailyWindow } from '@/lib/line-report/schedule'
 import { cycleContaining, type monthlyFire } from '@/lib/line-report/cycle'
 import type { DueSlot, GroupSummary, Window } from '@/lib/line-report/types'
-import { isOwnerPaidForReports, readOwnerPaidState } from '@/services/line-report-access.service'
+import { isOwnerPaidForReports, readGroupPaidState } from '@/services/line-report-access.service'
 import {
   claimSlotRows, claimSlots, markFailed, markMissed, markRetry, markSent, markSkipped, savePendingPayload, testQuotaWhere, type DeliveryPatch,
 } from '@/services/line-report-delivery.service'
@@ -222,7 +222,7 @@ export async function sendScheduled(group: Group, due: { daily?: DueSlot; monthl
   const { daily, monthly } = due
   if (!daily && !monthly) return { state: 'NOOP' } // no-row: ไม่มีงาน
   // 🛑 AC-01-6: อ่านสิทธิ์สดทุกครั้ง ณ จุดส่ง ห้ามเชื่อแถวกลุ่ม/ผลของ sweep รอบก่อน · UNKNOWN (อ่านไม่ได้) = ไม่ทำอะไร
-  if ((await readOwnerPaidState(group.ownerId)) !== 'PAID') return { state: 'PAUSED' } // no-row: ไม่ได้พยายามส่ง
+  if ((await readGroupPaidState(group)) !== 'PAID') return { state: 'PAUSED' } // no-row: ไม่ได้พยายามส่ง
   // claim D: + M: ใน statement เดียว (atomic) — ทั้งคู่หรือไม่ได้เลย ไม่เกิดสอง worker แบ่งกันถือจนเป็นสอง push
   const want = [
     ...(daily ? [{ groupId: group.id, kind: 'DAILY' as const, slotKey: daily.slotKey }] : []),
@@ -250,7 +250,7 @@ const isCompanion = (row: Row) => row.kind === 'MONTHLY' && payloadRaw(row) === 
  */
 export async function retryDelivery(group: Group, row: Row, ctx: SweepCtx): Promise<Outcome> {
   if (isCompanion(row)) return { state: 'COMPANION' } // no-row: จบพร้อมแถวหลัก
-  const paid = await readOwnerPaidState(group.ownerId)
+  const paid = await readGroupPaidState(group)
   if (paid === 'UNKNOWN') return { state: 'UNKNOWN' } // no-row: อ่านไม่ได้ ไม่ตัดสินแทน — รอ tick ถัดไป
   if (paid === 'UNPAID') {
     return settleRows([row], markMissed, { reason: 'PACKAGE_PAUSED' }, { state: 'MISSED', reason: 'PACKAGE_PAUSED' })
@@ -351,7 +351,7 @@ export async function sendTest(ownerId: string, groupId: string, now: Date = new
 export async function sendFinalNotice(group: Group, ctx: SweepCtx): Promise<Outcome> {
   if (!group.lineGroupId) return { state: 'NOOP' } // no-row
   // อ่านซ้ำ ณ จุดส่ง: ส่งได้เมื่อ "ยืนยันแล้วว่าไม่ ACTIVE" เท่านั้น — อ่านไม่ได้ (UNKNOWN) ห้ามเดาว่าหยุด (ส่งข้อความผิดเข้ากลุ่มลูกค้า)
-  if ((await readOwnerPaidState(group.ownerId)) !== 'UNPAID') return { state: 'ABORTED' } // no-row
+  if ((await readGroupPaidState(group)) !== 'UNPAID') return { state: 'ABORTED' } // no-row
   const sub = await prisma.businessPackageSubscription.findUnique({ where: { ownerId: group.ownerId }, select: { status: true, lockedAt: true } })
   // key ต่อ "ช่วงที่หยุด": เวลาที่ล็อก (แพ็กเกจล็อก) · ไม่มีแถว/ไม่มีเวลา (ยกเลิก) = วันที่ไทย
   const part = sub?.status === 'LOCKED_RENEWAL_FAILED' && sub.lockedAt ? sub.lockedAt.toISOString() : todayThaiIsoDate(ctx.now)
