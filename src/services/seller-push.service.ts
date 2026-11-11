@@ -11,6 +11,7 @@ import { getChannelLabel } from '@/lib/chat-channel'
 import { describeSendFailure } from '@/lib/chat-send-failure'
 import { resolveChatChannel } from '@/lib/chat-channel'
 import { pushToUsers } from './app-push.service'
+import { appBadgeCounts } from './app-badge.service'
 import { groupUsersByChatPushSound } from './notification-pref.service'
 import { getConversationToastPreview } from './chat.service'
 import { userIdsHoldingCap } from '@/lib/chat-scope'
@@ -152,7 +153,16 @@ export async function pushNewChatMessage(params: {
      * · "default" = เสียงมาตรฐานของเครื่อง ⇒ แบ่งผู้รับเป็นกลุ่มตามเสียง ยิงกลุ่มละ 1 request
      * (มากสุด 2 กลุ่ม — ยังพร้อมกันอยู่ ไม่ไล่ทีละคน)
      */
-    const groups = await groupUsersByChatPushSound(audience)
+    /**
+     * เลขบนไอคอนแอป (แบบ Messenger · 2026-11-11) — นับพร้อมกับแบ่งกลุ่มเสียง ไม่เพิ่มรอบรอ
+     * นับหลังข้อความใหม่ถูกบันทึกแล้ว (ผู้เรียกยิงหลังเขียนแถว) ⇒ ห้องนี้อยู่ในเลขแล้ว
+     * นับไม่สำเร็จ = ใบนั้นไม่แตะเลขเดิม (appBadgeCounts ไม่ throw)
+     * ใบอื่น (ส่งไม่สำเร็จ / ช่องทางหลุด / ค่าใช้จ่าย / งานบริการ) ไม่แนบเลข = เครื่องคงเลขเดิมไว้เอง
+     */
+    const [groups, badgeByUser] = await Promise.all([
+      groupUsersByChatPushSound(audience),
+      appBadgeCounts(audience),
+    ])
     await Promise.all(
       [...groups].map(([sound, userIds]) =>
         pushToUsers(
@@ -168,7 +178,7 @@ export async function pushNewChatMessage(params: {
           },
           // respectChatMute: เครื่องที่กดปุ่มลำโพงหน้าแชทเป็น "ปิด" ได้ใบนี้แบบเงียบ (ยังเด้ง) — 2026-10-14
           // ใบนี้ใบเดียว: ป้ายปุ่มคือ "ปิดเสียงแจ้งเตือนข้อความใหม่" แจ้งเตือนอื่นต้องยังมีเสียง
-          { subtitle: preview.senderName, sound, respectChatMute: true },
+          { subtitle: preview.senderName, sound, respectChatMute: true, badgeByUser },
         ),
       ),
     )

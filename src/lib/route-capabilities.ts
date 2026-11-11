@@ -448,6 +448,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/seller/portfolio-series/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/seller/products/[id]/pin/route.ts': { POST: 'P2', status: 'DECLARED' },
   'src/app/api/seller/products/[id]/unpin/route.ts': { POST: 'P2', status: 'DECLARED' },
+  'src/app/api/seller/app-badge/route.ts': { class: 'SELF', reason: 'เลขบนไอคอนแอปของผู้ใช้เอง — นับเฉพาะร้านที่ถือ H1 (listAccessibleShopIds) ใน app-badge.service', status: 'DECLARED' },
   'src/app/api/seller/push-token/route.ts': { class: 'SELF', reason: 'push token ของอุปกรณ์ผู้ใช้เอง (requireAppUser)', status: 'DECLARED' },
   'src/app/api/seller/reports/agents/[agentId]/conversations/route.ts': { GET: 'X4', status: 'DECLARED' },
   'src/app/api/seller/reports/agents/[agentId]/route.ts': { GET: 'X4', status: 'DECLARED' },

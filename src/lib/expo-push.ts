@@ -32,7 +32,11 @@ type ExpoMessage = {
    * บนสุดโดยไม่มีเสียง ผู้ใช้พลาดข้อความ (iOS ไม่สนใจ field นี้)
    */
   channelId?: string
-  /** จำนวนบนไอคอนแอป — ให้ผู้ขายเห็นว่ามีของค้างโดยไม่ต้องเปิดแอป */
+  /**
+   * เลขบนไอคอนแอป (iOS · Android บางยี่ห้อ) — ค่าที่ "ตั้งทับ" ไม่ใช่บวกเพิ่ม (APNs ไม่มีแบบบวก)
+   * ไม่ส่ง field นี้ = เครื่องคงเลขเดิมไว้ ⇒ แจ้งเตือนที่ไม่ได้คำนวณเลขมาต้องไม่ส่ง (ห้ามส่ง 0 แทน)
+   * แอปผู้ขายนับเฉพาะแชทที่ยังไม่อ่าน — ดู `services/app-badge.service.ts`
+   */
   badge?: number
 }
 
@@ -45,7 +49,15 @@ export const isExpoToken = (t: string) => t.startsWith('ExponentPushToken') || t
  * `chatSoundMuted` = เครื่องนี้กดปุ่มลำโพงหน้าแชทเป็น "ปิด" (`PushToken.chatSoundMuted`) — มีผลเฉพาะเมื่อ
  * ผู้เรียกส่ง `respectChatMute: true` (แชทใหม่เท่านั้น ดู `pushNewChatMessage`)
  */
-export type PushTarget = string | { token: string; platform?: string | null; chatSoundMuted?: boolean }
+export type PushTarget =
+  | string
+  | {
+      token: string
+      platform?: string | null
+      chatSoundMuted?: boolean
+      /** เลขบนไอคอนของ "เจ้าของเครื่องนี้" (แต่ละคนนับร้านของตัวเอง) · undefined = ไม่แตะเลขเดิม */
+      badge?: number
+    }
 
 /**
  * เสียงแจ้งเตือน — ชุดที่แอปผู้ขายรู้จัก (2026-10-09 · user เลือก: แอปผู้ขาย · เฉพาะแชทใหม่)
@@ -114,7 +126,7 @@ export async function sendExpoPushWithStatus(
 ): Promise<{ invalid: string[]; delivered: boolean }> {
   const tone = resolvePushSound(options?.sound)
   const targets = tokens
-    .map((t) => (typeof t === 'string' ? { token: t, platform: null, chatSoundMuted: false } : t))
+    .map((t) => (typeof t === 'string' ? { token: t, platform: null, chatSoundMuted: false, badge: undefined } : t))
     .filter((t) => isExpoToken(t.token))
   const valid = targets.map((t) => t.token)
   if (valid.length === 0) return { invalid: [], delivered: false }
@@ -133,6 +145,8 @@ export async function sendExpoPushWithStatus(
       sound: silent ? undefined : tone.sound,
       priority: 'high',
       channelId: silent ? SILENT_CHAT_CHANNEL_ID : tone.channelId,
+      // undefined ⇒ JSON.stringify ตัดทิ้ง ⇒ เลขบนไอคอนคงเดิม
+      badge: t.badge,
     }
   })
   try {

@@ -1,6 +1,17 @@
 import { prisma } from '@/lib/prisma'
 import { sendExpoPush, sendExpoPushWithStatus, isExpoToken, type PushSound } from '@/lib/expo-push'
 
+export type PushToUsersOptions = {
+  subtitle?: string
+  sound?: PushSound
+  respectChatMute?: boolean
+  /**
+   * เลขบนไอคอนแอปรายคน (userId → เลข) — คนที่ไม่อยู่ใน map ได้ใบที่ไม่แตะเลขเดิม
+   * ทุกเครื่องของคนเดียวกันได้เลขเดียวกัน (เลขนับตามบัญชี ไม่ใช่ตามเครื่อง)
+   */
+  badgeByUser?: ReadonlyMap<string, number>
+}
+
 /**
  * ส่ง push ให้ user "หลายคน" พร้อมกัน — best-effort
  *
@@ -18,7 +29,7 @@ export async function pushToUsers(
   data?: Record<string, unknown>,
   /** subtitle = บรรทัดกลาง — iOS เป็นบรรทัดแยก · Android ยกไปนำหน้า body (composeForPlatform) */
   /** respectChatMute = เครื่องที่กดปิดเสียงหน้าแชทได้ push แบบเงียบ — **แชทใหม่เท่านั้น** (2026-10-14) */
-  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
+  options?: PushToUsersOptions,
 ): Promise<void> {
   await pushToUsersWithStatus(userIds, title, body, data, options)
 }
@@ -32,7 +43,7 @@ export async function pushToUsersWithStatus(
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  options?: { subtitle?: string; sound?: PushSound; respectChatMute?: boolean },
+  options?: PushToUsersOptions,
 ): Promise<'SENT' | 'NO_TOKEN' | 'FAILED'> {
   if (userIds.length === 0) return 'NO_TOKEN'
   try {
@@ -41,9 +52,13 @@ export async function pushToUsersWithStatus(
       // platform ต้องมาด้วย — Android ไม่มีบรรทัด subtitle ต้องประกอบข้อความต่างจาก iOS
       // chatSoundMuted = ปุ่มปิดเสียงหน้าแชทของเครื่องนั้น — ส่งต่อทุกครั้ง แต่ sendExpoPush ใช้ก็ต่อเมื่อ
       // respectChatMute (แชทใหม่) ⇒ แจ้งเตือนอื่นไม่ได้รับผล
-      select: { token: true, platform: true, chatSoundMuted: true },
+      // userId = หาเลขบนไอคอนของเจ้าของเครื่อง (badgeByUser) — ไม่ส่งต่อไปที่ Expo
+      select: { userId: true, token: true, platform: true, chatSoundMuted: true },
     })
-    const tokens = rows.filter((r) => isExpoToken(r.token))
+    const badges = options?.badgeByUser
+    const tokens = rows
+      .filter((r) => isExpoToken(r.token))
+      .map(({ userId, ...r }) => ({ ...r, badge: badges?.get(userId) }))
     if (tokens.length === 0) return 'NO_TOKEN'
     const { invalid, delivered } = await sendExpoPushWithStatus(tokens, title, body, data, options)
     if (invalid.length > 0) {
