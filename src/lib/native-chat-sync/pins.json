@@ -137,7 +137,7 @@
     "src/lib/chat-message-merge.ts": "f9fb0b6555b57966",
     "src/lib/chat-quote-availability.ts": "5669b64c27b3572d",
     "src/lib/chat-reaction-toggle.ts": "5b3e992038358517",
-    "src/lib/chat-sticker.ts": "75b71aa168847212",
+    "src/lib/chat-sticker.ts": "89a1b207c1604a68",
     "src/lib/chat-thread-scroll.ts": "6d3542afdd491e11",
     "src/lib/comment-composer-slot.ts": "b4d3409d828148f1",
     "src/lib/customer-behavior.ts": "bde408231040e123",
