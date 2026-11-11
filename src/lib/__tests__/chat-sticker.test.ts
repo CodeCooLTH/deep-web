@@ -53,6 +53,21 @@ describe('isStickerRawMessage', () => {
     ).toBe(true)
   })
 
+  it('[blocker] ขาเข้า Messenger: ไลค์/สติกเกอร์มี sticker_id (ใน message หรือ attachment) → true', () => {
+    const like = (message: Record<string, unknown>) => ({ provider: 'facebook', source: 'webhook', payload: { sender: { id: 'u' }, recipient: { id: 'p' }, message } })
+    // รูปจริงจาก Messenger: sticker_id อยู่ทั้งสองที่
+    expect(isStickerRawMessage(like({ mid: 'm1', sticker_id: 369239263222822, attachments: [{ type: 'image', payload: { url: 'https://x/l.png', sticker_id: 369239263222822 } }] }))).toBe(true)
+    expect(isStickerRawMessage(like({ mid: 'm2', attachments: [{ type: 'image', payload: { url: 'https://x/s.png', sticker_id: '1234567' } }] }))).toBe(true)
+    expect(isStickerRawMessage(like({ mid: 'm3', sticker_id: 369239383222810 }))).toBe(true)
+  })
+
+  it('Messenger รูปถ่ายปกติ (ไม่มี sticker_id / ค่าเพี้ยน) → false', () => {
+    const msg = (message: Record<string, unknown>) => ({ provider: 'facebook', source: 'webhook', payload: { message } })
+    expect(isStickerRawMessage(msg({ mid: 'm4', attachments: [{ type: 'image', payload: { url: 'https://x/p.jpg' } }] }))).toBe(false)
+    expect(isStickerRawMessage(msg({ mid: 'm5', sticker_id: 0, attachments: [{ type: 'image', payload: { url: 'https://x/p.jpg', sticker_id: '' } }] }))).toBe(false)
+    expect(isStickerRawMessage(msg({ mid: 'm6', attachments: 'junk' }))).toBe(false)
+  })
+
   it('รูปที่ลูกค้าส่ง / ข้อความปกติ / ไฟล์แนบ → false', () => {
     expect(isStickerRawMessage({ provider: 'LINE', payload: { kind: 'image', mirrored: true } })).toBe(false)
     expect(isStickerRawMessage({ provider: 'LINE', payload: { lineMessageId: '1', text: 'สวัสดี' } })).toBe(false)

@@ -18,11 +18,31 @@ import { giphyMessageKind } from '@/lib/giphy-message-kind'
  * ค่าที่ไม่มี/ผิดรูป = ไม่ใช่สติกเกอร์ (fail-safe ไปทางเดิม: แสดงเป็นรูปปกติ)
  */
 
+/** `sticker_id` ของ Meta — ตัวเลขหรือสตริงตัวเลข · 0/ว่าง/รูปแปลก = ไม่ใช่ */
+function hasStickerId(o: unknown): boolean {
+  if (!o || typeof o !== 'object') return false
+  const id = (o as { sticker_id?: unknown }).sticker_id
+  return (typeof id === 'number' && id > 0) || (typeof id === 'string' && /^\d+$/.test(id) && id !== '0')
+}
+
 export function isStickerRawMessage(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
   const payload = (raw as { payload?: unknown }).payload
   if (!payload || typeof payload !== 'object') return false
   if ((payload as { kind?: unknown }).kind === 'sticker') return true
+
+  /**
+   * ขาเข้า Messenger (2026-11-11 · user: "ปุ่มกดไลค์ยังใหญ่มาก ให้แสดงเท่าของเฟส")
+   * Meta ส่งสติกเกอร์ (รวมนิ้วโป้ง/ไลค์) มาเป็น `attachments[].type = "image"` เหมือนรูปถ่าย — ตัวแยกเดียวคือ
+   * `sticker_id` (ใน `message` และ/หรือใน `attachments[].payload`) · ไม่มีสาขานี้ = ไลค์ขึ้นเต็มกว้างรูปปกติ +
+   * ปุ่ม "บันทึกรูป" ทั้งเว็บและแชท Native (ตัดสินที่นี่ที่เดียว ส่งไปเป็น `isSticker`)
+   */
+  const message = (payload as { message?: unknown }).message
+  if (message && typeof message === 'object') {
+    if (hasStickerId(message)) return true
+    const atts = (message as { attachments?: unknown }).attachments
+    if (Array.isArray(atts) && atts.some((a) => a && typeof a === 'object' && hasStickerId((a as { payload?: unknown }).payload))) return true
+  }
 
   /**
    * ขาเข้า Instagram (2026-08-27) — marker `payload.kind` ใช้ไม่ได้เพราะนี่คือ **payload ของ Meta**
