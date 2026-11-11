@@ -9,6 +9,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const staffRef = vi.hoisted(() => ({ rows: [] as { userId: string; roles: string[] }[], vertical: 'SERVICE_QUEUE' }))
+// เลขบนไอคอนมีเทสของตัวเอง (app-badge.test · seller-push-badge.test) — ที่นี่ตัดออกให้นับ query ของการคัดผู้รับได้ตรง
+vi.mock('@/services/app-badge.service', () => ({ appBadgeCounts: vi.fn(async () => new Map()) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     shop: {

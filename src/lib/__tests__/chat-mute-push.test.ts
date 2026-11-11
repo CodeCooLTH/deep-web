@@ -98,7 +98,7 @@ describe('[blocker] payload แจ้งเตือนแชทใหม่ข�
   it('pushToUsersWithStatus ดึง chatSoundMuted มาพร้อม token', () => {
     const src = readFileSync(join(process.cwd(), 'src/services/app-push.service.ts'), 'utf8')
     const fn = src.slice(src.indexOf('export async function pushToUsersWithStatus'))
-    expect(fn.slice(0, fn.indexOf('\n}\n'))).toMatch(/select: \{ token: true, platform: true, chatSoundMuted: true \}/)
+    expect(fn.slice(0, fn.indexOf('\n}\n'))).toMatch(/select: \{[^}]*\btoken: true, platform: true, chatSoundMuted: true\b[^}]*\}/) // userId มาด้วยได้ (เลขบนไอคอนรายคน 2026-11-11)
   })
 })
 

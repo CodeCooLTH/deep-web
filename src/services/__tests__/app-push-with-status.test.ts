@@ -65,3 +65,23 @@ describe('[blocker] เสียงแจ้งเตือนส่งต่อ
     expect(sendStatus.mock.calls[0][4]).toEqual({ subtitle: 's', sound: 'chat' })
   })
 })
+
+describe('[blocker] เลขบนไอคอนรายคน (badgeByUser · 2026-11-11)', () => {
+  it('ทุกเครื่องของคนเดียวกันได้เลขของเจ้าของเครื่อง · คนที่ไม่อยู่ใน map ได้ undefined (ไม่แตะเลขเดิม) · ไม่ส่ง userId ต่อ', async () => {
+    findMany.mockResolvedValue([
+      { userId: 'a', token: 'ExponentPushToken[a1]', platform: 'ios' },
+      { userId: 'a', token: 'ExponentPushToken[a2]', platform: 'android' },
+      { userId: 'b', token: 'ExponentPushToken[b1]', platform: 'ios' },
+    ])
+    sendStatus.mockResolvedValueOnce({ invalid: [], delivered: true })
+    await pushToUsers(['a', 'b'], 't', 'b', undefined, { badgeByUser: new Map([['a', 3]]) })
+    expect(findMany.mock.calls.at(-1)?.[0]).toMatchObject({ select: { userId: true } })
+    const targets = sendStatus.mock.calls[0][0] as { token: string; badge?: number; userId?: string }[]
+    expect(targets.map((t) => [t.token, t.badge])).toEqual([
+      ['ExponentPushToken[a1]', 3],
+      ['ExponentPushToken[a2]', 3],
+      ['ExponentPushToken[b1]', undefined],
+    ])
+    expect(targets.every((t) => !('userId' in t))).toBe(true)
+  })
+})

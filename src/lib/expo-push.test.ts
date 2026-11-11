@@ -107,3 +107,25 @@ describe('[blocker] composeForPlatform — Android ได้ชื่อคน�
     expect(sent[1].subtitle).toBeUndefined()
   })
 })
+
+describe('[blocker] badge ใน payload (2026-11-11)', () => {
+  it('ส่งเลขของแต่ละเครื่อง · ไม่มีเลข = ไม่มี field badge (เครื่องคงเลขเดิม ไม่ถูกล้างเป็น 0)', async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
+    vi.stubGlobal('fetch', f)
+    await sendExpoPushWithStatus(
+      [{ token: 'ExponentPushToken[x]', badge: 5 }, { token: 'ExponentPushToken[y]' }, 'ExponentPushToken[z]'],
+      't',
+      'b',
+    )
+    const sent = JSON.parse(f.mock.calls[0][1].body)
+    expect(sent[0].badge).toBe(5)
+    expect('badge' in sent[1]).toBe(false)
+    expect('badge' in sent[2]).toBe(false)
+  })
+  it('เลข 0 ต้องถูกส่งจริง (ล้างเลขบนไอคอนเมื่ออ่านครบ)', async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
+    vi.stubGlobal('fetch', f)
+    await sendExpoPushWithStatus([{ token: 'ExponentPushToken[x]', badge: 0 }], 't', 'b')
+    expect(JSON.parse(f.mock.calls[0][1].body)[0].badge).toBe(0)
+  })
+})

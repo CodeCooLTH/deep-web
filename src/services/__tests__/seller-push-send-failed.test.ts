@@ -14,6 +14,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // 00071 S-13: ผู้รับ push = คนที่ "ถือ H1" ในร้าน (userIdsHoldingCap → shop.findMany พร้อมแถวสมาชิก)
 // staffRef = ผู้ดูแลที่มีบทบาทตอบแชทของร้านทดสอบ (เจ้าของ owner1 อยู่เสมอ) — ตั้งต่อเทสด้วย setStaff
 const staffRef = vi.hoisted(() => ({ rows: [] as { userId: string; roles: string[] }[] }))
+// เลขบนไอคอนมีเทสของตัวเอง (app-badge.test · seller-push-badge.test) — ที่นี่ตัดออกให้นับ query ของการคัดผู้รับได้ตรง
+vi.mock('@/services/app-badge.service', () => ({ appBadgeCounts: vi.fn(async () => new Map()) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     shop: {
