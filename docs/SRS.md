@@ -422,6 +422,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 **จัดการแท็ก (feature 00083 — เอกสารอนุมัติแล้ว 2026-10-21 · ยังไม่ implement)** — หน้า **`/settings/tags`** (`(paces)/seller/(dashboard)/settings/tags/page.tsx` — ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" เหมือน `/settings/auto-notify`) · เมนู "จัดการแท็ก" slug `seller:settings-tags` ในกลุ่ม CHAT ต่อจาก "ส่งอัตโนมัติถึงลูกค้า" · 🛑 **เห็นทุก vertical** ห้ามใส่ slug นี้ใน `*_ONLY_SLUGS` · เปิดหน้า/เรียก API = **H3** (OWNER, MANAGER; CHAT เข้า URL ตรง = `NoPermissionCard`/403) · ดู `docs/20 - Features/00083 - Auto Tag By Keyword/{SRS,SDS}.md`
 
+**ส่งยอดขายให้ Meta — Conversions API (feature 00089 — implement แล้วบน working tree · ยังไม่ commit/merge · sync 2026-11-11)** — 3 หน้าใต้ `(paces)/seller/(dashboard)/settings/conversions-api/` (ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" เหมือน `/settings/tags`): **`/settings/conversions-api`** (รายการเพจ Messenger + สวิตช์) · **`/settings/conversions-api/[channelId]`** (รายละเอียดเพจ: dataset · เหตุการณ์ 12 ตัว · จังหวะ Purchase · กฎแท็ก→Lead) · **`/settings/conversions-api/[channelId]/log`** (บันทึกการส่ง · ตัวกรอง `?status=&event=` · "โหลดเพิ่ม" แบบ cursor) · เมนู slug `seller:settings-conversions-api` กลุ่ม SETTING ต่อจาก "ช่องทางการขาย" · ทางเข้าเสริม: chip บนแถว Messenger ใน `/settings/channels` + แถวทางลัดหน้า "ร้านค้า" บนมือถือ (`role-nav.ts` `QUICK_LINK_URLS` + `ShopQuickLinks.tsx`) · เปิดหน้า = **X9** (เจ้าของเท่านั้น; อื่น = `NoPermissionCard`) · 🛑 ฟีเจอร์ปิด/ร้านนอกรายชื่อทดลอง (`isMetaCapiEnabled`) = `notFound()` **ก่อน** ด่านสิทธิ์ (ร้านต้องไม่รู้ว่ามีฟีเจอร์) และเมนู/ทางลัด/chip ซ่อน (`applyMetaCapiMenu` fail-closed) · ดู `docs/20 - Features/00089 - Meta Conversion API/{SRS,SDS,API,DATABASE,TestCase}.md`
+
 **รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — สถานะ ณ 2026-10-05 (ตรวจจากโค้ด): เมนู sidebar (`seller:line-reports`) + **`page.tsx` ของ 3 หน้าแรกมีในโค้ดแล้ว** (`(paces)/seller/(dashboard)/business/line-reports/{page,new/page,[groupId]/page}.tsx`) · ~~🛑 หน้า `/template` (ส่วนต่อขยาย EXT) = กำลังสร้าง ยังไม่ commit~~ **sync 2026-10-15: `page.tsx` ของ `/template` มีในโค้ดแล้ว (ดูตารางด้านล่าง) — ยังไม่ได้ตรวจสถานะ commit/ผล QA บนจอจริง**
 
 | เมนู | Path | สถานะ |
@@ -597,6 +599,19 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | `FLASH_PILOT_SHOP_IDS` | `gate.ts::isFlashDirectEnabled(shopId)` | ไม่ | id ร้านคั่น comma — ตั้งไว้ = เห็น/ใช้ Flash เฉพาะร้านในรายชื่อ · ไม่ตั้ง = ทุกร้าน (ONLINE_SALES) · ใช้ตอนชี้ `uat` บน prod |
 | `FLASH_DRY_RUN` | `gate.ts::isFlashDryRun` | ไม่ | `1` = ไม่ยิง create/notify จริง · ไม่มีผลบน production (เช็ค `NODE_ENV` ซ้ำ) |
 | `FLASH_WEBHOOK_BASE_URL` | `gate.ts::flashWebhookBase` | ไม่ | ว่าง = `NEXTAUTH_URL` · dev ต้องเป็น tunnel ที่ Flash ยิงถึง · ว่างทั้งคู่ = ลงทะเบียน webhook ไม่ได้ (`webhookStatus=FAILED`) |
+
+### 5.5 env ของ feature 00089 (ส่งยอดขายให้ Meta · Conversions API · 2026-11-11)
+
+> เอกสารต้นทาง: `docs/20 - Features/00089 - Meta Conversion API/SRS.md` §7.4–7.5 · ไม่มี secret ใหม่ · โค้ดอ่าน 2 ตัวแรกใน `src/lib/meta-capi/gate.ts` (แบบเดียวกับ `src/lib/flash/gate.ts`)
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `OPEN_META_CAPI` | `gate.ts::isMetaCapiEnabled` | ไม่ | **`1` เท่านั้น = เปิด** · ไม่ตั้ง/ค่าอื่นทุกค่า (รวม `true`) = **ปิดทุกร้าน** (ไม่เข้าคิว · API 404 · เมนูซ่อน) |
+| `META_CAPI_PILOT_SHOP_IDS` | `gate.ts` | ไม่ | id ร้านคั่น comma — ตั้งไว้ = เฉพาะร้านในรายชื่อ · **ว่าง = ทุกร้าน (เมื่อ `OPEN_META_CAPI=1`)** · เอาร้านออก = แถวค้างไม่ถูกส่ง |
+| `CRON_SECRET` (**มีอยู่แล้ว**) | `/api/cron/meta-capi` | ใช่ | `Authorization: Bearer ${CRON_SECRET}` · ว่าง = 401 ทุกคำขอ |
+| `CHANNEL_TOKEN_KEY` (**มีอยู่แล้ว**) | `token-crypto.ts` | ใช่ | เข้ารหัส `MetaCapiDataset.tokenEnc` (ทาง MANUAL) และถอดรหัส token เพจ |
+
+**สิทธิ์ Meta (ไม่ใช่ env):** ทางอัตโนมัติ (`source=PAGE`) ใช้ token เพจที่เชื่อมไว้ ต้องมีสิทธิ์ **`page_events`** · แอป "Deep Chat & LIVE" (App ID `1570859340799126`) **ยังไม่ได้ตั้งสิทธิ์นี้ (Standard)** — ต้องเพิ่มที่ App Dashboard และใน Configuration ของ Facebook Login for Business (`config_id` `1080845061590909`) แล้วร้านต้องเชื่อมเพจใหม่ · ปัจจุบัน `CONNECT_SCOPES` (`src/lib/facebook/constants.ts`) **ไม่มี `page_events`** · ทางกรอกเอง (`source=MANUAL`) **ไม่ต้องใช้สิทธิ์แอป**
 
 ---
 
@@ -1820,6 +1835,20 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 **Rollback:** additive · ห้ามหด CHECK ชนิดเหตุการณ์หลังมีแถว · ห้ามรัน backfill ค่าติ๊ก/arrivalMode ซ้ำด้วยมือหลังขึ้นระบบ · 4 ตัวที่ขึ้น prod แล้วมีข้อมูลจริง ถอย = destructive (ถาม user)
 
+### 6.78 ส่งยอดขายให้ Meta — `MetaCapiPageSetting` · `MetaCapiDataset` · `MetaCapiEvent` (feature 00089)
+
+> สถานะ: อยู่ใน `prisma/schema.prisma` + migration `20261111100000_00089_meta_capi` (working tree · ยังไม่ commit/merge) · additive ล้วน · 3 ตาราง · FK `ON DELETE CASCADE` · **ไม่มี CHECK constraint** (ค่า `status`/`source`/`purchaseAt` บังคับที่ service) · ไม่มี backfill · HR15: push `main` = `migrate deploy` บน prod · local ต้อง apply เอง · ต้นทาง `docs/20 - Features/00089 - Meta Conversion API/DATABASE.md`
+
+| ตาราง | คอลัมน์สำคัญ | กติกา |
+|---|---|---|
+| `MetaCapiPageSetting` (1:1 `ShopChannel`) | `shopId` FK · `shopChannelId` **UNIQUE** FK · `enabled` bool default false · `enabledAt` timestamptz? · `purchaseAt` text default `CREATE` · `countPromotedDraft` bool default true · `eventOptions` jsonb default `{}` | `enabledAt` ตั้งเฉพาะตอน false→true (ไม่ส่งเหตุการณ์ก่อนหน้านั้น) · `eventOptions` = `{[CapiEventKey]: {valueMode?, sendContents?, rules?: [{tagId, valueBaht?}]}}` ระดับเพจ ใช้ร่วมทุก dataset · แถวสร้างตอนบันทึกครั้งแรก (ไม่มีแถว = ปิด) |
+| `MetaCapiDataset` | `shopId` · `shopChannelId` FK · `datasetId` · `source` (`PAGE`\|`MANUAL`) · `tokenEnc` text? · `label` text? · `events` text[] default `[]` · `status` default `ACTIVE` · `stoppedReason`/`stoppedAt` | **UNIQUE `(shopChannelId, datasetId)`** · ≤3 ต่อเพจ (บังคับที่ service) · 🛑 `tokenEnc` (MANUAL เท่านั้น · `token-crypto`) ห้ามออก client/log — ทางออกผ่าน `toPublic()` → `hasToken` · 🛑 **ไม่มีคอลัมน์ `testEventCode` โดยตั้งใจ** (เหตุการณ์จริงจะพกรหัสแล้ว Meta นับเป็นทดสอบ · Design-Spec D6) |
+| `MetaCapiEvent` (คิว/outbox) | `shopId` FK · `datasetRowId` FK · `conversationId` text? (**ไม่มี FK**) · `eventKey` · `dedupeKey` · `eventTime` · `pageId`/`psid`/`payload` (ภาพนิ่งตอนเข้าคิว) · `status` default `PENDING` · `attempts` · `nextAttemptAt` · `lockedAt` · `reason` · `lastHttpStatus` · `lastRequest`/`lastResponse` jsonb (ตัด ≤4000 · ไม่มี token) · `sentAt` | **UNIQUE `(datasetRowId, dedupeKey)`** = ด่านกันส่งซ้ำ (BR-CAPI-01) · index `(status, nextAttemptAt)` · `(conversationId, eventKey, createdAt)` · `(shopId, createdAt)` · ลบแถวเก่ากว่า 180 วันโดย cron |
+
+**ความสัมพันธ์:** `Shop 1─N` ทั้ง 3 ตาราง · `ShopChannel 1─1 MetaCapiPageSetting` · `ShopChannel 1─N MetaCapiDataset` · `MetaCapiDataset 1─N MetaCapiEvent` (ลบ dataset = คิวหายตาม) · `Shop`/`ShopChannel` ได้เฉพาะฟิลด์ relation ฝั่ง Prisma (ไม่มีคอลัมน์ใหม่)
+
+**PII:** `MetaCapiEvent.psid`/`pageId` = ตัวตนลูกค้าฝั่ง Meta (ไม่ใช่เบอร์/อีเมล/ชื่อ) · หน้า log/API log ไม่ select `psid`/`lastRequest`/`lastResponse` · **Rollback:** ก่อนมีข้อมูล `DROP TABLE` ตามลำดับ Event → Dataset → PageSetting · หลังมีข้อมูล = destructive (ถาม user) — ทางถอยที่ปลอดภัยคือไม่ตั้ง `OPEN_META_CAPI`
+
 ---
 
 ## §7 API Reference
@@ -2353,6 +2382,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
 | **`/api/cron/follow-up-reminders`** (feature 00066 — `vercel.json` ยืนยัน) | **`*/5 * * * *`** | **ทุก 5 นาที** |
 | **`/api/cron/line-report-sweep`** (feature 00070 — `vercel.json` ยืนยัน) | **`*/30 * * * *`** | **ทุก 30 นาที** · cleanup รวมใน tick แรกหลัง 03:00 ไทย (= tick ที่ตกใน 03:00–03:29) ไม่เพิ่ม cron · **EXT-LINK:** ล้าง `LineReportSnapshot.payload` ที่หมดอายุ/กลุ่ม REMOVED ทุก tick (ไม่ผูก 03:00) — ผลคืน `snapshotsPurged` · ลบแถวโครงเก่า >30 วันใน cleanup 03:00 — ผลคืน `snapshotsDeleted` |
+| **`/api/cron/meta-capi`** (feature 00089 — `vercel.json` ยืนยัน) | **`* * * * *`** | **ทุกนาที** · route แยกจาก `chat-outbox` โดยตั้งใจ · `maxDuration` 60 · ลำดับ `sweepMetaCapi` (ส่งคิว ≤100 แถว) → `sweepCartAbandoned` (try/catch แยก) → `purgeOldMetaCapiEvents` (>180 วัน) · export เฉพาะ `GET` · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · ผลคืน `{ok, sent, failed, retried, stopped, skipped, cartAbandoned, purged}` |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
 30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
@@ -2837,6 +2867,39 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 ผลข้างเคียง: แจ้งเตือน `Notification` ผูก `shopId` — `service_job_finished|closed` → เจ้าของ ∪ ผู้ดูแล (MANAGER) − คนกด (มติ 2026-10-30: ด่าน `SERVICE_JOB_NOTIFY_EVENTS`/`shouldNotifyServiceJob` · รับงาน/เริ่มงานไม่แจ้งแล้ว ยังอยู่ในไทม์ไลน์ `OrderEvent` · kind `service_job_claimed|started` คงไว้อ่านแถวเก่า) · `staff_expense` → เจ้าของเท่านั้น − คนกด · push `{type, url, shopId}` หลัง commit · หน้า `/notifications` ร้านตัด activity "ปิดงาน" ที่ซ้ำแถว `service_job_closed` · `/o/[token]` ได้ `serviceJobPhotos {records, afterPending}` เฉพาะร้านเปิด `serviceJobPhotosBuyerVisible` ∧ mode ≠ NONE (ไม่มีชื่อพนักงาน) · ข้อจำกัดที่ยอมรับ: URL รูปเปิดตรงได้ · ไม่ตรวจผู้อัปโหลด fileId
 
+### 7.35 ส่งยอดขายให้ Meta (`/api/shops/meta-capi/**`, `/api/cron/meta-capi`) — feature 00089
+
+> สถานะ: implement แล้วบน working tree (ยังไม่ commit/merge · sync 2026-11-11) · สัญญาละเอียด = `docs/20 - Features/00089 - Meta Conversion API/API.md` · ไฟล์ `src/app/api/shops/meta-capi/**/route.ts` (6 ไฟล์ · 9 เมธอด) + `src/services/meta-capi-settings.service.ts` + `src/lib/meta-capi/route-helpers.ts` · `dynamic = "force-dynamic"` · ทุก response `Cache-Control: private, no-store, max-age=0, must-revalidate`
+
+ทุกเมธอด: `requireShopCapability(session,'X9')` (ร้าน active ของ session · ไม่มี `?shopId=`) → Valibot (`Capi*Schema` · §10.24) → service (`gate()` = `isMetaCapiEnabled(shopId)` ไม่ผ่าน → `FEATURE_DISABLED` 404 · ตรวจเพจ/dataset ของร้านนี้เสมอ — ของร้านอื่น/ไม่ใช่ Messenger/เพจไม่ `ACTIVE` = `NOT_FOUND`) · error ฟีเจอร์ = `{ error, code }` · `capiRun` แปลง `CapiError`→HTTP (`Record<CapiErrorCode, number>` — เพิ่ม code ลืมแมป = tsc แดง) · error อื่น = 500 (`console.error` ไม่ log body/token)
+
+| Method | Path | Cap | สรุป |
+|---|---|---|---|
+| GET | `/api/shops/meta-capi` | **X9** | `{pages:[{channelId, name, avatarUrl, setting, datasets: n, anyStopped, sent7d}]}` เพจ Messenger `ACTIVE` ของร้าน |
+| GET | `/api/shops/meta-capi/[channelId]` | **X9** | `{channelId, name, avatarUrl, setting, eventOptions, datasets:[{id, datasetId, source, label, events, status, stoppedReason, stoppedAt, hasToken}]}` · ไม่มี token |
+| PUT | `/api/shops/meta-capi/[channelId]` | **X9** | body `{enabled?, purchaseAt?, countPromotedDraft?, eventOptions?}` → `{setting}` · `eventOptions` แทนทั้งก้อน · เปิดจากปิดตั้ง `enabledAt` ใหม่ |
+| POST | `…/[channelId]/datasets` | **X9** | body `{source:'PAGE'\|'MANUAL', datasetId?, token?, label?, events?}` → **201** `{dataset}` · PAGE = `POST {GRAPH_BASE}/{pageId}/dataset` ด้วย token เพจ |
+| PATCH · DELETE | `…/datasets/[datasetRowId]` | **X9** | PATCH `{label?, events?, token?}` (token เฉพาะ MANUAL → ปลุก `ACTIVE`) · DELETE → `{ok:true}` (คิวหายตาม) |
+| POST | `…/datasets/[datasetRowId]/test` | **X9** | body `{testEventCode?}` → `{ok, unverified?, eventsReceived?, message}` (200 เสมอ) · **ไม่เข้าคิว** · มี code = Purchase ฿1 ด้วย PSID ห้องล่าสุด · ไม่มี = ตรวจ token (`GET /{datasetId}?fields=id`) |
+| POST | `…/datasets/[datasetRowId]/resume` | **X9** | ปลุก dataset `PAGE` ที่ `STOPPED` → `{dataset}` · ไม่เรียก Meta · (UI ปัจจุบันไม่เรียก — ทางที่ UI ใช้คือเชื่อมเพจใหม่) |
+| GET | `…/[channelId]/log` | **X9** | `?status&eventKey&cursor&take` → `{rows:[{id, createdAt, eventKey, datasetLabel, datasetId, value, status, reason, attempts}], nextCursor}` · ไม่มี `psid`/`lastRequest`/`lastResponse` |
+| GET | `/api/cron/meta-capi` | CRON | ดู §7.20 |
+
+| code | HTTP | เมื่อ |
+|---|---|---|
+| `INVALID_INPUT` | 400 | Valibot/ค่าผิด (รวมแท็กไม่ใช่ของร้าน · กฎเกิน 20 · มูลค่านอก 0–10,000,000 · token ผิดรูป) |
+| `TOKEN_REQUIRED` | 400 | MANUAL ไม่มี token |
+| `NO_CONVERSATION` | 400 | ทดสอบมี code แต่เพจไม่มีห้อง Messenger |
+| `PAGE_EVENTS_PERMISSION` | 400 | ขอ dataset ด้วย token เพจแล้ว Meta ตอบกลุ่มไม่มีสิทธิ์ / ถอดรหัส token เพจไม่ได้ |
+| `META_ERROR` | 400 | Meta error อื่น · id ผิดรูป · ถอดรหัส token ไม่ได้ |
+| `NOT_FOUND` · `FEATURE_DISABLED` | 404 | เพจ/dataset ไม่ใช่ของร้าน-ไม่ใช่ Messenger-ไม่ ACTIVE · ฟีเจอร์ปิด |
+| `DATASET_LIMIT` · `DATASET_DUPLICATE` | 409 | ครบ 3 ตัว · `(shopChannelId, datasetId)` ซ้ำ |
+| (guard) | 401 / 404 `NO_SHOP` / 403 `FORBIDDEN` / 403 `FORBIDDEN_ROLE` | ไม่ล็อกอิน / ไม่มีร้าน / ไม่ใช่สมาชิก / ไม่ใช่เจ้าของ |
+
+**ขาออกไป Meta:** `POST {GRAPH_BASE}/{datasetId}/events` (Bearer · body `action_source:'business_messaging'` · `messaging_channel:'messenger'` · `user_data:{page_id, page_scoped_user_id}` เท่านั้น · `event_id = dedupeKey` · THB) · `GRAPH_BASE = https://graph.facebook.com/v21.0` · `2xx ∧ events_received ≥ 1` = สำเร็จ
+
+**ผลข้างเคียงบน endpoint เดิม:** ไม่เปลี่ยนสัญญาของ endpoint เดิมใด ๆ — เพิ่มการเรียก `enqueue*` (ไม่ throw) หลัง commit ในบริการเดิม 13 ไฟล์ (ดู SDS §3.2) · `upsertChannel` (`shop-channel.service.ts` ตอนเชื่อมเพจที่มีแถวอยู่แล้ว) ปลุก dataset PAGE ที่ `STOPPED` ในธุรกรรมเดียวกัน · `pushMetaCapiStopped` ส่ง push `{type:'channel-health', url:'/settings/conversions-api'}` ให้ผู้ถือ `H3`
+
 ---
 
 ## §8 Enums & Constants
@@ -3310,7 +3373,7 @@ HTTP ตามตาราง §7.21
 | `ShopMember.roles` (P2 ✅) | 1-4 ค่าจาก `STAFF_ROLES` ไม่ซ้ำ · เจ้าของ = `[]` · `BILLING` เลือกได้เฉพาะร้านที่ `canUseAppointments` (vertical `SERVICE_QUEUE`) |
 | error (P2 ✅) | `INVALID_ROLES` · `BILLING_NOT_AVAILABLE` (HTTP 400) |
 | `MoneyLevel` | `FULL` (เจ้าของ) · `PER_ORDER` (ผู้ดูแล ตอบแชท เปิดบิล) · `NONE` (ฝ่ายช่าง) — ถือหลายบทบาท = ระดับสูงสุด |
-| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) · `X7` (00077 โต๊ะแชท 3D, เจ้าของเท่านั้น) · **`X8` (feature 00078 — ตั้งค่าส่งอัตโนมัติถึงลูกค้า: สวิตช์/เพดาน/เทมเพลต · `[OWNER, MANAGER]` · ออกแบบแล้ว ยังไม่ implement — ดู §9.12)** — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
+| capability id (ตาม BRD §8.3) | `H1` `H2` `H3` · `O1` `O2` `O2s` `O3` `O4` `O5` `O6` `O7` · `D1` · `S1` `S2` · `P1` `P2` `P3` · `Q1` `Q2` · `C1` `C2` `C3` · `F1` `F2` `F3` `F4` · `T1` `T2` `T3` `T4` · `X1`-`X6` (เพิ่มโดยมติ P3: ประมูล / เครื่องมือแชทเสริม / สร้างออเดอร์อัตโนมัติ / ผลงานตัวเอง / โปรไฟล์ใบเสร็จ / ดูแผนตรวจสอบร้านอย่างเดียว C-13) · `X7` (00077 โต๊ะแชท 3D, เจ้าของเท่านั้น) · **`X8` (feature 00078 — ตั้งค่าส่งอัตโนมัติถึงลูกค้า: สวิตช์/เพดาน/เทมเพลต · `[OWNER, MANAGER]` · ออกแบบแล้ว ยังไม่ implement — ดู §9.12)** · **`X9` (feature 00089 — ตั้งค่าส่งยอดขายให้ Meta · `[OWNER]` เจ้าของเท่านั้น — ดู §9.17)** — capability ที่ไม่อยู่ในตาราง = เจ้าของเท่านั้น · `T4` = เจ้าของหลัก (`Shop.userId`) เท่านั้น (`PRIMARY_OWNER_ONLY` ตัดสินที่ `shop-capability.ts`) |
 | `RouteClass` (ทะเบียน `route-capabilities.ts`) | `MEMBER` · `SELF` · `BUYER` · `PUBLIC` · `PLATFORM_ADMIN` · `CRON` · `WEBHOOK` — route ที่ไม่ใช่ capability ของสมาชิกร้านต้องจัดคลาสพร้อม `reason` |
 | error | `FORBIDDEN_ROLE` (HTTP 403) |
 
@@ -3407,6 +3470,26 @@ HTTP ตามตาราง §7.21
 | `Notification.kind` (เพิ่ม) | `service_job_claimed` · `service_job_started` · `service_job_finished` · `service_job_closed` (refId = publicToken) · `staff_expense` (refId = expense id) — มติ 2026-10-30: เขียนใหม่เฉพาะ `finished`/`closed` (`SERVICE_JOB_NOTIFY_EVENTS`) · `claimed`/`started` คงไว้อ่านแถวเก่า |
 | push `data.type` (เพิ่ม) | `service-job` · `staff-expense` (+ `shopId`) |
 | error code ใหม่ | `STAFF_FLAGS_NOT_AVAILABLE` · `CLOSE_JOB_NEEDS_START_ROLE` · `ARRIVAL_MODE_REQUIRED` · `ARRIVAL_BOOKED_NEEDS_TIME` · `ARRIVAL_WALK_IN_NEEDS_QUEUE` · `ASSIGNEE_NOT_TECHNICIAN` · `SERVICE_JOB_PHOTO_REQUIRED` · `SERVICE_JOB_PHOTOS_DISABLED` · `SERVICE_JOB_PHOTO_MISSING` · `SERVICE_JOB_TOO_MANY_PHOTOS` · `SERVICE_JOB_NOT_ASSIGNEE` · `SERVICE_JOB_CLAIM_TECHNICIAN_ONLY` · `SERVICE_JOB_UNASSIGNED` · `SERVICE_JOB_ALREADY_ASSIGNED` · `SERVICE_JOB_NOT_STARTED` · `SERVICE_JOB_NOT_FINISHED` · `SERVICE_JOB_NO_SHOW_AFTER_START` (ข้อความไทย `SERVICE_JOB_ERROR_MESSAGE` · `src/lib/service-job.ts`) |
+
+### 8.21 ส่งยอดขายให้ Meta (feature 00089 — SSOT ฝั่งโค้ด: `src/lib/meta-capi/{events,triggers,payload,classify,gate,ui}.ts` + `src/services/meta-capi*.service.ts` · ทุกค่าเก็บเป็น String ไม่มี CHECK ที่ DB)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `CapiEventKey` → ชื่อ Meta (`CAPI_EVENTS` · เลือกได้ 12 ตัว · ไม่มี PaymentSlipAttached) | `PURCHASE`→Purchase · `ORDER_CREATED`→OrderCreated · `INITIATE_CHECKOUT`→InitiateCheckout (ไม่มียอด) · `ADD_PAYMENT_INFO`→AddPaymentInfo · `ORDER_SHIPPED`→OrderShipped · `ORDER_DELIVERED`→OrderDelivered · `ORDER_CANCELED`→OrderCanceled · `ORDER_RETURNED`→OrderReturned · `VIEW_CONTENT`→ViewContent · `CART_ABANDONED`→CartAbandoned · `LEAD_SUBMITTED`→LeadSubmitted · `QUALIFIED_LEAD`→QualifiedLead (2 ตัวท้าย `source=TAG_RULE` จุดจากกฎแท็กเท่านั้น · ที่เหลือ `SYSTEM`) |
+| `PurchaseAt` (`MetaCapiPageSetting.purchaseAt`) | `CREATE` (ค่าตั้งต้น) "สร้างคำสั่งซื้อ" · `CONFIRM` "ยืนยัน" = ลูกค้า/ระบบยืนยันรับ **หรือ** ชำระครบ อันไหนก่อน · `PAYMENT` "ชำระครบ" |
+| `ValueMode` (`eventOptions[k].valueMode`) | `NET` (ค่าตั้งต้น) = `totalAmount` · `NO_VAT` = `totalAmount − vatAmount` (ไม่ติดลบ · ปัด 2 ตำแหน่ง · THB) · ไม่มี "ไม่รวมค่าส่ง" |
+| `OrderTrigger` (`triggers.ts`) | `CREATED` · `DRAFT_PROMOTED` · `CONFIRMED` · `FULLY_PAID` · `SLIP` · `SHIPPED` · `DELIVERED` · `CANCELED` · `RETURNED` — `DRAFT_PROMOTED` ไม่ทำอะไรเมื่อ `countPromotedDraft=false` |
+| `MetaCapiDataset.source` | `PAGE` ใช้ token เพจ · `MANUAL` ร้านกรอก token เอง |
+| `MetaCapiDataset.status` | `ACTIVE` · `STOPPED` (token เสีย/ไม่มีสิทธิ์) |
+| `MetaCapiEvent.status` | `PENDING` · `SENT` · `FAILED` · `SKIPPED` |
+| `MetaCapiEvent.reason` | `RETRYING` · `TOKEN_OR_PERMISSION` · `MAX_ATTEMPTS` · `REJECTED` · `TOO_OLD` (`NULL` เมื่อ `SENT`) |
+| `SendOutcome` (`classifySendResult`) | `OK` (2xx ∧ `events_received ≥ 1`) · `FAIL` (2xx แต่ <1 · 4xx อื่น) · `STOP` (`error.code` ∈ {190, 102, 10, 200–299} หรือ 100 ∧ message ตรง `/missing permission/i`) · `RETRY` (`error.code` ∈ {1, 2, 4, 17, 32, 341, 613, 80004} · HTTP 429 · ≥500 · 0 = ต่อไม่ติด) |
+| `CapiErrorCode` | `FEATURE_DISABLED` · `NOT_FOUND` · `INVALID_INPUT` · `TOKEN_REQUIRED` · `DATASET_LIMIT` · `DATASET_DUPLICATE` · `PAGE_EVENTS_PERMISSION` · `META_ERROR` · `NO_CONVERSATION` |
+| `dedupeKey` (BR-CAPI-01 · unique ต่อ dataset) | `<event_key lowercase>:<orderId>` สำหรับ purchase/order_created/initiate_checkout/add_payment_info/order_shipped/order_delivered/order_canceled/order_returned · `view_content:<conversationId>:<productId>:<YYYY-MM-DD เวลาไทย>` · `cart_abandoned:<chatMessageId>` · Lead: `<event lowercase>:<conversationId>:<tagId>:<epoch ms>` (ไม่ใช่คีย์กันซ้ำ — ด่าน 30 วันตรวจแถวเดิม) |
+| `CapiPageStatus` (ป้ายบน UI · `capiPageStatus`) | `off` (ปิด/ไม่มี dataset) · `sending` (เปิด ไม่มี dataset หยุด) · `problem` (หยุดบางชุด) · `stopped` (หยุดทุกชุด) — ไม่มีสถานะเขียว (เปิดสวิตช์ ≠ Meta รับแล้ว) |
+| capability | **`X9`** = ตั้งค่า Meta CAPI = `[OWNER]` (`src/lib/shop-permissions.ts`) — ดู §9.17 |
+
+**ค่าคงที่:** dataset ≤ **3**/เพจ · `label` ≤ 60 · token ≤ 512 ไม่มีช่องว่าง · Dataset ID `^\d{1,32}$` · `testEventCode` ≤ 64 · กฎแท็ก ≤ **20**/เหตุการณ์ · `valueBaht` 0–**10,000,000** · แนบสินค้า ≤ **100** รายการ (เกิน = ไม่แนบ `contents`) · ลองใหม่ **3** ครั้ง (หลัง **1 นาที** แล้ว **5 นาที**) · เก่ากว่า **7 วัน** = `SKIPPED` · ล็อกแถวหมดอายุ **3 นาที** · เก็บแถวคิว **180 วัน** · ด่าน Lead **30 วัน** · CartAbandoned = การ์ดอายุ **24–72 ชม.** · ตัวส่ง `take` **100**/รอบ · กวาด CartAbandoned `take` **500** · `lastRequest`/`lastResponse` ตัด **4000** ตัวอักษร · log `take` ค่าตั้งต้น 20 (1–50) · `stoppedReason` ตัด 300 · วันของ `ViewContent` = เวลาไทย (+7 ชม. คงที่)
 
 ---
 
@@ -3694,6 +3777,23 @@ HTTP ตามตาราง §7.21
 - คนที่ไม่ใช่ช่างแล้ว (ลบสมาชิก · ถอดบทบาท · เลื่อน/รับโอนเป็นเจ้าของ · ปิดบัญชี) — งานเปิดที่มอบให้เขากลับเป็น "ยังไม่มีคนรับ" ใน tx เดียวกัน
 - แจ้งเตือนของร้าน: ผู้อ่านต้องตรงกับผู้รับตอนเขียน (ถูกลดสิทธิ์ = ไม่เห็นแถวเดิม)
 - ผู้ซื้อเห็นรูป/บันทึกเฉพาะร้านที่เปิด `serviceJobPhotosBuyerVisible` · **ไม่มีชื่อพนักงาน**
+
+### 9.17 ส่งยอดขายให้ Meta (feature 00089 — capability `X9`)
+
+> ต้นทาง: `docs/20 - Features/00089 - Meta Conversion API/{SRS,API}.md` · `X9: [O]` ใน `src/lib/shop-permissions.ts` (ส่งยอดขายออกนอกระบบ = ข้อมูลการเงิน จึงเจ้าของเท่านั้น · PRD Q1) · ไม่เป็น `PRIMARY_OWNER_ONLY` (เจ้าของร่วมผ่าน)
+
+| การกระทำ | เจ้าของ (X9) | ผู้ดูแล / ตอบแชท / เปิดบิล / ฝ่ายช่าง | ไม่ล็อกอิน |
+|---|---|---|---|
+| หน้า `/settings/conversions-api` (+ `[channelId]` · `/log`) | เปิดได้ (เมื่อฟีเจอร์เปิดให้ร้านนี้) | `NoPermissionCard` (ฟีเจอร์ปิด = `notFound()` ก่อนทุกบทบาท) | ไม่แสดงเนื้อหา |
+| ทุกเมธอดใต้ `/api/shops/meta-capi/**` | ได้ | 403 `FORBIDDEN_ROLE` | 401 |
+| เมนู / ทางลัด / chip บนแถว Messenger | เห็นเมื่อฟีเจอร์เปิด | ไม่เห็น (ด่านเมนูตาม X9 ผ่านทะเบียน route + `applyMetaCapiMenu`) | — |
+| `GET /api/cron/meta-capi` | — (เครื่อง cron เท่านั้น) | — | `Bearer CRON_SECRET` มิฉะนั้น 401 |
+| เหตุการณ์ที่เกิดจากการกระทำปกติของพนักงาน (สร้างออเดอร์ · ติดแท็ก) | จุดเหตุการณ์ได้ทุกบทบาทที่ทำการนั้นได้ — ไม่ต้องมี X9 | | |
+
+- ทะเบียน `route-capabilities.ts` (`status:'DECLARED'` ทุกไฟล์): 3 หน้า `settings/conversions-api/{page,[channelId]/page,[channelId]/log/page}.tsx {page:'X9'}` · `shops/meta-capi/route.ts {GET}` · `[channelId]/route.ts {GET,PUT}` · `[channelId]/datasets/route.ts {POST}` · `…/datasets/[datasetRowId]/route.ts {PATCH,DELETE}` · `…/test/route.ts {POST}` · `…/resume/route.ts {POST}` · `[channelId]/log/route.ts {GET}` ทั้งหมด `X9` (cron จัดคลาส CRON ตามปกติ)
+- **ตามแถว ไม่ใช่ตามจอ:** ทุกฟังก์ชัน service รับ `shopId` จาก session แล้ว query ด้วย `shopId` ใน `where` แรก — เพจ/dataset ของร้านอื่น = `NOT_FOUND` (ไม่บอกว่ามีอยู่) · เพจต้องเป็น Messenger และ `ACTIVE`
+- ⚠ **ผู้รับ push "หยุดส่ง" ไม่ตรง X9:** `pushMetaCapiStopped` ส่งให้ผู้ถือ **`H3` (เจ้าของ + ผู้ดูแล)** แต่หน้าปลายทางเป็น X9 → ผู้ดูแลที่แตะจะเจอ `NoPermissionCard` (ดู feature SRS §8.2 ข้อ 7)
+- token ไม่ออกจาก service (`hasToken` เท่านั้น) · หน้า log ไม่เห็น `psid`/`lastRequest`/`lastResponse`
 
 ---
 
@@ -4181,6 +4281,23 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | `shopId` | query `?shopId=` ผ่าน `readIShipShopIdFromQuery` (แบบเดียวกับ `/api/seller/iship/**`) |
 | DB | CHECK ตรงชุดค่าเดียวกัน (`reason` 4 ค่า · `outcome` 2 ค่า · `basis` 4 ค่า) + coherent (§6.76) — อีกชั้นกันค่านอกชุด |
 
+### §10.24 ส่งยอดขายให้ Meta — `Capi*Schema` (feature 00089 — `src/lib/validations.ts` + `src/services/meta-capi-settings.service.ts`)
+
+> ตรวจ 2 ชั้น: Valibot ตรวจ "รูปร่าง" ที่ route (ไม่ผ่าน = 400 `INVALID_INPUT` ข้อความจาก issue แรก) · service ตรวจ "ความหมาย" ซ้ำ (คีย์เหตุการณ์ · แท็กของร้านนี้ · เพดาน) · **ไม่มี CHECK ที่ DB**
+
+| Schema / ฟิลด์ | กฎ |
+|---|---|
+| `CapiPageUpdateSchema.enabled` | `boolean` optional |
+| `.purchaseAt` | `picklist(['CREATE','CONFIRM','PAYMENT'])` optional (service ตรวจซ้ำ) |
+| `.countPromotedDraft` | `boolean` optional |
+| `.eventOptions` | `record(string, object{ valueMode?: picklist(['NET','NO_VAT']), sendContents?: boolean, rules?: array(object{ tagId: string ≤64, valueBaht?: number }) })` · ฟิลด์ที่ไม่รู้จักถูกตัดทิ้ง · **service:** คีย์ต้องอยู่ใน 12 เหตุการณ์ · `rules` เฉพาะ `LEAD_SUBMITTED`/`QUALIFIED_LEAD` · ≤ **20** กฎ · `tagId` ไม่ว่างและทุกตัวเป็น `ShopTag` ของร้านนี้ (นับตรง `new Set`) · `valueBaht` จำกัด 0–**10,000,000** · ไม่ตรวจ `tagId` ซ้ำ (UI กัน) |
+| `CapiDatasetCreateSchema` | `source` `picklist(['PAGE','MANUAL'])` · `datasetId?` string ≤32 · `token?` string ≤512 · `label` nullish string ≤60 · `events?` `array(string)` · **service:** MANUAL ต้อง `datasetId` ตรง `^\d{1,32}$` + token ไม่ว่าง ไม่มีช่องว่าง · `events` ทุกค่าอยู่ใน 12 เหตุการณ์ (ยุบซ้ำ · ตั้งต้น `["PURCHASE"]`) · `label` ตัดช่องว่าง ว่าง = null · ≥3 dataset = `DATASET_LIMIT` |
+| `CapiDatasetUpdateSchema` | `label` nullish ≤60 · `events?` `array(string)` · `token?` ≤512 · **service:** `token` เฉพาะ `source='MANUAL'` (PAGE = `INVALID_INPUT`) · ไม่ว่าง ไม่มีช่องว่าง |
+| `CapiDatasetTestSchema` | `testEventCode?` string 1–64 (ข้อความ "Test Event Code ต้องไม่ว่าง" / "…ยาวเกิน 64 ตัวอักษร") |
+| `CapiLogQuerySchema` (query) | `status?` `picklist(PENDING\|SENT\|FAILED\|SKIPPED)` · `eventKey?` `picklist(CAPI_EVENTS)` · `cursor?` string ≤64 · `take?` string `^\d{1,3}$` → Number → service บีบ 1–50 (ค่าตั้งต้น 20) |
+| path | `channelId` / `datasetRowId` ไม่ตรวจรูปแบบ — ใช้ใน `where` ร่วมกับ `shopId` (ไม่พบ = `NOT_FOUND`) |
+| ฝั่ง UI | Yup (react-hook-form) ตอนเพิ่ม MANUAL: `datasetId` `^\d+$` · `token` ไม่ว่าง · `label` ≤60 · กฎแท็กตรวจด้วย `src/lib/meta-capi/ui.ts` (`parseRuleValue` `^\d+(\.\d{1,2})?$` 0–10,000,000 · แท็กซ้ำ/ไม่เลือก = ไม่ผ่าน) |
+
 ### 10.11 หมายเหตุ
 
 - **Valibot (backend):** ใช้กับ API routes ทุกตัวที่มี mutation — `v.safeParse()` ก่อน service call
@@ -4188,6 +4305,8 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
 ---
+
+_อัปเดต 2026-11-11 (HR11): sync feature 00089 ส่งยอดขายให้ Meta (Conversions API) — **เขียนจากโค้ดบน working tree (ยังไม่ commit/merge · ไม่ได้รันเทส)** — §3.4 (3 หน้า `/settings/conversions-api/**`) · §5.5 (env `OPEN_META_CAPI` · `META_CAPI_PILOT_SHOP_IDS` + หมายเหตุสิทธิ์ `page_events`) · §6.78 (โมเดล `MetaCapiPageSetting` · `MetaCapiDataset` · `MetaCapiEvent`) · §7.20 (cron `/api/cron/meta-capi` ทุกนาที) · §7.35 (API 9 เมธอด) · §8.14 + §8.21 (capability `X9` · enum/ค่าคงที่) · §9.17 (สิทธิ์) · §10.24 (Valibot) — จุดที่โค้ดไม่ตรง PRD/BRD บันทึกใน `docs/20 - Features/00089 - Meta Conversion API/SRS.md` §8.2._
 
 _อัปเดต 2026-10-26 (HR11): sync feature 00085 ร้านปิดพัสดุที่มีปัญหา — **เขียนจากโค้ดที่ implement แล้ว** (worktree `safepay-sales-fix`, branch `feat/00085-close-problem-parcel`) — §2.1b (กอง `DELIVERY_FAILED`) · §6.2 OrderEvent (35 ค่า) · §6.76 (คอลัมน์ `OrderShipment.problemClose*` 8 ตัว + CHECK 4 + migration 2) · §7.13 (กติกายอดขาย) · §7.33 (API 3 เมธอด) · §8.1b + §8.19 (enum) · §9.15 (S1) · §10.23 (Valibot)._
 

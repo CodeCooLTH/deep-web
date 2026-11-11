@@ -234,7 +234,7 @@ export async function assertShopsHoldCap(shopIds: string[], userId: string, cap:
  * ที่เปิดอ่านไม่ได้ (ได้ 403) · กฎ PERSONAL/BILLING อยู่ใน effectiveRoles ที่เดียว (ไม่เขียนซ้ำ)
  * ร้าน PERSONAL = เจ้าของ · ร้านทีม = ต้องมีแถว ShopMember (เหมือน canAccessShopWith)
  */
-export async function userIdsHoldingCap(shopIds: string[], cap: ChatCap): Promise<Map<string, Set<string>>> {
+export async function userIdsHoldingCap(shopIds: string[], cap: ChatCap | "X9"): Promise<Map<string, Set<string>>> {
   const out = new Map<string, Set<string>>(shopIds.map((id) => [id, new Set<string>()]));
   if (shopIds.length === 0) return out;
   const shops = await prisma.shop.findMany({

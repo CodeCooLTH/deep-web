@@ -22,6 +22,7 @@
  * Paces primitive เท่านั้น — ห้าม arbitrary value (Hard Rule 7)
  */
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
@@ -51,6 +52,8 @@ interface ChannelRow {
 
 interface ChannelsClientProps {
   initialChannels: ChannelRow[]
+  /** 00089 — โชว์ chip "ส่งยอดให้ Meta" บนแถว Messenger (ฟีเจอร์เปิดให้ร้านนี้ ∧ ผู้ดูเป็นเจ้าของ X9) · ไม่ส่ง = ซ่อน */
+  showCapiChip?: boolean
 }
 
 // ─── Provider display config ────────────────────────────────────────────────
@@ -86,7 +89,7 @@ function callbackStatusMessage(t: Dictionary): Record<string, string> {
   }
 }
 
-export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
+export function ChannelsClient({ initialChannels, showCapiChip = false }: ChannelsClientProps) {
   const t = useT()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -341,6 +344,16 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
                         (338px > 280px ที่ 320px) จะตกบรรทัดเองโดยไม่หลุดออกนอกกล่อง action */}
                     {showIceBreaker && (
                       <IceBreakerChip channelId={channel.id} tokenInvalid={isTokenInvalid} />
+                    )}
+                    {/* 00089 — ทางเข้า Conversions API ของเพจนี้ (เฉพาะ Messenger · เพจที่ token เสียเข้าไปดูสถานะ/เชื่อมใหม่ได้) */}
+                    {showCapiChip && channel.provider === 'MESSENGER' && (
+                      <Link
+                        href={`/settings/conversions-api/${channel.id}`}
+                        className="btn btn-sm bg-default-100 text-default-800 hover:bg-default-200 inline-flex min-h-11 items-center gap-1.5 sm:min-h-0"
+                      >
+                        <Icon icon="tabler:ad-2" className="text-sm" aria-hidden="true" />
+                        {t.conversionsApi.channelsChip}
+                      </Link>
                     )}
                   </div>
                 </div>

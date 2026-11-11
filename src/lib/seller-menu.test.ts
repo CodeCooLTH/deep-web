@@ -83,6 +83,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings',
         'seller:settings-auto-reply',
         'seller:settings-channels',
+        // เพิ่ม 2026-11-11 (00089) — เมนู Conversions API · slug ใหม่ล้วน ไม่มีแถว SellerShortcutPreference เดิมอ้างถึงได้
+        'seller:settings-conversions-api',
         // เพิ่ม 2026-08-12 — เมนู "ประเภทงาน" (ย้ายออกจาก /queues)
         // slug ใหม่ล้วน ไม่มีแถว SellerShortcutPreference เดิมอ้างถึงได้ จึงเป็นการเพิ่มที่ปลอดภัย
         // 🛑 การ "แก้เทสให้ผ่าน" ที่ปลอดภัยคือการ *เพิ่ม* เท่านั้น — ถ้าวันไหนต้อง **ลบ/เปลี่ยนชื่อ**

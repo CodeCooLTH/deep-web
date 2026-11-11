@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00089 ส่งยอดขายให้ Meta (Conversions API) — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00078 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-lg:0 4px 16px rgba(76,76,92,.2); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --shadow-lg:0 4px 16px rgba(0,0,0,.45); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces — กล่องแตะ 44×44 วาดราง 30×20 */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; width:44px; height:44px; margin:-12px -7px; background:transparent; border:0; cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:7px; top:12px; width:30px; height:20px; border-radius:9999px; background:var(--d200); border:1px solid var(--d300); box-sizing:border-box; }
+  .form-switch::after { content:""; position:absolute; left:11px; top:16px; width:12px; height:12px; border-radius:9999px; background:var(--knob); transition:transform .15s; }
+  .form-switch:checked::before { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::after { background:#fff; transform:translateX(14px); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  /* .form-radio ของ Paces 18px */
+  .form-radio { appearance:none; width:18px; height:18px; border-radius:9999px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; margin-top:2px; }
+  .form-radio:checked { border:5px solid var(--primary); }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .tabbtn[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .badge { display:inline-flex; align-items:center; gap:.25rem; border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; white-space:nowrap; }
+    .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+    .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border-bottom:1px dashed var(--d300); padding:15px 20px; }
+    .card-title { font-size:15px; font-weight:500; color:var(--d900); }
+    .card-body { padding:20px; }
+    .card-footer { border-top:1px solid var(--d200); padding:15px 20px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; white-space:nowrap; }
+    .btn-sm { padding:.25rem .625rem; font-size:13px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px; border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+    .form-input, .form-select { display:block; width:100%; border:1px solid var(--d300); border-radius:4px; background:var(--card); color:var(--d900); padding:.5rem .75rem; font-size:14px; }
+    .form-select { appearance:none; padding-inline-end:2rem; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358626b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .6rem center; background-size:16px; }
+    .form-input::placeholder { color:var(--d500); }
+    .form-label { display:block; margin-bottom:.25rem; font-size:13px; font-weight:500; color:var(--d800); }
+    .input-group { display:flex; width:100%; }
+    .input-group > * + * { margin-inline-start:-1px; }
+    .input-group > :not(:first-child) { border-start-start-radius:0; border-end-start-radius:0; }
+    .input-group > :not(:last-child) { border-start-end-radius:0; border-end-end-radius:0; }
+    .input-group > .form-input { flex:1; min-width:0; }
+    .input-group-text { display:flex; align-items:center; border:1px solid var(--d300); border-radius:4px; background:var(--d100); padding:0 .75rem; font-size:14px; color:var(--d700); }
+    .nav-tab { display:inline-flex; align-items:center; gap:.375rem; margin-bottom:-1px; border-bottom:2px solid transparent; padding:.5rem .25rem; font-size:14px; color:var(--d700); white-space:nowrap; }
+    .nav-tab.active { border-color:var(--primary); color:var(--primary-ink); font-weight:500; }
+  }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-10 border-b border-d300" style="background:var(--card)">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00089 ส่งยอดขายให้ Meta (Conversions API) · ฝั่งผู้ขาย ธีม Paces</h1>
+      <p class="text-xs text-d600">ตาม Design-Spec.md (D1–D7) · 3 หน้า × Desktop 1280 / Tablet 768 / Mobile 390 · ข้อมูลตัวอย่าง: ร้านน้ำหอม A</p>
+    </div>
+    <nav class="flex flex-wrap gap-2" role="tablist" aria-label="เลือกหน้าจอ">
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s1" aria-selected="true">1 รายการเพจ</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s2" aria-selected="false">2 รายละเอียดเพจ</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s3" aria-selected="false">3 บันทึกการส่ง</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="all" aria-selected="false">ทั้งหมด</button>
+    </nav>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="${n.includes(':') ? n : 'tabler:' + n}" width="${s}" height="${s}" class="${c}" aria-hidden="true"></iconify-icon>`
+const DEVS = [
+  { k: 'd', w: 1280, label: 'Desktop 1280' },
+  { k: 't', w: 768, label: 'Tablet 768' },
+  { k: 'm', w: 390, label: 'Mobile 390' },
+]
+const M = (dev) => dev.k !== 'd' // <1024 = seller mobile shell (ไม่มี sidebar)
+const T44 = (dev) => (M(dev) ? 'min-h-11' : '')
+let UID = 0
+const uid = (p) => `${p}-${++UID}`
+
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},45%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function frame(dev, inner) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame" style="width:${dev.w}px">${inner}</div></div>`
+}
+function section(id, group, title, notes, body) {
+  return `<section id="${id}" data-group="${group}"><h2 class="mb-1 text-lg font-bold text-d900">${title}</h2>
+    <ul class="mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li class="mt-0.5">${n}</li>`).join('')}</ul>${body}</section>`
+}
+const row3 = (fn) => `<div class="flex flex-wrap items-start gap-10">${DEVS.map((d) => frame(d, fn(d))).join('')}</div>`
+
+// ---------- ชิ้นส่วนกลาง ----------
+const TONE = {
+  primary: 'bg-primary15 text-primary-ink', danger: 'bg-danger15 text-danger-ink', success: 'bg-success15 text-success-ink',
+  warning: 'bg-warning15 text-warning-ink', neutral: 'bg-d200 text-d800',
+}
+const badge = (tone, text, icon) => `<span class="badge ${TONE[tone]}">${icon ? IC(icon, 12) : ''}${text}</span>`
+const sw = (on, label, dis = false, title = '') => `<input type="checkbox" class="form-switch" ${on ? 'checked' : ''} ${dis ? 'disabled' : ''} aria-label="${label}" ${title ? `title="${title}"` : ''} />`
+function avatar(h, size = 'size-10') {
+  return `<span class="relative shrink-0"><img src="${photo(h)}" alt="" class="${size} rounded-full" />
+    <span class="absolute -bottom-0.5 -end-0.5 flex size-4 items-center justify-center rounded-full bg-card">${IC('logos:messenger', 12)}</span></span>`
+}
+function crumbs(items) {
+  return `<nav aria-label="breadcrumb" class="mb-1 flex flex-wrap items-center gap-1.25 text-xs font-medium text-d600">${items.map((c, i) => i === items.length - 1 ? `<span aria-current="page" class="text-d700">${c}</span>` : `${c} ${IC('chevron-right', 12)}`).join(' ')}</nav>`
+}
+function sideNav() {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[245px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">CHAT</p>
+    <ul class="mb-3 space-y-0.5">${it('message-circle', 'ข้อความ')}${it('tags', 'แท็ก')}${it('send', 'ส่งอัตโนมัติถึงลูกค้า')}</ul>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">SETTING</p>
+    <ul class="space-y-0.5">${it('building-store', 'ร้านค้า')}${it('world', 'ตั้งค่าหน้าร้าน')}${it('truck-delivery', 'การจัดส่ง')}${it('plug-connected', 'ช่องทางการขาย')}${it('ad-2', 'ส่งยอดขายให้ Meta', 1)}</ul></aside>`
+}
+const BOTTOM = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+function shell(dev, { trail, title, mTitle, sub }, inner) {
+  const head = dev.k === 'd'
+    ? `<div class="mb-5">${crumbs(trail)}<h3 class="text-lg font-semibold text-d900">${title}</h3>${sub ? `<p class="mt-1 max-w-4xl text-sm text-d700">${sub}</p>` : ''}</div>`
+    : sub ? `<p class="mb-4 text-sm text-d700">${sub}</p>` : ''
+  if (dev.k === 'd') {
+    return `<div class="flex">${sideNav()}<div class="min-w-0 flex-1">
+      <div class="flex h-[65px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto flex items-center gap-4">${IC('bell', 20, 'text-d700')}<img src="${photo(30)}" alt="" class="size-8 rounded-full" /></span></div>
+      <div class="p-5">${head}${inner}</div></div></div>`
+  }
+  return `<div class="flex min-h-14 items-center gap-2 border-b border-d200 bg-card px-2">
+      <button type="button" aria-label="ย้อนกลับ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button>
+      <span class="min-w-0 truncate text-md font-semibold text-d900">${mTitle}</span></div>
+    <div class="p-4">${head}${inner}</div>
+    <nav class="grid h-[72px] grid-cols-5 items-center border-t border-d200 bg-card">${BOTTOM.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === 'เมนู' ? 'font-medium text-primary-ink' : 'text-d600'}">${IC(i, 22)}${l}</span>`).join('')}</nav>`
+}
+
+// =====================================================================
+// หน้า 1 — รายการเพจ
+// =====================================================================
+const PAGES = [
+  { n: 'ร้านน้ำหอม A', h: 210, st: 'on', partial: 1, sent: '1,248', when: 'ชำระครบ', on: true },
+  { n: 'ร้านน้ำหอม A สาขา 2', h: 20, st: 'stopped', sent: '0', when: 'สร้างคำสั่งซื้อ', on: true },
+  { n: 'ร้านน้ำหอม A ขายส่ง', h: 150, st: 'on', sent: '1,248,305', when: 'ยืนยัน', on: true },
+  { n: 'เพจทดลอง', h: 280, st: 'off', sent: '–', when: 'ไม่ได้เปิด', on: false, noDs: true },
+]
+const P1 = {
+  trail: ['หน้าแรก', 'ตั้งค่า', 'ส่งยอดขายให้ Meta'], title: 'ส่งยอดขายให้ Meta', mTitle: 'ส่งยอดขายให้ Meta',
+  sub: 'ส่งยอดขายและความคืบหน้าของคำสั่งซื้อจากแชท Messenger กลับไปให้ Meta เพื่อให้ Ads Manager เห็นว่าโฆษณาไหนปิดการขายได้ · ส่งแค่รหัสเพจกับรหัสลูกค้าในแชท ไม่ส่งชื่อหรือเบอร์',
+}
+const stBadge = (p) => p.st === 'on' ? badge('primary', 'ส่งอยู่') : p.st === 'off' ? badge('neutral', 'ปิด') : badge('danger', 'หยุดเพราะ token เสีย', 'alert-triangle')
+const stSub = (p) => p.partial ? `<p class="mt-0.5 text-xs text-danger-ink">ชุดข้อมูล ${p.partial} ตัวหยุด</p>` : p.noDs ? `<p class="mt-0.5 text-xs text-d700">ยังไม่มีชุดข้อมูล</p>` : ''
+const reconnect = (dev, cls = '') => `<a href="#" class="btn btn-sm ${T44(dev)} bg-primary15 text-primary-ink ${cls}">${IC('plug-connected', 14)}เชื่อมเพจใหม่</a>`
+const pageSw = (p) => sw(p.on, `ส่งเหตุการณ์ของเพจ ${p.n}`, !!p.noDs, p.noDs ? 'เพิ่มชุดข้อมูลก่อนถึงจะเปิดส่งได้' : '')
+const chev = (p) => `<a href="#" aria-label="ตั้งค่าเพจ ${p.n}" class="flex size-9 items-center justify-center text-d500">${IC('chevron-right', 18)}</a>`
+function listHeader(dev, n) {
+  return `<div class="card-header"><h4 class="card-title">เพจ Messenger ที่เชื่อมไว้ (${n})</h4>
+    <a href="#" class="btn ${dev.k === 'm' ? 'min-h-11 w-full' : T44(dev)} border border-d300 text-d800">${IC('plus', 16)}เชื่อมเพจเพิ่ม</a></div>`
+}
+function pagesDesktop() {
+  const th = (t, c = '') => `<th scope="col" class="px-4 py-2.5 text-start font-medium ${c}">${t}</th>`
+  const rows = PAGES.map((p) => `<tr class="hover:bg-d50">
+    <td class="px-4 py-3 ps-5"><div class="flex items-center gap-3">${avatar(p.h)}<div class="min-w-0"><p class="max-w-[240px] truncate font-medium text-d900" title="${p.n}">${p.n}</p><p class="text-xs text-d700">Messenger</p></div></div></td>
+    <td class="px-4 py-3">${stBadge(p)}${stSub(p)}${p.st === 'stopped' ? `<div class="mt-1.5">${reconnect({ k: 'd' })}</div>` : ''}</td>
+    <td class="whitespace-nowrap px-4 py-3 text-end tabular-nums text-d900">${p.sent}</td>
+    <td class="px-4 py-3 ${p.when === 'ไม่ได้เปิด' ? 'text-d600' : 'text-d800'}">${p.when}</td>
+    <td class="px-4 py-3">${pageSw(p)}</td>
+    <td class="py-3 pe-3">${chev(p)}</td></tr>`).join('')
+  return `<div class="card">${listHeader({ k: 'd' }, PAGES.length)}
+    <table class="w-full text-sm"><thead class="bg-d50 text-xs text-d700"><tr>${th('เพจ', 'ps-5')}${th('สถานะ')}${th('ส่งสำเร็จ 7 วัน', 'text-end')}${th('Purchase ส่งเมื่อ')}${th('ส่ง')}<th><span class="sr-only">เปิด</span></th></tr></thead>
+    <tbody class="rowsdiv">${rows}</tbody></table></div>`
+}
+function pagesCards(dev) {
+  const m = dev.k === 'm'
+  const rows = PAGES.map((p) => {
+    const facts = p.st === 'stopped'
+      ? `<div class="mt-2">${reconnect(dev)}</div>`
+      : p.noDs ? '' : m
+        ? `<p class="mt-1 text-xs text-d700">สำเร็จ 7 วัน <span class="tabular-nums text-d900">${p.sent}</span></p><p class="text-xs text-d700">Purchase ส่งเมื่อ${p.when}</p>`
+        : `<p class="mt-1 text-xs text-d700">ส่งสำเร็จ 7 วัน <span class="tabular-nums text-d900">${p.sent}</span> · Purchase ส่งเมื่อ${p.when}</p>`
+    if (m) {
+      return `<li class="flex gap-3 px-4 py-3.5">${avatar(p.h)}
+        <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="min-w-0 flex-1 truncate font-medium text-d900" title="${p.n}">${p.n}</p>${pageSw(p)}</div>
+        <div class="mt-1 flex flex-wrap items-center gap-x-2">${stBadge(p)}${p.noDs ? '<span class="text-xs text-d700">ยังไม่มีชุดข้อมูล</span>' : ''}</div>${p.partial ? stSub(p) : ''}${facts}</div>
+        <span class="self-center text-d500">${IC('chevron-right', 18)}</span></li>`
+    }
+    return `<li class="flex items-start gap-3 px-5 py-3.5">${avatar(p.h)}
+      <div class="min-w-0 flex-1"><p class="truncate font-medium text-d900" title="${p.n}">${p.n}</p>${stSub(p)}${facts}</div>
+      <div class="flex shrink-0 items-center gap-3">${stBadge(p)}${pageSw(p)}<span class="text-d500">${IC('chevron-right', 18)}</span></div></li>`
+  }).join('')
+  return `<div class="card">${listHeader(dev, PAGES.length)}<ul class="rowsdiv">${rows}</ul></div>`
+}
+function emptyCard(dev) {
+  return `<div class="card"><div class="card-body flex flex-col items-center py-10 text-center">
+    <span class="mb-3 flex size-14 items-center justify-center rounded-full bg-d100 text-d500">${IC('brand-messenger', 28)}</span>
+    <p class="text-md font-semibold text-d900">ยังไม่มีเพจ Messenger ที่เชื่อมไว้</p>
+    <p class="mt-1 max-w-sm text-sm text-d700">เชื่อมเพจ Facebook ก่อน แล้วกลับมาเปิดการส่งยอดที่นี่</p>
+    <a href="#" class="btn ${dev.k === 'm' ? 'min-h-11 w-full' : T44(dev)} mt-4 bg-primary text-white">${IC('plug-connected', 16)}เชื่อมเพจ Facebook</a></div></div>`
+}
+function swalFirst(dev) {
+  const m = dev.k === 'm'
+  return `<div class="relative" style="height:${m ? 520 : 460}px"><div class="opacity-60">${shell(dev, P1, dev.k === 'd' ? pagesDesktop() : pagesCards(dev))}</div>
+    <div class="absolute inset-0 bg-black/45"></div>
+    <div role="dialog" aria-modal="true" class="absolute inset-x-0 top-20 mx-auto rounded-lg bg-card p-6 text-center" style="width:${m ? 340 : 440}px;box-shadow:var(--shadow-lg)">
+      <span class="mx-auto mb-3 flex size-16 items-center justify-center rounded-full border-4 text-primary" style="border-color:var(--primary15)">${IC('question-mark', 34)}</span>
+      <p class="text-lg font-semibold text-d900">เปิดส่งเหตุการณ์ของเพจ เพจทดลอง?</p>
+      <p class="mt-2 text-sm text-d700">ระบบจะส่งเฉพาะเหตุการณ์ที่เกิดหลังจากนี้ ไม่ส่งย้อนหลัง</p>
+      <div class="mt-5 flex justify-center gap-2"><span class="btn min-h-11 bg-primary text-white">เปิดการส่ง</span><span class="btn min-h-11 border border-d300 text-d800">ยังไม่เปิด</span></div></div></div>`
+}
+
+// =====================================================================
+// หน้า 2 — รายละเอียดเพจ
+// =====================================================================
+const P2 = { trail: ['หน้าแรก', 'ตั้งค่า', 'ส่งยอดขายให้ Meta', 'ร้านน้ำหอม A'], title: 'ร้านน้ำหอม A', mTitle: 'ร้านน้ำหอม A' }
+const DS = [
+  { name: 'ชุดข้อมูลของเพจ', src: 'อัตโนมัติจากเพจ', id: '1234567890123456', token: 'ใช้ token ของเพจ', code: 'TEST12345', result: 'ok' },
+  { name: 'เว็บไซต์ร้าน', src: 'กรอกเอง', id: '9988776655443322', token: 'token ตั้งไว้แล้ว', manual: true, stopped: true, code: '' },
+]
+function headerStrip(dev) {
+  const m = dev.k === 'm'
+  const who = `<div class="flex min-w-0 items-center gap-3">${avatar(210, 'size-12')}<div class="min-w-0">
+    <p class="truncate text-base font-semibold text-d900">ร้านน้ำหอม A</p>
+    <p class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-d700">Messenger · ${badge('primary', 'ส่งอยู่')}</p>
+    <p class="mt-0.5 text-xs text-danger-ink">ชุดข้อมูล 1 ตัวหยุด</p></div></div>`
+  const ctl = (id) => `<label for="${id}" class="text-sm font-medium text-d900">ส่งเหตุการณ์ของเพจนี้</label><input id="${id}" type="checkbox" class="form-switch" checked />`
+  if (m) return `<div class="card"><div class="card-body" style="padding:16px">${who}</div><div class="flex min-h-14 items-center justify-between gap-3 border-t border-d200 px-4">${ctl(uid('main'))}</div></div>`
+  return `<div class="card"><div class="card-body flex items-center justify-between gap-4">${who}<div class="flex shrink-0 items-center gap-4">${ctl(uid('main'))}</div></div></div>`
+}
+function bannerManual() {
+  return `<div role="alert" class="flex items-start gap-2.5 rounded-lg bg-danger15 p-3 text-sm text-danger-ink">${IC('alert-triangle', 18, 'mt-0.5')}
+    <div><p class="font-semibold">ชุดข้อมูล เว็บไซต์ร้าน หยุดส่ง</p><p class="mt-0.5">Meta ไม่รับ token ที่ใส่ไว้ ไปที่ชุดข้อมูลนี้แล้วกด "เปลี่ยน token" เหตุการณ์ที่ค้างอยู่ (ไม่เกิน 7 วัน) จะส่งต่อให้เอง</p></div></div>`
+}
+function bannerAuto(dev) {
+  return `<div role="alert" class="flex flex-wrap items-start gap-2.5 rounded-lg bg-danger15 p-3 text-sm text-danger-ink">${IC('alert-triangle', 18, 'mt-0.5')}
+    <div class="min-w-0 flex-1"><p class="font-semibold">ชุดข้อมูลของเพจหยุดส่ง</p><p class="mt-0.5">Meta ไม่รับ token ของเพจนี้แล้ว เหตุการณ์ที่ค้างอยู่ (ไม่เกิน 7 วัน) จะส่งต่อให้เองหลังเชื่อมเพจใหม่</p></div>
+    ${reconnect(dev, dev.k === 'm' ? 'w-full' : 'self-center')}</div>`
+}
+const STATS = [['ส่งสำเร็จ', '1,248', ''], ['ล้มเหลว', '3', 'text-danger-ink font-semibold'], ['รอส่ง', '14', ''], ['ส่งล่าสุด', '11-11-2569 14:32:08', '']]
+function resultsCard(dev) {
+  if (dev.k === 'm') {
+    return `<a href="#" class="card flex-row items-center gap-3 px-4 py-3 min-h-11">
+      <div class="min-w-0 flex-1"><p class="text-sm font-medium text-d900">ผลการส่ง 7 วัน</p>
+      <p class="text-xs text-d700">สำเร็จ <span class="tabular-nums text-d900">1,248</span> · ล้มเหลว <span class="font-semibold tabular-nums text-danger-ink">3</span> · รอ <span class="tabular-nums text-d900">14</span></p></div>
+      <span class="flex items-center gap-1 text-xs font-medium text-primary-ink">ดูบันทึก ${IC('chevron-right', 16)}</span></a>`
+  }
+  if (dev.k === 't') {
+    return `<div class="card"><div class="card-header"><h4 class="card-title">ผลการส่ง 7 วัน</h4><a href="#" class="btn btn-sm min-h-11 border border-d300 text-d800">ดูบันทึกการส่ง ${IC('chevron-right', 14)}</a></div>
+      <dl class="grid grid-cols-4 gap-4 px-5 py-4">${STATS.map(([k, v, c]) => `<div><dt class="text-xs text-d700">${k}</dt><dd class="mt-0.5 whitespace-nowrap text-sm tabular-nums text-d900 ${c}">${v}</dd></div>`).join('')}</dl></div>`
+  }
+  return `<div class="card"><div class="card-header"><h4 class="card-title">ผลการส่ง 7 วัน</h4></div>
+    <div class="card-body" style="padding-top:8px;padding-bottom:16px"><dl class="rowsdiv">${STATS.map(([k, v, c]) => `<div class="flex items-center justify-between py-2"><dt class="text-d700">${k}</dt><dd class="tabular-nums text-d900 ${c}">${v}</dd></div>`).join('')}</dl>
+    <a href="#" class="btn mt-3 w-full border border-d300 text-d800">${IC('history', 16)}ดูบันทึกการส่ง</a></div></div>`
+}
+function testBlock(dev, d) {
+  const id = uid('tec')
+  const m = dev.k === 'm'
+  const helper = d.code ? 'ใส่รหัส = ส่ง Purchase ฿1 ไปที่แท็บ Test Events ใน Events Manager' : 'ไม่ใส่รหัส = ตรวจแค่ว่า token ใช้ได้'
+  const btn = `<button type="button" class="btn ${m ? 'min-h-11 w-full' : ''} border border-d300 text-d800">${IC('send', 16)}ทดสอบ</button>`
+  return `<div class="mt-3"><label for="${id}" class="form-label">Test Event Code</label>
+    ${m ? `<input id="${id}" class="form-input min-h-11" placeholder="เช่น TEST12345" value="${d.code}" /><p class="mt-1 text-xs text-d700">${helper}</p><div class="mt-2">${btn}</div>`
+      : `<div class="input-group max-w-md"><input id="${id}" class="form-input" placeholder="เช่น TEST12345" value="${d.code}" />${btn}</div><p class="mt-1 text-xs text-d700">${helper}</p>`}
+    ${d.result ? `<div class="mt-2">${testResult(d.result)}</div>` : ''}</div>`
+}
+function testResult(kind) {
+  const R = {
+    ok: ['success', 'circle-check', 'ส่งสำเร็จ เปิดแท็บ Test Events ใน Events Manager จะเห็น Purchase ฿1'],
+    token: ['success', 'circle-check', 'token ใช้ได้'],
+    loading: ['neutral', 'loader-2', 'กำลังส่ง…'],
+    fail: ['danger', 'circle-x', 'Meta ไม่รับ token นี้ ใส่ token ใหม่ หรือเชื่อมเพจใหม่'],
+    nochat: ['danger', 'circle-x', 'เพจนี้ยังไม่มีห้องแชท ทดสอบส่งไม่ได้ ให้ลูกค้าทักเพจสักครั้งแล้วลองใหม่'],
+  }[kind]
+  const c = { success: 'bg-success15 text-success-ink', danger: 'bg-danger15 text-danger-ink', neutral: 'bg-d100 text-d800' }[R[0]]
+  return `<div role="status" aria-live="polite" class="flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm ${c}">${IC(R[1], 18, 'mt-0.5')}<span>${R[2]}</span></div>`
+}
+function dsRow(dev, d) {
+  const m = dev.k === 'm'
+  return `<li class="py-4">
+    <div class="flex flex-wrap items-center gap-2"><span class="min-w-0 truncate text-sm font-medium text-d900" title="${d.name}">${d.name}</span>${badge('neutral', d.src)}${d.stopped ? badge('danger', 'หยุดส่ง', 'alert-triangle') : ''}
+      <button type="button" aria-label="ลบชุดข้อมูล ${d.name}" class="btn-icon ms-auto ${m ? 'size-11' : ''}">${IC('trash', 16)}</button></div>
+    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-d700"><span class="whitespace-nowrap tabular-nums">Dataset ID ${d.id}</span>${m ? '' : '<span aria-hidden="true">·</span>'}
+      <span class="${m ? 'basis-full' : ''} inline-flex items-center gap-1">${IC('lock', 14, 'text-d500')}${d.token}${d.manual ? ` <button type="button" class="${m ? 'min-h-11' : ''} ms-1 font-medium text-primary-ink underline underline-offset-2">เปลี่ยน token</button>` : ''}</span></p>
+    ${testBlock(dev, d)}</li>`
+}
+function addPanel(dev) {
+  const m = dev.k === 'm'
+  const n = uid('add')
+  const radio = (checked, title, desc) => `<label class="flex ${m ? 'min-h-11' : ''} cursor-pointer items-start gap-2.5 rounded p-2 ${checked ? 'bg-card' : ''}"><input type="radio" name="${n}" class="form-radio" ${checked ? 'checked' : ''} />
+    <span><span class="block text-sm font-medium text-d900">${title}</span><span class="block text-xs text-d700">${desc}</span></span></label>`
+  const f = (label, attrs, help = '') => { const id = uid('f'); return `<div><label for="${id}" class="form-label">${label}</label><input id="${id}" class="form-input ${T44(dev)}" ${attrs} />${help ? `<p class="mt-1 text-xs text-d700">${help}</p>` : ''}</div>` }
+  return `<div class="mb-4 rounded-lg bg-d100 p-3">
+    <fieldset><legend class="mb-1 text-sm font-semibold text-d900">เพิ่มชุดข้อมูล</legend>
+    <div class="grid gap-1 ${m ? '' : 'grid-cols-2'}">${radio(false, 'ใช้ชุดข้อมูลของเพจ', 'ระบบหาให้เองด้วยสิทธิ์ของเพจ ไม่ต้องกรอกอะไร ถ้าเพจยังไม่มีจะสร้างให้')}
+    ${radio(true, 'กรอกชุดข้อมูลของฉันเอง', 'ใช้ Dataset ID กับ access token จาก Events Manager เหมาะกับร้านที่รวมข้อมูลไว้ชุดเดียวกับเว็บไซต์')}</div></fieldset>
+    <div class="mt-3 grid gap-3 ${dev.k === 'd' ? 'grid-cols-3' : dev.k === 't' ? 'grid-cols-2' : ''}">
+      ${f('ชื่อเรียก (ไม่บังคับ)', 'placeholder="เช่น ไลน์ขายส่ง" value="ร้านขายส่ง"')}
+      ${f('Dataset ID', 'inputmode="numeric" value="5566778899001122"')}
+      ${f('Access token', 'type="password" autocomplete="off" value="EAAGxxxxxxxxxxxxxxxx"', 'เก็บแบบเข้ารหัส และจะไม่แสดงให้ดูอีกหลังบันทึก')}
+    </div>
+    <div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" class="btn ${m ? 'min-h-11 flex-1' : ''} bg-primary text-white">ตรวจและบันทึก</button><button type="button" class="btn ${T44(dev)} text-d700">ยกเลิก</button></div></div>`
+}
+function datasetsCard(dev, { add = true } = {}) {
+  return `<div class="card"><div class="card-header"><h4 class="card-title">ชุดข้อมูล (Dataset) <span class="tabular-nums text-d700">2/3</span></h4>
+    <button type="button" aria-expanded="${add}" class="btn ${dev.k === 'm' ? 'btn-sm min-h-11' : ''} ${add ? 'bg-primary15 text-primary-ink' : 'bg-primary text-white'}">${IC('plus', 16)}เพิ่มชุดข้อมูล</button></div>
+    <div class="card-body" style="padding-top:12px;padding-bottom:4px">${add ? addPanel(dev) : ''}<ul class="rowsdiv">${DS.map((d) => dsRow(dev, d)).join('')}</ul></div></div>`
+}
+
+// 12 เหตุการณ์ (ลำดับ/คำตาม spec §D)
+const AMT = 'ยอดสุทธิ · แนบสินค้า'
+const EVENTS = [
+  ['ก่อนซื้อ', [
+    { th: 'ดูสินค้า', meta: 'ViewContent', desc: 'ส่งการ์ดสินค้าในห้องแชท วันละครั้งต่อห้องต่อสินค้า', on: true, note: 'ส่งราคาสินค้าตามการ์ด' },
+    { th: 'สนใจ', meta: 'LeadSubmitted', desc: 'เมื่อห้องแชทติดแท็กตามกฎด้านล่าง', on: true, note: 'ยอดตามกฎแท็กด้านล่าง (2 กฎ)' },
+    { th: 'สนใจจริง', meta: 'QualifiedLead', desc: 'เมื่อห้องแชทติดแท็กตามกฎด้านล่าง', on: true, note: 'ยอดตามกฎแท็กด้านล่าง (1 กฎ)' },
+    { th: 'ทิ้งตะกร้า', meta: 'CartAbandoned', desc: 'ส่งการ์ดคำสั่งซื้อแล้ว 24–72 ชั่วโมง ยังไม่ชำระและไม่มีสลิป', on: false, amt: 'ยอดสุทธิ' },
+  ]],
+  ['ซื้อและชำระ', [
+    { th: 'ซื้อ', meta: 'Purchase', desc: 'ส่งเมื่อชำระครบ · <a href="#" class="font-medium text-primary-ink underline underline-offset-2">เปลี่ยน</a>', on: true, amt: AMT, hero: true, open: true },
+    { th: 'สร้างคำสั่งซื้อ', meta: 'OrderCreated', desc: 'เมื่อสร้างคำสั่งซื้อในห้องแชท', on: true, amt: 'ยอดสุทธิ' },
+    { th: 'ส่งลิงก์คำสั่งซื้อ', meta: 'InitiateCheckout', desc: 'เมื่อการ์ดหรือลิงก์คำสั่งซื้อถึงลูกค้า', on: true },
+    { th: 'แนบสลิป', meta: 'AddPaymentInfo', desc: 'เมื่อมีสลิปแนบครั้งแรก', on: false, amt: 'ยอดสุทธิ' },
+  ]],
+  ['หลังซื้อ', [
+    { th: 'จัดส่งแล้ว', meta: 'OrderShipped', desc: 'เมื่อได้เลขพัสดุหรือกดจัดส่งครั้งแรก', on: true, amt: 'ยอดสุทธิ' },
+    { th: 'ส่งถึงลูกค้า', meta: 'OrderDelivered', desc: 'ขนส่งแจ้งถึง ร้านกดส่งสำเร็จ หรือยืนยันรับอัตโนมัติ อันไหนก่อน', on: true, amt: 'ไม่รวม VAT' },
+    { th: 'ยกเลิกคำสั่งซื้อ', meta: 'OrderCanceled', desc: 'เมื่อยกเลิกคำสั่งซื้อ', on: false, amt: 'ยอดสุทธิ' },
+    { th: 'รับของคืน', meta: 'OrderReturned', desc: 'เมื่อรับของคืนครบทุกรายการ', on: false, amt: 'ยอดสุทธิ' },
+  ]],
+]
+function amountPanel(dev) {
+  const n = uid('amt')
+  const r = (checked, t, hint) => `<label class="flex ${T44(dev)} items-start gap-2.5"><input type="radio" name="${n}" class="form-radio" ${checked ? 'checked' : ''} /><span><span class="block text-sm text-d900">${t}</span><span class="block text-xs text-d700">${hint}</span></span></label>`
+  const sid = uid('items')
+  return `<div class="mt-2 rounded-lg bg-d100 p-3">
+    <fieldset><legend class="mb-1.5 text-xs font-semibold text-d800">ยอดที่ส่ง</legend><div class="space-y-2">${r(true, 'ยอดสุทธิ', 'ตรงกับยอดที่หน้าคำสั่งซื้อแสดง')}${r(false, 'ไม่รวม VAT', 'ยอดสุทธิหัก VAT ของคำสั่งซื้อ')}</div></fieldset>
+    <div class="mt-3 flex items-start justify-between gap-3 border-t border-d300 pt-3"><label for="${sid}"><span class="block text-sm text-d900">แนบรายการสินค้า</span><span class="block text-xs text-d700">ชื่อ จำนวน และราคาต่อหน่วย ไม่แนบถ้าเกิน 100 รายการ</span></label><input id="${sid}" type="checkbox" class="form-switch mt-1" checked /></div>
+    <p class="mt-2 flex items-center gap-1.5 text-xs text-d700">${IC('info-circle', 14, 'text-d500')}ตั้งค่านี้ใช้กับทุกชุดข้อมูลของเพจ</p>
+    <button type="button" class="btn ${dev.k === 'm' ? 'min-h-11 w-full' : 'btn-sm'} mt-3 border border-d300 bg-card text-d800">เสร็จ</button></div>`
+}
+function evRow(dev, e) {
+  const setBtn = `<button type="button" aria-expanded="${!!e.open}" class="btn btn-sm ${T44(dev)} border ${e.open ? 'border-primary text-primary-ink' : 'border-d300 text-d800'}">${IC('adjustments-horizontal', 14)}ตั้งยอด</button>`
+  return `<li class="py-3 ${e.open ? '' : ''}">
+    <div class="flex items-start gap-3"><div class="min-w-0 flex-1">
+      <p class="text-sm ${e.hero ? 'font-semibold' : 'font-medium'} text-d900">${e.th} <span class="text-xs font-normal text-d700">(${e.meta})</span></p>
+      <p class="mt-0.5 text-xs text-d700">${e.desc}</p>
+      ${e.amt ? `<div class="mt-1.5 flex flex-wrap items-center gap-2"><span class="text-xs text-d800">${e.amt}</span>${setBtn}</div>` : ''}
+      ${e.note ? `<p class="mt-1 text-xs text-d800">${e.note}</p>` : ''}
+      ${e.warn ? `<p class="mt-1.5 flex items-start gap-1.5 rounded bg-warning15 px-2.5 py-1.5 text-xs text-warning-ink">${IC('alert-triangle', 14, 'mt-0.5')}เปิดอยู่ แต่ยังไม่มีกฎแท็ก จึงยังไม่ส่งอะไร</p>` : ''}
+    </div><span class="pt-1">${sw(e.on, `${e.th} (${e.meta})`)}</span></div>
+    ${e.open ? amountPanel(dev) : ''}</li>`
+}
+function eventsCard(dev) {
+  const tabs = `<div role="tablist" aria-label="เลือกชุดข้อมูล" class="flex gap-4 overflow-x-auto ${dev.k === 'm' ? 'w-full border-b border-d200' : ''}">
+    <button role="tab" aria-selected="true" class="nav-tab active ${T44(dev)}">ชุดข้อมูลของเพจ</button>
+    <button role="tab" aria-selected="false" class="nav-tab ${T44(dev)}">เว็บไซต์ร้าน ${badge('danger', 'หยุดส่ง')}</button></div>`
+  const body = EVENTS.map(([g, list]) => `<p class="pt-4 text-xs font-semibold text-d700">${g}</p><ul class="rowsdiv">${list.map((e) => evRow(dev, e)).join('')}</ul>`).join('')
+  return `<div class="card"><div class="card-header" style="padding-bottom:${dev.k === 'm' ? '0' : '15px'}"><h4 class="card-title">เหตุการณ์ที่ส่ง</h4>${tabs}</div>
+    <div class="card-body" style="padding-top:4px">${body}</div></div>`
+}
+function timingCard(dev) {
+  const sid = uid('when'); const did = uid('draft')
+  return `<div class="card"><div class="card-header"><h4 class="card-title">จังหวะส่ง Purchase</h4></div><div class="card-body space-y-3">
+    <div><label for="${sid}" class="form-label">ส่งเมื่อ</label>
+      <select id="${sid}" class="form-select ${T44(dev)}"><option>สร้างคำสั่งซื้อ</option><option>ยืนยัน</option><option selected>ชำระครบ</option></select>
+      <p class="mt-1 text-xs text-d800">ส่งเมื่อรับเงินครบยอด มัดจำบางส่วนยังไม่นับ</p>
+      <p class="mt-1 text-xs text-d700">ใช้กับ Purchase ของทุกชุดข้อมูล · เปลี่ยนแล้วมีผลกับออเดอร์ถัดไป ที่ส่งไปแล้วไม่ส่งซ้ำ</p></div>
+    <div class="flex items-start justify-between gap-3 border-t border-d200 pt-3"><label for="${did}"><span class="block text-sm font-medium text-d900">นับออเดอร์ร่างที่ยืนยันแล้ว</span>
+      <span class="mt-0.5 block text-xs text-d700">ออเดอร์ที่ระบบตรวจจากแชทแล้วคุณกดยืนยัน จะนับเป็น "สร้างคำสั่งซื้อ" · มีผลกับ Purchase (ถ้าเลือกสร้าง) และ สร้างคำสั่งซื้อ (OrderCreated)</span></label>
+      <input id="${did}" type="checkbox" class="form-switch mt-1" checked /></div></div></div>`
+}
+const TAGS = ['ถามราคา', 'ขอเลขบัญชี', 'ส่งที่อยู่แล้ว', 'ลูกค้าประจำ', 'รอโอน']
+function ruleRow(dev, r) {
+  const m = dev.k === 'm'
+  const sid = uid('tag'); const vid = uid('val')
+  const sel = `<select id="${sid}" class="form-select ${T44(dev)} ${m ? '' : 'w-44'}"><option ${r.tag ? '' : 'selected'}>เลือกแท็ก</option>${TAGS.map((t) => `<option ${t === r.tag ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+  const val = `<div class="input-group ${m ? '' : 'w-36'}"><span class="input-group-text">฿</span><input id="${vid}" class="form-input ${T44(dev)} tabular-nums" inputmode="decimal" placeholder="ไม่ระบุ" value="${r.v}" /></div>`
+  if (m) {
+    return `<li class="space-y-2 py-3 ${r.dirty ? 'bg-primary10 -mx-4 px-4' : ''}"><div><label for="${sid}" class="form-label">เมื่อติดแท็ก</label>${sel}</div>
+      <div><label for="${vid}" class="form-label">ส่งมูลค่า (บาท)</label>${val}</div>
+      <button type="button" class="btn min-h-11 px-0 text-danger-ink">${IC('trash', 16)}ลบกฎนี้</button></li>`
+  }
+  return `<li class="flex flex-wrap items-center gap-2 py-3 text-sm text-d800 ${r.dirty ? 'bg-primary10 -mx-5 px-5' : ''}"><label for="${sid}">เมื่อติดแท็ก</label>${sel}<label for="${vid}">ส่งมูลค่า</label>${val}<span>บาท</span>
+    <button type="button" aria-label="ลบกฎ" class="btn-icon ms-auto ${T44(dev)}">${IC('trash', 16)}</button></li>`
+}
+function rulesCard(dev) {
+  const m = dev.k === 'm'
+  const rules = [{ tag: 'ถามราคา', v: '' }, { tag: 'ขอเลขบัญชี', v: '200' }, { tag: 'ส่งที่อยู่แล้ว', v: '500', dirty: true }]
+  const tabs = `<div role="tablist" class="flex gap-4 ${m ? 'w-full border-b border-d200' : ''}">
+    <button role="tab" aria-selected="true" class="nav-tab active ${T44(dev)}">สนใจ <span class="text-xs text-d700">(LeadSubmitted)</span> ${badge('neutral', '2')}</button>
+    <button role="tab" aria-selected="false" class="nav-tab ${T44(dev)}">สนใจจริง <span class="text-xs text-d700">(QualifiedLead)</span> ${badge('neutral', '1')}</button></div>`
+  return `<div class="card"><div class="card-header" style="padding-bottom:${m ? '0' : '15px'}"><h4 class="card-title">กฎแท็ก → Lead</h4>${tabs}</div>
+    <div class="card-body" style="padding-bottom:8px"><p class="flex items-start gap-1.5 text-xs text-d700">${IC('info-circle', 14, 'mt-0.5 text-d500')}นับเฉพาะแท็กที่เพิ่งติด ทั้งที่ติดอัตโนมัติจากคำและที่พนักงานติดเอง · ห้องเดียวกัน กฎเดียวกัน ส่งไม่เกิน 1 ครั้งใน 30 วัน</p>
+    <ul class="rowsdiv mt-2">${rules.map((r) => ruleRow(dev, r)).join('')}</ul>
+    <button type="button" class="btn ${T44(dev)} mt-1 px-0 text-primary-ink">${IC('plus', 16)}เพิ่มกฎ</button></div>
+    <div class="card-footer flex flex-wrap items-center gap-2"><span class="me-auto text-xs text-warning-ink ${m ? 'basis-full' : ''}">มีกฎที่ยังไม่บันทึก 1 แถว</span>
+      <button type="button" class="btn ${m ? 'min-h-11' : ''} text-d700">ยกเลิกการแก้</button><button type="button" class="btn ${m ? 'min-h-11 flex-1' : ''} bg-primary text-white">${IC('device-floppy', 16)}บันทึกกฎ</button></div></div>`
+}
+function detailPage(dev) {
+  if (dev.k === 'd') {
+    return shell(dev, P2, `${headerStrip(dev)}<div class="mt-5">${bannerManual()}</div>
+      <div class="mt-5 grid grid-cols-3 items-start gap-5"><div class="col-span-2 space-y-5">${datasetsCard(dev)}${eventsCard(dev)}${rulesCard(dev)}</div>
+      <div class="sticky top-5 space-y-5">${resultsCard(dev)}${timingCard(dev)}</div></div>`)
+  }
+  return shell(dev, P2, `<div class="space-y-4">${headerStrip(dev)}${bannerManual()}${resultsCard(dev)}${datasetsCard(dev)}${timingCard(dev)}${eventsCard(dev)}${rulesCard(dev)}</div>`)
+}
+function statesPanel(dev) {
+  const m = dev.k === 'm'
+  const lab = (t) => `<p class="mb-1.5 text-xs font-semibold text-d600">${t}</p>`
+  const fullBtn = `<div class="card"><div class="card-header"><h4 class="card-title">ชุดข้อมูล (Dataset) <span class="text-d700">3/3</span></h4><button type="button" disabled class="btn ${m ? 'btn-sm min-h-11' : ''} cursor-not-allowed bg-primary text-white opacity-50">${IC('plus', 16)}เพิ่มชุดข้อมูล</button></div>
+    <div class="card-body" style="padding:12px 20px"><p class="text-xs text-d700">ครบ 3 ชุดแล้ว ลบชุดเดิมก่อนถึงจะเพิ่มได้</p></div></div>`
+  const offLine = `<div class="card"><div class="card-body" style="padding:16px"><div class="flex items-center justify-between gap-3"><span class="text-sm font-medium text-d900">ส่งเหตุการณ์ของเพจนี้</span>${sw(false, 'ส่งเหตุการณ์ของเพจนี้')}</div>
+    <p class="mt-2 rounded bg-d100 px-3 py-2 text-xs text-d800">เพจนี้ปิดการส่งอยู่ ตั้งค่าไว้ล่วงหน้าได้ แต่จะยังไม่ส่งอะไรจนกว่าจะเปิด</p></div></div>`
+  const leadWarn = `<div class="card"><div class="card-body" style="padding:4px 20px"><ul>${evRow(dev, { th: 'สนใจจริง', meta: 'QualifiedLead', desc: 'เมื่อห้องแชทติดแท็กตามกฎด้านล่าง', on: true, warn: true })}</ul></div></div>`
+  const noDs = `<div class="card"><div class="card-header"><h4 class="card-title">เหตุการณ์ที่ส่ง</h4></div><div class="card-body flex flex-col items-center py-8 text-center">
+    <span class="mb-2 flex size-12 items-center justify-center rounded-full bg-d100 text-d500">${IC('database', 24)}</span><p class="text-sm text-d800">เพิ่มชุดข้อมูลก่อน แล้วเลือกเหตุการณ์ที่จะส่ง</p></div></div>`
+  const noTags = `<div class="card"><div class="card-header"><h4 class="card-title">กฎแท็ก → Lead</h4></div><div class="card-body flex flex-col items-center py-8 text-center">
+    <span class="mb-2 flex size-12 items-center justify-center rounded-full bg-d100 text-d500">${IC('tags', 24)}</span><p class="text-sm font-medium text-d900">ร้านนี้ยังไม่มีแท็ก</p><p class="mt-0.5 text-xs text-d700">สร้างแท็กก่อน แล้วกลับมาผูกกับกฎส่งยอด</p>
+    <a href="#" class="btn ${T44(dev)} mt-3 border border-d300 text-d800">ไปสร้างแท็ก ${IC('chevron-right', 14)}</a></div></div>`
+  const results = `<div class="space-y-2">${['loading', 'token', 'fail', 'nochat'].map(testResult).join('')}</div>`
+  const items = [
+    lab('Banner แบบอัตโนมัติจากเพจ (มีปุ่มเชื่อมเพจใหม่)') + bannerAuto(dev),
+    lab('ผลทดสอบแบบอื่น: กำลังส่ง · ตรวจ token ผ่าน · token ล้ม · ไม่มีห้องแชท') + results,
+    lab('สวิตช์หลักปิด') + offLine,
+    lab('Lead เปิดอยู่แต่ไม่มีกฎ') + leadWarn,
+    lab('ครบ 3 ชุด — ปุ่มเพิ่มกดไม่ได้ + บอกเหตุผล') + fullBtn,
+    lab('ยังไม่มีชุดข้อมูล — การ์ดเหตุการณ์ว่าง') + noDs,
+    lab('ร้านไม่มีแท็ก — การ์ดกฎว่าง') + noTags,
+  ].map((x) => `<div>${x}</div>`)
+  return `<div class="${m ? 'space-y-6 p-4' : dev.k === 't' ? 'grid grid-cols-2 items-start gap-5 p-5' : 'grid grid-cols-3 items-start gap-6 p-6'}">${items.join('')}</div>`
+}
+
+// =====================================================================
+// หน้า 3 — บันทึกการส่ง
+// =====================================================================
+const P3 = { trail: ['หน้าแรก', 'ตั้งค่า', 'ส่งยอดขายให้ Meta', 'ร้านน้ำหอม A', 'บันทึกการส่ง'], title: 'บันทึกการส่ง', mTitle: 'บันทึกการส่ง' }
+const ST = { success: ['success', 'สำเร็จ'], pending: ['warning', 'รอ'], failed: ['danger', 'ล้มเหลว'], skipped: ['neutral', 'ข้าม'] }
+const LOG = [
+  { t: '11-11-2569 14:32:08', ev: 'ซื้อ (Purchase)', ds: 'ชุดข้อมูลของเพจ', v: '฿1,070.00', st: 'success' },
+  { t: '11-11-2569 14:30:51', ev: 'แนบสลิป (AddPaymentInfo)', ds: 'ชุดข้อมูลของเพจ', v: '฿1,070.00', st: 'success' },
+  { t: '11-11-2569 14:10:12', ev: 'ซื้อ (Purchase)', ds: 'เว็บไซต์ร้าน', v: '฿890.00', st: 'pending', r: 'รอเปลี่ยน token แล้วจะส่งต่อให้เอง' },
+  { t: '11-11-2569 13:58:40', ev: 'สร้างคำสั่งซื้อ (OrderCreated)', ds: 'ชุดข้อมูลของเพจ', v: '฿2,450.00', st: 'pending', r: 'ลองใหม่ครั้งที่ 2 จาก 3' },
+  { t: '11-11-2569 13:41:05', ev: 'สนใจจริง (QualifiedLead)', ds: 'ชุดข้อมูลของเพจ', v: '฿200.00', st: 'success' },
+  { t: '11-11-2569 13:40:59', ev: 'ส่งลิงก์คำสั่งซื้อ (InitiateCheckout)', ds: 'ชุดข้อมูลของเพจ', v: '–', st: 'success' },
+  { t: '10-11-2569 09:02:17', ev: 'จัดส่งแล้ว (OrderShipped)', ds: 'ชุดข้อมูลของเพจ', v: '฿1,250.00', st: 'failed', r: 'Meta ไม่รับเหตุการณ์นี้ ลองใหม่ครบ 3 ครั้งแล้ว' },
+  { t: '10-11-2569 08:15:33', ev: 'ดูสินค้า (ViewContent)', ds: 'ชุดข้อมูลของเพจ', v: '฿590.00', st: 'failed', r: 'Meta ตอบรับแต่ไม่นับเหตุการณ์นี้' },
+  { t: '03-11-2569 09:01:44', ev: 'ทิ้งตะกร้า (CartAbandoned)', ds: 'ชุดข้อมูลของเพจ', v: '฿420.00', st: 'skipped', r: 'เก่ากว่า 7 วัน Meta ไม่รับ' },
+]
+const stB = (s) => badge(ST[s][0], ST[s][1])
+function filters(dev, open) {
+  const m = dev.k === 'm'
+  const fb = (label, active) => `<button type="button" aria-haspopup="listbox" aria-expanded="${!!active}" class="btn ${T44(dev)} ${m ? 'w-full justify-between' : ''} border ${active ? 'border-primary bg-primary15 text-primary-ink' : 'border-d300 text-d800'}">${label} ${IC('chevron-down', 14)}</button>`
+  const menu = open ? `<ul role="listbox" class="absolute end-0 top-full z-10 mt-1 w-48 rounded-lg border border-d300 bg-card py-1 shadow-[var(--shadow-lg)]">
+    ${[['ทั้งหมด', ''], ['รอ', 'pending'], ['สำเร็จ', 'success'], ['ล้มเหลว', 'failed'], ['ข้าม', 'skipped']].map(([l, s]) => `<li role="option" aria-selected="${l === 'ล้มเหลว'}" class="flex items-center justify-between px-3 py-2 text-sm ${l === 'ล้มเหลว' ? 'bg-d100' : ''}">${s ? stB(s) : '<span class="text-d800">ทั้งหมด</span>'}${l === 'ล้มเหลว' ? IC('check', 14, 'text-primary-ink') : ''}</li>`).join('')}</ul>` : ''
+  return `<div class="flex ${m ? 'w-full flex-col' : 'flex-wrap'} gap-2"><div class="relative">${fb(open ? 'สถานะ: ล้มเหลว' : 'สถานะ: ทั้งหมด', open)}${menu}</div>${fb('เหตุการณ์: ทั้งหมด')}</div>`
+}
+function logHeader(dev, open) {
+  return `<div class="card-header"><div><h4 class="card-title">บันทึกการส่ง</h4><p class="text-xs text-d700">เก็บย้อนหลัง 180 วัน</p></div>${filters(dev, open)}</div>`
+}
+function logDesktop(dev) {
+  const th = (t, c = '') => `<th scope="col" class="px-4 py-2.5 text-start font-medium ${c}">${t}</th>`
+  const rows = LOG.map((l) => `<tr class="${l.st === 'failed' || l.st === 'pending' ? '' : ''}">
+    <td class="whitespace-nowrap px-4 py-3 ps-5 tabular-nums text-d800">${l.t}</td><td class="px-4 py-3 text-d900">${l.ev}</td><td class="px-4 py-3 text-d800">${l.ds}</td>
+    <td class="whitespace-nowrap px-4 py-3 text-end tabular-nums text-d900">${l.v}</td><td class="px-4 py-3">${stB(l.st)}</td>
+    <td class="px-4 py-3 pe-5 ${l.st === 'failed' ? 'text-danger-ink' : 'text-d700'}">${l.r || '–'}</td></tr>`).join('')
+  return `<div class="card">${logHeader(dev, true)}<table class="w-full text-sm"><thead class="bg-d50 text-xs text-d700"><tr>${th('เวลา', 'ps-5')}${th('เหตุการณ์')}${th('ชุดข้อมูล')}${th('มูลค่า', 'text-end')}${th('สถานะ')}${th('เหตุผล')}</tr></thead>
+    <tbody class="rowsdiv">${rows}</tbody></table>
+    <div class="card-footer flex items-center justify-between text-xs text-d700"><span>แสดง 1–20 จาก 312 รายการ</span>
+    <nav aria-label="หน้า" class="flex items-center gap-1">${['chevron-left', '1', '2', '3', '…', '16', 'chevron-right'].map((p) => p.startsWith('chevron') ? `<span class="flex size-8 items-center justify-center rounded border border-d300 text-d700">${IC(p, 14)}</span>` : `<span class="flex size-8 items-center justify-center rounded ${p === '1' ? 'bg-primary text-white' : 'text-d800'}">${p}</span>`).join('')}</nav></div></div>`
+}
+function logCards(dev) {
+  const m = dev.k === 'm'
+  const rows = LOG.map((l) => `<li class="px-${m ? '4' : '5'} py-3">
+    <div class="flex items-start justify-between gap-3"><p class="min-w-0 text-sm font-medium text-d900">${l.ev}</p>${stB(l.st)}</div>
+    <p class="mt-0.5 text-xs text-d700"><span class="tabular-nums">${l.t}</span>${m ? '</p><p class="text-xs text-d700">' : ' · '}${l.ds}${l.v !== '–' ? ` · <span class="tabular-nums text-d900">${l.v}</span>` : ''}</p>
+    ${l.r ? `<p class="mt-1 text-xs ${l.st === 'failed' ? 'text-danger-ink' : 'text-d800'}">${l.r}</p>` : ''}</li>`).join('')
+  const pager = m
+    ? `<div class="card-footer flex items-center justify-between text-sm"><span class="btn min-h-11 px-2 text-d600">${IC('chevron-left', 16)}ก่อนหน้า</span><span class="tabular-nums text-d700">1/16</span><span class="btn min-h-11 px-2 text-d800">ถัดไป ${IC('chevron-right', 16)}</span></div>`
+    : `<div class="card-footer flex items-center justify-between text-xs text-d700"><span>แสดง 1–20 จาก 312 รายการ</span><span class="flex gap-1">${['‹', '1', '2', '3', '…', '16', '›'].map((p) => `<span class="flex size-11 items-center justify-center rounded ${p === '1' ? 'bg-primary text-white' : 'border border-d300 text-d800'}">${p}</span>`).join('')}</span></div>`
+  return `<div class="card">${logHeader(dev, false)}<ul class="rowsdiv">${rows}</ul>${pager}</div>`
+}
+function logEmpty(dev, filtered) {
+  return `<div class="card">${logHeader(dev, false)}<div class="card-body flex flex-col items-center py-10 text-center">
+    <span class="mb-3 flex size-14 items-center justify-center rounded-full bg-d100 text-d500">${IC(filtered ? 'filter-off' : 'history', 28)}</span>
+    <p class="text-md font-semibold text-d900">${filtered ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีบันทึกการส่ง'}</p>
+    ${filtered ? '' : '<p class="mt-1 max-w-sm text-sm text-d700">เมื่อมีเหตุการณ์จากแชทของเพจนี้ จะขึ้นที่นี่ภายใน 1–2 นาที</p>'}
+    <a href="#" class="btn ${dev.k === 'm' ? 'min-h-11 w-full' : T44(dev)} mt-4 border border-d300 text-d800">${filtered ? 'ล้างตัวกรอง' : 'กลับไปตั้งค่าเพจ'}</a></div></div>`
+}
+
+// =====================================================================
+let html = ''
+html += section('s1a', 's1', '1) รายการเพจ — /settings/conversions-api', [
+  'เฉพาะเพจ Messenger ที่ยังเชื่อมอยู่ · แถวกดได้ทั้งแถวไปหน้ารายละเอียด (สวิตช์/ปุ่มในแถวไม่พาไป) · ไม่มีการ์ดตัวเลขสรุป (ตัดสินใน spec ข้อ 1)',
+  '4 สถานะในตัวอย่าง: <b>ส่งอยู่ + บรรทัดแดง "ชุดข้อมูล 1 ตัวหยุด"</b> (หยุดบางชุด — Open Q) · <b>หยุดเพราะ token เสีย</b> + ปุ่ม "เชื่อมเพจใหม่" (anchor ไป OAuth) · ส่งอยู่ปกติ (ตัวเลขหลักล้านไม่ตัดบรรทัด) · <b>ปิด</b> + "ยังไม่มีชุดข้อมูล" สวิตช์กดไม่ได้ (title บอกเหตุผล)',
+  '"ส่งอยู่" ใช้ primary-ink ไม่ใช่เขียว (D7: เปิดสวิตช์ ≠ Meta รับแล้ว) · Tablet 768 อยู่ใต้ 1024 = เชลล์มือถือ ไม่มี sidebar ตาราง → การ์ดรายการ (DataTable mobileCard)',
+], row3((d) => shell(d, P1, d.k === 'd' ? pagesDesktop() : pagesCards(d))))
+html += section('s1b', 's1', '1b) รายการเพจ — ว่าง (ยังไม่มีเพจ Messenger)', [
+  'SellerEmptyState: ไอคอน brand-messenger · ปุ่ม "เชื่อมเพจ Facebook" → /settings/channels · ปุ่มนี้เป็นปุ่มทึบปุ่มเดียวของจอ',
+], row3((d) => shell(d, P1, emptyCard(d))))
+html += section('s1c', 's1', '1c) Swal ยืนยันเปิดเพจครั้งแรก', [
+  'ถามเฉพาะการเปิดครั้งแรกของเพจ (D5 — Swal ใช้กับสิ่งที่บล็อกจริงเท่านั้น) · ข้อความบอกว่าไม่ส่งย้อนหลัง · ปิดเพจภายหลังไม่ถาม แค่ toast',
+], row3((d) => swalFirst(d)))
+
+html += section('s2a', 's2', '2) รายละเอียดเพจ — /settings/conversions-api/[channelId]', [
+  '<b>Desktop:</b> หัวเพจ + สวิตช์หลัก (พระเอกของหน้า) · banner แดงเพราะชุด "เว็บไซต์ร้าน" (กรอกเอง) หยุด → ข้อความชี้ไปปุ่ม "เปลี่ยน token" ในแถว ไม่มีปุ่มซ้ำ · ซ้าย 2/3 = ชุดข้อมูล → เหตุการณ์ → กฎแท็ก · ขวา 1/3 sticky = ผลการส่ง 7 วัน + จังหวะส่ง Purchase',
+  '<b>ชุดข้อมูล:</b> แผงเพิ่มแบบ inline เปิดอยู่ (2 ตัวเลือก: ใช้ชุดข้อมูลของเพจ / กรอกเอง — เลือกกรอกเองไว้) · ระหว่างแผงเปิด ปุ่ม "เพิ่มชุดข้อมูล" เป็น tonal เพื่อให้ "ตรวจและบันทึก" เป็นปุ่มทึบปุ่มเดียวของแผง · Test Event Code ไม่บันทึกถาวร (D6) มีไว้กับปุ่ม "ทดสอบ" เท่านั้น · ผลทดสอบสำเร็จแสดง inline สีเขียว (role=status)',
+  '<b>เหตุการณ์ 12 ตัว</b> แยก 3 กลุ่ม (ก่อนซื้อ / ซื้อและชำระ / หลังซื้อ) · แท็บเลือกชุดข้อมูล · Purchase ตัวหนากว่า + "ส่งเมื่อชำระครบ · เปลี่ยน" · แผง "ตั้งยอด" ของ Purchase กางอยู่ (ยอดสุทธิ/ไม่รวม VAT + แนบรายการสินค้า · ใช้กับทุกชุดข้อมูล) · ไม่มีตัวเลือก "ไม่รวมค่าส่ง"',
+  '<b>จังหวะส่ง Purchase</b> = ค่าระดับเพจ (สร้าง/ยืนยัน/ชำระครบ) + สวิตช์ "นับออเดอร์ร่างที่ยืนยันแล้ว" · <b>กฎแท็ก → Lead</b>: "เมื่อติดแท็ก X ส่งมูลค่า Y บาท" แถวใหม่ที่ยังไม่บันทึกพื้นฟ้าจาง + ปุ่มบันทึกกฎ/ยกเลิกการแก้',
+  '<b>Tablet/Mobile:</b> คอลัมน์เดียว ลำดับ หัว · banner · ผลการส่ง · ชุดข้อมูล · จังหวะ Purchase · เหตุการณ์ · กฎ · มือถือ ผลการส่งยุบเป็นแถวเดียวแตะได้ · "ทดสอบ"/"บันทึกกฎ" เต็มความกว้างในโซนนิ้วโป้ง',
+], row3((d) => detailPage(d)))
+html += section('s2b', 's2', '2b) รายละเอียดเพจ — สถานะอื่น', [
+  'banner แบบอัตโนมัติจากเพจ (มีปุ่มเชื่อมเพจใหม่) · ผลทดสอบ 4 แบบ · สวิตช์หลักปิด · Lead ไม่มีกฎ (เหลือง) · ครบ 3 ชุด · ไม่มีชุดข้อมูล · ร้านไม่มีแท็ก',
+], row3((d) => statesPanel(d)))
+
+html += section('s3a', 's3', '3) บันทึกการส่ง — /settings/conversions-api/[channelId]/log', [
+  'การ์ดเดียว · ตัวกรอง 2 ตัว (FilterDropdown — สถานะ / เหตุการณ์) · Desktop วาดตอนเปิดตัวกรองสถานะ เลือก "ล้มเหลว" (ปุ่มที่กรองอยู่เป็น soft primary) · ค่ากรองเก็บใน query string',
+  'badge: รอ = เหลือง · สำเร็จ = เขียว (ที่เดียวที่เขียว คู่กับผลทดสอบผ่าน — Meta ตอบรับจริง) · ล้มเหลว = แดง · ข้าม = เทา (พฤติกรรมปกติ ไม่ใช่ความผิด) · เหตุผลเป็นภาษาไทยที่แปลแล้ว ไม่แสดงรหัส Meta ดิบ · ไม่มีปุ่มส่งซ้ำ (กัน Purchase ซ้ำ)',
+  'เวลาใช้รูปแบบ formatDateTime ของระบบ (dd-mm-พ.ศ. HH:mm:ss) · มือถือแบ่งหน้าแบบ ก่อนหน้า/ถัดไป · Tablet การ์ดรายการ',
+], row3((d) => shell(d, P3, d.k === 'd' ? logDesktop(d) : logCards(d))))
+html += section('s3b', 's3', '3b) บันทึกการส่ง — ว่าง 2 แบบ', [
+  'ยังไม่มีบันทึก (ปุ่มกลับไปตั้งค่าเพจ) · กรองแล้วไม่พบ (ปุ่มล้างตัวกรอง) — Desktop/Tablet แสดงแบบแรก · Mobile แสดงแบบกรองแล้วว่าง',
+], row3((d) => shell(d, P3, logEmpty(d, d.k === 'm'))))
+
+document.getElementById('app').innerHTML = html
+
+// สลับหน้าจอ
+const tabs = document.querySelectorAll('.tabbtn')
+function show(g) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.show === g)))
+  document.querySelectorAll('section[data-group]').forEach((s) => { s.hidden = !(g === 'all' || s.dataset.group === g) })
+}
+tabs.forEach((b) => b.addEventListener('click', () => show(b.dataset.show)))
+show('s1')
+// iconify-icon บางตัวที่สร้างพร้อมกันระหว่างโหลดชุดไอคอนวาดไม่ขึ้น — สั่งวาดใหม่ตัวที่ยังว่าง
+const redrawIcons = () => document.querySelectorAll('iconify-icon').forEach((i) => {
+  if (i.shadowRoot && !i.shadowRoot.querySelector('svg')) i.replaceWith(i.cloneNode(true))
+})
+;[800, 2000, 4000].forEach((t) => setTimeout(redrawIcons, t))
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+})
+</script>
+</body>
+</html>

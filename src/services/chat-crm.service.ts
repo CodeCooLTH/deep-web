@@ -1,3 +1,5 @@
+import { enqueueTagLeadCapi } from '@/services/meta-capi.service'
+import { tagNameKey } from '@/lib/shop-tag-match'
 import { prisma } from '@/lib/prisma'
 
 // CRM/tag ต่อผู้ติดต่อ (feature 00018) — alias เก็บที่ Conversation (ต่อแชท), ที่เหลือเก็บที่
@@ -83,9 +85,11 @@ export async function updateConversationCrm(
 ): Promise<ConversationCrm> {
   const conv = await prisma.conversation.findFirst({
     where: { id: conversationId, shopId },
-    select: { id: true, externalContactId: true },
+    select: { id: true, externalContactId: true, externalContact: { select: { tags: true } } },
   })
   if (!conv) throw new Error('CONVERSATION_NOT_FOUND')
+  // 00089: ทางนี้เขียนทับทั้งชุด — เก็บชุดเดิมไว้เทียบหาแท็กที่เพิ่งติด (กฎ Lead ของ Meta CAPI)
+  const tagsBefore = conv.externalContact?.tags ?? []
 
   // แยกฟิลด์ที่ส่งมาจริง (undefined = ไม่แตะ) — alias ไป Conversation, ที่เหลือไป ExternalContact
   const contactData: Record<string, unknown> = {}
@@ -104,6 +108,11 @@ export async function updateConversationCrm(
       await tx.externalContact.update({ where: { id: conv.externalContactId }, data: contactData })
     }
   })
+
+  if (input.tags !== undefined && conv.externalContactId) {
+    const before = new Set(tagsBefore.map(tagNameKey))
+    await enqueueTagLeadCapi(conversationId, input.tags.filter((t) => !before.has(tagNameKey(t))))
+  }
 
   const result = await getConversationCrm(conversationId, shopId)
   if (!result) throw new Error('CONVERSATION_NOT_FOUND')

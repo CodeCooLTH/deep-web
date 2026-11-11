@@ -335,3 +335,20 @@ export async function pushLineTokenExpiring(params: {
     console.error('[seller-push] pushLineTokenExpiring failed', e)
   }
 }
+
+/** 00089 FR-012 — dataset ของ Meta CAPI ถูกหยุดเพราะ token เสีย/ไม่มีสิทธิ์ · ยิงครั้งเดียวตอนสถานะพลิก (caller ตัดสิน) */
+export async function pushMetaCapiStopped(params: { shopId: string; channelName: string }): Promise<void> {
+  try {
+    // ปลายทางคือหน้า X9 (เจ้าของเท่านั้น) — ส่งให้ผู้ดูแลจะได้ noti ที่แตะแล้วเจอ "ไม่มีสิทธิ์"
+    const audience = [...((await userIdsHoldingCap([params.shopId], 'X9')).get(params.shopId) ?? [])]
+    if (audience.length === 0) return
+    await pushToUsers(
+      audience,
+      params.channelName,
+      'หยุดส่งยอดขายให้ Meta ชั่วคราว เพราะสิทธิ์ของเพจใช้ไม่ได้ — แตะเพื่อเชื่อมใหม่ ยอดที่ค้างจะส่งต่อให้',
+      { type: 'channel-health', url: '/settings/conversions-api' },
+    )
+  } catch (e) {
+    console.error('[seller-push] pushMetaCapiStopped failed', e)
+  }
+}

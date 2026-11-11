@@ -174,6 +174,11 @@ async function upsertChannel(params: {
           connectedByUserId: params.userId,
         },
       })
+      // 00089 FR-012: token เพจใหม่ = dataset แบบ PAGE ที่หยุดเพราะ token เสียกลับมาส่งต่อ (แถวที่ค้างยังอยู่ในคิว)
+      await tx.metaCapiDataset.updateMany({
+        where: { shopChannelId: canonical.id, source: 'PAGE', status: 'STOPPED' },
+        data: { status: 'ACTIVE', stoppedReason: null, stoppedAt: null },
+      })
     } else {
       await tx.shopChannel.create({
         data: {

@@ -6,6 +6,7 @@ import { applyChatBadge, applyMenuLocale, applyStaffExpenseMenu, resolveVisibleS
 import { showsStaffExpenseCard } from '@/lib/dashboard-money'
 import { effectiveRoles } from '@/lib/shop-permissions'
 import { prisma } from '@/lib/prisma'
+import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
 import { ownsAnyShop } from '@/services/line-report-access.service'
 import { getEntitlementInfo } from '@/services/inventory-entitlement.service'
 import type { MenuItemType } from '@/types'
@@ -124,6 +125,7 @@ export async function resolveSellerMenuItems(ctx: SellerMenuContext): Promise<Me
           entitlement,
           staff: { kind: ctx.kind, role: ctx.role, roles: ctx.roles },
           ownsShop,
+          metaCapiEnabled: isMetaCapiEnabled(ctx.shopId),
           shop: { kind: ctx.kind, vertical: ctx.vertical, isPrimaryOwner, reportSettings: ctx.reportSettings },
           hidePayments: ctx.hidePayments,
           hidePaidFeatures: ctx.hidePaidFeatures,

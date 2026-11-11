@@ -71,6 +71,7 @@ import {
 } from "@/lib/iship/mapping";
 import type { ShipmentContext } from "@/lib/iship/context";
 import { MOBILE_PHONE_RE } from "@/lib/phone";
+import { enqueueOrderCapiAfterCommit } from "@/services/meta-capi.service";
 import { isCodUnpaidOrder } from "@/lib/order-display";
 import { canCancelPickup } from "@/lib/shipping/pickup-list-view";
 
@@ -1464,6 +1465,7 @@ async function dispatchShipment(
       return u;
     });
     dispatchAutoNotifyAfterCommit(ledgerId);
+    if (!dryRun) await enqueueOrderCapiAfterCommit(row.orderId, "SHIPPED"); // 00089 — เลขจริงเท่านั้น (เลขทดลองเป็นของปลอม)
     return toShipmentView(updated);
   } catch (err) {
     const code = err instanceof IShipError ? err.code : "UPSTREAM_ERROR";
@@ -1714,6 +1716,7 @@ export async function advanceOrderOnCarrierMove(
     where: { id: orderId, status: "PENDING" },
     data: { status: "SHIPPED" },
   });
+  if (r.count > 0) await enqueueOrderCapiAfterCommit(orderId, "SHIPPED"); // 00089 — เฉพาะผู้ชนะ
   return r.count > 0;
 }
 
@@ -2098,7 +2101,7 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
   // จับคู่ด้วย refCode ก่อน (เจาะจงกว่า) แล้วค่อย trackingNo
   const shipment = await prisma.orderShipment.findFirst({
     where: { provider: "ISHIP", ...(refCode ? { refCode } : { trackingNo: tracking! }) },
-    select: { id: true, orderId: true },
+    select: { id: true, orderId: true, direction: true },
   });
   if (!shipment) {
     // จับคู่ไม่ได้ = พัสดุของระบบอื่นที่ใช้บัญชี iShip เดียวกัน หรือข้อมูลเพี้ยน
@@ -2150,10 +2153,12 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
   //
   // แพตเทิร์นเดียวกับ codReceivedAt (order.service.ts) ที่ใช้ "ใครมาก่อนได้ก่อน"
   if (isDeliveredCarrierStatus(status)) {
-    await prisma.orderShipment.updateMany({
+    const stamped = await prisma.orderShipment.updateMany({
       where: { id: shipment.id, deliveredAt: null },
       data: { deliveredAt: occurredAt },
     });
+    // 00089 — เฉพาะครั้งแรกที่ประทับ deliveredAt และเป็นพัสดุขาไป (ขากลับคืนของไม่ใช่ส่งถึงลูกค้า)
+    if (stamped.count > 0 && shipment.direction === FORWARD_SHIPMENT) await enqueueOrderCapiAfterCommit(shipment.orderId, "DELIVERED");
   }
 
   // ฝาแฝดขากลับของบล็อกข้างบน + หมุด "เคยมีปัญหา" — ไทม์ไลน์/กองงานอ่านเวลาจากคอลัมน์เหล่านี้
@@ -3192,6 +3197,7 @@ export async function linkShipment(
     return row;
   });
   dispatchAutoNotifyAfterCommit(linkLedgerId);
+  await enqueueOrderCapiAfterCommit(orderId, "SHIPPED"); // 00089 — ผูกพัสดุเดิม = มีเลขแล้ว
 
   // เติมไทม์ไลน์ย้อนหลังทันที — ใบที่ผูกย้อนหลังอาจเดินทางไปไกลแล้วตั้งแต่เมื่อวาน
   // ถ้าไม่ดึงตรงนี้ แถบความคืบหน้าจะค้างที่ขั้นแรกจนกว่าจะมีคนเปิดดูไทม์ไลน์
@@ -3265,6 +3271,7 @@ async function advanceOrderIfDispatched(
     ledgerId = await reserveTrackingNotice(tx, order.id, parcel.trackNo);
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
+  await enqueueOrderCapiAfterCommit(order.id, "SHIPPED"); // 00089
 }
 
 /**

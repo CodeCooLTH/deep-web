@@ -26,6 +26,8 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { gatePage } from '@/lib/shop-capability'
+import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
+import { can } from '@/lib/shop-permissions'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { listChannels } from '@/services/shop-channel.service'
@@ -106,6 +108,7 @@ export default async function ChannelsSettingsPage() {
 
         {/* ChannelsClient รับ ChannelView[] เท่านั้น — ไม่มี accessTokenEnc (allow-list select ที่ service) */}
         <ChannelsClient
+          showCapiChip={isMetaCapiEnabled(activeCtx.shopId) && can(gate.roles, 'X9')}
           initialChannels={messengerChannels.map((c) => ({
             id: c.id,
             provider: c.provider,

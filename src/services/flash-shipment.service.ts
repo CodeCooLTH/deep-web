@@ -31,6 +31,7 @@ import { reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services
 import { FLASH, loadFlashAccount, type FlashAccountRow, type FlashCred, type LoadedFlashAccount } from "@/services/flash-account";
 import { estimateFlashPrice, withFlashGuard } from "@/services/flash.service";
 import { applyFlashRoutes } from "@/services/flash-status.service";
+import { enqueueOrderCapiAfterCommit } from "@/services/meta-capi.service";
 
 const COURIER_NAME = "Flash Express";
 const PNO_RE = /^[A-Za-z0-9]{6,32}$/;
@@ -207,6 +208,7 @@ async function dispatchFlash(a: {
       return u;
     });
     dispatchAutoNotifyAfterCommit(ledgerId);
+    if (!dryRun) await enqueueOrderCapiAfterCommit(a.orderId, "SHIPPED"); // 00089 — Flash ไม่ตั้ง Order=SHIPPED จึงจุดที่ได้เลขจริงคือจุดเกิด
     await captureEstimate(a.shopId, a.shipmentId, a.receiver, a.parcel);
     return toShipmentView(updated);
   } catch (err) {
@@ -488,6 +490,7 @@ export async function resolveReviewShipment(
     throw e;
   }
   dispatchAutoNotifyAfterCommit(ledgerId);
+  await enqueueOrderCapiAfterCommit(row.orderId, "SHIPPED"); // 00089
   await stampFromRoutes(shipmentId, input.pno, routes);
   return toShipmentView(await prisma.orderShipment.findUniqueOrThrow({ where: { id: shipmentId }, select: SHIPMENT_SELECT }));
 }
@@ -597,6 +600,7 @@ export async function linkFlashShipment(
     throw e;
   }
   dispatchAutoNotifyAfterCommit(ledgerId);
+  await enqueueOrderCapiAfterCommit(orderId, "SHIPPED"); // 00089
   await stampFromRoutes(created.id, pno, routes);
   return toShipmentView(await prisma.orderShipment.findUniqueOrThrow({ where: { id: created.id }, select: SHIPMENT_SELECT }));
 }

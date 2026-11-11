@@ -19,6 +19,7 @@ import {
 import { inferFlashWebhookKind, type FlashWebhookKind, type ParsedWebhook } from "@/lib/flash/webhook-parse";
 import { describeCarrierStatus, isProblemCarrierStatus, returnLegStampOf } from "@/lib/iship/status";
 import { ACTIVE_FORWARD_SHIPMENT, FORWARD_SHIPMENT } from "@/lib/shipment-direction";
+import { enqueueOrderCapiAfterCommit } from "@/services/meta-capi.service";
 import { loadFlashAccount, markFlashTokenInvalid, type LoadedFlashAccount } from "@/services/flash-account";
 
 // ─── ชนิดและค่าคงที่ ────────────────────────────────────────────────────────
@@ -157,7 +158,11 @@ export async function applyFlashRoutes(
     }
   }
 
-  if (at) await stampMilestones(shipment.id, code, at, isReturnLeg);
+  if (at) {
+    const firstDelivered = await stampMilestones(shipment.id, code, at, isReturnLeg);
+    // 00089 — เฉพาะครั้งแรกที่ประทับ deliveredAt (write-once) · ขาตีกลับไม่นับ
+    if (firstDelivered) await enqueueOrderCapiAfterCommit(shipment.orderId, "DELIVERED");
+  }
 
   // state 7: เลขใหม่ที่ Flash ออกให้ตอนตีกลับ — เก็บครั้งเดียว ชน unique = ข้าม
   const rp = routes.returnedPno;
@@ -173,17 +178,19 @@ export async function applyFlashRoutes(
 }
 
 /** write-once ทุกตัว: updateMany + WHERE col IS NULL (เหตุการณ์ซ้ำ/ลองส่งใหม่ห้ามขยับวันที่) */
-async function stampMilestones(id: string, code: string, at: Date, isReturnLeg: boolean) {
+/** คืน true เมื่อประทับ deliveredAt ได้เป็นครั้งแรก (ใช้จุด CAPI DELIVERED) */
+async function stampMilestones(id: string, code: string, at: Date, isReturnLeg: boolean): Promise<boolean> {
   if (isReturnLeg) {
     if (code === "return_success") await prisma.orderShipment.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: at } });
-    return;
+    return false;
   }
   if (isProblemCarrierStatus(code)) await prisma.orderShipment.updateMany({ where: { id, problemAt: null }, data: { problemAt: at } });
-  if (code === "delivered") await prisma.orderShipment.updateMany({ where: { id, deliveredAt: null }, data: { deliveredAt: at } });
+  const delivered = code === "delivered" ? await prisma.orderShipment.updateMany({ where: { id, deliveredAt: null }, data: { deliveredAt: at } }) : null;
   // เขียนสองกิ่งแยก (Prisma ต้องการชื่อคอลัมน์ literal)
   const col = returnLegStampOf(code);
   if (col === "returnStartedAt") await prisma.orderShipment.updateMany({ where: { id, returnStartedAt: null }, data: { returnStartedAt: at } });
   else if (col === "returnedAt") await prisma.orderShipment.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: at } });
+  return (delivered?.count ?? 0) > 0;
 }
 
 // ─── stampFlashMilestones (export ตาม SDS §3.1) ─────────────────────────────
