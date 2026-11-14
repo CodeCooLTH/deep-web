@@ -72,7 +72,7 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
     return (
       <>
         <PageBreadcrumb title={title} subtitle={parent} />
-        <SellerEmptyState icon="building-store" title={t.adReport.noShopTitle} description={t.adReport.noShopDesc} action={{ label: 'สร้างร้านค้า', href: '/shop' }} />
+        <SellerEmptyState icon="building-store" title={t.adReport.noShopTitle} description={t.adReport.noShopDesc} action={{ label: t.adReport.noShopAction, href: '/shop' }} />
       </>
     )
   }

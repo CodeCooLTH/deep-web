@@ -180,7 +180,7 @@ export default function AdOrdersSheet({ row, noun, rangeQuery, onClose }: Props)
         )}
 
         {state.kind === 'ok' && state.hasMore && (
-          <p className="text-default-500 border-default-200 border-t px-4 py-3 text-center text-xs">{t.adReport.sheetMore}</p>
+          <p className="text-default-500 border-default-200 border-t px-4 py-3 text-center text-xs">{fmt(t.adReport.sheetMore, { noun })}</p>
         )}
       </div>
     </div>

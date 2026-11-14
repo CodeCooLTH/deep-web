@@ -14,12 +14,12 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { colorVar } from '@/utils/helpers'
 import { fmtInt, fmtPct1, type CardStatus, type QualityTotals } from './data'
-import CardState from './CardState'
+import CardState, { type NotInAccount } from './CardState'
 import NoDataCell from './NoDataCell'
 
-type Props = { status: CardStatus; totals: QualityTotals | null; orders: number; deepChats: number; closeRatePct: number | null; noun: string }
+type Props = { status: CardStatus; totals: QualityTotals | null; orders: number; deepChats: number; closeRatePct: number | null; noun: string; notInAccount?: NotInAccount }
 
-export default function ChatQualityHero({ status, totals, orders, deepChats, closeRatePct, noun }: Props) {
+export default function ChatQualityHero({ status, totals, orders, deepChats, closeRatePct, noun, notInAccount }: Props) {
   const t = useT().adQuality
   const ok = status === 'OK' && totals !== null
   const rows: { key: 'depth2' | 'depth3' | 'replied' | 'block'; title: string; bar: string; color?: string }[] = [
@@ -42,7 +42,7 @@ export default function ChatQualityHero({ status, totals, orders, deepChats, clo
           </div>
         </div>
         {!ok ? (
-          status === 'OK' ? <p className="text-default-700 mb-0 text-sm"><NoDataCell /></p> : <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} />
+          status === 'OK' ? <p className="text-default-700 mb-0 text-sm"><NoDataCell /></p> : <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} notInAccount={notInAccount} />
         ) : (
           rows.map((r, i) => {
             const g = totals.rates[r.key]

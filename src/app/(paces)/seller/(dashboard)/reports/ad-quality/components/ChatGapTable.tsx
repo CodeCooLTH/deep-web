@@ -21,7 +21,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { cn } from '@/utils/helpers'
 import { fmtInt, fmtPct1, type CardStatus, type QualityRow, type QualityTotals } from './data'
-import CardState from './CardState'
+import CardState, { type NotInAccount } from './CardState'
 import GapBadge from './GapBadge'
 import NoDataCell from './NoDataCell'
 import WhyDifferentPanel from './WhyDifferentPanel'
@@ -29,7 +29,7 @@ import WhyDifferentPanel from './WhyDifferentPanel'
 const columnHelper = createColumnHelper<QualityRow>()
 const COLLAPSED = 8
 
-export default function ChatGapTable({ rows, totals, deepOnly, status }: { rows: QualityRow[]; totals: QualityTotals | null; deepOnly: boolean; status: CardStatus }) {
+export default function ChatGapTable({ rows, totals, deepOnly, status, notInAccount }: { rows: QualityRow[]; totals: QualityTotals | null; deepOnly: boolean; status: CardStatus; notInAccount?: NotInAccount }) {
   'use no memo'
   const t = useT()
   const a = t.adQuality
@@ -134,7 +134,7 @@ export default function ChatGapTable({ rows, totals, deepOnly, status }: { rows:
         </p>
       )}
       {whyOpen && showMeta && <WhyDifferentPanel id={whyId} />}
-      {!deepOnly && status !== 'OK' && <div className="px-5 pb-3"><CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} /></div>}
+      {!deepOnly && status !== 'OK' && <div className="px-5 pb-3"><CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} notInAccount={notInAccount} /></div>}
 
       <DataTable<QualityRow>
         table={table}

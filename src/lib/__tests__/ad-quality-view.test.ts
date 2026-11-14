@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { adLine, campaignLine, buildQualityRows, buildTotals, buildPlacements, buildAgeSummary, buildAgeSeries, groupByCampaign, spendRatios, type DeepAd } from '@/lib/ad-quality-view'
+import { adLine, campaignLine, buildQualityRows, buildTotals, buildPlacements, buildAgeSummary, buildAgeSeries, groupByCampaign, spendRatios, metaAdsNotInAccount, type DeepAd } from '@/lib/ad-quality-view'
 import type { AdInsightRow } from '@/lib/meta-ads-quality'
 
 // fixture จำลอง (ไม่ใช่ payload จริง — ดู TODO ใน meta-ads-quality.ts)
@@ -126,5 +126,17 @@ describe('adLine / campaignLine (รูปเดียวกันของต�
     expect(line.rates.depth3).toEqual({ pct: 100, num: 10, den: 10 }) // B ไม่มี depth3 → ไม่ลากตัวหาร
     expect(line.subRows).toHaveLength(2)
     expect(adLine(rows[0]).rates.depth3).toMatchObject({ pct: 100, num: 10, den: 10 })
+  })
+})
+
+describe('metaAdsNotInAccount', () => {
+  it('Meta ว่าง + มีแชท (Deep) จากแอด + ไม่กรองเพจ → แอดไม่อยู่ในบัญชีที่เชื่อม', () => {
+    expect(metaAdsNotInAccount('EMPTY', 3, false)).toBe(true)
+  })
+  it('ไม่ใช่กรณีนี้: ไม่มีแชท (Deep) · กรองเพจ · Meta ตอบมีข้อมูล/ล้ม', () => {
+    expect(metaAdsNotInAccount('EMPTY', 0, false)).toBe(false)
+    expect(metaAdsNotInAccount('EMPTY', 3, true)).toBe(false)
+    expect(metaAdsNotInAccount('OK', 3, false)).toBe(false)
+    expect(metaAdsNotInAccount('ERROR', 3, false)).toBe(false)
   })
 })
