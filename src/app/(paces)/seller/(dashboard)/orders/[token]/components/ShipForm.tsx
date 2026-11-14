@@ -22,6 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { parseShipCostInput } from '@/lib/ship-cost-input'
 import { COURIER_OPTIONS, providerToOptionLabel } from '@/lib/iship/courier'
+import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 
 // ค่าที่เก็บลงฐานคือ label (เหมือนเดิม) — รายชื่อมาจาก COURIER_OPTIONS ที่เดียว (HR16)
 const CARRIERS = COURIER_OPTIONS.map((o) => o.label)
@@ -84,6 +85,11 @@ interface ShipFormProps {
   showShipCost?: boolean
   /** ค่าเดิมจาก ShipmentTracking.outboundShippingCost (mode='edit') — null = ยังไม่ระบุ */
   initialOutboundShippingCost?: number | null
+  /**
+   * 00090 — ผู้เรียกคุมเรื่องแจ้งเลขเอง (แผงแชท: false) · ไม่ส่ง = วาดสวิตช์เองตอนบันทึกใหม่ ค่าเริ่มต้นเปิด
+   * โหมด edit ไม่วาดและไม่ส่งคีย์ = คงค่าที่เลือกไว้ตอนบันทึกครั้งแรก
+   */
+  notifyCustomer?: boolean
 }
 
 export default function ShipForm({
@@ -101,7 +107,10 @@ export default function ShipForm({
   hideActions = false,
   showShipCost = false,
   initialOutboundShippingCost,
+  notifyCustomer,
 }: ShipFormProps) {
+  const [notifyOwn, setNotifyOwn] = useState(true)
+  const showNotifyToggle = mode === 'create' && notifyCustomer === undefined
   const t = useT()
   const router = useRouter()
   const [showShipForm, setShowShipForm] = useState(false)
@@ -152,6 +161,7 @@ export default function ShipForm({
           provider: values.provider,
           trackingNo: values.trackingNo,
           ...(cost?.ok ? { outboundShippingCost: cost.value } : {}),
+          ...(showNotifyToggle || notifyCustomer !== undefined ? { notifyCustomer: notifyCustomer ?? notifyOwn } : {}),
         }),
       })
       if (!res.ok) {
@@ -289,6 +299,8 @@ export default function ShipForm({
               )}
             </div>
           )}
+
+          {showNotifyToggle && <TrackingNoticeToggle checked={notifyOwn} onChange={setNotifyOwn} />}
 
           {/* hideActions = ผู้เรียกยกปุ่มไปไว้ที่ footer ที่ไม่เลื่อนตามเนื้อหาแล้ว
               (ปุ่มนั้นยิง submit กลับมาที่ฟอร์มนี้ผ่าน attribute form={formId}) */}

@@ -33,6 +33,7 @@ import { useIShipBoxes } from './useIShipBoxes'
 import PriceCompareSheet from './PriceCompareSheet'
 import type { ShipmentFooterReporter } from './shipment-footer'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
+import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -59,6 +60,10 @@ interface Props {
   submitLabel?: string
   /** ช่องเพิ่มเติมของผู้เรียก — รับชื่อขนส่งที่เลือกอยู่ไปใช้แสดงผลได้ */
   extraFields?: (ctx: { courierName: string | null }) => React.ReactNode
+  /**
+   * 00090 — ผู้เรียกคุมเรื่องแจ้งเลขเอง (แผงแชท: ส่ง false เพราะมีช่องติ๊กของตัวเอง) · ไม่ส่ง = ฟอร์มวาดสวิตช์เอง ค่าเริ่มต้นเปิด
+   */
+  notifyCustomer?: boolean
   /** เรียกทั้งกรณี CREATED และ FAILED — ผู้เรียกสลับไปหน้าสถานะเสมอ */
   onCreated: (shipment: ShipmentViewJson) => void
   /** 409 = มีพัสดุที่ยังใช้งานอยู่แล้ว — ผู้เรียกโหลด context ใหม่แล้วสลับโหมด */
@@ -195,6 +200,7 @@ export default function ShipmentCreateForm({
   couriersError = false,
   submitLabel = 'สร้างพัสดุ',
   extraFields,
+  notifyCustomer,
   onCreated,
   onExists,
   formId,
@@ -202,6 +208,7 @@ export default function ShipmentCreateForm({
   onFooterChange,
   flashOffer,
 }: Props) {
+  const [notifyOwn, setNotifyOwn] = useState(true)
   // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
   const ishipUrl = useIShipUrl()
   const [busy, setBusy] = useState(false)
@@ -440,6 +447,7 @@ export default function ShipmentCreateForm({
         body: JSON.stringify({
           orderToken,
           receiver: form,
+          notifyCustomer: notifyCustomer ?? notifyOwn,
           override: {
             ...(courierCode ? { courierCode } : {}),
             ...(numOrUndefined(weight) != null ? { weight: numOrUndefined(weight) } : {}),
@@ -963,6 +971,11 @@ export default function ShipmentCreateForm({
 
       {extraFields && (
         <section className="border-b-8 border-default-100 p-4">{extraFields({ courierName })}</section>
+      )}
+      {notifyCustomer === undefined && (
+        <section className="border-b-8 border-default-100 p-4">
+          <TrackingNoticeToggle checked={notifyOwn} onChange={setNotifyOwn} />
+        </section>
       )}
 
       {/* ตรวจก่อนสร้างพัสดุ — สรุปสิ่งที่ "มาจากที่อื่น" (ผู้ส่งจากการตั้งค่า + สินค้าจากออเดอร์)

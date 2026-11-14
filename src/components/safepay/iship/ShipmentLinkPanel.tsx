@@ -39,6 +39,7 @@ import type { ShipmentViewJson } from '@/lib/iship/context'
 import type { ShipmentFooterReporter } from './shipment-footer'
 import { TONE_BADGE } from './tone'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
+import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 
 interface Props {
   /**
@@ -63,6 +64,8 @@ interface Props {
   hideSubmit?: boolean
   /** รายงานสถานะปุ่มขึ้นไปให้ผู้เรียกวาด footer + กันปิดโมดัลระหว่างส่ง */
   onFooterChange?: ShipmentFooterReporter
+  /** 00090 — ผู้เรียกคุมเรื่องแจ้งเลขเอง (แผงแชท: false) · ไม่ส่ง = วาดสวิตช์เองในขั้นยืนยัน ค่าเริ่มต้นเปิด */
+  notifyCustomer?: boolean
 }
 
 async function readError(res: Response): Promise<string> {
@@ -83,7 +86,9 @@ export default function ShipmentLinkPanel({
   formId,
   hideSubmit = false,
   onFooterChange,
+  notifyCustomer,
 }: Props) {
+  const [notifyOwn, setNotifyOwn] = useState(true)
   // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
   const ishipUrl = useIShipUrl()
   const importing = mode === 'IMPORT'
@@ -199,6 +204,7 @@ export default function ShipmentLinkPanel({
           orderToken,
           trackingNo: preview.parcel.trackNo,
           addressResolution: resolution,
+          notifyCustomer: notifyCustomer ?? notifyOwn,
         }),
       })
       if (!res.ok) {
@@ -471,6 +477,12 @@ export default function ShipmentLinkPanel({
               />
               ที่อยู่ตรงกันทุกช่อง — ไม่ต้องเลือกอะไรเพิ่ม กดยืนยันได้เลย
             </p>
+          )}
+
+          {notifyCustomer === undefined && (
+            <div className="mt-4">
+              <TrackingNoticeToggle checked={notifyOwn} onChange={setNotifyOwn} />
+            </div>
           )}
 
           {!hideSubmit && (

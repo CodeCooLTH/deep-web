@@ -7,6 +7,7 @@
  *   M-dedupe ถอด `ON CONFLICT DO NOTHING`            → "ซ้ำ = ไม่มี error log" แดง
  *   M-norm   ไม่ normalize เลขพัสดุ                   → TC-131 แดง
  *   M-sp     ถอด ROLLBACK TO SAVEPOINT               → "งานหลักรอด" แดง
+ *   M-optout ถอด `|| !o.notifyTracking` (00090)       → "ร้านปิดส่งเลขพัสดุ" แดง
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
@@ -41,7 +42,7 @@ vi.mock('@/services/auto-order-detect.service', async (orig) => ({
 import { prisma as appPrisma } from '@/lib/prisma'
 import { UNCERTAIN_SEND_REASON } from '@/lib/chat-send-queue'
 import { DEFAULT_TEMPLATES } from '@/lib/auto-notify/defaults'
-import { dispatchAutoNotify, reserveAutoNotifyIntent, sweepAutoNotify, type ReserveInput } from '@/services/auto-notify.service'
+import { dispatchAutoNotify, reserveAutoNotifyIntent, reserveTrackingNotice, setTrackingNotice, sweepAutoNotify, type ReserveInput } from '@/services/auto-notify.service'
 import { composeNotice, externalCardParts, TRACKING_UPDATE_PREFIX } from '@/services/auto-notify-message.service'
 
 const url = process.env.DATABASE_URL ?? ''
@@ -243,6 +244,21 @@ describe.skipIf(!isLocal)('auto-notify engine (DB จริง)', () => {
       const rows = await ledgerOf(o.id)
       expect(rows).toHaveLength(1)
       expect(rows[0].valueKey).toBe('TH123')
+    })
+
+    it('00090 ร้านปิด "ส่งเลขพัสดุให้ลูกค้า" ของใบนี้ → ไม่จอง ไม่มีแถว · เปิดกลับ → จองได้ · ร้านอื่นแก้ค่าไม่ได้ [M-optout]', async () => {
+      const conv = await mkConv()
+      const o = await mkOrder(conv)
+      const track = (no: string) => appPrisma.$transaction((tx) => reserveTrackingNotice(tx, o.id, no))
+      await setTrackingNotice(S.shop, o.id, false)
+      expect(await track('TH0089A')).toBeNull()
+      expect(await ledgerOf(o.id)).toHaveLength(0)
+      // scope ร้านใน WHERE — ร้านอื่นเปิดกลับให้ไม่ได้
+      await setTrackingNotice(S.otherShop, o.id, true)
+      expect(await track('TH0089A')).toBeNull()
+      await setTrackingNotice(S.shop, o.id, true)
+      expect(await track('TH0089A')).toBeTruthy()
+      expect(await ledgerOf(o.id)).toHaveLength(1)
     })
 
     it('TC-133 แก้เลข A→B→A→C→D: ส่ง A,B,C · กลับ A ไม่ซ้ำ · D = SKIPPED/RESEND_LIMIT', async () => {

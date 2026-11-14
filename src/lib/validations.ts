@@ -444,6 +444,8 @@ export const ShipOrderSchema = v.object({
   trackingNo: v.pipe(v.string(), v.minLength(1)),
   // ไม่ส่งคีย์ = ไม่แตะ (PATCH) · null = ล้าง
   outboundShippingCost: v.optional(OutboundShippingCostValue),
+  // 00090 — สวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" · ไม่ส่งคีย์: สร้าง/ผูก = ส่ง (พฤติกรรมเดิม) · PATCH = ไม่แตะ
+  notifyCustomer: v.optional(v.boolean()),
 });
 
 /** body ของ PATCH /api/orders/[token]/shipping-cost — คีย์บังคับ (null = ล้างเป็นยังไม่ระบุ) */
@@ -1447,6 +1449,8 @@ export const IShipCreateShipmentSchema = v.object({
   // (publicToken/shortCode) จากการ์ดในแชท ซึ่งรู้จักแค่ token — เซิร์ฟเวอร์แปลงให้เอง
   orderId: v.optional(v.pipe(v.string(), v.uuid())),
   orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
+  // 00090 — สวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" · ไม่ส่งคีย์: สร้าง/ผูก = ส่ง (พฤติกรรมเดิม) · PATCH = ไม่แตะ
+  notifyCustomer: v.optional(v.boolean()),
   /** ข้อมูลผู้รับที่ร้านกรอกเพิ่มตอนสร้าง — จะถูกเขียนกลับเข้าออเดอร์ก่อนเปิดพัสดุ */
   receiver: v.optional(
     v.object({
@@ -1493,6 +1497,8 @@ export const IShipLinkShipmentSchema = v.object({
   orderToken: v.optional(v.pipe(v.string(), v.minLength(4), v.maxLength(64))),
   trackingNo: v.pipe(v.string(), v.minLength(4), v.maxLength(64)),
   addressResolution: v.picklist(["KEEP_ORDER", "USE_ISHIP"]),
+  // 00090 — สวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" · ไม่ส่งคีย์: สร้าง/ผูก = ส่ง (พฤติกรรมเดิม) · PATCH = ไม่แตะ
+  notifyCustomer: v.optional(v.boolean()),
 });
 
 // ดึงพัสดุจาก iShip มาสร้างคำสั่งซื้อใหม่ (user สั่ง 2026-08-01)
@@ -2564,9 +2570,11 @@ export const FlashCreateShipmentSchema = v.object({
   ...flashOrderRef,
   receiver: v.optional(IShipReceiverPatchSchema),
   override: v.optional(FlashCreateOverrideSchema),
+  // 00090 — สวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" · ไม่ส่งคีย์: สร้าง/ผูก = ส่ง (พฤติกรรมเดิม) · PATCH = ไม่แตะ
+  notifyCustomer: v.optional(v.boolean()),
 });
 
-export const FlashLinkSchema = v.object({ ...flashOrderRef, pno: flashPno });
+export const FlashLinkSchema = v.object({ ...flashOrderRef, pno: flashPno, notifyCustomer: v.optional(v.boolean()) });
 
 export const FlashPnoQuerySchema = v.object({ pno: flashPno });
 

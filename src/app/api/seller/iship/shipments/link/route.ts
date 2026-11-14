@@ -11,6 +11,7 @@ import { IShipLinkShipmentSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { linkShipment, resolveOrderIdByToken } from "@/services/iship.service";
 import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
+import { setTrackingNotice } from "@/services/auto-notify.service";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const orderId = rawId ?? (await resolveOrderIdByToken(guard.shopId, orderToken!));
+    await setTrackingNotice(guard.shopId, orderId, parsed.output.notifyCustomer ?? true);
     const shipment = await linkShipment(
       guard.shopId,
       guard.userId,
