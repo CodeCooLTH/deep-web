@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { FlashError, FlashServiceError } from "@/lib/flash/errors";
 
-const { guardMock, svc, resolveOrderIdByToken } = vi.hoisted(() => ({
+const { guardMock, svc, resolveOrderIdByToken, setTrackingNotice } = vi.hoisted(() => ({
   guardMock: vi.fn(),
+  setTrackingNotice: vi.fn(async () => {}),
   resolveOrderIdByToken: vi.fn(),
   svc: {
     createFlashShipment: vi.fn(), previewFlashPno: vi.fn(), linkFlashShipment: vi.fn(), retryFlashShipment: vi.fn(),
@@ -17,6 +18,8 @@ vi.mock("@/services/flash.service", () => svc);
 vi.mock("@/services/flash-shipment.service", () => svc);
 vi.mock("@/services/flash-ops.service", () => svc);
 vi.mock("@/services/iship.service", async (orig) => ({ ...(await orig<object>()), resolveOrderIdByToken }));
+// 00090 — route บันทึกสวิตช์รายใบก่อนเรียก service (ไม่ mock = แตะ prisma จริง · CI ไม่มี DB)
+vi.mock("@/services/auto-notify.service", () => ({ setTrackingNotice }));
 
 import * as create from "../shipments/route";
 import * as preview from "../shipments/preview/route";
@@ -75,6 +78,10 @@ describe("create", () => {
     expect(resolveOrderIdByToken).toHaveBeenCalledWith("shop1", "tok12");
     expect(svc.createFlashShipment).toHaveBeenCalledWith("shop1", "u1", "o9", { weight: 2 }, undefined);
     expect(r).toMatchObject({ status: 201, body: { status: "NEEDS_REVIEW" } });
+    // ไม่ส่งคีย์ = ส่งเลขพัสดุเหมือนเดิม · ส่ง false = ปิดรายใบ (scope ร้านจาก guard)
+    expect(setTrackingNotice).toHaveBeenLastCalledWith("shop1", "o9", true);
+    await create.POST(req("/c", "POST", { orderToken: "tok12", notifyCustomer: false, override: { weight: 2 } }));
+    expect(setTrackingNotice).toHaveBeenLastCalledWith("shop1", "o9", false);
   });
   it("400: ไม่มี orderId/orderToken · uuid ผิด · น้ำหนักเกิน · ไม่มี body", async () => {
     for (const bad of [{}, { orderId: "x" }, { orderId: OID, override: { weight: 500 } }, null]) {
