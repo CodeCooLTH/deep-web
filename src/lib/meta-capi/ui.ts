@@ -98,3 +98,34 @@ export const AMOUNT_EVENT_KEYS: ReadonlySet<string> = new Set([
   "PURCHASE", "ORDER_CREATED", "ADD_PAYMENT_INFO", "ORDER_SHIPPED", "ORDER_DELIVERED", "ORDER_CANCELED", "ORDER_RETURNED", "CART_ABANDONED",
 ]);
 export const RULE_EVENT_KEYS = ["LEAD_SUBMITTED", "QUALIFIED_LEAD"] as const;
+
+// ── โมดัล "ตั้งค่า" ของแต่ละเหตุการณ์ ───────────────────────────────────────────────────────
+/** purchase = จังหวะส่ง+นับร่าง+ยอด · orderCreated = นับร่าง+ยอด · amount = ยอดอย่างเดียว · rules = กฎแท็ก · none = ไม่มีอะไรให้ตั้ง (ไม่โชว์ปุ่ม) */
+export type EventSettingsKind = "purchase" | "orderCreated" | "amount" | "rules" | "none";
+
+export function eventSettingsKind(key: string): EventSettingsKind {
+  if (key === "PURCHASE") return "purchase";
+  if (key === "ORDER_CREATED") return "orderCreated";
+  if ((RULE_EVENT_KEYS as readonly string[]).includes(key)) return "rules";
+  return AMOUNT_EVENT_KEYS.has(key) ? "amount" : "none";
+}
+export const eventHasSettings = (key: string) => eventSettingsKind(key) !== "none";
+
+export type EventSettingsDraft = {
+  valueMode: "NET" | "NO_VAT";
+  sendContents: boolean;
+  purchaseAt: string;
+  countPromotedDraft: boolean;
+  rules: RuleDraft[];
+};
+
+/** แก้ค้างไหม — เทียบสเกลาร์ + กฎ (กฎเทียบแบบ rulesDirty) */
+export function eventSettingsDirty(saved: EventSettingsDraft, draft: EventSettingsDraft, savedRules: readonly RuleSaved[] | undefined): boolean {
+  return (
+    saved.valueMode !== draft.valueMode ||
+    saved.sendContents !== draft.sendContents ||
+    saved.purchaseAt !== draft.purchaseAt ||
+    saved.countPromotedDraft !== draft.countPromotedDraft ||
+    rulesDirty(savedRules, draft.rules)
+  );
+}

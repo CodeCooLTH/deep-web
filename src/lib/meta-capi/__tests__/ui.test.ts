@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capiPageStatus, capiReasonKey, draftsOf, parseRuleValue, purchaseTimingOf, rulesDirty, toSavedRules, validateRules } from "../ui";
+import { capiPageStatus, capiReasonKey, draftsOf, eventHasSettings, eventSettingsDirty, eventSettingsKind, parseRuleValue, purchaseTimingOf, rulesDirty, toSavedRules, validateRules } from "../ui";
 
 const A = { status: "ACTIVE" };
 const S = { status: "STOPPED" };
@@ -74,4 +74,23 @@ describe("กลุ่มเหตุการณ์บนหน้าจอ", (
     const want = CAPI_EVENTS.filter((e) => e.hasValue && e.key !== "VIEW_CONTENT" && !(RULE_EVENT_KEYS as readonly string[]).includes(e.key)).map((e) => e.key).sort();
     expect([...AMOUNT_EVENT_KEYS].sort()).toEqual(want);
   });
+});
+
+describe("eventSettingsKind / eventSettingsDirty", () => {
+  it("จัดชนิดครบทุกคีย์", () => {
+    expect(eventSettingsKind("PURCHASE")).toBe("purchase");
+    expect(eventSettingsKind("ORDER_CREATED")).toBe("orderCreated");
+    expect(eventSettingsKind("LEAD_SUBMITTED")).toBe("rules");
+    expect(eventSettingsKind("ORDER_SHIPPED")).toBe("amount");
+    expect(eventHasSettings("VIEW_CONTENT")).toBe(false);
+    expect(eventHasSettings("INITIATE_CHECKOUT")).toBe(false);
+  });
+  const base = { valueMode: "NET" as const, sendContents: false, purchaseAt: "CREATE", countPromotedDraft: false, rules: [] };
+  it("ไม่แก้ = ไม่ dirty · แก้ทีละช่อง = dirty", () => {
+    expect(eventSettingsDirty(base, { ...base }, undefined)).toBe(false);
+    for (const p of [{ valueMode: "NO_VAT" as const }, { sendContents: true }, { purchaseAt: "PAYMENT" }, { countPromotedDraft: true }, { rules: [{ tagId: "a", value: "" }] }])
+      expect(eventSettingsDirty(base, { ...base, ...p }, undefined)).toBe(true);
+  });
+  it("กฎ 200 กับ 200.00 ไม่ถือว่าต่าง", () =>
+    expect(eventSettingsDirty(base, { ...base, rules: [{ tagId: "a", value: "200.00" }] }, [{ tagId: "a", valueBaht: 200 }])).toBe(false));
 });
