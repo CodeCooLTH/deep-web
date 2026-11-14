@@ -12,6 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { PICKUP_AUTOCONFIRM_HOURS } from "@/lib/order-pickup";
 import { recordOrderEvent } from "./order-event.service";
+import { enqueueOrderCapiAfterCommit } from "./meta-capi.service";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -103,6 +104,9 @@ export async function autoConfirmPickup(now = new Date()): Promise<AutoConfirmPi
         },
       });
 
+      // 00089 — เฉพาะผู้ชนะ updateMany · DELIVERED ซ้ำกับ webhook ขนส่งได้ คีย์กันซ้ำรับไว้
+      await enqueueOrderCapiAfterCommit(order.id, "CONFIRMED");
+      await enqueueOrderCapiAfterCommit(order.id, "DELIVERED");
       result.confirmed += 1;
     } catch (err) {
       // ล้มทีละใบ ไม่ล้มทั้ง batch — ใบที่เหลือยังต้องได้ปิด

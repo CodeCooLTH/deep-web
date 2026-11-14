@@ -152,6 +152,10 @@ export const PENDING_REVIEW_SCOPES = [
    * `shop-video.service` ทนกับ token ที่ไม่มี scope นี้อยู่แล้ว (คืนยอดวิวเป็น null)
    */
   'instagram_manage_insights',
+  // feature 00089 — ส่งเหตุการณ์ Conversions API ด้วย token เพจ (สร้าง/หา dataset ของเพจ)
+  // ได้ระดับ Standard แล้ว (2026-11-14) ⇒ ใช้ได้เฉพาะบัญชีที่มี role · ห้ามใส่ใน Configuration
+  // ของ Login for Business จนกว่าจะได้ Advanced ไม่งั้นลูกค้าทุกร้านเชื่อมเพจไม่ได้
+  'page_events',
   // ── บันทึกเดิมก่อน 2026-09-08 (เก็บไว้เป็นที่มาของข้อควรระวังข้างบน) ────────────────
   // instagram_manage_insights — "ขอไม่ได้" ตอนนี้ อย่าเพิ่งใส่กลับ
   //

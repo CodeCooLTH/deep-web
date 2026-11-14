@@ -25,6 +25,7 @@ import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { resolveTechnicianAssignee, settleServiceJobOnBuyerConfirm } from "@/services/service-job.service";
+import { enqueueOrderCapiAfterCommit } from "@/services/meta-capi.service";
 import { removeTagsOnOrderCreated } from "@/services/shop-tag-auto.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
@@ -887,6 +888,7 @@ export async function createOrder(shopId: string, data: {
       dispatchAutoNotifyAfterCommit(ledgerId);
       // 00083 TD-003 — ถอด tag หลัง commit นอก tx/retry loop (ใช้ conversationId ของแถวที่สร้างจริง · ไม่ throw)
       await removeTagsOnOrderCreated({ id: created.id, shopId, conversationId: created.conversationId, isDryRun: created.isDryRun });
+      await enqueueOrderCapiAfterCommit(created.id, "CREATED"); // 00089
       return created;
     } catch (e) {
       // P2002 = unique violation (ชน shortCode) → regenerate retry (tx ใหม่ทั้งก้อน); error อื่น
@@ -1134,6 +1136,7 @@ async function promoteDraftCore(
   dispatchAutoNotifyAfterCommit(ledgerId);
   // 00083 TD-003 — ถอด tag หลัง commit (ใช้ห้องของแถวที่ผ่าน WHERE shopId แล้ว)
   await removeTagsOnOrderCreated({ id: promoted.id, shopId, conversationId: promoted.conversationId, isDryRun: promoted.isDryRun });
+  await enqueueOrderCapiAfterCommit(promoted.id, "DRAFT_PROMOTED"); // 00089
   return promoted;
 }
 
@@ -1671,6 +1674,7 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   });
   const updated = await prisma.order.findUniqueOrThrow({ where: { publicToken } });
   if (!won) return updated;
+  await enqueueOrderCapiAfterCommit(order.id, "CONFIRMED"); // 00089 — เฉพาะผู้ชนะ
   // Post-confirm recalc เป็น best-effort (ดู runPostConfirmEffects)
   await runPostConfirmEffects(
     { publicToken: updated.publicToken, buyerUserId: updated.buyerUserId, auctionId: updated.auctionId, shop: order.shop },
@@ -1734,6 +1738,7 @@ export async function shipOrder(
     return tx.order.findUniqueOrThrow({ where: { publicToken } });
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
+  await enqueueOrderCapiAfterCommit(order.id, "SHIPPED"); // 00089
   return shipped;
 }
 
@@ -1816,6 +1821,7 @@ export async function updateShipmentTracking(
     return updated;
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
+  await enqueueOrderCapiAfterCommit(order.id, "SHIPPED"); // 00089 — แก้เลขก็ผ่านรอบเดียวกัน คีย์กันซ้ำทำให้ส่งครั้งเดียว
   return result;
 }
 
@@ -1897,7 +1903,7 @@ export async function markManualDispatched(publicToken: string, shopId: string, 
     const facts = manualFacts(order);
     // idempotent: ส่งเอง + SHIPPED อยู่แล้ว = ครั้งก่อน/อีกแท็บทำไปแล้ว
     if (order.status === "SHIPPED" && isManualShipment(facts)) {
-      return { changed: false, order: { publicToken, status: "SHIPPED" } };
+      return { changed: false, orderId: order.id, order: { publicToken, status: "SHIPPED" } };
     }
     if (!canMarkDispatched(facts)) throw new ManualDispatchNotAllowedError(dispatchRejectMessage(order));
 
@@ -1905,7 +1911,7 @@ export async function markManualDispatched(publicToken: string, shopId: string, 
     if (won.count === 0) {
       const now = await tx.order.findFirst({ where: { id: order.id }, select: MANUAL_STEP_SELECT });
       if (now && now.status === "SHIPPED" && isManualShipment(manualFacts(now))) {
-        return { changed: false, order: { publicToken, status: "SHIPPED" } };
+        return { changed: false, orderId: order.id, order: { publicToken, status: "SHIPPED" } };
       }
       throw new ManualDispatchNotAllowedError(dispatchRejectMessage(now ?? order));
     }
@@ -1916,9 +1922,10 @@ export async function markManualDispatched(publicToken: string, shopId: string, 
     const tracking = await tx.shipmentTracking.findUniqueOrThrow({ where: { orderId: order.id }, select: { trackingNo: true } });
     await recordOrderEvent(tx, { orderId: order.id, type: "MANUAL_DISPATCHED", actorUserId });
     ledgerId = await reserveTrackingNotice(tx, order.id, tracking.trackingNo);
-    return { changed: true, order: { publicToken, status: "SHIPPED" } };
+    return { changed: true, orderId: order.id, order: { publicToken, status: "SHIPPED" } };
   });
   dispatchAutoNotifyAfterCommit(ledgerId);
+  if (result.changed) await enqueueOrderCapiAfterCommit(result.orderId, "SHIPPED"); // 00089 — เฉพาะผู้ชนะ
   return result;
 }
 
@@ -1963,7 +1970,7 @@ export async function undoManualDispatch(publicToken: string, shopId: string, ac
 export async function markManualDelivered(publicToken: string, shopId: string, actorUserId: string | null) {
   type Done = { changed: boolean; alreadyClosed?: boolean; order: { publicToken: string; status: string } };
   const closed: Done = { changed: false, alreadyClosed: true, order: { publicToken, status: "CONFIRMED" } };
-  const out = await prisma.$transaction(async (tx): Promise<{ res: Done; effects: Parameters<typeof runPostConfirmEffects>[0] | null }> => {
+  const out = await prisma.$transaction(async (tx): Promise<{ res: Done; orderId?: string; effects: Parameters<typeof runPostConfirmEffects>[0] | null }> => {
     const order = await tx.order.findFirst({
       where: { publicToken, shopId },
       select: { ...MANUAL_STEP_SELECT, buyerUserId: true, auctionId: true, shop: { select: { id: true, userId: true, kind: true, vertical: true } } },
@@ -1982,10 +1989,15 @@ export async function markManualDelivered(publicToken: string, shopId: string, a
     await recordOrderEvent(tx, { orderId: order.id, type: "SELLER_DELIVERED", actorUserId });
     return {
       res: { changed: true, order: { publicToken, status: "CONFIRMED" } },
+      orderId: order.id,
       effects: { publicToken, buyerUserId: order.buyerUserId, auctionId: order.auctionId, shop: order.shop },
     };
   });
-  if (out.effects) await runPostConfirmEffects(out.effects, "post-seller-delivered");
+  if (out.effects) {
+    await enqueueOrderCapiAfterCommit(out.orderId!, "CONFIRMED"); // 00089 — เฉพาะผู้ชนะ
+    await enqueueOrderCapiAfterCommit(out.orderId!, "DELIVERED");
+    await runPostConfirmEffects(out.effects, "post-seller-delivered");
+  }
   return out.res;
 }
 
@@ -2090,7 +2102,7 @@ export async function cancelOrder(
   // Inventory Add-on hook — restock ตามประวัติจริงของ order (stockDeducted != null)
   // ไม่เช็คสถานะ entitlement ปัจจุบันเลย (BR-INV-12: order ที่ตัดสต็อกไปตอน entitlement ยัง
   // ACTIVE ต้องได้คืนสต็อกตอน cancel แม้ entitlement จะหลุด ACTIVE ไปแล้วก็ตาม)
-  return prisma.$transaction(async (tx) => {
+  const cancelled = await prisma.$transaction(async (tx) => {
     const data = { status: "CANCELLED", cancelInitiator: initiator, cancelReason };
     let updated;
     if (serviceShop) {
@@ -2113,6 +2125,8 @@ export async function cancelOrder(
     });
     return updated;
   });
+  await enqueueOrderCapiAfterCommit(order.id, "CANCELED"); // 00089
+  return cancelled;
 }
 
 export async function getOrderByToken(publicToken: string) {
@@ -2306,13 +2320,15 @@ export async function setCodReceived(
   actorUserId: string | null,
   opts?: { clear?: boolean },
 ) {
-  return prisma.order.update({
+  const res = await prisma.order.update({
     where: { id: orderId },
     data: opts?.clear
       ? { codReceivedAt: null, codReceivedByUserId: null }
       : { codReceivedAt: new Date(), codReceivedByUserId: actorUserId },
     select: { id: true, codReceivedAt: true },
   });
+  if (!opts?.clear) await enqueueOrderCapiAfterCommit(orderId, "FULLY_PAID"); // 00089 — ได้เงินปลายทางแล้ว
+  return res;
 }
 
 // ─── feature 00062: นัดรับสินค้า (U8) ────────────────────────────────────────
@@ -2461,7 +2477,7 @@ export class PaymentConfirmNotEligibleError extends Error {
  * OrderEvent ใหม่ทุกครั้ง (audit trail ต้องเห็นทุกครั้งที่กด — pattern เดียวกับ setHandedOver)
  */
 export async function setPaymentConfirmed(orderId: string, actorUserId: string | null) {
-  return prisma.$transaction(async (tx) => {
+  const res = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
       select: {
@@ -2494,6 +2510,9 @@ export async function setPaymentConfirmed(orderId: string, actorUserId: string |
     await recordOrderEvent(tx, { orderId, type: "PAYMENT_CONFIRMED", actorUserId });
     return updated;
   });
+  // 00089 — ร้านยืนยันรับเงิน = ชำระแล้วตามนิยาม isOrderUnpaid · กดซ้ำ = คีย์กันซ้ำรับไว้
+  await enqueueOrderCapiAfterCommit(orderId, "FULLY_PAID");
+  return res;
 }
 
 /**
@@ -2586,6 +2605,9 @@ export async function settleCodFromCarrier(input: {
     });
   });
 
+  // 00089 — ขนส่งปิดยอด COD = ได้เงินแล้ว ไม่ว่าออเดอร์จะถูกยืนยันไปก่อนหรือไม่ (ใบที่ยกเลิกแล้วตัวใส่คิวกันเอง)
+  await enqueueOrderCapiAfterCommit(order.id, "FULLY_PAID");
+
   // conditional update — ยกเลิกแล้วห้ามปลุกกลับ (BR-ISHIP-46) และผู้ซื้อ/ร้านที่กดยืนยัน
   // ไปเสี้ยววินาทีก่อนต้องไม่ถูกเขียนทับ (count=0 = มีคนอื่นทำไปแล้ว ไม่ใช่ความผิดพลาด)
   const advanced = await prisma.order.updateMany({
@@ -2601,6 +2623,8 @@ export async function settleCodFromCarrier(input: {
     occurredAt: input.settledAt,
   });
 
+  await enqueueOrderCapiAfterCommit(order.id, "CONFIRMED"); // 00089 — เฉพาะผู้ชนะ (count>0)
+  await enqueueOrderCapiAfterCommit(order.id, "DELIVERED"); // ขนส่งเก็บเงินปลายทางสำเร็จ = ของถึงลูกค้าแล้ว
   // recalc ชุดเดียวกับ confirmOrder เป๊ะ (BR-ISHIP-44: ไม่มีสูตรพิเศษสำหรับใบที่ระบบยืนยันเอง)
   await runPostConfirmEffects(order, "post-auto-confirm");
   return true;
@@ -2980,7 +3004,9 @@ export async function attachSlip(publicToken: string, fileId: string) {
   if (order.status !== "PENDING") {
     throw new Error("แนบสลิปได้เฉพาะคำสั่งซื้อที่รอดำเนินการ");
   }
-  return prisma.order.update({ where: { publicToken }, data: { slipFileId: fileId } });
+  const updated = await prisma.order.update({ where: { publicToken }, data: { slipFileId: fileId } });
+  await enqueueOrderCapiAfterCommit(order.id, "SLIP"); // 00089
+  return updated;
 }
 
 /**

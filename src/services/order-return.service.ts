@@ -3,6 +3,7 @@ import 'server-only'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { enqueueOrderCapiAfterCommit } from '@/services/meta-capi.service'
 import { recordOrderEvent } from '@/services/order-event.service'
 import { FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import type { ParcelCloseOutcome } from '@/lib/parcel-close'
@@ -476,7 +477,7 @@ export async function receiveOrderReturn(shopId: string, userId: string | null, 
     ret.items.map((i) => ({ qty: i.qty, unitPrice: Number(i.unitPrice) })),
   )
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await tx.orderReturn.update({
       where: { id: ret.id },
       data: {
@@ -526,8 +527,12 @@ export async function receiveOrderReturn(shopId: string, userId: string | null, 
       meta: { returnId: ret.id, refundAmount, fullyReturned: full } as never,
     })
 
-    return { id: ret.id, refundAmount, fullyReturned: full }
+    return { id: ret.id, refundAmount, fullyReturned: full, becameReturned: full && order.status !== 'CANCELLED' }
   })
+  // 00089 — เฉพาะตอนสถานะออเดอร์เปลี่ยนเป็น RETURNED จริง (คืนบางส่วนไม่ส่ง)
+  if (result.becameReturned) await enqueueOrderCapiAfterCommit(ret.orderId, 'RETURNED')
+  const { becameReturned: _b, ...out } = result
+  return out
 }
 
 /** ยกเลิกเรื่องคืน — ไม่มีผลย้อนหลังใด ๆ (AC-RT-09) โควตาที่จองไว้ถูกคืนโดยอัตโนมัติ */

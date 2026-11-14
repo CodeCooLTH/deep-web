@@ -1,3 +1,4 @@
+import { CAPI_EVENTS } from "@/lib/meta-capi/events";
 import * as v from "valibot";
 import { STAFF_ROLES } from "@/lib/shop-permissions";
 import { UPLOAD_PURPOSES } from "@/lib/upload-policy";
@@ -2595,3 +2596,48 @@ export const ParcelCloseBodySchema = v.pipe(
   }),
   v.forward(v.check((b) => b.reason !== "OTHER" || !!b.note, "OTHER ต้องมีข้อความ 5–200 ตัวอักษร"), ["note"]),
 )
+
+// ── feature 00089 — ตั้งค่า Meta CAPI (/api/shops/meta-capi/**) ──────────────────────────
+// ตรวจรูปร่างที่นี่ · กติกาเชิงความหมาย (คีย์เหตุการณ์ · แท็กของร้านนี้ · เพดานกฎ) ตรวจซ้ำใน meta-capi-settings.service
+const CapiEventOptionsSchema = v.record(
+  v.string(),
+  v.object({
+    valueMode: v.optional(v.picklist(["NET", "NO_VAT"], "วิธีคิดยอดไม่ถูกต้อง")),
+    sendContents: v.optional(v.boolean()),
+    rules: v.optional(v.array(v.object({ tagId: v.pipe(v.string(), v.maxLength(64)), valueBaht: v.optional(v.number("มูลค่าต้องเป็นตัวเลข")) }))),
+  }),
+);
+
+export const CapiPageUpdateSchema = v.object({
+  enabled: v.optional(v.boolean()),
+  purchaseAt: v.optional(v.picklist(["CREATE", "CONFIRM", "PAYMENT"], "จังหวะ Purchase ไม่ถูกต้อง")),
+  countPromotedDraft: v.optional(v.boolean()),
+  eventOptions: v.optional(CapiEventOptionsSchema),
+});
+
+const capiText = (max: number) => v.nullish(v.pipe(v.string(), v.maxLength(max, `ยาวเกิน ${max} ตัวอักษร`)));
+
+export const CapiDatasetCreateSchema = v.object({
+  source: v.picklist(["PAGE", "MANUAL"], "ชนิด dataset ไม่ถูกต้อง"),
+  datasetId: v.optional(v.pipe(v.string(), v.maxLength(32))),
+  token: v.optional(v.pipe(v.string(), v.maxLength(512, "token ยาวเกินไป"))),
+  label: capiText(60),
+  events: v.optional(v.array(v.string())),
+});
+
+export const CapiDatasetUpdateSchema = v.object({
+  label: capiText(60),
+  events: v.optional(v.array(v.string())),
+  token: v.optional(v.pipe(v.string(), v.maxLength(512, "token ยาวเกินไป"))),
+});
+
+export const CapiDatasetTestSchema = v.object({
+  testEventCode: v.optional(v.pipe(v.string(), v.minLength(1, "Test Event Code ต้องไม่ว่าง"), v.maxLength(64, "Test Event Code ยาวเกิน 64 ตัวอักษร"))),
+});
+
+export const CapiLogQuerySchema = v.object({
+  status: v.optional(v.picklist(["PENDING", "SENT", "FAILED", "SKIPPED"], "สถานะไม่ถูกต้อง")),
+  eventKey: v.optional(v.picklist(CAPI_EVENTS.map((e) => e.key), "เหตุการณ์ไม่ถูกต้อง")),
+  cursor: v.optional(v.pipe(v.string(), v.maxLength(64))),
+  take: v.optional(v.pipe(v.string(), v.regex(/^\d{1,3}$/, "take ต้องเป็นตัวเลข"), v.transform(Number))),
+});

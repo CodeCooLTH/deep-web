@@ -440,6 +440,10 @@ model Shop {
   /// ลูกค้าเห็นรูปและบันทึกในหน้า /o/{token} + ข้อความอัตโนมัติ SERVICE_FINISHED · NONE ⇒ false (CHECK)
   serviceJobPhotosBuyerVisible Boolean            @default(false)
   serviceJobRecords            ServiceJobRecord[]
+  // feature 00089 Meta CAPI
+  metaCapiSettings MetaCapiPageSetting[]
+  metaCapiDatasets MetaCapiDataset[]
+  metaCapiEvents   MetaCapiEvent[]
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -1979,6 +1983,9 @@ model ShopChannel {
   orders            Order[]
   // back-relation ของ LineRichMenu.shopChannelId (feature 00045) — 0..1 เฉพาะเพจ provider=LINE
   richMenu          LineRichMenu?
+  // feature 00089 — ตั้งค่าส่งเหตุการณ์ไป Meta CAPI (Messenger เท่านั้น)
+  metaCapiSetting   MetaCapiPageSetting?
+  metaCapiDatasets  MetaCapiDataset[]
 
   // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
   // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
@@ -5502,4 +5509,91 @@ model ShopTagEvent {
   @@index([externalContactId, createdAt])
   @@index([chatMessageId])
   @@index([orderId])
+}
+
+/// feature 00089 — ตั้งค่าส่งเหตุการณ์ไป Meta Conversions API ต่อเพจ Messenger (1:1 ShopChannel)
+/// purchaseAt: "CREATE" | "CONFIRM" | "PAYMENT" (FR-006) · countPromotedDraft = นับออเดอร์ร่างที่ยืนยันแล้ว
+/// eventOptions: { [CapiEventKey]: { valueMode?: "NET"|"NO_VAT", sendContents?: boolean,
+///   rules?: { tagId: string, valueBaht?: number }[] } } — ใช้ร่วมทุก dataset ของเพจ (FR-007/010)
+/// enabledAt: เวลาเปิดล่าสุด — ไม่ส่งเหตุการณ์ที่เกิดก่อนหน้านี้ (PRD 4.1 ไม่ย้อนหลัง)
+model MetaCapiPageSetting {
+  id                 String    @id @default(uuid())
+  shopId             String
+  shopChannelId      String    @unique
+  enabled            Boolean   @default(false)
+  enabledAt          DateTime? @db.Timestamptz(3)
+  purchaseAt         String    @default("CREATE")
+  countPromotedDraft Boolean   @default(true)
+  eventOptions       Json      @default("{}")
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopChannel ShopChannel @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+}
+
+/// feature 00089 — dataset ปลายทาง ≤3 ต่อเพจ (FR-003)
+/// source "PAGE" = ใช้ token เพจ (ShopChannel.accessTokenEnc ต้องมี page_events) · "MANUAL" = ร้านกรอก token เอง
+/// 🛑 tokenEnc (MANUAL เท่านั้น) ผ่าน token-crypto.ts — ห้าม select ออกไปหา client ห้าม log
+/// 🛑 ไม่เก็บ Test Event Code — ถ้าเก็บ เหตุการณ์จริงจะพกรหัสไปด้วยและ Meta นับเป็นเหตุการณ์ทดสอบ (Design-Spec D6)
+/// events: CapiEventKey[] ที่เปิดส่งเข้า dataset นี้ · status "ACTIVE" | "STOPPED" (token เสีย FR-012)
+model MetaCapiDataset {
+  id            String    @id @default(uuid())
+  shopId        String
+  shopChannelId String
+  datasetId     String
+  source        String
+  tokenEnc      String?
+  label         String?
+  events        String[]  @default([])
+  status        String    @default("ACTIVE")
+  stoppedReason String?
+  stoppedAt     DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  shop        Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopChannel ShopChannel     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  queue       MetaCapiEvent[]
+
+  @@unique([shopChannelId, datasetId])
+  @@index([shopId])
+}
+
+/// feature 00089 — คิวส่ง (outbox) 1 แถว = เหตุการณ์ 1 ตัว → dataset 1 ตัว (FR-011)
+/// dedupeKey ไม่ซ้ำต่อ dataset (BR-CAPI-01) — INSERT ... ON CONFLICT DO NOTHING
+/// pageId/psid/eventTime/payload = ภาพนิ่งตอนเข้าคิว ห้องถูกลบภายหลังก็ยังส่งได้ · conversationId ไม่มี FK
+/// payload: { value?, orderId?, items? } · status "PENDING"|"SENT"|"FAILED"|"SKIPPED"
+/// lastRequest/lastResponse: ครั้งล่าสุด ตัดขนาดแล้ว ไม่มี token · ลบแถวเก่ากว่า 180 วัน
+model MetaCapiEvent {
+  id             String    @id @default(uuid())
+  shopId         String
+  datasetRowId   String
+  conversationId String?
+  eventKey       String
+  dedupeKey      String
+  eventTime      DateTime  @db.Timestamptz(3)
+  pageId         String
+  psid           String
+  payload        Json      @default("{}")
+  status         String    @default("PENDING")
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lockedAt       DateTime? @db.Timestamptz(3)
+  reason         String?
+  lastHttpStatus Int?
+  lastRequest    Json?
+  lastResponse   Json?
+  sentAt         DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  shop    Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  dataset MetaCapiDataset @relation(fields: [datasetRowId], references: [id], onDelete: Cascade)
+
+  @@unique([datasetRowId, dedupeKey])
+  @@index([status, nextAttemptAt])
+  @@index([conversationId, eventKey, createdAt])
+  @@index([shopId, createdAt])
 }

@@ -237,6 +237,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // และจาก callback ของ Facebook เท่านั้น. icon 'plug-connected' ใช้อยู่แล้วในโปรเจกต์
       // สำหรับความหมายเดียวกัน (เชื่อมเพจ FB / เชื่อมขนส่ง iShip) ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
       { url: '/settings/channels', slug: 'seller:settings-channels', label: 'ช่องทางการขาย', icon: 'plug-connected' },
+      // feature 00089 — ส่งยอดขายกลับให้ Meta (เจ้าของเท่านั้น X9 ผ่านทะเบียน route) · ซ่อนเมื่อฟีเจอร์ปิดด้วย applyMetaCapiMenu
+      // ห้ามใส่ slug นี้ใน *_ONLY_SLUGS: เห็นทุก vertical ที่มีเพจ Messenger · ป้าย "Conversions API" ตามมติ user 2026-11-11 (U1)
+      { url: '/settings/conversions-api', slug: 'seller:settings-conversions-api', label: 'Conversions API', icon: 'ad-2' },
       // ประเภทงาน (feature 00024, ย้ายออกจาก /queues เมื่อ 2026-08-12) — เห็นเฉพาะร้าน
       // vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu ด้านล่าง เหมือน seller:queues)
       // อยู่กลุ่มตั้งค่าร้านไม่ใช่กลุ่มงานประจำวัน เพราะร้านตั้งครั้งเดียวจบ (user ยืนยัน 2026-08-12)
@@ -340,6 +343,19 @@ export function applyLineReportMenu(
   return items.map((group) => !group.children ? group : {
     ...group,
     children: group.children.filter((child) => child.slug !== 'seller:line-reports'),
+  })
+}
+
+/**
+ * applyMetaCapiMenu — ซ่อนเมนู Conversions API เมื่อฟีเจอร์ปิดสำหรับร้านนี้ (feature 00089 FR-001)
+ * fail-closed: ผู้เรียกที่ไม่ส่งค่า (เช่น แคตตาล็อกทางลัดที่ยังไม่รู้จักฟีเจอร์นี้) = ซ่อน
+ * ด่านจริงอยู่ที่หน้า/route (X9 + isMetaCapiEnabled → notFound) ซ่อนเมนูแค่กันรก
+ */
+export function applyMetaCapiMenu(items: MenuItemType[], enabled: boolean): MenuItemType[] {
+  if (enabled) return items
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.filter((child) => child.slug !== 'seller:settings-conversions-api'),
   })
 }
 
@@ -829,6 +845,8 @@ export function resolveVisibleSellerMenu(
     }
     /** เป็น `Shop.userId` ของร้านที่ไม่ลบอย่างน้อย 1 ร้าน (= `ownsAnyShop`) — fail-closed: ไม่รู้ = false */
     ownsShop: boolean
+    /** 00089 — `isMetaCapiEnabled(shopId)` ของร้านที่เปิดอยู่ · ไม่ส่ง = false (ซ่อนเมนู Conversions API) */
+    metaCapiEnabled?: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
     hidePayments?: boolean
     /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
@@ -856,6 +874,7 @@ export function resolveVisibleSellerMenu(
     applyOrderLabel(
     applyVerticalMenu(
         applyLineReportMenu(
+          applyMetaCapiMenu(
           applyCapabilityMenu(
             applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
               hidePayments: ctx.hidePayments ?? false,
@@ -865,6 +884,8 @@ export function resolveVisibleSellerMenu(
             }),
             roles,
             { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner, vertical: ctx.shop.vertical },
+          ),
+          ctx.metaCapiEnabled ?? false,
           ),
           { ownsShop: ctx.ownsShop },
         ),
@@ -1121,6 +1142,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings': m.settings,
     'seller:pickups': m.pickups,
     'seller:settings-channels': m.settingsChannels,
+    'seller:settings-conversions-api': m.settingsConversionsApi,
     'seller:settings-job-types': m.settingsJobTypes,
     'seller:settings-reports': m.settingsReports,
   }

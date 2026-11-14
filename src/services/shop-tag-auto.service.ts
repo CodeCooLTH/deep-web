@@ -1,4 +1,5 @@
 import 'server-only'
+import { enqueueTagLeadCapi } from '@/services/meta-capi.service'
 import { prisma } from '@/lib/prisma'
 import { matchTagKeywords, tagNameKey, variantsIn } from '@/lib/shop-tag-match'
 
@@ -89,6 +90,8 @@ export async function applyKeywordTags(chatMessageId: string): Promise<ApplyOutc
       }
     })
   }
+  // 00089: แท็กที่เพิ่งติดจริง → กฎ Lead ของ Meta CAPI (ไม่ throw)
+  await enqueueTagLeadCapi(msg.conversationId, added)
   return { outcome: 'APPLIED', added, alreadyHad }
 }
 

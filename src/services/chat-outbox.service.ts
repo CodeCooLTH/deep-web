@@ -11,6 +11,7 @@
  * `count === 0` แปลว่าแพ้ race **จบทันที ห้ามยิง**
  */
 
+import { enqueueSentMessageCapi } from '@/services/meta-capi.service'
 import { shopSendSenderRolePatch } from '@/lib/auto-reply-constants'
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -537,6 +538,8 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
 
   // 00078: ส่งสำเร็จบน Meta = เราถือห้อง → ตัดป้าย Meta AI (ดู meta-owner-on-send.ts)
   await recordOurSendAsMetaOwner(conversationId, conversation.channel)
+  // 00089: การ์ดคำสั่งซื้อ/สินค้าถึงลูกค้าแล้ว → InitiateCheckout/ViewContent (ไม่ throw)
+  await enqueueSentMessageCapi(row.id)
 
   // D-7: บอทหลบเมื่อ "คนส่งสำเร็จ" เท่านั้น — ไม่ย้ายมาตอนเข้าคิว และไม่ทำเมื่อบอทเป็นผู้ส่งเอง
   if (!params.autoReplyKind) {

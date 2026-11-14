@@ -13,6 +13,7 @@
  * Base (โครง guard + error mapping): src/services/appointment.service.ts
  */
 import { prisma } from '@/lib/prisma'
+import { enqueueOrderCapiAfterCommit } from '@/services/meta-capi.service'
 import {
   computeOrderMoney,
   type OrderMoney,
@@ -139,7 +140,11 @@ export async function recordPayment(args: {
   const after = await prisma.order.findUnique({ where: { id: order.id }, select: MONEY_SELECT })
   // after ต้องมีค่าเสมอ — เพิ่งอ่านออเดอร์นี้มาไม่กี่บรรทัดก่อน และ create สำเร็จแล้ว
   if (!after) throw new OrderPaymentError('ORDER_NOT_FOUND')
-  return { paymentId: created.id, money: toMoney(after) }
+  const money = toMoney(after)
+  // 00089 — มัดจำอย่างเดียวไม่ใช่ชำระครบ · ซ้ำรอบเดิมคีย์กันซ้ำรับไว้ (ไม่เกิดแถวใหม่)
+  if (money.fullyPaid) await enqueueOrderCapiAfterCommit(order.id, 'FULLY_PAID')
+  if (args.slipFileId) await enqueueOrderCapiAfterCommit(order.id, 'SLIP')
+  return { paymentId: created.id, money }
 }
 
 /**

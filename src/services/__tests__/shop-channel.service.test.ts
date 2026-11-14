@@ -17,6 +17,7 @@ const db = vi.hoisted(() => ({
 // จึงต้องแยก mock คนละตัวกับ db ไม่งั้นจะ assert การเขียนไม่เจอเลย
 const tx = vi.hoisted(() => ({
   shopChannel: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  metaCapiDataset: { updateMany: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/lib/facebook/graph', () => ({
@@ -124,6 +125,11 @@ describe('shop-channel.service', () => {
     expect(update.where).toEqual({ id: 'ch-old' })
     expect(update.data.status).toBe('ACTIVE')
     expect(update.data.connectedByUserId).toBe('user1') // audit = คนที่กดเชื่อมล่าสุด (อาจเป็นคนละแอดมิน)
+    // 00089 FR-012: token ใหม่ → dataset แบบ PAGE ที่หยุดไว้กลับมาส่ง
+    expect(tx.metaCapiDataset.updateMany).toHaveBeenCalledWith({
+      where: { shopChannelId: 'ch-old', source: 'PAGE', status: 'STOPPED' },
+      data: { status: 'ACTIVE', stoppedReason: null, stoppedAt: null },
+    })
     expect(subscribePageToApp).toHaveBeenCalledWith('PAGE1', 'page_token_plain') // Meta idempotent ยิงซ้ำได้
   })
 
