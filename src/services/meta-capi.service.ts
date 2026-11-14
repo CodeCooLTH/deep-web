@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { tagNameKey } from "@/lib/shop-tag-match";
 import { isOrderUnpaid } from "@/lib/order-payment-state";
 import { pushMetaCapiStopped } from "@/services/seller-push.service";
+import { markOrderPurchaserAfterCommit } from "@/services/meta-audience.service";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -123,6 +124,8 @@ export async function enqueueOrderCapiAfterCommit(orderId: string, trigger: Orde
   } catch (e) {
     console.error("[meta-capi] enqueue failed", { orderId, trigger, error: e instanceof Error ? e.message : String(e) });
   }
+  // 00092 — จุดเรียกเดียวกับ CAPI ⇒ จังหวะ Purchase ตรงกันโดยโครงสร้าง (HR16) · ตัวนี้ไม่ throw เอง
+  await markOrderPurchaserAfterCommit(orderId, trigger);
 }
 
 const bkkDate = (d: Date) => new Date(d.getTime() + 7 * 3600_000).toISOString().slice(0, 10); // ระบบใช้เวลาไทยเท่านั้น

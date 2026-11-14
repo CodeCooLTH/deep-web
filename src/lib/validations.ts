@@ -2616,6 +2616,24 @@ const CapiEventOptionsSchema = v.record(
   }),
 );
 
+// ── feature 00092 Custom Audience ลูกค้าที่ซื้อแล้ว ──
+export const AudienceUpdateSchema = v.object({ enabled: v.boolean("enabled ต้องเป็น true/false") });
+
+const adAccountId = v.pipe(
+  v.string("Ad Account ID ไม่ถูกต้อง"),
+  v.transform((s) => s.trim().replace(/^act_/i, "")),
+  v.regex(/^[0-9]{5,20}$/, "Ad Account ID ต้องเป็นตัวเลข"),
+);
+
+export const AudienceConnectSchema = v.variant("mode", [
+  v.object({
+    mode: v.literal("MANUAL"),
+    adAccountId,
+    token: v.pipe(v.string("กรอก token"), v.trim(), v.minLength(10, "token สั้นเกินไป"), v.maxLength(512, "token ยาวเกินไป")),
+  }),
+  v.object({ mode: v.literal("OAUTH"), adAccountId }),
+]);
+
 export const CapiPageUpdateSchema = v.object({
   enabled: v.optional(v.boolean()),
   purchaseAt: v.optional(v.picklist(["CREATE", "CONFIRM", "PAYMENT"], "จังหวะ Purchase ไม่ถูกต้อง")),

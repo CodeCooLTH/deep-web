@@ -27,6 +27,7 @@
     { "path": "/api/cron/auto-order-sweeper", "schedule": "*/2 * * * *" },
     { "path": "/api/cron/follow-up-reminders", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/line-report-sweep", "schedule": "*/30 * * * *" },
-    { "path": "/api/cron/meta-capi", "schedule": "* * * * *" }
+    { "path": "/api/cron/meta-capi", "schedule": "* * * * *" },
+    { "path": "/api/cron/meta-audience", "schedule": "*/5 * * * *" }
   ]
 }

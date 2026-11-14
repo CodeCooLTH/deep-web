@@ -352,3 +352,35 @@ export async function pushMetaCapiStopped(params: { shopId: string; channelName:
     console.error('[seller-push] pushMetaCapiStopped failed', e)
   }
 }
+
+/** 00092 — audience ลูกค้าที่ซื้อแล้วหยุดส่ง (token เสีย/ยังไม่ยอมรับข้อตกลง) · ยิงครั้งเดียวตอนสถานะพลิก */
+export async function pushMetaAudienceStopped(params: { shopId: string; reason: string }): Promise<void> {
+  try {
+    const audience = [...((await userIdsHoldingCap([params.shopId], 'X9')).get(params.shopId) ?? [])]
+    if (audience.length === 0) return
+    const body =
+      params.reason === 'TERMS_NOT_ACCEPTED'
+        ? 'หยุดส่งรายชื่อลูกค้าเข้า Meta เพราะบัญชีโฆษณายังไม่ยอมรับข้อตกลง Custom Audience — แตะเพื่อดูลิงก์ยอมรับ'
+        : 'หยุดส่งรายชื่อลูกค้าเข้า Meta ชั่วคราว เพราะสิทธิ์บัญชีโฆษณาใช้ไม่ได้ — แตะเพื่อเชื่อมใหม่ รายชื่อที่ค้างจะส่งต่อให้'
+    await pushToUsers(audience, 'กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว', body, { type: 'channel-health', url: '/settings/conversions-api' })
+  } catch (e) {
+    console.error('[seller-push] pushMetaAudienceStopped failed', e)
+  }
+}
+
+/** 00092 — token แบบกดเชื่อมใกล้หมดอายุ (< 7 วัน) · caller ตัดสินให้ยิงครั้งเดียว */
+export async function pushMetaAudienceTokenExpiring(params: { shopId: string; daysLeft: number }): Promise<void> {
+  try {
+    const audience = [...((await userIdsHoldingCap([params.shopId], 'X9')).get(params.shopId) ?? [])]
+    if (audience.length === 0) return
+    const when = params.daysLeft <= 1 ? 'ภายในวันนี้' : `ในอีก ${params.daysLeft} วัน`
+    await pushToUsers(
+      audience,
+      'กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว',
+      `การเชื่อมบัญชีโฆษณากับ Meta จะหมดอายุ${when} — แตะเพื่อเชื่อมใหม่ก่อนหยุดส่งรายชื่อ`,
+      { type: 'channel-health', url: '/settings/conversions-api' },
+    )
+  } catch (e) {
+    console.error('[seller-push] pushMetaAudienceTokenExpiring failed', e)
+  }
+}

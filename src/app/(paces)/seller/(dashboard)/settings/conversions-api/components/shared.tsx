@@ -65,10 +65,9 @@ export function ReconnectLink({ className }: { className?: string }) {
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; code?: string; error?: string }
 
-/** ยิง /api/shops/meta-capi/** — ไม่ throw: คืนผลให้ผู้เรียกแปลเป็นข้อความเอง */
-export async function capiApi<T = unknown>(path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): Promise<ApiResult<T>> {
+async function call<T>(base: string, path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): Promise<ApiResult<T>> {
   try {
-    const res = await fetch(`/api/shops/meta-capi${path}`, {
+    const res = await fetch(`${base}${path}`, {
       method,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -80,3 +79,9 @@ export async function capiApi<T = unknown>(path: string, method: 'GET' | 'POST' 
     return { ok: false, status: 0 }
   }
 }
+
+/** ยิง /api/shops/meta-capi/** — ไม่ throw: คืนผลให้ผู้เรียกแปลเป็นข้อความเอง */
+export const capiApi = <T = unknown,>(path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown) => call<T>('/api/shops/meta-capi', path, method, body)
+
+/** ยิง /api/shops/meta-audience/** (feature 00092) — แยกจาก capiApi เพราะ prefix ต่างกัน */
+export const audienceApi = <T = unknown,>(path: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown) => call<T>('/api/shops/meta-audience', path, method, body)
