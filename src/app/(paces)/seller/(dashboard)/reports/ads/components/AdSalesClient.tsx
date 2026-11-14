@@ -20,6 +20,7 @@ import AdDonutCard from './AdDonutCard'
 import AdOrdersSheet from './AdOrdersSheet'
 import AdSalesCard from './AdSalesCard'
 import AdShareCard from './AdShareCard'
+import AdSpendNotice from './AdSpendNotice'
 import AdTableCard from './AdTableCard'
 import ChannelCard from './ChannelCard'
 import DailyOverviewCard from './DailyOverviewCard'
@@ -73,12 +74,14 @@ export default function AdSalesClient({ rows, report, noun, rangeQuery, pageCoun
         </p>
       )}
 
+      <AdSpendNotice ads={report.ads} noun={noun} />
+
       {/* แถว 1: ① ② ③ — tablet: ①② คู่ · ③ เต็ม */}
       <div className="gap-base mb-base grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         <AdSalesCard report={report} noun={noun} />
         <AdShareCard report={report} noun={noun} />
         <div className="min-w-0 md:col-span-2 xl:col-span-1">
-          <TopAdsCard rows={rows} adSales={summary.adSales} noun={noun} onOpen={setOpenRow} />
+          <TopAdsCard rows={rows} adSales={summary.adSales} noun={noun} ads={report.ads} pageFiltered={pageFiltered} onOpen={setOpenRow} />
         </div>
       </div>
 
@@ -121,7 +124,7 @@ export default function AdSalesClient({ rows, report, noun, rangeQuery, pageCoun
           </div>
         )}
         <div className={cn('min-w-0', showPages ? 'xl:col-span-3' : 'xl:col-span-4')}>
-          <AdTableCard rows={rows} summary={summary} noun={noun} onOpen={setOpenRow} />
+          <AdTableCard rows={rows} summary={summary} ads={report.ads} noun={noun} onOpen={setOpenRow} />
         </div>
       </div>
 

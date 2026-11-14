@@ -6,22 +6,27 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/TotalSubscriber.tsx
  *   (แถวชื่อ + ค่า + แถบ `h-1.25 bg-default-100` · กล่อง `p-2.5 border border-dashed border-default-300 rounded` ท้ายการ์ด)
  * ตัด: CountUp · select วันที่ · uppercase · ไอคอนวงกลมทึบ · medal/"Congratulations" — แถวเปลี่ยนเป็น <button> เปิดชีตคำสั่งซื้อของแอด
- * กล่องไฮไลต์: กฎเลือกอยู่ที่ src/lib/ad-report-view.ts (bestCloseRateRow · มติ O1) — ไม่มีแอดเข้าเกณฑ์ = ไม่วาดกล่อง
+ * กล่องไฮไลต์: กฎเลือกอยู่ที่ src/lib/ad-report-view.ts (bestCloseRateRow · มติ O1 + bestRoasRow FR-010) — แถวไหนไม่เข้าเกณฑ์ซ่อน · ไม่มีเลย = ไม่วาดกล่อง
  */
 import AdThumb from '@/components/safepay/AdThumb'
 import { adDisplayName } from '@/lib/ad-attribution'
-import { bestCloseRateRow, BEST_RATE_MIN_ORDERS } from '@/lib/ad-report-view'
+import { bestCloseRateRow, bestRoasRow, roas, BEST_RATE_MIN_ORDERS } from '@/lib/ad-report-view'
 import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import ShareBar from './ShareBar'
-import { fmtPct, shareOf, type AdViewRow } from './data'
+import { fmtPct, fmtRoas, shareOf, type AdReportView, type AdViewRow } from './data'
 
-export default function TopAdsCard({ rows, adSales, noun, onOpen }: { rows: AdViewRow[]; adSales: number; noun: string; onOpen: (r: AdViewRow) => void }) {
+type Props = { rows: AdViewRow[]; adSales: number; noun: string; ads: AdReportView['ads']; pageFiltered: boolean; onOpen: (r: AdViewRow) => void }
+
+export default function TopAdsCard({ rows, adSales, noun, ads, pageFiltered, onOpen }: Props) {
   const t = useT()
   const idFallback = t.inbox.contextBar.adIdFallback
   const top = rows.filter((r) => r.sales > 0).slice(0, 5)
-  const best = bestCloseRateRow(rows)
+  // แถวผี (noChats) ไม่เข้า ③ · ROAS ซ่อนเมื่อ state ≠ OK หรือกรองเพจ (spend ไม่ครบทั้งบัญชี)
+  const real = rows.filter((r) => !r.noChats)
+  const best = bestCloseRateRow(real)
+  const bestRoas = ads.state === 'OK' && !pageFiltered ? bestRoasRow(real) : null
   const name = (r: AdViewRow) => adDisplayName(r.adTitle, r.adId, idFallback) ?? r.adId
 
   return (
@@ -53,16 +58,25 @@ export default function TopAdsCard({ rows, adSales, noun, onOpen }: { rows: AdVi
           </ul>
         )}
 
-        {best && (
+        {(best || bestRoas) && (
           <div className="border-default-300 mt-auto rounded border border-dashed p-2.5">
-            <p className="text-default-700 mb-2 text-xs font-semibold">{t.adReport.bestTitle}</p>
-            <button type="button" onClick={() => onOpen(best)} className="flex min-h-11 w-full items-center gap-2.5 text-start">
-              <AdThumb photoFileId={best.adPhotoFileId} className="size-12 rounded-md" iconClass="text-xl" />
-              <span className="min-w-0 flex-1">
-                <span className="text-default-900 line-clamp-2 text-sm font-semibold break-words" title={name(best)}>{name(best)}</span>
-                <span className="text-default-700 block text-xs tabular-nums">{fmt(t.adReport.bestRate, { p: fmtPct(best.closeRatePct) })}</span>
-              </span>
-            </button>
+            {[
+              best && { key: 'rate', row: best, title: t.adReport.bestTitle, value: fmt(t.adReport.bestRate, { p: fmtPct(best.closeRatePct) }) },
+              bestRoas && { key: 'roas', row: bestRoas, title: t.adReport.bestRoasTitle, value: fmt(t.adReport.bestRoasValue, { v: fmtRoas(roas(bestRoas.sales, bestRoas.spend)) }) },
+            ]
+              .filter((x): x is { key: string; row: AdViewRow; title: string; value: string } => Boolean(x))
+              .map((x, i) => (
+                <div key={x.key} className={i > 0 ? 'border-default-300 mt-2.5 border-t border-dashed pt-2.5' : undefined}>
+                  <p className="text-default-700 mb-2 text-xs font-semibold">{x.title}</p>
+                  <button type="button" onClick={() => onOpen(x.row)} className="flex min-h-11 w-full items-center gap-2.5 text-start">
+                    <AdThumb photoFileId={x.row.adPhotoFileId} className="size-10 rounded-md" iconClass="text-lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-default-900 line-clamp-2 text-sm font-semibold break-words" title={name(x.row)}>{name(x.row)}</span>
+                      <span className="text-default-700 block text-xs tabular-nums">{x.value}</span>
+                    </span>
+                  </button>
+                </div>
+              ))}
             <p className="text-default-500 mt-1.5 mb-0 text-2xs">{fmt(t.adReport.bestNote, { noun, n: BEST_RATE_MIN_ORDERS })}</p>
           </div>
         )}

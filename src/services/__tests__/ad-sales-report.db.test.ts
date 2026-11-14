@@ -11,6 +11,7 @@ vi.mock('server-only', () => ({}))
 import { getAdSalesReport, listOrdersForAd } from '@/services/ad-sales-report.service'
 import { getProductSalesMonth } from '@/services/product-sales-series.service'
 import { thaiMidnightUtc } from '@/lib/date-range'
+import type { SpendResult, SpendSource } from '@/services/meta-ads-spend.service'
 
 const url = process.env.DATABASE_URL ?? ''
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(url)
@@ -130,7 +131,7 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     expect(sum(r.daily.map((d) => d.nonAdSales))).toBe(r.summary.nonAdSales)
     expect(sum(r.daily.map((d) => d.adOrders))).toBe(r.summary.adOrders)
     expect(sum(r.rows.map((a) => a.sales))).toBe(r.summary.adSales)
-    expect(r.daily[0]).toEqual({ day: '2026-10-01', adSales: 0, nonAdSales: 0, adOrders: 0 })
+    expect(r.daily[0]).toEqual({ day: '2026-10-01', adSales: 0, nonAdSales: 0, adOrders: 0, spend: 0, coveredSales: 0 })
     expect(r.daily[9]).toMatchObject({ day: '2026-10-10', adSales: 200, adOrders: 1 })
     expect(r.daily[11]).toMatchObject({ nonAdSales: 300 })
     expect(sum(r.prevDaily.map((d) => d.adSales))).toBe(r.previous.adSales)
@@ -167,5 +168,66 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     expect(l.items.map((i) => i.status).sort()).toEqual(['CANCELLED', 'PENDING', 'PENDING'])
     const other = await listOrdersForAd('another-shop-id', 'ONLINE_SALES', 'AD1', { from: gte, to: lt })
     expect(other.items).toEqual([])
+  })
+
+  describe('ค่าโฆษณา / ROAS (FR-010) — แหล่ง spend ฉีดเข้า ไม่ยิง Meta', () => {
+    const ok = (rows: SpendResult['rows'], tz = 'Asia/Bangkok'): SpendSource => async () => ({ state: 'OK', accountName: 'บัญชีเทส', currency: 'THB', tz, rows })
+    const spendRows = [
+      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-10', spend: 100 },
+      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-11', spend: 50 },
+      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-10-05', spend: 40 },
+      { adId: 'GHOST', adName: 'แอดผี', day: '2026-10-20', spend: 60 },
+      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-09-25', spend: 333 }, // ช่วงก่อนหน้า
+    ]
+
+    it('parity (HR16): Σ daily.spend = summary.spend = Σ spend รายแถว (รวมแถวผี)', async () => {
+      const r = await getAdSalesReport(x.shop, { from: gte, to: lt }, { spendSource: ok(spendRows) })
+      const sum = (a: number[]) => Math.round(a.reduce((q, v) => q + v, 0) * 100) / 100
+      expect(r.ads.state).toBe('OK')
+      expect(r.ads.summary.spend).toBe(250)
+      expect(sum(r.daily.map((d) => d.spend))).toBe(250)
+      expect(sum(r.rows.map((a) => a.spend ?? 0))).toBe(250)
+      expect(r.daily[9].spend).toBe(100)
+      expect(sum(r.prevDaily.map((d) => d.spend))).toBe(r.ads.summary.prevSpend)
+      expect(r.ads.summary.prevSpend).toBe(333)
+    })
+
+    it('ROAS = ยอด Deep ของแอดที่มี spend>0 ÷ Σ spend · ต้นทุน/ใบ ชุดเดียวกัน · แอดไม่พบ spend ไม่นับ + uncoveredAds', async () => {
+      const r = await getAdSalesReport(x.shop, { from: gte, to: lt }, { spendSource: ok(spendRows) })
+      // covered = AD1(250, 2 ใบ) + AD2(0) ; AD9 (70, 1 ใบ) ไม่มี spend → ไม่นับ
+      expect(r.ads.summary).toMatchObject({ roas: 1, costPerOrder: 125, uncoveredAds: 1 })
+      expect(r.ads.summary.prevRoas).toBe(3) // 999 ÷ 333
+      expect(r.ads.summary.prevCostPerOrder).toBe(333)
+      expect(r.daily.reduce((s, d) => s + d.coveredSales, 0)).toBe(250)
+      const by = Object.fromEntries(r.rows.map((a) => [a.adId, a]))
+      expect(by.AD1).toMatchObject({ spend: 150, noChats: false })
+      expect(by.AD9.spend).toBeNull()
+      expect(by.GHOST).toMatchObject({ spend: 60, noChats: true, chats: 0, orders: 0, sales: 0, adTitle: 'แอดผี' })
+    })
+
+    it('กรองเพจ: spend นับเฉพาะแอดที่มีแชทในเพจ · ไม่มีแถวผี', async () => {
+      const r = await getAdSalesReport(x.shop, { from: gte, to: lt, shopChannelId: x.channel }, { spendSource: ok(spendRows) })
+      expect(r.ads.summary.spend).toBe(190)
+      expect(r.rows.some((a) => a.noChats)).toBe(false)
+    })
+
+    it('state ≠ OK: ไม่มีตัวเลข spend/ROAS · ยอดขายยังถูก · tz ต่าง = tzMismatch', async () => {
+      for (const state of ['AUTH', 'ERROR', 'CURRENCY', 'NOT_CONNECTED'] as const) {
+        const r = await getAdSalesReport(x.shop, { from: gte, to: lt }, { spendSource: async () => ({ state, accountName: null, currency: 'USD', tz: null, rows: [] }) })
+        expect(r.ads.state).toBe(state)
+        expect(r.ads.summary).toEqual({ spend: null, prevSpend: null, roas: null, prevRoas: null, costPerOrder: null, prevCostPerOrder: null, uncoveredAds: 0 })
+        expect(r.rows.every((a) => a.spend === null && !a.noChats)).toBe(true)
+        expect(r.summary.adSales).toBe(320)
+      }
+      const tz = await getAdSalesReport(x.shop, { from: gte, to: lt }, { spendSource: ok(spendRows, 'America/Los_Angeles') })
+      expect(tz.ads.tzMismatch).toBe(true)
+    })
+
+    it('แหล่ง spend ล่ม (throw) → ERROR ไม่ทำให้รายงานล่ม · ขอช่วง prevFrom..to ถูกต้อง', async () => {
+      const calls: string[][] = []
+      const r = await getAdSalesReport(x.shop, { from: gte, to: lt }, { spendSource: async (_s, a, b) => { calls.push([a, b]); throw new Error('boom') } })
+      expect(r.ads.state).toBe('ERROR')
+      expect(calls).toEqual([['2026-08-31', '2026-10-31']])
+    })
   })
 })

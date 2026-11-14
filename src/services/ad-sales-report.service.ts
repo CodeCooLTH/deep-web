@@ -9,6 +9,8 @@
  * - แชทจากโฆษณา = จำนวนห้องที่มีการคลิก ADS ของแอดนั้นในช่วง (ห้องเดียวคลิกซ้ำ = 1) · นับตามวันคลิก
  * - คำสั่งซื้อ = ใบที่นับเป็นยอดขายและบันทึกแอดนี้ไว้ · นับตามวันของคำสั่งซื้อ (ร้านบริการ = วันปิดงาน เหมือนรายงานเดิม)
  * - ยกเลิก/คืน = ใบที่ถูกยกเลิกหรือคืนทั้งใบของแอดนั้นในช่วง (ตามวันสร้าง)
+ * - ค่าโฆษณา (FR-010): spend จาก Meta Insights เท่านั้น — ROAS = ยอดขาย Deep ของแอดที่มี spend>0 ÷ Σ spend ·
+ *   ต้นทุน/คำสั่งซื้อ = Σ spend ÷ คำสั่งซื้อ Deep ชุดแอดเดียวกัน · ห้ามใช้ตัวเลข purchase ของ Meta · ชุดแอดเดียวกันทุกการ์ด
  * - ห้องที่ถูกลบ: แชทของแอดนั้นหายจากตัวนับแชท (cascade) แต่คำสั่งซื้อยังอยู่ (ภาพนิ่ง)
  */
 import { prisma } from '@/lib/prisma'
@@ -19,6 +21,8 @@ import { resolveOrderBuyerNameForShop } from '@/lib/buyer-name'
 import type { ReturnAdjustment } from '@/lib/order-return'
 import { canonicalProvince } from '@/lib/parse-order-message'
 import { thaiDayKey } from '@/lib/format-date'
+import { costPerOrder, roas } from '@/lib/ad-report-view'
+import { getAdSpend, type SpendResult, type SpendSource } from '@/services/meta-ads-spend.service'
 
 export type AdReportRow = {
   adId: string
@@ -33,6 +37,28 @@ export type AdReportRow = {
   /** sales ÷ orders — null เมื่อ orders = 0 */
   avgPerOrder: number | null
   cancelledOrReturned: number
+  /** ค่าโฆษณาในช่วง — null = ไม่มีแถว Insights ของแอดนี้ (หรือ state ≠ OK) */
+  spend: number | null
+  /** แถวผี: มีค่าโฆษณาใน Insights แต่ไม่มีแชท/คำสั่งซื้อจากแอดนี้ในช่วง */
+  noChats: boolean
+}
+
+export type AdsSpendState = SpendResult['state']
+export type AdsSpendInfo = {
+  state: AdsSpendState
+  accountName: string | null
+  currency: string | null
+  tz: string | null
+  /** เขตเวลาของบัญชีโฆษณา ≠ Asia/Bangkok → ค่ารายวันอาจเหลื่อมหนึ่งวัน */
+  tzMismatch: boolean
+  /** state ≠ OK → ทุกค่า null / uncoveredAds 0 */
+  summary: {
+    spend: number | null; prevSpend: number | null
+    roas: number | null; prevRoas: number | null
+    costPerOrder: number | null; prevCostPerOrder: number | null
+    /** แอดที่มีคำสั่งซื้อแต่ไม่พบค่าโฆษณา (ไม่นับใน ROAS รวม) */
+    uncoveredAds: number
+  }
 }
 
 export type AdReport = {
@@ -62,15 +88,22 @@ export type AdReport = {
   /** ร้านเคยมีข้อมูลโฆษณาเลยไหม — แยก "ยังไม่เคยมี" ออกจาก "ช่วงนี้ไม่มี" */
   hasAnyAdData: boolean
   truncated: boolean
+  ads: AdsSpendInfo
 }
 
-export type AdDailyPoint = { day: string; adSales: number; nonAdSales: number; adOrders: number }
+export type AdDailyPoint = {
+  day: string; adSales: number; nonAdSales: number; adOrders: number
+  /** ค่าโฆษณาของวันนั้น (รายชั่วโมง = 0 — Insights ไม่ส่งรายชั่วโมง) */
+  spend: number
+  /** ยอดขายเฉพาะแอดที่มีค่าโฆษณา>0 — ตัวตั้งของ ROAS รายวัน (ชุดเดียวกับ ROAS รวม) */
+  coveredSales: number
+}
 
 export type AdReportRange = { from: Date; to: Date; shopChannelId?: string | null }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-export async function getAdSalesReport(shopId: string, range: AdReportRange): Promise<AdReport> {
+export async function getAdSalesReport(shopId: string, range: AdReportRange, deps: { spendSource?: SpendSource } = {}): Promise<AdReport> {
   const { from, to } = range
   const channelId = range.shopChannelId || null
   const newRules = await shopUsesServiceFinanceRules(shopId)
@@ -84,7 +117,12 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
   } as const
   const chanFilter = channelId ? { shopChannelId: channelId } : {}
 
-  const [referrals, orders, lostGroups, anyRef, anyOrder, returnAdj, prevOrders, prevReferrals, shopChannels] = await Promise.all([
+  const spendSource = deps.spendSource ?? getAdSpend
+  const spendP: Promise<SpendResult> = spendSource(shopId, thaiDayKey(prevFrom), thaiDayKey(new Date(to.getTime() - 1))).catch(
+    () => ({ state: 'ERROR', accountName: null, currency: null, tz: null, rows: [] }) as SpendResult, // Meta ห้ามทำให้หน้าล่ม
+  )
+
+  const [referrals, orders, lostGroups, anyRef, anyOrder, returnAdj, prevOrders, prevReferrals, shopChannels, spendRes] = await Promise.all([
     prisma.conversationAdReferral.findMany({
       where: {
         source: 'ADS',
@@ -123,6 +161,7 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
       select: { conversationId: true },
     }),
     prisma.shopChannel.findMany({ where: { shopId }, select: { id: true, name: true, provider: true, avatarUrl: true } }),
+    spendP,
   ])
 
   // ช่วงก่อนหน้าเกินเพดานด้วย = ตัวเลขเทียบอาจต่ำกว่าจริง → ใช้แถบเตือนเดียวกัน
@@ -168,17 +207,49 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
   const emptySeries = (start: Date): AdDailyPoint[] =>
     Array.from({ length: slots }, (_, i) => {
       const t = new Date(start.getTime() + i * slotMs)
-      return { day: hourly ? `${thaiDayKey(t)}T${String(i).padStart(2, '0')}` : thaiDayKey(t), adSales: 0, nonAdSales: 0, adOrders: 0 }
+      return { day: hourly ? `${thaiDayKey(t)}T${String(i).padStart(2, '0')}` : thaiDayKey(t), adSales: 0, nonAdSales: 0, adOrders: 0, spend: 0, coveredSales: 0 }
     })
   const daily = emptySeries(from)
   const prevDaily = emptySeries(prevFrom)
-  const bump = (series: AdDailyPoint[], start: Date, o: { createdAt: Date; serviceClosedAt: Date | null; adId: string | null }, amount: number) => {
+  const bump = (series: AdDailyPoint[], start: Date, o: { createdAt: Date; serviceClosedAt: Date | null; adId: string | null }, amount: number, covered: Set<string>) => {
     // ร้านบริการตัดช่วงด้วยวันปิดงาน (เหมือน salesOrderWhere)
     const at = (newRules ? o.serviceClosedAt ?? o.createdAt : o.createdAt).getTime()
     const p = series[Math.floor((at - start.getTime()) / slotMs)]
     if (!p) return
-    if (o.adId) { p.adSales += amount; p.adOrders += 1 } else p.nonAdSales += amount
+    if (o.adId) {
+      p.adSales += amount; p.adOrders += 1
+      if (covered.has(o.adId)) p.coveredSales += amount
+    } else p.nonAdSales += amount
   }
+
+  // ── ค่าโฆษณา: แยกตามแอด/วัน ภายใน "ชุดแอดที่อยู่ในขอบเขต" (กรองเพจ = เฉพาะแอดที่มีแชท/ใบในเพจนั้น)
+  const spendOk = spendRes.state === 'OK'
+  const curFromKey = thaiDayKey(from)
+  // กรองเพจ: ค่าโฆษณาช่วงนี้นับเฉพาะแอดที่มีแถวในตาราง (แชท/ใบช่วงนี้) — ไม่งั้นแถวรวมเกิน Σ แถวที่เห็น
+  // ช่วงก่อนหน้าเพิ่มแอดที่มีใบช่วงก่อนด้วย (เทียบชุดแอดของเพจเดียวกัน)
+  const scope: Set<string> | null = channelId
+    ? new Set([...referrals.map((r) => r.adId!), ...orders.flatMap((o) => (o.adId ? [o.adId] : []))])
+    : null
+  const prevScope: Set<string> | null = scope
+    ? new Set([...scope, ...prevOrders.flatMap((o) => (o.adId ? [o.adId] : []))])
+    : null
+  const spendByAd = new Map<string, number>(), prevSpendByAd = new Map<string, number>()
+  const spendByDay = new Map<string, number>(), prevSpendByDay = new Map<string, number>()
+  const insightName = new Map<string, string | null>()
+  if (spendOk) {
+    for (const r of spendRes.rows) {
+      const cur = r.day >= curFromKey
+      const sc = cur ? scope : prevScope
+      if (sc && !sc.has(r.adId)) continue
+      const byAdMap = cur ? spendByAd : prevSpendByAd
+      const byDayMap = cur ? spendByDay : prevSpendByDay
+      byAdMap.set(r.adId, (byAdMap.get(r.adId) ?? 0) + r.spend)
+      byDayMap.set(r.day, (byDayMap.get(r.day) ?? 0) + r.spend)
+      if (cur && r.adName) insightName.set(r.adId, r.adName)
+    }
+  }
+  const coveredOf = (m: Map<string, number>) => new Set([...m].filter(([, v]) => v > 0).map(([k]) => k))
+  const covered = coveredOf(spendByAd), prevCovered = coveredOf(prevSpendByAd)
 
   const pageInfo = new Map(shopChannels.map((c) => [c.id, c]))
   const provinceSales = new Map<string | null, number>()
@@ -193,7 +264,7 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
   let adSales = 0, nonAdSales = 0, adOrders = 0, nonAdOrders = 0
   for (const o of salesOrders) {
     const amount = amountOf(o)
-    bump(daily, from, o, amount)
+    bump(daily, from, o, amount, covered)
     const provider = (o.shopChannelId && pageInfo.get(o.shopChannelId)?.provider) || null
     channelSales.set(provider, (channelSales.get(provider) ?? 0) + amount)
     if (!o.adId) {
@@ -214,20 +285,22 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
     if (a.title === null) a.title = o.adTitle
     if (a.photo === null) a.photo = o.adPhotoFileId
   }
-  let prevAdSales = 0, prevNonAdSales = 0, prevAdOrders = 0
+  let prevAdSales = 0, prevNonAdSales = 0, prevAdOrders = 0, prevCoveredSales = 0, prevCoveredOrders = 0
   for (const o of prevOrders.length > MAX_ITEM_ROWS ? prevOrders.slice(0, MAX_ITEM_ROWS) : prevOrders) {
     const amount = amountOf(o)
-    bump(prevDaily, prevFrom, o, amount)
+    bump(prevDaily, prevFrom, o, amount, prevCovered)
     if (!o.adId) { prevNonAdSales += amount; continue }
     prevAdSales += amount
     prevAdOrders += 1
+    if (prevCovered.has(o.adId)) { prevCoveredSales += amount; prevCoveredOrders += 1 }
     if (o.shopChannelId) bumpPage(o.shopChannelId, 'prevSales', amount)
   }
   const distinct = (ids: string[]) => new Set(ids).size
   const chatsTotal = distinct(referrals.map((r) => r.conversationId))
   const prevChats = distinct(prevReferrals.map((r) => r.conversationId))
   const rate = (o: number, c: number) => (c > 0 ? round2((o / c) * 100) : null)
-  const roundSeries = (a: AdDailyPoint[]) => a.map((p) => ({ ...p, adSales: round2(p.adSales), nonAdSales: round2(p.nonAdSales) }))
+  const roundSeries = (a: AdDailyPoint[], spendOfDay: Map<string, number>) =>
+    a.map((p) => ({ ...p, adSales: round2(p.adSales), nonAdSales: round2(p.nonAdSales), coveredSales: round2(p.coveredSales), spend: round2(hourly ? 0 : spendOfDay.get(p.day) ?? 0) }))
   const dayLabel = (d: Date) => thaiDayKey(d)
 
   for (const g of lostGroups) if (g.adId) get(g.adId).lost = g._count._all
@@ -244,11 +317,41 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
       sales: round2(a.sales),
       avgPerOrder: a.orders > 0 ? round2(a.sales / a.orders) : null,
       cancelledOrReturned: a.lost,
+      spend: spendOk && spendByAd.has(a.adId) ? round2(spendByAd.get(a.adId)!) : null,
+      noChats: false,
     }
   })
+  // แถวผี: แอดที่ใช้เงินแต่ไม่มีแชท/คำสั่งซื้อในช่วง (ไม่กรองเพจเท่านั้น — กรองเพจ scope จำกัดแอดที่มีแชทอยู่แล้ว)
+  if (spendOk && !channelId) {
+    for (const [adId, v] of spendByAd) {
+      if (v <= 0 || byAd.has(adId)) continue
+      rows.push({ adId, adTitle: insightName.get(adId) ?? null, adPhotoFileId: null, chats: 0, orders: 0, closeRatePct: null, sales: 0, avgPerOrder: null, cancelledOrReturned: 0, spend: round2(v), noChats: true })
+    }
+  }
   rows.sort((x, y) => y.sales - x.sales || y.orders - x.orders || y.chats - x.chats)
 
   const total = adSales + nonAdSales
+  const sumMap = (m: Map<string, number>) => round2([...m.values()].reduce((s, v) => s + v, 0))
+  const spendTotal = sumMap(spendByAd), prevSpendTotal = sumMap(prevSpendByAd)
+  let coveredSales = 0, coveredOrders = 0, uncoveredAds = 0
+  for (const r of rows) {
+    if (covered.has(r.adId)) { coveredSales += r.sales; coveredOrders += r.orders } else if (r.orders > 0) uncoveredAds += 1
+  }
+  const ads: AdsSpendInfo = {
+    state: spendRes.state,
+    accountName: spendRes.accountName,
+    currency: spendRes.currency,
+    tz: spendRes.tz,
+    tzMismatch: spendOk && spendRes.tz !== null && spendRes.tz !== 'Asia/Bangkok',
+    summary: spendOk
+      ? {
+          spend: spendTotal, prevSpend: prevSpendTotal,
+          roas: roas(coveredSales, spendTotal), prevRoas: roas(prevCoveredSales, prevSpendTotal),
+          costPerOrder: costPerOrder(spendTotal, coveredOrders), prevCostPerOrder: costPerOrder(prevSpendTotal, prevCoveredOrders),
+          uncoveredAds,
+        }
+      : { spend: null, prevSpend: null, roas: null, prevRoas: null, costPerOrder: null, prevCostPerOrder: null, uncoveredAds: 0 },
+  }
   return {
     rows,
     summary: {
@@ -259,8 +362,8 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
     previous: { adSales: round2(prevAdSales), adOrders: prevAdOrders, chats: prevChats, closeRatePct: rate(prevAdOrders, prevChats), nonAdSales: round2(prevNonAdSales) },
     range: { from: dayLabel(from), to: dayLabel(new Date(to.getTime() - 1)) },
     prevRange: { from: dayLabel(prevFrom), to: dayLabel(new Date(from.getTime() - 1)) },
-    daily: roundSeries(daily),
-    prevDaily: roundSeries(prevDaily),
+    daily: roundSeries(daily, spendByDay),
+    prevDaily: roundSeries(prevDaily, prevSpendByDay),
     provinces: [...provinceSales].map(([name, sales]) => ({ name, sales: round2(sales) })).sort((a, b) => b.sales - a.sales),
     channels: [...channelSales].map(([provider, sales]) => ({ provider, sales: round2(sales) })).sort((a, b) => b.sales - a.sales),
     pages: [...pageSales].flatMap(([id, v]) => {
@@ -269,6 +372,7 @@ export async function getAdSalesReport(shopId: string, range: AdReportRange): Pr
     }).sort((a, b) => b.sales - a.sales),
     hasAnyAdData: Boolean(anyRef || anyOrder),
     truncated,
+    ads,
   }
 }
 

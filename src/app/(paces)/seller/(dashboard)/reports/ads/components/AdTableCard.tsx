@@ -7,6 +7,8 @@
  *   (card-header ชื่อ + `input-icon-group` ค้นหา + select จำนวนแถว · useReactTable + getFilteredRowModel/globalFilter · DataTable · TablePagination)
  *   select: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/InputTextfieldType.tsx (`form-select`)
  *   โครงตาราง/รายการมือถือเดิมของหน้านี้: reports/products/components/ProductSalesTable.tsx + ProductMobileList.tsx
+ * เฟส 2 (FR-010): + คอลัมน์ ค่าโฆษณา/ROAS เฉพาะ state OK (ไม่ใช่ OK = ตารางกลับเป็น 5 คอลัมน์) · แถวผี (ไม่มีแชทจากแอด) ไม่คลิกได้
+ *   ไม่ได้ทำ table-fixed/colgroup ตามสเปก: DataTable ร่วมไม่รองรับ colgroup — ใช้ w-1/3 ที่หัวคอลัมน์แทน (ดูรายงานส่ง Controller)
  * ตัด: checkbox เลือกแถว · ปุ่มลบ/DeleteConfirmationModal · คอลัมน์ Actions
  *
  * 🛑 แถวรวม (footerRow) = ทุกแอดในช่วง ไม่ใช่เฉพาะหน้า/ผลค้นหา (HR16 — ตัวเลขเท่า summary ของการ์ด ①②) · แชทรวมนับห้องไม่ซ้ำ
@@ -29,17 +31,18 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { adDisplayName } from '@/lib/ad-attribution'
-import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
+import { costPerOrder, roas, sortNullLast } from '@/lib/ad-report-view'
+import { formatBaht, formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
-import { AD_SORT_KEYS, fmtPct, type AdReportView, type AdSortKey, type AdViewRow } from './data'
+import { AD_SORT_KEYS, fmtPct, fmtRoas, type AdReportView, type AdSortKey, type AdViewRow } from './data'
 
 const columnHelper = createColumnHelper<AdViewRow>()
 const PAGE_SIZES = [10, 25, 50]
 
-type Props = { rows: AdViewRow[]; summary: AdReportView['summary']; noun: string; onOpen: (r: AdViewRow) => void }
+type Props = { rows: AdViewRow[]; summary: AdReportView['summary']; ads: AdReportView['ads']; noun: string; onOpen: (r: AdViewRow) => void }
 
-export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
+export default function AdTableCard({ rows, summary, ads, noun, onOpen }: Props) {
   // useReactTable คืนฟังก์ชันที่ memo ไม่ได้อย่างปลอดภัย — ปิด React Compiler เฉพาะ component นี้ (ท่าเดียวกับ ProductSalesTable)
   'use no memo'
   const t = useT()
@@ -51,6 +54,16 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
   const [globalFilter, setGlobalFilter] = useState('')
   const [mobileSort, setMobileSort] = useState<AdSortKey>('sales')
 
+  const showSpend = ads.state === 'OK'
+  const noSpend = (
+    <>
+      —<span className="sr-only">{a.noSpendSr}</span>
+    </>
+  )
+  // ≥ ฿1,000,000 ใช้แบบย่อ + title ให้เห็นเต็ม (คอลัมน์แคบ)
+  const baht = (v: number) => (v >= 1_000_000 ? <span title={formatBaht(v)}>{formatBahtCompact(v)}</span> : formatBaht(v))
+  const ghosts = useMemo(() => rows.filter((r) => r.noChats), [rows])
+  const ghostSpend = ghosts.reduce((s, r) => s + (r.spend ?? 0), 0)
   const nameOf = (r: AdViewRow) => adDisplayName(r.adTitle, r.adId, idFallback) ?? r.adId
   const lostTotal = useMemo(() => rows.reduce((s, r) => s + r.cancelledOrReturned, 0), [rows])
   const avgTotal = summary.adOrders > 0 ? summary.adSales / summary.adOrders : null
@@ -65,17 +78,25 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
         id: 'ad',
         header: a.colAd,
         enableSorting: false,
+        meta: { headerClassName: 'w-1/3', cellClassName: 'max-w-xs' },
         cell: ({ row }) => {
           const r = row.original
-          return (
-            <button type="button" onClick={() => onOpen(r)} className="flex min-w-0 max-w-full items-center gap-3 text-start">
+          const inner = (
+            <>
               <AdThumb photoFileId={r.adPhotoFileId} className="size-10 rounded-md" iconClass="text-lg" />
               <span className="min-w-0">
-                <span className="text-default-900 hover:text-primary block max-w-full truncate text-sm font-medium" title={nameOf(r)}>{nameOf(r)}</span>
+                <span className="text-default-900 block max-w-full truncate text-sm font-medium" title={nameOf(r)}>{nameOf(r)}</span>
                 {/* รหัสแอดเป็นบรรทัดรองเฉพาะตอนมีชื่อ (ไม่มีชื่อ = ชื่อคือรหัสอยู่แล้ว) */}
                 {r.adTitle?.trim() && <span className="text-default-500 text-2xs block break-all">{fmt(idFallback, { adId: r.adId })}</span>}
+                {r.noChats && <span className="bg-default-100 text-default-800 text-2xs mt-0.5 inline-block rounded px-1.5 py-0.5">{a.noChatsBadge}</span>}
               </span>
-            </button>
+            </>
+          )
+          // แถวผี: ไม่มีคำสั่งซื้อให้เปิดดู → div ไม่ใช่ปุ่ม (ไม่อยู่ใน tab order)
+          return r.noChats ? (
+            <div className="flex min-w-0 max-w-full items-center gap-3">{inner}</div>
+          ) : (
+            <button type="button" onClick={() => onOpen(r)} className="hover:text-primary flex min-w-0 max-w-full items-center gap-3 text-start">{inner}</button>
           )
         },
       }),
@@ -103,6 +124,39 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
           </span>
         ),
       }),
+      ...(showSpend
+        ? [
+            columnHelper.accessor((r) => r.spend ?? undefined, {
+              id: 'spend', meta: { align: 'center' }, header: a.colSpend, sortUndefined: 'last',
+              cell: ({ row }) => {
+                const r = row.original
+                if (r.spend === null) return <span className="block text-center">{noSpend}</span>
+                const c = costPerOrder(r.spend, r.orders)
+                return (
+                  <span className="block text-center">
+                    <span className="text-default-900 block text-sm tabular-nums">{baht(r.spend)}</span>
+                    <span className="text-default-500 text-2xs block tabular-nums">{c === null ? noSpend : fmt(a.costPerLine, { v: formatBaht(c), noun })}</span>
+                  </span>
+                )
+              },
+            }),
+            columnHelper.accessor((r) => roas(r.sales, r.spend) ?? undefined, {
+              id: 'roas', meta: { align: 'center' },
+              sortUndefined: 'last',
+              // หัวคอลัมน์มีข้อความอธิบายสูตรที่เห็นได้เสมอ (ไม่พึ่ง hover)
+              header: () => (
+                <span className="inline-flex flex-col items-center normal-case">
+                  <span className="inline-flex items-center gap-1 uppercase">{a.colRoas}<Icon icon="info-circle" className="text-sm" aria-hidden="true" /></span>
+                  <span className="text-default-500 text-2xs font-normal">{a.roasTip}</span>
+                </span>
+              ),
+              cell: ({ row }) => {
+                const v = roas(row.original.sales, row.original.spend)
+                return <span className="text-default-900 block text-center text-sm tabular-nums">{v === null ? noSpend : fmtRoas(v)}</span>
+              },
+            }),
+          ]
+        : []),
       columnHelper.accessor('cancelledOrReturned', {
         id: 'lost', meta: { align: 'center' }, header: a.colLost,
         cell: ({ row }) => <span className="block text-center tabular-nums">{formatNumberNoSymbol(row.original.cancelledOrReturned)}</span>,
@@ -110,7 +164,7 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
     ],
     // nameOf/onOpen ผูกกับ t/idFallback/ตัวตั้งค่า state ที่เสถียร — ใส่เฉพาะที่เปลี่ยนจริง
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, noun, idFallback],
+    [t, noun, idFallback, showSpend],
   )
 
   const table = useReactTable({
@@ -135,12 +189,21 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
 
   // มือถือ: เรียงเองตามตัวเรียง FilterDropdown แล้วแบ่งหน้าด้วย state เดียวกับตาราง
   const mobileFiltered = useMemo(() => {
-    const key: Record<AdSortKey, (r: AdViewRow) => number> = { sales: (r) => r.sales, orders: (r) => r.orders, chats: (r) => r.chats, rate: (r) => r.closeRatePct ?? -1 }
-    return rows.filter((r) => matches(r, globalFilter)).sort((x, y) => key[mobileSort](y) - key[mobileSort](x))
+    const key: Record<AdSortKey, (r: AdViewRow) => number | null> = {
+      sales: (r) => r.sales, orders: (r) => r.orders, chats: (r) => r.chats, rate: (r) => r.closeRatePct ?? -1,
+      spend: (r) => r.spend, roas: (r) => roas(r.sales, r.spend),
+    }
+    return sortNullLast(rows.filter((r) => matches(r, globalFilter)), key[mobileSort], true)
   }, [rows, globalFilter, mobileSort])
   const mobileRows = mobileFiltered.slice(pageIndex * pageSize, pageIndex * pageSize + pageSize)
 
-  const sortLabel: Record<AdSortKey, string> = { sales: a.colSales, orders: noun, chats: a.sortChats, rate: a.sortRate }
+  const sortLabel: Record<AdSortKey, string> = { sales: a.colSales, orders: noun, chats: a.sortChats, rate: a.sortRate, spend: a.sortSpend, roas: a.sortRoas }
+  const sortKeys = AD_SORT_KEYS.filter((k) => showSpend || (k !== 'spend' && k !== 'roas'))
+  const ghostSort = () => {
+    setSorting([{ id: 'spend', desc: true }])
+    setMobileSort('spend')
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
 
   const total = (
     <tr className="bg-default-100/70 font-semibold">
@@ -154,6 +217,17 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
         {formatBaht(summary.adSales)}
         <span className="text-default-500 text-2xs block font-normal">{avgTotal === null ? '—' : fmt(a.avgLine, { v: formatBaht(avgTotal) })}</span>
       </td>
+      {showSpend && (
+        <>
+          <td className="text-center tabular-nums">
+            {ads.summary.spend === null ? noSpend : baht(ads.summary.spend)}
+            <span className="text-default-500 text-2xs block font-normal">
+              {ads.summary.costPerOrder === null ? noSpend : fmt(a.costPerLine, { v: formatBaht(ads.summary.costPerOrder), noun })}
+            </span>
+          </td>
+          <td className="text-center tabular-nums">{ads.summary.roas === null ? noSpend : fmtRoas(ads.summary.roas)}</td>
+        </>
+      )}
       <td className="text-center tabular-nums">{formatNumberNoSymbol(lostTotal)}</td>
     </tr>
   )
@@ -180,6 +254,13 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
         </div>
       </div>
 
+      {showSpend && ghosts.length > 0 && (
+        <p className="text-warning-ink mb-0 flex flex-wrap items-center gap-x-2 px-4 pb-3 text-xs">
+          <span>{fmt(a.ghostNote, { n: ghosts.length, amount: formatBaht(ghostSpend) })}</span>
+          <button type="button" onClick={ghostSort} className="text-primary min-h-11 underline lg:min-h-0">{a.ghostSort}</button>
+        </p>
+      )}
+
       {/* ── ตาราง (≥768) ── */}
       <div className="max-md:hidden">
         <DataTable<AdViewRow> table={table} emptyMessage={globalFilter ? a.searchEmpty : fmt(a.emptyRangeTitle, { noun })} footerRow={total} />
@@ -199,7 +280,7 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
       <div className="md:hidden">
         <div className="flex items-center justify-between gap-2 px-4 pb-2">
           <span className="text-default-700 text-sm">{a.sortBy}</span>
-          <FilterDropdown align="right" value={mobileSort} options={AD_SORT_KEYS.map((k) => ({ value: k, label: sortLabel[k] }))} onChange={(v) => setMobileSort(v as AdSortKey)} />
+          <FilterDropdown align="right" value={mobileSort} options={sortKeys.map((k) => ({ value: k, label: sortLabel[k] }))} onChange={(v) => setMobileSort(v as AdSortKey)} />
         </div>
         <div className="bg-default-100/70 px-4 py-2.5 text-sm">
           <p className="text-default-900 mb-0.5 flex justify-between gap-2 font-semibold">
@@ -208,27 +289,48 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
           </p>
           <p className="text-default-700 mb-0 text-xs tabular-nums">
             {fmt(a.mobileStats, { chats: formatNumberNoSymbol(summary.chats), noun, orders: formatNumberNoSymbol(summary.adOrders), rate: fmtPct(summary.closeRatePct) })}
+            {showSpend && ads.summary.spend !== null && ` · ${fmt(a.mobileTotalSpend, { spend: formatBaht(ads.summary.spend), roas: fmtRoas(ads.summary.roas) })}`}
           </p>
         </div>
         {mobileRows.length === 0 && <p className="text-default-500 px-4 py-8 text-center text-sm">{globalFilter ? a.searchEmpty : `${fmt(a.emptyRangeTitle, { noun })} — ${a.emptyRangeDesc}`}</p>}
         <ul className="divide-default-100 m-0 list-none divide-y p-0">
-          {mobileRows.map((r) => (
-            <li key={r.adId}>
-              <button type="button" onClick={() => onOpen(r)} className="flex min-h-11 w-full items-start gap-3 px-4 py-3 text-start">
+          {mobileRows.map((r) => {
+            const rv = roas(r.sales, r.spend)
+            const c = costPerOrder(r.spend, r.orders)
+            const body = (
+              <>
                 <AdThumb photoFileId={r.adPhotoFileId} className="size-10 rounded-md" iconClass="text-lg" />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-2">
                     <span className="text-default-900 line-clamp-2 text-sm font-medium break-words">{nameOf(r)}</span>
-                    <span className="text-default-900 shrink-0 text-sm font-semibold tabular-nums">{formatBaht(r.sales)}</span>
+                    <span className="shrink-0 text-end">
+                      <span className="text-default-900 block text-sm font-semibold tabular-nums">{formatBaht(r.sales)}</span>
+                      {showSpend && rv !== null && <span className="text-default-700 block text-xs tabular-nums">{fmt(a.mobileRoas, { v: fmtRoas(rv) })}</span>}
+                    </span>
                   </span>
+                  {r.noChats && <span className="bg-default-100 text-default-800 text-2xs mt-1 inline-block rounded px-1.5 py-0.5">{a.noChatsBadge}</span>}
                   <span className="text-default-700 mt-1 block text-xs tabular-nums">
                     {fmt(a.mobileStats, { chats: formatNumberNoSymbol(r.chats), noun, orders: formatNumberNoSymbol(r.orders), rate: fmtPct(r.closeRatePct) })}
                   </span>
+                  {showSpend && r.spend !== null && (
+                    <span className="text-default-700 mt-0.5 block text-xs tabular-nums">
+                      {c === null ? fmt(a.mobileSpendOnly, { spend: formatBaht(r.spend) }) : fmt(a.mobileSpend, { spend: formatBaht(r.spend), cost: formatBaht(c), noun })}
+                    </span>
+                  )}
                   {r.cancelledOrReturned > 0 && <span className="text-default-500 mt-0.5 block text-xs tabular-nums">{fmt(a.mobileLost, { n: r.cancelledOrReturned })}</span>}
                 </span>
-              </button>
-            </li>
-          ))}
+              </>
+            )
+            return (
+              <li key={r.adId}>
+                {r.noChats ? (
+                  <div className="flex w-full items-start gap-3 px-4 py-3">{body}</div>
+                ) : (
+                  <button type="button" onClick={() => onOpen(r)} className="flex min-h-11 w-full items-start gap-3 px-4 py-3 text-start">{body}</button>
+                )}
+              </li>
+            )
+          })}
         </ul>
         {mobileFiltered.length > 0 && (
           <div className="border-default-100 flex items-center justify-between gap-2 border-t px-4 py-3">
@@ -244,6 +346,10 @@ export default function AdTableCard({ rows, summary, noun, onOpen }: Props) {
           </div>
         )}
       </div>
+
+      {showSpend && ads.summary.uncoveredAds > 0 && (
+        <p className="text-default-700 border-default-100 mb-0 border-t px-4 py-3 text-xs">{fmt(a.uncoveredNote, { n: ads.summary.uncoveredAds })}</p>
+      )}
 
       <p className="text-default-500 border-default-100 mb-0 flex items-start gap-1.5 border-t px-4 py-3 text-2xs">
         <Icon icon="info-circle" className="mt-px shrink-0 text-sm" aria-hidden="true" />
