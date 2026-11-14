@@ -620,6 +620,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           serviceStartedAt: true,
           serviceFinishedAt: true,
           depositAmount: true,
+          // 00091 — แอดที่มา (คู่กับ getThreadPanelOrders)
+          adId: true,
+          adTitle: true,
+          adPhotoFileId: true,
           /**
            * เงินที่ **ได้รับจริง** ของออเดอร์ใบนี้ (feature 00050) — `depositAmount` ข้างบนคือ
            * *ข้อตกลง* คนละเรื่องกัน (BR-SQ-02) ปุ่มเรื่องเงินในแชทตัดสินจากชุดนี้เท่านั้น
@@ -728,6 +732,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     serviceStartedAt: o.serviceStartedAt ? o.serviceStartedAt.toISOString() : null,
     serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
     depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+    adId: o.adId,
+    adTitle: o.adTitle,
+    adPhotoFileId: o.adPhotoFileId,
     payments: o.payments.map((p) => ({
       kind: p.kind,
       amount: p.amount.toFixed(2),

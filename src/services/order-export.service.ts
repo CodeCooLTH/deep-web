@@ -39,7 +39,7 @@ export async function loadOrderExport(shopId: string, vertical: string, tokens: 
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, publicToken: true, orderNo: true, shortCode: true, createdAt: true, status: true, type: true,
-        salesChannel: true, buyerName: true, buyerContact: true, discount: true, vatAmount: true, totalAmount: true,
+        salesChannel: true, adTitle: true, adId: true, buyerName: true, buyerContact: true, discount: true, vatAmount: true, totalAmount: true,
         depositAmount: true, paymentMethod: true, codReceivedAt: true, paymentConfirmedAt: true,
         fulfillmentMode: true, shippingAddress: true, serviceStart: true, serviceEnd: true, serviceClosedAt: true,
         appointmentStatus: true, checkIn: true, checkOut: true,
@@ -85,6 +85,8 @@ export async function loadOrderExport(shopId: string, vertical: string, tokens: 
       status: o.status,
       type: o.type,
       salesChannel: o.salesChannel,
+      adTitle: o.adTitle,
+      adId: o.adId,
       buyerName: o.buyerName,
       buyerAccountName: o.buyer?.displayName ?? null,
       buyerContact: o.buyerContact,

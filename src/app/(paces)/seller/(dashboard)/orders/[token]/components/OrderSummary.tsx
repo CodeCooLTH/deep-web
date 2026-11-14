@@ -23,6 +23,9 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
+import { adDisplayName, type OrderAdView } from '@/lib/ad-attribution'
+import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import { getPaymentBadge, orderItemVocab } from '@/lib/order-display'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { resolveOrderStatusBadge, type ShippingStageKey } from '@/lib/order-stage'
@@ -52,6 +55,8 @@ export type OrderSummaryProps = {
   /** feature 00065 — เลขใบเสร็จที่ออกแล้ว แสดงเป็นข้อมูลอ่านอย่างเดียว (การพิมพ์อยู่ที่เมนู ⋯) */
   receiptNo?: string | null
   salesChannel: string | null
+  /** 00091 — แอดที่ลูกค้าคลิกก่อนสร้างใบนี้ · ไม่ส่ง/null = ไม่แสดงแถวเลย (ฝั่งผู้ซื้อไม่ส่ง — FR-003) */
+  adSource?: OrderAdView | null
   /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
   pageLogoUrl?: string | null
   /** หมายเหตุที่ร้านพิมพ์ไว้ตอนสร้างออเดอร์ — เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น */
@@ -115,6 +120,7 @@ export default function OrderSummary({
   createdAtISO,
   receiptNo = null,
   salesChannel,
+  adSource = null,
   pageLogoUrl = null,
   internalNote,
   showMoney = false,
@@ -137,7 +143,9 @@ export default function OrderSummary({
   vocab,
   vertical,
 }: OrderSummaryProps) {
+  const t = useT()
   const itemVocab = orderItemVocab(vertical)
+  const adName = adSource ? adDisplayName(adSource.adTitle, adSource.adId, t.inbox.contextBar.adIdFallback) : null
   // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
   // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
   // feature 00073 — ป้ายร้านบริการเป็นสถานะงาน (service-status.ts) ไม่ใช่แกนเงินแล้ว ⇒ ผู้ไม่เห็นเงินก็ได้ป้ายนี้
@@ -191,7 +199,7 @@ export default function OrderSummary({
             {/* ไม่มีชื่อผู้ซื้อตรงนี้แล้ว (user บอก 2026-08-06 ว่าซ้ำ) — การ์ด "ผู้ซื้อ" ขวามือ
                 เป็นเจ้าของข้อมูลคนซื้อ (รูป+ชื่อ+ที่มาของชื่อ+เบอร์+จำนวนครั้งที่สั่ง) หัวการ์ดนี้
                 ตอบคำถามคนละชุด: ใบไหน · มาจากช่องทางไหน · เมื่อไร · สถานะอะไร (= โครงเดิมของธีม) */}
-            <p className="text-default-700 mb-3.5 flex flex-wrap items-center gap-1 text-xs">
+            <p className={cn('text-default-700 flex flex-wrap items-center gap-1 text-xs', adName ? 'mb-1.5' : 'mb-3.5')}>
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
               {formatDateTimeTH(createdAtISO)}
               {/* recap panel = ข้อมูลเท่านั้น ห้ามเป็นปุ่ม (seller-action-placement.md §1) */}
@@ -202,6 +210,17 @@ export default function OrderSummary({
                 </span>
               ) : null}
             </p>
+            {/* 00091 — แถวแอดที่มา: ไม่ truncate (หน้านี้คือที่อ่านชื่อเต็ม) · ไม่มีแอด = ไม่ render + margin เดิม */}
+            {adName && (
+              <p className="text-default-700 mb-3.5 flex flex-wrap items-center gap-x-1 text-xs">
+                <Icon icon="speakerphone" className="align-middle" aria-hidden="true" />
+                {t.adAttribution.cameFromAd}:{' '}
+                <span className="text-default-900 break-words font-medium">{adName}</span>
+                {adSource?.adClickedAtISO && (
+                  <span> · {fmt(t.adAttribution.clickedAt, { date: formatDateTimeTH(adSource.adClickedAtISO) })}</span>
+                )}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={cn('badge badge-label text-2xs font-semibold', meta.cls)}>
                 <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />

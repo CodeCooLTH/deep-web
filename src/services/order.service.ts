@@ -27,6 +27,7 @@ import { recordOrderEvent } from "@/services/order-event.service";
 import { resolveTechnicianAssignee, settleServiceJobOnBuyerConfirm } from "@/services/service-job.service";
 import { enqueueOrderCapiAfterCommit } from "@/services/meta-capi.service";
 import { removeTagsOnOrderCreated } from "@/services/shop-tag-auto.service";
+import { stampOrderAdAttribution } from "@/services/order-ad-attribution.service";
 import { reserveAutoNotifyIntent, reserveTrackingNotice, dispatchAutoNotifyAfterCommit } from "@/services/auto-notify.service";
 import { getTrackingNoticeTiming } from "@/services/auto-notify-config.service";
 import { canMarkDispatched, canMarkDelivered, isManualShipment } from "@/lib/manual-shipment";
@@ -888,6 +889,8 @@ export async function createOrder(shopId: string, data: {
       dispatchAutoNotifyAfterCommit(ledgerId);
       // 00083 TD-003 — ถอด tag หลัง commit นอก tx/retry loop (ใช้ conversationId ของแถวที่สร้างจริง · ไม่ throw)
       await removeTagsOnOrderCreated({ id: created.id, shopId, conversationId: created.conversationId, isDryRun: created.isDryRun });
+      // 00091 — บันทึกแอดที่มา ณ เวลาของคำสั่งซื้อ (created.createdAt = วันที่ลูกค้าสั่ง → รองรับลงย้อนหลัง 00033) · ไม่ throw
+      await stampOrderAdAttribution(created, created.createdAt);
       await enqueueOrderCapiAfterCommit(created.id, "CREATED"); // 00089
       return created;
     } catch (e) {
@@ -1136,6 +1139,8 @@ async function promoteDraftCore(
   dispatchAutoNotifyAfterCommit(ledgerId);
   // 00083 TD-003 — ถอด tag หลัง commit (ใช้ห้องของแถวที่ผ่าน WHERE shopId แล้ว)
   await removeTagsOnOrderCreated({ id: promoted.id, shopId, conversationId: promoted.conversationId, isDryRun: promoted.isDryRun });
+  // 00091 — ร่างที่ยืนยัน: เวลาอ้างอิง = ตอนยืนยันเป็นคำสั่งซื้อ (BRD FR-001) · ไม่ใช่เวลาสร้างร่าง
+  await stampOrderAdAttribution(promoted, keyedInAt);
   await enqueueOrderCapiAfterCommit(promoted.id, "DRAFT_PROMOTED"); // 00089
   return promoted;
 }
@@ -2856,6 +2861,10 @@ export async function getThreadPanelOrders(
     /** feature 00086 — เวลากดทำเสร็จ (ISO) · ป้ายแถบงานในแชท "ทำเสร็จ · รอปิดงาน" */
     serviceFinishedAt: string | null;
     depositAmount: string | null;
+    /** 00091 — แอดที่มา (ภาพนิ่ง) · ฝั่งร้านเท่านั้น (route นี้ไม่มีผู้เรียกฝั่งผู้ซื้อ) */
+    adId: string | null;
+    adTitle: string | null;
+    adPhotoFileId: string | null;
     /** เงินที่ได้รับจริง (feature 00050) — ว่าง = ยังไม่มีใครกดยืนยันรับเงิน */
     payments: { kind: string; amount: string; voidedAt: string | null }[];
     items: { name: string; qty: number; price: string; imageFileId: string | null }[];
@@ -2906,6 +2915,10 @@ export async function getThreadPanelOrders(
       serviceStartedAt: true,
       serviceFinishedAt: true,
       depositAmount: true,
+      // 00091 — ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx
+      adId: true,
+      adTitle: true,
+      adPhotoFileId: true,
       // feature 00050 — เงินที่ได้รับจริง (คนละเรื่องกับ depositAmount ซึ่งเป็นข้อตกลง)
       // ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ (ใบที่ 21 ขึ้นไปโหลดผ่านนี่)
       payments: { select: { kind: true, amount: true, voidedAt: true } },
@@ -2956,6 +2969,9 @@ export async function getThreadPanelOrders(
       serviceStartedAt: o.serviceStartedAt ? o.serviceStartedAt.toISOString() : null,
       serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
       depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+      adId: o.adId,
+      adTitle: o.adTitle,
+      adPhotoFileId: o.adPhotoFileId,
       payments: o.payments.map((p) => ({
         kind: p.kind,
         amount: p.amount.toFixed(2),

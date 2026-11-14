@@ -42,7 +42,7 @@ import {
  * 🛑 ถ้าชนเพดานจริง ต้องบอกผู้ใช้ ไม่ใช่เงียบ — `truncated` ถูกส่งกลับขึ้นไปให้หน้าจอ
  * (ตัวเลขบางส่วนที่หน้าตาเหมือนตัวเลขครบแล้ว อันตรายกว่าไม่มีตัวเลข)
  */
-const MAX_ITEM_ROWS = 20_000
+export const MAX_ITEM_ROWS = 20_000
 
 export type ProductSalesRow = {
   /** `productId` หรือ CUSTOM_ITEM_KEY สำหรับแถวรวมรายการที่พิมพ์เอง */
@@ -89,6 +89,23 @@ export type ProductSalesMonth = {
 }
 
 /**
+ * 🛑 SSOT ของ "ใบที่นับเป็นยอดขาย" ของรายงานยอดขายรายสินค้า — ใช้ร่วมกับรายงานยอดขายตามโฆษณา (00091 · HR16)
+ * ห้ามเขียนเงื่อนไขนี้ซ้ำที่อื่น ไม่งั้นสองหน้าให้ยอดรวมคนละตัวโดยไม่มีอะไรเตือน
+ * (เนื้อหาย้ายมาจาก where ของ getProductSalesMonth ตรง ๆ ไม่เปลี่ยนพฤติกรรม)
+ */
+export function salesOrderWhere(shopId: string, newRules: boolean, { gte, lt }: { gte: Date; lt: Date }) {
+  return newRules
+    ? { shopId, ...serviceDeliveredOrderWhere({ gte, lt }) }
+    : {
+        shopId,
+        ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
+        // 00085 — ปิดพัสดุแบบไม่นับยอดขาย = ไม่ใช่ของขายออก (ชุดเดียวกับ getBestSellerProducts)
+        ...parcelCloseNotExcludedWhere,
+        createdAt: { gte, lt },
+      }
+}
+
+/**
  * getProductSalesMonth — ยอดขายรายสินค้ารายวันของเดือนหนึ่ง
  *
  * 🛑 scope ด้วย `shopId` ใน `where` ตั้งแต่ query แรก ไม่ใช่ดึงมาแล้วกรองทีหลัง
@@ -116,15 +133,7 @@ export async function getProductSalesMonth(
         // + RETURNED (คืนของครบทั้งใบ) — การขายถูกยกเลิกแล้ว (มติ 2026-10-01 ชุดเดียวกับ /sales · ชีต · receivable)
         //   ต้องคู่กับ getBestSellerProducts เสมอ (SALES_BASIS_DETAIL อ้างว่าเกณฑ์เดียวกัน)
         // feature 00073 — ร้านบริการ: งานที่ปิดแล้วและได้ให้บริการ ตัดช่วงด้วยวันปิดงาน (Top 3 ในรายงานกลุ่ม LINE)
-        order: newRules
-          ? { shopId, ...serviceDeliveredOrderWhere({ gte, lt }) }
-          : {
-              shopId,
-              ...withoutDrafted(newRules ? ['CANCELLED', 'RETURNED'] : 'CANCELLED'),
-              // 00085 — ปิดพัสดุแบบไม่นับยอดขาย = ไม่ใช่ของขายออก (ชุดเดียวกับ getBestSellerProducts)
-              ...parcelCloseNotExcludedWhere,
-              createdAt: { gte, lt },
-            },
+        order: salesOrderWhere(shopId, newRules, { gte, lt }),
       },
       select: {
         id: true,

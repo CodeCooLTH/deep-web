@@ -26,7 +26,8 @@ import type { ParcelCloseOutcome } from './parcel-close'
 export { EXPORT_MAX_ROWS, type ExportFormat, type ExportScope } from './order-export-limits'
 import type { ExportFormat, ExportScope } from './order-export-limits'
 export type ExportColumnKind = 'text' | 'money' | 'int'
-export type ExportColumn = { key: string; header: string; kind: ExportColumnKind }
+/** forceText: ค่าเป็นตัวเลขยาว (เช่น รหัสแอด ~18 หลัก) — CSV ต้องกัน Excel แปลงเป็น 1.2E+17 (ดู toCsv) */
+export type ExportColumn = { key: string; header: string; kind: ExportColumnKind; forceText?: boolean }
 export type ExportCell = string | number | null
 export type ExportRow = Record<string, ExportCell>
 
@@ -39,6 +40,9 @@ export type ExportOrder = {
   status: string
   type: string
   salesChannel: string | null
+  /** 00091 — แอดที่มา (ภาพนิ่งบนคำสั่งซื้อ) */
+  adTitle?: string | null
+  adId?: string | null
   buyerName: string | null
   buyerAccountName: string | null
   buyerContact: string | null
@@ -98,6 +102,8 @@ export function exportColumns(vertical: string): ExportColumn[] {
     t('status', 'สถานะ'),
     t('type', 'ประเภทออเดอร์'),
     t('salesChannel', 'ช่องทางขาย'),
+    t('adTitle', 'โฆษณา'),
+    { ...t('adId', 'รหัสโฆษณา'), forceText: true },
     t('buyerName', 'ชื่อลูกค้า'),
     t('buyerPhone', 'เบอร์โทร'),
     t('items', 'รายการสินค้า'),
@@ -204,6 +210,9 @@ export function buildExportRow(o: ExportOrder, vertical: string, returns: Return
     status: ORDER_STATUS_META[o.status]?.label ?? o.status,
     type: o.type,
     salesChannel: o.salesChannel,
+    // ไฟล์คือข้อมูล ไม่ใช่หน้าจอ — ชื่อว่างไม่เติมรหัสแทน (กรอง/pivot ไม่สับสน)
+    adTitle: o.adTitle ?? null,
+    adId: o.adId ?? null,
     buyerName: resolveOrderBuyerNameForShop(vertical, { typedName: o.buyerName, accountName: o.buyerAccountName }).name,
     buyerPhone: sellerContactDisplay(o.buyerContact, '') || null,
     items: o.items.map((it) => `${it.name} × ${it.qty}`).join('; ') || null,
@@ -270,7 +279,11 @@ export function toCsv(columns: ExportColumn[], rows: ExportRow[]): string {
     if (v == null) return ''
     if (c.kind === 'money') return Number(v).toFixed(2)
     if (c.kind === 'int') return String(v)
-    return esc(guardFormula(String(v)))
+    const str = String(v)
+    // 🛑 รหัสตัวเลขยาวใน CSV: Excel แปลงเป็น 1.2E+17 และเลขหลักท้ายหาย → ห่อเป็น ="..." ให้ Excel อ่านเป็นข้อความ
+    // (ไม่มีที่อื่นในไฟล์นี้ต้องทำ เพราะเบอร์โทร/เลขพัสดุสั้นพอจะไม่โดนแปลงเป็นเลขวิทยาศาสตร์)
+    if (c.forceText && /^\d{12,}$/.test(str)) return esc(`="${str}"`)
+    return esc(guardFormula(str))
   }
   const lines = [columns.map((c) => esc(c.header)).join(',')]
   for (const r of rows) lines.push(columns.map((c) => cell(c, r[c.key] ?? null)).join(','))

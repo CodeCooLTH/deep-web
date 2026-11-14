@@ -1,0 +1,122 @@
+/**
+ * ad-sales-report.db.test.ts — 00091 FR-008: รายงานยอดขายตามโฆษณา + parity กับรายงานยอดขายรายสินค้า (HR16)
+ * 🛑 HR13/HR14: รันเฉพาะ DATABASE_URL = localhost:5434 · ลบ scope ด้วย id ที่เทสสร้างเท่านั้น
+ */
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { prisma } from '@/lib/prisma'
+
+vi.mock('server-only', () => ({}))
+
+import { getAdSalesReport, listOrdersForAd } from '@/services/ad-sales-report.service'
+import { getProductSalesMonth } from '@/services/product-sales-series.service'
+import { thaiMidnightUtc } from '@/lib/date-range'
+
+const url = process.env.DATABASE_URL ?? ''
+const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(url)
+const run = randomUUID().slice(0, 8)
+const x = {} as Record<'user' | 'shop' | 'prod' | 'channel' | 'conv1' | 'conv2' | 'conv3', string>
+const orderIds: string[] = []
+
+// ตุลาคม 2569-เดือนในอดีต: 2026-10-01 ถึง 2026-10-31 (ตัดวันตามเวลาไทย)
+const gte = thaiMidnightUtc(2026, 9, 1)
+const lt = thaiMidnightUtc(2026, 10, 1)
+const inRange = (d: number) => new Date(Date.UTC(2026, 9, d, 5, 0, 0))
+
+const mkOrder = async (o: { adId?: string; adTitle?: string; status?: string; at: Date; items: [number, number][]; conv?: string; photo?: string }) => {
+  const r = await prisma.order.create({
+    data: {
+      shopId: x.shop, conversationId: o.conv ?? null, type: 'PHYSICAL', status: o.status ?? 'PENDING', createdAt: o.at,
+      totalAmount: o.items.reduce((s, [q, p]) => s + q * p, 0),
+      adId: o.adId ?? null, adTitle: o.adTitle ?? null, adPhotoFileId: o.photo ?? null, adClickedAt: o.adId ? o.at : null,
+      items: { create: o.items.map(([qty, price]) => ({ name: 'สินค้า', qty, price, productId: x.prod })) },
+    } as never,
+    select: { id: true },
+  })
+  orderIds.push(r.id)
+  return r.id
+}
+const click = (conversationId: string, o: { source?: string; adId: string; adTitle?: string; at: Date; photo?: string }) =>
+  prisma.conversationAdReferral.create({
+    data: { conversationId, source: o.source ?? 'ADS', adId: o.adId, adTitle: o.adTitle ?? null, photoFileId: o.photo ?? null, receivedAt: o.at },
+  })
+
+describe.skipIf(!isLocal)('00091 รายงานยอดขายตามโฆษณา (DB จริง)', () => {
+  beforeAll(async () => {
+    const u = await prisma.user.create({ data: { displayName: `adr-${run}`, username: `adr_${run}` }, select: { id: true } })
+    x.user = u.id
+    x.shop = (await prisma.shop.create({ data: { userId: u.id, shopName: `adr-${run}`, kind: 'BUSINESS' } as never, select: { id: true } })).id
+    x.prod = (await prisma.product.create({ data: { shopId: x.shop, name: `p-${run}`, price: 100, fulfillmentMode: 'NO_SHIPPING' } as never, select: { id: true } })).id
+    x.channel = (await prisma.shopChannel.create({
+      data: { shopId: x.shop, provider: 'MESSENGER', externalId: `pg-${run}`, name: 'p', accessTokenEnc: 'x', connectedByUserId: u.id },
+      select: { id: true },
+    })).id
+    const mk = async (s: string) => {
+      const c = await prisma.externalContact.create({ data: { shopChannelId: x.channel, externalUserId: `psid-${s}-${run}` }, select: { id: true } })
+      return (await prisma.conversation.create({ data: { shopId: x.shop, channel: 'MESSENGER', shopChannelId: x.channel, externalContactId: c.id }, select: { id: true } })).id
+    }
+    x.conv1 = await mk('1'); x.conv2 = await mk('2'); x.conv3 = await mk('3')
+
+    await click(x.conv1, { adId: 'AD1', adTitle: 'โปรล้อแม็ก (เก่า)', at: inRange(2) })
+    await click(x.conv1, { adId: 'AD1', adTitle: 'โปรล้อแม็ก', photo: 'ph1', at: inRange(3) }) // ห้องเดียวคลิกซ้ำ = 1
+    await click(x.conv2, { adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(4) })
+    await click(x.conv1, { adId: 'AD2', adTitle: 'ไฟหน้า LED', at: inRange(5) })
+    await click(x.conv3, { adId: 'AD3', adTitle: 'ไม่ปิดการขาย', at: inRange(6) })
+    await click(x.conv3, { source: 'SHORTLINK', adId: 'SL', at: inRange(6) })
+    await click(x.conv3, { adId: 'AD1', at: new Date(Date.UTC(2026, 8, 20)) }) // นอกช่วง
+
+    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(10), items: [[2, 100]], conv: x.conv1 }) // 200
+    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(11), items: [[1, 50]], conv: x.conv2 }) // 50
+    await mkOrder({ at: inRange(12), items: [[3, 100]] }) // ไม่ใช่แอด 300
+    await mkOrder({ adId: 'AD1', status: 'CANCELLED', at: inRange(13), items: [[9, 100]], conv: x.conv1 }) // ยกเลิก: ไม่นับยอด
+    await mkOrder({ adId: 'AD2', at: new Date(Date.UTC(2026, 8, 25)), items: [[1, 999]], conv: x.conv1 }) // นอกช่วง
+    await mkOrder({ adId: 'AD9', adTitle: 'คลิกก่อนช่วง', photo: 'ph9', at: inRange(14), items: [[1, 70]] }) // ไม่มีคลิกในช่วง → ยังมีแถว
+  })
+
+  afterAll(async () => {
+    await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } })
+    await prisma.order.deleteMany({ where: { id: { in: orderIds } } })
+    await prisma.conversation.deleteMany({ where: { id: { in: [x.conv1, x.conv2, x.conv3] } } })
+    await prisma.shopChannel.deleteMany({ where: { id: x.channel } })
+    await prisma.product.deleteMany({ where: { id: x.prod } })
+    await prisma.shop.deleteMany({ where: { id: x.shop } })
+    await prisma.user.deleteMany({ where: { id: x.user } })
+    await prisma.$disconnect()
+  })
+
+  it('หนึ่งแถวต่อแอด: แชท(ห้องไม่ซ้ำ) · คำสั่งซื้อ · อัตรา · ยอด · เฉลี่ย · ยกเลิก', async () => {
+    const r = await getAdSalesReport(x.shop, { from: gte, to: lt })
+    const by = Object.fromEntries(r.rows.map((a) => [a.adId, a]))
+    expect(by.AD1).toMatchObject({ adTitle: 'โปรล้อแม็ก', adPhotoFileId: 'ph1', chats: 2, orders: 2, closeRatePct: 100, sales: 250, avgPerOrder: 125, cancelledOrReturned: 1 })
+    expect(by.AD2).toMatchObject({ chats: 1, orders: 0, closeRatePct: 0, sales: 0, avgPerOrder: null })
+    expect(by.AD3).toMatchObject({ chats: 1, orders: 0 }) // แอดที่ไม่ปิดการขายยังแสดง
+    expect(by.AD9).toMatchObject({ chats: 0, orders: 1, closeRatePct: null, adTitle: 'คลิกก่อนช่วง', adPhotoFileId: 'ph9', sales: 70 })
+    expect(by.SL).toBeUndefined() // SHORTLINK ไม่นับ
+    expect(r.rows[0].adId).toBe('AD1') // เรียงตามยอดขายมาก→น้อย
+    expect(r.summary).toMatchObject({ adSales: 320, nonAdSales: 300, adOrders: 3, nonAdOrders: 1 })
+    expect(r.summary.adSharePct).toBeCloseTo(51.61, 1)
+    expect(r.hasAnyAdData).toBe(true)
+  })
+
+  it('parity (HR16): ยอดจากแอด + ไม่ใช่แอด = ยอดรวมของรายงานยอดขายรายสินค้าในช่วงเดียวกัน', async () => {
+    const ads = await getAdSalesReport(x.shop, { from: gte, to: lt })
+    const prod = await getProductSalesMonth(x.shop, 2026, 9)
+    const productTotal = prod.rows.reduce((s, p) => s + p.totalAmount, 0)
+    expect(ads.summary.adSales + ads.summary.nonAdSales).toBe(productTotal)
+    expect(ads.summary.adOrders + ads.summary.nonAdOrders).toBe(prod.orderCount)
+  })
+
+  it('ตัวกรองเพจ: เพจอื่น = ไม่มีแชท/คำสั่งซื้อ', async () => {
+    const r = await getAdSalesReport(x.shop, { from: gte, to: lt, shopChannelId: 'no-such-channel' })
+    expect(r.rows).toEqual([])
+    expect(r.summary.adSharePct).toBeNull()
+  })
+
+  it('ชีตคำสั่งซื้อของแอด: ใบของแอดนั้นเท่านั้น รวมใบยกเลิก · ร้านอื่นไม่เห็น', async () => {
+    const l = await listOrdersForAd(x.shop, 'ONLINE_SALES', 'AD1', { from: gte, to: lt })
+    expect(l.items).toHaveLength(3)
+    expect(l.items.map((i) => i.status).sort()).toEqual(['CANCELLED', 'PENDING', 'PENDING'])
+    const other = await listOrdersForAd('another-shop-id', 'ONLINE_SALES', 'AD1', { from: gte, to: lt })
+    expect(other.items).toEqual([])
+  })
+})

@@ -78,6 +78,9 @@ import ListBusyOverlay, { type ListBusy } from '../../_shared/ListBusyOverlay'
 // ป้ายพฤติกรรมลูกค้า — นิยามเดียวกับหัวแผงลูกค้าในกล่องแชท (HR16)
 import { customerBadges } from '@/lib/customer-behavior'
 import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
+import { adDisplayName } from '@/lib/ad-attribution'
+import AdThumb from '@/components/safepay/AdThumb'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -1315,6 +1318,22 @@ export default function OrdersTable({
                   ประมูล
                 </span>
               )}
+              {/* 00091 — ชิปแอดที่มา (โทนกลาง ไม่ใช่สถานะ) · ไม่มีแอด = ไม่ render node เลย
+                  มติ user 2026-11-14: รูปแอดกลม + speakerphone + ชื่อ · ชื่อยาวตัด … ชี้เมาส์เห็นชื่อเต็ม */}
+              {row.original.ad && (() => {
+                const adName = adDisplayName(row.original.ad.adTitle, row.original.ad.adId, t.inbox.contextBar.adIdFallback)
+                return (
+                  <span
+                    className="inline-flex max-w-xs min-w-0 items-center gap-1.5 rounded-full border border-default-200 bg-default-100 py-0.5 pe-2.5 ps-0.5 text-xs text-default-700"
+                    title={fmt(t.adAttribution.chipTitle, { name: adName ?? '' })}
+                  >
+                    <AdThumb photoFileId={row.original.ad.adPhotoFileId} className="size-5 rounded-full" iconClass="text-xs" />
+                    {/* ไม่มีรูป: tile ของ AdThumb เป็นไอคอน speakerphone อยู่แล้ว ไม่ซ้ำ */}
+                    {row.original.ad.adPhotoFileId && <Icon icon="speakerphone" className="size-3 shrink-0" aria-hidden="true" />}
+                    <span className="truncate font-medium">{adName}</span>
+                  </span>
+                )
+              })()}
               <span className="ms-auto inline-flex items-center gap-3">
                 {/* เปิดแชท — เฉพาะออเดอร์ที่หาห้องแชทของลูกค้าเจอ (ดู OrderRow.conversationId) */}
                 {canOpenChat && row.original.conversationId && (

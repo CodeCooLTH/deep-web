@@ -1,3 +1,4 @@
+import type { OrderAdView } from '@/lib/ad-attribution'
 import type { CustomerBehavior } from '@/lib/customer-behavior'
 import type { AppointmentStatus } from '@/lib/appointments'
 import type { ParcelCloseOutcome } from '@/lib/parcel-close'
@@ -242,6 +243,8 @@ export type OrderRow = {
    * Order.buyerUserId → Conversation.buyerUserId สำหรับแชทในระบบ
    */
   conversationId: string | null
+  /** 00091 — แอดที่ลูกค้าคลิกก่อนสร้างใบนี้ (ภาพนิ่ง) · null = ไม่ได้มาจากแอด → ไม่แสดงอะไรเลย */
+  ad?: OrderAdView | null
   /** ร้านได้รับเงินเก็บปลายทางแล้วเมื่อไร (null = ยังไม่ได้รับ) — ใช้ทำเช็กลิสต์สถานะ */
   codReceivedAtISO?: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */

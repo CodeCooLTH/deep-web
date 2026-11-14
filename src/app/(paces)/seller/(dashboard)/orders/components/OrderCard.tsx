@@ -35,6 +35,9 @@ import {
 } from './data'
 import { SALES_CHANNEL_LOGO } from '@/lib/sales-channel-logo'
 import BuyerAvatar from './BuyerAvatar'
+import AdThumb from '@/components/safepay/AdThumb'
+import { adDisplayName } from '@/lib/ad-attribution'
+import { useT } from '@/i18n/LocaleProvider'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
@@ -144,6 +147,7 @@ export default function OrderCard({
   serviceVocab,
   showMoney = false,
 }: OrderCardProps) {
+  const t = useT()
   const [expanded, setExpanded] = useState(false)
 
   /**
@@ -304,6 +308,23 @@ export default function OrderCard({
             </span>
           </div>
         </div>
+
+        {/* 00091 — แอดที่มา: แถวเต็มกว้างใต้บล็อกหัว (คอลัมน์ซ้าย 390px เหลือ ~168px ใส่ในแถว meta ไม่พอ)
+            ข้อความล้วน ไม่ใส่ relative z-10 — แตะ = ไปหน้ารายละเอียดซึ่งมีชื่อเต็ม · ไม่มีแอด = ไม่ render */}
+        {order.ad && (
+          <div className="bg-default-100 text-default-700 mt-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs">
+            <AdThumb photoFileId={order.ad.adPhotoFileId} className="size-7 rounded" />
+            <div className="min-w-0">
+              <p className="text-default-600 flex items-center gap-1 text-2xs">
+                <Icon icon="tabler:speakerphone" className="size-3" aria-hidden="true" />
+                {t.adAttribution.fromAd}
+              </p>
+              <p className="text-default-900 line-clamp-2 break-words font-medium">
+                {adDisplayName(order.ad.adTitle, order.ad.adId, t.inbox.contextBar.adIdFallback)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── item: thumb + ชื่อ + qty/ราคา, dashed divider — expand เดิมยังอยู่ ── */}
         <div className="mt-2.5 border-t border-dashed border-default-200 pt-2.5">

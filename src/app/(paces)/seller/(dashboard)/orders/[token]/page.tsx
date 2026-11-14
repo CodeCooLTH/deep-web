@@ -54,6 +54,7 @@ import { isReturnedCarrierStatus } from '@/lib/iship/status'
 import OrderDetailClient from './components/OrderDetailClient'
 import { can, canAssignServiceJob, canClaimServiceJob, isTechnicianOnly, memberCanCloseJob, moneyLevel } from '@/lib/shop-permissions'
 import { toNoMoneyOrder } from '@/lib/order-view-by-level'
+import { toOrderAdView } from '@/lib/ad-attribution'
 import TechnicianOrderDetail from './components/TechnicianOrderDetail'
 import { canEditOrderAs } from '@/lib/order-role-rules'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
@@ -555,6 +556,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         isFromAuction={Boolean(order.auctionId)}
         salesChannel={orderSource.channel}
         pageLogoUrl={orderSource.logoUrl}
+        adSource={toOrderAdView(order)}
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}
