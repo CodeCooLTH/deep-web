@@ -1,36 +1,33 @@
 'use client'
 
 /**
- * หน้ารายละเอียดเพจ Conversions API — หัวเพจ + สวิตช์หลัก + banner + ผลการส่ง + จังหวะ Purchase + ประกอบการ์ดย่อย (feature 00089 หน้า 2)
+ * หน้ารายละเอียดเพจ Conversions API — หัวเพจ + สวิตช์หลัก + banner + แถวสถิติ (StatsRow) + จังหวะ Purchase + ประกอบการ์ดย่อย (feature 00089 หน้า 2)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (.card + flex) + .../form/elements/components/ChecksRadioSwitches.tsx (form-switch)
- *   + theme: .../ui/alerts/page.tsx (banner `rounded p-3` พื้น /15) · .../ui/list-group/page.tsx (dl ผลการส่ง)
+ *   + theme: .../ui/alerts/page.tsx (banner `rounded p-3` พื้น /15) · การ์ดสถิติ: ดู StatsRow.tsx (Base Stat.tsx)
  *   + theme: .../form/elements/components/InputTextfieldType.tsx (<select class="form-select"> จังหวะ Purchase)
  *   + src/app/(paces)/seller/(dashboard)/settings/tags/components/TagEditor.tsx (grid xl:grid-cols-3 + คอลัมน์ขวา sticky)
  *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/components/AutoNotifyClient.tsx (banner markup · optimistic + revert + pacesToast)
  *
- * ลำดับ DOM = ลำดับภาพบน xl (ซ้ายก่อนขวา → tab order ตรงกับสายตา) · มือถือ/แท็บเล็ตสลับลำดับด้วย order-* (ผลการส่งขึ้นก่อน)
+ * ลำดับ DOM = ลำดับภาพบน xl (ซ้ายก่อนขวา → tab order ตรงกับสายตา) · มือถือ/แท็บเล็ตสลับลำดับด้วย order-*
  */
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { formatDateTime } from '@/lib/format-date'
 import { capiPageStatus } from '@/lib/meta-capi/ui'
 import type { RuleSaved } from '@/lib/meta-capi/ui'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { cn } from '@/utils/helpers'
 import DatasetsCard from './DatasetsCard'
 import EventsCard from './EventsCard'
 import RulesCard from './RulesCard'
+import StatsRow from './StatsRow'
 import { PageAvatar, ReconnectLink, StatusBadge, capiApi } from './shared'
 import { datasetName, type DatasetView, type DetailData, type EventOpt, type EventOpts } from './types'
 
-const num = new Intl.NumberFormat('en-US')
 type PutBody = { enabled?: boolean; purchaseAt?: string; countPromotedDraft?: boolean; eventOptions?: EventOpts }
 
 export default function DetailClient({ data }: { data: DetailData }) {
@@ -129,30 +126,35 @@ export default function DetailClient({ data }: { data: DetailData }) {
     return true
   }
 
-  const toggleEvent = async (d: DatasetView, key: string, on: boolean) => {
-    const bk = `${d.id}:${key}`
-    if (busy.has(bk)) return
-    const events = on ? [...d.events, key] : d.events.filter((e) => e !== key)
+  /** PATCH รายการเหตุการณ์ทั้งก้อนของชุดข้อมูล (server แทนที่ทั้งอาร์เรย์) · optimistic + ย้อนกลับเมื่อพลาด */
+  const saveEvents = async (d: DatasetView, events: string[]) => {
+    const bk = `${d.id}:events`
+    if (busy.has(bk)) return false
     const patch = (evs: string[]) => setDatasets((ds) => ds.map((x) => (x.id === d.id ? { ...x, events: evs } : x)))
+    const before = d.events
     patch(events)
     mark(bk, true)
     const r = await capiApi<{ dataset: DatasetView }>(`/${data.channelId}/datasets/${d.id}`, 'PATCH', { events })
     mark(bk, false)
     if (!r.ok) {
-      patch(d.events)
-      pacesToast.error(t.evSwitchFailed)
+      patch(before)
+      pacesToast.error(t.saveFailed)
     }
+    return r.ok
+  }
+  const addEvents = async (d: DatasetView, keys: string[]) => {
+    const ok = await saveEvents(d, [...d.events, ...keys.filter((k) => !d.events.includes(k))])
+    if (ok) pacesToast.success(fmt(t.evAdded, { n: keys.length }))
+    return ok
+  }
+  // เอาออกไม่ถาม Swal — ทำทันทีแล้วให้ "เลิกทำ" บน toast (ค่าตั้งยอด/กฎเก็บแยกอยู่แล้ว จึงไม่หาย)
+  const removeEvent = async (d: DatasetView, key: string) => {
+    const before = d.events
+    const ok = await saveEvents(d, before.filter((e) => e !== key))
+    if (ok) pacesToast.success(fmt(t.evRemoved, { name: t.events[key as keyof typeof t.events].label }), { action: { label: t.evUndo, onClick: () => void saveEvents({ ...d, events: before.filter((e) => e !== key) }, before) } })
   }
 
-  const s = data.stats
-  const lastSent = s.lastSentAt ? formatDateTime(s.lastSentAt) : t.resultsNever
   const logHref = `/settings/conversions-api/${data.channelId}/log`
-  const stats = [
-    [t.resultsSent, num.format(s.sent), ''],
-    [t.resultsFailed, num.format(s.failed), s.failed > 0 ? 'text-danger-ink font-semibold' : ''],
-    [t.resultsPending, num.format(s.pending), ''],
-    [t.resultsLast, lastSent, ''],
-  ] as const
 
   return (
     <div className="flex flex-col gap-base">
@@ -201,49 +203,15 @@ export default function DetailClient({ data }: { data: DetailData }) {
         </div>
       ))}
 
+      <StatsRow stats={data.stats} logHref={logHref} />
+
       <div className="flex flex-col gap-base xl:grid xl:grid-cols-3 xl:items-start">
         <DatasetsCard channelId={data.channelId} datasets={datasets} onChange={setDatasets} />
-        <EventsCard datasets={datasets} eventOptions={opts} purchaseAt={setting.purchaseAt} busyKeys={busy} onToggle={toggleEvent} onOption={changeOption} />
+        <EventsCard datasets={datasets} eventOptions={opts} purchaseAt={setting.purchaseAt} busyKeys={busy} onAdd={addEvents} onRemove={removeEvent} onOption={changeOption} />
         <RulesCard eventOptions={opts} tags={data.tags} saving={busy.has('rules')} onSave={saveRules} />
 
         {/* คอลัมน์ขวา: มือถือ/แท็บเล็ต `contents` ให้ลูกสลับลำดับแทรกกับการ์ดซ้ายด้วย order-* · xl = กล่อง sticky ตามจอ */}
         <div className="contents xl:sticky xl:top-20 xl:col-start-3 xl:row-span-3 xl:row-start-1 xl:block xl:space-y-base xl:self-start">
-          <div className="card order-1 xl:order-none md:hidden">
-            <Link href={logHref} className="flex min-h-11 items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-default-900 text-sm font-medium">{t.resultsTitle}</p>
-                <p className="text-default-700 text-xs tabular-nums">{fmt(t.resultsShort, { sent: num.format(s.sent), failed: num.format(s.failed), pending: num.format(s.pending) })}</p>
-              </div>
-              <span className="text-primary-ink flex items-center gap-1 text-xs font-medium">
-                {t.viewLogShort}
-                <Icon icon="chevron-right" className="size-4" aria-hidden="true" />
-              </span>
-            </Link>
-          </div>
-          <div className="card order-1 hidden xl:order-none md:flex">
-            <div className="card-header">
-              <h4 className="card-title">{t.resultsTitle}</h4>
-              <Link href={logHref} className="btn btn-sm border-default-300 text-default-800 min-h-11 border xl:hidden">
-                {t.viewLog}
-                <Icon icon="chevron-right" className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
-            <dl className="divide-default-200 grid grid-cols-4 gap-4 px-5 py-4 xl:block xl:divide-y xl:gap-0 xl:py-2">
-              {stats.map(([k, v, c]) => (
-                <div key={k} className="xl:flex xl:items-center xl:justify-between xl:py-2">
-                  <dt className="text-default-700 text-xs xl:text-sm">{k}</dt>
-                  <dd className={cn('text-default-900 mt-0.5 text-sm whitespace-nowrap tabular-nums xl:mt-0', c)}>{v}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="hidden px-5 pb-5 xl:block">
-              <Link href={logHref} className="btn border-default-300 text-default-800 w-full border">
-                <Icon icon="history" className="size-4" aria-hidden="true" />
-                {t.viewLog}
-              </Link>
-            </div>
-          </div>
-
           <div id="capi-timing" className="card order-3 xl:order-none">
             <div className="card-header">
               <h4 className="card-title">{t.timingTitle}</h4>

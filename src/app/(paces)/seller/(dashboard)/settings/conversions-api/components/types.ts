@@ -1,3 +1,5 @@
+import type { CapiStats } from '@/lib/meta-capi/stats'
+
 /** รูปข้อมูลหน้า detail ที่ serialize ข้าม RSC ได้ (วันที่เป็น ISO string · ไม่มี token) */
 export type DatasetView = {
   id: string
@@ -14,6 +16,13 @@ export type EventOpts = Partial<Record<string, EventOpt>>
 
 export type PageSetting = { enabled: boolean; everEnabled: boolean; purchaseAt: string; countPromotedDraft: boolean }
 
+/** สถิติแถวการ์ด (serialize แล้ว) — อายุรอส่งคิดฝั่ง server เป็นนาที กัน hydration mismatch จาก Date.now() */
+export type StatsView = Pick<CapiStats, 'pending' | 'failed' | 'sent' | 'sales' | 'leads'> & {
+  days: 7 | 30
+  lastSentAt: string | null
+  oldestPendingMin: number | null
+}
+
 export type DetailData = {
   channelId: string
   name: string
@@ -21,7 +30,7 @@ export type DetailData = {
   setting: PageSetting
   eventOptions: EventOpts
   datasets: DatasetView[]
-  stats: { sent: number; failed: number; pending: number; lastSentAt: string | null }
+  stats: StatsView
   /** แท็กที่ลงทะเบียนของร้าน (มี id) — กฎผูกกับแท็กที่ลงทะเบียนเท่านั้น */
   tags: { id: string; name: string }[]
 }
