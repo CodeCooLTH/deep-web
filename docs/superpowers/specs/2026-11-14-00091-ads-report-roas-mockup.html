@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00091 FR-010 เฟส 2 ค่าโฆษณา · ROAS (/reports/ads) — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00078 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-lg:0 4px 16px rgba(76,76,92,.2); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --shadow-lg:0 4px 16px rgba(0,0,0,.45); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces — กล่องแตะ 44×44 วาดราง 30×20 */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; width:44px; height:44px; margin:-12px -7px; background:transparent; border:0; cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:7px; top:12px; width:30px; height:20px; border-radius:9999px; background:var(--d200); border:1px solid var(--d300); box-sizing:border-box; }
+  .form-switch::after { content:""; position:absolute; left:11px; top:16px; width:12px; height:12px; border-radius:9999px; background:var(--knob); transition:transform .15s; }
+  .form-switch:checked::before { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::after { background:#fff; transform:translateX(14px); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  /* .form-radio ของ Paces 18px */
+  .form-radio { appearance:none; width:18px; height:18px; border-radius:9999px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; margin-top:2px; }
+  .form-radio:checked { border:5px solid var(--primary); }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .tabbtn[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .badge { display:inline-flex; align-items:center; gap:.25rem; border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; white-space:nowrap; }
+    .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+    .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border-bottom:1px dashed var(--d300); padding:15px 20px; }
+    .card-title { font-size:15px; font-weight:500; color:var(--d900); }
+    .card-body { padding:20px; }
+    .card-footer { border-top:1px solid var(--d200); padding:15px 20px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; white-space:nowrap; }
+    .btn-sm { padding:.25rem .625rem; font-size:13px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px; border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+    .form-input, .form-select { display:block; width:100%; border:1px solid var(--d300); border-radius:4px; background:var(--card); color:var(--d900); padding:.5rem .75rem; font-size:14px; }
+    .form-select { appearance:none; padding-inline-end:2rem; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358626b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .6rem center; background-size:16px; }
+    .form-input::placeholder { color:var(--d500); }
+    .form-label { display:block; margin-bottom:.25rem; font-size:13px; font-weight:500; color:var(--d800); }
+    .input-group { display:flex; width:100%; }
+    .input-group > * + * { margin-inline-start:-1px; }
+    .input-group > :not(:first-child) { border-start-start-radius:0; border-end-start-radius:0; }
+    .input-group > :not(:last-child) { border-start-end-radius:0; border-end-end-radius:0; }
+    .input-group > .form-input { flex:1; min-width:0; }
+    .input-group-text { display:flex; align-items:center; border:1px solid var(--d300); border-radius:4px; background:var(--d100); padding:0 .75rem; font-size:14px; color:var(--d700); }
+    .nav-tab { display:inline-flex; align-items:center; gap:.375rem; margin-bottom:-1px; border-bottom:2px solid transparent; padding:.5rem .25rem; font-size:14px; color:var(--d700); white-space:nowrap; }
+    .nav-tab.active { border-color:var(--primary); color:var(--primary-ink); font-weight:500; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<style>
+  .seg button[aria-pressed="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .kpi[aria-selected="true"] { border-bottom-color:var(--primary); }
+  .apexcharts-tooltip, .apexcharts-text, .apexcharts-legend-text { font-family:'Anuphan', sans-serif !important; }
+  .apexcharts-tooltip { background:var(--card) !important; border-color:var(--d300) !important; color:var(--d900) !important; }
+  .apexcharts-tooltip-title { background:var(--d100) !important; border-color:var(--d300) !important; }
+</style>
+<style>
+  .kpi[aria-selected="true"] { border-bottom-color:var(--primary); background:var(--primary10); }
+  .chip[aria-pressed="true"] { background:var(--primary15); color:var(--primary-ink); font-weight:600; }
+  .chip { background:var(--light); color:var(--d900); }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-30 border-b border-d300" style="background:var(--card)">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00091 FR-010 เฟส 2 — ค่าโฆษณา · ROAS บน /reports/ads</h1>
+      <p class="text-xs text-d600">Desktop 1440 / Tablet 768 / Mobile 390 · ร้านธนภัทร์ 30 วัน (16 ต.ค. – 14 พ.ย. 2569) · ตาม <code>2026-11-14-00091-ads-report-roas-ux-spec.md</code></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 rounded border border-dashed border-d400 p-2">
+      <span class="text-2xs font-semibold text-d600">สลับสถานะ (เฉพาะม็อกอัพ ไม่มีในหน้าจริง):</span>
+      <nav class="flex flex-wrap gap-1.5" role="tablist" aria-label="สถานะค่าโฆษณา (ม็อกอัพ)" id="stNav"></nav>
+    </div>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="${n.includes(':') ? n : 'tabler:' + n}" width="${s}" height="${s}" class="${c}" noobserver aria-hidden="true"></iconify-icon>`
+const DEVS = [
+  { k: 'd', w: 1440, label: 'Desktop 1440' },
+  { k: 't', w: 768, label: 'Tablet 768' },
+  { k: 'm', w: 390, label: 'Mobile 390' },
+]
+const STATES = [
+  ['OK', 'OK — ใช้ได้'],
+  ['NOT_CONNECTED', 'ยังไม่เชื่อม'],
+  ['AUTH', 'เชื่อมแล้วแต่ใช้ไม่ได้ (AUTH)'],
+  ['ERROR', 'โหลดจาก Meta ไม่สำเร็จ (ERROR)'],
+  ['CURRENCY', 'สกุลเงินไม่ใช่บาท (CURRENCY)'],
+]
+const S = { st: 'OK', tab: { d: 'spend', t: 'sales', m: 'roas' }, sort: 'sales' }
+const ok = () => S.st === 'OK'
+const ACCOUNT = 'Deep Ads – ธนภัทร์'
+
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},45%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function prodImg(kind) {
+  const bg = { wheel: '#2b2f36', shock: '#3d4f63', led: '#1f2a44', rim: '#4a3b2a' }[kind]
+  const fg = {
+    wheel: "<circle cx='20' cy='20' r='14' fill='none' stroke='%23cfd6de' stroke-width='4'/><circle cx='20' cy='20' r='4' fill='%23cfd6de'/><path d='M20 8v24M8 20h24' stroke='%23cfd6de' stroke-width='2'/>",
+    shock: "<rect x='17' y='6' width='6' height='28' rx='3' fill='%23f9bf59'/><path d='M13 12h14M13 17h14M13 22h14M13 27h14' stroke='%23e7e9eb' stroke-width='2'/>",
+    led: "<circle cx='20' cy='20' r='11' fill='%23fff7d6'/><circle cx='20' cy='20' r='6' fill='%23ffffff'/><path d='M4 20h4M32 20h4M20 4v4M20 32v4' stroke='%23fff7d6' stroke-width='2'/>",
+    rim: "<circle cx='20' cy='20' r='14' fill='none' stroke='%23e0b070' stroke-width='5'/><circle cx='20' cy='20' r='3' fill='%23e0b070'/>",
+  }[kind]
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='${encodeURIComponent(bg)}'/%3E${fg.replace(/</g, '%3C').replace(/>/g, '%3E')}%3C/svg%3E`
+}
+
+// ── ตัวเลข ──
+const baht = (n) => '฿' + Math.round(n).toLocaleString('en-US')
+const baht2 = (n) => '฿' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num = (n) => n.toLocaleString('en-US')
+const pct = (n, d = 2) => n.toFixed(d) + '%'
+const DASH = '<span class="text-d500">—</span>'
+const NOSPEND = '<span class="text-d500" aria-hidden="true">—</span><span class="sr-only">ไม่มีค่าโฆษณา</span>'
+
+// ── ข้อมูล: แอด 12 ตัวที่มีแชท/ยอด + แถวผี 2 ตัว (มีใน Insights แต่ไม่มีแชทจากแอด) ──
+// spend: null = ไม่พบแถวใน Insights · ghost = แถวผี
+const ADS = [
+  { name: 'video 360_Group_1', id: '120214455102340219', img: 'wheel', chats: 651, orders: 180, sales: 74070, lost: 2, spend: 13500 },
+  { name: 'โพสวิดีโอ คลิป 3_Group_1', id: '120214455102340301', img: 'shock', chats: 242, orders: 56, sales: 34610, lost: 2, spend: 8650 },
+  { name: 'รวมโพส_Group_1', id: '120213987700120044', img: 'rim', chats: 247, orders: 38, sales: 23860, lost: 0, spend: 8320 },
+  { name: 'โพสวิดีโอ แกนเงิน', id: '120214610055870112', img: 'shock', chats: 72, orders: 27, sales: 16490, lost: 0, spend: 3210 },
+  { name: 'โพสวิดีโอ แกนทอง', id: '120214610055870113', img: 'rim', chats: 43, orders: 15, sales: 9830, lost: 0, spend: 2640 },
+  { name: '290_Post_video_17 sec_Group_1', id: '120213458800120290', img: 'wheel', chats: 50, orders: 23, sales: 7480, lost: 1, spend: 2980 },
+  { name: 'ADMD_Group_1', id: '120213458800120301', img: 'led', chats: 51, orders: 11, sales: 5190, lost: 0, spend: 3150 },
+  { name: 'โพสแนวตั้ง', id: '120214777300450008', img: 'wheel', chats: 8, orders: 5, sales: 4160, lost: 0, spend: 620 },
+  { name: 'โปรล้อแม็ก 11.11 วันเดียว ลด 40%', id: '120214901200330017', img: 'wheel', chats: 9, orders: 14, sales: 6240, lost: 0, spend: 2100 },
+  { name: 'ไฟหน้า LED', id: '120214901200330021', img: null, chats: 5, orders: 9, sales: 3180, lost: 0, spend: 1050 },
+  { name: null, id: '120213458800120219', img: null, chats: 0, orders: 4, sales: 1450, lost: 0, spend: null },
+  { name: 'ล้อแม็กลดล้างสต็อก', id: '120214901200330035', img: 'rim', chats: 2, orders: 2, sales: 650, lost: 0, spend: 240 },
+  { name: 'โช้คแต่ง รีวิวลูกค้า_Group_2', id: '120214990100550041', img: null, chats: 0, orders: 0, sales: 0, lost: 0, spend: 1980, ghost: true },
+  { name: 'ล้อแม็ก 15 นิ้ว ยิงกว้าง', id: '120214990100550057', img: null, chats: 0, orders: 0, sales: 0, lost: 0, spend: 1160, ghost: true },
+]
+const REAL = ADS.filter((a) => !a.ghost)
+const GHOST = ADS.filter((a) => a.ghost)
+const COV = ADS.filter((a) => a.spend != null)
+const sumOf = (rows, k) => rows.reduce((a, r) => a + r[k], 0)
+const TOT = { chats: sumOf(ADS, 'chats'), orders: sumOf(ADS, 'orders'), sales: sumOf(ADS, 'sales'), lost: sumOf(ADS, 'lost'), spend: sumOf(COV, 'spend') } // 1,380 · 384 · 187,210 · 5 · 49,600
+// HR16: ROAS/ต้นทุนรวมใช้ชุดแอดเดียวกัน = แอดที่มีค่าโฆษณา (รวมแถวผี) — ไม่นับแอดที่ไม่พบค่าโฆษณา
+const COV_SALES = sumOf(COV, 'sales'), COV_ORDERS = sumOf(COV, 'orders')
+TOT.roas = COV_SALES / TOT.spend // 185,760 ÷ 49,600 = 3.75
+TOT.cpo = TOT.spend / COV_ORDERS // 49,600 ÷ 380 = ฿131
+const UNCOVERED = ADS.length - COV.length
+const GHOST_SPEND = sumOf(GHOST, 'spend') // 3,140
+const NONAD = { sales: 7902, orders: 17 }
+const ALL = TOT.sales + NONAD.sales
+const PREV = { sales: 166557, orders: 355, chats: 1262, spend: 40823, covSales: 165120, covOrders: 351 }
+PREV.roas = PREV.covSales / PREV.spend
+PREV.cpo = PREV.spend / PREV.covOrders
+const delta = (cur, prev) => ((cur - prev) / prev) * 100
+const adLabel = (a) => a.name ?? `รหัสโฆษณา ${a.id}`
+const roasOf = (sales, spend) => (spend == null || spend === 0 ? null : sales / spend)
+const cpoOf = (spend, orders) => (spend == null || orders === 0 ? null : spend / orders)
+console.assert(TOT.spend === 49600 && TOT.sales === 187210, 'ยอดรวมไม่ตรงที่ตั้งไว้')
+
+// ซีรีส์รายวัน 30 วัน — ผลรวมเท่าการ์ดสรุปเป๊ะ (HR16)
+const LABELS = [...Array(16)].map((_, i) => `${16 + i} ต.ค.`).concat([...Array(14)].map((_, i) => `${1 + i} พ.ย.`))
+function spread(total, seed, amp = 0.35) {
+  const w = LABELS.map((_, i) => Math.max(0.15, 1 + amp * Math.sin(i * 0.7 + seed) + 0.22 * Math.sin(i * 2.3 + seed * 2) + (i % 7 === 5 || i % 7 === 6 ? 0.25 : 0) + (i === 26 ? 0.9 : 0)))
+  const W = w.reduce((a, b) => a + b, 0)
+  const out = w.map((x) => Math.floor((x / W) * total))
+  out[out.length - 1] += total - out.reduce((a, b) => a + b, 0)
+  return out
+}
+const SER = {
+  ad: spread(TOT.sales, 1), nonAd: spread(NONAD.sales, 3, 0.6), orders: spread(TOT.orders, 1.1),
+  spend: spread(TOT.spend, 2, 0.15), covSales: spread(COV_SALES, 1), prevAd: spread(PREV.sales, 4), prevOrders: spread(PREV.orders, 4.2),
+}
+SER.roas = SER.covSales.map((s, i) => (SER.spend[i] ? +(s / SER.spend[i]).toFixed(2) : null))
+console.assert(SER.spend.reduce((a, b) => a + b, 0) === TOT.spend, 'Σ daily.spend ≠ summary.spend')
+
+// ── ชิ้นส่วน UI ──
+// DeltaText: ขึ้น success-ink · ลง warning-ink (O5) · neutral = default-700 (ค่าโฆษณา/ต้นทุน — ขึ้นไม่ได้แปลว่าดีหรือแย่)
+function deltaText(d, { neutral = false, unit = '%' } = {}) {
+  if (d == null || !isFinite(d)) return DASH
+  const up = d >= 0
+  const cls = neutral ? 'text-d700' : up ? 'text-success-ink' : 'text-warning-ink'
+  return `<span class="inline-flex items-center text-xs font-medium tabular-nums ${cls}">${IC(up ? 'arrow-up' : 'arrow-down', 12)}<span class="sr-only">${up ? 'เพิ่มขึ้น' : 'ลดลง'}</span>${Math.abs(d).toFixed(1)}${unit === '%' ? '%' : ' จุด'}</span>`
+}
+const thumb = (a, s = 'size-9') => a.img ? `<img src="${prodImg(a.img)}" alt="" class="${s} shrink-0 rounded object-cover" />` : `<span class="flex ${s} shrink-0 items-center justify-center rounded bg-d200 text-d600">${IC('speakerphone', 16)}</span>`
+const bar = (w, cls = 'bg-primary', h = 'h-1.25') => `<div class="${h} w-full overflow-hidden rounded-full bg-d100" aria-hidden="true"><div class="h-full rounded-full ${cls}" style="width:${w}%"></div></div>`
+const card = (cls, header, body) => `<div class="card h-full ${cls}">${header ? `<div class="card-header">${header}</div>` : ''}${body}</div>`
+const chartBox = (id, h) => `<div id="${id}" style="min-height:${h}px"></div>`
+const btnH = (dev) => (dev.k === 'd' ? '' : 'min-h-11')
+// สีกราฟ: chart-primary = #236dc9 · chart-zeta (#db9052) ใช้ในม็อกอัพแทน getColor('chart-zeta') เท่านั้น
+const C = { primary: '#236dc9', zeta: '#db9052' }
+const cssv = (n) => getComputedStyle(document.documentElement).getPropertyValue('--' + n).trim()
+const primaryA = (a) => `rgba(35,109,201,${a})`
+
+// ── AdSpendNotice (ใหม่) — เหนือกริด · กล่องเดียวตาม state · role=status · ห้ามโทน danger ──
+function notice(dev) {
+  const full = dev.k === 'd' ? '' : 'min-h-11 w-full sm:w-auto'
+  const box = (tone, icon, title, body, btn) => `<div role="status" class="mb-5 flex flex-wrap items-start gap-3 rounded p-3.75 ${tone}">
+    ${IC(icon, 22, 'mt-0.5')}<div class="min-w-0 flex-1">${title ? `<p class="font-semibold">${title}</p>` : ''}<p class="text-xs">${body}</p></div>${btn}</div>`
+  const primary = (label, icon) => `<a href="#" class="btn bg-primary text-white ${full}">${IC(icon, 16)}${label}</a>`
+  const outline = (label, icon) => `<a href="#" class="btn border border-d300 bg-card text-d800 ${full}">${IC(icon, 16)}${label}</a>`
+  switch (S.st) {
+    case 'NOT_CONNECTED':
+      return box('bg-d100 text-d800', 'plug-connected-x', 'ยังไม่ได้เชื่อมบัญชีโฆษณา Meta', 'ค่าโฆษณา · ROAS · ต้นทุนต่อคำสั่งซื้อ จะแสดงเมื่อเชื่อมบัญชีโฆษณา ส่วนยอดขายและคำสั่งซื้อจากโฆษณาดูได้ตามปกติ', primary('เชื่อมบัญชีโฆษณา', 'plug-connected'))
+    case 'AUTH':
+      return box('bg-warning15 text-warning-ink', 'alert-triangle', 'การเชื่อมบัญชีโฆษณาใช้อ่านค่าโฆษณาไม่ได้แล้ว', 'Meta ไม่ให้ Deep อ่านค่าโฆษณาในตอนนี้ (โทเคนหมดอายุหรือสิทธิ์ถูกถอน) เชื่อมใหม่เพื่อกลับมาดูค่าโฆษณา ส่วนยอดขายและคำสั่งซื้อยังดูได้ตามปกติ', primary('เชื่อมบัญชีโฆษณาใหม่', 'refresh'))
+    case 'CURRENCY':
+      return box('bg-warning15 text-warning-ink', 'currency-dollar', 'บัญชีโฆษณานี้ใช้สกุลเงิน USD', 'Deep คำนวณ ROAS ได้เฉพาะบัญชีที่ใช้บาท (THB) จึงยังไม่แสดงค่าโฆษณา เปลี่ยนไปใช้บัญชีที่เป็นบาทได้ที่หน้าเชื่อมบัญชี', outline('ไปหน้าเชื่อมบัญชี', 'settings'))
+    case 'ERROR': // inline เล็ก
+      return `<div role="status" class="mb-5 flex flex-wrap items-center gap-2.5 rounded bg-warning15 px-3 py-2 text-sm text-warning-ink">${IC('cloud-off', 18)}<span class="min-w-0 flex-1">โหลดค่าโฆษณาจาก Meta ไม่สำเร็จในตอนนี้ ยอดขายและคำสั่งซื้อแสดงตามปกติ</span><button type="button" class="btn btn-sm border border-d300 bg-card text-d800 ${full}">${IC('reload', 14)}ลองใหม่</button></div>`
+    default:
+      return ''
+  }
+}
+
+// ── ① ──
+function cardAdSales(dev) {
+  return card('', `<h4 class="card-title">ยอดขายจากโฆษณา</h4>`, `<div class="card-body">
+    <div class="mb-1 flex flex-wrap items-center gap-2.5"><h3 class="text-xl font-bold tabular-nums text-d900">${baht(TOT.sales)}</h3>${deltaText(delta(TOT.sales, PREV.sales))}</div>
+    <p class="text-xs text-d700">ช่วงก่อนหน้า ${baht(PREV.sales)} · ${num(PREV.orders)} ใบ</p>
+    <div role="img" aria-label="ยอดขายรายวัน แยกจากโฆษณาและไม่ได้มาจากโฆษณา">${chartBox(`c1-${dev.k}`, 240)}</div></div>`)
+}
+// ── ② ── (+ แถว ต้นทุนต่อคำสั่งซื้อ เฉพาะ OK)
+function cardShare(dev) {
+  const adP = (TOT.sales / ALL) * 100
+  const rate = (TOT.orders / TOT.chats) * 100, prate = (PREV.orders / PREV.chats) * 100
+  const row = (l, v, dd, from) => `<tr class="border-t border-d200"><td class="py-2 pe-2 text-d800">${l}</td><td class="py-2 text-center font-semibold tabular-nums text-d900">${v}</td><td class="py-2 text-center"><span class="block">${dd}</span><span class="block text-2xs tabular-nums text-d600">จาก ${from}</span></td></tr>`
+  const cpoRow = ok() ? row('ต้นทุนต่อคำสั่งซื้อ', baht(TOT.cpo), deltaText(delta(TOT.cpo, PREV.cpo), { neutral: true }), baht(PREV.cpo)) : ''
+  return card('', `<h4 class="card-title">สัดส่วนยอดขาย</h4>`, `<div class="card-body flex flex-1 flex-col">
+    <p class="mb-3 flex flex-wrap items-baseline gap-2"><span class="text-lg font-semibold tabular-nums text-d900">${pct(adP)}</span><span class="text-xs text-d700">ของยอดขายมาจากโฆษณา</span></p>
+    <div class="flex h-3 w-full overflow-hidden rounded bg-d200" role="img" aria-label="จากโฆษณา ${pct(adP)} ไม่ได้มาจากโฆษณา ${pct(100 - adP)}"><div class="bg-primary" style="width:${adP}%"></div><div style="width:${100 - adP}%;background:var(--d300)"></div></div>
+    <div class="mt-2.5 flex justify-between gap-3">
+      <div><p class="flex items-center gap-1.5 text-xs font-medium text-d700"><span class="size-2.5 rounded-full bg-primary"></span>จากโฆษณา</p><p class="text-md font-semibold tabular-nums text-d900">${pct(adP)}</p><p class="text-xs tabular-nums text-d700">${baht(TOT.sales)} · ${num(TOT.orders)} ใบ</p></div>
+      <div class="text-end"><p class="flex items-center justify-end gap-1.5 text-xs font-medium text-d700"><span class="size-2.5 rounded-full" style="background:var(--d300)"></span>ไม่ได้มาจากโฆษณา</p><p class="text-md font-semibold tabular-nums text-d900">${pct(100 - adP)}</p><p class="text-xs tabular-nums text-d700">${baht(NONAD.sales)} · ${NONAD.orders} ใบ</p></div>
+    </div>
+    <div class="mt-auto overflow-x-auto pt-4"><table class="w-full whitespace-nowrap text-sm">
+      <thead class="bg-d100 text-2xs font-semibold text-d600"><tr><th class="p-2 text-start">ตัวชี้วัด</th><th class="p-2 text-center">ช่วงนี้</th><th class="p-2 text-center">เทียบช่วงก่อน</th></tr></thead>
+      <tbody>${row('แชทจากโฆษณา', num(TOT.chats), deltaText(delta(TOT.chats, PREV.chats)), num(PREV.chats))}${row('คำสั่งซื้อ', num(TOT.orders), deltaText(delta(TOT.orders, PREV.orders)), num(PREV.orders))}${row('อัตราปิดการขาย', pct(rate, 1), deltaText(rate - prate, { unit: 'pt' }), pct(prate, 1))}${cpoRow}</tbody>
+    </table></div></div>`)
+}
+// ── ③ ── กล่องเส้นประ 2 แถว: ปิดการขายดีที่สุด + ROAS ดีที่สุด (ROAS เฉพาะ OK)
+function bestClose() {
+  return REAL.filter((a) => a.orders >= 10 && a.chats > 0 && a.orders / a.chats <= 1).sort((x, y) => y.orders / y.chats - x.orders / x.chats)[0]
+}
+function bestRoas() {
+  return REAL.filter((a) => a.orders >= 10 && a.spend > 0).sort((x, y) => roasOf(y.sales, y.spend) - roasOf(x.sales, x.spend) || y.orders - x.orders)[0]
+}
+function cardTopAds(dev) {
+  const top = REAL.slice(0, 5)
+  const bc = bestClose(), br = bestRoas()
+  const hlRow = (a, title, val, unit) => `<button type="button" class="flex w-full items-center gap-2.5 py-2 text-start ${btnH(dev)}">${thumb(a, 'size-10')}
+      <span class="min-w-0 flex-1"><span class="block text-xs font-semibold text-d700">${title}</span><span class="block truncate font-semibold text-d900" title="${adLabel(a)}">${adLabel(a)}</span></span>
+      <span class="shrink-0 text-end"><span class="block text-md font-semibold tabular-nums text-d900">${val}</span><span class="block text-2xs font-semibold text-d600">${unit}</span></span></button>`
+  const rows = [hlRow(bc, 'ปิดการขายดีที่สุด', pct((bc.orders / bc.chats) * 100, 1), 'อัตราปิดการขาย')]
+  if (ok()) rows.push(hlRow(br, 'ROAS ดีที่สุด', roasOf(br.sales, br.spend).toFixed(2), 'ROAS'))
+  const hl = `<div class="mt-5 rounded border border-dashed border-d300 px-2.5 py-1">${rows.join('<div class="border-t border-dashed border-d300"></div>')}
+    <p class="pb-1.5 pt-1 text-2xs text-d600">นับเฉพาะแอดที่มีคำสั่งซื้อตั้งแต่ 10 ใบขึ้นไป</p></div>`
+  return card('', `<h4 class="card-title">แอดที่ทำยอดสูงสุด</h4>`, `<div class="card-body">
+    <p class="text-xs text-d700">5 อันดับจาก ${REAL.length} แอดที่มียอดในช่วงนี้</p>
+    ${top.map((a, i) => { const p = (a.sales / TOT.sales) * 100; return `<button type="button" class="block w-full text-start ${i === 0 ? 'mt-3' : 'mt-3.5'}">
+      <span class="mb-1.5 flex items-center justify-between gap-3"><span class="flex min-w-0 items-center gap-2 text-sm font-medium text-d900"><span class="w-4 shrink-0 text-xs tabular-nums text-d500">${i + 1}</span>${thumb(a, 'size-8')}<span class="truncate" title="${a.name}">${a.name}</span></span>
+      <span class="shrink-0 text-sm tabular-nums"><b class="font-semibold text-d900">${baht(a.sales)}</b><span class="ms-2 text-xs text-d700">${pct(p, 1)}</span></span></span>${bar(p)}</button>` }).join('')}
+    ${hl}</div>`)
+}
+
+// ── ④ ── แท็บ 4 ตัว
+const KPIS = [
+  { k: 'sales', label: 'ยอดขาย', val: () => baht(TOT.sales), d: () => deltaText(delta(TOT.sales, PREV.sales)) },
+  { k: 'orders', label: 'คำสั่งซื้อ', val: () => num(TOT.orders), d: () => deltaText(delta(TOT.orders, PREV.orders)) },
+  { k: 'spend', label: 'ค่าโฆษณา', val: () => baht(TOT.spend), d: () => deltaText(delta(TOT.spend, PREV.spend), { neutral: true }), ads: true },
+  { k: 'roas', label: 'ROAS', val: () => TOT.roas.toFixed(2), d: () => deltaText(delta(TOT.roas, PREV.roas)), ads: true },
+]
+const SR_REASON = { NOT_CONNECTED: 'ยังไม่ได้เชื่อมบัญชีโฆษณา', AUTH: 'การเชื่อมบัญชีโฆษณาใช้ไม่ได้', ERROR: 'โหลดค่าโฆษณาไม่สำเร็จ', CURRENCY: 'บัญชีโฆษณาไม่ใช่สกุลบาท' }
+function chartMsg(dev) {
+  const b = btnH(dev)
+  const M = {
+    NOT_CONNECTED: ['plug-connected-x', 'เชื่อมบัญชีโฆษณาแล้วจะเห็นค่าโฆษณารายวันย้อนหลังได้ทันที', `<a href="#" class="btn mt-1 bg-primary text-white ${b}">${IC('plug-connected', 16)}เชื่อมบัญชีโฆษณา</a>`],
+    AUTH: ['alert-triangle', 'การเชื่อมบัญชีโฆษณาใช้อ่านค่าโฆษณาไม่ได้แล้ว', `<a href="#" class="btn mt-1 bg-primary text-white ${b}">${IC('refresh', 16)}เชื่อมบัญชีโฆษณาใหม่</a>`],
+    ERROR: ['cloud-off', 'โหลดค่าโฆษณาจาก Meta ไม่สำเร็จในตอนนี้', `<button type="button" class="btn mt-1 border border-d300 text-d800 ${b}">${IC('reload', 16)}ลองใหม่</button>`],
+    CURRENCY: ['currency-dollar', 'บัญชีโฆษณานี้ใช้สกุลเงิน USD — Deep คำนวณ ROAS ได้เฉพาะบัญชีที่ใช้บาท', `<a href="#" class="btn mt-1 border border-d300 text-d800 ${b}">${IC('settings', 16)}ไปหน้าเชื่อมบัญชี</a>`],
+  }[S.st]
+  return `<div class="flex min-h-72 flex-col items-center justify-center gap-2 text-center">${IC(M[0], 36, 'text-d500')}<p class="max-w-sm text-sm text-d800">${M[1]}</p>${M[2]}</div>`
+}
+function cardOverview(dev) {
+  const m = dev.k === 'm'
+  const tabs = KPIS.map((t) => {
+    const off = t.ads && !ok()
+    return `<button type="button" role="tab" data-dev="${dev.k}" data-kpi="${t.k}" aria-selected="${S.tab[dev.k] === t.k}" tabindex="${S.tab[dev.k] === t.k ? 0 : -1}" class="kpi flex min-h-11 flex-col items-start justify-center border-b-2 border-transparent ${m ? 'px-3 py-2.5' : 'px-5 py-4'} text-start">
+      <span class="text-xs font-medium text-d700">${t.label}</span>
+      <span class="flex flex-wrap items-baseline gap-x-2"><span class="text-lg font-semibold tabular-nums text-d900">${off ? `<span aria-hidden="true">—</span><span class="sr-only">${SR_REASON[S.st]}</span>` : t.val()}</span>${off ? '' : t.d()}</span></button>`
+  }).join('')
+  const cur = KPIS.find((t) => t.k === S.tab[dev.k])
+  const body = cur.ads && !ok() ? chartMsg(dev) : `<div role="img" aria-label="กราฟรายวัน ${cur.label} 30 วัน">${chartBox(`c4-${dev.k}`, 300)}</div>`
+  return card('', `<h4 class="card-title">ภาพรวมรายวัน</h4>`,
+    `<div class="border-b border-d300"><nav class="grid ${m ? 'grid-cols-2' : 'grid-cols-4'} divide-d200 ${m ? '' : 'divide-x'}" role="tablist" aria-label="ตัวชี้วัด">${tabs}</nav></div>
+     <div class="p-5" role="tabpanel">${body}</div>`)
+}
+// ── ⑤ ──
+function donutData() {
+  const top = REAL.slice(0, 5)
+  const rest = REAL.slice(5).reduce((a, r) => a + r.sales, 0)
+  return { ads: top.concat([null]), labels: top.map((a) => a.name).concat(['อื่น ๆ']), series: top.map((a) => a.sales).concat([rest]), alphas: [1, 0.8, 0.6, 0.45, 0.3, null] }
+}
+function cardDonut(dev) {
+  const D = donutData()
+  return card('', `<h4 class="card-title">สัดส่วนยอดขายตามแอด</h4>`,
+    `<div class="card-body"><p class="mb-1 text-center text-xs text-d700">${REAL.length} แอดที่มียอดในช่วงนี้</p>${chartBox(`c5-${dev.k}`, 180)}
+      <table class="mt-2.5 w-full table-fixed text-sm"><colgroup><col style="width:72%"/><col style="width:28%"/></colgroup><thead class="bg-d100 text-2xs font-semibold text-d600"><tr><th class="p-1.5 text-start">แอด</th><th class="p-1.5 text-center">สัดส่วน</th></tr></thead>
+      <tbody>${D.labels.map((l, i) => `<tr><td class="max-w-0 p-1.5"><span class="flex min-w-0 items-center gap-1.5"><span class="size-2.5 shrink-0 rounded-full ${D.alphas[i] ? 'bg-primary' : ''}" style="${D.alphas[i] ? `opacity:${D.alphas[i]}` : 'background:var(--d400)'}"></span>${D.ads[i] ? thumb(D.ads[i], 'size-6') : ''}<span class="truncate text-d800" title="${l}">${l}</span></span></td><td class="p-1.5 text-center tabular-nums text-d800">${pct((D.series[i] / TOT.sales) * 100, 1)}</td></tr>`).join('')}</tbody></table>
+      <div class="mt-3 text-center"><a href="#tbl-${dev.k}" class="btn btn-sm border border-d300 text-d800 ${btnH(dev)}">ดูทุกแอดในตาราง ${IC('arrow-down', 14)}</a></div></div>`)
+}
+// ── ⑥ ──
+const PROV = [['กรุงเทพมหานคร', 41280], ['ชลบุรี', 18940], ['นครราชสีมา', 16120], ['ขอนแก่น', 12860], ['เชียงใหม่', 11430], ['สมุทรปราการ', 10250], ['จังหวัดอื่น ๆ (69 จังหวัด)', 66510, 'other'], ['ไม่ระบุจังหวัด', 9820, 'none']]
+function cardProvince(dev) {
+  const item = ([n, v, sp], i, first) => { const p = (v / TOT.sales) * 100; return `<div class="${first ? '' : 'mt-4'}">
+    <div class="mb-1.5 flex items-center justify-between gap-2"><span class="flex min-w-0 items-center gap-2 ${sp ? 'text-d700' : 'text-d900'}">${sp === 'none' ? IC('map-pin-off', 16, 'text-d500') : sp === 'other' ? IC('dots', 16, 'text-d500') : `<span class="w-4 text-xs tabular-nums text-d500">${i + 1}</span>`}<span class="truncate">${n}</span></span><b class="shrink-0 font-semibold tabular-nums text-d900">${baht(v)}</b></div>
+    <div class="flex items-center gap-2.5"><div class="flex-1">${bar(p, sp ? 'bg-d400' : 'bg-primary')}</div><span class="w-12 text-end text-xs tabular-nums text-d700">${pct(p, 1)}</span></div></div>` }
+  const halves = dev.k === 'd' ? [PROV.slice(0, 4), PROV.slice(4)] : [PROV]
+  return card('', `<h4 class="card-title">ยอดขายจากโฆษณาตามจังหวัด</h4>`,
+    `<div class="card-body"><p class="mb-4 text-xs text-d700">ยอดขายจากโฆษณาแยกตามจังหวัดที่อยู่จัดส่ง ใบที่ไม่มีที่อยู่ (รับหน้าร้าน/บริการ) อยู่ในแถว ไม่ระบุจังหวัด</p>
+    <div class="grid ${halves.length > 1 ? 'grid-cols-2 gap-x-8' : 'grid-cols-1'}">${halves.map((h, hi) => `<div>${h.map((x, i) => item(x, i + hi * 4, i === 0)).join('')}</div>`).join('')}</div></div>`)
+}
+// ── ⑦ ── (ไม่มีแถว TikTok)
+const CH = [
+  { n: 'Messenger', icon: 'logos:messenger', v: 174560 },
+  { n: 'Instagram', icon: 'logos:instagram-icon', v: 9850 },
+  { n: 'LINE', icon: 'simple-icons:line', v: 6240 },
+  { n: 'หน้าร้าน / อื่น ๆ', icon: 'tabler:building-store', v: ALL - 174560 - 9850 - 6240 },
+]
+function cardChannel(dev) {
+  return card('', `<h4 class="card-title">ยอดขายตามช่องทาง</h4>`,
+    `<div class="card-body"><p class="mb-4 text-xs text-d700">ยอดขายทั้งหมดในช่วง (รวมที่ไม่ได้มาจากโฆษณา) ${baht(ALL)} · แถบ = สัดส่วนของยอดทั้งหมด</p>
+    ${CH.map((c, i) => { const p = (c.v / ALL) * 100; return `<div class="relative h-10 w-full overflow-hidden rounded ${i < CH.length - 1 ? 'mb-4' : ''}" style="background:var(--d50)">
+      <div class="absolute inset-y-0 start-0 bg-d200" style="width:${p}%"></div>
+      <div class="absolute inset-0 z-10 flex items-center justify-between px-3.75"><span class="flex items-center gap-2 font-semibold text-d900">${IC(c.icon, 22, c.icon.startsWith('tabler') ? 'text-d700' : c.icon.startsWith('simple') ? 'text-success' : '')}${c.n}</span>
+      <span class="text-sm font-semibold tabular-nums text-d800">${baht(c.v)} · ${pct(p, 1)}</span></div></div>` }).join('')}</div>`)
+}
+// ── ⑧ ── (วาดเพราะร้านมี ≥2 เพจ และไม่ได้กรองเพจ)
+const PAGES = [
+  { n: 'ธนภัทร์ อะไหล่ซิ่ง', icon: 'logos:messenger', av: ['#1e3a8a', 'ธอ'], p: 72.6, d: 3.2 },
+  { n: 'ธนภัทร์ ล้อแม็ก', icon: 'logos:messenger', av: ['#b91c1c', 'ธล'], p: 23.1, d: -4.1 },
+  { n: 'thanapat.parts', icon: 'logos:instagram-icon', av: ['#0f766e', 'TP'], p: 4.3, d: 0.9 },
+]
+function cardPages(dev) {
+  return `<div class="card self-start">${`<div class="card-header"><h4 class="card-title">ยอดขายจากโฆษณาตามเพจ</h4></div>`}
+    <div class="card-body px-2 py-2">${PAGES.map((g) => `<div class="flex items-center justify-between gap-2 p-2.5">
+      <span class="flex min-w-0 items-center gap-2.5"><span class="relative shrink-0"><span class="flex size-10 items-center justify-center rounded-full text-xs font-semibold text-white" style="background:${g.av[0]}" aria-hidden="true">${g.av[1]}</span><span class="absolute -bottom-0.5 -end-0.5 flex size-5 items-center justify-center rounded-full bg-card ring-2 ring-[var(--card)]">${IC(g.icon, 14)}</span></span><span class="line-clamp-2 min-w-0 font-semibold leading-snug text-d900" title="${g.n}">${g.n}</span></span>
+      <span class="flex shrink-0 items-center gap-3"><span class="font-semibold tabular-nums text-d800">${pct(g.p, 1)}</span><span class="w-14 text-end">${deltaText(g.d, { unit: 'pt' })}</span></span></div>`).join('')}
+      <p class="px-2.5 pt-2 text-2xs text-d600">ลูกศร = เปลี่ยนจากช่วงก่อนหน้า (จุดเปอร์เซ็นต์)</p></div></div>`
+}
+
+// ── ⑨ ตารางรายแอด ──
+function cells(a) {
+  const sp = a.spend, r = roasOf(a.sales, sp), c = cpoOf(sp, a.orders)
+  return {
+    rate: a.chats > 0 ? 'ปิด ' + pct((a.orders / a.chats) * 100, 1) : DASH,
+    avg: a.orders > 0 ? `เฉลี่ย ${baht(a.sales / a.orders)}/ใบ` : DASH,
+    spend: sp == null ? NOSPEND : baht(sp),
+    cpo: c == null ? NOSPEND : baht(c),
+    roas: r == null ? NOSPEND : r.toFixed(2),
+  }
+}
+function sortedRows() {
+  const key = S.sort === 'spend' ? (a) => a.spend : (a) => a.sales
+  // null เรียงท้ายเสมอ
+  return [...ADS].sort((x, y) => (key(x) == null) - (key(y) == null) || key(y) - key(x))
+}
+function cardTable(dev) {
+  const m = dev.k === 'm', o = ok(), rows = sortedRows()
+  const tools = `<div class="flex w-full items-center gap-2 ${m ? '' : 'sm:w-auto'}"><div class="relative ${m ? 'flex-1' : 'w-60'}">${IC('search', 16, 'absolute start-3 top-1/2 -translate-y-1/2 text-d500')}<input type="text" class="form-input ps-9 ${btnH(dev)}" placeholder="ค้นหาชื่อหรือรหัสแอด" aria-label="ค้นหาชื่อหรือรหัสแอด" /></div>
+    ${m ? `<button type="button" class="btn border border-d300 text-d800 min-h-11">${IC('arrows-sort', 16)}${S.sort === 'spend' ? 'ค่าโฆษณา' : 'ยอดขาย'}</button>` : ''}
+    <select class="form-select w-auto ${btnH(dev)}" aria-label="จำนวนแถวต่อหน้า"><option>10</option><option selected>25</option><option>50</option></select></div>`
+  const ghostNote = o && GHOST.length ? `<p class="flex w-full flex-wrap items-center gap-x-2 text-xs text-warning-ink">${IC('alert-triangle', 14)}แอด ${GHOST.length} ตัวใช้เงิน ${baht(GHOST_SPEND)} แต่ยังไม่มีแชทจากโฆษณา<button type="button" data-ghostsort class="font-semibold underline underline-offset-2 ${btnH(dev)}">เรียงตามค่าโฆษณา</button></p>` : ''
+  const head = `<h4 class="card-title">ผลลัพธ์รายแอด</h4>${tools}${ghostNote}`
+  const shown = o ? rows : rows.filter((a) => !a.ghost) // state ≠ OK ไม่รู้ว่ามีแถวผี (มาจาก Insights)
+  const notes = `<div class="space-y-1 px-5 pb-1 pt-3 text-2xs text-d600">
+      ${o ? `<p class="flex items-center gap-1.5">${IC('info-circle', 14, 'text-d500')}ROAS = ยอดขายของ Deep ÷ ค่าโฆษณา (ยังไม่หักต้นทุนสินค้า)</p>` : ''}
+      ${o && UNCOVERED ? `<p class="flex items-center gap-1.5">${IC('info-circle', 14, 'text-d500')}ROAS รวมไม่นับ ${UNCOVERED} แอดที่ไม่พบค่าโฆษณา</p>` : ''}
+      <p class="flex items-center gap-1.5">${IC('info-circle', 14, 'text-d500')}อัตราปิดการขายเกิน 100% ได้ เมื่อลูกค้าคนเดียวสั่งหลายใบจากแชทเดียว</p></div>`
+  const foot = `<div class="card-footer flex flex-wrap items-center justify-between gap-3 text-xs text-d700"><span>แสดง 1–${shown.length} จาก ${shown.length} แอด</span>
+    <nav class="flex gap-1" aria-label="หน้า"><button type="button" class="btn-icon size-8" aria-label="ก่อนหน้า" disabled>${IC('chevron-left', 14)}</button><button type="button" class="btn-icon size-8 border-primary bg-primary text-white" aria-current="page">1</button><button type="button" class="btn-icon size-8" aria-label="ถัดไป" disabled>${IC('chevron-right', 14)}</button></nav></div>`
+  const ghostBadge = `<span class="badge mt-0.5 bg-d100 text-d800">ยังไม่มีแชทจากโฆษณา</span>`
+
+  if (m) {
+    const li = (a) => {
+      const x = cells(a), tag = a.ghost ? 'div' : 'button'
+      const mk = o && a.spend != null ? `<p class="mt-1 text-2xs tabular-nums text-d700">ค่าแอด ${baht(a.spend)} · ต้นทุน ${cpoOf(a.spend, a.orders) == null ? '—' : baht(cpoOf(a.spend, a.orders))}/คำสั่งซื้อ</p>` : ''
+      return `<li><${tag} ${a.ghost ? '' : 'type="button"'} class="flex min-h-11 w-full items-start gap-2.5 py-3 text-start">${thumb(a, 'size-10')}
+        <span class="min-w-0 flex-1"><span class="line-clamp-2 font-medium text-d900">${adLabel(a)}</span>${a.ghost ? ghostBadge : `<span class="block text-2xs tabular-nums text-d600">แชท ${num(a.chats)} · ${a.orders} ใบ · ${x.rate}${a.lost ? ` · ยกเลิก/คืน ${a.lost}` : ''}</span>`}${mk}</span>
+        <span class="shrink-0 text-end"><span class="block font-semibold tabular-nums text-d900">${baht(a.sales)}</span>${o ? `<span class="block text-xs tabular-nums text-d700">ROAS ${x.roas}</span>` : ''}</span></${tag}></li>`
+    }
+    const total = `<li class="py-3"><div class="flex items-start justify-between gap-2"><span class="min-w-0"><span class="block font-semibold text-d900">รวมทุกแอดในช่วงนี้ (${shown.length} แอด)</span><span class="block text-2xs tabular-nums text-d600">แชท ${num(TOT.chats)} · ${num(TOT.orders)} ใบ · ปิด ${pct((TOT.orders / TOT.chats) * 100, 1)}</span>${o ? `<span class="block text-2xs tabular-nums text-d700">ค่าแอด ${baht(TOT.spend)} · ROAS ${TOT.roas.toFixed(2)}</span>` : ''}</span><span class="shrink-0 font-semibold tabular-nums text-d900">${baht(TOT.sales)}</span></div></li>`
+    return `<div id="tbl-${dev.k}" class="card" style="scroll-margin-top:16px"><div class="card-header">${head}</div><ul class="divide-y divide-d200 px-4">${total}${shown.map(li).join('')}</ul>${notes}${foot}</div>`
+  }
+
+  const th = (t, sub, extra = '') => `<th class="px-2 py-2.5 text-center align-bottom font-semibold">${t}${extra}${sub ? `<span class="block text-2xs font-normal text-d600">${sub}</span>` : ''}</th>`
+  const two = (top, sub, bold) => `<span class="block ${bold ? 'font-semibold' : ''} text-d900">${top}</span><span class="block text-2xs text-d600">${sub}</span>`
+  const tr = (a) => {
+    const x = cells(a)
+    return `<tr class="border-t border-d200 ${a.ghost ? '' : 'cursor-pointer hover:bg-d100'}">
+    <td class="max-w-0 py-2.5 pe-2 ps-5"><span class="flex min-w-0 items-center gap-2.5">${thumb(a)}<span class="min-w-0"><span class="block truncate font-medium text-d900" title="${adLabel(a)}">${adLabel(a)}</span>${a.ghost ? ghostBadge : `<span class="block text-2xs tabular-nums text-d600">${a.id}</span>`}</span></span></td>
+    <td class="px-2 text-center tabular-nums text-d900">${num(a.chats)}</td>
+    <td class="px-2 text-center tabular-nums">${two(a.orders, x.rate)}</td>
+    <td class="px-2 text-center tabular-nums">${two(baht(a.sales), x.avg, true)}</td>
+    ${o ? `<td class="px-2 text-center tabular-nums">${two(x.spend, x.cpo)}</td><td class="px-2 text-center font-semibold tabular-nums text-d900">${x.roas}</td>` : ''}
+    <td class="pe-5 ps-2 text-center tabular-nums ${a.lost ? 'text-d900' : 'text-d500'}">${a.lost}</td></tr>`
+  }
+  const cols = o ? `<col style="width:30%"/>${'<col/>'.repeat(6)}` : `<col style="width:36%"/>${'<col/>'.repeat(4)}`
+  const roasHead = `<span class="ms-1 inline-flex align-middle text-d500" title="ยอดขายของ Deep ÷ ค่าโฆษณา (ยังไม่หักต้นทุนสินค้า)">${IC('info-circle', 14)}</span>`
+  return `<div id="tbl-${dev.k}" class="card" style="scroll-margin-top:16px"><div class="card-header">${head}</div>
+    <div class="overflow-x-auto"><table class="w-full table-fixed whitespace-nowrap text-sm ${o && dev.k === 't' ? 'min-w-[720px]' : ''}">
+      <colgroup>${cols}</colgroup>
+      <thead class="bg-d100 text-xs text-d700"><tr><th class="py-2.5 pe-2 ps-5 text-start align-bottom font-semibold">โฆษณา</th>${th('แชทจากโฆษณา')}${th('คำสั่งซื้อ', 'อัตราปิดการขาย')}${th('ยอดขาย', 'เฉลี่ยต่อใบ')}${o ? th('ค่าโฆษณา', 'ต้นทุนต่อคำสั่งซื้อ') + th('ROAS', '', roasHead) : ''}${th('ยกเลิก/คืน')}</tr></thead>
+      <tbody>${shown.map(tr).join('')}</tbody>
+      <tfoot class="border-t-2 border-d300 bg-d50 font-semibold"><tr><td class="py-2.5 pe-2 ps-5 text-d900">รวมทุกแอดในช่วงนี้ (${shown.length} แอด)</td><td class="px-2 text-center tabular-nums text-d900">${num(TOT.chats)}</td>
+        <td class="px-2 text-center tabular-nums">${two(num(TOT.orders), 'ปิด ' + pct((TOT.orders / TOT.chats) * 100, 1))}</td>
+        <td class="px-2 text-center tabular-nums">${two(baht(TOT.sales), `เฉลี่ย ${baht(TOT.sales / TOT.orders)}/ใบ`)}</td>
+        ${o ? `<td class="px-2 text-center tabular-nums">${two(baht(TOT.spend), baht(TOT.cpo))}</td><td class="px-2 text-center tabular-nums text-d900">${TOT.roas.toFixed(2)}</td>` : ''}
+        <td class="pe-5 ps-2 text-center tabular-nums text-d900">${TOT.lost}</td></tr></tfoot>
+    </table></div>${notes}${foot}</div>`
+}
+
+// ── หัวหน้า (ไม่มีการ์ดห่อ) — DateRangeControl เดิม ──
+const PERIODS = ['วันนี้', '7 วัน', '30 วัน', 'เดือนนี้', 'กำหนดเอง']
+function controls(dev) {
+  const m = dev.k === 'm', h = btnH(dev)
+  const seg = m
+    ? `<div class="flex w-full items-center gap-1.5" role="group" aria-label="ช่วงเวลา">${PERIODS.slice(0, 4).map((p) => `<button type="button" aria-pressed="${p === '30 วัน'}" class="chip btn btn-sm min-h-11 min-w-0 flex-1 rounded-full px-1">${p}</button>`).join('')}<button type="button" aria-pressed="false" aria-label="กำหนดเอง" class="chip flex size-11 shrink-0 items-center justify-center rounded-full">${IC('calendar-event', 18)}</button></div>`
+    : `<div class="inline-flex" role="group" aria-label="ช่วงเวลา">${PERIODS.map((p, i) => `<button type="button" aria-pressed="${p === '30 วัน'}" class="chip btn btn-sm ${h} ${i === 0 ? 'rounded-e-none' : i === PERIODS.length - 1 ? 'rounded-s-none' : 'rounded-none'}">${p}</button>`).join('')}</div>`
+  const page = `<select class="form-select ${m ? 'flex-1' : 'w-44'} ${h}" aria-label="เพจ"><option>ทุกเพจ</option><option>ธนภัทร์ อะไหล่ซิ่ง</option><option>ธนภัทร์ ล้อแม็ก</option><option>thanapat.parts</option></select>`
+  const exp = `<button type="button" class="btn border border-d300 text-d700 ${dev.k === 'd' ? '' : 'min-h-11'} shrink-0">${IC('download', 16)}ส่งออก</button>`
+  const lines = `<div class="space-y-0.5"><p class="text-xs text-d700">16 ต.ค. – 14 พ.ย. 2569 · เทียบกับ 16 ก.ย. – 15 ต.ค. 2569</p>${ok() ? `<p class="text-xs text-d700">ค่าโฆษณานับจากบัญชีโฆษณา ${ACCOUNT} เท่านั้น</p>` : ''}</div>`
+  return `<div class="mb-5 flex flex-col gap-3"><div class="flex flex-wrap items-center gap-2">${seg}<div class="${m ? 'flex w-full' : 'ms-auto flex'} items-center gap-2">${page}${exp}</div></div>${lines}</div>`
+}
+function sideNav() {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[260px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">เมนูหลัก</p>
+    <ul class="mb-3 space-y-0.5">${it('home', 'หน้าหลัก')}${it('message-circle', 'ข้อความ')}${it('shopping-cart', 'คำสั่งซื้อ')}${it('package', 'สินค้า')}${it('users', 'ลูกค้า')}</ul>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">รายงาน</p>
+    <ul class="space-y-0.5">${it('chart-bar', 'ยอดขายรายสินค้า')}${it('speakerphone', 'ยอดขายตามโฆษณา', 1)}${it('report-money', 'กำไรขาดทุน')}</ul></aside>`
+}
+const BOTTOM = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+function page(dev) {
+  const k = dev.k
+  const C1 = cardAdSales(dev), C2 = cardShare(dev), C3 = cardTopAds(dev), OV = cardOverview(dev), DN = cardDonut(dev)
+  const PV = cardProvince(dev), CHN = cardChannel(dev), PG = cardPages(dev), TB = cardTable(dev)
+  const g = (cls, items) => `<div class="mb-5 grid gap-5 [&>*]:min-w-0 ${cls}">${items.join('')}</div>`
+  const sp = (n, x) => `<div class="${n}">${x}</div>`
+  let grid
+  if (k === 'd') grid = g('grid-cols-3', [C1, C2, C3]) + g('grid-cols-4', [sp('col-span-3', OV), DN]) + g('grid-cols-12', [sp('col-span-7', PV), sp('col-span-5', CHN)]) + g('grid-cols-4 items-start', [PG, sp('col-span-3', TB)])
+  else if (k === 't') grid = g('grid-cols-2', [C1, C2, sp('col-span-2', C3), sp('col-span-2', OV), DN, PG, sp('col-span-2', PV), sp('col-span-2', CHN), sp('col-span-2', TB)])
+  else grid = `<div class="grid grid-cols-1 gap-3 [&>*]:min-w-0">${[C1, C2, C3, OV, DN, PV, CHN, PG, TB].join('')}</div>`
+  if (k === 'd') {
+    return `<div class="flex">${sideNav()}<div class="min-w-0 flex-1">
+      <div class="flex h-[65px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto flex items-center gap-4">${IC('bell', 20, 'text-d700')}<img src="${photo(30)}" alt="" class="size-8 rounded-full" /></span></div>
+      <div class="p-5"><nav aria-label="breadcrumb" class="mb-1 flex items-center gap-1.25 text-xs font-medium text-d600">หน้าหลัก ${IC('chevron-right', 12)} รายงาน ${IC('chevron-right', 12)} <span class="text-d700">ยอดขายตามโฆษณา</span></nav><h3 class="mb-3 text-lg font-semibold text-d900">ยอดขายตามโฆษณา</h3>
+      ${controls(dev)}${notice(dev)}${grid}</div></div></div>`
+  }
+  return `<div class="flex min-h-14 items-center gap-2 border-b border-d200 bg-card px-2"><button type="button" aria-label="ย้อนกลับ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button><span class="text-md font-semibold text-d900">ยอดขายตามโฆษณา</span></div>
+    <div class="p-4">${controls(dev)}${notice(dev)}${grid}</div>
+    <nav class="grid h-[72px] grid-cols-5 items-center border-t border-d200 bg-card">${BOTTOM.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === 'เมนู' ? 'font-medium text-primary-ink' : 'text-d600'}">${IC(i, 22)}${l}</span>`).join('')}</nav>`
+}
+function frame(dev, inner) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div><div class="frame" style="width:${dev.w}px">${inner}</div></div>`
+}
+
+// ── กราฟ (ของจริงผ่าน ApexChart wrapper + getColor('chart-*')) ──
+let CHARTS = []
+function base(type, h) {
+  return {
+    chart: { type, height: h, toolbar: { show: false }, fontFamily: 'Anuphan, sans-serif', foreColor: cssv('d600'), background: 'transparent', animations: { enabled: false } },
+    grid: { borderColor: cssv('d200'), strokeDashArray: 4, padding: { top: -10, right: 0, bottom: -6, left: 6 } },
+    dataLabels: { enabled: false }, legend: { show: false },
+    tooltip: { theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light', shared: true, intersect: false },
+    xaxis: { categories: LABELS, tickAmount: 6, labels: { rotate: 0, hideOverlappingLabels: true, style: { fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+  }
+}
+const kfmt = (v) => (v >= 1000 ? '฿' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '฿' + Math.round(v))
+const legendTop = { show: true, position: 'top', horizontalAlign: 'right', fontSize: '12px', markers: { size: 5 } }
+function drawCharts() {
+  CHARTS.forEach((c) => c.destroy()); CHARTS = []
+  const mk = (id, o) => { const el = document.getElementById(id); if (el) { const c = new ApexCharts(el, o); c.render(); CHARTS.push(c) } }
+  for (const dev of DEVS) {
+    const k = dev.k, m = k === 'm'
+    const x = { ...base('bar', 0).xaxis, tickAmount: m ? 4 : 6 }
+    // ① แท่งซ้อนรายวัน (chart-primary + chart-delta)
+    mk(`c1-${k}`, { ...base('bar', 240), chart: { ...base('bar', 240).chart, stacked: true }, xaxis: x,
+      series: [{ name: 'จากโฆษณา', data: SER.ad }, { name: 'ไม่ได้มาจากโฆษณา', data: SER.nonAd }],
+      colors: [C.primary, cssv('d300')], plotOptions: { bar: { columnWidth: '55%', borderRadius: 2 } },
+      legend: { show: true, position: 'bottom', fontSize: '12px', markers: { size: 5 } },
+      yaxis: { labels: { formatter: kfmt, style: { fontSize: '11px' } }, tickAmount: 3 },
+      tooltip: { ...base('bar', 0).tooltip, y: { formatter: (v) => baht(v) } } })
+    // ④ ตามแท็บ
+    const t = S.tab[k]
+    if (!(['spend', 'roas'].includes(t) && !ok())) {
+      const o = { ...base('area', 300), xaxis: x, stroke: { width: [2, 2], dashArray: [0, 5], curve: 'smooth' },
+        fill: { type: ['gradient', 'solid'], opacity: [1, 0], gradient: { opacityFrom: 0.35, opacityTo: 0, stops: [0, 95] } }, legend: legendTop }
+      if (t === 'sales') Object.assign(o, { series: [{ name: 'ช่วงนี้', data: SER.ad }, { name: 'ช่วงก่อนหน้า', data: SER.prevAd }], colors: [C.primary, cssv('d400')], yaxis: { min: 0, tickAmount: 3, labels: { formatter: kfmt } }, tooltip: { ...o.tooltip, y: { formatter: (v) => baht(v) } } })
+      if (t === 'orders') Object.assign(o, { series: [{ name: 'ช่วงนี้', data: SER.orders }, { name: 'ช่วงก่อนหน้า', data: SER.prevOrders }], colors: [C.primary, cssv('d400')], yaxis: { min: 0, tickAmount: 3, labels: { formatter: (v) => Math.round(v) } } })
+      // ค่าโฆษณา: area ยอดขาย chart-primary + line ค่าโฆษณา stroke 3 chart-zeta (ฐาน ProjectPerformance.tsx)
+      if (t === 'spend') Object.assign(o, { chart: { ...o.chart, type: 'line' }, series: [{ name: 'ยอดขายจากโฆษณา', type: 'area', data: SER.ad }, { name: 'ค่าโฆษณา', type: 'line', data: SER.spend }], stroke: { width: [2, 3], dashArray: [0, 0], curve: 'smooth' }, colors: [C.primary, C.zeta], yaxis: { min: 0, tickAmount: 3, labels: { formatter: kfmt } }, tooltip: { ...o.tooltip, y: { formatter: (v) => baht(v) } } })
+      // ROAS: line chart-primary + เส้นคงที่ 1 ประ default-400 (เป็น series ไม่ใช่ annotations)
+      if (t === 'roas') Object.assign(o, { chart: { ...o.chart, type: 'line' }, series: [{ name: 'ROAS รายวัน', data: SER.roas }, { name: 'ROAS 1 = ยอดขายเท่าค่าโฆษณา', data: LABELS.map(() => 1) }], stroke: { width: [3, 2], dashArray: [0, 5], curve: 'smooth' }, fill: { type: 'solid', opacity: 1 }, colors: [C.primary, cssv('d400')], yaxis: { min: 0, tickAmount: 3, labels: { formatter: (v) => v.toFixed(1) } }, tooltip: { ...o.tooltip, y: { formatter: (v) => (v == null ? '—' : v.toFixed(2)) } } })
+      mk(`c4-${k}`, o)
+    }
+    // ⑤ donut
+    const D = donutData()
+    mk(`c5-${k}`, { chart: { type: 'donut', height: 180, fontFamily: 'Anuphan, sans-serif', foreColor: cssv('d600'), animations: { enabled: false } }, series: D.series, labels: D.labels, colors: D.alphas.map((a) => (a ? primaryA(a) : cssv('d400'))), legend: { show: false }, stroke: { width: 0 }, dataLabels: { enabled: false },
+      tooltip: { y: { formatter: (v) => baht(v) } },
+      plotOptions: { pie: { donut: { size: '75%', labels: { show: true, name: { fontSize: '12px' }, value: { fontSize: '16px', fontWeight: 600, color: cssv('d900'), formatter: (v) => baht(+v) }, total: { show: true, showAlways: true, label: 'ยอดจากโฆษณา', fontSize: '12px', color: cssv('d600'), formatter: () => baht(TOT.sales) } } } } } })
+  }
+}
+
+// ── วาด ──
+function renderNav() {
+  document.getElementById('stNav').innerHTML = STATES.map(([v, l]) => `<button type="button" role="tab" class="tabbtn btn btn-sm border border-d300 text-d800" data-st="${v}" aria-selected="${S.st === v}">${l}</button>`).join('')
+  document.querySelectorAll('[data-st]').forEach((b) => b.addEventListener('click', () => { S.st = b.dataset.st; renderNav(); render() }))
+}
+function render() {
+  const label = STATES.find(([v]) => v === S.st)[1]
+  // ทำลายกราฟเก่าก่อนแทน DOM — ไม่งั้น ApexCharts วาดซ้ำบน node ที่หลุดแล้ว (width NaN)
+  CHARTS.forEach((c) => c.destroy()); CHARTS = []
+  document.getElementById('app').innerHTML = `<section>
+    <h2 class="mb-1 text-lg font-bold text-d900">/reports/ads — สถานะ: ${label}</h2>
+    <ul class="mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">
+      <li>เฟส 2 เพิ่ม: บรรทัดบัญชีโฆษณาใต้ช่วงวันที่ · แบนเนอร์ AdSpendNotice ตามสถานะ · แท็บ ④ ค่าโฆษณา/ROAS · แถวต้นทุนต่อคำสั่งซื้อใน ② · ROAS ดีที่สุดใน ③ · 2 คอลัมน์การตลาดใน ⑨</li>
+      <li>สถานะ ≠ OK: ไม่มีแถวต้นทุนใน ② · ไม่มีแถว ROAS ใน ③ · ⑨ เหลือ 5 คอลัมน์ · แท็บ 3–4 ใน ④ กดได้แต่แสดงข้อความแทนกราฟ</li>
+      <li>สีส้ม #db9052 ในกราฟค่าโฆษณา = ตัวแทน <code>getColor('chart-zeta')</code> ในม็อกอัพเท่านั้น · แท็บ ④ กดสลับได้ทุกจอ</li>
+    </ul>
+    <div class="space-y-10">${DEVS.map((d) => frame(d, page(d))).join('')}</div></section>`
+  document.querySelectorAll('[data-kpi]').forEach((b) => b.addEventListener('click', () => { S.tab[b.dataset.dev] = b.dataset.kpi; render() }))
+  document.querySelectorAll('[data-ghostsort]').forEach((b) => b.addEventListener('click', () => { S.sort = S.sort === 'spend' ? 'sales' : 'spend'; render() }))
+  // Tailwind CDN สร้าง CSS หลัง DOM เปลี่ยน — รอ layout นิ่งก่อนวัดความกว้างกราฟ
+  clearTimeout(window.__dc); window.__dc = setTimeout(drawCharts, 120)
+}
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+  drawCharts()
+})
+renderNav()
+render()
+</script>
+</body>
+</html>

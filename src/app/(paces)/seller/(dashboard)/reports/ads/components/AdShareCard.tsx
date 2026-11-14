@@ -42,6 +42,18 @@ export default function AdShareCard({ report, noun }: { report: AdReportView; no
       delta: <DeltaText value={pointsDelta(summary.closeRatePct, previous.closeRatePct)} unit="pt" />,
     },
   ]
+  // ต้นทุนต่อ{noun} (FR-010): เฉพาะ state OK และคำนวณได้ · เพิ่ม/ลดของค่าโฆษณาไม่ใช่ดี/ร้าย → delta โทน neutral
+  const { ads } = report
+  if (ads.state === 'OK' && ads.summary.costPerOrder !== null) {
+    const cur = ads.summary.costPerOrder
+    const prev = ads.summary.prevCostPerOrder
+    rows.push({
+      label: fmt(t.costLine, { noun }),
+      cur: formatBaht(cur),
+      prev: prev === null ? '—' : formatBaht(prev),
+      delta: <DeltaText tone="neutral" value={prev === null ? null : pctChangeVsPrev(cur, prev)} />,
+    })
+  }
 
   return (
     <div className="card h-full min-w-0">

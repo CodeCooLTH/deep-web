@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
   const q = parseAdReportQuery({ from: sp.get('from'), to: sp.get('to'), shopChannelId: sp.get('shopChannelId') })
   try {
     const shop = gate.active.shop
-    const report = await getAdSalesReport(shop.id, { from: q.filters.from, to: q.filters.to, shopChannelId: q.filters.shopChannelId })
+    const report = await getAdSalesReport(
+      shop.id,
+      { from: q.filters.from, to: q.filters.to, shopChannelId: q.filters.shopChannelId },
+      // ไฟล์ส่งออกเฟส 2 ยังไม่มีคอลัมน์ค่าโฆษณา — ไม่ยิง Meta และไม่มีแถวผี (ข้อมูลตรงกับคอลัมน์เดิม)
+      { spendSource: async () => ({ state: 'NOT_CONNECTED', accountName: null, currency: null, tz: null, rows: [] }) },
+    )
     const { columns, rows } = adReportExportTable(report, resolveOrderVocab(shop.vertical ?? '').noun)
     const buf = await toXlsx(columns, rows, 'ยอดขายตามโฆษณา')
     return new NextResponse(new Uint8Array(buf), {

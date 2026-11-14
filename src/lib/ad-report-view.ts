@@ -48,3 +48,36 @@ export function slotLabel(day: string, dayMonth: (d: string) => string): string 
   const i = day.indexOf('T')
   return i === -1 ? dayMonth(day) : `${day.slice(i + 1)}:00`
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/** ROAS = ยอดขายของ Deep ÷ ค่าโฆษณา (HR16: ไม่ใช้ตัวเลข purchase ของ Meta) · spend null/0 → null เพราะหารไม่ได้ */
+export function roas(sales: number, spend: number | null): number | null {
+  return spend === null || spend <= 0 ? null : round2(sales / spend)
+}
+
+/** ต้นทุนต่อคำสั่งซื้อ = ค่าโฆษณา ÷ คำสั่งซื้อของ Deep ชุดเดียวกัน · orders 0 → null */
+export function costPerOrder(spend: number | null, orders: number): number | null {
+  return spend === null || orders <= 0 ? null : round2(spend / orders)
+}
+
+/** ROAS ดีที่สุด: เฉพาะแอด orders ≥ 10 และ spend > 0 · เสมอ → orders มากกว่า */
+export function bestRoasRow<T extends { orders: number; sales: number; spend: number | null }>(rows: T[]): T | null {
+  let best: T | null = null
+  let bestV = -1
+  for (const r of rows) {
+    if (r.orders < BEST_RATE_MIN_ORDERS || r.spend === null || r.spend <= 0) continue
+    const v = r.sales / r.spend
+    if (!best || v > bestV || (v === bestV && r.orders > best.orders)) { best = r; bestV = v }
+  }
+  return best
+}
+
+/** เรียงตามค่าตัวเลข — null อยู่ท้ายเสมอทั้งสองทิศ (แถวที่ไม่มีค่าห้ามขึ้นบนสุดตอนเรียงน้อย→มาก) */
+export function sortNullLast<T>(rows: T[], get: (r: T) => number | null, desc: boolean): T[] {
+  return [...rows].sort((x, y) => {
+    const a = get(x), b = get(y)
+    if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1
+    return desc ? b - a : a - b
+  })
+}

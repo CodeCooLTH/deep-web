@@ -23,6 +23,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import DateRangeControl from '../../../_shared/DateRangeControl'
 import { useAdReportPending } from './PendingContext'
+import type { AdReportView } from './data'
 
 type Props = {
   from: string
@@ -35,6 +36,8 @@ type Props = {
   /** ป้ายช่วงก่อนหน้า (YYYY-MM-DD) จาก service — เลื่อนถอยหลังเท่าความยาวช่วง */
   prevFrom: string
   prevTo: string
+  /** สถานะค่าโฆษณา (FR-010) — OK เท่านั้นที่มีบรรทัดอธิบายที่มาของตัวเลข */
+  ads: AdReportView['ads']
 }
 
 const ALL = 'ALL'
@@ -152,6 +155,16 @@ export default function AdReportFilters(props: Props) {
             ? t.adReport.rangeLineToday
             : fmt(t.adReport.rangeLine, { from: formatDate(props.from), to: formatDate(props.to), prevFrom: formatDate(props.prevFrom), prevTo: formatDate(props.prevTo) })}
         </p>
+
+        {props.ads.state === 'OK' && (
+          <>
+            <p className="text-default-700 mb-0 text-xs">
+              {fmt(t.adReport.spendAccountLine, { name: props.ads.accountName ?? '' })}
+            </p>
+            {props.ads.tzMismatch && <p className="text-warning-ink mb-0 text-xs">{fmt(t.adReport.spendTzNote, { tz: props.ads.tz ?? '' })}</p>}
+            {props.shopChannelId && <p className="text-default-700 mb-0 text-xs">{t.adReport.pageFilterSpendNote}</p>}
+          </>
+        )}
 
         {props.clamped && (
           <p className="text-warning-ink bg-warning/15 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">

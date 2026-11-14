@@ -141,6 +141,7 @@ export default async function AdSalesReportPage({ searchParams }: { searchParams
           channels={channels}
           clamped={q.clamped}
           maxRangeDays={MAX_RANGE_DAYS}
+          ads={report.ads}
         />
         <AdSalesClient
           // key ผูกกับช่วง/เพจ — เปลี่ยนตัวกรองคือรายงานใหม่ รีเซ็ตหน้า/ชีต/การเรียงทั้งชุด
