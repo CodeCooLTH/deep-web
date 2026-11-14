@@ -4,6 +4,8 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx (shell + PageBreadcrumb)
  *   + src/app/(paces)/seller/(dashboard)/settings/tags/page.tsx (gatePage + NoPermissionCard + subtitle)
  *
+ * + การ์ด audience (00092): Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx ผ่าน components/AudienceCard.tsx
+ *
  * ฟีเจอร์ปิด/ร้านนอกรายชื่อทดลอง = notFound() (ไม่ใช่การ์ดไม่มีสิทธิ์ — ร้านต้องไม่รู้ว่าฟีเจอร์มีอยู่ · FR-001)
  * เรียก service ตรง ไม่ผ่าน API (RSC)
  */
@@ -14,13 +16,18 @@ import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { getT } from '@/i18n/server'
 import { authOptions } from '@/lib/auth'
+import { isMetaAudienceEnabled } from '@/lib/meta-audience/gate'
+import { audienceScopeFor } from '@/lib/meta-audience/oauth'
 import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
 import { gatePage } from '@/lib/shop-capability'
+import { sessionUserId } from '@/lib/session-user'
 import { viewerRolesOf } from '@/lib/viewer-roles'
+import { getAudienceStatus } from '@/services/meta-audience-settings.service'
 import { getCapiPage, listCapiPages } from '@/services/meta-capi-settings.service'
 import NoPermissionCard from '../../_shared/NoPermissionCard'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import SellerErrorState from '../../_shared/SellerErrorState'
+import AudienceCard, { type AudienceConnection } from './components/AudienceCard'
 import PagesClient, { type PageRow } from './components/PagesClient'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -75,6 +82,20 @@ export default async function ConversionsApiPage() {
     )
   }
 
+  // การ์ด audience (00092) — โหลดพังต้องไม่ลากตารางเพจหายไปด้วย
+  let audience: { initial: AudienceConnection | null; failed: boolean } | null = null
+  if (isMetaAudienceEnabled(shopId)) {
+    try {
+      audience = { // Date → ISO string (JSON round-trip) ให้ตรงชนิดที่ client คาด
+        initial: JSON.parse(JSON.stringify((await getAudienceStatus(shopId)).connection)) as AudienceConnection | null, failed: false }
+    } catch (e) {
+      console.error('[conversions-api] audience status failed', e)
+      audience = { initial: null, failed: true }
+    }
+  }
+  // ปุ่ม Facebook เฉพาะผู้ใช้ใน FB_CHAT_ROLE_USER_IDS (ads_management ยัง Standard) — ที่เหลือใช้ทางกรอก token เอง
+  const oauthAvailable = audienceScopeFor(sessionUserId(session)) !== null
+
   return (
     <>
       <PageBreadcrumb {...crumb} />
@@ -86,6 +107,7 @@ export default async function ConversionsApiPage() {
       ) : (
         <PagesClient initial={rows} />
       )}
+      {audience && <AudienceCard initial={audience.initial} oauthAvailable={oauthAvailable} loadFailed={audience.failed} />}
     </>
   )
 }
