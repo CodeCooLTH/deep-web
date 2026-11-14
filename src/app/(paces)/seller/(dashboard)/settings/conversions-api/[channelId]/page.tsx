@@ -14,7 +14,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { getT } from '@/i18n/server'
 import { authOptions } from '@/lib/auth'
 import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
-import { getCapiWeekStats } from '@/lib/meta-capi/stats'
+import { getCapiStats } from '@/lib/meta-capi/stats'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import { CapiError, getCapiPage } from '@/services/meta-capi-settings.service'
@@ -29,8 +29,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.conversionsApi.pageTitle }
 }
 
-export default async function ConversionsApiDetailPage({ params }: { params: Promise<{ channelId: string }> }) {
+export default async function ConversionsApiDetailPage({ params, searchParams }: { params: Promise<{ channelId: string }>; searchParams: Promise<{ days?: string | string[] }> }) {
   const { channelId } = await params
+  const sp = await searchParams
+  // ช่วงสถิติอยู่ใน URL (?days=30) — ค่าอื่นทุกแบบ = 7 วัน
+  const days = sp.days === '30' ? 30 : 7
   const t = await getT()
   const c = t.conversionsApi
   const session = await getServerSession(authOptions)
@@ -57,7 +60,7 @@ export default async function ConversionsApiDetailPage({ params }: { params: Pro
   let data: DetailData | null = null
   let missing = false
   try {
-    const [pg, stats, tagList] = await Promise.all([getCapiPage(shopId, channelId), getCapiWeekStats(shopId, channelId), listShopTags(shopId)])
+    const [pg, stats, tagList] = await Promise.all([getCapiPage(shopId, channelId), getCapiStats(shopId, channelId, days), listShopTags(shopId)])
     data = {
       channelId: pg.channelId,
       name: pg.name,
@@ -65,7 +68,16 @@ export default async function ConversionsApiDetailPage({ params }: { params: Pro
       setting: { enabled: pg.setting.enabled, everEnabled: pg.setting.enabledAt !== null, purchaseAt: pg.setting.purchaseAt, countPromotedDraft: pg.setting.countPromotedDraft },
       eventOptions: pg.eventOptions,
       datasets: pg.datasets.map((d) => ({ id: d.id, datasetId: d.datasetId, source: d.source, label: d.label, events: d.events, status: d.status, hasToken: d.hasToken })),
-      stats: { sent: stats.sent, failed: stats.failed, pending: stats.pending, lastSentAt: stats.lastSentAt ? stats.lastSentAt.toISOString() : null },
+      stats: {
+        days,
+        pending: stats.pending,
+        failed: stats.failed,
+        sent: stats.sent,
+        sales: stats.sales,
+        leads: stats.leads,
+        lastSentAt: stats.lastSentAt ? stats.lastSentAt.toISOString() : null,
+        oldestPendingMin: stats.oldestPendingAt ? Math.max(0, Math.floor((Date.now() - stats.oldestPendingAt.getTime()) / 60000)) : null,
+      },
       tags: tagList.tags.filter((tg): tg is typeof tg & { id: string } => tg.registered && tg.id !== null).map((tg) => ({ id: tg.id, name: tg.name })),
     }
   } catch (e) {
