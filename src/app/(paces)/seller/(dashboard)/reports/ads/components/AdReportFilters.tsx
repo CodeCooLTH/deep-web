@@ -11,16 +11,18 @@
  * 🛑 ตัวกรองอยู่ใน URL (?from=&to=&shopChannelId=) ไม่ใช่ React state — ส่งลิงก์ช่วงที่ดูอยู่ให้กันได้ ปุ่มย้อนกลับพากลับ
  * ส่งออก = "สิ่งที่เห็นบนจอ" เสมอ ไม่มีโมดัลเลือกขอบเขต (xlsx อย่างเดียว)
  */
-import { useCallback, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { DATE_RANGE_OPTIONS, resolveDateRange, type DateRangePreset } from '@/lib/date-range'
+import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import DateRangeControl from '../../../_shared/DateRangeControl'
+import { useAdReportPending } from './PendingContext'
 
 type Props = {
   from: string
@@ -30,6 +32,9 @@ type Props = {
   /** ผู้ใช้ขอช่วงยาวเกินเพดานแล้วถูกหั่น — ต้องบอก ห้ามหั่นเงียบ ๆ */
   clamped: boolean
   maxRangeDays: number
+  /** ป้ายช่วงก่อนหน้า (YYYY-MM-DD) จาก service — เลื่อนถอยหลังเท่าความยาวช่วง */
+  prevFrom: string
+  prevTo: string
 }
 
 const ALL = 'ALL'
@@ -41,6 +46,11 @@ export default function AdReportFilters(props: Props) {
   const params = useSearchParams()
   const [pending, startTransition] = useTransition()
   const [exporting, setExporting] = useState(false)
+  const { setPending } = useAdReportPending()
+  // ส่งสถานะ "กำลังคำนวณใหม่" ให้กริด (พี่น้องกันใน page.tsx) ผ่าน context
+  useEffect(() => {
+    setPending(pending)
+  }, [pending, setPending])
 
   const push = useCallback(
     (patch: Record<string, string | null>) => {
@@ -93,8 +103,9 @@ export default function AdReportFilters(props: Props) {
   }
 
   return (
-    <div className="card mb-4">
-      <div className="card-body flex flex-col gap-3">
+    // ไม่มี .card ห่อ — ตัวกรองเป็นหัวหน้าเดียวกับกริดการ์ด ไม่ใช่การ์ดซ้อนการ์ด (spec FR-009)
+    <div className="mb-base flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeControl
             range={localRange}
@@ -128,13 +139,19 @@ export default function AdReportFilters(props: Props) {
               type="button"
               onClick={onExport}
               disabled={exporting}
-              className="btn border-default-300 text-default-700 hover:bg-default-100 shrink-0 border"
+              className="btn border-default-300 text-default-700 hover:bg-default-100 min-h-11 shrink-0 border lg:min-h-0"
             >
               <Icon icon={exporting ? 'loader-2' : 'download'} className={exporting ? 'animate-spin text-sm' : 'text-sm'} aria-hidden="true" />
               {t.adReport.export}
             </button>
           </div>
         </div>
+
+        <p className="text-default-700 mb-0 text-xs">
+          {urlRange === 'today'
+            ? t.adReport.rangeLineToday
+            : fmt(t.adReport.rangeLine, { from: formatDate(props.from), to: formatDate(props.to), prevFrom: formatDate(props.prevFrom), prevTo: formatDate(props.prevTo) })}
+        </p>
 
         {props.clamped && (
           <p className="text-warning-ink bg-warning/15 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
@@ -144,7 +161,7 @@ export default function AdReportFilters(props: Props) {
         )}
 
         {pending && (
-          <p className="text-default-500 flex items-center gap-2 text-sm" role="status">
+          <p className="text-default-500 flex items-center gap-2 text-sm" aria-hidden="true">
             <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />
             {t.adReport.calculating}
           </p>
