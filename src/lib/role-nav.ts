@@ -323,7 +323,6 @@ const QUICK_LINK_URLS = [
   '/business/line-reports',
   '/settings/reports',
   '/settings',
-  '/settings/conversions-api', // 00089 — มือถือไม่มี sidebar · ผ่านด่านเมนูเดียวกัน (ฟีเจอร์ปิด/ไม่ใช่เจ้าของ = ไม่โผล่)
   '/admins',
   '/expenses/mine',
 ] as const

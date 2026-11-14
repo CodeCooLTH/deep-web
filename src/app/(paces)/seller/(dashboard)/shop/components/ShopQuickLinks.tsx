@@ -137,17 +137,8 @@ const STAFF_EXPENSE_LINK: QuickLink = {
   hint: 'บันทึกค่าใช้จ่ายหน้างานของคุณ',
 }
 
-// 00089 — label/icon/url ตรง seller-menu.ts slug `seller:settings-conversions-api` · มือถือไม่มี sidebar แถวนี้คือทางเข้าเดียว
-// ไม่มีทางจ่ายเงิน ⇒ ไม่อยู่ในชุดกรอง App Store · การมี/ไม่มีแถว (ฟีเจอร์ปิด/ไม่ใช่เจ้าของ) ตัดสินจาก visibleUrls ที่ shopQuickLinks
-const CONVERSIONS_API_LINK: QuickLink = {
-  url: '/settings/conversions-api',
-  label: 'Conversions API',
-  icon: 'ad-2',
-  hint: 'ส่งยอดขายจากแชท Messenger กลับให้ Meta',
-}
-
 const BY_URL = new Map<string, QuickLink>(
-  [...LINKS, LINE_REPORTS_LINK, REPORT_SETTINGS_LINK, CONVERSIONS_API_LINK, STAFF_LINK, STAFF_EXPENSE_LINK].map((l) => [l.url, l]),
+  [...LINKS, LINE_REPORTS_LINK, REPORT_SETTINGS_LINK, STAFF_LINK, STAFF_EXPENSE_LINK].map((l) => [l.url, l]),
 )
 
 export default function ShopQuickLinks({ visibleUrls, hidePayments, offerIap, lineReports }: ShopQuickLinksProps) {
