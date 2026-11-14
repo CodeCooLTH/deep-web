@@ -146,6 +146,13 @@ export default function DetailClient({ data }: { data: DetailData }) {
         {!setting.enabled && (
           <p className="bg-default-100 text-default-800 mx-5 mb-5 rounded px-3 py-2 text-xs max-sm:mx-4 max-sm:mb-4">{t.offNote}</p>
         )}
+        {/* เปิดส่งอยู่ = เตือนเสมอ: กดสถานะคำสั่งซื้อ/ลีดเองใน Meta Business Suite ซ้ำกับที่ Deep ส่ง อาจทำให้ยอดในแอดเบิ้ล */}
+        {setting.enabled && (
+          <p className="bg-warning/15 text-warning-ink mx-5 mb-5 flex items-start gap-2 rounded px-3 py-2 text-xs max-sm:mx-4 max-sm:mb-4">
+            <Icon icon="info-circle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>{t.metaManualWarn}</span>
+          </p>
+        )}
       </div>
 
       {pageStopped.length > 0 && (

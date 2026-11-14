@@ -1776,7 +1776,7 @@ export const th = {
     purchaseNone: 'ไม่ได้เปิด',
     purchaseAt: { CREATE: 'สร้างคำสั่งซื้อ', CONFIRM: 'ยืนยัน', PAYMENT: 'ชำระครบ' },
     swalFirstTitle: 'เปิดส่งเหตุการณ์ของเพจ {name}?',
-    swalFirstText: 'ระบบจะส่งเฉพาะเหตุการณ์ที่เกิดหลังจากนี้ ไม่ส่งย้อนหลัง',
+    swalFirstText: 'ระบบจะส่งเฉพาะเหตุการณ์ที่เกิดหลังจากนี้ ไม่ส่งย้อนหลัง · หลังเปิดแล้ว ไม่ต้องกด Lead stage หรือ Order status ใน Meta Business Suite เอง เพราะอาจทำให้ยอดในโฆษณานับซ้ำ',
     swalFirstOk: 'เปิดการส่ง',
     swalFirstCancel: 'ยังไม่เปิด',
     toastOn: 'เปิดการส่งของเพจ {name} แล้ว',
@@ -1787,6 +1787,7 @@ export const th = {
     emptyCta: 'เชื่อมเพจ Facebook',
     // หน้ารายละเอียด
     mainSwitchLabel: 'ส่งเหตุการณ์ของเพจนี้',
+    metaManualWarn: 'Deep ส่งยอดให้ Meta อัตโนมัติแล้ว ไม่ต้องกด Lead stage หรือ Order status ของห้องแชทนี้ใน Meta Business Suite เอง เพราะอาจทำให้ยอดในโฆษณานับซ้ำ',
     offNote: 'เพจนี้ปิดการส่งอยู่ ตั้งค่าไว้ล่วงหน้าได้ แต่จะยังไม่ส่งอะไรจนกว่าจะเปิด',
     bannerAutoTitle: 'ชุดข้อมูลของเพจหยุดส่ง',
     bannerAutoBody: 'Meta ไม่รับ token ของเพจนี้แล้ว เหตุการณ์ที่ค้างอยู่ (ไม่เกิน 7 วัน) จะส่งต่อให้เองหลังเชื่อมเพจใหม่',
