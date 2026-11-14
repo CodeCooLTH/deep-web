@@ -1,7 +1,7 @@
 /**
  * ยอดขายตามโฆษณา — รายงานเจ้าของร้าน (feature 00091 FR-008)
  *
- * Base (โครงหน้า: breadcrumb → แถบกรอง → การ์ด → ตาราง):
+ * Base (โครงหน้า: breadcrumb → แถบกรอง → กริดการ์ด FR-009 → ตาราง):
  *   src/app/(paces)/seller/(dashboard)/reports/products/page.tsx + reports/agents/page.tsx
  *   (ซึ่ง copy โครงมาจาก theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/page.tsx)
  *
@@ -29,6 +29,7 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import SellerErrorState from '../../_shared/SellerErrorState'
 import AdReportFilters from './components/AdReportFilters'
 import AdSalesClient from './components/AdSalesClient'
+import { AdReportPendingProvider } from './components/PendingContext'
 
 export const metadata: Metadata = { title: 'ยอดขายตามโฆษณา' }
 
@@ -123,26 +124,35 @@ export default async function AdSalesReportPage({ searchParams }: { searchParams
   const rangeQs = new URLSearchParams({ from: q.label.from, to: q.label.to })
   if (q.filters.shopChannelId) rangeQs.set('shopChannelId', q.filters.shopChannelId)
 
+  // rows ส่งแยก (ไม่ซ้ำใน view) — ลดขนาด payload ข้ามเส้น RSC
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { rows, hasAnyAdData, ...view } = report
+
   return (
     <>
       <PageBreadcrumb title={title} subtitle={parent} hideTitleBelowLg />
-      <AdReportFilters
-        from={q.label.from}
-        to={q.label.to}
-        shopChannelId={q.filters.shopChannelId ?? null}
-        channels={channels}
-        clamped={q.clamped}
-        maxRangeDays={MAX_RANGE_DAYS}
-      />
-      <AdSalesClient
-        // key ผูกกับช่วง/เพจ — เปลี่ยนตัวกรองคือรายงานใหม่ รีเซ็ตหน้า/ชีต/การเรียงทั้งชุด
-        key={rangeQs.toString()}
-        rows={report.rows}
-        summary={report.summary}
-        noun={noun}
-        rangeQuery={rangeQs.toString()}
-        truncated={report.truncated}
-      />
+      <AdReportPendingProvider>
+        <AdReportFilters
+          from={q.label.from}
+          to={q.label.to}
+          prevFrom={report.prevRange.from}
+          prevTo={report.prevRange.to}
+          shopChannelId={q.filters.shopChannelId ?? null}
+          channels={channels}
+          clamped={q.clamped}
+          maxRangeDays={MAX_RANGE_DAYS}
+        />
+        <AdSalesClient
+          // key ผูกกับช่วง/เพจ — เปลี่ยนตัวกรองคือรายงานใหม่ รีเซ็ตหน้า/ชีต/การเรียงทั้งชุด
+          key={rangeQs.toString()}
+          rows={rows}
+          report={view}
+          noun={noun}
+          rangeQuery={rangeQs.toString()}
+          pageCount={channels.length}
+          pageFiltered={Boolean(q.filters.shopChannelId)}
+        />
+      </AdReportPendingProvider>
     </>
   )
 }

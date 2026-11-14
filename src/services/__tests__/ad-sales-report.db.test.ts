@@ -23,11 +23,12 @@ const gte = thaiMidnightUtc(2026, 9, 1)
 const lt = thaiMidnightUtc(2026, 10, 1)
 const inRange = (d: number) => new Date(Date.UTC(2026, 9, d, 5, 0, 0))
 
-const mkOrder = async (o: { adId?: string; adTitle?: string; status?: string; at: Date; items: [number, number][]; conv?: string; photo?: string }) => {
+const mkOrder = async (o: { adId?: string; adTitle?: string; status?: string; at: Date; items: [number, number][]; conv?: string; photo?: string; province?: string; channel?: boolean }) => {
   const r = await prisma.order.create({
     data: {
       shopId: x.shop, conversationId: o.conv ?? null, type: 'PHYSICAL', status: o.status ?? 'PENDING', createdAt: o.at,
       totalAmount: o.items.reduce((s, [q, p]) => s + q * p, 0),
+      shopChannelId: o.channel ? x.channel : null, shippingAddress: o.province ? { province: o.province } : undefined,
       adId: o.adId ?? null, adTitle: o.adTitle ?? null, adPhotoFileId: o.photo ?? null, adClickedAt: o.adId ? o.at : null,
       items: { create: o.items.map(([qty, price]) => ({ name: 'สินค้า', qty, price, productId: x.prod })) },
     } as never,
@@ -65,12 +66,12 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     await click(x.conv3, { source: 'SHORTLINK', adId: 'SL', at: inRange(6) })
     await click(x.conv3, { adId: 'AD1', at: new Date(Date.UTC(2026, 8, 20)) }) // นอกช่วง
 
-    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(10), items: [[2, 100]], conv: x.conv1 }) // 200
-    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(11), items: [[1, 50]], conv: x.conv2 }) // 50
+    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(10), items: [[2, 100]], conv: x.conv1, province: 'กรุงเทพมหานคร', channel: true }) // 200
+    await mkOrder({ adId: 'AD1', adTitle: 'โปรล้อแม็ก', at: inRange(11), items: [[1, 50]], conv: x.conv2, channel: true }) // 50 (ไม่มีที่อยู่)
     await mkOrder({ at: inRange(12), items: [[3, 100]] }) // ไม่ใช่แอด 300
     await mkOrder({ adId: 'AD1', status: 'CANCELLED', at: inRange(13), items: [[9, 100]], conv: x.conv1 }) // ยกเลิก: ไม่นับยอด
-    await mkOrder({ adId: 'AD2', at: new Date(Date.UTC(2026, 8, 25)), items: [[1, 999]], conv: x.conv1 }) // นอกช่วง
-    await mkOrder({ adId: 'AD9', adTitle: 'คลิกก่อนช่วง', photo: 'ph9', at: inRange(14), items: [[1, 70]] }) // ไม่มีคลิกในช่วง → ยังมีแถว
+    await mkOrder({ adId: 'AD2', at: new Date(Date.UTC(2026, 8, 25)), items: [[1, 999]], conv: x.conv1, channel: true }) // นอกช่วง = ช่วงก่อนหน้า
+    await mkOrder({ adId: 'AD9', adTitle: 'คลิกก่อนช่วง', photo: 'ph9', at: inRange(14), items: [[1, 70]], province: 'เชียงใหม่' }) // ไม่มีคลิกในช่วง → ยังมีแถว
   })
 
   afterAll(async () => {
@@ -110,6 +111,54 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     const r = await getAdSalesReport(x.shop, { from: gte, to: lt, shopChannelId: 'no-such-channel' })
     expect(r.rows).toEqual([])
     expect(r.summary.adSharePct).toBeNull()
+  })
+
+  it('ช่วงก่อนหน้า = เลื่อนถอยหลังเท่าความยาวช่วง (31 วัน → 31 ส.ค.–30 ก.ย.) + ป้ายช่วง', async () => {
+    const r = await getAdSalesReport(x.shop, { from: gte, to: lt })
+    expect(r.range).toEqual({ from: '2026-10-01', to: '2026-10-31' })
+    expect(r.prevRange).toEqual({ from: '2026-08-31', to: '2026-09-30' })
+    expect(r.previous).toEqual({ adSales: 999, adOrders: 1, chats: 1, closeRatePct: 100, nonAdSales: 0 })
+    expect(r.summary).toMatchObject({ chats: 3, closeRatePct: 100 }) // 3 ห้ามไม่ซ้ำ (conv1 กดสองแอดนับ 1) · 3 ใบ ÷ 3
+  })
+
+  it('รายวัน: ผลรวม daily.adSales = summary = ผลรวมแถวตาราง · วันว่าง = 0 · ช่วงก่อนหน้าเรียงตามตำแหน่งวัน', async () => {
+    const r = await getAdSalesReport(x.shop, { from: gte, to: lt })
+    expect(r.daily).toHaveLength(31)
+    expect(r.prevDaily).toHaveLength(31)
+    const sum = (a: number[]) => Math.round(a.reduce((s, v) => s + v, 0) * 100) / 100
+    expect(sum(r.daily.map((d) => d.adSales))).toBe(r.summary.adSales)
+    expect(sum(r.daily.map((d) => d.nonAdSales))).toBe(r.summary.nonAdSales)
+    expect(sum(r.daily.map((d) => d.adOrders))).toBe(r.summary.adOrders)
+    expect(sum(r.rows.map((a) => a.sales))).toBe(r.summary.adSales)
+    expect(r.daily[0]).toEqual({ day: '2026-10-01', adSales: 0, nonAdSales: 0, adOrders: 0 })
+    expect(r.daily[9]).toMatchObject({ day: '2026-10-10', adSales: 200, adOrders: 1 })
+    expect(r.daily[11]).toMatchObject({ nonAdSales: 300 })
+    expect(sum(r.prevDaily.map((d) => d.adSales))).toBe(r.previous.adSales)
+  })
+
+  it('จังหวัด (เฉพาะแอด · กทม. รวมชื่อเดียว) · ช่องทาง (ยอดทั้งร้าน) · เพจ — ผลรวมตรงกับยอดรวม', async () => {
+    const r = await getAdSalesReport(x.shop, { from: gte, to: lt })
+    expect(Object.fromEntries(r.provinces.map((p) => [String(p.name), p.sales]))).toEqual({ กรุงเทพ: 200, เชียงใหม่: 70, null: 50 }) // กทม. ผ่าน canonicalProvince
+    expect(r.provinces.reduce((s, p) => s + p.sales, 0)).toBe(r.summary.adSales)
+    expect(Object.fromEntries(r.channels.map((c) => [String(c.provider), c.sales]))).toEqual({ MESSENGER: 250, null: 370 })
+    expect(r.channels.reduce((s, c) => s + c.sales, 0)).toBe(r.summary.adSales + r.summary.nonAdSales)
+    expect(r.pages).toEqual([{ shopChannelId: x.channel, name: 'p', provider: 'MESSENGER', avatarUrl: null, sales: 250, prevSales: 999 }])
+  })
+
+  it('ที่อยู่ว่าง → จังหวัด null ("ไม่ระบุ") · ยอดยังรวมครบ', async () => {
+    const r = await getAdSalesReport(x.shop, { from: thaiMidnightUtc(2026, 9, 11), to: thaiMidnightUtc(2026, 9, 12) })
+    expect(r.provinces).toEqual([{ name: null, sales: 50 }])
+    const r2 = await getAdSalesReport(x.shop, { from: thaiMidnightUtc(2026, 9, 12), to: thaiMidnightUtc(2026, 9, 13) })
+    expect(r2.summary.adSales).toBe(0)
+    expect(r2.provinces).toEqual([])
+    expect(r2.channels).toEqual([{ provider: null, sales: 300 }])
+  })
+
+  it('ช่วงวันเดียว = รายชั่วโมง 24 ช่อง', async () => {
+    const r = await getAdSalesReport(x.shop, { from: thaiMidnightUtc(2026, 9, 10), to: thaiMidnightUtc(2026, 9, 11) })
+    expect(r.daily).toHaveLength(24)
+    expect(r.daily[12]).toMatchObject({ adSales: 200 }) // 12:00 น. ไทย
+    expect(r.prevDaily).toHaveLength(24)
   })
 
   it('ชีตคำสั่งซื้อของแอด: ใบของแอดนั้นเท่านั้น รวมใบยกเลิก · ร้านอื่นไม่เห็น', async () => {

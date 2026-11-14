@@ -65,9 +65,18 @@ type DataTableProps<TData> = {
    * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%) เหมือน mobileCard/groupRow
    */
   onRowClick?: (row: Row<TData>) => void
+
+  /**
+   * Opt-in แถวรวมท้ายตาราง — ใส่เป็น `<tfoot>` (ผู้เรียกส่ง `<tr><td>…</td></tr>` เอง)
+   *
+   * ทำไมต้องมี: ตารางที่มีหลายหน้า/มีช่องค้นหา ต้องมีแถว "รวมทั้งหมด" ที่ไม่ขึ้นกับหน้า/ผลค้นหา
+   * (ผู้เรียกคำนวณจากชุดข้อมูลเต็มเอง) — ธีมไม่มีแถวรวม จึงเพิ่มแบบ opt-in ท่าเดียวกับ groupRow
+   * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%)
+   */
+  footerRow?: React.ReactNode
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick, footerRow }: DataTableProps<TData>) => {
   'use no memo'
   // visible ไม่ใช่ all — ตารางที่มีคอลัมน์ซ่อน (เช่น OrdersTable ที่เก็บ createdAtISO ไว้ให้
   // ตัวกรองเกาะอย่างเดียว) จะได้ colSpan ของแถว empty เกินจำนวนคอลัมน์จริงไป 1
@@ -84,7 +93,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
               <tr key={headerGroup.id} className="bg-light/25 text-2xs uppercase">
                 {headerGroup.headers.map((header) => (
                   <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={cn('select-none', header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default', (header.column.columnDef.meta as { headerClassName?: string } | undefined)?.headerClassName)}>
-                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' })}>
+                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' || (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'center' })}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getCanSort() &&
                         ({
@@ -144,6 +153,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
             </tr>
           )}
         </tbody>
+        {footerRow && <tfoot>{footerRow}</tfoot>}
       </table>
     </div>
   )
