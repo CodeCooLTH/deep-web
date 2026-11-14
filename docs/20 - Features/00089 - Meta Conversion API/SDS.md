@@ -203,7 +203,7 @@ sequenceDiagram
         end
     end
     S->>S: sweepCartAbandoned (try/catch แยก — ล้มไม่ทำให้คิวหยุด)
-    S->>DB: purgeOldMetaCapiEvents (createdAt เก่ากว่า 180 วัน)
+    S->>DB: purgeOldMetaCapiEvents (createdAt เก่ากว่า 180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ))
 ```
 
 ### 4.2 วงจรชีวิตของแถวคิว

@@ -62,7 +62,7 @@ API ชุดนี้มี 2 กลุ่ม — provider คือ Next.js ro
 | `POST` | `/api/shops/meta-capi/{channelId}/datasets/{datasetRowId}/test` | ปุ่มทดสอบ (ไม่เข้าคิว) |
 | `POST` | `/api/shops/meta-capi/{channelId}/datasets/{datasetRowId}/resume` | ปลุก dataset แบบ `PAGE` ที่ `STOPPED` (ไม่เรียก Meta) |
 | `GET` | `/api/shops/meta-capi/{channelId}/log` | บันทึกการส่ง ใหม่→เก่า แบ่งหน้าด้วย cursor |
-| `GET` | `/api/cron/meta-capi` | ตัวส่งคิว + กวาด CartAbandoned + purge 180 วัน (Vercel Cron) |
+| `GET` | `/api/cron/meta-capi` | ตัวส่งคิว + กวาด CartAbandoned + purge 180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ) (Vercel Cron) |
 
 ---
 

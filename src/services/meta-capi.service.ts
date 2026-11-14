@@ -381,13 +381,3 @@ export async function sweepMetaCapi(opts: {
   return sum;
 }
 
-const RETENTION_MS = 180 * 864e5;
-
-/** ลบแถวเก่ากว่า 180 วัน (FR-011) — เรียกจาก cron เดียวกับตัวส่ง */
-export async function purgeOldMetaCapiEvents(opts: { now?: Date; shopIds?: string[] } = {}) {
-  const now = opts.now ?? new Date();
-  const { count } = await prisma.metaCapiEvent.deleteMany({
-    where: { createdAt: { lt: new Date(now.getTime() - RETENTION_MS) }, ...(opts.shopIds ? { shopId: { in: opts.shopIds } } : {}) },
-  });
-  return count;
-}

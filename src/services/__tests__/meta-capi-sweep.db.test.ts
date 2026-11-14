@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { encryptToken } from '@/lib/token-crypto'
 vi.mock('@/services/seller-push.service', () => ({ pushMetaCapiStopped: vi.fn() }))
 import { pushMetaCapiStopped } from '@/services/seller-push.service'
-import { purgeOldMetaCapiEvents, sweepMetaCapi } from '@/services/meta-capi.service'
+import { sweepMetaCapi } from '@/services/meta-capi.service'
 
 // คีย์ทดสอบ — เครื่อง dev บางเครื่องไม่มีใน .env
 process.env.CHANNEL_TOKEN_KEY ||= 'ab'.repeat(32)
@@ -155,11 +155,4 @@ d('00089 sweepMetaCapi (DB local)', () => {
     expect(sum).toMatchObject({ sent: 1, failed: 0, retried: 0, stopped: 0, skipped: 0 })
   })
 
-  it('ลบแถวที่สร้างเก่ากว่า 180 วัน · แถวใหม่อยู่', async () => {
-    const old = await mkRow({ createdAt: new Date(NOW.getTime() - 181 * 864e5) })
-    const fresh = await mkRow()
-    await purgeOldMetaCapiEvents({ now: NOW, ...shopOnly })
-    expect(await prisma.metaCapiEvent.findUnique({ where: { id: old.id } })).toBeNull()
-    expect(await prisma.metaCapiEvent.findUnique({ where: { id: fresh.id } })).not.toBeNull()
-  })
 })

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { purgeOldMetaCapiEvents, sweepCartAbandoned, sweepMetaCapi } from "@/services/meta-capi.service";
+import { sweepCartAbandoned, sweepMetaCapi } from "@/services/meta-capi.service";
 
 export const maxDuration = 60;
 
 /**
  * GET /api/cron/meta-capi — Vercel Cron ทุก 1 นาที (feature 00089 FR-011)
- * ส่งคิวเหตุการณ์ไป Meta Conversions API · ลบแถวเก่ากว่า 180 วัน
+ * ส่งคิวเหตุการณ์ไป Meta Conversions API · บันทึกการส่งเก็บถาวร ไม่ลบ (มติ user 2026-11-14)
  * แยกจาก chat-outbox โดยตั้งใจ: CAPI ล้ม/ช้าต้องไม่ดึงคิวแชทลงไปด้วย
  */
 export async function GET(request: Request) {
@@ -23,7 +23,6 @@ export async function GET(request: Request) {
     cartAbandoned = "error";
     console.error("[meta-capi-sweep] sweepCartAbandoned ล้มเหลว (ตัวส่งไม่กระทบ)", e instanceof Error ? e.message : String(e));
   }
-  const purged = await purgeOldMetaCapiEvents();
-  console.log("[meta-capi-sweep]", JSON.stringify({ ...summary, cartAbandoned, purged }));
-  return NextResponse.json({ ok: true, ...summary, cartAbandoned, purged });
+  console.log("[meta-capi-sweep]", JSON.stringify({ ...summary, cartAbandoned }));
+  return NextResponse.json({ ok: true, ...summary, cartAbandoned });
 }

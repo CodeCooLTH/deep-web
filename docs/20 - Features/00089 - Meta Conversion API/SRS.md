@@ -160,7 +160,7 @@ Vercel serverless + Vercel Cron `* * * * *` → `/api/cron/meta-capi` · Postgre
 
 ### TFR-011: คิว + ลองใหม่
 - **Trace to:** FR-011 · BR-CAPI-05/07
-- **คำอธิบายเชิงเทคนิค:** `sweepMetaCapi` — เลือก `PENDING ∧ nextAttemptAt ≤ now ∧ (lockedAt null ∨ lockedAt < now−3 นาที) ∧ dataset.status='ACTIVE'` เรียง `nextAttemptAt` `take 100` → ต่อแถว (ตามลำดับ): `isMetaCapiEnabled(shop)` ✗ = ข้าม · จอง `updateMany{id, status:'PENDING', lockedAt:<ค่าที่อ่าน>} → lockedAt=now` (count 0 = แพ้) · `now − eventTime > 7 วัน` → `SKIPPED/TOO_OLD` · สร้าง body (`event_id = dedupeKey`) · token = `decryptToken(MANUAL ? tokenEnc : shopChannel.accessTokenEnc)` · `POST …/events` Bearer · บันทึกผล: `OK`→`SENT`+`sentAt` · `RETRY ∧ attempts+1<3` → `PENDING` `nextAttemptAt = now+[60s,300s][attempts]` reason `RETRYING` · `RETRY` ครบ 3 → `FAILED/MAX_ATTEMPTS` · `FAIL` → `FAILED/REJECTED` · `lastRequest/lastResponse` ตัด ≤4000 ตัวอักษร · `purgeOldMetaCapiEvents` ลบ `createdAt < now − 180 วัน`
+- **คำอธิบายเชิงเทคนิค:** `sweepMetaCapi` — เลือก `PENDING ∧ nextAttemptAt ≤ now ∧ (lockedAt null ∨ lockedAt < now−3 นาที) ∧ dataset.status='ACTIVE'` เรียง `nextAttemptAt` `take 100` → ต่อแถว (ตามลำดับ): `isMetaCapiEnabled(shop)` ✗ = ข้าม · จอง `updateMany{id, status:'PENDING', lockedAt:<ค่าที่อ่าน>} → lockedAt=now` (count 0 = แพ้) · `now − eventTime > 7 วัน` → `SKIPPED/TOO_OLD` · สร้าง body (`event_id = dedupeKey`) · token = `decryptToken(MANUAL ? tokenEnc : shopChannel.accessTokenEnc)` · `POST …/events` Bearer · บันทึกผล: `OK`→`SENT`+`sentAt` · `RETRY ∧ attempts+1<3` → `PENDING` `nextAttemptAt = now+[60s,300s][attempts]` reason `RETRYING` · `RETRY` ครบ 3 → `FAILED/MAX_ATTEMPTS` · `FAIL` → `FAILED/REJECTED` · `lastRequest/lastResponse` ตัด ≤4000 ตัวอักษร · `purgeOldMetaCapiEvents` ลบ `createdAt < now − 180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ)`
 - **Edge cases:** ถอดรหัส token ล้ม/fetch throw = `httpStatus 0` → `RETRY` · กวาดหลายตัวชนกัน → ผู้แพ้จอง count 0 ข้าม · ล็อกค้าง >3 นาที ยึดต่อได้ · `eventTime` ไม่เลื่อน
 
 ### TFR-012: หยุดเมื่อ token เสีย
@@ -232,7 +232,7 @@ erDiagram
 
 ### 5.3 Migration / Data Lifecycle
 
-migration เดียว `20261111100000_00089_meta_capi` (additive · 3 ตาราง · FK Cascade · ไม่มี CHECK · ไม่มี backfill) · retention แถวคิว 180 วัน · HR15 (push `main` = `migrate deploy` บน prod)
+migration เดียว `20261111100000_00089_meta_capi` (additive · 3 ตาราง · FK Cascade · ไม่มี CHECK · ไม่มี backfill) · retention แถวคิว 180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ) · HR15 (push `main` = `migrate deploy` บน prod)
 
 ---
 
