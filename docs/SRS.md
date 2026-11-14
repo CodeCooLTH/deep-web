@@ -613,6 +613,17 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 
 **สิทธิ์ Meta (ไม่ใช่ env):** ทางอัตโนมัติ (`source=PAGE`) ใช้ token เพจที่เชื่อมไว้ ต้องมีสิทธิ์ **`page_events`** · แอป "Deep Chat & LIVE" (App ID `1570859340799126`) **ยังไม่ได้ตั้งสิทธิ์นี้ (Standard)** — ต้องเพิ่มที่ App Dashboard และใน Configuration ของ Facebook Login for Business (`config_id` `1080845061590909`) แล้วร้านต้องเชื่อมเพจใหม่ · ปัจจุบัน `CONNECT_SCOPES` (`src/lib/facebook/constants.ts`) **ไม่มี `page_events`** · ทางกรอกเอง (`source=MANUAL`) **ไม่ต้องใช้สิทธิ์แอป**
 
+### 5.6 env ของ feature 00092 (ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience · 2026-11-14)
+
+> เอกสารต้นทาง: `docs/20 - Features/00092 - Purchaser Custom Audience Sync/SRS.md` · gate แบบเดียวกับ 00089 (`src/lib/meta-audience/gate.ts`)
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `OPEN_META_AUDIENCE` | `gate.ts::isMetaAudienceEnabled` | ไม่ | **`1` เท่านั้น = เปิด** · ไม่ตั้ง/ค่าอื่น = ปิดทุกร้าน (hook ไม่เขียน · cron ข้าม · API 404) |
+| `META_AUDIENCE_PILOT_SHOP_IDS` | `gate.ts` | ไม่ | id ร้านคั่น comma — ตั้งไว้ = เฉพาะร้านในรายชื่อ · ว่าง = ทุกร้าน (เมื่อเปิด) |
+| `CRON_SECRET` (**มีอยู่แล้ว**) | `/api/cron/meta-audience` | ใช่ | `Bearer ${CRON_SECRET}` · ว่าง = 401 |
+| `CHANNEL_TOKEN_KEY` / `FB_CHAT_APP_ID` / `FB_CHAT_APP_SECRET` / `FB_CHAT_ROLE_USER_IDS` (**มีอยู่แล้ว**) | `token-crypto` · OAuth เชื่อมบัญชีโฆษณา | ใช่ | เข้ารหัส `MetaAudienceConnection.tokenEnc` + cookie พัก token · OAuth `ads_management` เฉพาะ user ใน `FB_CHAT_ROLE_USER_IDS` · ต้องเพิ่ม redirect URI `/api/meta-audience/callback` ใน App Dashboard |
+
 ---
 
 ## §6 Data Model & Schema
@@ -1864,6 +1875,17 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 - แผงพัสดุในแชท (`ShipmentDraftPanel`) ส่ง `false` เสมอ — แผงแจ้งเลขเองตามช่องติ๊กของแผง (กันลูกค้าได้ข้อความสองรอบ)
 - สวิตช์ระดับร้าน (`AutoNotifySwitch` kind `TRACKING`) ยังเป็นด่านแรก — ปิดที่ร้าน = ไม่ส่งไม่ว่าใบจะตั้งอะไร
 
+### 6.80 Custom Audience ลูกค้าที่ซื้อแล้ว — `MetaAudienceConnection` · `MetaAudienceMember` (feature 00092)
+
+> สถานะ: `prisma/schema.prisma` + migration `20261114110000_00092_purchaser_audience` (additive · 2 ตาราง · FK `ON DELETE CASCADE` ไป `Shop` · ไม่มี CHECK/backfill) · HR15: push `main` = `migrate deploy` บน prod · local ต้อง apply เอง · ต้นทาง `docs/20 - Features/00092 - Purchaser Custom Audience Sync/DATABASE.md`
+
+| ตาราง | คอลัมน์หลัก | หมายเหตุ |
+|---|---|---|
+| `MetaAudienceConnection` (1:1 `Shop`) | `shopId` **UNIQUE** · `adAccountId` · `adAccountName?` · `tokenEnc` · `tokenSource` (`OAUTH`\|`MANUAL`) · `tokenExpiresAt?` · `expiryWarnedAt?` · `audienceId?` · `audienceName?` · `enabled` default false · `enabledAt?` · `backfilledAt?` · `status` (`ACTIVE`\|`STOPPED`) · `stoppedReason?` (`TOKEN_OR_PERMISSION`\|`TERMS_NOT_ACCEPTED`) · `stoppedAt?` · `lastSyncedAt?` · `lockedAt?` | 🛑 `tokenEnc` (`token-crypto`) ห้ามออก client/log · `lockedAt` = จองตัวส่ง (stale 5 นาที) |
+| `MetaAudienceMember` | `shopId` FK · `identityType` (`PSID`\|`PHONE`) · `identityKey` (PSID หรือ SHA-256 ของ `66XXXXXXXXX`) · `pageId?` (เฉพาะ PSID) · `desired` (`IN`\|`OUT`) · `syncedState` default `OUT` · `attempts` · `nextAttemptAt` · `lastError?` | **UNIQUE `(shopId, identityType, identityKey)`** · index `(shopId, desired, syncedState, nextAttemptAt)` · ค้างส่ง = `desired ≠ syncedState` · ไม่เก็บเบอร์ดิบ |
+
+**ความสัมพันธ์:** `Shop 1─1 MetaAudienceConnection` · `Shop 1─N MetaAudienceMember` · **Rollback:** ก่อนมีข้อมูล `DROP TABLE` Member → Connection · หลังมีข้อมูล = ถามผู้ใช้ก่อน
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -2395,6 +2417,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | **`/api/cron/inspection-lifecycle`** (feature 00060 — **backend + API พร้อมแล้ว 2026-09-05 · UI กำลังทำ**) | **`0 16 * * *`** | **23:00** |
 | **`/api/cron/follow-up-reminders`** (feature 00066 — `vercel.json` ยืนยัน) | **`*/5 * * * *`** | **ทุก 5 นาที** |
 | **`/api/cron/line-report-sweep`** (feature 00070 — `vercel.json` ยืนยัน) | **`*/30 * * * *`** | **ทุก 30 นาที** · cleanup รวมใน tick แรกหลัง 03:00 ไทย (= tick ที่ตกใน 03:00–03:29) ไม่เพิ่ม cron · **EXT-LINK:** ล้าง `LineReportSnapshot.payload` ที่หมดอายุ/กลุ่ม REMOVED ทุก tick (ไม่ผูก 03:00) — ผลคืน `snapshotsPurged` · ลบแถวโครงเก่า >30 วันใน cleanup 03:00 — ผลคืน `snapshotsDeleted` |
+| **`/api/cron/meta-audience`** (feature 00092 — `vercel.json`) | **`*/5 * * * *`** | ทุก 5 นาที · `maxDuration` 60 · `sweepMetaAudience` (จองร้านด้วย `lockedAt` → เติมย้อนหลังถ้า `backfilledAt` ว่าง → สร้าง audience → ส่ง ADD/REMOVE ≤10,000/คำขอ) · ร้านหนึ่งล้มไม่บล็อกร้านอื่น · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · ผลคืน `{ok, connections, added, removed, stopped, retried}` |
 | **`/api/cron/meta-capi`** (feature 00089 — `vercel.json` ยืนยัน) | **`* * * * *`** | **ทุกนาที** · route แยกจาก `chat-outbox` โดยตั้งใจ · `maxDuration` 60 · ลำดับ `sweepMetaCapi` (ส่งคิว ≤100 แถว) → `sweepCartAbandoned` (try/catch แยก) → `purgeOldMetaCapiEvents` (>180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ)) · export เฉพาะ `GET` · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · ผลคืน `{ok, sent, failed, retried, stopped, skipped, cartAbandoned, purged}` |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
@@ -2914,6 +2937,23 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 **ผลข้างเคียงบน endpoint เดิม:** ไม่เปลี่ยนสัญญาของ endpoint เดิมใด ๆ — เพิ่มการเรียก `enqueue*` (ไม่ throw) หลัง commit ในบริการเดิม 13 ไฟล์ (ดู SDS §3.2) · `upsertChannel` (`shop-channel.service.ts` ตอนเชื่อมเพจที่มีแถวอยู่แล้ว) ปลุก dataset PAGE ที่ `STOPPED` ในธุรกรรมเดียวกัน · `pushMetaCapiStopped` ส่ง push `{type:'channel-health', url:'/settings/conversions-api'}` ให้ผู้ถือ `H3`
 
 ---
+
+### 7.36 Custom Audience ลูกค้าที่ซื้อแล้ว (`/api/shops/meta-audience/**`, `/api/meta-audience/**`, `/api/cron/meta-audience`) — feature 00092
+
+> สัญญาละเอียด = `docs/20 - Features/00092 - Purchaser Custom Audience Sync/API.md` · ทุกเมธอด `requireShopCapability(session,'X9')` · `force-dynamic` · `Cache-Control: private, no-store` · ฟีเจอร์ปิด = 404 `FEATURE_DISABLED` · error = `{error, code}` (`audienceRun` แปลง `AudienceError`) · ไม่มี token ในคำตอบ
+
+| เมธอด | path | สิทธิ์ | สรุป |
+|---|---|---|---|
+| GET | `/api/shops/meta-audience` | **X9** | `{connection: null \| {adAccountId, adAccountName, tokenSource, tokenExpiresAt, audienceId, audienceName, enabled, enabledAt, backfilledAt, status, stoppedReason, lastSyncedAt, hasToken, counts:{synced,pending}, adsManagerUrl, termsUrl}}` |
+| PUT | `/api/shops/meta-audience` | **X9** | body `{enabled}` → สถานะ · 409 `NOT_CONNECTED`/`CONNECTION_STOPPED` · ปิด = หยุดส่ง ไม่ลบ audience |
+| DELETE | `/api/shops/meta-audience` | **X9** | ตัดการเชื่อม + ล้างแถวสมาชิก → `{ok}` |
+| POST | `/api/shops/meta-audience/connect` | **X9** | body `{mode:'MANUAL', adAccountId, token}` หรือ `{mode:'OAUTH', adAccountId}` (ใช้ token ใน cookie พัก) → สถานะ · 400 `TOKEN_INVALID`/`AD_ACCOUNT_INVALID`/`PENDING_EXPIRED` |
+| GET | `/api/shops/meta-audience/accounts` | **X9** | `{accounts:[{adAccountId,name,accountStatus}]}` จาก token ที่พัก |
+| GET | `/api/meta-audience/connect` | **X9** | 302 ไป Facebook (`scope=ads_management`) · คนนอก `FB_CHAT_ROLE_USER_IDS` = 403 `NOT_ROLE_USER` |
+| GET | `/api/meta-audience/callback` | **X9** | 302 → `/settings/conversions-api?audience={choose_account\|cancelled\|state_mismatch\|no_code\|no_ad_account\|error}` |
+| GET | `/api/cron/meta-audience` | CRON | ดู §7.20 |
+
+**ผลข้างเคียงบน endpoint เดิม:** ไม่เปลี่ยนสัญญา — `enqueueOrderCapiAfterCommit` (`meta-capi.service.ts`) เรียก `markOrderPurchaserAfterCommit` (ไม่ throw) ท้ายฟังก์ชัน ⇒ ทุก call site ของ 00089 ครอบคลุมโดยอัตโนมัติ · เพิ่ม `ads_management`/`ads_read` ใน `PENDING_REVIEW_SCOPES` (เฉพาะบัญชี role) · push `pushMetaAudienceStopped`/`pushMetaAudienceTokenExpiring` ให้ผู้ถือ `X9`
 
 ## §8 Enums & Constants
 
@@ -3810,6 +3850,10 @@ HTTP ตามตาราง §7.21
 
 ---
 
+### 9.18 Custom Audience ลูกค้าที่ซื้อแล้ว (feature 00092 — capability `X9`)
+
+> ใช้ `X9` เดียวกับ 00089 (เจ้าของเท่านั้น — ข้อมูลลูกค้าออกนอกระบบ) · ทะเบียน `route-capabilities.ts` (`DECLARED`): `shops/meta-audience/route.ts {GET,PUT,DELETE}` · `shops/meta-audience/connect/route.ts {POST}` · `shops/meta-audience/accounts/route.ts {GET}` · `meta-audience/connect/route.ts {GET}` · `meta-audience/callback/route.ts {GET}` ทั้งหมด `X9` · cron = CRON · ต้นทาง `docs/20 - Features/00092 - Purchaser Custom Audience Sync/SRS.md`
+
 ## §10 Validation Rules
 
 > ดู `src/lib/validations.ts` เป็น SSOT — section นี้ summary สำหรับ dev
@@ -4317,7 +4361,16 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 - **Yup (frontend):** ใช้กับ React Hook Form — validate ก่อน submit
 - **ไม่มี email+password schema** — ตัดถาวร (FR-1.6)
 
+### §10.25 Custom Audience — `AudienceUpdateSchema` · `AudienceConnectSchema` (feature 00092 — `src/lib/validations.ts`)
+
+| schema | กฎ |
+|---|---|
+| `AudienceUpdateSchema` | `{enabled: boolean}` |
+| `AudienceConnectSchema` | `v.variant('mode')`: `MANUAL` = `{adAccountId, token}` (`token` trim 10–512) · `OAUTH` = `{adAccountId}` · `adAccountId` ตัด `act_` นำหน้า แล้วต้อง `^[0-9]{5,20}$` |
+
 ---
+
+_อัปเดต 2026-11-14 (HR11): sync feature 00092 ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience (ฝั่ง backend · UI ยังไม่ทำ) — **เขียนจากโค้ด** — §5.6 (env `OPEN_META_AUDIENCE` · `META_AUDIENCE_PILOT_SHOP_IDS`) · §6.80 (โมเดล `MetaAudienceConnection` · `MetaAudienceMember`) · §7.20 (cron `/api/cron/meta-audience` ทุก 5 นาที) · §7.36 (API 8 เมธอด) · §9.18 (สิทธิ์ X9) · §10.25 (Valibot) — รายละเอียด `docs/20 - Features/00092 - Purchaser Custom Audience Sync/`._
 
 _อัปเดต 2026-11-11 (HR11): sync feature 00089 ส่งยอดขายให้ Meta (Conversions API) — **เขียนจากโค้ดบน working tree (ยังไม่ commit/merge · ไม่ได้รันเทส)** — §3.4 (3 หน้า `/settings/conversions-api/**`) · §5.5 (env `OPEN_META_CAPI` · `META_CAPI_PILOT_SHOP_IDS` + หมายเหตุสิทธิ์ `page_events`) · §6.78 (โมเดล `MetaCapiPageSetting` · `MetaCapiDataset` · `MetaCapiEvent`) · §7.20 (cron `/api/cron/meta-capi` ทุกนาที) · §7.35 (API 9 เมธอด) · §8.14 + §8.21 (capability `X9` · enum/ค่าคงที่) · §9.17 (สิทธิ์) · §10.24 (Valibot) — จุดที่โค้ดไม่ตรง PRD/BRD บันทึกใน `docs/20 - Features/00089 - Meta Conversion API/SRS.md` §8.2._
 

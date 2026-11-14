@@ -444,6 +444,9 @@ model Shop {
   metaCapiSettings MetaCapiPageSetting[]
   metaCapiDatasets MetaCapiDataset[]
   metaCapiEvents   MetaCapiEvent[]
+  // feature 00092 Custom Audience ลูกค้าที่ซื้อแล้ว
+  metaAudienceConnection MetaAudienceConnection?
+  metaAudienceMembers    MetaAudienceMember[]
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -5600,4 +5603,59 @@ model MetaCapiEvent {
   @@index([status, nextAttemptAt])
   @@index([conversationId, eventKey, createdAt])
   @@index([shopId, createdAt])
+}
+
+/// feature 00092 — การเชื่อมบัญชีโฆษณา + audience "ลูกค้าที่ซื้อแล้ว" 1 ตัวต่อร้าน
+/// 🛑 tokenEnc ผ่าน token-crypto.ts — ห้าม select ออกไปหา client ห้าม log
+/// tokenSource "OAUTH" (ผู้ใช้ ~60 วัน มี tokenExpiresAt) | "MANUAL" (System User ไม่หมดอายุ)
+/// status "ACTIVE" | "STOPPED" (token เสีย/ยังไม่ยอมรับข้อตกลง — stoppedReason เก็บเหตุผล)
+/// lockedAt = จองตัวส่งต่อร้าน (conditional update) · backfilledAt = เติมย้อนหลังครั้งแรกแล้ว (FR-007)
+model MetaAudienceConnection {
+  id             String    @id @default(uuid())
+  shopId         String    @unique
+  adAccountId    String
+  adAccountName  String?
+  tokenEnc       String
+  tokenSource    String
+  tokenExpiresAt DateTime? @db.Timestamptz(3)
+  expiryWarnedAt DateTime? @db.Timestamptz(3)
+  audienceId     String?
+  audienceName   String?
+  enabled        Boolean   @default(false)
+  enabledAt      DateTime? @db.Timestamptz(3)
+  backfilledAt   DateTime? @db.Timestamptz(3)
+  status         String    @default("ACTIVE")
+  stoppedReason  String?
+  stoppedAt      DateTime? @db.Timestamptz(3)
+  lastSyncedAt   DateTime? @db.Timestamptz(3)
+  lockedAt       DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, status])
+}
+
+/// feature 00092 — ลูกค้า 1 ตัวตนต่อร้าน · identityType "PSID" (identityKey = PSID, pageId = เพจ) | "PHONE" (identityKey = SHA-256 ของ 66xxxxxxxxx)
+/// desired = ที่ควรเป็น · syncedState = ที่ Meta มีอยู่ตามที่เรารู้ ("IN" | "OUT") — ไม่เท่ากัน = ค้างส่ง
+/// ไม่เก็บเบอร์ดิบ — เก็บแต่แฮช (BR-CA-01)
+model MetaAudienceMember {
+  id            String   @id @default(uuid())
+  shopId        String
+  identityType  String
+  identityKey   String
+  pageId        String?
+  desired       String
+  syncedState   String   @default("OUT")
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3)
+  lastError     String?
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, identityType, identityKey])
+  @@index([shopId, desired, syncedState, nextAttemptAt])
 }

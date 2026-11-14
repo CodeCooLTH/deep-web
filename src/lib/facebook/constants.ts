@@ -156,6 +156,10 @@ export const PENDING_REVIEW_SCOPES = [
   // ได้ระดับ Standard แล้ว (2026-11-14) ⇒ ใช้ได้เฉพาะบัญชีที่มี role · ห้ามใส่ใน Configuration
   // ของ Login for Business จนกว่าจะได้ Advanced ไม่งั้นลูกค้าทุกร้านเชื่อมเพจไม่ได้
   'page_events',
+  // feature 00092 — สร้าง/อัปเดต Custom Audience ในบัญชีโฆษณา · Standard ⇒ เฉพาะบัญชีที่มี role · ห้ามใส่ใน CONNECT_SCOPES/Configuration
+  // (OAuth เชื่อมบัญชีโฆษณาแยกต่างหากที่ /api/meta-audience/connect ใช้ ADS_SCOPES ด้านล่าง ไม่ได้ลากสิทธิ์เพจไปด้วย)
+  'ads_management',
+  'ads_read',
   // ── บันทึกเดิมก่อน 2026-09-08 (เก็บไว้เป็นที่มาของข้อควรระวังข้างบน) ────────────────
   // instagram_manage_insights — "ขอไม่ได้" ตอนนี้ อย่าเพิ่งใส่กลับ
   //
@@ -169,3 +173,6 @@ export const PENDING_REVIEW_SCOPES = [
   // → ร้านที่เชื่อม IG ไว้แล้วต้องกดเชื่อมใหม่ถึงจะได้ยอดวิว (token เก่าไม่มี scope)
   // โค้ดฝั่ง shop-video.service ทนกับ token ที่ไม่มี scope นี้อยู่แล้ว (คืนยอดวิวเป็น null)
 ].join(',')
+
+/** feature 00092 — scope ของ OAuth เชื่อมบัญชีโฆษณา (ขอตัวเดียว ไม่ผสมสิทธิ์เพจ) */
+export const ADS_SCOPES = 'ads_management'

@@ -468,6 +468,12 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/shops/meta-capi/[channelId]/log/route.ts': { GET: 'X9', status: 'DECLARED' },
   'src/app/api/shops/meta-capi/[channelId]/route.ts': { GET: 'X9', PUT: 'X9', status: 'DECLARED' },
   'src/app/api/shops/meta-capi/route.ts': { GET: 'X9', status: 'DECLARED' },
+  // 00092 Custom Audience ลูกค้าที่ซื้อแล้ว — เจ้าของเท่านั้น (ข้อมูลลูกค้าออกนอกระบบ)
+  'src/app/api/shops/meta-audience/route.ts': { GET: 'X9', PUT: 'X9', DELETE: 'X9', status: 'DECLARED' },
+  'src/app/api/shops/meta-audience/connect/route.ts': { POST: 'X9', status: 'DECLARED' },
+  'src/app/api/shops/meta-audience/accounts/route.ts': { GET: 'X9', status: 'DECLARED' },
+  'src/app/api/meta-audience/connect/route.ts': { GET: 'X9', status: 'DECLARED' },
+  'src/app/api/meta-audience/callback/route.ts': { GET: 'X9', status: 'DECLARED' },
   'src/app/api/shops/auto-reply/ads/route.ts': { GET: 'H3', status: 'DECLARED' },
   'src/app/api/shops/auto-reply/chatbot/guardrails/[guardrailId]/route.ts': { PATCH: 'H3', DELETE: 'H3', status: 'DECLARED' },
   'src/app/api/shops/auto-reply/chatbot/guardrails/route.ts': { GET: 'H3', POST: 'H3', status: 'DECLARED' },
