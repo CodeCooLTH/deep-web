@@ -1,13 +1,13 @@
 ---
 title: "BRD — 00092 ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience อัตโนมัติ"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-11-14
 tags: [feature, brd, meta, ads, custom-audience]
 related: ["[[PRD]]"]
 ---
 
-> **โมดูล:** 00092 · **BRD (non-technical)** · **v0.1** · 2026-11-14 · Draft — รอ user อนุมัติ (HR11)
+> **โมดูล:** 00092 · **BRD (non-technical)** · **v0.1** · 2026-11-14 · Approved 2026-11-14 (user "อนุมัติทั้งหมด ลุยยยย")
 
 # BRD: ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience อัตโนมัติ
 

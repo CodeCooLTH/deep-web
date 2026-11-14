@@ -1,7 +1,7 @@
 ---
 title: "PRD — 00092 ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience ของ Meta อัตโนมัติ"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-11-14
 tags: [feature, prd, meta, ads, custom-audience]
 related: ["[[BRD]]", "[[00089 - Meta Conversion API/PRD]]", "[[00091 - Order Ad Attribution/PRD]]"]
@@ -9,7 +9,7 @@ related: ["[[BRD]]", "[[00089 - Meta Conversion API/PRD]]", "[[00091 - Order Ad 
 
 > **โมดูล:** 00092 - Purchaser Custom Audience Sync
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
-> **เวอร์ชัน:** 0.1 · **วันที่:** 2026-11-14 · **สถานะ:** Draft — รอ user อนุมัติ (HR11)
+> **เวอร์ชัน:** 0.1 · **วันที่:** 2026-11-14 · **สถานะ:** Approved 2026-11-14 (user "อนุมัติทั้งหมด ลุยยยย")
 
 # PRD: ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience อัตโนมัติ
 
