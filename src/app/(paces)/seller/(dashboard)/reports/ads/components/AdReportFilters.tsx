@@ -12,6 +12,7 @@
  * ส่งออก = "สิ่งที่เห็นบนจอ" เสมอ ไม่มีโมดัลเลือกขอบเขต (xlsx อย่างเดียว)
  */
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -138,6 +139,13 @@ export default function AdReportFilters(props: Props) {
                 onChange={(v) => push({ shopChannelId: v })}
               />
             )}
+            {/* 00093: ลิงก์ไปคุณภาพโฆษณา พกช่วง/เพจ — เป็นแค่ลิงก์ ไม่เรียก Meta เพิ่มจากหน้านี้ */}
+            <Link
+              href={`/reports/ad-quality?${new URLSearchParams({ from: props.from, to: props.to, ...(props.shopChannelId ? { shopChannelId: props.shopChannelId } : {}) }).toString()}`}
+              className="btn border-default-300 text-default-700 hover:bg-default-100 min-h-11 shrink-0 border lg:min-h-0">
+              <Icon icon="chart-pie" className="text-sm" aria-hidden="true" />
+              {t.adReport.viewQuality}
+            </Link>
             <button
               type="button"
               onClick={onExport}

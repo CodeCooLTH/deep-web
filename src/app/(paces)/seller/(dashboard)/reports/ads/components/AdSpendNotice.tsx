@@ -20,10 +20,27 @@ const BTN_PRIMARY = 'btn bg-primary hover:bg-primary-hover min-h-11 w-full shrin
 const BTN_PLAIN = 'btn border-default-300 text-default-800 min-h-11 w-full shrink-0 border sm:w-auto lg:min-h-0'
 const CAPIS = '/settings/capis'
 
-export default function AdSpendNotice({ ads, noun }: { ads: AdReportView['ads']; noun: string }) {
-  const t = useT().adReport
+/** ชุดข้อความของหน้าอื่นที่ใช้แบนเนอร์นี้ (00093 คุณภาพโฆษณา) — copy ของรายงานยอดขายพูดถึง ROAS/ยอดขาย ซึ่งไม่จริงบนหน้านั้น */
+export type NoticeCopy = {
+  noneTitle: string; noneBody: string; connectCta: string
+  authTitle: string; authBody: string; reconnectCta: string
+  currencyTitle: string; currencyBody: string
+  errorBody: string; retry: string
+}
+
+export default function AdSpendNotice({ ads, noun, copy, onRetry }: {
+  ads: Pick<AdReportView['ads'], 'state' | 'currency'>
+  noun: string
+  copy?: NoticeCopy
+  /** ไม่ส่ง = router.refresh() · หน้าที่แคชผล Meta ส่งมาเพื่อข้ามแคช */
+  onRetry?: () => void
+}) {
+  const tr = useT().adReport
   const router = useRouter()
   if (ads.state === 'OK') return null
+  const t = copy
+    ? { spendNoneTitle: copy.noneTitle, spendNoneBody: copy.noneBody, spendConnectCta: copy.connectCta, spendAuthTitle: copy.authTitle, spendAuthBody: copy.authBody, spendReconnectCta: copy.reconnectCta, spendCurrencyTitle: copy.currencyTitle, spendCurrencyBody: copy.currencyBody, spendErrorBody: copy.errorBody, spendRetry: copy.retry }
+    : tr
 
   const warn = ads.state !== 'NOT_CONNECTED'
   const content =
@@ -48,7 +65,7 @@ export default function AdSpendNotice({ ads, noun }: { ads: AdReportView['ads'];
         <p className="mb-0 text-sm">{content.body}</p>
       </div>
       {ads.state === 'ERROR' ? (
-        <button type="button" className={BTN_PLAIN} onClick={() => router.refresh()}>
+        <button type="button" className={BTN_PLAIN} onClick={() => (onRetry ? onRetry() : router.refresh())}>
           <Icon icon="refresh" className="text-sm" aria-hidden="true" />
           {t.spendRetry}
         </button>
