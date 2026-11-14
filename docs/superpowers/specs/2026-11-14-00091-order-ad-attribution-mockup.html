@@ -236,7 +236,8 @@ const ORDERS = [
     item: 'โช๊คหลัง YSS G-Sport PCX 160', img: 'shock', qty: 1, price: 2600, total: 2600, st: 'done', ad: null },
 ]
 // ชิปโทนกลาง — max-w-xs ตัด … + title ชื่อเต็ม · ไม่มีแอด = ไม่ render เลย
-const adChip = (name) => name ? `<span class="badge inline-flex max-w-xs min-w-0 items-center gap-1 bg-d100 text-d700" title="โฆษณา: ${name}">${IC('speakerphone', 12)}<span class="truncate">โฆษณา: ${name}</span></span>` : ''
+// มติ user 2026-11-14: ชิปมีรูปแอด + ชื่อ
+const adChip = (name) => name ? `<span class="inline-flex max-w-sm min-w-0 items-center gap-1.5 rounded-full border border-d200 bg-d100 py-0.5 pe-2.5 ps-0.5 text-xs text-d700" title="โฆษณา: ${name}"><img src="${prodImg('wheel')}" alt="" class="size-5 shrink-0 rounded-full object-cover" />${IC('speakerphone', 12)}<span class="truncate font-medium">${name}</span></span>` : ''
 const auctionBadge = `<span class="badge bg-warning15 text-warning-ink" title="จากการประมูล">${IC('gavel', 12)}ประมูล</span>`
 function ordersDesktop() {
   const block = (o) => `<div class="border-t border-d200">
@@ -272,7 +273,7 @@ function orderCard(o) {
         <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-d500">${o.ch === 'msg' ? msgLogo(14) : lineLogo(14)}<span class="text-d300">·</span>${o.pay}<span class="text-d300">·</span><span class="tabular-nums">${o.phone}</span>${o.auction ? `<span class="text-d300">·</span>${auctionBadge}` : ''}</div></div>
       <div class="flex shrink-0 flex-col items-end gap-1"><span class="text-2xs font-semibold text-d500">${o.no}</span>${stBadge(o.st)}</div>
     </div>
-    ${o.ad ? `<p class="mt-2 flex min-w-0 items-start gap-1.5 text-xs text-d700">${IC('speakerphone', 14, 'mt-0.5')}<span class="line-clamp-2 break-words">โฆษณา: ${o.ad}</span></p>` : ''}
+    ${o.ad ? `<div class="mt-2 flex min-w-0 items-center gap-2 rounded-md bg-d100 px-2 py-1.5 text-xs text-d700"><img src="${prodImg('wheel')}" alt="" class="size-7 shrink-0 rounded object-cover" /><div class="min-w-0"><p class="flex items-center gap-1 text-2xs text-d600">${IC('speakerphone', 12)}จากโฆษณา</p><p class="line-clamp-2 break-words font-medium text-d900">${o.ad}</p></div></div>` : ''}
     <div class="mt-2.5 border-t border-dashed border-d200 pt-2.5">
       <div class="flex items-start gap-2.5"><img src="${prodImg(o.img)}" alt="" class="size-10 shrink-0 rounded" /><p class="min-w-0 flex-1 text-sm text-d900">${o.item}</p>
         <div class="shrink-0 text-end"><p class="text-xs tabular-nums text-d700">x${o.qty}</p><p class="text-sm font-medium tabular-nums text-d900">${baht(o.price)}</p></div></div>
@@ -299,11 +300,14 @@ function stepper(n) {
   }).join('')}</ol>`
 }
 function chatOrderCard(c, w) {
-  return `<div class="overflow-hidden rounded-lg border border-d200 bg-card ${w}">
+  // มติ user 2026-11-14: แอดเป็นแถบบนหัวสีฟ้า + รูปแอด (แทนบรรทัดใต้หัว)
+  const adBar = c.ad ? `<div class="flex min-w-0 items-center gap-2 border-b border-primary/20 bg-primary/10 px-3 py-1.5" title="${c.ad}">
+      <img src="${prodImg('wheel')}" alt="" class="size-7 shrink-0 rounded object-cover" />
+      <div class="min-w-0 flex-1"><p class="flex items-center gap-1 text-2xs text-d600">${IC('speakerphone', 12)}จากโฆษณา</p><p class="truncate text-xs font-medium text-d900">${c.ad}</p></div></div>` : ''
+  return `<div class="overflow-hidden rounded-lg border border-d200 bg-card ${w}">${adBar}
     <div class="flex items-center gap-2.5 bg-primary px-4 py-2.5 text-white">${IC('receipt-2', 24)}
       <div class="min-w-0"><p class="truncate text-sm font-semibold">${c.title}</p><p class="truncate text-2xs opacity-90">คำสั่งซื้อ · ${c.no}</p></div></div>
     <div class="bg-card px-4 py-2.5">
-      ${c.ad ? `<p class="mb-1.5 flex min-w-0 items-center gap-1.5 text-2xs text-d700" title="${c.ad}">${IC('speakerphone', 14)}<span class="truncate">จากโฆษณา: ${c.ad}</span></p>` : ''}
       <div class="flex items-center gap-2 text-sm"><img src="${prodImg(c.img)}" alt="" class="size-9 shrink-0 rounded" /><span class="min-w-0 flex-1 truncate text-d700">${c.title}</span><span class="shrink-0 text-2xs text-d700">x${c.qty}</span><span class="shrink-0 font-medium tabular-nums text-d800">${baht(c.price)}</span></div>
       <div class="my-2 border-t border-dashed border-d200"></div>
       <div class="flex items-center justify-between text-sm"><span class="text-d700">ยอดสุทธิ</span><span class="font-bold tabular-nums text-primary">${baht(c.total)}</span></div>
