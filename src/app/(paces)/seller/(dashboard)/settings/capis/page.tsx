@@ -77,7 +77,7 @@ export default async function ConversionsApiPage() {
     return (
       <>
         <PageBreadcrumb {...crumb} />
-        <SellerErrorState title={c.loadError} message={c.loadErrorHint} retryHref="/settings/conversions-api" />
+        <SellerErrorState title={c.loadError} message={c.loadErrorHint} retryHref="/settings/capis" />
       </>
     )
   }

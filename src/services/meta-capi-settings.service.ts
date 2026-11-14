@@ -421,23 +421,51 @@ export async function listCapiLog(shopId: string, channelId: string, q: CapiLogQ
     ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
     // ไม่ select psid/lastRequest/lastResponse — เป็นข้อมูลลูกค้า/ดิบ ไม่จำเป็นต่อหน้าจอ
     select: {
-      id: true, createdAt: true, eventKey: true, status: true, reason: true, attempts: true, payload: true,
+      id: true, createdAt: true, eventKey: true, status: true, reason: true, attempts: true, payload: true, conversationId: true, eventTime: true,
       dataset: { select: { label: true, datasetId: true } },
     },
   });
   const page = rows.slice(0, take);
+
+  // batch 3 query (ไม่ N+1): ลูกค้า / ออเดอร์ / โฆษณา — ผูกร้านเสมอ
+  const payloadOf = (p: unknown) => (p ?? {}) as { value?: number; orderId?: string };
+  const convIds = [...new Set(page.flatMap((r) => (r.conversationId ? [r.conversationId] : [])))];
+  const orderIds = [...new Set(page.flatMap((r) => { const o = payloadOf(r.payload).orderId; return typeof o === "string" ? [o] : []; }))];
+  const [convs, orders, referrals] = await Promise.all([
+    convIds.length ? prisma.conversation.findMany({ where: { id: { in: convIds }, shopId }, select: { id: true, externalContact: { select: { name: true, avatarUrl: true } } } }) : [],
+    orderIds.length ? prisma.order.findMany({ where: { id: { in: orderIds }, shopId }, select: { id: true, orderNo: true, publicToken: true } }) : [],
+    convIds.length
+      ? prisma.conversationAdReferral.findMany({
+          where: { conversationId: { in: convIds }, source: "ADS", conversation: { shopId } },
+          orderBy: { receivedAt: "desc" },
+          select: { conversationId: true, adId: true, adTitle: true, photoFileId: true, receivedAt: true },
+        })
+      : [],
+  ]);
+  const convMap = new Map(convs.map((c) => [c.id, c.externalContact]));
+  const orderMap = new Map(orders.map((o) => [o.id, o]));
   return {
-    rows: page.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt,
-      eventKey: r.eventKey,
-      datasetLabel: r.dataset.label,
-      datasetId: r.dataset.datasetId,
-      value: ((r.payload ?? {}) as { value?: number }).value ?? null,
-      status: r.status,
-      reason: r.reason,
-      attempts: r.attempts,
-    })),
+    rows: page.map((r) => {
+      const contact = r.conversationId ? convMap.get(r.conversationId) : null;
+      const oid = payloadOf(r.payload).orderId;
+      const o = oid ? orderMap.get(oid) : undefined;
+      // referrals เรียงใหม่→เก่า: ตัวแรกที่ receivedAt ≤ eventTime = "แอดล่าสุดก่อนเหตุการณ์"
+      const ref = r.conversationId ? referrals.find((x) => x.conversationId === r.conversationId && x.receivedAt <= r.eventTime) : undefined;
+      return {
+        id: r.id,
+        createdAt: r.createdAt,
+        eventKey: r.eventKey,
+        datasetLabel: r.dataset.label,
+        datasetId: r.dataset.datasetId,
+        value: payloadOf(r.payload).value ?? null,
+        status: r.status,
+        reason: r.reason,
+        attempts: r.attempts,
+        customer: contact ? { name: contact.name, avatarUrl: contact.avatarUrl } : null,
+        order: o ? { orderNo: o.orderNo, publicToken: o.publicToken } : null,
+        ad: ref ? { adId: ref.adId, adTitle: ref.adTitle, photoFileId: ref.photoFileId, clickedAt: ref.receivedAt } : null,
+      };
+    }),
     nextCursor: rows.length > take ? page[page.length - 1].id : null,
   };
 }

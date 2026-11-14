@@ -348,7 +348,7 @@ export function ChannelsClient({ initialChannels, showCapiChip = false }: Channe
                     {/* 00089 — ทางเข้า Conversions API ของเพจนี้ (เฉพาะ Messenger · เพจที่ token เสียเข้าไปดูสถานะ/เชื่อมใหม่ได้) */}
                     {showCapiChip && channel.provider === 'MESSENGER' && (
                       <Link
-                        href={`/settings/conversions-api/${channel.id}`}
+                        href={`/settings/capis/${channel.id}`}
                         className="btn btn-sm bg-default-100 text-default-800 hover:bg-default-200 inline-flex min-h-11 items-center gap-1.5 sm:min-h-0"
                       >
                         <Icon icon="tabler:ad-2" className="text-sm" aria-hidden="true" />

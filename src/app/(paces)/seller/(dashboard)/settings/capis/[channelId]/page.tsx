@@ -43,7 +43,7 @@ export default async function ConversionsApiDetailPage({ params, searchParams }:
   const gate = await gatePage(session, 'X9')
   const trail = [
     { label: c.breadcrumbSettings, href: '/settings' },
-    { label: c.pageTitle, href: '/settings/conversions-api' },
+    { label: c.pageTitle, href: '/settings/capis' },
   ]
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
     return (
@@ -89,7 +89,7 @@ export default async function ConversionsApiDetailPage({ params, searchParams }:
     return (
       <>
         <PageBreadcrumb title={c.pageTitle} homeLabel={t.common.home} trail={trail.slice(0, 1)} />
-        <SellerErrorState title={c.loadError} message={c.loadErrorHint} retryHref={`/settings/conversions-api/${channelId}`} />
+        <SellerErrorState title={c.loadError} message={c.loadErrorHint} retryHref={`/settings/capis/${channelId}`} />
       </>
     )
   }

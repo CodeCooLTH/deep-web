@@ -241,7 +241,7 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/settings/channels', slug: 'seller:settings-channels', label: 'ช่องทางการขาย', icon: 'plug-connected' },
       // feature 00089 — ส่งยอดขายกลับให้ Meta (เจ้าของเท่านั้น X9 ผ่านทะเบียน route) · ซ่อนเมื่อฟีเจอร์ปิดด้วย applyMetaCapiMenu
       // ห้ามใส่ slug นี้ใน *_ONLY_SLUGS: เห็นทุก vertical ที่มีเพจ Messenger · ป้าย "Conversions API" ตามมติ user 2026-11-11 (U1)
-      { url: '/settings/conversions-api', slug: 'seller:settings-conversions-api', label: 'Conversions API', icon: 'ad-2' },
+      { url: '/settings/capis', slug: 'seller:settings-conversions-api', label: 'Conversions API', icon: 'ad-2' },
       // ประเภทงาน (feature 00024, ย้ายออกจาก /queues เมื่อ 2026-08-12) — เห็นเฉพาะร้าน
       // vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu ด้านล่าง เหมือน seller:queues)
       // อยู่กลุ่มตั้งค่าร้านไม่ใช่กลุ่มงานประจำวัน เพราะร้านตั้งครั้งเดียวจบ (user ยืนยัน 2026-08-12)

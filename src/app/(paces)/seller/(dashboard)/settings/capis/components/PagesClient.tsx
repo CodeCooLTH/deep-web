@@ -152,7 +152,7 @@ export default function PagesClient({ initial }: { initial: PageRow[] }) {
         id: 'open',
         header: () => <span className="sr-only">{t.colOpen}</span>,
         cell: ({ row }) => (
-          <Link href={`/settings/conversions-api/${row.original.channelId}`} aria-label={fmt(t.openRowAria, { name: row.original.name })} className="text-default-600 flex size-9 items-center justify-center">
+          <Link href={`/settings/capis/${row.original.channelId}`} aria-label={fmt(t.openRowAria, { name: row.original.name })} className="text-default-600 flex size-9 items-center justify-center">
             <Icon icon="chevron-right" className="size-4.5" aria-hidden="true" />
           </Link>
         ),
@@ -174,14 +174,14 @@ export default function PagesClient({ initial }: { initial: PageRow[] }) {
       </div>
       <DataTable<PageRow>
         table={table}
-        onRowClick={(row) => router.push(`/settings/conversions-api/${row.original.channelId}`)}
+        onRowClick={(row) => router.push(`/settings/capis/${row.original.channelId}`)}
         mobileCard={(row) => {
           const r = row.original
           const status = capiPageStatus(r)
           const at = purchaseTimingOf(r)
           return (
             <div className="flex items-start gap-3 px-4 py-3.5">
-              <Link href={`/settings/conversions-api/${r.channelId}`} className="flex min-w-0 flex-1 items-start gap-3" aria-label={fmt(t.openRowAria, { name: r.name })}>
+              <Link href={`/settings/capis/${r.channelId}`} className="flex min-w-0 flex-1 items-start gap-3" aria-label={fmt(t.openRowAria, { name: r.name })}>
                 <PageAvatar src={r.avatarUrl} name={r.name} />
                 <div className="min-w-0 flex-1">
                   <p className="text-default-900 truncate font-medium" title={r.name}>

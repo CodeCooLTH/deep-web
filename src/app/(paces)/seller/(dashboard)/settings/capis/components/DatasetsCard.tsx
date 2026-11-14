@@ -1,8 +1,10 @@
 'use client'
 
 /**
- * การ์ดชุดข้อมูล (Dataset) ≤3 ต่อเพจ — รายการ + ทดสอบ + เปลี่ยน token + เพิ่ม/ลบ (feature 00089 หน้า 2 · ส่วน C)
+ * การ์ดชุดข้อมูล (Dataset) ≤3 ต่อเพจ — แท็บต่อชุดข้อมูล (+ แท็บเพิ่ม) · แท็บที่เลือก = รายละเอียด + ทดสอบ + เปลี่ยน token + ลบ + รายการเหตุการณ์ (EventsList) (feature 00089 หน้า 2 · ส่วน C+D)
  *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx (nav-tabs ขับด้วย React state ไม่ใช้ Preline hs-tab)
+ *   + ของเดิมด้านล่าง
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx (ul divide-y — ไม่ซ้อนการ์ด)
  *   + theme: .../form/elements/components/InputGroup.tsx (input-group + ปุ่ม) · ChecksRadioSwitches.tsx (form-radio fieldset)
  *   + theme: .../apps/users/account-settings/page.tsx (form-label/form-input)
@@ -21,8 +23,10 @@ import { useT } from '@/i18n/LocaleProvider'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
+import EventsList from './EventsList'
+import type { EventSettingsResult } from './EventSettingsModal'
 import { ReconnectLink, capiApi } from './shared'
-import { MAX_DATASETS, datasetName, type DatasetView } from './types'
+import { MAX_DATASETS, datasetName, type DatasetView, type EventOpts } from './types'
 
 type TestState = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ok'; text: string } | { kind: 'fail'; text: string }
 
@@ -83,12 +87,8 @@ function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps
 
   const stopped = d.status === 'STOPPED'
   return (
-    <li className="py-4 first:pt-0">
+    <div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-default-900 min-w-0 truncate text-sm font-medium" title={name}>
-          {name}
-        </span>
-        <span className="badge bg-default-100 text-default-800">{d.source === 'PAGE' ? t.dsSourcePage : t.dsSourceManual}</span>
         {stopped && (
           <span className="badge bg-danger/15 text-danger-ink gap-1">
             <Icon icon="alert-triangle" className="size-3" aria-hidden="true" />
@@ -153,7 +153,7 @@ function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps
         <p className="text-default-700 mt-1 text-xs">{code.trim() ? t.testHelpCode : t.testHelpEmpty}</p>
         <TestResult s={test} loadingText={t.testLoading} />
       </div>
-    </li>
+    </div>
   )
 }
 
@@ -273,18 +273,28 @@ function AddPanel({ channelId, onAdded, onClose }: { channelId: string; onAdded:
   )
 }
 
-export default function DatasetsCard({
-  channelId,
-  datasets,
-  onChange,
-}: {
+type CardProps = {
   channelId: string
   datasets: DatasetView[]
   onChange: (next: DatasetView[]) => void
-}) {
+  eventOptions: EventOpts
+  purchaseAt: string
+  countPromotedDraft: boolean
+  tags: { id: string; name: string }[]
+  busyKeys: ReadonlySet<string>
+  onAddEvents: (d: DatasetView, keys: string[]) => Promise<boolean>
+  onRemoveEvent: (d: DatasetView, key: string) => void
+  onSaveSettings: (key: string, r: EventSettingsResult) => Promise<boolean>
+}
+
+export default function DatasetsCard({ channelId, datasets, onChange, eventOptions, purchaseAt, countPromotedDraft, tags, busyKeys, onAddEvents, onRemoveEvent, onSaveSettings }: CardProps) {
   const t = useT().conversionsApi
   const [adding, setAdding] = useState(false)
+  const [selected, setSelected] = useState<string | null>(null)
   const full = datasets.length >= MAX_DATASETS
+  const ds = datasets.find((d) => d.id === selected) ?? datasets[0]
+  // ยังไม่มีชุดข้อมูลเลย = เปิดแผงเพิ่มให้เลย (ไม่มีแท็บให้ดู)
+  const showAdd = (adding || !ds) && !full
 
   const remove = async (d: DatasetView) => {
     const name = datasetName(d, t.dsPageDefaultName)
@@ -296,40 +306,51 @@ export default function DatasetsCard({
     pacesToast.success(t.dsDeleted)
   }
 
+  const tabCls = (active: boolean) => cn('-mb-px inline-flex min-h-11 items-center gap-1.5 border-b-2 px-1 text-sm whitespace-nowrap lg:min-h-9', active ? 'border-primary text-primary-ink font-medium' : 'text-default-700 border-transparent')
+
   return (
-    <div className="card xl:col-span-2 xl:col-start-1 order-2 xl:order-none">
-      <div className="card-header">
+    <div className="card order-2 xl:order-none">
+      <div className="card-header pb-0 sm:pb-3.75">
         <h4 className="card-title">
           {t.dsTitle} <span className="text-default-700 tabular-nums">{datasets.length}/{MAX_DATASETS}</span>
         </h4>
-        <button
-          type="button"
-          disabled={full}
-          aria-expanded={adding}
-          onClick={() => setAdding((v) => !v)}
-          className={cn('btn min-h-11 lg:min-h-0 disabled:cursor-not-allowed disabled:opacity-50', adding ? 'bg-primary/15 text-primary-ink' : 'bg-primary hover:bg-primary-hover text-white')}
-        >
-          <Icon icon="plus" className="size-4" aria-hidden="true" />
-          {t.dsAdd}
-        </button>
       </div>
       <div className="card-body">
+        <div role="tablist" aria-label={t.evTabsAria} className="border-default-200 mb-4 flex gap-4 overflow-x-auto border-b">
+          {datasets.map((d) => {
+            const active = d.id === ds?.id && !showAdd
+            const nm = datasetName(d, t.dsPageDefaultName)
+            return (
+              <button key={d.id} type="button" role="tab" aria-selected={active} onClick={() => { setSelected(d.id); setAdding(false) }} className={tabCls(active)}>
+                {nm}
+                <span className="badge bg-default-100 text-default-800">{d.source === 'PAGE' ? t.dsSourcePage : t.dsSourceManual}</span>
+                {d.status === 'STOPPED' && <span className="badge bg-danger/15 text-danger-ink">{t.dsStopped}</span>}
+              </button>
+            )
+          })}
+          <button type="button" role="tab" aria-selected={showAdd} disabled={full} title={full ? t.dsFull : undefined} onClick={() => setAdding(true)} className={cn(tabCls(showAdd), 'disabled:cursor-not-allowed disabled:opacity-50')}>
+            <Icon icon="plus" className="size-4" aria-hidden="true" />
+            {t.dsAdd}
+          </button>
+        </div>
         {full && <p className="text-default-700 mb-3 text-xs">{t.dsFull}</p>}
-        {adding && !full && (
+        {showAdd && (
           <AddPanel
             channelId={channelId}
             onClose={() => setAdding(false)}
             onAdded={(d) => {
               onChange([...datasets, d])
+              setSelected(d.id)
               setAdding(false)
             }}
           />
         )}
-        <ul className="divide-default-200 divide-y">
-          {datasets.map((d) => (
-            <DatasetRow key={d.id} channelId={channelId} d={d} pageDefault={t.dsPageDefaultName} onDelete={remove} onChanged={(nd) => onChange(datasets.map((x) => (x.id === nd.id ? nd : x)))} />
-          ))}
-        </ul>
+        {ds && !showAdd && (
+          <div role="tabpanel">
+            <DatasetRow key={ds.id} channelId={channelId} d={ds} pageDefault={t.dsPageDefaultName} onDelete={remove} onChanged={(nd) => onChange(datasets.map((x) => (x.id === nd.id ? nd : x)))} />
+            <EventsList ds={ds} eventOptions={eventOptions} purchaseAt={purchaseAt} countPromotedDraft={countPromotedDraft} tags={tags} busyKeys={busyKeys} onAdd={onAddEvents} onRemove={onRemoveEvent} onSaveSettings={onSaveSettings} />
+          </div>
+        )}
       </div>
     </div>
   )

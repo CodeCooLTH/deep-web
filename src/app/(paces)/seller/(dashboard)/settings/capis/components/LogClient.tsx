@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * บันทึกการส่ง — ตาราง + การ์ดมือถือ + ตัวกรอง 2 ตัวใน query string + โหลดเพิ่มแบบ cursor (feature 00089 หน้า 3)
+ * บันทึกการส่ง — ตาราง + การ์ดมือถือ (ลูกค้า · ออเดอร์ · แอดที่มา) + ตัวกรอง 2 ตัวใน query string + โหลดเพิ่มแบบ cursor (feature 00089 หน้า 3)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
  *   (card-header toolbar + DataTable + mobileCard + card-footer — ตัด search/sort/checkbox)
@@ -12,14 +12,17 @@
  * 🛑 ข้อมูลมาจาก cursor (ไม่มี total/เลขหน้า) จึงใช้ "โหลดเพิ่ม" แทน pagination แบบเลขหน้า · แถวอ่านอย่างเดียว ไม่มีปุ่มส่งซ้ำ (กัน Purchase ซ้ำ)
  */
 import { createColumnHelper, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
+import BuyerAvatar from '@/app/(paces)/seller/(dashboard)/orders/components/BuyerAvatar'
 import DataTable from '@/components/table/DataTable'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
+import { fileUrlOf } from '@/lib/file-url'
 import { formatDateTime } from '@/lib/format-date'
 import { CAPI_EVENTS } from '@/lib/meta-capi/events'
 import { CAPI_EVENT_GROUPS, capiReasonKey } from '@/lib/meta-capi/ui'
@@ -27,8 +30,7 @@ import { cn } from '@/utils/helpers'
 import SellerEmptyState from '../../../_shared/SellerEmptyState'
 import ListBusyOverlay, { useListBusy } from '../../../_shared/ListBusyOverlay'
 import { capiApi } from './shared'
-
-export type LogRow = { id: string; createdAt: string; eventKey: string; datasetName: string; value: number | null; status: string; reason: string | null; attempts: number }
+import { toLogRow, type LogApiRow, type LogRow } from './types'
 
 const ALL = ''
 const META = new Map(CAPI_EVENTS.map((e) => [e.key as string, e.metaName]))
@@ -66,7 +68,7 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     const e = next.event ?? event
     if (s) p.set('status', s)
     if (e) p.set('event', e)
-    busy.run(() => router.replace(`/settings/conversions-api/${channelId}/log${p.size ? `?${p}` : ''}`))
+    busy.run(() => router.replace(`/settings/capis/${channelId}/log${p.size ? `?${p}` : ''}`))
   }
 
   const loadMore = async () => {
@@ -76,31 +78,91 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     const p = new URLSearchParams({ cursor, take: '20' })
     if (status) p.set('status', status)
     if (event) p.set('eventKey', event)
-    const r = await capiApi<{ rows: (Omit<LogRow, 'createdAt' | 'datasetName'> & { createdAt: string; datasetLabel: string | null; datasetId: string })[]; nextCursor: string | null }>(`/${channelId}/log?${p}`, 'GET')
+    const r = await capiApi<{ rows: LogApiRow[]; nextCursor: string | null }>(`/${channelId}/log?${p}`, 'GET')
     setLoadingMore(false)
     if (!r.ok) return setMoreFailed(true)
-    setRows((prev) => [...prev, ...r.data.rows.map((x) => ({ id: x.id, createdAt: x.createdAt, eventKey: x.eventKey, datasetName: x.datasetLabel?.trim() || `Dataset ${x.datasetId}`, value: x.value, status: x.status, reason: x.reason, attempts: x.attempts }))])
+    setRows((prev) => [...prev, ...r.data.rows.map(toLogRow)])
     setCursor(r.data.nextCursor)
   }
 
   const statusBadge = (s: string) => <span className={cn('badge', STATUS_TONE[s] ?? STATUS_TONE.SKIPPED)}>{t.logStatus[s as keyof typeof t.logStatus] ?? s}</span>
 
+  const customerCell = (r: LogRow) =>
+    r.customer ? (
+      <span className="flex min-w-0 items-center gap-2">
+        <BuyerAvatar src={r.customer.avatarUrl ? fileUrlOf(r.customer.avatarUrl) : null} name="" className="size-8" />
+        <span className="text-default-900 truncate">{r.customer.name?.trim() || t.logNoName}</span>
+      </span>
+    ) : (
+      <span className="text-default-700">–</span>
+    )
+  const orderLink = (r: LogRow) =>
+    r.order && (
+      <Link href={`/orders/${r.order.publicToken}`} className="text-primary-ink inline-flex min-h-11 items-center text-xs hover:underline lg:min-h-0">
+        {t.logOrder} {r.order.orderNo ?? r.order.publicToken.slice(0, 8)}
+      </Link>
+    )
+  const adName = (r: LogRow) => (r.ad ? r.ad.adTitle?.trim() || fmt(t.logAdId, { id: r.ad.adId ?? '–' }) : '')
+  // รูปแอดเป็นของตกแต่ง (alt="") — ชื่อแอดพิมพ์อยู่ข้างกันแล้ว
+  const adThumb = (r: LogRow) =>
+    r.ad?.photoFileId ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={`${fileUrlOf(r.ad.photoFileId)}?variant=thumb`} alt="" loading="lazy" className="bg-default-100 size-8 shrink-0 rounded object-cover" />
+    ) : (
+      <span className="bg-default-100 text-primary-ink inline-flex size-8 shrink-0 items-center justify-center rounded">
+        <Icon icon="speakerphone" className="size-4" aria-hidden="true" />
+      </span>
+    )
+
   const columns = useMemo(
     () => [
       columnHelper.accessor('createdAt', { header: t.logColTime, cell: ({ getValue }) => <span className="text-default-800 whitespace-nowrap tabular-nums">{formatDateTime(getValue())}</span> }),
-      columnHelper.accessor('eventKey', { header: t.logColEvent, cell: ({ getValue }) => <span className="text-default-900">{eventLabel(getValue())}</span> }),
-      columnHelper.accessor('datasetName', { header: t.logColDataset, cell: ({ getValue }) => <span className="text-default-800">{getValue()}</span> }),
+      columnHelper.display({ id: 'customer', header: t.logColCustomer, cell: ({ row }) => customerCell(row.original) }),
+      columnHelper.accessor('eventKey', {
+        header: t.logColEvent,
+        cell: ({ row }) => (
+          <span className="flex flex-col items-start">
+            <span className="text-default-900 whitespace-nowrap">{eventLabel(row.original.eventKey)}</span>
+            <span className="text-default-700 text-xs whitespace-nowrap">{row.original.datasetName}</span>
+            {orderLink(row.original)}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'ad',
+        header: t.logColAd,
+        cell: ({ row }) => {
+          const r = row.original
+          if (!r.ad) return <span className="text-default-700">–</span>
+          return (
+            <span className="flex max-w-56 min-w-0 items-center gap-2">
+              {adThumb(r)}
+              <span className="min-w-0">
+                <span className="text-default-900 block truncate" title={adName(r)}>
+                  {adName(r)}
+                </span>
+                <span className="text-default-700 block text-xs tabular-nums">{fmt(t.logAdClicked, { date: formatDateTime(r.ad.clickedAt) })}</span>
+              </span>
+            </span>
+          )
+        },
+      }),
       columnHelper.accessor('value', {
         header: () => <span className="block w-full text-end">{t.logColValue}</span>,
         cell: ({ getValue }) => <span className="text-default-900 block text-end whitespace-nowrap tabular-nums">{getValue() === null ? '–' : money(getValue() as number)}</span>,
       }),
-      columnHelper.accessor('status', { header: t.logColStatus, cell: ({ getValue }) => statusBadge(getValue()) }),
-      columnHelper.accessor('reason', {
-        header: t.logColReason,
-        cell: ({ row }) => <span className={row.original.status === 'FAILED' ? 'text-danger-ink' : 'text-default-700'}>{reasonText(row.original)}</span>,
+      // เหตุผลอยู่ใต้ป้ายสถานะ — แยกคอลัมน์แล้วตารางกว้างเกินพื้นที่ข้าง sidebar ที่ 1280px
+      columnHelper.accessor('status', {
+        header: t.logColStatus,
+        cell: ({ row }) => (
+          <span className="flex max-w-52 min-w-40 flex-col items-start gap-1">
+            {statusBadge(row.original.status)}
+            {capiReasonKey(row.original) !== 'none' && <span className={cn('text-xs', row.original.status === 'FAILED' ? 'text-danger-ink' : 'text-default-700')}>{reasonText(row.original)}</span>}
+          </span>
+        ),
       }),
     ],
-    // eventLabel/reasonText/statusBadge ผูกกับ t เท่านั้น
+    // eventLabel/reasonText/statusBadge/customerCell/orderLink/adThumb ผูกกับ t เท่านั้น
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t],
   )
@@ -132,7 +194,7 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
           icon={filtered ? 'filter-off' : 'history'}
           title={filtered ? t.logNoMatch : t.logEmptyTitle}
           description={filtered ? undefined : t.logEmptyBody}
-          {...(filtered ? { actionButton: { label: t.logClear, onClick: () => go({ status: '', event: '' }) } } : { action: { label: t.logEmptyBack, href: `/settings/conversions-api/${channelId}` } })}
+          {...(filtered ? { actionButton: { label: t.logClear, onClick: () => go({ status: '', event: '' }) } } : { action: { label: t.logEmptyBack, href: `/settings/capis/${channelId}` } })}
         />
       </div>
     )
@@ -149,8 +211,14 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
             return (
               <div className="px-4 py-3 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-default-900 min-w-0 text-sm font-medium">{eventLabel(r.eventKey)}</p>
-                  {statusBadge(r.status)}
+                  <div className="flex min-w-0 items-center gap-2">
+                    {r.customer && <BuyerAvatar src={r.customer.avatarUrl ? fileUrlOf(r.customer.avatarUrl) : null} name="" className="size-9" />}
+                    <div className="min-w-0">
+                      {r.customer && <p className="text-default-900 truncate text-sm font-medium">{r.customer.name?.trim() || t.logNoName}</p>}
+                      <p className={cn('min-w-0', r.customer ? 'text-default-800 text-xs' : 'text-default-900 text-sm font-medium')}>{eventLabel(r.eventKey)}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0">{statusBadge(r.status)}</span>
                 </div>
                 <p className="text-default-700 mt-0.5 text-xs">
                   <span className="tabular-nums">{formatDateTime(r.createdAt)}</span>
@@ -164,6 +232,18 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
                     </>
                   )}
                 </p>
+                {orderLink(r)}
+                {r.ad && (
+                  <div className="text-default-800 mt-1 flex min-w-0 items-center gap-2 text-xs">
+                    {adThumb(r)}
+                    <span className="min-w-0">
+                      <span className="block truncate" title={adName(r)}>
+                        {adName(r)}
+                      </span>
+                      <span className="text-default-700 block tabular-nums">{fmt(t.logAdClicked, { date: formatDateTime(r.ad.clickedAt) })}</span>
+                    </span>
+                  </div>
+                )}
                 {capiReasonKey(r) !== 'none' && <p className={cn('mt-1 text-xs', r.status === 'FAILED' ? 'text-danger-ink' : 'text-default-800')}>{reasonText(r)}</p>}
               </div>
             )

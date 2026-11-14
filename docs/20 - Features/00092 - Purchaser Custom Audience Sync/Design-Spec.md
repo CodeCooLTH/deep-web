@@ -8,7 +8,7 @@ tags: [feature, design-spec, meta, custom-audience]
 
 > ผลิตโดย safepay-ux (HR8) 2026-11-14
 
-## หน้า: การ์ด "กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว" บนหน้า Conversions API (`/settings/conversions-api`, 00092 FR-002/003/008)
+## หน้า: การ์ด "กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว" บนหน้า Conversions API (`/settings/capis`, 00092 FR-002/003/008)
 
 ### User stories ที่ครอบ
 - เจ้าของร้าน (X9) เชื่อมบัญชีโฆษณาได้ 2 ทาง: ผ่าน Facebook (เฉพาะบัญชีใน role) หรือกรอก Ad Account ID + System User token
@@ -97,7 +97,7 @@ Mobile (<640)
 | Section | Theme file (`theme/paces/Admin/TS/src/app/(admin)/`) | Component / หมายเหตุ |
 |---|---|---|
 | กรอบการ์ด + header เส้นประ + footer | `ui/cards/page.tsx` | `.card > .card-header(.card-title) + .card-body + .card-footer` (ตามที่ DatasetsCard ใช้) ห้ามการ์ดซ้อนการ์ด |
-| สวิตช์เปิด/ปิด | `form/elements/components/ChecksRadioSwitches.tsx` | `form-switch` ท่า optimistic + revert ของ PagesClient `toggle()` (src: `settings/conversions-api/components/PagesClient.tsx`) |
+| สวิตช์เปิด/ปิด | `form/elements/components/ChecksRadioSwitches.tsx` | `form-switch` ท่า optimistic + revert ของ PagesClient `toggle()` (src: `settings/capis/components/PagesClient.tsx`) |
 | เลือกบัญชีโฆษณา (S1) | `form/elements/components/InputTextfieldType.tsx` | native `<select class="form-select">` ผูกค่า (กฎ 6a) ห้าม hs-dropdown |
 | ช่องกรอก MANUAL | `apps/users/account-settings/page.tsx` | `form-label` / `form-input`; ลอกจาก AddPanel ใน `DatasetsCard.tsx` (RHF + Yup เช่นกัน) |
 | badge สถานะ | `ui/badges/page.tsx` | `badge bg-{c}/15 text-{c}-ink` ขยาย `shared.tsx` StatusBadge หรือทำ `AudienceBadge` โครงเดียวกัน |
@@ -130,7 +130,7 @@ Icon (tabler ผ่าน `Icon` wrapper ชื่อไม่มี prefix ต�
 
 ### User flow
 
-1. S0 กด "เชื่อมบัญชีโฆษณาผ่าน Facebook" ไป Facebook (ขอ `ads_management`) กลับมา `/settings/conversions-api?audience=choose_account#audience`
+1. S0 กด "เชื่อมบัญชีโฆษณาผ่าน Facebook" ไป Facebook (ขอ `ads_management`) กลับมา `/settings/capis?audience=choose_account#audience`
    - การ์ดโหลด `GET /accounts` (skeleton 1 บรรทัด) แล้วแสดง `form-select` กดเลือกและกด "ใช้บัญชีนี้" เรียก `POST /connect {mode:OAUTH}`
    - ได้ S2 (ปิดอยู่) + toast สำเร็จ
    - ลบ `?audience=` ออกจาก URL ด้วย `router.replace(pathname + '#audience', {scroll:false})` เพื่อไม่ให้ refresh แล้วขึ้นซ้ำ
@@ -287,10 +287,10 @@ Icon (tabler ผ่าน `Icon` wrapper ชื่อไม่มี prefix ต�
 - บล็อก `=== DEEP-HANDOFF ===` ไม่ได้ใส่ เพราะไม่ได้อ่านโครงในเอกสารโปรโตคอล Controller ต้องเติมเอง
 
 ไฟล์ที่เกี่ยวข้อง
-- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/conversions-api/page.tsx`
-- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/conversions-api/components/PagesClient.tsx`
-- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/conversions-api/components/shared.tsx`
-- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/conversions-api/components/DatasetsCard.tsx`
+- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/capis/page.tsx`
+- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/capis/components/PagesClient.tsx`
+- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/capis/components/shared.tsx`
+- `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/(paces)/seller/(dashboard)/settings/capis/components/DatasetsCard.tsx`
 - `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/api/shops/meta-audience/route.ts`
 - `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/api/meta-audience/connect/route.ts`
 - `/Users/craftman/orca/workspaces/safepay/Conversion-API/src/app/api/meta-audience/callback/route.ts`

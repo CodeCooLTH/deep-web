@@ -23,7 +23,7 @@ related: ["[[PRD]]", "[[BRD]]"]
 | # | เรื่อง | คำตัดสินของ spec |
 |---|---|---|
 | D1 | **ที่อยู่เมนู** | ใส่ใน sidebar กลุ่ม **SETTING** ต่อจาก "ช่องทางการขาย" (`/settings/channels`) เหตุผลคือฟีเจอร์นี้ผูกกับเพจ Messenger ที่เชื่อมในหน้านั้นโดยตรง ส่วนกลุ่ม CHAT เป็นของ "สิ่งที่เกิดตอนร้านพิมพ์แชท" (แท็ก · ส่งอัตโนมัติ) ซึ่งไม่ตรงกับงานนี้ |
-| D2 | **ทางเข้าเสริม 3 จุด** | (ก) แถวเพจใน `ChannelsClient` เพิ่ม chip "ส่งยอดให้ Meta" คู่กับ `IceBreakerChip` เฉพาะ provider=MESSENGER และเมื่อฟีเจอร์เปิดให้ร้านนี้ (ข) **มือถือไม่มี sidebar** → ต้องเพิ่ม `/settings/conversions-api` ใน `QUICK_LINK_URLS` ของ `role-nav.ts` (แถวในหน้า "ร้านค้า") ไม่เช่นนั้นเจ้าของร้านบนมือถือหาไม่เจอ (ค) ลงทะเบียน 3 route ใน `route-capabilities.ts` |
+| D2 | **ทางเข้าเสริม 3 จุด** | (ก) แถวเพจใน `ChannelsClient` เพิ่ม chip "ส่งยอดให้ Meta" คู่กับ `IceBreakerChip` เฉพาะ provider=MESSENGER และเมื่อฟีเจอร์เปิดให้ร้านนี้ (ข) **มือถือไม่มี sidebar** → ต้องเพิ่ม `/settings/capis` ใน `QUICK_LINK_URLS` ของ `role-nav.ts` (แถวในหน้า "ร้านค้า") ไม่เช่นนั้นเจ้าของร้านบนมือถือหาไม่เจอ (ค) ลงทะเบียน 3 route ใน `route-capabilities.ts` |
 | D3 | **Layout group** | ทั้ง 3 หน้าอยู่ `(dashboard)` ไม่ใช่ `(fullscreen)` (ต่างจาก ice-breakers) เพราะต้องมี sidebar/bottom nav ให้สลับไปหน้าแชทหรือออเดอร์ได้ระหว่างตั้งค่า |
 | D4 | **Pattern การบันทึก** | สวิตช์ทุกตัว = optimistic + revert + `pacesToast` (ท่าเดียวกับ `AutoNotifyClient`) · ฟอร์มที่แก้เป็นชุด (กฎแท็ก · เพิ่ม dataset) = กดบันทึกชัด ๆ พร้อมกัน dirty ท่าเดียวกับ `TagEditor` |
 | D5 | **ไม่ใช้ modal เป็นตัวเลือกแรก** (`operate.md`: "modal as first thought") | เพิ่ม dataset · ตั้งค่ายอดต่อเหตุการณ์ · ผลทดสอบ = แสดง inline ในหน้า ส่วน Swal ใช้เฉพาะ blocking จริง: ยืนยันลบ dataset · ยืนยันเปิดเพจครั้งแรก · ยืนยันทิ้งกฎที่ยังไม่บันทึก |
@@ -32,7 +32,7 @@ related: ["[[PRD]]", "[[BRD]]"]
 
 ---
 
-## หน้า 1: รายการเพจ — `/settings/conversions-api`
+## หน้า 1: รายการเพจ — `/settings/capis`
 
 ### User stories ที่ครอบ
 FR-001 (ซ่อนเมื่อฟีเจอร์ปิด/นอกร้านทดลอง) · FR-002 (เปิด/ปิดต่อเพจ) · FR-012 (เห็นเพจที่หยุดเพราะ token) · FR-013 (ส่งสำเร็จ 7 วัน) · Q1 (เจ้าของร้านเท่านั้น)
@@ -118,10 +118,10 @@ FR-001 (ซ่อนเมื่อฟีเจอร์ปิด/นอกร�
 | Toast | — | `pacesToast` ใน `@/lib/paces-toast` | ห้าม `react-toastify` |
 
 ### User flow
-1. เข้า `/settings/conversions-api` → เห็นเพจพร้อมสถานะ
+1. เข้า `/settings/capis` → เห็นเพจพร้อมสถานะ
 2. กดสวิตช์ของเพจที่เคยเปิดมาแล้ว → optimistic + toast "ปิดการส่งของเพจ {ชื่อ} แล้ว"
 3. กดสวิตช์เปิดครั้งแรก → Swal ถามก่อน → ยืนยันแล้ว PUT → toast
-4. กดแถว → `/settings/conversions-api/[channelId]`
+4. กดแถว → `/settings/capis/[channelId]`
 5. เพจ token เสีย → กด "เชื่อมเพจใหม่" → OAuth → กลับมาที่ `/settings/channels?status=connected`
 
 ### Content outline (ภาษาไทย — ใส่ dictionary `th` + `en` ทั้งคู่ตาม 00047)
@@ -147,7 +147,7 @@ FR-001 (ซ่อนเมื่อฟีเจอร์ปิด/นอกร�
 
 ---
 
-## หน้า 2: รายละเอียดเพจ — `/settings/conversions-api/[channelId]`
+## หน้า 2: รายละเอียดเพจ — `/settings/capis/[channelId]`
 
 ### User stories ที่ครอบ
 FR-002 · FR-003 (เพิ่ม ≤3 · อัตโนมัติ/กรอกเอง · ลบแล้วตัวอื่นคงเดิม) · FR-004 (ทดสอบ) · FR-005 (12 เหตุการณ์ต่อ dataset) · FR-006 (จังหวะ Purchase + ออเดอร์ร่าง) · FR-007 (ยอด + แนบสินค้า) · FR-010 (กฎแท็ก) · FR-012 (banner token เสีย)
@@ -379,7 +379,7 @@ FR-002 · FR-003 (เพิ่ม ≤3 · อัตโนมัติ/กรอ�
 
 ---
 
-## หน้า 3: บันทึกการส่ง — `/settings/conversions-api/[channelId]/log`
+## หน้า 3: บันทึกการส่ง — `/settings/capis/[channelId]/log`
 
 ### User stories ที่ครอบ
 FR-013 · FR-011 (สถานะรอ/สำเร็จ/ล้มเหลว/ข้าม + เหตุผล) · FR-012 (แถวรอเพราะ token)
@@ -493,8 +493,8 @@ FR-013 · FR-011 (สถานะรอ/สำเร็จ/ล้มเหลว
 
 | จุดที่แก้ | ไฟล์ | รายละเอียด |
 |---|---|---|
-| Sidebar | `src/lib/seller-menu.ts` กลุ่ม SETTING ต่อจาก `seller:settings-channels` | `{ url:'/settings/conversions-api', slug:'seller:settings-conversions-api', label:'ส่งยอดขายให้ Meta', icon:'ad-2' }` · ซ่อนเมื่อฟีเจอร์ปิด/ไม่ใช่เจ้าของ (ท่า `applyLineReportMenu`) · ห้ามใส่ใน `*_ONLY_SLUGS` (เห็นทุก vertical ที่มีเพจ Messenger) |
-| มือถือ | `src/lib/role-nav.ts` `QUICK_LINK_URLS` | เพิ่ม `/settings/conversions-api` ต่อจาก `/settings` (มือถือไม่มี sidebar) |
+| Sidebar | `src/lib/seller-menu.ts` กลุ่ม SETTING ต่อจาก `seller:settings-channels` | `{ url:'/settings/capis', slug:'seller:settings-conversions-api', label:'ส่งยอดขายให้ Meta', icon:'ad-2' }` · ซ่อนเมื่อฟีเจอร์ปิด/ไม่ใช่เจ้าของ (ท่า `applyLineReportMenu`) · ห้ามใส่ใน `*_ONLY_SLUGS` (เห็นทุก vertical ที่มีเพจ Messenger) |
+| มือถือ | `src/lib/role-nav.ts` `QUICK_LINK_URLS` | เพิ่ม `/settings/capis` ต่อจาก `/settings` (มือถือไม่มี sidebar) |
 | แถวเพจ | `settings/channels/ChannelsClient.tsx` | chip `ส่งยอดให้ Meta` คู่ `IceBreakerChip` เฉพาะ MESSENGER + ฟีเจอร์เปิด |
 | ลงทะเบียน route | `src/lib/route-capabilities.ts` | 3 บรรทัด (`page.tsx` · `[channelId]/page.tsx` · `[channelId]/log/page.tsx`) |
 | i18n | `src/i18n/dictionaries/th.ts` + `en.ts` | namespace ใหม่ `conversionsApi` ทั้งสองภาษา (00047) · ห้ามค่าคงที่ระดับ module ที่เป็นข้อความไทย |
@@ -572,7 +572,7 @@ Spec นี้ไม่มีบล็อก `=== DEEP-HANDOFF ===` เพรา
 
 # ส่วนที่ 1/3 — หน้า 1 (ต่อจาก desktop) · หน้า 2 ทุก breakpoint
 
-## หน้า 1 `/settings/conversions-api` — tablet · mobile · empty/stopped
+## หน้า 1 `/settings/capis` — tablet · mobile · empty/stopped
 
 **Tablet ~768** (DataTable สลับเป็นการ์ดรายการที่ `<lg` ตาม `DataTable.tsx` L160-165)
 ```
@@ -620,7 +620,7 @@ Spec นี้ไม่มีบล็อก `=== DEEP-HANDOFF ===` เพรา
 ```
 **สถานะ "หยุด":** badge `bg-danger/15 text-danger-ink` + ปุ่ม `btn-sm bg-primary/15 text-primary` "เชื่อมเพจใหม่" เป็น `<a href="/api/channels/facebook/connect">` (endpoint ตอบ 302 ต้องเป็น anchor) · ถ้าบาง dataset หยุดแต่เพจยังส่งอยู่ → badge `ส่งอยู่` + บรรทัดรอง `text-danger-ink text-xs` "ชุดข้อมูล {n} ตัวหยุด"
 
-## หน้า 2 `/settings/conversions-api/[channelId]`
+## หน้า 2 `/settings/capis/[channelId]`
 
 **Desktop ≥1280** — `grid xl:grid-cols-3` · คอลัมน์ขวา `xl:sticky xl:top-20 xl:self-start` (ท่า `TagEditor`)
 ```
@@ -754,7 +754,7 @@ Spec นี้ไม่มีบล็อก `=== DEEP-HANDOFF ===` เพรา
 
 # ส่วนที่ 2/3 — หน้า 3 log · Theme Source Mapping ทุกหน้า · เมนู
 
-## หน้า 3 `/settings/conversions-api/[channelId]/log`
+## หน้า 3 `/settings/capis/[channelId]/log`
 
 **Desktop ≥1280**
 ```
@@ -831,8 +831,8 @@ Theme root = `theme/paces/Admin/TS/src/` · "—" = ไม่มีของ the
 | ลิงก์เชื่อมเพจใหม่ | — | anchor แบบ `ChannelsClient.tsx` L318-325 | `<a href="/api/channels/facebook/connect">` |
 
 ## เมนู / ทางเข้า
-- **Sidebar:** `src/lib/seller-menu.ts` กลุ่ม SETTING ต่อจาก `seller:settings-channels` → `{ url:'/settings/conversions-api', slug:'seller:settings-conversions-api', label:'ส่งยอดขายให้ Meta', icon:'ad-2' }` · ซ่อนเมื่อฟีเจอร์ปิด/ไม่ใช่เจ้าของ (ท่า `applyLineReportMenu`) · ห้ามใส่ `*_ONLY_SLUGS`
-- **มือถือ:** `src/lib/role-nav.ts` `QUICK_LINK_URLS` เพิ่ม `/settings/conversions-api` ต่อจาก `/settings` (มือถือไม่มี sidebar)
+- **Sidebar:** `src/lib/seller-menu.ts` กลุ่ม SETTING ต่อจาก `seller:settings-channels` → `{ url:'/settings/capis', slug:'seller:settings-conversions-api', label:'ส่งยอดขายให้ Meta', icon:'ad-2' }` · ซ่อนเมื่อฟีเจอร์ปิด/ไม่ใช่เจ้าของ (ท่า `applyLineReportMenu`) · ห้ามใส่ `*_ONLY_SLUGS`
+- **มือถือ:** `src/lib/role-nav.ts` `QUICK_LINK_URLS` เพิ่ม `/settings/capis` ต่อจาก `/settings` (มือถือไม่มี sidebar)
 - **แถวเพจ:** `settings/channels/ChannelsClient.tsx` เพิ่ม chip `ส่งยอดให้ Meta` คู่ `IceBreakerChip` เฉพาะ MESSENGER + ฟีเจอร์เปิด
 - **route-capabilities:** ลงทะเบียน 3 route ใน `src/lib/route-capabilities.ts`
 - **i18n:** namespace `conversionsApi` ใน `th.ts` + `en.ts` (00047) · ห้ามค่าคงที่ module-level ที่เป็นข้อความไทย

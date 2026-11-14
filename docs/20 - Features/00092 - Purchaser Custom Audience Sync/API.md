@@ -19,7 +19,7 @@ related: ["[[SRS]]", "[[SDS]]"]
 | POST | `/api/shops/meta-audience/connect` | เลือกบัญชีโฆษณา/กรอก token → สถานะ |
 | GET | `/api/shops/meta-audience/accounts` | บัญชีโฆษณาที่ OAuth token (พักใน cookie) เข้าถึงได้ |
 | GET | `/api/meta-audience/connect` | เริ่ม OAuth (302 ไป Facebook) |
-| GET | `/api/meta-audience/callback` | รับ code (302 กลับ `/settings/conversions-api?audience=…`) |
+| GET | `/api/meta-audience/callback` | รับ code (302 กลับ `/settings/capis?audience=…`) |
 | GET | `/api/cron/meta-audience` | CRON · `Bearer CRON_SECRET` มิฉะนั้น 401 · ทุก 5 นาที |
 
 ## GET /api/shops/meta-audience
@@ -76,7 +76,7 @@ body (Valibot `AudienceConnectSchema`):
 | 500 | ไม่ได้ตั้ง `FB_CHAT_APP_ID` |
 
 ## GET /api/meta-audience/callback
-302 → `/settings/conversions-api?audience=` ค่า: `choose_account` (สำเร็จ + ตั้ง cookie `fb_audience_pending`) · `cancelled` · `state_mismatch` · `no_code` · `no_ad_account` · `error`
+302 → `/settings/capis?audience=` ค่า: `choose_account` (สำเร็จ + ตั้ง cookie `fb_audience_pending`) · `cancelled` · `state_mismatch` · `no_code` · `no_ad_account` · `error`
 
 ## Meta Graph ที่เรียก (ตัวเลขเวอร์ชันจาก `GRAPH_BASE`)
 | เรียก | ใช้ที่ |
@@ -87,7 +87,7 @@ body (Valibot `AudienceConnectSchema`):
 | `GET /me/adaccounts?fields=id,name,account_status&limit=100` | OAUTH |
 | `GET /oauth/access_token` (code → short → `fb_exchange_token`) | callback |
 
-## Push (ผู้ถือ X9 · `{type:'channel-health', url:'/settings/conversions-api'}`)
+## Push (ผู้ถือ X9 · `{type:'channel-health', url:'/settings/capis'}`)
 `pushMetaAudienceStopped` (ครั้งเดียวตอน ACTIVE→STOPPED) · `pushMetaAudienceTokenExpiring` (ครั้งเดียว ที่ < 7 วัน)
 
 ## Cron ผลคืน
