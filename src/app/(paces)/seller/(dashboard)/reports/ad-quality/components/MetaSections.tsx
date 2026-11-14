@@ -6,7 +6,7 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/page.tsx (กริดการ์ด — ไฟล์นี้เป็นตัวประกอบข้อมูล ไม่มี markup ของตัวเอง)
  */
 import { adDisplayName } from '@/lib/ad-attribution'
-import { buildQualityRows, buildTotals, spendRatios } from '@/lib/ad-quality-view'
+import { buildQualityRows, buildTotals, metaAdsNotInAccount, spendRatios } from '@/lib/ad-quality-view'
 import { formatDateTime } from '@/lib/format-date'
 import { getT } from '@/i18n/server'
 import type { QualityBundle } from '@/services/meta-ads-quality.service'
@@ -20,6 +20,8 @@ import SpendDeliveryHero from './SpendDeliveryHero'
 
 type Common = { bundle: QualityBundle; deep: QualityDeepSide; pageFiltered: boolean }
 
+
+
 /** แถว ① ② ③ — ต้องการ Q1 (+Q2 ของ ③) */
 export async function TopRowMeta({ bundle, deep, pageFiltered, noun }: Common & { noun: string }) {
   const [ad, account] = await Promise.all([bundle.ad, bundle.account])
@@ -27,14 +29,18 @@ export async function TopRowMeta({ bundle, deep, pageFiltered, noun }: Common & 
   const totals = buildTotals(rows)
   const reach = account.status === 'OK' ? account.rows[0] ?? null : null
   const ratios = spendRatios(deep.ads.summary.spend, totals, deep.chatsTotal, reach, { pageFiltered })
+  // ข้อความเต็ม + ปุ่มอยู่การ์ด ① ใบเดียว · การ์ดอื่นแสดงหัวข้ออย่างเดียว (ไม่ซ้ำหลายการ์ด)
+  const nia = metaAdsNotInAccount(ad.status, deep.deepAds.length, pageFiltered)
   return (
     <>
-      <ChatCompareHero deepOnly={false} status={ad.status} totals={ad.status === 'OK' ? totals : null} deepTotal={deep.chatsTotal} top={totals.highGapTop} />
-      <ChatQualityHero status={ad.status} totals={ad.status === 'OK' ? totals : null} orders={deep.ordersTotal} deepChats={deep.chatsTotal} closeRatePct={deep.closeRatePct} noun={noun} />
+      <ChatCompareHero deepOnly={false} status={ad.status} totals={ad.status === 'OK' ? totals : null} deepTotal={deep.chatsTotal} top={totals.highGapTop} notInAccount={nia ? { n: deep.deepAds.length, name: deep.ads.accountName } : undefined} />
+      <ChatQualityHero status={ad.status} totals={ad.status === 'OK' ? totals : null} orders={deep.ordersTotal} deepChats={deep.chatsTotal} closeRatePct={deep.closeRatePct} noun={noun} notInAccount={nia || undefined} />
       <SpendDeliveryHero
         spend={deep.ads.summary.spend} impressions={totals.impressions} reach={reach?.reach ?? null} frequency={ratios.frequency}
-        ctr={totals.ctr} cpc={ratios.cpc} costPerChatMeta={ratios.costPerChatMeta} costPerChatDeep={ratios.costPerChatDeep}
-        adStatus={ad.status} reachStatus={account.status}
+        ctr={totals.ctr} cpc={ratios.cpc} costPerChatMeta={ratios.costPerChatMeta}
+        // ค่าโฆษณาของบัญชีนี้ ÷ แชท (Deep) ที่อาจมาจากบัญชีอื่น = ตัวเลขลวง (เช่น ฿0) — คิดเมื่อ Meta มีแถวแอดเท่านั้น
+        costPerChatDeep={ad.status === 'OK' ? ratios.costPerChatDeep : null}
+        adStatus={ad.status} reachStatus={account.status} notInAccount={nia || undefined}
       />
     </>
   )
@@ -64,7 +70,7 @@ export async function TablesMeta({ bundle, deep, pageFiltered, noun }: Common & 
   const totals = buildTotals(rows)
   return (
     <>
-      <ChatGapTable rows={rows} totals={ad.status === 'OK' ? totals : null} deepOnly={false} status={ad.status} />
+      <ChatGapTable rows={rows} totals={ad.status === 'OK' ? totals : null} deepOnly={false} status={ad.status} notInAccount={metaAdsNotInAccount(ad.status, deep.deepAds.length, pageFiltered) || undefined} />
       {ad.status === 'OK' && <AdQualityTable rows={rows} noun={noun} totals={{ chatsMeta: totals.chatsMeta, chatsDeep: deep.chatsTotal, orders: deep.ordersTotal }} />}
     </>
   )

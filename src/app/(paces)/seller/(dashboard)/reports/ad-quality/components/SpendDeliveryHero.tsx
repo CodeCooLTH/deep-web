@@ -14,7 +14,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { formatBaht } from '@/lib/format-money'
 import { fmtDec2, fmtInt, fmtPct1, type CardStatus } from './data'
-import CardState from './CardState'
+import CardState, { type NotInAccount } from './CardState'
 import NoDataCell from './NoDataCell'
 
 type Props = {
@@ -29,6 +29,7 @@ type Props = {
   /** Q1 (แถวรวม) · Q2 (เข้าถึง) — สถานะแยกกัน */
   adStatus: CardStatus
   reachStatus: CardStatus
+  notInAccount?: NotInAccount
 }
 
 export default function SpendDeliveryHero(p: Props) {
@@ -57,6 +58,8 @@ export default function SpendDeliveryHero(p: Props) {
             <span className="badge bg-info/15 text-info-ink ms-auto py-0 text-sm">{fmt(t.perChatMeta, { v: formatBaht(p.costPerChatMeta) })}</span>
           )}
         </div>
+        {/* Meta ไม่มีข้อมูล → ไม่วาดตารางที่มีแต่ "—" ให้เลื่อนผ่าน */}
+        {q1 && (
         <div className="-mb-2.5 overflow-x-auto">
           <table className="table table-sm table-borderless whitespace-nowrap">
             <thead className="bg-default-100 text-2xs thead-sm">
@@ -77,7 +80,8 @@ export default function SpendDeliveryHero(p: Props) {
             </tbody>
           </table>
         </div>
-        {!q1 && <div className="mt-5"><CardState status={p.adStatus === 'OK' ? 'EMPTY' : (p.adStatus as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH')} /></div>}
+        )}
+        {!q1 && <div className="mt-5"><CardState status={p.adStatus === 'OK' ? 'EMPTY' : (p.adStatus as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH')} notInAccount={p.notInAccount} /></div>}
         {q1 && !q2 && <div className="mt-5"><CardState status={p.reachStatus as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} /></div>}
       </div>
     </div>

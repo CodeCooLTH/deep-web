@@ -282,6 +282,8 @@ export default function AdTableCard({ rows, summary, ads, noun, onOpen }: Props)
           <span className="text-default-700 text-sm">{a.sortBy}</span>
           <FilterDropdown align="right" value={mobileSort} options={sortKeys.map((k) => ({ value: k, label: sortLabel[k] }))} onChange={(v) => setMobileSort(v as AdSortKey)} />
         </div>
+        {/* หัวตาราง desktop (มีคำอธิบาย ROAS) ซ่อนบนมือถือ — อธิบายไว้ตรงนี้แทน */}
+        {showSpend && <p className="text-default-500 text-2xs mb-0 px-4 pb-2">ROAS = {a.roasTip}</p>}
         <div className="bg-default-100/70 px-4 py-2.5 text-sm">
           <p className="text-default-900 mb-0.5 flex justify-between gap-2 font-semibold">
             <span>{fmt(a.totalRow, { n: rows.length })}</span>

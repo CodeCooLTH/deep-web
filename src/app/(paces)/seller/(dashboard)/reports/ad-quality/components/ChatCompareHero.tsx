@@ -13,7 +13,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { HIGH_GAP_MIN_META_CHATS, HIGH_GAP_PCT, fmtInt, type CardStatus, type QualityRow, type QualityTotals } from './data'
-import CardState from './CardState'
+import CardState, { type NotInAccount } from './CardState'
 import NoDataCell from './NoDataCell'
 import AdThumb from '@/components/safepay/AdThumb'
 import { adDisplayName } from '@/lib/ad-attribution'
@@ -26,9 +26,10 @@ type Props = {
   /** แชท (Deep) ทั้งช่วง (ห้องไม่ซ้ำ) — ใช้เมื่อไม่มีชุดแอดเทียบ */
   deepTotal: number
   top: QualityRow | null
+  notInAccount?: NotInAccount
 }
 
-export default function ChatCompareHero({ deepOnly, status, totals, deepTotal, top }: Props) {
+export default function ChatCompareHero({ deepOnly, status, totals, deepTotal, top, notInAccount }: Props) {
   const t = useT().adQuality
   const idFallback = useT().inbox.contextBar.adIdFallback
   const ready = !deepOnly && status === 'OK' && totals !== null && totals.chatsMeta !== null
@@ -72,9 +73,9 @@ export default function ChatCompareHero({ deepOnly, status, totals, deepTotal, t
         ) : deepOnly ? (
           <div className="flex items-center justify-between text-sm"><span>{t.chatMeta}</span><span><NoDataCell /></span></div>
         ) : status === 'OK' ? (
-          <p className="text-default-700 mb-0 text-sm"><NoDataCell /></p>
+          <p className="text-default-700 mb-0 text-sm">{t.h1NoMetaChats}</p>
         ) : (
-          <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} />
+          <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} notInAccount={notInAccount} />
         )}
 
         {ready && (

@@ -68,7 +68,7 @@ export default async function AdSalesReportPage({ searchParams }: { searchParams
           icon="building-store"
           title={t.adReport.noShopTitle}
           description={t.adReport.noShopDesc}
-          action={{ label: 'สร้างร้านค้า', href: '/shop' }}
+          action={{ label: t.adReport.noShopAction, href: '/shop' }}
         />
       </>
     )

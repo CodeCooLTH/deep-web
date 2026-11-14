@@ -281,3 +281,7 @@ export function campaignLine(g: CampaignGroup): QualityLine {
     subRows: g.rows.map(adLine),
   }
 }
+
+/** Meta ตอบว่างทั้งที่ช่วงนี้มีแชท (Deep) จากแอด (ไม่กรองเพจ) → แอดน่าจะลงจากบัญชีโฆษณาอื่น — "ขยายช่วงวันที่" ไม่ช่วย ต้องตรวจบัญชีที่เชื่อม */
+export const metaAdsNotInAccount = (status: string, deepAdCount: number, pageFiltered: boolean) =>
+  status === 'EMPTY' && !pageFiltered && deepAdCount > 0
