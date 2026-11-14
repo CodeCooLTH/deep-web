@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { flashError, flashJson, mapFlashError } from "@/lib/flash/route-helpers";
 import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
+import { setTrackingNotice } from "@/services/auto-notify.service";
 import { FlashCreateShipmentSchema } from "@/lib/validations";
 import { readJson } from "@/lib/iship/route-helpers";
 import { resolveFlashOrderId } from "@/lib/flash/route-helpers";
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const orderId = await resolveFlashOrderId(guard.shopId, parsed.output);
     if (!orderId) return flashError("INVALID_INPUT", "ต้องระบุคำสั่งซื้อ", 400);
+    await setTrackingNotice(guard.shopId, orderId, parsed.output.notifyCustomer ?? true);
     const { override, receiver } = parsed.output;
     return flashJson(await createFlashShipment(guard.shopId, guard.userId, orderId, override, receiver), 201);
   } catch (err) {

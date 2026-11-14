@@ -23,6 +23,7 @@ import type { MissingReceiverField, SenderAddress } from '@/lib/iship/mapping'
 import type { ParcelDefaults, ReceiverData, ShipmentReviewItem, ShipmentViewJson } from '@/lib/iship/context'
 import { flashItemNotices, flashPriceBadge, flashPriceState, flashPriceSubline } from '@/lib/shipping/flash-order-ui'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
+import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 import { NOTICE_BOX, TONE_BADGE } from '@/components/safepay/iship/tone'
 import type { ShipmentFooterReporter } from '@/components/safepay/iship/shipment-footer'
 import AddressSearchSheet, {
@@ -44,6 +45,10 @@ interface Props {
   submitLabel?: string
   /** ช่องเพิ่มเติมของผู้เรียก (เช่น ติ๊กแจ้งเลขในแชท) */
   extraFields?: () => React.ReactNode
+  /**
+   * 00090 — ผู้เรียกคุมเรื่องแจ้งเลขเอง (แผงแชท: ส่ง false เพราะมีช่องติ๊กของตัวเอง) · ไม่ส่ง = ฟอร์มวาดสวิตช์เอง ค่าเริ่มต้นเปิด
+   */
+  notifyCustomer?: boolean
   /** เรียกทุกผลที่แถวถูกสร้าง (CREATED / FAILED / NEEDS_REVIEW) — ผู้เรียกสลับไปหน้าสถานะเสมอ */
   onCreated: (shipment: ShipmentViewJson) => void
   /** 409 = มีพัสดุที่ยังใช้งานอยู่แล้ว — ผู้เรียกโหลด context ใหม่ */
@@ -102,12 +107,14 @@ export default function FlashCreateForm({
   defaults,
   submitLabel = 'สร้างพัสดุที่ Flash',
   extraFields,
+  notifyCustomer,
   onCreated,
   onExists,
   formId,
   hideSubmit = false,
   onFooterChange,
 }: Props) {
+  const [notifyOwn, setNotifyOwn] = useState(true)
   const flashUrl = useIShipUrl()
   const [busy, setBusy] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
@@ -259,6 +266,7 @@ export default function FlashCreateForm({
         body: JSON.stringify({
           orderToken,
           receiver: form,
+          notifyCustomer: notifyCustomer ?? notifyOwn,
           override: {
             weight: numOrUndefined(weight),
             ...(wd != null ? { width: wd } : {}),
@@ -565,6 +573,11 @@ export default function FlashCreateForm({
       </section>
 
       {extraFields && <section className="border-b-8 border-default-100 p-4">{extraFields()}</section>}
+      {notifyCustomer === undefined && (
+        <section className="border-b-8 border-default-100 p-4">
+          <TrackingNoticeToggle checked={notifyOwn} onChange={setNotifyOwn} />
+        </section>
+      )}
 
       {/* ── ตรวจก่อนสร้างพัสดุ ──────────────────────────────────── */}
       <section className="border-b-8 border-default-100 p-4">

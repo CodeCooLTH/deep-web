@@ -10,7 +10,9 @@
  *       + in-app: src/components/safepay/iship/ShipmentLinkPanel.tsx (โครงหัวข้อ + ปุ่มกลับไปสร้างใหม่)
  */
 
+import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 import type { ShipmentViewJson } from '@/lib/iship/context'
 import type { ShipmentFooterReporter } from '@/components/safepay/iship/shipment-footer'
 import FlashPnoLink from './FlashPnoLink'
@@ -23,6 +25,8 @@ interface Props {
   formId?: string
   hideSubmit?: boolean
   onFooterChange?: ShipmentFooterReporter
+  /** 00090 — ผู้เรียกคุมเรื่องแจ้งเลขเอง (แผงแชท: false) · ไม่ส่ง = วาดสวิตช์เอง ค่าเริ่มต้นเปิด */
+  notifyCustomer?: boolean
 }
 
 export default function FlashLinkPanel({
@@ -32,7 +36,9 @@ export default function FlashLinkPanel({
   formId,
   hideSubmit,
   onFooterChange,
+  notifyCustomer,
 }: Props) {
+  const [notifyOwn, setNotifyOwn] = useState(true)
   return (
     <section className="flex flex-col gap-3 p-4">
       <header>
@@ -46,12 +52,14 @@ export default function FlashLinkPanel({
       </header>
 
       <FlashPnoLink
-        confirmRequest={(pno) => ({ path: '/api/seller/flash/shipments/link', body: { orderToken, pno } })}
+        confirmRequest={(pno) => ({ path: '/api/seller/flash/shipments/link', body: { orderToken, pno, notifyCustomer: notifyCustomer ?? notifyOwn } })}
         onLinked={onLinked}
         formId={formId}
         hideSubmit={hideSubmit}
         onFooterChange={onFooterChange}
       />
+
+      {notifyCustomer === undefined && <TrackingNoticeToggle checked={notifyOwn} onChange={setNotifyOwn} />}
 
       {onSwitchToCreate && (
         <button

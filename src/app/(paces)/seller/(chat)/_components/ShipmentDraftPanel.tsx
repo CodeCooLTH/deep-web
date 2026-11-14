@@ -191,6 +191,7 @@ export default function ShipmentDraftPanel({
    * ร้านต้องเป็นคนเลือกจังหวะเอง (มีปุ่ม "แจ้งเลขในแชท" ในหน้าสถานะให้กดเมื่อพร้อม)
    * เดิมติ๊กไว้ให้ เลยกลายเป็นส่งอัตโนมัติทุกครั้งที่เปิดพัสดุ (user report 2026-07-29)
    */
+  // 00090 — ช่องนี้คือตัวคุมเดียวของแผง: ทุกฟอร์มในแผงส่ง notifyCustomer={false} ให้ server ไม่ส่งซ้ำอัตโนมัติ
   const [notify, setNotify] = useState(false)
   const [forceForm, setForceForm] = useState(false)
   // undefined = ยังไม่แตะ → ใช้ค่าเริ่มต้นตามชนิดร้าน (defaultMethod): iShip เจ้าเดียว "สร้างพัสดุ iShip" (พฤติกรรมเดิม)
@@ -622,6 +623,7 @@ export default function ShipmentDraftPanel({
     return (
       <FlashPanel
         orderToken={orderToken}
+        notifyCustomer={false}
         panel={flashCtx}
         isOwner={isOwner}
         canManageParcel={ctx?.canShip === true}
@@ -702,6 +704,7 @@ export default function ShipmentDraftPanel({
       </p>
       <ShipForm
         publicToken={orderToken}
+        notifyCustomer={false}
         alwaysOpen
         hideActions
         showShipCost={ctx?.canSetShipCost === true}
@@ -803,6 +806,7 @@ export default function ShipmentDraftPanel({
           // key = method: สลับสร้าง/ผูกแล้วต้อง mount ใหม่ ไม่งั้นโหมดข้างในค้างค่าเดิม
           key={method}
           orderToken={orderToken}
+          notifyCustomer={false}
           panel={flashCtx}
           isOwner={isOwner}
           canManageParcel={ctx?.canShip === true}
@@ -840,6 +844,7 @@ export default function ShipmentDraftPanel({
         {modeSwitch}
         <ShipmentLinkPanel
           orderToken={orderToken}
+          notifyCustomer={false}
           onLinked={handleCreated}
           onSwitchToCreate={() => setMethod('ISHIP')}
         />
@@ -871,6 +876,7 @@ export default function ShipmentDraftPanel({
       {modeSwitch}
       <ShipmentCreateForm
         orderToken={orderToken}
+        notifyCustomer={false}
         missingReceiver={ready.missingReceiver}
         receiver={ready.receiver}
         sender={ready.sender}

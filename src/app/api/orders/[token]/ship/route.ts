@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessShopWith } from "@/lib/shop-capability";
 import { sessionUserId } from "@/lib/session-user";
 import { translateInvalidTransition } from "@/lib/chat-shipment-panel";
+import { setTrackingNotice } from "@/services/auto-notify.service";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -39,6 +40,7 @@ export async function POST(
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400, headers: NO_STORE });
 
   try {
+    await setTrackingNotice(order.shopId, order.id, parsed.output.notifyCustomer ?? true);
     const updated = await shipOrder(token, parsed.output, userId);
     return NextResponse.json(updated, { headers: NO_STORE });
   } catch (err: any) {
@@ -70,6 +72,7 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400, headers: NO_STORE });
 
   try {
+    if (parsed.output.notifyCustomer !== undefined) await setTrackingNotice(order.shopId, order.id, parsed.output.notifyCustomer);
     const updated = await updateShipmentTracking(token, parsed.output, userId);
     return NextResponse.json(updated, { headers: NO_STORE });
   } catch (err: any) {

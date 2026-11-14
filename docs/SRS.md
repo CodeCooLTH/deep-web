@@ -1851,6 +1851,19 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 ---
 
+### 6.79 สวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" — `Order.notifyTracking` (feature 00090)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `notifyTracking` | `boolean` NOT NULL DEFAULT `true` | ร้านเลือกต่อใบตอนสร้าง/ผูก/บันทึกเลขพัสดุ · `false` = `reserveTrackingNotice` คืน `null` ไม่แตะ ledger (เหมือนไม่มีห้อง) |
+
+- migration `20261114100000_00090_order_notify_tracking` (additive · ใบเดิมทั้งหมด = `true` = พฤติกรรมเดิม)
+- อยู่บน `Order` ไม่ใช่ `OrderShipment`: จุดที่แจ้งเลขจริงบางจุดเกิดทีหลังจากคนละแถว (ลองใหม่ iShip/Flash · กด "จัดส่งแล้ว" ON_DISPATCH · แก้เลข) — ตัวกั้นจุดเดียวใน `reserveTrackingNotice` ครอบทุกทาง
+- เขียนผ่าน `setTrackingNotice(shopId, orderId, enabled)` (scope ร้านใน WHERE) ที่ route ก่อนเรียก service
+- body คีย์ `notifyCustomer?: boolean` ใน `IShipCreateShipmentSchema` · `IShipLinkShipmentSchema` · `FlashCreateShipmentSchema` · `FlashLinkSchema` · `ShipOrderSchema` — ไม่ส่งคีย์: POST สร้าง/ผูก/บันทึก = `true` · PATCH แก้เลข = ไม่แตะค่าเดิม
+- แผงพัสดุในแชท (`ShipmentDraftPanel`) ส่ง `false` เสมอ — แผงแจ้งเลขเองตามช่องติ๊กของแผง (กันลูกค้าได้ข้อความสองรอบ)
+- สวิตช์ระดับร้าน (`AutoNotifySwitch` kind `TRACKING`) ยังเป็นด่านแรก — ปิดที่ร้าน = ไม่ส่งไม่ว่าใบจะตั้งอะไร
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -1976,8 +1989,8 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) · **00073:** งานร้านบริการที่ปิดแบบไม่มาตามนัด → 409 (`SERVICE_JOB_NO_SHOW_CONFIRM` — ทั้งเว็บและ `/api/app/orders/[id]/confirm`) | `order.service` |
 | POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session · **00073:** งานร้านบริการที่ปิดแล้ว → 409 (`SERVICE_JOB_CLOSED_LOCKED`) · ร้านบริการไม่รับเหตุผล `BUYER_NO_SHOW` แล้ว (ไม่มาตามนัด = ปิดงาน) | `order.service` |
-| POST | `/api/orders/[token]/ship` | Seller **S1** | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) · **00080 (ออกแบบแล้ว):** ไม่เปลี่ยน `status` (คง PENDING = ขั้น "รอจัดส่ง") · ดู §7.30 | `order.service` |
-| PATCH | `/api/orders/[token]/ship` | Seller **S1** | แก้เลข/ขนส่ง/ต้นทุนส่งเอง · **00080:** รับ PENDING หรือ SHIPPED (เดิม SHIPPED อย่างเดียว) · ปฏิเสธเมื่อมี live iShip | `order.service` |
+| POST | `/api/orders/[token]/ship` | Seller **S1** | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) · **00080 (ออกแบบแล้ว):** ไม่เปลี่ยน `status` (คง PENDING = ขั้น "รอจัดส่ง") · ดู §7.30 · **00090:** `notifyCustomer` optional (default true) ดู §6.79 | `order.service` |
+| PATCH | `/api/orders/[token]/ship` | Seller **S1** | แก้เลข/ขนส่ง/ต้นทุนส่งเอง · **00080:** รับ PENDING หรือ SHIPPED (เดิม SHIPPED อย่างเดียว) · ปฏิเสธเมื่อมี live iShip · **00090:** `notifyCustomer` optional (ไม่ส่ง = ไม่แตะ) | `order.service` |
 | POST | `/api/orders/[token]/dispatch` | Seller **S1** | **feature 00080** — "จัดส่งแล้ว" PENDING→SHIPPED (ส่งเอง) · ดู §7.30 | `order.service` |
 | POST | `/api/orders/[token]/delivered` | Seller **S1** | **feature 00080** — "ส่งสำเร็จ" SHIPPED→CONFIRMED (ส่งเอง) · ดู §7.30 | `order.service` |
 | GET | `/api/orders/[token]/close` | Seller **O4** | **feature 00073** — สถานะเงินของงานสำหรับชีตปิดงาน (บอร์ดคิว/แชทไม่ถือยอดไว้) · คืน `{ money }` เฉพาะผู้มี O5 · ผู้อื่นได้ `{ money: null }` · `?shopId=` optional | `order-payment.service` |

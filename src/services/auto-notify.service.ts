@@ -225,7 +225,7 @@ export async function reserveAutoNotifyIntent(tx: Tx, p: ReserveInput): Promise<
  */
 export async function reserveTrackingNotice(tx: Tx, orderId: string, trackingNo: string): Promise<string | null> {
   // การอ่านต้องอยู่ใน SAVEPOINT ด้วย — query ที่ล้มนอก savepoint ทำให้ Postgres abort ทั้ง tx แล้ว commit ของงานหลักล้มตาม
-  let o: { shopId: string; conversationId: string | null; isDryRun: boolean } | null
+  let o: { shopId: string; conversationId: string | null; isDryRun: boolean; notifyTracking: boolean } | null
   try {
     await tx.$executeRawUnsafe('SAVEPOINT auto_notify_read')
   } catch (e) {
@@ -233,7 +233,7 @@ export async function reserveTrackingNotice(tx: Tx, orderId: string, trackingNo:
     return null
   }
   try {
-    o = await tx.order.findUnique({ where: { id: orderId }, select: { shopId: true, conversationId: true, isDryRun: true } })
+    o = await tx.order.findUnique({ where: { id: orderId }, select: { shopId: true, conversationId: true, isDryRun: true, notifyTracking: true } })
     await tx.$executeRawUnsafe('RELEASE SAVEPOINT auto_notify_read')
   } catch (e) {
     try {
@@ -244,11 +244,20 @@ export async function reserveTrackingNotice(tx: Tx, orderId: string, trackingNo:
     console.error('[auto-notify] อ่านออเดอร์ก่อนจองล้มเหลว (งานหลักไม่กระทบ)', { orderId, err: errTag(e) })
     return null
   }
-  if (!o?.conversationId) return null
+  // 00090 — ร้านปิดสวิตช์ "ส่งเลขพัสดุให้ลูกค้า" ของใบนี้ = ไม่แตะ ledger (เหมือนไม่มีห้อง)
+  if (!o?.conversationId || !o.notifyTracking) return null
   return reserveAutoNotifyIntent(tx, {
     shopId: o.shopId, orderId, conversationId: o.conversationId, kind: 'TRACKING',
     valueKey: trackingNo, isDryRun: o.isDryRun, keyedInAt: new Date(),
   })
+}
+
+/**
+ * 00090 — บันทึกสวิตช์รายใบ "ส่งเลขพัสดุให้ลูกค้า" ก่อนจุดที่เกิดเลข (สร้าง/ผูก/บันทึกเลขเอง)
+ * scope ร้านใน WHERE · ค่านี้ใช้ต่อทุกครั้งที่ใบนี้จะแจ้งเลข (ลองใหม่ · กด "จัดส่งแล้ว" · แก้เลข)
+ */
+export async function setTrackingNotice(shopId: string, orderId: string, enabled: boolean): Promise<void> {
+  await prisma.order.updateMany({ where: { id: orderId, shopId }, data: { notifyTracking: enabled } })
 }
 
 /** หลัง COMMIT เท่านั้น — dispatch ไม่ throw · พลาดแล้ว sweeper เก็บ INTENT ที่ค้าง */

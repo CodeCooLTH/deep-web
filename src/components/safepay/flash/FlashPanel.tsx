@@ -46,6 +46,8 @@ interface Props {
   onCreated?: (shipment: ShipmentViewJson) => void
   /** T10b — ช่องเพิ่มเติมท้ายฟอร์มสร้าง (ติ๊กแจ้งเลขในแชท) */
   extraFields?: () => React.ReactNode
+  /** 00090 — ส่งต่อให้ฟอร์มสร้าง/ผูก (แผงแชท: false) · ไม่ส่ง = ฟอร์มวาดสวิตช์เอง */
+  notifyCustomer?: boolean
   /** false = ไม่ router.refresh() (แชทไม่ต้องรีเฟรชหน้า inbox ทั้งหน้า) · ค่าตั้งต้น true เหมือนเดิม */
   refreshOnChange?: boolean
   /** 00085 — ผู้ดูถือ S1 (ปิดพัสดุมีปัญหา) · ไม่ส่ง = ปิด */
@@ -64,6 +66,7 @@ export default function FlashPanel({
   onChanged,
   onCreated,
   extraFields,
+  notifyCustomer,
   refreshOnChange = true,
   canManageParcel = false,
 }: Props) {
@@ -174,6 +177,7 @@ export default function FlashPanel({
   if (linkMode) {
     return (
       <FlashLinkPanel
+        notifyCustomer={notifyCustomer}
         orderToken={orderToken}
         onLinked={afterCreated}
         onSwitchToCreate={() => setLinkMode(false)}
@@ -197,6 +201,7 @@ export default function FlashPanel({
       codSuggested={ready.codSuggested}
       defaults={ready.defaults}
       extraFields={extraFields}
+      notifyCustomer={notifyCustomer}
       onCreated={afterCreated}
       onExists={() => router.refresh()}
     />
