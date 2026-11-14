@@ -56,7 +56,7 @@ flowchart LR
 - เรียก Meta ด้วย `Authorization: Bearer` (ไม่มี token ใน body/URL) · `fetchImpl` ฉีดได้ทุกจุด (เทสไม่แตะเครือข่าย)
 
 ### 3.4 OAuth
-`/api/meta-audience/connect` (X9 + เฉพาะ role) → Facebook → `/api/meta-audience/callback` แลก long-lived token → ตรวจว่ามีบัญชีโฆษณา → เก็บ token+expiry ใน cookie `fb_audience_pending` (AES-GCM ด้วย `token-crypto` · httpOnly · path `/api/shops/meta-audience` · 10 นาที) → redirect `/settings/conversions-api?audience=choose_account` → UI เรียก `GET …/accounts` แล้ว `POST …/connect {mode:'OAUTH', adAccountId}` (ตรวจว่าอยู่ในรายการที่ token เข้าถึงได้) → ลบ cookie
+`/api/meta-audience/connect` (X9 + เฉพาะ role) → Facebook → `/api/meta-audience/callback` แลก long-lived token → ตรวจว่ามีบัญชีโฆษณา → เก็บ token+expiry ใน cookie `fb_audience_pending` (AES-GCM ด้วย `token-crypto` · httpOnly · path `/api/shops/meta-audience` · 10 นาที) → redirect `/settings/capis?audience=choose_account` → UI เรียก `GET …/accounts` แล้ว `POST …/connect {mode:'OAUTH', adAccountId}` (ตรวจว่าอยู่ในรายการที่ token เข้าถึงได้) → ลบ cookie
 
 ### 3.5 ความปลอดภัย
 - `tokenEnc` ไม่ถูก select ออกจาก service (`getAudienceStatus` เลือกฟิลด์เอง) · ไม่ log token/body
