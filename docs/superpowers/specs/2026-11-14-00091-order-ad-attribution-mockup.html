@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00091 ที่มาโฆษณาของคำสั่งซื้อ + รายงานยอดขายตามโฆษณา — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00078 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-lg:0 4px 16px rgba(76,76,92,.2); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --shadow-lg:0 4px 16px rgba(0,0,0,.45); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces — กล่องแตะ 44×44 วาดราง 30×20 */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; width:44px; height:44px; margin:-12px -7px; background:transparent; border:0; cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:7px; top:12px; width:30px; height:20px; border-radius:9999px; background:var(--d200); border:1px solid var(--d300); box-sizing:border-box; }
+  .form-switch::after { content:""; position:absolute; left:11px; top:16px; width:12px; height:12px; border-radius:9999px; background:var(--knob); transition:transform .15s; }
+  .form-switch:checked::before { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::after { background:#fff; transform:translateX(14px); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  /* .form-radio ของ Paces 18px */
+  .form-radio { appearance:none; width:18px; height:18px; border-radius:9999px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; margin-top:2px; }
+  .form-radio:checked { border:5px solid var(--primary); }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .tabbtn[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .badge { display:inline-flex; align-items:center; gap:.25rem; border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; white-space:nowrap; }
+    .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+    .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border-bottom:1px dashed var(--d300); padding:15px 20px; }
+    .card-title { font-size:15px; font-weight:500; color:var(--d900); }
+    .card-body { padding:20px; }
+    .card-footer { border-top:1px solid var(--d200); padding:15px 20px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; white-space:nowrap; }
+    .btn-sm { padding:.25rem .625rem; font-size:13px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px; border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+    .form-input, .form-select { display:block; width:100%; border:1px solid var(--d300); border-radius:4px; background:var(--card); color:var(--d900); padding:.5rem .75rem; font-size:14px; }
+    .form-select { appearance:none; padding-inline-end:2rem; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358626b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .6rem center; background-size:16px; }
+    .form-input::placeholder { color:var(--d500); }
+    .form-label { display:block; margin-bottom:.25rem; font-size:13px; font-weight:500; color:var(--d800); }
+    .input-group { display:flex; width:100%; }
+    .input-group > * + * { margin-inline-start:-1px; }
+    .input-group > :not(:first-child) { border-start-start-radius:0; border-end-start-radius:0; }
+    .input-group > :not(:last-child) { border-start-end-radius:0; border-end-end-radius:0; }
+    .input-group > .form-input { flex:1; min-width:0; }
+    .input-group-text { display:flex; align-items:center; border:1px solid var(--d300); border-radius:4px; background:var(--d100); padding:0 .75rem; font-size:14px; color:var(--d700); }
+    .nav-tab { display:inline-flex; align-items:center; gap:.375rem; margin-bottom:-1px; border-bottom:2px solid transparent; padding:.5rem .25rem; font-size:14px; color:var(--d700); white-space:nowrap; }
+    .nav-tab.active { border-color:var(--primary); color:var(--primary-ink); font-weight:500; }
+  }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-30 border-b border-d300" style="background:var(--card)">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00091 ที่มาโฆษณาของคำสั่งซื้อ + รายงานยอดขายตามโฆษณา · ฝั่งผู้ขาย ธีม Paces</h1>
+      <p class="text-xs text-d600">ตาม Design-Spec.md + คำตัดสินของ Controller · 4 หน้าจอ × Desktop 1280 / Tablet 768 / Mobile 390 · ข้อมูลตัวอย่าง: ร้านธนภัทร์ อะไหล่มอเตอร์ไซค์ · ช่วง 16-10-2569 – 14-11-2569</p>
+    </div>
+    <nav class="flex flex-wrap gap-2" role="tablist" aria-label="เลือกหน้าจอ">
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s1" aria-selected="true">1 รายการคำสั่งซื้อ</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s2" aria-selected="false">2 การ์ดในแชท</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s3" aria-selected="false">3 หน้ารายละเอียด</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="s4" aria-selected="false">4 รายงานตามโฆษณา</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="all" aria-selected="false">ทั้งหมด</button>
+    </nav>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="${n.includes(':') ? n : 'tabler:' + n}" width="${s}" height="${s}" class="${c}" noobserver aria-hidden="true"></iconify-icon>`
+const DEVS = [
+  { k: 'd', w: 1280, label: 'Desktop 1280' },
+  { k: 't', w: 768, label: 'Tablet 768' },
+  { k: 'm', w: 390, label: 'Mobile 390' },
+]
+const T44 = (dev) => (dev.k !== 'd' ? 'min-h-11' : '')
+
+// รูปตัวอย่าง (SVG) — คน / ล้อ / โช๊ค / ไฟหน้า
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},45%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function prodImg(kind) {
+  const bg = { wheel: '#2b2f36', shock: '#3d4f63', led: '#1f2a44', rim: '#4a3b2a' }[kind]
+  const fg = {
+    wheel: "<circle cx='20' cy='20' r='14' fill='none' stroke='%23cfd6de' stroke-width='4'/><circle cx='20' cy='20' r='4' fill='%23cfd6de'/><path d='M20 8v24M8 20h24' stroke='%23cfd6de' stroke-width='2'/>",
+    shock: "<rect x='17' y='6' width='6' height='28' rx='3' fill='%23f9bf59'/><path d='M13 12h14M13 17h14M13 22h14M13 27h14' stroke='%23e7e9eb' stroke-width='2'/>",
+    led: "<circle cx='20' cy='20' r='11' fill='%23fff7d6'/><circle cx='20' cy='20' r='6' fill='%23ffffff'/><path d='M4 20h4M32 20h4M20 4v4M20 32v4' stroke='%23fff7d6' stroke-width='2'/>",
+    rim: "<circle cx='20' cy='20' r='14' fill='none' stroke='%23e0b070' stroke-width='5'/><circle cx='20' cy='20' r='3' fill='%23e0b070'/>",
+  }[kind]
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='${encodeURIComponent(bg)}'/%3E${fg.replace(/</g, '%3C').replace(/>/g, '%3E')}%3C/svg%3E`
+}
+function frame(dev, inner) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame" style="width:${dev.w}px">${inner}</div></div>`
+}
+function section(id, group, title, notes, body) {
+  return `<section id="${id}" data-group="${group}"><h2 class="mb-1 text-lg font-bold text-d900">${title}</h2>
+    <ul class="mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li class="mt-0.5">${n}</li>`).join('')}</ul>${body}</section>`
+}
+const row3 = (fn) => `<div class="flex flex-wrap items-start gap-10">${DEVS.map((d) => frame(d, fn(d))).join('')}</div>`
+
+const TONE = {
+  primary: 'bg-primary15 text-primary-ink', danger: 'bg-danger15 text-danger-ink', success: 'bg-success15 text-success-ink',
+  warning: 'bg-warning15 text-warning-ink', info: 'bg-info15 text-info-ink', neutral: 'bg-d200 text-d800',
+}
+const badge = (tone, text, icon, cls = '') => `<span class="badge ${TONE[tone]} ${cls}">${icon ? IC(icon, 12) : ''}${text}</span>`
+const ST = {
+  shipping: ['info', 'truck-delivery', 'กำลังจัดส่ง'], waiting: ['warning', 'package', 'รอจัดส่ง'],
+  done: ['success', 'circle-check', 'ส่งสำเร็จ'], cancel: ['neutral', 'circle-x', 'ยกเลิก'],
+}
+const stBadge = (k) => badge(ST[k][0], ST[k][2], ST[k][1], 'rounded-full')
+function crumbs(items) {
+  return `<nav aria-label="breadcrumb" class="mb-1 flex flex-wrap items-center gap-1.25 text-xs font-medium text-d600">${items.map((c, i) => i === items.length - 1 ? `<span aria-current="page" class="text-d700">${c}</span>` : `${c} ${IC('chevron-right', 12)}`).join(' ')}</nav>`
+}
+function sideNav(active) {
+  const it = (i, l) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${l === active ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[245px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">MAIN</p>
+    <ul class="mb-3 space-y-0.5">${it('home', 'หน้าหลัก')}${it('message-circle', 'ข้อความ')}${it('shopping-cart', 'คำสั่งซื้อ')}${it('package', 'สินค้า')}${it('users', 'ลูกค้า')}</ul>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">ANALYTICS</p>
+    <ul class="space-y-0.5">${it('chart-bar', 'ยอดขายรายสินค้า')}${it('speakerphone', 'ยอดขายตามโฆษณา')}${it('report-money', 'กำไรขาดทุน')}</ul></aside>`
+}
+const BOTTOM = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+function shell(dev, { trail, title, mTitle, nav, tab, back = true }, inner) {
+  if (dev.k === 'd') {
+    return `<div class="flex">${sideNav(nav)}<div class="min-w-0 flex-1">
+      <div class="flex h-[65px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto flex items-center gap-4">${IC('bell', 20, 'text-d700')}<img src="${photo(30)}" alt="" class="size-8 rounded-full" /></span></div>
+      <div class="p-5"><div class="mb-5">${crumbs(trail)}<h3 class="text-lg font-semibold text-d900">${title}</h3></div>${inner}</div></div></div>`
+  }
+  return `<div class="flex min-h-14 items-center gap-2 border-b border-d200 bg-card px-2">
+      ${back ? `<button type="button" aria-label="ย้อนกลับ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button>` : '<span class="w-2"></span>'}
+      <span class="min-w-0 truncate text-md font-semibold text-d900">${mTitle}</span></div>
+    <div class="p-4">${inner}</div>
+    <nav class="grid h-[72px] grid-cols-5 items-center border-t border-d200 bg-card">${BOTTOM.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === tab ? 'font-medium text-primary-ink' : 'text-d600'}">${IC(i, 22)}${l}</span>`).join('')}</nav>`
+}
+const msgLogo = (s = 20) => `<span class="flex shrink-0 items-center justify-center">${IC('logos:messenger', s)}</span>`
+const lineLogo = (s = 20) => `<span class="flex shrink-0 items-center justify-center">${IC('simple-icons:line', s, 'text-success')}</span>`
+
+// =====================================================================
+// ข้อมูลตัวอย่าง (ตัวเลขรวมกันลงตัว — ดู .md)
+// =====================================================================
+const AD1 = 'โปรล้อแม็ก 11.11 วันเดียว ลด 40% ล้อแม็ก 17 นิ้ว ขอบ 4 รู Wave/Click ส่งฟรีทั่วไทย'
+const AD2 = 'ไฟหน้า LED'
+const ADS = [
+  { id: '120213458800120431', name: AD1, img: 'wheel', chats: 212, orders: 48, sales: 182400, cancel: 3 },
+  { id: '120213458800120577', name: 'โช๊คหลัง YSS ตรงรุ่น PCX / ADV 160', img: 'shock', chats: 145, orders: 37, sales: 96200, cancel: 1 },
+  { id: '120213458800120612', name: AD2, img: null, chats: 160, orders: 31, sales: 40300, cancel: 0 },
+  { id: '120213458800120219', name: null, img: null, chats: 0, orders: 2, sales: 5400, cancel: 0 },
+  { id: '120213458800120788', name: 'ล้อแม็กลดล้างสต็อก ขอบ 14', img: 'rim', chats: 88, orders: 0, sales: 0, cancel: 0 },
+]
+const SUM = { adSales: 324300, adOrders: 118, otherSales: 689700, otherOrders: 301, pct: 32 }
+const baht = (n) => '฿' + n.toLocaleString('en-US')
+const rate = (a) => (a.chats === 0 ? '—' : Math.round((a.orders / a.chats) * 100) + '%')
+const avg = (a) => (a.orders === 0 ? '—' : baht(Math.round(a.sales / a.orders)))
+const adLabel = (a) => a.name ?? `รหัสโฆษณา ${a.id}`
+
+// =====================================================================
+// 1) /orders
+// =====================================================================
+const ORDERS = [
+  { no: 'DP2569113F8A21C4', when: '14-11-2569 09:41:12', name: 'สมชาย ใจดี', phone: '081-234-5678', pay: 'โอน', ch: 'msg', h: 200,
+    item: 'ล้อแม็ก 17 นิ้ว ขอบ 4 รู Wave/Click (คู่)', img: 'wheel', qty: 2, price: 1900, total: 3800, st: 'shipping', ad: AD1 },
+  { no: 'DP25691139C07B5E', when: '14-11-2569 08:15:40', name: 'วิทยา ศรีสุข', phone: '089-765-4321', pay: 'COD', ch: 'msg', h: 30,
+    item: 'ไฟหน้า LED โปรเจคเตอร์ Wave 125i', img: 'led', qty: 1, price: 1300, total: 1300, st: 'waiting', ad: AD2, auction: true },
+  { no: 'DP2569112D44E9A1', when: '13-11-2569 19:02:05', name: 'นภา แก้วมณี', phone: '062-118-9034', pay: 'โอน', ch: 'line', h: 320,
+    item: 'โช๊คหลัง YSS G-Sport PCX 160', img: 'shock', qty: 1, price: 2600, total: 2600, st: 'done', ad: null },
+]
+// ชิปโทนกลาง — max-w-xs ตัด … + title ชื่อเต็ม · ไม่มีแอด = ไม่ render เลย
+const adChip = (name) => name ? `<span class="badge inline-flex max-w-xs min-w-0 items-center gap-1 bg-d100 text-d700" title="โฆษณา: ${name}">${IC('speakerphone', 12)}<span class="truncate">โฆษณา: ${name}</span></span>` : ''
+const auctionBadge = `<span class="badge bg-warning15 text-warning-ink" title="จากการประมูล">${IC('gavel', 12)}ประมูล</span>`
+function ordersDesktop() {
+  const block = (o) => `<div class="border-t border-d200">
+    <div class="flex items-center gap-3 bg-d50 px-4 py-2.5">
+      <input type="checkbox" aria-label="เลือกคำสั่งซื้อ" class="size-4 rounded border-d300" />
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+        ${o.ch === 'msg' ? msgLogo(18) : lineLogo(18)}
+        <a href="#" class="text-sm font-bold tabular-nums text-primary">${o.no}</a>
+        <button type="button" aria-label="คัดลอกเลขคำสั่งซื้อ" class="text-d400">${IC('copy', 16)}</button>
+        ${o.auction ? auctionBadge : ''}${adChip(o.ad)}
+        <span class="ms-auto inline-flex items-center gap-3">
+          ${o.ch === 'msg' ? `<a href="#" class="inline-flex items-center gap-1 text-xs font-medium text-primary">${IC('message-circle', 14)}เปิดข้อความสนทนา</a>` : ''}
+          <span class="inline-flex items-center gap-1.5 text-xs tabular-nums text-d500">${IC('calendar', 14)}${o.when}</span></span>
+      </div></div>
+    <div class="grid grid-cols-[minmax(0,1fr)_200px_110px_130px_44px] items-center gap-4 px-4 py-3 ps-11">
+      <div class="flex min-w-0 items-center gap-3"><img src="${prodImg(o.img)}" alt="" class="size-10 shrink-0 rounded" /><div class="min-w-0"><p class="text-d900">${o.item}</p><p class="text-xs tabular-nums text-d700">x${o.qty} · ${baht(o.price)}</p></div></div>
+      <div class="min-w-0"><p class="truncate text-d900">${o.name}</p><p class="text-xs tabular-nums text-d700">${o.phone}</p></div>
+      <p class="text-end font-semibold tabular-nums text-d900">${baht(o.total)}</p>
+      <div>${stBadge(o.st)}</div>
+      <button type="button" aria-label="ตัวเลือก" class="btn-icon">${IC('dots-vertical', 16)}</button>
+    </div></div>`
+  return `<div class="card">
+    <div class="card-header"><div class="flex gap-5">${['ทั้งหมด 312', 'รอจัดส่ง 18', 'กำลังจัดส่ง 41', 'ส่งสำเร็จ 240'].map((t, i) => `<span class="nav-tab ${i === 0 ? 'active' : ''}">${t}</span>`).join('')}</div>
+      <div class="relative w-64"><input class="form-input ps-9" placeholder="ค้นหาเลขคำสั่งซื้อ ชื่อ เบอร์" />${IC('search', 16, 'absolute start-3 top-1/2 -translate-y-1/2 text-d500')}</div></div>
+    <div class="grid grid-cols-[minmax(0,1fr)_200px_110px_130px_44px] gap-4 bg-d50 px-4 py-2 ps-11 text-xs font-medium text-d700"><span>สินค้า</span><span>ลูกค้า</span><span class="text-end">ยอดสุทธิ</span><span>สถานะ</span><span></span></div>
+    ${ORDERS.map(block).join('')}</div>`
+}
+function orderCard(o) {
+  return `<li class="relative rounded border border-d200 bg-card p-3.5" style="border-inline-start:3px solid var(--${ST[o.st][0]})">
+    <div class="flex items-start gap-3">
+      <img src="${photo(o.h)}" alt="" class="size-10 shrink-0 rounded-full" />
+      <div class="min-w-0 flex-1"><p class="truncate font-semibold text-d900">${o.name}</p>
+        <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-d500">${o.ch === 'msg' ? msgLogo(14) : lineLogo(14)}<span class="text-d300">·</span>${o.pay}<span class="text-d300">·</span><span class="tabular-nums">${o.phone}</span>${o.auction ? `<span class="text-d300">·</span>${auctionBadge}` : ''}</div></div>
+      <div class="flex shrink-0 flex-col items-end gap-1"><span class="text-2xs font-semibold text-d500">${o.no}</span>${stBadge(o.st)}</div>
+    </div>
+    ${o.ad ? `<p class="mt-2 flex min-w-0 items-start gap-1.5 text-xs text-d700">${IC('speakerphone', 14, 'mt-0.5')}<span class="line-clamp-2 break-words">โฆษณา: ${o.ad}</span></p>` : ''}
+    <div class="mt-2.5 border-t border-dashed border-d200 pt-2.5">
+      <div class="flex items-start gap-2.5"><img src="${prodImg(o.img)}" alt="" class="size-10 shrink-0 rounded" /><p class="min-w-0 flex-1 text-sm text-d900">${o.item}</p>
+        <div class="shrink-0 text-end"><p class="text-xs tabular-nums text-d700">x${o.qty}</p><p class="text-sm font-medium tabular-nums text-d900">${baht(o.price)}</p></div></div>
+    </div>
+    <div class="mt-2.5 flex items-center justify-between border-t border-d200 pt-2.5 text-xs text-d700"><span class="tabular-nums">${o.when.slice(0, 16)}</span><span>ยอดสุทธิ <b class="text-sm tabular-nums text-d900">${baht(o.total)}</b></span></div>
+  </li>`
+}
+const ordersCards = () => `<ul class="space-y-3">${ORDERS.map(orderCard).join('')}</ul>`
+const P1 = { trail: ['หน้าหลัก', 'คำสั่งซื้อ'], title: 'คำสั่งซื้อ', mTitle: 'คำสั่งซื้อ', nav: 'คำสั่งซื้อ', tab: 'ออเดอร์', back: false }
+
+// =====================================================================
+// 2) การ์ดคำสั่งซื้อในห้องแชท
+// =====================================================================
+const CARD_AD = { title: 'ล้อแม็ก 17 นิ้ว ขอบ 4 รู Wave/Click (คู่)', no: 'DP2569113F8A21C4', img: 'wheel', qty: 2, price: 1900, total: 3800, ad: AD1, carrier: 'Flash Express', track: 'TH01234567AB8', step: 3 }
+const CARD_NOAD = { title: 'โช๊คหลัง YSS G-Sport PCX 160', no: 'DP2569101A7C33E0', img: 'shock', qty: 1, price: 2600, total: 2600, ad: null, carrier: 'Kerry Express', track: 'KEX9876543210', step: 4 }
+const STEPS = ['สร้างพัสดุ', 'รับพัสดุ', 'กำลังส่ง', 'ส่งสำเร็จ']
+function stepper(n) {
+  return `<ol class="mt-1.5 flex items-start">${STEPS.map((s, i) => {
+    const done = i < n
+    return `<li class="relative flex flex-1 flex-col items-center text-center">
+      ${i > 0 ? `<span class="absolute end-1/2 top-[7px] h-0.5 w-full ${i < n ? 'bg-primary' : 'bg-d200'}"></span>` : ''}
+      <span class="relative z-[1] flex size-4 items-center justify-center rounded-full ${done ? 'bg-primary text-white' : 'border-2 border-d300 bg-card'}">${done ? IC('check', 10) : ''}</span>
+      <span class="mt-1 text-2xs leading-tight ${i === n - 1 ? 'font-semibold text-d900' : 'text-d600'}">${s}</span></li>`
+  }).join('')}</ol>`
+}
+function chatOrderCard(c, w) {
+  return `<div class="overflow-hidden rounded-lg border border-d200 bg-card ${w}">
+    <div class="flex items-center gap-2.5 bg-primary px-4 py-2.5 text-white">${IC('receipt-2', 24)}
+      <div class="min-w-0"><p class="truncate text-sm font-semibold">${c.title}</p><p class="truncate text-2xs opacity-90">คำสั่งซื้อ · ${c.no}</p></div></div>
+    <div class="bg-card px-4 py-2.5">
+      ${c.ad ? `<p class="mb-1.5 flex min-w-0 items-center gap-1.5 text-2xs text-d700" title="${c.ad}">${IC('speakerphone', 14)}<span class="truncate">จากโฆษณา: ${c.ad}</span></p>` : ''}
+      <div class="flex items-center gap-2 text-sm"><img src="${prodImg(c.img)}" alt="" class="size-9 shrink-0 rounded" /><span class="min-w-0 flex-1 truncate text-d700">${c.title}</span><span class="shrink-0 text-2xs text-d700">x${c.qty}</span><span class="shrink-0 font-medium tabular-nums text-d800">${baht(c.price)}</span></div>
+      <div class="my-2 border-t border-dashed border-d200"></div>
+      <div class="flex items-center justify-between text-sm"><span class="text-d700">ยอดสุทธิ</span><span class="font-bold tabular-nums text-primary">${baht(c.total)}</span></div>
+    </div>
+    <div class="border-t border-dashed border-d200 px-4 py-2.5">
+      <div class="flex items-center gap-2"><span class="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-d100 text-d700">${IC('truck-delivery', 16)}</span>
+        <div class="min-w-0 flex-1"><p class="truncate text-2xs text-d700">${c.carrier}</p><p class="truncate text-xs font-bold tabular-nums text-d900">${c.track}</p></div>
+        <button type="button" aria-label="คัดลอกเลขพัสดุ" class="flex size-8 items-center justify-center rounded text-d700">${IC('copy', 16)}</button></div>
+      ${stepper(c.step)}
+    </div>
+    <div class="flex items-center gap-1.5 border-t border-d200 px-3 py-2">
+      <button type="button" class="btn btn-sm flex-1 bg-primary15 text-primary-ink">${IC('send', 14)}ส่งเข้าแชท</button>
+      <button type="button" class="btn btn-sm flex-1 border border-d300 text-d800">${IC('package', 14)}ดูพัสดุ</button>
+      <button type="button" aria-label="ตัวเลือกเพิ่ม" class="btn-icon" style="width:30px;height:30px">${IC('dots', 16)}</button></div>
+  </div>`
+}
+const bubbleIn = (t, tm) => `<div class="flex items-end gap-2"><img src="${photo(200)}" alt="" class="size-7 rounded-full" /><div class="max-w-[70%] rounded-2xl rounded-bl-sm bg-card px-3 py-2 text-sm text-d900" style="box-shadow:var(--shadow)">${t}<p class="mt-0.5 text-2xs text-d500">${tm}</p></div></div>`
+const bubbleOut = (t, tm) => `<div class="flex justify-end"><div class="max-w-[70%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-white">${t}<p class="mt-0.5 text-2xs opacity-80">${tm}</p></div></div>`
+function adBanner() {
+  return `<div class="flex items-center gap-2.5 border-b border-d200 bg-card px-4 py-2"><img src="${prodImg('wheel')}" alt="" class="size-9 rounded" />
+    <div class="min-w-0 flex-1"><p class="text-2xs text-d500">ลูกค้าทักจากโฆษณา (ล่าสุดของห้อง)</p><p class="truncate text-xs font-medium text-d900">${AD1}</p></div></div>`
+}
+function thread(dev, withOld) {
+  return `<div class="flex min-w-0 flex-1 flex-col bg-body-bg">
+    <div class="flex min-h-14 items-center gap-2.5 border-b border-d200 bg-card px-3">${dev.k !== 'd' ? `<span class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</span>` : ''}<img src="${photo(200)}" alt="" class="size-9 rounded-full" /><div class="min-w-0"><p class="truncate font-semibold text-d900">สมชาย ใจดี</p><p class="text-2xs text-d500">Messenger · ธนภัทร์ อะไหล่มอเตอร์ไซค์</p></div></div>
+    ${adBanner()}
+    <div class="flex-1 space-y-3 p-4">
+      ${withOld ? `<p class="text-center text-2xs text-d500">2 ต.ค. 2569</p><div class="flex justify-end">${chatOrderCard(CARD_NOAD, 'w-64')}</div><p class="text-center text-2xs text-d500">12 พ.ย. 2569</p>` : ''}
+      ${bubbleIn('สนใจล้อแม็กตามโปรครับ ใส่ Wave 110i ได้ไหม', '20:15')}
+      ${bubbleOut('ใส่ได้ครับ ขอบ 4 รูตรงรุ่น โปรวันนี้คู่ละ 3,800 บาท ส่งฟรี', '20:17')}
+      ${bubbleIn('เอาคู่นึงครับ โอนนะ', '20:21')}
+      <div class="flex justify-end">${chatOrderCard(CARD_AD, 'w-64')}</div>
+    </div></div>`
+}
+function rightPanel(w = 'w-[340px]') {
+  return `<aside class="${w} shrink-0 border-s border-d200 bg-card">
+    <div class="flex gap-4 border-b border-d200 px-4">${['ลูกค้า', 'คำสั่งซื้อ 2', 'โน้ต'].map((t, i) => `<span class="nav-tab ${i === 1 ? 'active' : ''}">${t}</span>`).join('')}</div>
+    <div class="space-y-3 p-4">${chatOrderCard(CARD_AD, 'w-full')}${chatOrderCard(CARD_NOAD, 'w-full')}</div></aside>`
+}
+function chatScreen(dev) {
+  if (dev.k === 'd') {
+    const inbox = ['สมชาย ใจดี', 'วิทยา ศรีสุข', 'นภา แก้วมณี', 'ช่างต้อม ซิ่งช็อป', 'กิตติ พลอยงาม'].map((n, i) => `<li class="flex items-center gap-2.5 px-3 py-2.5 ${i === 0 ? 'bg-primary10' : ''}"><img src="${photo([200, 30, 320, 120, 260][i])}" alt="" class="size-9 rounded-full" /><div class="min-w-0 flex-1"><p class="truncate text-sm font-medium text-d900">${n}</p><p class="truncate text-xs text-d600">${['ส่งคำสั่งซื้อแล้ว', 'ไฟหน้าตัวนี้ใส่ 125i ได้ไหม', 'ขอบคุณครับ', 'มีโช๊คหลัง ADV ไหม', 'สติกเกอร์'][i]}</p></div></li>`).join('')
+    return `<div class="flex" style="height:860px">
+      <nav class="flex w-16 shrink-0 flex-col items-center gap-4 border-e border-d200 bg-card py-4 text-d600">${['home', 'message-circle', 'shopping-cart', 'package', 'chart-bar'].map((i, k) => `<span class="${k === 1 ? 'text-primary' : ''}">${IC(i, 22)}</span>`).join('')}</nav>
+      <div class="w-[280px] shrink-0 border-e border-d200 bg-card"><div class="border-b border-d200 p-3"><input class="form-input" placeholder="ค้นหาแชท" /></div><ul>${inbox}</ul></div>
+      ${thread(dev, false)}${rightPanel()}</div>`
+  }
+  return `<div class="flex" style="height:${dev.k === 'm' ? 1120 : 1080}px">${thread(dev, true)}</div>`
+}
+
+// =====================================================================
+// 3) หน้ารายละเอียดคำสั่งซื้อ (card-header ของ OrderSummary)
+// =====================================================================
+function detailHeader(dev, v = 'ad') {
+  const m = dev.k === 'm'
+  const adLine = v === 'none' ? '' : `<p class="mb-3.5 flex flex-wrap items-center gap-x-1 text-xs text-d700">${IC('speakerphone', 14)}มาจากโฆษณา: <span class="break-words font-medium text-d900">${v === 'id' ? 'รหัสโฆษณา 120213458800120219' : AD1}</span><span> · ลูกค้ากดโฆษณาเมื่อ ${v === 'id' ? '28 ต.ค. 2569 11:02' : '12 พ.ย. 2569 20:15'}</span></p>`
+  return `<div class="card">
+    <div class="card-header ${m ? 'block' : 'flex flex-nowrap items-start'}" style="padding:20px">
+      <div class="flex min-w-0 items-start gap-3.5">
+        <span class="relative shrink-0"><img src="${photo(150)}" alt="" class="size-12 rounded-xl" /><span class="absolute -bottom-1 -end-1 flex size-5 items-center justify-center rounded-full bg-card">${IC('logos:messenger', 14)}</span></span>
+        <div class="min-w-0">
+          <h2 class="mb-1.25 text-lg font-bold tabular-nums text-d900">${v === 'id' ? 'DP2569108B12F0A7' : 'DP2569113F8A21C4'}</h2>
+          <p class="${v === 'none' ? 'mb-3.5' : 'mb-1.5'} flex flex-wrap items-center gap-1 text-xs text-d700">${IC('calendar', 14)}${v === 'id' ? '1 พ.ย. 2569 10:30' : '14 พ.ย. 2569 09:41'}<span class="inline-flex items-center gap-1 ${m ? '' : 'ms-2'}">${IC('receipt', 14)}ใบเสร็จเลขที่ CA2569110042</span></p>
+          ${adLine}
+          <div class="flex flex-wrap items-center gap-1.5">${stBadge('shipping')}${badge('success', 'ชำระแล้ว', '', 'rounded-full')}</div>
+        </div>
+      </div>
+      ${m ? '' : `<div class="ms-auto flex shrink-0 gap-2"><button type="button" class="btn border border-d300 text-d800">${IC('printer', 16)}พิมพ์ใบปะหน้า</button><button type="button" class="btn bg-primary text-white">${IC('truck-delivery', 16)}อัปเดตการจัดส่ง</button></div>`}
+    </div>
+    <div class="card-body">
+      <div class="flex items-center gap-3"><img src="${prodImg('wheel')}" alt="" class="size-12 rounded" /><div class="min-w-0 flex-1"><p class="text-d900">ล้อแม็ก 17 นิ้ว ขอบ 4 รู Wave/Click (คู่)</p><p class="text-xs tabular-nums text-d700">x2 · ฿1,900</p></div><p class="font-semibold tabular-nums text-d900">฿3,800</p></div>
+      <div class="mt-3 flex justify-between border-t border-dashed border-d200 pt-3 text-sm"><span class="text-d700">ยอดสุทธิ</span><span class="font-bold tabular-nums text-d900">฿3,800</span></div>
+    </div></div>`
+}
+function detailPage(dev) {
+  const side = `<div class="card"><div class="card-header"><h4 class="card-title">ผู้ซื้อ</h4></div><div class="card-body flex items-center gap-3"><img src="${photo(200)}" alt="" class="size-10 rounded-full" /><div><p class="font-medium text-d900">สมชาย ใจดี</p><p class="text-xs tabular-nums text-d700">081-234-5678 · สั่งครั้งแรก</p></div></div></div>`
+  const actionBar = `<div class="sticky bottom-0 flex gap-2 border-t border-d200 bg-card p-3"><button type="button" class="btn min-h-11 flex-1 border border-d300 text-d800">${IC('printer', 16)}ใบปะหน้า</button><button type="button" class="btn min-h-11 flex-1 bg-primary text-white">${IC('truck-delivery', 16)}อัปเดตการจัดส่ง</button></div>`
+  const P3 = { trail: ['หน้าหลัก', 'คำสั่งซื้อ', 'DP2569113F8A21C4'], title: 'รายละเอียดคำสั่งซื้อ', mTitle: 'DP2569113F8A21C4', nav: 'คำสั่งซื้อ', tab: 'ออเดอร์' }
+  if (dev.k === 'd') return shell(dev, P3, `<div class="grid grid-cols-3 gap-5"><div class="col-span-2">${detailHeader(dev)}</div><div>${side}</div></div>`)
+  const body = shell(dev, P3, `<div class="space-y-4">${detailHeader(dev)}${side}</div>`)
+  return dev.k === 'm' ? body.replace('<nav class="grid h-[72px]', actionBar + '<nav class="grid h-[72px]') : body // OrderActionBar ล่างจอเฉพาะ <768
+}
+
+// =====================================================================
+// 4) รายงาน /reports/ads
+// =====================================================================
+const P4 = { trail: ['หน้าหลัก', 'รายงาน', 'ยอดขายตามโฆษณา'], title: 'ยอดขายตามโฆษณา', mTitle: 'ยอดขายตามโฆษณา', nav: 'ยอดขายตามโฆษณา', tab: 'เมนู' }
+function filters(dev) {
+  const m = dev.k === 'm'
+  const btn = (icon, t, cls = '') => `<button type="button" class="btn ${T44(dev)} border border-d300 text-d800 ${cls}">${icon ? IC(icon, 16) : ''}${t}</button>`
+  const range = `${btn('calendar', '30 วันล่าสุด ' + IC('chevron-down', 14), m ? 'w-full justify-between' : '')}${m ? '' : `<span class="text-sm tabular-nums text-d700">16-10-2569 – 14-11-2569</span>`}`
+  const page = btn('brand-facebook', 'ทุกเพจ ' + IC('chevron-down', 14), m ? 'flex-1 justify-between' : '')
+  const exp = btn('download', 'ส่งออก')
+  return `<div class="card mb-5"><div class="card-body flex flex-wrap items-center gap-3" style="padding:${m ? '14px' : '16px 20px'}">
+    ${m ? `${range}<p class="w-full text-xs tabular-nums text-d700">16-10-2569 – 14-11-2569</p><div class="flex w-full gap-2">${page}${exp}</div>`
+      : `${range}<div class="ms-auto flex flex-wrap gap-2">${page}${exp}</div>`}</div></div>`
+}
+function summary(dev, s = SUM) {
+  const m = dev.k === 'm'
+  const bar = `<div class="flex h-4 w-full overflow-hidden rounded bg-d100">
+      <div role="progressbar" aria-label="จากโฆษณา" aria-valuenow="${s.pct}" aria-valuemin="0" aria-valuemax="100" class="h-full bg-primary" style="width:${s.pct}%"></div>
+      <div role="progressbar" aria-label="ไม่ได้มาจากโฆษณา" aria-valuenow="${100 - s.pct}" aria-valuemin="0" aria-valuemax="100" class="h-full bg-d300" style="width:${100 - s.pct}%"></div></div>`
+  const legend = `<ul class="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-d700 ${m ? 'flex-col' : ''}">
+      <li class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-primary"></span>จากโฆษณา <span class="tabular-nums text-d900">${baht(s.adSales)} · ${s.adOrders} ใบ</span></li>
+      <li class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-d300"></span>ไม่ได้มาจากโฆษณา <span class="tabular-nums text-d900">${baht(s.otherSales)} · ${s.otherOrders} ใบ</span></li></ul>
+    <p class="mt-2 text-xs text-d500">นับคำสั่งซื้อที่ไม่ถูกยกเลิก — ตัวเลขเดียวกับรายงานยอดขายรายสินค้า</p>`
+  const hero = `<p class="text-sm text-d700">ยอดขายจากโฆษณา</p><p class="text-xl font-bold tabular-nums text-d900" style="font-size:22px">${baht(s.adSales)}</p><p class="text-xs text-d700"><span class="tabular-nums">${s.pct}%</span> ของยอดขายช่วงนี้</p>`
+  return `<div class="card mb-5"><div class="card-body ${m ? '' : 'grid grid-cols-[220px_minmax(0,1fr)] items-center gap-8'}" style="${m ? 'padding:16px' : ''}">
+    <div>${hero}</div><div class="${m ? 'mt-3' : ''}">${bar}${legend}</div></div></div>`
+}
+const RATE_TIP = 'คำสั่งซื้อในช่วง ÷ แชทที่กดโฆษณาในช่วง — ลูกค้าที่กดก่อนช่วงนี้แล้วสั่งในช่วงนี้ นับที่คำสั่งซื้อ ไม่นับที่แชท'
+const adThumb = (a, s = 'size-10') => a.img ? `<img src="${prodImg(a.img)}" alt="" class="${s} shrink-0 rounded-md object-cover" />`
+  : `<span class="${s} flex shrink-0 items-center justify-center rounded-md bg-d100 text-d700">${IC('speakerphone', 18)}</span>`
+function adCell(a, max) {
+  return `<div class="flex min-w-0 items-center gap-3">${adThumb(a)}<div class="min-w-0"><p class="truncate font-medium text-d900 ${max}" title="${adLabel(a)}">${adLabel(a)}</p>${a.name ? `<p class="break-all text-2xs text-d500">รหัสโฆษณา ${a.id}</p>` : ''}</div></div>`
+}
+function adsTable(dev, sel) {
+  const full = dev.k === 'd'
+  const th = (t, c = 'text-end', extra = '') => `<th scope="col" class="px-4 py-2.5 font-medium ${c}">${t}${extra}</th>`
+  const sortI = IC('arrow-down', 12, 'ms-1 align-middle text-primary')
+  const tipI = `<span title="${RATE_TIP}" class="ms-1 inline-flex align-middle text-d500">${IC('info-circle', 14)}</span>`
+  const rows = ADS.map((a, i) => `<tr class="cursor-pointer ${sel === i ? 'bg-primary10' : 'hover:bg-d50'}">
+    <td class="px-4 py-3 ps-5">${adCell(a, full ? 'max-w-[340px]' : 'max-w-[210px]')}</td>
+    <td class="px-4 py-3 text-end tabular-nums text-d900">${a.chats.toLocaleString('en-US')}</td>
+    <td class="px-4 py-3 text-end tabular-nums text-d900">${a.orders}${!full ? `<p class="text-2xs text-d500">ยกเลิก/คืน ${a.cancel}</p>` : ''}</td>
+    <td class="px-4 py-3 text-end tabular-nums text-d900">${rate(a)}</td>
+    <td class="px-4 py-3 text-end font-semibold tabular-nums text-d900">${baht(a.sales)}${!full ? `<p class="text-2xs font-normal text-d500">เฉลี่ย ${avg(a)}/ใบ</p>` : ''}</td>
+    ${full ? `<td class="px-4 py-3 text-end tabular-nums text-d900">${avg(a)}</td><td class="px-4 py-3 pe-5 text-end tabular-nums text-d900">${a.cancel}</td>` : ''}</tr>`).join('')
+  return `<div class="card"><div class="card-header"><h4 class="card-title">แยกตามโฆษณา <span class="tabular-nums text-d700">(${ADS.length})</span></h4></div>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-d50 text-xs text-d700"><tr>
+      ${th('โฆษณา', 'text-start ps-5')}${th('แชทจากโฆษณา')}${th('คำสั่งซื้อ')}${th('อัตราปิดการขาย', 'text-end', tipI)}${th('ยอดขาย', 'text-end', sortI)}${full ? th('ยอดเฉลี่ยต่อใบ') + th('ยกเลิก/คืน', 'text-end pe-5') : ''}</tr></thead>
+    <tbody class="rowsdiv">${rows}</tbody></table></div>
+    <div class="card-footer text-xs text-d700">แสดง 1–${ADS.length} จาก ${ADS.length} โฆษณา</div></div>`
+}
+function adsMobile() {
+  const cards = ADS.map((a) => `<li><button type="button" class="card w-full flex-row items-start gap-3 p-3.5 text-start" style="min-height:44px">${adThumb(a)}
+    <div class="min-w-0 flex-1"><div class="flex items-start gap-2"><p class="min-w-0 flex-1 truncate font-medium text-d900" title="${adLabel(a)}">${adLabel(a)}</p><p class="shrink-0 font-semibold tabular-nums text-d900">${baht(a.sales)}</p></div>
+    <p class="mt-0.5 text-xs text-d700">แชท <span class="tabular-nums">${a.chats}</span> · คำสั่งซื้อ <span class="tabular-nums">${a.orders}</span> · ปิดการขาย <span class="tabular-nums">${rate(a)}</span></p>
+    ${a.cancel > 0 ? `<p class="text-xs text-d700">ยกเลิก/คืน <span class="tabular-nums">${a.cancel}</span></p>` : ''}</div></button></li>`).join('')
+  return `<div class="mb-2 flex items-center justify-between"><p class="text-sm font-semibold text-d900">แยกตามโฆษณา (${ADS.length})</p>
+    <button type="button" class="btn min-h-11 px-2 text-d800">เรียงตาม: ยอดขาย ${IC('chevron-down', 14)}</button></div><ul class="space-y-2.5">${cards}</ul>`
+}
+function reportBody(dev, sel) {
+  return filters(dev) + summary(dev) + (dev.k === 'm' ? adsMobile() : adsTable(dev, sel))
+}
+
+// ชีตคำสั่งซื้อของแอด
+const SHEET_ROWS = [
+  ['DP2569113F8A21C4', 'สมชาย ใจดี', '14-11-2569 09:41:12', 'shipping', 3800],
+  ['DP2569113E07D9B2', 'อนุชา ทองดี', '13-11-2569 21:18:40', 'waiting', 3800],
+  ['DP2569113C55A10F', 'ปิยะพงษ์ แสงทอง', '12-11-2569 16:05:22', 'cancel', 3800],
+  ['DP2569113A9921EE', 'สุรชัย บุญมา', '11-11-2569 23:47:09', 'done', 7600],
+  ['DP25691139F2C6D1', 'ธีรวัฒน์ ใจกล้า', '11-11-2569 20:12:51', 'done', 3800],
+  ['DP25691138B04E77', 'กัญญา ศรีวงศ์', '11-11-2569 14:30:03', 'done', 3800],
+]
+function sheetContent(dev) {
+  const a = ADS[0]
+  const m = dev.k !== 'd'
+  const rows = SHEET_ROWS.map(([no, n, t, st, amt]) => `<li class="px-5 py-3 ${st === 'cancel' ? 'opacity-60' : ''}">
+    <div class="flex items-center gap-3"><a href="#" class="${m ? 'min-h-11 inline-flex items-center' : ''} text-sm font-bold tabular-nums text-primary">${no}</a><span class="ms-auto font-semibold tabular-nums text-d900 ${st === 'cancel' ? 'line-through' : ''}">${baht(amt)}</span></div>
+    <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-d700"><span>${n}</span><span class="text-d300">·</span><span class="tabular-nums">${t}</span><span class="ms-auto">${stBadge(st)}</span></div></li>`).join('')
+  return `<div class="flex items-start gap-3 border-b border-d200 px-5 py-4">${adThumb(a, 'size-12')}
+      <div class="min-w-0 flex-1"><p class="font-semibold text-d900">${a.name}</p><p class="break-all text-2xs text-d500">รหัสโฆษณา ${a.id}</p></div>
+      <button type="button" aria-label="ปิด" class="flex size-11 shrink-0 items-center justify-center rounded text-d700">${IC('x', 20)}</button></div>
+    <p class="border-b border-d200 bg-d50 px-5 py-2.5 text-sm text-d800">แชท <b class="tabular-nums">212</b> · คำสั่งซื้อ <b class="tabular-nums">48</b> · <b class="tabular-nums">${baht(a.sales)}</b> <span class="text-xs text-d500">· ยกเลิก/คืน 3</span></p>
+    <ul class="rowsdiv">${rows}</ul>
+    <p class="flex items-center justify-center gap-1.5 border-t border-d200 px-5 py-2 text-xs text-d500">${IC('dots', 14)}อีก 44 ใบ</p>
+    <p class="flex items-start gap-1.5 border-t border-d200 px-5 py-3 text-xs text-d700">${IC('info-circle', 14, 'mt-0.5 text-d500')}แสดง 50 ใบล่าสุด — ดูครบทั้งหมดได้ในไฟล์ส่งออก</p>`
+}
+function sheetScreen(dev) {
+  if (dev.k === 'd') {
+    return `<div class="relative overflow-hidden" style="height:900px">${shell(dev, P4, reportBody(dev, 0))}
+      <div class="absolute inset-0 bg-black/45"></div>
+      <div role="dialog" aria-modal="true" aria-label="คำสั่งซื้อของโฆษณา" class="absolute inset-y-0 end-0 w-full max-w-xl overflow-y-auto bg-card" style="box-shadow:var(--shadow-lg)">${sheetContent(dev)}</div></div>`
+  }
+  return `<div role="dialog" aria-modal="true" aria-label="คำสั่งซื้อของโฆษณา" class="bg-card">${sheetContent(dev)}</div>`
+}
+
+// empty states
+function emptyNever(dev) {
+  return `<div class="card"><div class="card-body flex flex-col items-center py-12 text-center">
+    <span class="mb-3 flex size-14 items-center justify-center rounded-full bg-d100 text-d500">${IC('speakerphone', 28)}</span>
+    <p class="text-md font-semibold text-d900">ยังไม่มีข้อมูลโฆษณา</p>
+    <p class="mt-1 max-w-md text-sm text-d700">ข้อมูลนี้มาจากลูกค้าที่กดโฆษณาแล้วทักแชท Messenger เข้ามา เมื่อมีลูกค้าทักจากโฆษณา รายงานจะเริ่มแสดงที่นี่เอง</p>
+    <a href="#" class="btn ${dev.k === 'm' ? 'min-h-11 w-full' : T44(dev)} mt-4 border border-d300 text-d800">${IC('message-circle', 16)}ไปที่กล่องข้อความ</a></div></div>`
+}
+function emptyRange(dev) {
+  const s = { adSales: 0, adOrders: 0, otherSales: 41200, otherOrders: 12, pct: 0 }
+  return filters(dev).replace('30 วันล่าสุด', '7 วันล่าสุด').replace(/16-10-2569/g, '08-11-2569') + summary(dev, s) +
+    `<div class="card"><div class="card-body flex flex-col items-center py-10 text-center">
+      <span class="mb-3 flex size-14 items-center justify-center rounded-full bg-d100 text-d500">${IC('calendar-off', 28)}</span>
+      <p class="text-md font-semibold text-d900">ไม่มีแชทหรือคำสั่งซื้อจากโฆษณาในช่วงนี้</p>
+      <p class="mt-1 text-sm text-d700">ลองเลือกช่วงวันที่ให้กว้างขึ้น</p></div></div>`
+}
+
+// =====================================================================
+let html = ''
+html += section('s1a', 's1', '1) รายการคำสั่งซื้อ — /orders', [
+  '<b>Desktop ≥1024 (OrdersTable):</b> ชิปโทนกลาง <code>bg-default-100 text-default-700</code> + ไอคอน speakerphone วางต่อจากป้าย "ประมูล" ก่อนกลุ่ม ms-auto (เปิดข้อความสนทนา + วันที่) · ตัดที่ max-w-xs ชี้เมาส์เห็นชื่อเต็ม (title)',
+  'ตัวอย่าง 3 ใบ: <b>ชื่อแอดยาว</b> (ตัด …) · <b>ชื่อแอดสั้น</b> "ไฟหน้า LED" (ใบนี้ใส่ป้ายประมูลไว้เพื่อโชว์ลำดับ ประมูล → โฆษณา) · <b>ไม่ได้มาจากโฆษณา</b> (LINE) = ไม่มี node ไม่มีช่องว่าง',
+  '<b>Tablet 768 / Mobile 390 (OrderCard):</b> breakpoint ตัดที่ lg จึงใช้การ์ดทั้งคู่ · แถวใหม่เต็มกว้างระหว่างบล็อกหัวกับเส้นประเหนือสินค้า · line-clamp-2 · ไม่มี tooltip (แตะการ์ด = ไปหน้ารายละเอียดที่มีชื่อเต็ม) · ไม่ใช่ปุ่ม ไม่ยก z-index',
+], row3((d) => shell(d, P1, d.k === 'd' ? ordersDesktop() : ordersCards())))
+
+html += section('s2a', 's2', '2) การ์ดคำสั่งซื้อในห้องแชท (ผู้ขาย) — OrderCardView', [
+  'บรรทัด <b>"จากโฆษณา: {ชื่อ}"</b> text-2xs สีกลาง เป็นลูกตัวแรกของ body ใต้หัวน้ำเงิน · truncate + title · ไม่มีเส้นคั่น · ใบที่ไม่มีแอด (โช๊คหลัง, ส่งสำเร็จ) = การ์ดเหมือนเดิมทุกพิกเซล',
+  '<b>Desktop:</b> ฟองแชท (w-64) ในเธรด + แผงขวาแท็บ "คำสั่งซื้อ" (w-full) วางสองใบเทียบกัน · แบนเนอร์โฆษณาบนหัวเธรดคือของเดิม (แอดล่าสุดของห้อง) ส่วนบรรทัดในการ์ดคือแอด ณ วันสร้างใบ — สองอย่างนี้ต่างกันได้',
+  '<b>Tablet / Mobile:</b> เธรดเต็มจอ ใบเก่าไม่มีแอด (2 ต.ค.) อยู่บน ใบใหม่มีแอดอยู่ล่าง · render เฉพาะ side="seller" · server ไม่ส่ง adTitle/adId ให้ผู้เรียกฝั่งผู้ซื้อ · ข้อความที่ส่งถึงลูกค้าไม่มีชื่อแอด',
+  'stepper 4 ขั้นและป้ายขนส่งในม็อกอัพเป็นภาพประกอบ (ของจริงคือ ShipmentStepper เดิม ไม่แก้)',
+], row3((d) => chatScreen(d)))
+
+html += section('s3a', 's3', '3) หน้ารายละเอียดคำสั่งซื้อ (ผู้ขาย) — card-header ของ OrderSummary', [
+  'แถวใหม่ต่อจากบรรทัดวันที่ ก่อนป้ายสถานะ: <b>"มาจากโฆษณา: {ชื่อเต็ม} · ลูกค้ากดโฆษณาเมื่อ {formatDateTimeTH}"</b> · ไม่ truncate (ที่นี่คือที่อ่านชื่อเต็ม) · บรรทัดวันที่เปลี่ยน mb-3.5 → mb-1.5 เฉพาะใบที่มีแอด',
+  'วันที่สองตัวในกล่องเดียวกันใช้ formatDateTimeTH รูปแบบเดียวกัน · ช่างก็เห็นแถวนี้ (คำตัดสิน Q2) · หน้า /o/[token] ฝั่งผู้ซื้อไม่มี',
+  'Tablet 768 (≥md): ปุ่มอยู่ขวาของหัวการ์ดเหมือนเดสก์ท็อป · Mobile &lt;768: ปุ่มย้ายไปแถบล่าง (OrderActionBar เดิม) · ข้อความแถวโฆษณาห่อบรรทัดเอง',
+], row3((d) => detailPage(d)))
+html += section('s3b', 's3', '3b) หน้ารายละเอียด — ไม่มีชื่อแอด / ไม่มีแอด', [
+  'ซ้าย: แอดไม่มีชื่อ → "รหัสโฆษณา {adId}" · ขวา: ใบที่ไม่ได้มาจากโฆษณา → ไม่มีแถว และ margin บรรทัดวันที่กลับเป็น mb-3.5 เหมือนเดิม',
+], `<div class="flex flex-wrap items-start gap-10">${frame({ k: 't', w: 640, label: 'ไม่มีชื่อแอด (640)' }, `<div class="p-4">${detailHeader({ k: 't' }, 'id')}</div>`)}${frame({ k: 't', w: 640, label: 'ไม่มีแอด (640)' }, `<div class="p-4">${detailHeader({ k: 't' }, 'none')}</div>`)}</div>`)
+
+html += section('s4a', 's4', '4) รายงานยอดขายตามโฆษณา — /reports/ads (เจ้าของร้าน F1)', [
+  '<b>แถบกรอง:</b> ช่วงวันที่ (ค่าเริ่มต้น 30 วัน) + ตัวกรองเพจ (มีเพราะร้านนี้มี 2 เพจ) + ส่งออก (xlsx ลิงก์ดาวน์โหลด ไม่มีโมดัล) · ค่าอยู่ใน URL',
+  '<b>การ์ดสรุปใบเดียว (พระเอก):</b> ยอดขายจากโฆษณา ฿324,300 = 32% ของยอดช่วงนี้ (฿1,014,000) · แถบ 2 ส่วน primary / default-300 · legend + ประโยคนิยาม · ไม่มีการ์ดตัวเลข 4 ใบ',
+  '<b>ตาราง Desktop 7 คอลัมน์</b> เรียงยอดขายมาก→น้อย · <b>Tablet 5 คอลัมน์</b> ยอดเฉลี่ย/ใบ ลงใต้ยอดขาย · ยกเลิก/คืน ลงใต้คำสั่งซื้อ · <b>Mobile</b> การ์ดรายการ (ทั้งใบเป็นปุ่ม) + ปุ่มเรียง · ยกเลิก/คืน แสดงเมื่อ > 0',
+  'แถวพิเศษ: <b>ไฟหน้า LED</b> ไม่มีรูป → tile ไอคอน · <b>ไม่มีชื่อ</b> → รหัสโฆษณา + แชท 0 → อัตรา "—" (ลูกค้ากดก่อนช่วงแล้วสั่งในช่วง) · <b>ล้อแม็กลดล้างสต็อก</b> แชท 88 คำสั่งซื้อ 0 — ข้อความธรรมดา ไม่แดง · ชี้ไอคอน (i) ที่หัว "อัตราปิดการขาย" เห็นคำอธิบาย',
+], row3((d) => shell(d, P4, reportBody(d))))
+html += section('s4b', 's4', '4b) ชีตคำสั่งซื้อของโฆษณา — AdOrdersSheet', [
+  'กดแถว "โปรล้อแม็ก 11.11…" · <b>Desktop ≥1024</b> แผงชิดขวา max-w-xl ทับรายงาน (แถวที่เลือกพื้นฟ้าจาง) · <b>Tablet/Mobile</b> เต็มจอ ปุ่มย้อนกลับของเครื่องปิดชีต',
+  'หัว: รูป + ชื่อเต็ม + รหัส + ปิด · บรรทัดสรุป "แชท 212 · คำสั่งซื้อ 48 · ฿182,400" · แถว: เลข DP (ลิงก์ primary ไป /orders/{token}) · ยอด · ลูกค้า · formatDateTime · ป้ายสถานะ · ใบยกเลิกจาง + ขีดฆ่ายอด',
+  'ใบทั้งหมด 51 (48 + ยกเลิก 3) เกิน 50 → ข้อความ "แสดง 50 ใบล่าสุด — ดูครบทั้งหมดได้ในไฟล์ส่งออก" · ม็อกอัพวาด 6 แถวแรก',
+], row3((d) => sheetScreen(d)))
+html += section('s4c', 's4', '4c) รายงาน — ว่าง 2 แบบ', [
+  '<b>Desktop / Mobile: ร้านไม่เคยมีข้อมูลโฆษณา</b> — บอกว่าข้อมูลมาจากไหนและจะมาเอง + ปุ่ม "ไปที่กล่องข้อความ" (ปุ่มขอบ ไม่ใช้ primary ทึบ เพื่อคุม One Voice) · ไม่แสดงแถบกรอง/การ์ดสรุปเพราะไม่มีอะไรให้กรอง',
+  '<b>Tablet: ไม่มีข้อมูลในช่วงที่เลือก (7 วัน)</b> — แถบกรองยังอยู่ · การ์ดสรุปโชว์ 0% (ยอดที่ไม่ได้มาจากโฆษณายังมี) · ตารางแทนด้วยข้อความ "ลองเลือกช่วงวันที่ให้กว้างขึ้น" ไม่มีปุ่ม',
+], row3((d) => shell(d, P4, d.k === 't' ? emptyRange(d) : emptyNever(d))))
+
+document.getElementById('app').innerHTML = html
+
+const redrawIcons = () => document.querySelectorAll('iconify-icon').forEach((i) => {
+  if (i.shadowRoot && !i.shadowRoot.querySelector('svg')) i.replaceWith(i.cloneNode(true))
+})
+const tabs = document.querySelectorAll('.tabbtn')
+function show(g) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.show === g)))
+  document.querySelectorAll('section[data-group]').forEach((s) => { s.hidden = !(g === 'all' || s.dataset.group === g) })
+  ;[300, 1500].forEach((t) => setTimeout(redrawIcons, t)) // ไอคอนในแท็บที่ซ่อนอยู่ตอนโหลดวาดไม่ขึ้น
+}
+tabs.forEach((b) => b.addEventListener('click', () => show(b.dataset.show)))
+show('s1')
+;[800, 2000, 4000].forEach((t) => setTimeout(redrawIcons, t))
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+})
+</script>
+</body>
+</html>
