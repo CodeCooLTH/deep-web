@@ -111,6 +111,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/queues/page.tsx': { page: 'Q1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reports/agents/[agentId]/page.tsx': { page: 'X4', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reports/agents/page.tsx': { page: 'X4', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/reports/ad-quality/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00093 คุณภาพโฆษณา — เจ้าของเท่านั้น
   'src/app/(paces)/seller/(dashboard)/reports/ads/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00091 ยอดขายตามโฆษณา — เจ้าของเท่านั้น
   'src/app/(paces)/seller/(dashboard)/reports/products/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reviews/page.tsx': { page: 'T1', status: 'DECLARED' },
