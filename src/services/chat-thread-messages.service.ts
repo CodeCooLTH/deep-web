@@ -1,3 +1,4 @@
+import { orderAdFieldsForViewer } from "@/lib/ad-attribution";
 import { isStickerRawMessage } from '@/lib/chat-sticker'
 import { soloProductRefId } from '@/lib/chat-product-ref'
 import { LATEST_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
@@ -128,6 +129,10 @@ export async function getThreadMessagesPage(params: {
             serviceStartedAt: true,
             serviceFinishedAt: true,
             depositAmount: true,
+            // 00091 — แอดที่มา (ภาพนิ่ง) · ส่งต่อผ่าน orderAdFieldsForViewer เท่านั้น (ผู้ซื้อไม่ได้คีย์)
+            adId: true,
+            adTitle: true,
+            adPhotoFileId: true,
             // ผันคำของการ์ดตามประเภทกิจการ — อ่านจากร้าน ณ ปัจจุบัน ไม่ใช่ธงบนแถวออเดอร์
             shop: { select: { vertical: true } },
             items: {
@@ -180,6 +185,8 @@ export async function getThreadMessagesPage(params: {
                 serviceFinishedAt: o.serviceFinishedAt ? o.serviceFinishedAt.toISOString() : null,
               }),
           depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
+          // 🛑 00091 — ผู้ซื้อไม่ได้คีย์ adId/adTitle/adPhotoFileId เลย (neutralize ที่ต้นทาง ไม่ใช่แค่ซ่อนใน component)
+          ...orderAdFieldsForViewer(o, result.viewerIsBuyer),
           items: o.items.map((it) => ({
             name: it.name,
             qty: it.qty,

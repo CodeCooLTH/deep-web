@@ -1026,6 +1026,12 @@ model Order {
   /// ไม่หายตามและต้องไม่บล็อกการลบเธรด (แพตเทิร์นเดียวกับ shopChannelId ด้านบน — ห้าม
   /// Restrict/Cascade เด็ดขาด)
   conversationId String?
+  /// 00091 — แอดที่ลูกค้าคลิกล่าสุดก่อนสร้างคำสั่งซื้อ (ภาพนิ่ง ไม่ผูกห้องแชท ลบห้องแล้วไม่หาย)
+  /// เขียนครั้งเดียวหลัง commit โดย stampOrderAdAttribution / backfill · ไม่ให้แก้
+  adId          String?
+  adTitle       String?
+  adClickedAt   DateTime? @db.Timestamptz(3)
+  adPhotoFileId String? // สำเนาของ ConversationAdReferral.photoFileId ตอนบันทึก
 
   // ─── feature 00061: สร้างออเดอร์อัตโนมัติจากคำสั่งในแชท (additive · nullable/default ทั้งหมด) ───
   //
@@ -1163,6 +1169,7 @@ model Order {
   // AND createdAt BETWEEN start,end. ครอบคลุม dashboard.service.ts เดิมไปด้วย (query pattern เดียวกัน
   // แต่ไม่เคยมี index รองรับมาก่อน)
   @@index([shopId, status, createdAt])
+  @@index([shopId, adId], map: "Order_shopId_adId_idx") // 00091 — รายงานยอดขายตามโฆษณา
   @@index([roomId, checkIn], map: "Order_roomId_checkIn_idx") // feat 00017 — ปฏิทินของห้อง
   @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
   @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า

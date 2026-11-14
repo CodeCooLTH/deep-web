@@ -122,6 +122,10 @@ export type ChatOrderCard = {
   fulfillmentMode?: string
   /** feature 00080 — มีแถว ShipmentTracking (เลขส่งเอง) · บังคับ: ลืมส่ง = ใบรอจัดส่งอ่านว่า "สั่งซื้อแล้ว" */
   hasManualTracking: boolean
+  /** 00091 — แอดที่มา · ผู้ซื้อไม่ได้คีย์เหล่านี้ (server neutralize) */
+  adId?: string | null
+  adTitle?: string | null
+  adPhotoFileId?: string | null
   /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก — null = ยังไม่เปิดพัสดุ */
   shipment?: {
     trackingNo: string | null

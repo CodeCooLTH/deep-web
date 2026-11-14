@@ -34,6 +34,9 @@ import type { OrderEventView } from '@/lib/order-event'
 
 const vocab = ORDER_VOCAB.SERVICE_QUEUE
 
+/** OrderCard/OrderSummary ใช้ useT (00091 — คำ "จากโฆษณา") ⇒ ต้องอยู่ใต้ LocaleProvider เหมือนที่ (paces)/layout.tsx ทำจริง */
+const inLocale = (el: ReturnType<typeof h>) => h(LocaleProvider, { locale: 'th', children: el })
+
 /** แถวของช่าง: ไม่มีคีย์เงินเลย (รูปเดียวกับที่ page.tsx ผลิตเมื่อ showMoney=false) */
 const NO_MONEY_ROW = {
   id: 'tok-1', publicToken: 'tok-1', shortCode: null, buyer: '0812345678', orderType: 'SERVICE', status: 'PENDING',
@@ -58,7 +61,7 @@ const tableProps = (orders: OrderRow[], extra: object = {}) => ({
 
 describe('OrderCard', () => {
   it('ค่าตั้งต้น (ช่าง): ไม่มี ฿, ไม่มีวิธีชำระ, ไม่มีปุ่ม action — แต่ยังมีชื่อ/เบอร์/รายการ×จำนวน/นัด', () => {
-    const html = renderToStaticMarkup(h(OrderCard, { order: NO_MONEY_ROW, vocab, onCancelRequest: noop }))
+    const html = renderToStaticMarkup(inLocale(h(OrderCard, { order: NO_MONEY_ROW, vocab, onCancelRequest: noop })))
     expect(html).not.toContain('฿')
     expect(html).not.toContain('เก็บปลายทาง')
     expect(html).not.toContain('คัดลอกลิงก์')
@@ -69,7 +72,7 @@ describe('OrderCard', () => {
   })
 
   it('showMoney=true: ยอด/ราคา/วิธีชำระ/ปุ่ม action ครบเหมือนเดิม', () => {
-    const html = renderToStaticMarkup(h(OrderCard, { order: MONEY_ROW, vocab, onCancelRequest: noop, showMoney: true }))
+    const html = renderToStaticMarkup(inLocale(h(OrderCard, { order: MONEY_ROW, vocab, onCancelRequest: noop, showMoney: true })))
     for (const t of ['฿1,234', '฿617', 'เก็บปลายทาง', 'คัดลอกลิงก์', 'เมนูเพิ่มเติม']) expect(html).toContain(t)
   })
 })
@@ -132,7 +135,7 @@ describe('OrderSummary (หน้ารายละเอียด)', () => {
     isFromAuction: false, vocab, vertical: 'SERVICE_QUEUE', orderNoun: vocab.noun,
   }
   it('ค่าตั้งต้น: ไม่มีราคา/ยอด/ป้ายชำระ/ปุ่ม — มีชื่อ×จำนวน + หมายเหตุภายใน', () => {
-    const html = renderToStaticMarkup(h(OrderSummary, { ...base, items: [{ id: 'i1', name: 'ตัดผม', qty: 2, imageUrl: null }] }))
+    const html = renderToStaticMarkup(inLocale(h(OrderSummary, { ...base, items: [{ id: 'i1', name: 'ตัดผม', qty: 2, imageUrl: null }] })))
     expect(html).not.toContain('฿')
     expect(html).not.toContain('ราคา')
     expect(html).not.toContain('ยอดรวม')
@@ -140,7 +143,7 @@ describe('OrderSummary (หน้ารายละเอียด)', () => {
   })
   it('showMoney=true: ตารางราคา/ยอดรวมครบ', () => {
     const html = renderToStaticMarkup(
-      h(OrderSummary, { ...base, showMoney: true, totalAmount: 1234, discount: 0, vatAmount: 0, vatRate: 0, items: [{ id: 'i1', name: 'ตัดผม', qty: 2, price: 617, imageUrl: null }] }),
+      inLocale(h(OrderSummary, { ...base, showMoney: true, totalAmount: 1234, discount: 0, vatAmount: 0, vatRate: 0, items: [{ id: 'i1', name: 'ตัดผม', qty: 2, price: 617, imageUrl: null }] })),
     )
     for (const t of ['฿617.00', '฿1,234.00', 'ราคา/']) expect(html).toContain(t)
   })

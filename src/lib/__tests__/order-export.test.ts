@@ -111,6 +111,24 @@ describe('order-export: ไฟล์', () => {
     const csv = toCsv(exportColumns('ONLINE_SALES'), [buildExportRow(base({ buyerName: '=HYPERLINK("x")' }), 'ONLINE_SALES', undefined)])
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
   })
+  it('00091: คอลัมน์ โฆษณา/รหัสโฆษณา ต่อจากช่องทางขาย ทุกประเภทกิจการ · ใบไม่มีแอด = ว่าง', () => {
+    for (const v of ['ONLINE_SALES', 'SERVICE_QUEUE', 'LODGING']) {
+      const k = exportColumns(v).map((c) => c.key)
+      expect(k.slice(k.indexOf('salesChannel'), k.indexOf('salesChannel') + 3)).toEqual(['salesChannel', 'adTitle', 'adId'])
+    }
+    expect(exportColumns('ONLINE_SALES').filter((c) => c.key === 'adTitle' || c.key === 'adId').map((c) => c.header)).toEqual(['โฆษณา', 'รหัสโฆษณา'])
+    const r = buildExportRow(base({}), 'ONLINE_SALES', undefined)
+    expect(r.adTitle).toBeNull()
+    expect(r.adId).toBeNull()
+  })
+  it('00091: รหัสโฆษณายาวใน CSV ห่อเป็น ="…" กัน Excel แปลงเป็น 1.2E+17 · ชื่อแอดที่ขึ้นต้นด้วย = ยังถูกกันสูตร', () => {
+    const cols = exportColumns('ONLINE_SALES')
+    const csv = toCsv(cols, [buildExportRow(base({ adId: '120212345678901234', adTitle: '=SUM(1)' }), 'ONLINE_SALES', undefined)])
+    expect(csv).toContain('"=""120212345678901234"""')
+    expect(csv).toContain("'=SUM(1)")
+    const rows = parseCsv(csv.slice(1))
+    expect(rows[1][cols.findIndex((c) => c.key === 'adId')]).toBe('="120212345678901234"')
+  })
   it('ช่องเงินติดลบไม่ถูกกันสูตร (ยังเป็นตัวเลข)', () => {
     const r = buildExportRow(base({ totalAmount: 100, items: [{ name: 'a', qty: 1, price: 100, cost: 300 }] }), 'ONLINE_SALES', undefined)
     const csv = toCsv(exportColumns('ONLINE_SALES'), [r])

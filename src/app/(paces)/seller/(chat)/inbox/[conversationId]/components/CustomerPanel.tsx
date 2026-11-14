@@ -111,6 +111,10 @@ export type CustomerPanelOrder = {
   serviceStartedAt?: string | null
   /** feature 00086 — เวลากดทำเสร็จ (ISO) · แถบงานในแชทขึ้น "ทำเสร็จ · รอปิดงาน" (serviceProgressStage) */
   serviceFinishedAt?: string | null
+  /** 00091 — แอดที่มา (ภาพนิ่ง) · ส่งต่อให้การ์ด (แสดงเฉพาะ side='seller') */
+  adId?: string | null
+  adTitle?: string | null
+  adPhotoFileId?: string | null
   /** feature 00086 — แบบการมาที่ร้านเลือก (BOOKED|WALK_IN) · null = ใบเก่า ⇒ จออ่านผ่าน arrivalModeOf */
   arrivalMode?: string | null
   /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — snapshot ตอนสร้าง ไม่ใช่สูตรสด (BR-RSV-46/47)
@@ -603,6 +607,9 @@ function OrderCard({
         serviceStartedAt: o.serviceStartedAt ?? null,
         serviceFinishedAt: o.serviceFinishedAt ?? null,
         depositAmount: o.depositAmount,
+        adId: o.adId ?? null,
+        adTitle: o.adTitle ?? null,
+        adPhotoFileId: o.adPhotoFileId ?? null,
       }}
       onEdit={openEdit}
       className="w-full"

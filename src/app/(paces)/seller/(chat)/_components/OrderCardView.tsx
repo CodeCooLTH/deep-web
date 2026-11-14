@@ -29,6 +29,9 @@ import { describeShipmentStatus } from '@/lib/iship/status'
 import { TONE_BADGE } from '@/components/safepay/iship/tone'
 import { resolveServiceStatusBadge, serviceArrivalOf } from '@/lib/service-status'
 import { arrivalChipMeta } from '@/lib/arrival-mode'
+import { adDisplayName } from '@/lib/ad-attribution'
+import AdThumb from '@/components/safepay/AdThumb'
+import { useT } from '@/i18n/LocaleProvider'
 
 export type OrderCardViewData = {
   token: string
@@ -96,6 +99,38 @@ export type OrderCardViewData = {
    * ทางเดียวที่ทั้งสองฝั่งพูดคำเดียวกันได้. ไม่ส่งมา/ค่าไม่รู้จัก → ชุดคำ ONLINE_SALES ตามเดิม
    */
   vertical?: string | null
+  /**
+   * 00091 — แอดที่ลูกค้าคลิกก่อนสร้างใบนี้ (ภาพนิ่ง) · แสดงเฉพาะ side='seller'
+   * 🛑 server ต้องไม่ส่งค่าเหล่านี้ให้ผู้เรียกฝั่งผู้ซื้อเลย (neutralize ที่ต้นทาง) — ชื่อแคมเปญเป็นของร้าน
+   * ไม่ใช่ของลูกค้า · component ซ้ำด่านอีกชั้นด้วย `side` · ไม่มีแอด = การ์ดเหมือนเดิมทุกพิกเซล
+   */
+  adTitle?: string | null
+  adId?: string | null
+  adPhotoFileId?: string | null
+}
+
+/**
+ * แถบแอดที่มา เหนือหัวน้ำเงิน (มติ user 2026-11-14: รูปแอด + "จากโฆษณา" + ชื่อ)
+ * แยกเป็น component เพราะต้องเรียก useT — การ์ดนี้ถูกเรนเดอร์ฝั่งผู้ซื้อในแอป Deep ด้วย (อาจไม่มี LocaleProvider)
+ * ส่วนนี้ mount เฉพาะ side='seller' จึงไม่ลากฝั่งผู้ซื้อเข้า hook
+ * HR18: คำ "จากโฆษณา" ต้องเหมือนแชท Native ในแอปผู้ขาย
+ */
+function AdSourceBar({ data }: { data: OrderCardViewData }) {
+  const t = useT()
+  const name = adDisplayName(data.adTitle, data.adId, t.inbox.contextBar.adIdFallback)
+  if (!name) return null
+  return (
+    <div className="border-primary/20 bg-primary/10 flex min-w-0 items-center gap-2 border-b px-3 py-1.5" title={name}>
+      <AdThumb photoFileId={data.adPhotoFileId} className="size-7 rounded" />
+      <div className="min-w-0 flex-1">
+        <p className="text-default-600 mb-0 flex items-center gap-1 text-2xs">
+          <Icon icon="speakerphone" className="text-xs" aria-hidden="true" />
+          {t.adAttribution.fromAd}
+        </p>
+        <p className="text-default-900 mb-0 truncate text-xs font-medium">{name}</p>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -402,6 +437,7 @@ export default function OrderCardView({
 
   const body = (
     <>
+      {side === 'seller' && (data.adTitle || data.adId) ? <AdSourceBar data={data} /> : null}
       {/* หัวการ์ด — Paces primary (น้ำเงิน) + เลขคำสั่งซื้อ */}
       <div className="bg-primary flex items-center gap-2.5 px-4 py-2.5 text-white">
         <Icon icon="receipt-2" className="shrink-0 text-2xl" />

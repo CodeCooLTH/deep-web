@@ -400,6 +400,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Dashboard | `/dashboard` |
 | Sales (analytics) | `/sales` |
 | **ผลงานแอดมิน (feature 00059)** | **`/reports/agents`** และ **`/reports/agents/[agentId]`** — `[agentId]` = `User.id` ของคนในร้าน · ผู้ที่ไม่ใช่เจ้าของ (ไม่มี F1 — 00071 P1 แทนธง `staffCanViewFinance` ที่เลิกอ่านแล้ว) เปิดของคนอื่นไม่ได้ (เห็นจอปฏิเสธ ไม่ใช่ 404) และไม่เห็นคอลัมน์ยอดขาย |
+| **ยอดขายตามโฆษณา (feature 00091)** | **`/reports/ads`** — `?from=&to=&shopChannelId=` (ไม่ระบุช่วง = 30 วันล่าสุด · เพดานช่วงเดียวกับ `/reports/agents` `MAX_RANGE_DAYS`=92 วัน — เกินแล้วหั่นพร้อมแถบแจ้ง) · ทุก `Shop.vertical` · **F1 เจ้าของร้านเท่านั้น** (`gatePage(session,'F1')` + ทะเบียน `route-capabilities`) · 🛑 **ยอดขาย = ตัวเดียวกับ `/reports/products` (HR16)**: ใบที่นับ = `salesOrderWhere()` · ยอดรายใบ = Σ `qty × price` หลังหักคืนบางส่วน (ไม่รวมส่วนลด/VAT ระดับใบ) ⇒ ยอดจากแอด + ยอดที่ไม่ใช่แอด = ยอดรวมของรายงานยอดขายรายสินค้าในช่วงเดียวกัน (เทส parity `ad-sales-report.db.test.ts`) · แชทจากแอด = ห้องที่มีการคลิก `ConversationAdReferral` (source ADS) ของแอดนั้นในช่วง (ห้องเดียวคลิกซ้ำ = 1) · คำสั่งซื้อ = ใบที่นับเป็นยอดขายและ `Order.adId` = แอดนั้น · ยกเลิก/คืน = `status IN (CANCELLED,RETURNED)` ตามวันสร้าง |
 | **ยอดขายรายสินค้า (feature 00063)** | **`/reports/products`** — รายงานไทม์ซีรีส์รายเดือน รับ `?month=YYYY-MM` (ไม่ระบุ = เดือนปัจจุบันเวลาไทย · ผิดรูป/เกินขอบ = ถอยมาเดือนปัจจุบัน + แถบแจ้ง **ไม่ throw ไม่ 404**) · 🛑 **เห็นเฉพาะ `Shop.vertical='ONLINE_SALES'`** และด่านอยู่ที่ `resolveProductReportAccess()` ฝั่งเซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนเมนู — ร้านประเภทอื่นเข้า URL ตรงเห็นการ์ดข้อความ ไม่ redirect เงียบ และ **ไม่มี query ยอดขายเกิดขึ้นเลย** · สิทธิ์ตัดสินที่ `resolveProductReportAccess()` ด้วย F1 (เจ้าของเท่านั้น — 00071 P1 เลิกอ่านธง `Shop.staffCanViewFinance` แล้ว) · 🛑 นิยาม "ขายแล้ว" ของหน้านี้ = `OrderItem` ของ `Order.status != 'CANCELLED'` (ชุดเดียวกับ `getBestSellerProducts()`) **ไม่ใช่** `revenueOrderWhere` ของ `/sales` ⇒ ตัวเลขสองหน้าไม่เท่ากันโดยตั้งใจ และหน้าจอต้องแสดง `SALES_BASIS_NOTE` เสมอ (HR16) · **ไม่มี API endpoint ใหม่ ไม่มี migration ไม่มี index ใหม่** |
 | Products | `/products` |
 | Categories | `/categories` |
@@ -881,6 +882,7 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 | `salesChannel` | String? | Phase B — ช่องทางขาย · ค่า: `STOREFRONT` \| `FACEBOOK` \| `LINE` \| `TIKTOK` \| `OTHER` — 🛑 **Messenger และ Instagram แมปเป็น `FACEBOOK` ทั้งคู่** (ฟอร์มไม่มี `INSTAGRAM` แยก) ดู `src/lib/chat-sales-channel.ts` |
 | `shopChannelId` | String? FK → ShopChannel | *(migration `20260810100000`)* **บัญชี/เพจที่ลูกค้าทักเข้ามาตอนสร้างออเดอร์** — ต่างจาก `salesChannel` ที่บอกแค่ "แพลตฟอร์มไหน" คอลัมน์นี้บอก "ใบไหน" จึงเป็นตัวที่ทำให้หน้า `/orders` โชว์รูปเพจ/LINE OA จริงได้. 🛑 **ออเดอร์ก่อน 2026-08-10 เป็น `NULL` และยัง backfill ไม่ได้** — การโยงผ่าน `customerId` เป็นการเดา และมี 2 ใบที่ระบุ `salesChannel=FACEBOOK` ไว้แล้ว ห้าม backfill จนพิสูจน์ได้ |
 | `conversationId` | String? FK → Conversation *(SetNull)* | **ห้องแชทที่ออเดอร์ใบนี้ถือกำเนิด** (2026-07-31) — เขียนครั้งเดียวตอน `createOrder` จากเธรดที่ผ่าน `WHERE shopId` แล้ว **ไม่มีหน้าจอไหนแก้ได้ทีหลัง**. 🛑 เป็นตัวตัดสินร่วมว่า "ใบไหนควรอยู่ในแผงของห้องแชทนี้" คู่กับ `customerId` — ดู `resolveThreadOrderFilter()` (`src/lib/chat-thread-orders.ts`): กรองด้วย `customerId` อย่างเดียวไม่ได้ เพราะ `Customer.phone` เป็น unique ทั้งระบบ ⇒ คีย์เบอร์ใหม่ = ลูกค้าคนละแถว แล้วเธรดถูก *สลับ* ไปคนใหม่ ⇒ ใบเก่าหายจากแผงเงียบ ๆ (user report 2026-09-05). ออเดอร์ก่อน 2026-07-31 เป็น `NULL` (282/824 ใบบน prod) กู้เข้าห้องด้วยเกณฑ์นี้ไม่ได้ |
+| `adId` / `adTitle` / `adClickedAt` / `adPhotoFileId` | String? / String? / DateTime? `@db.Timestamptz(3)` / String? | **feature 00091** — แอดที่ลูกค้าคลิกล่าสุดก่อนสร้างคำสั่งซื้อ (**ภาพนิ่ง** ไม่ผูกห้อง — ลบห้องแล้วไม่หาย) · เขียนครั้งเดียวหลัง commit (`stampOrderAdAttribution` ใน `createOrder`/`promoteDraftCore` · เวลาอ้างอิง = `createdAt` ของใบ / ตอนยืนยันร่าง) หรือโดยสคริปต์เติมย้อนหลัง · NULL = ไม่ได้มาจากแอด · 🛑 server ไม่ส่งสี่ค่านี้ให้ผู้เรียกฝั่งผู้ซื้อ (`orderAdFieldsForViewer`) · index `Order_shopId_adId_idx (shopId, adId)` |
 | `internalNote` | String? `@db.Text` | Phase B — note ภายใน seller |
 | `buyerName` | String? | Phase B — ชื่อผู้ซื้อที่ร้านกรอก (ฟอร์มบังคับกรอก) · 🛑 **ร้าน `SERVICE_QUEUE`: เป็นชื่อหลักบนทุกจอฝั่งร้านเสมอ** แม้ลูกค้าล็อกอินแล้ว (ร้านขายของ/บ้านพัก = ของเดิม: ชื่อบัญชีมาก่อน · `@username` · ตัดสินที่ `usesTypedBuyerName()`) — ชื่อบัญชี (`User.displayName`) เป็นบรรทัดรองเท่านั้น และไม่โชว์เมื่อซ้ำหรือเป็นชื่อที่ระบบตั้งให้ (`User` / `User_1234`) · กติกาเดียวที่ `resolveOrderBuyerName()` (`src/lib/buyer-name.ts`) · ค้นหาในหน้ารายการได้ทั้งชื่อนี้ · ชื่อบัญชี · username · ดู `docs/20 - Features/00058 - Order List Search/EXTENSIONS-2026-10-04-buyer-name.md` |
 | `discount` | Decimal(12,2)? | Phase B — ≥0 |
@@ -1886,6 +1888,24 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 
 **ความสัมพันธ์:** `Shop 1─1 MetaAudienceConnection` · `Shop 1─N MetaAudienceMember` · **Rollback:** ก่อนมีข้อมูล `DROP TABLE` Member → Connection · หลังมีข้อมูล = ถามผู้ใช้ก่อน
 
+### 6.81 แอดที่มาของคำสั่งซื้อ — `Order.adId` · `adTitle` · `adClickedAt` · `adPhotoFileId` (feature 00091)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `adId` | `text` NULL | รหัสแอดจาก `ConversationAdReferral.adId` |
+| `adTitle` | `text` NULL | ชื่อแอดใน Ads Manager ณ ตอนบันทึก (ไม่ใช่ข้อความโฆษณา) |
+| `adClickedAt` | `timestamptz(3)` NULL | `ConversationAdReferral.receivedAt` ของการคลิกที่ถูกเลือก |
+| `adPhotoFileId` | `text` NULL | สำเนา `ConversationAdReferral.photoFileId` (รูปแอด · ไม่มี = tile ไอคอน) — ขอรูปย่อผ่าน `/api/files/{id}?variant=thumb` |
+
+- migration `20261114120000_00091_order_ad_attribution` (additive · ใบเดิม = NULL) · index `Order_shopId_adId_idx (shopId, adId)` ให้รายงาน
+- กฎเลือก (BR-ATT-01 · `pickAdAttribution` ใน `src/lib/ad-attribution.ts`): `source='ADS'` ที่ `receivedAt ≤ เวลาอ้างอิง` ล่าสุด · ไม่จำกัดระยะเวลา · SHORTLINK ไม่นับ · คลิกหลังเวลาอ้างอิงไม่นับ
+- เวลาอ้างอิง: `createOrder` = `createdAt` ของใบ (รองรับลงย้อนหลัง 00033) · ยืนยันร่าง (00061) = ตอนยืนยัน (`keyedInAt`)
+- เขียนหลัง commit นอก tx ผ่าน `stampOrderAdAttribution` (ไม่ throw — BR-ATT-03) · `UPDATE … WHERE id AND shopId AND adId IS NULL` = เขียนครั้งเดียว ไม่เขียนทับ · ใบทดสอบ (`isDryRun`)/ไม่ผูกห้อง = ว่าง
+- เติมย้อนหลัง: `scripts/backfill-00091-order-ad-attribution.ts` (`--dry-run` ค่าตั้งต้น · `--apply` · ปฏิเสธถ้า host ไม่ใช่ localhost เว้นแต่ `--i-know-this-is-prod`) — เฉพาะใบที่ `adId IS NULL` + ผูกห้อง + ไม่ใช่ DRAFTED/ทดสอบ · รันซ้ำได้
+- แสดงผล: `/orders` (ชิป/แถวมือถือ) · `/orders/[token]` (แถว "มาจากโฆษณา" + เวลาคลิก · ช่างเห็นด้วย) · การ์ดคำสั่งซื้อในแชท (แถบเหนือหัวน้ำเงิน · `side='seller'` เท่านั้น) · ไฟล์ส่งออก 00086 คอลัมน์ "โฆษณา"/"รหัสโฆษณา" (CSV: รหัสยาว ≥12 หลักห่อ `="…"` กัน Excel แปลงเป็น 1.2E+17 — `ExportColumn.forceText`)
+- 🛑 ผู้ซื้อ: `chat-thread-messages.service` ประกอบ orderMap ผ่าน `orderAdFieldsForViewer(o, viewerIsBuyer)` — ผู้ซื้อไม่ได้คีย์ `adId/adTitle/adPhotoFileId` เลย · `/o/[token]` ไม่ส่ง prop แอด
+- HR18: `OrderCardView.tsx` + `chat-thread-messages.service.ts` ถูกเฝ้า → ต้องแก้แชท Native ใน `deep-seller-app` ตาม (parse `adId/adTitle/adPhotoFileId` + แถบ "จากโฆษณา" เหนือหัวการ์ด)
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -2007,6 +2027,8 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 | PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) + **`shopId` optional** | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | POST | `/api/orders/export` | Seller-owner (P3) | feature 00086 ส่งออกออเดอร์ร้าน active เป็นไฟล์ — body `{scope:'all'|'filtered', format:'csv'|'xlsx', tokens?: uuid[]}` (`filtered` ต้องมี `tokens` = publicToken ตามลำดับบนจอ · กรองด้วย shopId ซ้ำ) · เพดาน 5,000 ใบ → 413 `TOO_MANY` · 0 ใบ → 404 `EMPTY` · header `X-Export-Count` · `Cache-Control: no-store` | `order-export.service` |
+| GET | `/api/reports/ads/orders` | Seller-owner (F1) | feature 00091 คำสั่งซื้อของแอดหนึ่งตัว ≤50 ใบล่าสุดในช่วง — `?adId=` บังคับ + `from` `to` `shopChannelId` · คืน `{items[{id,publicToken,orderNo,buyerName,createdAtISO,status,totalAmount}], hasMore}` · ร้านมาจาก session ไม่รับ shopId · `Cache-Control: no-store` | `ad-sales-report.service` (`listOrdersForAd`) |
+| GET | `/api/reports/ads/export` | Seller-owner (F1) | feature 00091 ส่งออกรายงานยอดขายตามโฆษณาเป็น xlsx (สิ่งที่เห็นบนจอ + 2 แถวสรุป) — `?from&to&shopChannelId` · `Cache-Control: no-store` | `ad-sales-report.service` (`getAdSalesReport`) |
 | GET | `/api/seller/customers/{key}/contact` | Seller-owner | **เปิดเผยข้อมูลติดต่อเต็ม (unmasked) ของลูกค้า 1 คน** — `key` = opaque row key เดียวกับ `/customers/[id]` · คืน `{ contact }` · `cache-control: private, no-store` · 🛑 `INVALID_KEY` กับ `NOT_FOUND` ตอบ **404 เหมือนกันโดยตั้งใจ** (กัน cross-shop enumeration) · authorization อยู่ที่ `where: { shopId }` ตั้งแต่ SELECT ไม่ใช่กรองทีหลัง (feature 00057) | `customer-directory.service` |
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) · **00073:** งานร้านบริการที่ปิดแบบไม่มาตามนัด → 409 (`SERVICE_JOB_NO_SHOW_CONFIRM` — ทั้งเว็บและ `/api/app/orders/[id]/confirm`) | `order.service` |

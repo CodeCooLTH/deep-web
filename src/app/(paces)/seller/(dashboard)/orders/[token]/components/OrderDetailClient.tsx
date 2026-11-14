@@ -124,6 +124,8 @@ export interface OrderDetailClientProps {
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — ส่งต่อให้ OrderSummary (user 2026-08-06) */
   pageLogoUrl?: string | null
+  /** 00091 — แอดที่มา ส่งต่อให้ OrderSummary */
+  adSource?: OrderSummaryProps['adSource']
   totalAmount: number
   paymentMethod: string | null
   slipFileId: string | null
@@ -241,6 +243,7 @@ export default function OrderDetailClient({
   isFromAuction,
   salesChannel,
   pageLogoUrl = null,
+  adSource = null,
   totalAmount,
   paymentMethod,
   slipFileId,
@@ -886,6 +889,7 @@ export default function OrderDetailClient({
             publicToken={publicToken}
             salesChannel={salesChannel}
             pageLogoUrl={pageLogoUrl}
+            adSource={adSource}
             slipFileId={slipFileId}
             paymentConfirmedAt={paymentConfirmedAtISO}
             status={status}

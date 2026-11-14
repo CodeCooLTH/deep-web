@@ -52,6 +52,7 @@ import { viewerRolesOf } from '@/lib/viewer-roles'
 import { canEditOrderAs } from '@/lib/order-role-rules'
 import { can, moneyLevel } from '@/lib/shop-permissions'
 import { toNoMoneyOrder } from '@/lib/order-view-by-level'
+import { toOrderAdView } from '@/lib/ad-attribution'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import NoPermissionCard from '@/app/(paces)/seller/(dashboard)/_shared/NoPermissionCard'
 import { resolveServiceStatusBadge, serviceArrivalOf, serviceProgressBadge } from '@/lib/service-status'
@@ -504,6 +505,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
         null)
       : null,
+    // 00091 — แอดที่มา (ไม่ใช่ข้อมูลเงิน/ต้นทุน → ทุกบทบาทที่เห็นใบนี้เห็นได้ · PRD §4)
+    ad: toOrderAdView(o),
     ...(showMoney ? { paymentMethod: o.paymentMethod ?? null } : {}),
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary

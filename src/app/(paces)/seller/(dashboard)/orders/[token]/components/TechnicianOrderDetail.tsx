@@ -25,6 +25,7 @@ import { can, canAssignServiceJob, canClaimServiceJob, isTechnicianOnly, type Sh
 import { resolveShopVertical } from '@/lib/lodging'
 import type { OrderVocab } from '@/lib/seller-menu'
 import OrderSummary from './OrderSummary'
+import { toOrderAdView } from '@/lib/ad-attribution'
 import ShippingActivity from './ShippingActivity'
 import CustomerDetails from './CustomerDetails'
 import AppointmentCard from './AppointmentCard'
@@ -118,6 +119,7 @@ export default async function TechnicianOrderDetail({ order, shop, vocab, viewer
             createdAtISO={(order.createdAt as Date).toISOString()}
             salesChannel={orderSource.channel}
             pageLogoUrl={orderSource.logoUrl}
+            adSource={toOrderAdView(order)}
             internalNote={order.internalNote ?? null}
             isFromAuction={Boolean(order.auctionId)}
             items={items}
