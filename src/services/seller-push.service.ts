@@ -346,7 +346,7 @@ export async function pushMetaCapiStopped(params: { shopId: string; channelName:
       audience,
       params.channelName,
       'หยุดส่งยอดขายให้ Meta ชั่วคราว เพราะสิทธิ์ของเพจใช้ไม่ได้ — แตะเพื่อเชื่อมใหม่ ยอดที่ค้างจะส่งต่อให้',
-      { type: 'channel-health', url: '/settings/conversions-api' },
+      { type: 'channel-health', url: '/settings/capis' },
     )
   } catch (e) {
     console.error('[seller-push] pushMetaCapiStopped failed', e)
@@ -362,7 +362,7 @@ export async function pushMetaAudienceStopped(params: { shopId: string; reason: 
       params.reason === 'TERMS_NOT_ACCEPTED'
         ? 'หยุดส่งรายชื่อลูกค้าเข้า Meta เพราะบัญชีโฆษณายังไม่ยอมรับข้อตกลง Custom Audience — แตะเพื่อดูลิงก์ยอมรับ'
         : 'หยุดส่งรายชื่อลูกค้าเข้า Meta ชั่วคราว เพราะสิทธิ์บัญชีโฆษณาใช้ไม่ได้ — แตะเพื่อเชื่อมใหม่ รายชื่อที่ค้างจะส่งต่อให้'
-    await pushToUsers(audience, 'กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว', body, { type: 'channel-health', url: '/settings/conversions-api' })
+    await pushToUsers(audience, 'กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว', body, { type: 'channel-health', url: '/settings/capis' })
   } catch (e) {
     console.error('[seller-push] pushMetaAudienceStopped failed', e)
   }
@@ -378,7 +378,7 @@ export async function pushMetaAudienceTokenExpiring(params: { shopId: string; da
       audience,
       'กลุ่มเป้าหมายลูกค้าที่ซื้อแล้ว',
       `การเชื่อมบัญชีโฆษณากับ Meta จะหมดอายุ${when} — แตะเพื่อเชื่อมใหม่ก่อนหยุดส่งรายชื่อ`,
-      { type: 'channel-health', url: '/settings/conversions-api' },
+      { type: 'channel-health', url: '/settings/capis' },
     )
   } catch (e) {
     console.error('[seller-push] pushMetaAudienceTokenExpiring failed', e)

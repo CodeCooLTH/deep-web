@@ -70,7 +70,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]"]
 ### TC-003: ซ่อนเมนู/ทางลัด/หน้า เมื่อฟีเจอร์ปิด
 - **Linked to:** FR-001.1 (ไม่เห็นเมนู · API ตอบปิด)
 - **Precondition:** ร้านนอกรายชื่อทดลอง · ล็อกอินเป็นเจ้าของ
-- **Steps:** เปิดเมนู ตั้งค่า · เปิด `/settings/conversions-api` ตรง ๆ · เปิดมือถือหน้า "ร้านค้า" · ดู chip บนแถว Messenger ที่ `/settings/channels`
+- **Steps:** เปิดเมนู ตั้งค่า · เปิด `/settings/capis` ตรง ๆ · เปิดมือถือหน้า "ร้านค้า" · ดู chip บนแถว Messenger ที่ `/settings/channels`
 - **Expected:** ไม่มีเมนู/แถวทางลัด/chip · หน้า = 404 (`notFound()`)
 - **เทสอัตโนมัติ:** **ไม่มี — มือ** (MENU ตรวจแค่ว่า slug อยู่ในชุดที่อนุญาต ไม่ได้เรียก `applyMetaCapiMenu`)
 

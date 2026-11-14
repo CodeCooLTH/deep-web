@@ -26,7 +26,7 @@ related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[API]]", "[[DATABASE]]"]
 
 ### 1.2 ขอบเขตการออกแบบ
 
-- **อยู่ในขอบเขต:** `src/lib/meta-capi/*` · `src/services/meta-capi.service.ts` · `src/services/meta-capi-settings.service.ts` · routes `/api/shops/meta-capi/**` + `/api/cron/meta-capi` · UI `settings/conversions-api/**` · จุดเรียกเข้าคิวในบริการเดิม 13 ไฟล์ · migration `20261111100000_00089_meta_capi`
+- **อยู่ในขอบเขต:** `src/lib/meta-capi/*` · `src/services/meta-capi.service.ts` · `src/services/meta-capi-settings.service.ts` · routes `/api/shops/meta-capi/**` + `/api/cron/meta-capi` · UI `settings/capis/**` · จุดเรียกเข้าคิวในบริการเดิม 13 ไฟล์ · migration `20261111100000_00089_meta_capi`
 - **นอกขอบเขต:** Instagram / LINE / หน้าร้าน · ส่งข้อมูลลูกค้าแบบแฮช · Pixel · ไอคอนสถานะบนการ์ดออเดอร์ (PRD §5)
 - **Stack:** Next.js 16 (App Router) + Prisma + PostgreSQL 16 (Supabase) บน Vercel · ไม่มี service/คิวภายนอกเพิ่ม
 
@@ -51,7 +51,7 @@ related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[API]]", "[[DATABASE]]"]
 ```mermaid
 graph TD
     subgraph SellerWeb["seller.* (Paces UI · เจ้าของร้าน X9)"]
-        UI["หน้า /settings/conversions-api (3 หน้า)"]
+        UI["หน้า /settings/capis (3 หน้า)"]
     end
     subgraph NextAPI["Next.js route handlers"]
         API["/api/shops/meta-capi/**"]
@@ -111,10 +111,10 @@ graph TD
 | **C-SET** | อ่าน/แก้ตั้งค่า · เพิ่ม/แก้/ลบ/resume dataset · ปุ่มทดสอบ · ลิสต์บันทึก — ทุกฟังก์ชันรับ `shopId` จาก session และตรวจว่าเพจเป็นของร้าน | `src/services/meta-capi-settings.service.ts` → Prisma + `fetch` (Meta) + `token-crypto` |
 | **C-API** | route handlers · ด่านสิทธิ์ `requireShopCapability('X9')` + no-store + แปลง `CapiError`→HTTP | `src/app/api/shops/meta-capi/**` · `src/lib/meta-capi/route-helpers.ts` · `src/lib/validations.ts` (`Capi*Schema`) |
 | **C-CRON** | ตัวกระตุ้นของ C-SWEEP (ส่ง → กวาด CartAbandoned → purge) | `src/app/api/cron/meta-capi/route.ts` |
-| **C-UI** | 3 หน้า (รายการเพจ · รายละเอียด · บันทึกการส่ง) + ตัวตัดสินฝั่งจอ | `src/app/(paces)/seller/(dashboard)/settings/conversions-api/**` · `src/lib/meta-capi/ui.ts` · `stats.ts` |
+| **C-UI** | 3 หน้า (รายการเพจ · รายละเอียด · บันทึกการส่ง) + ตัวตัดสินฝั่งจอ | `src/app/(paces)/seller/(dashboard)/settings/capis/**` · `src/lib/meta-capi/ui.ts` · `stats.ts` |
 | **C-HOOK** | จุดเรียก C-ENQ ในบริการเดิม (ตาราง §3.2) | ไฟล์ละ 1–13 จุด |
 | **C-NAV** | เมนู/ทางลัด/chip ที่เข้าหน้านี้ (ซ่อนเมื่อฟีเจอร์ปิดหรือไม่ใช่เจ้าของ) | `seller-menu.ts` (`applyMetaCapiMenu`) · `seller-menu-server.ts` · `role-nav.ts` · `ShopQuickLinks.tsx` · `ChannelsClient.tsx` |
-| **C-NOTIFY** | push แจ้งเจ้าของเมื่อ dataset ถูกหยุด | `seller-push.service.ts::pushMetaCapiStopped` (type `channel-health` · url `/settings/conversions-api`) |
+| **C-NOTIFY** | push แจ้งเจ้าของเมื่อ dataset ถูกหยุด | `seller-push.service.ts::pushMetaCapiStopped` (type `channel-health` · url `/settings/capis`) |
 | **C-RESUME** | ปลุก dataset แบบ PAGE ที่ `STOPPED` เมื่อเชื่อมเพจใหม่ | `shop-channel.service.ts::upsertChannel` (`metaCapiDataset.updateMany`) + `resumeCapiDataset` (ปุ่ม/API) |
 
 ### 3.2 จุดเกิดเหตุการณ์ (C-HOOK) — ยืนยันจากโค้ดด้วย grep `// 00089`
@@ -282,7 +282,7 @@ sequenceDiagram
 | **Meta Graph — ตรวจ token** | 3rd-party | `GET {GRAPH_BASE}/{datasetId}?fields=id` (ปุ่มทดสอบแบบไม่มี Test Event Code) | ยืนยัน token ไม่ได้ → แสดง `unverified` ไม่ใช่ล้ม |
 | **Vercel Cron** | internal platform | `GET /api/cron/meta-capi` ทุก 1 นาที · `Bearer CRON_SECRET` | cron ไม่ยิง = คิวไม่ถูกส่ง (แถวสะสม รอ ไม่หาย ภายใน 7 วัน) |
 | **`ShopChannel.accessTokenEnc`** | internal | ถอดรหัสด้วย `token-crypto` (`CHANNEL_TOKEN_KEY`) | ถอดไม่ได้ = ตัวส่งจัดเป็นข้อผิดพลาดต่อเนื่อง → ไป `RETRY` (httpStatus 0) → `FAILED` หลัง 3 ครั้ง |
-| **`seller-push.service`** | internal | `pushMetaCapiStopped({shopId, channelName})` → `pushToUsers(H3 holders, …, {type:'channel-health', url:'/settings/conversions-api'})` · กลืน error | แจ้งเตือนไม่ถึง = เจ้าของไม่รู้ว่าหยุด (ยังเห็นป้ายในหน้า) |
+| **`seller-push.service`** | internal | `pushMetaCapiStopped({shopId, channelName})` → `pushToUsers(H3 holders, …, {type:'channel-health', url:'/settings/capis'})` · กลืน error | แจ้งเตือนไม่ถึง = เจ้าของไม่รู้ว่าหยุด (ยังเห็นป้ายในหน้า) |
 | **`shop-channel.service`** | internal | `upsertChannel` ปลุก dataset `PAGE`/`STOPPED` ใน tx เดียวกับการเชื่อมใหม่ | — |
 | **ระบบแท็ก (00083) / ออเดอร์ร่าง (00061)** | internal | `applyKeywordTags` / `updateConversationCrm` เรียก `enqueueTagLeadCapi` | ล้ม = ไม่ส่ง Lead แต่ติดแท็กสำเร็จ |
 

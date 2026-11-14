@@ -40,3 +40,27 @@ export const MAX_DATASETS = 3
 /** ชื่อที่แสดงของชุดข้อมูล — ไม่มีชื่อเรียก: แบบเพจ = "ชุดข้อมูลของเพจ" · กรอกเอง = Dataset ID */
 export const datasetName = (d: Pick<DatasetView, 'label' | 'source' | 'datasetId'>, pageDefault: string) =>
   d.label?.trim() || (d.source === 'PAGE' ? pageDefault : `Dataset ${d.datasetId}`)
+
+/** แถวบันทึกการส่งที่ serialize แล้ว (วันที่เป็น ISO string · ไม่มี psid/token) */
+export type LogCustomer = { name: string | null; avatarUrl: string | null }
+export type LogOrder = { orderNo: string | null; publicToken: string }
+export type LogAd = { adId: string | null; adTitle: string | null; photoFileId: string | null; clickedAt: string }
+export type LogRow = {
+  id: string
+  createdAt: string
+  eventKey: string
+  datasetName: string
+  value: number | null
+  status: string
+  reason: string | null
+  attempts: number
+  customer: LogCustomer | null
+  order: LogOrder | null
+  ad: LogAd | null
+}
+/** รูปที่ API ตอบ (GET .../log) — ก่อนแปลงเป็น LogRow */
+export type LogApiRow = Omit<LogRow, 'datasetName' | 'ad'> & { datasetLabel: string | null; datasetId: string; ad: LogAd | null }
+export const toLogRow = (x: LogApiRow): LogRow => ({
+  id: x.id, createdAt: x.createdAt, eventKey: x.eventKey, datasetName: x.datasetLabel?.trim() || `Dataset ${x.datasetId}`,
+  value: x.value, status: x.status, reason: x.reason, attempts: x.attempts, customer: x.customer, order: x.order, ad: x.ad,
+})

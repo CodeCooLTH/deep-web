@@ -56,6 +56,7 @@ d('00089 meta-capi-settings (DB local)', () => {
 
   afterAll(async () => {
     if (ids.shops.length) {
+      await prisma.order.deleteMany({ where: { shopId: { in: ids.shops } } })
       await prisma.conversation.deleteMany({ where: { shopId: { in: ids.shops } } })
       await prisma.externalContact.deleteMany({ where: { channel: { shopId: { in: ids.shops } } } })
       await prisma.shopTag.deleteMany({ where: { shopId: { in: ids.shops } } })
@@ -282,6 +283,37 @@ d('00089 meta-capi-settings (DB local)', () => {
     expect((await listCapiLog(f.shop, f.channel, { eventKey: 'ORDER_SHIPPED' })).rows).toHaveLength(2)
     expect((await listCapiLog(f.shop, f.channel, { take: 9999 })).rows).toHaveLength(5) // เพดาน 50
     expect(JSON.stringify(p1)).not.toMatch(/tokenEnc|lastRequest|psid/)
+  })
+
+  it('listCapiLog: ลูกค้า/ออเดอร์/แอด — เลือกแอดล่าสุดก่อน eventTime · ไม่มี ADS = null · ออเดอร์ร้านอื่นไม่โผล่', async () => {
+    const ds = await addCapiDataset(f.shop, f.channel, { source: 'MANUAL', datasetId: '650', token: 'T' })
+    const contact = await prisma.externalContact.create({ data: { shopChannelId: f.channel, externalUserId: `u-${run}`, name: 'สมชาย', avatarUrl: 'file-av' }, select: { id: true } })
+    const conv = await prisma.conversation.create({ data: { shopId: f.shop, channel: 'MESSENGER', shopChannelId: f.channel, externalContactId: contact.id }, select: { id: true } })
+    const conv2 = await prisma.conversation.create({ data: { shopId: f.shop, channel: 'MESSENGER', shopChannelId: f.channel }, select: { id: true } })
+    const order = await prisma.order.create({ data: { shopId: f.shop, type: 'PHYSICAL', totalAmount: 100, buyerContact: `08${run}`, orderNo: `DP-${run}` }, select: { id: true, publicToken: true } })
+    const orderB = await prisma.order.create({ data: { shopId: f.shopB, type: 'PHYSICAL', totalAmount: 1, buyerContact: `09${run}` }, select: { id: true } })
+    const t0 = new Date('2026-11-05T10:00:00Z')
+    const ref = (conversationId: string, adTitle: string, source: string, h: number) =>
+      prisma.conversationAdReferral.create({ data: { conversationId, source, adId: `ad-${adTitle}`, adTitle, photoFileId: `ph-${adTitle}`, receivedAt: new Date(t0.getTime() + h * 3600e3) } })
+    await ref(conv.id, 'เก่า', 'ADS', -5)
+    await ref(conv.id, 'ล่าสุดก่อนซื้อ', 'ADS', -1)
+    await ref(conv.id, 'หลังซื้อ', 'ADS', 2) // หลัง eventTime ห้ามถูกเลือก
+    await ref(conv.id, 'ลิงก์สั้น', 'SHORTLINK', -0.5) // ไม่ใช่ ADS ห้ามถูกเลือก
+    await ref(conv2.id, 'ลิงก์สั้น', 'SHORTLINK', -1)
+    const mk = (k: string, conversationId: string, orderId: string, at: number) =>
+      prisma.metaCapiEvent.create({ data: { shopId: f.shop, datasetRowId: ds.id, conversationId, eventKey: 'PURCHASE', dedupeKey: k, eventTime: t0, pageId: 'p', psid: 's', payload: { value: 1, orderId }, createdAt: new Date(t0.getTime() + at) } })
+    await mk('a1', conv.id, order.id, 2000)
+    await mk('a2', conv2.id, orderB.id, 1000) // ออเดอร์ของร้านอื่น
+    const { rows } = await listCapiLog(f.shop, f.channel, {})
+    const [r1, r2] = rows
+    expect(r1.customer).toEqual({ name: 'สมชาย', avatarUrl: 'file-av' })
+    expect(r1.order).toEqual({ orderNo: `DP-${run}`, publicToken: order.publicToken })
+    expect(r1.ad).toMatchObject({ adId: 'ad-ล่าสุดก่อนซื้อ', adTitle: 'ล่าสุดก่อนซื้อ', photoFileId: 'ph-ล่าสุดก่อนซื้อ' })
+    expect(r1.ad!.clickedAt.getTime()).toBe(t0.getTime() - 3600e3)
+    expect(r2.customer).toBeNull() // conv2 ไม่มี contact
+    expect(r2.order).toBeNull()
+    expect(r2.ad).toBeNull()
+    expect(JSON.stringify(rows)).not.toMatch(/psid/)
   })
 
   it('listCapiPages: นับ dataset/anyStopped/sent7d', async () => {

@@ -65,7 +65,7 @@ flowchart LR
     Cron[Vercel Cron ทุก 1 นาที] --> Sweep[sweepMetaCapi / sweepCartAbandoned / purge]
     Sweep --> DB
     Sweep -- "POST /{datasetId}/events" --> Meta[Meta Graph API v21.0]
-    Owner[เจ้าของร้าน X9] --> UI[settings/conversions-api] --> API[/api/shops/meta-capi/**/] --> Set[settings service]
+    Owner[เจ้าของร้าน X9] --> UI[settings/capis] --> API[/api/shops/meta-capi/**/] --> Set[settings service]
     Set --> DB
     Set -- "POST /{pageId}/dataset · GET/POST ทดสอบ" --> Meta
     Sweep -- "token เสีย" --> Push[seller-push]
@@ -79,7 +79,7 @@ flowchart LR
 | **`meta-capi.service.ts`** | enqueue (order/message/tag) · sweepCartAbandoned · sweepMetaCapi · purge | Prisma + fetch |
 | **`meta-capi-settings.service.ts`** | อ่าน/แก้ตั้งค่า · dataset · ทดสอบ · log | Prisma + fetch |
 | **routes** | `/api/shops/meta-capi/**` (9 เมธอด) · `/api/cron/meta-capi` | Next.js route handlers |
-| **UI** | `settings/conversions-api/**` 3 หน้า (Paces) | React 19 client + RSC |
+| **UI** | `settings/capis/**` 3 หน้า (Paces) | React 19 client + RSC |
 | **จุดเรียกในบริการเดิม** | 13 ไฟล์ | ดู SDS §3.2 |
 
 รายละเอียดเชิงออกแบบดู [[SDS]]
@@ -165,7 +165,7 @@ Vercel serverless + Vercel Cron `* * * * *` → `/api/cron/meta-capi` · Postgre
 
 ### TFR-012: หยุดเมื่อ token เสีย
 - **Trace to:** FR-012 · BR-CAPI-06
-- **คำอธิบายเชิงเทคนิค:** ผล `STOP` → `$transaction`: `metaCapiDataset.updateMany{id, status:'ACTIVE'} → STOPPED + stoppedAt + stoppedReason(≤300)` + แถวนี้ `lockedAt=null, reason='TOKEN_OR_PERMISSION'` (ไม่นับ attempts) · `flipped.count===1` → `pushMetaCapiStopped` (ผู้ถือ `H3`; `{type:'channel-health', url:'/settings/conversions-api'}`) · dataset ที่เพิ่งหยุดถูกจำใน `stoppedNow` ไม่ยิงแถวที่เหลือในรอบเดียวกัน · ปลุก: `upsertChannel` (เชื่อมเพจที่มีอยู่แล้ว: `metaCapiDataset.updateMany{shopChannelId, source:'PAGE', status:'STOPPED'} → ACTIVE`) · `resumeCapiDataset` (API) · `updateCapiDataset` ใส่ token ใหม่ (MANUAL)
+- **คำอธิบายเชิงเทคนิค:** ผล `STOP` → `$transaction`: `metaCapiDataset.updateMany{id, status:'ACTIVE'} → STOPPED + stoppedAt + stoppedReason(≤300)` + แถวนี้ `lockedAt=null, reason='TOKEN_OR_PERMISSION'` (ไม่นับ attempts) · `flipped.count===1` → `pushMetaCapiStopped` (ผู้ถือ `H3`; `{type:'channel-health', url:'/settings/capis'}`) · dataset ที่เพิ่งหยุดถูกจำใน `stoppedNow` ไม่ยิงแถวที่เหลือในรอบเดียวกัน · ปลุก: `upsertChannel` (เชื่อมเพจที่มีอยู่แล้ว: `metaCapiDataset.updateMany{shopChannelId, source:'PAGE', status:'STOPPED'} → ACTIVE`) · `resumeCapiDataset` (API) · `updateCapiDataset` ใส่ token ใหม่ (MANUAL)
 - **Edge cases:** ปลุกโดยไม่เรียก Meta — ยังไม่มีสิทธิ์จริง = หยุดอีก + push อีก · แถวที่เก่าเกิน 7 วันตอนปลุก = `SKIPPED`
 
 ### TFR-013: บันทึกการส่ง
@@ -318,7 +318,7 @@ migration เดียว `20261111100000_00089_meta_capi` (additive · 3 ตา
 | 4 | **ตัวเลือก "แนบสินค้า" ของ CartAbandoned** | BRD FR-007 "เปิดแนบสินค้าได้ต่อเหตุการณ์ที่มียอด" | UI (`AMOUNT_EVENT_KEYS`) เสนอ `valueMode` + `sendContents` ให้ `CART_ABANDONED` แต่ `sweepCartAbandoned` ใช้เฉพาะ `valueMode` — `sendContents` **ไม่มีผล** (payload ไม่มี `items`) |
 | 5 | **`event_id`** | PRD §5 "Business Messaging ไม่ใช้ event_id ตัดซ้ำ" | โค้ดส่ง `event_id = dedupeKey` ทุกเหตุการณ์จริง (กันนับซ้ำเมื่อส่งสำเร็จแต่บันทึกผลไม่ทัน · มีเทสยืนยัน) — ปุ่มทดสอบไม่ใส่ |
 | 6 | **เพจที่ token เสียมองไม่เห็น** | `ChannelsClient` comment "เพจที่ token เสียเข้าไปดูสถานะ/เชื่อมใหม่ได้" · BRD FR-012 push "แตะเพื่อเชื่อมใหม่" | `loadChannel`/`listCapiPages` กรอง `ShopChannel.status='ACTIVE'` — เพจที่ระบบพลิกเป็น `TOKEN_INVALID` (เมื่อส่งแชทพบ token ตาย) จะหายจากรายการ และหน้า detail ได้ 404 → เจ้าของไม่เห็นป้าย "หยุด"/ปุ่มเชื่อมใหม่ในหน้านี้ (ต้องไปเชื่อมที่ `/settings/channels`) · `resolveTarget` ไม่ตรวจ `ShopChannel.status` จึงยังเข้าคิวและพยายามส่งต่อ |
-| 7 | **ผู้รับแจ้งเตือน token เสีย** | BRD FR-012 "แจ้งเจ้าของร้าน" | `pushMetaCapiStopped` ส่งให้ผู้ถือ **`H3` = เจ้าของ + ผู้ดูแล (MANAGER)** แต่หน้าปลายทาง `/settings/conversions-api` เป็น **X9 = เจ้าของเท่านั้น** → ผู้ดูแลที่แตะ push จะเจอ `NoPermissionCard` |
+| 7 | **ผู้รับแจ้งเตือน token เสีย** | BRD FR-012 "แจ้งเจ้าของร้าน" | `pushMetaCapiStopped` ส่งให้ผู้ถือ **`H3` = เจ้าของ + ผู้ดูแล (MANAGER)** แต่หน้าปลายทาง `/settings/capis` เป็น **X9 = เจ้าของเท่านั้น** → ผู้ดูแลที่แตะ push จะเจอ `NoPermissionCard` |
 | 8 | **ชำระครบ ≠ `money.fullyPaid` ทุกทาง** | BRD FR-006 "ยอดรับแล้ว ≥ ยอดคำสั่งซื้อ ตามตัวคำนวณการชำระกลาง" | เฉพาะ `recordPayment` ใช้ `money.fullyPaid` · `setPaymentConfirmed` / `setCodReceived` / `settleCodFromCarrier` จุด `FULLY_PAID` ทันทีที่ร้านยืนยัน/ได้เงินปลายทาง (กว้างกว่าที่ BRD ระบุ แต่สอดคล้องนิยาม `isOrderUnpaid`) |
 | 9 | **ออเดอร์ `CANCELLED`** | BRD ไม่ระบุ | `enqueueOrderCapi` ไม่ส่งอะไรนอกจาก `CANCELED` เมื่อออเดอร์ยกเลิกแล้ว (มีเทสครอบ) |
 | 10 | **BR-CAPI-06 "Missing Permission"** | รหัสกลุ่มหยุดรวม "Missing Permission" | โค้ดนับเฉพาะ `code = 100 ∧ message ตรง /missing permission/i` เป็น `STOP` (code 100 อื่น = `FAIL`) |

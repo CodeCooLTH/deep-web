@@ -22,7 +22,7 @@ related: ["[[SDS]]", "[[SRS]]", "[[BRD]]", "[[DATABASE]]"]
 
 API ชุดนี้มี 2 กลุ่ม — provider คือ Next.js route handlers ของ repo นี้ (Node/TypeScript · Prisma · PostgreSQL)
 
-1. **API ตั้งค่า** `/api/shops/meta-capi/**` (9 เมธอด ใน 6 ไฟล์) — ผู้บริโภค = หน้า `settings/conversions-api` (client component ผ่าน `capiApi()` ใน `components/shared.tsx`) · เจ้าของร้านเท่านั้น (capability `X9`)
+1. **API ตั้งค่า** `/api/shops/meta-capi/**` (9 เมธอด ใน 6 ไฟล์) — ผู้บริโภค = หน้า `settings/capis` (client component ผ่าน `capiApi()` ใน `components/shared.tsx`) · เจ้าของร้านเท่านั้น (capability `X9`)
 2. **Cron** `/api/cron/meta-capi` — ผู้บริโภค = Vercel Cron (ทุก 1 นาที)
 
 นอกจากนี้ระบบเรียก **Meta Graph API** (ขาออก) 3 แบบ — บันทึกไว้ในข้อ 6 เพื่อให้เห็นสัญญาปลายทาง

@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  // URL เดิมของหน้า Conversions API (00089) — push แจ้งเตือนที่ส่งไปแล้ว/บุ๊กมาร์กยังชี้ path นี้
+  async redirects() {
+    return [{ source: '/settings/conversions-api/:path*', destination: '/settings/capis/:path*', permanent: true }]
+  },
   allowedDevOrigins: ['deepth.local', 'seller.deepth.local', 'admin.deepth.local'],
   images: {
     remotePatterns: [

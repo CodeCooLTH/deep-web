@@ -1,7 +1,7 @@
 /**
  * Conversions API — บันทึกการส่ง (feature 00089 หน้า 3) · เจ้าของร้านเท่านั้น (X9) · อ่านอย่างเดียว
  *
- * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx (ตาราง + ตัวกรอง — ดู ../../components/LogClient.tsx)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx (ตัวกรอง) · timeline ดู ../../components/LogClient.tsx
  *   + src/app/(paces)/seller/(dashboard)/settings/tags/page.tsx (gatePage + NoPermissionCard)
  *   theme shell: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
  *
@@ -21,7 +21,8 @@ import { viewerRolesOf } from '@/lib/viewer-roles'
 import { CapiError, getCapiPage, listCapiLog } from '@/services/meta-capi-settings.service'
 import NoPermissionCard from '../../../../_shared/NoPermissionCard'
 import SellerErrorState from '../../../../_shared/SellerErrorState'
-import LogClient, { type LogRow } from '../../components/LogClient'
+import LogClient from '../../components/LogClient'
+import type { LogRow } from '../../components/types'
 
 const STATUSES = ['PENDING', 'SENT', 'FAILED', 'SKIPPED'] as const
 type Status = (typeof STATUSES)[number]
@@ -42,7 +43,7 @@ export default async function ConversionsApiLogPage({ params, searchParams }: { 
   if (!isMetaCapiEnabled((session.user as { activeShopId?: string | null }).activeShopId)) notFound()
 
   const gate = await gatePage(session, 'X9')
-  const base = [{ label: c.breadcrumbSettings, href: '/settings' }, { label: c.pageTitle, href: '/settings/conversions-api' }]
+  const base = [{ label: c.breadcrumbSettings, href: '/settings' }, { label: c.pageTitle, href: '/settings/capis' }]
   if (!gate.ok && gate.reason === 'FORBIDDEN_ROLE') {
     return (
       <>
@@ -79,6 +80,9 @@ export default async function ConversionsApiLogPage({ params, searchParams }: { 
       status: r.status,
       reason: r.reason,
       attempts: r.attempts,
+      customer: r.customer,
+      order: r.order,
+      ad: r.ad && { ...r.ad, clickedAt: r.ad.clickedAt.toISOString() },
     }))
   } catch (e) {
     if (e instanceof CapiError && (e.code === 'NOT_FOUND' || e.code === 'FEATURE_DISABLED')) missing = true
@@ -89,12 +93,12 @@ export default async function ConversionsApiLogPage({ params, searchParams }: { 
   }
   if (missing) notFound()
 
-  const trail = [...base, { label: name || c.pageTitle, href: `/settings/conversions-api/${channelId}` }]
+  const trail = [...base, { label: name || c.pageTitle, href: `/settings/capis/${channelId}` }]
   if (failed) {
     return (
       <>
         <PageBreadcrumb title={c.logTitle} homeLabel={t.common.home} trail={base} />
-        <SellerErrorState title={c.logError} message={c.loadErrorHint} retryHref={`/settings/conversions-api/${channelId}/log`} />
+        <SellerErrorState title={c.logError} message={c.loadErrorHint} retryHref={`/settings/capis/${channelId}/log`} />
       </>
     )
   }

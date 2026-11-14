@@ -119,7 +119,7 @@ export default function DetailClient({ data }: { data: DetailData }) {
     if (ok) pacesToast.success(fmt(t.evRemoved, { name: t.events[key as keyof typeof t.events].label }), { action: { label: t.evUndo, onClick: () => void saveEvents({ ...d, events: before.filter((e) => e !== key) }, before) } })
   }
 
-  const logHref = `/settings/conversions-api/${data.channelId}/log`
+  const logHref = `/settings/capis/${data.channelId}/log`
 
   return (
     <div className="flex flex-col gap-base">

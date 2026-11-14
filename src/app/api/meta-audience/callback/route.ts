@@ -13,7 +13,7 @@ import { callbackUrl } from "../connect/route";
 export const dynamic = "force-dynamic";
 
 const back = (request: NextRequest, status: string) => {
-  const url = new URL("/settings/conversions-api", request.nextUrl.origin);
+  const url = new URL("/settings/capis", request.nextUrl.origin);
   url.searchParams.set("audience", status);
   return NextResponse.redirect(url.toString(), 302);
 };
