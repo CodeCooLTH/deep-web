@@ -122,7 +122,8 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
         header: t.logColEvent,
         cell: ({ row }) => (
           <span className="flex flex-col items-start">
-            <span className="text-default-900">{eventLabel(row.original.eventKey)}</span>
+            <span className="text-default-900 whitespace-nowrap">{eventLabel(row.original.eventKey)}</span>
+            <span className="text-default-700 text-xs whitespace-nowrap">{row.original.datasetName}</span>
             {orderLink(row.original)}
           </span>
         ),
@@ -146,15 +147,19 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
           )
         },
       }),
-      columnHelper.accessor('datasetName', { header: t.logColDataset, cell: ({ getValue }) => <span className="text-default-800">{getValue()}</span> }),
       columnHelper.accessor('value', {
         header: () => <span className="block w-full text-end">{t.logColValue}</span>,
         cell: ({ getValue }) => <span className="text-default-900 block text-end whitespace-nowrap tabular-nums">{getValue() === null ? '–' : money(getValue() as number)}</span>,
       }),
-      columnHelper.accessor('status', { header: t.logColStatus, cell: ({ getValue }) => statusBadge(getValue()) }),
-      columnHelper.accessor('reason', {
-        header: t.logColReason,
-        cell: ({ row }) => <span className={row.original.status === 'FAILED' ? 'text-danger-ink' : 'text-default-700'}>{reasonText(row.original)}</span>,
+      // เหตุผลอยู่ใต้ป้ายสถานะ — แยกคอลัมน์แล้วตารางกว้างเกินพื้นที่ข้าง sidebar ที่ 1280px
+      columnHelper.accessor('status', {
+        header: t.logColStatus,
+        cell: ({ row }) => (
+          <span className="flex max-w-52 min-w-40 flex-col items-start gap-1">
+            {statusBadge(row.original.status)}
+            {capiReasonKey(row.original) !== 'none' && <span className={cn('text-xs', row.original.status === 'FAILED' ? 'text-danger-ink' : 'text-default-700')}>{reasonText(row.original)}</span>}
+          </span>
+        ),
       }),
     ],
     // eventLabel/reasonText/statusBadge/customerCell/orderLink/adThumb ผูกกับ t เท่านั้น
@@ -231,8 +236,11 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
                 {r.ad && (
                   <div className="text-default-800 mt-1 flex min-w-0 items-center gap-2 text-xs">
                     {adThumb(r)}
-                    <span className="min-w-0 truncate" title={adName(r)}>
-                      {fmt(t.logFromAd, { name: adName(r), date: formatDateTime(r.ad.clickedAt) })}
+                    <span className="min-w-0">
+                      <span className="block truncate" title={adName(r)}>
+                        {adName(r)}
+                      </span>
+                      <span className="text-default-700 block tabular-nums">{fmt(t.logAdClicked, { date: formatDateTime(r.ad.clickedAt) })}</span>
                     </span>
                   </div>
                 )}

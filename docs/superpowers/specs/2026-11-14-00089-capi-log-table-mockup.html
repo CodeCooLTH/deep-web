@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00089 บันทึกการส่ง (ตาราง) — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00078 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 4.5: '18px', 7.5: '30px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), 'body-color': v('body-color'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'),
+          info: v('info'), 'info-ink': v('info-ink'), warning: v('warning'), 'warning-ink': v('warning-ink'),
+          danger: v('danger'), 'danger-ink': v('danger-ink'), success: v('success'), 'success-ink': v('success-ink'),
+          info15: v('info15'), warning15: v('warning15'), danger15: v('danger15'),
+          success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --body-color:#4c4c5c; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e;
+    --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --info15:#e6f6fb; --warning15:#fef5e6; --danger15:#fee6ec; --success15:#d9f5f0;
+    --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-lg:0 4px 16px rgba(76,76,92,.2); --knob:rgba(49,58,70,.3);
+    --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --body-color:#aab8c5; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd;
+    --info:#5bc3e1; --info-ink:#7dd3fc; --warning:#f9bf59; --warning-ink:#fcd34d;
+    --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --info15:rgb(39,55,67); --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --success15:rgb(25,54,56);
+    --primary15:rgb(30,42,63); --primary10:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --shadow-lg:0 4px 16px rgba(0,0,0,.45); --knob:rgba(75,77,92,.9);
+    --page:#0f1014;
+  }
+  html, body { font-family: 'Anuphan', sans-serif; }
+  body { background: var(--page); color: var(--body-color); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  /* .form-switch ของ Paces — กล่องแตะ 44×44 วาดราง 30×20 */
+  .form-switch { appearance:none; position:relative; display:inline-flex; flex-shrink:0; width:44px; height:44px; margin:-12px -7px; background:transparent; border:0; cursor:pointer; }
+  .form-switch::before { content:""; position:absolute; left:7px; top:12px; width:30px; height:20px; border-radius:9999px; background:var(--d200); border:1px solid var(--d300); box-sizing:border-box; }
+  .form-switch::after { content:""; position:absolute; left:11px; top:16px; width:12px; height:12px; border-radius:9999px; background:var(--knob); transition:transform .15s; }
+  .form-switch:checked::before { background:var(--primary); border-color:var(--primary); }
+  .form-switch:checked::after { background:#fff; transform:translateX(14px); }
+  .form-switch:disabled { opacity:.5; cursor:not-allowed; }
+  /* .form-radio ของ Paces 18px */
+  .form-radio { appearance:none; width:18px; height:18px; border-radius:9999px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; margin-top:2px; }
+  .form-radio:checked { border:5px solid var(--primary); }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .form-check { appearance:none; width:18px; height:18px; border-radius:4px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; }
+  .form-check:checked { background:var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M5 12l5 5 9-9'/%3E%3C/svg%3E") center/14px no-repeat; border-color:var(--primary); }
+  .tabbtn[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .badge { display:inline-flex; align-items:center; gap:.25rem; border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; white-space:nowrap; }
+    .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+    .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border-bottom:1px dashed var(--d300); padding:15px 20px; }
+    .card-title { font-size:15px; font-weight:500; color:var(--d900); }
+    .card-body { padding:20px; }
+    .card-footer { border-top:1px solid var(--d200); padding:15px 20px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; white-space:nowrap; }
+    .btn-sm { padding:.25rem .625rem; font-size:13px; }
+    .btn-icon { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:4px; border:1px solid var(--d300); color:var(--d700); flex-shrink:0; }
+    .form-input, .form-select { display:block; width:100%; border:1px solid var(--d300); border-radius:4px; background:var(--card); color:var(--d900); padding:.5rem .75rem; font-size:14px; }
+    .form-select { appearance:none; padding-inline-end:2rem; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2358626b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .6rem center; background-size:16px; }
+    .form-input::placeholder { color:var(--d500); }
+    .form-label { display:block; margin-bottom:.25rem; font-size:13px; font-weight:500; color:var(--d800); }
+    .input-group { display:flex; width:100%; }
+    .input-group > * + * { margin-inline-start:-1px; }
+    .input-group > :not(:first-child) { border-start-start-radius:0; border-end-start-radius:0; }
+    .input-group > :not(:last-child) { border-start-end-radius:0; border-end-end-radius:0; }
+    .input-group > .form-input { flex:1; min-width:0; }
+    .input-group-text { display:flex; align-items:center; border:1px solid var(--d300); border-radius:4px; background:var(--d100); padding:0 .75rem; font-size:14px; color:var(--d700); }
+    .nav-tab { display:inline-flex; align-items:center; gap:.375rem; margin-bottom:-1px; border-bottom:2px solid transparent; padding:.5rem .25rem; font-size:14px; color:var(--d700); white-space:nowrap; }
+    .nav-tab.active { border-color:var(--primary); color:var(--primary-ink); font-weight:500; }
+  }
+</style>
+<style>
+  /* .table ของ Paces (DataTable: table table-hover · thead-sm · bg-light/25 text-2xs uppercase) */
+  .table-wrapper { overflow-x:auto; }
+  .ptable { width:100%; border-collapse:collapse; font-size:14px; }
+  .ptable thead tr { background:color-mix(in srgb, var(--light) 25%, transparent); }
+  .ptable th { padding:10px 12px; text-align:start; font-size:11px; font-weight:600; color:var(--d700); white-space:nowrap; border-bottom:1px solid var(--d200); }
+  .ptable td { padding:10px 12px; vertical-align:middle; border-bottom:1px solid var(--d200); }
+  .ptable tbody tr:hover { background:var(--d50); }
+  .ptable th:first-child, .ptable td:first-child { padding-inline-start:20px; }
+  .ptable th:last-child, .ptable td:last-child { padding-inline-end:20px; }
+  .divlist > * + * { border-top:1px solid var(--d100); }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-10 border-b border-d300" style="background:var(--card)">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00089 บันทึกการส่ง — ตาราง (กลับเป็นตาราง + ข้อมูลลูกค้า/ออเดอร์/แอด)</h1>
+      <p class="text-xs text-d600">ฐาน: LogClient.tsx (ตาราง) + Paces ecommerce/orders/OrdersList.tsx ผ่าน DataTable + mobileCard · Desktop 1280 / Tablet 768 / Mobile 390 · ข้อมูลตัวอย่าง: ร้านอะไหล่มอเตอร์ไซค์</p>
+    </div>
+    <nav class="flex flex-wrap gap-2" role="tablist" aria-label="เลือกสถานะ">
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="n" aria-selected="true">1 ปกติ (ทั้งหน้า)</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="e" aria-selected="false">2 ว่าง / ไม่ตรงตัวกรอง</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="all" aria-selected="false">ทั้งหมด</button>
+    </nav>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+// โครง shell / frame / section ลอกจาก 2026-11-14-00089-capi-stat-cards-mockup.html
+const IC = (n, s = 12, c = '') => `<iconify-icon icon="${n.includes(':') ? n : 'tabler:' + n}" width="${s}" height="${s}" class="${c}" aria-hidden="true"></iconify-icon>`
+const DEVS = [{ k: 'd', w: 1280, label: 'Desktop 1280' }, { k: 't', w: 768, label: 'Tablet 768' }, { k: 'm', w: 390, label: 'Mobile 390' }]
+const T44 = (dev) => (dev.k !== 'd' ? 'min-h-11' : '')
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},45%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+// รูปแอดจำลอง: gradient + วงไฟหน้า (แทนรูปจริง ?variant=thumb)
+function adThumb(h1, h2) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='a' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(${h1},70%,45%)'/><stop offset='1' stop-color='hsl(${h2},75%,60%)'/></linearGradient></defs><rect width='24' height='24' fill='url(#a)'/><circle cx='12' cy='12' r='6' fill='rgba(255,255,255,.85)'/><circle cx='12' cy='12' r='3' fill='hsl(${h2},80%,70%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function frame(dev, inner) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame" style="width:${dev.w}px">${inner}</div></div>`
+}
+function section(id, group, title, notes, body) {
+  return `<section id="${id}" data-group="${group}"><h2 class="mb-1 text-lg font-bold text-d900">${title}</h2>
+    <ul class="mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li class="mt-0.5">${n}</li>`).join('')}</ul>${body}</section>`
+}
+const row3 = (fn) => `<div class="flex flex-wrap items-start gap-10">${DEVS.map((d) => frame(d, fn(d))).join('')}</div>`
+const TONE = { PENDING: 'bg-warning15 text-warning-ink', SENT: 'bg-success15 text-success-ink', FAILED: 'bg-danger15 text-danger-ink', SKIPPED: 'bg-d200 text-d800' }
+const MARK = { PENDING: ['clock', 'text-warning-ink'], SENT: ['circle-check', 'text-success-ink'], FAILED: ['alert-circle', 'text-danger-ink'], SKIPPED: ['player-skip-forward', 'text-d700'] }
+const STATUS_TH = { PENDING: 'รอ', SENT: 'สำเร็จ', FAILED: 'ล้มเหลว', SKIPPED: 'ข้าม' }
+const badge = (s) => `<span class="badge ${TONE[s]}">${STATUS_TH[s]}</span>`
+
+function crumbs(items) {
+  return `<nav aria-label="breadcrumb" class="mb-1 flex flex-wrap items-center gap-1.25 text-xs font-medium text-d600">${items.map((c, i) => i === items.length - 1 ? `<span aria-current="page" class="text-d700">${c}</span>` : `${c} ${IC('chevron-right', 12)}`).join(' ')}</nav>`
+}
+function sideNav() {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[245px] shrink-0 border-e border-d200 bg-card px-3 py-4">
+    <div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">CHAT</p>
+    <ul class="mb-3 space-y-0.5">${it('message-circle', 'ข้อความ')}${it('tags', 'แท็ก')}${it('send', 'ส่งอัตโนมัติถึงลูกค้า')}</ul>
+    <p class="px-3 pb-1 text-2xs font-semibold text-d500">SETTING</p>
+    <ul class="space-y-0.5">${it('building-store', 'ร้านค้า')}${it('world', 'ตั้งค่าหน้าร้าน')}${it('truck-delivery', 'การจัดส่ง')}${it('plug-connected', 'ช่องทางการขาย')}${it('ad-2', 'Conversions API', 1)}</ul></aside>`
+}
+const BOTTOM = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+const PAGE = 'ช่างเอก อะไหล่มอเตอร์ไซค์'
+function shell(dev, inner) {
+  if (dev.k === 'd') {
+    return `<div class="flex">${sideNav()}<div class="min-w-0 flex-1">
+      <div class="flex h-[65px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto flex items-center gap-4">${IC('bell', 20, 'text-d700')}<img src="${photo(30)}" alt="" class="size-8 rounded-full" /></span></div>
+      <div class="p-5"><div class="mb-5">${crumbs(['ตั้งค่า', 'Conversions API', PAGE, 'บันทึกการส่ง'])}<h3 class="text-lg font-semibold text-d900">${PAGE}</h3></div>${inner}</div></div></div>`
+  }
+  const head = dev.k === 't' ? `<div class="px-4 pt-4">${crumbs(['ตั้งค่า', 'Conversions API', PAGE, 'บันทึกการส่ง'])}</div>` : ''
+  return `<div class="flex min-h-14 items-center gap-2 border-b border-d200 bg-card px-2">
+      <button type="button" aria-label="ย้อนกลับไปตั้งค่าเพจ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button>
+      <span class="min-w-0 truncate text-md font-semibold text-d900">บันทึกการส่ง · ${PAGE}</span></div>
+    ${head}<div class="p-4">${inner}</div>
+    <nav class="grid h-[72px] grid-cols-5 items-center border-t border-d200 bg-card">${BOTTOM.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === 'เมนู' ? 'font-medium text-primary-ink' : 'text-d600'}">${IC(i, 22)}${l}</span>`).join('')}</nav>`
+}
+
+// ---------- ข้อมูลตัวอย่าง (ใหม่ → เก่า, จัดกลุ่มตามวันเวลาไทย) ----------
+const WEE = { name: 'Weerachai Pok', h: 25 }
+const LED = { name: 'ไฟหน้า LED โปร 11.11', thumb: [205, 190], clicked: '14-11-2569 13:20' }
+const DAYS = [
+  { day: '14 พ.ย. 2569', items: [
+    { t: '13:52:08', ev: 'ดูสินค้า (ViewContent)', s: 'PENDING', c: { name: 'สมศักดิ์ ใจดี', h: 140 }, ds: 'ชุดข้อมูลของเพจ', reason: 'รอส่งภายใน 1–2 นาที' },
+    { t: '13:37:40', ev: 'ส่งลิงก์คำสั่งซื้อ (InitiateCheckout)', s: 'SENT', c: WEE, val: '฿590.00', ds: 'ชุดข้อมูลของเพจ', order: 'DP-000123', ad: LED },
+    { t: '13:32:15', ev: 'จัดส่งแล้ว (OrderShipped)', s: 'SENT', c: WEE, val: '฿590.00', ds: 'ชุดข้อมูลของเพจ', order: 'DP-000123', ad: LED },
+    { t: '13:31:02', ev: 'ซื้อ (Purchase)', s: 'SENT', c: WEE, val: '฿590.00', ds: 'ชุดข้อมูลของเพจ', order: 'DP-000123', ad: LED },
+    { t: '13:29:47', ev: 'สนใจจริง (QualifiedLead)', s: 'SENT', c: WEE, ds: 'ชุดข้อมูลของเพจ', ad: LED },
+    { t: '11:05:33', ev: 'ซื้อ (Purchase)', s: 'FAILED', c: { name: 'นภาพร ศรีสุข', h: 330 }, val: '฿1,250.00', ds: 'เว็บไซต์ร้าน', order: 'DP-000121',
+      ad: { name: 'ชุดแต่ง Wave 125i ครบเซ็ต ท่อ + เบาะ + ชิวหน้า ลดแรงส่งท้ายปี ส่งฟรีทั่วไทย', thumb: [15, 40], clicked: '14-11-2569 10:48' },
+      reason: 'Meta ไม่รับเหตุการณ์นี้ ลองใหม่ครบ 3 ครั้งแล้ว' },
+    { t: '10:12:20', ev: 'สนใจ (LeadSubmitted)', s: 'SENT', c: null, ds: 'ชุดข้อมูลของเพจ' },
+  ] },
+  { day: '13 พ.ย. 2569', items: [
+    { t: '21:48:09', ev: 'ส่งถึงลูกค้า (OrderDelivered)', s: 'SKIPPED', c: { name: 'อนุชา มีสุข', h: 95 }, val: '฿480.00', ds: 'ชุดข้อมูลของเพจ', order: 'DP-000097', reason: 'เก่ากว่า 7 วัน Meta ไม่รับ' },
+    { t: '16:20:55', ev: 'ซื้อ (Purchase)', s: 'SENT', c: { name: 'ธีรวัฒน์ แก้วมณี', h: 260 }, val: '฿2,340.00', ds: 'ชุดข้อมูลของเพจ', order: 'DP-000118' },
+    { t: '09:03:41', ev: 'แนบสลิป (AddPaymentInfo)', s: 'SENT', c: { name: 'กมลชนก ทองดี', h: 300 }, ds: 'ชุดข้อมูลของเพจ', order: 'DP-000117', ad: { name: 'หมวกกันน็อค ลดทั้งร้าน', thumb: [0, 30], clicked: '13-11-2569 08:51', noPhoto: true } },
+  ] },
+]
+
+// แผ่ข้อมูลรายวันเป็นแถวเดียว · วันที่รูปแบบ formatDateTime "dd-mm-yyyy HH:mm:ss"
+const DMY = { '14 พ.ย. 2569': '14-11-2569', '13 พ.ย. 2569': '13-11-2569' }
+const ROWS = DAYS.flatMap((g) => g.items.map((r) => ({ ...r, at: `${DMY[g.day]} ${r.t}` })))
+const DASH = '<span class="text-d700">–</span>'
+
+const avatar = (c, size) => `<img src="${photo(c.h)}" alt="" class="${size} shrink-0 rounded-full" />`
+// รูปแอดเป็นของตกแต่ง alt="" · ไม่มีรูป = ช่องไอคอน speakerphone
+const thumb = (ad) => ad.noPhoto
+  ? `<span class="inline-flex size-8 shrink-0 items-center justify-center rounded bg-d100 text-primary-ink">${IC('speakerphone', 16)}</span>`
+  : `<img src="${adThumb(...ad.thumb)}" alt="" class="size-8 shrink-0 rounded object-cover" />`
+const orderLink = (r) => r.order ? `<a href="#" class="inline-flex min-h-11 items-center text-xs text-primary-ink hover:underline">ออเดอร์ #${r.order}</a>` : ''
+const orderLinkD = (r) => r.order ? `<a href="#" class="inline-flex items-center whitespace-nowrap text-xs text-primary-ink hover:underline">ออเดอร์ #${r.order}</a>` : ''
+
+function tableView(rows) {
+  const th = ['เวลา', 'ลูกค้า', 'เหตุการณ์', 'โฆษณา', 'ชุดข้อมูล', '<span class="block w-full text-end">มูลค่า</span>', 'สถานะ', 'เหตุผล']
+  const tr = (r) => `<tr>
+    <td><span class="whitespace-nowrap tabular-nums text-d800">${r.at}</span></td>
+    <td>${r.c ? `<span class="flex min-w-0 items-center gap-2">${avatar(r.c, 'size-8')}<span class="truncate text-d900">${r.c.name}</span></span>` : DASH}</td>
+    <td><span class="flex flex-col items-start"><span class="whitespace-nowrap text-d900">${r.ev}</span>${orderLinkD(r)}</span></td>
+    <td>${r.ad ? `<span class="flex min-w-0 items-center gap-2" style="max-width:14rem">${thumb(r.ad)}<span class="min-w-0">
+        <span class="block truncate text-d900" title="${r.ad.name}">${r.ad.name}</span>
+        <span class="block text-xs tabular-nums text-d700">คลิกเมื่อ ${r.ad.clicked}</span></span></span>` : DASH}</td>
+    <td><span class="whitespace-nowrap text-d800">${r.ds}</span></td>
+    <td><span class="block whitespace-nowrap text-end tabular-nums text-d900">${r.val || '–'}</span></td>
+    <td>${badge(r.s)}</td>
+    <td style="min-width:13rem"><span class="${r.s === 'FAILED' ? 'text-danger-ink' : 'text-d700'}">${r.reason || '–'}</span></td></tr>`
+  return `<div class="table-wrapper"><table class="ptable"><thead><tr>${th.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(tr).join('')}</tbody></table></div>`
+}
+// mobileCard ของ LogClient — ใช้ทั้ง Tablet 768 และ Mobile 390 (DataTable สลับเป็นตารางที่ lg = 1024px)
+function cardView(dev, rows) {
+  const sm = dev.k !== 'm' // sm: = ≥640px
+  const card = (r) => `<div class="${sm ? 'px-5' : 'px-4'} py-3">
+    <div class="flex items-start justify-between gap-3"><div class="flex min-w-0 items-center gap-2">${r.c ? avatar(r.c, 'size-9') : ''}
+      <div class="min-w-0">${r.c ? `<p class="truncate text-sm font-medium text-d900">${r.c.name}</p>` : ''}
+      <p class="min-w-0 ${r.c ? 'text-xs text-d800' : 'text-sm font-medium text-d900'}">${r.ev}</p></div></div>
+      <span class="shrink-0">${badge(r.s)}</span></div>
+    <p class="mt-0.5 text-xs text-d700"><span class="tabular-nums">${r.at}</span>${sm ? ' · ' : '<br />'}${r.ds}${r.val ? ` · <span class="tabular-nums text-d900">${r.val}</span>` : ''}</p>
+    ${orderLink(r)}
+    ${r.ad ? `<div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-d800">${thumb(r.ad)}<span class="min-w-0 truncate" title="${r.ad.name}">จากโฆษณา ${r.ad.name} · คลิกเมื่อ ${r.ad.clicked}</span></div>` : ''}
+    ${r.reason ? `<p class="mt-1 text-xs ${r.s === 'FAILED' ? 'text-danger-ink' : 'text-d800'}">${r.reason}</p>` : ''}</div>`
+  return `<div class="divlist">${rows.map(card).join('')}</div>`
+}
+function filterBtn(dev, label, active) {
+  return `<button type="button" aria-haspopup="listbox" class="btn ${dev.k === 'm' ? 'min-h-11 w-full justify-between' : dev.k === 't' ? 'min-h-11' : ''} border ${active ? 'border-primary bg-primary10 text-primary-ink' : 'border-d300 text-d800'}">${label}${IC('chevron-down', 16)}</button>`
+}
+function cardHeader(dev, f = {}) {
+  return `<div class="card-header"><div><h4 class="card-title">บันทึกการส่ง</h4><p class="text-xs text-d700">เก็บไว้ทั้งหมด ไม่มีหมดอายุ</p></div>
+    <div class="flex ${dev.k === 'm' ? 'w-full flex-col' : 'flex-row flex-wrap'} gap-2">${filterBtn(dev, f.status || 'สถานะ', !!f.status)}${filterBtn(dev, f.event || 'เหตุการณ์', !!f.event)}</div></div>`
+}
+function logCard(dev) {
+  return `<div class="card">${cardHeader(dev)}${dev.k === 'd' ? tableView(ROWS) : cardView(dev, ROWS)}
+    <div class="card-footer flex flex-wrap items-center justify-between gap-2"><span class="text-xs tabular-nums text-d700">แสดง 20 รายการ</span>
+      <button type="button" class="btn border border-d300 text-d800 ${dev.k === 'm' ? 'min-h-11 w-full' : T44(dev)}">${IC('chevron-down', 16)}โหลดเพิ่ม</button></div></div>`
+}
+function emptyCard(dev, filtered) {
+  const btn = filtered
+    ? `<button type="button" class="btn mt-5 rounded-full bg-primary px-6 text-white ${T44(dev)}">ล้างตัวกรอง</button>`
+    : `<a href="#" class="btn mt-5 rounded-full bg-primary px-6 text-white ${T44(dev)}">กลับไปตั้งค่าเพจ</a>`
+  return `<div class="card">${cardHeader(dev, filtered ? { status: 'ล้มเหลว', event: 'ซื้อ (Purchase)' } : {})}
+    <div class="card-body flex flex-col items-center py-10 text-center">
+      ${IC(filtered ? 'filter-off' : 'history', 56, 'mb-4 text-d400')}
+      <p class="mb-1 text-base font-semibold text-d700">${filtered ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีบันทึกการส่ง'}</p>
+      ${filtered ? '' : '<p class="mt-1 max-w-xs text-sm text-d700">เมื่อมีเหตุการณ์จากแชทของเพจนี้ จะขึ้นที่นี่ภายใน 1–2 นาที</p>'}
+      ${btn}</div></div>`
+}
+const wrap = (dev, inner) => `<div class="${dev.k === 'm' ? 'p-4' : 'p-5'}">${inner}</div>`
+
+let html = ''
+html += section('sn', 'n', '1) ปกติ — 10 รายการ (ตัดจากชุดแรก 20 รายการ)', [
+  'Desktop = ตาราง Paces 8 คอลัมน์: เวลา · ลูกค้า (รูป 32px + ชื่อ / "–") · เหตุการณ์ (+ ลิงก์ "ออเดอร์ #…" ใต้ชื่อ) · โฆษณา (รูป 32px + ชื่อตัด … + "คลิกเมื่อ …" / "–") · ชุดข้อมูล · มูลค่า (ชิดขวา) · สถานะ · เหตุผล (แดงเมื่อล้มเหลว)',
+  'Tablet 768 + Mobile 390 = การ์ดรายการ (DataTable สลับเป็นตารางที่ lg = 1024px) · Tablet เวลา · ชุดข้อมูล · มูลค่า อยู่บรรทัดเดียว · Mobile เวลาบรรทัดแรก ชุดข้อมูล · มูลค่า บรรทัดถัดไป',
+  'ลิงก์ออเดอร์บนการ์ดสูง 44px (min-h-11) · บรรทัดแอดตัด … ทั้งบรรทัด + title · แอด "หมวกกันน็อค ลดทั้งร้าน" ไม่มีรูป = ช่องไอคอน speakerphone · ลูกค้าไม่มีข้อมูล: ตาราง "–" · การ์ดไม่มีรูป ชื่อเหตุการณ์ขึ้นเป็นบรรทัดหลัก',
+], row3((d) => shell(d, logCard(d))))
+html += section('se', 'e', '2) ว่าง / ไม่ตรงตัวกรอง (เฉพาะการ์ด)', [
+  'ว่าง: ไอคอน history + "ยังไม่มีบันทึกการส่ง" + คำอธิบาย + ปุ่ม "กลับไปตั้งค่าเพจ" (SellerEmptyState compact)',
+  'ไม่ตรงตัวกรอง: ปุ่มตัวกรองที่เลือกอยู่ขึ้นกรอบ primary + ชื่อค่าที่เลือก · ไอคอน filter-off + ปุ่ม "ล้างตัวกรอง" ไม่มีคำอธิบาย',
+], `<div class="space-y-10">${row3((d) => wrap(d, emptyCard(d, false)))}${row3((d) => wrap(d, emptyCard(d, true)))}</div>`)
+
+document.getElementById('app').innerHTML = html
+const tabs = document.querySelectorAll('.tabbtn')
+function show(g) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.show === g)))
+  document.querySelectorAll('section[data-group]').forEach((s) => { s.hidden = !(g === 'all' || s.dataset.group === g) })
+}
+tabs.forEach((b) => b.addEventListener('click', () => show(b.dataset.show)))
+show('n')
+const redrawIcons = () => document.querySelectorAll('iconify-icon').forEach((i) => {
+  if (i.shadowRoot && !i.shadowRoot.querySelector('svg')) i.replaceWith(i.cloneNode(true))
+})
+;[800, 2000, 4000].forEach((t) => setTimeout(redrawIcons, t))
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const h = document.documentElement
+  h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'
+})
+</script>
+</body>
+</html>
