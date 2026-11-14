@@ -1932,7 +1932,7 @@ export const th = {
     rulesKeep: 'แก้ต่อ',
     // หน้าบันทึกการส่ง
     logTitle: 'บันทึกการส่ง',
-    logRetention: 'เก็บย้อนหลัง 180 วัน',
+    logRetention: 'เก็บไว้ทั้งหมด ไม่มีหมดอายุ',
     logFilterStatus: 'สถานะ',
     logFilterEvent: 'เหตุการณ์',
     logAll: 'ทั้งหมด',

@@ -207,7 +207,7 @@ dataset ปลายทาง ≤3 ต่อเพจ (เพดานบัง�
 | `MetaCapiEvent` | `(datasetRowId, dedupeKey)` | UNIQUE | **กันส่งซ้ำต่อ dataset (BR-CAPI-01)** — เป็นด่านจริงที่ฐานข้อมูล · `createMany({skipDuplicates:true})` = `ON CONFLICT DO NOTHING` · คีย์ไม่ซ้ำ **ต่อ dataset** จึงลบ dataset ตัวไหนก็ไม่กระทบตัวอื่น |
 | `MetaCapiEvent` | `(status, nextAttemptAt)` | BTREE | ตัวส่งเลือกแถว `PENDING` ที่ถึงเวลา (`sweepMetaCapi`) |
 | `MetaCapiEvent` | `(conversationId, eventKey, createdAt)` | BTREE | ด่าน 30 วันของ Lead: หาแถวเดิมของห้อง+เหตุการณ์ |
-| `MetaCapiEvent` | `(shopId, createdAt)` | BTREE | หน้า "บันทึกการส่ง" (เรียงใหม่→เก่า) · นับ 7 วัน · purge 180 วัน |
+| `MetaCapiEvent` | `(shopId, createdAt)` | BTREE | หน้า "บันทึกการส่ง" (เรียงใหม่→เก่า) · นับ 7 วัน · purge 180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ) |
 
 > ⚠ `MetaCapiEvent` ไม่มี index บน `createdAt` เดี่ยว ๆ — `purgeOldMetaCapiEvents` ลบด้วย `createdAt < ...` โดยไม่กรองร้านใน production (เมื่อไม่ส่ง `shopIds`) จึงอาจสแกนทั้งตารางตอนตารางโต · ยังไม่ใช่ปัญหาที่ปริมาณปัจจุบัน (ดู §6 Performance)
 
@@ -238,7 +238,7 @@ dataset ปลายทาง ≤3 ต่อเพจ (เพดานบัง�
 
 ## 6. Retention / ข้อควรระวัง
 
-- **Data Retention:** แถว `MetaCapiEvent` เก่ากว่า **180 วัน** (ตาม `createdAt`) ถูกลบโดย `purgeOldMetaCapiEvents` ที่ cron `/api/cron/meta-capi` ทุกนาที · ตารางที่โตเร็วคือ `MetaCapiEvent` (≈ จำนวนเหตุการณ์ × dataset) · ตั้งค่า + dataset ไม่มี retention (ลบตามร้าน/เพจ/ผู้ใช้กด)
+- **Data Retention:** แถว `MetaCapiEvent` เก่ากว่า **180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ)** (ตาม `createdAt`) ถูกลบโดย `purgeOldMetaCapiEvents` ที่ cron `/api/cron/meta-capi` ทุกนาที · ตารางที่โตเร็วคือ `MetaCapiEvent` (≈ จำนวนเหตุการณ์ × dataset) · ตั้งค่า + dataset ไม่มี retention (ลบตามร้าน/เพจ/ผู้ใช้กด)
 - **PII / ข้อมูลอ่อนไหว:**
   - `MetaCapiEvent.psid` + `pageId` = ตัวตนลูกค้าฝั่ง Meta (ไม่ใช่เบอร์/อีเมล/ชื่อ) · `lastRequest` มีสองค่านี้ด้วย
   - `MetaCapiDataset.tokenEnc` = access token ของร้าน เข้ารหัสที่ฐาน

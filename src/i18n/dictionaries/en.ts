@@ -1793,7 +1793,7 @@ export const en: Dictionary = {
     rulesDiscardOk: 'Discard changes',
     rulesKeep: 'Keep editing',
     logTitle: 'Send log',
-    logRetention: 'Kept for 180 days',
+    logRetention: 'Kept with no expiry',
     logFilterStatus: 'Status',
     logFilterEvent: 'Event',
     logAll: 'All',
