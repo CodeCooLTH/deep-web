@@ -12,6 +12,7 @@ import { useTransition } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
+import { fmt } from '@/i18n/fmt'
 import { cn } from '@/utils/helpers'
 
 export function useRetryUncached() {
@@ -26,16 +27,20 @@ export type NotInAccount = { n: number; name: string | null } | true
 
 const CAPIS = '/settings/capis'
 
-export default function CardState({ status, notInAccount }: { status: 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'; notInAccount?: NotInAccount }) {
+/** NOT_CONNECTED/CURRENCY = สถานะการเชื่อมระดับหน้า (ไม่ยิง Meta) — แถบเดียวแทนการ์ดฝั่ง Meta ทั้งหมด (มติ O1) */
+export type CardStateKind = 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH' | 'NOT_CONNECTED' | 'CURRENCY'
+
+export default function CardState({ status, notInAccount, currency }: { status: CardStateKind; notInAccount?: NotInAccount; currency?: string | null }) {
   const t = useT().adQuality
   const { retry, pending } = useRetryUncached()
-  const warn = status === 'ERROR' || status === 'AUTH'
+  const warn = status === 'ERROR' || status === 'AUTH' || status === 'CURRENCY'
   const nia = status === 'EMPTY' && notInAccount ? notInAccount : null
   // หัวข้อบรรทัดเดียวเท่านั้น — ไม่มีย่อหน้าอธิบาย (ผู้ใช้สั่ง: หน้ารายงานห้ามข้อความอธิบายยาว)
   const title = nia ? t.stNotInAccountTitle
-    : status === 'EMPTY' ? t.stNoDataTitle : status === 'UNAVAILABLE' ? t.stUnavailTitle : status === 'AUTH' ? t.noticeAuthTitle : t.stErrTitle
-  // โทเคนหมด/บัญชีผิด แก้ได้ที่หน้าเชื่อมบัญชีเท่านั้น — "ลองใหม่" ไม่ช่วย
-  const link = status === 'AUTH' ? t.noticeReconnect : nia && nia !== true ? t.stNotInAccountCta : null
+    : status === 'EMPTY' ? t.stNoDataTitle : status === 'UNAVAILABLE' ? t.stUnavailTitle : status === 'AUTH' ? t.noticeAuthTitle
+    : status === 'NOT_CONNECTED' ? t.noticeNoneTitle : status === 'CURRENCY' ? fmt(t.noticeCurrencyTitle, { currency: currency ?? '' }) : t.stErrTitle
+  // โทเคนหมด/บัญชีผิด/ยังไม่เชื่อม/สกุลเงินไม่ใช่บาท แก้ได้ที่หน้าเชื่อมบัญชีเท่านั้น — "ลองใหม่" ไม่ช่วย
+  const link = status === 'AUTH' ? t.noticeReconnect : status === 'NOT_CONNECTED' || status === 'CURRENCY' ? t.noticeConnect : nia && nia !== true ? t.stNotInAccountCta : null
   return (
     <div role="status" className={cn('flex flex-col gap-3 rounded px-4 py-3 sm:flex-row sm:items-center', warn ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-800')}>
       <Icon icon={warn ? 'alert-triangle' : 'info-circle'} className="hidden shrink-0 text-xl sm:block" aria-hidden="true" />

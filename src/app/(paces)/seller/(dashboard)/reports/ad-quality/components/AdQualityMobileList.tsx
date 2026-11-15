@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * AdQualityMobileRow — แถวรายการมือถือของ ⑥ (FR-005): 2×2 ตัวเลขหลัก (แชท (Meta) · คุยต่อ ≥3 · บล็อก · ปิดการขาย (Deep)) · แตะ = ขยายดูอัตราที่เหลือ/วิดีโอในที่เดิม
+ * AdQualityMobileRow — แถวรายการมือถือของ ⑥ (FR-005): 2×2 ตัวเลขหลัก (แชท (Meta) · แชท (Deep) · ส่วนต่าง · ปิดการขาย (Deep) — metaOk=false เหลือ 2 ช่อง) · แตะ = ขยายดูอัตราที่เหลือ/วิดีโอในที่เดิม
  * Base: ท่ารายการมือถือ (`<button>` min-h-11 · divide-y) ของ src/app/(paces)/seller/(dashboard)/reports/ads/components/AdTableCard.tsx
  *   ซึ่ง Base เป็น theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/AnalyticsOverview.tsx
  * ทุกตัวเลขมีป้ายเต็ม ("แชท (Meta)" ฯลฯ) — ไม่ย่อจนกำกวม
@@ -15,11 +15,12 @@ import type { QualityLine } from '@/lib/ad-quality-view'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { fmtInt, fmtPct1 } from './data'
+import GapBadge from './GapBadge'
 import NoDataCell from './NoDataCell'
 import RateCell from './RateCell'
 import VideoCell from './VideoCell'
 
-export default function AdQualityMobileRow({ line, depth = 0, expandable, expanded, onToggleGroup }: { line: QualityLine; depth?: number; expandable?: boolean; expanded?: boolean; onToggleGroup?: () => void }) {
+export default function AdQualityMobileRow({ line, depth = 0, metaOk, expandable, expanded, onToggleGroup }: { line: QualityLine; depth?: number; metaOk: boolean; expandable?: boolean; expanded?: boolean; onToggleGroup?: () => void }) {
   const t = useT()
   const a = t.adQuality
   const [open, setOpen] = useState(false)
@@ -38,16 +39,19 @@ export default function AdQualityMobileRow({ line, depth = 0, expandable, expand
         <span className="min-w-0 flex-1">
           <span className="text-default-900 mb-2 line-clamp-2 block break-words text-sm font-medium">{name}</span>
           <span className="grid grid-cols-2 gap-x-3 gap-y-2">
-            {cell(a.chatMeta, line.chatsMeta === null ? <NoDataCell /> : fmtInt(line.chatsMeta))}
-            {cell(a.colDepth3, pct(line.rates.depth3.pct))}
-            {cell(a.colBlock, pct(line.rates.block.pct))}
+            {metaOk && cell(a.chatMeta, line.chatsMeta === null ? <NoDataCell /> : fmtInt(line.chatsMeta))}
+            {cell(a.chatDeep, fmtInt(line.chatsDeep))}
+            {metaOk && cell(a.colGap, line.gap === null ? <NoDataCell /> : line.gap < 0 ? fmt(a.deepMore, { p: Math.abs(line.gap).toFixed(1) }) : fmtPct1(line.gap))}
             {cell(a.colClose, pct(line.closeRate))}
           </span>
+          {metaOk && line.badge && <span className="mt-2 block"><GapBadge kind={line.badge} /></span>}
         </span>
         <Icon icon={open ? 'chevron-up' : 'chevron-down'} className="text-default-500 mt-1 shrink-0" aria-hidden="true" />
       </button>
-      {open && (
+      {open && metaOk && (
         <div className="grid grid-cols-2 gap-3 px-4 pb-3">
+          <div><p className="text-default-500 text-2xs mb-0.5">{a.colDepth3}</p><RateCell {...line.rates.depth3} /></div>
+          <div><p className="text-default-500 text-2xs mb-0.5">{a.colBlock}</p><RateCell {...line.rates.block} /></div>
           <div><p className="text-default-500 text-2xs mb-0.5">{a.colImprCtr}</p><p className="mb-0 text-sm tabular-nums">{fmtInt(line.impressions)} · {pct(line.ctr)}</p></div>
           <div><p className="text-default-500 text-2xs mb-0.5">{a.colDepth2}</p><RateCell {...line.rates.depth2} /></div>
           <div><p className="text-default-500 text-2xs mb-0.5">{a.colReplied}</p><RateCell {...line.rates.replied} /></div>

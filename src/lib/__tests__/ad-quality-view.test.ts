@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { adLine, campaignLine, buildQualityRows, buildTotals, buildPlacements, buildAgeSummary, buildAgeSeries, groupByCampaign, spendRatios, metaAdsNotInAccount, type DeepAd } from '@/lib/ad-quality-view'
+import { adLine, campaignLine, buildQualityRows, buildTotals, buildPlacements, buildAgeSeries, groupByCampaign, buildCompareBars, highGapCount, metaCardsVisible, spendRatios, metaAdsNotInAccount, type DeepAd } from '@/lib/ad-quality-view'
 import type { AdInsightRow } from '@/lib/meta-ads-quality'
 
 // fixture จำลอง (ไม่ใช่ payload จริง — ดู TODO ใน meta-ads-quality.ts)
@@ -109,11 +109,8 @@ describe('buildPlacements / อายุ-เพศ', () => {
       { age: '18-24', gender: 'male', spend: 5, impressions: 50, reach: 25, chats: 2 },
       { age: 'unknown', gender: 'unknown', spend: 1, impressions: 5, reach: 2, chats: null },
     ]
-    const s = buildAgeSummary(rows)
-    expect(s.lines.map((l) => l.age)).toEqual(['18-24', '25-34', 'unknown'])
-    expect(s.top?.age).toBe('25-34')
-    expect(s.lines[2]).toMatchObject({ chats: null, costPerChat: null })
     const ser = buildAgeSeries(rows, 'chats')
+    expect(ser.ages).toEqual(['18-24', '25-34', 'unknown'])
     expect(ser.series.find((x) => x.gender === 'male')!.data).toEqual([2, null, null])
   })
 })
@@ -138,5 +135,40 @@ describe('metaAdsNotInAccount', () => {
     expect(metaAdsNotInAccount('EMPTY', 3, true)).toBe(false)
     expect(metaAdsNotInAccount('OK', 3, false)).toBe(false)
     expect(metaAdsNotInAccount('ERROR', 3, false)).toBe(false)
+  })
+})
+
+describe('กราฟเทียบรายแอด + ป้ายส่วนต่างสูง', () => {
+  const rows = buildQualityRows(
+    [deep('A', 10, 1), deep('B', 150), deep('C', 5), deep('D', 0)],
+    [ins({ adId: 'A', chats: 100 }), ins({ adId: 'B', chats: 160 }), ins({ adId: 'E', chats: 30 })],
+    { pageFiltered: false },
+  )
+  it('มี Meta: เรียงตามแชท (Meta) · แอด Meta ไม่มีค่าไปท้าย · ตัดสูงสุด top', () => {
+    expect(buildCompareBars(rows, true).map((b) => b.adId)).toEqual(['B', 'A', 'E', 'C'])
+    expect(buildCompareBars(rows, true, 2)).toHaveLength(2)
+  })
+  it('Deep อย่างเดียว: เรียงตามแชท (Deep) และไม่รวมแอดที่ไม่มีแชท (Deep)', () => {
+    expect(buildCompareBars(rows, false).map((b) => b.adId)).toEqual(['B', 'A', 'C'])
+  })
+  it('highGapCount นับ HIGH + NO_DEEP (A: 100 vs 10 = HIGH · E: Meta 30 ไม่มี Deep = NO_DEEP)', () => {
+    expect(highGapCount(rows)).toBe(2)
+  })
+  it('แถวแคมเปญมีส่วนต่างจากชุดแอดที่มีค่า Meta เท่านั้น (ไม่ปน Deep ของแอดที่ไม่มี Meta)', () => {
+    const rs = buildQualityRows(
+      [deep('A', 50), deep('B', 40)],
+      [ins({ adId: 'A', campaignName: 'K', chats: 100 })],
+      { pageFiltered: false },
+    )
+    expect(campaignLine(groupByCampaign(rs)[0]).gap).toBe(50)
+  })
+})
+
+describe('metaCardsVisible', () => {
+  it('ต้อง OK และมีแชท (Meta) — OK แต่ไม่มีแชท (Meta) เลย = ซ่อน', () => {
+    expect(metaCardsVisible('OK', { chatsMeta: 0 })).toBe(true)
+    expect(metaCardsVisible('OK', { chatsMeta: null })).toBe(false)
+    expect(metaCardsVisible('EMPTY', { chatsMeta: 5 })).toBe(false)
+    expect(metaCardsVisible('ERROR', { chatsMeta: 5 })).toBe(false)
   })
 })
