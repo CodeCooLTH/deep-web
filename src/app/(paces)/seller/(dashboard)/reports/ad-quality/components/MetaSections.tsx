@@ -82,5 +82,5 @@ export async function FetchedLine({ bundle }: { bundle: QualityBundle }) {
   const cards = await Promise.all([bundle.ad, bundle.account, bundle.placement, bundle.agegender])
   const times = cards.map((c) => c.fetchedAt).filter((v): v is number => v !== null)
   if (times.length === 0) return null
-  return <p className="text-default-700 mb-0 text-xs">{t.adQuality.metaUpdated.replace('{time}', formatDateTime(new Date(Math.min(...times))))} · {t.adQuality.refreshEvery}</p>
+  return <p className="text-default-700 mb-0 text-xs">{t.adQuality.metaUpdated.replace('{time}', formatDateTime(new Date(Math.min(...times))))}</p>
 }

@@ -121,7 +121,7 @@ export default function BreakdownCard({ placementStatus, placementRows, ageStatu
         </div>
         <div className="p-5" role="tabpanel" id={`${uid}-${tab}-panel`} aria-labelledby={`${uid}-${tab}-tab`}>
           {status !== 'OK' ? (
-            <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} adSelected={Boolean(selectedAd)} />
+            <CardState status={status as 'EMPTY' | 'UNAVAILABLE' | 'ERROR' | 'AUTH'} />
           ) : tab === 'placement' ? (
             <PlacementPanel view={placement} />
           ) : (
