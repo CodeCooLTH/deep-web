@@ -5,7 +5,24 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 const acct = { name: 'ร้านทดสอบ', currency: 'THB', timezone_name: 'Asia/Bangkok' }
 const args = { adAccountId: '1234567890', token: 'TKN', since: '2026-10-01', until: '2026-10-31' }
 
+// แถวที่ไม่มี field ใหม่ของ 00094 = null ทั้งหมด (ไม่ใช่ 0)
+const NO_EXTRA = { adsetId: null, adsetName: null, campaignId: null, campaignName: null, impressions: null, clicks: null, chatsMeta: null }
+
 describe('fetchAdInsights', () => {
+  it('00094: parse ลำดับชั้น + impressions/clicks/แชท Meta · ไม่มี action = null', async () => {
+    const doFetch = (async (url: string) => {
+      if (url.includes('/act_1234567890?')) return json(200, acct)
+      return json(200, { data: [
+        { ad_id: 'A', ad_name: 'a', adset_id: '11', adset_name: 's', campaign_id: '22', campaign_name: 'c', spend: '10', date_start: '2026-10-01',
+          impressions: '1000', inline_link_clicks: '40', actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '7' }, { action_type: 'link_click', value: '40' }] },
+        { ad_id: 'B', spend: '1', date_start: '2026-10-01', impressions: '5', actions: [] },
+      ] })
+    }) as unknown as typeof fetch
+    const r = await fetchAdInsights({ ...args, doFetch })
+    expect(r.rows[0]).toEqual({ adId: 'A', adName: 'a', day: '2026-10-01', spend: 10, adsetId: '11', adsetName: 's', campaignId: '22', campaignName: 'c', impressions: 1000, clicks: 40, chatsMeta: 7 })
+    expect(r.rows[1]).toMatchObject({ impressions: 5, clicks: null, chatsMeta: null, adsetId: null })
+  })
+
   it('ดึงบัญชี + แถวรายแอดรายวัน + ตามหน้า paging', async () => {
     const calls: { url: string; auth: string | null }[] = []
     const doFetch = (async (url: string, init?: RequestInit) => {
@@ -21,8 +38,8 @@ describe('fetchAdInsights', () => {
     expect(r).toEqual({
       state: 'OK', accountName: 'ร้านทดสอบ', currency: 'THB', tz: 'Asia/Bangkok',
       rows: [
-        { adId: 'A', adName: 'a', day: '2026-10-01', spend: 10.25, campaignId: '111', campaignName: 'แคมเปญ', adsetId: '222', adsetName: 'ชุด' },
-        { adId: 'B', adName: 'b', day: '2026-10-02', spend: 5.5, campaignId: null, campaignName: null, adsetId: null, adsetName: null },
+        { adId: 'A', adName: 'a', day: '2026-10-01', spend: 10.25, ...NO_EXTRA, campaignId: '111', campaignName: 'แคมเปญ', adsetId: '222', adsetName: 'ชุด' },
+        { adId: 'B', adName: 'b', day: '2026-10-02', spend: 5.5, ...NO_EXTRA },
       ],
     })
     expect(calls.every((c) => c.auth === 'Bearer TKN')).toBe(true)

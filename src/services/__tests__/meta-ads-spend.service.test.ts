@@ -38,8 +38,8 @@ describe('getAdSpend', () => {
     fetchAdInsights.mockResolvedValue({ state: 'OK', ...NONE })
     await getAdSpend('shopA', '2026-11-01', '2026-11-14')
     await getAdSpend('shopB', '2026-11-01', '2026-11-14')
-    expect(keys[0]).toEqual(['ad-spend', 'shopA', '1234567890', '2026-11-01', '2026-11-14'])
-    expect(keys[1]).toEqual(['ad-spend', 'shopB', '1234567890', '2026-11-01', '2026-11-14'])
+    expect(keys[0]).toEqual(['ad-spend-v2', 'shopA', '1234567890', '2026-11-01', '2026-11-14'])
+    expect(keys[1]).toEqual(['ad-spend-v2', 'shopB', '1234567890', '2026-11-01', '2026-11-14'])
   })
 
   it('ผลไม่สำเร็จคืนสถานะนั้นตรง ๆ (ผ่านทางโยน = ไม่ถูกแคช)', async () => {

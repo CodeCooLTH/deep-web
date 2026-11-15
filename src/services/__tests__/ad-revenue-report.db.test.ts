@@ -49,9 +49,9 @@ const mkOrder = async (o: {
 }
 
 const spendRows: SpendResult['rows'] = [
-  { adId: 'AD1', adName: 'แอด 1', day: '2026-10-03', spend: 100, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S1', adsetName: 'ชุด Wave' },
-  { adId: 'AD3', adName: 'ใช้เงินไม่มีใบ', day: '2026-10-04', spend: 40, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S2', adsetName: 'ชุด 2' },
-  { adId: 'AD1', adName: 'แอด 1', day: '2026-09-20', spend: 70, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S1', adsetName: 'ชุด Wave' }, // ช่วงก่อน
+  { adId: 'AD1', adName: 'แอด 1', day: '2026-10-03', spend: 100, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S1', adsetName: 'ชุด Wave', impressions: null, clicks: null, chatsMeta: null },
+  { adId: 'AD3', adName: 'ใช้เงินไม่มีใบ', day: '2026-10-04', spend: 40, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S2', adsetName: 'ชุด 2', impressions: null, clicks: null, chatsMeta: null },
+  { adId: 'AD1', adName: 'แอด 1', day: '2026-09-20', spend: 70, campaignId: 'C1', campaignName: 'แคมเปญโช๊ค', adsetId: 'S1', adsetName: 'ชุด Wave', impressions: null, clicks: null, chatsMeta: null }, // ช่วงก่อน
 ]
 const okSpend: SpendSource = async () => ({ state: 'OK', accountName: 'บัญชี', currency: 'THB', tz: 'Asia/Bangkok', rows: spendRows })
 const errSpend: SpendSource = async () => ({ state: 'ERROR', accountName: null, currency: null, tz: null, rows: [] })

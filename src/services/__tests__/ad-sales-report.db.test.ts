@@ -12,6 +12,7 @@ import { getAdSalesReport, listOrdersForAd } from '@/services/ad-sales-report.se
 import { getProductSalesMonth } from '@/services/product-sales-series.service'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import type { SpendResult, SpendSource } from '@/services/meta-ads-spend.service'
+const NO_EXTRA = { adsetId: null, adsetName: null, campaignId: null, campaignName: null, impressions: null, clicks: null, chatsMeta: null } // 00094 field ใหม่ของ InsightsRow
 
 const url = process.env.DATABASE_URL ?? ''
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(url)
@@ -118,7 +119,7 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     const r = await getAdSalesReport(x.shop, { from: gte, to: lt })
     expect(r.range).toEqual({ from: '2026-10-01', to: '2026-10-31' })
     expect(r.prevRange).toEqual({ from: '2026-08-31', to: '2026-09-30' })
-    expect(r.previous).toEqual({ adSales: 999, adOrders: 1, chats: 1, closeRatePct: 100, nonAdSales: 0 })
+    expect(r.previous).toEqual({ adSales: 999, adOrders: 1, chats: 1, closeRatePct: 100, nonAdSales: 0, coveredSales: 0, coveredOrders: 0 })
     expect(r.summary).toMatchObject({ chats: 3, closeRatePct: 100 }) // 3 ห้ามไม่ซ้ำ (conv1 กดสองแอดนับ 1) · 3 ใบ ÷ 3
   })
 
@@ -131,7 +132,7 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
     expect(sum(r.daily.map((d) => d.nonAdSales))).toBe(r.summary.nonAdSales)
     expect(sum(r.daily.map((d) => d.adOrders))).toBe(r.summary.adOrders)
     expect(sum(r.rows.map((a) => a.sales))).toBe(r.summary.adSales)
-    expect(r.daily[0]).toEqual({ day: '2026-10-01', adSales: 0, nonAdSales: 0, adOrders: 0, spend: 0, coveredSales: 0 })
+    expect(r.daily[0]).toEqual({ day: '2026-10-01', adSales: 0, nonAdSales: 0, adOrders: 0, spend: 0, coveredSales: 0, chats: 0 })
     expect(r.daily[9]).toMatchObject({ day: '2026-10-10', adSales: 200, adOrders: 1 })
     expect(r.daily[11]).toMatchObject({ nonAdSales: 300 })
     expect(sum(r.prevDaily.map((d) => d.adSales))).toBe(r.previous.adSales)
@@ -173,11 +174,11 @@ describe.skipIf(!isLocal)('00091 รายงานยอดขายตาม�
   describe('ค่าโฆษณา / ROAS (FR-010) — แหล่ง spend ฉีดเข้า ไม่ยิง Meta', () => {
     const ok = (rows: SpendResult['rows'], tz = 'Asia/Bangkok'): SpendSource => async () => ({ state: 'OK', accountName: 'บัญชีเทส', currency: 'THB', tz, rows })
     const spendRows = [
-      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-10', spend: 100 },
-      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-11', spend: 50 },
-      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-10-05', spend: 40 },
-      { adId: 'GHOST', adName: 'แอดผี', day: '2026-10-20', spend: 60 },
-      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-09-25', spend: 333 }, // ช่วงก่อนหน้า
+      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-10', spend: 100, ...NO_EXTRA },
+      { adId: 'AD1', adName: 'โปรล้อแม็ก', day: '2026-10-11', spend: 50, ...NO_EXTRA },
+      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-10-05', spend: 40, ...NO_EXTRA },
+      { adId: 'GHOST', adName: 'แอดผี', day: '2026-10-20', spend: 60, ...NO_EXTRA },
+      { adId: 'AD2', adName: 'ไฟหน้า LED', day: '2026-09-25', spend: 333, ...NO_EXTRA }, // ช่วงก่อนหน้า
     ]
 
     it('parity (HR16): Σ daily.spend = summary.spend = Σ spend รายแถว (รวมแถวผี)', async () => {
