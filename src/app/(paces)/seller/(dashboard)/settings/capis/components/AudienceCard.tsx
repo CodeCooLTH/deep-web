@@ -200,12 +200,14 @@ function ChooseAccount({ onConnected, onFail }: { onConnected: (s: Status) => vo
           const ok = a.accountStatus === 1 || a.accountStatus === null
           return (
             <option key={a.adAccountId} value={a.adAccountId} disabled={!ok}>
-              {a.name} · {a.adAccountId}
+              {/* บัญชีไม่ได้ตั้งชื่อ Meta คืนชื่อ = รหัส → แสดงรหัสครั้งเดียว */}
+              {a.name && a.name !== a.adAccountId ? `${a.name} · ${a.adAccountId}` : a.adAccountId}
               {ok ? '' : ` ${t.audienceChooseDisabledSuffix}`}
             </option>
           )
         })}
       </select>
+      <p className="text-default-700 mt-1 mb-0 text-xs">{t.audienceChooseMissing}</p>
       <div className="mt-3">
         <button type="button" disabled={busy || !pick} aria-busy={busy || undefined} onClick={use} className={BTN_PRIMARY}>
           {t.audienceChooseOk}
@@ -430,7 +432,6 @@ export default function AudienceCard({ initial, oauthAvailable, loadFailed = fal
         )}
 
         {(state === 'none' || stopped) && ret !== 'choose_account' && connectBlock(stopped ? t.audienceReconnect : t.audienceConnectFb)}
-        {state === 'none' && !showManual && <p className="text-default-700 text-xs">{t.audienceConnectHint}</p>}
       </div>
 
       {conn && (
