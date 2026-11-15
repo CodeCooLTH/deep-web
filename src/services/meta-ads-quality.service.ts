@@ -42,14 +42,18 @@ export type QualityRequest = {
   scopeAdIds?: string[]
   /** เลือกแอดเดียว (เฉพาะ Q3/Q4) */
   adId?: string | null
+  /** ขอเฉพาะชนิดที่ใช้ — ชนิดอื่นไม่ยิง Meta (คืน EMPTY) · undefined = 4 ชนิดเดิมของ 00093 (ไม่รวม daily) */
+  only?: QualityKind[]
 }
 
 const settle = <K extends QualityKind>(status: CardStatus, rows: QualityCard<K>['rows'] = [] as never, fetchedAt: number | null = null): QualityCard<K> => ({ status, rows, fetchedAt })
 
-/** เรียกครั้งเดียวต่อหน้า — คืน 4 promise แยกกัน (ไม่ reject) ให้แต่ละการ์ดรอของตัวเอง */
+/** เรียกครั้งเดียวต่อหน้า — คืน 5 promise แยกกัน (ไม่ reject) ให้แต่ละการ์ดรอของตัวเอง */
 export function getQualityBundle(req: QualityRequest): QualityBundle {
   const conn = prisma.metaAudienceConnection.findUnique({ where: { shopId: req.shopId }, select: { adAccountId: true, stoppedReason: true } })
   const one = async <K extends QualityKind>(kind: K, adIds: string[] | undefined): Promise<QualityCard<K>> => {
+    // daily = ของ 00094 เท่านั้น ต้องขอเอง — หน้า 00093 (ไม่ส่ง only) ยิง Meta 4 คำขอเท่าเดิม
+    if (req.only ? !req.only.includes(kind) : kind === 'daily') return settle('EMPTY')
     const c = await conn.catch(() => null)
     if (!c) return settle('ERROR')
     if (c.stoppedReason === 'TOKEN_OR_PERMISSION') return settle('AUTH')
@@ -70,5 +74,6 @@ export function getQualityBundle(req: QualityRequest): QualityBundle {
     account: one('account', req.scopeAdIds),
     placement: one('placement', filterIds),
     agegender: one('agegender', filterIds),
+    daily: one('daily', req.scopeAdIds), // 00094 กราฟเข้าถึง/ความถี่ — scope เดียวกับ account
   }
 }

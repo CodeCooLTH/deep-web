@@ -348,6 +348,7 @@ const COVERED: Record<string, string> = {
   'src/app/api/seller/flash/shipments/': 'พัสดุ Flash รายใบ (preview/label/traces) S1 — ไบนารี/ไทม์ไลน์ขนส่ง ไม่มีต้นทุนสินค้า · ค่าส่งอยู่ที่ order-context (อยู่ใน MATRIX) (00084)',
   'src/app/api/seller/reports/agents/': 'รายงานแอดมินรายคน — ครอบด้วย agents (อยู่ใน MATRIX) + redactAgent* unit test',
   'src/app/api/reports/ads/': 'รายงานยอดขายตามโฆษณา 00091 (F1 เจ้าของเท่านั้น) — ยอดขายนิยามเดียวกับรายงานยอดขาย (salesOrderWhere) ผูก shopId · สิทธิ์ครอบด้วย ad-sales-report.db.test',
+  'src/app/api/reports/ads-summary/': 'ส่งออกตารางแคมเปญหน้าสรุปโฆษณา 00094 (F1 เจ้าของเท่านั้น · requireShopCapability) — ตัวเลขมาจาก getAdSalesReport ตัวเดียวกับ 00091 ผูก shopId จาก session · ครอบด้วย ad-summary-report.db.test',
   'src/app/api/shops/meta-capi/': 'Conversions API 00089 (X9 เจ้าของเท่านั้น) — ตั้งค่า dataset/บันทึกการส่ง ไม่มี cost · token ไม่ออกจาก service (hasToken) · สิทธิ์รายแถวครอบด้วย meta-capi-settings.db.test',
   'src/app/api/shops/meta-audience/': 'Custom Audience ลูกค้าที่ซื้อแล้ว 00092 (X9 เจ้าของเท่านั้น) — สถานะ/ตั้งค่า/เลือกบัญชีโฆษณา ไม่มี cost · token ไม่ออกจาก service (hasToken) · สิทธิ์ครอบด้วย route-capability-inventory',
   'src/app/api/meta-audience/': 'OAuth เชื่อมบัญชีโฆษณา 00092 (X9) — redirect + cookie เข้ารหัส ไม่มีข้อมูลร้าน/เงิน',

@@ -30,6 +30,22 @@ describe('parser', () => {
   })
 })
 
+describe('fetchQuality daily (00094)', () => {
+  it('level=account + time_increment=1 · parse day/impressions/reach · ไม่มี date_start = ทิ้ง', async () => {
+    const urls: string[] = []
+    const doFetch = (async (url: string) => {
+      urls.push(url)
+      return json(200, { data: [{ date_start: '2026-10-01', impressions: '100', reach: '60' }, { date_start: '2026-10-02', impressions: '50' }, { impressions: '9' }] })
+    }) as unknown as typeof fetch
+    const r = await fetchQuality({ ...args, kind: 'daily', doFetch })
+    expect(r).toEqual({ state: 'OK', rows: [{ day: '2026-10-01', impressions: 100, reach: 60 }, { day: '2026-10-02', impressions: 50, reach: null }] })
+    const u = new URL(urls[0]).searchParams
+    expect(u.get('level')).toBe('account')
+    expect(u.get('time_increment')).toBe('1')
+    expect(u.get('fields')).toBe('impressions,reach')
+  })
+})
+
 describe('fetchQuality', () => {
   it('Q1: พารามิเตอร์ครบ + token อยู่ใน header เท่านั้น + ตามหน้า paging', async () => {
     const calls: { url: string; auth: string | null }[] = []

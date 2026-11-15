@@ -9,16 +9,13 @@
  */
 import { GRAPH_BASE } from '@/lib/facebook/constants'
 import { classifyInsightsError } from '@/lib/meta-ads-insights'
+import { ACTION, actionValue } from '@/lib/meta-ads-actions'
 
-export const ACTION = {
-  started: 'onsite_conversion.messaging_conversation_started_7d',
-  replied: 'onsite_conversion.messaging_conversation_replied_7d',
-  depth2: 'onsite_conversion.messaging_user_depth_2_message_send',
-  depth3: 'onsite_conversion.messaging_user_depth_3_message_send',
-  block: 'onsite_conversion.messaging_block',
-} as const
+// ผู้เรียกเดิม import จากไฟล์นี้ — คงทางเข้าเดิมไว้
+export { ACTION, actionValue }
 
-export type QualityKind = 'ad' | 'account' | 'placement' | 'agegender'
+
+export type QualityKind = 'ad' | 'account' | 'placement' | 'agegender' | 'daily'
 
 export type ChatActions = { chats: number | null; depth2: number | null; depth3: number | null; replied: number | null; block: number | null }
 export type AdInsightRow = ChatActions & {
@@ -30,7 +27,10 @@ export type ReachRow = { impressions: number | null; reach: number | null }
 export type PlacementRow = { platform: string; position: string; spend: number | null; impressions: number | null; clicks: number | null; chats: number | null }
 export type AgeGenderRow = { age: string; gender: string; spend: number | null; impressions: number | null; reach: number | null; chats: number | null }
 
-type RowOf = { ad: AdInsightRow; account: ReachRow; placement: PlacementRow; agegender: AgeGenderRow }
+/** 00094 — เข้าถึงรายวัน (ค่าประมาณ ห้ามรวมข้ามวัน) */
+export type DailyReachRow = { day: string; impressions: number | null; reach: number | null }
+
+type RowOf = { ad: AdInsightRow; account: ReachRow; placement: PlacementRow; agegender: AgeGenderRow; daily: DailyReachRow }
 export type QualityFetch<K extends QualityKind> =
   | { state: 'OK'; rows: RowOf[K][] }
   /** UNAVAILABLE = Meta บอกว่า breakdown/field นี้ใช้ไม่ได้กับบัญชี/ช่วงนี้ (BR-AIQ-11) — ไม่ใช่ความล้มเหลวที่ลองใหม่แล้วหาย */
@@ -45,12 +45,6 @@ const num = (v: unknown): number | null => {
 }
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null)
 
-/** actions[] → ค่าของ action_type ที่ขอ · ไม่มี action นั้น (หรือไม่มี actions เลย) = null */
-export function actionValue(actions: unknown, type: string): number | null {
-  if (!Array.isArray(actions)) return null
-  const hit = actions.find((a) => (a as Raw)?.action_type === type) as Raw | undefined
-  return hit ? num(hit.value) : null
-}
 
 /** video_pN_watched_actions = [{ action_type: 'video_view', value }] · ไม่มี field = null (ไม่ใช่วิดีโอ/ไม่ทราบ) */
 export function videoValue(field: unknown): number | null {
@@ -88,6 +82,7 @@ const parsePlacement = (d: Raw): PlacementRow | null =>
     platform: String(d.publisher_platform), position: String(d.platform_position ?? 'unknown'),
     spend: num(d.spend), impressions: num(d.impressions), clicks: num(d.inline_link_clicks), chats: actionValue(d.actions, ACTION.started),
   } : null
+const parseDaily = (d: Raw): DailyReachRow | null => (d.date_start ? { day: String(d.date_start), impressions: num(d.impressions), reach: num(d.reach) } : null)
 const parseAgeGender = (d: Raw): AgeGenderRow | null =>
   d.age ? {
     age: String(d.age), gender: String(d.gender ?? 'unknown'),
@@ -123,6 +118,7 @@ function queryFor(kind: QualityKind, a: { since: string; until: string; adIds?: 
   }
   if (kind === 'ad') Object.assign(base, { level: 'ad', fields: AD_FIELDS })
   else if (kind === 'account') Object.assign(base, { level: 'account', fields: 'impressions,reach' })
+  else if (kind === 'daily') Object.assign(base, { level: 'account', fields: 'impressions,reach', time_increment: '1' })
   else if (kind === 'placement') Object.assign(base, { level: 'account', fields: 'spend,impressions,inline_link_clicks,actions', breakdowns: 'publisher_platform,platform_position' })
   else Object.assign(base, { level: 'account', fields: 'spend,impressions,reach,actions', breakdowns: 'age,gender' })
   // ad ids ต้องเป็นตัวเลขล้วน (กัน payload แปลกปลอมเข้า filtering)
@@ -140,7 +136,7 @@ export async function fetchQuality<K extends QualityKind>(a: {
   if (a.kind !== 'ad' && a.adIds && !a.adIds.some((i) => /^\d{1,30}$/.test(i))) return fail('ERROR')
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), a.timeoutMs ?? 8000)
-  const parse = (d: Raw) => (a.kind === 'ad' ? parseAdRow(d) : a.kind === 'account' ? parseReach(d) : a.kind === 'placement' ? parsePlacement(d) : parseAgeGender(d))
+  const parse = (d: Raw) => (a.kind === 'ad' ? parseAdRow(d) : a.kind === 'account' ? parseReach(d) : a.kind === 'daily' ? parseDaily(d) : a.kind === 'placement' ? parsePlacement(d) : parseAgeGender(d))
   try {
     let url: string | null = `${GRAPH_BASE}/act_${a.adAccountId}/insights?${queryFor(a.kind, a)}`
     const rows: unknown[] = []

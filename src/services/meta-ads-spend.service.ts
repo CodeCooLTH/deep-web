@@ -34,7 +34,8 @@ export const getAdSpend: SpendSource = async (shopId, since, until) => {
   // โทเคน/สิทธิ์ถูกระบบหยุดไปแล้ว — ไม่ต้องเสียเวลายิง Graph
   if (conn.stoppedReason === 'TOKEN_OR_PERMISSION') return { state: 'AUTH', ...NONE }
   try {
-    const cached = unstable_cache(loadFresh, ['ad-spend', shopId, conn.adAccountId, since, until], { revalidate: 900 })
+    // v2: InsightsRow มี field ใหม่ (00094) — แคชเก่าข้าม deploy ได้แล้วได้ undefined → NaN
+    const cached = unstable_cache(loadFresh, ['ad-spend-v2', shopId, conn.adAccountId, since, until], { revalidate: 900 })
     return await cached(shopId, conn.adAccountId, since, until)
   } catch (e) {
     if (e instanceof NotOk) return e.result

@@ -113,6 +113,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/reports/agents/page.tsx': { page: 'X4', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reports/ad-quality/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00093 คุณภาพโฆษณา — เจ้าของเท่านั้น
   'src/app/(paces)/seller/(dashboard)/reports/ad-revenue/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00091 เฟส 3 วิเคราะห์ยอดขายจากโฆษณา — เจ้าของเท่านั้น
+  'src/app/(paces)/seller/(dashboard)/reports/ads-summary/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00094 สรุปโฆษณา — เจ้าของเท่านั้น
   'src/app/(paces)/seller/(dashboard)/reports/ads/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00091 ยอดขายตามโฆษณา — เจ้าของเท่านั้น
   'src/app/(paces)/seller/(dashboard)/reports/products/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/reviews/page.tsx': { page: 'T1', status: 'DECLARED' },
@@ -388,6 +389,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/public/reviews/[username]/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
   'src/app/api/reports/ads/export/route.ts': { GET: 'F1', status: 'DECLARED' }, // 00091 ยอดขายตามโฆษณา — เจ้าของเท่านั้น
   'src/app/api/reports/ads/orders/route.ts': { GET: 'F1', status: 'DECLARED' }, // 00091
+  'src/app/api/reports/ads-summary/export/route.ts': { GET: 'F1', status: 'DECLARED' }, // 00094 ส่งออก CSV สรุปโฆษณา — เจ้าของร้านเท่านั้น
   'src/app/api/scam-reports/route.ts': { class: 'SELF', reason: 'ข้อมูลของผู้ใช้เองจาก session (userId) — ไม่ผูกร้าน/บทบาท', status: 'DECLARED' },
   'src/app/api/scam-reports/search/route.ts': { class: 'PUBLIC', reason: 'สาธารณะ/ก่อนล็อกอิน — ไม่ผูกผู้ใช้หรือร้าน', status: 'DECLARED' },
   'src/app/api/seller/app-ticket/route.ts': { class: 'SELF', reason: 'ข้อมูลของผู้ใช้เองจาก session (userId) — ไม่ผูกร้าน/บทบาท', status: 'DECLARED' },

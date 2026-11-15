@@ -21,11 +21,12 @@ const gte = thaiMidnightUtc(2026, 9, 1)
 const lt = thaiMidnightUtc(2026, 10, 1)
 const at = (d: number) => new Date(Date.UTC(2026, 9, d, 5, 0, 0))
 
+const NO_EXTRA = { adsetId: null, adsetName: null, campaignId: null, campaignName: null, impressions: null, clicks: null, chatsMeta: null } // 00094 field ใหม่ของ InsightsRow
 const rows: SpendResult['rows'] = [
-  { adId: 'Q1', adName: 'a', day: '2026-10-03', spend: 100.5 },
-  { adId: 'Q1', adName: 'a', day: '2026-10-04', spend: 50 },
-  { adId: 'Q2', adName: 'b', day: '2026-10-05', spend: 30 },
-  { adId: 'Q1', adName: 'a', day: '2026-09-10', spend: 999 }, // ช่วงก่อนหน้า ห้ามรวมในค่าโฆษณาของช่วงนี้
+  { adId: 'Q1', adName: 'a', day: '2026-10-03', spend: 100.5, ...NO_EXTRA },
+  { adId: 'Q1', adName: 'a', day: '2026-10-04', spend: 50, ...NO_EXTRA },
+  { adId: 'Q2', adName: 'b', day: '2026-10-05', spend: 30, ...NO_EXTRA },
+  { adId: 'Q1', adName: 'a', day: '2026-09-10', spend: 999, ...NO_EXTRA }, // ช่วงก่อนหน้า ห้ามรวมในค่าโฆษณาของช่วงนี้
 ]
 const spendSource: SpendSource = async () => ({ state: 'OK', accountName: 'x', currency: 'THB', tz: 'Asia/Bangkok', rows })
 

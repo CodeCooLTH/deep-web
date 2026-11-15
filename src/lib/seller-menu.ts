@@ -80,6 +80,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'package' ใช้อยู่แล้วทั่วโปรเจกต์สำหรับ "สินค้า" — ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
       // เห็นเฉพาะร้าน ONLINE_SALES (กรองด้วย applyVerticalMenu ด้านล่าง)
       { url: '/reports/products', slug: 'seller:reports-products', label: 'ยอดขายรายสินค้า', icon: 'package' },
+      // feature 00094 — สรุปโฆษณา: หน้ารวมคำตอบ "โฆษณาคุ้มไหม" · เห็นทุก vertical · เจ้าของเท่านั้น (F1 ผ่านทะเบียน route-capabilities)
+      { url: '/reports/ads-summary', slug: 'seller:reports-ads-summary', label: 'สรุปโฆษณา', icon: 'presentation-analytics' },
       // feature 00091 — ยอดขายตามโฆษณา: เห็นทุก vertical (ร้านบริการก็ยิงแอด Messenger) · เจ้าของเท่านั้น (F1 ผ่านทะเบียน route-capabilities)
       { url: '/reports/ads', slug: 'seller:reports-ads', label: 'ยอดขายตามโฆษณา', icon: 'speakerphone' },
       // feature 00093 — คุณภาพโฆษณา (ตัวชี้วัดจาก Meta เทียบ Deep) · เห็นทุก vertical · เจ้าของเท่านั้น (F1 ผ่านทะเบียน route-capabilities)
@@ -1114,6 +1116,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:sales': mergesFinanceMenu(vertical) ? m.salesFinance : m.sales,
     'seller:reports-agents': m.reportsAgents,
     'seller:reports-products': m.reportsProducts,
+    'seller:reports-ads-summary': m.reportsAdsSummary,
     'seller:reports-ads': m.reportsAds,
     'seller:reports-ad-quality': m.reportsAdQuality,
     'seller:reports-ad-revenue': m.reportsAdRevenue,

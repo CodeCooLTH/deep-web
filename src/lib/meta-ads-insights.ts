@@ -4,12 +4,14 @@
  * ผลลัพธ์ตรงนี้คือ "ค่าโฆษณาตามที่ Meta รายงาน" เท่านั้น — ห้ามอ่านตัวเลข purchase/ROAS ของ Meta (HR16)
  */
 import { GRAPH_BASE } from '@/lib/facebook/constants'
+import { actionValue, ACTION } from '@/lib/meta-ads-actions'
 
 export type InsightsState = 'OK' | 'AUTH' | 'ERROR' | 'CURRENCY'
 export type InsightsRow = {
   adId: string; adName: string | null; day: string; spend: number
-  /** 00091 เฟส 3 FR-012 — ลำดับชั้นของแอดตามที่ Meta รายงาน (null = Meta ไม่ส่งมา) */
-  campaignId?: string | null; campaignName?: string | null; adsetId?: string | null; adsetName?: string | null
+  /** 00091 เฟส 3 FR-012 + 00094 — ลำดับชั้นของแอด + ตัวเลขการแสดงผลตามที่ Meta รายงาน (null = Meta ไม่ส่งมา) */
+  adsetId: string | null; adsetName: string | null; campaignId: string | null; campaignName: string | null
+  impressions: number | null; clicks: number | null; chatsMeta: number | null
 }
 export type InsightsResult = { state: InsightsState; accountName: string | null; currency: string | null; tz: string | null; rows: InsightsRow[] }
 
@@ -25,6 +27,12 @@ export function classifyInsightsError(httpStatus: number, body: unknown): 'AUTH'
 }
 
 const MAX_PAGES = 20
+// ไม่มีค่า = null (ไม่ทราบ) ไม่ใช่ 0
+const numOrNull = (v: unknown): number | null => {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
 
 export async function fetchAdInsights(a: {
   adAccountId: string; token: string; since: string; until: string; doFetch?: typeof fetch; timeoutMs?: number
@@ -53,7 +61,7 @@ export async function fetchAdInsights(a: {
     if (meta.currency !== 'THB') return { state: 'CURRENCY', ...meta, rows: [] }
 
     const qs = new URLSearchParams({
-      level: 'ad', fields: 'ad_id,ad_name,spend,campaign_id,campaign_name,adset_id,adset_name', time_increment: '1', limit: '500',
+      level: 'ad', fields: 'ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,inline_link_clicks,actions', time_increment: '1', limit: '500',
       time_range: JSON.stringify({ since: a.since, until: a.until }),
     })
     let url: string | null = `${GRAPH_BASE}/act_${a.adAccountId}/insights?${qs}`
@@ -64,11 +72,14 @@ export async function fetchAdInsights(a: {
       if (!r.ok) return { ...empty, ...meta, state: r.state }
       for (const d of r.body.data ?? []) {
         const spend = Number(d.spend)
-        if (d.ad_id && d.date_start && Number.isFinite(spend)) rows.push({
-          adId: String(d.ad_id), adName: d.ad_name ?? null, day: String(d.date_start), spend,
-          campaignId: d.campaign_id ? String(d.campaign_id) : null, campaignName: d.campaign_name ?? null,
-          adsetId: d.adset_id ? String(d.adset_id) : null, adsetName: d.adset_name ?? null,
-        })
+        if (d.ad_id && d.date_start && Number.isFinite(spend)) {
+          rows.push({
+            adId: String(d.ad_id), adName: d.ad_name ?? null, day: String(d.date_start), spend,
+            adsetId: d.adset_id ? String(d.adset_id) : null, adsetName: d.adset_name ?? null,
+            campaignId: d.campaign_id ? String(d.campaign_id) : null, campaignName: d.campaign_name ?? null,
+            impressions: numOrNull(d.impressions), clicks: numOrNull(d.inline_link_clicks), chatsMeta: actionValue(d.actions, ACTION.started),
+          })
+        }
       }
       const next: string | undefined = r.body.paging?.next
       // เฉพาะ Graph เท่านั้น — กัน token ไปโฮสต์อื่นถ้าคำตอบถูกแก้
