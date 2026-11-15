@@ -34,7 +34,7 @@ import { AdReportPendingProvider } from '../ads/components/PendingContext'
 import AdQualityFilters from './components/AdQualityFilters'
 import ChatCompareHero from './components/ChatCompareHero'
 import ChatGapTable from './components/ChatGapTable'
-import { BreakdownMeta, FetchedLine, TablesMeta, TopRowMeta } from './components/MetaSections'
+import { BreakdownMeta, TablesMeta, TopRowMeta } from './components/MetaSections'
 import PendingGrid from './components/PendingGrid'
 import QualityNotice from './components/QualityNotice'
 import { ChartCardSkeleton, TableCardSkeleton, TopRowSkeleton } from './components/Skeletons'
@@ -135,13 +135,6 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
           from={q.label.from} to={q.label.to} shopChannelId={q.filters.shopChannelId ?? null} channels={channels}
           clamped={q.clamped} maxRangeDays={MAX_RANGE_DAYS} ads={ads}
         />
-        {bundle && (
-          <div className="mb-base">
-            <Suspense fallback={<p className="text-default-700 mb-0 text-xs">{t.adQuality.fetching}</p>}>
-              <FetchedLine bundle={bundle} />
-            </Suspense>
-          </div>
-        )}
         <PendingGrid>
           {ads.state === 'ERROR' && <QualityNotice ads={ads} />}
           {bundle ? (

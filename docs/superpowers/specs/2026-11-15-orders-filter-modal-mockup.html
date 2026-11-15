@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>รายการออเดอร์ — ปุ่ม "ตัวกรอง" + โมดัล (+ ตัวกรองโฆษณา) — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00091 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), light: v('light'),
+          d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'), primary15: v('primary15'), primary10: v('primary10'),
+          success: v('success'), 'success-ink': v('success-ink'), success15: v('success15'),
+          warning: v('warning'), 'warning-ink': v('warning-ink'), warning15: v('warning15'),
+          danger15: v('danger15'), 'danger-ink': v('danger-ink'), info15: v('info15'), 'info-ink': v('info-ink'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --light:#eef2f7;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --success:#02bc9c; --success-ink:#065f46; --success15:#d9f5f0;
+    --warning:#f9bf59; --warning-ink:#92400e; --warning15:#fef5e6;
+    --danger15:#fee6ec; --danger-ink:#7f1d1d; --info15:#e6f6fb; --info-ink:#1e40af;
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --page:#e9ebf0;
+  }
+  html, body { font-family:'Anuphan', sans-serif; }
+  body { background:var(--page); color:var(--d700); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  .frame { position:relative; border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .backdrop { position:absolute; inset:0; background:rgba(49,58,70,.5); }
+  .form-check { appearance:none; width:18px; height:18px; border-radius:4px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; display:grid; place-content:center; }
+  .form-check:checked { background:var(--primary); border-color:var(--primary); }
+  .form-check:checked::after { content:""; width:10px; height:6px; border:2px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+  .opt[aria-pressed="true"] { border-color:var(--primary); background:var(--primary10); color:var(--primary-ink); font-weight:500; }
+  .adrow:has(input:checked) { background:var(--primary10); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .card { @apply bg-card rounded flex flex-col; box-shadow:var(--shadow); }
+    .card-header { @apply flex flex-wrap items-center justify-between gap-2.5 px-5 py-4 border-b border-dashed border-d300; }
+    .btn { @apply inline-flex items-center justify-center gap-1.5 rounded px-4 py-2 text-sm font-medium whitespace-nowrap; }
+    .form-input { @apply block w-full rounded border border-d300 bg-card px-3 py-2 text-sm text-d900; }
+    .badge { @apply inline-flex items-center rounded px-1.5 text-2xs font-semibold leading-normal whitespace-nowrap; }
+    .chip { @apply inline-flex items-center gap-1 rounded-full border border-primary bg-primary10 py-0.5 ps-3 pe-0.5 text-xs font-medium text-primary-ink; }
+    .chip-x { @apply inline-flex size-6 items-center justify-center rounded-full hover:bg-primary15; }
+    .opt { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border border-d300 bg-card px-3 text-xs text-d700; }
+    .sec { @apply border-b border-d200 py-4; }
+    .sec-h { @apply mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-d900; }
+    .cnt { @apply tabular-nums text-d500; }
+  }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-30 border-b border-d300 bg-card">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <h1 class="text-base font-bold text-d900">รายการออเดอร์ · ปุ่ม "ตัวกรอง" + โมดัล + ตัวกรองโฆษณา</h1>
+    <p class="text-xs text-d600">Desktop 1280 / Tablet 768 / Mobile 390 · ข้อมูลตัวอย่าง</p>
+  </div>
+</header>
+
+<main class="flex flex-col items-start gap-10 overflow-x-auto p-8">
+
+  <!-- ═══════════════ DESKTOP 1280 ═══════════════ -->
+  <section>
+    <p class="mb-2 text-xs font-semibold text-d600">Desktop 1280 — โมดัลกลางจอ (max-w-4xl · 2 คอลัมน์: ตัวกรองค่าเดียว | โฆษณา)</p>
+    <div class="frame" style="width:1280px;height:900px">
+      <div class="p-6">
+        <h2 class="mb-4 text-lg font-semibold text-d900">ออเดอร์</h2>
+        <div class="card">
+          <div class="card-header">
+            <div class="relative max-w-xl flex-1">
+              <iconify-icon icon="tabler:search" class="absolute start-3 top-1/2 -translate-y-1/2 text-d500"></iconify-icon>
+              <input class="form-input ps-9" placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์ / เลขพัสดุ / สินค้า" />
+            </div>
+            <div class="flex items-center gap-2.5">
+              <button class="btn border border-primary bg-primary10 text-primary-ink">
+                <iconify-icon icon="tabler:adjustments-horizontal" width="16"></iconify-icon> ตัวกรอง
+                <span class="badge rounded-full bg-primary px-1.5 text-white">3</span>
+              </button>
+              <span class="h-6 w-px bg-d300"></span>
+              <button class="btn border border-d300 text-d700"><iconify-icon icon="tabler:file-export" width="16"></iconify-icon> ส่งออก</button>
+              <button class="btn bg-primary text-white"><iconify-icon icon="tabler:plus" width="16"></iconify-icon> สร้างออเดอร์</button>
+            </div>
+          </div>
+          <!-- แถวชิปตัวกรองที่ใช้อยู่ — แสดงเมื่อมี ≥1 ตัวเท่านั้น -->
+          <div class="flex flex-wrap items-center gap-2 border-b border-d200 px-5 py-2.5">
+            <span class="chip">ช่วงเวลา: 30 วันที่ผ่านมา<button class="chip-x" aria-label="ล้างตัวกรองช่วงเวลา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <span class="chip">พัสดุ: รอจัดส่ง<button class="chip-x" aria-label="ล้างตัวกรองพัสดุ"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <span class="chip"><span class="size-4 rounded-full bg-gradient-to-br from-rose-300 to-amber-200"></span>โฆษณา: โปร 11.11 ลด 50% +1<button class="chip-x" aria-label="ล้างตัวกรองโฆษณา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <button class="ms-1 text-xs font-medium text-primary-ink hover:underline">ล้างทั้งหมด</button>
+            <span class="ms-auto text-xs text-d500"><span class="tabular-nums font-semibold text-d900">42</span> จาก 1,286 ใบ</span>
+          </div>
+          <div data-rows="6"></div>
+          <!-- footer: แถวละ N อยู่ข้าง pagination -->
+          <div class="flex items-center justify-between border-t border-d200 px-5 py-3 text-xs text-d600">
+            <span>แสดง 1–10 จาก 42</span>
+            <div class="flex items-center gap-3">
+              <select class="form-input w-auto py-1 text-xs"><option>แถวละ 10</option></select>
+              <div class="flex gap-1">
+                <button class="size-8 rounded border border-d300"><iconify-icon icon="tabler:chevron-left"></iconify-icon></button>
+                <button class="size-8 rounded bg-primary text-white">1</button>
+                <button class="size-8 rounded border border-d300">2</button>
+                <button class="size-8 rounded border border-d300">3</button>
+                <button class="size-8 rounded border border-d300"><iconify-icon icon="tabler:chevron-right"></iconify-icon></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="backdrop"></div>
+      <div class="absolute inset-x-0 top-10 mx-auto flex max-h-[820px] w-full max-w-4xl flex-col rounded bg-card shadow-xl" data-modal="desk"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ TABLET 768 ═══════════════ -->
+  <section>
+    <p class="mb-2 text-xs font-semibold text-d600">Tablet 768 — โมดัลกลางจอ (max-w-lg) · คอลัมน์เดียว (ภาพนี้เลื่อนลงถึงส่วนโฆษณา)</p>
+    <div class="frame" style="width:768px;height:900px">
+      <div class="p-5">
+        <h2 class="mb-4 text-lg font-semibold text-d900">ออเดอร์</h2>
+        <div class="card">
+          <div class="card-header">
+            <div class="relative min-w-0 flex-1">
+              <iconify-icon icon="tabler:search" class="absolute start-3 top-1/2 -translate-y-1/2 text-d500"></iconify-icon>
+              <input class="form-input ps-9" placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์" />
+            </div>
+            <button class="btn border border-primary bg-primary10 text-primary-ink">
+              <iconify-icon icon="tabler:adjustments-horizontal" width="16"></iconify-icon> ตัวกรอง
+              <span class="badge rounded-full bg-primary px-1.5 text-white">3</span>
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 border-b border-d200 px-5 py-2.5">
+            <span class="chip">ช่วงเวลา: 30 วันที่ผ่านมา<button class="chip-x" aria-label="ล้างตัวกรองช่วงเวลา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <span class="chip">พัสดุ: รอจัดส่ง<button class="chip-x" aria-label="ล้างตัวกรองพัสดุ"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <span class="chip">โฆษณา: 2 ตัว<button class="chip-x" aria-label="ล้างตัวกรองโฆษณา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <button class="ms-1 text-xs font-medium text-primary-ink hover:underline">ล้างทั้งหมด</button>
+          </div>
+          <div data-rows="4"></div>
+        </div>
+      </div>
+      <div class="backdrop"></div>
+      <div class="absolute inset-x-0 top-8 mx-auto flex max-h-[840px] w-full max-w-lg flex-col rounded bg-card shadow-xl" data-modal="tab"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ MOBILE 390 — ปิด / เปิด ═══════════════ -->
+  <section>
+    <p class="mb-2 text-xs font-semibold text-d600">Mobile 390 — ซ้าย: แถบบน · ขวา: bottom sheet เต็มสูง หัว+ท้ายตรึง (เลื่อนลงถึงส่วนโฆษณา)</p>
+    <div class="flex gap-8">
+      <div class="frame" style="width:390px;height:844px">
+        <div class="bg-card px-4 pb-3 pt-4">
+          <div class="flex items-center gap-2">
+            <div class="relative min-w-0 flex-1">
+              <iconify-icon icon="tabler:search" class="absolute start-3 top-1/2 -translate-y-1/2 text-d500"></iconify-icon>
+              <input class="form-input min-h-11 ps-9" placeholder="ค้นหาออเดอร์" />
+            </div>
+            <button class="relative inline-flex size-11 items-center justify-center rounded-lg border border-primary bg-primary10 text-primary-ink" aria-label="ตัวกรอง (3)">
+              <iconify-icon icon="tabler:adjustments-horizontal" width="20"></iconify-icon>
+              <span class="badge absolute -end-1.5 -top-1.5 rounded-full bg-primary px-1.5 text-white">3</span>
+            </button>
+            <button class="inline-flex size-11 items-center justify-center rounded-lg bg-primary text-white" aria-label="สร้างออเดอร์"><iconify-icon icon="tabler:plus" width="22"></iconify-icon></button>
+          </div>
+          <!-- แถวชิปแกนหลัก (เดิม) คงไว้ -->
+          <div class="mt-3 flex gap-2 overflow-hidden">
+            <span class="rounded-full bg-d200 px-3 py-1.5 text-xs text-d700">ทั้งหมด <b>1,286</b></span>
+            <span class="rounded-full bg-primary px-3 py-1.5 text-xs text-white">รอจัดส่ง <b>58</b></span>
+            <span class="rounded-full bg-d200 px-3 py-1.5 text-xs text-d700">กำลังจัดส่ง <b>31</b></span>
+            <span class="rounded-full bg-d200 px-3 py-1.5 text-xs text-d700">รอเงิน COD</span>
+          </div>
+          <!-- ชิปจากโมดัล — เลื่อนแนวนอน · แกนที่อยู่บนแถวบนแล้วไม่ซ้ำ -->
+          <div class="mt-2 flex gap-2 overflow-hidden">
+            <span class="chip shrink-0">30 วันที่ผ่านมา<button class="chip-x size-8" aria-label="ล้างตัวกรองช่วงเวลา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <span class="chip shrink-0">โฆษณา: 2 ตัว<button class="chip-x size-8" aria-label="ล้างตัวกรองโฆษณา"><iconify-icon icon="tabler:x" width="14"></iconify-icon></button></span>
+            <button class="shrink-0 px-2 text-xs font-medium text-primary-ink">ล้างทั้งหมด</button>
+          </div>
+        </div>
+        <div class="space-y-2 p-3" data-cards="5"></div>
+      </div>
+
+      <div class="frame" style="width:390px;height:844px">
+        <div class="bg-card px-4 pt-4"><div class="h-11 rounded border border-d300"></div></div>
+        <div class="backdrop"></div>
+        <div class="absolute inset-x-0 bottom-0 top-10 flex flex-col rounded-t-2xl bg-card" data-modal="mob"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const ADS = [
+    { name: 'โปร 11.11 ลด 50%', n: 214, img: 'from-rose-300 to-amber-200', on: true },
+    { name: 'รีวิวลูกค้าจริง คลิป 15 วิ', n: 166, img: 'from-sky-300 to-indigo-200', on: true },
+    { name: 'เซ็ตของขวัญปีใหม่', n: 93, img: 'from-emerald-300 to-teal-100' },
+    { name: 'รหัสโฆษณา 120214598833', n: 12, img: null },
+    { name: 'แคมเปญเปิดตัวสีใหม่', n: 7, img: 'from-fuchsia-200 to-pink-100' },
+  ]
+  const opts = (list, active) => list.map(([l, c]) =>
+    `<button class="opt" aria-pressed="${l === active}">${l}${c != null ? ` <span class="cnt">${c}</span>` : ''}</button>`).join('')
+
+  function modal(kind) {
+    const mob = kind === 'mob', desk = kind === 'desk'
+    const adRows = ADS.map((a) => `
+      <label class="adrow flex min-h-11 cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-d100">
+        <input type="checkbox" class="form-check" ${a.on ? 'checked' : ''} />
+        ${a.img
+          ? `<span class="size-8 shrink-0 rounded bg-gradient-to-br ${a.img}"></span>`
+          : `<span class="flex size-8 shrink-0 items-center justify-center rounded bg-d200 text-d700"><iconify-icon icon="tabler:speakerphone" width="16"></iconify-icon></span>`}
+        <span class="min-w-0 flex-1 truncate text-sm text-d900" data-name>${a.name}</span>
+        <span class="cnt text-xs">${a.n}</span>
+      </label>`).join('')
+    return `
+      ${mob ? '<div class="mx-auto mt-2 h-1 w-10 rounded-full bg-d300"></div>' : ''}
+      <div class="flex items-center justify-between border-b border-d200 px-5 py-3.5">
+        <h3 class="text-base font-semibold text-d900">ตัวกรอง</h3>
+        <button class="inline-flex size-10 items-center justify-center rounded text-d600 hover:bg-d100" aria-label="ปิด"><iconify-icon icon="tabler:x" width="20"></iconify-icon></button>
+      </div>
+      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5" data-body>
+        <div class="${desk ? 'grid grid-cols-[1fr_340px] gap-6' : ''}"><div>
+        <div class="sec">
+          <p class="sec-h"><iconify-icon icon="tabler:calendar" class="text-d500"></iconify-icon>ช่วงเวลา</p>
+          <div class="flex flex-wrap gap-2">${opts([['ทั้งหมด'],['วันนี้'],['7 วันที่ผ่านมา'],['30 วันที่ผ่านมา'],['ปีนี้']], '30 วันที่ผ่านมา')}
+            <button class="opt"><iconify-icon icon="tabler:calendar-search"></iconify-icon>เลือกวันที่</button></div>
+        </div>
+        <div class="sec">
+          <p class="sec-h"><iconify-icon icon="tabler:truck" class="text-d500"></iconify-icon>สถานะ</p>
+          <div class="flex flex-wrap gap-2">${opts([['ทั้งหมด'],['รอยืนยัน',24],['ยืนยันแล้ว',1102],['สำเร็จ',131],['ยกเลิก',29]], 'ทั้งหมด')}</div>
+        </div>
+        <div class="sec">
+          <p class="sec-h"><iconify-icon icon="tabler:package" class="text-d500"></iconify-icon>พัสดุ</p>
+          <div class="flex flex-wrap gap-2">${opts([['ทั้งหมด'],['รอเลขพัสดุ',12],['รอจัดส่ง',58],['รอรับเข้า',9],['กำลังจัดส่ง',31],['รอเงิน COD',14],['พัสดุมีปัญหา',3],['ตีกลับ',2]], 'รอจัดส่ง')}</div>
+        </div>
+        <div class="sec ${mob ? '' : 'grid grid-cols-2 gap-6'} ${desk ? 'border-b-0' : ''}">
+          <div ${mob ? 'class="mb-4"' : ''}>
+            <p class="sec-h"><iconify-icon icon="tabler:building-store" class="text-d500"></iconify-icon>วิธีส่งมอบ</p>
+            <div class="flex flex-wrap gap-2">${opts([['ทั้งหมด'],['จัดส่ง',1201],['นัดรับ',85]], 'ทั้งหมด')}</div>
+          </div>
+          <div>
+            <p class="sec-h"><iconify-icon icon="tabler:truck-delivery" class="text-d500"></iconify-icon>ขนส่ง</p>
+            <div class="flex flex-wrap gap-2">${opts([['ทั้งหมด'],['Flash',702],['J&T',388],['ไปรษณีย์ไทย',96]], 'ทั้งหมด')}</div>
+          </div>
+        </div>
+        </div>
+        <div class="py-4 ${desk ? 'border-s border-d200 ps-6' : ''}">
+          <div class="mb-2.5 flex items-center justify-between">
+            <p class="sec-h mb-0"><iconify-icon icon="tabler:speakerphone" class="text-d500"></iconify-icon>โฆษณา <span class="badge rounded-full bg-primary px-1.5 text-white">2</span></p>
+            <button class="min-h-9 px-1 text-xs font-medium text-primary-ink">ทุกโฆษณา</button>
+          </div>
+          <div class="relative mb-2">
+            <iconify-icon icon="tabler:search" class="absolute start-3 top-1/2 -translate-y-1/2 text-d500"></iconify-icon>
+            <input class="form-input ps-9" placeholder="ค้นหาโฆษณา" oninput="filterAds(this)" />
+          </div>
+          <div class="${desk ? 'max-h-[460px] overflow-y-auto' : ''} rounded border border-d200 p-1" data-adlist>
+            <label class="adrow flex min-h-11 cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-d100">
+              <input type="checkbox" class="form-check" />
+              <span class="flex size-8 shrink-0 items-center justify-center rounded border border-dashed border-d300 text-d500"><iconify-icon icon="tabler:speakerphone-off" width="16"></iconify-icon></span>
+              <span class="min-w-0 flex-1 text-sm text-d900" data-name>ไม่ได้มาจากโฆษณา</span>
+              <span class="cnt text-xs">794</span>
+            </label>
+            <div class="mx-2 my-1 border-t border-d200"></div>
+            ${adRows}
+          </div>
+        </div></div>
+      </div>
+      <div class="flex items-center gap-2 border-t border-d200 px-5 py-3 ${mob ? 'pb-6' : ''}">
+        <button class="btn ${mob ? 'min-h-11 flex-1' : ''} border border-d300 text-d700">ล้าง</button>
+        <button class="btn ${mob ? 'min-h-11 flex-[2]' : 'ms-auto'} bg-primary text-white">ใช้ตัวกรอง · <span class="tabular-nums">42</span> ใบ</button>
+      </div>`
+  }
+
+  function filterAds(input) {
+    const q = input.value.trim().toLowerCase()
+    input.closest('[data-modal]').querySelectorAll('[data-adlist] .adrow').forEach((row) => {
+      row.style.display = row.querySelector('[data-name]').textContent.toLowerCase().includes(q) ? '' : 'none'
+    })
+  }
+
+  document.querySelectorAll('[data-modal]').forEach((el) => {
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'ตัวกรอง')
+    el.innerHTML = modal(el.dataset.modal)
+  })
+  // Tailwind CDN สร้างสไตล์หลังสคริปต์นี้ — รอ layout ก่อนเลื่อนแท็บเล็ต/มือถือลงถึงส่วนโฆษณา
+  window.addEventListener('load', () => setTimeout(() =>
+    document.querySelectorAll('[data-modal="tab"] [data-body], [data-modal="mob"] [data-body]').forEach((b) => { b.scrollTop = b.scrollHeight }), 400))
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.opt'); if (!b || !b.closest('.sec')) return
+    b.parentElement.querySelectorAll('.opt').forEach((o) => o.setAttribute('aria-pressed', o === b))
+  })
+
+  // แถวตาราง/การ์ดตัวอย่าง (พื้นหลังใต้โมดัล)
+  const row = (i) => `<div class="grid grid-cols-[1.2fr_1.6fr_1fr_1fr_1fr] items-center gap-3 border-b border-d200 px-5 py-3 text-xs">
+    <span class="font-medium text-primary-ink">#OR-2511-${1040 + i}</span>
+    <span class="text-d900">คุณลูกค้า ${i + 1}</span><span class="badge w-fit bg-warning15 text-warning-ink">รอจัดส่ง</span>
+    <span class="tabular-nums text-d900">฿${(590 + i * 120).toLocaleString()}</span><span class="text-d500">${14 - i} พ.ย. 2569</span></div>`
+  document.querySelectorAll('[data-rows]').forEach((el) => { el.innerHTML = Array.from({ length: +el.dataset.rows }, (_, i) => row(i)).join('') })
+  document.querySelectorAll('[data-cards]').forEach((el) => {
+    el.innerHTML = Array.from({ length: +el.dataset.cards }, (_, i) => `<div class="card p-3 text-xs">
+      <div class="flex justify-between"><span class="font-medium text-primary-ink">#OR-2511-${1040 + i}</span><span class="badge bg-warning15 text-warning-ink">รอจัดส่ง</span></div>
+      <div class="mt-1 flex justify-between text-d900"><span>คุณลูกค้า ${i + 1}</span><span class="tabular-nums">฿${(590 + i * 120).toLocaleString()}</span></div></div>`).join('')
+  })
+</script>
+</body>
+</html>

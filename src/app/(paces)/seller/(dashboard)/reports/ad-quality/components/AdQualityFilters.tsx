@@ -90,10 +90,8 @@ export default function AdQualityFilters(props: Props) {
         </div>
       </div>
 
-      <p className="text-default-700 mb-0 text-xs">
-        {fmt(t.rangeLine, { from: formatDate(props.from), to: formatDate(props.to) })}
-        {props.ads.state === 'OK' && props.ads.accountName && ` · ${fmt(t.accountLine, { name: props.ads.accountName })}`}
-      </p>
+      {/* หัวหน้าเหลือช่วงวันที่บรรทัดเดียว — ผู้ใช้สั่งตัดบัญชี/เวลาอัปเดตออก (ข้อความรก) */}
+      <p className="text-default-700 mb-0 text-xs">{fmt(t.rangeLine, { from: formatDate(props.from), to: formatDate(props.to) })}</p>
       {props.shopChannelId && <p className="text-default-700 mb-0 text-xs">{t.pageFilterNote}</p>}
       {props.clamped && (
         <p className="text-warning-ink bg-warning/15 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
