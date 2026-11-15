@@ -7,7 +7,6 @@
  */
 import { adDisplayName } from '@/lib/ad-attribution'
 import { buildQualityRows, buildTotals, metaAdsNotInAccount, spendRatios } from '@/lib/ad-quality-view'
-import { formatDateTime } from '@/lib/format-date'
 import { getT } from '@/i18n/server'
 import type { QualityBundle } from '@/services/meta-ads-quality.service'
 import type { QualityDeepSide } from '@/services/ad-quality-report.service'
@@ -74,13 +73,4 @@ export async function TablesMeta({ bundle, deep, pageFiltered, noun }: Common & 
       {ad.status === 'OK' && <AdQualityTable rows={rows} noun={noun} totals={{ chatsMeta: totals.chatsMeta, chatsDeep: deep.chatsTotal, orders: deep.ordersTotal }} />}
     </>
   )
-}
-
-/** "ข้อมูลจาก Meta อัปเดตเมื่อ …" = เวลาที่เก่าที่สุดของคำขอที่สำเร็จ (ตัวเลขทั้งหน้าไม่สดกว่านี้) */
-export async function FetchedLine({ bundle }: { bundle: QualityBundle }) {
-  const t = await getT()
-  const cards = await Promise.all([bundle.ad, bundle.account, bundle.placement, bundle.agegender])
-  const times = cards.map((c) => c.fetchedAt).filter((v): v is number => v !== null)
-  if (times.length === 0) return null
-  return <p className="text-default-700 mb-0 text-xs">{t.adQuality.metaUpdated.replace('{time}', formatDateTime(new Date(Math.min(...times))))}</p>
 }
