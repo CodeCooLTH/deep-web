@@ -1,7 +1,9 @@
 'use client'
 
 /**
- * AdQualityTable — ⑥ คุณภาพรายแอด (FR-005): ค้นหา + จำนวนแถว + โหมด (รายแอด/ตามแคมเปญ) + ตาราง (≥1024) / รายการ (<1024) + แถวรวม
+ * AdQualityTable — ตารางรายแอดใบเดียว (FR-004 + FR-005 รวม ⑤ กับ ⑥ เดิม): แชท (Meta) · แชท (Deep) · ส่วนต่าง · คุณภาพแชท · ปิดการขาย
+ * ค้นหา + จำนวนแถว + โหมด (รายแอด/ตามแคมเปญ) + ตาราง (≥1024) / รายการ (<1024) + แถวรวม · `id="ad-quality-table"` (ลิงก์จากกราฟเทียบ)
+ * metaOk = false (Meta ไม่พร้อม/แอดไม่อยู่ในบัญชี): เหลือ 3 คอลัมน์ แชท (Deep) + ปิดการขาย (Deep) — ไม่วาดคอลัมน์ Meta ที่มีแต่ "—"
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/AnalyticsOverview.tsx
  *   (card-header + `input-icon-group` ค้นหา + `form-select` จำนวนแถว · useReactTable · DataTable · TablePagination)
@@ -9,6 +11,7 @@
  * ตัด: checkbox/ปุ่มลบ/DeleteConfirmationModal/Actions
  * 🛑 อัตราทุกตัว = Σตัวตั้ง ÷ Σตัวหาร (ไม่เฉลี่ย %) · ตัวหารของคุยต่อ/ตอบกลับ/บล็อก = แชท (Meta) · ของปิดการขาย = แชท (Deep) — เขียนกำกับใต้ตาราง
  * 🛑 ค่า "ตอบกลับ" (replied_7d) ความหมายยังไม่ยืนยันกับ Ads Manager (BRD §6/O5) — ป้ายชั่วคราว
+ * ตัด: ข้อความอธิบายตัวหารใต้ตาราง (ป้ายกลุ่ม Meta/Deep ที่หัวคอลัมน์ + "k จาก n" ในเซลล์บอกตัวหารอยู่แล้ว)
  * ต่างจากสเปก: หัวกลุ่ม Meta/Deep เป็นบรรทัดเล็กเหนือชื่อคอลัมน์ (DataTable ร่วมไม่รองรับหัวกลุ่ม 2 ชั้น — ไม่แก้ตัวร่วม) · หัวคอลัมน์ใช้ normal-case กัน "Meta" → "META"
  */
 import {
@@ -22,10 +25,11 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { adDisplayName } from '@/lib/ad-attribution'
-import { adLine, campaignLine, groupByCampaign, type QualityLine } from '@/lib/ad-quality-view'
+import { adLine, campaignLine, groupByCampaign, type QualityLine, type QualityTotals } from '@/lib/ad-quality-view'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { fmtInt, fmtPct1, type QualityRow } from './data'
+import GapBadge from './GapBadge'
 import AdQualityMobileRow from './AdQualityMobileList'
 import NoDataCell from './NoDataCell'
 import RateCell from './RateCell'
@@ -34,9 +38,11 @@ import VideoCell from './VideoCell'
 const columnHelper = createColumnHelper<QualityLine>()
 const PAGE_SIZES = [10, 25, 50]
 type Mode = 'ad' | 'campaign'
-type SortKey = 'meta' | 'depth3' | 'block' | 'close'
+type SortKey = 'meta' | 'deep' | 'depth3' | 'block' | 'close'
 
-export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRow[]; noun: string; totals: { chatsMeta: number | null; chatsDeep: number; orders: number } }) {
+type DeepTotals = { chats: number; orders: number; closeRatePct: number | null }
+
+export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { rows: QualityRow[]; metaOk: boolean; totals: QualityTotals | null; deepTotals: DeepTotals }) {
   'use no memo'
   const t = useT()
   const a = t.adQuality
@@ -44,7 +50,7 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
   const searchId = useId()
   const [mode, setMode] = useState<Mode>('ad')
   const [query, setQuery] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'meta', desc: true }])
+  const [sorting, setSorting] = useState<SortingState>([{ id: metaOk ? 'meta' : 'deep', desc: true }])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
   const [expanded, setExpanded] = useState<ExpandedState>({})
 
@@ -90,10 +96,24 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
                 <span className="text-default-500 text-2xs block truncate">
                   {l.kind === 'campaign' ? fmt(a.adsIn, { n: l.adCount }) : [l.campaign, l.adset].filter(Boolean).join(' › ')}
                 </span>
+                {metaOk && l.kind === 'ad' && !l.inInsights && <span className="text-default-500 text-2xs block">{a.gNotFound}</span>}
               </span>
             </span>
           )
         },
+      }),
+      ...(metaOk ? [
+      columnHelper.accessor((l) => l.chatsMeta ?? undefined, {
+        id: 'meta', meta: { align: 'center' }, header: () => H(a.chatMeta, 'Meta'), sortUndefined: 'last',
+        cell: ({ row }) => <span className="block text-center tabular-nums">{row.original.chatsMeta === null ? <NoDataCell /> : fmtInt(row.original.chatsMeta)}</span>,
+      }),
+      columnHelper.accessor('chatsDeep', {
+        id: 'deep', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
+        cell: ({ row }) => <span className="block text-center tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
+      }),
+      columnHelper.accessor((l) => l.gap ?? undefined, {
+        id: 'gap', meta: { align: 'center' }, header: () => H(a.colGap), sortUndefined: 'last',
+        cell: ({ row }) => <GapCell l={row.original} />,
       }),
       columnHelper.accessor((l) => l.impressions ?? undefined, {
         id: 'impr', meta: { align: 'center' }, header: () => H(a.colImprCtr, 'Meta'), enableSorting: false,
@@ -104,23 +124,27 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
           </span>
         ),
       }),
-      columnHelper.accessor((l) => l.chatsMeta ?? undefined, {
-        id: 'meta', meta: { align: 'center' }, header: () => H(a.chatMeta, 'Meta'), sortUndefined: 'last',
-        cell: ({ row }) => <span className="block text-center tabular-nums">{row.original.chatsMeta === null ? <NoDataCell /> : fmtInt(row.original.chatsMeta)}</span>,
-      }),
       rateCol('depth2', a.colDepth2, 'depth2'),
       rateCol('depth3', a.colDepth3, 'depth3'),
       rateCol('replied', a.colReplied, 'replied'),
       rateCol('block', a.colBlock, 'block'),
+      ] : [
+      columnHelper.accessor('chatsDeep', {
+        id: 'deep', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
+        cell: ({ row }) => <span className="block text-center tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
+      }),
+      ]),
       columnHelper.accessor((l) => l.closeRate ?? undefined, {
         id: 'close', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.colClose, 'Deep'), sortUndefined: 'last',
         cell: ({ row }) => <RateCell pct={row.original.closeRate} num={row.original.orders} den={row.original.chatsDeep} />,
       }),
+      ...(metaOk ? [
       columnHelper.display({ id: 'video', meta: { align: 'center' }, header: () => H(a.colVideo, 'Meta'), cell: ({ row }) => <VideoCell line={row.original} /> }),
+      ] : []),
     ],
     // nameOf/rateCol ผูกกับ t/idFallback — ใส่เฉพาะที่เปลี่ยนจริง
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, idFallback],
+    [t, idFallback, metaOk],
   )
 
   const table = useReactTable({
@@ -133,17 +157,31 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
   const start = filtered === 0 ? 0 : pageIndex * pageSize + 1
   const end = Math.min(start + pageSize - 1, filtered)
 
-  const sortLabel: Record<SortKey, string> = { meta: a.chatMeta, depth3: a.colDepth3, block: a.colBlock, close: a.colClose }
-  const mobileSort = (sorting[0]?.id as SortKey | undefined) ?? 'meta'
+  const sortLabel: Record<SortKey, string> = { meta: a.chatMeta, deep: a.chatDeep, depth3: a.colDepth3, block: a.colBlock, close: a.colClose }
+  const sortKeys: SortKey[] = metaOk ? ['meta', 'deep', 'depth3', 'block', 'close'] : ['deep', 'close']
+  const mobileSort = (sorting[0]?.id as SortKey | undefined) ?? sortKeys[0]
 
-  const total = (
+  const closeTotal = deepTotals.closeRatePct === null ? <NoDataCell /> : fmtPct1(deepTotals.closeRatePct)
+  const rateTotal = (k: 'depth2' | 'depth3' | 'replied' | 'block') => (totals?.rates[k].pct == null ? <NoDataCell /> : fmtPct1(totals.rates[k].pct))
+  const total = metaOk && totals ? (
     <tr className="bg-default-100/70 font-semibold">
-      <td className="text-default-900 text-sm">{fmt(a.adsIn, { n: rows.length })}</td>
-      <td />
+      <td className="text-default-900 text-sm">{fmt(a.totalAds, { n: totals.adsCounted })}</td>
       <td className="text-center tabular-nums">{fmtInt(totals.chatsMeta)}</td>
-      <td /><td /><td /><td />
-      <td className="text-center tabular-nums">{fmtInt(totals.orders)} / {fmtInt(totals.chatsDeep)}</td>
+      <td className="text-center tabular-nums">{fmtInt(totals.chatsDeepSameSet)}</td>
+      <td className="text-center tabular-nums">{totals.gap === null ? <NoDataCell /> : totals.gap < 0 ? fmt(a.deepMore, { p: Math.abs(totals.gap).toFixed(1) }) : fmtPct1(totals.gap)}</td>
+      <td className="text-center tabular-nums">{fmtInt(totals.impressions)}<span className="text-default-500 text-2xs block">{totals.ctr === null ? <NoDataCell /> : fmtPct1(totals.ctr)}</span></td>
+      <td className="text-center tabular-nums">{rateTotal('depth2')}</td>
+      <td className="text-center tabular-nums">{rateTotal('depth3')}</td>
+      <td className="text-center tabular-nums">{rateTotal('replied')}</td>
+      <td className="text-center tabular-nums">{rateTotal('block')}</td>
+      <td className="text-center tabular-nums">{closeTotal}</td>
       <td />
+    </tr>
+  ) : (
+    <tr className="bg-default-100/70 font-semibold">
+      <td className="text-default-900 text-sm">{fmt(a.totalAds, { n: rows.length })}</td>
+      <td className="text-center tabular-nums">{fmtInt(deepTotals.chats)}</td>
+      <td className="text-center tabular-nums">{closeTotal}</td>
     </tr>
   )
   const onSearch = (v: string) => { setQuery(v); setPagination((p) => ({ ...p, pageIndex: 0 })) }
@@ -169,7 +207,7 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
 
       <div className="flex items-center justify-between gap-2 px-4 pb-2 lg:hidden">
         <span className="text-default-700 text-sm">{a.sortBy}</span>
-        <FilterDropdown align="right" value={mobileSort} options={(Object.keys(sortLabel) as SortKey[]).map((k) => ({ value: k, label: sortLabel[k] }))} onChange={(v) => setSorting([{ id: v, desc: true }])} />
+        <FilterDropdown align="right" value={mobileSort} options={sortKeys.map((k) => ({ value: k, label: sortLabel[k] }))} onChange={(v) => setSorting([{ id: v, desc: true }])} />
       </div>
 
       <DataTable<QualityLine>
@@ -178,7 +216,7 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
         footerRow={total}
         mobileCard={(row) => (
           <AdQualityMobileRow
-            line={row.original} depth={row.depth}
+            line={row.original} depth={row.depth} metaOk={metaOk}
             expandable={row.original.kind === 'campaign'} expanded={row.getIsExpanded()} onToggleGroup={row.getToggleExpandedHandler()}
           />
         )}
@@ -193,10 +231,17 @@ export default function AdQualityTable({ rows, noun, totals }: { rows: QualityRo
           />
         </div>
       )}
-      <p className="text-default-500 border-default-100 text-2xs mb-0 flex items-start gap-1.5 border-t px-4 py-3">
-        <Icon icon="info-circle" className="mt-px shrink-0 text-sm" aria-hidden="true" />
-        <span>{fmt(a.qNote, { noun })}</span>
-      </p>
     </div>
+  )
+}
+
+function GapCell({ l }: { l: QualityLine }) {
+  const a = useT().adQuality
+  if (l.gap === null) return <span className="block text-center"><NoDataCell /></span>
+  return (
+    <span className="block text-center tabular-nums">
+      {l.gap < 0 ? fmt(a.deepMore, { p: Math.abs(l.gap).toFixed(1) }) : fmtPct1(l.gap)}
+      {l.badge && <span className="mt-0.5 block"><GapBadge kind={l.badge} /></span>}
+    </span>
   )
 }

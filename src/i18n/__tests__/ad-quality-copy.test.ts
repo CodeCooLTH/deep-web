@@ -8,8 +8,7 @@ const BARE_EN = /\bchats?\b(?! \((Meta|Deep)\))/i
 
 describe('adQuality copy', () => {
   it('th: ไม่มีคำว่า "แชท" โดด ๆ ในข้อความของหน้านี้', () => {
-    // ข้อยกเว้นเดียวตามสเปก UX: ชื่อการ์ด ② "ปิดการขายจากแชทของแอด (Deep)" (ต่อท้ายด้วย (Deep) อยู่แล้ว)
-    const bad = Object.entries(th.adQuality).filter(([k, v]) => k !== 'h2Title' && BARE.test(v))
+    const bad = Object.entries(th.adQuality).filter(([, v]) => BARE.test(v))
     expect(bad).toEqual([])
   })
   it('en: ไม่มี "chat(s)" โดด ๆ (ต้องเป็น Chats (Meta)/(Deep))', () => {

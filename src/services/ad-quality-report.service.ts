@@ -15,6 +15,12 @@ export type QualityDeepSide = {
   chatsTotal: number
   ordersTotal: number
   closeRatePct: number | null
+  /** ช่วงก่อนหน้า (นิยามเดียวกับ /reports/ads) — ใช้ทำ delta ของการ์ด KPI · ไม่ดึงข้อมูลใหม่ */
+  prevChats: number
+  prevCloseRatePct: number | null
+  /** รายวันของช่วงนี้ (ช่วงวันเดียว = รายชั่วโมง) — ใช้วาด sparkline · วันว่าง = 0 */
+  dailyOrders: number[]
+  dailySpend: number[]
   ads: AdReport['ads']
   range: AdReport['range']
   hasAnyAdData: boolean
@@ -31,6 +37,11 @@ export async function getQualityDeepSide(shopId: string, range: AdReportRange, d
     chatsTotal: r.summary.chats,
     ordersTotal: r.summary.adOrders,
     closeRatePct: r.summary.closeRatePct,
+    prevChats: r.previous.chats,
+    prevCloseRatePct: r.previous.closeRatePct,
+    dailyOrders: r.daily.map((d) => d.adOrders),
+    // ช่วงวันเดียว = รายชั่วโมง ค่าโฆษณาเป็น 0 ทุกช่อง (Meta ไม่ส่งรายชั่วโมง) → ไม่วาด sparkline แบนราบ
+    dailySpend: r.daily.every((d) => d.spend === 0) ? [] : r.daily.map((d) => d.spend),
     ads: r.ads,
     range: r.range,
     hasAnyAdData: r.hasAnyAdData,

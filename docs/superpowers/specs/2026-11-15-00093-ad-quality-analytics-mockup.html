@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ม็อกอัพ 00093 คุณภาพโฆษณา แบบ Analytics (2026-11-15)</title>
+<!-- ม็อกอัพ /impeccable audit 2026-11-15 · ยึด theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/ · โทเคนจาก src/assets/css/config/_root.css (skin default)
+     เฟรมใช้ container query แทน viewport จึงวาด 3 ความกว้างในหน้าเดียวได้ (@container frame ≥1200 = xl · ≥740 = md (เฟรมมีขอบ 1px จึงเผื่อ)) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a; --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e; --success-ink:#065f46;
+  --d100:#f6f7fb; --d200:#eef0f3; --d300:#e7e9eb; --d400:#627189; --d500:#58626b; --d700:#40454a; --d800:#343a40; --d900:#313a46; --dark:#313a46;
+  --zeta:#db9052; --delta:#5bc3e1; --chart-border:#ecf4fc; --body:#f6f7fb;
+  --shadow:0 1px 4px 0 rgba(130,143,163,.15); --radius:4px; --gap:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Anuphan",system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--d800);background:#dfe3ea}
+h1,h2,h3,h4,p{margin:0}
+.doc{padding:24px 24px 48px}
+.doc-title{font-size:20px;font-weight:700;color:var(--d900)}
+.doc-sub{color:var(--d700);font-size:13px;margin-top:4px}
+.state-h{font-size:16px;font-weight:700;color:var(--d900);margin:32px 0 4px}
+.frame-label{font-size:13px;font-weight:600;color:var(--d700);margin:16px 0 6px;display:flex;gap:6px;align-items:center}
+.frame-wrap{overflow-x:auto;padding-bottom:6px}
+.frame{container:frame / inline-size;background:var(--body);border:1px solid #c9ced8;border-radius:8px;overflow:hidden;flex:none}
+.frames-row{display:flex;gap:24px;align-items:flex-start}
+
+/* ── ห่อหน้า: sidenav (≥1024) / mobile header ───────────── */
+.app{display:flex;min-height:100%}
+.sidenav{display:none;width:250px;flex:none;background:#fff;border-right:1px solid var(--d300);padding:18px 14px}
+.sn-logo{font-weight:700;font-size:18px;color:var(--primary);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.sn-h{font-size:11px;color:var(--d500);font-weight:600;margin:14px 8px 6px}
+.sn-i{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--radius);color:var(--d700);font-size:14px}
+.sn-i.on{background:rgb(35 109 201 / .1);color:var(--primary);font-weight:600}
+.main{flex:1;min-width:0}
+.topbar{height:60px;background:#fff;border-bottom:1px solid var(--d300);display:flex;align-items:center;gap:12px;padding:0 16px}
+.topbar .mt{font-weight:600;font-size:16px;color:var(--d900)}
+.content{padding:16px}
+.crumb{display:none;align-items:center;justify-content:space-between;margin-bottom:var(--gap)}
+.crumb h4{font-size:18px;font-weight:600;color:var(--d900)}
+.crumb .bc{font-size:13px;color:var(--d500)}
+@container frame (min-width:1000px){ .sidenav{display:block} .topbar .mt,.topbar .burger{display:none} .crumb{display:flex} .content{padding:20px 24px} }
+
+/* ── primitives ของ Paces ─────────────────────────────── */
+.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);min-width:0;display:flex;flex-direction:column;height:100%}
+.card-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:15px 20px;border-bottom:1px dashed var(--d300)}
+.card-title{font-size:15px;font-weight:600;color:var(--d900)}
+.card-body{padding:20px;flex:1;min-width:0}
+.card-footer{padding:12px 20px;border-top:1px dashed var(--d300)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:var(--radius);white-space:nowrap}
+.b-warn{background:rgb(249 191 89 / .15);color:var(--warning-ink)}
+.b-info{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.b-gray{background:var(--d100);color:var(--d800)}
+.b-up{background:rgb(2 188 156 / .12);color:var(--success-ink)}
+.b-neutral{background:var(--d100);color:var(--d700)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;color:var(--d800);font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+.btn-sm{height:30px;font-size:13px;padding:0 10px}
+.btn-primary-soft{background:var(--primary);border-color:var(--primary);color:#fff}
+.sel{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;font-size:14px;color:var(--d800);white-space:nowrap}
+.sel-sm{height:30px;font-size:13px}
+.sel .chev{margin-left:auto;color:var(--d500)}
+.ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex:none}
+.ic-soft{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.bg-primary{background:var(--primary)} .bg-info{background:var(--info)} .bg-dark{background:var(--dark)} .bg-d400{background:var(--d400)}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--d700)} .muted5{color:var(--d500)}
+.xs{font-size:13px} .sm{font-size:14px}
+iconify-icon{display:inline-block;vertical-align:-.15em}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--d700)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ── กริด ──────────────────────────────────────────────── */
+.grid{display:grid;gap:var(--gap);margin-bottom:var(--gap);grid-template-columns:minmax(0,1fr)}
+.g-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@container frame (min-width:740px){ .g-kpi{gap:var(--gap)} }
+@container frame (min-width:1200px){
+  .g-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .g-12{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .s8{grid-column:span 8} .s4{grid-column:span 4} .s12{grid-column:span 12}
+}
+/* สถานะว่าง: [แชท (Deep) | ปิดการขาย (Deep) | แถบสถานะ] */
+.g-empty{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g-empty .notice-tile{grid-column:1 / -1;order:-1}
+@container frame (min-width:740px){ .g-empty{gap:var(--gap)} .g-empty .notice-tile{order:0} }
+@container frame (min-width:1200px){ .g-empty{grid-template-columns:repeat(4,minmax(0,1fr))} .g-empty .notice-tile{grid-column:span 2} }
+
+/* ── KPI tile (TotalOrder/TotalVisitors) ───────────────── */
+.kpi .card-body{padding:16px}
+.kpi-k{font-size:13px;font-weight:700;color:var(--d700);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.kpi-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kpi-n{font-size:20px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi-row .badge{margin-left:auto}
+.kpi-sub{font-size:13px;color:var(--d700);margin-top:8px;font-variant-numeric:tabular-nums}
+.spark{margin:8px -6px 0;min-height:48px}
+.spark-l{font-size:12px;color:var(--d500);margin-top:2px}
+.pair{margin-top:10px}
+.pair-r{display:flex;justify-content:space-between;font-size:13px;color:var(--d700);margin-bottom:3px}
+.bar{height:6px;background:var(--d100);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.bar>i{display:block;height:100%;border-radius:3px}
+@container frame (max-width:500px){
+  .kpi .card-body{padding:12px}
+  .kpi .ic{display:none}
+  .kpi-n{font-size:18px}
+  .kpi-row .badge{margin-left:0}
+}
+
+/* ── คุณภาพแชท ─────────────────────────────────────────── */
+.qrow{margin-top:14px}
+.qrow-h{display:flex;justify-content:space-between;font-size:14px;font-weight:600;color:var(--d900);margin-bottom:5px}
+.qrow-s{font-size:13px;color:var(--d700);font-variant-numeric:tabular-nums}
+
+/* ── แถบตัวชี้วัด (SessionOverview) ─────────────────────── */
+.strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.cell{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px dashed var(--d300);border-right:1px dashed var(--d300);min-width:0}
+.cell .l{font-size:13px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .v{font-size:17px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+@container frame (min-width:740px){ .strip{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@container frame (min-width:1200px){ .strip{grid-template-columns:repeat(7,minmax(0,1fr))} .cell{border-bottom:0} .cell .ic{display:none} }
+@container frame (max-width:500px){ .cell .ic{display:none} .cell{padding:12px} }
+
+/* ── ตำแหน่ง/อายุ ──────────────────────────────────────── */
+.split{display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+@container frame (min-width:1200px){ .split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .split>div+div{border-left:1px dashed var(--d300);padding-left:24px} }
+.sub-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sub-h h5{margin:0;font-size:14px;font-weight:600;color:var(--d900)}
+.place{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+@container frame (min-width:740px){ .place{grid-template-columns:180px minmax(0,1fr)} }
+.plist{list-style:none;margin:6px 0 0;padding:0;font-size:13px}
+.plist li{display:flex;align-items:center;gap:8px;padding:2px 0}
+.plist li span:nth-child(2){flex:1}
+
+/* ── ตาราง ─────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
+thead th{background:var(--d100);font-size:12px;font-weight:600;color:var(--d700);padding:8px 10px;text-align:center}
+thead th:first-child{text-align:left}
+thead .grp{display:block;font-size:11px;font-weight:500;color:var(--d500)}
+thead th.deep{background:rgb(35 109 201 / .08)}
+tbody td{padding:10px;border-bottom:1px solid var(--d200);text-align:center;font-variant-numeric:tabular-nums;vertical-align:middle}
+tbody td:first-child{text-align:left}
+tfoot td{padding:10px;background:rgb(246 247 251 / .7);font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+tfoot td:first-child{text-align:left}
+.ad{display:flex;align-items:center;gap:10px;max-width:260px}
+.thumb{width:40px;height:40px;border-radius:6px;background:var(--d200);display:flex;align-items:center;justify-content:center;color:var(--d400);font-size:18px;flex:none}
+.ad-n{font-weight:500;color:var(--d900);overflow:hidden;text-overflow:ellipsis;display:block}
+.ad-c{font-size:12px;color:var(--d500);overflow:hidden;text-overflow:ellipsis;display:block}
+.r2{display:block;font-size:12px;color:var(--d500)}
+.vbar{display:flex;gap:2px;width:72px;margin:3px auto 0}
+.vbar i{flex:1;height:5px;background:var(--d100);border-radius:2px;overflow:hidden;display:block}
+.vbar i b{display:block;height:100%;background:var(--info)}
+.mlist{display:none}
+.mrow{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--d200)}
+.mrow .g{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
+.mrow .g .l{font-size:12px;color:var(--d500)}
+.mrow .g .v{font-size:14px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+.mtotal{padding:12px 16px;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;border-top:1px solid var(--d200)}
+@container frame (max-width:999px){ .tbl-wrap{display:none} .mlist{display:block} }
+.tbl-tools{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.search{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);color:var(--d500);font-size:14px;min-width:200px}
+@container frame (max-width:500px){ .tbl-tools{width:100%} .search{flex:1;min-width:0} }
+
+/* ── แถวกรอง ───────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.meta-line{font-size:13px;color:var(--d700);margin:8px 0 var(--gap);font-variant-numeric:tabular-nums}
+@container frame (max-width:500px){ .filters .right{margin-left:0;width:100%} .filters .right .btn{flex:1;justify-content:center} }
+
+/* ── แถบสถานะ (สถานะว่าง) ──────────────────────────────── */
+.notice{display:flex;align-items:center;gap:12px;flex-wrap:wrap;height:100%}
+.notice .t{font-size:15px;font-weight:600;color:var(--d900);flex:1;min-width:200px}
+.notice .ic{background:var(--d100);color:var(--d700)}
+.notes{margin-top:40px;background:#fff;border-radius:8px;padding:16px 20px;max-width:980px;font-size:13px;color:var(--d800)}
+.notes h3{font-size:15px;margin-bottom:6px}
+.notes ul{margin:6px 0 0;padding-left:18px}
+.notes li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1 class="doc-title">00093 คุณภาพโฆษณา · ม็อกอัพแบบ Analytics</h1>
+  <p class="doc-sub">ยึด theme/paces/…/dashboard/analytics · Paces primary #236dc9 · Anuphan · tabler · ข้อมูลตัวอย่าง</p>
+
+  <h2 class="state-h">A · มีข้อมูลครบ</h2>
+  <div class="frame-label"><iconify-icon icon="tabler:device-desktop"></iconify-icon>Desktop 1280</div>
+  <div class="frame-wrap"><div class="frame" style="width:1280px" data-state="full" id="f-full-d"></div></div>
+  <div class="frames-row">
+    <div><div class="frame-label"><iconify-icon icon="tabler:device-tablet"></iconify-icon>Tablet 768</div>
+      <div class="frame" style="width:768px" data-state="full" id="f-full-t"></div></div>
+    <div><div class="frame-label"><iconify-icon icon="tabler:device-mobile"></iconify-icon>Mobile 390</div>
+      <div class="frame" style="width:390px" data-state="full" id="f-full-m"></div></div>
+  </div>
+
+  <h2 class="state-h">B · สถานะจริงตอนนี้: บัญชีโฆษณาที่เชื่อมไม่มีแอดที่ตรงกัน (ฝั่ง Meta ว่าง)</h2>
+  <div class="frame-label"><iconify-icon icon="tabler:device-desktop"></iconify-icon>Desktop 1280</div>
+  <div class="frame-wrap"><div class="frame" style="width:1280px" data-state="empty" id="f-empty-d"></div></div>
+  <div class="frames-row">
+    <div><div class="frame-label"><iconify-icon icon="tabler:device-tablet"></iconify-icon>Tablet 768</div>
+      <div class="frame" style="width:768px" data-state="empty" id="f-empty-t"></div></div>
+    <div><div class="frame-label"><iconify-icon icon="tabler:device-mobile"></iconify-icon>Mobile 390</div>
+      <div class="frame" style="width:390px" data-state="empty" id="f-empty-m"></div></div>
+  </div>
+
+  <div class="notes">
+    <h3>มติการจัดวาง (ให้ user ตัดสิน)</h3>
+    <ul>
+      <li>แถว 1 KPI 4 ใบแบบ TotalOrder: แชท (Deep) ▲ · แชท (Meta) + ส่วนต่าง · ปิดการขาย (Deep) ▲ + sparkline ออเดอร์รายวัน · ค่าโฆษณา ▲ + sparkline รายวัน</li>
+      <li>delta และ sparkline ใช้ <code>previous</code> / <code>prevSpend</code> / <code>daily</code> ที่ getAdSalesReport คำนวณไว้แล้ว ฝั่ง Meta ไม่มีข้อมูลรายวันจึงไม่มี sparkline · แชท (Deep) ไม่มีรายวันจึงมีแค่ delta</li>
+      <li>แถว 2 กราฟแท่งเทียบรายแอด (8 แอด) แทนแถบใน ① และแถบคู่ใน ⑤ · คุณภาพแชท (Meta) = radialBar + แถว k จาก n</li>
+      <li>แถว 3 แถบตัวชี้วัด 7 ช่องแทนตารางใน ③ (ตัดคอลัมน์ "ที่มา" ใช้ป้าย ≈ กับ "ประมาณการ")</li>
+      <li>แถว 4 ตำแหน่งกับอายุ/เพศวางคู่กันในการ์ดเดียว ไม่ซ่อนหลังแท็บ · ตัวเลือกแอดยังมีที่เดียว (มติ O2)</li>
+      <li>แถว 5 ตารางรายแอดใบเดียว (รวม ⑤ กับ ⑥) · มือถือเป็นรายการ</li>
+      <li>สถานะ B ใช้กฎ O1: แถบสถานะใบเดียว (หัวข้อ + ปุ่ม) · ซ่อนการ์ดที่มีแต่ข้อมูล Meta · คงกราฟและตารางของแชท (Deep)</li>
+      <li>ตัดข้อความอธิบายออกทั้งหมด (gDesc · placementNote · ageNote · qNote · h1Counted · over100 ฯลฯ) · ปุ่ม "ทำไมตัวเลขไม่เท่ากัน" ยังไม่ใส่ รอ user ตัดสิน</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// ── ข้อมูลตัวอย่าง (เฉพาะฟิลด์ที่ service มีจริง) ────────────────────────────
+const ADS = [
+  { n:'โปรผ้าไหม 11.11 วิดีโอ 30 วิ', c:'แคมเปญ 11.11', meta:312, deep:198, ord:41, imp:88400, ctr:2.1, d2:214, d3:141, rep:236, blk:9, video:[61,38,24,18.2] },
+  { n:'เสื้อลินินคอจีน ชุดใหม่', c:'ลินิน Q4', meta:268, deep:231, ord:52, imp:71200, ctr:1.9, d2:181, d3:119, rep:201, blk:4 },
+  { n:'ทักแชทรับส่วนลด 50', c:'แคมเปญ 11.11', meta:204, deep:120, ord:17, imp:63900, ctr:2.4, d2:118, d3:66, rep:139, blk:7 },
+  { n:'กระเป๋าสาน รีวิวลูกค้า', c:'กระเป๋า', meta:151, deep:139, ord:29, imp:44100, ctr:1.6, d2:104, d3:72, rep:112, blk:2 },
+  { n:'ผ้าคลุมไหล่ Carousel', c:'ผ้าคลุม', meta:122, deep:0, ord:0, imp:39800, ctr:1.4, d2:63, d3:31, rep:80, blk:3 },
+  { n:'ชุดเดรสออกงาน Reels', c:'ลินิน Q4', meta:96, deep:75, ord:14, imp:41700, ctr:1.7, d2:60, d3:39, rep:71, blk:1, video:[54,31,19,12.6] },
+  { n:'รองเท้าแตะหนังแท้', c:'รองเท้า', meta:78, deep:82, ord:19, imp:35100, ctr:1.8, d2:55, d3:41, rep:58, blk:1 },
+  { n:'ผ้าพันคอลายไทย', c:'ผ้าคลุม', meta:53, deep:41, ord:8, imp:28680, ctr:1.5, d2:29, d3:18, rep:34, blk:0 },
+]
+const NOT_IN_INSIGHTS_DEEP = 82   // แชท (Deep) จากแอดที่ Meta ไม่มีตัวเลข
+const PREV = { chats:884, close:16.9, spend:21300, orders:152 }
+const SPEND = 24560, REACH = 168200, ACCOUNT = 'Deep Shop Ads'
+const DAYS = 30
+const daily = Array.from({length:DAYS}, (_,i)=>({ spend: Math.round(780 + 180*Math.sin(i/3.1) + 90*Math.cos(i*1.7)), orders: Math.max(1, Math.round(6 + 3*Math.sin(i/2.3+1) + 2*Math.cos(i*1.3))) }))
+const PLACES = [
+  { l:'Facebook ฟีด', p:'facebook', spend:11240, imp:198000, clk:3920, chats:602 },
+  { l:'Instagram ฟีด', p:'instagram', spend:5880, imp:96400, clk:1610, chats:248 },
+  { l:'Messenger กล่องข้อความ', p:'messenger', spend:1920, imp:22100, clk:540, chats:141 },
+  { l:'Facebook สตอรี่', p:'facebook', spend:2410, imp:41300, clk:690, chats:112 },
+  { l:'Instagram สตอรี่', p:'instagram', spend:1760, imp:31800, clk:420, chats:74 },
+  { l:'Facebook Reels', p:'facebook', spend:1350, imp:23280, clk:360, chats:61 },
+]
+const AGES = ['18-24','25-34','35-44','45-54','55-64','65+']
+const AGE_M = [62,188,151,74,31,12], AGE_F = [91,254,203,118,47,19], AGE_U = [4,11,9,5,2,1]
+
+// ── สูตร (เลียน ad-quality-formulas: ส่วนต่าง = (Meta − Deep) ÷ Meta) ───────────
+const fmt = (v)=>v.toLocaleString('en-US')
+const pct1 = (v)=>v.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'
+const baht = (v,d=0)=>'฿'+v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const gapOf = (m,d)=> m>0 ? (m-d)/m*100 : null
+const S = (k)=>ADS.reduce((s,a)=>s+a[k],0)
+const T = { meta:S('meta'), deepSame:S('deep'), ord:S('ord'), imp:S('imp'), d2:S('d2'), d3:S('d3'), rep:S('rep'), blk:S('blk') }
+T.deepAll = T.deepSame + NOT_IN_INSIGHTS_DEEP
+T.gap = gapOf(T.meta, T.deepSame)
+T.close = T.ord / T.deepAll * 100
+T.clicks = Math.round(ADS.reduce((s,a)=>s+a.imp*a.ctr/100,0))
+T.ctr = T.clicks / T.imp * 100
+const badgeOf = (a)=>{ const g = gapOf(a.meta,a.deep); if (a.meta>=20 && a.deep===0) return 'NODEEP'; if (a.meta>=20 && g>=30) return 'HIGH'; return null }
+const highN = ADS.filter(badgeOf).length
+const dPct = (cur,prev)=> (cur-prev)/prev*100
+
+// ── ชิ้นส่วน markup ─────────────────────────────────────────────────────────
+const I = (n,cls='')=>`<iconify-icon icon="tabler:${n}" class="${cls}" aria-hidden="true"></iconify-icon>`
+const delta = (v,unit='%',neutral=false)=>`<span class="badge ${neutral?'b-neutral':'b-up'} num">${I(v>=0?'arrow-up':'arrow-down')}${Math.abs(v).toFixed(1)}${unit==='pt'?' จุด':'%'}</span>`
+const gapBadge = (a)=>{ const b = badgeOf(a); if (b==='HIGH') return `<span class="badge b-warn">${I('alert-triangle')}ส่วนต่างสูง</span>`; if (b==='NODEEP') return `<span class="badge b-warn">${I('alert-triangle')}ยังไม่มีแชท (Deep) จากแอดนี้</span>`; return '' }
+const gapText = (a)=>{ const g = gapOf(a.meta,a.deep); return g===null?'—': g<0?`Deep เห็นมากกว่า ${Math.abs(g).toFixed(1)}%`:pct1(g) }
+
+function shell(inner, frameW){
+  return `<div class="app">
+    <aside class="sidenav">
+      <div class="sn-logo">${I('shield-check')}Deep</div>
+      <div class="sn-i">${I('layout-dashboard')}แดชบอร์ด</div>
+      <div class="sn-i">${I('receipt')}ออเดอร์</div>
+      <div class="sn-i">${I('messages')}แชท</div>
+      <div class="sn-h">ANALYTICS</div>
+      <div class="sn-i">${I('speakerphone')}ยอดขายตามโฆษณา</div>
+      <div class="sn-i on">${I('chart-dots')}คุณภาพโฆษณา</div>
+      <div class="sn-i">${I('report-analytics')}ผลงานแอดมิน</div>
+    </aside>
+    <div class="main">
+      <div class="topbar"><span class="burger">${I('menu-2','')}</span><span class="mt">คุณภาพโฆษณา</span><span style="margin-left:auto" class="muted5">${I('bell')}</span></div>
+      <div class="content">
+        <div class="crumb"><h4>คุณภาพโฆษณา</h4><span class="bc">Deep › รายงาน › คุณภาพโฆษณา</span></div>
+        <div class="filters">
+          <span class="sel">${I('calendar')}30 วันล่าสุด<span class="chev">${I('chevron-down')}</span></span>
+          <div class="right">
+            <span class="sel">${I('brand-facebook')}ทุกเพจ/บัญชี<span class="chev">${I('chevron-down')}</span></span>
+            <span class="btn">${I('speakerphone')}ดูยอดขายตามโฆษณา</span>
+          </div>
+        </div>
+        <p class="meta-line">16 ต.ค. 2569 – 14 พ.ย. 2569 · บัญชีโฆษณา ${ACCOUNT} · Meta อัปเดต 15 พ.ย. 2569 10:42</p>
+        ${inner}
+      </div>
+    </div>
+  </div>`
+}
+
+function kpi({k, icon, bg, n, badge='', sub='', spark=null, sparkLabel='', extra=''}){
+  return `<div class="card kpi"><div class="card-body">
+    <h3 class="kpi-k"><span>${k}</span>${badge}</h3>
+    <div class="kpi-row"><span class="ic ${bg}">${I(icon)}</span><span class="kpi-n">${n}</span></div>
+    ${sub?`<p class="kpi-sub">${sub}</p>`:''}
+    ${extra}
+    ${spark?`<div class="spark" data-spark="${spark}"></div>${sparkLabel?`<p class="spark-l">${sparkLabel}</p>`:''}`:''}
+  </div></div>`
+}
+
+function adTableFull(){
+  const rows = ADS.map(a=>{
+    const r = (k)=>`${pct1(a[k]/a.meta*100)}<span class="r2">${fmt(a[k])} จาก ${fmt(a.meta)}</span>`
+    const close = a.deep? `${pct1(a.ord/a.deep*100)}<span class="r2">${a.ord} จาก ${fmt(a.deep)}</span>` : '—'
+    const vid = a.video? `${pct1(a.video[3])}<span class="vbar">${a.video.map(v=>`<i><b style="width:${v}%"></b></i>`).join('')}</span>` : `<span class="r2">ไม่ใช่วิดีโอ</span>`
+    return `<tr>
+      <td><span class="ad"><span class="thumb">${I(a.video?'video':'photo')}</span><span style="min-width:0"><span class="ad-n">${a.n}</span><span class="ad-c">${a.c}</span></span></span></td>
+      <td>${fmt(a.meta)}</td><td>${fmt(a.deep)}</td>
+      <td>${gapText(a)}${gapBadge(a)?`<span style="display:block;margin-top:3px">${gapBadge(a)}</span>`:''}</td>
+      <td>${fmt(a.imp)}<span class="r2">${pct1(a.ctr)}</span></td>
+      <td>${r('d2')}</td><td>${r('d3')}</td><td>${r('rep')}</td><td>${r('blk')}</td>
+      <td>${close}</td><td>${vid}</td></tr>`
+  }).join('')
+  const mrows = ADS.map(a=>`<div class="mrow"><span class="thumb">${I(a.video?'video':'photo')}</span><div style="min-width:0;flex:1">
+      <span class="ad-n" style="white-space:normal">${a.n}</span>
+      <div class="g"><div><p class="l">แชท (Meta)</p><p class="v">${fmt(a.meta)}</p></div><div><p class="l">แชท (Deep)</p><p class="v">${fmt(a.deep)}</p></div>
+      <div><p class="l">ส่วนต่าง</p><p class="v">${gapText(a)}</p></div><div><p class="l">ปิดการขาย (Deep)</p><p class="v">${a.deep?pct1(a.ord/a.deep*100):'—'}</p></div></div>
+      ${gapBadge(a)?`<div style="margin-top:6px">${gapBadge(a)}</div>`:''}
+    </div><span class="muted5">${I('chevron-down')}</span></div>`).join('')
+  return `<div class="card" id="ad-table">
+    <div class="card-header"><h4 class="card-title">รายแอด</h4>
+      <div class="tbl-tools"><span class="search">${I('search')}ค้นหาแอดหรือแคมเปญ</span><span class="sel">รายแอด<span class="chev">${I('chevron-down')}</span></span><span class="sel">10<span class="chev">${I('chevron-down')}</span></span></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>โฆษณา</th><th><span class="grp">Meta</span>แชท (Meta)</th><th class="deep"><span class="grp">Deep</span>แชท (Deep)</th><th>ส่วนต่าง</th><th><span class="grp">Meta</span>การแสดงผล · CTR</th><th><span class="grp">Meta</span>คุยต่อ ≥2</th><th><span class="grp">Meta</span>คุยต่อ ≥3</th><th><span class="grp">Meta</span>ตอบกลับ</th><th><span class="grp">Meta</span>บล็อก</th><th class="deep"><span class="grp">Deep</span>ปิดการขาย (Deep)</th><th><span class="grp">Meta</span>ดูวิดีโอ</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>รวม ${ADS.length} แอด</td><td>${fmt(T.meta)}</td><td>${fmt(T.deepSame)}</td><td>${pct1(T.gap)}</td><td>${fmt(T.imp)}<span class="r2">${pct1(T.ctr)}</span></td><td>${pct1(T.d2/T.meta*100)}</td><td>${pct1(T.d3/T.meta*100)}</td><td>${pct1(T.rep/T.meta*100)}</td><td>${pct1(T.blk/T.meta*100)}</td><td>${pct1(T.close)}</td><td></td></tr></tfoot>
+    </table></div>
+    <div class="mlist"><div style="display:flex;justify-content:space-between;align-items:center;padding:0 16px 8px" class="xs muted"><span>เรียงตาม</span><span class="sel sel-sm">แชท (Meta)<span class="chev">${I('chevron-down')}</span></span></div>${mrows}
+      <p class="mtotal">รวม ${ADS.length} แอด · แชท (Meta) ${fmt(T.meta)} · แชท (Deep) ${fmt(T.deepSame)}</p></div>
+    <div class="card-footer xs muted" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span>1–8 จาก ${ADS.length} แอด</span><span style="display:flex;gap:6px"><span class="btn btn-sm">${I('chevron-left')}</span><span class="btn btn-sm btn-primary-soft">1</span><span class="btn btn-sm">${I('chevron-right')}</span></span></div>
+  </div>`
+}
+
+function adTableDeep(){
+  const list = ADS.filter(a=>a.deep>0)
+  const rows = list.map(a=>`<tr><td><span class="ad"><span class="thumb">${I('photo')}</span><span style="min-width:0"><span class="ad-n">${a.n}</span></span></span></td><td>${fmt(a.deep)}</td><td>${pct1(a.ord/a.deep*100)}<span class="r2">${a.ord} จาก ${fmt(a.deep)}</span></td></tr>`).join('')
+  const mrows = list.map(a=>`<div class="mrow"><span class="thumb">${I('photo')}</span><div style="min-width:0;flex:1"><span class="ad-n" style="white-space:normal">${a.n}</span>
+    <div class="g"><div><p class="l">แชท (Deep)</p><p class="v">${fmt(a.deep)}</p></div><div><p class="l">ปิดการขาย (Deep)</p><p class="v">${pct1(a.ord/a.deep*100)}</p></div></div></div></div>`).join('')
+  const deep = list.reduce((s,a)=>s+a.deep,0), ord = list.reduce((s,a)=>s+a.ord,0)
+  return `<div class="card"><div class="card-header"><h4 class="card-title">รายแอด</h4><div class="tbl-tools"><span class="search">${I('search')}ค้นหาแอด</span></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>โฆษณา</th><th class="deep">แชท (Deep)</th><th class="deep">ปิดการขาย (Deep)</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>รวม ${list.length} แอด</td><td>${fmt(deep)}</td><td>${pct1(ord/deep*100)}</td></tr></tfoot></table></div>
+    <div class="mlist">${mrows}<p class="mtotal">รวม ${list.length} แอด · แชท (Deep) ${fmt(deep)}</p></div></div>`
+}
+
+function fullPage(){
+  const qrow = (label,k,color)=>`<div class="qrow"><div class="qrow-h"><span style="display:flex;align-items:center;gap:8px"><i class="dot" style="background:${color}"></i>${label}</span><span class="num">${pct1(T[k]/T.meta*100)}</span></div>
+    <div class="bar"><i style="width:${Math.min(T[k]/T.meta*100,100)}%;background:${color}"></i></div><p class="qrow-s">${fmt(T[k])} จาก แชท (Meta) ${fmt(T.meta)}</p></div>`
+  const cell = (icon,l,v)=>`<div class="cell"><span class="ic ic-soft">${I(icon)}</span><div style="min-width:0"><p class="l">${l}</p><p class="v">${v}</p></div></div>`
+  return `
+  <div class="grid g-kpi">
+    ${kpi({k:'แชท (Deep)', icon:'message-circle', bg:'bg-primary', n:fmt(T.deepAll), badge:delta(dPct(T.deepAll,PREV.chats)), sub:`ช่วงก่อน ${fmt(PREV.chats)}`})}
+    ${kpi({k:'แชท (Meta)', icon:'brand-meta', bg:'bg-d400', n:fmt(T.meta), badge:`<span class="badge b-warn num">ส่วนต่าง ${pct1(T.gap)}</span>`,
+      extra:`<div class="pair"><div class="pair-r"><span>แชท (Meta)</span><span class="num">${fmt(T.meta)}</span></div><div class="bar"><i style="width:100%;background:var(--d400)"></i></div>
+      <div class="pair-r"><span>แชท (Deep)</span><span class="num">${fmt(T.deepSame)}</span></div><div class="bar"><i style="width:${T.deepSame/T.meta*100}%;background:var(--primary)"></i></div><p class="spark-l">${ADS.length} แอด</p></div>`})}
+    ${kpi({k:'ปิดการขาย (Deep)', icon:'shopping-bag', bg:'bg-info', n:pct1(T.close), badge:delta(T.close-PREV.close,'pt'), sub:`${T.ord} ออเดอร์ · แชท (Deep) ${fmt(T.deepAll)}`, spark:'orders', sparkLabel:'ออเดอร์รายวัน'})}
+    ${kpi({k:'ค่าโฆษณา', icon:'cash', bg:'bg-dark', n:baht(SPEND), badge:delta(dPct(SPEND,PREV.spend),'%',true), sub:`${baht(SPEND/T.deepAll,2)} ต่อแชท (Deep)`, spark:'spend', sparkLabel:'ค่าโฆษณารายวัน'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s8"><div class="card">
+      <div class="card-header"><h4 class="card-title">แชท (Meta) เทียบ แชท (Deep) รายแอด</h4>
+        <span class="badge b-warn">${I('alert-triangle')}${highN} แอดส่วนต่างสูง</span>
+        <div class="legend" style="margin-left:auto"><span><i class="dot" style="background:var(--d400)"></i>แชท (Meta)</span><span><i class="dot" style="background:var(--primary)"></i>แชท (Deep)</span></div></div>
+      <div class="card-body" style="padding-top:8px"><div data-chart="compare"></div></div>
+      <div class="card-footer xs muted"><a href="#ad-table" style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;min-height:32px">ดูรายแอด${I('arrow-down')}</a></div>
+    </div></div>
+    <div class="s4"><div class="card">
+      <div class="card-header"><h4 class="card-title">คุณภาพแชท (Meta)</h4></div>
+      <div class="card-body"><div data-chart="radial"></div>
+        ${qrow('คุยต่อ ≥2 ข้อความ','d2','var(--delta)')}${qrow('คุยต่อ ≥3 ข้อความ','d3','var(--primary)')}${qrow('ตอบกลับ','rep','var(--zeta)')}${qrow('บล็อกเพจ','blk','var(--warning)')}
+      </div></div></div>
+  </div>
+  <div class="grid"><div class="card">
+    <div class="card-header"><h4 class="card-title">การแสดงผลและต้นทุน</h4><span class="badge b-info">${I('info-circle')}≈ ประมาณการ</span></div>
+    <div class="strip">
+      ${cell('eye','การแสดงผล',fmt(T.imp))}${cell('users','เข้าถึง','≈'+fmt(REACH))}${cell('repeat','ความถี่','≈'+(T.imp/REACH).toFixed(2))}
+      ${cell('click','CTR',pct1(T.ctr))}${cell('hand-click','CPC',baht(SPEND/T.clicks,2))}${cell('coins','ต้นทุนต่อแชท (Meta)',baht(SPEND/T.meta,2))}${cell('coins','ต้นทุนต่อแชท (Deep)',baht(SPEND/T.deepAll,2))}
+    </div></div></div>
+  <div class="grid"><div class="card">
+    <div class="card-header"><h4 class="card-title">ตำแหน่งและกลุ่มผู้ชม</h4><span class="badge b-info">${I('info-circle')}ประมาณการ</span>
+      <span class="sel sel-sm" style="margin-left:auto">${I('speakerphone')}ทุกแอด<span class="chev">${I('chevron-down')}</span></span></div>
+    <div class="card-body"><div class="split">
+      <div><div class="sub-h"><h5>ตำแหน่ง</h5><span class="badge b-gray">ต่ำสุด ≈${baht(1920/141,2)} · Messenger</span></div>
+        <div class="place"><div><div data-chart="donut"></div>
+          <ul class="plist"><li><i class="dot" style="background:var(--primary)"></i><span>Facebook</span><span class="num">≈775</span></li><li><i class="dot" style="background:var(--zeta)"></i><span>Instagram</span><span class="num">≈322</span></li><li><i class="dot" style="background:var(--delta)"></i><span>Messenger</span><span class="num">≈141</span></li></ul></div>
+          <div><p class="xs muted" style="margin-bottom:2px">ต้นทุนต่อแชท (Meta)</p><div data-chart="placeCost"></div></div></div></div>
+      <div><div class="sub-h"><h5>อายุและเพศ</h5><span class="sel sel-sm">แชท (Meta)<span class="chev">${I('chevron-down')}</span></span></div>
+        <div data-chart="age"></div></div>
+    </div></div></div></div>
+  ${adTableFull()}`
+}
+
+function emptyPage(){
+  const list = ADS.filter(a=>a.deep>0)
+  return `
+  <div class="grid g-empty">
+    ${kpi({k:'แชท (Deep)', icon:'message-circle', bg:'bg-primary', n:fmt(T.deepAll), badge:delta(dPct(T.deepAll,PREV.chats)), sub:`ช่วงก่อน ${fmt(PREV.chats)}`})}
+    ${kpi({k:'ปิดการขาย (Deep)', icon:'shopping-bag', bg:'bg-info', n:pct1(T.close), badge:delta(T.close-PREV.close,'pt'), sub:`${T.ord} ออเดอร์ · แชท (Deep) ${fmt(T.deepAll)}`, spark:'orders', sparkLabel:'ออเดอร์รายวัน'})}
+    <div class="notice-tile"><div class="card"><div class="card-body"><div class="notice">
+      <span class="ic">${I('plug-connected-x')}</span>
+      <p class="t">แอดเหล่านี้ไม่อยู่ในบัญชีโฆษณาที่เชื่อม</p>
+      <span class="btn">${I('plug-connected')}ตรวจบัญชีโฆษณาที่เชื่อม</span>
+    </div></div></div></div>
+  </div>
+  <div class="grid"><div class="card">
+    <div class="card-header"><h4 class="card-title">แชท (Deep) รายแอด</h4><div class="legend" style="margin-left:auto"><span><i class="dot" style="background:var(--primary)"></i>แชท (Deep)</span></div></div>
+    <div class="card-body" style="padding-top:8px"><div data-chart="deepOnly"></div></div></div></div>
+  ${adTableDeep()}`
+}
+
+// ── กราฟ (ท่า ApexChart ของ Paces: toolbar ปิด · grid เส้นประ · Anuphan) ────────
+const base = { fontFamily:'Anuphan, sans-serif', toolbar:{show:false}, animations:{enabled:false}, parentHeightOffset:0 }
+const grid = { borderColor:'#ecf4fc', strokeDashArray:4, padding:{left:4,right:8} }
+const short = (s,n)=> s.length>n ? s.slice(0,n-1)+'…' : s
+function charts(frame){
+  const W = frame.offsetWidth, mobile = W < 500
+  const mk = (sel, opt)=>{ const el = frame.querySelector(`[data-chart="${sel}"]`); if (el) new ApexCharts(el, opt).render() }
+  frame.querySelectorAll('[data-spark]').forEach(el=>{
+    const k = el.dataset.spark
+    new ApexCharts(el, { chart:{...base, type:k==='spend'?'area':'bar', height:48, sparkline:{enabled:true}},
+      series:[{ name:k==='spend'?'ค่าโฆษณา':'ออเดอร์', data:daily.map(d=>d[k]) }],
+      colors:[k==='spend'?'#1a57a1':'#236dc9'], stroke:{width:k==='spend'?2:0, curve:'smooth'},
+      fill:k==='spend'?{type:'gradient',gradient:{opacityFrom:.3,opacityTo:0}}:{opacity:.85},
+      plotOptions:{bar:{columnWidth:'55%',borderRadius:1}}, tooltip:{enabled:false} }).render()
+  })
+  const sorted = [...ADS].sort((a,b)=>b.meta-a.meta)
+  mk('compare', { chart:{...base, type:'bar', height: mobile? 420 : 340}, plotOptions:{bar:{horizontal:true, barHeight:'70%', borderRadius:2}},
+    series:[{name:'แชท (Meta)', data:sorted.map(a=>a.meta)},{name:'แชท (Deep)', data:sorted.map(a=>a.deep)}],
+    xaxis:{categories:sorted.map(a=>short(a.n, mobile?14:26)), labels:{style:{fontSize:'12px'}}}, yaxis:{labels:{style:{fontSize:'12px'}, maxWidth: mobile?110:200}},
+    colors:['#627189','#236dc9'], dataLabels:{enabled:false}, legend:{show:false}, grid, stroke:{width:1, colors:['#fff']} })
+  mk('radial', { chart:{...base, type:'radialBar', height:220},
+    series:[+(T.d2/T.meta*100).toFixed(1), +(T.d3/T.meta*100).toFixed(1), Math.min(100,+(T.rep/T.meta*100).toFixed(1))],
+    labels:['คุยต่อ ≥2','คุยต่อ ≥3','ตอบกลับ'], colors:['#5bc3e1','#236dc9','#db9052'],
+    plotOptions:{radialBar:{hollow:{size:'38%'}, track:{background:'#f6f7fb'}, dataLabels:{name:{fontSize:'13px'}, value:{fontSize:'16px', formatter:v=>v+'%'}, total:{show:true, label:'แชท (Meta)', formatter:()=>fmt(T.meta)}}}},
+    stroke:{lineCap:'round'} })
+  mk('donut', { chart:{...base, type:'donut', height:160}, series:[775,322,141], labels:['Facebook','Instagram','Messenger'], colors:['#236dc9','#db9052','#5bc3e1'],
+    legend:{show:false}, stroke:{width:0}, dataLabels:{enabled:false},
+    plotOptions:{pie:{donut:{size:'75%', labels:{show:true, value:{formatter:v=>'≈'+fmt(+v)}, total:{show:true, showAlways:true, label:'แชท (Meta)', fontSize:'12px', formatter:()=>'≈1,238'}}}}} })
+  const pc = PLACES.map(p=>({l:p.l, v:+(p.spend/p.chats).toFixed(2)})).sort((a,b)=>a.v-b.v)
+  mk('placeCost', { chart:{...base, type:'bar', height:230}, plotOptions:{bar:{horizontal:true, barHeight:'60%', borderRadius:2, distributed:true}},
+    series:[{name:'ต้นทุนต่อแชท (Meta)', data:pc.map(p=>p.v)}], xaxis:{categories:pc.map(p=>p.l), labels:{formatter:v=>'฿'+Math.round(v)}},
+    yaxis:{labels:{maxWidth: mobile?110:150, style:{fontSize:'12px'}}}, colors:pc.map((_,i)=>i===0?'#236dc9':'#9fb4cc'), legend:{show:false},
+    dataLabels:{enabled:true, formatter:v=>'≈฿'+v.toFixed(2), style:{fontSize:'11px', fontWeight:500, colors:['#313a46']}, offsetX:28}, grid,
+    tooltip:{y:{formatter:v=>'≈฿'+v.toFixed(2)}} })
+  mk('age', { chart:{...base, type:'bar', height:300, stacked:true}, plotOptions:{bar:{horizontal:true, barHeight:'60%', borderRadius:2}},
+    series:[{name:'ชาย', data:AGE_M},{name:'หญิง', data:AGE_F},{name:'ไม่ระบุ', data:AGE_U}], xaxis:{categories:AGES}, colors:['#236dc9','#db9052','#627189'],
+    dataLabels:{enabled:false}, legend:{position:'top', horizontalAlign:'right', fontSize:'13px'}, grid, tooltip:{y:{formatter:v=>'≈'+fmt(v)}} })
+  const dl = [...ADS].filter(a=>a.deep>0).sort((a,b)=>b.deep-a.deep)
+  mk('deepOnly', { chart:{...base, type:'bar', height: mobile? 340 : 300}, plotOptions:{bar:{horizontal:true, barHeight:'60%', borderRadius:2}},
+    series:[{name:'แชท (Deep)', data:dl.map(a=>a.deep)}], xaxis:{categories:dl.map(a=>short(a.n, mobile?14:30))}, yaxis:{labels:{maxWidth: mobile?110:220, style:{fontSize:'12px'}}},
+    colors:['#236dc9'], dataLabels:{enabled:true, style:{fontSize:'11px', colors:['#fff']}}, legend:{show:false}, grid })
+}
+
+document.querySelectorAll('.frame').forEach(f=>{
+  f.innerHTML = shell(f.dataset.state==='full' ? fullPage() : emptyPage())
+  charts(f)
+})
+</script>
+</body>
+</html>

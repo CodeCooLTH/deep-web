@@ -7,7 +7,8 @@
  * ── สิ่งที่ไฟล์นี้รับผิดชอบ ──────────────────────────────────────────────────
  * ตัดสินสิทธิ์ (F1 = เจ้าของร้านเท่านั้น) · แปลง query · ฝั่ง Deep ขึ้นทันที · เปิดคำขอ Meta Q1–Q4 ขนานกันแล้วส่ง promise ให้การ์ดรอของตัวเอง
  * **ไม่มีสูตรอยู่ในไฟล์นี้** — ฝั่ง Deep มาจาก getAdSalesReport (ตัวเดียวกับ /reports/ads) สูตรทั้งหมดอยู่ใน src/lib/ad-quality-formulas.ts
- * การเชื่อมไม่พร้อม (NOT_CONNECTED/AUTH/CURRENCY) → ไม่ยิง Meta · ซ่อน ② ③ ④ ⑥ · เหลือ ① (แชท (Deep)) + แบนเนอร์ + ⑤ (มติ O1)
+ * การเชื่อมไม่พร้อม (NOT_CONNECTED/AUTH/CURRENCY) → ไม่ยิง Meta · ซ่อนการ์ดฝั่ง Meta ทั้งหมด · เหลือ KPI ฝั่ง Deep + แถบสถานะเดียว + กราฟ/ตารางแชท (Deep) (มติ O1)
+ * แอดไม่อยู่ในบัญชีที่เชื่อม / Q1 ไม่ OK → ใช้กฎเดียวกันใน MetaSections (resolveQ1)
  */
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -32,12 +33,13 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import SellerErrorState from '../../_shared/SellerErrorState'
 import { AdReportPendingProvider } from '../ads/components/PendingContext'
 import AdQualityFilters from './components/AdQualityFilters'
-import ChatCompareHero from './components/ChatCompareHero'
-import ChatGapTable from './components/ChatGapTable'
-import { BreakdownMeta, TablesMeta, TopRowMeta } from './components/MetaSections'
+import AdQualityTable from './components/AdQualityTable'
+import CardState from './components/CardState'
+import CompareChartCard from './components/CompareChartCard'
+import KpiRow from './components/KpiRow'
+import { BreakdownMeta, CompareRowMeta, KpiRowMeta, StripMeta, TableMeta, deepKpi } from './components/MetaSections'
 import PendingGrid from './components/PendingGrid'
-import QualityNotice from './components/QualityNotice'
-import { ChartCardSkeleton, TableCardSkeleton, TopRowSkeleton } from './components/Skeletons'
+import { ChartCardSkeleton, CompareRowSkeleton, StripSkeleton, TableCardSkeleton } from './components/Skeletons'
 
 export const metadata: Metadata = { title: 'คุณภาพโฆษณา' }
 
@@ -126,6 +128,7 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
       })
   const key = `${q.label.from}|${q.label.to}|${q.filters.shopChannelId ?? ''}|${selectedAd ?? ''}`
   const common = { deep, pageFiltered }
+  const deepRows = bundle ? [] : buildQualityRows(deep.deepAds, null, { pageFiltered })
 
   return (
     <>
@@ -136,33 +139,36 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
           clamped={q.clamped} maxRangeDays={MAX_RANGE_DAYS} ads={ads}
         />
         <PendingGrid>
-          {ads.state === 'ERROR' && <QualityNotice ads={ads} />}
-          {bundle ? (
-            <>
-              <div className="gap-base mb-base grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                <Suspense key={`top|${key}`} fallback={<TopRowSkeleton />}>
-                  <TopRowMeta bundle={bundle} {...common} noun={noun} />
+          <div className="gap-base flex flex-col">
+            {ads.state === 'ERROR' && <CardState status="ERROR" />}
+            {bundle ? (
+              <>
+                {/* ระหว่างรอ Meta: ไทล์ฝั่ง Deep ขึ้นทันที (มีข้อมูลแล้ว) — ไม่ให้รอ Q1 */}
+                <Suspense key={`kpi|${key}`} fallback={<KpiRow noun={noun} deep={deepKpi(deep)} meta={null} spend={null} />}>
+                  <KpiRowMeta bundle={bundle} {...common} noun={noun} />
                 </Suspense>
-              </div>
-              <div className="gap-base grid grid-cols-1">
+                <Suspense key={`cmp|${key}`} fallback={<CompareRowSkeleton />}>
+                  <CompareRowMeta bundle={bundle} {...common} />
+                </Suspense>
+                <Suspense key={`strip|${key}`} fallback={<StripSkeleton />}>
+                  <StripMeta bundle={bundle} {...common} />
+                </Suspense>
                 <Suspense key={`bd|${key}`} fallback={<ChartCardSkeleton />}>
-                  <BreakdownMeta bundle={bundle} deep={deep} selectedAd={selectedAd} />
+                  <BreakdownMeta bundle={bundle} {...common} selectedAd={selectedAd} />
                 </Suspense>
                 <Suspense key={`tb|${key}`} fallback={<TableCardSkeleton />}>
-                  <TablesMeta bundle={bundle} {...common} noun={noun} />
+                  <TableMeta bundle={bundle} {...common} />
                 </Suspense>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* การเชื่อมไม่พร้อม: ① (แชท (Deep)) + แบนเนอร์เป็นผู้อธิบายเหตุผลจุดเดียว — ไม่วาดการ์ดว่าง 4 ใบซ้ำกัน (มติ O1) */}
-              <div className="gap-base mb-base grid grid-cols-1 xl:grid-cols-3">
-                <ChatCompareHero deepOnly status="EMPTY" totals={null} deepTotal={deep.chatsTotal} top={null} />
-                <div className="xl:col-span-2"><QualityNotice ads={ads} /></div>
-              </div>
-              <ChatGapTable rows={buildQualityRows(deep.deepAds, null, { pageFiltered })} totals={null} deepOnly status="EMPTY" />
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                {/* การเชื่อมไม่พร้อม: KPI ฝั่ง Deep + แถบสถานะใบเดียวเป็นผู้อธิบายเหตุผลจุดเดียว (มติ O1) */}
+                <KpiRow noun={noun} deep={deepKpi(deep)} meta={null} spend={null} status={<CardState status={ads.state as 'NOT_CONNECTED' | 'AUTH' | 'CURRENCY'} currency={ads.currency} />} />
+                <CompareChartCard rows={deepRows} metaOk={false} />
+                <AdQualityTable rows={deepRows} metaOk={false} totals={null} deepTotals={{ chats: deep.chatsTotal, orders: deep.ordersTotal, closeRatePct: deep.closeRatePct }} />
+              </>
+            )}
+          </div>
         </PendingGrid>
       </AdReportPendingProvider>
     </>

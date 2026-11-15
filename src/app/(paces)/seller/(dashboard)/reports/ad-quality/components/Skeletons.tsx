@@ -15,13 +15,20 @@ export const StatSkeleton = ({ chart }: { chart?: boolean }) => (
   </div>
 )
 
-export const TopRowSkeleton = () => (
-  <>
-    <StatSkeleton chart />
-    <StatSkeleton chart />
-    <div className="md:col-span-2 xl:col-span-1"><StatSkeleton chart /></div>
-  </>
+export const KpiRowSkeleton = () => (
+  <div className="gap-base grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+    <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
+  </div>
 )
+
+export const CompareRowSkeleton = () => (
+  <div className="gap-base grid grid-cols-1 xl:grid-cols-3">
+    <div className="xl:col-span-2"><SellerChartSkeleton /></div>
+    <StatSkeleton chart />
+  </div>
+)
+
+export const StripSkeleton = () => <StatSkeleton />
 
 export const ChartCardSkeleton = () => <SellerChartSkeleton />
 export const TableCardSkeleton = () => <SellerTableSkeleton />

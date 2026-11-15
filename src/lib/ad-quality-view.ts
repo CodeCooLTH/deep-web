@@ -138,6 +138,8 @@ export type CampaignGroup = {
   /** ตัวตั้ง/ตัวหารของแต่ละอัตรา (ชุดแถวเดียวกัน) — ใช้แสดง "k จาก n" ให้ตรงกับ % */
   rates: Record<'depth2' | 'depth3' | 'replied' | 'block', { pct: number | null; num: number | null; den: number | null }>
   closeRate: number | null
+  /** ส่วนต่างของแอดที่มีค่า Meta ในแคมเปญ (ตัวลบนับจากชุดเดียวกับตัวตั้ง — F-02) */
+  gap: number | null
 }
 export function groupByCampaign(rows: QualityRow[]): CampaignGroup[] {
   const m = new Map<string, QualityRow[]>()
@@ -157,8 +159,23 @@ export function groupByCampaign(rows: QualityRow[]): CampaignGroup[] {
       ctr: groupRatePct(rs, (r) => r.clicks, (r) => r.impressions).pct,
       rate2: rates.depth2.pct, rate3: rates.depth3.pct, rateReplied: rates.replied.pct, rateBlock: rates.block.pct, rates,
       closeRate: closeRatePct(orders, chatsDeep),
+      gap: gapPct(sumKnown(set.map((r) => r.chatsMeta)), set.reduce((s, r) => s + r.chatsDeep, 0)),
     }
   })
+}
+
+// ── กราฟแท่งเทียบรายแอด + ป้ายส่วนต่างสูง ────────────────────────────────────
+const isHigh = (r: QualityRow) => r.badge === 'HIGH' || r.badge === 'NO_DEEP'
+export const highGapCount = (rows: QualityRow[]) => rows.filter(isHigh).length
+
+/** แอดบนกราฟเทียบ: มี Meta = เรียงตามแชท (Meta) · ไม่มี Meta (deep only) = เรียงตามแชท (Deep) · ตัด 0/0 ทิ้ง */
+export function buildCompareBars(rows: QualityRow[], metaOk: boolean, top = 8) {
+  const key = (r: QualityRow) => (metaOk ? r.chatsMeta ?? 0 : r.chatsDeep)
+  return rows
+    .filter((r) => (metaOk ? (r.chatsMeta ?? 0) > 0 || r.chatsDeep > 0 : r.chatsDeep > 0))
+    .sort((a, b) => key(b) - key(a) || b.chatsDeep - a.chatsDeep)
+    .slice(0, top)
+    .map((r) => ({ adId: r.adId, title: r.title, chatsMeta: r.chatsMeta, chatsDeep: r.chatsDeep }))
 }
 
 // ── ④ ตำแหน่ง ────────────────────────────────────────────────────────────────
@@ -206,22 +223,9 @@ export function buildPlacements(rows: PlacementRow[], top = 8): PlacementView {
 
 // ── ④ อายุ/เพศ ───────────────────────────────────────────────────────────────
 export type Metric = 'chats' | 'impressions' | 'spend'
-export type AgeLine = { age: string; chats: number | null; spend: number | null; costPerChat: number | null; sharePct: number | null }
 
 const ageOrder = (a: string) => (a === 'unknown' ? 999 : parseInt(a, 10) || 998)
 export const ageLabel = (a: string) => (a === 'unknown' ? 'ไม่ระบุ' : a)
-
-export function buildAgeSummary(rows: AgeGenderRow[]): { lines: AgeLine[]; top: AgeLine | null; totalChats: number | null } {
-  const by = new Map<string, AgeGenderRow[]>()
-  for (const r of rows) by.set(r.age, [...(by.get(r.age) ?? []), r])
-  const totalChats = sumKnown(rows.map((r) => r.chats))
-  const lines = [...by].sort((a, b) => ageOrder(a[0]) - ageOrder(b[0])).map(([age, rs]) => {
-    const chats = sumKnown(rs.map((r) => r.chats)), spend = sumKnown(rs.map((r) => r.spend))
-    return { age, chats, spend, costPerChat: unitCost(spend, chats), sharePct: ratePct(chats, totalChats) }
-  })
-  const top = lines.filter((l) => l.chats !== null).sort((a, b) => (b.chats as number) - (a.chats as number))[0] ?? null
-  return { lines, top, totalChats }
-}
 
 /** ซีรีส์แท่งซ้อน: หนึ่งซีรีส์ต่อเพศ · ช่องที่ Meta ไม่ส่ง = null (ไม่ใช่ 0) */
 export function buildAgeSeries(rows: AgeGenderRow[], metric: Metric) {
@@ -252,6 +256,8 @@ export type QualityLine = {
   chatsMeta: number | null
   chatsDeep: number
   orders: number
+  gap: number | null
+  badge: GapBadge
   impressions: number | null
   ctr: number | null
   rates: Record<RateKey, { pct: number | null; num: number | null; den: number | null }>
@@ -266,7 +272,7 @@ export function adLine(r: QualityRow): QualityLine {
   const rate = (num: number | null, pct: number | null) => ({ pct, num, den: num === null ? null : r.chatsMeta })
   return {
     key: r.adId, kind: 'ad', adId: r.adId, title: r.title, photoFileId: r.photoFileId, campaign: r.campaign, adset: r.adset, adCount: 1,
-    inInsights: r.inInsights, chatsMeta: r.chatsMeta, chatsDeep: r.chatsDeep, orders: r.orders, impressions: r.impressions, ctr: r.ctr,
+    inInsights: r.inInsights, chatsMeta: r.chatsMeta, chatsDeep: r.chatsDeep, orders: r.orders, gap: r.gap, badge: r.badge, impressions: r.impressions, ctr: r.ctr,
     rates: { depth2: rate(r.depth2, r.rate2), depth3: rate(r.depth3, r.rate3), replied: rate(r.replied, r.rateReplied), block: rate(r.block, r.rateBlock) },
     closeRate: r.closeRate, isVideo: r.isVideo, thruplayPct: r.thruplayPct, videoSteps: r.videoSteps,
   }
@@ -275,7 +281,7 @@ export function adLine(r: QualityRow): QualityLine {
 export function campaignLine(g: CampaignGroup): QualityLine {
   return {
     key: `c:${g.key}`, kind: 'campaign', adId: null, title: g.name, photoFileId: null, campaign: null, adset: null, adCount: g.rows.length,
-    inInsights: g.rows.some((r) => r.inInsights), chatsMeta: g.chatsMeta, chatsDeep: g.chatsDeep, orders: g.orders,
+    inInsights: g.rows.some((r) => r.inInsights), chatsMeta: g.chatsMeta, chatsDeep: g.chatsDeep, orders: g.orders, gap: g.gap, badge: null,
     impressions: g.impressions, ctr: g.ctr, rates: g.rates, closeRate: g.closeRate,
     isVideo: false, thruplayPct: null, videoSteps: { p25: null, p50: null, p75: null, p100: null },
     subRows: g.rows.map(adLine),
@@ -285,3 +291,6 @@ export function campaignLine(g: CampaignGroup): QualityLine {
 /** Meta ตอบว่างทั้งที่ช่วงนี้มีแชท (Deep) จากแอด (ไม่กรองเพจ) → แอดน่าจะลงจากบัญชีโฆษณาอื่น — "ขยายช่วงวันที่" ไม่ช่วย ต้องตรวจบัญชีที่เชื่อม */
 export const metaAdsNotInAccount = (status: string, deepAdCount: number, pageFiltered: boolean) =>
   status === 'EMPTY' && !pageFiltered && deepAdCount > 0
+
+/** การ์ดฝั่ง Meta แสดงได้เมื่อ Q1 ตอบ OK และมีแชท (Meta) อย่างน้อยหนึ่งแอด — นอกนั้นซ่อนทั้งหมดแล้วใช้แถบสถานะเดียว (มติ O1) */
+export const metaCardsVisible = (status: string, totals: { chatsMeta: number | null }) => status === 'OK' && totals.chatsMeta !== null
