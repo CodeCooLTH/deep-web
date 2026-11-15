@@ -23,6 +23,7 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table'
+import Link from 'next/link'
 import { useId, useMemo, useState } from 'react'
 
 import AdThumb from '@/components/safepay/AdThumb'
@@ -67,6 +68,14 @@ export default function AdTableCard({ rows, summary, ads, noun, onOpen }: Props)
   const nameOf = (r: AdViewRow) => adDisplayName(r.adTitle, r.adId, idFallback) ?? r.adId
   const lostTotal = useMemo(() => rows.reduce((s, r) => s + r.cancelledOrReturned, 0), [rows])
   const avgTotal = summary.adOrders > 0 ? summary.adSales / summary.adOrders : null
+  // ลิงก์ไปรายการออเดอร์ที่กรองด้วยแอดนี้ — ไม่มีออเดอร์ = ไม่มีอะไรให้ดู จึงไม่แสดง
+  const ordersLink = (r: AdViewRow, className: string) =>
+    r.orders > 0 ? (
+      <Link href={`/orders?ad=${encodeURIComponent(r.adId)}`} className={`text-primary hover:underline inline-flex min-h-11 items-center gap-1 text-xs font-medium lg:min-h-0 ${className}`}>
+        <Icon icon="receipt" className="text-sm" aria-hidden="true" />
+        {t.ordersFilter.viewOrders}
+      </Link>
+    ) : null
   const matches = (r: AdViewRow, q: string) => {
     const s = q.trim().toLowerCase()
     return !s || (r.adTitle ?? '').toLowerCase().includes(s) || r.adId.toLowerCase().includes(s)
@@ -93,10 +102,15 @@ export default function AdTableCard({ rows, summary, ads, noun, onOpen }: Props)
             </>
           )
           // แถวผี: ไม่มีคำสั่งซื้อให้เปิดดู → div ไม่ใช่ปุ่ม (ไม่อยู่ใน tab order)
-          return r.noChats ? (
-            <div className="flex min-w-0 max-w-full items-center gap-3">{inner}</div>
-          ) : (
-            <button type="button" onClick={() => onOpen(r)} className="hover:text-primary flex min-w-0 max-w-full items-center gap-3 text-start">{inner}</button>
+          return (
+            <div className="min-w-0 max-w-full">
+              {r.noChats ? (
+                <div className="flex min-w-0 max-w-full items-center gap-3">{inner}</div>
+              ) : (
+                <button type="button" onClick={() => onOpen(r)} className="hover:text-primary flex min-w-0 max-w-full items-center gap-3 text-start">{inner}</button>
+              )}
+              {ordersLink(r, 'ms-13 mt-1')}
+            </div>
           )
         },
       }),
@@ -330,6 +344,7 @@ export default function AdTableCard({ rows, summary, ads, noun, onOpen }: Props)
                 ) : (
                   <button type="button" onClick={() => onOpen(r)} className="flex min-h-11 w-full items-start gap-3 px-4 py-3 text-start">{body}</button>
                 )}
+                {ordersLink(r, 'ms-17 pb-2')}
               </li>
             )
           })}
