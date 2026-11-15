@@ -39,7 +39,8 @@ type SheetOrder = {
 }
 
 type Props = {
-  row: AdViewRow
+  /** ผ่อนเป็นเฉพาะ field ที่ชีตใช้จริง — หน้า /reports/ad-revenue ส่งแถวจาก AdMetrics ที่ไม่ใช่ AdViewRow */
+  row: Pick<AdViewRow, 'adId' | 'adTitle' | 'adPhotoFileId' | 'chats' | 'orders' | 'sales'>
   noun: string
   /** query ของช่วงที่ดูอยู่ — `from=&to=&shopChannelId=` (ไม่รวม adId) */
   rangeQuery: string

@@ -84,6 +84,8 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/reports/ads', slug: 'seller:reports-ads', label: 'ยอดขายตามโฆษณา', icon: 'speakerphone' },
       // feature 00093 — คุณภาพโฆษณา (ตัวชี้วัดจาก Meta เทียบ Deep) · เห็นทุก vertical · เจ้าของเท่านั้น (F1 ผ่านทะเบียน route-capabilities)
       { url: '/reports/ad-quality', slug: 'seller:reports-ad-quality', label: 'คุณภาพโฆษณา', icon: 'chart-pie' },
+      // feature 00091 เฟส 3 — วิเคราะห์ยอดขายจากโฆษณา (รับเงินจริง · แคมเปญ · สินค้า · ลูกค้า · กำไร) · เจ้าของเท่านั้น (F1)
+      { url: '/reports/ad-revenue', slug: 'seller:reports-ad-revenue', label: 'วิเคราะห์ยอดขายจากโฆษณา', icon: 'report-analytics' },
     ],
   },
   /**
@@ -1114,6 +1116,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:reports-products': m.reportsProducts,
     'seller:reports-ads': m.reportsAds,
     'seller:reports-ad-quality': m.reportsAdQuality,
+    'seller:reports-ad-revenue': m.reportsAdRevenue,
     'seller:orders': m.orders[vertical as keyof typeof m.orders] ?? m.orders.ONLINE_SALES,
     'seller:auctions': m.auctions,
     'seller:products': byVertical(m.products, vertical),

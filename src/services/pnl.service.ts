@@ -64,7 +64,7 @@ export interface PnlReport {
 }
 
 /** โครง select เดียวกันทั้งช่วงปัจจุบันและช่วงก่อนหน้า — กันสูตรสองชุดหลุดจากกัน */
-const ORDER_SELECT = {
+export const ORDER_SELECT = {
   id: true,
   totalAmount: true,
   items: { select: { cost: true, qty: true } },
@@ -85,12 +85,12 @@ const ORDER_SELECT = {
  * ร้านบริการเท่านั้นที่ต้องอ่านเงินรายการ (ยอดงานไม่มาตามนัด) — ร้านอื่นไม่ดึง relation นี้เลย
  * (audit 2026-10-11: เดิมทุกร้านจ่าย query relation เพิ่มทุกครั้งที่เปิด /sales /expenses รายงาน LINE)
  */
-const SERVICE_ORDER_SELECT = {
+export const SERVICE_ORDER_SELECT = {
   ...ORDER_SELECT,
   payments: { select: { amount: true, voidedAt: true } },
 } as const
 
-type PnlOrder = {
+export type PnlOrder = {
   id: string
   totalAmount: unknown
   items: { cost: unknown; qty: number }[]
@@ -101,6 +101,40 @@ type PnlOrder = {
   payments?: { amount: unknown; voidedAt: Date | null }[]
 }
 
+/**
+ * ส่วนประกอบกำไรของออเดอร์ **ใบเดียว** — สูตรเดียวกับ P&L ทั้งร้าน (HR16)
+ * export ให้รายงานวิเคราะห์ยอดขายจากโฆษณา (00091 เฟส 3 FR-016) คิดกำไรรายแอดด้วยตัวเดียวกันเป๊ะ
+ * `shipping` คือค่าส่งขาไปที่คำนวณได้ — P&L นับเป็นค่าใช้จ่ายเฉพาะร้านบริการ (ผู้เรียกตัดสินเอง)
+ */
+export function pnlOrderParts(
+  o: PnlOrder,
+  adj: ReturnAdjustment | undefined,
+  isServiceShop: boolean,
+): { revenue: number; cogs: number; missingCost: boolean; shipping: number; shippingPending: boolean; shippingMissing: boolean } {
+  // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ)
+  if (isServiceShop && isServiceNoShow(o)) {
+    return { revenue: serviceNoShowRevenue(o.payments ?? []), cogs: 0, missingCost: false, shipping: 0, shippingPending: false, shippingMissing: false }
+  }
+  // คืนบางส่วนที่รับของแล้ว: หักยอดคืน + ต้นทุนชิ้นที่คืน (มติ 2026-10-01 · ตัวกลาง return-adjustment)
+  const revenue = netOfReturns(Number(o.totalAmount), adj)
+  let orderCogs = 0, missingCost = false
+  for (const item of o.items) {
+    if (item.cost == null) { missingCost = true; continue }
+    orderCogs += Number(item.cost) * item.qty
+  }
+  let shipping = 0, shippingPending = false, shippingMissing = false
+  // ค่าส่งขาไป: ตัวกลาง resolveOutboundShippingCost (กติกาเดียวกับ /sales · ชีต — D-EXT-10 · 00078)
+  const sp = o.shipments[0]
+  if (sp || o.shipmentTracking) {
+    const c = resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost, dropCodFee: false })
+    // dropCodFee:false — ใบที่ร้านปิดแบบไม่นับยอดขายหลุดจาก where ก่อนถึงตรงนี้แล้ว (00085) · P&L ร้านขายของไม่เพิ่มค่าส่งขาไปของใบนั้น
+    shipping = c.amount
+    shippingPending = c.pendingReason === 'ESTIMATE'
+    shippingMissing = c.pendingReason === 'MISSING'
+  }
+  return { revenue, cogs: costNetOfReturns(orderCogs, adj), missingCost, shipping, shippingPending, shippingMissing }
+}
+
 /** รวมยอดจากออเดอร์ที่นับเป็นยอดขายแล้ว — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
 function sumOrders(
   orders: PnlOrder[],
@@ -109,29 +143,13 @@ function sumOrders(
 ): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number; shippingMissing: number } {
   let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0, shippingMissing = 0
   for (const o of orders) {
-    // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ)
-    if (isServiceShop && isServiceNoShow(o)) {
-      revenue += serviceNoShowRevenue(o.payments ?? [])
-      continue
-    }
-    const adj = returns.get(o.id)
-    // คืนบางส่วนที่รับของแล้ว: หักยอดคืน + ต้นทุนชิ้นที่คืน (มติ 2026-10-01 · ตัวกลาง return-adjustment)
-    revenue += netOfReturns(Number(o.totalAmount), adj)
-    let orderCogs = 0
-    for (const item of o.items) {
-      if (item.cost == null) { hasMissingCost = true; continue }
-      orderCogs += Number(item.cost) * item.qty
-    }
-    cogs += costNetOfReturns(orderCogs, adj)
-    // ค่าส่งขาไป: ตัวกลาง resolveOutboundShippingCost (กติกาเดียวกับ /sales · ชีต — D-EXT-10 · 00078)
-    const sp = o.shipments[0]
-    if (sp || o.shipmentTracking) {
-      const c = resolveOutboundShippingCost({ forward: sp ?? null, manual: o.shipmentTracking?.outboundShippingCost, dropCodFee: false })
-      // dropCodFee:false — ใบที่ร้านปิดแบบไม่นับยอดขายหลุดจาก where ก่อนถึงตรงนี้แล้ว (00085) · P&L ร้านขายของไม่เพิ่มค่าส่งขาไปของใบนั้น
-      shipping += c.amount
-      if (c.pendingReason === 'ESTIMATE') shippingPending += 1
-      else if (c.pendingReason === 'MISSING') shippingMissing += 1
-    }
+    const p = pnlOrderParts(o, returns.get(o.id), isServiceShop)
+    revenue += p.revenue
+    cogs += p.cogs
+    if (p.missingCost) hasMissingCost = true
+    shipping += p.shipping
+    if (p.shippingPending) shippingPending += 1
+    else if (p.shippingMissing) shippingMissing += 1
   }
   return { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing }
 }

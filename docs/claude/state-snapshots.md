@@ -564,3 +564,24 @@
 - fileId รูปตรวจแค่ "มีอยู่" ไม่ตรวจผู้อัปโหลด + URL รูปเปิดตรงได้ — ข้อจำกัดที่ยอมรับ (ไม่ใช่หนี้)
 
 **carry**: browser QA P2+P3 ผ่าน · critique P0/P1 แก้แล้ว · comment หัว `100210` แก้ให้ตรงมติปล่อย CHECK แล้ว · 🛑 แผ่นแนบรูปใน WebView แอปผู้ขาย (iOS/Android) ยังไม่ทดสอบ (ไม่มี `capture`) · ยืนยันสถานะ CHECK + checksum 4 ตัวบน prod ก่อน merge · pull main 2026-10-30 (`112656da7`) ไม่มี conflict
+
+## 2026-11-15 (00091 เฟส 3) — หน้าวิเคราะห์ยอดขายจากโฆษณา `/reports/ad-revenue`
+
+**สถานะ**: ขึ้น prod 2026-11-15 · เจ้าของร้านเท่านั้น (F1) · ไม่มี migration · PRD §3.5 + BRD FR-011..FR-020 · spec `docs/superpowers/specs/2026-11-15-00091-ad-revenue-ux-spec.md` (มีมติ user ทับภายหลังหลายข้อ — ดูกฎหน้ารายงานใน BRD 00094)
+
+**มติที่ห้ามกลับ**
+- ที่มามี 2 ระดับ: ยืนยันแล้ว (Order.adId) / ไม่ทราบ — ไม่มี "อนุมาน" · หนึ่งใบหนึ่งโฆษณา · ไม่จำกัดระยะเวลา (มติ 00091 เดิม)
+- ไม่มีนิยามเงินใหม่ (HR16): ยอดขาย = `salesOrderWhere` + Σqty×price · รับเงินแล้ว = `!isOrderUnpaid` (ทั้งใบ แม้รับบางส่วน) · กำไร = `pnlOrderParts` (แยกจาก `sumOrders` ใน pnl.service) บนชุด `revenueWindowWhere` · ลูกค้าใหม่ = ไม่มีใบที่ `countsAsCustomerOrder` ก่อนใบนี้
+- กำไรส่วนเกินร้านที่ไม่ใช่บริการ **ไม่หักค่าส่งขาไป** (ตาม P&L ปัจจุบัน) — สูตรใน tooltip แยกตาม `serviceRules`
+- แคมเปญ/ชุดโฆษณามาจาก Meta Insights (`campaign_id/name, adset_id/name` ใน query เดิมของ FR-010 · แคชร่วม) — ไม่มีข้อมูล = "ไม่ทราบแคมเปญ" ห้ามเดาจากชื่อ
+- "{noun}ทั้งหมด (รวมยกเลิก)" (แท็บคุณภาพ/waterfall) ≠ "{noun}" (ใบที่นับเป็นยอดขาย) — ป้ายต้องแยกเสมอ
+- อัตรารับเงินจริงใช้ `collectedPlaced` (ชุดใบเดียวกับยอดสั่ง) ไม่ใช่ `collected`
+
+**กับดัก**
+- ฐาน local ไม่มีข้อมูลโฆษณาเลย → ใช้ `scripts/qa-00091-ad-revenue-seed.ts` (ร้าน qa91-shop · `--cleanup`)
+- dev server ในเวิร์กทรีต้องมี `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` (ค่า dummy ได้) ไม่งั้น layout ผู้ขายพังทั้งหน้า
+
+**carry**
+- ยังไม่เคยเห็นกรณีเชื่อม Meta แล้ว: ตารางแคมเปญแบบ child-rows · คอลัมน์ค่าโฆษณา/ROAS/กำไร · ยังไม่ยืนยันว่า Meta คืน campaign/adset ที่ level=ad จริง
+- dark mode ยังไม่ตรวจ · ชีตออเดอร์ของโฆษณายังไม่กดจริง
+- ร้านใหญ่ใกล้เพดาน `MAX_ITEM_ROWS` คำนวณทุกแท็บต่อคำขอ — ยังไม่วัดเวลา

@@ -287,7 +287,7 @@ export async function getProductSalesMonth(
  *
  * `fileUrlOf` ปล่อยค่าที่เป็น URL อยู่แล้วผ่านไปตรง ๆ (seed/CDN/ภายนอก) จึงปลอดภัยกับทุกที่มา
  */
-function firstImage(images: unknown): string | null {
+export function firstImage(images: unknown): string | null {
   if (!Array.isArray(images)) return null
   const first = images[0]
   return typeof first === 'string' && first.length > 0 ? fileUrlOf(first) : null
