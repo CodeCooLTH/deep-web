@@ -14,8 +14,11 @@ import { formatNumberNoSymbol } from '@/lib/format-money'
 import { useT } from '@/i18n/LocaleProvider'
 import { cn } from '@/utils/helpers'
 
-/** tone="neutral": ค่าโฆษณาขึ้น/ลงไม่ใช่ดี/ร้าย → ไม่ระบายสีเขียว/ส้ม (ยังมีลูกศร + sr-only) */
-export default function DeltaText({ value, unit = '%', tone = 'signed', className }: { value: number | null; unit?: '%' | 'pt'; tone?: 'signed' | 'neutral'; className?: string }) {
+/**
+ * tone="neutral": ค่าโฆษณาขึ้น/ลงไม่ใช่ดี/ร้าย → ไม่ระบายสีเขียว/ส้ม (ยังมีลูกศร + sr-only)
+ * tone="inverse": ค่าที่ "ขึ้น = แย่" (อัตรายกเลิก/ตีกลับ) → ขึ้นเป็นส้ม · ลงเป็นเขียว (00091 เฟส 3)
+ */
+export default function DeltaText({ value, unit = '%', tone = 'signed', className }: { value: number | null; unit?: '%' | 'pt'; tone?: 'signed' | 'neutral' | 'inverse'; className?: string }) {
   const t = useT().adReport
   if (value === null) return <span className={cn('text-default-500', className)}>—</span>
   const abs = formatNumberNoSymbol(Math.abs(value))
@@ -23,7 +26,7 @@ export default function DeltaText({ value, unit = '%', tone = 'signed', classNam
   if (value === 0) return <span className={cn('text-default-700 tabular-nums', className)}>{text}</span>
   const up = value > 0
   return (
-    <span className={cn('inline-flex items-center gap-0.5 tabular-nums', tone === 'neutral' ? 'text-default-700' : up ? 'text-success-ink' : 'text-warning-ink', className)}>
+    <span className={cn('inline-flex items-center gap-0.5 tabular-nums', tone === 'neutral' ? 'text-default-700' : up !== (tone === 'inverse') ? 'text-success-ink' : 'text-warning-ink', className)}>
       <Icon icon={up ? 'arrow-up' : 'arrow-down'} className="text-sm" aria-hidden="true" />
       <span className="sr-only">{up ? t.deltaUp : t.deltaDown}</span>
       {text}

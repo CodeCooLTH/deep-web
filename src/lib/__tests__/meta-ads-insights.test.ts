@@ -13,19 +13,23 @@ describe('fetchAdInsights', () => {
       if (url.includes('/act_1234567890?')) return json(200, acct)
       if (url.includes('page2')) return json(200, { data: [{ ad_id: 'B', ad_name: 'b', spend: '5.5', date_start: '2026-10-02' }] })
       return json(200, {
-        data: [{ ad_id: 'A', ad_name: 'a', spend: '10.25', date_start: '2026-10-01' }],
+        data: [{ ad_id: 'A', ad_name: 'a', spend: '10.25', date_start: '2026-10-01', campaign_id: 111, campaign_name: 'แคมเปญ', adset_id: '222', adset_name: 'ชุด' }],
         paging: { next: 'https://graph.facebook.com/v21.0/act_1234567890/insights?page2=1' },
       })
     }) as unknown as typeof fetch
     const r = await fetchAdInsights({ ...args, doFetch })
     expect(r).toEqual({
       state: 'OK', accountName: 'ร้านทดสอบ', currency: 'THB', tz: 'Asia/Bangkok',
-      rows: [{ adId: 'A', adName: 'a', day: '2026-10-01', spend: 10.25 }, { adId: 'B', adName: 'b', day: '2026-10-02', spend: 5.5 }],
+      rows: [
+        { adId: 'A', adName: 'a', day: '2026-10-01', spend: 10.25, campaignId: '111', campaignName: 'แคมเปญ', adsetId: '222', adsetName: 'ชุด' },
+        { adId: 'B', adName: 'b', day: '2026-10-02', spend: 5.5, campaignId: null, campaignName: null, adsetId: null, adsetName: null },
+      ],
     })
     expect(calls.every((c) => c.auth === 'Bearer TKN')).toBe(true)
     const first = calls.find((c) => c.url.includes('/insights'))!.url
     expect(first).toContain('level=ad')
     expect(first).toContain('time_increment=1')
+    expect(first).toContain('campaign_id') // FR-012 ลำดับชั้นมาจาก query เดิม
     expect(first).not.toContain('TKN') // token ห้ามอยู่ใน URL
   })
 

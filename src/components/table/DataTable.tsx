@@ -74,9 +74,19 @@ type DataTableProps<TData> = {
    * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%)
    */
   footerRow?: React.ReactNode
+
+  /**
+   * Opt-in แถวลูกใต้แถวแม่ที่กางอยู่ (`row.getIsExpanded()`) — ท่า child-rows ของธีม (theme tables/datatables/child-rows)
+   * ผู้เรียกใช้ tanstack `getExpandedRowModel` + `getRowCanExpand` แล้วคืนเนื้อหา (เช่นตารางย่อ) ให้แถวนั้น
+   * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%)
+   */
+  subRow?: (row: Row<TData>) => React.ReactNode
+
+  /** Opt-in ตารางลายทาง (`table-striped` ของธีม) — ไม่ส่ง = เดิม */
+  striped?: boolean
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick, footerRow }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick, footerRow, subRow, striped }: DataTableProps<TData>) => {
   'use no memo'
   // visible ไม่ใช่ all — ตารางที่มีคอลัมน์ซ่อน (เช่น OrdersTable ที่เก็บ createdAtISO ไว้ให้
   // ตัวกรองเกาะอย่างเดียว) จะได้ colSpan ของแถว empty เกินจำนวนคอลัมน์จริงไป 1
@@ -86,7 +96,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
   // ตารางเดิม — ใช้ร่วมกันทั้งสองโหมด
   const tableEl = (
     <div className={clsx('table-wrapper', className)}>
-      <table className="table table-hover">
+      <table className={cn('table table-hover', striped && 'table-striped')}>
         {showHeaders && (
           <thead className="thead-sm">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -143,6 +153,13 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
                     </td>
                   ))}
                 </tr>
+                {subRow && row.getIsExpanded() && (
+                  <tr>
+                    <td colSpan={row.getVisibleCells().length} className="p-0">
+                      {subRow(row)}
+                    </td>
+                  </tr>
+                )}
               </Fragment>
             ))
           ) : (

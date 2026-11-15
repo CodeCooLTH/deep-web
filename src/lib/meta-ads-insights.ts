@@ -6,7 +6,11 @@
 import { GRAPH_BASE } from '@/lib/facebook/constants'
 
 export type InsightsState = 'OK' | 'AUTH' | 'ERROR' | 'CURRENCY'
-export type InsightsRow = { adId: string; adName: string | null; day: string; spend: number }
+export type InsightsRow = {
+  adId: string; adName: string | null; day: string; spend: number
+  /** 00091 เฟส 3 FR-012 — ลำดับชั้นของแอดตามที่ Meta รายงาน (null = Meta ไม่ส่งมา) */
+  campaignId?: string | null; campaignName?: string | null; adsetId?: string | null; adsetName?: string | null
+}
 export type InsightsResult = { state: InsightsState; accountName: string | null; currency: string | null; tz: string | null; rows: InsightsRow[] }
 
 type ErrBody = { error?: { code?: number } }
@@ -49,7 +53,7 @@ export async function fetchAdInsights(a: {
     if (meta.currency !== 'THB') return { state: 'CURRENCY', ...meta, rows: [] }
 
     const qs = new URLSearchParams({
-      level: 'ad', fields: 'ad_id,ad_name,spend', time_increment: '1', limit: '500',
+      level: 'ad', fields: 'ad_id,ad_name,spend,campaign_id,campaign_name,adset_id,adset_name', time_increment: '1', limit: '500',
       time_range: JSON.stringify({ since: a.since, until: a.until }),
     })
     let url: string | null = `${GRAPH_BASE}/act_${a.adAccountId}/insights?${qs}`
@@ -60,7 +64,11 @@ export async function fetchAdInsights(a: {
       if (!r.ok) return { ...empty, ...meta, state: r.state }
       for (const d of r.body.data ?? []) {
         const spend = Number(d.spend)
-        if (d.ad_id && d.date_start && Number.isFinite(spend)) rows.push({ adId: String(d.ad_id), adName: d.ad_name ?? null, day: String(d.date_start), spend })
+        if (d.ad_id && d.date_start && Number.isFinite(spend)) rows.push({
+          adId: String(d.ad_id), adName: d.ad_name ?? null, day: String(d.date_start), spend,
+          campaignId: d.campaign_id ? String(d.campaign_id) : null, campaignName: d.campaign_name ?? null,
+          adsetId: d.adset_id ? String(d.adset_id) : null, adsetName: d.adset_name ?? null,
+        })
       }
       const next: string | undefined = r.body.paging?.next
       // เฉพาะ Graph เท่านั้น — กัน token ไปโฮสต์อื่นถ้าคำตอบถูกแก้
