@@ -18,7 +18,6 @@ import { authOptions } from '@/lib/auth'
 import { MAX_RANGE_DAYS } from '@/lib/agent-report-query'
 import { parseAdReportQuery } from '@/lib/ad-report-query'
 import { buildQualityRows } from '@/lib/ad-quality-view'
-import { thaiDayKey } from '@/lib/format-date'
 import { gatePage } from '@/lib/shop-capability'
 import { viewerRolesOf } from '@/lib/viewer-roles'
 import { FINANCE_NO_PERMISSION_DETAIL } from '@/lib/no-permission-copy'
@@ -115,7 +114,6 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
 
   const ads = { state: deep.ads.state, accountName: deep.ads.accountName, currency: deep.ads.currency }
   const deepOnly = ads.state === 'NOT_CONNECTED' || ads.state === 'AUTH' || ads.state === 'CURRENCY'
-  const includesToday = q.label.to >= thaiDayKey(new Date())
 
   // เลือกเพจ: Meta ไม่รู้จักเพจ → กรอง Q2/Q3/Q4 ด้วยชุดแอดที่มีแชท (Deep) ในเพจนั้น (เรียงตามแชท (Deep) มาก→น้อย เผื่อเกินเพดาน)
   // ?ad= ต้องเป็นแอดของร้านในช่วงนี้ — กันการไล่ยิง Graph ด้วยรหัสสุ่ม
@@ -135,7 +133,7 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
       <AdReportPendingProvider>
         <AdQualityFilters
           from={q.label.from} to={q.label.to} shopChannelId={q.filters.shopChannelId ?? null} channels={channels}
-          clamped={q.clamped} maxRangeDays={MAX_RANGE_DAYS} includesToday={includesToday} ads={ads}
+          clamped={q.clamped} maxRangeDays={MAX_RANGE_DAYS} ads={ads}
         />
         {bundle && (
           <div className="mb-base">
