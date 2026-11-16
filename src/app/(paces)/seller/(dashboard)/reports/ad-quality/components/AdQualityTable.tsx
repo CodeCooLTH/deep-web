@@ -24,6 +24,7 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import Select from '@/components/wrappers/Select'
 import { adDisplayName } from '@/lib/ad-attribution'
 import { adLine, campaignLine, groupByCampaign, type QualityLine, type QualityTotals } from '@/lib/ad-quality-view'
 import { useT } from '@/i18n/LocaleProvider'
@@ -38,6 +39,7 @@ import VideoCell from './VideoCell'
 const columnHelper = createColumnHelper<QualityLine>()
 const PAGE_SIZES = [10, 25, 50]
 type Mode = 'ad' | 'campaign'
+const MODES: Mode[] = ['ad', 'campaign']
 type SortKey = 'meta' | 'deep' | 'depth3' | 'block' | 'close'
 
 type DeepTotals = { chats: number; orders: number; closeRatePct: number | null }
@@ -63,23 +65,22 @@ export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, mode, q])
 
+  // หัวคอลัมน์บรรทัดเดียว — กลุ่ม Meta/ร้าน อยู่ใน title (เดิมเป็นบรรทัดเล็กเหนือชื่อ ทำหัวตารางสูงสองชั้น) · คอลัมน์ฝั่งร้านยังพื้นจางเหมือนเดิม
   const H = (title: string, group?: 'Meta' | 'Deep') => (
-    <span className="inline-flex flex-col items-center normal-case">
-      {group && <span className="text-default-500 text-2xs font-normal">{group === 'Meta' ? a.groupMeta : a.groupDeep}</span>}
-      <span>{title}</span>
-    </span>
+    <span className="normal-case whitespace-nowrap" title={group ? (group === 'Meta' ? a.groupMeta : a.groupDeep) : undefined}>{title}</span>
   )
   const nameOf = (l: QualityLine) => (l.kind === 'campaign' ? l.title ?? a.noCampaign : adDisplayName(l.title, l.adId ?? '', idFallback) ?? l.adId ?? '')
   const rateCol = (id: string, title: string, key: 'depth2' | 'depth3' | 'replied' | 'block') =>
     columnHelper.accessor((l) => l.rates[key].pct ?? undefined, {
-      id, meta: { align: 'center' }, header: () => H(title, 'Meta'), sortUndefined: 'last',
+      id, meta: { align: 'end' }, header: () => H(title, 'Meta'), sortUndefined: 'last',
       cell: ({ row }) => <RateCell {...row.original.rates[key]} />,
     })
 
   const columns = useMemo(
     () => [
       columnHelper.accessor((l) => nameOf(l), {
-        id: 'ad', header: () => H(a.colAd), enableSorting: false, meta: { headerClassName: 'w-1/4', cellClassName: 'max-w-xs' },
+        id: 'ad', header: () => H(a.colAd), enableSorting: false, // ไม่มี Meta = คอลัมน์น้อย ชื่อรับที่ว่าง · มี Meta = 11 คอลัมน์ ชื่อจำกัดกว้างไม่ให้ดันตารางล้นจอ
+        meta: { cellClassName: metaOk ? 'min-w-48 max-w-56' : 'w-full min-w-48' },
         cell: ({ row }) => {
           const l = row.original
           return (
@@ -104,23 +105,23 @@ export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { r
       }),
       ...(metaOk ? [
       columnHelper.accessor((l) => l.chatsMeta ?? undefined, {
-        id: 'meta', meta: { align: 'center' }, header: () => H(a.chatMeta, 'Meta'), sortUndefined: 'last',
-        cell: ({ row }) => <span className="block text-center tabular-nums">{row.original.chatsMeta === null ? <NoDataCell /> : fmtInt(row.original.chatsMeta)}</span>,
+        id: 'meta', meta: { align: 'end' }, header: () => H(a.chatMeta, 'Meta'), sortUndefined: 'last',
+        cell: ({ row }) => <span className="block text-end tabular-nums">{row.original.chatsMeta === null ? <NoDataCell /> : fmtInt(row.original.chatsMeta)}</span>,
       }),
       columnHelper.accessor('chatsDeep', {
-        id: 'deep', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
-        cell: ({ row }) => <span className="block text-center tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
+        id: 'deep', meta: { align: 'end', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
+        cell: ({ row }) => <span className="block text-end tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
       }),
       columnHelper.accessor((l) => l.gap ?? undefined, {
-        id: 'gap', meta: { align: 'center' }, header: () => H(a.colGap), sortUndefined: 'last',
+        id: 'gap', meta: { align: 'end' }, header: () => H(a.colGap), sortUndefined: 'last',
         cell: ({ row }) => <GapCell l={row.original} />,
       }),
       columnHelper.accessor((l) => l.impressions ?? undefined, {
-        id: 'impr', meta: { align: 'center' }, header: () => H(a.colImprCtr, 'Meta'), enableSorting: false,
+        id: 'impr', meta: { align: 'end' }, header: () => H(a.colImprCtr, 'Meta'), enableSorting: false,
         cell: ({ row }) => (
-          <span className="block text-center tabular-nums">
+          <span className="block text-end tabular-nums whitespace-nowrap">
             {row.original.impressions === null ? <NoDataCell /> : fmtInt(row.original.impressions)}
-            <span className="text-default-500 text-2xs block">{row.original.ctr === null ? <NoDataCell /> : fmtPct1(row.original.ctr)}</span>
+            <span className="text-default-500 text-xs"> · {row.original.ctr === null ? <NoDataCell /> : fmtPct1(row.original.ctr)}</span>
           </span>
         ),
       }),
@@ -130,16 +131,16 @@ export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { r
       rateCol('block', a.colBlock, 'block'),
       ] : [
       columnHelper.accessor('chatsDeep', {
-        id: 'deep', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
-        cell: ({ row }) => <span className="block text-center tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
+        id: 'deep', meta: { align: 'end', headerClassName: 'bg-primary/10' }, header: () => H(a.chatDeep, 'Deep'),
+        cell: ({ row }) => <span className="block text-end tabular-nums">{fmtInt(row.original.chatsDeep)}</span>,
       }),
       ]),
       columnHelper.accessor((l) => l.closeRate ?? undefined, {
-        id: 'close', meta: { align: 'center', headerClassName: 'bg-primary/10' }, header: () => H(a.colClose, 'Deep'), sortUndefined: 'last',
-        cell: ({ row }) => <RateCell pct={row.original.closeRate} num={row.original.orders} den={row.original.chatsDeep} />,
+        id: 'close', meta: { align: 'end', headerClassName: 'bg-primary/10' }, header: () => H(a.colClose, 'Deep'), sortUndefined: 'last',
+        cell: ({ row }) => <RateCell bar pct={row.original.closeRate} num={row.original.orders} den={row.original.chatsDeep} />,
       }),
       ...(metaOk ? [
-      columnHelper.display({ id: 'video', meta: { align: 'center' }, header: () => H(a.colVideo, 'Meta'), cell: ({ row }) => <VideoCell line={row.original} /> }),
+      columnHelper.display({ id: 'video', meta: { align: 'end' }, header: () => H(a.colVideo, 'Meta'), cell: ({ row }) => <VideoCell line={row.original} /> }),
       ] : []),
     ],
     // nameOf/rateCol ผูกกับ t/idFallback — ใส่เฉพาะที่เปลี่ยนจริง
@@ -166,43 +167,50 @@ export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { r
   const total = metaOk && totals ? (
     <tr className="bg-default-100/70 font-semibold">
       <td className="text-default-900 text-sm">{fmt(a.totalAds, { n: totals.adsCounted })}</td>
-      <td className="text-center tabular-nums">{fmtInt(totals.chatsMeta)}</td>
-      <td className="text-center tabular-nums">{fmtInt(totals.chatsDeepSameSet)}</td>
-      <td className="text-center tabular-nums">{totals.gap === null ? <NoDataCell /> : totals.gap < 0 ? fmt(a.deepMore, { p: Math.abs(totals.gap).toFixed(1) }) : fmtPct1(totals.gap)}</td>
-      <td className="text-center tabular-nums">{fmtInt(totals.impressions)}<span className="text-default-500 text-2xs block">{totals.ctr === null ? <NoDataCell /> : fmtPct1(totals.ctr)}</span></td>
-      <td className="text-center tabular-nums">{rateTotal('depth2')}</td>
-      <td className="text-center tabular-nums">{rateTotal('depth3')}</td>
-      <td className="text-center tabular-nums">{rateTotal('replied')}</td>
-      <td className="text-center tabular-nums">{rateTotal('block')}</td>
-      <td className="text-center tabular-nums">{closeTotal}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{fmtInt(totals.chatsMeta)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{fmtInt(totals.chatsDeepSameSet)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{totals.gap === null ? <NoDataCell /> : totals.gap < 0 ? fmt(a.deepMore, { p: Math.abs(totals.gap).toFixed(1) }) : fmtPct1(totals.gap)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{fmtInt(totals.impressions)}<span className="text-default-500 text-xs"> · {totals.ctr === null ? <NoDataCell /> : fmtPct1(totals.ctr)}</span></td>
+      <td className="text-end tabular-nums whitespace-nowrap">{rateTotal('depth2')}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{rateTotal('depth3')}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{rateTotal('replied')}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{rateTotal('block')}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{closeTotal}</td>
       <td />
     </tr>
   ) : (
     <tr className="bg-default-100/70 font-semibold">
       <td className="text-default-900 text-sm">{fmt(a.totalAds, { n: rows.length })}</td>
-      <td className="text-center tabular-nums">{fmtInt(deepTotals.chats)}</td>
-      <td className="text-center tabular-nums">{closeTotal}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{fmtInt(deepTotals.chats)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{closeTotal}</td>
     </tr>
   )
   const onSearch = (v: string) => { setQuery(v); setPagination((p) => ({ ...p, pageIndex: 0 })) }
 
   return (
     <div id="ad-quality-table" className="card scroll-mt-24 min-w-0">
-      <div className="card-header flex-wrap gap-2">
+      <div className="card-header">
         <h4 className="card-title">{a.qTitle}</h4>
-        <div className="ms-auto flex flex-wrap items-center gap-2.5">
-          <div className="input-icon-group">
-            <Icon icon="search" className="input-icon" aria-hidden="true" />
-            <input id={searchId} type="search" className="form-input min-h-11 lg:min-h-0" placeholder={a.search} aria-label={a.search} value={query} onChange={(e) => onSearch(e.target.value)} />
-          </div>
-          <select className="form-select min-h-11 lg:min-h-0" aria-label={a.modeLabel} value={mode} onChange={(e) => { setMode(e.target.value as Mode); setExpanded({}); setPagination((p) => ({ ...p, pageIndex: 0 })) }}>
-            <option value="ad">{a.modeAd}</option>
-            <option value="campaign">{a.modeCampaign}</option>
-          </select>
-          <select className="form-select min-h-11 lg:min-h-0" aria-label={a.rowsPerPage} value={pageSize} onChange={(e) => setPagination({ pageIndex: 0, pageSize: Number(e.target.value) })}>
-            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+      </div>
+      {/* แถบเครื่องมือตามท่า OrdersList ของธีม (เหมือนตารางหน้าวิเคราะห์ยอดขายจากโฆษณา): ค้นหา · โหมด · จำนวนแถว เรียงแถวเดียวชิดซ้าย
+          ห้าม select native (มติ user) → react-select ตามท่า theme/paces/Admin/TS/src/app/(admin)/forms/select/components/Select2.tsx */}
+      <div className="card-header flex-wrap justify-start gap-2.5">
+        <div className="input-icon-group w-64">
+          <Icon icon="search" className="input-icon" aria-hidden="true" />
+          <input id={searchId} type="search" className="form-input min-h-11 lg:min-h-0" placeholder={a.search} aria-label={a.search} value={query} onChange={(e) => onSearch(e.target.value)} />
         </div>
+        <Select
+          className="react-select w-40" classNamePrefix="react-select" aria-label={a.modeLabel} isSearchable={false}
+          options={MODES.map((m) => ({ value: m, label: m === 'ad' ? a.modeAd : a.modeCampaign }))}
+          value={{ value: mode, label: mode === 'ad' ? a.modeAd : a.modeCampaign }}
+          onChange={(o) => { const v = (o as { value: Mode } | null)?.value; if (v) { setMode(v); setExpanded({}); setPagination((p) => ({ ...p, pageIndex: 0 })) } }}
+        />
+        <Select
+          className="react-select w-24" classNamePrefix="react-select" aria-label={a.rowsPerPage} isSearchable={false}
+          options={PAGE_SIZES.map((n) => ({ value: n, label: String(n) }))}
+          value={{ value: pageSize, label: String(pageSize) }}
+          onChange={(o) => { const v = (o as { value: number } | null)?.value; if (v) setPagination({ pageIndex: 0, pageSize: v }) }}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-2 px-4 pb-2 lg:hidden">
@@ -237,11 +245,12 @@ export default function AdQualityTable({ rows, metaOk, totals, deepTotals }: { r
 
 function GapCell({ l }: { l: QualityLine }) {
   const a = useT().adQuality
-  if (l.gap === null) return <span className="block text-center"><NoDataCell /></span>
+  if (l.gap === null) return <span className="block text-end"><NoDataCell /></span>
+  // บรรทัดเดียว: ป้ายเตือนหน้าตัวเลข (ไม่ซ้อนสองบรรทัด)
   return (
-    <span className="block text-center tabular-nums">
+    <span className="flex items-center justify-end gap-2 tabular-nums whitespace-nowrap">
+      {l.badge && <GapBadge kind={l.badge} />}
       {l.gap < 0 ? fmt(a.deepMore, { p: Math.abs(l.gap).toFixed(1) }) : fmtPct1(l.gap)}
-      {l.badge && <span className="mt-0.5 block"><GapBadge kind={l.badge} /></span>}
     </span>
   )
 }
