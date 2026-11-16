@@ -23,6 +23,7 @@ import type { BidDTO } from '@/services/auction.service'
 import { fileUrlOf } from '@/lib/file-url'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   title: string
   latestBid: BidDTO | null
@@ -79,7 +80,7 @@ export default function AuctionLiveComment({ title, latestBid }: Props) {
             </Box>{' '}
             {/* bid ล่าสุด = ผู้นำเสมอ (ราคาขึ้นทางเดียว) */}
             <Icon icon="tabler-crown" fontSize={12} style={{ color: '#ffd45e', verticalAlign: '-1px' }} />{' '}
-            เสนอ ฿{latestBid.amount.toLocaleString()}
+            เสนอ {formatBaht(latestBid.amount)}
             <Box component="span" sx={{ color: 'rgba(255,255,255,.55)', fontSize: 10, ml: '4px' }}>
               · {relativeTimeTh(latestBid.atMs, now)}
             </Box>

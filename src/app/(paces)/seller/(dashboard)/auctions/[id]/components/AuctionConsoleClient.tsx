@@ -40,6 +40,7 @@ import AuctionPriceChart from './AuctionPriceChart'
 import AuctionBidVelocity from './AuctionBidVelocity'
 import AuctionBidFeed from './AuctionBidFeed'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   auction: SellerAuctionDTO
 }
@@ -111,7 +112,7 @@ export default function AuctionConsoleClient({ auction }: Props) {
                   <div style="font-size:15px;font-weight:700;color:${getColor('default-900')}">${w.bidder}</div>
                   <div style="font-size:12px;color:${getColor('default-700')};margin-top:2px">${w.level.label}</div>
                   <div style="font-size:11px;color:${getColor('default-400')};margin-top:10px">ราคาปิด</div>
-                  <div style="font-size:26px;font-weight:800;color:#236dc9;font-variant-numeric:tabular-nums">฿${dto.currentPrice.toLocaleString()}</div>`,
+                  <div style="font-size:26px;font-weight:800;color:var(--color-primary);font-variant-numeric:tabular-nums">${formatBaht(dto.currentPrice)}</div>`,
                 confirmSemantic: 'primary',
               })
             }

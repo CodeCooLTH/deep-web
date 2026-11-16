@@ -36,10 +36,11 @@ import ListBusyOverlay, { useListBusy } from '../../../_shared/ListBusyOverlay'
 import { capiApi } from './shared'
 import { toLogRow, type LogApiRow, type LogRow } from './types'
 
+import { formatBaht } from '@/lib/format-money'
 const ALL = ''
 const META = new Map(CAPI_EVENTS.map((e) => [e.key as string, e.metaName]))
 const columnHelper = createColumnHelper<LogRow>()
-const money = (n: number) => `฿${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const money = (n: number) => `${formatBaht(n)}`
 
 /** สีเดียวกับป้ายสถานะหน้าอื่น: เขียวเฉพาะ "สำเร็จ" (Meta ตอบรับจริง) · ข้ามเป็นเทา (พฤติกรรมปกติ ไม่ใช่ความผิด) */
 const STATUS_TONE: Record<string, string> = {

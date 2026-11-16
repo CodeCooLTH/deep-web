@@ -26,6 +26,7 @@ import { APPOINTMENT_DEPOSIT_MODES } from '@/lib/appointments'
 import { formatDateTime } from '@/lib/format-date'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
 
+import { formatBaht } from '@/lib/format-money'
 /** ร้านบริการเท่านั้น (หน้านี้ notFound ถ้าไม่ใช่) จึงอ่านคำจากชุด SERVICE_QUEUE ตรง ๆ */
 const SV = ORDER_VOCAB.SERVICE_QUEUE
 
@@ -322,13 +323,13 @@ export default function ResourceForm({ resource }: Props) {
             {preview ? (
               <>
                 <p className="text-default-500 text-sm">
-                  ตัวอย่าง: {SV.noun} ฿{PREVIEW_TOTAL.toLocaleString('th-TH')}
+                  ตัวอย่าง: {SV.noun} {formatBaht(PREVIEW_TOTAL)}
                 </p>
                 <p className="text-default-800 mt-1 font-medium">
-                  มัดจำ ฿{preview.deposit.toLocaleString('th-TH')}
+                  มัดจำ {formatBaht(preview.deposit)}
                 </p>
                 <p className="text-default-600 text-sm">
-                  ลูกค้าจ่ายหน้างานอีก ฿{preview.remaining.toLocaleString('th-TH')}
+                  ลูกค้าจ่ายหน้างานอีก {formatBaht(preview.remaining)}
                 </p>
               </>
             ) : (

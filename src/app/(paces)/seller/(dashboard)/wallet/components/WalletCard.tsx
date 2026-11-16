@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import TopUpRequestModal from './TopUpRequestModal'
 
+import { formatBaht } from '@/lib/format-money'
 type WalletCardProps = {
   balance: number
   lowBalance: boolean
@@ -78,7 +79,7 @@ export default function WalletCard({
                   className="text-xl font-bold text-dark"
                   aria-label={`ยอดยอดเงิน ${balance} บาท`}
                 >
-                  ฿{balance.toLocaleString('th-TH')}
+                  {formatBaht(balance)}
                 </h3>
               )}
               {/* SMS estimate — ซ่อนเมื่อ hasError */}

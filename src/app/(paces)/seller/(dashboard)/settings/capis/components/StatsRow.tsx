@@ -21,12 +21,12 @@ import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { formatDateTime } from '@/lib/format-date'
+import { formatBaht } from '@/lib/format-money'
 import type { CapiMetric } from '@/lib/meta-capi/stats'
 import { cn, getColor } from '@/utils/helpers'
 import type { StatsView } from './types'
 
 const num = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
-const baht = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 
 /** sparkline ตาม statData ของธีม — getOptions ต้องนิ่ง (wrapper memo ตามมัน) จึงห่อ useCallback */
 function Spark({ series, color, name }: { series: number[]; color: string; name: string }) {
@@ -191,7 +191,7 @@ export default function StatsRow({ stats, logHref }: { stats: StatsView; logHref
         <StatCell
           title={t.statsSales}
           icon="receipt"
-          value={`฿${baht.format(stats.sales.total)}`}
+          value={formatBaht(stats.sales.total)}
           unit={fmt(t.statsOrders, { n: num.format(stats.sales.orders) })}
           sub={
             <>

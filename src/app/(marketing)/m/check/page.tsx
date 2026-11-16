@@ -13,6 +13,7 @@ import { maskIdentifier } from '@/lib/scam-identifier'
 import { formatDate } from '@/lib/format-date'
 import { MPageTitle } from '../_components/ui'
 
+import { formatBaht } from '@/lib/format-money'
 export const metadata: Metadata = { title: 'เช็กมิจฉาชีพ' }
 
 const Stat = ({ label, value }: { label: string; value: string }) => (
@@ -107,7 +108,7 @@ export default async function MobileCheckPage({
               </div>
 
               <div className='mbs-5 grid grid-cols-2 gap-2.5'>
-                <Stat label='มูลค่าเสียหายรวม' value={`฿${result!.totalLoss.toLocaleString('th-TH')}`} />
+                <Stat label='มูลค่าเสียหายรวม' value={`${formatBaht(result!.totalLoss)}`} />
                 <Stat label='รายงานล่าสุด' value={result!.lastReportedAt ? formatDate(result!.lastReportedAt) : '-'} />
               </div>
 

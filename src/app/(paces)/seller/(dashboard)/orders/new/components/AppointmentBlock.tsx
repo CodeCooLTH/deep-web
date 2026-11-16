@@ -32,6 +32,7 @@ import { finishDecimalInput, parseDecimalInput } from '@/lib/numeric-input'
 import { ARRIVAL_BLOCK_TITLE, resourcePickerKind, walkInPreviewText, type OrderArrivalChoice } from '@/lib/order-form-arrival'
 import ResourceTypeSheet from './ResourceTypeSheet'
 
+import { formatBaht } from '@/lib/format-money'
 export type ServiceResourceOption = {
   id: string
   name: string
@@ -609,7 +610,7 @@ export default function AppointmentBlock({
               </div>
               <p className="text-default-500 mt-1 text-sm">
                 {Number(value.depositAmount ?? 0) > 0
-                  ? `ลูกค้าจ่ายหน้างานอีก ฿${remaining.toLocaleString('th-TH')}`
+                  ? `ลูกค้าจ่ายหน้างานอีก ${formatBaht(remaining)}`
                   : 'ไม่เก็บมัดจำ ลูกค้าจ่ายทั้งหมดหน้างาน'}
               </p>
             </div>

@@ -118,9 +118,9 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
                   ariaLabel={t.dailyTitle}
                   categories={daily.map((d) => d.day.slice(8, 10))}
                   series={[
-                    { name: t.kpiSpend, data: daily.map((d) => Math.round(d.spend)), color: 'chart-gamma' },
-                    { name: t.kpiRevenue, data: daily.map((d) => Math.round(d.revenue)), color: 'chart-primary' },
-                    { name: t.kpiProfitAfter, data: daily.map((d) => Math.round(d.profit)), color: 'chart-alpha' },
+                    { name: t.kpiSpend, data: daily.map((d) => Math.round((d.spend) * 100) / 100), color: 'chart-gamma' },
+                    { name: t.kpiRevenue, data: daily.map((d) => Math.round((d.revenue) * 100) / 100), color: 'chart-primary' },
+                    { name: t.kpiProfitAfter, data: daily.map((d) => Math.round((d.profit) * 100) / 100), color: 'chart-alpha' },
                   ]}
                 />
               </DashCard>
@@ -144,7 +144,7 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
           </div>
           <div className="min-w-0 xl:col-span-7">
             <DashCard title={t.perfDailySpend}>
-              <Columns ariaLabel={t.perfDailySpend} categories={daily.map((d) => d.day.slice(8, 10))} series={[{ name: t.kpiSpend, data: daily.map((d) => Math.round(d.spend)), color: 'chart-gamma' }]} />
+              <Columns ariaLabel={t.perfDailySpend} categories={daily.map((d) => d.day.slice(8, 10))} series={[{ name: t.kpiSpend, data: daily.map((d) => Math.round((d.spend) * 100) / 100), color: 'chart-gamma' }]} />
             </DashCard>
           </div>
         </div>

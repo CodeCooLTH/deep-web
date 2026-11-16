@@ -19,6 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { getColor } from '@/utils/helpers'
 import type { BidDTO } from '@/services/auction.service'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   bidHistory: BidDTO[]
   expectedPrice: number | null
@@ -42,11 +43,11 @@ export default function AuctionPriceChart({ bidHistory, expectedPrice }: Props) 
         labels: { datetimeUTC: false, style: { fontSize: '11px' } },
       },
       yaxis: {
-        labels: { formatter: (v: number) => `฿${Math.round(v).toLocaleString('th-TH')}` },
+        labels: { formatter: (v: number) => `${formatBaht(Math.round(v))}` },
       },
       tooltip: {
         x: { format: 'dd MMM HH:mm' },
-        y: { formatter: (v: number) => `฿${v.toLocaleString('th-TH')}` },
+        y: { formatter: (v: number) => `${formatBaht(v)}` },
       },
       annotations:
         expectedPrice != null
@@ -57,7 +58,7 @@ export default function AuctionPriceChart({ bidHistory, expectedPrice }: Props) 
                   borderColor: getColor('chart-secondary'),
                   strokeDashArray: 6,
                   label: {
-                    text: `เป้า ฿${expectedPrice.toLocaleString('th-TH')}`,
+                    text: `เป้า ${formatBaht(expectedPrice)}`,
                     style: { color: getColor('white'), background: getColor('chart-secondary') },
                   },
                 },

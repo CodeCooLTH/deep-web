@@ -58,6 +58,7 @@ import { uploadFileId } from '@/lib/upload-client'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { fileUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 type SenderRole = 'BUYER' | 'SHOP'
 // ORDER = การ์ดออเดอร์/ใบเสนอราคาที่ร้านส่งให้ (user 2026-07-24) — buyer เห็นการ์ดเดียวกับฝั่ง seller
 type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'ORDER'
@@ -655,7 +656,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                         if (msg.type === 'PRODUCT') {
                           const card = msg.productCard
                           const priceLabel = card
-                            ? `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                            ? `${formatBaht(card.price)}`
                             : ''
 
                           return (
@@ -764,7 +765,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                             )
                           }
                           const orderTitle = card.items[0]?.name ?? orderVocab.noun
-                          const orderPriceLabel = `฿${Number(card.totalAmount).toLocaleString('th-TH')}`
+                          const orderPriceLabel = `${formatBaht(Number(card.totalAmount))}`
                           return (
                             <div
                               key={msg.id}
@@ -815,7 +816,7 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
                                         x{it.qty}
                                       </Typography>
                                       <Typography className='text-[13px] font-medium shrink-0'>
-                                        ฿{Number(it.price).toLocaleString('th-TH')}
+                                        {formatBaht(Number(it.price))}
                                       </Typography>
                                     </div>
                                   ))}

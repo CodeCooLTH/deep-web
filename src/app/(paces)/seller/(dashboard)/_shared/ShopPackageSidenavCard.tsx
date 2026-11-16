@@ -37,6 +37,7 @@ import {
   type BusinessPackageStatusApp,
 } from '@/lib/business-package'
 
+import { formatBaht } from '@/lib/format-money'
 interface ShopPackageSidenavCardProps {
   status: BusinessPackageStatusApp
   tier: BusinessPackageTier | null
@@ -59,7 +60,7 @@ export default async function ShopPackageSidenavCard({ status, tier, canManage }
   const config = tier ? BUSINESS_PACKAGE_TIER_CONFIG[tier] : null
   // Free = pseudo tier (ไม่มี row ใน BUSINESS_PACKAGE_TIER_CONFIG) — NOT_SUBSCRIBED เท่านั้นที่ไม่มี config
   const tierLabel = config?.label ?? 'Free'
-  const priceLabel = config ? `฿${config.priceBaht.toLocaleString('th-TH')} ต่อเดือน` : null
+  const priceLabel = config ? `${formatBaht(config.priceBaht)} ต่อเดือน` : null
 
   // ดูอย่างเดียว → เป็น <div> ไม่ใช่ <Link> (กันกดแล้วไปเจอหน้าที่ทำอะไรไม่ได้) และไม่มี hover state
   const Wrapper = canManage ? Link : 'div'

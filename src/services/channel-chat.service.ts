@@ -66,6 +66,7 @@ import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import { chatCardPreview } from '@/lib/chat-vocab'
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
+import { formatBaht } from '@/lib/format-money'
 /**
  * (S-1, feature 00025 TFR-LINE-13) — จุดเดียวที่แปลง ShopChannel.provider → ChannelAdapter
  *
@@ -1141,7 +1142,7 @@ export function composeStructuredText(
     if (payload.template_type === 'receipt') {
       const total = payload.summary?.total_cost
       const num = payload.order_number ? ` #${payload.order_number}` : ''
-      const amt = typeof total === 'number' ? ` — ยอดรวม ฿${total.toLocaleString('th-TH')}` : ''
+      const amt = typeof total === 'number' ? ` — ยอดรวม ${formatBaht(total)}` : ''
       return `สรุปคำสั่งซื้อ${num}${amt}`
     }
     // button template (คำขอชำระเงิน/ดูออเดอร์) มี text สรุปในตัว เช่น "You requested ฿590..."

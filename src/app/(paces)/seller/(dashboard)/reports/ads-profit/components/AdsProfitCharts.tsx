@@ -21,7 +21,7 @@ import { getColor } from '@/utils/helpers'
 import { DashCard } from '../../ad-revenue/components/DashBits'
 
 const short = (s: string, n = 26) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
-const money = (v: number) => `${v < 0 ? '−' : ''}${formatBaht(Math.round(Math.abs(v)))}`
+const money = (v: number) => `${v < 0 ? '−' : ''}${formatBaht(Math.abs(v))}`
 
 export default function AdsProfitCharts({ report, mode, noun }: { report: AdsProfitReport; mode: ProfitMode; noun: string }) {
   const tt = useT()
@@ -36,7 +36,7 @@ export default function AdsProfitCharts({ report, mode, noun }: { report: AdsPro
   const rankOpts = useCallback((): ApexOptions => ({
     chart: { type: 'bar', height: Math.max(220, 40 + ranked.length * 34), toolbar: { show: false } },
     plotOptions: { bar: { horizontal: true, barHeight: '60%', borderRadius: 3, distributed: true } },
-    series: [{ name: t.colProfit, data: ranked.map((r) => Math.round(r.profit)) }],
+    series: [{ name: t.colProfit, data: ranked.map((r) => Math.round((r.profit) * 100) / 100) }],
     colors: ranked.map((r) => getColor(r.profit < 0 ? 'chart-beta' : 'chart-alpha')),
     xaxis: { categories: ranked.map((r) => short(r.name)), labels: { formatter: (v: string) => formatBahtCompact(Number(v)) } },
     yaxis: { labels: { maxWidth: 200 } },
@@ -48,7 +48,7 @@ export default function AdsProfitCharts({ report, mode, noun }: { report: AdsPro
 
   const scatterOpts = useCallback((): ApexOptions => ({
     chart: { type: 'bubble', height: 300, toolbar: { show: false } },
-    series: [{ name: t.chartScatter, data: named.map((r) => ({ x: Math.round(r.roas * 100) / 100, y: Math.round(r.profit), z: Math.max(1, Math.round(r.spend)) })) }],
+    series: [{ name: t.chartScatter, data: named.map((r) => ({ x: Math.round(r.roas * 100) / 100, y: Math.round((r.profit) * 100) / 100, z: Math.max(1, Math.round(r.spend)) })) }],
     colors: [getColor('chart-primary')],
     fill: { opacity: 0.6 },
     plotOptions: { bubble: { minBubbleRadius: 5, maxBubbleRadius: 22 } },
@@ -63,7 +63,7 @@ export default function AdsProfitCharts({ report, mode, noun }: { report: AdsPro
   const dailyOpts = useCallback((): ApexOptions => ({
     chart: { type: 'bar', height: 260, toolbar: { show: false } },
     plotOptions: { bar: { columnWidth: '55%', borderRadius: 2, distributed: true } },
-    series: [{ name: t.chartDailyProfit, data: daily.map((d) => Math.round(d.profitBefore[mode] - (d.spend ?? 0))) }],
+    series: [{ name: t.chartDailyProfit, data: daily.map((d) => Math.round((d.profitBefore[mode] - (d.spend ?? 0)) * 100) / 100) }],
     colors: daily.map((d) => getColor(d.profitBefore[mode] - (d.spend ?? 0) < 0 ? 'chart-beta' : 'chart-alpha')),
     xaxis: { categories: daily.map((d) => d.day.slice(8, 10)), labels: { rotate: 0, hideOverlappingLabels: true } },
     yaxis: { tickAmount: 4, labels: { formatter: (v: number) => formatBahtCompact(v) } },

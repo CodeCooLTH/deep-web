@@ -18,6 +18,7 @@
 import { useAuctionActions } from './useAuctionActions'
 import type { AuctionStatus } from '../../components/data'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   id: string
   status: AuctionStatus
@@ -50,13 +51,13 @@ export default function AuctionControlPanel({
           <li className="flex items-center justify-between gap-2">
             <span className="text-default-400 text-sm">ขั้นบิด</span>
             <span className="tabular-nums text-sm font-medium text-default-800">
-              ฿{bidIncrement.toLocaleString('th-TH')}
+              {formatBaht(bidIncrement)}
             </span>
           </li>
           <li className="flex items-center justify-between gap-2">
             <span className="text-default-400 text-sm">ซื้อทันที</span>
             <span className="tabular-nums text-sm font-medium text-default-800">
-              {buyNowPrice != null ? `฿${buyNowPrice.toLocaleString('th-TH')}` : 'ไม่มี'}
+              {buyNowPrice != null ? `${formatBaht(buyNowPrice)}` : 'ไม่มี'}
             </span>
           </li>
           <li className="flex items-center justify-between gap-2">

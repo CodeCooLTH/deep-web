@@ -120,7 +120,7 @@ export default function ProductCard({
 
           <div className="flex shrink-0 flex-col items-end gap-1">
             <span className="text-sm font-bold tabular-nums text-default-900">
-              ฿{product.price.toLocaleString('th-TH')}
+              {formatBaht(product.price)}
             </span>
             {/* ต้นทุน/มาร์จิ้น (ux Design Spec S3) — บรรทัดเดียวกะทัดรัดในกรอบเดิม ไม่เพิ่มชั้นการ์ด
                 ความสูงการ์ดถูกกำหนดโดยรูป size-14 (56px) อยู่แล้ว บรรทัดนี้จึงอยู่ในโควตาที่เหลือ

@@ -27,6 +27,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import { getTierGradient } from '@/lib/trust-tier'
 import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 
+import { formatBaht } from '@/lib/format-money'
 export type OrderLinkShopContext = {
   publicToken: string
   totalAmount: number
@@ -146,7 +147,7 @@ export default function OrderLinkShell({
             </Typography>
             <div className='text-[12.5px] opacity-85 mbs-1'>
               {compact
-                ? `฿${ctx.totalAmount.toLocaleString('th-TH')}`
+                ? `${formatBaht(ctx.totalAmount)}`
                 : `@${ctx.shopUsername} · เปิดร้านตั้งแต่ ${formatDateTH(ctx.shopCreatedAtIso)}`}
             </div>
 
@@ -249,7 +250,7 @@ export default function OrderLinkShell({
                 {/* 32px = ขั้น "metric" ที่ DESIGN.md ประกาศไว้สำหรับตัวเลขที่ทำหน้าที่เป็นภาพ
                     (เดิม 29px ไม่มีอยู่ในบันไดใดเลย ทั้งของ Vuexy และของ DESIGN.md) */}
                 <span className='text-[32px] font-extrabold tabular-nums' style={{ letterSpacing: '-0.01em' }}>
-                  {`฿${ctx.totalAmount.toLocaleString('th-TH')}`}
+                  {`${formatBaht(ctx.totalAmount)}`}
                 </span>
               </div>
               {/* เลขคำสั่งซื้อ + วันที่ = หลักฐานว่าลิงก์นี้ตรงกับใบที่ร้านคุยไว้ในแชท เป็นสิ่งที่

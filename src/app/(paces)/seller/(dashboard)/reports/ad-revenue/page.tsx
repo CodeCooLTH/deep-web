@@ -186,7 +186,7 @@ export default async function AdRevenuePage({ searchParams }: { searchParams: Pr
   const covTotal = report.coverage.adOrders + report.coverage.chatOrders + report.coverage.otherOrders
   const dv = ar.dash.tabVal
   const tabValues: Record<AdRevenueTab, string | null> = {
-    summary: formatBaht(Math.round(summary.collected)),
+    summary: formatBaht(summary.collected),
     campaigns: spendOk && totalRoas !== null ? fmt(dv.campaigns, { v: fmtRoas(totalRoas) }) : null,
     quality: w.open > 0 ? fmt(dv.quality, { v: fmtPct(Math.round((w.collected / w.open) * 1000) / 10) }) : null,
     products: fmt(dv.products, { n: formatNumberNoSymbol(report.products.length) }),

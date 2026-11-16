@@ -42,13 +42,13 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
     {
       key: 'collected', title: t.collected, icon: 'wallet', iconBg: kpiBg(0), value: formatBaht(s.collected),
       badge: <DeltaBadge value={pctChangeVsPrev(s.collected, p.collected)} />,
-      sub: fmt(d.collectedSub, { p: fmtPct(s.sales > 0 ? share(s.collected, s.sales) : null), v: formatBaht(Math.round(pending)) }),
+      sub: fmt(d.collectedSub, { p: fmtPct(s.sales > 0 ? share(s.collected, s.sales) : null), v: formatBaht(pending) }),
       spark: { data: daily.map((x) => x.collected), kind: 'area', name: `${t.collected} · ${d.dailySpark}` },
     },
     {
       key: 'sales', title: t.sumSales, icon: 'cash', iconBg: kpiBg(1), value: formatBaht(s.sales),
       badge: <DeltaBadge value={pctChangeVsPrev(s.sales, p.sales)} />,
-      sub: fmt(d.salesSub, { n: formatNumberNoSymbol(s.orders), noun, v: s.avgPerOrder === null ? '—' : formatBaht(Math.round(s.avgPerOrder)) }),
+      sub: fmt(d.salesSub, { n: formatNumberNoSymbol(s.orders), noun, v: s.avgPerOrder === null ? '—' : formatBaht(s.avgPerOrder) }),
       spark: { data: daily.map((x) => x.sales), kind: 'bar', name: `${t.sumSales} · ${d.dailySpark}` },
     },
     ...(ok && s.spend !== null ? [
@@ -61,7 +61,7 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
       } satisfies KpiSpec,
       {
         key: 'profit', title: t.sumProfit, icon: 'trending-up', iconBg: kpiBg(3),
-        value: <span className={profit.value < 0 ? 'text-danger-ink' : undefined}>{profit.value < 0 ? '−' : ''}{formatBaht(Math.round(Math.abs(profit.value)))}</span>,
+        value: <span className={profit.value < 0 ? 'text-danger-ink' : undefined}>{profit.value < 0 ? '−' : ''}{formatBaht(Math.abs(profit.value))}</span>,
         sub: s.incompleteProfitOrders > 0 ? `${d.profitSub} · ${fmt(t.costIncomplete, { n: s.incompleteProfitOrders })}` : d.profitSub,
         spark: { data: daily.map((x) => x.profitBeforeAds - (x.spend ?? 0)), kind: 'area', name: `${t.sumProfit} · ${d.dailySpark}` },
       } satisfies KpiSpec,
@@ -108,7 +108,7 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
         <div className="min-w-0 xl:col-span-4">
           <DashCard title={d.funnelTitle} tip={t.includesLostNote}>
             <div className="flex flex-col gap-4">
-              {flow.map((f) => <SegRow key={f.key} label={f.label} value={formatBaht(Math.round(f.v))} pct={share(f.v, w.gross)} tone={f.tone} />)}
+              {flow.map((f) => <SegRow key={f.key} label={f.label} value={formatBaht(f.v)} pct={share(f.v, w.gross)} tone={f.tone} />)}
             </div>
           </DashCard>
         </div>
@@ -124,7 +124,7 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
                 const rs = roas(r.sales, r.spend)
                 return {
                   key: r.key, name: r.name, title: r.name, pct: maxSales > 0 ? (r.sales / maxSales) * 100 : 0,
-                  value: <span className="text-default-800 font-semibold">{formatBaht(Math.round(r.sales))}</span>,
+                  value: <span className="text-default-800 font-semibold">{formatBaht(r.sales)}</span>,
                   chip: rs === null ? undefined : <RoasChip roas={`ROAS ${fmtRoas(rs)}`} loss={r.spend === null ? null : contribution(r.profit, r.spend).value < 0} />,
                 }
               })}
@@ -134,7 +134,7 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
         <div className="min-w-0 xl:col-span-5">
           <DashCard title={d.customersFromAds} tip={fmt(t.customerDefinition, { noun })}>
             <DonutChart
-              center={d.salesTotal} centerValue={formatBaht(Math.round(custTotal))}
+              center={d.salesTotal} centerValue={formatBaht(custTotal)}
               ariaLabel={`${d.customersFromAds}: ${t.custNew} ${fmtPct(share(s.newSales, custTotal))}, ${t.custReturning} ${fmtPct(share(s.returningSales, custTotal))}, ${t.custUnknown} ${fmtPct(share(s.unknownSales, custTotal))}`}
               slices={[
                 { label: t.custNew, value: s.newSales, color: 'chart-primary' },

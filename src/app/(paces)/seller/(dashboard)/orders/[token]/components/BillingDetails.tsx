@@ -23,6 +23,7 @@ import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
 import { PAYMENT_LABELS, PAYMENT_ICONS } from '../../components/data'
 import SlipViewer from './SlipViewer'
 
+import { formatBaht } from '@/lib/format-money'
 export type BillingDetailsProps = {
   status: string
   paymentMethod: string | null
@@ -63,7 +64,7 @@ export type BillingDetailsProps = {
 }
 
 const baht = (n: number) =>
-  `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `${formatBaht(n)}`
 
 export default function BillingDetails({
   status,

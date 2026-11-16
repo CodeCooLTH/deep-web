@@ -17,7 +17,8 @@ import { formatDayMonthTimeTH, formatTimeHM } from '@/lib/format-date'
 import { capiGroupResult, capiLineSummary, type CapiDatasetResult, type CapiLineGroup, type CapiStatus } from '@/lib/meta-capi/chat-lines'
 import { cn } from '@/utils/helpers'
 
-const money = (n: number) => `฿${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+import { formatBaht } from '@/lib/format-money'
+const money = (n: number) => `${formatBaht(n)}`
 
 type Props = {
   groups: CapiLineGroup[]

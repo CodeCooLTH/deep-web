@@ -12,6 +12,7 @@ import DeleteProductButton from './DeleteProductButton'
 import { resolveProductVocab } from '@/lib/seller-menu'
 import type { ProductDetailProps } from './data'
 
+import { formatBaht } from '@/lib/format-money'
 interface Props {
   product: ProductDetailProps
   /** Shop.vertical — ผันคำ "สินค้า"/ยอดขาย (ร้านบริการ = รายการ/ใช้บริการแล้ว N ครั้ง) */
@@ -93,7 +94,7 @@ const ProductDetails = ({ product, vertical }: Props) => {
       {/* ราคา — แสดงเป็น ฿ ไม่ใช่ $ */}
       <h3 className="text-default-400 mb-7.5 flex items-center gap-3">
         <span className="text-primary text-xl font-bold">
-          ฿{price.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {formatBaht(price)}
         </span>
       </h3>
 

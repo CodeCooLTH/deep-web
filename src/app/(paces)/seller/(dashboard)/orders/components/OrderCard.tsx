@@ -45,6 +45,7 @@ import { shipmentSourceLabel } from '@/lib/shipping/provider'
 import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
+import { formatBaht } from '@/lib/format-money'
 // ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
 //    เดิมประกาศเองที่นี่ ทำให้ CANCELLED เป็นเทา (bg-default-100) ขณะที่ตารางเป็นแดง ทั้งที่
 //    DESIGN.md กำหนด Error Coral ให้ "ยกเลิก" ตรงตัว — และได้ text-{semantic}-ink ที่ผ่าน AA มาด้วย
@@ -349,7 +350,7 @@ export default function OrderCard({
                   <p className="text-2xs text-default-400">x{item.qty}</p>
                   {showMoney && item.price !== undefined && (
                     <p className="text-xs font-semibold tabular-nums text-default-900">
-                      ฿{item.price.toLocaleString('th-TH')}
+                      {formatBaht(item.price)}
                     </p>
                   )}
                 </div>
@@ -497,7 +498,7 @@ export default function OrderCard({
           <div className="min-w-0">
             {showMoney && order.total !== undefined && (
               <span className="text-base font-bold tabular-nums text-default-900">
-                ฿{order.total.toLocaleString('th-TH')}
+                {formatBaht(order.total)}
               </span>
             )}
             <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>

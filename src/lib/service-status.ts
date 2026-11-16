@@ -14,6 +14,7 @@ import { ORDER_STATUS_META, type OrderStatusTone } from './order-display'
 import { usesServiceFinanceRules } from './finance-rules'
 import { arrivalModeOf, isStoredArrivalMode, type ArrivalMode } from './arrival-mode'
 
+import { formatBaht } from '@/lib/format-money'
 /** 10 ป้ายตาม PRD + 2 สถานะหายากที่ยังต้องมีคำ (ร่างจากแชท · คืนเงินทั้งใบ) */
 export const SERVICE_STATUS_KEYS = [
   'BOOKED', // 1 จองแล้ว (มีนัด)
@@ -154,7 +155,7 @@ export function serviceStatusLabel(
   outstanding?: number | null,
 ): string {
   if (side === 'seller' && key === 'CLOSED_OUTSTANDING' && outstanding != null && outstanding > 0) {
-    return `ปิดงานแล้ว · ค้าง ฿${outstanding.toLocaleString('th-TH')}`
+    return `ปิดงานแล้ว · ค้าง ${formatBaht(outstanding)}`
   }
   // ผู้ดูที่ไม่เห็นเงิน: "ปิดงานแล้ว" เฉย ๆ ไม่อ้างว่าชำระครบ
   if (side === 'seller' && key === 'CLOSED_PAID' && outstanding == null) return 'ปิดงานแล้ว'

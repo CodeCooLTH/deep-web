@@ -27,7 +27,7 @@ export default function CoverageTab({ report, noun, campaignsHref, noticeCopy, a
 
   const kpis: KpiSpec[] = [
     { key: 'orders', title: fmt(d.covAdOrders, { noun }), icon: 'speakerphone', iconBg: kpiBg(0), value: fmtPct(share(c.adOrders, orders)), sub: fmt(d.covOfTotal, { a: formatNumberNoSymbol(c.adOrders), b: formatNumberNoSymbol(orders) }) },
-    { key: 'sales', title: d.covAdSales, icon: 'cash', iconBg: kpiBg(1), value: fmtPct(share(c.adSales, sales)), sub: fmt(d.covOfTotal, { a: formatBaht(Math.round(c.adSales)), b: formatBaht(Math.round(sales)) }) },
+    { key: 'sales', title: d.covAdSales, icon: 'cash', iconBg: kpiBg(1), value: fmtPct(share(c.adSales, sales)), sub: fmt(d.covOfTotal, { a: formatBaht(c.adSales), b: formatBaht(sales) }) },
     { key: 'chat', title: t.covChat, icon: 'message-question', iconBg: kpiBg(2), value: fmt(t.ordersCount, { n: formatNumberNoSymbol(c.chatOrders) }), sub: fmt(d.covUnknownSub, { p: fmtPct(share(c.chatOrders, orders)), noun }) },
     { key: 'meta', title: t.metaStatusTitle, icon: st === 'OK' ? 'plug-connected' : 'plug-connected-x', iconBg: kpiBg(3), value: metaLabel, sub: report.spend.accountName ?? undefined },
   ]

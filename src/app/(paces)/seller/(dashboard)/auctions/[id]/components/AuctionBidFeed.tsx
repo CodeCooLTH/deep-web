@@ -30,6 +30,7 @@ import { relativeTimeTh } from '@/lib/relative-time-th'
 import type { BidDTO } from '@/services/auction.service'
 import { toFileUrl } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 type ConnectionState = 'live' | 'reconnecting'
 
 // สี badge ต่อ bidder level (ladder feat 00002) — Paces semantic token (HR7)
@@ -138,7 +139,7 @@ export default function AuctionBidFeed({ bidHistory, bidCount, connectionState }
                     </p>
                   </div>
                   <span className="tabular-nums shrink-0 text-sm font-bold text-primary">
-                    ฿{bid.amount.toLocaleString('th-TH')}
+                    {formatBaht(bid.amount)}
                   </span>
                 </li>
               )

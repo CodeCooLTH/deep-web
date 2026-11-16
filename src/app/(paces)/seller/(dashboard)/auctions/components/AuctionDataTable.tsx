@@ -33,6 +33,7 @@ import AuctionMeta from './AuctionMeta'
 import AuctionRowMenu from './AuctionRowMenu'
 import { toFileUrl } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 const columnHelper = createColumnHelper<SellerAuctionListItemDTO>()
 
 type Props = {
@@ -76,7 +77,7 @@ export default function AuctionDataTable({ auctions, onPublishRequest, onCancelR
       header: 'ราคาปัจจุบัน',
       cell: ({ row }) => (
         <span className="tabular-nums text-sm font-semibold text-default-900">
-          ฿{row.original.currentPrice.toLocaleString('th-TH')}
+          {formatBaht(row.original.currentPrice)}
           {row.original.bidCount === 0 && (
             <span className="ms-1 text-xs font-normal text-default-400">เริ่มต้น</span>
           )}

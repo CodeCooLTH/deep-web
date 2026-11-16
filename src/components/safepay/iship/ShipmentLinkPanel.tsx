@@ -41,6 +41,7 @@ import { TONE_BADGE } from './tone'
 import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import TrackingNoticeToggle from '@/components/safepay/iship/TrackingNoticeToggle'
 
+import { formatNumberNoSymbol } from '@/lib/format-money'
 interface Props {
   /**
    * 'LINK'   — ผูกกับคำสั่งซื้อที่มีอยู่แล้ว (ต้องมี orderToken) มีขั้นเทียบที่อยู่
@@ -375,7 +376,7 @@ export default function ShipmentLinkPanel({
           />
           {selected.codAmount > 0 ? (
             <p className="mb-0 mt-1 text-xs text-default-700">
-              เติมมาจากยอดเก็บปลายทางของพัสดุ ({selected.codAmount.toLocaleString('th-TH')} บาท)
+              เติมมาจากยอดเก็บปลายทางของพัสดุ ({formatNumberNoSymbol(selected.codAmount)} บาท)
               — ยอดที่ขนส่งจะไปเก็บจริงยึดตามพัสดุ ไม่ใช่ตัวเลขนี้
             </p>
           ) : (
@@ -632,7 +633,7 @@ export default function ShipmentLinkPanel({
                   <span className="flex flex-wrap items-center gap-1.5">
                     {p.codAmount > 0 && (
                       <span className="badge bg-warning/15 text-warning-ink">
-                        COD {p.codAmount.toLocaleString('th-TH')} บาท
+                        COD {formatNumberNoSymbol(p.codAmount)} บาท
                       </span>
                     )}
                     {p.fromDeepOrphan && (

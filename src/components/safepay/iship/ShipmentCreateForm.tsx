@@ -38,6 +38,7 @@ import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
 
+import { formatBaht } from '@/lib/format-money'
 export interface Courier {
   code: string
   name: string
@@ -1030,7 +1031,7 @@ export default function ShipmentCreateForm({
                       <span className="min-w-0 flex-1 truncate text-default-700">{it.name}</span>
                       <span className="shrink-0 text-default-700">×{it.qty}</span>
                       <span className="shrink-0 font-semibold text-default-900">
-                        ฿{(it.price * it.qty).toLocaleString('th-TH')}
+                        {formatBaht((it.price * it.qty))}
                       </span>
                     </li>
                   ))}
@@ -1054,7 +1055,7 @@ export default function ShipmentCreateForm({
                 <div className="mt-2 flex items-center justify-between border-t border-dashed border-default-300 pt-2 text-sm">
                   <span className="text-default-700">รวมสินค้า {itemCount} ชิ้น</span>
                   <span className="font-semibold text-default-900">
-                    ฿{itemsSubtotal.toLocaleString('th-TH')}
+                    {formatBaht(itemsSubtotal)}
                   </span>
                 </div>
               </>
@@ -1070,7 +1071,7 @@ export default function ShipmentCreateForm({
                 <span className="h-4 w-16 animate-pulse rounded bg-default-100" />
               ) : quote ? (
                 <span className="font-semibold text-default-900">
-                  ฿{quote.totalPrice.toLocaleString('th-TH')}
+                  {formatBaht(quote.totalPrice)}
                 </span>
               ) : (
                 <span className="text-default-700">กรอกขนส่ง ขนาด และปลายทางให้ครบ</span>

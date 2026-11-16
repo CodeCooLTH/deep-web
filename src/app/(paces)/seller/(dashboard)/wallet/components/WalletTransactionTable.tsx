@@ -37,6 +37,7 @@ import {
 import { useMemo, useState } from 'react'
 import type { TransactionRow } from '../page'
 
+import { formatBaht } from '@/lib/format-money'
 // ─── type filter tabs ─────────────────────────────────────────────────────────
 const TYPE_FILTER_OPTIONS = [
   { value: 'all',    label: 'ทั้งหมด' },
@@ -98,7 +99,7 @@ const WalletTransactionTable = ({ transactions }: Props) => {
           const colorCls = type === 'TOPUP' ? 'text-success' : 'text-danger'
           return (
             <span className={cn('font-semibold tabular-nums', colorCls)}>
-              {meta.sign}฿{v.toLocaleString('th-TH')}
+              {meta.sign}{formatBaht(v)}
             </span>
           )
         },
@@ -108,7 +109,7 @@ const WalletTransactionTable = ({ transactions }: Props) => {
         header: 'คงเหลือ (฿)',
         cell: ({ getValue }) => (
           <span className="tabular-nums text-default-700">
-            ฿{getValue().toLocaleString('th-TH')}
+            {formatBaht(getValue())}
           </span>
         ),
       }),
@@ -274,10 +275,10 @@ const WalletTransactionTable = ({ transactions }: Props) => {
                 {/* trailing: จำนวน +/- + คงเหลือเล็ก ๆ */}
                 <div className="shrink-0 text-right">
                   <p className={cn('text-sm font-semibold leading-tight tabular-nums', amountColor)}>
-                    {amountSign}฿{t.amount.toLocaleString('th-TH')}
+                    {amountSign}{formatBaht(t.amount)}
                   </p>
                   <p className="text-2xs text-default-400 leading-tight tabular-nums">
-                    คงเหลือ ฿{t.balanceAfter.toLocaleString('th-TH')}
+                    คงเหลือ {formatBaht(t.balanceAfter)}
                   </p>
                 </div>
               </div>

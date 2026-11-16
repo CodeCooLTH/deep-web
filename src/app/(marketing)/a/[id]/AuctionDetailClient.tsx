@@ -54,6 +54,7 @@ import AuctionResultCard from './AuctionResultCard'
 import AuctionBidPanel from './AuctionBidPanel'
 import WinnerDialog from './WinnerDialog'
 
+import { formatBaht } from '@/lib/format-money'
 type AuctionData = PublicAuctionDTO & { bidHistory: BidDTO[] }
 
 type Props = {
@@ -127,7 +128,7 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
   useEffect(() => {
     if (prevPriceRef.current !== currentPrice) {
       if (currentPrice > prevPriceRef.current) {
-        toast.info(`ราคาอัปเดตแล้ว ฿${currentPrice.toLocaleString()}`)
+        toast.info(`ราคาอัปเดตแล้ว ${formatBaht(currentPrice)}`)
       }
       prevPriceRef.current = currentPrice
     }
@@ -387,10 +388,10 @@ export default function AuctionDetailClient({ auction, seller, isWinner, initial
               }}
             >
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                เริ่ม <Box component="b" sx={{ color: 'text.primary' }}>฿{auction.startPrice.toLocaleString()}</Box>
+                เริ่ม <Box component="b" sx={{ color: 'text.primary' }}>{formatBaht(auction.startPrice)}</Box>
               </Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                ขั้นบิด <Box component="b" sx={{ color: 'text.primary' }}>฿{auction.bidIncrement.toLocaleString()}</Box>
+                ขั้นบิด <Box component="b" sx={{ color: 'text.primary' }}>{formatBaht(auction.bidIncrement)}</Box>
               </Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                 ขั้นต่ำ <Box component="b" sx={{ color: 'text.primary' }}>{auction.hasReserve ? 'มี' : 'ไม่มี'}</Box>

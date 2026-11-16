@@ -26,6 +26,7 @@ import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import frontCommonStyles from '@views/front-pages/styles.module.css'
 import styles from './styles.module.css'
 
+import { formatBaht } from '@/lib/format-money'
 type PricingPlan = {
   title: string
   icon: string
@@ -185,14 +186,14 @@ const PricingPlan = () => {
                     </Typography>
                     <div className='flex items-baseline gap-x-1'>
                       <Typography variant='h3' color='text.primary' className='font-extrabold'>
-                        ฿{(pricingPlan === 'monthly' ? plan.monthlyPay : plan.annualPay).toLocaleString('th-TH')}
+                        {formatBaht((pricingPlan === 'monthly' ? plan.monthlyPay : plan.annualPay))}
                       </Typography>
                       <Typography color='text.disabled' className='font-medium'>
                         /เดือน
                       </Typography>
                     </div>
                     <Typography variant='body2' color='text.disabled' className='bs-[20px]'>
-                      {pricingPlan === 'annually' && plan.perYearPay > 0 ? `฿${plan.perYearPay.toLocaleString('th-TH')} / ปี` : ''}
+                      {pricingPlan === 'annually' && plan.perYearPay > 0 ? `${formatBaht(plan.perYearPay)} / ปี` : ''}
                     </Typography>
                   </div>
                   <Divider />

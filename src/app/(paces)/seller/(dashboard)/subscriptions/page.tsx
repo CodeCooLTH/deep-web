@@ -62,6 +62,7 @@ import PackageSelector from '../inventory/components/PackageSelector'
 import UpgradeToProCard from '../inventory/components/UpgradeToProCard'
 import InventoryAdvanceWarningBanner from '../inventory/components/AdvanceWarningBanner'
 
+import { formatBaht } from '@/lib/format-money'
 export const metadata: Metadata = { title: 'แพ็กเกจของฉัน' }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -128,7 +129,7 @@ function renderShopCard(shop: ShopSubscriptionRow, isActive: boolean, lockedAt: 
           </span>
           {/* walletBalance null = ผู้ไม่ใช่เจ้าของ (00071 F3) — ไม่แสดงทั้งแถว */}
           {shop.walletBalance != null && (
-            <span className="text-default-500">ยอดกระเป๋า: ฿{shop.walletBalance.toLocaleString('th-TH')}</span>
+            <span className="text-default-500">ยอดกระเป๋า: {formatBaht(shop.walletBalance)}</span>
           )}
         </div>
 
@@ -311,7 +312,7 @@ export default async function SubscriptionsPage() {
       {/* แถวยอดกระเป๋าร้านส่วนตัว — เพิ่มใหม่ตาม Design Spec §3 (Business Package หักจากกระเป๋านี้อัตโนมัติ) */}
       <div className="bg-default-50 mb-4 flex items-center justify-between px-4 py-2.5 rounded-lg text-sm">
         <span>ยอดกระเป๋าร้านส่วนตัว (หักค่าแพ็กเกจอัตโนมัติ)</span>
-        <span className="font-semibold">฿{balance.toLocaleString('th-TH')}</span>
+        <span className="font-semibold">{formatBaht(balance)}</span>
       </div>
 
       {statusApp === 'LOCKED_RENEWAL_FAILED' && subscription && currentQuotaConfig && (

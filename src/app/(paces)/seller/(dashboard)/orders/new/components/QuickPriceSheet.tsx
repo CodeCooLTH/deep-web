@@ -12,6 +12,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 
+import { formatBaht } from '@/lib/format-money'
 interface Props {
   open: boolean
   /** null = ยังไม่ตั้ง (ใช้กับ onClear) */
@@ -141,7 +142,7 @@ export default function QuickPriceSheet({
                 {qty} {unitLabel} × {clamp2(Number(raw) || 0).toLocaleString('th-TH')}
               </span>
               <span className="font-bold text-default-900 tabular-nums">
-                ฿{(clamp2(Number(raw) || 0) * qty).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                {formatBaht((clamp2(Number(raw) || 0) * qty))}
               </span>
             </p>
           )}

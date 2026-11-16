@@ -36,6 +36,7 @@ import {
 } from '@/lib/order-payment'
 import { VOID_PAYMENT_REASONS, checkPaymentAmount } from '@/lib/chat-order-actions'
 
+import { formatBaht } from '@/lib/format-money'
 /** แถวประวัติที่ `GET /api/orders/[token]/payments` คืนมา */
 interface PaymentHistoryRow {
   id: string
@@ -94,7 +95,7 @@ const METHOD_OPTIONS: { value: OrderPaymentMethod; icon: string }[] = [
 const NOTE_MAX = 200
 
 const baht = (n: number) =>
-  `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `${formatBaht(n)}`
 
 export default function RecordPaymentSheet({
   open,

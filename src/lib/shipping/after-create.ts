@@ -6,6 +6,7 @@
 
 import { flashPriceBadge } from './flash-order-ui'
 
+import { formatBaht } from '@/lib/format-money'
 export type CreateMode = 'AUTO' | 'ASK' | 'OFF'
 
 export interface AfterCreateProviders {
@@ -108,11 +109,11 @@ export function flashAskRows(f: FlashAskFacts): { label: string; value: string }
     .join(' ')
   if (place) rows.push({ label: 'ส่งไป', value: place })
   if (f.weightKg != null && f.weightKg > 0) rows.push({ label: 'น้ำหนัก', value: `${f.weightKg.toFixed(1)} กก.` })
-  if (f.cod > 0) rows.push({ label: 'เก็บเงินปลายทาง', value: `฿${f.cod.toLocaleString('th-TH')}` })
+  if (f.cod > 0) rows.push({ label: 'เก็บเงินปลายทาง', value: `${formatBaht(f.cod)}` })
   rows.push({
     label: 'ค่าส่งโดยประมาณ',
     value: f.quote
-      ? `฿${f.quote.totalBaht.toLocaleString('th-TH')} (ประมาณการ · ${flashPriceBadge(f.quote.pricingTable).label})`
+      ? `${formatBaht(f.quote.totalBaht)} (ประมาณการ · ${flashPriceBadge(f.quote.pricingTable).label})`
       : PRICE_UNKNOWN,
   })
   return rows

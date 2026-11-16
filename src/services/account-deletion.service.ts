@@ -28,6 +28,7 @@ import {
   type DeletionWarning,
 } from '@/lib/account-deletion'
 
+import { formatBaht } from '@/lib/format-money'
 /** error ที่ผู้เรียก (API route) แปลงเป็น HTTP status เอง — ไม่ throw string ดิบ */
 export class AccountDeletionError extends Error {
   constructor(public readonly code: string) {
@@ -143,7 +144,7 @@ export async function checkAccountDeletable(userId: string): Promise<DeletionPre
   if (totalBalance > 0) {
     warnings.push({
       code: 'WALLET_BALANCE',
-      message: `เครดิต SMS คงเหลือ ฿${totalBalance.toLocaleString('th-TH')} จะหายไปและขอคืนไม่ได้`,
+      message: `เครดิต SMS คงเหลือ ${formatBaht(totalBalance)} จะหายไปและขอคืนไม่ได้`,
     })
   }
 

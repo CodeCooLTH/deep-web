@@ -15,6 +15,7 @@
 
 import { isCODPayment } from "@/lib/order-display";
 
+import { formatBaht } from '@/lib/format-money'
 export type PaymentSyncAction =
   /** ไม่ต้องทำอะไร — ตรงกันอยู่แล้ว */
   | { action: "NONE" }
@@ -50,7 +51,7 @@ export function resolvePaymentSync(input: {
       from: input.orderPaymentMethod ?? null,
       codAmount: input.parcelCodAmount,
       // "เก็บเงินปลายทาง" ต้องไม่โผล่ 2 ครั้งในประโยคเดียว (ux clarify gate 2026-08-06)
-      message: `พัสดุใบนี้เก็บเงินปลายทาง ฿${input.parcelCodAmount.toLocaleString("th-TH")} — ปรับคำสั่งซื้อให้ตรงกันแล้ว`,
+      message: `พัสดุใบนี้เก็บเงินปลายทาง ${formatBaht(input.parcelCodAmount)} — ปรับคำสั่งซื้อให้ตรงกันแล้ว`,
     };
   }
   if (!parcelIsCod && orderIsCod) {

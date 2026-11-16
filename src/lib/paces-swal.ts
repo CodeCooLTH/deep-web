@@ -24,6 +24,7 @@ import {
   type ParcelCloseReason,
 } from '@/lib/parcel-close'
 
+import { formatBaht } from '@/lib/format-money'
 /**
  * โหลด sweetalert2 ตอนจะใช้จริง ไม่ใช่ตอนโหลดหน้า (Impeccable optimize 2026-08-04)
  *
@@ -512,7 +513,7 @@ function pcpResultHtml(p: ParcelClosePreviewJson, refunded: boolean | null): str
   const costText =
     cost.pendingReason === 'MISSING'
       ? 'นับเป็นต้นทุนของร้าน'
-      : `฿${cost.amount.toLocaleString('th-TH')} นับเป็นต้นทุนของร้าน`
+      : `${formatBaht(cost.amount)} นับเป็นต้นทุนของร้าน`
   const costFull = p.paymentIsCod ? `${costText} (ไม่รวมค่าธรรมเนียมเก็บเงินปลายทาง)` : costText
   const row = (label: string, value: string) =>
     `<div class="flex items-center justify-between gap-3 border-b border-dashed border-default-200 py-2 text-sm last:border-0"><span class="text-default-700">${escHtml(label)}</span><span class="text-end font-semibold text-default-900">${escHtml(value)}</span></div>`

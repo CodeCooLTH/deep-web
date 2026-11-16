@@ -38,8 +38,8 @@ export default function StatusWaterfallCard({ waterfall: w }: { waterfall: Water
         <div>
           <p className="text-default-700 mb-1 text-sm">{t.collected}</p>
           <p className="mb-0 flex flex-wrap items-baseline gap-x-2 tabular-nums">
-            <span className="text-default-900 text-2xl font-bold">{formatBaht(Math.round(w.collected))}</span>
-            <span className="text-default-700 text-sm">{fmt(t.dash.wfOfGross, { p: pct(w.collected).toFixed(1), v: formatBaht(Math.round(w.gross)) })}</span>
+            <span className="text-default-900 text-2xl font-bold">{formatBaht(w.collected)}</span>
+            <span className="text-default-700 text-sm">{fmt(t.dash.wfOfGross, { p: pct(w.collected).toFixed(1), v: formatBaht(w.gross) })}</span>
           </p>
         </div>
         <div className="flex flex-col gap-3" role="img" aria-label={fmt(t.waterfallAria, { gross: formatBaht(w.gross), collected: formatBaht(w.collected) })}>
@@ -53,7 +53,7 @@ export default function StatusWaterfallCard({ waterfall: w }: { waterfall: Water
                   {width > 0 && <span className={cn('absolute inset-y-0 rounded-md', r.bar)} style={{ insetInlineStart: `${left}%`, width: `${width}%` }} />}
                 </span>
                 <span className="col-span-3 text-end text-sm whitespace-nowrap tabular-nums">
-                  <b className="text-default-900 font-bold">{r.sign}{formatBaht(Math.round(r.amount))}</b>
+                  <b className="text-default-900 font-bold">{r.sign}{formatBaht(r.amount)}</b>
                   <span className="text-default-500 text-xs"> · {pct(r.amount).toFixed(1)}%</span>
                 </span>
               </div>

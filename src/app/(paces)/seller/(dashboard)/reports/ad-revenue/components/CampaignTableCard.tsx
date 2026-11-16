@@ -64,7 +64,7 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
     return r.name ?? r.id
   }
   // ในตารางปัดเป็นบาทเต็มให้ความกว้างหลักเท่ากัน (CSV คงทศนิยม 2 ตำแหน่ง)
-  const baht = (v: number) => (v >= 1_000_000 ? <span title={formatBaht(v)}>{formatBahtCompact(v)}</span> : formatBaht(Math.round(v)))
+  const baht = (v: number) => (v >= 1_000_000 ? <span title={formatBaht(v)}>{formatBahtCompact(v)}</span> : formatBaht(v))
   const dash = <>—<span className="sr-only">{a.noSpendSr}</span></>
   const lostPct = (r: { lost: number; placed: number }) => (r.placed > 0 ? Math.round((r.lost / r.placed) * 1000) / 10 : null)
   const roasOf = (r: { sales: number; spend: number | null }) => roas(r.sales, r.spend)
@@ -138,7 +138,7 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
       <td className="text-end tabular-nums whitespace-nowrap">{baht(tot.sales)}</td>
       <td className="text-end tabular-nums whitespace-nowrap">{baht(tot.collected)}</td>
       {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{totRoas === null ? dash : fmtRoas(totRoas)}</td>}
-      {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{totProfit === null ? dash : `${totProfit < 0 ? '−' : ''}${formatBaht(Math.round(Math.abs(totProfit)))}`}</td>}
+      {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{totProfit === null ? dash : `${totProfit < 0 ? '−' : ''}${formatBaht(Math.abs(totProfit))}`}</td>}
       <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{tot.orders > 0 ? baht(tot.sales / tot.orders) : '—'}</td>
       <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{fmtPct(lostPct(tot))}</td>
     </tr>

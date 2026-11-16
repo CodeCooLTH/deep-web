@@ -20,6 +20,7 @@ import AuctionMeta from './AuctionMeta'
 import AuctionRowMenu from './AuctionRowMenu'
 import { fileUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   auction: SellerAuctionListItemDTO
   onPublishRequest: (id: string) => void
@@ -71,7 +72,7 @@ export default function AuctionRow({ auction, onPublishRequest, onCancelRequest 
 
         {/* .auc-price: ราคาปัจจุบัน + จำนวนบิด */}
         <p className="mt-0.5 text-sm font-bold tabular-nums text-primary">
-          ฿{auction.currentPrice.toLocaleString('th-TH')}
+          {formatBaht(auction.currentPrice)}
           <span className="ms-1 text-xs font-medium text-default-400">
             {auction.bidCount > 0 ? `· ${auction.bidCount} บิด` : 'เริ่มต้น · ยังไม่มีบิด'}
           </span>

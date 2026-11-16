@@ -24,6 +24,7 @@ import { getMaxVerificationLevel } from '@/services/verification.service'
 import { getAuctionLevel, type AuctionLevel } from '@/lib/auction-level'
 import { formatOrderNo } from '@/lib/order-no'
 
+import { formatNumberNoSymbol, formatBaht } from '@/lib/format-money'
 const PAGE_SIZE = 20
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -435,7 +436,7 @@ export async function bidHistory(
   return rows.map((b) => ({
     id: b.id,
     kind: 'bid' as const,
-    text: `บิด ${Number(b.amount).toLocaleString()} บาท — ${b.auction.title}`,
+    text: `บิด ${formatNumberNoSymbol(Number(b.amount))} บาท — ${b.auction.title}`,
     atMs: b.createdAt.getTime(),
   }))
 }
@@ -574,8 +575,8 @@ export async function settleAuctionCore(
     data: {
       userId: winner.bidderId,
       kind: 'won',
-      title: 'คุณชนะการประมูล! 🎉',
-      body: `${a.title} ฿${Number(a.currentPrice).toLocaleString()} — ชำระเงินเพื่อรับสินค้า`,
+      title: 'คุณชนะการประมูล!',
+      body: `${a.title} ${formatBaht(Number(a.currentPrice))} — ชำระเงินเพื่อรับสินค้า`,
       refId: order.id,
     },
   })
@@ -602,8 +603,8 @@ async function runPostSettleHooks(info: SettledInfo): Promise<void> {
   try {
     await pushToUser(
       info.winnerId,
-      'คุณชนะการประมูล! 🎉',
-      `${info.title} ฿${info.price.toLocaleString()} — ชำระเงินเพื่อรับสินค้า`,
+      'คุณชนะการประมูล!',
+      `${info.title} ${formatBaht(info.price)} — ชำระเงินเพื่อรับสินค้า`,
       { type: 'won', orderId: info.orderId },
     )
   } catch (e) {
@@ -799,7 +800,7 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
       }
       const minNext = Number(a.currentPrice) + Number(a.bidIncrement)
       if (amount < minNext) {
-        throw new BidError(`ต้องบิดอย่างน้อย ${minNext.toLocaleString()} บาท`, 400)
+        throw new BidError(`ต้องบิดอย่างน้อย ${formatNumberNoSymbol(minNext)} บาท`, 400)
       }
     }
 
@@ -863,7 +864,7 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
           userId: prevTop.bidderId,
           kind: 'outbid',
           title: 'มีคนเสนอราคาสูงกว่า',
-          body: `${a.title} — ราคาล่าสุด ฿${amount.toLocaleString()}`,
+          body: `${a.title} — ราคาล่าสุด ${formatBaht(amount)}`,
           refId: auctionId,
         },
       })
@@ -878,7 +879,7 @@ export async function placeBid(auctionId: string, bidderId: string, amount: numb
 
   // post-commit best-effort — ห้ามให้ throw กระทบ response ของ placeBid (TFR-005/017)
   if (outbidUserId) {
-    void pushToUser(outbidUserId, 'มีคนเสนอราคาสูงกว่า', `${outbidTitle} — ฿${amount.toLocaleString()}`, {
+    void pushToUser(outbidUserId, 'มีคนเสนอราคาสูงกว่า', `${outbidTitle} — ${formatBaht(amount)}`, {
       type: 'outbid',
       auctionId,
     })

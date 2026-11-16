@@ -38,6 +38,7 @@ import {
 } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 
+import { formatBaht } from '@/lib/format-money'
 // ─── serializable row type (Date → ISO string ที่ RSC boundary) ───────────────
 export type TopUpRequestRow = {
   id: string
@@ -90,7 +91,7 @@ const TopUpRequestTable = ({ topups }: Props) => {
         header: 'จำนวน',
         cell: ({ getValue }) => (
           <span className="font-semibold tabular-nums text-default-700">
-            ฿{getValue().toLocaleString('th-TH')}
+            {formatBaht(getValue())}
           </span>
         ),
       }),
@@ -216,7 +217,7 @@ const TopUpRequestTable = ({ topups }: Props) => {
                 {/* main: จำนวน + วันที่ยื่น + หมายเหตุ (ถ้า REJECTED) */}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-ink truncate">
-                    ฿{r.amount.toLocaleString('th-TH')}
+                    {formatBaht(r.amount)}
                   </p>
                   <p className="text-xs text-default-500 truncate">{dateStr}</p>
                   {/* หมายเหตุ REJECTED แสดงบรรทัดเล็กสีแดง */}

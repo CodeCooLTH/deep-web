@@ -33,6 +33,7 @@ import { adDisplayName } from '@/lib/ad-attribution'
 import AdThumb from '@/components/safepay/AdThumb'
 import { useT } from '@/i18n/LocaleProvider'
 
+import { formatBaht } from '@/lib/format-money'
 export type OrderCardViewData = {
   token: string
   orderNo?: string | null // เลขคำสั่งซื้ออ่านง่าย DP… (user 2026-07-25) — null สำหรับข้อมูลเก่าก่อน backfill
@@ -264,7 +265,7 @@ function ShipmentSection({ data, side }: { data: OrderCardViewData; side: 'selle
               "ตกลงไว้เท่าไหร่" ห้ามใช้คำที่อ่านได้ว่าเป็นใบเสร็จ */}
           {deposit > 0 && (
             <p className="text-default-700 mb-0 mt-0.5 text-xs">
-              มัดจำที่ตกลงไว้ ฿{deposit.toLocaleString('th-TH')}
+              มัดจำที่ตกลงไว้ {formatBaht(deposit)}
             </p>
           )}
         </div>
@@ -433,7 +434,7 @@ export default function OrderCardView({
   const title = data.items[0]?.name ?? orderNoun
   // เลขคำสั่งซื้อ DP… (fallback โค้ด 8 หลักของ token สำหรับข้อมูลเก่าที่ยังไม่ backfill)
   const displayNo = data.orderNo || data.token.slice(0, 8).toUpperCase()
-  const priceLabel = `฿${Number(data.totalAmount).toLocaleString('th-TH')}`
+  const priceLabel = `${formatBaht(Number(data.totalAmount))}`
 
   const body = (
     <>
@@ -461,7 +462,7 @@ export default function OrderCardView({
               </span>
               <span className="text-default-700 min-w-0 flex-1 truncate">{it.name}</span>
               <span className="text-default-700 shrink-0 text-2xs">x{it.qty}</span>
-              <span className="text-default-800 shrink-0 font-medium">฿{Number(it.price).toLocaleString('th-TH')}</span>
+              <span className="text-default-800 shrink-0 font-medium">{formatBaht(Number(it.price))}</span>
             </div>
           ))}
         </div>

@@ -17,6 +17,7 @@ import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import type { SellerAuctionDTO } from '@/services/auction.service'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   auction: SellerAuctionDTO
 }
@@ -43,12 +44,12 @@ export default function AuctionInfoCard({ auction }: Props) {
       </div>
       <div className="card-body">
         <ul className="space-y-2.5">
-          <Row icon="trending-up" label="ขั้นบิด" value={`฿${auction.bidIncrement.toLocaleString('th-TH')}`} />
+          <Row icon="trending-up" label="ขั้นบิด" value={`${formatBaht(auction.bidIncrement)}`} />
           <Row icon="shield-lock" label="ราคาขั้นต่ำที่ยอมขาย (Reserve)" value={auction.hasReserve ? 'มี' : 'ไม่มี'} />
           <Row
             icon="bolt"
             label="ซื้อทันที"
-            value={auction.buyNowPrice != null ? `฿${auction.buyNowPrice.toLocaleString('th-TH')}` : 'ไม่มี'}
+            value={auction.buyNowPrice != null ? `${formatBaht(auction.buyNowPrice)}` : 'ไม่มี'}
           />
           <Row
             icon="player-play"

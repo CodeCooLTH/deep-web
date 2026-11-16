@@ -30,6 +30,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { formatDate } from '@/lib/format-date'
 import { useHidePayments, useShowMoneyStatus } from '@/components/paces/PaymentRestrictionProvider'
 
+import { formatBaht } from '@/lib/format-money'
 export interface LockedStateBannerProps {
   lockReason: string
   packageLockedAt: Date | string | null
@@ -111,7 +112,7 @@ export default function LockedStateBanner({
   // Base: inventory/components/ReactivateButton.tsx handleOpenDialog ทั้งฟังก์ชัน
   // (Swal preConfirm + fetch ใน flow เดียว, error ค้าง dialog ผ่าน showValidationMessage)
   const handleReactivate = async () => {
-    const priceLabel = tierPrice ? `฿${tierPrice.toLocaleString('th-TH')}` : 'ค่าแพ็กเกจ'
+    const priceLabel = tierPrice ? `${formatBaht(tierPrice)}` : 'ค่าแพ็กเกจ'
     const result = await Swal.fire({
       buttonsStyling: false,
       icon: 'question',

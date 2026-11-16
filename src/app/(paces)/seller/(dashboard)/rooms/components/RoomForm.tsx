@@ -28,6 +28,7 @@ import {
 import RoomImages from './RoomImages'
 import type { SerializedRoom } from '@/services/room.service'
 
+import { formatBaht } from '@/lib/format-money'
 /** จำนวนคืนสมมติในกล่องตัวอย่าง — 3 คืนเป็นค่าที่พบบ่อยสุดของบ้านพักพักผ่อน */
 const PREVIEW_NIGHTS = 3
 
@@ -341,10 +342,10 @@ export default function RoomForm({ room }: Props) {
               <>
                 <p className="text-default-500 text-sm">ตัวอย่าง: จอง {PREVIEW_NIGHTS} คืน</p>
                 <p className="text-default-700 mt-1 text-sm">
-                  ยอดรวม ฿{preview.total.toLocaleString('th-TH')}
+                  ยอดรวม {formatBaht(preview.total)}
                 </p>
                 <p className="text-default-800 font-medium">
-                  มัดจำที่ต้องโอน ฿{preview.deposit.toLocaleString('th-TH')}
+                  มัดจำที่ต้องโอน {formatBaht(preview.deposit)}
                 </p>
               </>
             ) : (

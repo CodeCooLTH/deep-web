@@ -9,6 +9,7 @@ import { SCAM_TYPE_LABELS, IDENTIFIER_LABELS } from '@/lib/scam-constants'
 import type { IdentifierType } from '@/lib/scam-constants'
 import ReviewActions from './ReviewActions'
 
+import { formatBaht } from '@/lib/format-money'
 export const metadata: Metadata = { title: 'ตรวจสอบรายงานมิจฉาชีพ' }
 
 type PageProps = { params: Promise<{ id: string }> }
@@ -46,7 +47,7 @@ export default async function ScamReportDetailPage({ params }: PageProps) {
             <div className="card-body grid gap-4 sm:grid-cols-2">
               <Field label="ผู้รายงาน" value={`${report.reporter.displayName} (@${report.reporter.username})`} />
               <Field label="ประเภท" value={SCAM_TYPE_LABELS[report.scamType] ?? report.scamType} />
-              <Field label="มูลค่าความเสียหาย" value={`฿${report.amountLost.toLocaleString('th-TH')}`} />
+              <Field label="มูลค่าความเสียหาย" value={`${formatBaht(report.amountLost)}`} />
               <Field label="ส่งเมื่อ" value={formatDateTime(report.createdAt)} />
               <div className="sm:col-span-2">
                 <p className="text-default-400 text-xs">รายละเอียดเหตุการณ์</p>

@@ -38,6 +38,7 @@ import type { PublicAuctionDTO } from '@/services/auction.service'
 // feature 00015 FR-OCL-10: บัญชี FB ที่ยังไม่มีเบอร์ → backend คืน 403 PHONE_NOT_VERIFIED ก่อนวางบิด/ซื้อทันที
 import BidPhoneVerifyDialog from './BidPhoneVerifyDialog'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   auctionId: string
   currentPrice: number
@@ -270,9 +271,9 @@ export default function AuctionBidPanel({
                 },
               }}
             >
-              ฿{currentPrice.toLocaleString()}
+              {formatBaht(currentPrice)}
             </Typography>
-            <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>เพิ่มครั้งละ ฿{bidIncrement.toLocaleString()}</Typography>
+            <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>เพิ่มครั้งละ {formatBaht(bidIncrement)}</Typography>
           </Box>
           <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
             <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>เหลือเวลา</Typography>
@@ -346,7 +347,7 @@ export default function AuctionBidPanel({
             ) : (
               <>
                 <Typography component="span" sx={{ fontSize: 16, fontWeight: 800, color: 'inherit' }}>
-                  {bidding ? 'กำลังส่ง...' : `บิดเลย ฿${minNext.toLocaleString()}`}
+                  {bidding ? 'กำลังส่ง...' : `บิดเลย ${formatBaht(minNext)}`}
                 </Typography>
                 {!bidding && (
                   <Typography component="span" sx={{ fontSize: 10.5, fontWeight: 500, color: 'inherit', opacity: 0.82 }}>
@@ -385,7 +386,7 @@ export default function AuctionBidPanel({
                 <Icon icon="tabler-bolt" fontSize={13} /> ซื้อทันที
               </Typography>
               <Typography component="span" sx={{ fontSize: 13, color: 'inherit' }}>
-                ฿{buyNowPrice.toLocaleString()}
+                {formatBaht(buyNowPrice)}
               </Typography>
             </Button>
           )}
@@ -396,7 +397,7 @@ export default function AuctionBidPanel({
         <DialogTitle>ยืนยันซื้อทันที</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
-            ซื้อสินค้านี้ทันทีในราคา ฿{buyNowPrice?.toLocaleString()} — การประมูลจะปิดทันทีและถือเป็นที่สิ้นสุด
+            ซื้อสินค้านี้ทันทีในราคา {buyNowPrice != null ? formatBaht(buyNowPrice) : ''} — การประมูลจะปิดทันทีและถือเป็นที่สิ้นสุด
           </Typography>
         </DialogContent>
         <DialogActions>

@@ -18,6 +18,7 @@ import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   status: 'ended' | 'unsold' | 'cancelled'
   currentPrice: number
@@ -72,7 +73,7 @@ export default function AuctionResultCard({ status, currentPrice, hasReserve, wi
           คุณชนะการประมูล!
         </Typography>
         <Typography sx={{ fontSize: 13, color: 'success.main', mt: '2px' }}>
-          ราคาสุดท้าย ฿{currentPrice.toLocaleString()}
+          ราคาสุดท้าย {formatBaht(currentPrice)}
         </Typography>
         <Link href='/orders' style={{ textDecoration: 'none' }}>
           <Button
@@ -102,7 +103,7 @@ export default function AuctionResultCard({ status, currentPrice, hasReserve, wi
         จบการประมูลแล้ว
       </Typography>
       <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: '2px' }}>
-        ผู้ชนะ {winnerDisplayName ?? 'ไม่ทราบ'} · ฿{currentPrice.toLocaleString()}
+        ผู้ชนะ {winnerDisplayName ?? 'ไม่ทราบ'} · {formatBaht(currentPrice)}
       </Typography>
     </Box>
   )
