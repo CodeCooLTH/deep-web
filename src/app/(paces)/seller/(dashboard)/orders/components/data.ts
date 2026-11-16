@@ -1,3 +1,4 @@
+import { shipmentSourceLabel } from '@/lib/shipping/provider'
 import type { OrderAdView } from '@/lib/ad-attribution'
 import type { CustomerBehavior } from '@/lib/customer-behavior'
 import type { AppointmentStatus } from '@/lib/appointments'
@@ -299,4 +300,16 @@ export type OrderStatCardData = {
   recentCount: number
   /** feature 00073 — ไอคอนแทนของสถานะ (ร้านบริการ "ปิดงานแล้ว" ใช้ช่อง SHIPPED แต่ไม่ใช่รถส่งของ) */
   icon?: string
+}
+
+/**
+ * ชื่อขนส่งที่ใช้เป็นคีย์ตัวกรอง/แสดงในคอลัมน์ — null = ใบที่ยังไม่ได้เปิดพัสดุ
+ * feature 00084 — ใช้ป้ายเดียวกับที่แสดงจริง (shipmentSourceLabel) ⇒ กรอง "Flash (บัญชีของร้านเอง)" แยกจาก "Flash ผ่าน iShip" ได้
+ */
+export function courierKeyOf(o: OrderRow): string | null {
+  const s = o.shipment
+  if (!s) return null
+  // MANUAL (ร้านแจ้งเลขเอง) ไม่มี provider ระบบ — ใช้ชื่อขนส่งตามเดิม
+  if (s.provider !== 'FLASH' && !(s.courierName ?? s.courierCode)) return null
+  return shipmentSourceLabel(s.provider === 'MANUAL' ? { courierName: s.courierName, courierCode: s.courierCode } : s)
 }

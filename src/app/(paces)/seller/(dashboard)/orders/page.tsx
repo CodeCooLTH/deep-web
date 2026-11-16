@@ -625,7 +625,6 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         buildStatCard('ยกเลิก',      'CANCELLED'),
       ]
 
-  const activeStatus = sp.status ?? 'all'
 
   return (
     <>
@@ -653,7 +652,6 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         <OrdersList
           showMoney={showMoney}
           orders={orders}
-          activeStatus={activeStatus}
           ishipEnabled={ishipEnabled}
           shippingEnabled={shippingEnabled}
           vocab={vocab}

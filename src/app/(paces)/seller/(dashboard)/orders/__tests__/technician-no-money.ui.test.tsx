@@ -56,7 +56,8 @@ const MONEY_ROW = {
 const noop = () => {}
 const tableProps = (orders: OrderRow[], extra: object = {}) => ({
   orders, vocab, vertical: 'SERVICE_QUEUE' as const, busy: { busy: false, run: (f: () => void) => f(), begin: noop, end: noop } as never,
-  search: '', appliedSearch: '', onSearchChange: noop, wholeShopMatches: 0, onClearFilters: noop, hasShippingAxis: false, ...extra,
+  search: '', appliedSearch: '', onSearchChange: noop, wholeShopMatches: 0, onClearFilters: noop, hasShippingAxis: false,
+  dateFilter: 'All', filterBar: { activeCount: 0, onOpen: noop, chips: [], onClearAll: noop }, ...extra,
 })
 
 describe('OrderCard', () => {

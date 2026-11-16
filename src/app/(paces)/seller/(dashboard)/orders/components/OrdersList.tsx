@@ -4,10 +4,10 @@
  * header: [← back] [search] [filter btn → full modal] [bell]  → sticky top
  * tabs: status filter (count badge, underline)  → primary nav
  * list: OrderCard standalone + lazy-load on scroll (IntersectionObserver, ไม่มี pagination)
- * filter modal: full-screen — order type (แทน select เดิม)
+ * filter modal: OrdersFilterModal ตัวเดียวทุกจอ (2026-11-15) — เลือกร่างแล้วกด "ใช้ตัวกรอง" · ทุกแกนอยู่ใน URL
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
- *       (tabs underline + count); modal pattern: theme/paces/.../_modal.css
+ *       (tabs underline + count); modal: OrdersFilterModal.tsx (Base: theme/paces/.../ui/modals/page.tsx)
  * SellerMobileHeader คืน null สำหรับ /orders → หน้านี้เป็นเจ้าของ header เอง
  */
 
@@ -16,10 +16,10 @@
 import Icon from '@/components/wrappers/Icon'
 import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
-import { FULFILLMENT_FILTER_KEYS, FULFILLMENT_FILTER_LABEL, type OrderRow } from './data'
+import { FULFILLMENT_FILTER_KEYS, FULFILLMENT_FILTER_LABEL, courierKeyOf, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import {
   ORDER_SEARCH_MIN_CHARS,
@@ -39,7 +39,20 @@ import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
 import ListBusyOverlay, { useListBusy } from '../../_shared/ListBusyOverlay'
-import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import OrdersFilterModal, { type FilterChoice } from './OrdersFilterModal'
+import OrdersFilterChips, { type FilterChip } from './OrdersFilterChips'
+import {
+  ORDERS_FILTER_PARAMS,
+  AD_NONE,
+  buildAdOptions,
+  countActiveFilters,
+  matchesOrdersFilters,
+  parseOrdersFilters,
+  serializeOrdersFilters,
+  type OrdersFilters,
+} from '@/lib/orders-filter'
+import { adDisplayName } from '@/lib/ad-attribution'
+import { fmt } from '@/i18n/fmt'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -49,11 +62,10 @@ import {
   APPOINTMENT_STAGE_KEYS,
   APPOINTMENT_STAGE_META,
   countAppointmentStages,
-  isAppointmentStatus,
 } from '@/lib/appointment-stage'
 import { appointmentOverlapsDay, isAppointmentDayKey } from '@/lib/appointment-day'
 import { orderItemVocab, orderStatusMetaFor, orderWord } from '@/lib/order-display'
-import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
+import { ORDER_DATE_PRESETS, isSpecificDay } from '@/lib/order-date-filter'
 import { formatDateTH } from '@/lib/format-date'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
@@ -81,14 +93,6 @@ const buildStatusTabs = (vocab: OrderVocab): { value: string; label: string }[] 
     .map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
-// ─── order type options (ใช้ใน filter modal) ────────────────────────────────
-const TYPE_OPTIONS = [
-  { value: '',         label: 'ทุกประเภท' },
-  { value: 'PHYSICAL', label: 'สินค้า' },
-  { value: 'DIGITAL',  label: 'ดิจิทัล' },
-  { value: 'SERVICE',  label: 'บริการ' },
-]
-
 const PAGE = 8 // จำนวนต่อรอบ lazy-load
 
 /**
@@ -104,7 +108,6 @@ const SEARCH_DEBOUNCE_MS = 550
 
 type Props = {
   orders: OrderRow[]
-  activeStatus: string
   /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
   ishipEnabled?: boolean
   /** iShip หรือ Flash เชื่อมอยู่ (00084) — คุมปุ่มพิมพ์ใบปะหน้าหลายใบ */
@@ -129,7 +132,6 @@ type Props = {
 
 export default function OrdersList({
   orders,
-  activeStatus,
   ishipEnabled = false,
   shippingEnabled = false,
   vocab,
@@ -156,21 +158,20 @@ export default function OrdersList({
    */
   const busy = useListBusy()
 
-  const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
-  /**
-   * ?stage= — ตัวกรองกองงานตามสถานะพัสดุ มี 2 ทางเข้า: ไทล์ "สถานะคำสั่งซื้อ" บนหน้าแรก
-   * และชิปในหน้านี้ (เพิ่ม 2026-08-04 รอบสอง — เดิมมีแต่ไทล์ซึ่งเป็น lg:hidden = เดสก์ท็อปเข้าไม่ถึงเลย)
-   *
-   * ยังคงอ่านจาก URL เป็นแหล่งเดียว ไม่ mirror เป็น state — ชิปกดแล้ว push URL แล้วค่าไหลกลับมาทางเดิม
-   * ทำให้ปุ่ม back ของเบราว์เซอร์และลิงก์จากไทล์ให้ผลตรงกันเสมอ
-   * ค่าที่ไม่รู้จักถือว่าไม่กรอง (fail-open) — ลิงก์เก่า/พิมพ์มั่วต้องไม่ทำให้หน้าว่างเปล่าโดยไม่มีคำอธิบาย
-   */
   const searchParams = useSearchParams()
-  const stageParam = searchParams.get('stage')
-  const stage =
-    stageParam && stageParam in SHIPPING_STAGE_LABEL
-      ? (stageParam as keyof typeof SHIPPING_STAGE_LABEL)
-      : null
+  /**
+   * ตัวกรองทุกแกนอ่านจาก URL ล้วน (2026-11-15: status/courier/date/type/ad ก็ย้ายเข้า URL แล้ว — รีเฟรชไม่หาย)
+   * parse ด้วย `parseOrdersFilters` ตัวเดียว — ค่าที่ไม่รู้จักถูกทิ้ง (fail-open) ไม่ throw
+   * memo ด้วยสตริง query ไม่ใช่อ็อบเจ็กต์ที่ hook คืน (docs/conventions/hook-return-identity-in-deps.md)
+   */
+  const qs = searchParams.toString()
+  const knownStatus = useMemo(
+    () => new Set(Object.keys(orderStatusMetaFor(vocab)).filter((v) => vocab.hasShippedStatus || v !== 'SHIPPED')),
+    [vocab],
+  )
+  const parsed = useMemo(() => parseOrdersFilters(new URLSearchParams(qs), { status: knownStatus }), [qs, knownStatus])
+  const stage = parsed.stage as keyof typeof SHIPPING_STAGE_LABEL | null
+  const localStatus = parsed.status ?? 'all'
   /**
    * ?appt= — แกนที่สองของร้านคิวงาน (feature 00036 FR-SOV-008, มติ D-1)
    *
@@ -178,16 +179,8 @@ export default function OrdersList({
    * ลิงก์จากที่อื่นให้ผลตรงกัน · ค่าที่ไม่รู้จัก = ไม่กรอง (fail-open) ไม่ใช่หน้าว่างเปล่า
    * ร้านหนึ่งมีแกนเสริมได้แกนเดียว (พัสดุ หรือ นัดหมาย) จึงไม่ต้องกันสองพารามิเตอร์ชนกัน
    */
-  const apptParam = searchParams.get('appt')
-  /**
-   * 'NONE' = ใบที่ไม่มีนัด (walk-in) — sentinel ที่ไม่ใช่ AppointmentStatus จริง จึง parse ที่นี่
-   * ไม่ใช่ยัดเข้า isAppointmentStatus ซึ่งเป็น SSOT ของ 5 สถานะจริงในโดเมนนัดหมาย
-   *
-   * มีอยู่เพราะชิป "ทั้งหมด" นับทุกใบ แต่ชิปที่เหลือนับเฉพาะใบที่มีนัด — จอเดียวจึงเคยโชว์
-   * "ทั้งหมด 120 · นัดแล้ว 1" แล้วไม่มีทางกดหา 119 ใบที่เหลือ ทั้งที่ตารางเขียนคำว่า
-   * "ไม่มีนัด" ให้เห็นอยู่ (ผู้ใช้เห็นคำแต่กรองไม่ได้ = เลขที่บวกไม่ลงตัวโดยไม่มีทางออก)
-   */
-  const appt = apptParam === 'NONE' || isAppointmentStatus(apptParam) ? apptParam : null
+  /** 'NONE' = ใบที่ไม่มีนัด (walk-in) · ค่าอื่น = สถานะนัดจริง — parse/validate ใน orders-filter.ts */
+  const appt = parsed.appt
   /**
    * `?apptDay=` — แกน "วันของนัด" (ทางเข้าเดียวตอนนี้คือไทล์ "นัดวันนี้" บนหน้าแรก 2026-08-10)
    *
@@ -217,22 +210,6 @@ export default function OrdersList({
   const apptDayParam = searchParams.get('apptDay')
   const apptDay = isAppointmentDayKey(apptDayParam) ? apptDayParam : null
   /**
-   * `?fulfillment=` — แกน "วิธีส่งมอบ" (feature 00062 U18, UX-Design-Spec A5) คนละแกนกับ
-   * `?stage=`/`?appt=` ข้างบนโดยสิ้นเชิง — ไม่แทนที่แถวชิป อยู่เป็น dropdown/ส่วนแยกในโมดัลเสมอ
-   *
-   * อ่านจาก URL แบบเดียวกับแกนอื่นทุกประการ (ไม่ mirror เป็น state) · ค่าที่ไม่รู้จัก = ไม่กรอง
-   * (fail-open) — 'SHIPPED' | 'PICKUP' เท่านั้นที่มีความหมาย (ดู FULFILLMENT_FILTER_KEYS ใน
-   * OrdersTable.tsx)
-   */
-  const fulfillmentParam = searchParams.get('fulfillment')
-  const fulfillment = fulfillmentParam === 'SHIPPED' || fulfillmentParam === 'PICKUP' ? fulfillmentParam : null
-  /**
-   * ตัวกรองช่วงเวลาของมือถือ (2026-08-08) — โมดัลนี้ไม่เคยมีตัวกรองวันที่เลย มีแต่ฝั่ง
-   * เดสก์ท็อป แปลว่าผู้ใช้มือถือเข้าไม่ถึงแกนนี้มาตลอด · ค่าเดียวกับที่เดสก์ท็อปใช้
-   * ('All' | preset | 'YYYY-MM-DD') และกรองด้วยฟังก์ชันตัวเดียวกัน (SSOT)
-   */
-  const [dateFilter, setDateFilter] = useState('All')
-  /**
    * คำค้น — เริ่มจาก `?q=` เพื่อให้ลิงก์ที่แชร์กันเปิดมาเจอผลเดิม และปุ่ม back ทำงาน
    *
    * 🛑 ตัว state ยังเป็นแหล่งความจริงของช่องพิมพ์ (ไม่ได้อ่าน URL ทุก render) — controlled
@@ -251,21 +228,10 @@ export default function OrdersList({
    * และ `busy.begin()` ยิงแผงโหลดทับผลลัพธ์ ⇒ จอกะพริบตลอดเวลาที่พิมพ์
    */
   const [appliedSearch, setAppliedSearch] = useState(search)
-  const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
   // ดึงพัสดุจาก iShip มาสร้างออเดอร์ (ส่วนขยาย feature 00022)
   const [importOpen, setImportOpen] = useState(false)
   const [filterOpen,  setFilterOpen]  = useState(false)
-
-  /**
-   * โมดัลตัวกรองข้างล่างเป็น overlay เต็มจอที่ประกอบเองด้วย React state จึงต้องตรึง scroll เอง
-   * (docs/conventions/overlay-scroll-lock.md) — ตกสำรวจในรอบที่ไล่ใส่ให้ 21 ใบ (01132960)
-   * ส่ง filterOpen ไม่ใช่ true ตายตัว เพราะ component นี้ถูก render ค้างไว้ตลอด ไม่ได้ mount
-   * เฉพาะตอนเปิด · แผงโหลด (ListBusyOverlay) ไม่เข้าข่ายกฎนี้: มันไม่ใช่โมดัล ไม่กินทั้งจอ และ
-   * จงใจให้เลื่อนไปกับหน้า (สปินเนอร์เป็น sticky) การตรึงหน้าไว้ 350ms ตอนกดกรองจะขวางคนที่
-   * กำลังเลื่อนอยู่มากกว่าช่วย
-   */
-  useLockBodyScroll(filterOpen)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -309,18 +275,12 @@ export default function OrdersList({
    * เขียน query ใหม่โดยคงพารามิเตอร์อีกตัวไว้เสมอ — `?status=` (สถานะการขาย) กับ `?stage=`
    * (สถานะพัสดุ) เป็นคนละแกน ใช้พร้อมกันได้ ถ้าเขียนทับกันผู้ใช้จะรู้สึกว่ากดอันหนึ่งแล้วอีกอันหลุด
    */
-  const pushQuery = (patch: {
-    status?: string | null
-    stage?: string | null
-    appt?: string | null
-    apptDay?: string | null
-    work?: string | null
-    fulfillment?: string | null
-  }) => {
+  const pushQuery = (patch: Record<string, string | string[] | null | undefined>) => {
     const next = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(patch)) {
-      if (v == null) next.delete(k)
-      else next.set(k, v)
+      next.delete(k)
+      if (Array.isArray(v)) v.forEach((x) => next.append(k, x))
+      else if (v != null) next.set(k, v)
     }
     const qs = next.toString()
     // ห่อด้วย run() — ทุกทางที่เปลี่ยน query ของหน้านี้ผ่านฟังก์ชันเดียวนี้ (ชิปมือถือ, ดรอปดาวน์
@@ -330,28 +290,23 @@ export default function OrdersList({
 
   // ─── status tab click (sync URL) ───────────────────────────────────────────
   const handleStatusTab = (value: string) => {
-    setLocalStatus(value)
     pushQuery({ status: value === 'all' ? null : value })
   }
 
-  /**
-   * ล้างตัวกรองทุกแกน แต่คงคำค้นไว้ (feature 00058) — ปุ่ม "ดูผลทั้งร้าน" ตอนผลว่าง
-   *
-   * 🛑 ต้องล้าง **ทั้ง React state และ URL** ไม่ใช่อย่างใดอย่างหนึ่ง:
-   * `localStatus`/`typeFilter`/`dateFilter` ถูก init ครั้งเดียวแล้วไม่เคย sync กลับจาก URL
-   * (ดู useState ข้างบน) ⇒ เปลี่ยนแค่ URL แล้วตัวกรองยังอยู่ครบ ผู้ใช้จะกดแล้วเจอจอว่างใบเดิม
-   * ส่วน `stage`/`appt`/`apptDay` อ่านจาก URL ล้วน ⇒ เปลี่ยนแค่ state ก็ไม่มีผลเช่นกัน
-   */
+  /** ล้างตัวกรองทุกแกน (รวม work/apptDay จากไทล์หน้าแรก) แต่คงคำค้นไว้ (feature 00058) — ทุกแกนอยู่ใน URL ที่เดียว จึงเขียน URL ครั้งเดียวพอ */
   const clearFiltersKeepSearch = () => {
-    setLocalStatus('all')
-    setTypeFilter('')
-    setDateFilter('All')
-    pushQuery({ status: null, stage: null, appt: null, apptDay: null, work: null, fulfillment: null })
+    pushQuery({ ...Object.fromEntries(ORDERS_FILTER_PARAMS.map((k) => [k, null])), work: null, apptDay: null })
   }
 
-  /** กดชิปที่เลือกอยู่ซ้ำ = ล้างตัวกรอง (ทางออกเดียวกับกากบาทบนชิป) */
-  const handleStageChip = (value: string) => {
-    pushQuery({ stage: stage === value ? null : value })
+  /** ใช้ตัวกรองทั้งชุดจากโมดัล/ชิป — เขียน URL ครั้งเดียว (เปลี่ยนตัวกรองแล้วกลับหน้า 1 โดยตารางรีเซ็ตเอง) */
+  const applyFilters = (next: OrdersFilters) => {
+    const patch: Record<string, string | string[] | null> = Object.fromEntries(ORDERS_FILTER_PARAMS.map((k) => [k, null]))
+    for (const [k, v] of serializeOrdersFilters(next)) {
+      if (k === 'ad') ((patch.ad ??= []) as string[]).push(v)
+      else patch[k] = v
+    }
+    pushQuery(patch)
+    setFilterOpen(false)
   }
 
   /**
@@ -416,20 +371,6 @@ export default function OrdersList({
     }
     return counts
   }, [dayScoped])
-
-  /** ตัวเลือกแถวโมดัลมือถือ — คำจาก FULFILLMENT_FILTER_LABEL (data.ts), ตัวเลขจาก fulfillmentCounts
-   *  ก้อนเดียวกับดรอปดาวน์เดสก์ท็อป (symbol เดียว) */
-  const fulfillmentOptions = useMemo(
-    () => [
-      { value: null as string | null, label: 'ทั้งหมด', count: dayScoped.length },
-      ...FULFILLMENT_FILTER_KEYS.map((key) => ({
-        value: key as string | null,
-        label: FULFILLMENT_FILTER_LABEL[key],
-        count: fulfillmentCounts[key] ?? 0,
-      })),
-    ],
-    [dayScoped.length, fulfillmentCounts],
-  )
 
   /**
    * ตัวนับบนชิป/ดรอปดาวน์สถานะนัด — นับจาก `orders` ก้อนเดียวกับที่กรอง ผ่านฟังก์ชันเดียวกัน
@@ -542,32 +483,46 @@ export default function OrdersList({
         }))
 
   // ─── filter pipeline ─────────────────────────────────────────────────────────
-  /**
-   * กรองด้วยแกนเสริมอย่างเดียว (พัสดุ หรือ นัดหมาย) — ตารางเดสก์ท็อปมีตัวกรอง status/ประเภท/
-   * ค้นหาของตัวเองอยู่แล้ว · ทั้งสองแกนกรองจาก field เดียวกับที่ตัวนับข้างบนนับ (BR-SOV-06)
-   */
-  const stageFiltered = useMemo(() => {
-    let list = dayScoped
-    if (stage) list = list.filter((o) => o.shippingStage === stage)
-    // 'NONE' กรองด้วยเงื่อนไขเดียวกับที่ noAppointmentCount นับ — ห้ามเขียนคนละแบบ
-    if (appt === 'NONE') list = list.filter((o) => !o.appointment)
-    else if (appt) list = list.filter((o) => o.appointment?.stage === appt)
-    // วิธีส่งมอบ (feature 00062 U18) — field เดียวกับที่ fulfillmentCounts นับ, AND กับแกนอื่น
-    if (fulfillment) list = list.filter((o) => o.fulfillmentMode === fulfillment)
-    // ขั้นงานบริการ — field เดียวกับที่ตัวนับหน้าแรกนับ (deriveServiceWorkStage), AND กับแกนอื่น
-    if (work) list = list.filter((o) => o.workStage === work)
-    return list
-  }, [dayScoped, stage, appt, fulfillment, work])
+  /** ขั้นงานบริการ (?work=) — บริบทจากไทล์หน้าแรก ไม่อยู่ในโมดัล · field เดียวกับที่ตัวนับหน้าแรกนับ (deriveServiceWorkStage) */
+  const workScoped = useMemo(
+    () => (work ? dayScoped.filter((o) => o.workStage === work) : dayScoped),
+    [dayScoped, work],
+  )
 
-  /** ทุกตัวกรองยกเว้นคำค้น — คำค้นถูกใส่เป็นชั้นสุดท้ายเสมอ (AND เกิดจากลำดับ ไม่ใช่จากเงื่อนไขซ้ำ) */
-  const preSearch = useMemo(() => {
-    let list = stageFiltered
-    if (localStatus !== 'all') list = list.filter((o) => o.status === localStatus)
-    if (typeFilter) list = list.filter((o) => o.orderType === typeFilter)
-    if (dateFilter !== 'All')
-      list = list.filter((o) => matchesOrderDateFilter(o.createdAtISO, dateFilter))
-    return list
-  }, [stageFiltered, localStatus, typeFilter, dateFilter])
+  /**
+   * ตัวเลือกขนส่งมาจากออเดอร์จริงของร้านเท่านั้น (user สั่ง 2026-08-06) — เรียงตามจำนวนที่ใช้มากไปน้อย
+   * ตัวเลขนับจากก้อนทั้งหมด ไม่ใช่ faceted ตามแกนอื่น (ตัวเลขที่ตรงกับผลอยู่ที่ปุ่ม "ใช้ตัวกรอง")
+   */
+  const courierChoices = useMemo<FilterChoice[]>(() => {
+    const count = new Map<string, number>()
+    let none = 0
+    for (const o of dayScoped) {
+      const k = courierKeyOf(o)
+      if (k) count.set(k, (count.get(k) ?? 0) + 1)
+      else none += 1
+    }
+    const sorted = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
+    return [
+      ...sorted.map(([name, n]) => ({ value: name, label: name, count: n })),
+      ...(none > 0 ? [{ value: 'NONE', label: 'ไม่มีหมายเลขพัสดุ', count: none }] : []),
+    ]
+  }, [dayScoped])
+
+  const adOptions = useMemo(() => buildAdOptions(dayScoped), [dayScoped])
+
+  /** ขนส่ง/แอดใน URL ที่ร้านไม่มี = ทิ้ง (ลิงก์เก่า/พิมพ์เอง) — ไม่ทำให้หน้าว่างด้วยชิปที่เลือกในโมดัลไม่ได้ */
+  const filters = useMemo<OrdersFilters>(() => {
+    const courier = parsed.courier && !courierChoices.some((c) => c.value === parsed.courier) ? null : parsed.courier
+    const ads = parsed.ads.filter((id) => (id === AD_NONE ? adOptions.noneCount > 0 : adOptions.ads.some((a) => a.adId === id)))
+    return courier === parsed.courier && ads.length === parsed.ads.length ? parsed : { ...parsed, courier, ads }
+  }, [parsed, courierChoices, adOptions])
+  const dateFilter = filters.date
+
+  /** ทุกตัวกรองยกเว้นคำค้น — predicate ตัวเดียวกับที่เทสใน orders-filter.test.ts · คำค้นเป็นชั้นสุดท้ายเสมอ */
+  const preSearch = useMemo(
+    () => workScoped.filter((o) => matchesOrdersFilters(o, filters, courierKeyOf)),
+    [workScoped, filters],
+  )
 
   /**
    * ผลค้นหา — `searchOrders` เป็นตัวเดียวกับที่ตารางเดสก์ท็อปเรียก (feature 00058)
@@ -602,7 +557,7 @@ export default function OrdersList({
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, appliedSearch, stage, appt, apptDay, work, dateFilter])
+  }, [filters, appliedSearch, apptDay, work])
 
   /**
    * เขียนคำค้นกลับลง URL — หน่วงหลังหยุดพิมพ์ แล้วใช้ `history.replaceState` ไม่ใช่ router
@@ -687,22 +642,76 @@ export default function OrdersList({
     }
   }
 
-  /**
-   * จุดแดงบนปุ่มตัวกรอง = "มีตัวกรองที่มองไม่เห็นบนจอเปิดอยู่" จึงนับเฉพาะแกนที่ไม่ได้อยู่บนแถวชิป
-   * แกนที่อยู่บนชิปไม่ต้องนับ เพราะชิปที่ถูกเลือกบอกตัวเองอยู่แล้ว — ถ้านับด้วยจุดแดงจะติดตลอดเวลา
-   * จนกลายเป็นสัญญาณที่ไม่มีความหมาย
-   */
-  const activeFilterCount =
-    (typeFilter ? 1 : 0) +
-    // ช่วงเวลาอยู่ในโมดัลอย่างเดียว (ไม่มีบนแถวชิป) จึงต้องนับ ไม่งั้นกรองวันแล้วรายการหด
-    // โดยไม่มีสัญญาณอะไรบนจอเลย
-    (dateFilter !== 'All' ? 1 : 0) +
-    // เงื่อนไขต้องตรงกับเงื่อนไขที่ render ส่วน "สถานะการขาย" ในโมดัลเป๊ะ (ดูข้างล่าง) —
-    // feature 00036 เปิดให้ร้านคิวงานเห็นส่วนนั้นด้วย แต่ถ้าลืมแก้บรรทัดนี้คู่กัน จะกรองแล้ว
-    // รายการหดจาก 120 เหลือ 3 โดยไม่มีสัญญาณอะไรบนจอเลยว่าเกิดจากตัวกรอง
-    ((hasStageAxis || hasAppointmentAxis) && localStatus !== 'all' ? 1 : 0) +
-    // วิธีส่งมอบ (feature 00062 U18) อยู่ในโมดัลอย่างเดียวเหมือนช่วงเวลา ไม่มีแถวชิปของตัวเอง
-    (fulfillment ? 1 : 0)
+  // ─── โมดัลตัวกรอง: ตัวเลือก + จำนวนผลลัพธ์ + ชิป ──────────────────────────────────
+  /** badge บนปุ่ม = จำนวนแกนที่เปิดอยู่ทุกแกน (โฆษณาหลายตัวนับ 1 · ไม่นับคำค้น/แถวละ N) */
+  const activeFilterCount = countActiveFilters(filters)
+  const fl = tr.ordersFilter
+
+  const statusChoices = useMemo<FilterChoice[]>(
+    () => STATUS_TABS.filter((x) => x.value !== 'all').map((x) => ({ value: x.value, label: x.label, count: statusCounts[x.value] ?? 0 })),
+    [STATUS_TABS, statusCounts],
+  )
+  const stageChoices = useMemo<FilterChoice[]>(
+    () => STAGE_CHIPS.map((k) => ({ value: k, label: SHIPPING_STAGE_LABEL[k], count: stageCounts[k] ?? 0 })),
+    [stageCounts],
+  )
+  const apptChoices = useMemo<FilterChoice[]>(
+    () => [
+      { value: 'NONE', label: 'ไม่มีนัด', count: noAppointmentCount },
+      ...APPOINTMENT_STAGE_KEYS.map((k) => ({ value: k as string, label: APPOINTMENT_STAGE_META[k].label, count: apptCounts[k] })),
+    ],
+    [noAppointmentCount, apptCounts],
+  )
+  const fulfillmentChoices = useMemo<FilterChoice[]>(
+    () => FULFILLMENT_FILTER_KEYS.map((k) => ({ value: k, label: FULFILLMENT_FILTER_LABEL[k], count: fulfillmentCounts[k] ?? 0 })),
+    [fulfillmentCounts],
+  )
+  const typeChoices = useMemo<FilterChoice[]>(() => {
+    const labels = { PHYSICAL: fl.typePhysical, DIGITAL: fl.typeDigital, SERVICE: fl.typeService } as const
+    return (Object.keys(labels) as (keyof typeof labels)[]).map((k) => ({
+      value: k,
+      label: labels[k],
+      count: dayScoped.filter((o) => o.orderType === k).length,
+    }))
+  }, [dayScoped, fl])
+
+  /** จำนวนผลลัพธ์ถ้าใช้ร่างนี้ — ข้อมูลอยู่ฝั่ง client ครบแล้ว คิดสดได้ (รวมคำค้นที่ใช้อยู่) */
+  const countFor = useCallback(
+    (f: OrdersFilters) =>
+      searchOrders(
+        workScoped.filter((o) => matchesOrdersFilters(o, f, courierKeyOf)),
+        appliedSearch,
+      ).length,
+    [workScoped, appliedSearch],
+  )
+
+  const filterChips = useMemo<FilterChip[]>(() => {
+    const out: FilterChip[] = []
+    const labelOf = (list: FilterChoice[], v: string) => list.find((c) => c.value === v)?.label ?? v
+    const add = (key: string, axis: string, value: string, clear: Partial<OrdersFilters>, extra?: Partial<FilterChip>) =>
+      out.push({ key, axis, label: `${axis}: ${value}`, onRemove: () => applyFilters({ ...filters, ...clear }), ...extra })
+    if (filters.date !== 'All')
+      add('date', fl.secDate, isSpecificDay(filters.date) ? formatDateTH(`${filters.date}T00:00:00+07:00`) : (ORDER_DATE_PRESETS as Record<string, string>)[filters.date], { date: 'All' })
+    if (filters.status) add('status', fl.secStatus, labelOf(statusChoices, filters.status), { status: null })
+    if (filters.stage) add('stage', fl.secStage, labelOf(stageChoices, filters.stage), { stage: null })
+    if (filters.appt) add('appt', fl.secAppt, labelOf(apptChoices, filters.appt), { appt: null })
+    if (filters.fulfillment) add('fulfillment', fl.secFulfillment, labelOf(fulfillmentChoices, filters.fulfillment), { fulfillment: null })
+    if (filters.courier) add('courier', fl.secCourier, labelOf(courierChoices, filters.courier), { courier: null })
+    if (filters.type) add('type', fl.secType, labelOf(typeChoices, filters.type), { type: null })
+    if (filters.ads.length === 1) {
+      const id = filters.ads[0]
+      const ad = adOptions.ads.find((a) => a.adId === id)
+      const name = id === AD_NONE ? tr.adReport.legendNotFromAd : adDisplayName(ad?.adTitle, id, tr.inbox.contextBar.adIdFallback) ?? id
+      add('ad', fl.secAds, name, { ads: [] }, ad ? { adThumb: { photoFileId: ad.adPhotoFileId } } : undefined)
+    } else if (filters.ads.length > 1) {
+      add('ad', fl.secAds, fmt(fl.adsN, { n: filters.ads.length }), { ads: [] })
+    }
+    return out
+    // applyFilters ผูกกับ pushQuery/searchParams ที่เปลี่ยนพร้อม filters อยู่แล้ว — ใส่เฉพาะที่เปลี่ยนจริง
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, fl, tr, statusChoices, stageChoices, apptChoices, fulfillmentChoices, courierChoices, typeChoices, adOptions])
+  /** มือถือมีแถวชิปแกนหลักด้านบนอยู่แล้ว (พัสดุ/นัด/สถานะการขาย) — ไม่แสดงซ้ำ */
+  const chipRowAxis = hasAppointmentAxis ? 'appt' : hasStageAxis ? 'stage' : 'status'
 
   return (
     <>
@@ -713,7 +722,14 @@ export default function OrdersList({
         <OrdersTable
           showMoney={showMoney}
           totalCount={orders.length}
-          orders={stageFiltered}
+          orders={preSearch}
+          dateFilter={dateFilter}
+          filterBar={{
+            activeCount: activeFilterCount,
+            onOpen: () => setFilterOpen(true),
+            chips: filterChips,
+            onClearAll: clearFiltersKeepSearch,
+          }}
           /* คำค้นเดียวกับมือถือ — state เดียว ผูก `?q=` เดียว ให้ผลเดียวกัน (feature 00058) */
           search={search}
           appliedSearch={appliedSearch}
@@ -724,42 +740,13 @@ export default function OrdersList({
           vocab={vocab}
           vertical={vertical}
           busy={busy}
-          stageFilter={
-            hasStageAxis
-              ? {
-                  value: stage,
-                  counts: stageCounts,
-                  onChange: (v) => pushQuery({ stage: v }),
-                }
-              : undefined
-          }
           hasShippingAxis={hasShippingAxis}
-          fulfillmentFilter={
-            // เกทด้วย hasShippingAxis ตรง ๆ ไม่ใช่ hasStageAxis (UX-Design-Spec A5: ไม่ซ่อนตามข้อมูล)
-            hasShippingAxis
-              ? {
-                  value: fulfillment,
-                  counts: fulfillmentCounts,
-                  onChange: (v) => pushQuery({ fulfillment: v }),
-                }
-              : undefined
-          }
-          appointmentFilter={
-            hasAppointmentAxis
-              ? {
-                  value: appt,
-                  // ยัด NONE เข้า counts ก้อนเดียวกับ 5 สถานะจริง เพื่อให้ดรอปดาวน์เดสก์ท็อป
-                  // อ่านตัวเลขจากที่เดียวกับชิปมือถือ (symbol เดียว — sibling-surface-parity)
-                  counts: { ...apptCounts, NONE: noAppointmentCount },
-                  onChange: (v) => pushQuery({ appt: v }),
-                }
-              : undefined
-          }
+          hasAppointmentAxis={hasAppointmentAxis}
           workFilter={
             work && workLabel
               ? {
                   label: workLabel,
-                  count: stageFiltered.length,
+                  count: workScoped.length,
                   onClear: () => pushQuery({ work: null }),
                 }
               : undefined
@@ -845,12 +832,17 @@ export default function OrdersList({
           <button
             type="button"
             onClick={() => setFilterOpen(true)}
-            aria-label="ตัวกรอง"
-            className="relative inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg border border-default-300 text-default-700"
+            aria-label={activeFilterCount > 0 ? fmt(fl.titleWithCount, { n: activeFilterCount }) : fl.title}
+            className={cn(
+              'relative inline-flex size-11 shrink-0 items-center justify-center rounded-lg border lg:size-10',
+              activeFilterCount > 0 ? 'border-primary bg-primary/10 text-primary-ink' : 'border-default-300 text-default-700',
+            )}
           >
             <Icon icon="adjustments-horizontal" className="text-lg" />
             {activeFilterCount > 0 && (
-              <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-body-bg" />
+              <span className="bg-primary ring-body-bg absolute -end-1 -top-1 inline-flex min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white tabular-nums ring-2">
+                {activeFilterCount}
+              </span>
             )}
           </button>
 
@@ -937,7 +929,7 @@ export default function OrdersList({
           <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
             <Icon icon="clipboard-check" className="text-primary shrink-0 text-base" aria-hidden="true" />
             <p className="text-primary-ink mb-0 min-w-0 flex-1 text-xs font-semibold">
-              {workLabel} {stageFiltered.length}
+              {workLabel} {workScoped.length}
             </p>
             <button
               type="button"
@@ -1030,6 +1022,13 @@ export default function OrdersList({
             </button>
           ))}
         </div>
+
+        {/* ตัวกรองที่ใช้อยู่ (นอกเหนือแกนที่อยู่บนแถวชิปด้านบนแล้ว) — เลื่อนแนวนอนบรรทัดเดียว */}
+        <OrdersFilterChips
+          scroll
+          chips={filterChips.filter((c) => c.key !== chipRowAxis)}
+          onClearAll={clearFiltersKeepSearch}
+        />
       </div>
 
       {/* ─── Order cards + lazy-load ──────────────────────────────────────────── */}
@@ -1131,205 +1130,24 @@ export default function OrdersList({
       </div>{/* /full-bleed wrapper */}
       </div>{/* /lg:hidden mobile wrapper */}
 
-      {/* ─── Filter modal (full screen) — อยู่นอก lg:hidden เพราะเป็น overlay ใช้ทุก breakpoint ───────────────────────────────────────── */}
+      {/* ─── โมดัลตัวกรอง — ตัวเดียวทุกจอ · mount เฉพาะตอนเปิด (ร่างเริ่มจากค่าที่ใช้อยู่) ─── */}
       {filterOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-card" role="dialog" aria-modal="true" aria-label="ตัวกรอง">
-          <div className="flex items-center gap-3 border-b border-default-200 px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setFilterOpen(false)}
-              aria-label="ปิด"
-              className="inline-flex size-11 shrink-0 lg:size-10 items-center justify-center rounded-lg text-default-700"
-            >
-              <Icon icon="x" className="text-xl" />
-            </button>
-            <span className="text-lg font-semibold text-default-900">ตัวกรอง</span>
-          </div>
-
-          {/* overscroll-contain: กล่อง scroll ในโมดัลที่เนื้อหายังไม่ล้นก็ chain ออกไปเลื่อนหน้า
-              ข้างหลังได้ (บั๊กชัดที่สุดตอนเนื้อหาสั้น ซึ่งเป็นกรณีปกติของโมดัลนี้) */}
-          <div className="flex-1 overflow-auto overscroll-contain p-4">
-            {/* สถานะการขาย — เฉพาะร้านที่แถวชิปถูกแกนเสริมยึดไปแล้ว (พัสดุ หรือ นัดหมาย)
-                ร้านที่ไม่มีแกนเสริมเลย แกนนี้ยังอยู่บนแถวชิป จึงไม่ต้องมีซ้ำในนี้
-                แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
-            {(hasStageAxis || hasAppointmentAxis) && (
-              <>
-                <p className="mb-2 text-sm font-medium text-default-900">สถานะการขาย</p>
-                <div className="mb-5 space-y-1">
-                  {STATUS_TABS.map((tab) => {
-                    const active = localStatus === tab.value
-                    const count = statusCounts[tab.value] ?? 0
-                    return (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={() => handleStatusTab(tab.value)}
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
-                          active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
-                        )}
-                      >
-                        <span>
-                          {tab.label}
-                          <span className="ms-1.5 tabular-nums text-default-400">{count}</span>
-                        </span>
-                        {active && <Icon icon="check" className="text-base" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* วิธีส่งมอบ (feature 00062 U18, UX-Design-Spec A5) — เกทด้วย hasShippingAxis ตรง ๆ
-                ไม่ตามข้อมูล (ร้านที่ยังไม่มีออเดอร์นัดรับเลยก็ต้องเห็นแถวนี้) โครงปุ่มเดียวกับ
-                "ประเภทออเดอร์" ข้างล่างทุกคลาส แต่ผูก `?fulfillment=` (URL) ไม่ใช่ local state
-                — pushQuery เป็นทางเดียวเหมือนดรอปดาวน์ชื่อเดียวกันบนเดสก์ท็อป (symbol เดียว) */}
-            {hasShippingAxis && (
-              <>
-                <p className="mb-2 text-sm font-medium text-default-900">วิธีส่งมอบ</p>
-                <div className="mb-5 space-y-1">
-                  {/* คำมาจาก FULFILLMENT_FILTER_LABEL (data.ts) เท่านั้น — SSOT เดียวกับดรอปดาวน์
-                      เดสก์ท็อป (HR16) · 'ทั้งหมด' ไม่ได้อยู่ใน SSOT นั้นเพราะไม่ใช่ค่าจริงของ
-                      fulfillmentMode เขียนตรงนี้ที่เดียว ไม่ใช่ค่าที่ต้องกันไม่ให้เพี้ยนข้ามจอ */}
-                  {fulfillmentOptions.map((opt) => {
-                    const active = fulfillment === opt.value
-                    return (
-                      <button
-                        key={opt.label}
-                        type="button"
-                        onClick={() => pushQuery({ fulfillment: opt.value })}
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
-                          active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
-                        )}
-                      >
-                        <span>
-                          {opt.label}
-                          <span className="ms-1.5 tabular-nums text-default-400">{opt.count}</span>
-                        </span>
-                        {active && <Icon icon="check" className="text-base" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            <p className="mb-2 text-sm font-medium text-default-900">ประเภท{orderNoun}</p>
-            <div className="space-y-1">
-              {TYPE_OPTIONS.map((opt) => {
-                const active = typeFilter === opt.value
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => busy.run(() => setTypeFilter(opt.value))}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
-                      active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
-                    )}
-                  >
-                    {opt.label}
-                    {active && <Icon icon="check" className="text-base" />}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* ช่วงเวลา — section ใหม่ 2026-08-08 (user สั่ง "เพิ่ม filter ให้ระบุวันที่ได้")
-                มือถือไม่เคยมีตัวกรองนี้เลย มีแต่ฝั่งเดสก์ท็อป · โครงปุ่มยกจาก "ประเภทออเดอร์"
-                ข้างบนทุกคลาส เพื่อให้ 3 section ในโมดัลเดียวกันอ่านเป็นชุดเดียว */}
-            <p className="mt-5 mb-2 text-sm font-medium text-default-900">ช่วงเวลา</p>
-            <div className="space-y-1">
-              {Object.entries(ORDER_DATE_PRESETS).map(([key, label]) => {
-                const active = dateFilter === key
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => busy.run(() => setDateFilter(key))}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
-                      active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
-                    )}
-                  >
-                    {label}
-                    {active && <Icon icon="check" className="text-base" />}
-                  </button>
-                )
-              })}
-
-              {/* เลือกวันเจาะจง — ช่องขยายอยู่ในหน้าเดิม ไม่เปิดชีตซ้อนชีต (โมดัลนี้เป็น
-                  fixed inset-0 อยู่แล้ว ซ้อนอีกชั้นทำให้ scroll-lock ยุ่งและไม่มี precedent)
-                  native picker เปิดที่ระดับ OS จึงไม่มีทางโดนกล่อง scroll ของโมดัลตัด */}
-              <div
-                className={cn(
-                  'rounded-lg border px-4 py-3 transition-colors',
-                  isSpecificDay(dateFilter)
-                    ? 'border-primary bg-primary/5'
-                    : 'border-default-200',
-                )}
-              >
-                <label
-                  htmlFor="orders-date-filter"
-                  className={cn(
-                    'mb-2 block text-sm',
-                    isSpecificDay(dateFilter) ? 'text-primary' : 'text-default-700',
-                  )}
-                >
-                  เลือกวันที่
-                </label>
-                <div className="input-icon-group">
-                  <Icon icon="calendar-search" className="input-icon" />
-                  <input
-                    id="orders-date-filter"
-                    type="date"
-                    className="form-input"
-                    value={isSpecificDay(dateFilter) ? dateFilter : ''}
-                    onChange={(e) => {
-                      // ว่าง = ผู้ใช้กดล้างค่าในตัว picker → กลับไป "ทั้งหมด" ไม่ใช่ค้างสถานะกำกวม
-                      busy.run(() => setDateFilter(e.target.value || 'All'))
-                    }}
-                  />
-                </div>
-                {isSpecificDay(dateFilter) && (
-                  <p className="text-default-500 mb-0 mt-2 text-xs">
-                    กรองเฉพาะวันที่ {formatDateTH(`${dateFilter}T00:00:00+07:00`)}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2 border-t border-default-200 p-4">
-            <button
-              type="button"
-              onClick={() => {
-                busy.run(() => {
-                  setTypeFilter('')
-                  setDateFilter('All')
-                })
-                // ล้างเฉพาะสิ่งที่โมดัลนี้คุม — แถวชิปด้านนอกเป็นการเลือกของผู้ใช้ที่ยังเห็นอยู่
-                // ถ้าล้างไปด้วยจะเหมือนปุ่มนี้แอบไปกดชิปแทนเขา
-                if (hasStageAxis && localStatus !== 'all') handleStatusTab('all')
-                // วิธีส่งมอบ (feature 00062 U18) อยู่ในโมดัลนี้เท่านั้น (ไม่มีแถวชิปของตัวเอง)
-                // จึงต้องล้างที่นี่ — คนละ pushQuery เพราะ URL patch อื่นข้างบนยังไม่ได้ยิง
-                if (fulfillment) pushQuery({ fulfillment: null })
-              }}
-              className="btn flex-1 border-default-300 text-default-700"
-            >
-              ล้างตัวกรอง
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterOpen(false)}
-              className="btn flex-1 bg-primary text-white hover:bg-primary-hover"
-            >
-              ดูผลลัพธ์
-            </button>
-          </div>
-        </div>
+        <OrdersFilterModal
+          applied={filters}
+          onApply={applyFilters}
+          onClose={() => setFilterOpen(false)}
+          orderNoun={orderNoun}
+          countFor={countFor}
+          status={statusChoices}
+          stage={hasStageAxis ? stageChoices : undefined}
+          appt={hasAppointmentAxis ? apptChoices : undefined}
+          // เกทด้วย hasShippingAxis ตรง ๆ ไม่ตามข้อมูล (UX-Design-Spec A5) — ร้านที่ยังไม่มีนัดรับเลยก็ต้องเห็น
+          fulfillment={hasShippingAxis ? fulfillmentChoices : undefined}
+          // ซ่อนคู่กับคอลัมน์ shipTo เสมอ — ห้ามเป็นปุ่มที่กดแล้วไม่เกิดอะไร
+          courier={hasShippingAxis && courierChoices.length > 0 ? courierChoices : undefined}
+          type={typeChoices}
+          ads={adOptions}
+        />
       )}
 
       <IShipImportModal open={importOpen} onClose={() => setImportOpen(false)} />

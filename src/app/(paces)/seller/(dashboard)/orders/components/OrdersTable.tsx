@@ -4,6 +4,9 @@
  * ใช้ DataTable + TanStack react-table ตามแบบ Paces theme
  * mobile/tablet (<lg) ใช้ OrdersList card layout เดิม (ไฟล์นี้ไม่แตะ)
  *
+ * 2026-11-15: ตัวกรองทุกแกนย้ายไปเป็นโมดัลเดียว (OrdersFilterModal) ที่ OrdersList ถือ state ใน URL —
+ * ตารางรับ `orders` ที่กรองแล้ว ไม่มี column filter ของตัวเอง · "แถวละ N" อยู่ footer ข้างเลขหน้า
+ *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
  */
 
@@ -26,9 +29,7 @@ import {
 } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
-  ColumnFiltersState,
   createColumnHelper,
-  FilterFn,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -46,9 +47,7 @@ import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import {
   PAYMENT_LABELS,
   PAYMENT_ICONS,
-  FULFILLMENT_FILTER_KEYS,
-  FULFILLMENT_FILTER_LABEL,
-  FULFILLMENT_BADGE_CLS,
+  courierKeyOf,
   type OrderItemRow,
   type OrderRow,
 } from './data'
@@ -56,18 +55,16 @@ import { formatOrderNo } from '@/lib/order-no'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import ShipmentHoverCard from './ShipmentHoverCard'
-import { shipmentSourceLabel } from '@/lib/shipping/provider'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
-import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
+import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
 import { useViewerCan } from './OrderViewerRoles'
 import OrdersExport from './OrdersExport'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
-import OrderDateFilterDropdown from './OrderDateFilterDropdown'
-import { isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
+import OrdersFilterChips, { type FilterChip } from './OrdersFilterChips'
+import { isSpecificDay } from '@/lib/order-date-filter'
 import { useRouter } from 'next/navigation'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
@@ -82,78 +79,6 @@ import { fmt } from '@/i18n/fmt'
 import { adDisplayName } from '@/lib/ad-attribution'
 import AdThumb from '@/components/safepay/AdThumb'
 
-// ─── status badge config ──────────────────────────────────────────────────────
-// อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
-// เดิมไฟล์นี้ประกาศ map ของตัวเองแล้วเพี้ยนจากที่อื่นทั้งคำและสี: SHIPPED เป็น "จัดส่งแล้ว" +
-// primary(น้ำเงิน) ขณะที่ OrderCard เป็น "กำลังจัดส่ง" + info และ SSOT เป็น info เหมือน OrderCard
-// ผลคือจอเดียวกัน (ตารางเดสก์ท็อป vs การ์ดมือถือ) พูดคนละคำคนละสีสำหรับสถานะเดียวกัน
-// เลิกประกาศซ้ำแล้วนำเข้าแทน — ได้ text-{semantic}-ink ที่ผ่านคอนทราสต์ AA มาด้วย (DESIGN.md §Status chip)
-//
-// 2026-08-06: ป้ายบนแถวเลิกอ่าน ORDER_STATUS_META ตรง ๆ แล้ว ใช้ resolveOrderStatusBadge()
-// ที่รวมสถานะพัสดุเข้ามาด้วย (ดูเหตุผลในคอมเมนต์ของฟังก์ชันนั้น) — ตัวนี้ยังเหลือไว้ให้
-// ดรอปดาวน์ "สถานะ" ข้างล่างซึ่งกรองด้วย Order.status ดิบ จึงต้องใช้คำของ status ไม่ใช่ของพัสดุ
-
-// ตัวเลือกในดรอปดาวน์ "สถานะ" — สร้างจาก SSOT ตัวเดียวกับ badge ห้ามพิมพ์คำซ้ำมือ
-// (เดิมพิมพ์เอง จึงค้างคำว่า "จัดส่งแล้ว" อยู่ในตัวกรองทั้งที่ป้ายบนแถวเปลี่ยนคำไปแล้ว)
-// ป้าย SHIPPED ผันตาม vocab (ร้านบริการไม่มีการจัดส่ง) จึงสร้างในคอมโพเนนต์ ไม่ใช่ค่าคงที่ระดับ module
-// feature 00073 — ร้านบริการไม่มีขั้น SHIPPED แล้ว (vocab.hasShippedStatus = false) ⇒ ไม่มีตัวเลือกนี้
-const buildStatusFilterOptions = (vocab: OrderVocab) => [
-  { value: 'All', label: 'ทั้งหมด' },
-  ...Object.entries(orderStatusMetaFor(vocab))
-    .filter(([value]) => vocab.hasShippedStatus || value !== 'SHIPPED')
-    .map(([value, meta]) => ({ value, label: meta.label })),
-]
-
-// ─── ตัวกรองพัสดุ (?stage=) — ลำดับ/ค่าเดียวกับ STAGE_CHIPS ใน OrdersList ────────
-const STAGE_FILTER_KEYS = [
-  // 🛑 feature 00061 — "ร่าง" อยู่ **หัวแถว** ไม่ใช่ท้ายแถว: มันคืองานที่มีเส้นตายจริง
-  // (หายไปเองใน 7 วัน) ต่างจากกองพัสดุที่รออยู่ได้เรื่อย ๆ — ของที่หายได้ต้องอยู่ในสายตาก่อน
-  'DRAFT',
-  'AWAITING_PARCEL',
-  'AWAITING_DISPATCH', // feature 00080
-  'AWAITING_PICKUP',
-  'SHIPPING',
-  'AWAITING_COD',
-  'PROBLEM',
-  'RETURNED',
-] as const satisfies readonly (keyof typeof SHIPPING_STAGE_LABEL)[]
-
-/** สี badge จำนวนต่อกองงาน — token ตามความหมายของกอง (mockup 2026-08-06) */
-const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
-  // warning ตรงกับ `ORDER_STATUS_META.DRAFTED` และ `STAGE_CHIP_CLS.DRAFT` — ใบเดียวกันสามจอ
-  DRAFT: 'bg-warning/15 text-warning-ink',
-  AWAITING_PARCEL: 'bg-warning/15 text-warning-ink',
-  AWAITING_DISPATCH: 'bg-warning/15 text-warning-ink', // ตรงกับ STAGE_BADGE_OVERRIDE (00080)
-  AWAITING_PICKUP: 'bg-default-100 text-default-700',
-  SHIPPING: 'bg-default-100 text-default-700',
-  // warning ไม่ใช่ info — ตรงกับป้าย "รอเงิน COD" บนแถว (STAGE_BADGE_OVERRIDE) และไทล์
-  // Command Center ที่เป็น warning มาตั้งแต่แรก; เดิมไฟล์นี้ตั้ง info ไว้ที่เดียวจึงเพี้ยนกับที่อื่น
-  AWAITING_COD: 'bg-warning/15 text-warning-ink',
-  PROBLEM: 'bg-danger/15 text-danger-ink',
-  // ตีกลับ = warning (ไม่ใช่ danger) — โทนเดียวกับไทล์หน้าแรกและป้ายบนแถว
-  RETURNED: 'bg-warning/15 text-warning-ink',
-}
-
-// ─── ตัวกรองวิธีส่งมอบ (?fulfillment=) — feature 00062 U18 ─────────────────────
-// คนละแกนกับ STAGE_FILTER_KEYS ข้างบน (UX-Design-Spec A5) — แสดงเฉพาะร้าน ONLINE_SALES
-// SSOT (คำ+สี) อยู่ที่ data.ts แล้ว (ใช้ร่วมกับโมดัลตัวกรองมือถือใน OrdersList.tsx — HR16)
-
-// ─── date range filter — ตรรกะอยู่ที่ src/lib/order-date-filter.ts (SSOT ร่วมกับโมดัลมือถือ) ───
-// เดิมเขียนไว้ที่ไฟล์นี้ที่เดียว แปลว่ามือถือไม่มีตัวกรองช่วงเวลาเลย · และตัดวันด้วย
-// new Date() ของเครื่องแทน thaiDayKey (บังเอิญตรงเพราะเครื่องในไทยตั้ง tz ไทย)
-const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) =>
-  matchesOrderDateFilter(row.original.createdAtISO, (selectedRange as string) ?? 'All')
-
-/** ชื่อขนส่งที่ใช้เป็นคีย์ตัวกรอง — null = ใบที่ยังไม่ได้เปิดพัสดุ */
-// feature 00084 — ใช้ป้ายเดียวกับที่แสดงจริง (shipmentSourceLabel) ⇒ กรอง "Flash (บัญชีของร้านเอง)" แยกจาก "Flash ผ่าน iShip" ได้
-function courierKeyOf(o: OrderRow): string | null {
-  const s = o.shipment
-  if (!s) return null
-  // MANUAL (ร้านแจ้งเลขเอง) ไม่มี provider ระบบ — ใช้ชื่อขนส่งตามเดิม
-  if (s.provider !== 'FLASH' && !(s.courierName ?? s.courierCode)) return null
-  return shipmentSourceLabel(s.provider === 'MANUAL' ? { courierName: s.courierName, courierCode: s.courierCode } : s)
-}
-
 const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
@@ -167,24 +92,15 @@ type Props = {
   /** ประเภทกิจการของร้าน (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก */
   vertical: ShopVertical
   /**
-   * ตัวกรองกองงานพัสดุ (?stage= — user 2026-08-06 ย้ายจากแถบชิปมาเป็น dropdown ใน toolbar)
-   * state/ตัวนับอยู่ที่ OrdersList (symbol เดียวกับชิปมือถือ — sibling-surface-parity)
-   * undefined = ร้านไม่มีแกนพัสดุ (ไม่ใช่ ONLINE_SALES) ไม่แสดง dropdown
+   * ตัวกรองทั้งชุดอยู่ที่ OrdersList (URL + โมดัลเดียว) — ตารางแค่ได้ `orders` ที่กรองแล้ว
+   * กับปุ่ม/ชิปให้วางใน toolbar · `dateFilter` ใช้เขียน empty state บอกว่ากรองวันไหนอยู่
    */
-  stageFilter?: {
-    value: string | null
-    counts: Record<string, number>
-    onChange: (value: string | null) => void
-  }
-  /**
-   * ตัวกรองวิธีส่งมอบ (`?fulfillment=` — feature 00062 U18) — โครงเดียวกับ stageFilter
-   * แต่เกทด้วย `hasShippingAxis` ตรง ๆ ไม่ใช่ `hasStageAxis`: UX-Design-Spec A5 สั่งไม่ให้
-   * ซ่อนตามข้อมูล — ร้าน ONLINE_SALES ที่ยังไม่มีออเดอร์นัดรับสักใบก็ต้องเห็น dropdown นี้อยู่
-   */
-  fulfillmentFilter?: {
-    value: string | null
-    counts: Record<string, number>
-    onChange: (value: string | null) => void
+  dateFilter: string
+  filterBar: {
+    activeCount: number
+    onOpen: () => void
+    chips: FilterChip[]
+    onClearAll: () => void
   }
   /**
    * ตัวคุมแผงโหลด — เป็นของ OrdersList เพราะ `?stage=` (ที่ toolbar นี้กด) เป็น server
@@ -195,22 +111,11 @@ type Props = {
    * ร้านนี้มีโดเมนพัสดุไหม (feature 00036 FR-SOV-001) — false = ไม่ประกอบคอลัมน์ "ที่อยู่จัดส่ง"
    * และไม่แสดงดรอปดาวน์ "ขนส่ง" ที่เกาะคอลัมน์นั้นอยู่
    *
-   * [สำคัญ] ต้องซ่อนดรอปดาวน์คู่กับคอลัมน์เสมอ ห้ามซ่อนอย่างเดียว — ตัวกรองนั้นเรียก
-   * `filterColumn('shipTo')?.setFilterValue()` ซึ่งเป็น optional chain พอคอลัมน์หายไป
-   * มันจะกลายเป็นปุ่มที่กดได้แต่ไม่เกิดอะไรเลย ไม่มี error ให้เห็น
-   * (บทเรียนเดียวกับตัวกรองช่วงเวลาที่ตายเงียบมาแล้ว — ดูคอมเมนต์ที่คอลัมน์ createdAtISO)
+   * ตัวกรอง "ขนส่ง" ในโมดัลเกทด้วยแกนนี้คู่กัน (ห้ามแสดงปุ่มที่กดแล้วไม่เกิดอะไร)
    */
   hasShippingAxis?: boolean
-  /**
-   * ตัวกรองสถานะนัดหมาย (?appt= — feature 00036 FR-SOV-008) — แกนที่สองของร้านคิวงาน
-   * โครงเดียวกับ stageFilter ทุกประการ state/ตัวนับอยู่ที่ OrdersList (symbol เดียวกับชิปมือถือ)
-   * undefined = ร้านไม่มีนัดสักใบ ไม่แสดง dropdown
-   */
-  appointmentFilter?: {
-    value: string | null
-    counts: Record<string, number>
-    onChange: (value: string | null) => void
-  }
+  /** ร้านมีแกนนัดหมาย (คิวงาน) — ประกอบคอลัมน์ "นัดหมาย" แทนที่อยู่จัดส่ง */
+  hasAppointmentAxis?: boolean
   /**
    * `?apptDay=today` เปิดอยู่ไหม (feature 00024 ส่วนขยาย 2026-08-10) — undefined = ไม่ได้กรอง
    *
@@ -244,7 +149,7 @@ type Props = {
   onSearchChange: (value: string) => void
   /** จำนวนใบที่ตรงคำค้นในทั้งร้าน — ใช้เขียน empty state ที่บอกทางออก */
   wholeShopMatches: number
-  /** ล้างตัวกรองทุกแกนแต่คงคำค้น — ฝั่งนี้ต้องล้าง columnFilters ของ TanStack เพิ่มเอง */
+  /** ล้างตัวกรองทุกแกนแต่คงคำค้น */
   onClearFilters: () => void
   /**
    * false (ค่าตั้งต้น) = ผู้ดูระดับเงิน NONE (ช่าง) — ไม่มีคอลัมน์ชำระเงิน/ยอด, ไม่มีราคาต่อหน่วย, ไม่มีขั้นรับเงินในเช็กลิสต์,
@@ -258,11 +163,11 @@ export default function OrdersTable({
   shippingEnabled = false,
   vocab,
   vertical,
-  stageFilter,
-  fulfillmentFilter,
+  dateFilter,
+  filterBar,
   busy,
   hasShippingAxis = true,
-  appointmentFilter,
+  hasAppointmentAxis = false,
   apptDayFilter,
   workFilter,
   search,
@@ -278,46 +183,13 @@ export default function OrdersTable({
   const canCreate = useViewerCan('O2s')
   const canOpenChat = useViewerCan('H1')
   const router = useRouter()
-  const statusFilterOptions = useMemo(() => buildStatusFilterOptions(vocab), [vocab])
   // คำเรียกของที่ขาย/หน่วยนับ — เฉพาะร้านบริการที่เปลี่ยน (SSOT: PRODUCT_VOCAB ผ่าน orderItemVocab)
   const itemVocab = orderItemVocab(vertical)
   const isService = vertical === 'SERVICE_QUEUE'
   const orderNoun = orderWord(vertical, vocab)
   const [sorting,        setSorting]        = useState<SortingState>([])
-  const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
   const [rowSelection,   setRowSelection]   = useState<RowSelectionState>({})
-
-  // ตัวเลือกขนส่งมาจากออเดอร์จริงของร้านเท่านั้น (user สั่ง 2026-08-06) — ไม่ใช่รายชื่อ
-  // ขนส่งทั้งหมดของ iShip ซึ่งมี 17 รายการ ส่วนใหญ่ร้านไม่เคยใช้ · เรียงตามจำนวนที่ใช้
-  // มากไปน้อย ของที่ใช้บ่อยจะอยู่บนสุดโดยไม่ต้องเลื่อนหา
-  const courierOptions = useMemo(() => {
-    const count = new Map<string, number>()
-    let none = 0
-    for (const o of orders) {
-      const k = courierKeyOf(o)
-      if (k) count.set(k, (count.get(k) ?? 0) + 1)
-      else none += 1
-    }
-    const sorted = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
-    return [
-      { value: 'All', label: 'ทั้งหมด' },
-      ...sorted.map(([name, n]) => ({
-        value: name,
-        label: name,
-        badge: { label: n, className: 'bg-default-100 text-default-700' },
-      })),
-      ...(none > 0
-        ? [
-            {
-              value: 'NONE',
-              label: 'ไม่มีหมายเลขพัสดุ',
-              badge: { label: none, className: 'bg-warning/15 text-warning-ink' },
-            },
-          ]
-        : []),
-    ]
-  }, [orders])
 
   // buyer base URL — resolve client-side ครั้งเดียว (กัน hydration mismatch) สำหรับ copy ลิงก์กลุ่ม
   const [buyerBaseUrl, setBuyerBaseUrl] = useState('')
@@ -587,15 +459,6 @@ export default function OrdersTable({
       id: 'shipTo',
       header: 'ที่อยู่จัดส่ง',
       enableSorting: false,
-      // ตัวกรอง "ขนส่ง" เกาะคอลัมน์นี้เพราะข้อมูลขนส่งอยู่ในเซลล์นี้ (บล็อก "จัดส่งโดย")
-      // เทียบด้วยชื่อที่แสดงจริง ไม่ใช่ courierCode — dropdown จริงของ iShip มี 17 รายการ
-      // ที่เป็นแพ็กเกจของ 9 แบรนด์ (lib/iship/courier.ts) ร้านคิดเป็น "แบรนด์" ไม่ใช่รหัส
-      enableColumnFilter: true,
-      filterFn: ((row, _id, value) => {
-        if (!value || value === 'All') return true
-        if (value === 'NONE') return !courierKeyOf(row.original)
-        return courierKeyOf(row.original) === value
-      }) as FilterFn<OrderRow>,
       meta: { cellClassName: 'min-w-56 align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => {
         const a = row.original.shipTo
@@ -719,7 +582,7 @@ export default function OrdersTable({
     //   (ข้อความหลายบรรทัด + เส้นประคั่น + บล็อกท้าย) สลับแค่เนื้อหา
     //   แสดงเมื่อร้านมีนัดจริงเท่านั้น — ตัวชี้วัดตัวเดียวกับที่ชิปมือถือใช้ (appointmentFilter
     //   จะเป็น undefined เมื่อ hasAppointmentAxis=false ที่ OrdersList)
-    ...(!appointmentFilter ? [] : [{
+    ...(!hasAppointmentAxis ? [] : [{
       id: 'appointment',
       header: 'นัดหมาย',
       enableSorting: false,
@@ -811,8 +674,6 @@ export default function OrdersTable({
     //   ให้ครบทุกใบเท่ากับสร้างงานค้างปลอม
     columnHelper.accessor('status', {
       header: 'สถานะ',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
       meta: { cellClassName: 'min-w-40 align-top' },
       cell: ({ row }) => {
         const o = row.original
@@ -883,20 +744,6 @@ export default function OrdersTable({
       },
     }),
 
-    // ─ วันที่/เวลา — คอลัมน์ซ่อน มีไว้ให้ตัวกรอง "ช่วงเวลา" เกาะเท่านั้น ─
-    //   วันที่ย้ายไปแสดงบนแถบหัวกลุ่ม (groupRow) ตอนทำตารางแบบจัดกลุ่ม 2026-08-06 แล้ว
-    //   คอลัมน์นี้ถูกลบไปด้วย — แต่ dropdown ยังยิง table.getColumn('createdAtISO')
-    //   ซึ่งคืน undefined ทำให้ `?.setFilterValue()` เป็น no-op เงียบ ๆ (ตัวกรองวันที่
-    //   จึงไม่ทำงานเลยตั้งแต่วันนั้น) · ตัวกรองของ TanStack ไม่สนใจ visibility
-    //   คอลัมน์ที่ซ่อนอยู่ยังกรองได้ปกติ จึงเอาคอลัมน์กลับมาแบบไม่แสดงผล
-    columnHelper.accessor('createdAtISO', {
-      header: 'วันที่/เวลา',
-      filterFn: dateRangeFilterFn,
-      enableColumnFilter: true,
-      enableSorting: false,
-      cell: () => null,
-    }),
-
     // ─ ดำเนินการ ─
     // w-36 ไม่ใช่ w-px: `w-px` = "หดพอดีเนื้อหา" ซึ่ง grid คำนวณ min-content คนละแบบกับ
     // inline-flex คอลัมน์เลยยุบจนปุ่มล้น (เจอจริงบน prod 2026-08-06)
@@ -913,9 +760,7 @@ export default function OrdersTable({
   const table = useReactTable({
     data: tableData,
     columns,
-    state: { sorting, columnFilters, pagination, rowSelection },
-    // createdAtISO = คอลัมน์กรองอย่างเดียว ไม่ต้องโผล่เป็นคอลัมน์จริง (วันที่อยู่บนแถบหัวกลุ่ม)
-    initialState: { columnVisibility: { createdAtISO: false } },
+    state: { sorting, pagination, rowSelection },
     /**
      * เรียงลำดับ / ตัวกรองคอลัมน์ / เปลี่ยนหน้า+จำนวนแถว ผ่าน callback ของ table ทุกทาง
      * (หัวคอลัมน์ที่กดเรียง, ทุก FilterDropdown ใน toolbar, ปุ่ม pagination, "แถวละ N")
@@ -925,36 +770,14 @@ export default function OrdersTable({
      * คำค้นไม่ห่อ: ช่องค้นหาเป็น controlled input ที่ต้องพิมพ์ลื่น (ดู onChange ข้างล่าง)
      */
     onSortingChange: (updater) => busy.run(() => setSorting(updater)),
-    onColumnFiltersChange: (updater) => busy.run(() => setColumnFilters(updater)),
     onPaginationChange: (updater) => busy.run(() => setPagination(updater)),
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    enableColumnFilters: true,
     enableRowSelection: showMoney,
-    filterFns: {
-      dateRange: dateRangeFilterFn,
-    },
   })
-
-  /**
-   * ตัวกรองใน toolbar ผูกกับคอลัมน์ด้วย "ชื่อ" — พอคอลัมน์ถูกลบหรือเปลี่ยนชื่อ
-   * `table.getColumn(id)?.setFilterValue()` จะกลายเป็น no-op เงียบ ๆ ตัวกรองตายทั้งตัว
-   * โดยไม่มี error ให้เห็นเลย (เกิดจริงกับ 'createdAtISO' — ตัวกรองช่วงเวลาไม่ทำงาน
-   * ตั้งแต่ 2026-08-06 จนผู้ใช้มาเจอเอง) จึงให้มันดังตอน dev แทนที่จะเงียบ
-   */
-  /** ค่าตัวกรองช่วงเวลาที่ใช้อยู่ — อ่านผ่าน filterColumn เพื่อให้เตือนดังถ้าคอลัมน์หาย */
-  const dateFilterValue = (table.getColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'
-
-  const filterColumn = (id: string) => {
-    const column = table.getColumn(id)
-    if (!column && process.env.NODE_ENV !== 'production') {
-      console.error(`[OrdersTable] ตัวกรองอ้างคอลัมน์ "${id}" ที่ไม่มีในตาราง — ตัวกรองนี้จะไม่ทำงาน`)
-    }
-    return column
-  }
 
   const pageIndex  = table.getState().pagination.pageIndex
   const pageSize   = table.getState().pagination.pageSize
@@ -1061,133 +884,27 @@ export default function OrdersTable({
             </span>
           )}
 
-          {/* สถานะ */}
-          <FilterDropdown
-            icon="truck"
-            defaultLabel="สถานะ"
-            resetValue="All"
-            value={(filterColumn('status')?.getFilterValue() as string) ?? 'All'}
-            options={statusFilterOptions}
-            onChange={(v) => {
-              filterColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
-              table.setPageIndex(0)
-            }}
-          />
-
-          {/* พัสดุ (?stage= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ) */}
-          {stageFilter && (
-            <FilterDropdown
-              icon="package"
-              defaultLabel="พัสดุ"
-              resetValue="All"
-              value={stageFilter.value ?? 'All'}
-              options={[
-                { value: 'All', label: 'ทั้งหมด' },
-                ...STAGE_FILTER_KEYS.map((key) => ({
-                  value: key,
-                  label: SHIPPING_STAGE_LABEL[key],
-                  badge: {
-                    label: stageFilter.counts[key] ?? 0,
-                    className: STAGE_BADGE_CLS[key],
-                  },
-                })),
-              ]}
-              onChange={(v) => stageFilter.onChange(v === 'All' ? null : v)}
-            />
-          )}
-
-          {/* วิธีส่งมอบ (?fulfillment= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ,
-              feature 00062 U18) — คนละแกนกับ "พัสดุ" ข้างบน (UX-Design-Spec A5) เกทด้วย
-              hasShippingAxis ตรง ๆ ไม่ตามข้อมูล: ร้านที่ยังไม่มีออเดอร์นัดรับเลยก็ต้องเห็น */}
-          {fulfillmentFilter && (
-            <FilterDropdown
-              icon="building-store"
-              defaultLabel="วิธีส่งมอบ"
-              resetValue="All"
-              value={fulfillmentFilter.value ?? 'All'}
-              options={[
-                { value: 'All', label: 'ทั้งหมด' },
-                ...FULFILLMENT_FILTER_KEYS.map((key) => ({
-                  value: key,
-                  label: FULFILLMENT_FILTER_LABEL[key],
-                  badge: {
-                    label: fulfillmentFilter.counts[key] ?? 0,
-                    className: FULFILLMENT_BADGE_CLS[key],
-                  },
-                })),
-              ]}
-              onChange={(v) => fulfillmentFilter.onChange(v === 'All' ? null : v)}
-            />
-          )}
-
-          {/* สถานะนัด (?appt= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ, feature 00036)
-              โครงยกจากดรอปดาวน์ "พัสดุ" ข้างบนทั้งดุ้น เปลี่ยนแค่แหล่งข้อมูล */}
-          {appointmentFilter && (
-            <FilterDropdown
-              icon="calendar-event"
-              defaultLabel="สถานะนัด"
-              resetValue="All"
-              value={appointmentFilter.value ?? 'All'}
-              options={[
-                { value: 'All', label: 'ทั้งหมด' },
-                /* ลำดับ + คำ + ตัวเลข ต้องตรงกับชิปมือถือใน OrdersList เป๊ะ (symbol เดียว)
-                   badge เทากลาง ไม่ใช่สี semantic — "ไม่มีนัด" เป็นคนละหมวดกับ 5 สถานะ
-                   ที่เป็นจุดบนเส้นทางของนัด ไม่ใช่ขั้นหนึ่งในนั้น */
-                {
-                  value: 'NONE',
-                  label: 'ไม่มีนัด',
-                  badge: {
-                    label: appointmentFilter.counts.NONE ?? 0,
-                    className: 'bg-default-100 text-default-700',
-                  },
-                },
-                ...APPOINTMENT_STAGE_KEYS.map((key) => ({
-                  value: key,
-                  label: APPOINTMENT_STAGE_META[key].label,
-                  badge: {
-                    label: appointmentFilter.counts[key] ?? 0,
-                    className: APPOINTMENT_STAGE_META[key].cls,
-                  },
-                })),
-              ]}
-              onChange={(v) => appointmentFilter.onChange(v === 'All' ? null : v)}
-            />
-          )}
-
-          {/* ขนส่ง — ตัวเลือกมาจากออเดอร์จริงของร้าน (user สั่ง 2026-08-06)
-              hasShippingAxis: ต้องซ่อนคู่กับคอลัมน์ shipTo เสมอ ไม่งั้นกลายเป็นปุ่มที่กดแล้ว
-              ไม่เกิดอะไร (getColumn คืน undefined + optional chain = no-op เงียบ) */}
-          {hasShippingAxis && courierOptions.length > 1 && (
-            <FilterDropdown
-              icon="truck-delivery"
-              defaultLabel="ขนส่ง"
-              resetValue="All"
-              value={(filterColumn('shipTo')?.getFilterValue() as string) ?? 'All'}
-              options={courierOptions}
-              onChange={(v) => {
-                filterColumn('shipTo')?.setFilterValue(v === 'All' ? undefined : v)
-                table.setPageIndex(0)
-              }}
-            />
-          )}
-
-          {/* ช่วงเวลา — ตัวเดียวในแถบนี้ที่ไม่ใช่ FilterDropdown เพราะมีโหมดเลือกวันเจาะจง
-              (ดูเหตุผลที่หัวไฟล์ OrderDateFilterDropdown ว่าทำไมไม่ยัดเข้า FilterDropdown) */}
-          <OrderDateFilterDropdown
-            value={(filterColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
-            onChange={(v) => {
-              filterColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
-              table.setPageIndex(0)
-            }}
-          />
-
-          {/* page size — "แถวละ N" ไม่ใช่เลขเปล่า ๆ (mockup 2026-08-06: "10" เดาไม่ออกว่าคืออะไร) */}
-          <FilterDropdown
-            align="right"
-            value={String(pageSize)}
-            options={[5, 10, 15, 20].map((n) => ({ value: String(n), label: `แถวละ ${n}` }))}
-            onChange={(v) => table.setPageSize(Number(v))}
-          />
+          {/* ตัวกรอง — ปุ่มเดียวเปิดโมดัลตัวเดียวกับมือถือ (user 2026-11-15) · badge = จำนวนแกนที่เปิดอยู่
+              (โฆษณาหลายตัวนับ 1 · ไม่นับคำค้น/แถวละ N) · Base: theme/paces/.../ui/buttons + ui/badges */}
+          <button
+            type="button"
+            onClick={filterBar.onOpen}
+            aria-label={filterBar.activeCount > 0 ? fmt(t.ordersFilter.titleWithCount, { n: filterBar.activeCount }) : t.ordersFilter.title}
+            className={cn(
+              'btn gap-1.5 border',
+              filterBar.activeCount > 0
+                ? 'border-primary bg-primary/10 text-primary-ink'
+                : 'border-default-300 text-default-700',
+            )}
+          >
+            <Icon icon="adjustments-horizontal" className="text-base" aria-hidden="true" />
+            {t.ordersFilter.title}
+            {filterBar.activeCount > 0 && (
+              <span className="bg-primary inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white tabular-nums">
+                {filterBar.activeCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* ขวา: เส้นคั่นบางแยกโซนตัวกรองออกจาก action + สร้างออเดอร์ */}
@@ -1211,6 +928,12 @@ export default function OrdersTable({
           )}
         </div>
       </div>
+
+      {filterBar.chips.length > 0 && (
+        <div className="border-default-200 border-b px-4 pb-3">
+          <OrdersFilterChips chips={filterBar.chips} onClearAll={filterBar.onClearAll} trailing={`${totalItems.toLocaleString('th-TH')} / ${totalCount.toLocaleString('th-TH')} ${orderNoun}`} />
+        </div>
+      )}
 
       {/* ─── DataTable + pagination (= พื้นที่ผลลัพธ์) ───────────────────────────
           relative = กล่องอ้างอิงของแผงโหลด · ครอบถึง footer ด้วยเพราะปุ่มเปลี่ยนหน้าก็เป็น
@@ -1243,7 +966,6 @@ export default function OrdersTable({
                       label: `ดูผลทั้งร้าน (${wholeShopMatches.toLocaleString('th-TH')})`,
                       onClick: () => {
                         // ตัวกรองของตารางอยู่ใน TanStack ไม่ใช่ที่ OrdersList — ต้องล้างทั้งสองที่
-                        setColumnFilters([])
                         table.setPageIndex(0)
                         onClearFilters()
                       },
@@ -1251,8 +973,8 @@ export default function OrdersTable({
                   : undefined
               }
             />
-          ) : isSpecificDay(dateFilterValue) ? (
-            `ไม่พบ${orderNoun}วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
+          ) : isSpecificDay(dateFilter) ? (
+            `ไม่พบ${orderNoun}วันที่ ${formatDateTH(`${dateFilter}T00:00:00+07:00`)}`
           ) : (
             `ไม่พบ${orderNoun}`
           )
@@ -1358,20 +1080,31 @@ export default function OrdersTable({
       {/* ─── pagination ──────────────────────────────────────────────────────── */}
       {table.getRowModel().rows.length > 0 && (
         <div className="card-footer">
+          {/* แถวละ N — ไม่ใช่ตัวกรอง (ไม่เปลี่ยนว่าใบไหนเข้าเกณฑ์) จึงอยู่ข้างเลขหน้า ไม่นับ badge ไม่ถูกปุ่ม "ล้าง" ล้าง */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
           <TablePagination
-            totalItems={totalItems}
-            start={start}
-            end={end}
-            itemsName={orderNoun}
-            showInfo
-            previousPage={table.previousPage}
-            canPreviousPage={table.getCanPreviousPage()}
-            pageCount={table.getPageCount()}
-            pageIndex={table.getState().pagination.pageIndex}
-            setPageIndex={table.setPageIndex}
-            nextPage={table.nextPage}
-            canNextPage={table.getCanNextPage()}
-          />
+                totalItems={totalItems}
+                start={start}
+                end={end}
+                itemsName={orderNoun}
+                showInfo
+                previousPage={table.previousPage}
+                canPreviousPage={table.getCanPreviousPage()}
+                pageCount={table.getPageCount()}
+                pageIndex={table.getState().pagination.pageIndex}
+                setPageIndex={table.setPageIndex}
+                nextPage={table.nextPage}
+                canNextPage={table.getCanNextPage()}
+              />
+            </div>
+            <FilterDropdown
+              align="right"
+              value={String(pageSize)}
+              options={[5, 10, 15, 20].map((n) => ({ value: String(n), label: fmt(t.ordersFilter.rowsPerPage, { n }) }))}
+              onChange={(v) => table.setPageSize(Number(v))}
+            />
+          </div>
         </div>
       )}
 
