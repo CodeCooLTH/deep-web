@@ -56,6 +56,13 @@ export function mapIShipError(err: unknown): NextResponse {
   }
 
   if (err instanceof IShipError) {
+    // ข้อความดิบไม่ออกไปถึงร้าน แต่ต้องเหลือใน log — เคส DP256911438244CA (2026-11-16) traces/cancel
+    // 502 ติดกัน 6 นาทีโดยไม่มีใครรู้ว่า iShip ตอบอะไร (upstreamMessage ถูก redact token แล้วที่ client)
+    console.warn("[iship] upstream error", {
+      code: err.code,
+      httpStatus: err.httpStatus,
+      upstreamMessage: err.upstreamMessage,
+    });
     return ishipJson(
       { error: { code: err.code, message: err.userMessage, retryable: err.retryable } },
       UPSTREAM_STATUS[err.code] ?? 502,

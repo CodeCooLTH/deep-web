@@ -386,7 +386,7 @@
     "src/components/safepay/iship/ShipmentCreateForm.tsx": "81e32a7cb2ef9518",
     "src/components/safepay/iship/ShipmentLinkPanel.tsx": "93beb07758524867",
     "src/components/safepay/iship/ShipmentRail.tsx": "1a45f4b46c348720",
-    "src/components/safepay/iship/ShipmentStatusView.tsx": "ee1c5857af71b99b",
+    "src/components/safepay/iship/ShipmentStatusView.tsx": "2a29d496590a31b3",
     "src/components/safepay/iship/TrackingNoticeToggle.tsx": "c32782ff8777c5f2",
     "src/components/safepay/iship/iship-shop-context.tsx": "1150758a38778f7d",
     "src/components/safepay/iship/payment-notice-toast.ts": "acf6133a2efb4788",
