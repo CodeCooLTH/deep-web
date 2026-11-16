@@ -84,11 +84,11 @@ export default async function AdQualityPage({ searchParams }: { searchParams: Pr
   // ?ad= ใช้กับการ์ด ④ เท่านั้น — ตัวเลขล้วน (เข้า filtering ของ Graph)
   const rawAd = sp.ad && /^\d{1,30}$/.test(sp.ad) ? sp.ad : null
 
-  let deep, channels: { id: string; name: string; provider: string }[]
+  let deep, channels: { id: string; name: string; provider: string; avatarUrl: string | null }[]
   try {
     ;[deep, channels] = await Promise.all([
       getQualityDeepSide(shop.id, { from: q.filters.from, to: q.filters.to, shopChannelId: q.filters.shopChannelId }),
-      prisma.shopChannel.findMany({ where: { shopId: shop.id }, select: { id: true, name: true, provider: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.shopChannel.findMany({ where: { shopId: shop.id }, select: { id: true, name: true, provider: true, avatarUrl: true }, orderBy: { createdAt: 'asc' } }),
     ])
   } catch (e) {
     // ฐานล่มต้องไม่หน้าตาเหมือน "ร้านนี้ไม่มีข้อมูลโฆษณา"

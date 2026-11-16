@@ -175,7 +175,7 @@ export function buildCompareBars(rows: QualityRow[], metaOk: boolean, top = 8) {
     .filter((r) => (metaOk ? (r.chatsMeta ?? 0) > 0 || r.chatsDeep > 0 : r.chatsDeep > 0))
     .sort((a, b) => key(b) - key(a) || b.chatsDeep - a.chatsDeep)
     .slice(0, top)
-    .map((r) => ({ adId: r.adId, title: r.title, chatsMeta: r.chatsMeta, chatsDeep: r.chatsDeep }))
+    .map((r) => ({ adId: r.adId, title: r.title, photoFileId: r.photoFileId, chatsMeta: r.chatsMeta, chatsDeep: r.chatsDeep, badge: r.badge }))
 }
 
 // ── ④ ตำแหน่ง ────────────────────────────────────────────────────────────────
