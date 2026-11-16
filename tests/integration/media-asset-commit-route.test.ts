@@ -299,8 +299,10 @@ describe("POST /api/uploads/commit — path C scope guard (S-5, TD-09/OOS-10)", 
   });
 
   // TC-PATHC-SCOPE-03
-  it("TC-PATHC-SCOPE-03: purpose=CHAT แต่ไม่มี conversationId — ข้าม reconcile, พฤติกรรมเดิม", async () => {
-    const { user } = await createTestShop("scope03");
+  // 00095 เปลี่ยนสัญญาข้อนี้โดยตั้งใจ: กิ่งไม่มีเธรดลงทะเบียน MediaAsset(shopId) ด้วย เพื่อให้ assertOwnedImages
+  // ยืนยันเจ้าของรูปได้ (กันใช้ fileId ร้านอื่น) ⇒ reconcile เหมือนกิ่งมีเธรด: เนื้อหาซ้ำในร้านเดียวกัน = คืนไฟล์เดิม
+  it("TC-PATHC-SCOPE-03 (00095): purpose=CHAT ไม่มี conversationId — ลงทะเบียนเจ้าของร้าน + dedup ในร้านเดียวกัน", async () => {
+    const { user, shop } = await createTestShop("scope03");
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: user.id } } as never);
 
     const buf = randomBuffer("scope03");
@@ -329,8 +331,8 @@ describe("POST /api/uploads/commit — path C scope guard (S-5, TD-09/OOS-10)", 
     expect(resB.status).toBe(201);
     const bodyB = await resB.json();
 
-    expect(bodyB.fileId).toBe(fileB); // ไม่ dedup — resolveChatChannelForUser ไม่ถูกเรียกเลย
+    expect(bodyB.fileId).toBe(fileA); // เนื้อหาเดียวกันในร้านเดียวกัน → คืนไฟล์แรก
     const row = await prisma.mediaAsset.findFirst({ where: { fileId: fileA } });
-    expect(row).toBeNull(); // MediaAsset ไม่มีแถวใหม่จากทั้งสอง commit
+    expect(row?.shopId).toBe(shop.id); // ผูกเจ้าของ = ร้านของผู้อัปโหลด
   });
 });

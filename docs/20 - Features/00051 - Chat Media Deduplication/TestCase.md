@@ -362,6 +362,7 @@ unique constraint จริง ไม่ใช่ mock ได้) มี E2E เ
 - **Linked to:** TFR-CMD-10 precondition ("ถ้าเงื่อนไขใดไม่ผ่าน ... ข้ามการ reconcile ไปเลย")
 - **Steps:** commit `{ purpose: 'CHAT' }` โดยไม่ส่ง `conversationId`
 - **Expected Result:** response `{ fileId } = claim.fileId` เสมอ (พฤติกรรมเดิม ไม่มีการ dedup เกิดขึ้น) — `MediaAsset` ไม่มีแถวใหม่
+- **แก้โดย 00095 (2026-11-16):** กิ่งนี้ลงทะเบียน `MediaAsset(shopId)` + reconcile แล้ว (ฟอร์มบอทติดตามอัปรูปทางนี้ และ `assertOwnedImages` ต้องยืนยันเจ้าของรูปได้) ⇒ เนื้อหาซ้ำในร้านเดียวกันคืน fileId เดิม · เทสอัปเดตตาม
 
 #### TC-SHOPID-11 (mandatory #11 companion): `resolveChatChannelForUser` คืน `shopId` ถูกต้องตรงกับ `Conversation.shopId` จริง
 
