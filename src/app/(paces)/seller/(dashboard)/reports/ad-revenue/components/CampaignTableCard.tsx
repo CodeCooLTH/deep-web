@@ -4,15 +4,15 @@
  * CampaignTableCard — แท็บแคมเปญ: แคมเปญ ⊕ → ชุดโฆษณา ⊕ → โฆษณา (child-rows) + ส่งออก CSV แบบแบน (00091 เฟส 3 FR-012)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/tables/datatables/child-rows/components/Table.tsx
- *   (ตาราง `table-striped` · คอลัมน์ควบคุมซ้ายสุด ⊕/⊖ ไอคอนวงกลม text-primary · แถวลูกเป็นตารางย่อ `thead-sm text-2xs` ใต้แถวแม่)
- *   ตัวตารางแม่: ReportTable → src/components/table/DataTable.tsx (tanstack getExpandedRowModel + subRow)
+ *   (ไอคอน ⊕/⊖ วงกลม text-primary) — แถวลูกเป็นแถวในตารางเดียวกัน คอลัมน์เดียวกัน เยื้องชื่อตามชั้น (ไม่ใช่ตารางซ้อน · user 2026-11-16 "ดูยาก")
+ *   ตัวตาราง: ReportTable → src/components/table/DataTable.tsx (tanstack getSubRows + getExpandedRowModel)
  *   แถบเครื่องมือ/แบ่งหน้า/แถวรวม: ReportTable.tsx (Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx)
  *   ธีมใช้ DataTables.net + HTML string — ที่นี่ทำด้วย React state เพราะแถวลูกต้องกดเปิด AdOrdersSheet ได้และ HTML string ใส่ handler ไม่ได้
- * 🛑 ไม่มี drill ผ่าน URL/crumb แล้ว (มติ user) · กดแถวโฆษณา = AdOrdersSheet · ไม่ทราบแคมเปญ = แถวแม่ท้ายตารางเสมอ กางแล้วเป็นตารางโฆษณาตรง ๆ
+ * 🛑 ไม่มี drill ผ่าน URL/crumb แล้ว (มติ user) · กดชื่อแคมเปญ/ชุด = กาง · กดชื่อโฆษณา = AdOrdersSheet · ไม่ทราบแคมเปญ = แถวแม่ท้ายตารางเสมอ กางแล้วเป็นโฆษณาตรง ๆ
  * 🛑 Meta ไม่ OK/ไม่มีลำดับชั้น → ตารางโฆษณาแบน (ไม่มี ⊕) ห้ามมีตารางแถวเดียว "ไม่ทราบแคมเปญ"
  * 🛑 แถวรวม = ผลรวมแถวแม่ทุกแถว (ไม่ใช่เฉพาะหน้า/ผลค้นหา) · CSV = แคมเปญ+ชุด+โฆษณาแบบแบน ไม่ว่ากางอยู่หรือไม่
  */
-import { Fragment as Fragment2, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import AdThumb from '@/components/safepay/AdThumb'
 import Icon from '@/components/wrappers/Icon'
@@ -125,7 +125,7 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
   const totProfit = tot.spend === null ? null : contribution(tot.profit, tot.spend).value
   const footer = (
     <tr className="bg-default-100/70 font-semibold">
-      <td colSpan={hasHierarchy ? 2 : 1} className="text-default-900 text-sm">{fmt(hasHierarchy ? a.totalAllCampaigns : a.totalRow, { n: topRows.length })}</td>
+      <td className="text-default-900 text-sm">{fmt(hasHierarchy ? a.totalAllCampaigns : a.totalRow, { n: topRows.length })}</td>
       {showSpend && <td className="text-center tabular-nums">{tot.spend === null ? dash : baht(tot.spend)}</td>}
       <td className="text-center tabular-nums">{formatNumberNoSymbol(tot.orders)}</td>
       <td className="text-center tabular-nums">{baht(tot.sales)}</td>
@@ -181,10 +181,7 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
         defaultSort={{ id: 'sales', desc: true }}
         pinnedLast={(r) => r.id === null && r.kind !== 'ad'}
         onOpen={(r) => setSheet(r.ad)}
-        expand={hasHierarchy ? {
-          isExpandable: (r) => (childRowsOf(r)?.length ?? 0) > 0,
-          render: (r) => <ChildTable rows={childRowsOf(r) ?? []} columns={columns.filter((c) => !c.xlOnly)} childRowsOf={childRowsOf} onAd={setSheet} />,
-        } : undefined}
+        subRows={hasHierarchy ? (r) => childRowsOf(r) ?? undefined : undefined}
         empty={fmt(a.emptyRange, { noun })}
         itemsName={a.itemsName}
       />
@@ -193,51 +190,3 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
   )
 }
 
-/** ตารางย่อในกรอบใต้แถวแม่ (ชุดโฆษณา/โฆษณา) — markup ตามแถวลูกของธีม child-rows: คอลัมน์ควบคุม ⊕/⊖ ซ้ายสุด + `thead-sm text-2xs` · กดแถวโฆษณา = เปิดชีตออเดอร์ */
-function ChildTable({ rows, columns, childRowsOf, onAd }: { rows: Row[]; columns: Col<Row>[]; childRowsOf: (r: Row) => Row[] | null; onAd: (a: AdMetrics) => void }) {
-  const t = useT().adRevenue
-  const [open, setOpen] = useState<Set<string>>(new Set())
-  const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
-  return (
-    <div className="border-default-200 m-3 overflow-x-auto rounded border">
-      <table className="table table-sm table-striped w-full">
-        <thead className="thead-sm text-2xs">
-          <tr className="bg-light/25">
-            <th className="w-10"><span className="sr-only">{t.expandCol}</span></th>
-            {columns.map((c) => <th key={c.id} scope="col" className={cn(c.align === 'end' && 'text-center')}>{c.header}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const kids = childRowsOf(r)
-            const exp = (kids?.length ?? 0) > 0
-            const isOpen = open.has(r.key)
-            return (
-              <Fragment2 key={r.key}>
-                <tr>
-                  <td className="w-10">
-                    {exp && (
-                      <button type="button" onClick={() => toggle(r.key)} aria-expanded={isOpen} aria-label={t.expandCol} className="text-primary flex min-h-11 items-center lg:min-h-0">
-                        <Icon icon={isOpen ? 'circle-minus' : 'circle-plus'} className="text-2xl" aria-hidden="true" />
-                      </button>
-                    )}
-                  </td>
-                  {columns.map((c, i) => (
-                    <td key={c.id} className={cn('tabular-nums', c.align === 'end' && 'text-center', i === 0 && 'max-w-xs')}>
-                      {i === 0 ? (
-                        r.ad ? (
-                          <button type="button" onClick={() => onAd(r.ad!)} className="hover:text-primary flex min-h-11 w-full min-w-0 items-center gap-2 text-start lg:min-h-0"><span className="flex min-w-0 items-center gap-2">{c.cell(r)}</span></button>
-                        ) : <div className="flex min-w-0 items-center gap-2">{c.cell(r)}</div>
-                      ) : c.cell(r)}
-                    </td>
-                  ))}
-                </tr>
-                {exp && isOpen && <tr><td colSpan={columns.length + 1} className="p-0"><ChildTable rows={kids!} columns={columns} childRowsOf={childRowsOf} onAd={onAd} /></td></tr>}
-              </Fragment2>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
