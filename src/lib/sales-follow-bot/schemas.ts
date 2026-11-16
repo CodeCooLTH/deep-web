@@ -131,7 +131,7 @@ export function testRoomsProblem(status: BotStatus, testRoomIds: readonly string
 }
 
 // ── map issue ของ Valibot (ชนิดผิด) → รหัสของ API §4.2 ──
-function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
+export function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
   const keys = (i.path ?? []).map((p) => p.key)
   const path = keys.join('.')
   const root = keys[0]

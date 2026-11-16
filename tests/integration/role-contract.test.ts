@@ -369,6 +369,8 @@ const COVERED: Record<string, string> = {
   'src/app/api/chat/spam-unread/': 'ตัวนับ (H1)',
   'src/app/api/chat/tags/': 'แท็กแชท (X2)',
   'src/app/api/follow-ups/inbox-counts/': 'ตัวนับ (X2)',
+  'src/app/api/shops/current/sales-follow-bot/': 'บอทติดตามยอดขาย (H2: เจ้าของ/ผู้ดูแล/ตอบแชท · 00095) — ไม่มีต้นทุน/กำไร/ยอดเงิน · ปิดตายด้วยรายชื่อร้านนำร่อง + ONLINE_SALES (ร้านเทสของ MATRIX ไม่ผ่านด่าน) · เทสด่านเฉพาะ: src/services/__tests__/sales-follow-bot-routes.test.ts',
+  'src/app/api/chat/conversations/[id]/follow-bot/': 'แผงบอทติดตามในห้อง (H1 · 00095) — ชื่อบอท/สถานะขั้น ไม่มีเงิน · เทสด่านเฉพาะ: src/services/__tests__/sales-follow-bot-routes.test.ts',
   'src/app/api/follow-ups/mine/': 'งานติดตามของตัวเอง (X2) — ชุดเดียวกับ board (อยู่ใน MATRIX)',
   'src/app/api/files/': 'ไบนารีไฟล์ — ตรวจสิทธิ์ที่ตัวเปิดไฟล์ ไม่ใช่ JSON ที่สแกนคีย์ได้',
   'src/app/api/business/': 'จัดการทีม/คำเชิญ/แพ็กเกจ (T2/T4 เจ้าของ) — ไม่มีแถวออเดอร์',
