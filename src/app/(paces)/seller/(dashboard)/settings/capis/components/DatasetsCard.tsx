@@ -48,15 +48,17 @@ type RowProps = {
   pageDefault: string
   onDelete: (d: DatasetView) => void
   onChanged: (d: DatasetView) => void
+  /** เปิดฟอร์มเปลี่ยน token ตั้งแต่ mount — มาจากปุ่มในแบนเนอร์หยุดส่ง (ผู้เรียก remount ด้วย key ใหม่) */
+  openToken?: boolean
 }
 
-function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps) {
+function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged, openToken = false }: RowProps) {
   const t = useT().conversionsApi
   const uid = useId()
   const name = datasetName(d, pageDefault)
   const [code, setCode] = useState('')
   const [test, setTest] = useState<TestState>({ kind: 'idle' })
-  const [tokenOpen, setTokenOpen] = useState(false)
+  const [tokenOpen, setTokenOpen] = useState(openToken)
   const [token, setToken] = useState('')
   const [tokenBusy, setTokenBusy] = useState(false)
   const [tokenErr, setTokenErr] = useState('')
@@ -86,41 +88,44 @@ function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps
   }
 
   const stopped = d.status === 'STOPPED'
+  // ข้อมูลเทคนิค (ID · token · ทดสอบ · ลบ) พับไว้เป็นค่าเริ่มต้น — ผู้ขายส่วนใหญ่ไม่ต้องแตะ · ชุดที่หยุดส่งเปิดค้างให้เห็นทางแก้
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
+    <details id={`capi-ds-${d.id}`} open={stopped || openToken} aria-label={name} className="bg-default-100 rounded-lg xl:col-span-4">
+      <summary className="text-default-900 flex min-h-11 cursor-pointer items-center gap-2 px-4 text-sm font-medium lg:min-h-10">
+        {t.dsTechTitle}
         {stopped && (
           <span className="badge bg-danger/15 text-danger-ink gap-1">
             <Icon icon="alert-triangle" className="size-3" aria-hidden="true" />
             {t.dsStopped}
           </span>
         )}
-        <button type="button" aria-label={fmt(t.dsDeleteAria, { name })} onClick={() => onDelete(d)} className="btn btn-icon border-default-300 text-default-700 ms-auto size-11 border lg:size-9.25">
-          <Icon icon="trash" className="size-4" aria-hidden="true" />
-        </button>
-      </div>
-      <p className="text-default-700 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-        <span className="tabular-nums whitespace-nowrap">{fmt(t.dsId, { id: d.datasetId })}</span>
-        <span className="hidden sm:inline" aria-hidden="true">
-          ·
-        </span>
-        <span className="inline-flex basis-full items-center gap-1 sm:basis-auto">
-          <Icon icon="lock" className="text-default-500 size-3.5" aria-hidden="true" />
-          {d.source === 'PAGE' ? t.dsTokenPage : t.dsTokenSet}
-          {d.source === 'MANUAL' && (
-            <button type="button" aria-expanded={tokenOpen} onClick={() => setTokenOpen((v) => !v)} className="text-primary-ink ms-1 min-h-11 font-medium underline underline-offset-2 lg:min-h-0">
-              {t.dsChangeToken}
-            </button>
-          )}
-        </span>
-      </p>
+      </summary>
+      <div className="px-4 pb-4">
+      <dl className="space-y-2 text-xs">
+        <div>
+          <dt className="text-default-700">{t.dsFieldId}</dt>
+          <dd className="text-default-900 font-medium tabular-nums break-all">{d.datasetId}</dd>
+        </div>
+        <div>
+          <dt className="text-default-700">{t.dsFieldToken}</dt>
+          <dd className="text-default-900 flex flex-wrap items-center gap-1">
+            <Icon icon="lock" className="text-default-500 size-3.5" aria-hidden="true" />
+            {d.source === 'PAGE' ? t.dsTokenPage : t.dsTokenSet}
+            {d.source === 'MANUAL' && (
+              <button type="button" aria-expanded={tokenOpen} onClick={() => setTokenOpen((v) => !v)} className="text-primary-ink ms-1 min-h-11 font-medium underline underline-offset-2 lg:min-h-0">
+                {t.dsChangeToken}
+              </button>
+            )}
+          </dd>
+        </div>
+      </dl>
 
       {tokenOpen && (
-        <div className="bg-default-100 mt-3 rounded-lg p-3">
+        <div className="bg-card mt-3 rounded-lg p-3">
           <label htmlFor={`${uid}-tok`} className="form-label">
             {fmt(t.tokenTitle, { name })}
           </label>
-          <input id={`${uid}-tok`} type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} className="form-input min-h-11 lg:min-h-0" aria-invalid={!!tokenErr} />
+          <input id={`${uid}-tok`} data-capi-token-input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} className="form-input min-h-11 lg:min-h-0" aria-invalid={!!tokenErr} />
           <p className={cn('mt-1 text-xs', tokenErr ? 'text-danger-ink' : 'text-default-700')}>{tokenErr || t.dsTokenHelp}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" disabled={tokenBusy} onClick={saveToken} className="btn bg-primary hover:bg-primary-hover min-h-11 flex-1 text-white disabled:opacity-50 sm:flex-none lg:min-h-0">
@@ -133,19 +138,13 @@ function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps
         </div>
       )}
 
-      <div className="mt-3">
+      <div className="border-default-200 mt-4 border-t pt-4">
         <label htmlFor={`${uid}-code`} className="form-label">
           {t.testCode}
         </label>
-        <div className="flex flex-col gap-2 sm:max-w-md sm:flex-row sm:gap-0">
-          <div className="input-group">
-            <input id={`${uid}-code`} value={code} onChange={(e) => setCode(e.target.value)} placeholder={t.testCodePh} autoComplete="off" className="form-input min-h-11 lg:min-h-0" />
-            <button type="button" onClick={runTest} disabled={test.kind === 'loading'} className="btn border-default-300 text-default-800 hidden border sm:inline-flex">
-              <Icon icon="send" className="size-4" aria-hidden="true" />
-              {t.testBtn}
-            </button>
-          </div>
-          <button type="button" onClick={runTest} disabled={test.kind === 'loading'} className="btn border-default-300 text-default-800 min-h-11 w-full border sm:hidden">
+        <div className="input-group">
+          <input id={`${uid}-code`} value={code} onChange={(e) => setCode(e.target.value)} placeholder={t.testCodePh} autoComplete="off" className="form-input min-h-11 lg:min-h-0" />
+          <button type="button" onClick={runTest} disabled={test.kind === 'loading'} className="btn border-default-300 bg-card text-default-800 min-h-11 shrink-0 border lg:min-h-0">
             <Icon icon="send" className="size-4" aria-hidden="true" />
             {t.testBtn}
           </button>
@@ -153,7 +152,15 @@ function DatasetRow({ channelId, d, pageDefault, onDelete, onChanged }: RowProps
         <p className="text-default-700 mt-1 text-xs">{code.trim() ? t.testHelpCode : t.testHelpEmpty}</p>
         <TestResult s={test} loadingText={t.testLoading} />
       </div>
-    </div>
+
+      <div className="border-default-200 mt-4 border-t pt-3">
+        <button type="button" aria-label={fmt(t.dsDeleteAria, { name })} onClick={() => onDelete(d)} className="text-danger-ink inline-flex min-h-11 items-center gap-1.5 text-xs font-medium hover:underline lg:min-h-0">
+          <Icon icon="trash" className="size-4" aria-hidden="true" />
+          {t.dsDeleteOk}
+        </button>
+      </div>
+      </div>
+    </details>
   )
 }
 
@@ -275,6 +282,12 @@ function AddPanel({ channelId, onAdded, onClose }: { channelId: string; onAdded:
 
 type CardProps = {
   channelId: string
+  /** ชุดที่เลือก — ยกขึ้นไปที่ DetailClient เพื่อให้แบนเนอร์หยุดส่งสั่งเลือกชุดได้ */
+  selected: string | null
+  onSelect: (id: string) => void
+  /** คำขอเปลี่ยน token จากแบนเนอร์ (ชุดเป้าหมาย + ตัวนับ) — n เปลี่ยน = remount แถวของชุดนั้นพร้อมฟอร์ม token เปิด · ชุดอื่นไม่เปิด */
+  tokenJump: { id: string; n: number } | null
+  pageEnabled: boolean
   datasets: DatasetView[]
   onChange: (next: DatasetView[]) => void
   eventOptions: EventOpts
@@ -287,10 +300,9 @@ type CardProps = {
   onSaveSettings: (key: string, r: EventSettingsResult) => Promise<boolean>
 }
 
-export default function DatasetsCard({ channelId, datasets, onChange, eventOptions, purchaseAt, countPromotedDraft, tags, busyKeys, onAddEvents, onRemoveEvent, onSaveSettings }: CardProps) {
+export default function DatasetsCard({ channelId, selected, onSelect, tokenJump, pageEnabled, datasets, onChange, eventOptions, purchaseAt, countPromotedDraft, tags, busyKeys, onAddEvents, onRemoveEvent, onSaveSettings }: CardProps) {
   const t = useT().conversionsApi
   const [adding, setAdding] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
   const full = datasets.length >= MAX_DATASETS
   const ds = datasets.find((d) => d.id === selected) ?? datasets[0]
   // ยังไม่มีชุดข้อมูลเลย = เปิดแผงเพิ่มให้เลย (ไม่มีแท็บให้ดู)
@@ -307,32 +319,44 @@ export default function DatasetsCard({ channelId, datasets, onChange, eventOptio
   }
 
   const tabCls = (active: boolean) => cn('-mb-px inline-flex min-h-11 items-center gap-1.5 border-b-2 px-1 text-sm whitespace-nowrap lg:min-h-9', active ? 'border-primary text-primary-ink font-medium' : 'text-default-700 border-transparent')
+  // ชุดเดียว (เคสส่วนใหญ่) = ไม่มีแท็บ หัวการ์ดเป็น "สิ่งที่แจ้งให้ Meta" · หลายชุดค่อยโชว์แท็บ + จำนวน n/3
+  const multi = datasets.length > 1
 
   return (
-    <div className="card order-2 xl:order-none">
-      <div className="card-header pb-0 sm:pb-3.75">
+    <div className="card">
+      <div className="card-header flex flex-wrap items-center justify-between gap-2">
         <h4 className="card-title">
-          {t.dsTitle} <span className="text-default-700 tabular-nums">{datasets.length}/{MAX_DATASETS}</span>
+          {multi || !ds ? (
+            <>
+              {t.dsTitle} <span className="text-default-700 tabular-nums">{datasets.length}/{MAX_DATASETS}</span>
+            </>
+          ) : (
+            t.evTitle
+          )}
         </h4>
-      </div>
-      <div className="card-body">
-        <div role="tablist" aria-label={t.evTabsAria} className="border-default-200 mb-4 flex gap-4 overflow-x-auto border-b">
-          {datasets.map((d) => {
-            const active = d.id === ds?.id && !showAdd
-            const nm = datasetName(d, t.dsPageDefaultName)
-            return (
-              <button key={d.id} type="button" role="tab" aria-selected={active} onClick={() => { setSelected(d.id); setAdding(false) }} className={tabCls(active)}>
-                {nm}
-                <span className="badge bg-default-100 text-default-800">{d.source === 'PAGE' ? t.dsSourcePage : t.dsSourceManual}</span>
-                {d.status === 'STOPPED' && <span className="badge bg-danger/15 text-danger-ink">{t.dsStopped}</span>}
-              </button>
-            )
-          })}
-          <button type="button" role="tab" aria-selected={showAdd} disabled={full} title={full ? t.dsFull : undefined} onClick={() => setAdding(true)} className={cn(tabCls(showAdd), 'disabled:cursor-not-allowed disabled:opacity-50')}>
+        {ds && (
+          <button type="button" aria-expanded={showAdd} disabled={full || showAdd} title={full ? t.dsFull : undefined} onClick={() => setAdding(true)} className="btn btn-sm border-default-300 text-default-800 min-h-11 border disabled:cursor-not-allowed disabled:opacity-50 lg:min-h-0">
             <Icon icon="plus" className="size-4" aria-hidden="true" />
             {t.dsAdd}
           </button>
-        </div>
+        )}
+      </div>
+      <div className="card-body">
+        {multi && !showAdd && (
+          <div role="tablist" aria-label={t.evTabsAria} className="border-default-200 mb-4 flex gap-4 overflow-x-auto border-b">
+            {datasets.map((d) => {
+              const active = d.id === ds?.id
+              const nm = datasetName(d, t.dsPageDefaultName)
+              return (
+                <button key={d.id} type="button" role="tab" aria-selected={active} onClick={() => onSelect(d.id)} className={tabCls(active)}>
+                  {nm}
+                  <span className="badge bg-default-100 text-default-800">{d.source === 'PAGE' ? t.dsSourcePage : t.dsSourceManual}</span>
+                  {d.status === 'STOPPED' && <span className="badge bg-danger/15 text-danger-ink">{t.dsStopped}</span>}
+                </button>
+              )
+            })}
+          </div>
+        )}
         {full && <p className="text-default-700 mb-3 text-xs">{t.dsFull}</p>}
         {showAdd && (
           <AddPanel
@@ -340,15 +364,18 @@ export default function DatasetsCard({ channelId, datasets, onChange, eventOptio
             onClose={() => setAdding(false)}
             onAdded={(d) => {
               onChange([...datasets, d])
-              setSelected(d.id)
+              onSelect(d.id)
               setAdding(false)
             }}
           />
         )}
         {ds && !showAdd && (
-          <div role="tabpanel">
-            <DatasetRow key={ds.id} channelId={channelId} d={ds} pageDefault={t.dsPageDefaultName} onDelete={remove} onChanged={(nd) => onChange(datasets.map((x) => (x.id === nd.id ? nd : x)))} />
-            <EventsList ds={ds} eventOptions={eventOptions} purchaseAt={purchaseAt} countPromotedDraft={countPromotedDraft} tags={tags} busyKeys={busyKeys} onAdd={onAddEvents} onRemove={onRemoveEvent} onSaveSettings={onSaveSettings} />
+          // xl: เหตุการณ์ (งานหลัก) 8/12 · รายละเอียดชุดข้อมูล 4/12 (3/12 แคบเกินสำหรับช่องทดสอบ) · จอเล็กเรียงเหตุการณ์ก่อน
+          <div role={multi ? "tabpanel" : undefined} className="grid items-start gap-base xl:grid-cols-12">
+            <div className="min-w-0 xl:col-span-8">
+              <EventsList ds={ds} heading={multi} sending={pageEnabled && ds.status !== 'STOPPED'} eventOptions={eventOptions} purchaseAt={purchaseAt} countPromotedDraft={countPromotedDraft} tags={tags} busyKeys={busyKeys} onAdd={onAddEvents} onRemove={onRemoveEvent} onSaveSettings={onSaveSettings} />
+            </div>
+            <DatasetRow key={tokenJump?.id === ds.id ? `${ds.id}:${tokenJump.n}` : ds.id} openToken={tokenJump?.id === ds.id} channelId={channelId} d={ds} pageDefault={t.dsPageDefaultName} onDelete={remove} onChanged={(nd) => onChange(datasets.map((x) => (x.id === nd.id ? nd : x)))} />
           </div>
         )}
       </div>
