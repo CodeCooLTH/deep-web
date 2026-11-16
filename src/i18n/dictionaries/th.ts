@@ -2316,6 +2316,7 @@ export const th = {
     gran: { day: 'รายวัน', week: 'รายสัปดาห์', month: 'รายเดือน' },
     seriesThis: 'ช่วงนี้',
     seriesPrev: 'ช่วงก่อน',
+    seriesPending: 'รอเก็บเงิน',
     expandCol: 'กางรายการย่อย',
     infoLabel: 'คำอธิบาย',
     recoCap: 'แสดง {a} จาก {n} ข้อ',
