@@ -336,15 +336,17 @@ export async function loadDecideFacts(
   for (const r of runs) byShop.set(r.shopId, [...(byShop.get(r.shopId) ?? []), r])
 
   for (const [shopId, rs] of byShop) {
-    const [bots, tagKeys, bundles] = await Promise.all([
+    const [bots, tagKeys, bundles, shop] = await Promise.all([
       loadBots(shopId, [...new Set(rs.map((r) => r.botId))]),
       loadShopTagKeys(shopId),
       loadRoomBundles(shopId, rs.map((r) => r.conversationId), now, {
         runIdByRoom: new Map(rs.map((r) => [r.conversationId, r.id])),
         disablePins: opts.disablePins,
       }),
+      prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true } }),
     ])
-    const sendAllowed = isSalesFollowBotEnabled(shopId)
+    // ร้านที่เปลี่ยน vertical ออกจาก ONLINE_SALES หลังแนบ = ไม่ส่ง (HOLD ผ่าน decideRun ตัวเดียว — Q-14 ก)
+    const sendAllowed = isSalesFollowBotEnabled(shopId) && shop?.vertical === 'ONLINE_SALES'
     const ourApp = ourMetaAppId()
     for (const r of rs) {
       const bot = bots.get(r.botId)
