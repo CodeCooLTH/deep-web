@@ -67,7 +67,7 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
     ...(showUnknown ? [{ id: 'unk', header: `${t.custUnknown} (${t.unit})`, align: 'end' as const, xlOnly: true, sort: (a: Ad) => a.unknownCustomers, cell: (a: Ad) => count(a.unknownCustomers) }] : []),
     { id: 'newSales', header: d.colNewSales, align: 'end', xlOnly: true, sort: (a) => a.newSales, cell: (a) => formatBaht(Math.round(a.newSales)) },
     { id: 'retSales', header: d.colRetSales, align: 'end', xlOnly: true, sort: (a) => a.returningSales, cell: (a) => formatBaht(Math.round(a.returningSales)) },
-    ...(spendOk ? [{ id: 'acq', header: t.colAcqCost, align: 'end' as const, sort: (a: Ad) => acq(a), cell: (a: Ad) => { const v = acq(a); return v === null ? '—' : <b className="text-default-900 font-semibold">{formatBaht(Math.round(v))}</b> } }] : []),
+    ...(spendOk ? [{ id: 'acq', header: t.colAcqCost, align: 'end' as const, sort: (a: Ad) => acq(a), cell: (a: Ad) => { const v = acq(a); return v === null ? '—' : <b className="text-default-900 font-semibold">{formatBaht(v)}</b> } }] : []),
   ]
 
   const sum = (k: 'newCustomers' | 'returningCustomers' | 'unknownCustomers' | 'newSales' | 'returningSales') => rows.reduce((n, a) => n + a[k], 0)
