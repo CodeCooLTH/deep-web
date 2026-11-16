@@ -41,3 +41,10 @@
 
 ## 6. นอกขอบเขต
 บล็อก/รายงานลูกค้า · ลบแชท · แจ้งเตือนแอดมิน · ทำ action กลางทาง (ก่อนครบทุกรอบ)
+
+## ภาคผนวก — ยืมห้องจาก Meta AI (FR-FA-6 / BR-FA-9 · ผู้ใช้สั่ง 2026-11-16 "ถ้า Meta AI ถืออยู่ ให้เราดึงมาส่งบอทก่อน แล้วคืนให้ Meta ต่อ")
+- **กลับมติเดิม** "บอทพักเมื่อ Meta AI ถือห้อง (HOLD `META_AI_HOLDING`)" — เปลี่ยนเป็น: ถึงเวลาส่งรอบ (ตัดสินด้วย `decideRun` แบบไม่นับ Meta AI) → `take_thread_control` **ก่อน**สร้างฟอง → ได้ (TAKEN) = ส่งรอบตามปกติ → `pass_thread_control` คืนให้ **Business AI เท่านั้น** (ไม่ตกไป Page Inbox) ทันที แม้ส่งไม่สำเร็จก็คืน
+- ไม่ได้สิทธิ์ (เพจไม่ได้ตั้ง Conversation Routing / REQUESTED / token ตาย) = พัก `META_AI_HOLDING` เหมือนเดิม ไม่มีฟองล้มโผล่ในห้อง · ลองใหม่ทุก 30 นาที (`BORROW_RETRY_MS`)
+- หลักฐาน + ตัวนับ backoff = `ChatHandoverEvent.metadata` `deep-follow-bot-borrow:<TAKEN|REQUESTED|FAILED_*|RETURNED|RETURN_FAILED>` · `newOwnerAppId` ของแถว take/pass ทำให้ `Conversation.metaOwnerAppId` ยังจำว่า Meta AI ถือห้องหลังคืน
+- ไม่มี migration · Native ไม่กระทบ
+- ⚠️ ยังไม่เคยทดสอบกับเพจจริง — ดูผลที่ `ChatHandoverEvent` ของร้านธนภัทร์หลังขึ้น prod

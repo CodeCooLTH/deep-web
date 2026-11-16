@@ -1363,10 +1363,12 @@ export async function passThreadControlToMetaAi(
   pageToken: string,
   recipientId: string,
   metadata = 'deep-seller-release',
+  // บอทยืมห้องคืนได้เฉพาะ Business AI — ตกไป Page Inbox = ห้องไม่มี AI ตอบ (ผิดเจตนา "คืนให้ Meta")
+  targets: readonly string[] = [META_BUSINESS_AI_APP_ID, META_PAGE_INBOX_APP_ID],
 ): Promise<ThreadReleaseOutcome> {
   const tried: string[] = []
   let message = ''
-  for (const target of [META_BUSINESS_AI_APP_ID, META_PAGE_INBOX_APP_ID]) {
+  for (const target of targets) {
     try {
       const raw = await graphFetch('/me/pass_thread_control', pageToken, {
         method: 'POST',

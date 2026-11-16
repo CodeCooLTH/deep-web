@@ -24,9 +24,9 @@ import {
 } from '@/lib/sales-follow-bot/constants'
 import { decideRun, eligibleToAttach, mapFollowFailure, type DecideFacts } from '@/lib/sales-follow-bot/decide'
 import { decideMetaAiHolding } from '@/lib/meta-ai-holder'
-import { claimThreadControl } from '@/lib/facebook/graph'
+import { claimThreadControl, passThreadControlToMetaAi, META_BUSINESS_AI_APP_ID } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
-import { afterClaim, mayReclaim, OTHER_APP_CONTROLS_RE, reclaimBackoffActive } from '@/lib/sales-follow-bot/thread-control'
+import { afterClaim, BORROW_METADATA, mayReclaim, OTHER_APP_CONTROLS_RE, reclaimBackoffActive, shouldBorrowFromMetaAi } from '@/lib/sales-follow-bot/thread-control'
 import { decideFinalAction } from '@/lib/sales-follow-bot/final-action'
 import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
 import { countedShopReplyWhere, realBuyerMsgWhere } from '@/lib/sales-follow-bot/message-defs'
@@ -282,7 +282,7 @@ async function composeRound(
   return { ok: true, items }
 }
 
-async function sendStep(run: RunRow, now: Date, c: Counters): Promise<void> {
+async function sendStep(run: RunRow, now: Date, c: Counters, opts: { borrowedFromMetaAi?: boolean } = {}): Promise<void> {
   const bots = await loadBots(run.shopId, [run.botId])
   const bot = bots.get(run.botId)
   const step = bot?.steps[run.nextStep]
@@ -292,7 +292,7 @@ async function sendStep(run: RunRow, now: Date, c: Counters): Promise<void> {
   if (!claim) return // มีคนจอง/ส่งแล้ว (อีก tick พร้อมกัน) — ไม่ใช่ความผิดพลาด
   const flag = { enqueued: false }
   try {
-    await sendClaimed(run, bot, step, claim, flag, now, c)
+    await sendClaimed(run, bot, step, claim, flag, now, c, opts)
   } catch (e) {
     // throw หลัง claim แต่ยังไม่มีฟองใดเกิด = ไม่มีอะไรออกไปแน่ → คืนกุญแจให้ tick หน้าลองใหม่ (ไม่ปล่อยให้ sweep ข้ามขั้น)
     // เกิดฟองแล้ว = อาจออกไปแล้ว → คงแถว SENDING ให้ sweeper ปิดตามข้อความ/UNCERTAIN_SEND
@@ -395,6 +395,7 @@ async function sendClaimed(
   flag: { enqueued: boolean },
   now: Date,
   c: Counters,
+  opts: { borrowedFromMetaAi?: boolean } = {},
 ): Promise<void> {
   const ref: SendRef = {
     id: claim.id, shopId: run.shopId, runId: run.id, conversationId: run.conversationId, step: run.nextStep,
@@ -409,7 +410,9 @@ async function sendClaimed(
       structureRev: true, nextStep: true, lastSentAt: true,
     },
   })
-  const facts = fresh ? (await loadDecideFacts([{ ...fresh, stageKey: fresh.stageKey as SalesStageKey }], now)).get(fresh.id) : undefined
+  const loaded = fresh ? (await loadDecideFacts([{ ...fresh, stageKey: fresh.stageKey as SalesStageKey }], now)).get(fresh.id) : undefined
+  // ยืมห้องจาก Meta AI สำเร็จแล้ว = ตอนนี้เราถือห้อง → ไม่นับสัญญาณ Meta AI ในการตัดสินรอบนี้
+  const facts = loaded && opts.borrowedFromMetaAi ? { ...loaded, metaAi: null } : loaded
   const d = facts ? decideRun(facts) : null
   // แอดมินตอบหลังจอง (AC-FB-50): ร้านตอบที่นับใหม่กว่าเวลาจอง = ไม่ยิง (decideRun อ่านก่อนจองอาจไม่เห็น)
   const newerReply = d?.action === 'SEND'
@@ -482,6 +485,65 @@ async function sendClaimed(
   await settleRound(ref, now, c)
 }
 
+/**
+ * ห้องที่ Meta AI ถือ + ถึงเวลาส่งรอบ → take (ไม่สร้างฟองก่อนได้สิทธิ์) → ส่งรอบ → คืนให้ Business AI เท่านั้น (ผู้ใช้สั่ง 2026-11-16)
+ * คืน true เมื่อได้สิทธิ์และผ่านทางส่งแล้ว (ผู้เรียกไม่ต้องบันทึก HOLD) · false = พักต่อแบบเดิม
+ * ไม่สำเร็จ = เขียน handover event `deep-follow-bot-borrow:<ผล>` เป็นตัวนับ backoff (BORROW_RETRY_MS) — ไม่ต้องมี migration
+ */
+async function borrowFromMetaAiAndSend(run: RunRow, facts: DecideFacts, now: Date, c: Counters): Promise<boolean> {
+  const conv = await prisma.conversation.findFirst({
+    where: { id: run.conversationId, shopId: run.shopId },
+    select: {
+      channel: true,
+      externalContact: { select: { externalUserId: true } },
+      shopChannel: { select: { accessTokenEnc: true, externalId: true, status: true } },
+    },
+  })
+  if (!conv?.externalContact || !conv.shopChannel || conv.shopChannel.status !== 'ACTIVE') return false
+  const psid = conv.externalContact.externalUserId
+  const lastFail = await prisma.chatHandoverEvent.findFirst({
+    where: {
+      pageExternalId: conv.shopChannel.externalId,
+      contactExternalId: psid,
+      metadata: { startsWith: `${BORROW_METADATA}:` },
+      NOT: { metadata: { in: [`${BORROW_METADATA}:TAKEN`, `${BORROW_METADATA}:RETURNED`] } },
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  })
+  const due = decideRun({ ...facts, metaAi: null })
+  if (!shouldBorrowFromMetaAi({ channel: conv.channel, dueIfNotHeld: due.action === 'SEND', lastFailedBorrowAt: lastFail?.createdAt ?? null, now })) return false
+
+  const token = decryptToken(conv.shopChannel.accessTokenEnc)
+  const claim = await claimThreadControl(token, psid, BORROW_METADATA)
+  // newOwnerAppId สำคัญ: ingestHandoverEvent เขียน Conversation.metaOwnerAppId จากค่านี้ — คืนห้องแล้วต้องจำว่า Meta AI ถือต่อ
+  const log = (outcome: string, kind: 'take' | 'request' | 'pass', raw: unknown, newOwnerAppId?: string | null) =>
+    ingestHandoverEvent({
+      provider: conv.channel,
+      pageExternalId: conv.shopChannel!.externalId,
+      contactExternalId: psid,
+      kind,
+      newOwnerAppId,
+      metadata: `${BORROW_METADATA}:${outcome}`,
+      rawEvent: raw,
+    })
+  // REQUESTED = เจ้าของเดิมยังไม่ปล่อย (ไม่รู้ว่าจะได้ไหม) → นับเป็นไม่สำเร็จ ลองใหม่หลัง backoff
+  if (claim.outcome !== 'TAKEN') {
+    await log(claim.outcome === 'FAILED' ? `FAILED_${claim.reason}` : claim.outcome, claim.outcome === 'FAILED' ? 'take' : 'request', claim)
+    return false
+  }
+  await log('TAKEN', 'take', claim, facts.ourMetaAppId)
+  try {
+    await sendStep(run, now, c, { borrowedFromMetaAi: true })
+  } finally {
+    // คืนเสมอ (แม้ส่งไม่สำเร็จ) — ยืมมาแล้วต้องคืน ไม่งั้นห้องค้างที่ Deep และ Meta AI ไม่ตอบลูกค้า
+    const back = await passThreadControlToMetaAi(token, psid, `${BORROW_METADATA}:return`, [META_BUSINESS_AI_APP_ID])
+    await log(back.outcome === 'RELEASED' ? 'RETURNED' : 'RETURN_FAILED', 'pass', back, back.outcome === 'RELEASED' ? META_BUSINESS_AI_APP_ID : facts.ourMetaAppId).catch(() => undefined)
+    if (back.outcome !== 'RELEASED') console.error('[sales-follow-bot] คืนห้องให้ Meta AI ไม่สำเร็จ', { runId: run.id, message: back.message })
+  }
+  return true
+}
+
 async function evaluateRun(run: RunRow, facts: DecideFacts, now: Date, c: Counters): Promise<void> {
   const d = decideRun(facts)
   const nowIso = now.toISOString()
@@ -491,6 +553,8 @@ async function evaluateRun(run: RunRow, facts: DecideFacts, now: Date, c: Counte
     await prisma.$executeRaw`
       UPDATE "SalesFollowRun" SET "status" = 'DONE', "finishedAt" = ${nowIso}::timestamptz, "nextDueAt" = NULL, "holdReason" = NULL, "updatedAt" = ${nowIso}::timestamptz
       WHERE "id" = ${run.id} AND "shopId" = ${run.shopId} AND "status" = 'ACTIVE'`
+  } else if (d.action === 'HOLD' && d.reason === 'META_AI_HOLDING' && (await borrowFromMetaAiAndSend(run, facts, now, c))) {
+    return
   } else if (d.action === 'HOLD') {
     c.held++
     if (run.holdReason !== d.reason) {
