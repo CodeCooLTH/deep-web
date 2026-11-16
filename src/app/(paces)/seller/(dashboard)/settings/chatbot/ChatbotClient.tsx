@@ -18,6 +18,7 @@ import TestThreadsCard from '../auto-reply/[id]/TestThreadsCard'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { useHidePayments, useShowMoneyStatus } from '@/components/paces/PaymentRestrictionProvider'
 
+import { formatNumberNoSymbol } from '@/lib/format-money'
 export type GuardrailRow = {
   id: string
   rule: string
@@ -437,7 +438,7 @@ export default function ChatbotClient({
             </div>
             {/* Android (user สั่ง 2026-10-06): ไม่แสดงยอดเงิน · กฎ canShowMoneyStatus */}
             {showMoneyStatus && walletBalance != null && (
-              <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
+              <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {formatNumberNoSymbol(walletBalance)} บาท</p>
             )}
           </div>
 

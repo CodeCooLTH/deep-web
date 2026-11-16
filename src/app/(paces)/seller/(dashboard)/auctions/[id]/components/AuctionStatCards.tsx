@@ -16,6 +16,7 @@ import AuctionCountdown from '../../../_shared/AuctionCountdown'
 import ExpectedPriceGauge from './ExpectedPriceGauge'
 import type { AuctionStatus } from '../../components/data'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   currentPrice: number
   bidCount: number
@@ -49,7 +50,7 @@ export default function AuctionStatCards({
     <div className={cn('grid grid-cols-1 gap-base sm:grid-cols-3', showGauge && 'md:grid-cols-4')}>
       <StatCard title="ราคาปัจจุบัน">
         <p className="mb-0 text-xl font-bold tabular-nums text-primary">
-          ฿{currentPrice.toLocaleString('th-TH')}
+          {formatBaht(currentPrice)}
         </p>
         <p className="text-default-400 mb-0 mt-1 truncate text-xs">
           {leaderName ? `ผู้นำ: ${leaderName}` : 'ยังไม่มีผู้เสนอราคา'}

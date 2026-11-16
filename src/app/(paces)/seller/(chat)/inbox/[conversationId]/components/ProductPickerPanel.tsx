@@ -55,6 +55,7 @@ import {
   sentProductIds,
 } from '@/lib/chat-product-card-batch'
 
+import { formatBaht } from '@/lib/format-money'
 /** field ที่ใช้จริงจาก GET /api/products (serializeProduct คืนมากกว่านี้ — ประกาศเท่าที่ใช้) */
 type PickerProduct = {
   id: string
@@ -117,7 +118,7 @@ function imageSrc(images: string[]): string | null {
   return fileUrlOf(String(first))
 }
 
-const priceText = (p: number) => `฿${p.toLocaleString('th-TH')}`
+const priceText = (p: number) => `${formatBaht(p)}`
 
 export default function ProductPickerPanel({
   onPick,

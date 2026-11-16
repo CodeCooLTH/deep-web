@@ -88,6 +88,7 @@ import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import { toFileUrl } from '@/lib/file-url'
 import { isServiceJobStarted } from '@/lib/service-status'
 
+import { formatBaht } from '@/lib/format-money'
 export type CustomerPanelOrder = {
   id: string
   token: string
@@ -1189,7 +1190,7 @@ export function CustomerPanelBody({
               {data.customerStats.totalSpent !== undefined && (
                 <StatRow
                   label={byVertical(t.inbox.customerPanel.statTotalSpent, data.vertical)}
-                  value={`฿${Number(data.customerStats.totalSpent).toLocaleString('th-TH')}`}
+                  value={`${formatBaht(Number(data.customerStats.totalSpent))}`}
                 />
               )}
               <StatRow

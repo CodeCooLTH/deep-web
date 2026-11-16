@@ -21,8 +21,9 @@ import { CAPI_EVENTS } from '@/lib/meta-capi/events'
 import { capiGroupResult, type CapiDatasetResult, type CapiLineGroup } from '@/lib/meta-capi/chat-lines'
 import { cn } from '@/utils/helpers'
 
+import { formatBaht } from '@/lib/format-money'
 const META = new Map(CAPI_EVENTS.map((e) => [e.key as string, e.metaName]))
-const money = (n: number) => `฿${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const money = (n: number) => `${formatBaht(n)}`
 
 export type OrderCapiCardData =
   | { kind: 'error' }

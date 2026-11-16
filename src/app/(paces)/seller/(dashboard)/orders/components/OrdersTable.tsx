@@ -79,6 +79,7 @@ import { fmt } from '@/i18n/fmt'
 import { adDisplayName } from '@/lib/ad-attribution'
 import AdThumb from '@/components/safepay/AdThumb'
 
+import { formatBaht } from '@/lib/format-money'
 const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
@@ -328,7 +329,7 @@ export default function OrdersTable({
               {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง · ช่างไม่เห็นราคา */}
               {showMoney && it.price !== undefined && (
                 <p className="mb-0 text-xs text-default-500">
-                  ฿{it.price.toLocaleString('th-TH')} ต่อ{itemVocab.unitLabel}
+                  {formatBaht(it.price)} ต่อ{itemVocab.unitLabel}
                 </p>
               )}
               <p className="mb-0 text-xs text-default-500">x{it.qty}</p>
@@ -662,7 +663,7 @@ export default function OrdersTable({
       meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
       cell: ({ row }) => (
         <span className="text-lg font-bold tabular-nums text-default-900">
-          ฿{(row.original.total ?? 0).toLocaleString('th-TH')}
+          {formatBaht((row.original.total ?? 0))}
         </span>
       ),
     })]),

@@ -27,6 +27,7 @@ import { toFileUrl } from '@/lib/file-url'
 import FollowBotNoteLine from '@/components/safepay/FollowBotNoteLine'
 import { FOLLOW_BOT_NOTE_TYPE } from '@/lib/auto-order-message-type'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   conversationId: string
   buyerName: string
@@ -72,7 +73,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
     )
   }
 
-  const priceLabel = `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  const priceLabel = `${formatBaht(card.price)}`
   const href = username ? `/u/${username}` : undefined
 
   const inner = (
@@ -207,7 +208,7 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
                           // การ์ดออเดอร์ (user 2026-07-24) — widget เล็ก แสดงบรรทัดสรุป (การ์ดเต็มอยู่หน้า inbox)
                           <p className="text-default-800 mb-0 flex items-center gap-1.5 text-sm">
                             <Icon icon="receipt-2" className="text-primary shrink-0 text-base" />
-                            {m.orderCard ? `คำสั่งซื้อ: ${m.orderCard.items[0]?.name ?? ''} · ฿${Number(m.orderCard.totalAmount).toLocaleString('th-TH')}` : 'คำสั่งซื้อ'}
+                            {m.orderCard ? `คำสั่งซื้อ: ${m.orderCard.items[0]?.name ?? ''} · ${formatBaht(Number(m.orderCard.totalAmount))}` : 'คำสั่งซื้อ'}
                           </p>
                         ) : (
                           <>

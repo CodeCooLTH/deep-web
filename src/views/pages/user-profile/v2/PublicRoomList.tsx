@@ -21,6 +21,7 @@ import { Icon } from '@iconify/react'
 
 import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 export type PublicRoom = {
   id: string
   name: string
@@ -91,7 +92,7 @@ export default function PublicRoomList({
                       เริ่มต้นที่
                     </div>
                     <div className='text-[22px] font-extrabold text-primary whitespace-nowrap tabular-nums leading-none'>
-                      {`฿${r.basePrice.toLocaleString('th-TH')}`}
+                      {`${formatBaht(r.basePrice)}`}
                     </div>
                     <div className='text-[12px] text-[var(--mui-palette-text-secondary)]'>ต่อคืน</div>
                   </div>

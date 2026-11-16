@@ -30,6 +30,7 @@ import PackageActionButton from './PackageActionButton'
 import CancelPackageButton from './CancelPackageButton'
 import DowngradeButton, { type DowngradeBusinessItem } from './DowngradeButton'
 
+import { formatBaht } from '@/lib/format-money'
 export interface PackageTierGridProps {
   statusApp: BusinessPackageStatusApp
   currentTier: BusinessPackageTier | null
@@ -147,7 +148,7 @@ function TierCard({
         )}
         <h3 className="mb-1.25 text-xl font-bold">{label}</h3>
         <div className="my-7.5">
-          <h1 className="text-4xl font-bold">฿{price.toLocaleString('th-TH')}</h1>
+          <h1 className="text-4xl font-bold">{formatBaht(price)}</h1>
           <small className="text-default-400 text-sm">/เดือน</small>
         </div>
         <ul className="space-y-2.5 text-start">

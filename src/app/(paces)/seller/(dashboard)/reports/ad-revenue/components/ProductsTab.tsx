@@ -27,9 +27,9 @@ export default function ProductsTab({ report, matrixAds, noun }: { report: AdRev
 
   const kpis: KpiSpec[] = [
     { key: 'count', title: d.productsSold, icon: 'package', iconBg: kpiBg(0), value: fmt(d.productsCount, { n: formatNumberNoSymbol(products.length) }), sub: fmt(d.unitsCount, { n: formatNumberNoSymbol(units) }) },
-    { key: 'sales', title: d.productSales, icon: 'cash', iconBg: kpiBg(1), value: formatBaht(Math.round(sales)), sub: d.productSalesSub },
+    { key: 'sales', title: d.productSales, icon: 'cash', iconBg: kpiBg(1), value: formatBaht(sales), sub: d.productSalesSub },
     { key: 'lead', title: d.topProduct, icon: 'star', iconBg: kpiBg(2), value: lead && sales > 0 ? fmtPct(Math.round((lead.sales / sales) * 1000) / 10) : '—', sub: lead?.name },
-    { key: 'avg', title: d.avgUnitPrice, icon: 'tag', iconBg: kpiBg(3), value: units > 0 ? formatBaht(Math.round(sales / units)) : '—' },
+    { key: 'avg', title: d.avgUnitPrice, icon: 'tag', iconBg: kpiBg(3), value: units > 0 ? formatBaht(sales / units) : '—' },
   ]
   const top5 = top.slice(0, 5)
   const max = top5[0]?.sales ?? 0
@@ -51,7 +51,7 @@ export default function ProductsTab({ report, matrixAds, noun }: { report: AdRev
                     <div className="min-w-0 flex-1">
                       <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
                         <span className="text-default-900 min-w-0 truncate font-medium" title={p.name}>{p.name}</span>
-                        <b className="text-default-900 font-bold tabular-nums">{formatBaht(Math.round(p.sales))}</b>
+                        <b className="text-default-900 font-bold tabular-nums">{formatBaht(p.sales)}</b>
                       </div>
                       <SegBar pct={max > 0 ? (p.sales / max) * 100 : 0} />
                     </div>

@@ -15,6 +15,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   status: 'ended' | 'unsold' | 'cancelled'
   currentPrice: number
@@ -54,7 +55,7 @@ export default function AuctionResultCard({
               <p className="text-default-500 mb-3 text-sm">
                 ราคาสุดท้าย:{' '}
                 <span className="tabular-nums font-semibold text-default-800">
-                  ฿{currentPrice.toLocaleString('th-TH')}
+                  {formatBaht(currentPrice)}
                 </span>
               </p>
               {orderId && (
@@ -75,7 +76,7 @@ export default function AuctionResultCard({
               <p className="text-default-500 mb-0 text-sm">
                 ราคาสูงสุดที่ได้:{' '}
                 <span className="tabular-nums font-semibold text-default-800">
-                  ฿{currentPrice.toLocaleString('th-TH')}
+                  {formatBaht(currentPrice)}
                 </span>
               </p>
               {hasReserve && (

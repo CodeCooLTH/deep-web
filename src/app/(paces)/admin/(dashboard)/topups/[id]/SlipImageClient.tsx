@@ -9,6 +9,7 @@
 import { Icon } from '@iconify/react'
 import { useState } from 'react'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   slipFileId: string
   amount: number
@@ -30,7 +31,7 @@ export default function SlipImageClient({ slipFileId, amount }: Props) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={`/api/files/${slipFileId}`}
-      alt={`สลิปโอนเงิน ฿${amount.toLocaleString('th-TH')}`}
+      alt={`สลิปโอนเงิน ${formatBaht(amount)}`}
       className="max-h-96 object-contain mx-auto"
       onError={() => setErrored(true)}
     />

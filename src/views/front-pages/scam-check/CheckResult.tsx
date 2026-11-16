@@ -17,6 +17,7 @@ import { formatDate } from '@/lib/format-date'
 // Styles
 import frontCommonStyles from '@views/front-pages/styles.module.css'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   type: IdentifierType | null
   q: string
@@ -120,7 +121,7 @@ const CheckResult = ({ type, q, result }: Props) => {
                   </div>
 
                   <div className='mbs-8 grid grid-cols-2 gap-4'>
-                    <Stat label='มูลค่าเสียหายรวม' value={`฿${result!.totalLoss.toLocaleString('th-TH')}`} />
+                    <Stat label='มูลค่าเสียหายรวม' value={`${formatBaht(result!.totalLoss)}`} />
                     <Stat
                       label='รายงานล่าสุด'
                       value={result!.lastReportedAt ? formatDate(result!.lastReportedAt) : '-'}

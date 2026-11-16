@@ -24,6 +24,7 @@ import { getSellerTrust } from '@/services/app-shop.service'
 import AuctionDetailClient from './AuctionDetailClient'
 import { sessionUserId } from '@/lib/session-user'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -33,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const description =
     auction.description ??
-    `เสนอราคาสินค้า "${auction.title}" บน Deep — ราคาปัจจุบัน ฿${auction.currentPrice.toLocaleString()}`
+    `เสนอราคาสินค้า "${auction.title}" บน Deep — ราคาปัจจุบัน ${formatBaht(auction.currentPrice)}`
 
   return {
     title: `${auction.title} — ประมูลบน Deep`,

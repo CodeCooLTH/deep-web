@@ -18,6 +18,7 @@ import { useCallback } from 'react'
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   currentPrice: number
   expectedPrice: number
@@ -60,7 +61,7 @@ export default function ExpectedPriceGauge({ currentPrice, expectedPrice }: Prop
         <p className="text-default-400 mb-1.25 text-xs">เทียบเป้าหมาย</p>
         <ApexChart getOptions={getOptions} series={[percent]} type="radialBar" height={140} />
         <p className="text-default-400 mb-0 -mt-6 text-center text-xs">
-          ฿{currentPrice.toLocaleString('th-TH')} / ฿{expectedPrice.toLocaleString('th-TH')}
+          {formatBaht(currentPrice)} / {formatBaht(expectedPrice)}
         </p>
       </div>
     </div>

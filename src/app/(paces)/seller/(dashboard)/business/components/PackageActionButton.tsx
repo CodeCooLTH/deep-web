@@ -21,6 +21,7 @@ import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import type { BusinessPackageTier } from '@/lib/business-package'
 
+import { formatBaht } from '@/lib/format-money'
 export interface PackageActionButtonProps {
   tier: BusinessPackageTier
   tierLabel: string
@@ -41,7 +42,7 @@ function actionErrorMessage(status: number, code: string | undefined, mode: 'sub
 
 function PackageActionButtonInner({ tier, tierLabel, price, mode }: PackageActionButtonProps) {
   const router = useRouter()
-  const priceLabel = `฿${price.toLocaleString('th-TH')}`
+  const priceLabel = `${formatBaht(price)}`
   const endpoint = mode === 'subscribe' ? '/api/business/subscribe' : '/api/business/upgrade'
   const actionLabel = mode === 'subscribe' ? 'สมัคร' : 'อัพเกรด'
 

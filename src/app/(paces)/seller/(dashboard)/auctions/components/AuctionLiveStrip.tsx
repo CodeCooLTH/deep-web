@@ -25,6 +25,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { useAuctionPresence } from '@/hooks/useAuctionPresence'
 import { fileUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 /** viewer count ต่อ live card (feat 00006) — presence channel ต่อ auction; แสดงเมื่อ >0 */
 function LiveCardViewers({ auctionId }: { auctionId: string }) {
   const count = useAuctionPresence(auctionId, true)
@@ -133,7 +134,7 @@ export default function AuctionLiveStrip({ items }: { items: LiveStripItem[] }) 
             <div className="card-body !p-3">
               <p className="truncate text-sm font-semibold text-default-900">{it.title}</p>
               <p className="mt-1 text-lg font-extrabold tabular-nums text-primary">
-                ฿{it.currentPrice.toLocaleString('th-TH')}
+                {formatBaht(it.currentPrice)}
                 {it.status === 'scheduled' && (
                   <span className="ms-1 text-xs font-medium text-default-400">เริ่มต้น</span>
                 )}

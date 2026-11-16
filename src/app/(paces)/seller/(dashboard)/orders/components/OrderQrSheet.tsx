@@ -21,6 +21,7 @@ import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
+import { formatBaht } from '@/lib/format-money'
 interface Props {
   order: OrderRow
   /** buyer URL เต็ม (resolved) ที่ QR จะเข้ารหัส — ตัวเดียวกับปุ่มคัดลอกลิงก์ */
@@ -120,7 +121,7 @@ export default function OrderQrSheet({ order, url, onClose, orderWord = 'ออ�
           {order.total !== undefined && (
             <>
               {' · '}
-              <span className="font-semibold text-default-900">฿{order.total.toLocaleString('th-TH')}</span>
+              <span className="font-semibold text-default-900">{formatBaht(order.total)}</span>
             </>
           )}
         </p>

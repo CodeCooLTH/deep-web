@@ -25,6 +25,7 @@ import { Icon } from '@iconify/react'
 
 import { formatDurationTH } from '@/lib/appointments'
 
+import { formatBaht } from '@/lib/format-money'
 export type PublicService = {
   id: string
   name: string
@@ -39,7 +40,7 @@ function depositLabel(mode: string, value: string): { caption: string; amount: s
   if (!n || n <= 0) return null
   return mode === 'PERCENT'
     ? { caption: 'มัดจำ', amount: `${n}%` }
-    : { caption: 'มัดจำ', amount: `฿${n.toLocaleString('th-TH')}` }
+    : { caption: 'มัดจำ', amount: `${formatBaht(n)}` }
 }
 
 export default function PublicServiceList({

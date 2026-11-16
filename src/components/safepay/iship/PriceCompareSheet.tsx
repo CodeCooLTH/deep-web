@@ -28,6 +28,7 @@ import FlashLogo from '@/components/safepay/flash/FlashLogo'
 import { readApiError } from '@/components/safepay/flash/flash-api'
 import { flashPriceBadge } from '@/lib/shipping/flash-order-ui'
 
+import { formatNumberNoSymbol, formatBaht } from '@/lib/format-money'
 export interface CompareInput {
   receiver: { subdistrict: string; district: string; province: string; postcode: string }
   weight: number
@@ -69,7 +70,7 @@ type SheetState =
   /** detail = ข้อความจริงจาก server — ไม่มีบรรทัดนี้ user/เรา วินิจฉัยจากหน้าจอไม่ได้เลย */
   | { kind: 'error'; detail?: string }
 
-const fee = (n: number | null) => (n != null ? `฿${n.toLocaleString('th-TH')}` : '—')
+const fee = (n: number | null) => (n != null ? `${formatBaht(n)}` : '—')
 
 export default function PriceCompareSheet({
   open,
@@ -195,7 +196,7 @@ export default function PriceCompareSheet({
         ? 'ยังไม่มีขนส่งให้เทียบราคา'
         : allFailed
           ? 'เทียบราคาไม่สำเร็จ ลองใหม่ได้'
-          : `พบราคาจาก ${rows.length} ขนส่ง ถูกที่สุดคือ ${rows[0].courierName} ${rows[0].totalPrice.toLocaleString('th-TH')} บาท` +
+          : `พบราคาจาก ${rows.length} ขนส่ง ถูกที่สุดคือ ${rows[0].courierName} ${formatNumberNoSymbol(rows[0].totalPrice)} บาท` +
             (failed.length > 0 ? ` · ประเมินไม่ได้ ${failed.length} ขนส่ง` : '')
       : state.kind === 'error'
         ? 'เทียบราคาไม่สำเร็จ ลองใหม่ได้'
@@ -466,7 +467,7 @@ function FlashQuoteBlock({
           </span>
           {state.kind === 'quote' && (
             <span className="text-lg font-bold tabular-nums text-default-900">
-              ฿{state.totalBaht.toLocaleString('th-TH')}
+              {formatBaht(state.totalBaht)}
             </span>
           )}
           {(state.kind === 'loading' || state.kind === 'idle') && (
@@ -540,7 +541,7 @@ function CourierCard({
         )}
       </span>
       <span className="ms-auto text-lg font-bold tabular-nums text-default-900 @2xl:hidden">
-        ฿{row.totalPrice.toLocaleString('th-TH')}
+        {formatBaht(row.totalPrice)}
       </span>
     </>
   )
@@ -580,13 +581,13 @@ function CourierCard({
       </div>
 
       <p className="mb-0 hidden w-16 text-end text-lg font-bold tabular-nums text-default-900 @2xl:block">
-        ฿{row.totalPrice.toLocaleString('th-TH')}
+        {formatBaht(row.totalPrice)}
       </p>
 
       <button
         type="button"
         onClick={onPick}
-        aria-label={`ใช้ขนส่ง ${row.courierName} ราคา ${row.totalPrice.toLocaleString('th-TH')} บาท`}
+        aria-label={`ใช้ขนส่ง ${row.courierName} ราคา ${formatNumberNoSymbol(row.totalPrice)} บาท`}
         className={`btn mt-2.5 w-full py-3 @2xl:mt-0 @2xl:w-auto @2xl:shrink-0 @2xl:px-5 ${
           cheapest
             ? 'bg-primary text-white hover:bg-primary-hover'

@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 
+import { formatBaht } from '@/lib/format-money'
 type ApiResult = { ok: boolean; status: number; data: any }
 
 async function postJson(path: string, body?: unknown): Promise<ApiResult> {
@@ -46,7 +47,7 @@ export function useAuctionActions(auctionId: string) {
       let result = await postJson(`/api/seller/auctions/${auctionId}/end-early`, {})
 
       if (!result.ok && result.status === 409 && result.data?.code === 'BELOW_RESERVE_CONFIRM_REQUIRED') {
-        const priceLabel = `฿${Number(result.data.currentPrice ?? 0).toLocaleString('th-TH')}`
+        const priceLabel = `${formatBaht(Number(result.data.currentPrice ?? 0))}`
         const confirmBelow = await pacesConfirm.warning(
           'ราคายังไม่ถึง reserve ที่ตั้งไว้',
           `ราคาปัจจุบัน ${priceLabel} — ยืนยันจบประมูลที่ราคานี้ (ถือว่า "ขายไม่ออก")?`,

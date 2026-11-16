@@ -8,6 +8,7 @@
 import { formatDateTimeTH } from './format-date'
 import type { OrderVocab } from './seller-menu'
 
+import { formatBaht } from '@/lib/format-money'
 /** ประเภทเหตุการณ์ทั้งหมด — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
@@ -301,7 +302,7 @@ export function describeOrderEvent(
       return e.meta.changedCount ? `แก้ไข ${e.meta.changedCount} รายการ` : null
     case 'COD_SETTLED':
       return typeof e.meta.amount === 'number'
-        ? `฿${e.meta.amount.toLocaleString('th-TH')}`
+        ? `${formatBaht(e.meta.amount)}`
         : null
     case 'SYSTEM_CONFIRMED':
       // บอกเหตุผลเสมอ ไม่ใช่แค่ "ระบบยืนยัน" ลอย ๆ — ร้านต้องตรวจสอบย้อนหลังได้ว่าทำไม
@@ -329,7 +330,7 @@ export function describeOrderEvent(
       }
       if (e.meta.closedBy === 'BUYER') parts.unshift(`ปิดให้อัตโนมัติเมื่อ${service ? service.buyerNoun : 'ลูกค้า'}ยืนยันรับบริการ`)
       if (typeof e.meta.amount === 'number' && e.meta.amount > 0) {
-        parts.push(`รับเงิน ฿${e.meta.amount.toLocaleString('th-TH')}`)
+        parts.push(`รับเงิน ${formatBaht(e.meta.amount)}`)
       }
       if (e.meta.backfilled) parts.push('บันทึกย้อนหลัง')
       return parts.length ? parts.join(' · ') : null

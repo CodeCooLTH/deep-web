@@ -12,6 +12,7 @@ import { shouldHidePayments } from '@/lib/app-shell-server'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 
+import { formatBaht } from '@/lib/format-money'
 export interface AdvanceWarningBannerProps {
   /** วันที่รอบต่ออายุถัดไป — parent format มาแล้ว (formatDate) */
   nextRenewalAt: string
@@ -33,7 +34,7 @@ export default async function AdvanceWarningBanner({ nextRenewalAt, shortfall }:
       <div className="flex items-center gap-2">
         <Icon icon="alert-triangle" className="size-5 shrink-0" aria-hidden="true" />
         <span>
-          ยอดเงินอาจไม่พอสำหรับรอบต่ออายุแพ็กเกจวันที่ {nextRenewalAt} (ขาดอีก ฿{shortfall.toLocaleString('th-TH')})
+          ยอดเงินอาจไม่พอสำหรับรอบต่ออายุแพ็กเกจวันที่ {nextRenewalAt} (ขาดอีก {formatBaht(shortfall)})
         </span>
       </div>
 

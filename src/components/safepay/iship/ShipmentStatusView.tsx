@@ -51,6 +51,7 @@ import FlashFailedPanel from '@/components/safepay/flash/FlashFailedPanel'
 import FlashReviewPanel from '@/components/safepay/flash/FlashReviewPanel'
 import { readApiError } from '@/components/safepay/flash/flash-api'
 
+import { formatBaht } from '@/lib/format-money'
 interface TraceEvent {
   status: string
   statusText: string | null
@@ -1167,7 +1168,7 @@ export default function ShipmentStatusView({
                   <span className="min-w-0 flex-1 truncate text-default-900">{it.name}</span>
                   <span className="text-default-700 shrink-0 text-xs">×{it.qty}</span>
                   <span className="text-default-900 shrink-0 font-semibold">
-                    ฿{it.price.toLocaleString('th-TH')}
+                    {formatBaht(it.price)}
                   </span>
                 </div>
               ))}
@@ -1177,7 +1178,7 @@ export default function ShipmentStatusView({
             // ยอดที่ต้องเก็บจากลูกค้าปลายทาง = ตัวเลขที่ผิดแล้วเสียเงินจริง จึงเป็นแถบเต็มไม่ใช่แถวตาราง
             <div className="bg-warning/15 text-warning-ink mt-3 flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
               <span className="text-sm">เก็บเงินปลายทาง</span>
-              <span className="text-base font-bold">฿{shipment.codAmount.toLocaleString('th-TH')}</span>
+              <span className="text-base font-bold">{formatBaht(shipment.codAmount)}</span>
             </div>
           )}
           {/* ป้ายถาวรทุกสถานะ (รวมส่งถึงแล้ว) ปิดไม่ได้ — Flash ไม่แจ้งการโอนเงิน COD จึงไม่ใช่เขียว/แดง แต่เป็นข้อเท็จจริง */}

@@ -26,6 +26,7 @@ import { getTransactions } from '@/services/wallet.service'
 import SlipImageClient from './SlipImageClient'
 import TopUpReviewActions from './TopUpReviewActions'
 
+import { formatBaht } from '@/lib/format-money'
 export const metadata: Metadata = { title: 'ตรวจสอบคำขอเติมเงิน' }
 
 type PageProps = {
@@ -191,7 +192,7 @@ export default async function TopUpDetailPage({ params }: PageProps) {
                 <div className="flex items-center justify-between py-2.5">
                   <dt className="text-default-500 text-sm">จำนวนเงิน</dt>
                   <dd className="text-dark text-sm font-semibold">
-                    ฿{record.amount.toLocaleString('th-TH')}
+                    {formatBaht(record.amount)}
                   </dd>
                 </div>
 
@@ -290,7 +291,7 @@ export default async function TopUpDetailPage({ params }: PageProps) {
                         <dd className="text-default-400 text-xs">{formatDateTime(t.createdAt)}</dd>
                       </div>
                       <span className={t.type === 'DEDUCT' ? 'text-danger text-sm' : 'text-success text-sm'}>
-                        {t.type === 'DEDUCT' ? '-' : '+'}฿{t.amount.toLocaleString('th-TH')}
+                        {t.type === 'DEDUCT' ? '-' : '+'}{formatBaht(t.amount)}
                       </span>
                     </div>
                   ))}

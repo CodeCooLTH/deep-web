@@ -23,6 +23,7 @@ import { pickSizeError } from '@/lib/image-compress'
 import { uploadFileId } from '@/lib/upload-client'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
+import { formatBaht } from '@/lib/format-money'
 // ─── Constants ─────────────────────────────────────────────────────────────────
 // preset packages ตาม Design Spec
 const PRESETS = [100, 300, 500, 1000] as const
@@ -262,7 +263,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
                         : 'bg-card border-default-300 text-default-700 hover:border-primary hover:text-primary',
                     ].join(' ')}
                   >
-                    ฿{preset.toLocaleString()}
+                    {formatBaht(preset)}
                   </button>
                 ))}
               </div>

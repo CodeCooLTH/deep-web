@@ -29,11 +29,11 @@ export default function QualityTab({ report, ads, noun, labels }: { report: AdRe
       spark: { data: daily.map((x) => x.collected), kind: 'area', name: `${t.collected} · ${d.dailySpark}` },
     },
     {
-      key: 'pending', title: d.pending, icon: 'hourglass', iconBg: kpiBg(1), value: formatBaht(Math.round(w.unrecorded)), sub: d.pendingSub,
+      key: 'pending', title: d.pending, icon: 'hourglass', iconBg: kpiBg(1), value: formatBaht(w.unrecorded), sub: d.pendingSub,
       spark: { data: daily.map((x) => x.pending), kind: 'bar', name: `${d.pending} · ${d.dailySpark}` },
     },
-    { key: 'cancelled', title: labels.CANCELLED, icon: 'circle-x', iconBg: kpiBg(2), value: fmtPct(pct(s.cancelled, s.placed)), sub: fmt(d.lostRateOf, { n: formatNumberNoSymbol(s.cancelled), v: formatBaht(Math.round(w.cancelled)) }) },
-    { key: 'returned', title: labels.RETURNED, icon: 'arrow-back-up', iconBg: kpiBg(3), value: fmtPct(pct(s.returned, s.placed)), sub: fmt(d.lostRateOf, { n: formatNumberNoSymbol(s.returned), v: formatBaht(Math.round(w.returned)) }) },
+    { key: 'cancelled', title: labels.CANCELLED, icon: 'circle-x', iconBg: kpiBg(2), value: fmtPct(pct(s.cancelled, s.placed)), sub: fmt(d.lostRateOf, { n: formatNumberNoSymbol(s.cancelled), v: formatBaht(w.cancelled) }) },
+    { key: 'returned', title: labels.RETURNED, icon: 'arrow-back-up', iconBg: kpiBg(3), value: fmtPct(pct(s.returned, s.placed)), sub: fmt(d.lostRateOf, { n: formatNumberNoSymbol(s.returned), v: formatBaht(w.returned) }) },
   ]
 
   return (

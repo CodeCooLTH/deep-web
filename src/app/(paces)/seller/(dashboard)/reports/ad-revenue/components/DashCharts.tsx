@@ -15,7 +15,7 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import { formatBaht, formatBahtCompact, formatNumberNoSymbol } from '@/lib/format-money'
 import { getColor } from '@/utils/helpers'
 
-const money = (v: number) => formatBaht(Math.round(v))
+const money = (v: number) => formatBaht(v)
 const count = (v: number) => formatNumberNoSymbol(Math.round(v))
 
 /** color = ชื่อโทเคน เช่น chart-primary หรือ default-300 (แปลงเป็นสีใน getOptions ฝั่ง client — getColor อ่าน CSS var) · alpha = ความทึบ */

@@ -29,10 +29,10 @@ export default function CustomersTab({ report, noun }: { report: AdRevenueReport
   const people = (n: number) => fmt(t.peopleCount, { n: formatNumberNoSymbol(n) })
 
   const kpis: KpiSpec[] = [
-    { key: 'new', title: t.custNew, icon: 'user-plus', iconBg: kpiBg(0), value: people(s.newCustomers), sub: fmt(d.shareLine, { v: formatBaht(Math.round(s.newSales)), p: fmtPct(share(s.newSales, total)) }) },
-    { key: 'ret', title: t.custReturning, icon: 'users', iconBg: kpiBg(1), value: people(s.returningCustomers), sub: fmt(d.shareLine, { v: formatBaht(Math.round(s.returningSales)), p: fmtPct(share(s.returningSales, total)) }) },
-    { key: 'unk', title: t.custUnknown, icon: 'help-circle', iconBg: kpiBg(2), value: fmt(t.ordersCount, { n: formatNumberNoSymbol(s.unknownCustomers) }), sub: fmt(d.shareLine, { v: formatBaht(Math.round(s.unknownSales)), p: fmtPct(share(s.unknownSales, total)) }) },
-    ...(acq !== null ? [{ key: 'acq', title: t.colAcqCost, icon: 'coin', iconBg: kpiBg(3), value: formatBaht(Math.round(acq)), sub: d.acqSub } satisfies KpiSpec] : []),
+    { key: 'new', title: t.custNew, icon: 'user-plus', iconBg: kpiBg(0), value: people(s.newCustomers), sub: fmt(d.shareLine, { v: formatBaht(s.newSales), p: fmtPct(share(s.newSales, total)) }) },
+    { key: 'ret', title: t.custReturning, icon: 'users', iconBg: kpiBg(1), value: people(s.returningCustomers), sub: fmt(d.shareLine, { v: formatBaht(s.returningSales), p: fmtPct(share(s.returningSales, total)) }) },
+    { key: 'unk', title: t.custUnknown, icon: 'help-circle', iconBg: kpiBg(2), value: fmt(t.ordersCount, { n: formatNumberNoSymbol(s.unknownCustomers) }), sub: fmt(d.shareLine, { v: formatBaht(s.unknownSales), p: fmtPct(share(s.unknownSales, total)) }) },
+    ...(acq !== null ? [{ key: 'acq', title: t.colAcqCost, icon: 'coin', iconBg: kpiBg(3), value: formatBaht(acq), sub: d.acqSub } satisfies KpiSpec] : []),
   ]
 
   const byAd = [...ads].filter((a) => a.orders > 0).sort((a, b) => b.orders - a.orders).slice(0, 8)
@@ -45,7 +45,7 @@ export default function CustomersTab({ report, noun }: { report: AdRevenueReport
         <div className="min-w-0 xl:col-span-4">
           <DashCard title={d.salesShare} tip={fmt(t.customerDefinition, { noun })}>
             <DonutChart
-              center={d.salesTotal} centerValue={formatBaht(Math.round(total))}
+              center={d.salesTotal} centerValue={formatBaht(total)}
               ariaLabel={`${d.salesShare}: ${t.custNew} ${fmtPct(share(s.newSales, total))}, ${t.custReturning} ${fmtPct(share(s.returningSales, total))}, ${t.custUnknown} ${fmtPct(share(s.unknownSales, total))}`}
               slices={[
                 { label: t.custNew, value: s.newSales, color: 'chart-primary' },

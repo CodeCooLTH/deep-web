@@ -37,14 +37,14 @@ export default function TimeTab({ report, noun }: { report: AdRevenueReport; nou
     {
       key: 'day', title: d.bestDay, icon: 'calendar-event', iconBg: kpiBg(1),
       value: enough && byDay[bestDay] > 0 ? fmt(d.bestDayValue, { d: t.weekdays[bestDay] }) : '—',
-      sub: enough && byDay[bestDay] > 0 ? fmt(d.bestDaySub, { v: formatBaht(Math.round(byDay[bestDay])) }) : undefined,
+      sub: enough && byDay[bestDay] > 0 ? fmt(d.bestDaySub, { v: formatBaht(byDay[bestDay]) }) : undefined,
     },
     {
       key: 'click', title: d.clickToOrder, icon: 'hourglass', iconBg: kpiBg(2),
       value: s.medianClickToOrderDays === null ? '—' : fmt(t.daysValue, { n: formatNumberNoSymbol(s.medianClickToOrderDays) }), sub: d.medianSub,
     },
     {
-      key: 'avg', title: d.avgPerDay, icon: 'cash', iconBg: kpiBg(3), value: daily.length > 0 ? formatBaht(Math.round(s.sales / daily.length)) : '—',
+      key: 'avg', title: d.avgPerDay, icon: 'cash', iconBg: kpiBg(3), value: daily.length > 0 ? formatBaht(s.sales / daily.length) : '—',
       spark: { data: daily.map((x) => x.sales), kind: 'bar', name: `${t.sumSales} · ${d.dailySpark}` },
     },
   ]
@@ -59,7 +59,7 @@ export default function TimeTab({ report, noun }: { report: AdRevenueReport; nou
             <Columns
               ariaLabel={d.byHour} dimColor
               categories={buckets.map((_, i) => hh(i * 2))}
-              series={[{ name: t.colSales, data: buckets.map((v) => Math.round(v)), color: 'chart-primary' }]}
+              series={[{ name: t.colSales, data: buckets.map((v) => Math.round((v) * 100) / 100), color: 'chart-primary' }]}
             />
           </DashCard>
         </div>

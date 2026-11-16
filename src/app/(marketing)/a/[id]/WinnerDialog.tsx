@@ -22,6 +22,7 @@ import { LEVEL_STYLE } from './AuctionBidHistory'
 import type { AuctionLevel } from '@/lib/auction-level'
 import { fileUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   open: boolean
   onClose: () => void
@@ -90,7 +91,7 @@ export default function WinnerDialog({
         <Typography sx={{ mt: 1.5, fontSize: 16, fontWeight: 700, color: 'text.primary' }}>{winnerName}</Typography>
         <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1.5 }}>ราคาปิด</Typography>
         <Typography sx={{ fontSize: 30, fontWeight: 800, color: 'primary.main', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
-          ฿{finalPrice.toLocaleString()}
+          {formatBaht(finalPrice)}
         </Typography>
       </DialogContent>
       <DialogActions className="justify-center" sx={{ pb: 4 }}>

@@ -65,8 +65,8 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
     { id: 'new', header: `${t.custNew} (${t.peopleUnit})`, align: 'end', sort: (a) => a.newCustomers, cell: (a) => count(a.newCustomers) },
     { id: 'ret', header: `${t.custReturning} (${t.peopleUnit})`, align: 'end', sort: (a) => a.returningCustomers, cell: (a) => count(a.returningCustomers) },
     ...(showUnknown ? [{ id: 'unk', header: `${t.custUnknown} (${t.unit})`, align: 'end' as const, xlOnly: true, sort: (a: Ad) => a.unknownCustomers, cell: (a: Ad) => count(a.unknownCustomers) }] : []),
-    { id: 'newSales', header: d.colNewSales, align: 'end', xlOnly: true, sort: (a) => a.newSales, cell: (a) => formatBaht(Math.round(a.newSales)) },
-    { id: 'retSales', header: d.colRetSales, align: 'end', xlOnly: true, sort: (a) => a.returningSales, cell: (a) => formatBaht(Math.round(a.returningSales)) },
+    { id: 'newSales', header: d.colNewSales, align: 'end', xlOnly: true, sort: (a) => a.newSales, cell: (a) => formatBaht(a.newSales) },
+    { id: 'retSales', header: d.colRetSales, align: 'end', xlOnly: true, sort: (a) => a.returningSales, cell: (a) => formatBaht(a.returningSales) },
     ...(spendOk ? [{ id: 'acq', header: t.colAcqCost, align: 'end' as const, sort: (a: Ad) => acq(a), cell: (a: Ad) => { const v = acq(a); return v === null ? '—' : <b className="text-default-900 font-semibold">{formatBaht(v)}</b> } }] : []),
   ]
 
@@ -80,8 +80,8 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
       <td className="text-end tabular-nums whitespace-nowrap">{n0(newAll)}</td>
       <td className="text-end tabular-nums whitespace-nowrap">{n0(sum('returningCustomers'))}</td>
       {showUnknown && <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{n0(sum('unknownCustomers'))}</td>}
-      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(Math.round(sum('newSales')))}</td>
-      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(Math.round(sum('returningSales')))}</td>
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(sum('newSales'))}</td>
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(sum('returningSales'))}</td>
       {/* ต้นทุนรวมอยู่ที่การ์ด KPI (ค่าโฆษณาทั้งหมด ÷ ลูกค้าใหม่) — แถวรวมตารางนับเฉพาะโฆษณาที่มีใบ จึงไม่คิดซ้ำให้ตัวเลขไม่ตรงกัน */}
       {spendOk && <td />}
     </tr>

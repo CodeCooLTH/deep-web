@@ -27,6 +27,7 @@ import Icon from '@/components/wrappers/Icon'
 import { productMargin } from '@/lib/order-profit'
 import QuickPriceSheet from './QuickPriceSheet'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   /** ต้นทุนของบรรทัดนี้ — null = ยังไม่กรอก (ต่างจาก 0 ที่แปลว่าไม่มีต้นทุนจริง)
    *  string = ทศนิยมที่ยังพิมพ์ไม่จบ ("12.") ค้างระหว่างพิมพ์ แปลงกลับเป็น number ตอน blur */
@@ -59,7 +60,7 @@ export default function LineCostField({ cost, price, onChange, knownMissing, nam
           knownMissing ? 'ยังไม่ตั้งต้นทุน' : 'ตั้งต้นทุน'
         ) : (
           <>
-            <span className="text-default-600 tabular-nums">ต้นทุน ฿{costNum.toLocaleString('th-TH', { maximumFractionDigits: 2 })}</span>
+            <span className="text-default-600 tabular-nums">ต้นทุน {formatBaht(costNum)}</span>
             <MarginBadge price={price} cost={costNum} />
             <Icon icon="pencil" className="size-3.5 shrink-0" aria-hidden="true" />
           </>

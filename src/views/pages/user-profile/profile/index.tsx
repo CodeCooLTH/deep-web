@@ -34,6 +34,7 @@ import { profileSoldLine } from '@/lib/shop-stat-vocab'
 
 import { toFileUrl, variantUrlOf } from '@/lib/file-url'
 
+import { formatBaht } from '@/lib/format-money'
 /**
  * ป้ายบนชิปเรียงลำดับ (feature 00053) — คำเดียวสั้น ๆ เพราะแถบนี้อยู่เหนือกริดบนมือถือด้วย
  * "ขายดี" ใช้ยอดที่ยืนยันแล้ว (getConfirmedOrderCountByProduct) ไม่ใช่เกณฑ์หลังร้านที่นับ
@@ -168,7 +169,7 @@ const ProductCard = ({
   onLikeChange: (next: { liked: boolean; count: number }) => void
 }) => {
   const price = parseFloat(product.price)
-  const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  const priceLabel = isNaN(price) ? `฿${product.price}` : formatBaht(price)
   // feature 00053 — ร้านที่ปิดสวิตช์ราคาไม่พิมพ์บรรทัดนี้เลย และ **ไม่มีข้อความใดมาแทน**
   // (ผู้ใช้เคาะ 2026-08-23) บรรทัดยอดสะสมด้านล่างยังอยู่เสมอ ไม่ผูกกับสวิตช์นี้
   const showSold = product.soldCount > 0

@@ -21,6 +21,7 @@ import type { ApexOptions } from 'apexcharts'
 
 import type { BidDTO } from '@/services/auction.service'
 
+import { formatBaht } from '@/lib/format-money'
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'), { ssr: false })
 
 type Props = {
@@ -60,7 +61,7 @@ export default function AuctionPriceChart({ bidHistory }: Props) {
     },
     tooltip: {
       enabled: true,
-      y: { formatter: (val: number) => `฿${val.toLocaleString()}` },
+      y: { formatter: (val: number) => `${formatBaht(val)}` },
     },
     dataLabels: { enabled: false },
     stroke: { width: 2, curve: 'smooth' },

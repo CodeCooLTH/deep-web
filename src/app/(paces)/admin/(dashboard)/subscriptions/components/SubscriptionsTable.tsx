@@ -32,6 +32,7 @@ import {
 import { useMemo, useState } from 'react'
 import type { AdminSubscriptionRow } from './data'
 
+import { formatBaht } from '@/lib/format-money'
 type StockFilter = 'All' | 'NOT_SUBSCRIBED' | 'ACTIVE' | 'LOCKED'
 type BizFilter = 'All' | 'GROWTH' | 'PRO' | 'BUSINESS'
 
@@ -172,7 +173,7 @@ const SubscriptionsTable = ({ rows }: { rows: AdminSubscriptionRow[] }) => {
       header: 'กระเป๋า',
       cell: ({ row }) => (
         // ห้าม font-mono — ทับ Anuphan (Hard Rule Font)
-        <span className="text-sm font-medium">฿{row.original.walletBalance.toLocaleString('th-TH')}</span>
+        <span className="text-sm font-medium">{formatBaht(row.original.walletBalance)}</span>
       ),
     }),
   ]

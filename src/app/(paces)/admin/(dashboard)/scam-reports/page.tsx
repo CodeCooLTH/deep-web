@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma'
 import { SCAM_TYPE_LABELS, IDENTIFIER_LABELS } from '@/lib/scam-constants'
 import type { IdentifierType } from '@/lib/scam-constants'
 
+import { formatBaht } from '@/lib/format-money'
 export const metadata: Metadata = { title: 'รายงานมิจฉาชีพ — รอตรวจสอบ' }
 
 type PageProps = { searchParams: Promise<{ status?: string }> }
@@ -147,7 +148,7 @@ export default async function AdminScamReportsPage({ searchParams }: PageProps) 
                           {SCAM_TYPE_LABELS[r.scamType] ?? r.scamType}
                         </td>
                         <td className="text-default-700 px-4 py-3 text-sm">
-                          ฿{r.amountLost.toLocaleString('th-TH')}
+                          {formatBaht(r.amountLost)}
                         </td>
                         <td className="text-default-500 px-4 py-3 text-sm">
                           <span className="inline-flex items-center gap-1.5">

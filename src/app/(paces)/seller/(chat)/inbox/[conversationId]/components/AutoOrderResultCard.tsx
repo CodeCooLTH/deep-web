@@ -37,6 +37,7 @@ import {
 } from '@/lib/auto-order-card'
 import { sendOrderToChat } from '@/app/(paces)/seller/(chat)/_components/sendOrderToChat'
 
+import { formatBaht } from '@/lib/format-money'
 export type AutoOrderCardData = {
   token: string
   orderNo: string | null
@@ -182,7 +183,7 @@ export default function AutoOrderResultCard({ conversationId, createdAt, card, a
                     </span>
                     {/* ยอดเงินอยู่มุมขวาคงที่เสมอ — เป็นสิ่งที่ร้านเช็คก่อนอย่างอื่น */}
                     <span className="text-primary shrink-0 text-sm font-bold tabular-nums">
-                      ฿{Number(effective.totalAmount).toLocaleString('th-TH')}
+                      {formatBaht(Number(effective.totalAmount))}
                     </span>
                   </div>
                   <p className="text-default-500 mb-0 text-xs tabular-nums">

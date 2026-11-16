@@ -19,6 +19,7 @@
 
 import { round2 } from '@/lib/round2'
 
+import { formatBaht } from '@/lib/format-money'
 /** ชนิดของเงินที่รับ — ตรงกับ `OrderPayment.kind` */
 export type OrderPaymentKind = 'DEPOSIT' | 'BALANCE'
 
@@ -179,7 +180,7 @@ export const ALLOW_COMPLETE_WITH_OUTSTANDING = true
 
 export function completionWarning(money: OrderMoney): string | null {
   if (money.outstanding <= 0) return null
-  return `ยังค้างชำระ ฿${money.outstanding.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`
+  return `ยังค้างชำระ ${formatBaht(money.outstanding)}`
 }
 
 /**

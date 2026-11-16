@@ -6,6 +6,7 @@
 
 import type { DraftReasonCode } from '@/lib/auto-order-reasons'
 
+import { formatBaht } from '@/lib/format-money'
 export type AutoOrderCardState = 'READING' | 'CREATED' | 'DRAFT' | 'SYSTEM_FAILED' | 'DISCARDED'
 
 export type AutoOrderCardInput = {
@@ -65,8 +66,8 @@ export type DraftRawItem = { rawName: string; productId: string | null; qty: num
 export function describeTotalMismatch(stated: number, computed: number) {
   const diff = Math.abs(stated - computed)
   return {
-    headline: `ยอดรวมไม่ตรง — ต่างกัน ฿${diff.toLocaleString('th-TH')}`,
-    detail: `(พิมพ์ ฿${stated.toLocaleString('th-TH')} / คำนวณได้ ฿${computed.toLocaleString('th-TH')})`,
+    headline: `ยอดรวมไม่ตรง — ต่างกัน ${formatBaht(diff)}`,
+    detail: `(พิมพ์ ${formatBaht(stated)} / คำนวณได้ ${formatBaht(computed)})`,
   }
 }
 

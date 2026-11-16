@@ -22,6 +22,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_PAYMENT_METHOD_LABEL, type OrderMoney, type OrderPaymentMethod } from '@/lib/order-payment'
 import { SERVICE_JOB_ERROR_MESSAGE, serviceCloseFootnote, type ServiceCloseOutcome } from '@/lib/service-job'
 
+import { formatBaht } from '@/lib/format-money'
 export interface ServiceCloseSheetProps {
   open: boolean
   onClose: () => void
@@ -59,7 +60,7 @@ const METHOD_OPTIONS: { value: OrderPaymentMethod; icon: string }[] = [
 ]
 
 const baht = (n: number) =>
-  `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  `${formatBaht(n)}`
 
 /** ข้อความ error ภาษาธุรกิจ — ห้ามโยนรหัสดิบขึ้นจอ (BR-SOV-05) */
 function errorText(code: string | undefined): string {

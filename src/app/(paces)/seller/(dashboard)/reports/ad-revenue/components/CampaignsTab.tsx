@@ -57,12 +57,12 @@ export default function CampaignsTab({ report, noun, rangeQuery, rangeLabel }: {
       } satisfies KpiSpec,
       {
         key: 'profit', title: t.sumProfit, icon: 'trending-up', iconBg: kpiBg(2),
-        value: <span className={profit.value < 0 ? 'text-danger-ink' : undefined}>{profit.value < 0 ? '−' : ''}{formatBaht(Math.round(Math.abs(profit.value)))}</span>,
+        value: <span className={profit.value < 0 ? 'text-danger-ink' : undefined}>{profit.value < 0 ? '−' : ''}{formatBaht(Math.abs(profit.value))}</span>,
         sub: loss > 0 ? fmt(d.campaignsLoss, { n: loss }) : d.profitSub,
         spark: { data: daily.map((x) => x.profitBeforeAds - (x.spend ?? 0)), kind: 'area', name: `${t.sumProfit} · ${d.dailySpark}` },
       } satisfies KpiSpec,
       {
-        key: 'cpo', title: fmt(d.costPerOrder, { noun }), icon: 'receipt-2', iconBg: kpiBg(3), value: cpo === null ? '—' : formatBaht(Math.round(cpo)),
+        key: 'cpo', title: fmt(d.costPerOrder, { noun }), icon: 'receipt-2', iconBg: kpiBg(3), value: cpo === null ? '—' : formatBaht(cpo),
         // ต้นทุนต่อใบขึ้น = แย่
         badge: <DeltaBadge value={cpo === null || prevCpo === null ? null : pctChangeVsPrev(cpo, prevCpo)} tone="lower" />, sub: fmt(d.costPerOrderSub, { noun }),
       } satisfies KpiSpec,
@@ -81,9 +81,9 @@ export default function CampaignsTab({ report, noun, rangeQuery, rangeLabel }: {
               ariaLabel={hasCampaigns ? d.campBarsTitle : d.adBarsTitle}
               categories={chartRows.map((r) => short(r.name))}
               series={[
-                ...(ok ? [{ name: t.colSpend, data: chartRows.map((r) => Math.round(r.spend ?? 0)), color: 'dark' }] : []),
-                { name: t.colSales, data: chartRows.map((r) => Math.round(r.sales)), color: 'chart-primary' },
-                { name: t.collected, data: chartRows.map((r) => Math.round(r.collected)), color: 'chart-delta' },
+                ...(ok ? [{ name: t.colSpend, data: chartRows.map((r) => Math.round((r.spend ?? 0) * 100) / 100), color: 'dark' }] : []),
+                { name: t.colSales, data: chartRows.map((r) => Math.round((r.sales) * 100) / 100), color: 'chart-primary' },
+                { name: t.collected, data: chartRows.map((r) => Math.round((r.collected) * 100) / 100), color: 'chart-delta' },
               ]}
             />
           </DashCard>

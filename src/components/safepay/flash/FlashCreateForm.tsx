@@ -32,6 +32,7 @@ import AddressSearchSheet, {
 import FlashLogo from './FlashLogo'
 import { readApiError } from './flash-api'
 
+import { formatBaht } from '@/lib/format-money'
 interface Props {
   orderToken: string
   missingReceiver: MissingReceiverField[]
@@ -628,7 +629,7 @@ export default function FlashCreateForm({
                     <li key={it.id} className="flex items-start gap-2 text-sm">
                       <span className="min-w-0 flex-1 truncate text-default-700">{it.name}</span>
                       <span className="shrink-0 text-default-700">×{it.qty}</span>
-                      <span className="shrink-0 font-semibold text-default-900">฿{(it.price * it.qty).toLocaleString('th-TH')}</span>
+                      <span className="shrink-0 font-semibold text-default-900">{formatBaht((it.price * it.qty))}</span>
                     </li>
                   ))}
                 </ul>
@@ -648,7 +649,7 @@ export default function FlashCreateForm({
                 )}
                 <div className="mt-2 flex items-center justify-between border-t border-dashed border-default-300 pt-2 text-sm">
                   <span className="text-default-700">รวมสินค้า {itemCount} ชิ้น</span>
-                  <span className="font-semibold text-default-900">฿{itemsSubtotal.toLocaleString('th-TH')}</span>
+                  <span className="font-semibold text-default-900">{formatBaht(itemsSubtotal)}</span>
                 </div>
               </>
             )}
@@ -684,7 +685,7 @@ export default function FlashCreateForm({
               )}
               {priceState === 'quote' && quote && badge && (
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-lg font-bold tabular-nums text-default-900">฿{quote.totalBaht.toLocaleString('th-TH')}</span>
+                  <span className="text-lg font-bold tabular-nums text-default-900">{formatBaht(quote.totalBaht)}</span>
                   <span className={TONE_BADGE.secondary}>ประมาณการ</span>
                   <span className={TONE_BADGE[badge.tone]}>{badge.label}</span>
                 </span>

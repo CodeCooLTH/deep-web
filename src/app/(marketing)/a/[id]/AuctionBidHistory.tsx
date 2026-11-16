@@ -29,6 +29,7 @@ import type { BidDTO } from '@/services/auction.service'
 import { fileUrlOf } from '@/lib/file-url'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 
+import { formatBaht } from '@/lib/format-money'
 type Props = {
   auctionId: string
   bidHistory: BidDTO[]
@@ -232,7 +233,7 @@ export default function AuctionBidHistory({ auctionId, bidHistory, bidCount, con
                         )}
                       </Box>
                       <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: '1px' }}>
-                        เสนอราคา <b>฿{bid.amount.toLocaleString()}</b>
+                        เสนอราคา <b>{formatBaht(bid.amount)}</b>
                       </Typography>
                     </Box>
                     {/* meta row: เวลา · ถูกใจ (toggle) · count (feat 00005) */}

@@ -41,6 +41,7 @@ import type { CustomerPanelOrder } from './CustomerPanel'
 import type { ShopVertical } from '@/lib/lodging'
 import { canEditOrder } from '@/lib/order-display'
 
+import { formatBaht } from '@/lib/format-money'
 /**
  * 🛑 สูตร "ช่วงเวลานัดเป็นข้อความ" ย้ายไป `@/lib/appointment-summary::appointmentRangeText`
  * แล้ว (2026-08-11) เพราะการ์ดสรุปนัดที่ส่งเข้าแชทต้องใช้คำชุดเดียวกันเป๊ะ — เลขเดียวกันที่ถูก
@@ -396,7 +397,7 @@ export default function OrderProgressBar({
                       </span>
                     )}
                     <span className="text-primary ms-auto text-xs font-bold">
-                      ฿{Number(o.totalAmount).toLocaleString('th-TH')}
+                      {formatBaht(Number(o.totalAmount))}
                     </span>
                   </div>
 
@@ -412,7 +413,7 @@ export default function OrderProgressBar({
                           น้ำหนักจะเอนไปทาง "เก็บแล้ว" ซึ่งเป็นคนละเรื่องกับยอดที่ตกลงไว้ (BR-SQ-02) */}
                       {deposit > 0 && (
                         <p className="text-default-700 mb-0 mt-1.5 text-xs">
-                          มัดจำที่ตกลงไว้ ฿{deposit.toLocaleString('th-TH')}
+                          มัดจำที่ตกลงไว้ {formatBaht(deposit)}
                         </p>
                       )}
                       {/**
