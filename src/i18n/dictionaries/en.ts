@@ -1776,6 +1776,7 @@ export const en: Dictionary = {
     custNew: 'New customers',
     custReturning: 'Returning customers',
     custUnknown: 'Unknown',
+    peopleUnit: 'people',
     peopleCount: '{n} people',
     customerDefinition: 'New customer = the customer’s first {noun} in the shop · counts only {noun} tagged with that ad',
     customerTableTitle: 'By ad',
@@ -1807,6 +1808,10 @@ export const en: Dictionary = {
     connectAds: 'Connect ad account',
     reconnect: 'Reconnect',
     dash: {
+      colMix: 'Customer mix',
+      colNewSales: 'New customer sales',
+      colRetSales: 'Returning sales',
+      mixAria: 'New {a} · returning {b} · unknown {c}',
       topProducts: 'Top 5 products',
       collectedSub: '{p} of sales · {v} awaiting',
       salesSub: '{n} {noun} · avg {v}',
