@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   conversation: { updateMany: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
   chatMessage: { findFirst: vi.fn(), update: vi.fn() },
   externalContact: { update: vi.fn() },
+  conversationAdReferral: { findMany: vi.fn().mockResolvedValue([]) }, // 00095: กรอบโฆษณา — ไม่มี referral = 24 ชม.เหมือนเดิม
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/lib/token-crypto', () => ({ decryptToken: vi.fn().mockReturnValue('token-plain') }))

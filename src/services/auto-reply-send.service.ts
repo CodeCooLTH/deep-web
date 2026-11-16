@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { getWindowState, sendOutboundMessage } from '@/services/channel-chat.service'
+import { sendOutboundMessage } from '@/services/channel-chat.service'
+import { getWindowStateWithAd } from '@/services/ad-window.service'
 
 /**
  * auto-reply-send.service — จุดเดียวที่ระบบตอบอัตโนมัติส่งข้อความออก (feature 00023, S-06)
@@ -79,6 +80,7 @@ export async function sendAutoReply(params: SendAutoReplyParams): Promise<SendAu
     where: { id: params.conversationId, shopId: params.shopId },
     select: {
       id: true,
+      channel: true,
       isSpam: true,
       handoffAt: true,
       autoReplyPausedUntil: true,
@@ -105,7 +107,7 @@ export async function sendAutoReply(params: SendAutoReplyParams): Promise<SendAu
   // ในทางปฏิบัติหน้าต่างเปิดเสมอบนเส้นทางนี้ (ingest เซ็ต lastInboundAt ในทรานแซกชันเดียวกับที่
   // เขียนข้อความที่ trigger งานนี้) — ตรวจไว้เป็นชั้นสุดท้าย ถ้าเข้าเงื่อนไขเมื่อไหร่แปลว่ามีบั๊ก
   // ที่อื่น ควรเห็นในบันทึกเป็น anomaly ไม่ใช่เรื่องปกติ
-  if (!getWindowState(conversation.lastInboundAt).open) {
+  if (!(await getWindowStateWithAd(conversation)).open) {
     return { sent: false, reason: 'WINDOW_CLOSED', attempts: 0 }
   }
 

@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), update: vi.fn() },
   chatMessage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   shop: { findUnique: vi.fn() },
+  conversationAdReferral: { findMany: vi.fn().mockResolvedValue([]) }, // 00095: กรอบโฆษณา — ไม่มี referral = 24 ชม.เหมือนเดิม
   shopMember: { findUnique: vi.fn() }, // canAccessShop เช็ค membership เมื่อไม่ใช่เจ้าของ
   shopChannel: { findUnique: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),

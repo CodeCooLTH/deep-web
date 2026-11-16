@@ -122,17 +122,23 @@ export interface AutoNotifyStripInput extends Omit<AutoNotifyEligibilityInput, '
   channel: AutoNotifyStripChannel | null
   /** ข้อความล่าสุดของลูกค้า — ใช้เฉพาะ MESSENGER/INSTAGRAM (หน้าต่าง 24 ชม.) */
   lastInboundAt: When | null
+  /** 00095: ข้อความลูกค้าแรกหลังคลิกโฆษณา (ad-window.service) — ไม่ส่ง = 24 ชม. */
+  adWindowStartAt?: When | null
 }
 
 export type AutoNotifyStripState = 'HIDDEN' | 'WILL_SEND' | 'WINDOW_CLOSED'
 
 export function autoNotifyStripState(input: AutoNotifyStripInput, nowMs: number): AutoNotifyStripState {
-  const { channel, lastInboundAt, eventAt, ...rest } = input
+  const { channel, lastInboundAt, adWindowStartAt, eventAt, ...rest } = input
   const e = evaluateAutoNotifyEligibility({ ...rest, eventAt: eventAt ?? nowMs, nowMs })
   if (!e.eligible) return 'HIDDEN'
   if (channel === 'MESSENGER' || channel === 'INSTAGRAM') {
-    // ตัวเดียวกับด่านส่ง — ตัวส่งอัตโนมัติใช้ HUMAN_AGENT ไม่ได้ จึงดูเฉพาะ 24 ชม.
-    const open = getWindowState(lastInboundAt == null ? null : new Date(lastInboundAt), new Date(nowMs)).open
+    // ตัวเดียวกับด่านส่ง — ตัวส่งอัตโนมัติใช้ HUMAN_AGENT ไม่ได้ จึงดูเฉพาะกรอบมาตรฐาน (24 ชม. หรือ 7 วันถ้ามาจากโฆษณา)
+    const open = getWindowState(
+      lastInboundAt == null ? null : new Date(lastInboundAt),
+      new Date(nowMs),
+      adWindowStartAt == null ? null : new Date(adWindowStartAt),
+    ).open
     return open ? 'WILL_SEND' : 'WINDOW_CLOSED'
   }
   return 'WILL_SEND'
