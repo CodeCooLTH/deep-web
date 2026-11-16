@@ -46,6 +46,22 @@
   .chip.more{background:transparent;color:var(--d600);padding:1px 4px}
   .unread{min-width:18px;height:18px;border-radius:999px;background:var(--primary);color:#fff;font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
   .pvr{display:flex;align-items:center;gap:8px} .pvr .pv{flex:1;min-width:0}
+  /* ===== แบบ 3 ปรับใหม่ ===== */
+  .ico{width:14px;height:14px;flex-shrink:0}
+  .cap{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 8px 3px 6px;border-radius:999px;background:color-mix(in srgb,var(--primary) 10%,transparent);border:1px solid color-mix(in srgb,var(--primary) 25%,transparent);color:var(--primary-ink)}
+  .cap.w{background:color-mix(in srgb,var(--warning) 18%,transparent);border-color:color-mix(in srgb,var(--warning) 45%,transparent);color:var(--warning-ink)}
+  .sg{display:flex;gap:3px} .sg b{width:18px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--primary) 18%,transparent)}
+  .sg b.on{background:var(--primary)} .sg b.next{background:color-mix(in srgb,var(--primary) 45%,transparent);box-shadow:inset 0 0 0 1px var(--primary)}
+  .cap.w .sg b{background:color-mix(in srgb,var(--warning) 25%,transparent)} .cap.w .sg b.on{background:var(--warning)}
+  .cap .num{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums} .cap .lbl{font-size:11px;font-weight:600}
+  .full{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .full .sg{flex:1} .full .sg b{flex:1;width:auto;height:6px}
+  .full .num{font-size:12px;font-weight:700;color:var(--primary-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .full.w .sg b.on{background:var(--warning)} .full.w .num{color:var(--warning-ink)}
+  .bbadge{position:absolute;bottom:2px;left:2px;width:18px;height:18px;border-radius:999px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card)}
+  .bbadge.w{background:var(--warning);color:var(--warning-ink)}
+  .bbadge .ico{width:12px;height:12px}
+  .nmico{display:inline-flex;align-items:center;gap:4px} .nmico .ico{color:var(--primary)}
   .legend{font-size:12px;color:var(--d600);padding:10px 16px 14px;border-top:1px solid var(--d200);line-height:1.6}
 </style>
 </head>
@@ -110,6 +126,37 @@ document.getElementById('grid').innerHTML=OPTS.map(o=>`
   <section class="opt"><h2>${o.h}${o.rec?'<span class="tag">แนะนำ</span>':''}</h2><p class="d">${o.d}</p>
   ${ROWS.map(r=>`<div class="row">${avatar(r,o.k)}<div class="meta"><div class="nm">${r.n}<span class="t">${r.t}</span></div><div class="pvr"><div class="pv">${r.pv}</div>${r.unread?`<span class="unread">${r.unread}</span>`:''}</div>${o.k==='C'?underBar(r):smallLabel(r)}${chips(r)}</div></div>`).join('')}
   <div class="legend">${o.legend}</div></section>`).join('');
+
+const TGT='<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>';
+function segs(r){let b='';for(let k=0;k<r.total;k++)b+=`<b class="${k<r.sent?'on':(k===r.sent&&!r.wait?'next':'')}"></b>`;return b}
+const pb=(r,extra)=>`role="progressbar" aria-valuenow="${r.sent}" aria-valuemax="${r.total}" aria-label="บอทติดตาม ส่งแล้ว ${r.sent} จาก ${r.total} รอบ${r.wait?' รอคุณตอบ':''}"`;
+function vA(r){ // แคปซูล: ไอคอนนำ + ช่องหนา + ตัวเลข/คำ
+  if(!r.total) return '';
+  return `<div class="cap ${r.wait?'w':''}" ${pb(r)}>${TGT}<span class="sg">${segs(r)}</span>${r.wait?'<span class="lbl">รอคุณตอบ</span>':`<span class="num">${r.sent}/${r.total}</span><span class="lbl">ส่งอีก 2 ชม.</span>`}</div>`;
+}
+function vB(r){ // แถบเต็มความกว้าง + ไอคอนบอทบนรูป (มุมล่างซ้าย)
+  if(!r.total) return '';
+  return `<div class="full ${r.wait?'w':''}" ${pb(r)}><span class="sg">${segs(r)}</span><span class="num">${r.wait?'รอคุณตอบ':`รอบ ${r.sent}/${r.total}`}</span></div>`;
+}
+function vC(r){ // ไอคอนข้างชื่อ + แถบเต็มความกว้าง
+  return vB(r);
+}
+function avPlain(r,badge){
+  let h=`<div class="av ${r.buyer?'buyer':''}">${r.i}</div>`;
+  if(r.buyer) h+=`<span class="plate">${r.buyer}</span>`;
+  if(badge && r.total) h+=`<span class="bbadge ${r.wait?'w':''}">${TGT}</span>`;
+  return `<div class="avw">${h}${pf}</div>`;
+}
+const V3=[
+  {k:'A',h:'3A. แคปซูลบอท ใต้ข้อความ',d:'ไอคอนบอทนำหน้าในแคปซูลสีอ่อน · ช่องหนา 6px · ตัวเลขตัวหนา + เวลาส่งรอบถัดไป · รอคุณตอบ = แคปซูลส้มทั้งก้อน',av:false,name:false,fn:vA,legend:'เด่นเพราะเป็น "ก้อน" มีพื้นและขอบ อ่านจบในก้อนเดียว (ไอคอน · ความคืบหน้า · ตัวเลข · ถัดไปเมื่อไร)'},
+  {k:'B',h:'3B. ไอคอนบอทบนรูป + แถบเต็มกว้าง',d:'ไอคอนบอทเป็นเหรียญน้ำเงินที่มุมล่างซ้ายของรูป (มุมว่าง — บนขวา=เคยซื้อ ล่างขวา=แพลตฟอร์ม) · แถบยาวเต็มความกว้างแถว + "รอบ 1/3"',av:true,name:false,fn:vB,legend:'เห็นว่ามีบอทคุมตั้งแต่ไล่สายตาดูรูป · แถบยาวเด่นที่สุด · แต่รูปมีสัญลักษณ์ 3 มุม'},
+  {k:'C',h:'3C. ไอคอนบอทข้างชื่อ + แถบเต็มกว้าง',d:'ไอคอนบอทสีน้ำเงินต่อท้ายชื่อลูกค้า · แถบยาวเต็มความกว้าง + "รอบ 1/3"',av:false,name:true,fn:vC,legend:'รูปสะอาดเท่าเดิม · ไอคอนอยู่ในแนวสายตาที่อ่านชื่อ · แต่ชื่อยาวจะถูกตัดเร็วขึ้น'},
+];
+document.getElementById('grid').innerHTML=V3.map(o=>`
+  <section class="opt"><h2>${o.h}</h2><p class="d">${o.d}</p>
+  ${ROWS.map(r=>`<div class="row">${avPlain(r,o.av)}<div class="meta"><div class="nm"><span class="nmico">${r.n}${o.name&&r.total?`<span title="บอทติดตามอยู่" style="color:${r.wait?'var(--warning-ink)':'var(--primary)'}">${TGT}</span>`:''}</span><span class="t">${r.t}</span></div><div class="pvr"><div class="pv">${r.pv}</div>${r.unread?`<span class="unread">${r.unread}</span>`:''}</div>${o.fn(r)}${chips(r)}</div></div>`).join('')}
+  <div class="legend">${o.legend}</div></section>`).join('');
+document.querySelector('h1').textContent='แบบ 3 (แถบใต้ข้อความ) ปรับให้เด่นขึ้น + ตำแหน่งไอคอนบอท — 3 แบบ';
 </script>
 </body>
 </html>
