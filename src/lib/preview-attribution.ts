@@ -4,14 +4,16 @@
 // แต่พรีวิวเป็นข้อความของระบบ → ถ้าดู lastSenderRole อย่างเดียว ฝั่งผู้ซื้อจะเห็นข้อความร้านภายใต้ "คุณ:"
 // และฝั่งร้านจะเห็นเหมือนลูกค้าพิมพ์เอง จึงต้องแยกแหล่งที่มาออกมาเป็นของตัวเอง
 export type PreviewViewer = 'SELLER' | 'BUYER'
-export type PreviewPrefix = 'YOU' | 'SYSTEM' | null
+export type PreviewPrefix = 'YOU' | 'SYSTEM' | 'FOLLOW_BOT' | null
 
 export function previewPrefix(
   viewer: PreviewViewer,
-  c: { lastSenderRole: 'BUYER' | 'SHOP' | null; lastMessageIsSystem?: boolean; hasPreview: boolean },
+  c: { lastSenderRole: 'BUYER' | 'SHOP' | null; lastMessageIsSystem?: boolean; lastMessageIsFollowBot?: boolean; hasPreview: boolean },
 ): PreviewPrefix {
   if (!c.hasPreview) return null
   // ฝั่งผู้ซื้อ ข้อความระบบคือเสียงของร้าน — ไม่มีคำนำหน้า (ห้ามขึ้น "คุณ:")
+  // ฟองบอทติดตามยอดขาย (00095) เป็นของร้าน — ฝั่งผู้ซื้อไม่มีคำนำหน้า เหมือนข้อความระบบ
+  if (c.lastMessageIsFollowBot) return viewer === 'SELLER' ? 'FOLLOW_BOT' : null
   if (c.lastMessageIsSystem) return viewer === 'SELLER' ? 'SYSTEM' : null
   const mine = viewer === 'SELLER' ? 'SHOP' : 'BUYER'
   return c.lastSenderRole === mine ? 'YOU' : null

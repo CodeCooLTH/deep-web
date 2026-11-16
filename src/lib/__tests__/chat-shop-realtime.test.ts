@@ -61,8 +61,12 @@ describe('migration shop_reply — กรงเล็บ', () => {
     expect(code).toMatch(/NOT IN \('AUTO_ORDER_RESULT', 'META_NOTICE'\)/)
     expect(code).toMatch(/TG_OP = 'INSERT' AND/)
   })
-  it('บรรทัดระบบในเงื่อนไขตรงกับ INTERNAL_MESSAGE_TYPES', async () => {
+  // ตัวรายการบรรทัดระบบล่าสุดอยู่ที่ migration ของ 00095 (ทับฟังก์ชันเดียวกัน) — ตรวจที่ตัวล่าสุด
+  it('บรรทัดระบบในเงื่อนไขตรงกับ INTERNAL_MESSAGE_TYPES (ฟังก์ชันฉบับล่าสุด)', async () => {
     const { INTERNAL_MESSAGE_TYPES } = await import('@/lib/auto-order-message-type')
-    for (const t of INTERNAL_MESSAGE_TYPES) expect(code).toContain(`'${t}'`)
+    const latest = readFileSync('prisma/migrations/20261117100100_00095_follow_bot_note_realtime/migration.sql', 'utf8').replace(/--.*$/gm, '')
+    expect(latest).not.toMatch(/"body"|"imageUrl"|NEW\.body/)
+    expect(latest).toMatch(/TG_OP = 'INSERT' AND/)
+    for (const t of INTERNAL_MESSAGE_TYPES) expect(latest).toContain(`'${t}'`)
   })
 })

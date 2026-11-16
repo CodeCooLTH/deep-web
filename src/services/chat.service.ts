@@ -19,7 +19,7 @@ import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-r
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { runAfterResponse } from '@/lib/run-after-response'
-import { AUTO_ORDER_RESULT_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, FOLLOW_BOT_NOTE_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
 import { conversationIdsByFollowUpState } from '@/services/customer-follow-up.service'
 import type { FilterState as FollowUpFilterState } from '@/lib/follow-up-rules'
@@ -34,7 +34,7 @@ export type SenderRole = 'BUYER' | 'SHOP'
 // `sendMessage()` จะยอมรับมันทันที = ระบบชนิดพลิกจาก "ห้าม" เป็น "อนุญาต" เงียบ ๆ
 // การแยกไว้แบบนี้ทำให้ `tsc` เป็นด่านที่ล้มตั้งแต่ compile ไม่ใช่รอเทสตอนรัน
 export type SendableMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
-export type StoredMessageType = SendableMessageType | typeof AUTO_ORDER_RESULT_TYPE | typeof META_NOTICE_TYPE
+export type StoredMessageType = SendableMessageType | typeof AUTO_ORDER_RESULT_TYPE | typeof META_NOTICE_TYPE | typeof FOLLOW_BOT_NOTE_TYPE
 
 export interface ConversationSummary {
   id: string
@@ -711,7 +711,7 @@ export async function getMessages(
    * และเราไม่ได้พยายามปิดมัน ⇒ client ฝั่งลูกค้าที่ได้สัญญาณแล้ว refetch จะมาเจอด่านนี้
    */
   const viewerIsBuyer = conversation.buyerUserId === actorUserId
-  const internalMessageFilter = viewerIsBuyer ? { type: { notIn: [AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE] } } : {}
+  const internalMessageFilter = viewerIsBuyer ? { type: { notIn: [...INTERNAL_MESSAGE_TYPES] } } : {}
 
   const take = opts.take ?? 30
 

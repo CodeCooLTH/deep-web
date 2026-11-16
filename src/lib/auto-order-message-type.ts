@@ -12,5 +12,8 @@ export const AUTO_ORDER_RESULT_TYPE = 'AUTO_ORDER_RESULT' as const
 // ตัดสินด้วย isMetaInternalNote (src/lib/meta-system-notice.ts) ตอนรับเข้า · แสดงเป็นบรรทัดกลางห้อง
 export const META_NOTICE_TYPE = 'META_NOTICE' as const
 
+// บรรทัดระบบของบอทติดตามยอดขาย (00095) "บอทติดตาม “x” หยุด: เหตุผล" — เห็นเฉพาะฝั่งร้าน
+export const FOLLOW_BOT_NOTE_TYPE = 'FOLLOW_BOT_NOTE' as const
+
 /** ชนิดที่ไม่ใช่บทสนทนา — ห้ามนับเป็นข้อความร้าน/ลูกค้าใน AI · ความจำ · เวลาตอบ · รายงาน · บอท */
-export const INTERNAL_MESSAGE_TYPES = [AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE]
+export const INTERNAL_MESSAGE_TYPES = [AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE, FOLLOW_BOT_NOTE_TYPE]

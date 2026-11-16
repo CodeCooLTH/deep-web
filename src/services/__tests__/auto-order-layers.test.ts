@@ -35,7 +35,8 @@ describe('ชั้นอ่าน: getMessages กรองตามบทบ�
     const body = CODE.slice(at, at + 2500)
     expect(body).toContain('const conversation = await assertParticipant(')
     expect(body).toMatch(/viewerIsBuyer\s*=\s*conversation\.buyerUserId\s*===\s*actorUserId/)
-    expect(body).toContain('AUTO_ORDER_RESULT_TYPE')
+    // 00095: ตัวกรองขยายเป็น INTERNAL_MESSAGE_TYPES (การ์ดผลลัพธ์ + โน้ต Meta + บรรทัดระบบบอทติดตาม)
+    expect(body).toContain('INTERNAL_MESSAGE_TYPES')
     // ตัวกรองต้องถูก "ใช้" จริงใน where ไม่ใช่ประกาศทิ้งไว้
     expect(body).toContain('...internalMessageFilter,')
   })
@@ -59,11 +60,17 @@ describe('ชั้นตัวนับ: 3 จุดที่ query ChatMessage
 
   it.each(COUNTER_SITES)('[blocker] %s ต้องกรองการ์ดผลลัพธ์ออก', (file) => {
     const code = read(file)
-    expect(code).toContain('AUTO_ORDER_RESULT_TYPE')
-    expect(code).toMatch(/type:\s*\{\s*not:\s*AUTO_ORDER_RESULT_TYPE\s*\}/)
+    // 00095: กรองด้วยรายการชนิดภายในทั้งชุด (ซึ่งต้องมีการ์ดผลลัพธ์อยู่ในนั้น — ตรวจท้าย describe)
+    expect(code).toContain('INTERNAL_MESSAGE_TYPES')
+    expect(code).toMatch(/type:\s*\{\s*notIn:\s*\[\s*\.\.\.INTERNAL_MESSAGE_TYPES\s*\]\s*\}/)
     // ต้อง import ค่าคงที่ ไม่ใช่พิมพ์สตริงเอง (typo-drift ที่ไม่มี gate ไหนจับได้)
     expect(code).not.toContain(`'${AUTO_ORDER_RESULT_TYPE}'`)
     expect(code).not.toContain(`"${AUTO_ORDER_RESULT_TYPE}"`)
+  })
+
+  it('[blocker] INTERNAL_MESSAGE_TYPES ต้องมีการ์ดผลลัพธ์อยู่เสมอ (ไม่งั้นตัวกรองชุดใหม่ปล่อยการ์ดหลุด)', async () => {
+    const { INTERNAL_MESSAGE_TYPES } = await import('@/lib/auto-order-message-type')
+    expect(INTERNAL_MESSAGE_TYPES).toContain(AUTO_ORDER_RESULT_TYPE)
   })
 })
 
