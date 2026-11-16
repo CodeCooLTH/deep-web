@@ -43,3 +43,30 @@ export const getAdSpend: SpendSource = async (shopId, since, until) => {
     return { state: 'ERROR', ...NONE }
   }
 }
+
+// ── 00096 P1: reach/ความถี่/สถานะ/วัตถุประสงค์ (แคชแยกคีย์ ad-details-v1 · ท่าเดียวกับค่าโฆษณา) ──
+import { fetchAdDetails, type AdDetailsResult } from '@/lib/meta-ads-details'
+
+class DetailsNotOk extends Error {
+  constructor(public result: AdDetailsResult) { super('DETAILS_NOT_OK') }
+}
+async function loadDetails(shopId: string, adAccountId: string, since: string, until: string): Promise<AdDetailsResult> {
+  const conn = await prisma.metaAudienceConnection.findUnique({ where: { shopId }, select: { tokenEnc: true } })
+  if (!conn) throw new DetailsNotOk({ state: 'ERROR', ads: {} })
+  const r = await fetchAdDetails({ adAccountId, token: decryptToken(conn.tokenEnc), since, until })
+  if (r.state !== 'OK') throw new DetailsNotOk(r)
+  return r
+}
+export type DetailsSource = (shopId: string, since: string, until: string) => Promise<AdDetailsResult | null>
+/** null = ยังไม่เชื่อม/หยุดแล้ว · state ไม่ OK = ล้มเหลว (หน้ารายงานแสดง "—") */
+export const getAdDetails: DetailsSource = async (shopId, since, until) => {
+  const conn = await prisma.metaAudienceConnection.findUnique({ where: { shopId }, select: { adAccountId: true, stoppedReason: true } })
+  if (!conn || conn.stoppedReason === 'TOKEN_OR_PERMISSION') return null
+  try {
+    return await unstable_cache(loadDetails, ['ad-details-v1', shopId, conn.adAccountId, since, until], { revalidate: 900 })(shopId, conn.adAccountId, since, until)
+  } catch (e) {
+    if (e instanceof DetailsNotOk) return e.result
+    console.error('[ad-details] failed', e instanceof Error ? e.message : 'unknown')
+    return { state: 'ERROR', ads: {} }
+  }
+}

@@ -86,6 +86,12 @@ export default function AdsProfitTable({ report, mode, noun, detailQuery, rangeL
       { id: 'ship', header: t.colShipping, align: 'end' as const, sort: (r: AdProfitRow) => r.shippingInfo, cell: (r: AdProfitRow) => <span className="text-default-500">{money(r.shippingInfo)}</span> },
     ] : []),
     ...(groups.has('ads') ? [
+      {
+        id: 'adStatus', header: t.colAdStatus, align: 'end' as const, sort: (r: AdProfitRow) => r.adStatus,
+        cell: (r: AdProfitRow) => (r.adStatus ? <span className={cn('badge py-0.5 text-xs', r.adStatus === 'ACTIVE' ? 'bg-success/15 text-success-ink' : 'bg-light text-default-700')}>{(t.adStatus as Record<string, string>)[r.adStatus] ?? r.adStatus}</span> : '—'),
+      },
+      { id: 'reach', header: t.colReach, align: 'end' as const, sort: (r: AdProfitRow) => r.reach, cell: (r: AdProfitRow) => n0(r.reach) },
+      { id: 'freq', header: t.colFreq, align: 'end' as const, sort: (r: AdProfitRow) => r.frequency, cell: (r: AdProfitRow) => (r.frequency === null ? '—' : r.frequency.toFixed(2)) },
       { id: 'impr', header: t.colImpr, align: 'end' as const, sort: (r: AdProfitRow) => r.impressions, cell: (r: AdProfitRow) => n0(r.impressions) },
       { id: 'clicks', header: t.colClicks, align: 'end' as const, sort: (r: AdProfitRow) => r.clicks, cell: (r: AdProfitRow) => n0(r.clicks) },
       { id: 'ctr', header: t.colCtr, align: 'end' as const, sort: (r: AdProfitRow) => pct(r.clicks, r.impressions), cell: (r: AdProfitRow) => { const v = pct(r.clicks, r.impressions); return v === null ? '—' : `${v.toFixed(1)}%` } },
@@ -124,7 +130,7 @@ export default function AdsProfitTable({ report, mode, noun, detailQuery, rangeL
       <td className={`${td} max-xl:hidden`}><Signed v={ordersAll > 0 ? afterAll / ordersAll : null} /></td>
       <td className={td}><Signed v={afterAll} /></td>
       <td className={td}>{spendAll ? fmtRoas(revAll / spendAll) : '—'}</td>
-      {extra('profit', 5)}{extra('ads', 7)}{extra('quality', 3)}
+      {extra('profit', 5)}{extra('ads', 10)}{extra('quality', 3)}
       <td />
     </tr>
   )

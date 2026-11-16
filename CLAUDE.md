@@ -194,7 +194,7 @@ theme/
 - **2026-11-15 (00094):** หน้าสรุปโฆษณา `/reports/ads-summary` (KPI · แนวโน้ม · funnel ECharts · กลุ่มผู้ชม · แคมเปญ→ชุด→โฆษณา · ครีเอทีฟ · ความคุ้มค่า · คำแนะนำกฎ R1–R8) — ไม่มี migration · 🛑 แคชค่าโฆษณาคีย์ `ad-spend-v2` · ยังไม่เคยเปิดหน้าจริง · ดู [[docs/claude/state-snapshots]]
 - **2026-10-29 (00086 Service Staff Workflow — เลขชนกับ 00086 Seller Order Export ของหัวหน้า #212 · คงเลขไว้เพราะชื่อ migration ขึ้น prod แล้ว):** งานพนักงานร้านบริการ (จอง/หน้าร้าน · ติ๊กปิดงาน/ค่าใช้จ่ายรายคน · มุมมองช่าง · แจ้งเตือน `service_job_*`) — **เปิด PR แล้ว 2026-10-30 · ยังไม่ merge** · migration 11 ตัว (🛑 4 ตัวขึ้น prod แล้วจาก incident · HR15 อีก 7 ตัว · นับแถว Order prod ก่อน merge) · ค้าง QA แนบรูปใน WebView แอปผู้ขาย (critique แก้แล้ว) · ดู [[docs/claude/state-snapshots]]
 - **2026-11-15 (00091 เฟส 3):** หน้าวิเคราะห์ยอดขายจากโฆษณา `/reports/ad-revenue` 7 แท็บ (รับเงินจริง · แคมเปญ · คุณภาพ · สินค้า · ลูกค้า · ช่วงเวลา · ความครอบคลุม) — เจ้าของเท่านั้น · ไม่มี migration · 🛑 ยังไม่เคยเห็นกรณีเชื่อม Meta · ดู [[docs/claude/state-snapshots]]
-- **2026-11-16 (00096 P0):** รายงานกำไรโฆษณารายวัน `/reports/ads-profit` + รายละเอียดโฆษณา — เจ้าของเท่านั้น · ไม่มี migration · โหมดคาดการณ์/รับรู้แล้ว · 🛑 P1 ยังไม่ทำ · ดู [[docs/claude/state-snapshots]]
+- **2026-11-16 (00096 P0):** รายงานกำไรโฆษณารายวัน `/reports/ads-profit` + รายละเอียดโฆษณา — เจ้าของเท่านั้น · ไม่มี migration · โหมดคาดการณ์/รับรู้แล้ว · P1 แล้ว (ขาดเทียบ ณ เวลาเดียวกัน/เฉลี่ย 7 วัน) · ดู [[docs/claude/state-snapshots]]
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

@@ -17,6 +17,7 @@ import { adDisplayName } from '@/lib/ad-attribution'
 import { formatDate } from '@/lib/format-date'
 import { formatNumberNoSymbol } from '@/lib/format-money'
 import type { AdProfitRow, ProfitMode } from '@/services/ads-profit.service'
+import type { ProfitInsight } from '@/lib/ads-profit-insights'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { cn } from '@/utils/helpers'
@@ -28,11 +29,13 @@ import { money, Signed } from './AdsProfitKpis'
 
 export type DetailOrder = { id: string; token: string; no: string; createdAt: string; customer: string | null; items: string; revenue: number; cogs: number; variable: number; paid: boolean; status: string }
 type Props = {
-  row: AdProfitRow; mode: ProfitMode; noun: string; tab: 'profit' | 'orders'; baseHref: string; backHref: string
+  row: AdProfitRow; mode: ProfitMode; noun: string; tab: DetailTab; baseHref: string; backHref: string; insights: ProfitInsight[]
   orders: DetailOrder[]; daily: { day: string; spend: number; revenue: number; profit: number }[]
 }
 
-export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHref, orders, daily }: Props) {
+export type DetailTab = 'profit' | 'perf' | 'orders' | 'diag'
+
+export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHref, orders, daily, insights }: Props) {
   const tt = useT()
   const t = tt.adsProfit
   const p = row.parts[mode], m = row.metrics[mode]
@@ -57,7 +60,9 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
   const after = m.profitAfter ?? m.profitBefore
   const pctOf = (v: number) => (v / scale) * 100
 
-  const tabs: ['profit' | 'orders', string][] = [['profit', t.detailTabProfit], ['orders', fmt(t.detailTabOrders, { noun })]]
+  const tabs: [DetailTab, string][] = [['profit', t.detailTabProfit], ['perf', t.detailTabPerf], ['orders', fmt(t.detailTabOrders, { noun })], ['diag', t.detailTabDiag]]
+  const ratio = (a: number | null, b: number | null, k = 1) => (a === null || b === null || b <= 0 ? null : (a / b) * k)
+  const n2 = (v: number | null, d = 0, pre = '', post = '') => (v === null ? '—' : `${pre}${v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}${post}`)
 
   return (
     <>
@@ -68,6 +73,12 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
           <div className="min-w-0">
             <h4 className="text-default-900 mb-0 truncate text-lg font-semibold">{name}</h4>
             <p className="text-default-600 mb-0 truncate text-sm">{[row.campaignName, row.adsetName].filter(Boolean).join(' › ') || row.adId}</p>
+            {(row.adStatus || row.objective) && (
+              <p className="mt-1 mb-0 flex flex-wrap gap-1.5 text-xs">
+                {row.adStatus && <span className={cn('badge py-0.5', row.adStatus === 'ACTIVE' ? 'bg-success/15 text-success-ink' : 'bg-light text-default-700')}>{(t.adStatus as Record<string, string>)[row.adStatus] ?? row.adStatus}</span>}
+                {row.objective && <span className="badge bg-light text-default-700 py-0.5">{t.objectiveLabel}: {(t.objective as Record<string, string>)[row.objective] ?? row.objective}</span>}
+              </p>
+            )}
           </div>
         </div>
         <nav className="border-default-300 flex border-t border-dashed px-2" role="tablist" aria-label={name}>
@@ -116,6 +127,46 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
             </div>
           </div>
         </>
+      ) : tab === 'perf' ? (
+        <div className="gap-base grid grid-cols-1 xl:grid-cols-12">
+          <div className="min-w-0 xl:col-span-5 flex flex-col gap-base">
+            {[
+              { title: t.perfDelivery, items: [[t.colImpr, n2(row.impressions)], [t.colReach, n2(row.reach)], [t.colFreq, n2(row.frequency, 2)], [t.colCpm, n2(ratio(row.spend, row.impressions, 1000), 2, '฿')]] },
+              { title: t.perfTraffic, tip: t.perfCtrTip, items: [[t.colClicks, n2(row.clicks)], [t.colCtr, n2(ratio(row.clicks, row.impressions, 100), 2, '', '%')], [t.colCpc, n2(ratio(row.spend, row.clicks), 2, '฿')]] },
+              { title: t.perfConversion, items: [[t.colChats, n2(row.chatsMeta)], [t.colCostPerChat, n2(ratio(row.spend, row.chatsMeta), 2, '฿')], [fmt(t.kpiOrders, { noun }), n2(p.orders)], [fmt(t.kpiCpo, { noun }), money(m.costPerOrder)], ['ROAS', m.roas === null ? '—' : fmtRoas(m.roas)]] },
+            ].map((g) => (
+              <DashCard key={g.title} title={g.title} tip={g.tip}>
+                <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-3">
+                  {g.items.map(([l, v]) => (<div key={l} className="min-w-0"><dt className="text-default-600 text-xs">{l}</dt><dd className="text-default-900 mb-0 text-lg font-bold tabular-nums">{v}</dd></div>))}
+                </dl>
+              </DashCard>
+            ))}
+          </div>
+          <div className="min-w-0 xl:col-span-7">
+            <DashCard title={t.perfDailySpend}>
+              <Columns ariaLabel={t.perfDailySpend} categories={daily.map((d) => d.day.slice(8, 10))} series={[{ name: t.kpiSpend, data: daily.map((d) => Math.round(d.spend)), color: 'chart-gamma' }]} />
+            </DashCard>
+          </div>
+        </div>
+      ) : tab === 'diag' ? (
+        <DashCard title={t.detailTabDiag}>
+          <p className="text-default-600 mb-3 text-sm">{t.diagNote}</p>
+          {insights.length === 0 ? <p className="text-default-500 mb-0 text-sm">{t.diagEmpty}</p> : (
+            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              {insights.map((i) => {
+                const c = t.insight[i.kind]
+                const v = i.kind === 'ROAS_BUT_LOSS' ? { value: fmtRoas(i.value), baseline: fmtRoas(i.baseline) } : i.kind === 'LOSS' || i.kind === 'HIGH_CPO' ? { value: money(i.value), baseline: money(i.baseline) } : { value: i.value.toFixed(1), baseline: i.baseline.toFixed(1) }
+                return (
+                  <li key={i.kind} className="border-default-300 rounded-lg border border-dashed p-3">
+                    <div className="mb-1 flex flex-wrap items-center gap-2"><b className="text-default-900 text-sm">{fmt(c.title, { noun })}</b><span className="badge bg-light text-default-700 py-0.5 text-xs">{t.priority[i.priority]}</span><span className="text-default-500 ms-auto text-xs">{t.confidence[i.confidence]}</span></div>
+                    <p className="text-default-800 mb-1 text-sm tabular-nums">{fmt(c.detail, v)}</p>
+                    <p className="text-default-600 mb-0 text-xs">{t.causeLabel}: {c.cause} · <b className="font-semibold">{t.tryLabel}:</b> {c.tryIt}</p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </DashCard>
       ) : (
         <div className="card">
           <div className="card-header"><h4 className="card-title">{fmt(t.detailTabOrders, { noun })}</h4><InfoTip text={fmt(t.allocTip, { noun })} /></div>

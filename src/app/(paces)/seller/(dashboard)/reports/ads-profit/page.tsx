@@ -25,6 +25,8 @@ import AdSpendNotice from '../ads/components/AdSpendNotice'
 import { AdReportPendingProvider } from '../ads/components/PendingContext'
 import PendingGrid from '../ad-quality/components/PendingGrid'
 import AdsProfitFilters from './components/AdsProfitFilters'
+import AdsProfitCharts from './components/AdsProfitCharts'
+import AdsProfitInsights from './components/AdsProfitInsights'
 import AdsProfitKpis from './components/AdsProfitKpis'
 import AdsProfitTable from './components/AdsProfitTable'
 
@@ -100,7 +102,9 @@ export default async function AdsProfitPage({ searchParams }: { searchParams: Pr
           {report.base.truncated && <p className="text-warning-ink bg-warning/15 mb-base rounded-lg px-3 py-2 text-sm">{ar.truncated}</p>}
           {report.base.spend.state !== 'OK' && <AdSpendNotice ads={{ state: report.base.spend.state, currency: report.base.spend.currency }} noun={noun} copy={noticeCopy} />}
           <AdsProfitKpis report={report} mode={mode} noun={noun} partial={partial} />
+          <AdsProfitInsights report={report} mode={mode} noun={noun} detailQuery={detailQs.toString()} />
           <AdsProfitTable report={report} mode={mode} noun={noun} detailQuery={detailQs.toString()} rangeLabel={`${q.label.from}_${q.label.to}`} />
+          <div className="mt-base"><AdsProfitCharts report={report} mode={mode} noun={noun} /></div>
         </PendingGrid>
       </AdReportPendingProvider>
     </div>
