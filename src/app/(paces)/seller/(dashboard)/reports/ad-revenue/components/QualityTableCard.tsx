@@ -59,10 +59,10 @@ export default function QualityTableCard({ ads, noun, labels }: { ads: Ad[]; nou
       footer={
         <tr className="bg-default-100/70 font-semibold">
           <td className="text-default-900 text-sm">{fmt(t.totalRow, { n: rows.length })}</td>
-          <td className="text-center tabular-nums">{formatNumberNoSymbol(placed)}</td>
-          <td className="text-center tabular-nums">{fmtPct(pct(collected, gross))}</td>
-          <td className="text-center tabular-nums">{fmtPct(pct(cancelled, placed))}</td>
-          <td className="text-center tabular-nums">{fmtPct(pct(returned, placed))}</td>
+          <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(placed)}</td>
+          <td className="text-end tabular-nums whitespace-nowrap">{fmtPct(pct(collected, gross))}</td>
+          <td className="text-end tabular-nums whitespace-nowrap">{fmtPct(pct(cancelled, placed))}</td>
+          <td className="text-end tabular-nums whitespace-nowrap">{fmtPct(pct(returned, placed))}</td>
         </tr>
       }
       matches={(a, q) => nameOf(a).toLowerCase().includes(q) || a.adId.toLowerCase().includes(q)}

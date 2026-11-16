@@ -63,7 +63,8 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
     if (r.id === null) return r.kind === 'campaign' ? a.unknownCampaign : a.unknownAdset
     return r.name ?? r.id
   }
-  const baht = (v: number) => (v >= 1_000_000 ? <span title={formatBaht(v)}>{formatBahtCompact(v)}</span> : formatBaht(v))
+  // ในตารางปัดเป็นบาทเต็มให้ความกว้างหลักเท่ากัน (CSV คงทศนิยม 2 ตำแหน่ง)
+  const baht = (v: number) => (v >= 1_000_000 ? <span title={formatBaht(v)}>{formatBahtCompact(v)}</span> : formatBaht(Math.round(v)))
   const dash = <>—<span className="sr-only">{a.noSpendSr}</span></>
   const lostPct = (r: { lost: number; placed: number }) => (r.placed > 0 ? Math.round((r.lost / r.placed) * 1000) / 10 : null)
   const roasOf = (r: { sales: number; spend: number | null }) => roas(r.sales, r.spend)
@@ -90,7 +91,7 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
       {r.kind === 'ad' && <AdThumb photoFileId={r.ad!.adPhotoFileId} className="size-8 rounded-md" iconClass="text-base" />}
       {r.id === null && r.kind !== 'ad' && <Icon icon="help-circle" className="text-default-500 shrink-0 text-lg" aria-hidden="true" />}
       {/* รหัสอยู่ใน title (ไม่ขึ้นบรรทัดรอง) */}
-      <span className={cn('block min-w-0 truncate text-sm', r.id === null ? 'text-default-700' : 'text-default-900 font-medium')} title={r.id && nameOf(r) !== r.id ? `${nameOf(r)} · ${r.id}` : nameOf(r)}>{nameOf(r)}</span>
+      <span className={cn('block min-w-0 max-w-48 truncate text-sm lg:max-w-xs xl:max-w-md', r.id === null ? 'text-default-700' : 'text-default-900 font-medium')} title={r.id && nameOf(r) !== r.id ? `${nameOf(r)} · ${r.id}` : nameOf(r)}>{nameOf(r)}</span>
     </>
   )
 
@@ -126,14 +127,14 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
   const footer = (
     <tr className="bg-default-100/70 font-semibold">
       <td className="text-default-900 text-sm">{fmt(hasHierarchy ? a.totalAllCampaigns : a.totalRow, { n: topRows.length })}</td>
-      {showSpend && <td className="text-center tabular-nums">{tot.spend === null ? dash : baht(tot.spend)}</td>}
-      <td className="text-center tabular-nums">{formatNumberNoSymbol(tot.orders)}</td>
-      <td className="text-center tabular-nums">{baht(tot.sales)}</td>
-      <td className="text-center tabular-nums">{baht(tot.collected)}</td>
-      {showSpend && <td className="text-center tabular-nums">{totRoas === null ? dash : fmtRoas(totRoas)}</td>}
-      {showSpend && <td className="text-center tabular-nums">{totProfit === null ? dash : `${totProfit < 0 ? '−' : ''}${formatBaht(totProfit)}`}</td>}
-      <td className="text-center tabular-nums max-xl:hidden">{tot.orders > 0 ? baht(tot.sales / tot.orders) : '—'}</td>
-      <td className="text-center tabular-nums max-xl:hidden">{fmtPct(lostPct(tot))}</td>
+      {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{tot.spend === null ? dash : baht(tot.spend)}</td>}
+      <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(tot.orders)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{baht(tot.sales)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{baht(tot.collected)}</td>
+      {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{totRoas === null ? dash : fmtRoas(totRoas)}</td>}
+      {showSpend && <td className="text-end tabular-nums whitespace-nowrap">{totProfit === null ? dash : `${totProfit < 0 ? '−' : ''}${formatBaht(Math.round(Math.abs(totProfit)))}`}</td>}
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{tot.orders > 0 ? baht(tot.sales / tot.orders) : '—'}</td>
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{fmtPct(lostPct(tot))}</td>
     </tr>
   )
 

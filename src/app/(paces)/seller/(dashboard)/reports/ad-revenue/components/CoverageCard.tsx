@@ -66,27 +66,27 @@ export default function CoverageCard({ coverage: c, spend, adsWithoutCampaign, c
               <thead className="font-semibold">
                 <tr>
                   <th>{t.covGroup}</th>
-                  <th className="text-center">{noun}</th>
-                  <th className="text-center">%</th>
-                  <th className="text-center">{t.colSales}</th>
-                  <th className="text-center">%</th>
+                  <th className="text-end">{noun}</th>
+                  <th className="text-end">%</th>
+                  <th className="text-end">{t.colSales}</th>
+                  <th className="text-end">%</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map((g) => (
                   <tr key={g.label}>
                     <td>{g.label}</td>
-                    <td className="text-center tabular-nums">{formatNumberNoSymbol(g.orders)}</td>
-                    <td className="text-center tabular-nums">{fmtPct(share(g.orders, totalOrders))}</td>
-                    <td className="text-center tabular-nums">{formatBaht(g.sales)}</td>
-                    <td className="text-center tabular-nums">{fmtPct(share(g.sales, totalSales))}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(g.orders)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{fmtPct(share(g.orders, totalOrders))}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{formatBaht(g.sales)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{fmtPct(share(g.sales, totalSales))}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold">
                   <td>{t.covTotal}</td>
-                  <td className="text-center tabular-nums">{formatNumberNoSymbol(totalOrders)}</td>
+                  <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(totalOrders)}</td>
                   <td />
-                  <td className="text-center tabular-nums">{formatBaht(totalSales)}</td>
+                  <td className="text-end tabular-nums whitespace-nowrap">{formatBaht(totalSales)}</td>
                   <td />
                 </tr>
               </tbody>

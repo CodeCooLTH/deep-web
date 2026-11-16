@@ -102,7 +102,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
               <tr key={headerGroup.id} className="bg-light/25 text-2xs uppercase">
                 {headerGroup.headers.map((header) => (
                   <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={cn('select-none', header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default', (header.column.columnDef.meta as { headerClassName?: string } | undefined)?.headerClassName)}>
-                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' || (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'center' })}>
+                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' || (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'center', 'justify-end': (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'end' })}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getCanSort() &&
                         ({

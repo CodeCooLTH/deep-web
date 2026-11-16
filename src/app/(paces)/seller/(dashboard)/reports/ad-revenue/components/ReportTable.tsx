@@ -10,7 +10,7 @@
  *     แต่แถวลูกเป็นแถวในตารางเดียวกัน (tanstack subRows) คอลัมน์ชุดเดียวกับแถวแม่ — ไม่ใช่ตารางซ้อน (user 2026-11-16: ตารางซ้อนหัวซ้ำ คอลัมน์ไม่ตรง "ดูยาก")
  * 🛑 paginateExpandedRows:false = แถวลูกตามแถวแม่ไปหน้าเดียวกัน · maxLeafRowFilterDepth:0 = ค้นหาเฉพาะแถวบนสุด (ค้นชื่อแคมเปญแล้วแถวลูกไม่หาย)
  * 🛑 pinnedLast ใช้ `sortUndefined: 'last'` ของ tanstack: แถวที่ปักท้าย (ไม่ทราบแคมเปญ) คืนค่าเรียง undefined ⇒ อยู่ท้ายเสมอทั้งขึ้นและลง
- * 🛑 แถวรวมต้องส่งมาจากผู้เรียก = ทุกแถว ไม่ใช่เฉพาะหน้า/ผลค้นหา (HR16) · ตัวเลขจัดกลาง (meta.align) ตามหน้าพี่น้อง
+ * 🛑 แถวรวมต้องส่งมาจากผู้เรียก = ทุกแถว ไม่ใช่เฉพาะหน้า/ผลค้นหา (HR16) · ตัวเลขชิดขวา (หลักตรงกันอ่านเทียบแถวได้ · theme tables/static/HoverableRows `text-end`) · คอลัมน์ชื่อรับที่ว่าง ตัวเลขจับกลุ่มขวา (theme AnalyticsOverview)
  */
 import {
   getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
@@ -88,9 +88,9 @@ export default function ReportTable<T>(p: Props<T>) {
         return typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare(String(y), 'th') : x - y
       },
       meta: {
-        align: c.align === 'end' ? 'center' : undefined,
-        headerClassName: c.xlOnly ? 'max-xl:hidden' : undefined,
-        cellClassName: cn('tabular-nums', c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'text-center', i === 0 && 'max-w-xs'),
+        align: c.align === 'end' ? 'end' : undefined,
+        headerClassName: cn(c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'whitespace-nowrap') || undefined,
+        cellClassName: cn('tabular-nums', c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'text-end whitespace-nowrap', i === 0 && 'w-full min-w-48'),
       },
       cell: ({ row }) => {
         if (i !== 0) return c.cell(row.original)
