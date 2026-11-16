@@ -71,7 +71,10 @@ export type Funnel = { steps: FunnelStep[]; rates: FunnelRate[]; /** index ใ�
 
 /** ป้ายจัดกลุ่ม BR-AIR-08 · null = ไม่จัดกลุ่ม (วัตถุประสงค์อื่น / ไม่มีค่ากลาง) */
 export type PerfTag = 'good' | 'ok' | 'watch' | 'thin' | null
-export type TagReason = { tag: PerfTag; reason: string }
+/** เหตุผลของป้าย — คีย์ + พารามิเตอร์ (UI แปลผ่าน i18n adSummary.rs*) ไม่มีประโยคฝังใน lib */
+export type TagReasonKey = 'other' | 'thin' | 'noBase' | 'good' | 'watchNoOrders' | 'watchRoas' | 'watchCpo' | 'ok'
+export type TagReasonText = { key: TagReasonKey; params: Record<string, string | number> }
+export type TagReason = { tag: PerfTag; reason: TagReasonText }
 
 /** แถวโฆษณาหนึ่งตัว (ระดับล่างสุด) */
 export type AdRow = {
@@ -96,7 +99,7 @@ export type AdRow = {
   /** ต้นทุนสินค้าของใบชุดเดียวกับยอดขาย (F-12) · null = มีบรรทัดไม่มีต้นทุน */
   cogs: number | null
   tag: PerfTag
-  tagReason: string | null
+  tagReason: TagReasonText | null
   /** BR-AIR-10 — คีย์ป้ายครีเอทีฟ */
   creativeFlags: ('HIGH_SPEND_LOW_ORDERS' | 'HIGH_CTR_LOW_CLOSE')[]
 }
@@ -111,7 +114,7 @@ export type CampaignRow = {
   adsets: AdsetRow[]
   prevSpend: number | null
   tag: PerfTag
-  tagReason: string | null
+  tagReason: TagReasonText | null
 } & RollUp
 
 /** ผลรวมของกลุ่ม (Σ ของลูก) — reach ไม่รวมข้ามโฆษณา (BR-AIR-11) จึงไม่มีในนี้ */

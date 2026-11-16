@@ -36,7 +36,7 @@ describe('classify', () => {
     // base: ROAS 4, cpo 100 (จากแถวที่ไม่ thin ทั้งหมด)
     const rows = [R({ sales: 4000, orders: 10 }), R({ sales: 4000, orders: 10 }), R({ sales: 8000, orders: 20 }), R({ sales: 4000, orders: 10 }), R({ spend: 100 })]
     const t = classify(rows, close)
-    expect(t[2].tag).toBe('good'); expect(t[2].reason).toContain('ROAS'); expect(t[2].reason).not.toMatch(/Deep|แอด/)
+    expect(t[2].tag).toBe('good'); expect(t[2].reason).toEqual({ key: 'good', params: { v: '8', avg: '5' } }); expect(t[4].reason.key).toBe('thin')
     expect(t[0].tag).toBe('ok'); expect(t[4].tag).toBe('thin')
   })
   it('watch: ไม่มีออเดอร์ ค่าโฆษณา ≥ 3× cpo กลาง · ROAS ต่ำ · cpo สูง', () => {

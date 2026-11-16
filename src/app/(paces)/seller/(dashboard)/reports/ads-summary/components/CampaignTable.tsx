@@ -22,7 +22,7 @@ import {
   ALL_COLS, COLS_STORAGE_KEY, DEFAULT_COLS, MAX_COMPARE, NO_FILTER, TAG_KEYS, TONE, filterCampaigns, formatValue, metricOf, objectiveLabel, pageSlice,
   parseCols, sortCampaigns, statusGroup, toggleSelect, type CampFilter, type ColKey,
 } from '@/lib/ad-summary/view'
-import type { AdRow, AdSummaryReport, AdsetRow, PerfTag, RollUp } from '@/lib/ad-summary/types'
+import type { AdRow, AdSummaryReport, AdsetRow, PerfTag, RollUp, TagReasonKey, TagReasonText } from '@/lib/ad-summary/types'
 import type { AdReportRow } from '@/services/ad-sales-report.service'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
@@ -39,12 +39,16 @@ const TAG_STYLE: Record<NonNullable<PerfTag>, { cls: string; icon: string }> = {
   thin: { cls: 'border border-default-300 text-default-700', icon: 'info-circle' },
 }
 
-function TagBadge({ tag, reason }: { tag: PerfTag; reason: string | null }) {
+const REASON_KEYS: Record<TagReasonKey, string> = {
+  other: 'rsOther', thin: 'rsThin', noBase: 'rsNoBase', good: 'rsGood', watchNoOrders: 'rsWatchNoOrders', watchRoas: 'rsWatchRoas', watchCpo: 'rsWatchCpo', ok: 'rsOk',
+}
+
+function TagBadge({ tag, reason }: { tag: PerfTag; reason: TagReasonText | null }) {
   const t = useT().adSummary
   if (!tag) return null
   const s = TAG_STYLE[tag]
   return (
-    <span className={cn('badge', s.cls)} title={reason ?? undefined}>
+    <span className={cn('badge', s.cls)} title={reason ? fmt((t as Record<string, string>)[REASON_KEYS[reason.key]], reason.params) : undefined}>
       {s.icon && <Icon icon={s.icon} className="text-xs" aria-hidden="true" />}
       {(t as Record<string, string>)[TAG_KEYS[tag]]}
     </span>

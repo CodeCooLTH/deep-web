@@ -14,7 +14,8 @@ describe('TONE / trendOf', () => {
   it('ค่าโฆษณา = signed (มติ user)', () => { expect(TONE.spend).toBe('signed') })
   it('inverse และ neutral ตาม BR-AIR-02', () => {
     for (const k of ['cpa', 'cpc', 'cpm', 'costPerChatMeta'] as const) expect(TONE[k]).toBe('inverse')
-    for (const k of ['impressions', 'reach', 'frequency'] as const) expect(TONE[k]).toBe('neutral')
+    for (const k of ['impressions', 'reach'] as const) expect(TONE[k]).toBe('signed')
+    expect(TONE.frequency).toBe('neutral')
   })
   it('ทิศทาง', () => {
     expect(trendOf({ cur: 120, prev: 100 }, 'signed')).toBe('good')

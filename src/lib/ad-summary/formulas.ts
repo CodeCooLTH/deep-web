@@ -17,9 +17,10 @@ export function pctChange(cur: number | null, prev: number | null): number | nul
 /** BR-AIR-02 ทิศทางที่ดี — ค่าโฆษณาขึ้น = เขียว (มติ user 2026-11-15) */
 export const TONE: Record<keyof KpiSet, Tone> = {
   spend: 'signed', sales: 'signed', roas: 'signed', orders: 'signed', closeRate: 'signed',
-  aov: 'signed', chatsMeta: 'signed', ctr: 'signed', chats: 'signed',
+  aov: 'signed', chatsMeta: 'signed', ctr: 'signed', chats: 'signed', impressions: 'signed', reach: 'signed',
   cpa: 'inverse', cpc: 'inverse', cpm: 'inverse', costPerChatMeta: 'inverse',
-  impressions: 'neutral', reach: 'neutral', frequency: 'neutral',
+  // ความถี่สูง = คนเดิมเห็นซ้ำจนเบื่อได้ — ไม่ตัดสินดี/แย่
+  frequency: 'neutral',
 }
 
 /** ไม่มีฐานเทียบ → null · ไม่เปลี่ยนเลย = กลาง (ไม่ใช่ดี/แย่) */
