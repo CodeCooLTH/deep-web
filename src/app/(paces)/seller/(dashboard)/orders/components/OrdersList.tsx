@@ -19,7 +19,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
-import { FULFILLMENT_FILTER_KEYS, FULFILLMENT_FILTER_LABEL, courierKeyOf, type OrderRow } from './data'
+import { FULFILLMENT_BADGE_CLS, FULFILLMENT_FILTER_KEYS, FULFILLMENT_FILTER_LABEL, courierKeyOf, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import {
   ORDER_SEARCH_MIN_CHARS,
@@ -39,7 +39,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
 import ListBusyOverlay, { useListBusy } from '../../_shared/ListBusyOverlay'
-import OrdersFilterModal, { type FilterChoice } from './OrdersFilterModal'
+import OrdersFilterModal, { ChoiceIcon, type FilterChoice } from './OrdersFilterModal'
 import OrdersFilterChips, { type FilterChip } from './OrdersFilterChips'
 import {
   ORDERS_FILTER_PARAMS,
@@ -64,7 +64,8 @@ import {
   countAppointmentStages,
 } from '@/lib/appointment-stage'
 import { appointmentOverlapsDay, isAppointmentDayKey } from '@/lib/appointment-day'
-import { orderItemVocab, orderStatusMetaFor, orderWord } from '@/lib/order-display'
+import { ORDER_STATUS_META, orderItemVocab, orderStatusMetaFor, orderWord } from '@/lib/order-display'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { ORDER_DATE_PRESETS, isSpecificDay } from '@/lib/order-date-filter'
 import { formatDateTH } from '@/lib/format-date'
 
@@ -94,6 +95,18 @@ const buildStatusTabs = (vocab: OrderVocab): { value: string; label: string }[] 
 ]
 
 const PAGE = 8 // จำนวนต่อรอบ lazy-load
+
+/** ไอคอนหน้าตัวเลือก "พัสดุ" ในตัวกรอง — ตัวที่มีใน STAGE_BADGE_OVERRIDE ใช้ไอคอนเดียวกับป้ายบนแถว */
+const STAGE_ICON: Record<(typeof STAGE_CHIPS)[number], string> = {
+  DRAFT: 'file-alert',
+  AWAITING_PARCEL: 'barcode',
+  AWAITING_DISPATCH: 'package-export',
+  AWAITING_PICKUP: 'package',
+  SHIPPING: 'truck',
+  AWAITING_COD: 'coin',
+  PROBLEM: 'alert-triangle',
+  RETURNED: 'arrow-back-up',
+}
 
 /**
  * หน่วงก่อนนำคำค้นไปใช้ (กรองรายการ + เขียน `?q=` + แผงโหลด) — user ขอให้นานขึ้น 2026-08-25
@@ -495,16 +508,29 @@ export default function OrdersList({
    */
   const courierChoices = useMemo<FilterChoice[]>(() => {
     const count = new Map<string, number>()
+    const logo = new Map<string, { url: string | null; initials: string }>()
     let none = 0
     for (const o of dayScoped) {
       const k = courierKeyOf(o)
-      if (k) count.set(k, (count.get(k) ?? 0) + 1)
-      else none += 1
+      if (k) {
+        count.set(k, (count.get(k) ?? 0) + 1)
+        if (!logo.has(k) && o.shipment)
+          logo.set(k, { url: courierLogoUrl(o.shipment.courierCode, o.shipment.courierName ?? k), initials: courierInitials(o.shipment.courierName ?? k, o.shipment.courierCode) })
+      } else none += 1
+    }
+    const lead = (k: string) => {
+      const l = logo.get(k)
+      return l?.url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={l.url} alt="" className="ring-default-200 size-8 shrink-0 rounded-lg bg-white object-contain ring-1" /* object-contain: โลโก้ 2:1 ห้ามครอป (ตามตาราง) */ />
+      ) : (
+        <span className="bg-default-100 text-default-700 flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold">{l?.initials}</span>
+      )
     }
     const sorted = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
     return [
-      ...sorted.map(([name, n]) => ({ value: name, label: name, count: n })),
-      ...(none > 0 ? [{ value: 'NONE', label: 'ไม่มีหมายเลขพัสดุ', count: none }] : []),
+      ...sorted.map(([name, n]) => ({ value: name, label: name, count: n, lead: lead(name) })),
+      ...(none > 0 ? [{ value: 'NONE', label: 'ไม่มีหมายเลขพัสดุ', count: none, lead: <ChoiceIcon icon="barcode-off" /> }] : []),
     ]
   }, [dayScoped])
 
@@ -648,22 +674,26 @@ export default function OrdersList({
   const fl = tr.ordersFilter
 
   const statusChoices = useMemo<FilterChoice[]>(
-    () => STATUS_TABS.filter((x) => x.value !== 'all').map((x) => ({ value: x.value, label: x.label, count: statusCounts[x.value] ?? 0 })),
+    () =>
+      STATUS_TABS.filter((x) => x.value !== 'all').map((x) => {
+        const m = ORDER_STATUS_META[x.value]
+        return { value: x.value, label: x.label, count: statusCounts[x.value] ?? 0, lead: m ? <ChoiceIcon icon={m.icon} cls={m.cls} /> : undefined }
+      }),
     [STATUS_TABS, statusCounts],
   )
   const stageChoices = useMemo<FilterChoice[]>(
-    () => STAGE_CHIPS.map((k) => ({ value: k, label: SHIPPING_STAGE_LABEL[k], count: stageCounts[k] ?? 0 })),
+    () => STAGE_CHIPS.map((k) => ({ value: k, label: SHIPPING_STAGE_LABEL[k], count: stageCounts[k] ?? 0, lead: <ChoiceIcon icon={STAGE_ICON[k]} /> })),
     [stageCounts],
   )
   const apptChoices = useMemo<FilterChoice[]>(
     () => [
-      { value: 'NONE', label: 'ไม่มีนัด', count: noAppointmentCount },
-      ...APPOINTMENT_STAGE_KEYS.map((k) => ({ value: k as string, label: APPOINTMENT_STAGE_META[k].label, count: apptCounts[k] })),
+      { value: 'NONE', label: 'ไม่มีนัด', count: noAppointmentCount, lead: <ChoiceIcon icon="calendar-off" /> },
+      ...APPOINTMENT_STAGE_KEYS.map((k) => ({ value: k as string, label: APPOINTMENT_STAGE_META[k].label, count: apptCounts[k], lead: <ChoiceIcon icon="calendar-event" /> })),
     ],
     [noAppointmentCount, apptCounts],
   )
   const fulfillmentChoices = useMemo<FilterChoice[]>(
-    () => FULFILLMENT_FILTER_KEYS.map((k) => ({ value: k, label: FULFILLMENT_FILTER_LABEL[k], count: fulfillmentCounts[k] ?? 0 })),
+    () => FULFILLMENT_FILTER_KEYS.map((k) => ({ value: k, label: FULFILLMENT_FILTER_LABEL[k], count: fulfillmentCounts[k] ?? 0, lead: <ChoiceIcon icon={k === 'PICKUP' ? 'building-store' : 'truck-delivery'} cls={FULFILLMENT_BADGE_CLS[k]} /> })),
     [fulfillmentCounts],
   )
   const typeChoices = useMemo<FilterChoice[]>(() => {
@@ -672,6 +702,7 @@ export default function OrdersList({
       value: k,
       label: labels[k],
       count: dayScoped.filter((o) => o.orderType === k).length,
+      lead: <ChoiceIcon icon={k === 'PHYSICAL' ? 'package' : k === 'DIGITAL' ? 'cloud-download' : 'tool'} />,
     }))
   }, [dayScoped, fl])
 

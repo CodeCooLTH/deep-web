@@ -32,7 +32,17 @@ import {
 } from '@/lib/orders-filter'
 import { cn } from '@/utils/helpers'
 
-export type FilterChoice = { value: string | null; label: string; count?: number }
+/** lead = ภาพหน้าตัวเลือก (ไอคอนสถานะ/โลโก้ขนส่ง) — ผู้เรียกสร้างจาก SSOT เดียวกับป้ายบนแถว */
+export type FilterChoice = { value: string | null; label: string; count?: number; lead?: ReactNode }
+
+/** กล่องไอคอนหน้าตัวเลือก — สี (cls) มาจาก meta ของป้ายสถานะตัวเดียวกับตาราง */
+export function ChoiceIcon({ icon, cls = 'bg-default-100 text-default-700' }: { icon: string; cls?: string }) {
+  return (
+    <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', cls)}>
+      <Icon icon={icon} className="text-lg" aria-hidden="true" />
+    </span>
+  )
+}
 
 type Props = {
   applied: OrdersFilters
@@ -70,15 +80,16 @@ function OptionRows({
   cols?: boolean
 }) {
   const all: FilterChoice[] = [
-    { value: null, label: allLabel },
+    { value: null, label: allLabel, lead: <ChoiceIcon icon="list" /> },
     ...choices.filter((c) => c.value !== null && (c.count !== 0 || c.value === value)),
   ]
   return (
     <ul className={cn('m-0 list-none gap-x-4 space-y-0.5 p-0', cols && 'lg:grid lg:grid-cols-2 lg:space-y-0')}>
       {all.map((c) => (
         <li key={c.value ?? 'all'}>
-          <label className="hover:bg-default-100 has-checked:bg-primary/10 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2">
-            <input type="radio" name={name} className="form-radio shrink-0" checked={value === c.value} onChange={() => onPick(c.value)} />
+          <label className="hover:bg-default-100 has-checked:bg-primary/10 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg px-2 py-1">
+            <input type="radio" name={name} className="form-radio shrink-0 rounded-full!" /* _forms.css ทำ radio เหลี่ยม (unlayered ชนะ utility) */ checked={value === c.value} onChange={() => onPick(c.value)} />
+            {c.lead}
             <span className="text-default-900 min-w-0 flex-1 truncate text-sm">{c.label}</span>
             {c.count !== undefined && <span className="text-default-500 shrink-0 text-xs tabular-nums">{c.count.toLocaleString('th-TH')}</span>}
           </label>
@@ -166,7 +177,7 @@ export default function OrdersFilterModal({
       <label className="hover:bg-default-100 has-checked:bg-primary/10 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5">
         <input type="checkbox" className="form-checkbox size-4.5 shrink-0" checked={checked} onChange={() => toggleAd(key)} />
         {thumb}
-        <span className="text-default-900 min-w-0 flex-1 truncate text-sm" title={name}>{name}</span>
+        <span className="text-default-900 min-w-0 flex-1 truncate text-sm font-medium" title={name}>{name}</span>
         <span className="text-default-500 shrink-0 text-xs tabular-nums">{count}</span>
       </label>
     </li>
@@ -196,11 +207,12 @@ export default function OrdersFilterModal({
       case 'date':
         return (
           <>
-            <OptionRows name="date" choices={datePills} value={specificDay ? null : draft.date === 'All' ? null : draft.date} allLabel={f.all}
+            <OptionRows name="date" choices={datePills.map((c) => ({ ...c, lead: <ChoiceIcon icon="calendar" /> }))} value={specificDay ? null : draft.date === 'All' ? null : draft.date} allLabel={f.all}
               onPick={(v) => { set({ date: v ?? 'All' }); setDateOpen(false) }} />
             <button type="button" aria-pressed={showDateInput} onClick={() => setDateOpen((v) => !v)}
               className={cn('hover:bg-default-100 mt-0.5 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-sm', specificDay ? 'bg-primary/10 text-primary-ink font-medium' : 'text-default-900')}>
-              <Icon icon="calendar-search" className="text-base" aria-hidden="true" />
+              <span className="size-4.5 shrink-0" aria-hidden="true" />
+              <ChoiceIcon icon="calendar-search" />
               {f.pickDate}
             </button>
             {showDateInput && (
@@ -246,14 +258,14 @@ export default function OrdersFilterModal({
                 adRow(
                   AD_NONE,
                   draft.ads.includes(AD_NONE),
-                  <span className="bg-default-100 text-default-700 flex size-7 shrink-0 items-center justify-center rounded">
-                    <Icon icon="ad-off" className="text-base" aria-hidden="true" />
+                  <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-lg">
+                    <Icon icon="ad-off" className="text-xl" aria-hidden="true" />
                   </span>,
                   t.adReport.legendNotFromAd,
                   ads.noneCount,
                 )}
               {visibleAds.map((a) =>
-                adRow(a.adId, draft.ads.includes(a.adId), <AdThumb photoFileId={a.adPhotoFileId} className="size-7 rounded" />, nameOf(a), a.count),
+                adRow(a.adId, draft.ads.includes(a.adId), <AdThumb photoFileId={a.adPhotoFileId} className="size-10 rounded-lg" />, nameOf(a), a.count),
               )}
             </ul>
           </>
