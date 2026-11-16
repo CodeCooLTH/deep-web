@@ -81,6 +81,7 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:reports-ad-quality',
         // เพิ่ม 2026-11-15 — เมนู "วิเคราะห์ยอดขายจากโฆษณา" (00091 เฟส 3) slug ใหม่ล้วน = การเพิ่มที่ปลอดภัย
         'seller:reports-ad-revenue',
+        'seller:reports-ads-profit',
         // เพิ่ม 2026-11-15 — เมนู "สรุปโฆษณา" (feature 00094) slug ใหม่ล้วน = การเพิ่มที่ปลอดภัย
         'seller:reports-ads-summary',
         'seller:reports-ads',
@@ -497,7 +498,7 @@ describe('applyLineReportMenu — เมนูรายงานเข้าก�
 })
 
 describe('applyOwnerOnlyFinanceMenu — เมนูการเงินเฉพาะเจ้าของ (00071 BR-RP-08/09)', () => {
-  const FOUR = ['seller:sales', 'seller:expenses', 'seller:reports-products', 'seller:reports-ads', 'seller:reports-ad-quality', 'seller:reports-ad-revenue', 'seller:reports-ads-summary', 'seller:wallet']
+  const FOUR = ['seller:sales', 'seller:expenses', 'seller:reports-products', 'seller:reports-ads', 'seller:reports-ad-quality', 'seller:reports-ad-revenue', 'seller:reports-ads-profit', 'seller:reports-ads-summary', 'seller:wallet']
   const visible = (role: 'OWNER' | 'ADMIN', kind: 'BUSINESS' | 'PERSONAL' = 'BUSINESS') =>
     slugsOf(flattenSellerMenu(resolveVisibleSellerMenu(sellerMenuItems, {
       ...ctx('ONLINE_SALES'),

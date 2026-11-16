@@ -15,3 +15,12 @@ export function parseAdReportQuery(q: { from?: string | null; to?: string | null
     shopChannelId: q.shopChannelId,
   })
 }
+
+/** 00096 รายงานกำไรโฆษณารายวัน — ค่าตั้งต้น = วันนี้ · ?mode=realized · partial = ช่วงมีวันนี้ (ยังไม่จบวัน BRD FR-002) */
+export function parseAdsProfitQuery(sp: { from?: string; to?: string; shopChannelId?: string; mode?: string }) {
+  const def = resolveDateRange('today').label
+  const has = Boolean(sp.from) && Boolean(sp.to)
+  const q = parseReportQuery({ from: has ? sp.from : def.start, to: has ? sp.to : def.end, shopChannelId: sp.shopChannelId })
+  const mode: 'expected' | 'realized' = sp.mode === 'realized' ? 'realized' : 'expected'
+  return { q, mode, partial: q.label.to >= def.end }
+}

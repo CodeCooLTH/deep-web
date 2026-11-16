@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma'
 vi.mock('server-only', () => ({}))
 
 import { getAdRevenueReport } from '@/services/ad-revenue-report.service'
+import { getAdProfitOrders, getAdsProfitReport } from '@/services/ads-profit.service'
 import { getAdSalesReport } from '@/services/ad-sales-report.service'
 import { thaiMidnightUtc } from '@/lib/date-range'
 import type { SpendResult, SpendSource } from '@/services/meta-ads-spend.service'
@@ -209,6 +210,48 @@ describe.skipIf(!isLocal)('00091 เฟส 3 วิเคราะห์ยอ�
     expect(r.prevDaily).toHaveLength(31)
     expect(r.prevDaily.reduce((t, d) => t + d.sales, 0)).toBe(r.previous.sales)
     expect(r.prevDaily.reduce((t, d) => t + d.collected, 0)).toBe(r.previous.collected) // ไม่มีใบคืนที่รับของ ⇒ เท่ากับผลรวมกำไรรายแอด 170 + 50
+  })
+
+  // ── 00096 รายงานกำไรโฆษณารายวัน (BRD §3) ──────────────────────────────
+  const profit = () => getAdsProfitReport(x.shop, null, { from: gte, to: lt }, { spendSource: okSpend })
+  it('00096 รับรู้แล้ว: กำไรก่อนค่าโฆษณาต่อแอด = 00091 profitBeforeAds (ชุด/สูตรเดียวกับหน้ากำไร)', async () => {
+    const [p, r] = await Promise.all([profit(), report()])
+    for (const row of p.rows) {
+      const a = r.ads.find((x) => x.adId === row.adId)!
+      expect(row.metrics.realized.profitBefore).toBeCloseTo(a.profitBeforeAds, 2)
+    }
+  })
+  it('00096 คาดการณ์: จำนวนใบ = คำสั่งซื้อของ 00091 · ค่าโฆษณาเดียวกัน · ร้านอื่นไม่โผล่', async () => {
+    const [p, r] = await Promise.all([profit(), report()])
+    expect(p.totals.parts.expected.orders).toBe(r.summary.orders)
+    expect(p.totals.spend).toBe(r.summary.spend)
+    expect(p.rows.every((row) => r.ads.some((a) => a.adId === row.adId))).toBe(true)
+  })
+  it('00096 แอดใช้เงินไม่มีใบ: 0 ใบ · กำไรหลังค่าโฆษณา = −ค่าโฆษณา', async () => {
+    const p = await profit()
+    const ad3 = p.rows.find((row) => row.adId === 'AD3')!
+    expect(ad3.parts.expected.orders).toBe(0)
+    expect(ad3.metrics.expected.profitAfter).toBe(-(ad3.spend ?? 0))
+    expect(ad3.metrics.expected.costPerOrder).toBeNull()
+  })
+  it('00096 กระทบยอด: ผลรวมแถว = ยอดรวม · ใบในรายละเอียด = แถว', async () => {
+    const p = await profit()
+    const sum = (f: (row: (typeof p.rows)[number]) => number) => Math.round(p.rows.reduce((n, row) => n + f(row), 0) * 100) / 100
+    expect(sum((row) => row.parts.expected.revenue)).toBe(p.totals.parts.expected.revenue)
+    // แอดที่ Meta ไม่มีค่าโฆษณา (spend null) นับกำไรก่อนค่าโฆษณาเข้ายอดรวม (ค่าโฆษณาของแถวนั้น = 0 ในยอดรวม)
+    expect(sum((row) => row.metrics.expected.profitAfter ?? row.metrics.expected.profitBefore)).toBeCloseTo(p.totals.metrics.expected.profitAfter ?? 0, 2)
+    const row = p.rows.find((x) => x.parts.expected.orders > 0)!
+    const orders = await getAdProfitOrders(x.shop, null, { from: gte, to: lt, adId: row.adId, mode: 'expected' })
+    expect(orders.length).toBe(row.parts.expected.orders)
+    expect(Math.round(orders.reduce((n, o) => n + o.parts.revenue, 0) * 100) / 100).toBe(row.parts.expected.revenue)
+  })
+  it('00096 ร้านอื่นขอรายละเอียดแอดเดียวกัน ไม่เห็นใบของร้านนี้ (tenant)', async () => {
+    const p = await profit()
+    const adId = p.rows.find((x) => x.parts.expected.orders > 0)!.adId
+    const mine = new Set((await getAdProfitOrders(x.shop, null, { from: gte, to: lt, adId, mode: 'expected' })).map((o) => o.order.id))
+    const theirs = await getAdProfitOrders(x.otherShop, null, { from: gte, to: lt, adId, mode: 'expected' })
+    expect(mine.size).toBeGreaterThan(0)
+    expect(theirs.some((o) => mine.has(o.order.id))).toBe(false)
   })
 
   it('FR-018 ออเดอร์ไม่ถึงเกณฑ์ = ไม่มีคำแนะนำ', async () => {

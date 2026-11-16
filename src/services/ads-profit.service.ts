@@ -1,0 +1,254 @@
+/**
+ * ads-profit.service — รายงานกำไรและประสิทธิภาพโฆษณารายวัน (00096 · BRD FR-004..FR-010)
+ *
+ * ต่อยอด getAdRevenueReport (ค่าโฆษณา · ลำดับชั้น · ชื่อ/รูป · ยอด/ใบตามนิยาม 00091) แล้วแตกกำไรรายโฆษณาเป็นตัวประกอบ:
+ *   ยอดสุทธิ · ต้นทุนสินค้า · ค่าใช้จ่ายผันแปร — ด้วย pnlOrderParts ตัวเดียวกับหน้ากำไร (HR16)
+ * สองโหมด (PRD §4.1 ข้อ 5):
+ *   - คาดการณ์ (expected) = ใบชุดยอดขาย (salesOrderWhere — ชุดเดียวกับ "คำสั่งซื้อ" ของ 00091) รวมใบที่ยังไม่รับเงิน
+ *   - รับรู้แล้ว (realized) = ใบชุดหน้ากำไร (revenueWindowWhere) — กำไรก่อนค่าโฆษณาต่อแอดต้องเท่ากับ 00091 profitBeforeAds (เทส parity)
+ * ค่าใช้จ่ายผันแปร = ค่าส่งขาไปเฉพาะร้านบริการ (กฎหน้ากำไร มติ 2026-10-02 · user ตอบ Q1 "ตามแนะนำ") + ค่าส่งคืน · ค่าธรรมเนียมอื่นระบบไม่มีข้อมูล
+ * 🛑 ทุก query ผูก shopId (tenant) · ค่าโฆษณามาจาก base ที่ระดับ ad เท่านั้น (ไม่บวกซ้ำจากแคมเปญ/ชุด)
+ */
+import { prisma } from '@/lib/prisma'
+import { profitMetrics, profitStatus, type ProfitMetrics, type ProfitParts, type ProfitStatus } from '@/lib/ads-profit'
+import { revenueWindowWhere } from '@/lib/order-revenue'
+import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
+import { thaiDayKey } from '@/lib/format-date'
+import { getReturnAdjustments } from '@/services/return-adjustment.service'
+import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
+import { MAX_ITEM_ROWS, salesOrderWhere } from '@/services/product-sales-series.service'
+import { ORDER_SELECT, pnlOrderParts, type PnlOrder } from '@/services/pnl.service'
+import { getAdSpend, type SpendSource } from '@/services/meta-ads-spend.service'
+import { getAdRevenueReport, type AdRevenueRange, type AdRevenueReport } from '@/services/ad-revenue-report.service'
+import type { ReturnAdjustment } from '@/lib/order-return'
+
+export type ProfitMode = 'expected' | 'realized'
+
+export type AdProfitRow = {
+  adId: string
+  adTitle: string | null
+  adPhotoFileId: string | null
+  campaignId: string | null
+  campaignName: string | null
+  adsetId: string | null
+  adsetName: string | null
+  spend: number | null
+  /** ตัวประกอบกำไรตามโหมด */
+  parts: Record<ProfitMode, ProfitParts>
+  metrics: Record<ProfitMode, ProfitMetrics>
+  status: Record<ProfitMode, ProfitStatus>
+  /** ค่าส่งขาไปที่คำนวณได้ (ข้อมูลประกอบ — หักจริงเฉพาะร้านบริการ) */
+  shippingInfo: number
+  /** Meta (ช่วงปัจจุบัน) — null = Meta ไม่ส่ง/ไม่เชื่อม */
+  impressions: number | null
+  clicks: number | null
+  chatsMeta: number | null
+  /** คุณภาพใบ (ชุด 00091 ตามวันที่สั่ง) */
+  cancelled: number
+  returned: number
+  collected: number
+}
+
+export type AdsProfitReport = {
+  base: Pick<AdRevenueReport, 'range' | 'prevRange' | 'spend' | 'truncated' | 'serviceRules' | 'hasAnyAdData' | 'insights' | 'coverage'>
+  rows: AdProfitRow[]
+  totals: { spend: number | null; parts: Record<ProfitMode, ProfitParts>; metrics: Record<ProfitMode, ProfitMetrics>; impressions: number | null; clicks: number | null; chatsMeta: number | null }
+  /** ช่วงก่อนหน้าความยาวเท่ากัน (โหมดคาดการณ์เท่านั้น — เทียบบนการ์ด) */
+  previous: { spend: number | null; orders: number; revenue: number; profitBefore: number }
+  daily: { day: string; spend: number | null; orders: Record<ProfitMode, number>; revenue: Record<ProfitMode, number>; profitBefore: Record<ProfitMode, number> }[]
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100
+const DAY = 86_400_000
+const emptyParts = (): ProfitParts => ({ orders: 0, revenue: 0, cogs: 0, variable: 0, incomplete: 0 })
+
+/** select ร่วม: ตัวประกอบ P&L + วันที่ (ทุกร้าน — payments ใช้กับร้านบริการ no-show) */
+const PROFIT_SELECT = {
+  ...ORDER_SELECT,
+  payments: { select: { kind: true, amount: true, voidedAt: true } },
+  adId: true, createdAt: true, serviceClosedAt: true,
+} as const
+type ProfitOrder = PnlOrder & { adId: string | null; createdAt: Date; serviceClosedAt: Date | null }
+
+/** ตัวประกอบกำไรของใบเดียว — ใช้ทั้งรายงานและรายละเอียดโฆษณา (ผลรวมต้องตรงกัน) */
+export function orderParts(o: ProfitOrder, adj: ReturnAdjustment | undefined, serviceRules: boolean) {
+  const p = pnlOrderParts(o, adj, serviceRules)
+  return {
+    revenue: p.revenue,
+    cogs: p.cogs,
+    // ร้านที่ไม่ใช่บริการ: หน้ากำไรไม่หักค่าส่งขาไป (มติ 2026-10-02) — ตามเป๊ะ
+    variable: serviceRules ? p.shipping : 0,
+    shipping: p.shipping,
+    incomplete: p.missingCost || (serviceRules && (p.shippingPending || p.shippingMissing)),
+  }
+}
+
+export async function getAdsProfitReport(
+  shopId: string,
+  vertical: string | null | undefined,
+  range: AdRevenueRange,
+  deps: { spendSource?: SpendSource } = {},
+): Promise<AdsProfitReport> {
+  const { from, to } = range
+  const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
+  const span = to.getTime() - from.getTime()
+  const prevFrom = new Date(from.getTime() - span)
+  const spendSource = deps.spendSource ?? getAdSpend
+  const [base, serviceRules] = await Promise.all([getAdRevenueReport(shopId, vertical, range, { spendSource }), shopUsesServiceFinanceRules(shopId)])
+
+  const adWhere = { adId: { not: null }, ...chan }
+  const [expectedOrders, realizedOrders, prevOrders, returnRows, returnAdj, spendRes] = await Promise.all([
+    prisma.order.findMany({ where: { ...salesOrderWhere(shopId, serviceRules, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
+    prisma.order.findMany({ where: { shopId, ...revenueWindowWhere(vertical, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
+    prisma.order.findMany({ where: { ...salesOrderWhere(shopId, serviceRules, { gte: prevFrom, lt: from }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
+    // ค่าส่งคืน — ชุดเดียวกับ 00091 (รับของคืนในช่วง · ผูกแอดของใบเดิม)
+    prisma.orderReturn.findMany({
+      where: { shopId, status: RETURN_STATUS.RECEIVED, receivedAt: { gte: from, lt: to }, order: { adId: { not: null }, ...chan } },
+      select: { countAsCost: true, shippingCost: true, shipment: { select: { carrierPrice: true, estimatedPrice: true } }, order: { select: { adId: true } } },
+    }),
+    serviceRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+    // ช่วงเดียวกับที่ base ขอ ⇒ โดนแคชเดียวกัน ไม่ยิง Meta เพิ่ม
+    spendSource(shopId, thaiDayKey(prevFrom), thaiDayKey(new Date(to.getTime() - 1))).catch(() => null),
+  ])
+  const truncated = base.truncated || [expectedOrders, realizedOrders, prevOrders].some((l) => l.length > MAX_ITEM_ROWS)
+  const cap = <T,>(l: T[]) => (l.length > MAX_ITEM_ROWS ? l.slice(0, MAX_ITEM_ROWS) : l)
+
+  const slots = Math.max(1, Math.round(span / DAY))
+  const dayKeys = Array.from({ length: slots }, (_, i) => thaiDayKey(new Date(from.getTime() + i * DAY)))
+  const dayIdx = new Map(dayKeys.map((k, i) => [k, i]))
+  const daily = dayKeys.map((day, i) => ({
+    day, spend: base.daily[i]?.spend ?? null,
+    orders: { expected: 0, realized: 0 }, revenue: { expected: 0, realized: 0 }, profitBefore: { expected: 0, realized: 0 },
+  }))
+
+  const parts = new Map<string, Record<ProfitMode, ProfitParts>>()
+  const shippingInfo = new Map<string, number>()
+  const getParts = (adId: string) => {
+    let p = parts.get(adId)
+    if (!p) parts.set(adId, (p = { expected: emptyParts(), realized: emptyParts() }))
+    return p
+  }
+  const add = (mode: ProfitMode, list: ProfitOrder[]) => {
+    for (const o of cap(list)) {
+      const x = orderParts(o, returnAdj.get(o.id), serviceRules)
+      const p = getParts(o.adId!)[mode]
+      p.orders += 1; p.revenue += x.revenue; p.cogs += x.cogs; p.variable += x.variable
+      if (x.incomplete) p.incomplete += 1
+      if (mode === 'expected') shippingInfo.set(o.adId!, (shippingInfo.get(o.adId!) ?? 0) + x.shipping)
+      const i = dayIdx.get(thaiDayKey(serviceRules ? o.serviceClosedAt ?? o.createdAt : o.createdAt))
+      if (i !== undefined) {
+        const d = daily[i]
+        d.orders[mode] += 1; d.revenue[mode] += x.revenue; d.profitBefore[mode] += x.revenue - x.cogs - x.variable
+      }
+    }
+  }
+  add('expected', expectedOrders as ProfitOrder[])
+  add('realized', realizedOrders as ProfitOrder[])
+
+  // ค่าส่งคืนหักทั้งสองโหมด (ตามแอดของใบเดิม) — เหมือน 00091
+  const retByAd = new Map<string, Parameters<typeof sumReturnShippingCost>[0]>()
+  for (const r of returnRows) {
+    const l = retByAd.get(r.order.adId!) ?? []
+    l.push({
+      countAsCost: r.countAsCost,
+      shippingCost: r.shippingCost != null ? Number(r.shippingCost) : null,
+      carrierPrice: r.shipment?.carrierPrice != null ? Number(r.shipment.carrierPrice) : null,
+      estimatedPrice: r.shipment?.estimatedPrice != null ? Number(r.shipment.estimatedPrice) : null,
+    })
+    retByAd.set(r.order.adId!, l)
+  }
+  for (const [adId, l] of retByAd) {
+    const c = sumReturnShippingCost(l).total
+    const p = getParts(adId)
+    p.expected.variable += c
+    p.realized.variable += c
+  }
+
+  // Meta: การแสดงผล/คลิก/แชทของช่วงปัจจุบัน (null ทั้งชุดเมื่อ Meta ไม่ OK)
+  const metaOk = spendRes?.state === 'OK'
+  const curKey = thaiDayKey(from)
+  const meta = new Map<string, { impressions: number | null; clicks: number | null; chatsMeta: number | null }>()
+  if (metaOk) {
+    for (const r of spendRes!.rows) {
+      if (r.day < curKey) continue
+      const m = meta.get(r.adId) ?? { impressions: null, clicks: null, chatsMeta: null }
+      const addN = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) + b)
+      meta.set(r.adId, { impressions: addN(m.impressions, r.impressions), clicks: addN(m.clicks, r.clicks), chatsMeta: addN(m.chatsMeta, r.chatsMeta) })
+    }
+  }
+
+  const round = (p: ProfitParts): ProfitParts => ({ ...p, revenue: r2(p.revenue), cogs: r2(p.cogs), variable: r2(p.variable) })
+  const rows: AdProfitRow[] = base.ads
+    .filter((a) => (a.spend ?? 0) > 0 || parts.has(a.adId))
+    .map((a) => {
+      const p = parts.get(a.adId) ?? { expected: emptyParts(), realized: emptyParts() }
+      const pr = { expected: round(p.expected), realized: round(p.realized) }
+      const metrics = { expected: profitMetrics(a.spend, pr.expected), realized: profitMetrics(a.spend, pr.realized) }
+      const m = meta.get(a.adId)
+      return {
+        adId: a.adId, adTitle: a.adTitle, adPhotoFileId: a.adPhotoFileId,
+        campaignId: a.campaignId, campaignName: a.campaignName, adsetId: a.adsetId, adsetName: a.adsetName,
+        spend: a.spend, parts: pr, metrics,
+        status: { expected: profitStatus(a.spend, pr.expected, metrics.expected), realized: profitStatus(a.spend, pr.realized, metrics.realized) },
+        shippingInfo: r2(shippingInfo.get(a.adId) ?? 0),
+        impressions: m?.impressions ?? null, clicks: m?.clicks ?? null, chatsMeta: m?.chatsMeta ?? null,
+        cancelled: a.status.CANCELLED, returned: a.status.RETURNED, collected: a.collected,
+      }
+    })
+
+  const spendKnown = rows.some((r) => r.spend !== null)
+  const totalSpend = spendKnown ? r2(rows.reduce((n, r) => n + (r.spend ?? 0), 0)) : null
+  const sumMode = (mode: ProfitMode) => round(rows.reduce((s, r) => ({
+    orders: s.orders + r.parts[mode].orders, revenue: s.revenue + r.parts[mode].revenue, cogs: s.cogs + r.parts[mode].cogs,
+    variable: s.variable + r.parts[mode].variable, incomplete: s.incomplete + r.parts[mode].incomplete,
+  }), emptyParts()))
+  const tp = { expected: sumMode('expected'), realized: sumMode('realized') }
+  const sumMeta = (k: 'impressions' | 'clicks' | 'chatsMeta') => (rows.some((r) => r[k] !== null) ? rows.reduce((n, r) => n + (r[k] ?? 0), 0) : null)
+
+  // ช่วงก่อน (โหมดคาดการณ์) — ไม่หักค่าส่งคืนช่วงก่อน (การ์ดเทียบเฉพาะยอด/ใบ/กำไรก่อนค่าโฆษณาโดยประมาณ)
+  const prevParts = emptyParts()
+  for (const o of cap(prevOrders) as ProfitOrder[]) {
+    const x = orderParts(o, returnAdj.get(o.id), serviceRules)
+    prevParts.orders += 1; prevParts.revenue += x.revenue; prevParts.cogs += x.cogs; prevParts.variable += x.variable
+  }
+
+  return {
+    base: { range: base.range, prevRange: base.prevRange, spend: base.spend, truncated, serviceRules, hasAnyAdData: base.hasAnyAdData, insights: base.insights, coverage: base.coverage },
+    rows: rows.sort((x, y) => (y.metrics.expected.profitAfter ?? y.metrics.expected.profitBefore) - (x.metrics.expected.profitAfter ?? x.metrics.expected.profitBefore)),
+    totals: {
+      spend: totalSpend, parts: tp,
+      metrics: { expected: profitMetrics(totalSpend, tp.expected), realized: profitMetrics(totalSpend, tp.realized) },
+      impressions: sumMeta('impressions'), clicks: sumMeta('clicks'), chatsMeta: sumMeta('chatsMeta'),
+    },
+    previous: { spend: base.previous.spend, orders: prevParts.orders, revenue: r2(prevParts.revenue), profitBefore: r2(prevParts.revenue - prevParts.cogs - prevParts.variable) },
+    daily: daily.map((d) => ({ ...d, revenue: { expected: r2(d.revenue.expected), realized: r2(d.revenue.realized) }, profitBefore: { expected: r2(d.profitBefore.expected), realized: r2(d.profitBefore.realized) } })),
+  }
+}
+
+/** คำสั่งซื้อของโฆษณาเดียว + ค่าโฆษณาจัดสรร (BRD FR-009/FR-010) — ชุดใบเดียวกับแถวในตารางตามโหมด */
+export async function getAdProfitOrders(
+  shopId: string,
+  vertical: string | null | undefined,
+  range: AdRevenueRange & { adId: string; mode: ProfitMode },
+) {
+  const { from, to } = range
+  const serviceRules = await shopUsesServiceFinanceRules(shopId)
+  const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
+  const where = range.mode === 'expected'
+    ? { ...salesOrderWhere(shopId, serviceRules, { gte: from, lt: to }), adId: range.adId, ...chan }
+    : { shopId, ...revenueWindowWhere(vertical, { gte: from, lt: to }), adId: range.adId, ...chan }
+  const [orders, returnAdj] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      select: {
+        ...PROFIT_SELECT, status: true, publicToken: true, orderNo: true, paymentConfirmedAt: true, codReceivedAt: true,
+        buyerName: true,
+        items: { select: { cost: true, qty: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: MAX_ITEM_ROWS,
+    }),
+    serviceRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+  ])
+  return orders.map((o) => ({ order: o, parts: orderParts(o as unknown as ProfitOrder, returnAdj.get(o.id), serviceRules) }))
+}

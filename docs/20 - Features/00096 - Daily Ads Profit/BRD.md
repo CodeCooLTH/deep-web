@@ -1,7 +1,7 @@
 ---
 title: "BRD — 00096 รายงานกำไรและประสิทธิภาพโฆษณารายวัน"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-11-16
 tags: [feature, brd, ads, report, profit]
 related: ["[[00096 - Daily Ads Profit/PRD]]", "[[00091 - Order Ad Attribution/BRD]]"]
@@ -11,7 +11,7 @@ related: ["[[00096 - Daily Ads Profit/PRD]]", "[[00091 - Order Ad Attribution/BR
 > **ประเภทเอกสาร:** Business Requirements Document (BRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-11-16
-> **สถานะ:** Draft — รอ user อนุมัติ
+> **สถานะ:** Approved — user "อนุมัติ" 2026-11-16 · Q1 ค่าส่งขาไป = ตามกฎหน้ากำไรเดิม · KPI = 4 ใบหลัก + แถบรอง 4 ช่อง (ตามแนะนำ)
 
 # BRD: รายงานกำไรและประสิทธิภาพโฆษณารายวัน (Business Requirements Document)
 

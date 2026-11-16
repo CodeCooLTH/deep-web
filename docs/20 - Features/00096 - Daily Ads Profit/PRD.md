@@ -1,7 +1,7 @@
 ---
 title: "PRD — 00096 รายงานกำไรและประสิทธิภาพโฆษณารายวัน"
 owner: shinobu22
-status: draft
+status: approved
 created: 2026-11-16
 tags: [feature, prd, ads, report, profit]
 related: ["[[00091 - Order Ad Attribution/PRD]]", "[[00093 - Ad Insights Quality/PRD]]", "[[00094 - Ads Intelligence Report/PRD]]"]
@@ -11,7 +11,7 @@ related: ["[[00091 - Order Ad Attribution/PRD]]", "[[00093 - Ad Insights Quality
 > **ประเภทเอกสาร:** Product Requirements Document (PRD)
 > **เวอร์ชัน:** 1.0
 > **วันที่จัดทำ:** 2026-11-16
-> **สถานะ:** Draft — รอ user อนุมัติ (user อนุมัติให้เริ่มเขียน 2026-11-16 "ตามแนะนำ ทำหน้าใหม่ อนุมัติ PRD/BRD")
+> **สถานะ:** Approved — user "อนุมัติ" 2026-11-16 · Q1 ค่าส่งขาไป = ตามกฎหน้ากำไรเดิม · KPI = 4 ใบหลัก + แถบรอง 4 ช่อง (ตามแนะนำ)
 > **เจ้าของเอกสาร:** BA + PO + PM
 
 # PRD: รายงานกำไรและประสิทธิภาพโฆษณารายวัน

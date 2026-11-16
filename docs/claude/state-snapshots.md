@@ -603,3 +603,11 @@
 - ตารางแคมเปญเขียนเอง (ไม่ใช่ tanstack) เพราะแถวลูก 3 ชั้น + แถวไม่ทราบแคมเปญ + แถวรวม
 
 **carry**: 🛑 ยังไม่ได้เปิดหน้าจริงในเบราว์เซอร์ (QA ด้วยตาโดย user) · ยังไม่ได้ `/impeccable critique` บนหน้าจริง (ทำบนม็อกอัพแล้ว) · หน้า 00091/00093 ยังมี "แชท (Deep)"/"แอด" (~75 จุด) ตามกฎคำใหม่ต้องไล่แก้แยก · `classify` ฝังข้อความไทยใน lib (EN เห็นไทยที่ tooltip ป้าย)
+
+## 2026-11-16 (00096 P0): รายงานกำไรโฆษณารายวัน `/reports/ads-profit`
+- หน้าใหม่ + รายละเอียดโฆษณา `/reports/ads-profit/[adId]` (แท็บยอดขายและกำไร · คำสั่งซื้อ) — เจ้าของเท่านั้น (F1) · ไม่มี migration
+- สูตร `src/lib/ads-profit.ts` (เทส Video A จากบรีฟ) · service `ads-profit.service.ts` ต่อยอด `getAdRevenueReport` + `pnlOrderParts` (HR16)
+- โหมด คาดการณ์ (salesOrderWhere) / รับรู้แล้ว (revenueWindowWhere = ชุดหน้ากำไร · เทส parity กับ 00091 profitBeforeAds)
+- ค่าใช้จ่ายผันแปร = ค่าส่งคืน (+ ค่าส่งขาไปเฉพาะร้านบริการ) · ค่าธรรมเนียม COD/ชำระเงิน/แพ็ก ระบบยังไม่มี (P2)
+- `DateRangePreset` เพิ่ม yesterday/14d (เฉพาะ `DAILY_RANGE_OPTIONS`) · ปักหมุด native-chat-sync ใหม่ (date-range/route-capabilities เพิ่มอย่างเดียว ไม่กระทบแชท)
+- 🛑 ยังไม่เคยเห็นกับร้านจริงที่เชื่อม Meta · P1 (reach/สถานะ/กราฟวิเคราะห์/คำแนะนำรายวัน) ยังไม่ทำ
