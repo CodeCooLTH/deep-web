@@ -101,7 +101,8 @@ export function capiGroupResult(g: Pick<CapiLineGroup, "datasets">): CapiGroupRe
     okCount,
     total,
     shortReasonKey: uniform && first && first !== "none" ? first : null,
-    sentAt: allSent ? iso(new Date(Math.max(...ds.map((d) => (d.sentAt ? ms(d.sentAt) : 0))))) : null,
+    // ไม่มี sentAt สักชุด (แถวเก่า/ข้อมูลไม่ครบ) = null ไม่ใช่ 1970
+    sentAt: allSent && ds.some((d) => d.sentAt) ? iso(new Date(Math.max(...ds.map((d) => (d.sentAt ? ms(d.sentAt) : 0))))) : null,
   };
 }
 
@@ -140,4 +141,52 @@ export function buildCapiTimeline<M extends { createdAt?: Date | string | null }
   }
   while (gi < pending.length) pushGroup(pending[gi++]);
   return out;
+}
+
+export type CapiDayItem<R> = { type: "row"; r: R } | { type: "capi"; groups: CapiLineGroup[] };
+
+/**
+ * จัดห้องเป็น "วัน → แถว/บรรทัด CAPI" — แถว = บับเบิลเดี่ยวหรืออัลบั้ม (พร้อมแถว meta ของมัน) เป็นหน่วยเดียว
+ * `at` ของแถว = เวลาของข้อความท้ายแถว ⇒ บรรทัด CAPI ไม่มีทางแทรกกลางบับเบิล/อัลบั้ม และเวลาเท่ากันตามหลังแถว
+ * วันที่มีแต่เหตุการณ์ได้หัววันของตัวเอง (dayOf = คีย์วันเดียวกับที่ใช้ของแถว)
+ */
+export function layoutCapiDays<R>(
+  rows: readonly { day: string; at: Date | string | null; r: R }[],
+  groups: readonly CapiLineGroup[],
+  opts: { hasOlder: boolean },
+  dayOf: (iso: string) => string,
+): { day: string; items: CapiDayItem<R>[] }[] {
+  const out: { day: string; items: CapiDayItem<R>[] }[] = [];
+  const push = (day: string, item: CapiDayItem<R>) => {
+    const last = out[out.length - 1];
+    if (last?.day === day) last.items.push(item);
+    else out.push({ day, items: [item] });
+  };
+  for (const it of buildCapiTimeline(rows.map((x) => ({ createdAt: x.at, x })), groups, opts)) {
+    if (it.type === "message") push(it.m.x.day, { type: "row", r: it.m.x.r });
+    else push(dayOf(it.groups[0].at), it);
+  }
+  return out;
+}
+
+export interface CapiLineSummary {
+  /** ทุกเหตุการณ์ยังไม่เคยยิงทั้งก้อน = แถว "กำลังส่ง" ไม่มีผล/ปุ่ม */
+  sending: boolean;
+  allReceived: boolean;
+  worst: CapiStatus;
+  okCount: number;
+  total: number;
+}
+
+/** สรุปของบรรทัดรวม (≥1 เหตุการณ์): ok = เหตุการณ์ที่ทุกชุด Meta รับแล้ว · worst = ล้มเหลว > รอ > ข้าม > รับแล้ว (BR-GRP-01) */
+export function capiLineSummary(groups: readonly Pick<CapiLineGroup, "datasets">[]): CapiLineSummary {
+  const rs = groups.map(capiGroupResult);
+  const okCount = rs.filter((r) => r.worst === "SENT").length;
+  return {
+    sending: rs.length > 0 && rs.every((r) => r.kind === "sending"),
+    allReceived: rs.length > 0 && okCount === rs.length,
+    worst: WORST_ORDER.find((s) => rs.some((r) => r.worst === s)) ?? "SENT",
+    okCount,
+    total: rs.length,
+  };
 }

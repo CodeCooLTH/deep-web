@@ -193,6 +193,8 @@ export interface OrderDetailClientProps {
 
   /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
   shippingActivity: React.ReactNode
+  /** 00097 — การ์ด "Event ที่ส่งให้ Meta" ใต้ประวัติ (RSC ตัดสินว่าแสดงไหม — null = ไม่มีการ์ด) */
+  capiCard?: React.ReactNode
   /** การ์ดผู้ซื้อ — แยกจาก sideCards เพราะการ์ด COD ต้องแทรก "หลังผู้ซื้อ ก่อนที่อยู่" */
   customerCard: React.ReactNode
   /** การ์ดกำไรของใบนี้ — null เมื่อผู้ใช้ไม่มีสิทธิ์ดูข้อมูลการเงิน (ตัดสินที่ RSC ไม่ใช่ที่นี่) */
@@ -273,6 +275,7 @@ export default function OrderDetailClient({
   serviceClosed = false,
   orderLabel,
   shippingActivity,
+  capiCard,
   customerCard,
   profitCard,
   sideCards,
@@ -900,6 +903,7 @@ export default function OrderDetailClient({
             vatRate={vatRate}
           />
           {shippingActivity}
+          {capiCard}
         </div>
         <div className="space-y-base">
           {customerCard}

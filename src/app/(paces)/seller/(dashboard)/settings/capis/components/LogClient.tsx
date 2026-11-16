@@ -7,6 +7,7 @@
  *   (card-header toolbar + DataTable + mobileCard + card-footer — ตัด search/sort/checkbox)
  *   + theme: .../ui/dropdowns/page.tsx ผ่าน src/components/safepay/FilterDropdown.tsx (ตารางที่ re-render ทุกครั้งที่กรอง → Preline hs-dropdown พัง)
  *   + theme: .../ui/badges/page.tsx (badge soft -ink) · .../ui/placeholders/page.tsx ผ่าน SellerEmptyState
+ *   + (00097) ชิปตัวกรอง: orders/components/OrdersFilterChips.tsx (theme .../ui/badges/page.tsx) · ไอคอนนำป้ายสถานะ = ตาราง 1.1 ของ UX-Design-Spec
  *   + src/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay.tsx (แผงโหลดทับผลลัพธ์ตอนเปลี่ยนตัวกรอง)
  *
  * 🛑 ข้อมูลมาจาก cursor (ไม่มี total/เลขหน้า) จึงใช้ "โหลดเพิ่ม" แทน pagination แบบเลขหน้า · แถวอ่านอย่างเดียว ไม่มีปุ่มส่งซ้ำ (กัน Purchase ซ้ำ)
@@ -17,6 +18,9 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 import BuyerAvatar from '@/app/(paces)/seller/(dashboard)/orders/components/BuyerAvatar'
+import OrdersFilterChips, { type FilterChip } from '@/app/(paces)/seller/(dashboard)/orders/components/OrdersFilterChips'
+import { CAPI_STATUS_ICON } from '@/components/safepay/capi-status-view'
+import type { CapiStatus } from '@/lib/meta-capi/chat-lines'
 import DataTable from '@/components/table/DataTable'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import Icon from '@/components/wrappers/Icon'
@@ -45,10 +49,20 @@ const STATUS_TONE: Record<string, string> = {
   SKIPPED: 'bg-default-100 text-default-800',
 }
 
-type Props = { channelId: string; initialRows: LogRow[]; initialCursor: string | null; status: string; event: string }
+type Props = {
+  channelId: string
+  initialRows: LogRow[]
+  initialCursor: string | null
+  status: string
+  event: string
+  /** 00097 — ตัวกรองที่ server resolve แล้ว (ไม่ใช่ของร้าน = null) */
+  conversation: { id: string; name: string | null } | null
+  order: { token: string; no: string | null } | null
+}
 
-export default function LogClient({ channelId, initialRows, initialCursor, status, event }: Props) {
-  const t = useT().conversionsApi
+export default function LogClient({ channelId, initialRows, initialCursor, status, event, conversation, order }: Props) {
+  const dict = useT()
+  const t = dict.conversionsApi
   const router = useRouter()
   const busy = useListBusy()
   const [rows, setRows] = useState(initialRows)
@@ -62,12 +76,11 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     return fmt(t.logReason[k], { n: Math.min(Math.max(r.attempts, 1), 3) })
   }
 
-  const go = (next: { status?: string; event?: string }) => {
+  // 🛑 ทุกตัวกรองต้องเขียนลง URL ใน go() — ตกตัวไหน เปลี่ยน dropdown แล้วชิปตัวนั้นหายเงียบ
+  const go = (next: Partial<Record<'status' | 'event' | 'conversation' | 'order', string>>) => {
     const p = new URLSearchParams()
-    const s = next.status ?? status
-    const e = next.event ?? event
-    if (s) p.set('status', s)
-    if (e) p.set('event', e)
+    const v = { status, event, conversation: conversation?.id ?? '', order: order?.token ?? '', ...next }
+    for (const k of ['status', 'event', 'conversation', 'order'] as const) if (v[k]) p.set(k, v[k])
     busy.run(() => router.replace(`/settings/capis/${channelId}/log${p.size ? `?${p}` : ''}`))
   }
 
@@ -78,6 +91,8 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     const p = new URLSearchParams({ cursor, take: '20' })
     if (status) p.set('status', status)
     if (event) p.set('eventKey', event)
+    if (conversation) p.set('conversation', conversation.id)
+    if (order) p.set('order', order.token)
     const r = await capiApi<{ rows: LogApiRow[]; nextCursor: string | null }>(`/${channelId}/log?${p}`, 'GET')
     setLoadingMore(false)
     if (!r.ok) return setMoreFailed(true)
@@ -85,7 +100,13 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     setCursor(r.data.nextCursor)
   }
 
-  const statusBadge = (s: string) => <span className={cn('badge', STATUS_TONE[s] ?? STATUS_TONE.SKIPPED)}>{t.logStatus[s as keyof typeof t.logStatus] ?? s}</span>
+  const statusBadge = (s: string) => (
+    <span className={cn('badge', STATUS_TONE[s] ?? STATUS_TONE.SKIPPED)}>
+      {CAPI_STATUS_ICON[s as CapiStatus] && <Icon icon={CAPI_STATUS_ICON[s as CapiStatus]} className="me-1 size-3.5" aria-hidden="true" />}
+      {t.logStatus[s as keyof typeof t.logStatus] ?? s}
+    </span>
+  )
+  const sentAtText = (r: LogRow) => (r.status === 'SENT' && r.sentAt ? fmt(t.logSentAt, { date: formatDateTime(r.sentAt) }) : null)
 
   const customerCell = (r: LogRow) =>
     r.customer ? (
@@ -157,6 +178,7 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
         cell: ({ row }) => (
           <span className="flex max-w-52 min-w-40 flex-col items-start gap-1">
             {statusBadge(row.original.status)}
+            {sentAtText(row.original) && <span className="text-default-700 text-xs tabular-nums">{sentAtText(row.original)}</span>}
             {capiReasonKey(row.original) !== 'none' && <span className={cn('text-xs', row.original.status === 'FAILED' ? 'text-danger-ink' : 'text-default-700')}>{reasonText(row.original)}</span>}
           </span>
         ),
@@ -166,9 +188,16 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t],
   )
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
+  // ซ่อนคอลัมน์ลูกค้าเมื่อกรองตามแชท — ทุกแถวเป็นคนเดียวกัน
+  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel(), state: { columnVisibility: { customer: !conversation } } })
 
-  const filtered = !!(status || event)
+  const chipFiltered = !!(conversation || order)
+  const filtered = !!(status || event || chipFiltered)
+  const chips: FilterChip[] = [
+    ...(conversation ? [{ key: 'conversation', label: fmt(t.logChipChat, { name: conversation.name ?? t.logNoName }), axis: t.logChipChatAxis, onRemove: () => go({ conversation: '' }) }] : []),
+    ...(order ? [{ key: 'order', label: fmt(t.logChipOrder, { no: order.no ?? order.token.slice(0, 8) }), axis: t.logChipOrderAxis, onRemove: () => go({ order: '' }) }] : []),
+  ]
+  const clearAll = () => go({ status: '', event: '', conversation: '', order: '' })
   const statusOptions = [{ value: ALL, label: t.logAll }, ...(['PENDING', 'SENT', 'FAILED', 'SKIPPED'] as const).map((s) => ({ value: s, label: t.logStatus[s] }))]
   const eventOptions = [{ value: ALL, label: t.logAll }, ...CAPI_EVENT_GROUPS.flatMap((g) => g.keys).map((k) => ({ value: k as string, label: eventLabel(k) }))]
 
@@ -184,17 +213,26 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
       </div>
     </div>
   )
+  const chipRow = chips.length > 0 && (
+    <div className="border-default-300 border-b border-dashed px-4 pb-3 sm:px-5">
+      <OrdersFilterChips chips={chips} onClearAll={clearAll} />
+    </div>
+  )
 
   if (rows.length === 0) {
     return (
       <div className="card">
         {header}
+        {chipRow}
+        {/* มีเฉพาะชิป = "ยังไม่มีการส่ง" ของแชท/ออเดอร์นั้น · มี status/event ด้วย = ไม่ตรงตัวกรอง */}
         <SellerEmptyState
           compact
-          icon={filtered ? 'filter-off' : 'history'}
-          title={filtered ? t.logNoMatch : t.logEmptyTitle}
+          icon={!filtered ? 'history' : status || event ? 'filter-off' : 'send'}
+          title={!filtered ? t.logEmptyTitle : status || event ? t.logNoMatch : t.logEmptyChipTitle}
           description={filtered ? undefined : t.logEmptyBody}
-          {...(filtered ? { actionButton: { label: t.logClear, onClick: () => go({ status: '', event: '' }) } } : { action: { label: t.logEmptyBack, href: `/settings/capis/${channelId}` } })}
+          {...(filtered
+            ? { actionButton: { label: status || event ? dict.ordersFilter.clearAll : t.logClear, onClick: clearAll } }
+            : { action: { label: t.logEmptyBack, href: `/settings/capis/${channelId}` } })}
         />
       </div>
     )
@@ -203,6 +241,7 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
   return (
     <div className="card">
       {header}
+      {chipRow}
       <div className="relative" aria-busy={busy.busy}>
         <DataTable<LogRow>
           table={table}
@@ -212,10 +251,10 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
               <div className="px-4 py-3 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    {r.customer && <BuyerAvatar src={r.customer.avatarUrl ? fileUrlOf(r.customer.avatarUrl) : null} name="" className="size-9" />}
+                    {r.customer && !conversation && <BuyerAvatar src={r.customer.avatarUrl ? fileUrlOf(r.customer.avatarUrl) : null} name="" className="size-9" />}
                     <div className="min-w-0">
-                      {r.customer && <p className="text-default-900 truncate text-sm font-medium">{r.customer.name?.trim() || t.logNoName}</p>}
-                      <p className={cn('min-w-0', r.customer ? 'text-default-800 text-xs' : 'text-default-900 text-sm font-medium')}>{eventLabel(r.eventKey)}</p>
+                      {r.customer && !conversation && <p className="text-default-900 truncate text-sm font-medium">{r.customer.name?.trim() || t.logNoName}</p>}
+                      <p className={cn('min-w-0', r.customer && !conversation ? 'text-default-800 text-xs' : 'text-default-900 text-sm font-medium')}>{eventLabel(r.eventKey)}</p>
                     </div>
                   </div>
                   <span className="shrink-0">{statusBadge(r.status)}</span>
@@ -245,6 +284,7 @@ export default function LogClient({ channelId, initialRows, initialCursor, statu
                   </div>
                 )}
                 {capiReasonKey(r) !== 'none' && <p className={cn('mt-1 text-xs', r.status === 'FAILED' ? 'text-danger-ink' : 'text-default-800')}>{reasonText(r)}</p>}
+                {sentAtText(r) && <p className="text-default-800 mt-1 text-xs tabular-nums">{sentAtText(r)}</p>}
               </div>
             )
           }}

@@ -1,7 +1,7 @@
 // feature 00097 — TC-008..011 · TC-014: รวมกลุ่ม · ผลของกลุ่ม · แทรกไทม์ไลน์ · รวมบรรทัดติดกัน · fast-refresh
 import { describe, expect, it } from 'vitest'
 import {
-  buildCapiTimeline, capiGroupResult, capiNeedsFastRefresh, groupCapiRows,
+  buildCapiTimeline, capiGroupResult, capiLineSummary, layoutCapiDays, capiNeedsFastRefresh, groupCapiRows,
   type CapiDatasetResult, type CapiLineGroup, type CapiRowLite, type CapiStatus,
 } from '@/lib/meta-capi/chat-lines'
 import type { CapiReasonKey } from '@/lib/meta-capi/ui'
@@ -67,6 +67,13 @@ describe('capiGroupResult (TC-008)', () => {
   })
 })
 
+describe('capiGroupResult sentAt', () => {
+  it('ทุกชุด SENT แต่ไม่มี sentAt สักชุด = null (ไม่ใช่ 1970)', () => {
+    expect(capiGroupResult({ datasets: [ds('SENT'), ds('SENT')] }).sentAt).toBeNull()
+    expect(capiGroupResult({ datasets: [ds('SENT', 'none', '2026-11-16T04:00:00.000Z'), ds('SENT')] }).sentAt).toBe('2026-11-16T04:00:00.000Z')
+  })
+})
+
 describe('capiNeedsFastRefresh (TC-014)', () => {
   it('queued/retrying = true · waitToken อย่างเดียว/ว่าง = false', () => {
     expect(capiNeedsFastRefresh([grp([ds('PENDING', 'queued')])])).toBe(true)
@@ -108,5 +115,42 @@ describe('buildCapiTimeline (TC-009..011)', () => {
     const before = JSON.stringify(SENT)
     buildCapiTimeline([msg('a', '2026-11-16T05:00:00Z')], [SENT, SENT], { hasOlder: false })
     expect(JSON.stringify(SENT)).toBe(before)
+  })
+})
+
+describe('layoutCapiDays (แทรกระดับแถว)', () => {
+  const dayOf = (iso: string) => iso.slice(0, 10)
+  const r = (id: string, at: string | null) => ({ day: (at ?? '2026-11-16').slice(0, 10), at, r: id })
+  const shape = (t: ReturnType<typeof layoutCapiDays<string>>) =>
+    t.map((d) => `${d.day}:${d.items.map((i) => (i.type === 'row' ? i.r : `capi${i.groups.length}`)).join(',')}`)
+
+  it('อัลบั้ม = แถวเดียว at ท้ายแถว: กลุ่มก่อนท้ายแถวมาก่อนทั้งอัลบั้ม ไม่แทรกกลาง', () => {
+    // อัลบั้ม album ถูกวัดที่ข้อความท้าย 04:10 · กลุ่ม 04:05 (หลังรูปแรก ก่อนรูปท้าย) ต้องอยู่ก่อน album
+    const rows = [r('album', '2026-11-16T04:10:00Z'), r('next', '2026-11-16T05:00:00Z')]
+    expect(shape(layoutCapiDays(rows, [grp([ds('SENT')], '2026-11-16T04:05:00Z')], { hasOlder: false }, dayOf))).toEqual(['2026-11-16:capi1,album,next'])
+  })
+  it('เวลาเท่ากับท้ายแถว = ตามหลังแถวนั้น (ไม่คั่นระหว่างบับเบิลกับ meta)', () => {
+    const rows = [r('bubble', '2026-11-16T04:10:00Z'), r('next', '2026-11-16T05:00:00Z')]
+    expect(shape(layoutCapiDays(rows, [grp([ds('SENT')], '2026-11-16T04:10:00Z')], { hasOlder: false }, dayOf))).toEqual(['2026-11-16:bubble,capi1,next'])
+  })
+  it('วันที่มีแต่เหตุการณ์ได้หัววันของตัวเอง · วันเดียวกับแถวถัดไปรวมในหัววันเดียว', () => {
+    const rows = [r('d1', '2026-11-15T04:00:00Z'), r('d3', '2026-11-17T04:00:00Z')]
+    const g = [grp([ds('SENT')], '2026-11-16T04:00:00Z', 'g2'), grp([ds('SENT')], '2026-11-17T03:00:00Z', 'g3')]
+    expect(shape(layoutCapiDays(rows, g, { hasOlder: false }, dayOf))).toEqual(['2026-11-15:d1', '2026-11-16:capi1', '2026-11-17:capi1,d3'])
+  })
+  it('hasOlder ตัดกลุ่มเก่ากว่าแถวแรก · ไม่มีกลุ่ม = แถวเดิม', () => {
+    const rows = [r('a', '2026-11-16T05:00:00Z')]
+    expect(shape(layoutCapiDays(rows, [grp([ds('SENT')], '2026-11-16T04:00:00Z')], { hasOlder: true }, dayOf))).toEqual(['2026-11-16:a'])
+    expect(shape(layoutCapiDays(rows, [], { hasOlder: false }, dayOf))).toEqual(['2026-11-16:a'])
+  })
+})
+
+describe('capiLineSummary', () => {
+  it('ทุกเหตุการณ์ SENT = allReceived · ปนกัน = worst ตามลำดับ · ทุกอันยังไม่ยิง = sending', () => {
+    expect(capiLineSummary([grp([ds('SENT')]), grp([ds('SENT'), ds('SENT')])])).toMatchObject({ allReceived: true, worst: 'SENT', okCount: 2, total: 2, sending: false })
+    expect(capiLineSummary([grp([ds('SENT')]), grp([ds('FAILED', 'rejected')]), grp([ds('PENDING', 'retrying')])])).toMatchObject({ allReceived: false, worst: 'FAILED', okCount: 1, total: 3 })
+    expect(capiLineSummary([grp([ds('SENT')]), grp([ds('SENT'), ds('SKIPPED', 'tooOld')])])).toMatchObject({ worst: 'SKIPPED', okCount: 1 })
+    expect(capiLineSummary([grp([ds('PENDING', 'queued')]), grp([ds('PENDING', 'queued')])]).sending).toBe(true)
+    expect(capiLineSummary([grp([ds('PENDING', 'queued')]), grp([ds('SENT')])]).sending).toBe(false)
   })
 })

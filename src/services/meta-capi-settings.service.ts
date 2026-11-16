@@ -452,6 +452,8 @@ export async function listConversationCapiEvents(shopId: string, conversationId:
     pageStateOf(shopId, conv.shopChannelId),
   ]);
   const truncated = rows.length > ROOM_CAP;
+  // shortcut: ตัดเฉพาะกลุ่มของ rows[300] ได้ผลเพราะแถว dedupeKey เดียวกันเกิดจาก createMany เดียว (createdAt เท่ากัน
+  // จึงอยู่ติดกัน) — ถ้าเปลี่ยนวิธี enqueue ให้แถวของกลุ่มเดียวกันห่างกัน ต้องทบทวนตรงนี้
   // ตัดแถวที่ 301 ทิ้งพร้อมทั้งกลุ่มของมัน — กลุ่มที่ชุดข้อมูลขาดไม่ควรโผล่เป็น "Meta รับแล้ว 1 จาก 1"
   const cutKey = truncated ? rows[ROOM_CAP].dedupeKey : null;
   const kept = truncated ? rows.slice(0, ROOM_CAP).filter((r) => r.dedupeKey !== cutKey) : rows;
@@ -480,6 +482,9 @@ export type OrderCapiEvents =
   | { show: false }
   | { show: true; groups: CapiLineGroup[]; channelId: string | null; pageState: OrderCapiPageState; pageName: string | null };
 
+/**
+ * 🛑 ฟังก์ชันนี้ไม่ตรวจสิทธิ์เอง — caller ต้องผ่านด่าน X9 ของร้านเจ้าของ order (และ isMetaCapiEnabled) ก่อนเรียกเสมอ
+ */
 /** การ์ดเหตุการณ์ในหน้าคำสั่งซื้อ (X9) — จำกัดด้วย conversationId IN convSet ก่อน JSON path เสมอ (SRS §7.1) · เรียงใหม่ → เก่า */
 export async function listOrderCapiEvents(
   shopId: string,
@@ -509,6 +514,21 @@ export async function listOrderCapiEvents(
   if (rows.length) return { show: true, groups, channelId, pageState: "rows", pageName: ch?.name ?? null };
   const ps = await pageStateOf(shopId, homeChannel as string);
   return { show: true, groups: [], channelId, pageState: capiPageStatus(ps) === "off" ? "off" : "empty", pageName: ch?.name ?? null };
+}
+
+/** 00097 — ชิปตัวกรองของหน้าบันทึก: ห้อง/ออเดอร์ที่ไม่ใช่ของร้านนี้ = null (ไม่มีชิป ไม่กรอง) · ผูกร้านเสมอ */
+export async function resolveCapiLogFilters(shopId: string, q: { conversation?: string; order?: string }) {
+  gate(shopId);
+  const [conv, order] = await Promise.all([
+    q.conversation
+      ? prisma.conversation.findFirst({ where: { id: q.conversation, shopId }, select: { id: true, externalContact: { select: { name: true } } } })
+      : null,
+    q.order ? prisma.order.findFirst({ where: { publicToken: q.order, shopId }, select: { publicToken: true, orderNo: true } }) : null,
+  ]);
+  return {
+    conversation: conv ? { id: conv.id, name: conv.externalContact?.name?.trim() || null } : null,
+    order: order ? { token: order.publicToken, no: order.orderNo } : null,
+  };
 }
 
 export async function listCapiLog(shopId: string, channelId: string, q: CapiLogQuery) {

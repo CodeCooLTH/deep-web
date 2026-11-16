@@ -59,6 +59,9 @@ import TechnicianOrderDetail from './components/TechnicianOrderDetail'
 import { canEditOrderAs } from '@/lib/order-role-rules'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
 import ShippingActivity from './components/ShippingActivity'
+import OrderCapiCard, { type OrderCapiCardData } from './components/OrderCapiCard'
+import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
+import { listOrderCapiEvents } from '@/services/meta-capi-settings.service'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
 import AppointmentCard from './components/AppointmentCard'
@@ -327,6 +330,20 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
   const orderEvents = await getOrderEvents(order.id)
+  // 00097 — การ์ด event ที่ส่งให้ Meta: ต้องผ่าน X9 ของร้านเจ้าของออเดอร์ (shop นี้ = ร้านที่ order ถูก scope ใน WHERE) + ฟีเจอร์เปิด + ไม่ใช่ออเดอร์ทดลอง
+  // try/catch แยก: ล้ม = การ์ดสถานะผิดพลาด การ์ดอื่นของหน้าต้องไม่พัง
+  let capiCard: React.ReactNode = null
+  if (can(viewerRoles, 'X9') && isMetaCapiEnabled(shop.id) && !order.isDryRun) {
+    let data: OrderCapiCardData | null
+    try {
+      const r = await listOrderCapiEvents(shop.id, { id: order.id, publicToken: order.publicToken, conversationId: order.conversationId ?? null })
+      data = r.show ? { kind: 'ok', groups: r.groups, channelId: r.channelId, pageState: r.pageState, pageName: r.pageName } : null
+    } catch (e) {
+      console.error('[order-capi-card] failed', e)
+      data = { kind: 'error' }
+    }
+    if (data) capiCard = <OrderCapiCard orderToken={order.publicToken} data={data} />
+  }
 
   // 00086 P3 — ผู้รับผิดชอบ · ชื่อคนเริ่ม/ทำเสร็จ · รูปก่อน-หลัง (ร้านบริการเท่านั้น — serviceJob null = ร้านอื่น ไม่คำนวณ)
   const jobFacts = serviceJob ? serviceJobFacts(order, orderEvents) : null
@@ -610,6 +627,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         handedOverAtISO={order.handedOverAt ? (order.handedOverAt as Date).toISOString() : null}
         // feature 00065 — เลขใบเสร็จที่ออกแล้ว (เมนู ⋯ "พิมพ์ใบเสร็จ"/"ดูใบเสร็จ")
         receiptNo={receiptNo}
+        capiCard={capiCard}
         shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} serviceVocab={shop.vertical === 'SERVICE_QUEUE' ? vocab : undefined} serviceJobRecords={jobFacts?.records} />}
         customerCard={
           <CustomerDetails

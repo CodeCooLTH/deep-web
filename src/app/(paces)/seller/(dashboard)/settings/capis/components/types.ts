@@ -54,6 +54,8 @@ export type LogRow = {
   status: string
   reason: string | null
   attempts: number
+  /** เวลาที่ Meta ตอบรับ (เฉพาะ SENT) */
+  sentAt: string | null
   customer: LogCustomer | null
   order: LogOrder | null
   ad: LogAd | null
@@ -62,5 +64,5 @@ export type LogRow = {
 export type LogApiRow = Omit<LogRow, 'datasetName' | 'ad'> & { datasetLabel: string | null; datasetId: string; ad: LogAd | null }
 export const toLogRow = (x: LogApiRow): LogRow => ({
   id: x.id, createdAt: x.createdAt, eventKey: x.eventKey, datasetName: x.datasetLabel?.trim() || `Dataset ${x.datasetId}`,
-  value: x.value, status: x.status, reason: x.reason, attempts: x.attempts, customer: x.customer, order: x.order, ad: x.ad,
+  value: x.value, status: x.status, reason: x.reason, attempts: x.attempts, sentAt: x.sentAt, customer: x.customer, order: x.order, ad: x.ad,
 })

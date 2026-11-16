@@ -380,17 +380,20 @@ function quoteLabel(type: string, vertical: string | null | undefined): string {
 /** เพดานของ delta ต่อคำขอ — คืนครบเพดานนี้ = อาจมีมากกว่านี้ที่ไม่ได้มา (R13) */
 const DELTA_TAKE = 100
 
+/** ป้ายหัววันของคีย์วัน (formatDate) — วันนี้/เมื่อวานนี้/วันที่ · ใช้ร่วมกับหัววันของบรรทัด CAPI (00097) */
+export function dayLabelOf(key: string) {
+  if (key === formatDate(new Date())) return 'วันนี้'
+  return key === formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000)) ? 'เมื่อวานนี้' : key
+}
+
 /** จัดกลุ่มข้อความตามวัน — formatDate (sanctioned lib, ห้าม Intl ตรง ตาม date-format.md) */
 export function groupByDate(messages: ChatMessageView[]) {
-  const todayStr = formatDate(new Date())
-  const yesterdayStr = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
   const groups: { key: string; label: string; items: ChatMessageView[] }[] = []
   for (const m of messages) {
     const key = formatDate(m.createdAt)
-    const label = key === todayStr ? 'วันนี้' : key === yesterdayStr ? 'เมื่อวานนี้' : key
     const last = groups[groups.length - 1]
     if (last && last.key === key) last.items.push(m)
-    else groups.push({ key, label, items: [m] })
+    else groups.push({ key, label: dayLabelOf(key), items: [m] })
   }
   return groups
 }
