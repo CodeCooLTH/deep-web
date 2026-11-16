@@ -10,12 +10,13 @@
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { SALES_FOLLOW_LIMITS as L } from '@/lib/sales-follow-bot/constants'
+import { FINAL_ACTIONS, SALES_FOLLOW_LIMITS as L, type FinalAction } from '@/lib/sales-follow-bot/constants'
 import type { BotIssue } from '@/lib/sales-follow-bot/schemas'
 import {
   addRoundBlocker,
   DELAY_UNITS,
   emptyStep,
+  FINAL_KEY,
   formatDuration,
   moveBlocker,
   moveItem,
@@ -80,7 +81,8 @@ export default function RoundsSection({
       return n
     })
 
-  const stepsIssues = issues.filter((i) => i.stepIndex === undefined)
+  const finalIssues = issues.filter((i) => i.code === 'FINAL_DELAY_INVALID')
+  const stepsIssues = issues.filter((i) => i.stepIndex === undefined && i.code !== 'FINAL_DELAY_INVALID')
 
   return (
     <div>
@@ -231,6 +233,58 @@ export default function RoundsSection({
             </div>
           )
         })}
+
+        {/* ส่วนต่อขยาย: ตามครบทุกรอบแล้วลูกค้ายังไม่ตอบ — ท่าเดียวกับชิปเวลารอระหว่างรอบ · ไม่ทำอะไร = พฤติกรรมเดิม */}
+        <div id="sfb-final" className="relative pt-1 pb-3">
+          <div className="bg-card border-default-300 text-default-800 relative inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm md:rounded-full md:py-1 md:ps-3 md:pe-1.5">
+            <Icon icon="flag" className="text-default-500" aria-hidden="true" />
+            <span>{t.finalPrefix}</span>
+            <div className="w-16">
+              <input
+                id="sfb-final-wait"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={draft.finalValue}
+                aria-label={`${t.finalWaitAria} · ${t.amountAria}`}
+                aria-invalid={finalIssues.length > 0 || undefined}
+                aria-describedby={finalIssues.length > 0 ? 'sfb-final-err' : undefined}
+                onChange={(e) => onChange((d) => ({ ...d, finalValue: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) }))}
+                className="form-input text-center tabular-nums"
+              />
+            </div>
+            <div className="min-w-28">
+              <SfbSelect
+                inputId="sfb-final-unit"
+                aria-label={`${t.finalWaitAria} · ${t.unitAria}`}
+                isSearchable={false}
+                options={DELAY_UNITS.map((u) => ({ value: u, label: t[UNIT_KEY[u]] }))}
+                value={{ value: draft.finalUnit, label: t[UNIT_KEY[draft.finalUnit]] }}
+                onChange={(o: unknown) => onChange((d) => ({ ...d, finalUnit: (o as { value: DelayUnit } | null)?.value ?? d.finalUnit }))}
+              />
+            </div>
+            <span>{t.finalThen}</span>
+            <div className="min-w-36">
+              <SfbSelect
+                inputId="sfb-final-action"
+                aria-label={t.finalActionAria}
+                isSearchable={false}
+                options={FINAL_ACTIONS.map((a) => ({ value: a, label: t[FINAL_KEY[a]] }))}
+                value={{ value: draft.finalAction, label: t[FINAL_KEY[draft.finalAction]] }}
+                onChange={(o: unknown) => onChange((d) => ({ ...d, finalAction: (o as { value: FinalAction } | null)?.value ?? d.finalAction }))}
+              />
+            </div>
+          </div>
+          {finalIssues.length > 0 ? (
+            <ul id="sfb-final-err" role="alert" className="text-danger-ink mt-1.5 space-y-1 ps-2 text-xs">
+              {finalIssues.map((e, k) => (
+                <li key={k}>{issueText(e, t)}</li>
+              ))}
+            </ul>
+          ) : (
+            draft.finalAction !== 'NONE' && <p className="text-default-600 mt-1.5 ps-2 text-xs">{t.finalHint}</p>
+          )}
+        </div>
       </div>
 
       <button

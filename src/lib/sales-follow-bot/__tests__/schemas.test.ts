@@ -294,3 +294,27 @@ describe('TC-082/109 buildStepBubbles — ตัวเดียวกับต�
     expect(buildStepBubbles({ parts: [] }, 'ก')).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
   })
 })
+
+describe('00095-ext ตามครบแล้วไม่ตอบ — finalAction/finalDelayMin', () => {
+  it('ไม่ส่งสองฟิลด์ = ผ่าน (ค่าตั้งต้นฝั่ง service) · ค่าถูกต้องผ่านและคงค่า', () => {
+    expect(parseCreateBot(body()).ok).toBe(true)
+    const r = parseCreateBot(body({ finalAction: 'SPAM', finalDelayMin: 240 }))
+    expect(r.ok && r.value.finalAction).toBe('SPAM')
+    expect(r.ok && r.value.finalDelayMin).toBe(240)
+  })
+  it.each([0, 1, 10_080])('finalDelayMin %i ผ่าน (0 และ 7 วันพอดีใช้ได้)', (n) => {
+    expect(codes(validateBotFields(fields({ finalDelayMin: n })))).toEqual([])
+  })
+  it.each([-1, 10_081, 1.5])('finalDelayMin %s → FINAL_DELAY_INVALID', (n) => {
+    expect(codes(validateBotFields(fields({ finalDelayMin: n })))).toEqual(['FINAL_DELAY_INVALID'])
+  })
+  it('ชนิดผิดที่ระดับ Valibot: delay เป็นสตริง → FINAL_DELAY_INVALID · action นอกชุด → INVALID_BODY', () => {
+    const a = parseCreateBot(body({ finalDelayMin: '60' }))
+    expect(!a.ok && codes(a.issues)).toEqual(['FINAL_DELAY_INVALID'])
+    const b = parseCreateBot(body({ finalAction: 'DELETE' }))
+    expect(!b.ok && codes(b.issues)).toEqual(['INVALID_BODY'])
+  })
+  it('ไม่นับเป็นโครงรอบ (BR-FA-6): stepStructureKey ไม่เปลี่ยนเมื่อแก้ค่านี้', () => {
+    expect(stepStructureKey(fields({ finalAction: 'NONE' }).steps)).toBe(stepStructureKey(fields({ finalAction: 'SPAM', finalDelayMin: 5 }).steps))
+  })
+})

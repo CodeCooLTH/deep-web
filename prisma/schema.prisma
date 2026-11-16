@@ -5712,6 +5712,9 @@ model SalesFollowBot {
   tagMatch        String    @default("ANY")
   steps           Json
   structureRev    Int       @default(1)
+  /// ส่วนต่อขยาย 2026-11-16: ตามครบแล้วลูกค้าไม่ตอบ → NONE|RESOLVE|HIDE|SPAM (CHECK) · รอ finalDelayMin นาที (0..10080) นับจากรอบสุดท้ายที่ส่ง · แก้ค่านี้ไม่นับเป็นโครงรอบเปลี่ยน
+  finalAction     String    @default("NONE")
+  finalDelayMin   Int       @default(1440)
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
@@ -5782,6 +5785,9 @@ model SalesFollowRun {
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
   finishedAt      DateTime? @db.Timestamptz(3)
+  /// ส่วนต่อขยาย: เวลาที่ทำ action ท้ายสุด (claim ก่อนทำ = กันทำซ้ำ) · finalActionTaken = RESOLVE|HIDE|SPAM (CHECK) · partial index SalesFollowRun_final_pending_idx (SQL เท่านั้น)
+  finalActionAt    DateTime? @db.Timestamptz(3)
+  finalActionTaken String?
 
   shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   bot           SalesFollowBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
@@ -5815,6 +5821,8 @@ model SalesFollowSend {
   // ไม่มี FK ต่อฟองรายตัว (array ทำ FK ไม่ได้) — ฟองที่ถูกลบจะ resolve ไม่เจอ ซึ่งยอมรับได้ (ประวัติอ่านอย่างเดียว)
   chatMessageId  String?
   messageIds     String[]  @default([])
+  /// ส่วนต่อขยาย FR-FA-5: รอบนี้ส่งได้หลังบอท take_thread_control คืนจาก Business Suite (ประวัติ/สืบสวน)
+  controlReclaimed Boolean @default(false)
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
   settledAt      DateTime? @db.Timestamptz(3)
 

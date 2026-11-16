@@ -17,6 +17,7 @@ export function issueText(i: BotIssue, t: Dict): string {
     case 'TOO_MANY_TAGS': return fmt(t.vTooManyTags, { max: L.maxTags })
     case 'CHANNELS_REQUIRED': return t.vChannels
     case 'TOO_MANY_CHANNELS': return fmt(t.vTooManyChannels, { max: L.maxChannels })
+    case 'FINAL_DELAY_INVALID': return t.vFinalDelay
     case 'STEPS_COUNT': return fmt(t.vStepsCount, { max: L.maxSteps })
     case 'STEP_DELAY_MIN': return fmt(t.vDelay, { n })
     case 'STEPS_TOTAL_TOO_LONG': return fmt(t.vTotal, { n })

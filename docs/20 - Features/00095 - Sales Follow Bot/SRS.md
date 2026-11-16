@@ -536,3 +536,7 @@ SRS นี้ปักนิยามเชิงเทคนิคทั้ง�
 - ส่ง: ชิ้นตามลำดับผ่าน `enqueueOutbound` ทีละชิ้น (IMAGES ใช้ทางส่งรูปหลายรูปตัวเดียวกับช่องพิมพ์แชท · QUICK_MESSAGE = ข้อความ แล้วรูปของมัน ตามท่าของช่องพิมพ์แชท) แล้ว `deliverRoom` ครั้งเดียว · quick message ถูกลบ/ไฟล์รูปหาย = ข้ามชิ้นนั้น · ไม่เหลือชิ้นที่ส่งได้ = `SKIPPED/EMPTY_MESSAGE`
 - `SalesFollowSend`: `chatMessageId` = ฟองแรกของรอบ (ใช้ติดป้าย "บอทติดตาม n/N") · `messageIds text[]` = ทุกฟองของรอบ (ปิดผล: SENT เมื่อทุกฟอง SENT · มีฟองล้ม = FAILED พร้อมเหตุผลของฟองแรกที่ล้ม) · ตัด `imageMessageId`
 - ป้ายบนฟอง: ติดเฉพาะฟองแรกของรอบ
+
+## ภาคผนวก B — ส่วนต่อขยาย 2026-11-16 (ตามครบแล้วไม่ตอบ + ดึงสิทธิ์คืน)
+
+ต้นทาง [[EXT-2026-11-16-final-action]] · FR-FA-1..5 · BR-FA-1..8 · TFR-FB-26 action ท้ายสุด (`final-action.ts` ตัวตัดสิน pure → engine ขั้น (3) หลังแนบห้อง ≤50 run/tick) · TFR-FB-27 ดึงสิทธิ์คืน (`thread-control.ts` + `reclaimIfBlocked` ใน engine) · ลงมือผ่าน `updateConversationState` ตัวเดียวกับปุ่มกล่องแชท · บรรทัดระบบ `FOLLOW_BOT_NOTE` "บอทตามครบ {n} รอบ ลูกค้าไม่ตอบ — …" · แก้ค่าไม่นับเป็นโครงรอบ (ไม่ขยับ structureRev)

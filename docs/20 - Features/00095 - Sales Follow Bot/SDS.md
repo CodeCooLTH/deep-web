@@ -263,3 +263,8 @@ tag any/all, สถานะ, กรอบ ตัดสินด้วยฟั�
 ลำดับ build แนะนำ: S-1 ∥ S-2 ∥ S-5 → S-3 → S-4 ∥ S-6 → S-7 ∥ S-8 ∥ S-9 → S-10
 
 **Open Questions:** OD-FB-1..7 ใน [[SRS]] §10 · ต้อง Explore ก่อนเขียน: (ก) `requireOnlineSalesVertical` ผลที่คืน (ข) จำแนกข้อความล้ม "แอปอื่นคุมห้อง" ใน `chat-send-failure.ts` (ค) helper ตรวจไฟล์รูปใน storage (ง) กติกาเติมคีย์พจนานุกรม 00047 (จ) มีแนวคิด "ห้องล็อกให้คนอื่น" ใน Deep หรือไม่ (AC-FB-89) (ฉ) theme source ของ UI ใน S-7/S-8
+
+## ภาคผนวก — TD-FB-009/010 (ส่วนต่อขยาย 2026-11-16)
+
+- **TD-FB-009 action ท้ายสุด:** SQL กรองหยาบ (partial index `SalesFollowRun_final_pending_idx`) → `decideFinalAction` (pure, ตรวจซ้ำ BR-FA-3) → claim ด้วย `UPDATE … SET finalActionAt WHERE finalActionAt IS NULL` ก่อนลงมือ (ล้มกลางทาง = `finalActionTaken` ว่าง) → `updateConversationState` → note · SKIP ก็ปิดแถว (finalActionAt ตั้ง) กันหยิบซ้ำ · บอท NONE = WAIT ไม่ปิดแถว
+- **TD-FB-010 ดึงสิทธิ์คืน:** หลัง deliverRoom ถ้าฟองล้ม "another app is controlling" → `mayReclaim` → `claimThreadControl` → `afterClaim` (RESEND/RETRY_LATER/SKIP) · backoff 5 นาทีหลังฟองล้มกันล้มทุก tick · ฟองเดิมล้มแน่นอน จึงส่งซ้ำไม่ซ้อน

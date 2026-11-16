@@ -285,3 +285,7 @@ sequenceDiagram
 สัญญานี้ให้ DEV ทำ route ได้โดยไม่ต้องตัดสินรูปร่าง request/response ใหม่ · QA ใช้ตาราง §5 วางเทส negative (ข้ามร้าน · ชน · stale · cursor ปลอม · stop ซ้ำ)
 
 **Open Questions:** (ก) `requireOnlineSalesVertical` คืน status อะไร — ถ้าไม่ใช่ 409 ให้ปรับ `NOT_AVAILABLE_FOR_SHOP` ตามของจริง (ข) การแสดงชื่อ `contactName` ต้องใช้ฟังก์ชันชื่อผู้ติดต่อเดิมของ inbox (ต้อง Explore) · (ค) OD-FB-1..7 ใน [[SRS]]
+
+## ภาคผนวก — ส่วนต่อขยาย 2026-11-16
+
+`POST …/bots` และ `PATCH …/bots/[id]` รับเพิ่ม `finalAction` (`NONE|RESOLVE|HIDE|SPAM`, ไม่ส่ง = NONE/ค่าเดิม) และ `finalDelayMin` (จำนวนเต็ม 0..10080 นาที, ไม่ส่ง = 1440/ค่าเดิม) · `BotDto` คืนทั้งสองฟิลด์ · ผิด → 400 `VALIDATION_ERROR` issue `FINAL_DELAY_INVALID` (delay) / `INVALID_BODY` (action) · แก้สองฟิลด์ไม่หยุด run · `GET …/sends` คืน `controlReclaimed` และ `reason` ใหม่ `ROUTING_NOT_ENABLED`/`CHANNEL_TOKEN_INVALID` · cron `TickResult` เพิ่ม `finalActed`,`finalSkipped`

@@ -16,14 +16,15 @@ import {
   TAG_MATCHES,
 } from '../constants'
 
-const SQL = readFileSync(
-  join(fileURLToPath(new URL('.', import.meta.url)), '../../../../prisma/migrations/20261117100000_00095_sales_follow_bot/migration.sql'),
-  'utf8',
-)
+const MIG = join(fileURLToPath(new URL('.', import.meta.url)), '../../../../prisma/migrations')
+// migration ต่อขยาย (DROP + ADD CONSTRAINT ใหม่) ต่อท้าย — match ตัวสุดท้ายของแต่ละชื่อ = นิยามที่ใช้จริง
+const SQL = ['20261117100000_00095_sales_follow_bot', '20261117100300_00095_ext_reclaim_control']
+  .map((d) => readFileSync(join(MIG, d, 'migration.sql'), 'utf8'))
+  .join('\n')
 
 /** ตัวบรรทัด ADD CONSTRAINT "<name>" ... ; (อาจหลายบรรทัด) */
 function check(name: string): string {
-  const m = SQL.match(new RegExp(`ADD CONSTRAINT "${name}" CHECK \\(([\\s\\S]*?)\\);\\s*(?:\\n|$)`))
+  const m = [...SQL.matchAll(new RegExp(`ADD CONSTRAINT "${name}" CHECK \\(([\\s\\S]*?)\\);\\s*(?:\\n|$)`, 'g'))].pop()
   if (!m) throw new Error(`ไม่พบ CHECK ${name} ใน migration`)
   return m[1]
 }

@@ -6,6 +6,9 @@ import { countCodePoints, hasLoneSurrogate, parseTemplate } from '../auto-notify
 import {
   ALLOWED_VARIABLES,
   BOT_STATUSES,
+  FINAL_ACTIONS,
+  FINAL_DELAY_MAX_MIN,
+  type FinalAction,
   PART_KINDS,
   SALES_FOLLOW_LIMITS as L,
   SALES_STAGE_KEYS,
@@ -32,6 +35,7 @@ export type BotIssueCode =
   | 'UNKNOWN_VARIABLE'
   | 'TOO_MANY_TAGS'
   | 'TOO_MANY_CHANNELS'
+  | 'FINAL_DELAY_INVALID'
   | 'CHANNELS_REQUIRED'
   | 'INVALID_BODY'
 
@@ -64,6 +68,9 @@ export interface BotFields {
   tagMatch: 'ANY' | 'ALL'
   channelIds: string[]
   steps: BotStep[]
+  /** ส่วนต่อขยาย: ไม่ส่ง = NONE/1 วัน (create) หรือค่าเดิมของบอท (patch) */
+  finalAction?: FinalAction
+  finalDelayMin?: number
 }
 
 // ── โครงชนิดข้อมูล (Valibot) — `adOnly` ที่ client ส่งมาถูกทิ้งเพราะ v.object ไม่เก็บคีย์เกิน (คำนวณฝั่งเซิร์ฟเวอร์เท่านั้น) ──
@@ -89,6 +96,9 @@ const fieldEntries = {
   tagMatch: v.picklist(TAG_MATCHES),
   channelIds: v.array(uuid),
   steps: v.array(StepSchema),
+  finalAction: v.picklist(FINAL_ACTIONS),
+  // ชนิดผิด/ไม่ใช่จำนวนเต็ม = INVALID แบบเดียวกับ delayMin · ช่วง 0..7 วันตรวจใน validateBotFields (รหัสเดียวกัน)
+  finalDelayMin: v.number(),
 }
 
 /** POST สร้างบอท — ไม่รับ status (บอทใหม่ CLOSED เสมอ AC-FB-04) */
@@ -99,6 +109,8 @@ export const CreateBotSchema = v.object({
   tagMatch: v.optional(fieldEntries.tagMatch, 'ANY'),
   channelIds: fieldEntries.channelIds,
   steps: fieldEntries.steps,
+  finalAction: v.optional(fieldEntries.finalAction),
+  finalDelayMin: v.optional(fieldEntries.finalDelayMin),
 })
 
 /** PATCH — ส่งเฉพาะที่แก้ · ผลรวมกับบอทเดิมต้องผ่าน validateBotFields อีกรอบ (NO_CONDITION ข้ามฟิลด์) */
@@ -109,6 +121,8 @@ export const UpdateBotSchema = v.object({
   tagMatch: v.optional(fieldEntries.tagMatch),
   channelIds: v.optional(fieldEntries.channelIds),
   steps: v.optional(fieldEntries.steps),
+  finalAction: v.optional(fieldEntries.finalAction),
+  finalDelayMin: v.optional(fieldEntries.finalDelayMin),
   expectedUpdatedAt: iso,
 })
 
@@ -145,6 +159,8 @@ export function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
   })
   if (root === 'name') return at('NAME_REQUIRED')
   if (root === 'channelIds' && keys.length === 1) return at('CHANNELS_REQUIRED')
+  if (root === 'finalDelayMin') return at('FINAL_DELAY_INVALID')
+  if (root === 'finalAction') return at('INVALID_BODY')
   if (root === 'steps') {
     if (keys.length === 1) return at('STEPS_COUNT')
     if (keys[2] === 'delayMin') return at('STEP_DELAY_MIN')
@@ -206,6 +222,8 @@ export function validateBotFields(f: BotFields): BotIssue[] {
   else if (channels > L.maxChannels) issues.push({ code: 'TOO_MANY_CHANNELS', path: 'channelIds' })
 
   issues.push(...validateSteps(f.steps))
+  if (f.finalDelayMin !== undefined && (!Number.isInteger(f.finalDelayMin) || f.finalDelayMin < 0 || f.finalDelayMin > FINAL_DELAY_MAX_MIN))
+    issues.push({ code: 'FINAL_DELAY_INVALID', path: 'finalDelayMin' })
   return issues
 }
 

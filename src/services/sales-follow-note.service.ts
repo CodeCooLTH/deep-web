@@ -7,7 +7,8 @@ import 'server-only'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { FOLLOW_BOT_NOTE_TYPE } from '@/lib/auto-order-message-type'
-import type { StopReason } from '@/lib/sales-follow-bot/constants'
+import type { FinalActionKind, StopReason } from '@/lib/sales-follow-bot/constants'
+import { buildFinalActionNote } from '@/lib/sales-follow-bot/final-action'
 
 type Tx = Prisma.TransactionClient
 
@@ -100,4 +101,11 @@ export async function stopRunWithNote(
   o: { stoppedByUserId?: string | null; now?: Date } = {},
 ): Promise<StoppedRun[]> {
   return prisma.$transaction((tx) => stopRunsWithNote(tx, f, reason, o))
+}
+
+/** บรรทัดระบบของ action ท้ายสุด (ส่วนต่อขยาย) — insert ตรงแบบเดียวกับ stopRunsWithNote (ไม่แตะ lastMessageAt/preview) */
+export async function writeFinalActionNote(conversationId: string, rounds: number, kind: FinalActionKind): Promise<void> {
+  await prisma.chatMessage.create({
+    data: { conversationId, senderRole: 'SHOP', senderUserId: null, autoReplyKind: null, type: FOLLOW_BOT_NOTE_TYPE, body: buildFinalActionNote(rounds, kind) },
+  })
 }

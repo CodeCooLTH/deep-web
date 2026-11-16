@@ -10,7 +10,7 @@ import { asParcelClose } from '@/services/parcel-close-input'
 import { getAdWindowStartAtMany } from '@/services/ad-window.service'
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import type { MetaAiFacts } from '@/lib/meta-ai-holder'
-import { META_PROVIDERS, type BotStatus, type SalesStageKey, type TagMatch } from '@/lib/sales-follow-bot/constants'
+import { META_PROVIDERS, type BotStatus, type FinalAction, type SalesStageKey, type TagMatch } from '@/lib/sales-follow-bot/constants'
 import {
   decideRun,
   type AttachFacts,
@@ -51,6 +51,8 @@ export interface LoadedBot {
   tagKeys: string[]
   tagMatch: TagMatch
   steps: BotStep[]
+  finalAction: FinalAction
+  finalDelayMin: number
   channelIds: string[]
   testRoomIds: string[]
   deletedAt: Date | null
@@ -64,7 +66,7 @@ export async function loadBots(shopId: string, botIds: string[]): Promise<Map<st
     where: { shopId, id: { in: botIds } },
     select: {
       id: true, shopId: true, name: true, status: true, structureRev: true, salesStatuses: true, tagKeys: true,
-      tagMatch: true, steps: true, deletedAt: true, updatedAt: true,
+      tagMatch: true, steps: true, finalAction: true, finalDelayMin: true, deletedAt: true, updatedAt: true,
       channels: { select: { shopChannelId: true } },
       testRooms: { select: { conversationId: true } },
     },
@@ -75,7 +77,7 @@ export async function loadBots(shopId: string, botIds: string[]): Promise<Map<st
       {
         id: b.id, shopId: b.shopId, name: b.name, status: b.status as BotStatus, structureRev: b.structureRev,
         salesStatuses: b.salesStatuses as SalesStageKey[], tagKeys: b.tagKeys, tagMatch: b.tagMatch as TagMatch,
-        steps: b.steps as unknown as BotStep[], channelIds: b.channels.map((c) => c.shopChannelId),
+        steps: b.steps as unknown as BotStep[], finalAction: b.finalAction as FinalAction, finalDelayMin: b.finalDelayMin, channelIds: b.channels.map((c) => c.shopChannelId),
         testRoomIds: b.testRooms.map((t) => t.conversationId), deletedAt: b.deletedAt, updatedAt: b.updatedAt,
       } satisfies LoadedBot,
     ]),

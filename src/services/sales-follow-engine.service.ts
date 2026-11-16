@@ -13,6 +13,8 @@ import { shouldBlockLinePush } from '@/lib/line/quota'
 import {
   ATTACH_ROOM_LIMIT,
   EVALUATE_LIMIT,
+  FINAL_ACTION_LIMIT,
+  MESSAGE_LOOKBACK_MS,
   MIN_MS,
   SENDING_STALE_MS,
   TICK_BUDGET_MS,
@@ -21,15 +23,22 @@ import {
   type StopReason,
 } from '@/lib/sales-follow-bot/constants'
 import { decideRun, eligibleToAttach, mapFollowFailure, type DecideFacts } from '@/lib/sales-follow-bot/decide'
+import { decideMetaAiHolding } from '@/lib/meta-ai-holder'
+import { claimThreadControl } from '@/lib/facebook/graph'
+import { decryptToken } from '@/lib/token-crypto'
+import { afterClaim, mayReclaim, OTHER_APP_CONTROLS_RE, reclaimBackoffActive } from '@/lib/sales-follow-bot/thread-control'
+import { decideFinalAction } from '@/lib/sales-follow-bot/final-action'
 import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
-import { countedShopReplyWhere } from '@/lib/sales-follow-bot/message-defs'
+import { countedShopReplyWhere, realBuyerMsgWhere } from '@/lib/sales-follow-bot/message-defs'
 import { buildStepBubbles, type BotStep } from '@/lib/sales-follow-bot/schemas'
 import { enqueueOutbound, deliverRoom } from '@/services/chat-outbox.service'
 import { getLineQuotaByChannelId } from '@/services/line-quota.service'
 import { attachRun } from '@/services/sales-follow-bot.service'
 import { loadAttachFacts, loadBots, loadDecideFacts } from '@/services/sales-follow-facts.service'
 import { findOwnedImageIds } from '@/services/sales-follow-images.service'
-import { stopRunWithNote, stopRunsWithNote } from '@/services/sales-follow-note.service'
+import { updateConversationState } from '@/services/chat.service'
+import { ingestHandoverEvent } from '@/services/channel-chat.service'
+import { stopRunWithNote, stopRunsWithNote, writeFinalActionNote } from '@/services/sales-follow-note.service'
 
 /** งบแยกของขั้น sweep (TFR-FB-16) — กันงานกวาดกินงบของงานหลัก */
 const SWEEP_BUDGET_MS = 5_000
@@ -51,6 +60,8 @@ export interface TickResult {
   skipped: number
   failed: number
   attached: number
+  finalActed: number
+  finalSkipped: number
   timedOut: boolean
 }
 
@@ -90,7 +101,7 @@ interface SendRef {
   createdAt: Date
 }
 
-type Counters = Pick<TickResult, 'swept' | 'stopped' | 'held' | 'sent' | 'skipped' | 'failed' | 'attached' | 'evaluated'>
+type Counters = Pick<TickResult, 'swept' | 'stopped' | 'held' | 'sent' | 'skipped' | 'failed' | 'attached' | 'evaluated' | 'finalActed' | 'finalSkipped'>
 
 const bump = (c: Counters, status: 'SENT' | 'FAILED' | 'SKIPPED') => {
   if (status === 'SENT') c.sent++
@@ -290,6 +301,92 @@ async function sendStep(run: RunRow, now: Date, c: Counters): Promise<void> {
   }
 }
 
+/**
+ * FR-FA-5/BR-FA-8: ฟองล้มเพราะ "แอปอื่นคุมเธรด" (Business Suite) → ดึงสิทธิ์คืนด้วย claimThreadControl (take → request) 1 ครั้ง
+ * TAKEN = ส่งรอบเดิมซ้ำทันทีใต้ Send claim เดิม (ฟองเดิมล้มแน่นอน = ไม่เคยถึงลูกค้า ส่งซ้ำไม่ซ้อน) · REQUESTED = ลบแถว Send ให้ tick หน้าลองใหม่
+ * ROUTING_NOT_ENABLED / TOKEN_INVALID = SKIPPED พร้อมเหตุผลที่บอกทางแก้ · เจ้าของเป็น Meta AI = ไม่แตะ (mayReclaim) ปล่อยตามเดิม
+ * คืน HANDLED เมื่อปิด/คืนกุญแจเองแล้ว (ผู้เรียกไม่ต้อง settle) · NONE/RESENT = ให้ settleRound ตามปกติ
+ */
+async function reclaimIfBlocked(
+  run: RunRow,
+  ref: SendRef,
+  items: OutItem[],
+  facts: DecideFacts,
+  now: Date,
+  flag: { enqueued: boolean },
+  c: Counters,
+): Promise<'NONE' | 'RESENT' | 'HANDLED'> {
+  const msgs = await prisma.chatMessage.findMany({
+    where: { id: { in: ref.messageIds }, conversationId: run.conversationId },
+    select: { deliveryStatus: true, failureReason: true },
+  })
+  if (!msgs.some((m) => m.deliveryStatus === 'FAILED' && OTHER_APP_CONTROLS_RE.test(m.failureReason ?? ''))) return 'NONE'
+
+  const conv = await prisma.conversation.findFirst({
+    where: { id: run.conversationId, shopId: run.shopId },
+    select: {
+      channel: true,
+      externalContact: { select: { externalUserId: true } },
+      shopChannel: { select: { accessTokenEnc: true, externalId: true, status: true } },
+    },
+  })
+  if (!conv?.externalContact || !conv.shopChannel || conv.shopChannel.status !== 'ACTIVE') return 'NONE'
+  const psid = conv.externalContact.externalUserId
+  const last = await prisma.chatHandoverEvent.findFirst({
+    where: { pageExternalId: conv.shopChannel.externalId, contactExternalId: psid },
+    orderBy: { createdAt: 'desc' },
+    select: { kind: true, metadata: true },
+  })
+  const gate = mayReclaim({
+    channel: conv.channel,
+    metaAiHolding: facts.metaAi ? decideMetaAiHolding(facts.metaAi, now.getTime(), facts.ourMetaAppId) : false,
+    ownerAppId: facts.metaAi?.metaOwnerAppId,
+    lastHandover: last,
+  })
+  if (!gate.ok) return 'NONE'
+
+  const claim = await claimThreadControl(decryptToken(conv.shopChannel.accessTokenEnc), psid, 'deep-follow-bot')
+  // หลักฐานในฐาน (runtime log ย้อนหลังไม่ได้) — เหมือนปุ่ม "ตอบเอง"
+  await ingestHandoverEvent({
+    provider: conv.channel,
+    pageExternalId: conv.shopChannel.externalId,
+    contactExternalId: psid,
+    kind: claim.outcome === 'TAKEN' ? 'take' : 'request',
+    metadata: `deep-follow-bot:${claim.outcome}`,
+    rawEvent: claim,
+  })
+  const next = afterClaim(claim.outcome === 'FAILED' ? { outcome: 'FAILED', reason: claim.reason } : { outcome: claim.outcome })
+  if (next.action === 'SKIP') {
+    if (await closeSend(ref, { status: 'SKIPPED', reason: next.reason }, now)) bump(c, 'SKIPPED')
+    return 'HANDLED'
+  }
+  if (next.action === 'RETRY_LATER') {
+    await prisma.salesFollowSend.deleteMany({ where: { id: ref.id, status: 'SENDING' } })
+    return 'HANDLED'
+  }
+  const ids: string[] = []
+  for (const it of items) {
+    const row = await enqueueOutbound({
+      conversationId: run.conversationId,
+      actorUserId: null,
+      systemShopId: run.shopId,
+      autoReplyKind: AUTO_FOLLOW_KIND,
+      ...(it.kind === 'TEXT' ? { text: it.text } : { attachment: { fileId: it.fileId, kind: 'IMAGE' as const, name: null, size: null } }),
+    })
+    ids.push(row.id)
+    flag.enqueued = true
+  }
+  await prisma.salesFollowSend.updateMany({ where: { id: ref.id, status: 'SENDING' }, data: { chatMessageId: ids[0], messageIds: ids, controlReclaimed: true } })
+  ref.chatMessageId = ids[0]
+  ref.messageIds = ids
+  try {
+    await deliverRoom(run.conversationId, 'cron')
+  } catch (e) {
+    console.error('[sales-follow-bot] deliverRoom หลังดึงสิทธิ์คืนล้มเหลว (sweeper ตามปิดผล)', { sendId: ref.id, err: errTag(e) })
+  }
+  return 'RESENT'
+}
+
 async function sendClaimed(
   run: RunRow,
   bot: { steps: BotStep[] },
@@ -323,6 +420,15 @@ async function sendClaimed(
     : null
   if (!facts || !d || d.action !== 'SEND' || d.step !== run.nextStep || newerReply) return releaseSend(claim.id)
 
+  // FR-FA-5: เพิ่งล้มเพราะแอปอื่นคุมเธรด (รอเจ้าของปล่อยหลัง request) → รอ RECLAIM_RETRY_MS ก่อนเปิดฟองใหม่ ไม่ให้ฟองล้มเกิดทุก tick
+  if (facts.room.channel === 'MESSENGER' || facts.room.channel === 'INSTAGRAM') {
+    const lastFail = await prisma.chatMessage.findFirst({
+      where: { conversationId: run.conversationId, autoReplyKind: AUTO_FOLLOW_KIND, deliveryStatus: 'FAILED', failureReason: { contains: 'another app is controlling this thread', mode: 'insensitive' } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    })
+    if (reclaimBackoffActive(lastFail?.createdAt ?? null, now)) return releaseSend(claim.id)
+  }
   const conv = await prisma.conversation.findFirst({
     where: { id: run.conversationId, shopId: run.shopId },
     select: { externalContact: { select: { name: true } } },
@@ -372,6 +478,7 @@ async function sendClaimed(
   } catch (e) {
     console.error('[sales-follow-bot] deliverRoom ล้มเหลว (sweeper ตามปิดผล)', { sendId: claim.id, err: errTag(e) })
   }
+  if ((await reclaimIfBlocked(run, ref, composed.items, facts, now, flag, c)) === 'HANDLED') return
   await settleRound(ref, now, c)
 }
 
@@ -461,11 +568,75 @@ async function attachPhase(now: Date, shopIds: string[] | undefined, deadline: n
   return false
 }
 
+// ───────────────────────── (3) action ท้ายสุดหลังตามครบแล้วลูกค้าไม่ตอบ ─────────────────────────
+
+const ACTION_OF = { RESOLVE: 'resolve', HIDE: 'hide', SPAM: 'spam' } as const
+
+/**
+ * run ที่ DONE + บอทตั้ง action ไว้ + พ้นเวลารอนับจากรอบสุดท้ายที่ส่ง (ใช้ค่าล่าสุดของบอท BR-FA-6)
+ * SQL เป็นแค่ตัวกรองหยาบ (index partial) — ตัวตัดสินจริงคือ decideFinalAction ตัวเดียวกับที่เทสด้วยข้อเท็จจริงล้วน
+ * claim = UPDATE มีเงื่อนไข finalActionAt IS NULL ก่อนลงมือ → cron ซ้อน/รันซ้ำไม่ทำซ้ำ (BR-FA-4) · ลงมือผ่าน updateConversationState
+ * ตัวเดียวกับปุ่มในกล่องแชท (BR-FA-1 side effect เหมือนแอดมินกดเอง) แล้วค่อยบันทึก finalActionTaken — ล้มกลางทาง = taken ว่าง = ไม่เคลมว่าทำ
+ */
+async function finalActionPhase(now: Date, shopIds: string[] | undefined, deadline: number, c: Counters, shops: Set<string>): Promise<boolean> {
+  const nowIso = now.toISOString()
+  const since = new Date(now.getTime() - MESSAGE_LOOKBACK_MS).toISOString()
+  const rows = await prisma.$queryRaw<{ id: string; shopId: string; botId: string; conversationId: string; lastSentAt: Date; finalActionAt: Date | null }[]>`
+    SELECT r."id", r."shopId", r."botId", r."conversationId", r."lastSentAt", r."finalActionAt"
+    FROM "SalesFollowRun" r JOIN "SalesFollowBot" b ON b."id" = r."botId"
+    WHERE r."status" = 'DONE' AND r."finalActionAt" IS NULL AND r."lastSentAt" IS NOT NULL
+      AND r."lastSentAt" >= ${since}::timestamptz
+      AND b."finalAction" <> 'NONE'
+      AND r."lastSentAt" + (b."finalDelayMin" * interval '1 minute') <= ${nowIso}::timestamptz
+      ${shopCond('r."shopId"', shopIds)}
+    ORDER BY r."lastSentAt" ASC LIMIT ${FINAL_ACTION_LIMIT}`
+  for (const r of rows) {
+    if (Date.now() >= deadline) return true
+    if (!isSalesFollowBotEnabled(r.shopId)) continue
+    try {
+      shops.add(r.shopId)
+      const bot = (await loadBots(r.shopId, [r.botId])).get(r.botId) ?? null
+      const [room, buyer, reply] = await Promise.all([
+        prisma.conversation.findFirst({ where: { id: r.conversationId, shopId: r.shopId }, select: { id: true, isSpam: true, isHidden: true, resolvedAt: true } }),
+        prisma.chatMessage.findFirst({ where: { conversationId: r.conversationId, ...realBuyerMsgWhere(now) }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+        prisma.chatMessage.findFirst({ where: { conversationId: r.conversationId, ...countedShopReplyWhere(now) }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+      ])
+      if (!room) continue // ห้องหาย (cascade จะลบ run ตามเอง)
+      const d = decideFinalAction({
+        now,
+        run: { status: 'DONE', lastSentAt: r.lastSentAt, finalActionAt: r.finalActionAt },
+        bot: bot && { status: bot.status, deletedAt: bot.deletedAt, finalAction: bot.finalAction, finalDelayMin: bot.finalDelayMin, testRoomIds: bot.testRoomIds },
+        room,
+        latestBuyerAt: buyer?.createdAt ?? null,
+        latestShopReplyAt: reply?.createdAt ?? null,
+      })
+      if (d.action === 'WAIT') continue
+      // claim ทั้งกรณีทำและกรณีข้าม: ข้าม = ปิดแถว (taken ว่าง) ไม่ให้หยิบซ้ำทุก tick
+      const claimed = await prisma.$executeRaw`
+        UPDATE "SalesFollowRun" SET "finalActionAt" = ${nowIso}::timestamptz, "updatedAt" = ${nowIso}::timestamptz
+        WHERE "id" = ${r.id} AND "shopId" = ${r.shopId} AND "status" = 'DONE' AND "finalActionAt" IS NULL`
+      if (claimed === 0) continue // อีก tick ชิงไปแล้ว
+      if (d.action === 'SKIP') {
+        c.finalSkipped++
+        continue
+      }
+      await updateConversationState(r.conversationId, r.shopId, ACTION_OF[d.kind])
+      await prisma.$executeRaw`UPDATE "SalesFollowRun" SET "finalActionTaken" = ${d.kind} WHERE "id" = ${r.id} AND "shopId" = ${r.shopId}`
+      const last = await prisma.salesFollowSend.findFirst({ where: { runId: r.id }, orderBy: { step: 'desc' }, select: { stepCount: true } })
+      await writeFinalActionNote(r.conversationId, last?.stepCount ?? bot?.steps.length ?? 0, d.kind)
+      c.finalActed++
+    } catch (e) {
+      console.error('[sales-follow-bot] action ท้ายสุดล้มเหลว (ข้าม run นี้)', { runId: r.id, err: errTag(e) })
+    }
+  }
+  return false
+}
+
 // ───────────────────────── tick ─────────────────────────
 
 export async function runSalesFollowTick(now: Date, opts: TickOptions = {}): Promise<TickResult> {
   const deadline = Date.now() + (opts.budgetMs ?? TICK_BUDGET_MS)
-  const c: Counters = { swept: 0, evaluated: 0, stopped: 0, held: 0, sent: 0, skipped: 0, failed: 0, attached: 0 }
+  const c: Counters = { swept: 0, evaluated: 0, stopped: 0, held: 0, sent: 0, skipped: 0, failed: 0, attached: 0, finalActed: 0, finalSkipped: 0 }
   const shops = new Set<string>()
   let timedOut = false
 
@@ -505,6 +676,14 @@ export async function runSalesFollowTick(now: Date, opts: TickOptions = {}): Pro
       timedOut = await attachPhase(now, opts.shopIds, deadline, c, shops)
     } catch (e) {
       console.error('[sales-follow-bot] ขั้นแนบล้มเหลว', { err: errTag(e) })
+    }
+  }
+
+  if (!timedOut) {
+    try {
+      timedOut = await finalActionPhase(now, opts.shopIds, deadline, c, shops)
+    } catch (e) {
+      console.error('[sales-follow-bot] ขั้น action ท้ายสุดล้มเหลว', { err: errTag(e) })
     }
   }
 

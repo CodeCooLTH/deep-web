@@ -2,8 +2,11 @@
 // (convention ui-boolean-needs-a-testable-home) · pure: ห้าม import react/prisma
 // ตัวตรวจ/ตัวคำนวณเวลา/ตัวหาช่องชนต้องมาจาก schemas.ts · conflicts.ts เท่านั้น — ไฟล์นี้ห้ามเขียนซ้ำ
 import {
+  FINAL_ACTION_DEFAULT,
+  FINAL_DELAY_DEFAULT_MIN,
   SALES_FOLLOW_LIMITS as L,
   type BotStatus,
+  type FinalAction,
   type PartKind,
   type SalesStageKey,
   type SendReason,
@@ -39,6 +42,12 @@ export function splitDelay(min: number): { value: number; unit: DelayUnit } {
 export function joinDelay(value: string, unit: DelayUnit): number {
   const n = Number(value.trim())
   return value.trim() !== '' && Number.isInteger(n) && n > 0 ? n * UNIT_MIN[unit] : 0
+}
+
+/** เวลารอหลังตามครบ: ว่าง/ไม่ใช่จำนวนเต็มไม่ติดลบ = -1 (ตกด่าน FINAL_DELAY_INVALID) · 0 ใช้ได้ (ต่างจากเวลารอระหว่างรอบ) */
+export function joinFinalDelay(value: string, unit: DelayUnit): number {
+  const n = Number(value.trim())
+  return value.trim() !== '' && Number.isInteger(n) && n >= 0 ? n * UNIT_MIN[unit] : -1
 }
 
 export interface DurationWords {
@@ -86,6 +95,9 @@ export interface Draft {
   tagMatch: TagMatch
   channelIds: string[]
   steps: DraftStep[]
+  finalAction: FinalAction
+  finalValue: string
+  finalUnit: DelayUnit
 }
 
 /** รูปของบอทที่ฟอร์มต้องการ (ย่อจาก BotDto — ไม่ import service เพราะลาก server-only) */
@@ -98,6 +110,8 @@ export interface BotLike {
   tagMatch: TagMatch
   channelIds: string[]
   steps: BotStep[]
+  finalAction?: FinalAction
+  finalDelayMin?: number
 }
 
 /**
@@ -115,7 +129,11 @@ export const emptyStep = (): DraftStep => ({ uid: newUid(), value: '', unit: 'MI
 const uidPrefix = (epoch: number): string => (epoch > 0 ? `e${epoch}` : '')
 
 export function toDraft(bot: BotLike, epoch = 0): Draft {
+  const fin = splitDelay(bot.finalDelayMin ?? FINAL_DELAY_DEFAULT_MIN)
   return {
+    finalAction: bot.finalAction ?? FINAL_ACTION_DEFAULT,
+    finalValue: String(fin.value),
+    finalUnit: fin.unit,
     name: bot.name,
     status: bot.status,
     testRoomIds: bot.testRoomIds,
@@ -145,7 +163,7 @@ export function toDraft(bot: BotLike, epoch = 0): Draft {
 export function newDraft(epoch = 0): Draft {
   const p = uidPrefix(epoch)
   const step: DraftStep = { uid: `${p}r0`, value: '30', unit: 'MIN', parts: [{ ...emptyPart('TEXT'), uid: `${p}r0p0` }] }
-  return { name: '', status: 'CLOSED', testRoomIds: [], salesStatuses: [], tags: [], tagMatch: 'ANY', channelIds: [], steps: [step] }
+  return { name: '', status: 'CLOSED', testRoomIds: [], salesStatuses: [], tags: [], tagMatch: 'ANY', channelIds: [], steps: [step], finalAction: FINAL_ACTION_DEFAULT, finalValue: '1', finalUnit: 'DAY' }
 }
 
 /** ต่อรูปที่อัปโหลดเสร็จเข้าชิ้นตาม uid บนร่างล่าสุด — ใช้เป็น functional updater (อัปโหลดหลายชิ้นพร้อมกัน/ผู้ใช้แก้ระหว่างรอ ห้ามอ่านค่าเก่าจาก closure) · ชิ้นถูกลบไปแล้ว = ไม่ทำอะไร */
@@ -157,6 +175,12 @@ export function appendFileIds(d: Draft, stepUid: string, partUid: string, ids: r
     ),
   }
 }
+
+/** คีย์ถ้อยคำของ action ท้ายสุด (ใช้ในฟอร์ม/ตัวอย่าง/ตาราง) */
+export const FINAL_KEY = { NONE: 'finalNone', RESOLVE: 'finalResolve', HIDE: 'finalHide', SPAM: 'finalSpam' } as const satisfies Record<FinalAction, string>
+
+/** เวลารอหลังตามครบของร่าง (นาที) — ไม่ถูกต้อง = 0 เพื่อแสดงผลเท่านั้น (ตัวตรวจจริงอยู่ที่ validateBotFields) */
+export const finalDelayOf = (d: Draft): number => Math.max(0, joinFinalDelay(d.finalValue, d.finalUnit))
 
 export const stepDelayMin = (s: DraftStep): number => joinDelay(s.value, s.unit)
 
@@ -178,11 +202,13 @@ export function fieldsOf(d: Draft): BotFields {
     tagMatch: d.tagMatch,
     channelIds: d.channelIds,
     steps: stepsOf(d),
+    finalAction: d.finalAction,
+    finalDelayMin: joinFinalDelay(d.finalValue, d.finalUnit),
   }
 }
 
-type FieldKey = 'name' | 'salesStatuses' | 'tags' | 'tagMatch' | 'channelIds' | 'steps'
-const FIELD_KEYS: readonly FieldKey[] = ['name', 'salesStatuses', 'tags', 'tagMatch', 'channelIds', 'steps']
+type FieldKey = 'name' | 'salesStatuses' | 'tags' | 'tagMatch' | 'channelIds' | 'steps' | 'finalAction' | 'finalDelayMin'
+const FIELD_KEYS: readonly FieldKey[] = ['name', 'salesStatuses', 'tags', 'tagMatch', 'channelIds', 'steps', 'finalAction', 'finalDelayMin']
 
 /** PATCH ส่งเฉพาะฟิลด์ที่เปลี่ยน — แท็กที่ถูกลบแล้วไม่ถูกส่งซ้ำถ้าผู้ใช้ยังไม่แตะช่องแท็ก (ไม่งั้น server ตอบ TAG_NOT_FOUND) */
 export function buildPatch(original: Draft, current: Draft): Partial<BotFields> {
@@ -296,12 +322,14 @@ export type IssueTarget =
   | { kind: 'condition' }
   | { kind: 'channels' }
   | { kind: 'steps' }
+  | { kind: 'final' }
   | { kind: 'step'; stepIndex: number }
   | { kind: 'part'; stepIndex: number; partIndex: number }
 
 export function issueTarget(i: BotIssue): IssueTarget {
   if (i.code === 'NAME_REQUIRED' || i.code === 'NAME_TOO_LONG') return { kind: 'name' }
   if (i.code === 'NO_CONDITION' || i.code === 'TOO_MANY_TAGS') return { kind: 'condition' }
+  if (i.code === 'FINAL_DELAY_INVALID') return { kind: 'final' }
   if (i.code === 'CHANNELS_REQUIRED' || i.code === 'TOO_MANY_CHANNELS') return { kind: 'channels' }
   if (i.stepIndex !== undefined && i.partIndex !== undefined) return { kind: 'part', stepIndex: i.stepIndex, partIndex: i.partIndex }
   if (i.stepIndex !== undefined) return { kind: 'step', stepIndex: i.stepIndex }
