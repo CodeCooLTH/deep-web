@@ -130,7 +130,8 @@ export default function ThreadChipStrip({ items }: { items: ThreadChipItem[] }) 
               type="button"
               onClick={() => setOpenKey(isOpen ? null : it.key)}
               aria-expanded={isOpen}
-              className={`${TONE_CLS[it.tone]} flex max-w-52 shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+              // พื้นที่นิ้ว ≠ ก้อนสี: after ยืดขึ้นลงข้างละ 8px (= py-2 ของแถว ไม่โดน overflow ตัด) → ~44px บนมือถือ
+              className={`${TONE_CLS[it.tone]} relative flex max-w-52 shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium after:absolute after:inset-x-0 after:-inset-y-2 lg:after:hidden ${
                 isOpen ? 'ring-default-400 ring-1' : ''
               }`}
             >
@@ -161,7 +162,8 @@ export default function ThreadChipStrip({ items }: { items: ThreadChipItem[] }) 
           <button
             type="button"
             onClick={() => setOpenKey(null)}
-            className="text-default-700 flex items-center gap-1 text-xs font-medium"
+            // พื้นที่นิ้ว ~44px บนมือถือ (ก้อนเดิมสูง 20px) — pb-3 ของกล่องรองรับส่วนที่ยื่นลง
+            className="text-default-700 relative flex items-center gap-1 text-xs font-medium after:absolute after:-inset-x-2 after:-inset-y-3 lg:after:hidden"
           >
             <Icon icon="chevron-up" className="text-sm" />
             {t.inbox.threadChipCollapse}

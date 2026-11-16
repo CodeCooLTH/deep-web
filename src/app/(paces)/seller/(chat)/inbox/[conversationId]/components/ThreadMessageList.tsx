@@ -27,11 +27,14 @@ import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
 import { isLibraryEligible } from '@/lib/customer-file-library'
-import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, FOLLOW_BOT_NOTE_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { followBotBadgeIds } from '@/lib/follow-bot-ui'
+import FollowBotBubbleBadge from '@/components/safepay/FollowBotBubbleBadge'
+import FollowBotNoteLine from '@/components/safepay/FollowBotNoteLine'
 import { pacesConfirm } from '@/lib/paces-swal'
 import Swal from 'sweetalert2'
 import { useT } from '@/i18n/LocaleProvider'
-import { isSystemNoticeKind } from '@/lib/auto-reply-constants'
+import { isFollowBotKind, isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import { systemNoticeLabelKey } from '@/lib/system-notice-label'
 import { chatOrderLabel } from '@/lib/chat-vocab'
 import { fmt } from '@/i18n/fmt'
@@ -144,6 +147,8 @@ function ThreadMessageListImpl({
   const albumRows = useMemo(() => groups.map((g) => buildAlbumRows(g.items)), [groups])
   const burstEndIds = useMemo(() => computeBurstEndIds(messages, GROUP_GAP_MS), [messages])
   const lastMsgId = messages[messages.length - 1]?.id ?? null
+  // ป้ายบอทติดตามติดเฉพาะฟองแรกของรอบ (00095 UX §4.2) — ผูกกับ messages ทั้งก้อน ไม่คำนวณในลูป
+  const followBadgeIds = useMemo(() => followBotBadgeIds(messages as ChatMessageWithDelivery[]), [messages])
 
   return (
     <>
@@ -228,7 +233,12 @@ function ThreadMessageListImpl({
                         </div>
                       )}
                       {/* R23: ไม่มี title ที่ระดับบับเบิล — ลูกที่กดได้ (รูป/ปุ่ม) จะรับ tooltip ไปด้วย */}
-                      <div data-message-bubble className={`min-w-0 ${highlightClass(ms[0].id)}`}>
+                      <div data-message-bubble className={`relative min-w-0 ${highlightClass(ms[0].id)}`}>
+                        {/* ป้ายบอทติดตาม (00095): รอบที่ขึ้นด้วยรูปเป็นอัลบั้ม — ตัวที่ได้ป้ายอาจไม่ใช่ ms[0] จึงหาจากทั้งก้อน */}
+                        {(() => {
+                          const fm = ms.find((x) => followBadgeIds.has(x.id)) as ChatMessageWithDelivery | undefined
+                          return fm && <FollowBotBubbleBadge followStep={fm.followStep} followStepCount={fm.followStepCount} />
+                        })()}
                         <PhotoAlbum ms={ms} onOpen={(id) => openSlide(id)} />
                         {/* ชิปรีแอ็กชันของก้อน (ผูกกับ ms[0] ตามที่ Meta เก็บ) */}
                         {ms[0].reactionEmoji && (
@@ -603,6 +613,8 @@ function ThreadMessageListImpl({
                 // ตามสเปก — ปุ่มคัดลอก/ตอบกลับผูกกับ body) แต่ต้อง**ไม่**ตกไปเป็นบรรทัดระบบกลางจอ
                 // แบบเดิมอีกต่อไป — ต้องแสดงเป็นการ์ดเลื่อนในบับเบิลปกติ (ชิดขวา/ซ้ายตามผู้ส่งจริง)
                 // เธรดเก่าที่ไม่มี cards ยังตกไปทางเดิมทุกประการ (ไม่มีอะไรเปลี่ยนสำหรับแถวเก่า)
+                // บรรทัดระบบของบอทติดตาม (00095) — กลางห้อง ไม่ใช่ฟอง (ตัดสินด้วย type ไม่ต้องรอ parser)
+                if (m.type === FOLLOW_BOT_NOTE_TYPE) return <FollowBotNoteLine key={m.id} body={m.body} />
                 const hasGenericCards = !!m.cards && m.cards.length > 0
                 // 🛑 การ์ดคำขอชำระเงินก็ต้องชนะบรรทัดระบบเช่นกัน (user report 2026-08-09) —
                 // อาการเดียวกับ carousel ข้างบนเป๊ะ แค่คนละชนิดการ์ด: parseMetaSystemNotice
@@ -682,7 +694,10 @@ function ThreadMessageListImpl({
                           ป้าย Meta AI เป็น span ไม่ใช่ปุ่ม: ไม่มีข้อมูลเงื่อนไขของ Meta ให้เปิดดู */}
                       {/* ลำดับชนะ: DeepBot/AUTO_TEST → ระบบแจ้ง (AUTO_NOTICE) → AI ของ Meta (00078 S-10)
                           AUTO_NOTICE ไม่ใช่บอทตอบแชท จึงไม่มี popover เหตุผล — span เทา ไม่ใช่ปุ่ม */}
-                      {mExt.autoReplyKind && !isSystemNoticeKind(mExt.autoReplyKind) ? (
+                      {isFollowBotKind(mExt.autoReplyKind) ? (
+                        // บอทติดตามยอดขาย (00095): span เทาท่าเดียวกับ AUTO_NOTICE · ไม่มี popover/DeepBot · ติดเฉพาะฟองแรกของรอบ
+                        followBadgeIds.has(m.id) && <FollowBotBubbleBadge followStep={mExt.followStep} followStepCount={mExt.followStepCount} />
+                      ) : mExt.autoReplyKind && !isSystemNoticeKind(mExt.autoReplyKind) ? (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
                       ) : isSystemNoticeKind(mExt.autoReplyKind) ? (
                         (() => {

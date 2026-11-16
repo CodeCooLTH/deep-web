@@ -56,6 +56,8 @@ import { viewerRolesOf } from '@/lib/viewer-roles'
 import { canAccessShopWith, canCloseJobInShop } from '@/lib/shop-capability'
 import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
+import FollowBotRoomProvider from '../../_components/FollowBotRoomProvider'
+import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
 import { syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
 import { after } from 'next/server'
@@ -835,6 +837,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // feature 00037 — ThreadShopProvider ฉีด "ร้านของเธรดนี้" ให้ทุก openDraft ที่อยู่ข้างใน
     // โดยที่ 8 จุดเรียกเดิมไม่ต้องแก้เลย (และจุดที่เพิ่มใหม่ทีหลังก็จะได้ถูกต้องเอง)
     <ThreadShopProvider shopId={shop.id}>
+    {/* 00095 — ยิง GET follow-bot เฉพาะห้องที่บอทมีสิทธิ์ทำงาน (ด่านเดียวกับ service: ไม่ใช่ DEEP · ร้านนำร่อง · ร้านขายออนไลน์)
+        ร้านอื่นไม่เสียคำขอต่อทุกห้อง · Provider จัดการสลับห้องเอง (ไม่ใส่ key — จะ remount ChatThread ทั้งก้อน) */}
+    <FollowBotRoomProvider
+      conversationId={conversation.id}
+      enabled={conversation.channel !== 'DEEP' && isSalesFollowBotEnabled(shop.id) && shop.vertical === 'ONLINE_SALES'}
+    >
     {/* วัดเวลาของ RSC — ไม่ render เลยถ้าไม่ได้ส่ง ?debug=timing มา (ดู components/RscTiming.tsx) */}
     {debug === 'timing' && <RscTiming marks={timingMarks} />}
     <div className="flex h-full">
@@ -915,6 +923,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         <CustomerPanel data={customerPanelData} />
       </div>
     </div>
+    </FollowBotRoomProvider>
     </ThreadShopProvider>
   )
 }

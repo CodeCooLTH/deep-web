@@ -68,6 +68,7 @@ import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
 import { enrichWithThreadAgents } from '@/services/thread-agents.service'
 import { enrichWithFollowUpCounts } from '@/services/customer-follow-up.service'
+import { enrichWithFollowBot } from '@/services/sales-follow-inbox-enrich'
 import { isShopChatMuted } from '@/services/notification-pref.service'
 import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -278,7 +279,7 @@ export default async function SellerInboxPage() {
     const autoReplyBadgeMap = new Map(
       (await enrichWithAutoReplyBadge(result.items)).map((r) => [
         r.id,
-        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced, isSystem: r.lastMessageIsSystem },
+        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced, isSystem: r.lastMessageIsSystem, isFollowBot: r.lastMessageIsFollowBot },
       ]),
     )
 
@@ -291,9 +292,14 @@ export default async function SellerInboxPage() {
     )
 
     // 00066 — ป้ายติดตามลูกค้า ก้อนเดียวต่อหน้า (ฟังก์ชันเดียวกับ route ไม่งั้นหน้าแรกกับ refetch ไม่ตรงกัน)
-    const followUpMap = new Map(
-      (await enrichWithFollowUpCounts(result.items, shopIds)).map((r) => [r.id, r.followUp]),
-    )
+    // 00095 — แคปซูลบอทติดตามใต้พรีวิว (ฟังก์ชันเดียวกับ route ไม่งั้นหน้าแรกกับ refetch ไม่ตรงกัน)
+    // สองชุดนี้ไม่พึ่งกัน (พึ่งแค่รายการห้อง) จึงยิงขนานกัน
+    const [followUpRows, followBotRows] = await Promise.all([
+      enrichWithFollowUpCounts(result.items, shopIds),
+      enrichWithFollowBot(result.items),
+    ])
+    const followUpMap = new Map(followUpRows.map((r) => [r.id, r.followUp]))
+    const followBotMap = new Map(followBotRows.map((r) => [r.id, r.followBot]))
 
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
     // allow-list ทีละ field (RSC PII rule) — ห้าม spread ...c
@@ -342,10 +348,12 @@ export default async function SellerInboxPage() {
         // feature 00061 — 0 = ไม่มีร่างค้าง (UI ไม่โชว์ badge)
         draftOrderCount: draftMap.get(c.id) ?? 0,
         followUp: followUpMap.get(c.id) ?? { open: 0, late: 0, urgent: null },
+        followBot: followBotMap.get(c.id) ?? null,
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
         lastMessageIsSystem: autoReplyBadgeMap.get(c.id)?.isSystem ?? false,
+        lastMessageIsFollowBot: autoReplyBadgeMap.get(c.id)?.isFollowBot ?? false,
         // 00078 TFR-003 — primitive (ms) เทียบกับ nowBucket ฝั่ง client · ฟังก์ชันเดียวกับ route
         metaAiHoldUntilMs: metaAiHoldingUntilMs(c, appId),
       }

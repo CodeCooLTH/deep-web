@@ -167,6 +167,12 @@ model User {
   serviceJobRecords        ServiceJobRecord[]    @relation("ServiceJobRecordCreatedBy")
 
   @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
+
+  // feature 00095
+  salesFollowBotsCreated SalesFollowBot[]         @relation("SalesFollowBotCreatedBy")
+  salesFollowBotsUpdated SalesFollowBot[]         @relation("SalesFollowBotUpdatedBy")
+  salesFollowTestRooms   SalesFollowBotTestRoom[] @relation("SalesFollowTestRoomCreatedBy")
+  salesFollowRunsStopped SalesFollowRun[]         @relation("SalesFollowRunStoppedBy")
 }
 
 model AuthAccount {
@@ -447,6 +453,10 @@ model Shop {
   // feature 00092 Custom Audience ลูกค้าที่ซื้อแล้ว
   metaAudienceConnection MetaAudienceConnection?
   metaAudienceMembers    MetaAudienceMember[]
+
+  // feature 00095 บอทติดตามยอดขาย
+  salesFollowBots SalesFollowBot[]
+  salesFollowRuns SalesFollowRun[]
 }
 
 // Room — ห้องพักที่เปิดให้จอง (feature 00017 Lodging Vertical, Phase 1)
@@ -2008,6 +2018,9 @@ model ShopChannel {
   // — กติกาใหม่ "1 เพจ ACTIVE ได้ทีละร้านเดียว" (BR-FBC-01 เปลี่ยนขอบเขต ไม่ใช่ยกเลิก)
   @@index([provider, externalId])
   @@index([shopId, status])
+
+  // feature 00095
+  salesFollowBotChannels SalesFollowBotChannel[]
 }
 
 // ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00018
@@ -2204,6 +2217,11 @@ model Conversation {
   autoNotifyLedgers        AutoNotifyLedger[]
 
   @@index([externalContactId]) // feature 00066 — cluster query (unique เดิมขึ้นต้น shopChannelId ใช้ไม่ได้)
+
+  // feature 00095 บอทติดตามยอดขาย
+  salesFollowBotTestRooms SalesFollowBotTestRoom[]
+  salesFollowRuns         SalesFollowRun[]
+  salesFollowSends        SalesFollowSend[]
 }
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
@@ -2261,7 +2279,7 @@ model ChatMessage {
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
   senderRole       String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
-  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "PRODUCT" | "ORDER"
+  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "PRODUCT" | "ORDER" | "FOLLOW_BOT_NOTE" (00095)
   body             String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
   imageUrl         String? // fileId ของ storage — ใช้ร่วมกันทุกชนิดไฟล์แนบ (IMAGE/VIDEO/AUDIO/FILE) ไม่ใช่แค่รูป
   // ไฟล์แนบหลายชนิด (2026-08-02, multi-attachment) — ชื่อไฟล์เดิมที่ผู้ส่งเลือก + ขนาด ณ ตอนส่ง
@@ -2383,6 +2401,7 @@ model ChatMessage {
   // 🛑 คอลัมน์นี้คือสิ่งที่ทำให้ BR-AR-22 บังคับได้: "พนักงานตอบ" = senderRole='SHOP' AND autoReplyKind IS NULL
   // ถ้าไม่มีคอลัมน์นี้ คำตอบของระบบเองจะถูกนับเป็น "พนักงานตอบ" แล้วระบบจะหยุดตัวเองทุกครั้งที่ตอบ
   // feature 00078: เพิ่มค่า "AUTO_NOTICE" = ข้อความแจ้งลูกค้าอัตโนมัติ (ไม่มี CHECK บนคอลัมน์นี้ ไม่ต้อง migration)
+  // feature 00095: เพิ่มค่า "AUTO_FOLLOW" = ข้อความที่บอทติดตามยอดขายส่ง · ChatMessage.type มีค่า "FOLLOW_BOT_NOTE" = บรรทัดระบบในห้อง (ไม่มี CHECK ไม่ต้อง migration)
   autoReplyKind String?
 
   // feature 00078 M1 — ข้อเท็จจริงระดับ echo ฝั่งร้าน (ไม่ใช่ verdict) · NULL = ไม่ใช่ echo/ไม่มี field
@@ -2468,6 +2487,9 @@ model ChatMessage {
   // นำหน้าด้วย conversationId ใช้เร่งไม่ได้เลย ต้องมีตัวที่นำหน้าด้วย senderRole
   @@index([senderRole, createdAt])
   @@index([autoOrderId])
+
+  // feature 00095 — ฟองที่บอทติดตามส่ง (ข้อความ/รูป) · SET NULL เพื่อไม่ให้ประวัติหายตามข้อความ
+  salesFollowSends      SalesFollowSend[] @relation("SalesFollowSendChatMessage")
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -5665,4 +5687,143 @@ model MetaAudienceMember {
 
   @@unique([shopId, identityType, identityKey])
   @@index([shopId, desired, syncedState, nextAttemptAt])
+}
+
+// ============================================================================
+// feature 00095 — บอทติดตามยอดขาย (Sales Follow Bot) · SRS §5 · DATABASE.md ของ feature
+// String + DB CHECK (ไม่ใช้ Prisma enum) · CHECK + partial unique/index อยู่ใน migration SQL เท่านั้น
+// 🛑 ห้าม db pull/migrate dev · ห้ามเพิ่มเพดาน steps โดยไม่ไล่ CHECK 3 ตัว:
+//    SalesFollowBot.steps (1..10) · SalesFollowRun.nextStep (0..10) · SalesFollowSend.step (0..9)
+// ============================================================================
+
+/// บอท 1 ตัวของร้าน · steps = JSON array ของรอบ {delayMin, parts[1..5]} · part = {kind:'TEXT',text} | {kind:'IMAGES',fileIds[1..5]} | {kind:'QUICK_MESSAGE',quickMessageId} (ตรวจที่ service Valibot · TFR-FB-25)
+/// status CLOSED|TESTING|ACTIVE · tagMatch ANY|ALL · soft delete ด้วย deletedAt (ประวัติ Run/Send ยังอ้างได้)
+/// structureRev: เพิ่มเมื่อแก้ขั้น/เงื่อนไข → Run เก่าที่ rev ไม่ตรงถูกหยุด (BOT_EDITED)
+/// CHECK (migration 20261117100000): ชื่อ 1..60 · status/tagMatch/salesStatuses ⊆ 7 ค่า · tagKeys ≤20 ·
+///   steps array 1..10 · salesStatuses หรือ tagKeys ต้องไม่ว่างอย่างน้อยหนึ่งอย่าง
+/// partial index (SQL เท่านั้น): SalesFollowBot_shopId_status_active_idx (shopId,status) WHERE deletedAt IS NULL
+model SalesFollowBot {
+  id              String    @id @default(uuid())
+  shopId          String
+  name            String
+  status          String    @default("CLOSED")
+  salesStatuses   String[]  @default([])
+  tagKeys         String[]  @default([])
+  tagMatch        String    @default("ANY")
+  steps           Json
+  structureRev    Int       @default(1)
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime? @db.Timestamptz(3)
+
+  shop          Shop                     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdByUser User?                    @relation("SalesFollowBotCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser User?                    @relation("SalesFollowBotUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  channels      SalesFollowBotChannel[]
+  testRooms     SalesFollowBotTestRoom[]
+  runs          SalesFollowRun[]
+
+  @@index([shopId, deletedAt])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+/// ช่องทางที่บอทใช้ (M:N) · จำนวน ≤50 ต่อบอทบังคับที่ service · ชน "1 ช่องทาง 1 บอทต่อสถานะ" ตรวจที่ service (TFR-FB-05)
+model SalesFollowBotChannel {
+  botId         String
+  shopChannelId String
+
+  bot         SalesFollowBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  shopChannel ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+
+  @@id([botId, shopChannelId])
+  @@index([shopChannelId])
+}
+
+/// ห้องทดสอบของบอทโหมด TESTING · ≤20 ห้องต่อบอทบังคับที่ service
+model SalesFollowBotTestRoom {
+  botId           String
+  conversationId  String
+  createdByUserId String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  bot           SalesFollowBot @relation(fields: [botId], references: [id], onDelete: Cascade)
+  conversation  Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdByUser User?          @relation("SalesFollowTestRoomCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@id([botId, conversationId])
+  @@index([conversationId])
+  @@index([createdByUserId])
+}
+
+/// บอทที่ติดกับห้อง 1 รอบ (ต่อ stageStamp) · status ACTIVE|DONE|STOPPED
+/// stageStamp = ตราประทับเวลาเข้าสถานะ (TFR-FB-02) → กัน re-attach ซ้ำในสถานะเดิมด้วย unique (botId,conversationId,stageStamp)
+/// 🛑 partial unique (SQL เท่านั้น): SalesFollowRun_conversation_active_key UNIQUE (conversationId) WHERE status='ACTIVE' — ห้องละ 1 ACTIVE
+/// partial index (SQL เท่านั้น): SalesFollowRun_active_updatedAt_idx (status,updatedAt) WHERE ACTIVE · SalesFollowRun_botId_active_idx (botId) WHERE ACTIVE
+/// CHECK: stageKey ∈ 7 ค่า · nextStep 0..10 · stopReason/holdReason ∈ ชุดค่า · รูปแบบ status↔stopReason↔finishedAt
+/// เขียนด้วย INSERT … ON CONFLICT DO NOTHING (ห้าม create+catch P2002 — ก่อ ERROR ใน log Postgres)
+model SalesFollowRun {
+  id              String    @id @default(uuid())
+  shopId          String
+  botId           String
+  conversationId  String
+  stageKey        String
+  stageStamp      DateTime  @db.Timestamptz(3)
+  structureRev    Int
+  nextStep        Int       @default(0)
+  lastSentAt      DateTime? @db.Timestamptz(3)
+  nextDueAt       DateTime? @db.Timestamptz(3)
+  holdReason      String?
+  status          String    @default("ACTIVE")
+  stopReason      String?
+  stoppedByUserId String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  finishedAt      DateTime? @db.Timestamptz(3)
+
+  shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  bot           SalesFollowBot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  conversation  Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  stoppedByUser User?             @relation("SalesFollowRunStoppedBy", fields: [stoppedByUserId], references: [id], onDelete: SetNull)
+  sends         SalesFollowSend[]
+
+  @@unique([botId, conversationId, stageStamp], map: "SalesFollowRun_botId_conversationId_stageStamp_key")
+  @@index([conversationId, createdAt])
+  @@index([shopId])
+  @@index([stoppedByUserId])
+}
+
+/// ประวัติ + กุญแจกันส่งซ้ำ: 1 แถวต่อ (run, step) · UNIQUE (runId, step) คือตัวกันส่งซ้ำ BR-FB-31 — ห้ามลบแถวเก่าด้วย cron
+/// botId เป็น text ไม่มี FK โดยตั้งใจ — ประวัติต้องอยู่รอดหลังบอทถูกลบ · shopId ไม่มี FK (ลบร้าน cascade ผ่าน Run อยู่แล้ว)
+/// status SENDING|SENT|FAILED|SKIPPED · reason บังคับเมื่อ FAILED/SKIPPED · settledAt NULL ⇔ SENDING
+/// partial index (SQL เท่านั้น): SalesFollowSend_sending_createdAt_idx (createdAt) WHERE status='SENDING' (sweeper)
+/// ไม่เก็บเนื้อข้อความ/เบอร์/ชื่อ (อยู่ใน ChatMessage แล้ว)
+model SalesFollowSend {
+  id             String    @id @default(uuid())
+  shopId         String
+  runId          String
+  conversationId String
+  botId          String
+  step           Int
+  // จำนวนขั้นของบอท ณ ตอนจองส่ง — ป้ายบนฟอง "บอทติดตาม 2/3" ต้องคงตามจริงแม้บอทถูกแก้/ลบภายหลัง (ผู้ใช้ขอ 2026-11-16)
+  stepCount      Int
+  status         String
+  reason         String?
+  // chatMessageId = ฟองแรกของรอบ (ใช้ติดป้าย "บอทติดตาม n/N") · messageIds = ทุกฟองของรอบเรียงตามลำดับส่ง (รอบละหลายชิ้น TFR-FB-25)
+  // ไม่มี FK ต่อฟองรายตัว (array ทำ FK ไม่ได้) — ฟองที่ถูกลบจะ resolve ไม่เจอ ซึ่งยอมรับได้ (ประวัติอ่านอย่างเดียว)
+  chatMessageId  String?
+  messageIds     String[]  @default([])
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  settledAt      DateTime? @db.Timestamptz(3)
+
+  run          SalesFollowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  chatMessage  ChatMessage?   @relation("SalesFollowSendChatMessage", fields: [chatMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([runId, step], map: "SalesFollowSend_runId_step_key")
+  @@index([shopId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([conversationId, createdAt])
+  @@index([chatMessageId])
 }

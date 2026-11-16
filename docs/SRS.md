@@ -426,6 +426,8 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 
 **ส่งยอดขายให้ Meta — Conversions API (feature 00089 — implement แล้วบน working tree · ยังไม่ commit/merge · sync 2026-11-11)** — 3 หน้าใต้ `(paces)/seller/(dashboard)/settings/capis/` (ข้อยกเว้นของหมายเหตุ "ไม่มี `/settings/` prefix" เหมือน `/settings/tags`): **`/settings/capis`** (รายการเพจ Messenger + สวิตช์) · **`/settings/capis/[channelId]`** (รายละเอียดเพจ: dataset · เหตุการณ์ 12 ตัว · จังหวะ Purchase · กฎแท็ก→Lead) · **`/settings/capis/[channelId]/log`** (บันทึกการส่ง · ตัวกรอง `?status=&event=` · "โหลดเพิ่ม" แบบ cursor) · เมนู slug `seller:settings-conversions-api` กลุ่ม SETTING ต่อจาก "ช่องทางการขาย" · ทางเข้าเสริม: chip บนแถว Messenger ใน `/settings/channels` + แถวทางลัดหน้า "ร้านค้า" บนมือถือ (`role-nav.ts` `QUICK_LINK_URLS` + `ShopQuickLinks.tsx`) · เปิดหน้า = **X9** (เจ้าของเท่านั้น; อื่น = `NoPermissionCard`) · 🛑 ฟีเจอร์ปิด/ร้านนอกรายชื่อทดลอง (`isMetaCapiEnabled`) = `notFound()` **ก่อน** ด่านสิทธิ์ (ร้านต้องไม่รู้ว่ามีฟีเจอร์) และเมนู/ทางลัด/chip ซ่อน (`applyMetaCapiMenu` fail-closed) · ดู `docs/20 - Features/00089 - Meta Conversion API/{SRS,SDS,API,DATABASE,TestCase}.md`
 
+**บอทติดตามยอดขาย (feature 00095 — implement แล้ว · sync 2026-11-16 จากโค้ด)** — 3 หน้าใต้ `(paces)/seller/(dashboard)/settings/sales-follow-bot/`: **`/settings/sales-follow-bot`** (2 แท็บ `?tab=bots` รายการบอท / `?tab=log` ประวัติการส่ง) · **`/settings/sales-follow-bot/new`** · **`/settings/sales-follow-bot/[id]`** · เมนู slug `seller:settings-sales-follow-bot` ("บอทติดตามยอดขาย" icon `target-arrow` · `src/lib/seller-menu.ts`) · 🛑 **ONLINE_SALES เท่านั้น** (อยู่ใน `ONLINE_SALES_ONLY_SLUGS`) และซ่อนเมื่อร้านไม่อยู่ใน `SALES_FOLLOW_BOT_SHOP_IDS` (`applySalesFollowBotMenu` fail-closed) · เปิดหน้า = **H2** (`gatePage(session,'H2')` ในไฟล์หน้าเอง) — บทบาทไม่ถึง = `NoPermissionCard` · ร้านนอกรายชื่อ/ไม่ใช่ ONLINE_SALES เข้า URL ตรง = หน้า "เร็ว ๆ นี้" (`gate.tsx::gateBotPage` — ไม่ใช่ 404/500) · ดู §5.7 · §6.82 · §7.37 · §9.19
+
 **รายงานสรุปยอดเข้ากลุ่ม LINE (feature 00070)** — สถานะ ณ 2026-10-05 (ตรวจจากโค้ด): เมนู sidebar (`seller:line-reports`) + **`page.tsx` ของ 3 หน้าแรกมีในโค้ดแล้ว** (`(paces)/seller/(dashboard)/business/line-reports/{page,new/page,[groupId]/page}.tsx`) · ~~🛑 หน้า `/template` (ส่วนต่อขยาย EXT) = กำลังสร้าง ยังไม่ commit~~ **sync 2026-10-15: `page.tsx` ของ `/template` มีในโค้ดแล้ว (ดูตารางด้านล่าง) — ยังไม่ได้ตรวจสถานะ commit/ผล QA บนจอจริง**
 
 | เมนู | Path | สถานะ |
@@ -626,6 +628,18 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | `CRON_SECRET` (**มีอยู่แล้ว**) | `/api/cron/meta-audience` | ใช่ | `Bearer ${CRON_SECRET}` · ว่าง = 401 |
 | `CHANNEL_TOKEN_KEY` / `FB_CHAT_APP_ID` / `FB_CHAT_APP_SECRET` / `FB_CHAT_ROLE_USER_IDS` (**มีอยู่แล้ว**) | `token-crypto` · OAuth เชื่อมบัญชีโฆษณา | ใช่ | เข้ารหัส `MetaAudienceConnection.tokenEnc` + cookie พัก token · OAuth `ads_management` เฉพาะ user ใน `FB_CHAT_ROLE_USER_IDS` · ต้องเพิ่ม redirect URI `/api/meta-audience/callback` ใน App Dashboard |
 
+### 5.7 env ของ feature 00095 (บอทติดตามยอดขาย · 2026-11-16)
+
+> เอกสารต้นทาง: `docs/20 - Features/00095 - Sales Follow Bot/` · ด่านอยู่ที่ `src/lib/sales-follow-bot/gate.ts`
+
+| env | ใช้ที่ | จำเป็น | หมายเหตุ |
+|---|---|---|---|
+| `SALES_FOLLOW_BOT_SHOP_IDS` (**ใหม่**) | `gate.ts::isSalesFollowBotEnabled` | ไม่ (ไม่ตั้ง = ปิด) | รายการ `Shop.id` คั่น comma (ไม่สนตัวพิมพ์) · **ว่าง/ไม่ตั้ง = ปิดทั้งระบบ (fail-closed)** · `*` = ทุกร้าน · อ่านสดทุกครั้งที่เรียก ไม่ cache · ใช้ที่: route ใต้ `/api/shops/current/sales-follow-bot/**` ทุกตัว (`route-gate.ts::featureGate` → 403 `FEATURE_NOT_ENABLED`) · service เขียน (`assertAvailable`) · ตัวแนบ run ใน cron (ข้ามบอทของร้านที่ไม่อยู่ในรายการ) · เมนู · 3 หน้า · แผงในห้อง (`available:false`) · 🛑 ถอนร้านออกระหว่างมี run ค้าง = **HOLD `SHOP_NOT_ENABLED`** (ไม่ส่ง ไม่ใช่ STOP) และ `POST …/follow-bot/stop` ไม่ผ่านด่านนี้ ร้านที่ถูกถอดยังหยุดบอทที่ค้างได้ |
+| `CRON_SECRET` (**มีอยู่แล้ว**) | `/api/cron/sales-follow-bot` | ใช่ | `Bearer ${CRON_SECRET}` · ว่าง = 401 |
+| `FB_CHAT_APP_ID` (**มีอยู่แล้ว**) | `decide.ts` → `decideMetaAiHolding(…, ourMetaAppId)` | ไม่ | ใช้ตัดสินว่า Meta AI ถือห้องอยู่ไหม — ไม่เพิ่ม env อื่น |
+
+cron: `{ "path": "/api/cron/sales-follow-bot", "schedule": "* * * * *" }` ใน `vercel.json` — ดู §7.20
+
 ---
 
 ## §6 Data Model & Schema
@@ -751,6 +765,8 @@ LineReportRateEvent                                  [feature 00070 — ไม�
 **ชนิดข้อความ `ChatMessage.type = 'META_NOTICE'`** (2026-10-10, ส่วนขยาย 00018 `EXTENSIONS-2026-10-10-meta-notice-type.md`) —
 บันทึกภายในของ Meta ในนามเพจ ("replied to an ad" · "Lead stage set to …" ฯลฯ) ตัดสินตอนรับเข้าด้วย `isMetaInternalNote` ·
 แสดงกลางห้อง · ไม่แตะสรุปเธรด · ตัดออกจาก AI/ความจำ/เวลาตอบ/บอทคู่กับ `AUTO_ORDER_RESULT` · ส่งไม่ได้ (อยู่ใน `StoredMessageType` เท่านั้น)
+
+**ชนิดข้อความ `ChatMessage.type = 'FOLLOW_BOT_NOTE'`** (2026-11-16, feature 00095 — `FOLLOW_BOT_NOTE_TYPE` ใน `src/lib/auto-order-message-type.ts`) — บรรทัดระบบในห้องแจ้งว่าบอทหยุด (`stopRunsWithNote` เขียนพร้อมหยุด run ใน `$transaction` เดียว) · เป็นสมาชิกตัวที่ 3 ของ `INTERNAL_MESSAGE_TYPES` (`AUTO_ORDER_RESULT` · `META_NOTICE` · `FOLLOW_BOT_NOTE`) ⇒ ไม่ใช่ "ร้านตอบ" · ส่งไม่ได้ (อยู่ใน `StoredMessageType` เท่านั้น) · migration `20261117100100_00095_follow_bot_note_realtime` แก้ฟังก์ชัน Realtime ไม่ให้ยิง `shop_reply` · ส่วนฟองที่บอทส่งจริงใช้ `autoReplyKind='AUTO_FOLLOW'` (ดู §8.22)
 
 ### 6.2 Models
 
@@ -1907,6 +1923,37 @@ Migration `20261010120000_shop_member_roles`: เพิ่มคอลัมน�
 - 🛑 ผู้ซื้อ: `chat-thread-messages.service` ประกอบ orderMap ผ่าน `orderAdFieldsForViewer(o, viewerIsBuyer)` — ผู้ซื้อไม่ได้คีย์ `adId/adTitle/adPhotoFileId` เลย · `/o/[token]` ไม่ส่ง prop แอด
 - HR18: `OrderCardView.tsx` + `chat-thread-messages.service.ts` ถูกเฝ้า → ต้องแก้แชท Native ใน `deep-seller-app` ตาม (parse `adId/adTitle/adPhotoFileId` + แถบ "จากโฆษณา" เหนือหัวการ์ด)
 
+### 6.82 บอทติดตามยอดขาย — `SalesFollowBot` · `SalesFollowBotChannel` · `SalesFollowBotTestRoom` · `SalesFollowRun` · `SalesFollowSend` (feature 00095)
+
+> สถานะ: implement แล้ว · `prisma/schema.prisma` (model `SalesFollow*`) · migration **2 ตัว**: `20261117100000_00095_sales_follow_bot` (5 ตารางใหม่ + CHECK + partial unique/index เป็น SQL) · `20261117100100_00095_follow_bot_note_realtime` (แทนที่ฟังก์ชัน `chat_message_realtime_broadcast()` ให้ `type='FOLLOW_BOT_NOTE'` ไม่ยิง `shop_reply` — ไม่แตะ trigger/ข้อมูล) · ตารางใหม่ล้วน ไม่ backfill · ทุกค่าเก็บเป็น String + CHECK (ไม่ใช่ Prisma enum) · 🛑 CHECK/partial index ประกาศใน Prisma ไม่ได้ → ห้าม `db pull`/`migrate dev` (HR13/14) · HR15: push `main` = `migrate deploy` บน prod · local ต้อง apply เอง · ต้นทาง `docs/20 - Features/00095 - Sales Follow Bot/`
+
+| ตาราง | คอลัมน์หลัก | CHECK / unique / index |
+|---|---|---|
+| `SalesFollowBot` (บอท 1 ตัวของร้าน) | `shopId` FK cascade · `name` · `status` default `CLOSED` · `salesStatuses String[]` · `tagKeys String[]` (= `tagNameKey` ของแท็ก) · `tagMatch` default `ANY` · `steps Json` · `structureRev` default 1 · `createdByUserId?`/`updatedByUserId?` (SetNull) · `deletedAt?` (soft delete) | `name` 1..60 · `status` ∈ `CLOSED\|TESTING\|ACTIVE` · `tagMatch` ∈ `ANY\|ALL` · `salesStatuses` ⊆ 7 key · `cardinality(tagKeys) ≤ 20` · `steps` เป็น array ยาว 1..10 · **`salesStatuses` หรือ `tagKeys` ต้องไม่ว่างอย่างน้อยหนึ่งอย่าง** · `salesStatuses`/`tagKeys` NOT NULL · partial index `(shopId,status) WHERE deletedAt IS NULL` |
+| `SalesFollowBotChannel` (M:N) | `botId` · `shopChannelId` (cascade ทั้งคู่) | PK `(botId, shopChannelId)` · ≤50 ช่อง/บอทบังคับที่ service |
+| `SalesFollowBotTestRoom` | `botId` · `conversationId` · `createdByUserId?` | PK `(botId, conversationId)` · ≤20 ห้อง/บอทบังคับที่ service |
+| `SalesFollowRun` (บอทที่ติดกับห้อง 1 รอบ) | `shopId` · `botId` · `conversationId` · `stageKey` · `stageStamp` (เวลาเหตุการณ์ออเดอร์ที่ทำให้เข้าสถานะ) · `structureRev` · `nextStep` default 0 · `lastSentAt?` · `nextDueAt?` · `holdReason?` · `status` default `ACTIVE` · `stopReason?` · `stoppedByUserId?` · `finishedAt?` | `stageKey` ∈ 7 key · `nextStep` 0..10 · `status` ∈ `ACTIVE\|DONE\|STOPPED` · `stopReason` ∈ 11 ค่า · `holdReason` ∈ 4 ค่า · รูปแบบ `status_shape` (ACTIVE ⇒ ไม่มี stopReason/finishedAt · DONE ⇒ ไม่มี stopReason มี finishedAt · STOPPED ⇒ มีทั้งคู่) · UNIQUE `(botId, conversationId, stageStamp)` · **partial UNIQUE `(conversationId) WHERE status='ACTIVE'`** = ห้องละ 1 ACTIVE (ตัดสินเมื่อหลายบอทแข่งกัน) · partial index `(updatedAt)` และ `(botId)` WHERE ACTIVE · เขียนด้วย `INSERT … ON CONFLICT DO NOTHING` (ห้าม create+catch P2002) |
+| `SalesFollowSend` (ประวัติ + กุญแจกันส่งซ้ำ ต่อ (run, รอบ)) | `shopId` · `runId` FK cascade · `conversationId` · `botId` (**text ไม่มี FK** — ประวัติรอดหลังบอทถูกลบ) · `step` · **`stepCount`** (จำนวนรอบของบอท ณ ตอนจอง — ป้ายฟองคงเดิมแม้บอทถูกแก้/ลบ) · `status` · `reason?` · `chatMessageId?` (FK SetNull = **ฟองแรก**ของรอบ) · **`messageIds String[]`** (NOT NULL · ทุกฟองของรอบเรียงตามลำดับส่ง · ไม่มี FK) · `settledAt?` | UNIQUE `(runId, step)` = กุญแจกันส่งซ้ำ (🛑 ห้าม cron ลบแถวเก่า) · `step` 0..9 · `stepCount` 1..10 และ `step < stepCount` · `status` ∈ `SENDING\|SENT\|FAILED\|SKIPPED` · `reason` ∈ 7 ค่า · `reason_shape`: (`FAILED`/`SKIPPED`) ⇔ มี `reason` · `settled_shape`: `SENDING` ⇔ `settledAt IS NULL` · partial index `(createdAt) WHERE status='SENDING'` (sweeper) · index `(shopId, createdAt DESC, id DESC)` (ประวัติ keyset) |
+
+**รูปของ `SalesFollowBot.steps` (jsonb · ตรวจที่ service ด้วย Valibot — §10.26):** array ของ "รอบ" `{ delayMin: int ≥1, parts: Part[1..5] }` โดย `Part` = `{kind:'TEXT', text}` \| `{kind:'IMAGES', fileIds:[1..5]}` \| `{kind:'QUICK_MESSAGE', quickMessageId}` (QUICK_MESSAGE เก็บแค่ id — เนื้อหาอ่านตอนส่ง) · **ไม่มี `imageMessageId`/`imageFileId`/`kind:'TEXT_IMAGE'`** (เลิกแล้ว — 1 รอบ = ชุดชิ้น ไม่ใช่ข้อความ+รูปหนึ่งคู่) · `adOnly` ต่อรอบเป็นผลคำนวณ ไม่เก็บ
+
+**ความสัมพันธ์:** `Shop 1─N SalesFollowBot` · `SalesFollowBot N─M ShopChannel` · `SalesFollowBot 1─N SalesFollowBotTestRoom ─ Conversation` · `SalesFollowBot 1─N SalesFollowRun` · `SalesFollowRun 1─N SalesFollowSend` · `SalesFollowSend ─ ChatMessage` (relation `SalesFollowSendChatMessage`)
+
+```mermaid
+erDiagram
+  Shop ||--o{ SalesFollowBot : has
+  SalesFollowBot ||--o{ SalesFollowBotChannel : uses
+  SalesFollowBot ||--o{ SalesFollowBotTestRoom : tests
+  SalesFollowBot ||--o{ SalesFollowRun : attaches
+  Conversation ||--o{ SalesFollowRun : "ห้องละ 1 ACTIVE"
+  SalesFollowRun ||--o{ SalesFollowSend : "UNIQUE(runId,step)"
+  SalesFollowSend }o--o| ChatMessage : "ฟองแรก"
+```
+
+**ไม่เก็บ:** สถานะการขาย (คำนวณจากออเดอร์ล่าสุดของห้องทุกครั้ง — `src/lib/sales-follow-bot/sales-stage.ts`) · เนื้อข้อความ/เบอร์/ชื่อลูกค้าใน `SalesFollowSend` (อยู่ใน `ChatMessage` แล้ว)
+
+**ผลกระทบตารางเดิม (ไม่มีการแก้ schema/CHECK):** `ChatMessage.autoReplyKind` รับค่าใหม่ `'AUTO_FOLLOW'` และ `ChatMessage.type` รับ `'FOLLOW_BOT_NOTE'` (ทั้งคู่ไม่มี CHECK) — ดู §8.22 · อัปเดตเฉพาะฟังก์ชัน Realtime (migration ตัวที่ 2) · `/api/uploads/commit` กิ่ง `purpose=CHAT` ที่ **ไม่มีเธรด** ตอนนี้ลงทะเบียน `MediaAsset` ของร้านผ่าน `reconcileUploadedFile` (ใช้ `requireShopCapability(...,'H2')` อยู่เดิม) เพื่อให้ `sales-follow-images.service.ts::assertOwnedImages` ยืนยันว่า `fileId` ในชิ้น `IMAGES` เป็นของร้าน (กัน IDOR → `PART_IMAGE_NOT_FOUND`) — แหล่งที่นับว่าเป็นของร้านมี 4: `QuickMessage` · `CustomerFile` · `MediaAsset` · รูปที่ **ร้านเอง** ส่งในแชทของร้าน (`senderRole='SHOP'` — ห้ามนับรูปที่ลูกค้าส่ง) และ fileId ต้องมีรูปแบบคีย์ที่ระบบสร้าง (`isValidImageFileId`) · ล้มเหลว = ใช้ fileId เดิมต่อ ไม่ทำให้อัปโหลดล้ม
+
 ## §7 API Reference
 
 > ทุก endpoint อยู่ใต้ `/api/` — ดู `src/app/api/**/route.ts`
@@ -2443,6 +2490,7 @@ query ร่วม: `from` `to` (YYYY-MM-DD เวลาไทย) · `channel` 
 | **`/api/cron/line-report-sweep`** (feature 00070 — `vercel.json` ยืนยัน) | **`*/30 * * * *`** | **ทุก 30 นาที** · cleanup รวมใน tick แรกหลัง 03:00 ไทย (= tick ที่ตกใน 03:00–03:29) ไม่เพิ่ม cron · **EXT-LINK:** ล้าง `LineReportSnapshot.payload` ที่หมดอายุ/กลุ่ม REMOVED ทุก tick (ไม่ผูก 03:00) — ผลคืน `snapshotsPurged` · ลบแถวโครงเก่า >30 วันใน cleanup 03:00 — ผลคืน `snapshotsDeleted` |
 | **`/api/cron/meta-audience`** (feature 00092 — `vercel.json`) | **`*/5 * * * *`** | ทุก 5 นาที · `maxDuration` 60 · `sweepMetaAudience` (จองร้านด้วย `lockedAt` → เติมย้อนหลังถ้า `backfilledAt` ว่าง → สร้าง audience → ส่ง ADD/REMOVE ≤10,000/คำขอ) · ร้านหนึ่งล้มไม่บล็อกร้านอื่น · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · ผลคืน `{ok, connections, added, removed, stopped, retried}` |
 | **`/api/cron/meta-capi`** (feature 00089 — `vercel.json` ยืนยัน) | **`* * * * *`** | **ทุกนาที** · route แยกจาก `chat-outbox` โดยตั้งใจ · `maxDuration` 60 · ลำดับ `sweepMetaCapi` (ส่งคิว ≤100 แถว) → `sweepCartAbandoned` (try/catch แยก) → `purgeOldMetaCapiEvents` (>180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ)) · export เฉพาะ `GET` · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · ผลคืน `{ok, sent, failed, retried, stopped, skipped, cartAbandoned, purged}` |
+| **`/api/cron/sales-follow-bot`** (feature 00095 — `vercel.json` ยืนยัน) | **`* * * * *`** | **ทุกนาที** · route แยกจาก `chat-outbox` โดยตั้งใจ (outbox คือตัวการันตีของแชททั้งระบบ ไม่ควรแบ่งงบ 60 วินาทีกับงานที่หนักกว่า) · `maxDuration` 60 · งบ tick 40 วินาที + sweep 5 วินาที (`TICK_BUDGET_MS`) · `runSalesFollowTick` ตามลำดับ: (0) กวาด `SalesFollowSend` ที่ค้าง `SENDING` >10 นาที (`SENDING_STALE_MS`) — ปิดตามฟองจริง หรือ `UNCERTAIN_SEND` (ไม่ยิงซ้ำ) → (1) ประเมิน+ส่ง run ที่ `ACTIVE` ≤50 run/รอบ (`EVALUATE_LIMIT`) → (2) แนบ run ใหม่ให้ห้องที่เข้าเงื่อนไข ≤200 ห้อง/รอบ (`ATTACH_ROOM_LIMIT` · ข้ามขั้นนี้ถ้างบหมดแล้ว) · ล้มทีละ run/ขั้น ไม่ throw · ผลคืน `{shops, swept, evaluated, stopped, held, sent, skipped, failed, attached, timedOut}` · auth `Bearer ${CRON_SECRET}` (ว่าง = 401) · export เฉพาะ `GET` |
 
 **`/api/cron/inspection-lifecycle` (เมื่อ implement แล้ว) ทำ 4 งานในครั้งเดียว:** (1) ตัดเครดิตรอบ
 30 วัน + จัดการ `canceledAt`/`graceUntil`/`status`/`lapsedReason` (2) รันข้อตรวจอัตโนมัติของขั้น 1
@@ -2756,7 +2804,7 @@ webhook หลังลายเซ็นผ่านตอบ 200 เสมอ 
 - `rooms[]`: `{ id, name, platform, pageId, state:'WAITING'|'AT_DESK', askedAt, lastInboundAt, repliedAt, desk }` · `desk` = `null` (WAITING) หรือ `{kind:'ADMIN',userId}|{kind:'EXTERNAL'}|{kind:'META_AI'}|{kind:'BOT'}` · รอคำตอบ ≤ 200 ห้อง/7 วัน (`awaiting.capped=true` เมื่อมี ≥ 201) · เพิ่งตอบ ≤ 180 วินาที
 - `members[]`: `{ userId, name, role:'OWNER'|'ADMIN', canChat, presenceKey }` — `canChat` = ถือ H1 จริง · `presenceKey` ทึบ (HMAC)
 - `daily`: `{ status:'OK'|'UNAVAILABLE', asOf, firstResponseAvgSec, responseAvgSec, responseSampleCount, unattributedReplyCount, answeredOutsideSystemConversations, resolvedToday }` — `null` = ไม่มีตัวอย่าง (UI แสดง "—" ไม่ใช่ 0) · เวลาไทยผ่าน `thaiTodayBounds` · ตัวเลขเวลาตอบมาจาก `getShopResponseSummary` (นิยามเดียวกับ `/reports/agents` 00059) · แคช 60 วินาที/ร้าน/อินสแตนซ์ · เป็นของ "ทั้งร้าน" ไม่ตามตัวกรอง
-- ห้ามมีใน payload: เบอร์โทร · อีเมล · token · avatar · เนื้อข้อความ · บรรทัดระบบ (`INTERNAL_MESSAGE_TYPES` = `AUTO_ORDER_RESULT` + `META_NOTICE`) ไม่นับเป็นคนตอบ
+- ห้ามมีใน payload: เบอร์โทร · อีเมล · token · avatar · เนื้อข้อความ · บรรทัดระบบ (`INTERNAL_MESSAGE_TYPES` = `AUTO_ORDER_RESULT` + `META_NOTICE` + `FOLLOW_BOT_NOTE` (00095)) ไม่นับเป็นคนตอบ
 - error: 400 `INVALID_QUERY` · 401 `unauthorized` · 403 `FORBIDDEN_ROLE` (ไม่ถือ X7 หรือ `shopId` ไม่อยู่ในชุดเจ้าของ — body ไม่มีข้อมูลร้าน) · 500 `INTERNAL`
 
 **`GET /api/chat-desk/rooms/[id]/preview`** — path `id` = `Conversation.id` (uuid; ผิดรูป → 400 `INVALID_ID`)
@@ -2978,6 +3026,33 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 | GET | `/api/cron/meta-audience` | CRON | ดู §7.20 |
 
 **ผลข้างเคียงบน endpoint เดิม:** ไม่เปลี่ยนสัญญา — `enqueueOrderCapiAfterCommit` (`meta-capi.service.ts`) เรียก `markOrderPurchaserAfterCommit` (ไม่ throw) ท้ายฟังก์ชัน ⇒ ทุก call site ของ 00089 ครอบคลุมโดยอัตโนมัติ · เพิ่ม `ads_management`/`ads_read` ใน `PENDING_REVIEW_SCOPES` (เฉพาะบัญชี role) · push `pushMetaAudienceStopped`/`pushMetaAudienceTokenExpiring` ให้ผู้ถือ `X9`
+
+### 7.37 บอทติดตามยอดขาย (`/api/shops/current/sales-follow-bot/**`, `/api/chat/conversations/[id]/follow-bot/**`, `/api/cron/sales-follow-bot`) — feature 00095
+
+> implement แล้ว **9 route file · 11 เมธอด** (ไม่ใช่ 12 ตามร่างก่อนเขียนโค้ด) · สัญญาละเอียด `docs/20 - Features/00095 - Sales Follow Bot/API.md` · ทุก route `force-dynamic` + `Cache-Control: private, no-store` (`jsonNoStore`) · กลุ่ม `/shops/current/**` = `requireShopCapability(session,'H2')` แล้ว `featureGate(shopId, vertical)` · กลุ่ม `/chat/conversations/[id]/**` ใช้ **ร้านเจ้าของห้อง** (`resolveConversationShopId`) ไม่ใช่ร้านที่ active (กล่องแชทรวม 00037 · permission-gate-follows-the-row) · ทุก query กรอง `shopId` · error รูปแบนราบ `{ error, ... }`
+
+| เมธอด | path | สิทธิ์ | สรุป |
+|---|---|---|---|
+| GET | `/api/shops/current/sales-follow-bot/bots` | **H2** | `{ bots: BotDto[] }` (ไม่รวมที่ลบ · ใหม่สุดก่อน) |
+| POST | `…/bots` | **H2** | body `{name, salesStatuses?, tags?, tagMatch?, channelIds, steps}` → **201** `BotDto` · บอทใหม่ `CLOSED` เสมอ (ไม่รับ `status`) · ตรวจชนช่องทางกับบอทที่ไม่ปิดแม้ตัวเองปิด |
+| GET | `…/bots/[id]` | **H2** | `BotDto` · ไม่พบ/ของร้านอื่น/ลบแล้ว = 404 |
+| PATCH | `…/bots/[id]` | **H2** | ส่งเฉพาะที่แก้ (`steps` ส่งทั้งชุด) + `expectedUpdatedAt` (ISO) → `BotDto & {stoppedRuns}` · **โครงรอบเปลี่ยน** (`stepStructureKey` = จำนวนรอบ + ลำดับชนิดชิ้น) → `structureRev+1` + หยุด run ที่ตามอยู่ `BOT_EDITED` + บรรทัดระบบ ในธุรกรรมเดียว · แก้ถ้อยคำ/รูป/`delayMin`/ชื่อ = ไม่หยุด |
+| DELETE | `…/bots/[id]?expectedUpdatedAt=` | **H2** | soft delete (`deletedAt`) + หยุด run ทั้งหมด `BOT_DELETED` → `{deleted:true, stoppedRuns}` · ประวัติ `SalesFollowSend` ยังอยู่ |
+| PUT | `…/bots/[id]/status` | **H2** | body `{status:'CLOSED'\|'TESTING'\|'ACTIVE', testRoomIds?, expectedUpdatedAt}` → `BotDto` · `TESTING` ต้องมี `testRoomIds` 1..20 (แทนที่ชุดเดิม · ต้องเป็นห้องของร้านบนช่องทางของบอท) · `TESTING`/`ACTIVE` ตรวจชนช่องทางซ้ำ · run ที่อยู่ก่อนถูกประเมินรอบ tick ถัดไป (ไม่หยุดทันที) |
+| GET | `…/options` | **H2** | `{ channels[] (MESSENGER/INSTAGRAM/LINE · ไม่มี DEEP), tags[{key,name}], stages[{key,label}], limits (= SALES_FOLLOW_LIMITS), variables, quickMessages[{id,title,bodyPreview,thumbUrl,imageCount}] }` |
+| GET | `…/test-rooms?channelIds=a,b&q=` | **H2** | `{ rooms[≤20] }` เรียง `lastInboundAt` ล่าสุดก่อน · `channelIds` 1..50 uuid (ผิด = 400 `VALIDATION_ERROR` `CHANNELS_REQUIRED`) · `q` ตัด 60 ตัวอักษร escape `% _ \` · ห้อง spam/ซ่อนไม่ขึ้น |
+| GET | `…/sends?cursor=&limit=` | **H2** | `{ items: SendHistoryItem[], nextCursor }` keyset `(createdAt DESC, id DESC)` · `limit` ค่าตั้งต้น 50 clamp 1..50 (ไม่ใช่ตัวเลข = 50) · **cursor ปลอม/พัง = 200 `{items:[],nextCursor:null}` ไม่ใช่ 400/500** · `step` เริ่ม 1 · `botName` = "บอทที่ถูกลบแล้ว" เมื่อบอทหาย |
+| GET | `/api/chat/conversations/[id]/follow-bot` | **H1** | แผงในห้อง: `{available:false}` (ห้อง `DEEP` · ร้านนอกรายชื่อ · ไม่ใช่ ONLINE_SALES) หรือ `{available:true, run: null \| {runId, botName, stageLabel, holdReason, holdText, awaitingShop, canStop, steps[{index,state,delayMin,sentAt,dueAt,reasonText}]}}` · ซ่อน run ที่ `decideRun` (ตัวเดียวกับ engine) บอกว่าจะหยุดด้วย `CUSTOMER_REPLIED`/`TAG_REMOVED` ทันทีโดยไม่รอ tick |
+| POST | `/api/chat/conversations/[id]/follow-bot/stop` | **H2** | หยุดบอทห้องนี้ (`ADMIN_STOPPED` + `stoppedByUserId`) → `{stopped:boolean}` · idempotent (ไม่มี run/กดซ้ำ = `false` ไม่ error ไม่เขียนบรรทัดซ้ำ) · **ไม่ผ่าน `featureGate` โดยตั้งใจ** (ร้านที่ถูกถอดยังหยุดบอทค้างได้) |
+| GET | `/api/cron/sales-follow-bot` | CRON | `Bearer ${CRON_SECRET}` (ว่าง = 401) · `maxDuration` 60 · `runSalesFollowTick` ไม่ throw (ผลคืนเป็น JSON สรุป) · แยกจาก `chat-outbox` โดยตั้งใจ — ดู §7.20 |
+
+**`BotDto`:** `{id, name, status, salesStatuses[], tags[{key,name,missing}], tagMatch, channelIds[], channels[], testRoomIds[], steps[{delayMin, parts[], adOnly}], totalDelayMin, structureRev, updatedAt, warnings[{code:'TAG_MISSING',keys[]}], activeRunCount}` · `adOnly`/`totalDelayMin` คำนวณ ไม่เก็บ · `expectedUpdatedAt` ต้องเทียบเท่า `updatedAt` (ms) — ไม่ตรง = 409 `BOT_STALE`
+
+**error (`route-errors.ts::salesFollowErrorResponse`):** 400 `VALIDATION_ERROR` `{issues:[{code,path,stepIndex?,partIndex?,name?}]}` (รหัสดู §10.26) · 400 `CHANNEL_NOT_FOUND` (ไม่มี/ของร้านอื่น/DEEP ตอบเหมือนกัน) · 400 `TAG_NOT_FOUND` `{names[]}` · 400 `TEST_ROOMS_REQUIRED` / `TEST_ROOMS_TOO_MANY` / `TEST_ROOM_NOT_FOUND` · 403 `FEATURE_NOT_ENABLED` (ร้านนอก `SALES_FOLLOW_BOT_SHOP_IDS`) · 403 `FORBIDDEN_ROLE` (บทบาทไม่ถือ H1/H2) · 404 `NOT_FOUND` · 409 `NOT_AVAILABLE_FOR_SHOP` (ไม่ใช่ `ONLINE_SALES`) · 409 `BOT_STALE` `{currentUpdatedAt}` · 409 `CHANNEL_CONFLICT` `{conflicts:[{channelId,botId,botName}]}` · 500 `INTERNAL_ERROR` (log เฉพาะชื่อชนิด error — ไม่ log ข้อความ/ข้อมูลลูกค้า)
+
+**กฎ `CHANNEL_CONFLICT` ("1 ช่องทาง 1 บอทต่อสถานะ" · `conflicts.ts::findChannelConflicts` ฟังก์ชันเดียวทั้ง client/server):** ชนเมื่อมีบอทอื่นที่ยังไม่ลบ+ไม่ `CLOSED` ใช้ช่องทางร่วมกัน และ `salesStatuses` ซ้อนกัน (ฝ่ายใดว่าง = ทุกสถานะ ซ้อนกับทุกอย่าง) · บอทที่ไม่เหลือเงื่อนไข (ไม่มีสถานะและแท็กหายหมด) ไม่ชนใคร · บันทึก/เปลี่ยนสถานะ/ลบของบอททุกตัวในร้านเรียงคิวด้วย `pg_advisory_xact_lock` ต่อร้าน
+
+**ฟิลด์ใหม่ใน payload ข้อความแชทฝั่งร้าน (ไม่เปลี่ยนสัญญา endpoint เดิม — เพิ่มคีย์ใน `chat.service.ts` · ยังไม่ได้ตรวจว่าต้องตามฝั่งแชท Native ตาม HR18 หรือไม่):** แถว `autoReplyKind='AUTO_FOLLOW'` เติม `followStep` (1-based) · `followStepCount` (ค่า ณ ตอนจองส่ง — คงเดิมแม้บอทถูกแก้/ลบ) · `followIsFirst` (ฟองแรกของรอบ — ป้าย "บอทติดตาม n/N" ให้ขึ้นเฉพาะฟองแรก) · ไม่พบแถว `SalesFollowSend` = `null`/`null`/`false` · **ผู้ซื้อไม่ได้ค่านี้**
 
 ## §8 Enums & Constants
 
@@ -3463,10 +3538,10 @@ HTTP ตามตาราง §7.21
 | `AutoNotifyKind` (5 ค่า) | `ORDER_SUMMARY` (เมื่อสร้างออเดอร์ — สรุปรายการ) · `TRACKING` (เมื่อมีเลขพัสดุ/เปลี่ยนเลข) · `SERVICE_BOOKED` (เมื่อสร้างงานบริการ/นัด) · `SERVICE_STARTED` (เมื่อเริ่มงาน) · `SERVICE_CLOSED` (เมื่อปิดงาน — ไม่ส่งถ้าลูกค้าไม่มาตามนัด) · 🛑 ใช้ **`SERVICE_CLOSED`** ไม่ใช่ `SERVICE_FINISHED` (HR16 คำว่า "ปิดงาน") · ร้านเห็นเฉพาะ kind ที่ vertical ตน ใช้ได้ (`kindsForVertical`) |
 | `AutoNotifyLedger.status` | `INTENT` · `SENT` (= ปลายทางรับแล้ว ไม่ใช่ลูกค้าอ่านแล้ว) · `FAILED` · `SKIPPED` |
 | `AutoNotifyLedger.reason` (8 ค่า · บังคับเมื่อ `FAILED`/`SKIPPED`) | `DAILY_CAP` · `EMPTY_MESSAGE` · `WINDOW_CLOSED` · `QUOTA_EXCEEDED` · `REJECTED_BY_PLATFORM` · `NOT_ELIGIBLE_ANYMORE` · `UNCERTAIN_SEND` (**เพิ่มโดยมติ Controller** — `claimedAt` ค้างไม่รู้ผล ห้ามยิงซ้ำ) · `RESEND_LIMIT` (**เพิ่มโดย D-4** — เลขพัสดุใหม่ครั้งที่ 4+) · เหตุผลที่ "ไม่บันทึก" (SWITCH_OFF / NO_ROOM / BACKDATED / ALREADY_SENT / SERVICE_NO_SHOW) ไม่อยู่ในชุด |
-| `ChatMessage.autoReplyKind` | `null` (คนส่ง) · `AUTO` (บอทตอบ) · `AUTO_TEST` (เดิม) · **`AUTO_NOTICE`** (ใหม่ — ข้อความแจ้งอัตโนมัติจากระบบ ไม่ใช่บอท) — 🛑 `AUTO_NOTICE` ยังเป็น `IS NOT NULL` จึงไม่นับเป็น "คนตอบ" แต่ **ต้องไม่ถูกนับเป็นบอท/DeepBot/DeepAI** · ผู้บริโภคที่ตีความ "ไม่ null = บอท" ต้องแก้ (`auto-reply.service`, `chat-desk/rules.ts`, `chat.service`, `InboxList`, `ThreadMessageList`, `conversations/route`) — ดู SDS §0 F-5 |
+| `ChatMessage.autoReplyKind` | `null` (คนส่ง) · `AUTO` (บอทตอบ) · `AUTO_TEST` (เดิม) · **`AUTO_NOTICE`** (ใหม่ — ข้อความแจ้งอัตโนมัติจากระบบ ไม่ใช่บอท) · **`AUTO_FOLLOW`** (feature 00095 — ฟองบอทติดตามยอดขาย · ไม่อยู่ใน `AUTO_REPLY_KINDS` · ไม่เขียน `lastSenderRole` — ดู §8.22) — 🛑 `AUTO_NOTICE` ยังเป็น `IS NOT NULL` จึงไม่นับเป็น "คนตอบ" แต่ **ต้องไม่ถูกนับเป็นบอท/DeepBot/DeepAI** · ผู้บริโภคที่ตีความ "ไม่ null = บอท" ต้องแก้ (`auto-reply.service`, `chat-desk/rules.ts`, `chat.service`, `InboxList`, `ThreadMessageList`, `conversations/route`) — ดู SDS §0 F-5 |
 | `OrderEvent.type` | +3 ค่า: ดู §8.1b |
 | env | `FB_CHAT_APP_ID` (ไม่ใช่ `META_APP_ID`) — ดู §5.3 |
-| เพดานต่อห้องต่อวัน | ค่าตั้งต้น **5** · ช่วงที่ตั้งได้ **1..20** · นับ `status IN ('INTENT','SENT')` ตั้งแต่เที่ยงคืนเวลา Asia/Bangkok |
+| เพดานต่อห้องต่อวัน | ค่าตั้งต้น **5** · ช่วงที่ตั้งได้ **1..20** · นับ `status IN ('INTENT','SENT')` ตั้งแต่เที่ยงคืนเวลา Asia/Bangkok · บอทติดตามยอดขาย 00095 **ไม่นับรวม** (ไม่เขียน/ไม่เรียก `AutoNotifyLedger` — `sales-follow-engine.service.ts` ห้ามโดยตั้งใจ) |
 | `trackingNoticeTiming` (00080) | `ON_SAVE` (ค่าตั้งต้น · แจ้งตอนบันทึกเลข) · `ON_DISPATCH` (แจ้งตอนกด "จัดส่งแล้ว") — ดู §8.16 |
 | เทมเพลต | **1..500 code point** · ตัวแปรเป็น allow-list ต่อ kind (ตาราง PRD §3.4 ของ 00078): `ORDER_SUMMARY` = `{คำเรียกรายการ}` `{รายการสินค้า}` `{ยอดสุทธิ}` `{ลิงก์คำสั่งซื้อ}` ฯลฯ · `TRACKING` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{เลขคำสั่งซื้อ}` `{ขนส่ง}` `{เลขพัสดุ}` `{ลิงก์ติดตามพัสดุ}` `{ลิงก์คำสั่งซื้อ}` · `SERVICE_*` = `{ชื่อร้าน}` `{ชื่อลูกค้า}` `{บริการ}` `{วันเวลานัด}` `{เวลาเริ่มงาน}`/`{เวลาปิดงาน}` (ตาม kind) `{ลิงก์งาน}` (ชื่อเดียวทั้ง 3 จังหวะบริการ) · ห้ามตัวแปร `internalNote` / ที่อยู่ / เบอร์ลูกค้า / ยอดที่ชำระแล้ว-ค้างชำระ (OOS-14) |
 
@@ -3567,6 +3642,30 @@ HTTP ตามตาราง §7.21
 | capability | **`X9`** = ตั้งค่า Meta CAPI = `[OWNER]` (`src/lib/shop-permissions.ts`) — ดู §9.17 |
 
 **ค่าคงที่:** dataset ≤ **3**/เพจ · `label` ≤ 60 · token ≤ 512 ไม่มีช่องว่าง · Dataset ID `^\d{1,32}$` · `testEventCode` ≤ 64 · กฎแท็ก ≤ **20**/เหตุการณ์ · `valueBaht` 0–**10,000,000** · แนบสินค้า ≤ **100** รายการ (เกิน = ไม่แนบ `contents`) · ลองใหม่ **3** ครั้ง (หลัง **1 นาที** แล้ว **5 นาที**) · เก่ากว่า **7 วัน** = `SKIPPED` · ล็อกแถวหมดอายุ **3 นาที** · เก็บแถวคิว **180 วัน (ยกเลิกแล้ว 2026-11-14 — บันทึกการส่งเก็บถาวร ไม่ลบ)** · ด่าน Lead **30 วัน** · CartAbandoned = การ์ดอายุ **24–72 ชม.** · ตัวส่ง `take` **100**/รอบ · กวาด CartAbandoned `take` **500** · `lastRequest`/`lastResponse` ตัด **4000** ตัวอักษร · log `take` ค่าตั้งต้น 20 (1–50) · `stoppedReason` ตัด 300 · วันของ `ViewContent` = เวลาไทย (+7 ชม. คงที่)
+
+### 8.22 บอทติดตามยอดขาย (feature 00095 — SSOT ฝั่งโค้ด: `src/lib/sales-follow-bot/{constants,schemas,decide,sales-stage,conflicts}.ts` · ทุกค่าเก็บเป็น String + CHECK ที่ DB — ดู §6.82)
+
+| enum / ค่าคงที่ | ค่า |
+|---|---|
+| `SalesStageKey` (7 · `SALES_STAGE_KEYS`) | `NOT_BOUGHT` ยังไม่ซื้อ · `BILLED` เปิดบิล · `ORDER_CONFIRMED` ยืนยันแล้ว · `SHIPPED` ส่งแล้ว · `COMPLETED` สำเร็จ · `PARCEL_PROBLEM` พัสดุมีปัญหา · `CANCELLED` ยกเลิก — 🛑 `ORDER_CONFIRMED` **ไม่ใช่** `Order.status='CONFIRMED'` (อันนั้นแปลว่าผู้ซื้อยืนยันรับ → ตกเป็น `COMPLETED`) · **คำนวณจากออเดอร์ล่าสุดของห้อง** (ไม่ร่าง/ไม่ใช่ทดสอบ · `selectReferenceOrder`) ไม่เก็บเป็นแท็ก/คอลัมน์ |
+| ตารางแปลงออเดอร์ → สถานะ (`classifyOrder` · ข้อแรกที่ตรงชนะ) | (1) `CANCELLED` → `CANCELLED` · (2) `RETURNED` / `LOST_ON_RETURN` / กองปัญหา (`PROBLEM`·`RETURNED`·`DELIVERY_FAILED` จาก `deriveShippingStage`) → `PARCEL_PROBLEM` · (3) `status='CONFIRMED'` → `COMPLETED` · (4) กอง `DONE`/`AWAITING_COD` → `COMPLETED` · (5) ไม่ต้องจัดส่ง + `handedOverAt` → `COMPLETED` · (6) กอง `SHIPPING` → `SHIPPED` · (7) COD หรือ `paymentConfirmedAt`/`codReceivedAt` → `ORDER_CONFIRMED` (สลิปที่แนบไม่นับ) · (8) นอกนั้น → `BILLED` · `status` นอก `PENDING\|SHIPPED\|CONFIRMED\|CANCELLED\|RETURNED` = ไม่รู้จัก (`null` ไม่เดาเป็น `NOT_BOUGHT`) · นิยามกอง "ส่ง/ถึง/ปัญหา" ใช้ `deriveShippingStage` ตัวเดียว (HR16) |
+| ระยะพักก่อนข้อความใหม่นับเป็นรอบใหม่ (`HOLD_MS` · เทียบ `>`) | `COMPLETED` 7 วัน · `SHIPPED` 14 วัน · `CANCELLED` 0 · สถานะอื่นไม่จบรอบเอง · ขอบเวลาอ่าน `ChatMessage` 30 วัน (`MESSAGE_LOOKBACK_MS`) |
+| `SalesFollowBot.status` | `CLOSED` (ค่าตั้งต้น) · `TESTING` (เฉพาะห้องทดสอบ ≤20) · `ACTIVE` · `tagMatch`: `ANY` · `ALL` |
+| ชนิดชิ้นในรอบ (`PART_KINDS`) | `TEXT` · `IMAGES` (1..5 รูป/ชิ้น) · `QUICK_MESSAGE` (ข้อความที่ใช้บ่อย — เก็บ id อ่านเนื้อหาตอนส่ง) · 🛑 **เลิก `TEXT_IMAGE`** · การ์ดสินค้า/ปุ่ม = P2 (เพิ่มค่าอย่างเดียว) |
+| ช่องทางที่ใช้ได้ (`FOLLOW_PROVIDERS`) | `MESSENGER` · `INSTAGRAM` · `LINE` — **ไม่มี `DEEP`** · กรอบโฆษณา/Meta AI ใช้เฉพาะ Meta (`META_PROVIDERS`) |
+| `SalesFollowRun.status` | `ACTIVE` · `DONE` · `STOPPED` |
+| `SalesFollowRun.stopReason` (11) | `STAGE_CHANGED` · `TAG_REMOVED` · `BOT_DISABLED` · `BOT_EDITED` · `BOT_DELETED` · `CUSTOMER_REPLIED` · `WINDOW_CLOSED` · `NOT_INTERESTED` · `OUT_OF_SCOPE` · `CONTACT_BLOCKED` · `ADMIN_STOPPED` (ข้อความไทย `STOP_REASON_TEXT` เป็น `Record` — เพิ่มรหัสแล้วต้องมีคำ) |
+| `SalesFollowRun.holdReason` (4 · พัก ไม่ใช่หยุด) | `SHOP_NOT_ENABLED` · `META_AI_HOLDING` · `AUTO_REPLY_OFF` · `CHANNEL_NOT_ACTIVE` |
+| `SalesFollowSend.status` | `SENDING` · `SENT` · `FAILED` · `SKIPPED` |
+| `SalesFollowSend.reason` (7 · บังคับเมื่อ `FAILED`/`SKIPPED`) | `PLATFORM_REJECTED` · `UNCERTAIN_SEND` (ค้าง `SENDING` >10 นาที ไม่ยิงซ้ำ) · `OTHER_APP_CONTROLS` · `LINE_QUOTA_FULL` · `META_WINDOW_REJECTED` (Meta ปฏิเสธนอกกรอบ → หยุด run `WINDOW_CLOSED` ด้วย) · `IMAGE_MISSING` · `EMPTY_MESSAGE` (ทุกชิ้นว่างหลังแทนตัวแปร — ชิ้นเดียวว่างข้ามเป็นรายชิ้น) |
+| ลำดับตัดสินต่อ run (`decideRun` · ข้อแรกที่ตรงชนะ · STOP > HOLD > WAIT) | สถานะ/ตราประทับเปลี่ยน→`STAGE_CHANGED` · แท็กไม่ผ่าน/ไม่เหลือเงื่อนไข→`TAG_REMOVED` · บอท `CLOSED`→`BOT_DISABLED` · `structureRev` ไม่ตรง→`BOT_EDITED` · ลูกค้าตอบหลังฟองบอท (ข้อความจริง)→`CUSTOMER_REPLIED` · ครบทุกรอบ→`DONE` · กรอบส่งปิด/ถึงกำหนดไม่ทัน→`WINDOW_CLOSED` · ลูกค้าไม่สนใจ→`NOT_INTERESTED` · หลุดช่องทาง/spam/ซ่อน/นอกห้องทดสอบ→`OUT_OF_SCOPE` · LINE ถูกบล็อก→`CONTACT_BLOCKED` · แล้วจึง HOLD ตามเหตุ 4 ข้อ · ร้านค้างตอบ=WAIT ไม่กำหนด · ยังไม่ถึงเวลา=WAIT · ถึงเวลา=SEND |
+| `dueAt` | `max(ร้านตอบล่าสุด, run.lastSentAt) + delayMin(รอบ)` · ไม่มีฐาน = `lastInboundAt` · `lastSentAt` ต้องเป็นเวลาฟองจริง ไม่ใช่เวลาจอง |
+| `ChatMessage.autoReplyKind` | เพิ่มค่า **`AUTO_FOLLOW`** (`AUTO_FOLLOW_KIND` ใน `src/lib/auto-reply-constants.ts`) — ฟองบอทติดตาม — 🛑 **ไม่อยู่ใน `AUTO_REPLY_KINDS`** (`AUTO`·`AUTO_TEST`) โดยตั้งใจ เพราะไม่ใช่ "บอทตอบแชท" (งานค้างของ DeepBot ใน `auto-reply.service` ต้องไม่เห็น) · ฟองนี้ **ไม่เขียน `Conversation.lastSenderRole`** (`shopSendSenderRolePatch` คืน `{}` เหมือน `AUTO_NOTICE`) ⇒ ห้องที่ลูกค้าถามค้างยังคงรอแอดมิน (จอ "รอตอบ/ยังไม่อ่าน/โต๊ะแชท 00077" ตัดสินจากค่านี้) · `lastMessageAt`/`lastMessagePreview` ยังเขียนตามปกติ · ผู้บริโภคที่ตีความ "`autoReplyKind` ไม่ null = บอทตอบ" ต้องรู้จักค่านี้ · ดูแถวรวมใน §8.15 |
+| `ChatMessage.type` | เพิ่มค่า **`FOLLOW_BOT_NOTE`** (`FOLLOW_BOT_NOTE_TYPE` ใน `src/lib/auto-order-message-type.ts`) = บรรทัดระบบ "บอทหยุด" เป็นสมาชิกตัวที่ 3 ของ `INTERNAL_MESSAGE_TYPES` (`AUTO_ORDER_RESULT` · `META_NOTICE` · `FOLLOW_BOT_NOTE`) · ส่งไม่ได้ (อยู่ใน `StoredMessageType` เท่านั้น) · ไม่ใช่ "ร้านตอบ" · Realtime ไม่ยิง `shop_reply` (migration `…100100`) |
+
+**ขีดจำกัด (`SALES_FOLLOW_LIMITS` — ใช้ทั้ง `schemas.ts` และ `options.limits` ของ API):** รอบ ≤ **10** · ชิ้นต่อรอบ ≤ **5** (`maxParts`) · รูปต่อชิ้น ≤ **5** (`maxImagesPerPart`) · ข้อความต่อชิ้น ≤ **1,000** code point (`maxText`) · `fileId`/`quickMessageId` ≤ **120** ตัวอักษร (`maxIdLength`) · ชื่อบอท ≤ **60** · ห้องทดสอบ ≤ **20** · ช่องทาง ≤ **50**/บอท · แท็ก ≤ **20**/บอท · `delayMin` ≥ **1** (จำนวนเต็ม) · เวลาสะสมทุกรอบ ≤ **10,020** นาที (6 วัน 23 ชม. = กรอบโฆษณา 7 วันหัก 1 ชม.) · รอบที่เวลาสะสม > **1,380** นาที (23 ชม.) ติดป้าย `adOnly` = ส่งได้เฉพาะลูกค้า Meta ที่ทักจากโฆษณา · ตัวแปรในข้อความมี `{ชื่อ}` ตัวเดียว (`ALLOWED_VARIABLES`) — ไม่มีชื่อ = ตัดตัวแปรพร้อมช่องว่างที่ซ้อน (ไม่ใช้ `customerDisplayName` ของ 00078 ที่คืน "ลูกค้า") · ถ้าเพดานรอบ/ชิ้นเปลี่ยนต้องไล่ CHECK ที่ DB พร้อมกัน (`SalesFollowBot_steps_check` · `…Run_nextStep_check` · `…Send_step_check` · `…Send_stepCount_check`) · engine: งบ tick 40 วินาที · ประเมิน ≤50 run · แนบ ≤200 ห้อง/รอบ · `SENDING` ค้าง >10 นาที = ไม่รู้ผล
+
+**หน้าต่างส่งของ Meta (ส่วนที่บอทพึ่ง — SSOT `src/lib/messaging-window.ts` + `src/services/ad-window.service.ts`):** ไม่ใช่ 24 ชม. ตายตัว — หน้าต่างมาตรฐาน `MESSAGING_WINDOW_MS` = 24 ชม. นับจากข้อความล่าสุดของลูกค้า · ลูกค้าที่ข้อความแรกเกิดหลังคลิกโฆษณา Click-to-Messenger/Direct ได้กรอบโฆษณา `AD_WINDOW_MS` = 7 วันหัก 1 ชม. (เผื่อคิว/นาฬิกาเหลื่อม) นับจากข้อความนั้น (ข้อความอัตโนมัติ/โปรโมชันส่งได้ ไม่ต้องติด tag) · `getWindowState` เลือกที่หมดช้ากว่า (`viaAd` = มาตรฐานหมดแล้วแต่กรอบโฆษณายังเปิด) · `HUMAN_AGENT_WINDOW_MS` 7 วัน ใช้ได้เฉพาะ "คนพิมพ์เอง" — **บอท/ส่งอัตโนมัติห้ามใช้** · จุดตัดสิน "ส่งได้ไหม" ของ Meta ต้องผ่าน `getWindowStateWithAd` (ไม่เรียก `getWindowState` ตรงโดยไม่ส่ง `adWindowStartAt`) · บอทติดตามตัดสินใน `decideRun` ด้วย `getWindowState` ที่รับ `adWindowStartAt` จาก facts (LINE ไม่มีกรอบโฆษณา) · แก้บั๊ก 2026-11-16: ก่อนหน้านี้คิด 24 ชม. ทั้งที่โฆษณาให้ 7 วัน → auto-notify 00078 โดน `WINDOW_CLOSED` (22 ใบ/30 วัน)
 
 ---
 
@@ -3877,6 +3976,23 @@ HTTP ตามตาราง §7.21
 ### 9.18 Custom Audience ลูกค้าที่ซื้อแล้ว (feature 00092 — capability `X9`)
 
 > ใช้ `X9` เดียวกับ 00089 (เจ้าของเท่านั้น — ข้อมูลลูกค้าออกนอกระบบ) · ทะเบียน `route-capabilities.ts` (`DECLARED`): `shops/meta-audience/route.ts {GET,PUT,DELETE}` · `shops/meta-audience/connect/route.ts {POST}` · `shops/meta-audience/accounts/route.ts {GET}` · `meta-audience/connect/route.ts {GET}` · `meta-audience/callback/route.ts {GET}` ทั้งหมด `X9` · cron = CRON · ต้นทาง `docs/20 - Features/00092 - Purchaser Custom Audience Sync/SRS.md`
+
+### 9.19 บอทติดตามยอดขาย (feature 00095 — capability `H2` เขียน/ตั้งค่า · `H1` อ่านแผงในห้อง)
+
+> `H1` และ `H2` = `[O, M, C]` ใน `src/lib/shop-permissions.ts` (เจ้าของ · ผู้ดูแล · ตอบแชท) · **ทุกคนที่ตอบแชทได้แก้บอทได้** (มติผู้ใช้ — ไม่มีหน้าแบบอ่านอย่างเดียว · ไม่มีสิทธิ์ใหม่ ไม่ใช้ `X*`) · ต้นทาง `docs/20 - Features/00095 - Sales Follow Bot/BRD.md` §0
+
+| การกระทำ | OWNER | MANAGER | CHAT | BILLING | TECHNICIAN | ไม่ล็อกอิน |
+|---|---|---|---|---|---|---|
+| เปิดหน้า `/settings/sales-follow-bot` (+ `/new` · `/[id]`) · ดู/สร้าง/แก้/ลบ/เปลี่ยนสถานะบอท · ตัวเลือกฟอร์ม · ค้นห้องทดสอบ · ดูประวัติการส่ง (`H2`) | ✓ | ✓ | ✓ | `NoPermissionCard` / 403 `FORBIDDEN_ROLE` | `NoPermissionCard` / 403 | 401 |
+| หยุดบอทในห้อง `POST …/follow-bot/stop` (`H2`) | ✓ | ✓ | ✓ | 403 | 403 | 401 |
+| อ่านแผงบอทในห้อง `GET …/follow-bot` (`H1`) | ✓ | ✓ | ✓ | 403 | 403 | 401 |
+| `GET /api/cron/sales-follow-bot` | — | — | — | — | — | `Bearer CRON_SECRET` มิฉะนั้น 401 |
+
+- ทะเบียน `src/lib/route-capabilities.ts` (`status:'DECLARED'` ทุกไฟล์): 3 หน้า `settings/sales-follow-bot/{page,new/page,[id]/page}.tsx {page:'H2'}` · `shops/current/sales-follow-bot/bots/route.ts {GET,POST:'H2'}` · `bots/[id]/route.ts {GET,PATCH,DELETE:'H2'}` · `bots/[id]/status/route.ts {PUT:'H2'}` · `options/route.ts {GET:'H2'}` · `test-rooms/route.ts {GET:'H2'}` · `sends/route.ts {GET:'H2'}` · `chat/conversations/[id]/follow-bot/route.ts {GET:'H1'}` · `follow-bot/stop/route.ts {POST:'H2'}` (cron จัดคลาส CRON ตามปกติ — ไม่ปรากฏในทะเบียนนี้)
+- **เงื่อนไขเพิ่มจากบทบาท:** ร้านต้องอยู่ใน `SALES_FOLLOW_BOT_SHOP_IDS` (§5.7) **และ** `Shop.vertical='ONLINE_SALES'` — ไม่ผ่าน = 403 `FEATURE_NOT_ENABLED` / 409 `NOT_AVAILABLE_FOR_SHOP` (หน้า = "เร็ว ๆ นี้") · ด่านสิทธิ์อยู่ **ก่อน** ด่านร้านนำร่อง ⇒ บทบาทไม่ถึงเห็น `NoPermissionCard` ไม่ใช่ "เร็ว ๆ นี้" · ซ่อนเมนูไม่ใช่ด่าน (ด่านจริงอยู่ที่หน้า/route/service)
+- **ตามแถว ไม่ใช่ตามจอ:** route ฝั่งห้องแชทใช้ร้านเจ้าของห้อง (`resolveConversationShopId`) ไม่ใช่ร้านที่ active · ไม่มีห้อง/ไม่ใช่สมาชิกร้านนั้น = 404 `NOT_FOUND` · ทุก service รับ `shopId` จาก session แล้วกรองใน `where` แรก (ไม่มี RLS) — บอท/ช่องทาง/ห้อง/แท็ก/ข้อความที่ใช้บ่อย/รูปของร้านอื่น = ไม่พบ (`CHANNEL_NOT_FOUND` · `NOT_FOUND` · `PART_IMAGE_NOT_FOUND` — ตอบเหมือนกันทุกกรณีไม่บอกว่ามีในร้านอื่น)
+- `…/follow-bot/stop` ไม่ผ่านด่านร้านนำร่องโดยตั้งใจ — ร้านที่ถูกถอดยังหยุดบอทที่ค้างได้ (ยังต้องมี `H2`)
+- ผู้ซื้อ: ไม่มีสิทธิ์ใด ๆ · ฟิลด์ `followStep/followStepCount/followIsFirst` ไม่ถูกส่งให้ผู้ซื้อ
 
 ## §10 Validation Rules
 
@@ -4392,7 +4508,26 @@ Valibot (feature-local, ข้อความไทย) · body ที่ parse 
 | `AudienceUpdateSchema` | `{enabled: boolean}` |
 | `AudienceConnectSchema` | `v.variant('mode')`: `MANUAL` = `{adAccountId, token}` (`token` trim 10–512) · `OAUTH` = `{adAccountId}` · `adAccountId` ตัด `act_` นำหน้า แล้วต้อง `^[0-9]{5,20}$` |
 
+### §10.26 บอทติดตามยอดขาย — Valibot (feature 00095 — `src/lib/sales-follow-bot/schemas.ts` · ตัวเลขทั้งหมดมาจาก `SALES_FOLLOW_LIMITS` ที่ `constants.ts` — ดู §8.22)
+
+**2 ชั้น:** (ก) โครงชนิดข้อมูลด้วย Valibot → ผิดชนิด = issue เดียวต่อจุด (`mapStructuralIssue`) · (ข) ชนิดถูกแล้วตรวจ semantic ครบทุกข้อด้วย `validateBotFields`/`validateSteps` (คืน **ทุก** issue ไม่หยุดที่ข้อแรก) · `parseCreateBot` normalize ก่อน (trim ชื่อ/แท็ก/ข้อความ/`quickMessageId`) · ผิดทั้งสองชั้น = 400 `VALIDATION_ERROR` `{issues:[{code, path, stepIndex?, partIndex?, name?}]}` · `adOnly` ที่ client ส่งมาถูกทิ้ง (`v.object` ไม่เก็บคีย์เกิน — คำนวณฝั่งเซิร์ฟเวอร์เท่านั้น)
+
+| schema | กฎ |
+|---|---|
+| `CreateBotSchema` (POST) | `{name, salesStatuses? (default []) ⊆ 7 key, tags? (default []) ชื่อแท็ก, tagMatch? (default 'ANY'), channelIds uuid[], steps}` — **ไม่รับ `status`** (บอทใหม่ `CLOSED`) |
+| `UpdateBotSchema` (PATCH) | ฟิลด์ข้างบนเป็น optional ทั้งหมด + `expectedUpdatedAt` (ISO timestamp · **บังคับ**) · ผลรวมกับบอทเดิมต้องผ่าน `validateBotFields` อีกรอบ (`NO_CONDITION` ข้ามฟิลด์) |
+| `ChangeStatusSchema` (PUT status) | `{status ∈ CLOSED\|TESTING\|ACTIVE, testRoomIds? uuid[], expectedUpdatedAt}` · `testRoomsProblem`: `TESTING` ต้องมีห้องไม่ซ้ำ 1..20 — ขาด = `TEST_ROOMS_REQUIRED` · เกิน = `TEST_ROOMS_TOO_MANY` (400) · สถานะอื่นไม่ตรวจ |
+| `ExpectedUpdatedAtQuerySchema` (DELETE) | query `expectedUpdatedAt` ISO |
+| test-rooms query | `channelIds` คั่น comma → uuid ไม่ซ้ำ 1..50 (ผิด = `CHANNELS_REQUIRED`) |
+| ชิ้น (`PartSchema` · `v.variant('kind')`) | `TEXT {text}` · `IMAGES {fileIds: string≤120[]}` · `QUICK_MESSAGE {quickMessageId: string≤120}` |
+
+**`BotIssueCode` (19 ค่า):** ระดับบอท — `NAME_REQUIRED` · `NAME_TOO_LONG` (>60 code point) · `NO_CONDITION` (ไม่มีทั้งสถานะและแท็ก — แท็กอย่างเดียวบันทึกได้) · `TOO_MANY_TAGS` (>20) · `CHANNELS_REQUIRED` (<1 ช่อง) · `TOO_MANY_CHANNELS` (>50) · `INVALID_BODY` · ระดับรอบ (`stepIndex`) — `STEPS_COUNT` (นอก 1..10) · `STEP_DELAY_MIN` (`delayMin` ไม่ใช่จำนวนเต็ม ≥1) · `STEPS_TOTAL_TOO_LONG` (ผลรวม `delayMin` >10,020 — ชี้รอบที่ทำให้เกิน · ข้ามการตรวจนี้เมื่อมีรอบที่ `delayMin` ใช้ไม่ได้) · `PARTS_COUNT` (นอก 1..5) · ระดับชิ้น (`stepIndex`+`partIndex`) — `PART_KIND_INVALID` · `PART_TEXT_REQUIRED` · `PART_TEXT_TOO_LONG` (>1,000 code point) · `PART_TEXT_INVALID` (มี NUL หรือ surrogate เดี่ยว) · `PART_IMAGES_COUNT` (นอก 1..5 หรือ id ว่าง/ยาว >120) · `PART_IMAGE_NOT_FOUND` (รูปไม่ใช่ของร้าน — ตรวจที่ service หลังผ่านชั้นนี้ · §6.82) · `QUICK_MESSAGE_REQUIRED` (ว่าง/ยาวเกิน หรือไม่ใช่ของร้านตอนเลือกใหม่) · `UNKNOWN_VARIABLE` (+`name` · อนุญาตเฉพาะ `{ชื่อ}` · รายงานครั้งเดียวต่อชื่อต่อชิ้น)
+
+**ตรวจที่ service (ไม่ใช่ Valibot):** quick message ต้องเป็นของร้าน — ตรวจเฉพาะ id ที่ **เพิ่งเลือกใหม่** (id ที่บอทเดิมถืออยู่แล้วแต่ถูกลบ ยังบันทึกได้ — รอบนั้นจะข้ามชิ้นนั้นตอนส่ง) · ชื่อแท็กต้องมีในร้าน (`TAG_NOT_FOUND`) แล้วแปลงเป็น `tagKeys` ด้วย `tagNameKey` · ช่องทางต้องเป็นของร้านและไม่ใช่ `DEEP` (`CHANNEL_NOT_FOUND`) · ชนช่องทาง (`CHANNEL_CONFLICT` — §7.37) · ห้องทดสอบต้องเป็นของร้านบนช่องทางของบอท (`TEST_ROOM_NOT_FOUND`)
+
 ---
+
+_อัปเดต 2026-11-16 (HR11): sync feature 00095 บอทติดตามยอดขาย — **เขียนจากโค้ดบน worktree `safepay-00095`** (ไม่ได้รันเทส · เทียบกับร่าง `SYSTEM-SRS-SYNC.md` แล้วแก้จุดล้าสมัยตามโค้ด) — §3.4 (3 หน้า `/settings/sales-follow-bot/**`) · §5.7 (env `SALES_FOLLOW_BOT_SHOP_IDS`) · §6.82 (5 โมเดล `SalesFollow*` + migration 2 ตัว + ด่านเจ้าของรูปใน `/api/uploads/commit`) · §7.20 (cron `/api/cron/sales-follow-bot` ทุกนาที) · §7.37 (API 9 route file / 11 เมธอด + ฟิลด์ `followStep*` ในข้อความแชท) · §8.22 (enum/ค่าคงที่ + หน้าต่างส่ง Meta/กรอบโฆษณา 7 วัน) · §8.15 + §6.1 + §7.28 (`AUTO_FOLLOW` · `FOLLOW_BOT_NOTE`) · §9.19 (สิทธิ์ `H1`/`H2`) · §10.26 (Valibot) — รายละเอียด `docs/20 - Features/00095 - Sales Follow Bot/`._
 
 _อัปเดต 2026-11-14 (HR11): sync feature 00092 ส่งรายชื่อลูกค้าที่ซื้อแล้วเข้า Custom Audience (ฝั่ง backend · UI ยังไม่ทำ) — **เขียนจากโค้ด** — §5.6 (env `OPEN_META_AUDIENCE` · `META_AUDIENCE_PILOT_SHOP_IDS`) · §6.80 (โมเดล `MetaAudienceConnection` · `MetaAudienceMember`) · §7.20 (cron `/api/cron/meta-audience` ทุก 5 นาที) · §7.36 (API 8 เมธอด) · §9.18 (สิทธิ์ X9) · §10.25 (Valibot) — รายละเอียด `docs/20 - Features/00092 - Purchaser Custom Audience Sync/`._
 

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { isBotReplyKind, isSystemNoticeKind } from '@/lib/auto-reply-constants'
+import { isBotReplyKind, isFollowBotKind, isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import {
   DEFAULT_INBOX_SORT,
   buildCustomerSortCursorWhere,
@@ -19,7 +19,7 @@ import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-r
 import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { runAfterResponse } from '@/lib/run-after-response'
-import { AUTO_ORDER_RESULT_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { AUTO_ORDER_RESULT_TYPE, FOLLOW_BOT_NOTE_TYPE, INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { buildDeltaWhere, isDeltaRequest } from '@/lib/chat-delta-query'
 import { conversationIdsByFollowUpState } from '@/services/customer-follow-up.service'
 import type { FilterState as FollowUpFilterState } from '@/lib/follow-up-rules'
@@ -34,7 +34,7 @@ export type SenderRole = 'BUYER' | 'SHOP'
 // `sendMessage()` จะยอมรับมันทันที = ระบบชนิดพลิกจาก "ห้าม" เป็น "อนุญาต" เงียบ ๆ
 // การแยกไว้แบบนี้ทำให้ `tsc` เป็นด่านที่ล้มตั้งแต่ compile ไม่ใช่รอเทสตอนรัน
 export type SendableMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
-export type StoredMessageType = SendableMessageType | typeof AUTO_ORDER_RESULT_TYPE | typeof META_NOTICE_TYPE
+export type StoredMessageType = SendableMessageType | typeof AUTO_ORDER_RESULT_TYPE | typeof META_NOTICE_TYPE | typeof FOLLOW_BOT_NOTE_TYPE
 
 export interface ConversationSummary {
   id: string
@@ -148,6 +148,14 @@ export interface ChatMessageView {
   // ถ้าร้านแก้กฎทีหลัง ข้อความเก่ายังบอกความจริง ณ ตอนนั้นได้ถูกต้อง
   // ไม่ใช่คอลัมน์ใน ChatMessage — getMessages join มาเติมให้ (null = คนพิมพ์เอง หรือหาบันทึกไม่เจอ)
   autoReply: AutoReplyTrace | null
+  /**
+   * 00095 TFR-FB-24 — ป้าย "บอทติดตาม n/N" (เฉพาะแถว AUTO_FOLLOW ฝั่งร้าน · ผู้ซื้อไม่ได้ค่า)
+   * followStep 1-based · followStepCount = จำนวนขั้น ณ ตอนจองส่ง (คงเดิมแม้บอทถูกแก้ภายหลัง) · ไม่พบแถว Send = null ทั้งคู่
+   * followIsFirst = ฟองแรกของรอบ (SRS TFR-FB-25 ให้ป้ายขึ้นเฉพาะฟองแรก — ให้ client เลือกแสดงได้ ทุกฟองของรอบได้เลขเดียวกัน)
+   */
+  followStep?: number | null
+  followStepCount?: number | null
+  followIsFirst?: boolean
   createdAt: Date
   /** watermark แกนที่ 2 ของ delta (2026-09-14) — ดู src/lib/chat-delta-query.ts
    *  🛑 แถวที่มีก่อน migration มีค่า 1970-01-01 ห้ามอ่านตรง ๆ ว่าเป็น "เวลาแก้ล่าสุด" ใช้ watermarksOf() */
@@ -711,7 +719,7 @@ export async function getMessages(
    * และเราไม่ได้พยายามปิดมัน ⇒ client ฝั่งลูกค้าที่ได้สัญญาณแล้ว refetch จะมาเจอด่านนี้
    */
   const viewerIsBuyer = conversation.buyerUserId === actorUserId
-  const internalMessageFilter = viewerIsBuyer ? { type: { notIn: [AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE] } } : {}
+  const internalMessageFilter = viewerIsBuyer ? { type: { notIn: [...INTERNAL_MESSAGE_TYPES] } } : {}
 
   const take = opts.take ?? 30
 
@@ -727,7 +735,7 @@ export async function getMessages(
       orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
       take: Math.min(take, 100),
     })
-    return { items: await attachAutoReplyTrace(conversationId, deltaRows), nextCursor: null, viewerIsBuyer }
+    return { items: await attachAutoReplyTrace(conversationId, deltaRows, viewerIsBuyer ? null : conversation.shopId), nextCursor: null, viewerIsBuyer }
   }
 
   const cursor = parseMessageCursor(opts.cursor)
@@ -758,7 +766,7 @@ export async function getMessages(
   const page = hasMore ? rows.slice(0, take) : rows
 
   return {
-    items: await attachAutoReplyTrace(conversationId, page),
+    items: await attachAutoReplyTrace(conversationId, page, viewerIsBuyer ? null : conversation.shopId),
     nextCursor: hasMore ? `${page[page.length - 1]!.createdAt.toISOString()}|${page[page.length - 1]!.seq}` : null,
     // 00086 — ผู้เรียกที่ตกแต่งข้อความ (chat-thread-messages) ใช้ตัดข้อมูลภายในร้านออกจาก payload ผู้ซื้อ
     viewerIsBuyer,
@@ -769,7 +777,22 @@ export async function getMessages(
 async function attachAutoReplyTrace(
   conversationId: string,
   page: Awaited<ReturnType<typeof prisma.chatMessage.findMany>>,
+  /** ร้านของผู้อ่าน — null = ฝั่งผู้ซื้อ (ไม่คืนป้ายบอทติดตาม) */
+  followShopId: string | null,
 ): Promise<ChatMessageView[]> {
+  // 00095 TFR-FB-24: query ชุดเดียวต่อหน้า (ไม่ N+1) · กรอง shopId ใน WHERE · ฟองของรอบ = chatMessageId หรืออยู่ใน messageIds
+  const followBy = new Map<string, { step: number; count: number; first: boolean }>()
+  const followIds = followShopId ? page.filter((m) => isFollowBotKind(m.autoReplyKind)).map((m) => m.id) : []
+  if (followShopId && followIds.length > 0) {
+    const sends = await prisma.salesFollowSend.findMany({
+      where: { shopId: followShopId, conversationId, OR: [{ chatMessageId: { in: followIds } }, { messageIds: { hasSome: followIds } }] },
+      select: { step: true, stepCount: true, chatMessageId: true, messageIds: true },
+    })
+    for (const s of sends)
+      for (const id of new Set([...(s.chatMessageId ? [s.chatMessageId] : []), ...s.messageIds]))
+        followBy.set(id, { step: s.step + 1, count: s.stepCount, first: id === (s.chatMessageId ?? s.messageIds[0]) })
+  }
+
   // feature 00023 — "ทำไมบอทตอบข้อความนี้" สำหรับ popover ใต้ป้าย "ระบบตอบ" ในเธรด
   //
   // join ผ่าน AutoReplyLog.outboundMessageId แทนการเพิ่มคอลัมน์ใน ChatMessage เพราะความสัมพันธ์นี้
@@ -836,7 +859,12 @@ async function attachAutoReplyTrace(
     }
   }
 
-  return page.map((m) => ({ ...m, autoReply: traceByMessageId.get(m.id) ?? null })) as ChatMessageView[]
+  return page.map((m) => {
+    const base = { ...m, autoReply: traceByMessageId.get(m.id) ?? null }
+    if (!followShopId || !isFollowBotKind(m.autoReplyKind)) return base
+    const f = followBy.get(m.id)
+    return { ...base, followStep: f?.step ?? null, followStepCount: f?.count ?? null, followIsFirst: f?.first ?? false }
+  }) as ChatMessageView[]
 }
 
 // ---- sendMessage (tx: insert + denorm update + Notification) ----

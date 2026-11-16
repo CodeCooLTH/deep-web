@@ -192,7 +192,7 @@ export type ChatMessageView = {
   // `SendableMessageType` ที่แคบกว่า `StoredMessageType`) ชนิดตรงนี้คือ "สิ่งที่เก็บได้"
   // จึงต้องมีค่านี้ ไม่งั้น UI จะวาดมันเป็นบับเบิลเปล่าเพราะไม่รู้จัก
   // META_NOTICE = ข้อความภายในของ Meta (แสดงกลางห้อง) — ระบบรับเข้าเท่านั้น ส่งไม่ได้เช่นกัน
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL' | 'AUTO_ORDER_RESULT' | 'META_NOTICE'
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL' | 'AUTO_ORDER_RESULT' | 'META_NOTICE' | 'FOLLOW_BOT_NOTE'
   /**
    * mid ของ Meta — รูปหลายใบในข้อความเดียวได้ `mid`, `mid#1`, `mid#2`… (convention ของ ingest)
    * ใช้เป็นเส้นแบ่ง "ก้อนอัลบั้ม" ในเธรด (user report 2026-08-04: 2 รูป + 6 รูป กลายเป็นกอง 8)
@@ -231,9 +231,12 @@ export type ChatMessageView = {
   flaggedScam?: boolean
   // feature 00018 Phase 2 — emoji ที่ลูกค้า/ร้าน react บนข้อความนี้ (message_reactions) — null=ไม่มี
   reactionEmoji?: string | null
-  // feature 00023 — null/ไม่มี = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบตอนโหมดทดสอบ | 'AUTO_NOTICE' = ข้อความระบบแจ้ง
+  // feature 00023 — null/ไม่มี = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบตอนโหมดทดสอบ | 'AUTO_NOTICE' = ข้อความระบบแจ้ง | 'AUTO_FOLLOW' = บอทติดตามยอดขาย (00095)
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   autoReplyKind?: string | null
+  // 00095 — ลำดับรอบ (0-based) + จำนวนรอบทั้งหมดของฟอง AUTO_FOLLOW (snapshot จาก SalesFollowSend) · ไม่มี = ป้ายไม่ขึ้นเลข
+  followStep?: number | null
+  followStepCount?: number | null
   // feature 00023 — เหตุผลเบื้องหลังคำตอบครั้งนั้น (snapshot จาก AutoReplyLog ตอนตัดสินใจ)
   // แสดงตอนชี้/แตะที่ป้าย "ระบบตอบ"; ทุกฟิลด์ null ได้ = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น
   autoReply?: {

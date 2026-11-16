@@ -40,13 +40,14 @@ import { detectAutoOrderTrigger } from '@/services/auto-order-detect.service'
 import { applyKeywordTags } from '@/services/shop-tag-auto.service'
 import { runAfterResponse } from '@/lib/run-after-response'
 import { chatCardPreview } from '@/lib/chat-vocab'
+import { isFollowBotKind } from '@/lib/auto-reply-constants'
 import { pushChatSendFailed } from '@/services/seller-push.service'
 
 /** แถวที่คืนออกไปให้ผู้เรียก — `rawMessage` ถูก global omit ที่ `src/lib/prisma.ts` */
 type OutboxMessageRow = Omit<ChatMessage, 'rawMessage'>
 
 /** แถวคิวเท่าที่ deliver ต้องใช้ (ซุปเปอร์เซ็ตของ `QueueRow` + คอลัมน์เจตนาการส่ง) */
-type ClaimableRow = QueueRow & { sendPayload: Prisma.JsonValue | null }
+type ClaimableRow = QueueRow & { sendPayload: Prisma.JsonValue | null; autoReplyKind: string | null }
 
 const CLAIM_SELECT = {
   id: true,
@@ -55,6 +56,7 @@ const CLAIM_SELECT = {
   deliveryStatus: true,
   sendLockedAt: true,
   sendPayload: true,
+  autoReplyKind: true,
 } as const
 
 /**
@@ -69,6 +71,7 @@ const STALE_SELECT = {
   createdAt: true,
   deliveryStatus: true,
   sendLockedAt: true,
+  autoReplyKind: true,
 } as const
 
 /** เพดานแถวที่ดึงมาตรวจ "claim ค้าง" ต่อรอบ — ปกติเป็นศูนย์ ตัวเลขนี้มีไว้กันวันที่ปลายทางล่ม */
@@ -112,7 +115,7 @@ const ROOM_CANDIDATE_MULTIPLIER = 3
  * แถวที่ถูกปิดเพราะ claim ค้าง — คืนออกไป **รายแถว** เพื่อให้ผู้เรียกแจ้งผู้ขายได้
  * (เส้นทางนี้ไม่ผ่าน `deliverHead`/`closeRow` ⇒ ตัวแจ้งที่แขวนไว้ที่นั่นมองไม่เห็นเคสนี้เลย)
  */
-export type StaleClosure = { id: string; conversationId: string; shopId: string | null }
+export type StaleClosure = { id: string; conversationId: string; shopId: string | null; autoReplyKind?: string | null }
 
 export type SweepResult = {
   rooms: number
@@ -169,7 +172,10 @@ async function notifySendFailed(
   conversationId: string,
   shopId: string | null,
   failureReason: string | null,
+  autoReplyKind?: string | null,
 ): Promise<void> {
+  // ฟองบอทติดตามยอดขาย (00095) ล้ม = ผลอยู่ในประวัติบอทแล้ว ไม่ push "ส่งไม่ออก" รบกวนร้าน
+  if (isFollowBotKind(autoReplyKind)) return
   try {
     const target = shopId ?? (await shopIdByConversation([conversationId])).get(conversationId) ?? null
     if (!target) return
@@ -448,6 +454,7 @@ async function failRow(
   shopId: string | null,
   failureReason: string,
   extra: Prisma.ChatMessageUpdateManyMutationInput = {},
+  autoReplyKind?: string | null,
 ): Promise<DeliverOutcome> {
   const closed = await closeRow(id, {
     deliveryStatus: 'FAILED',
@@ -455,7 +462,7 @@ async function failRow(
     sendPayload: Prisma.DbNull,
     ...extra,
   })
-  if (closed) await notifySendFailed(conversationId, shopId, failureReason)
+  if (closed) await notifySendFailed(conversationId, shopId, failureReason, autoReplyKind)
   return 'FAILED'
 }
 
@@ -488,6 +495,8 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
       conversationId,
       null,
       'อ่านเจตนาการส่งของข้อความนี้ไม่ออก (sendPayload เสียหาย) — กดส่งใหม่อีกครั้ง',
+      {},
+      row.autoReplyKind,
     )
   }
 
@@ -497,7 +506,7 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
   } catch (e) {
     // เพจถูกถอด / เธรดหาย / สิทธิ์หาย ระหว่างอยู่ในคิว (E-5) — ปิดแถวพร้อมเหตุผลดิบ
     // ห้ามปล่อยค้าง: แถวที่ claim แล้วไม่มีใครมาปิดจะถูกกวาดเป็น "ไม่แน่ใจ" ทั้งที่รู้ว่าไม่เคยยิง
-    return await failRow(row.id, conversationId, null, e instanceof Error ? e.message : String(e))
+    return await failRow(row.id, conversationId, null, e instanceof Error ? e.message : String(e), {}, row.autoReplyKind)
   }
 
   let result
@@ -510,6 +519,8 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
       conversationId,
       conversation.shopId,
       e instanceof Error ? e.message : String(e),
+      {},
+      row.autoReplyKind,
     )
   }
 
@@ -519,7 +530,7 @@ async function deliverHead(conversationId: string, owner: ClaimOwner): Promise<D
     return await failRow(row.id, conversationId, conversation.shopId, failureReason, {
       sendMethod,
       rawMessage: toRawMessage(conversation.channel, outboundResponse, 'outbound-response'),
-    })
+    }, row.autoReplyKind)
   }
 
   await closeRow(row.id, {
@@ -690,6 +701,7 @@ export async function sweepOutbox(opts: {
         id: row.id,
         conversationId: row.conversationId,
         shopId: shopOf.get(row.conversationId) ?? null,
+        autoReplyKind: row.autoReplyKind,
       })
     }
   }
@@ -723,7 +735,7 @@ export async function sweepOutbox(opts: {
       timedOut = true
       break
     }
-    await notifySendFailed(closedRow.conversationId, closedRow.shopId, UNCERTAIN_SEND_REASON)
+    await notifySendFailed(closedRow.conversationId, closedRow.shopId, UNCERTAIN_SEND_REASON, closedRow.autoReplyKind)
     staleNotified += 1
   }
   const staleUnnotified = staleRows.length - staleNotified

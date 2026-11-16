@@ -103,6 +103,15 @@ export async function POST(request: NextRequest) {
   if (claim.purpose === "CHAT" && !claim.conversationId) {
     const gate = await requireShopCapability(session, "H2");
     if (!gate.ok) return reject(403, "FORBIDDEN_ROLE");
+    // 00095: ลงทะเบียนเจ้าของร้านให้ไฟล์ (MediaAsset) — ฟอร์มบอทติดตามอัปรูปทางนี้ แล้ว assertOwnedImages ใช้ MediaAsset
+    // ยืนยันว่า fileId เป็นของร้าน (กัน IDOR) · เหมือนกิ่งมีเธรดข้างล่าง: ห้ามทำให้อัปโหลดล้ม · ไม่มีผลต่อคนอื่นที่ใช้ทางนี้
+    const reconciled = await reconcileUploadedFile({
+      shopId: gate.shopId,
+      fileId: claim.fileId,
+      contentType: mime,
+      size: meta.size,
+    }).catch(() => null);
+    if (reconciled) finalFileId = reconciled.fileId;
   }
 
   if (claim.purpose === "CHAT" && claim.conversationId) {

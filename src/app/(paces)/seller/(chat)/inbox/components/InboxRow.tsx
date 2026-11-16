@@ -39,6 +39,7 @@ import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-
 import { isMetaAiHolding } from '@/lib/meta-ai-holder'
 import { shouldPrefetchRow } from '@/lib/inbox-row-prefetch'
 import { rowChipOverflow } from '@/lib/inbox-row-chips'
+import FollowBotCapsule from '@/components/safepay/FollowBotCapsule'
 import { CustomerSignalPlate, hasCustomerRing } from '@/components/safepay/CustomerRingAvatar'
 
 export type InboxRowProps = {
@@ -93,7 +94,7 @@ function InboxRowImpl({
       const name =
         c.alias?.trim() || c.counterparty?.displayName || (c.channel === 'DEEP' ? 'ผู้ซื้อ' : 'ผู้ติดต่อ')
       const preview = c.lastMessagePreview ?? 'เริ่มการสนทนาแล้ว'
-      const prefix = previewPrefix('SELLER', { lastSenderRole: c.lastSenderRole, lastMessageIsSystem: c.lastMessageIsSystem, hasPreview: !!c.lastMessagePreview })
+      const prefix = previewPrefix('SELLER', { lastSenderRole: c.lastSenderRole, lastMessageIsSystem: c.lastMessageIsSystem, lastMessageIsFollowBot: c.lastMessageIsFollowBot, hasPreview: !!c.lastMessagePreview })
       const isResolved = c.resolvedAt !== null
       const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
       const contactTags = c.contactTags ?? []
@@ -406,8 +407,12 @@ function InboxRowImpl({
                   {prefix === 'YOU' && <span className="text-default-700 font-normal">คุณ: </span>}
                   {/* ข้อความระบบแจ้ง (00078): lastSenderRole ยังเป็นลูกค้าโดยตั้งใจ → ต้องบอกเองว่าไม่ใช่ลูกค้าพิมพ์ */}
                   {prefix === 'SYSTEM' && <span className="text-default-700 font-normal">{t.autoNotify.sentBySystem}: </span>}
+                  {/* บอทติดตาม (00095): ฟองของบอทไม่ใช่ "คุณ" และไม่ผ่านชิป DeepBot (enrich ตัดเป็น null แล้ว) */}
+                  {prefix === 'FOLLOW_BOT' && <span className="text-default-700 font-normal">{t.autoNotify.followBotBadge}: </span>}
                   {preview}
                 </span>
+                {/* แคปซูลบอทติดตาม (00095 UX §21) — ใต้พรีวิว ก่อนบรรทัดชิป · ไม่มี run = ไม่ render */}
+                {c.followBot && <FollowBotCapsule {...c.followBot} />}
                 {/* บรรทัด "ที่มา" (มติแบบ C 2026-08-09) — ตอบว่า "บัญชีไหน" ที่ badge มุม
                     avatar ตอบไม่ได้ เพราะ badge บอกได้แค่แพลตฟอร์ม. เบาที่สุดในแถวโดยตั้งใจ
                     (text-2xs + เทา) ไม่ให้แย่งลำดับชั้นจากชื่อลูกค้าซึ่งยังเป็นพระเอก

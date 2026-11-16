@@ -30,8 +30,14 @@ describe('cron auto-order-sweeper', () => {
   })
 
   it('[blocker] watchdog ข้ามการ์ดของฟีเจอร์เอง (กันวนดักผลลัพธ์ตัวเอง)', () => {
-    expect(SRC).toMatch(/type:\s*\{\s*not:\s*AUTO_ORDER_RESULT_TYPE\s*\}/)
+    // 00095: ตัวกรองขยายเป็นชนิดภายในทั้งชุด (การ์ดผลลัพธ์ + โน้ต Meta + บรรทัดบอทติดตาม) — ชุดต้องมีการ์ดผลลัพธ์อยู่เสมอ
+    expect(SRC).toMatch(/type:\s*\{\s*notIn:\s*\[\s*\.\.\.INTERNAL_MESSAGE_TYPES\s*\]\s*\}/)
     expect(SRC).toContain("senderRole: 'SHOP'")
+  })
+
+  it('[blocker] ชนิดภายในที่ watchdog ข้ามต้องมีการ์ดผลลัพธ์ของฟีเจอร์เอง', async () => {
+    const { INTERNAL_MESSAGE_TYPES, AUTO_ORDER_RESULT_TYPE } = await import('@/lib/auto-order-message-type')
+    expect(INTERNAL_MESSAGE_TYPES).toContain(AUTO_ORDER_RESULT_TYPE)
   })
 
   it('[blocker] reaper ไม่ลบแถวจริง และไม่แตะใบทดสอบ', () => {

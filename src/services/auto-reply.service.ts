@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { AUTO_ORDER_RESULT_TYPE, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
+import { INTERNAL_MESSAGE_TYPES } from '@/lib/auto-order-message-type'
 import { isWithinSchedule } from '@/lib/auto-reply-schedule'
 import { normalizeMessage } from '@/lib/auto-reply-normalize'
 import { getRuleSetCache, setRuleSetCache } from '@/lib/auto-reply-cache'
-import { AUTO_REPLY_KINDS, isSystemNoticeKind, type SkipReason } from '@/lib/auto-reply-constants'
+import { AUTO_REPLY_KINDS, isFollowBotKind, isSystemNoticeKind, type SkipReason } from '@/lib/auto-reply-constants'
 import { getConfig } from '@/services/auto-reply-config.service'
 import {
   matchKeywords,
@@ -724,7 +724,7 @@ export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } =
  */
 export async function enrichWithAutoReplyBadge<T extends { id: string }>(
   items: T[],
-): Promise<(T & { lastMessageAutoReplyKind: string | null; lastMessageIsAiEnhanced: boolean; lastMessageIsSystem: boolean })[]> {
+): Promise<(T & { lastMessageAutoReplyKind: string | null; lastMessageIsAiEnhanced: boolean; lastMessageIsSystem: boolean; lastMessageIsFollowBot: boolean })[]> {
   if (items.length === 0) return []
 
   const ids = items.map((i) => i.id)
@@ -752,12 +752,14 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
   return items.map((i) => {
     // AUTO_NOTICE (ข้อความระบบแจ้ง) ไม่ใช่บอทตอบแชท → ไม่ติดป้าย DeepBot/DeepAI (00078 TC-102)
     const raw = byConversation.get(i.id) ?? null
-    const kind = isSystemNoticeKind(raw) ? null : raw
+    const kind = isSystemNoticeKind(raw) || isFollowBotKind(raw) ? null : raw
     return {
       ...i,
       lastMessageAutoReplyKind: kind,
       // ข้อความล่าสุดเป็นข้อความระบบแจ้ง (AUTO_NOTICE) — แถวต้องไม่ดูเหมือนลูกค้าพิมพ์ (preview-attribution.ts)
       lastMessageIsSystem: isSystemNoticeKind(raw),
+      // ข้อความล่าสุดเป็นฟองบอทติดตามยอดขาย (00095) — พรีวิวขึ้นคำนำหน้า "บอทติดตาม:" ไม่ใช่ DeepBot
+      lastMessageIsFollowBot: isFollowBotKind(raw),
       // ต้องเช็ค kind ด้วย ไม่ใช่ดูแต่ matchedVia — เธรดที่ ChatBot เคยตอบเมื่อวาน แล้ววันนี้
       // พนักงานพิมพ์เอง ข้อความล่าสุดไม่ใช่ของบอทแล้ว ป้ายจึงต้องไม่ขึ้น
       lastMessageIsAiEnhanced: kind !== null && viaByConversation.get(i.id) === 'CHATBOT',
@@ -855,7 +857,7 @@ async function collectPendingCustomerText(
     where: {
       conversationId,
       senderRole: 'SHOP',
-      type: { not: AUTO_ORDER_RESULT_TYPE }, NOT: { type: META_NOTICE_TYPE },
+      type: { notIn: [...INTERNAL_MESSAGE_TYPES] },
       createdAt: { lte: upTo },
     },
     orderBy: { createdAt: 'desc' },

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00095 — ตัวเลือกขอบรูปลูกค้าบอกสถานะบอท</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* token จาก src/assets/css/config/_root.css (mockup เท่านั้น — โค้ดจริงใช้ class ของธีม) */
+  :root{
+    --primary:#236dc9; --primary-ink:#1e3a8a; --purple:#7b70ef; --warning:#f9bf59; --warning-ink:#92400e;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d600:#58626b; --d700:#4a5358; --d900:#313a46;
+    --card:#fff; --bg:#f6f7fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Anuphan,sans-serif;background:var(--bg);color:var(--d900);padding:24px}
+  h1{font-size:20px;margin:0 0 4px} .lead{color:var(--d600);font-size:14px;margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px}
+  .opt{background:var(--card);border-radius:4px;box-shadow:0 1px 4px rgba(130,143,163,.15);overflow:hidden}
+  .opt h2{font-size:15px;margin:0;padding:14px 16px 4px} .opt p.d{font-size:13px;color:var(--d600);margin:0;padding:0 16px 12px}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary-ink);margin-left:6px;vertical-align:middle}
+  .row{display:flex;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--d200)}
+  .row .meta{min-width:0;flex:1}
+  .nm{font-size:13px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
+  .nm span.t{font-weight:400;color:var(--d600);font-size:11px}
+  .pv{font-size:13px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note{font-size:11px;color:var(--d600);margin-top:2px}
+  /* avatar */
+  .avw{position:relative;width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .av{width:40px;height:40px;border-radius:999px;background:var(--d300);color:var(--d700);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+  .av.buyer{outline:2px solid var(--purple);outline-offset:2px}
+  .ring{position:absolute;inset:0}
+  .plate{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:999px;background:var(--purple);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card)}
+  .pf{position:absolute;bottom:2px;right:2px;width:16px;height:16px;border-radius:999px;background:var(--card);display:flex;align-items:center;justify-content:center}
+  .pf i{width:12px;height:12px;border-radius:999px;background:linear-gradient(135deg,#09f,#a033ff 60%,#ff5280)}
+  .bar{display:flex;align-items:center;gap:6px;margin-top:4px}
+  .seg{display:flex;gap:2px;width:72px} .seg b{flex:1;height:4px;border-radius:2px;background:var(--d300)}
+  .seg b.on{background:var(--primary)} .seg b.next{background:color-mix(in srgb,var(--primary) 30%,transparent)}
+  .seg.warn b.on{background:var(--warning)}
+  .bar em{font-style:normal;font-size:11px;font-weight:600;color:var(--primary-ink)} .bar em.w{color:var(--warning-ink)}
+  .chips{display:flex;gap:4px;margin-top:4px;flex-wrap:nowrap;overflow:hidden}
+  .chip{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;white-space:nowrap;background:var(--d200);color:var(--d700)}
+  .chip.st{background:color-mix(in srgb,var(--primary) 15%,transparent);color:var(--primary-ink)}
+  .chip.fu{background:color-mix(in srgb,var(--warning) 20%,transparent);color:var(--warning-ink)}
+  .chip.bad{background:color-mix(in srgb,#f7577e 15%,transparent);color:#7f1d1d}
+  .chip.more{background:transparent;color:var(--d600);padding:1px 4px}
+  .unread{min-width:18px;height:18px;border-radius:999px;background:var(--primary);color:#fff;font-size:11px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .pvr{display:flex;align-items:center;gap:8px} .pvr .pv{flex:1;min-width:0}
+  /* ===== แบบ 3 ปรับใหม่ ===== */
+  .ico{width:14px;height:14px;flex-shrink:0}
+  .cap{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 8px 3px 6px;border-radius:999px;background:color-mix(in srgb,var(--primary) 10%,transparent);border:1px solid color-mix(in srgb,var(--primary) 25%,transparent);color:var(--primary-ink)}
+  .cap.w{background:color-mix(in srgb,var(--warning) 18%,transparent);border-color:color-mix(in srgb,var(--warning) 45%,transparent);color:var(--warning-ink)}
+  .sg{display:flex;gap:3px} .sg b{width:18px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--primary) 18%,transparent)}
+  .sg b.on{background:var(--primary)} .sg b.next{background:color-mix(in srgb,var(--primary) 45%,transparent);box-shadow:inset 0 0 0 1px var(--primary)}
+  .cap.w .sg b{background:color-mix(in srgb,var(--warning) 25%,transparent)} .cap.w .sg b.on{background:var(--warning)}
+  .cap .num{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums} .cap .lbl{font-size:11px;font-weight:600}
+  .full{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .full .sg{flex:1} .full .sg b{flex:1;width:auto;height:6px}
+  .full .num{font-size:12px;font-weight:700;color:var(--primary-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .full.w .sg b.on{background:var(--warning)} .full.w .num{color:var(--warning-ink)}
+  .bbadge{position:absolute;bottom:2px;left:2px;width:18px;height:18px;border-radius:999px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card)}
+  .bbadge.w{background:var(--warning);color:var(--warning-ink)}
+  .bbadge .ico{width:12px;height:12px}
+  .nmico{display:inline-flex;align-items:center;gap:4px} .nmico .ico{color:var(--primary)}
+  .legend{font-size:12px;color:var(--d600);padding:10px 16px 14px;border-top:1px solid var(--d200);line-height:1.6}
+</style>
+</head>
+<body>
+<h1>ขอบรูปลูกค้าบอกสถานะบอทติดตาม — 3 แบบ</h1>
+<p class="lead">ขนาดจริงเท่าแถวกล่องแชท (รูป 40px) · ทุกแบบมี 5 แถว พร้อมชิปเต็มแถว (สูงสุด 2 + "+N" ตามกติกาเดิม 00078) และตัวเลขยังไม่ได้อ่าน — จำลองแชทที่มีแท็กเยอะ</p>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const ROWS=[
+  {n:'สมชาย ใจดี',i:'สม',t:'14:32',pv:'บอทติดตาม: คุณสมชาย คะ วันนี้มีโปรส่งฟรีถึงเที่ยงคืนนะคะ',sent:1,total:3,wait:false,buyer:0,chips:[['st','ยังไม่ซื้อ'],['','ถามราคา'],['more','+3']]},
+  {n:'คุณนุ่น',i:'นุ่',t:'13:58',pv:'ขอดูรูปสีอื่นได้ไหมคะ',sent:1,total:2,wait:true,buyer:0,unread:2,chips:[['fu','ติดตาม 15:00'],['','โฆษณา: โปร 11.11'],['more','+4']]},
+  {n:'มาลี ศรีสุข',i:'มา',t:'13:10',pv:'บอทติดตาม: ขอบคุณที่อุดหนุนนะคะ ได้รับของแล้ว…',sent:2,total:3,wait:false,buyer:2,chips:[['bad','ตีกลับ 1'],['st','ส่งแล้ว'],['more','+5']]},
+  {n:'ปกรณ์ วงศ์ดี',i:'ปก',t:'12:41',pv:'คุณ: ส่งเลขพัสดุให้แล้วนะคะ',sent:0,total:0,wait:false,buyer:3,chips:[['st','สำเร็จ'],['','VIP'],['more','+2']]},
+  {n:'วิภา ทองคำ',i:'วิ',t:'11:05',pv:'บอทติดตาม: สินค้าที่ถามไว้เหลือ 2 ชิ้นสุดท้ายนะคะ',sent:3,total:4,wait:false,buyer:5,unread:1,chips:[['fu','ติดตาม พรุ่งนี้'],['bad','ยกเลิก 1'],['more','+6']]},
+];
+// วงแบ่งช่อง: N ส่วนโค้ง เว้นช่องว่าง 10° · เริ่มที่ 12 นาฬิกา ตามเข็ม
+function ring(r,sent,total,wait,stroke){
+  if(!total) return '';
+  const c=26, gap=total>1?10:0, span=(360-gap*total)/total; let s='';
+  for(let k=0;k<total;k++){
+    const a0=-90+k*(span+gap)+gap/2, a1=a0+span;
+    const p=(a)=>[c+r*Math.cos(a*Math.PI/180), c+r*Math.sin(a*Math.PI/180)];
+    const [x0,y0]=p(a0),[x1,y1]=p(a1);
+    const col = k<sent ? (wait?'var(--warning)':'var(--primary)') : (k===sent && !wait ? 'color-mix(in srgb,var(--primary) 35%,transparent)' : 'var(--d300)');
+    s+=`<path d="M${x0} ${y0} A${r} ${r} 0 ${span>180?1:0} 1 ${x1} ${y1}" fill="none" stroke="${col}" stroke-width="${stroke}" stroke-linecap="round"/>`;
+  }
+  return `<svg class="ring" viewBox="0 0 52 52" aria-hidden="true">${s}</svg>`;
+}
+const pf='<span class="pf"><i></i></span>';
+function avatar(row,mode){
+  const bot=row.total>0;
+  let html='';
+  if(mode==='A'){ // บอทแทนขอบม่วงตอนบอทตาม
+    html=(bot?ring(23,row.sent,row.total,row.wait,3):'')+`<div class="av ${!bot&&row.buyer?'buyer':''}">${row.i}</div>`;
+  } else if(mode==='B'){ // สองชั้น: ม่วงใน บอทนอก
+    html=(bot?ring(25,row.sent,row.total,row.wait,2.5):'')+`<div class="av ${row.buyer?'buyer':''}" style="width:36px;height:36px">${row.i}</div>`;
+  } else { html=`<div class="av ${row.buyer?'buyer':''}">${row.i}</div>`; }
+  if(row.buyer) html+=`<span class="plate">${row.buyer}</span>`;
+  return `<div class="avw" ${bot?`role="img" aria-label="บอทติดตาม ส่งแล้ว ${row.sent} จาก ${row.total} รอบ${row.wait?' รอคุณตอบ':''}"`:''}>${html}${pf}</div>`;
+}
+function underBar(row){
+  if(!row.total) return '';
+  let b=''; for(let k=0;k<row.total;k++) b+=`<b class="${k<row.sent?'on':(k===row.sent&&!row.wait?'next':'')}"></b>`;
+  return `<div class="bar"><span class="seg ${row.wait?'warn':''}">${b}</span>${row.wait?'<em class="w">รอคุณตอบ</em>':`<em>${row.sent}/${row.total}</em>`}</div>`;
+}
+function chips(r){ return r.chips?`<div class="chips">${r.chips.map(([c,t])=>`<span class="chip ${c}">${t}</span>`).join('')}</div>`:''; }
+function smallLabel(row){ // แบบ A/B: บอกเป็นคำเล็กใต้พรีวิว เผื่อคนไม่เข้าใจวง
+  if(!row.total) return '';
+  return row.wait?'<div class="note" style="color:var(--warning-ink)">บอทรอคุณตอบ</div>':`<div class="note">บอทตาม ${row.sent}/${row.total}</div>`;
+}
+const OPTS=[
+  {k:'A',h:'1. วงบอทแทนขอบม่วงตอนบอทตาม',rec:true,d:'บอทตามอยู่ = ขอบรูปเป็นวงแบ่งช่องสีน้ำเงินตามจำนวนรอบ (ส้มเมื่อรอคุณตอบ) · เลขเคยซื้อมุมบนยังอยู่ · บอทหยุด = ขอบม่วงกลับมา',
+   legend:'ข้อดี: เด่นชัด อ่านง่ายที่สุด วงเดียวไม่รก · ข้อเสีย: ระหว่างบอทตาม ขอบม่วงหายไป (สัญญาณเคยซื้อเหลือแค่เลขมุมบน)'},
+  {k:'B',h:'2. สองชั้น: ม่วงใน · บอทนอก',d:'ขอบม่วงเดิมอยู่ชั้นใน วงบอทชั้นนอก รูปหดเหลือ 36px เพื่อให้มีที่',
+   legend:'ข้อดี: เห็นครบทั้งสองสัญญาณ · ข้อเสีย: ที่ 40px ดูแน่น สองวงสีต่างกันแย่งสายตา รูปเล็กลง'},
+  {k:'C',h:'3. ไม่แตะขอบรูป · แถบใต้ข้อความ',d:'แบบที่ส่งทำก่อนหน้า: แถบแบ่งช่อง + 1/3 ใต้พรีวิว',
+   legend:'ข้อดี: ไม่ชนขอบม่วง ชัดเรื่องตัวเลข · ข้อเสีย: กินบรรทัดเพิ่ม แถวสูงขึ้น ไม่เห็นตั้งแต่แวบแรกเท่าวงรอบรูป'},
+];
+document.getElementById('grid').innerHTML=OPTS.map(o=>`
+  <section class="opt"><h2>${o.h}${o.rec?'<span class="tag">แนะนำ</span>':''}</h2><p class="d">${o.d}</p>
+  ${ROWS.map(r=>`<div class="row">${avatar(r,o.k)}<div class="meta"><div class="nm">${r.n}<span class="t">${r.t}</span></div><div class="pvr"><div class="pv">${r.pv}</div>${r.unread?`<span class="unread">${r.unread}</span>`:''}</div>${o.k==='C'?underBar(r):smallLabel(r)}${chips(r)}</div></div>`).join('')}
+  <div class="legend">${o.legend}</div></section>`).join('');
+
+const TGT='<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>';
+function segs(r){let b='';for(let k=0;k<r.total;k++)b+=`<b class="${k<r.sent?'on':(k===r.sent&&!r.wait?'next':'')}"></b>`;return b}
+const pb=(r,extra)=>`role="progressbar" aria-valuenow="${r.sent}" aria-valuemax="${r.total}" aria-label="บอทติดตาม ส่งแล้ว ${r.sent} จาก ${r.total} รอบ${r.wait?' รอคุณตอบ':''}"`;
+function vA(r){ // แคปซูล: ไอคอนนำ + ช่องหนา + ตัวเลข/คำ
+  if(!r.total) return '';
+  return `<div class="cap ${r.wait?'w':''}" ${pb(r)}>${TGT}<span class="sg">${segs(r)}</span>${r.wait?'<span class="lbl">รอคุณตอบ</span>':''}</div>`;
+}
+function vB(r){ // แถบเต็มความกว้าง + ไอคอนบอทบนรูป (มุมล่างซ้าย)
+  if(!r.total) return '';
+  return `<div class="full ${r.wait?'w':''}" ${pb(r)}><span class="sg">${segs(r)}</span><span class="num">${r.wait?'รอคุณตอบ':`รอบ ${r.sent}/${r.total}`}</span></div>`;
+}
+function vC(r){ // ไอคอนข้างชื่อ + แถบเต็มความกว้าง
+  return vB(r);
+}
+function avPlain(r,badge){
+  let h=`<div class="av ${r.buyer?'buyer':''}">${r.i}</div>`;
+  if(r.buyer) h+=`<span class="plate">${r.buyer}</span>`;
+  if(badge && r.total) h+=`<span class="bbadge ${r.wait?'w':''}">${TGT}</span>`;
+  return `<div class="avw">${h}${pf}</div>`;
+}
+const V3=[
+  {k:'A',h:'3A. แคปซูลบอท ใต้ข้อความ',d:'ไอคอนบอทนำหน้าในแคปซูลสีอ่อน · ช่องหนา 6px · ไม่มีตัวเลข/เวลา (ผู้ใช้เลือก) · รอคุณตอบ = แคปซูลส้ม + คำ',av:false,name:false,fn:vA,legend:'เด่นเพราะเป็น "ก้อน" มีพื้นและขอบ อ่านจบในก้อนเดียว (ไอคอน · ความคืบหน้า · ตัวเลข · ถัดไปเมื่อไร)'},
+  {k:'B',h:'3B. ไอคอนบอทบนรูป + แถบเต็มกว้าง',d:'ไอคอนบอทเป็นเหรียญน้ำเงินที่มุมล่างซ้ายของรูป (มุมว่าง — บนขวา=เคยซื้อ ล่างขวา=แพลตฟอร์ม) · แถบยาวเต็มความกว้างแถว + "รอบ 1/3"',av:true,name:false,fn:vB,legend:'เห็นว่ามีบอทคุมตั้งแต่ไล่สายตาดูรูป · แถบยาวเด่นที่สุด · แต่รูปมีสัญลักษณ์ 3 มุม'},
+  {k:'C',h:'3C. ไอคอนบอทข้างชื่อ + แถบเต็มกว้าง',d:'ไอคอนบอทสีน้ำเงินต่อท้ายชื่อลูกค้า · แถบยาวเต็มความกว้าง + "รอบ 1/3"',av:false,name:true,fn:vC,legend:'รูปสะอาดเท่าเดิม · ไอคอนอยู่ในแนวสายตาที่อ่านชื่อ · แต่ชื่อยาวจะถูกตัดเร็วขึ้น'},
+];
+document.getElementById('grid').innerHTML=V3.map(o=>`
+  <section class="opt"><h2>${o.h}</h2><p class="d">${o.d}</p>
+  ${ROWS.map(r=>`<div class="row">${avPlain(r,o.av)}<div class="meta"><div class="nm"><span class="nmico">${r.n}${o.name&&r.total?`<span title="บอทติดตามอยู่" style="color:${r.wait?'var(--warning-ink)':'var(--primary)'}">${TGT}</span>`:''}</span><span class="t">${r.t}</span></div><div class="pvr"><div class="pv">${r.pv}</div>${r.unread?`<span class="unread">${r.unread}</span>`:''}</div>${o.fn(r)}${chips(r)}</div></div>`).join('')}
+  <div class="legend">${o.legend}</div></section>`).join('');
+document.querySelector('h1').textContent='แบบ 3 (แถบใต้ข้อความ) ปรับให้เด่นขึ้น + ตำแหน่งไอคอนบอท — 3 แบบ';
+</script>
+</body>
+</html>

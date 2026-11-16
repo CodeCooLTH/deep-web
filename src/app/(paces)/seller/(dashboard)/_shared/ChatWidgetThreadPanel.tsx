@@ -24,6 +24,8 @@ import { useSellerChatThread, groupByDate, type ChatProductCard } from './useSel
 import SellerEmptyState from './SellerEmptyState'
 import SellerErrorState from './SellerErrorState'
 import { toFileUrl } from '@/lib/file-url'
+import FollowBotNoteLine from '@/components/safepay/FollowBotNoteLine'
+import { FOLLOW_BOT_NOTE_TYPE } from '@/lib/auto-order-message-type'
 
 type Props = {
   conversationId: string
@@ -187,6 +189,8 @@ export default function ChatWidgetThreadPanel({ conversationId, buyerName, buyer
               </div>
 
               {g.items.map((m) => {
+                // บรรทัดระบบบอทติดตาม (00095) — กลางห้อง ไม่ใช่ฟอง เหมือน ThreadMessageList
+                if (m.type === FOLLOW_BOT_NOTE_TYPE) return <FollowBotNoteLine key={m.id} body={m.body} />
                 const mine = m.senderRole === 'SHOP'
                 return (
                   // Base ChatPage.tsx:64/79 — items-start (ไม่ใช่ items-end) + avatar ทั้งสองฝั่ง
