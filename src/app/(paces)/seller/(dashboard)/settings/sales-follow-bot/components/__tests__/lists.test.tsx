@@ -30,6 +30,7 @@ const bot = (o: Partial<BotDto> = {}): BotDto => ({
   ],
   finalAction: 'NONE',
   finalDelayMin: 1440,
+  replyHandoff: 'ADMIN',
   totalDelayMin: 1530,
   structureRev: 1,
   updatedAt: '2026-11-16T09:00:00.000Z',

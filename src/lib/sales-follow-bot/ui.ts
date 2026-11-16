@@ -7,6 +7,8 @@ import {
   SALES_FOLLOW_LIMITS as L,
   type BotStatus,
   type FinalAction,
+  type ReplyHandoff,
+  REPLY_HANDOFF_DEFAULT,
   type PartKind,
   type SalesStageKey,
   type SendReason,
@@ -96,6 +98,7 @@ export interface Draft {
   channelIds: string[]
   steps: DraftStep[]
   finalAction: FinalAction
+  replyHandoff: ReplyHandoff
   finalValue: string
   finalUnit: DelayUnit
 }
@@ -112,6 +115,7 @@ export interface BotLike {
   steps: BotStep[]
   finalAction?: FinalAction
   finalDelayMin?: number
+  replyHandoff?: ReplyHandoff
 }
 
 /**
@@ -132,6 +136,7 @@ export function toDraft(bot: BotLike, epoch = 0): Draft {
   const fin = splitDelay(bot.finalDelayMin ?? FINAL_DELAY_DEFAULT_MIN)
   return {
     finalAction: bot.finalAction ?? FINAL_ACTION_DEFAULT,
+    replyHandoff: bot.replyHandoff ?? REPLY_HANDOFF_DEFAULT,
     finalValue: String(fin.value),
     finalUnit: fin.unit,
     name: bot.name,
@@ -163,7 +168,7 @@ export function toDraft(bot: BotLike, epoch = 0): Draft {
 export function newDraft(epoch = 0): Draft {
   const p = uidPrefix(epoch)
   const step: DraftStep = { uid: `${p}r0`, value: '30', unit: 'MIN', parts: [{ ...emptyPart('TEXT'), uid: `${p}r0p0` }] }
-  return { name: '', status: 'CLOSED', testRoomIds: [], salesStatuses: [], tags: [], tagMatch: 'ANY', channelIds: [], steps: [step], finalAction: FINAL_ACTION_DEFAULT, finalValue: '1', finalUnit: 'DAY' }
+  return { name: '', status: 'CLOSED', testRoomIds: [], salesStatuses: [], tags: [], tagMatch: 'ANY', channelIds: [], steps: [step], finalAction: FINAL_ACTION_DEFAULT, replyHandoff: REPLY_HANDOFF_DEFAULT, finalValue: '1', finalUnit: 'DAY' }
 }
 
 /** ต่อรูปที่อัปโหลดเสร็จเข้าชิ้นตาม uid บนร่างล่าสุด — ใช้เป็น functional updater (อัปโหลดหลายชิ้นพร้อมกัน/ผู้ใช้แก้ระหว่างรอ ห้ามอ่านค่าเก่าจาก closure) · ชิ้นถูกลบไปแล้ว = ไม่ทำอะไร */
@@ -178,6 +183,9 @@ export function appendFileIds(d: Draft, stepUid: string, partUid: string, ids: r
 
 /** คีย์ถ้อยคำของ action ท้ายสุด (ใช้ในฟอร์ม/ตัวอย่าง/ตาราง) */
 export const FINAL_KEY = { NONE: 'finalNone', RESOLVE: 'finalResolve', HIDE: 'finalHide', SPAM: 'finalSpam' } as const satisfies Record<FinalAction, string>
+
+/** คีย์ถ้อยคำของปลายทางส่งต่อเมื่อลูกค้าตอบ (FR-FA-7) */
+export const REPLY_HANDOFF_KEY = { ADMIN: 'replyHandoffAdmin', META_AI: 'replyHandoffMetaAi' } as const satisfies Record<ReplyHandoff, string>
 
 /** เวลารอหลังตามครบของร่าง (นาที) — ไม่ถูกต้อง = 0 เพื่อแสดงผลเท่านั้น (ตัวตรวจจริงอยู่ที่ validateBotFields) */
 export const finalDelayOf = (d: Draft): number => Math.max(0, joinFinalDelay(d.finalValue, d.finalUnit))
@@ -203,12 +211,13 @@ export function fieldsOf(d: Draft): BotFields {
     channelIds: d.channelIds,
     steps: stepsOf(d),
     finalAction: d.finalAction,
+    replyHandoff: d.replyHandoff,
     finalDelayMin: joinFinalDelay(d.finalValue, d.finalUnit),
   }
 }
 
-type FieldKey = 'name' | 'salesStatuses' | 'tags' | 'tagMatch' | 'channelIds' | 'steps' | 'finalAction' | 'finalDelayMin'
-const FIELD_KEYS: readonly FieldKey[] = ['name', 'salesStatuses', 'tags', 'tagMatch', 'channelIds', 'steps', 'finalAction', 'finalDelayMin']
+type FieldKey = 'name' | 'salesStatuses' | 'tags' | 'tagMatch' | 'channelIds' | 'steps' | 'finalAction' | 'finalDelayMin' | 'replyHandoff'
+const FIELD_KEYS: readonly FieldKey[] = ['name', 'salesStatuses', 'tags', 'tagMatch', 'channelIds', 'steps', 'finalAction', 'finalDelayMin', 'replyHandoff']
 
 /** PATCH ส่งเฉพาะฟิลด์ที่เปลี่ยน — แท็กที่ถูกลบแล้วไม่ถูกส่งซ้ำถ้าผู้ใช้ยังไม่แตะช่องแท็ก (ไม่งั้น server ตอบ TAG_NOT_FOUND) */
 export function buildPatch(original: Draft, current: Draft): Partial<BotFields> {

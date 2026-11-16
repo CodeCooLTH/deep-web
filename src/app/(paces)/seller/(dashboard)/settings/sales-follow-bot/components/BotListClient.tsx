@@ -19,7 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import type { SalesStageKey } from '@/lib/sales-follow-bot/constants'
-import { FINAL_KEY, firstTextPreview, formatDuration, limitList, type DurationWords } from '@/lib/sales-follow-bot/ui'
+import { FINAL_KEY, REPLY_HANDOFF_KEY, firstTextPreview, formatDuration, limitList, type DurationWords } from '@/lib/sales-follow-bot/ui'
 import type { BotDto } from '@/services/sales-follow-bot.service'
 import { AvatarWithPlatform, StatusBadge, useDurationWords } from './sfb-ui'
 
@@ -97,6 +97,12 @@ function RhythmCell({ bot, words, t }: { bot: BotDto; words: DurationWords; t: D
         <p className="text-default-700 mt-1 flex items-start gap-1 text-xs">
           <Icon icon="flag" className="mt-0.5 shrink-0" aria-hidden="true" />
           {fmt(t.finalSummary, { d: formatDuration(bot.finalDelayMin, words), a: t[FINAL_KEY[bot.finalAction]] })}
+        </p>
+      )}
+      {bot.replyHandoff === 'META_AI' && (
+        <p className="text-default-700 mt-1 flex items-start gap-1 text-xs">
+          <Icon icon="message-reply" className="mt-0.5 shrink-0" aria-hidden="true" />
+          {fmt(t.replySummary, { a: t[REPLY_HANDOFF_KEY.META_AI] })}
         </p>
       )}
       {/* ไม่พึ่งสีอย่างเดียว: รอบแรกเป็นรอบโฆษณา = ทั้งบอทไม่ถึงลูกค้าทั่วไปเลย (เข้าใจผิดแพงที่สุด) */}

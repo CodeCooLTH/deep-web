@@ -268,3 +268,5 @@ tag any/all, สถานะ, กรอบ ตัดสินด้วยฟั�
 
 - **TD-FB-009 action ท้ายสุด:** SQL กรองหยาบ (partial index `SalesFollowRun_final_pending_idx`) → `decideFinalAction` (pure, ตรวจซ้ำ BR-FA-3) → claim ด้วย `UPDATE … SET finalActionAt WHERE finalActionAt IS NULL` ก่อนลงมือ (ล้มกลางทาง = `finalActionTaken` ว่าง) → `updateConversationState` → note · SKIP ก็ปิดแถว (finalActionAt ตั้ง) กันหยิบซ้ำ · บอท NONE = WAIT ไม่ปิดแถว
 - **TD-FB-010 ดึงสิทธิ์คืน:** หลัง deliverRoom ถ้าฟองล้ม "another app is controlling" → `mayReclaim` → `claimThreadControl` → `afterClaim` (RESEND/RETRY_LATER/SKIP) · backoff 5 นาทีหลังฟองล้มกันล้มทุก tick · ฟองเดิมล้มแน่นอน จึงส่งซ้ำไม่ซ้อน
+
+- **TD-FB-011 ส่งห้องต่อเมื่อลูกค้าตอบ (FR-FA-7):** ตัดสินด้วย `decideReplyHandoff` (pure, `thread-control.ts`) · ลงมือใน `handoffAfterCustomerReply` (engine) หลัง `stopRunWithNote` คืนแถวด้วยเหตุ `CUSTOMER_REPLIED` · เลือกทำใน cron tick แทน webhook เพื่อไม่ผูกเวลา/ความล้มเหลวของ Graph กับ webhook ขาเข้า · ล้ม = log + บรรทัดระบบแบบล้มเหลว ไม่โยน

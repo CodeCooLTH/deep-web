@@ -109,3 +109,10 @@ export async function writeFinalActionNote(conversationId: string, rounds: numbe
     data: { conversationId, senderRole: 'SHOP', senderUserId: null, autoReplyKind: null, type: FOLLOW_BOT_NOTE_TYPE, body: buildFinalActionNote(rounds, kind) },
   })
 }
+
+/** บรรทัดระบบข้อความอิสระ (ส่งห้องต่อหลังลูกค้าตอบ FR-FA-7) — insert ตรงแบบเดียวกัน */
+export async function writeNoteBody(conversationId: string, body: string): Promise<void> {
+  await prisma.chatMessage.create({
+    data: { conversationId, senderRole: 'SHOP', senderUserId: null, autoReplyKind: null, type: FOLLOW_BOT_NOTE_TYPE, body },
+  })
+}

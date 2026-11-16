@@ -52,6 +52,10 @@ export type FinalAction = (typeof FINAL_ACTIONS)[number]
 /** action ที่ทำจริง (ไม่รวม NONE) — ต้องตรง CHECK SalesFollowRun.finalActionTaken */
 export type FinalActionKind = Exclude<FinalAction, 'NONE'>
 export const FINAL_ACTION_DEFAULT: FinalAction = 'NONE'
+/** ส่วนต่อขยาย FR-FA-7: ลูกค้าตอบกลับ (บอทหยุด) ส่งห้องต่อให้ใคร — ต้องตรง CHECK SalesFollowBot.replyHandoff */
+export const REPLY_HANDOFFS = ['ADMIN', 'META_AI'] as const
+export type ReplyHandoff = (typeof REPLY_HANDOFFS)[number]
+export const REPLY_HANDOFF_DEFAULT: ReplyHandoff = 'ADMIN'
 /** ค่าตั้งต้นเวลารอ = 1 วัน · เพดาน 7 วัน (BR-FA-2) — ต้องตรง CHECK SalesFollowBot.finalDelayMin */
 export const FINAL_DELAY_DEFAULT_MIN = 1440
 export const FINAL_DELAY_MAX_MIN = 10_080

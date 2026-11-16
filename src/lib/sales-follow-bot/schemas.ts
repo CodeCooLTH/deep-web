@@ -7,6 +7,8 @@ import {
   ALLOWED_VARIABLES,
   BOT_STATUSES,
   FINAL_ACTIONS,
+  REPLY_HANDOFFS,
+  type ReplyHandoff,
   FINAL_DELAY_MAX_MIN,
   type FinalAction,
   PART_KINDS,
@@ -71,6 +73,8 @@ export interface BotFields {
   /** ส่วนต่อขยาย: ไม่ส่ง = NONE/1 วัน (create) หรือค่าเดิมของบอท (patch) */
   finalAction?: FinalAction
   finalDelayMin?: number
+  /** FR-FA-7: ไม่ส่ง = ADMIN (create) หรือค่าเดิม (patch) */
+  replyHandoff?: ReplyHandoff
 }
 
 // ── โครงชนิดข้อมูล (Valibot) — `adOnly` ที่ client ส่งมาถูกทิ้งเพราะ v.object ไม่เก็บคีย์เกิน (คำนวณฝั่งเซิร์ฟเวอร์เท่านั้น) ──
@@ -97,6 +101,7 @@ const fieldEntries = {
   channelIds: v.array(uuid),
   steps: v.array(StepSchema),
   finalAction: v.picklist(FINAL_ACTIONS),
+  replyHandoff: v.picklist(REPLY_HANDOFFS),
   // ชนิดผิด/ไม่ใช่จำนวนเต็ม = INVALID แบบเดียวกับ delayMin · ช่วง 0..7 วันตรวจใน validateBotFields (รหัสเดียวกัน)
   finalDelayMin: v.number(),
 }
@@ -111,6 +116,7 @@ export const CreateBotSchema = v.object({
   steps: fieldEntries.steps,
   finalAction: v.optional(fieldEntries.finalAction),
   finalDelayMin: v.optional(fieldEntries.finalDelayMin),
+  replyHandoff: v.optional(fieldEntries.replyHandoff),
 })
 
 /** PATCH — ส่งเฉพาะที่แก้ · ผลรวมกับบอทเดิมต้องผ่าน validateBotFields อีกรอบ (NO_CONDITION ข้ามฟิลด์) */
@@ -123,6 +129,7 @@ export const UpdateBotSchema = v.object({
   steps: v.optional(fieldEntries.steps),
   finalAction: v.optional(fieldEntries.finalAction),
   finalDelayMin: v.optional(fieldEntries.finalDelayMin),
+  replyHandoff: v.optional(fieldEntries.replyHandoff),
   expectedUpdatedAt: iso,
 })
 
@@ -160,7 +167,7 @@ export function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
   if (root === 'name') return at('NAME_REQUIRED')
   if (root === 'channelIds' && keys.length === 1) return at('CHANNELS_REQUIRED')
   if (root === 'finalDelayMin') return at('FINAL_DELAY_INVALID')
-  if (root === 'finalAction') return at('INVALID_BODY')
+  if (root === 'finalAction' || root === 'replyHandoff') return at('INVALID_BODY')
   if (root === 'steps') {
     if (keys.length === 1) return at('STEPS_COUNT')
     if (keys[2] === 'delayMin') return at('STEP_DELAY_MIN')

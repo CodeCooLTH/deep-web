@@ -26,7 +26,7 @@ import { decideRun, eligibleToAttach, mapFollowFailure, type DecideFacts } from 
 import { decideMetaAiHolding } from '@/lib/meta-ai-holder'
 import { claimThreadControl, passThreadControlToMetaAi, META_BUSINESS_AI_APP_ID } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
-import { afterClaim, BORROW_METADATA, mayReclaim, OTHER_APP_CONTROLS_RE, reclaimBackoffActive, shouldBorrowFromMetaAi } from '@/lib/sales-follow-bot/thread-control'
+import { afterClaim, BORROW_METADATA, buildReplyHandoffNote, decideReplyHandoff, mayReclaim, REPLY_HANDOFF_METADATA, OTHER_APP_CONTROLS_RE, reclaimBackoffActive, shouldBorrowFromMetaAi } from '@/lib/sales-follow-bot/thread-control'
 import { decideFinalAction } from '@/lib/sales-follow-bot/final-action'
 import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
 import { countedShopReplyWhere, realBuyerMsgWhere } from '@/lib/sales-follow-bot/message-defs'
@@ -38,7 +38,7 @@ import { loadAttachFacts, loadBots, loadDecideFacts } from '@/services/sales-fol
 import { findOwnedImageIds } from '@/services/sales-follow-images.service'
 import { updateConversationState } from '@/services/chat.service'
 import { ingestHandoverEvent } from '@/services/channel-chat.service'
-import { stopRunWithNote, stopRunsWithNote, writeFinalActionNote } from '@/services/sales-follow-note.service'
+import { stopRunWithNote, stopRunsWithNote, writeFinalActionNote, writeNoteBody } from '@/services/sales-follow-note.service'
 
 /** งบแยกของขั้น sweep (TFR-FB-16) — กันงานกวาดกินงบของงานหลัก */
 const SWEEP_BUDGET_MS = 5_000
@@ -544,11 +544,83 @@ async function borrowFromMetaAiAndSend(run: RunRow, facts: DecideFacts, now: Dat
   return true
 }
 
+/**
+ * ลูกค้าตอบกลับ → run หยุด → ส่งห้องต่อตามที่บอทตั้ง (FR-FA-7/BR-FA-10)
+ * ทำใน cron tick ไม่ใช่ใน webhook ขาเข้า: webhook ต้องตอบ Meta ไว ห้ามรอ Graph/ล้มแล้วลากให้ event หาย · ราคาที่จ่าย = ช้าได้ไม่เกิน 1 tick (นาที)
+ * เรียกเฉพาะเมื่อ stopRunWithNote คืนแถว (ผู้ชนะ UPDATE…WHERE ACTIVE คนเดียว) ⇒ หนึ่ง run หยุดหนึ่งครั้ง = idempotent โดยโครงสร้าง
+ * 🛑 ห้ามโยน — ล้มทุกกรณีแค่ log (run หยุดสำเร็จไปแล้ว)
+ */
+async function handoffAfterCustomerReply(run: RunRow, facts: DecideFacts, now: Date): Promise<void> {
+  try {
+    const [bot, conv] = await Promise.all([
+      prisma.salesFollowBot.findFirst({ where: { id: run.botId, shopId: run.shopId }, select: { replyHandoff: true } }),
+      prisma.conversation.findFirst({
+        where: { id: run.conversationId, shopId: run.shopId },
+        select: {
+          channel: true,
+          externalContact: { select: { externalUserId: true } },
+          shopChannel: { select: { accessTokenEnc: true, externalId: true, status: true } },
+        },
+      }),
+    ])
+    if (!bot || !conv) return
+    const setting = bot.replyHandoff === 'META_AI' ? 'META_AI' : 'ADMIN'
+    const sc = conv.shopChannel
+    const psid = conv.externalContact?.externalUserId
+    const canCallGraph = !!sc && sc.status === 'ACTIVE' && !!psid && (conv.channel === 'MESSENGER' || conv.channel === 'INSTAGRAM')
+    let metaAiHolds = false
+    if (canCallGraph) {
+      const last = await prisma.chatHandoverEvent.findFirst({
+        where: { pageExternalId: sc.externalId, contactExternalId: psid },
+        orderBy: { createdAt: 'desc' },
+        select: { kind: true, metadata: true },
+      })
+      // หลักฐาน Meta AI ถือห้อง = ด่านเดียวกับ mayReclaim (ไม่มีนิยามที่สอง)
+      metaAiHolds = mayReclaim({
+        channel: conv.channel,
+        metaAiHolding: facts.metaAi ? decideMetaAiHolding(facts.metaAi, now.getTime(), facts.ourMetaAppId) : false,
+        ownerAppId: facts.metaAi?.metaOwnerAppId,
+        lastHandover: last,
+      }).ok === false
+    }
+    const action = canCallGraph ? decideReplyHandoff({ channel: conv.channel, setting, metaAiHolds }) : 'NONE'
+    let failed = false
+    if (action !== 'NONE' && sc && psid) {
+      try {
+        const token = decryptToken(sc.accessTokenEnc)
+        const log = (outcome: string, kind: 'take' | 'pass' | 'request', raw: unknown, newOwnerAppId?: string | null) =>
+          ingestHandoverEvent({
+            provider: conv.channel, pageExternalId: sc.externalId, contactExternalId: psid, kind, newOwnerAppId,
+            metadata: `${REPLY_HANDOFF_METADATA}:${outcome}`, rawEvent: raw,
+          })
+        if (action === 'TAKE_BACK') {
+          const r = await claimThreadControl(token, psid, REPLY_HANDOFF_METADATA)
+          failed = r.outcome !== 'TAKEN'
+          // newOwnerAppId ต้องจริง: ingestHandoverEvent เขียน Conversation.metaOwnerAppId จากค่านี้
+          await log(r.outcome === 'FAILED' ? `FAILED_${r.reason}` : r.outcome, r.outcome === 'REQUESTED' ? 'request' : 'take', r, r.outcome === 'TAKEN' ? facts.ourMetaAppId : undefined)
+        } else {
+          const r = await passThreadControlToMetaAi(token, psid, REPLY_HANDOFF_METADATA, [META_BUSINESS_AI_APP_ID])
+          failed = r.outcome !== 'RELEASED'
+          await log(failed ? 'PASS_FAILED' : 'PASSED', 'pass', r, failed ? undefined : META_BUSINESS_AI_APP_ID)
+        }
+      } catch (e) {
+        failed = true // Graph/ถอดรหัสโทเคนล้ม = ห้องอยู่กับแอดมิน บอกในบรรทัดระบบ
+        console.error('[sales-follow-bot] ยิง Graph ส่งห้องต่อล้มเหลว', { runId: run.id, err: errTag(e) })
+      }
+    }
+    await writeNoteBody(run.conversationId, buildReplyHandoffNote({ channel: conv.channel, setting, failed }))
+  } catch (e) {
+    console.error('[sales-follow-bot] ส่งห้องต่อหลังลูกค้าตอบล้มเหลว (run หยุดแล้ว)', { runId: run.id, err: errTag(e) })
+  }
+}
+
 async function evaluateRun(run: RunRow, facts: DecideFacts, now: Date, c: Counters): Promise<void> {
   const d = decideRun(facts)
   const nowIso = now.toISOString()
   if (d.action === 'STOP') {
-    c.stopped += (await stopRunWithNote({ shopId: run.shopId, runId: run.id }, d.reason, { now })).length
+    const stopped = await stopRunWithNote({ shopId: run.shopId, runId: run.id }, d.reason, { now })
+    c.stopped += stopped.length
+    if (d.reason === 'CUSTOMER_REPLIED' && stopped.length > 0) await handoffAfterCustomerReply(run, facts, now)
   } else if (d.action === 'DONE') {
     await prisma.$executeRaw`
       UPDATE "SalesFollowRun" SET "status" = 'DONE', "finishedAt" = ${nowIso}::timestamptz, "nextDueAt" = NULL, "holdReason" = NULL, "updatedAt" = ${nowIso}::timestamptz
