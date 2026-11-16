@@ -23,12 +23,32 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
   const t = tt.adRevenue
   const rows = ads.filter((a) => a.orders > 0)
   const nameOf = (a: Ad) => adDisplayName(a.adTitle, a.adId, tt.inbox.contextBar.adIdFallback) ?? a.adId
-  const unknownSales = (a: Ad) => Math.round((a.sales - a.newSales - a.returningSales) * 100) / 100
   const acq = (a: Ad) => (a.spend !== null && a.spend > 0 && a.newCustomers > 0 ? a.spend / a.newCustomers : null)
-  const people = (n: number, sales: number, orders = false) => (
-    // บรรทัดเดียว: จำนวนเด่น · ยอดเป็นข้อมูลรองสีจาง (user 2026-11-16: แถวต้องอ่านได้ในแวบเดียว ไม่กองหลายบรรทัด)
-    <span className="whitespace-nowrap"><span className="text-default-900 font-medium">{fmt(orders ? t.ordersCount : t.peopleCount, { n: formatNumberNoSymbol(n) })}</span><span className="text-default-500 text-xs"> · {formatBaht(sales)}</span></span>
-  )
+  const d = t.dash
+  const n0 = (n: number) => formatNumberNoSymbol(n)
+  // จำนวนเด่นเป็นตัวเลขล้วน หน่วยอยู่ที่หัวคอลัมน์ (user 2026-11-16 redesign: "N คน · ฿X" ทุกช่องอ่านเทียบแถวยาก)
+  const count = (n: number) => (n > 0 ? <b className="text-default-900 font-semibold">{n0(n)}</b> : <span className="text-default-400">0</span>)
+  const showUnknown = rows.some((a) => a.unknownCustomers > 0)
+  const total = (a: Ad) => a.newCustomers + a.returningCustomers + a.unknownCustomers
+
+  /** แถบ 100% ใหม่/เดิม/ไม่ทราบ — Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/TotalSubscriber.tsx (แถบ h-1.25 rounded) ต่อเป็นสามช่วง
+   *  ความกว้างเป็น style (ค่ารายแถว) ตามท่าธีม · ค่าอ่านจาก title + sr-only ไม่พึ่งสีอย่างเดียว */
+  const mix = (a: Ad) => {
+    const n = total(a)
+    const w = (v: number) => (n > 0 ? `${(v / n) * 100}%` : '0%')
+    const label = fmt(d.mixAria, { a: n0(a.newCustomers), b: n0(a.returningCustomers), c: n0(a.unknownCustomers) })
+    return (
+      <span className="ms-auto flex w-28 items-center gap-2 xl:w-40" title={label}>
+        <span className="bg-default-100 flex h-2 flex-1 overflow-hidden rounded" aria-hidden="true">
+          <span className="bg-primary h-full" style={{ width: w(a.newCustomers) }} />
+          <span className="bg-info h-full" style={{ width: w(a.returningCustomers) }} />
+          <span className="bg-default-300 h-full" style={{ width: w(a.unknownCustomers) }} />
+        </span>
+        <span className="text-default-700 w-11 text-xs">{n > 0 ? `${Math.round((a.newCustomers / n) * 100)}%` : '—'}</span>
+        <span className="sr-only">{label}</span>
+      </span>
+    )
+  }
 
   const columns: Col<Ad>[] = [
     {
@@ -40,11 +60,32 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
         </>
       ),
     },
-    { id: 'new', header: t.custNew, align: 'end', sort: (a) => a.newCustomers, cell: (a) => people(a.newCustomers, a.newSales) },
-    { id: 'ret', header: t.custReturning, align: 'end', sort: (a) => a.returningCustomers, cell: (a) => people(a.returningCustomers, a.returningSales) },
-    { id: 'unk', header: t.custUnknown, align: 'end', sort: (a) => a.unknownCustomers, cell: (a) => people(a.unknownCustomers, unknownSales(a), true) },
-    ...(spendOk ? [{ id: 'acq', header: t.colAcqCost, align: 'end' as const, sort: (a: Ad) => acq(a), cell: (a: Ad) => { const v = acq(a); return v === null ? '—' : formatBaht(v) } }] : []),
+    // % ลูกค้าใหม่ของโฆษณานั้น (เรียงได้) — ช่องนี้กินที่ว่างระหว่างชื่อกับตัวเลขแทนช่องโล่ง
+    { id: 'mix', header: d.colMix, align: 'end', sort: (a) => (total(a) > 0 ? a.newCustomers / total(a) : null), cell: mix },
+    { id: 'new', header: `${t.custNew} (${t.peopleUnit})`, align: 'end', sort: (a) => a.newCustomers, cell: (a) => count(a.newCustomers) },
+    { id: 'ret', header: `${t.custReturning} (${t.peopleUnit})`, align: 'end', sort: (a) => a.returningCustomers, cell: (a) => count(a.returningCustomers) },
+    ...(showUnknown ? [{ id: 'unk', header: `${t.custUnknown} (${t.unit})`, align: 'end' as const, xlOnly: true, sort: (a: Ad) => a.unknownCustomers, cell: (a: Ad) => count(a.unknownCustomers) }] : []),
+    { id: 'newSales', header: d.colNewSales, align: 'end', xlOnly: true, sort: (a) => a.newSales, cell: (a) => formatBaht(Math.round(a.newSales)) },
+    { id: 'retSales', header: d.colRetSales, align: 'end', xlOnly: true, sort: (a) => a.returningSales, cell: (a) => formatBaht(Math.round(a.returningSales)) },
+    ...(spendOk ? [{ id: 'acq', header: t.colAcqCost, align: 'end' as const, sort: (a: Ad) => acq(a), cell: (a: Ad) => { const v = acq(a); return v === null ? '—' : <b className="text-default-900 font-semibold">{formatBaht(Math.round(v))}</b> } }] : []),
   ]
+
+  const sum = (k: 'newCustomers' | 'returningCustomers' | 'unknownCustomers' | 'newSales' | 'returningSales') => rows.reduce((n, a) => n + a[k], 0)
+  const newAll = sum('newCustomers')
+  const allN = newAll + sum('returningCustomers') + sum('unknownCustomers')
+  const footer = (
+    <tr className="bg-default-100/70 font-semibold">
+      <td className="text-default-900 text-sm">{fmt(t.totalRow, { n: rows.length })}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{allN > 0 ? `${Math.round((newAll / allN) * 100)}%` : '—'}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{n0(newAll)}</td>
+      <td className="text-end tabular-nums whitespace-nowrap">{n0(sum('returningCustomers'))}</td>
+      {showUnknown && <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{n0(sum('unknownCustomers'))}</td>}
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(Math.round(sum('newSales')))}</td>
+      <td className="text-end tabular-nums whitespace-nowrap max-xl:hidden">{formatBaht(Math.round(sum('returningSales')))}</td>
+      {/* ต้นทุนรวมอยู่ที่การ์ด KPI (ค่าโฆษณาทั้งหมด ÷ ลูกค้าใหม่) — แถวรวมตารางนับเฉพาะโฆษณาที่มีใบ จึงไม่คิดซ้ำให้ตัวเลขไม่ตรงกัน */}
+      {spendOk && <td />}
+    </tr>
+  )
 
   return (
     <ReportTable<Ad>
@@ -53,6 +94,7 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
       rows={rows}
       rowKey={(a) => a.adId}
       columns={columns}
+      footer={footer}
       matches={(a, q) => nameOf(a).toLowerCase().includes(q) || a.adId.toLowerCase().includes(q)}
       defaultSort={{ id: 'new', desc: true }}
       empty={fmt(t.emptyRange, { noun })}

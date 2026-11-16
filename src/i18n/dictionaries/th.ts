@@ -2399,6 +2399,7 @@ export const th = {
     custNew: 'ลูกค้าใหม่',
     custReturning: 'ลูกค้าเดิม',
     custUnknown: 'ไม่ทราบ',
+    peopleUnit: 'คน',
     peopleCount: '{n} คน',
     customerDefinition: 'ลูกค้าใหม่ = {noun}แรกของลูกค้าในร้าน · นับเฉพาะ{noun}ที่บันทึกโฆษณานั้น',
     customerTableTitle: 'รายโฆษณา',
@@ -2430,6 +2431,10 @@ export const th = {
     connectAds: 'เชื่อมบัญชีโฆษณา',
     reconnect: 'เชื่อมใหม่',
     dash: {
+      colMix: 'สัดส่วนลูกค้า',
+      colNewSales: 'ยอดลูกค้าใหม่',
+      colRetSales: 'ยอดลูกค้าเดิม',
+      mixAria: 'ลูกค้าใหม่ {a} · ลูกค้าเดิม {b} · ไม่ทราบ {c}',
       topProducts: 'สินค้าขายดี 5 อันดับ',
       collectedSub: '{p} ของยอดขาย · รอเก็บ {v}',
       salesSub: '{n} {noun} · เฉลี่ย {v}',
