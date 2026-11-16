@@ -201,6 +201,10 @@ export type SalesSeries = {
   cogsConfirmedValues?: number[]
   /** ค่าส่งเฉพาะใบที่นับเป็นยอดขาย — คู่กับ confirmedValues (v10 กำไรจากการขาย สูตรเดียวกับ /sales) */
   shippingConfirmedValues?: number[]
+  /** 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง (มิเรอร์ SalesSeries) */
+  variableValues?: number[]
+  variableConfirmedValues?: number[]
+  totalVariable?: number
   /** มีรายการที่ยังไม่ตั้งต้นทุนในช่วงนี้ — ทุกใบ / เฉพาะใบที่นับเป็นยอดขาย (กำไรเป็นเพดานบน) */
   hasMissingCost?: boolean
   hasMissingCostConfirmed?: boolean

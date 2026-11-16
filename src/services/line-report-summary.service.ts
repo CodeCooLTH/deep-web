@@ -15,7 +15,7 @@ import { listExpenses } from '@/services/expense.service'
 import { countCancelledOrders } from '@/services/cancelled-order-count.service'
 import { resolveDateRange, shiftIsoDate } from '@/lib/date-range'
 import { resolveDataCompleteness } from '@/lib/finance-tabs'
-import { EXPENSE_CATEGORY_LABEL_TH, SYSTEM_SHIPPING_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
+import { EXPENSE_CATEGORY_LABEL_TH, SYSTEM_SHIPPING_LABEL_TH, SYSTEM_VARIABLE_COST_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import { resolveShopVertical } from '@/lib/lodging'
 import { round2 } from '@/lib/round2'
 import { combineTotals, isMixedFinanceRules, canSumProfit, mergeTop3, sumDays, sumDaysSparse, dailyValues, sumTrend, type TopRow } from '@/lib/line-report/aggregate'
@@ -51,7 +51,7 @@ const TREND_DAYS = 7
  */
 export function expenseItems(
   expenses: readonly { category: string; amount: unknown }[],
-  report: { shippingCost: number; returnShippingCost: number },
+  report: { shippingCost: number; returnShippingCost: number; variableCost?: number },
 ): ExpenseItem[] {
   const by = new Map<string, ExpenseItem>()
   for (const e of expenses) {
@@ -63,6 +63,7 @@ export function expenseItems(
   const out = [...by.values()]
   if (report.shippingCost > 0) out.push({ key: 'SYS_SHIPPING', label: SYSTEM_SHIPPING_LABEL_TH, amount: report.shippingCost })
   if (report.returnShippingCost > 0) out.push({ key: 'SYS_RETURN_SHIPPING', label: 'ค่าส่งขากลับของใบคืน', amount: report.returnShippingCost })
+  if ((report.variableCost ?? 0) > 0) out.push({ key: 'SYS_VARIABLE_COST', label: SYSTEM_VARIABLE_COST_LABEL_TH, amount: report.variableCost ?? 0 })
   return out.map((i) => ({ ...i, amount: round2(i.amount) })).filter((i) => i.amount > 0).sort((a, b) => b.amount - a.amount)
 }
 
@@ -97,6 +98,7 @@ export type PnlLoad = ShopProfit & ShopFinance & {
   expenses: Awaited<ReturnType<typeof listExpenses>>
   shippingCost: number
   returnShippingCost: number
+  variableCost: number
 }
 
 /** getPnlReport ครั้งเดียวต่อ (ร้าน,ช่วง) — ป้อนกำไร · ค่าใช้จ่าย · ค่าใช้จ่ายรายวันของกราฟ · รายละเอียดค่าใช้จ่าย */
@@ -126,6 +128,7 @@ export function loadPnl(shop: ShopRef, from: string, to: string, cache: SweepCac
       expenses,
       shippingCost: report.shippingCost,
       returnShippingCost: report.returnShippingCost,
+      variableCost: report.variableCost,
     }
   })
 }

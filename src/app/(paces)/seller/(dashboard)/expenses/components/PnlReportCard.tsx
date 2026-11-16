@@ -19,7 +19,8 @@
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
 import { formatBaht, profitDisplay, netProfitFormula, pctChangeVsPrev } from '@/lib/format-money'
-import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
+import Link from 'next/link'
+import { EXPENSE_CATEGORY_LABEL_TH, SYSTEM_VARIABLE_COST_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
 import PacesStatCard from '../../_shared/PacesStatCard'
@@ -230,6 +231,17 @@ export default function PnlReportCard({
                 · {report.shippingMissingCount} ใบยังไม่ได้กรอกค่าส่ง
               </span>
             )}
+          </span>
+        </p>
+      )}
+
+      {/* ต้นทุนต่อออเดอร์ที่ร้านตั้ง (00096 P2) — อยู่ใน "ค่าใช้จ่าย" แล้ว แต่ไม่ใช่แถวที่ร้านบันทึกเอง ต้องบอกที่มา */}
+      {shopExpenseOn && report.variableCost > 0 && (
+        <p className="text-default-700 col-span-full mb-0 flex items-start gap-2 text-xs">
+          <Icon icon="package" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+          <span>
+            ในค่าใช้จ่ายรวม{SYSTEM_VARIABLE_COST_LABEL_TH} <span className="font-semibold">{formatBaht(report.variableCost)}</span>{' '}
+            <Link href="/settings/variable-costs" className="text-primary underline">ตั้งค่า</Link>
           </span>
         </p>
       )}

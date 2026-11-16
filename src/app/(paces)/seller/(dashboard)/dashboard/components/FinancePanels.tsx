@@ -22,7 +22,7 @@ import Icon from '@/components/wrappers/Icon'
 import { colorVar } from '@/utils/helpers'
 import { FINANCE_COLORS } from '@/lib/finance-colors'
 import { formatNumberNoSymbol, profitDisplay, netProfitFormula } from '@/lib/format-money'
-import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
+import { EXPENSE_CATEGORY_LABEL_TH, SYSTEM_VARIABLE_COST_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
 import { resolveDataCompleteness, shouldOfferCostSetup, shouldOfferExpenseSetup } from '@/lib/finance-tabs'
 import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
@@ -184,6 +184,12 @@ function PnlPanel({
             {data.returnShippingCost > 0 && <> และค่าส่งคืนสินค้า {formatNumberNoSymbol(data.returnShippingCost)}</>}
           </>
         )}
+        {settings.shopExpense && data.variableCost > 0 && (
+          <>
+            <br />
+            ค่าใช้จ่ายรวม{SYSTEM_VARIABLE_COST_LABEL_TH} {formatNumberNoSymbol(data.variableCost)}
+          </>
+        )}
       </p>
 
       {((settings.partCost && shouldOfferCostSetup(completeness)) || (settings.shopExpense && shouldOfferExpenseSetup(completeness))) && (
@@ -231,6 +237,7 @@ function ExpensePanel({ data, costNoun, partCost }: { data: ReportPayload; costN
   const systemRows = [
     { key: 'shipping', label: 'ค่าส่ง (จ่ายขนส่ง)', amount: data.shippingCost },
     { key: 'return-shipping', label: 'ค่าส่งคืนสินค้า', amount: data.returnShippingCost },
+    { key: 'variable-cost', label: SYSTEM_VARIABLE_COST_LABEL_TH, amount: data.variableCost },
   ].filter((r) => r.amount > 0)
 
   return (

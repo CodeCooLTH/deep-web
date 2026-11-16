@@ -14,6 +14,8 @@ vi.mock('@/lib/prisma', () => ({
     order: { findMany: vi.fn(), groupBy: vi.fn(async () => []) },
     expense: { findMany: vi.fn(), aggregate: vi.fn() },
     orderReturn: { findMany: vi.fn() },
+    // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง · null = ไม่ตั้ง
+    shop: { findUnique: vi.fn(async () => null) },
   },
 }))
 

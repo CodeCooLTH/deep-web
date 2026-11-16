@@ -17,6 +17,8 @@ export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
 /** บรรทัดค่าใช้จ่ายที่ระบบคิดเอง (ไม่มีแถว Expense) — ใช้ร่วมกับหน้าสรุปรายงาน LINE; ป้ายบนแดชบอร์ดยังเป็นสตริงตรง ๆ ใน FinancePanels/ExpenseBreakdownCard */
 export const SYSTEM_SHIPPING_LABEL_TH = 'ค่าส่ง (จ่ายขนส่ง)'
 export const SYSTEM_RETURN_SHIPPING_LABEL_TH = 'ค่าส่งคืนสินค้า'
+/** 00096 P2 — ต้นทุนผันแปรต่อออเดอร์ที่ร้านตั้ง (ค่าแพ็ก · ค่าธรรมเนียม · คอมมิชชัน) */
+export const SYSTEM_VARIABLE_COST_LABEL_TH = 'ต้นทุนต่อออเดอร์'
 
 export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
   RENT: 'ค่าเช่า',

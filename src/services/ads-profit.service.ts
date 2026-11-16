@@ -18,6 +18,8 @@ import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { MAX_ITEM_ROWS, salesOrderWhere } from '@/services/product-sales-series.service'
 import { ORDER_SELECT, pnlOrderParts, type PnlOrder } from '@/services/pnl.service'
+import { getShopVariableCosts } from '@/services/variable-cost.service'
+import type { VariableCostSettings } from '@/lib/variable-cost'
 import { getAdDetails, getAdSpend, type DetailsSource, type SpendSource } from '@/services/meta-ads-spend.service'
 import { buildProfitInsights, type ProfitInsight } from '@/lib/ads-profit-insights'
 import { getAdRevenueReport, type AdRevenueRange, type AdRevenueReport } from '@/services/ad-revenue-report.service'
@@ -79,13 +81,13 @@ const PROFIT_SELECT = {
 type ProfitOrder = PnlOrder & { adId: string | null; createdAt: Date; serviceClosedAt: Date | null }
 
 /** ตัวประกอบกำไรของใบเดียว — ใช้ทั้งรายงานและรายละเอียดโฆษณา (ผลรวมต้องตรงกัน) */
-export function orderParts(o: ProfitOrder, adj: ReturnAdjustment | undefined, serviceRules: boolean) {
-  const p = pnlOrderParts(o, adj, serviceRules)
+export function orderParts(o: ProfitOrder, adj: ReturnAdjustment | undefined, serviceRules: boolean, vc: VariableCostSettings) {
+  const p = pnlOrderParts(o, adj, serviceRules, vc)
   return {
     revenue: p.revenue,
     cogs: p.cogs,
-    // ร้านที่ไม่ใช่บริการ: หน้ากำไรไม่หักค่าส่งขาไป (มติ 2026-10-02) — ตามเป๊ะ
-    variable: serviceRules ? p.shipping : 0,
+    // ร้านที่ไม่ใช่บริการ: หน้ากำไรไม่หักค่าส่งขาไป (มติ 2026-10-02) — ตามเป๊ะ · + ต้นทุนต่อออเดอร์ที่ร้านตั้ง (00096 P2 ทุกร้าน)
+    variable: (serviceRules ? p.shipping : 0) + p.variable,
     shipping: p.shipping,
     incomplete: p.missingCost || (serviceRules && (p.shippingPending || p.shippingMissing)),
   }
@@ -102,7 +104,7 @@ export async function getAdsProfitReport(
   const span = to.getTime() - from.getTime()
   const prevFrom = new Date(from.getTime() - span)
   const spendSource = deps.spendSource ?? getAdSpend
-  const [base, serviceRules] = await Promise.all([getAdRevenueReport(shopId, vertical, range, { spendSource }), shopUsesServiceFinanceRules(shopId)])
+  const [base, serviceRules, vc] = await Promise.all([getAdRevenueReport(shopId, vertical, range, { spendSource }), shopUsesServiceFinanceRules(shopId), getShopVariableCosts(shopId)])
 
   const adWhere = { adId: { not: null }, ...chan }
   const detailsP = (deps.detailsSource ?? getAdDetails)(shopId, thaiDayKey(from), thaiDayKey(new Date(to.getTime() - 1))).catch(() => null)
@@ -139,7 +141,7 @@ export async function getAdsProfitReport(
   }
   const add = (mode: ProfitMode, list: ProfitOrder[]) => {
     for (const o of cap(list)) {
-      const x = orderParts(o, returnAdj.get(o.id), serviceRules)
+      const x = orderParts(o, returnAdj.get(o.id), serviceRules, vc)
       const p = getParts(o.adId!)[mode]
       p.orders += 1; p.revenue += x.revenue; p.cogs += x.cogs; p.variable += x.variable
       if (x.incomplete) p.incomplete += 1
@@ -220,7 +222,7 @@ export async function getAdsProfitReport(
   // ช่วงก่อน (โหมดคาดการณ์) — ไม่หักค่าส่งคืนช่วงก่อน (การ์ดเทียบเฉพาะยอด/ใบ/กำไรก่อนค่าโฆษณาโดยประมาณ)
   const prevParts = emptyParts()
   for (const o of cap(prevOrders) as ProfitOrder[]) {
-    const x = orderParts(o, returnAdj.get(o.id), serviceRules)
+    const x = orderParts(o, returnAdj.get(o.id), serviceRules, vc)
     prevParts.orders += 1; prevParts.revenue += x.revenue; prevParts.cogs += x.cogs; prevParts.variable += x.variable
   }
 
@@ -248,7 +250,7 @@ export async function getAdProfitOrders(
   range: AdRevenueRange & { adId: string; mode: ProfitMode },
 ) {
   const { from, to } = range
-  const serviceRules = await shopUsesServiceFinanceRules(shopId)
+  const [serviceRules, vc] = await Promise.all([shopUsesServiceFinanceRules(shopId), getShopVariableCosts(shopId)])
   const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
   const where = range.mode === 'expected'
     ? { ...salesOrderWhere(shopId, serviceRules, { gte: from, lt: to }), adId: range.adId, ...chan }
@@ -266,5 +268,5 @@ export async function getAdProfitOrders(
     }),
     serviceRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
   ])
-  return orders.map((o) => ({ order: o, parts: orderParts(o as unknown as ProfitOrder, returnAdj.get(o.id), serviceRules) }))
+  return orders.map((o) => ({ order: o, parts: orderParts(o as unknown as ProfitOrder, returnAdj.get(o.id), serviceRules, vc) }))
 }

@@ -125,6 +125,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/sales/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/app/page.tsx': { class: 'SELF', reason: 'ตั้งค่าของเครื่อง (โหมดแชท · 00088) — ค่าอยู่ในแอป ไม่อ่านข้อมูลร้าน/บทบาท', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/reports/page.tsx': { page: 'F1', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/variable-costs/page.tsx': { page: 'F1', status: 'DECLARED' }, // 00096 P2 ต้นทุนต่อออเดอร์
   'src/app/(paces)/seller/(dashboard)/settings/ai/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx': { page: 'H1', status: 'DECLARED' },
   // 00095 บอทติดตามยอดขาย — H2 (OWNER/MANAGER/CHAT ตามมติ Q-11 ข) · ด่านร้านนำร่อง + ONLINE_SALES อยู่ในหน้า (เร็ว ๆ นี้) ไม่ใช่ที่นี่
@@ -368,6 +369,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/orders/[token]/receipt/route.ts': { POST: 'D1', status: 'DECLARED' },
   'src/app/api/seller/finance-chart/route.ts': { GET: 'F1', status: 'DECLARED' },
   'src/app/api/shops/current/report-settings/route.ts': { GET: 'F1', PATCH: 'F1', status: 'DECLARED' },
+  'src/app/api/shops/current/variable-costs/route.ts': { GET: 'F1', PUT: 'F1', status: 'DECLARED' }, // 00096 P2 ต้นทุนต่อออเดอร์ — เจ้าของเท่านั้น
   'src/app/api/orders/[token]/receipt/buyer/route.ts': { class: 'BUYER', reason: 'ฝั่งผู้ซื้อ (session ผู้ซื้อ/เจ้าของออเดอร์) — ไม่ใช่สมาชิกร้าน', status: 'DECLARED' },
   'src/app/api/orders/[token]/return-quote/route.ts': { POST: 'O6', status: 'DECLARED' },
   'src/app/api/orders/[token]/returns/[returnId]/route.ts': { POST: 'O6', status: 'DECLARED' },

@@ -22,6 +22,8 @@ vi.mock('@/lib/prisma', () => ({
     order: { findMany: vi.fn(), groupBy: vi.fn(async () => []) },
     // includeFinance=true เท่านั้นที่แตะตารางนี้ — เทสชุด COGS ด้านล่างต้องมีให้ mock
     expense: { findMany: vi.fn() },
+    // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง · null = ไม่ตั้ง (ตัวเลขเท่าเดิม)
+    shop: { findUnique: vi.fn(async () => null) },
   },
 }))
 
