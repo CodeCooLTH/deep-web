@@ -64,7 +64,7 @@ export default function VariableCostForm({ initial }: { initial: VariableCostSet
         [t.exampleCod, 'COD'],
         [t.exampleTransfer, 'TRANSFER'],
         [t.exampleCash, 'CASH'],
-      ] as const).map(([label, pm]) => ({ label, cost: orderVariableCost(parsed.output, { revenue: EXAMPLE_AMOUNT, paymentMethod: pm, ishipCodFee: null }) }))
+      ] as const).map(([label, pm]) => ({ label, cost: orderVariableCost(parsed.output, { revenue: EXAMPLE_AMOUNT, paymentMethod: pm, ishipCodFee: null, codFeeInShipping: false }) }))
     : []
 
   return (

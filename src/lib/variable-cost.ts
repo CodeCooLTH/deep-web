@@ -3,7 +3,8 @@
  *
  * เก็บที่ `Shop.variableCosts` (JSON · null = ยังไม่เคยตั้ง = 0 ทุกช่อง ตัวเลขทุกหน้าเท่าเดิม)
  * 🛑 สูตรเดียวทั้งระบบ (HR16) — หน้ากำไร · ชีตยอดขาย · กราฟการเงิน · รายงานโฆษณา เรียก `orderVariableCost` ตัวนี้
- * 🛑 ใบ iShip ที่มี `codFee` จริงอยู่แล้ว (รวมในค่าส่งขาไป) ไม่คิด % COD ซ้ำ
+ * 🛑 ใบ iShip ที่มี `codFee` จริง: ใช้ตัวเลขจริงแทน % เสมอ · ถ้าค่าส่งขาไปถูกหักเป็นค่าใช้จ่ายอยู่แล้ว (ร้านบริการ — codFee รวมอยู่ในนั้น)
+ *    ไม่คิดซ้ำ (= 0) · ร้านอื่นไม่หักค่าส่งขาไป (มติ 2026-10-02) ⇒ codFee จริงต้องเข้ามาทางนี้ ไม่งั้นหายเงียบ (review 2026-11-16)
  *
  * ไฟล์บริสุทธิ์ (ไม่แตะ prisma) — RSC · client · service ใช้ตัวเดียวกัน
  */
@@ -32,12 +33,16 @@ export const DEFAULT_VARIABLE_COSTS: Readonly<VariableCostSettings> = Object.fre
 const money = v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(100000))
 const pct = v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(100))
 
-export const VariableCostSchema = v.object({
-  packagingPerOrder: money,
-  codFeePct: pct,
-  paymentFeePct: pct,
-  commissionPct: pct,
-})
+export const VariableCostSchema = v.pipe(
+  v.object({
+    packagingPerOrder: money,
+    codFeePct: pct,
+    paymentFeePct: pct,
+    commissionPct: pct,
+  }),
+  // % ที่หักจากใบเดียวรวมกันเกิน 100 = ต้นทุนเกินยอดขาย — พิมพ์ผิดแน่นอน
+  v.check((s) => s.codFeePct + s.commissionPct <= 100 && s.paymentFeePct + s.commissionPct <= 100),
+)
 
 /** อ่านค่าจากแถว Shop — ค่าเสีย/ไม่ครบ = ค่าตั้งต้นของช่องนั้น (ไม่ทำให้หน้ารายงานพัง) */
 export function resolveVariableCosts(raw: unknown): VariableCostSettings {
@@ -66,11 +71,20 @@ const isCash = (m: string | null | undefined) => (m ?? '').toUpperCase() === 'CA
  */
 export function orderVariableCost(
   s: VariableCostSettings,
-  o: { revenue: number; paymentMethod: string | null | undefined; ishipCodFee: number | null },
+  o: {
+    revenue: number
+    paymentMethod: string | null | undefined
+    ishipCodFee: number | null
+    /** true = ค่าส่งขาไป (ซึ่งรวม codFee ของ iShip) ถูกหักเป็นค่าใช้จ่ายที่อื่นแล้ว — ร้านบริการ */
+    codFeeInShipping: boolean
+  },
 ): number {
   if (!hasVariableCosts(s)) return 0
   const cod = isCODPayment(o.paymentMethod)
-  const feePct = cod ? ((o.ishipCodFee ?? 0) > 0 ? 0 : s.codFeePct) : isCash(o.paymentMethod) ? 0 : s.paymentFeePct
-  const amt = s.packagingPerOrder + (o.revenue * (feePct + s.commissionPct)) / 100
+  const real = o.ishipCodFee ?? 0
+  // COD: มีค่าจริงจาก iShip ใช้ค่าจริง (หรือ 0 ถ้าหักในค่าส่งแล้ว) · ไม่มีใช้ %
+  const feeAmt = cod && real > 0 ? (o.codFeeInShipping ? 0 : real) : 0
+  const feePct = cod ? (real > 0 ? 0 : s.codFeePct) : isCash(o.paymentMethod) ? 0 : s.paymentFeePct
+  const amt = s.packagingPerOrder + feeAmt + (o.revenue * (feePct + s.commissionPct)) / 100
   return Math.round(amt * 100) / 100
 }

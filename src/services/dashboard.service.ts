@@ -606,7 +606,7 @@ export async function getSalesSeries(
         // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง (สูตรเดียวกับ pnlOrderParts) · ใบไม่มาตามนัด/ปิดแบบไม่นับยอด = 0
         const rowVariable = noShow || excluded
           ? 0
-          : orderVariableCost(vc, { revenue: amt, paymentMethod: r.paymentMethod, ishipCodFee: activeShipment?.codFee == null ? null : Number(activeShipment.codFee) })
+          : orderVariableCost(vc, { revenue: amt, paymentMethod: r.paymentMethod, ishipCodFee: activeShipment?.codFee == null ? null : Number(activeShipment.codFee), codFeeInShipping: newRules })
         variableValues[idx] += rowVariable
         if (isRevenue) variableConfirmedValues[idx] += rowVariable
 

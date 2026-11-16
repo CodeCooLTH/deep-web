@@ -146,7 +146,7 @@ export function pnlOrderParts(
     shippingMissing = c.pendingReason === 'MISSING'
   }
   const variable = vc
-    ? orderVariableCost(vc, { revenue, paymentMethod: o.paymentMethod, ishipCodFee: sp?.codFee == null ? null : Number(sp.codFee) })
+    ? orderVariableCost(vc, { revenue, paymentMethod: o.paymentMethod, ishipCodFee: sp?.codFee == null ? null : Number(sp.codFee), codFeeInShipping: isServiceShop })
     : 0
   return { revenue, cogs: costNetOfReturns(orderCogs, adj), missingCost, shipping, shippingPending, shippingMissing, variable }
 }
