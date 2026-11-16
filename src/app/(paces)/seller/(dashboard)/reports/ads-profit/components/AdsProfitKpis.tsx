@@ -23,23 +23,25 @@ export const Signed = ({ v }: { v: number | null }) => <span className={cn(v !==
 
 export default function AdsProfitKpis({ report, mode, noun, partial }: { report: AdsProfitReport; mode: ProfitMode; noun: string; partial: boolean }) {
   const t = useT().adsProfit
-  const { totals, previous: p, daily } = report
+  const { totals, daily, sameTime } = report
   const parts = totals.parts[mode]
   const m = totals.metrics[mode]
-  // เทียบเฉพาะโหมดคาดการณ์ (ช่วงก่อนคิดชุดเดียว) และช่วงที่จบวันแล้ว
-  const cmp = !partial && mode === 'expected'
+  // วันนี้ (ยังไม่จบวัน) เทียบเมื่อวาน ณ เวลาเดียวกัน (P1) · ช่วงที่จบแล้วเทียบช่วงก่อนยาวเท่ากัน
+  const p = partial ? sameTime : report.previous
+  // เทียบเฉพาะโหมดคาดการณ์ (ตัวเทียบคิดชุดเดียว)
+  const cmp = mode === 'expected' && p !== null
   const d = (cur: number | null, prev: number | null) => (cmp && cur !== null ? <DeltaBadge value={pctChangeVsPrev(cur, prev)} /> : undefined)
-  const prevAfter = p.spend === null ? null : p.profitBefore - p.spend
+  const prevAfter = p == null || p.spend === null ? null : p.profitBefore - p.spend
 
   const kpis: KpiSpec[] = [
     {
       key: 'spend', title: t.kpiSpend, icon: 'speakerphone', iconBg: kpiBg(2), value: totals.spend === null ? '—' : formatBaht(totals.spend),
-      badge: d(totals.spend, p.spend), sub: totals.spend === null ? t.noSpend : undefined,
+      badge: d(totals.spend, p?.spend ?? null), sub: totals.spend === null ? t.noSpend : undefined,
       spark: daily.length > 1 && totals.spend !== null ? { data: daily.map((x) => x.spend ?? 0), kind: 'area', name: t.kpiSpend } : undefined,
     },
     {
       key: 'orders', title: fmt(t.kpiOrders, { noun }), icon: 'shopping-cart', iconBg: kpiBg(1), value: formatNumberNoSymbol(parts.orders),
-      badge: d(parts.orders, p.orders),
+      badge: d(parts.orders, p?.orders ?? null),
       spark: daily.length > 1 ? { data: daily.map((x) => x.orders[mode]), kind: 'bar', name: fmt(t.kpiOrders, { noun }) } : undefined,
     },
     {
@@ -61,7 +63,9 @@ export default function AdsProfitKpis({ report, mode, noun, partial }: { report:
     <>
       {partial && (
         <p className="bg-info/10 text-info-ink mb-base flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
-          {t.todayPartial}<InfoTip text={t.cohortTip} />
+          {sameTime && mode === 'expected'
+            ? <>{fmt(t.sameTimeNote, { h: String(sameTime.cutoffHour).padStart(2, '0') })}<InfoTip text={t.sameTimeTip} /></>
+            : <>{t.todayPartial}<InfoTip text={t.cohortTip} /></>}
         </p>
       )}
       <KpiGrid items={kpis} />

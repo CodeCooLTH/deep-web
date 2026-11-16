@@ -20,7 +20,8 @@ import { MAX_ITEM_ROWS, salesOrderWhere } from '@/services/product-sales-series.
 import { ORDER_SELECT, pnlOrderParts, type PnlOrder } from '@/services/pnl.service'
 import { getShopVariableCosts } from '@/services/variable-cost.service'
 import type { VariableCostSettings } from '@/lib/variable-cost'
-import { getAdDetails, getAdSpend, type DetailsSource, type SpendSource } from '@/services/meta-ads-spend.service'
+import { getAdDetails, getAdSpend, getSpendBeforeHour, type DetailsSource, type HourlySource, type SpendSource } from '@/services/meta-ads-spend.service'
+import { TZ_OFFSET_MS } from '@/lib/date-range'
 import { buildProfitInsights, type ProfitInsight } from '@/lib/ads-profit-insights'
 import { getAdRevenueReport, type AdRevenueRange, type AdRevenueReport } from '@/services/ad-revenue-report.service'
 import type { ReturnAdjustment } from '@/lib/order-return'
@@ -63,6 +64,13 @@ export type AdsProfitReport = {
   totals: { spend: number | null; parts: Record<ProfitMode, ProfitParts>; metrics: Record<ProfitMode, ProfitMetrics>; impressions: number | null; clicks: number | null; chatsMeta: number | null }
   /** ช่วงก่อนหน้าความยาวเท่ากัน (โหมดคาดการณ์เท่านั้น — เทียบบนการ์ด) */
   previous: { spend: number | null; orders: number; revenue: number; profitBefore: number }
+  /**
+   * P1 — วันนี้ (ยังไม่จบวัน) เทียบ "เมื่อวาน ณ เวลาเดียวกัน" · null = ไม่ใช่ช่วงวันนี้
+   * ใบ = สร้างก่อนเวลาเดียวกันเมื่อวาน · ค่าโฆษณา = เมื่อวานรายชั่วโมงก่อนชั่วโมงปัจจุบัน (null = Meta ไม่มีข้อมูลรายชั่วโมง → ไม่เทียบค่าโฆษณา/กำไรหลัง)
+   */
+  sameTime: { spend: number | null; orders: number; revenue: number; profitBefore: number; cutoffHour: number } | null
+  /** P1 — ช่วง 1 วัน: เฉลี่ยต่อวันของ 7 วันก่อนหน้า (โหมดคาดการณ์) · null = ช่วงยาวกว่า 1 วัน */
+  avg7: { spend: number | null; orders: number; revenue: number; profitBefore: number } | null
   daily: { day: string; spend: number | null; orders: Record<ProfitMode, number>; revenue: Record<ProfitMode, number>; profitBefore: Record<ProfitMode, number> }[]
   /** P1 คำแนะนำรายวัน (FR-012) ต่อโหมด */
   insights: Record<ProfitMode, ProfitInsight[]>
@@ -97,7 +105,7 @@ export async function getAdsProfitReport(
   shopId: string,
   vertical: string | null | undefined,
   range: AdRevenueRange,
-  deps: { spendSource?: SpendSource; detailsSource?: DetailsSource } = {},
+  deps: { spendSource?: SpendSource; detailsSource?: DetailsSource; hourlySource?: HourlySource; now?: Date } = {},
 ): Promise<AdsProfitReport> {
   const { from, to } = range
   const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
@@ -108,6 +116,12 @@ export async function getAdsProfitReport(
 
   const adWhere = { adId: { not: null }, ...chan }
   const detailsP = (deps.detailsSource ?? getAdDetails)(shopId, thaiDayKey(from), thaiDayKey(new Date(to.getTime() - 1))).catch(() => null)
+  // P1 ตัวเทียบ — ช่วง 1 วันเท่านั้น (วันนี้ = เมื่อวาน ณ เวลาเดียวกัน · วันจบแล้ว = เฉลี่ย 7 วันก่อน)
+  const now = deps.now ?? new Date()
+  const oneDay = Math.round(span / DAY) === 1
+  const isToday = oneDay && now >= from && now < to
+  const sameTimeP = isToday ? sameTimeCompare(shopId, serviceRules, vc, adWhere, from, now, deps.hourlySource ?? getSpendBeforeHour) : Promise.resolve(null)
+  const avg7P = oneDay ? avg7Compare(shopId, serviceRules, vc, adWhere, from, spendSource) : Promise.resolve(null)
   const [expectedOrders, realizedOrders, prevOrders, returnRows, returnAdj, spendRes] = await Promise.all([
     prisma.order.findMany({ where: { ...salesOrderWhere(shopId, serviceRules, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
     prisma.order.findMany({ where: { shopId, ...revenueWindowWhere(vertical, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
@@ -235,6 +249,8 @@ export async function getAdsProfitReport(
       impressions: sumMeta('impressions'), clicks: sumMeta('clicks'), chatsMeta: sumMeta('chatsMeta'),
     },
     previous: { spend: base.previous.spend, orders: prevParts.orders, revenue: r2(prevParts.revenue), profitBefore: r2(prevParts.revenue - prevParts.cogs - prevParts.variable) },
+    sameTime: await sameTimeP,
+    avg7: await avg7P,
     insights: {
       expected: buildProfitInsights(rows.map((r) => ({ adId: r.adId, spend: r.spend, parts: r.parts.expected, metrics: r.metrics.expected, status: r.status.expected, cancelled: r.cancelled, returned: r.returned, objective: r.objective }))),
       realized: buildProfitInsights(rows.map((r) => ({ adId: r.adId, spend: r.spend, parts: r.parts.realized, metrics: r.metrics.realized, status: r.status.realized, cancelled: r.cancelled, returned: r.returned, objective: r.objective }))),
@@ -244,6 +260,43 @@ export async function getAdsProfitReport(
 }
 
 /** คำสั่งซื้อของโฆษณาเดียว + ค่าโฆษณาจัดสรร (BRD FR-009/FR-010) — ชุดใบเดียวกับแถวในตารางตามโหมด */
+/** รวมตัวประกอบของใบชุดยอดขาย (โหมดคาดการณ์) ในช่วง — ใช้กับตัวเทียบ P1 (ไม่หักค่าส่งคืน เหมือน previous) */
+async function sumExpected(shopId: string, serviceRules: boolean, vc: VariableCostSettings, adWhere: object, gte: Date, lt: Date) {
+  const [orders, returnAdj] = await Promise.all([
+    prisma.order.findMany({ where: { ...salesOrderWhere(shopId, serviceRules, { gte, lt }), ...adWhere }, select: PROFIT_SELECT, take: MAX_ITEM_ROWS }),
+    serviceRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+  ])
+  const p = emptyParts()
+  for (const o of orders as ProfitOrder[]) {
+    const x = orderParts(o, returnAdj.get(o.id), serviceRules, vc)
+    p.orders += 1; p.revenue += x.revenue; p.cogs += x.cogs; p.variable += x.variable
+  }
+  return { orders: p.orders, revenue: p.revenue, profitBefore: p.revenue - p.cogs - p.variable }
+}
+
+/** เมื่อวาน ณ เวลาเดียวกัน — ใบสร้างก่อน now−24ชม. · ค่าโฆษณารายชั่วโมงก่อนชั่วโมงปัจจุบัน (เวลาไทย = เขตเวลาบัญชีของร้านไทย) */
+async function sameTimeCompare(shopId: string, serviceRules: boolean, vc: VariableCostSettings, adWhere: object, from: Date, now: Date, hourly: HourlySource) {
+  const yFrom = new Date(from.getTime() - DAY)
+  const cutoffHour = new Date(now.getTime() + TZ_OFFSET_MS).getUTCHours()
+  // shortcut: ใบตัดที่นาทีปัจจุบัน แต่ค่าโฆษณาตัดที่ต้นชั่วโมง (Meta ให้ละเอียดแค่ชั่วโมง) — ต่างกัน ≤ 1 ชม. บอกใน tooltip
+  const [p, h] = await Promise.all([
+    sumExpected(shopId, serviceRules, vc, adWhere, yFrom, new Date(now.getTime() - DAY)),
+    hourly(shopId, thaiDayKey(yFrom), cutoffHour).catch(() => null),
+  ])
+  return { spend: h?.state === 'OK' ? h.spend : null, orders: p.orders, revenue: r2(p.revenue), profitBefore: r2(p.profitBefore), cutoffHour }
+}
+
+/** เฉลี่ยต่อวันของ 7 วันก่อน `from` — ค่าโฆษณาจากแหล่งเดียวกับรายงาน (ไม่ OK = null) */
+async function avg7Compare(shopId: string, serviceRules: boolean, vc: VariableCostSettings, adWhere: object, from: Date, spendSource: SpendSource) {
+  const f7 = new Date(from.getTime() - 7 * DAY)
+  const [p, sp] = await Promise.all([
+    sumExpected(shopId, serviceRules, vc, adWhere, f7, from),
+    spendSource(shopId, thaiDayKey(f7), thaiDayKey(new Date(from.getTime() - DAY))).catch(() => null),
+  ])
+  const spend = sp?.state === 'OK' ? sp.rows.reduce((n, r) => n + r.spend, 0) / 7 : null
+  return { spend: spend === null ? null : r2(spend), orders: r2(p.orders / 7), revenue: r2(p.revenue / 7), profitBefore: r2(p.profitBefore / 7) }
+}
+
 export async function getAdProfitOrders(
   shopId: string,
   vertical: string | null | undefined,
