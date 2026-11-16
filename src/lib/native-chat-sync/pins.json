@@ -294,7 +294,7 @@
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CapiStoppedBanner.tsx": "d22223ae59fac141",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatMemorySection.tsx": "e1514d69e2e111a3",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatShopAutoSwitch.tsx": "d027f9c5e4a861f1",
-    "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx": "67bfde5333d39f35",
+    "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx": "e75726d90df2ba16",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerCrmSection.tsx": "82725a1fc0732385",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerFileLibraryModal.tsx": "94c730ba752e6909",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerFileLibrarySection.tsx": "e3c19f484de29e28",
