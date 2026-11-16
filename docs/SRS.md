@@ -3056,7 +3056,7 @@ body `/dispatch` `/delivered` = ไม่มี · `PATCH …/auto-notify/settin
 
 ### 7.38 เหตุการณ์ CAPI ต่อห้องแชทและคำสั่งซื้อ (`/api/chat/conversations/[id]/capi-events`) — feature 00097
 
-> สถานะ: ออกแบบแล้ว 2026-11-16 · ยังไม่ implement · สัญญาละเอียด = `docs/20 - Features/00097 - CAPI Event Log per Chat and Order/API.md` · อ่านอย่างเดียว · ไม่มี migration · `force-dynamic` · `Cache-Control: private, no-store, max-age=0, must-revalidate`
+> สถานะ: backend implement แล้ว 2026-11-16 (route · service · `chat-lines.ts` · ตัวกรอง log · คำ "Meta รับแล้ว") · UI/Native ยังไม่ทำ · สัญญาละเอียด = `docs/20 - Features/00097 - CAPI Event Log per Chat and Order/API.md` · อ่านอย่างเดียว · ไม่มี migration · `force-dynamic` · `Cache-Control: private, no-store, max-age=0, must-revalidate`
 
 | เมธอด | path | สิทธิ์ | สรุป |
 |---|---|---|---|

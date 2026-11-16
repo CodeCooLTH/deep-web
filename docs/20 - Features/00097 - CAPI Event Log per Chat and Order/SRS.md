@@ -114,7 +114,7 @@ flowchart LR
 - **คำอธิบายเชิงเทคนิค:**
   1. `gate(shopId)` (ของเดิม) · อ่าน `Conversation where {id, shopId}` select `channel, shopChannelId, shopChannel{status}` — ไม่พบ/ไม่ใช่ `MESSENGER`/ไม่มี `shopChannelId` → `{visible:false,…}`
   2. ขนาน: (a) แถว `MetaCapiEvent where {shopId, conversationId}` `orderBy [{createdAt:'desc'},{id:'desc'}]` `take 301` select `id, dedupeKey, eventKey, status, reason, attempts, sentAt, createdAt, payload, dataset{label, datasetId}` (b) `MetaCapiPageSetting` ของ `shopChannelId` select `enabled` (c) `MetaCapiDataset where {shopId, shopChannelId}` select `status`
-  3. `truncated = rows.length > 300` · ตัดเหลือ 300 · ถ้า truncated ทิ้งกลุ่มที่เก่าสุด (อาจได้แถวไม่ครบชุด)
+  3. `truncated = rows.length > 300` · ตัดเหลือ 300 · ถ้า truncated ทิ้ง **ทุกแถวที่ `dedupeKey` เดียวกับแถวที่ 301** (กลุ่มที่เก่าสุดที่ถูกตัดกลางชุด — implement จริง) เพื่อไม่ให้กลุ่มชุดข้อมูลขาดโผล่เป็น "Meta รับแล้ว 1 จาก 1"
   4. `groupCapiRows(rows)` (lib) → กลุ่มเรียง `at` เก่า → ใหม่ · ต่อกลุ่ม: `id` = id แถวแรกตามลำดับ `datasetId` · `eventKey` · `at` = `min(createdAt)` · `value` = `payload.value ?? null` (ตัวเลขจำกัด) · `datasets[]` เรียงตาม `dataset.label ?? datasetId`: `{label, datasetId, status, reasonKey: capiReasonKey(r), attempts, sentAt}`
   5. `pageStopped = capiPageStatus({enabled: setting?.enabled ?? false, datasets}) === 'stopped'`
   6. คืน `{visible:true, channelId, pageStopped, truncated, groups}` · `channelId` = `shopChannelId` เมื่อ `shopChannel.status !== "DISCONNECTED"` ไม่งั้น `null` (หน้าบันทึก/ตั้งค่าเพจที่ยกเลิกเชื่อมเปิดไม่ได้ — `loadChannel` ซ่อน) · `channelId:null` ⇒ `pageStopped=false` และ UI ไม่แสดงลิงก์ (BRD BR-EDGE-09)
@@ -168,7 +168,7 @@ flowchart LR
      - แถว: `metaCapiEvent.findMany({ where:{ shopId, conversationId:{ in: convSet }, payload:{ path:['orderId'], equals: order.id } }, orderBy:[{createdAt:'desc'},{id:'desc'}], select: …เท่า TFR-002 + dataset.shopChannelId })` · ไม่จำกัดจำนวน (≤ 9 เหตุการณ์ × 3 ชุด × จำนวนห้องที่ส่งการ์ด)
      - `groupCapiRows` → เรียงใหม่ → เก่า
      - `channelId` สำหรับลิงก์ = `Conversation(order.conversationId).shopChannelId` ถ้าเป็น Messenger · ไม่งั้น `dataset.shopChannelId` ของแถวล่าสุด
-     - `pageState`: ไม่มีแถว และห้องของคำสั่งซื้อเป็น Messenger → `MetaCapiPageSetting.enabled && datasets.length>0` ? `'empty'` : `'off'` (+ ชื่อเพจ `ShopChannel.name`) · ไม่มีแถว และไม่ใช่ห้อง Messenger → `show:false`
+     - `pageState` = `'rows' | 'empty' | 'off'` (มีแถว = `rows`) · `channelId` เป็น `null` เมื่อเพจ DISCONNECTED (เหมือนห้อง — implement จริง) · ไม่มีแถว และห้องของคำสั่งซื้อเป็น Messenger → `MetaCapiPageSetting.enabled && datasets.length>0` ? `'empty'` : `'off'` (+ ชื่อเพจ `ShopChannel.name`) · ไม่มีแถว และไม่ใช่ห้อง Messenger → `show:false`
   3. ล้ม (throw) → การ์ดสถานะผิดพลาด "โหลด event ไม่สำเร็จ" + "ลองใหม่" (`router.refresh()` ได้ เพราะอยู่ใน `(dashboard)` ไม่ใช่ `(chat)`) · ไม่ทำให้หน้าล้ม
 - **Postcondition:** ลิงก์ `/settings/capis/{channelId}/log?order={publicToken}`
 - **Error / Edge cases:** แถวที่ `payload.orderId` ตรงแต่ `shopId` ไม่ตรง → ไม่ออก (WHERE) · ห้องที่ส่งการ์ดคนละเพจ → ยังรวมในการ์ด (ลิงก์ชี้เพจเดียว — ข้อจำกัด §7.1)

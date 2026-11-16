@@ -31,7 +31,7 @@ export type ChatScopeMode = "SINGLE" | "UNIFIED";
  * capability ที่ขอบเขตแชทรับได้ (00071 S-13) — บังคับให้ผู้เรียกบอกเสมอว่า "จะทำอะไร"
  * ไม่มีค่าตั้งต้น: overload "ทุกร้านที่เป็นสมาชิก" คือที่มาของช่องโหว่ BILLING/TECHNICIAN เห็นแชท
  */
-export type ChatCap = "H1" | "H2" | "H3" | "X2" | "X3";
+export type ChatCap = "H1" | "H2" | "H3" | "X2" | "X3" | "X9";
 
 export interface ChatScope {
   /** โหมดที่ *มีผลจริง* หลัง resolve แล้ว — ผู้ใช้ตั้ง UNIFIED ไว้แต่เข้าถึงร้านเดียวจะได้ 'SINGLE' */
