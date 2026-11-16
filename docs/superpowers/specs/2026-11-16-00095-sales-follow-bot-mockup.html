@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup 00095 — บอทติดตามยอดขาย (ฝั่งผู้ขาย · Paces)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<!--
+  ที่มาของค่า token: src/assets/css/config/_root.css (light) · cross-check DESIGN.md frontmatter paces-* (ตรงทุกค่า)
+  คลาสในไฟล์นี้ตั้งชื่อตาม Paces/Tailwind จริง (.card .card-header .badge .btn .form-input .table ...) เพื่อให้ map กลับตอน build
+  primary = น้ำเงิน #236dc9 (ห้ามม่วงของ buyer)
+-->
+<style>
+:root{
+  /* _root.css */
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab;
+  --color-success:#02bc9c; --color-info:#5bc3e1; --color-warning:#f9bf59; --color-danger:#f7577e;
+  --color-light:#eef2f7; --color-dark:#313a46;
+  --color-primary-ink:#1e3a8a; --color-success-ink:#065f46; --color-info-ink:#1e40af; --color-warning-ink:#92400e; --color-danger-ink:#7f1d1d;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb; --color-default-400:#627189;
+  --color-default-500:#58626b; --color-default-600:#4a5358; --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --shadow-sm:0 .0625rem .125rem rgba(76,76,92,.15);
+  --radius:4px; --spacing-base:20px;
+  --text-2xs:11px; --text-xs:.8125rem; --text-sm:.875rem; --text-md:15px;
+  /* bg-{semantic}/15 ของ Tailwind = ผสม 15% กับโปร่งใส */
+  --primary-15:color-mix(in srgb,var(--color-primary) 15%,transparent);
+  --primary-10:color-mix(in srgb,var(--color-primary) 10%,transparent);
+  --primary-20:color-mix(in srgb,var(--color-primary) 20%,transparent);
+  --success-15:color-mix(in srgb,var(--color-success) 15%,transparent);
+  --info-15:color-mix(in srgb,var(--color-info) 15%,transparent);
+  --warning-15:color-mix(in srgb,var(--color-warning) 15%,transparent);
+  --danger-15:color-mix(in srgb,var(--color-danger) 15%,transparent);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;font-size:var(--text-sm);line-height:1.5;color:var(--color-body-color);background:#e9ecf2}
+p{margin:0}
+svg.ii{display:inline-block;vertical-align:-.15em;flex-shrink:0}
+a{color:inherit;text-decoration:none}
+
+/* ---------- เปลือก mockup (ไม่ใช่ UI จริง) ---------- */
+.doc{max-width:1560px;margin:0 auto;padding:24px}
+.doc h1{font-size:20px;margin:0 0 4px;color:var(--color-default-900)}
+.doc .lead{color:var(--color-default-600);margin:0 0 14px}
+.devices{position:sticky;top:0;z-index:100;display:flex;gap:8px;padding:10px 0;background:#e9ecf2}
+.devices button{font:inherit;padding:6px 14px;border-radius:999px;border:1px solid var(--color-default-300);background:#fff;cursor:pointer;color:var(--color-default-800)}
+.devices button.on{background:var(--color-primary);color:#fff;border-color:var(--color-primary)}
+.sec{margin:28px 0 8px}
+.sec h2{font-size:16px;margin:0;color:var(--color-default-900)}
+.sec .ref{font-size:12px;color:var(--color-default-600)}
+.sub{font-size:13px;font-weight:600;color:var(--color-default-700);margin:16px 0 6px}
+.stage{width:100%;overflow:hidden}
+.frame{width:var(--w,390px);background:var(--color-body-bg);border:1px solid #cfd5de;border-radius:12px;overflow:hidden;container-type:inline-size}
+.frame.scroll{max-height:880px;overflow:auto;position:relative}
+
+/* ---------- utilities ที่ตรงกับ Tailwind/Paces ---------- */
+.page{padding:16px}
+@container (min-width:1024px){.page{padding:var(--spacing-base)}}
+.flex{display:flex}.col{flex-direction:column}.wrap{flex-wrap:wrap}.items-center{align-items:center}.items-start{align-items:flex-start}.items-baseline{align-items:baseline}
+.justify-between{justify-content:space-between}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}
+.gap-1{gap:4px}.gap-1-5{gap:6px}.gap-2{gap:8px}.gap-2-5{gap:10px}.gap-3{gap:12px}.gap-base{gap:var(--spacing-base)}
+.min-w-0{min-width:0}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.ms-auto{margin-inline-start:auto}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-2xs{font-size:var(--text-2xs)}.t-xs{font-size:var(--text-xs)}.t-sm{font-size:var(--text-sm)}.t-md{font-size:var(--text-md)}
+.fw-m{font-weight:500}.fw-sb{font-weight:600}.italic{font-style:italic}.tabnum{font-variant-numeric:tabular-nums}
+.c-900{color:var(--color-default-900)}.c-800{color:var(--color-default-800)}.c-700{color:var(--color-default-700)}.c-600{color:var(--color-default-600)}.c-500{color:var(--color-default-500)}
+.c-primary{color:var(--color-primary)}.c-primary-ink{color:var(--color-primary-ink)}.c-warning-ink{color:var(--color-warning-ink)}.c-danger-ink{color:var(--color-danger-ink)}.c-success-ink{color:var(--color-success-ink)}
+.mt-0-5{margin-top:2px}.mt-1{margin-top:4px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-1{margin-bottom:4px}.mb-base{margin-bottom:var(--spacing-base)}
+.space-y-base>*+*{margin-top:var(--spacing-base)}.space-y-2>*+*{margin-top:8px}.space-y-3>*+*{margin-top:12px}
+.rounded-lg{border-radius:8px}.rounded-md{border-radius:6px}.rounded-full{border-radius:999px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.link{color:var(--color-primary);font-weight:500}
+
+/* ---------- Paces components (custom/_card.css _badge.css _buttons.css _forms.css _table.css) ---------- */
+.card{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;flex-direction:column;position:relative}
+.card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px dashed var(--color-default-300)}
+.card-title{font-size:var(--text-md);font-weight:500;color:var(--color-body-color);margin:0}
+.card-body{padding:20px}
+.card-footer{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 20px;border-top:1px solid var(--color-light)}
+.badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:var(--radius);padding:.15em .5em;font-size:.75em;font-weight:600;white-space:nowrap;vertical-align:middle}
+.badge.rounded-full{padding:.15em .75em;border-radius:999px}
+.b-off{background:var(--color-default-200);color:var(--color-default-800)}
+.b-test{background:var(--info-15);color:var(--color-info-ink)}
+.b-on{background:var(--primary-15);color:var(--color-primary-ink)}
+.b-ok{background:var(--success-15);color:var(--color-success-ink)}
+.b-warn{background:var(--warning-15);color:var(--color-warning-ink)}
+.b-err{background:var(--danger-15);color:var(--color-danger-ink)}
+.b-tag{background:var(--primary-15);color:var(--color-primary-ink)}
+.b-stage{border:1px solid var(--color-default-300);background:var(--color-card);color:var(--color-default-800)}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius);border:1px solid transparent;padding:7px 16px;font:inherit;font-size:var(--text-sm);font-weight:500;cursor:pointer;background:none;white-space:nowrap;min-height:44px}
+.btn-sm{padding:5px 12px;font-size:var(--text-xs);min-height:44px}
+.btn-icon{width:44px;height:44px;padding:0}
+@container (min-width:1024px){.btn{min-height:0}.btn-sm{min-height:32px}.btn-icon{width:37px;height:37px}}
+.btn-primary{background:var(--color-primary);color:#fff}
+.btn-outline{border-color:var(--color-default-300);color:var(--color-default-800)}
+.btn-danger-text{color:var(--color-danger-ink)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.label{display:block;font-size:var(--text-sm);font-weight:500;color:var(--color-default-800);margin-bottom:6px}
+.form-input{display:flex;align-items:center;width:100%;height:44px;border:1px solid var(--color-default-300);border-radius:var(--radius);background:var(--color-card);padding:0 12px;font:inherit;font-size:var(--text-sm);color:var(--color-body-color)}
+@container (min-width:1024px){.form-input{height:37px}}
+.input-group{display:flex;width:96px}
+.form-checkbox{width:18px;height:18px;border-radius:var(--radius);border:1px solid var(--color-default-400);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:14px}
+.form-checkbox.on{background:var(--color-primary);border-color:var(--color-primary)}
+.form-checkbox.dis{background:var(--color-default-100);border-color:var(--color-default-300);opacity:.7}
+.table-wrapper{width:100%;overflow-x:auto}
+.table{width:100%;border-collapse:collapse;color:var(--color-body-color)}
+.table tr{border-bottom:1px solid var(--color-light)}
+.table tbody tr:last-child{border-bottom:0}
+.table th{text-align:start;padding:12px 10px;font-weight:700;vertical-align:middle;white-space:nowrap}
+.table td{padding:12px 10px;vertical-align:top}
+.table th:first-child,.table td:first-child{padding-inline-start:18px}
+.table th:last-child,.table td:last-child{padding-inline-end:18px}
+.table tbody tr.click{cursor:pointer}
+.table tbody tr.click:hover{background:var(--color-default-100)}
+.table tbody tr.click:hover td{background:var(--color-default-100)}
+
+/* segmented (settings/chatbot/ChatbotTabs.tsx) */
+.seg{display:flex;align-items:center;gap:2px;background:var(--color-light);border-radius:8px;padding:4px;width:100%}
+.seg>*{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;border-radius:6px;padding:8px;font-size:var(--text-sm);font-weight:500;color:var(--color-default-600);white-space:nowrap}
+.seg>.on{background:var(--color-card);color:var(--color-dark);font-weight:600;box-shadow:var(--shadow-sm)}
+.seg.locked{opacity:.6}
+.seg.sm>*{font-size:var(--text-xs);min-height:44px;padding:4px 10px}
+@container (min-width:1024px){.seg>*{min-height:0}.seg.auto{width:auto}.seg.auto>*{flex:0 0 auto;padding:6px 16px}.seg.sm{width:auto}.seg.sm>*{min-height:30px;flex:0 0 auto}}
+
+/* react-select (framework-custom.css "react select") */
+.rs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:44px;border:1px solid var(--color-default-300);border-radius:var(--radius);background:var(--color-card);padding:4px 8px}
+@container (min-width:1024px){.rs{min-height:37px}}
+.rs .ph{color:var(--color-default-400);flex:1}
+.rs .mv{display:inline-flex;align-items:center;background:var(--primary-20);color:var(--color-primary);border-radius:2px;font-size:12px;padding:1px 2px 1px 6px;gap:4px}
+.rs .mv.miss{background:var(--warning-15);color:var(--color-warning-ink)}
+.rs .mv .x{display:inline-flex;padding:2px;opacity:.8}
+.rs .ind{margin-inline-start:auto;color:var(--color-default-600);display:flex;align-items:center;gap:6px}
+.rs.disabled{background:var(--color-default-100);opacity:.7}
+.rs.single{width:auto;flex:1}
+
+.cm{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:16px}
+.line-brand{color:#06C755} /* ChannelBadge.tsx:100 HR6 exception: LINE brand color */
+.page-head{margin-bottom:12px}
+.page-title{font-size:18px;font-weight:600;color:var(--color-default-900);margin:0}
+.crumb{display:flex;align-items:center;gap:4px;font-size:var(--text-xs);color:var(--color-default-600)}
+
+/* ---------- จอ 1 ---------- */
+.toolbar{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.toolbar .btn-primary{width:100%}
+@container (min-width:768px){.toolbar{flex-direction:row;align-items:center}.toolbar .seg{width:auto}.toolbar .seg>*{flex:0 0 auto;padding:8px 18px}.toolbar .btn-primary{width:auto;margin-inline-start:auto}}
+.only-lg{display:none}
+@container (min-width:1024px){.only-lg{display:block}.below-lg{display:none}}
+.only-md-down{display:inline-flex}
+.hide-sm{display:none}
+@container (min-width:768px){.only-md-down{display:none}.hide-sm{display:inline-flex}}
+.botcard{display:block;background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;cursor:pointer}
+.botcard+.botcard{margin-top:12px}
+.botcard .split{display:flex;flex-direction:column;gap:8px}
+@container (min-width:768px){.botcard .split{flex-direction:row;gap:16px}.botcard .split>*{flex:1;min-width:0}.botcard .split>*+*{border-inline-start:1px dashed var(--color-default-300);padding-inline-start:16px}}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.warnline{display:flex;align-items:flex-start;gap:4px;font-size:var(--text-xs);color:var(--color-warning-ink);margin-top:4px}
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 0;text-align:center}
+.logrow{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px}
+.logrow+.logrow{margin-top:8px}
+
+/* ---------- จอ 2 ฟอร์ม (product-add: grid lg:grid-cols-3 gap-base) ---------- */
+.formgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--spacing-base)}
+@container (min-width:1024px){.formgrid{grid-template-columns:2fr 1fr}.sticky-lg{position:sticky;top:80px;align-self:start}}
+.pair{display:grid;grid-template-columns:1fr;gap:16px}
+@container (min-width:768px){.pair{grid-template-columns:1fr 1fr}}
+.counter{font-size:var(--text-xs);color:var(--color-default-600)}
+.summary{background:var(--color-light);border-radius:8px;padding:12px;font-size:var(--text-sm);color:var(--color-default-800);display:flex;gap:8px;align-items:flex-start}
+.chrow{display:flex;align-items:flex-start;gap:12px;padding:10px 0;min-height:44px}
+.chrow+.chrow{border-top:1px solid var(--color-default-200)}
+/* รางขั้น — pages/timeline/page.tsx (after:border-dashed + วงกลม) ตัดคอลัมน์เวลาซ้าย */
+.rail{position:relative}
+.step{position:relative;display:flex;gap:12px}
+.step .dot{position:relative;z-index:1;width:28px;height:28px;border-radius:999px;background:var(--primary-15);color:var(--color-primary-ink);font-size:var(--text-xs);font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step:not(:last-child)::after{content:"";position:absolute;inset-inline-start:13.5px;top:30px;bottom:0;border-inline-end:1px dashed var(--color-default-300)}
+.step .body{flex:1;min-width:0;padding-bottom:28px}
+.step:last-child .body{padding-bottom:4px}
+.stephead{display:flex;align-items:center;gap:4px;min-height:44px}
+@container (min-width:1024px){.stephead{min-height:37px}}
+.timing{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:var(--text-sm);color:var(--color-default-800)}
+.timing .unit{flex:1;min-width:110px}
+@container (min-width:768px){.timing .unit{flex:0 0 130px}}
+.editor{border:1px solid var(--color-default-300);border-radius:8px;margin-top:10px}
+.editor .txt{padding:12px;min-height:72px;font-size:var(--text-sm);color:var(--color-default-900);line-height:1.7}
+.editor .txt.ph{color:var(--color-default-400)}
+.varchip{display:inline-flex;align-items:center;background:var(--primary-10);color:var(--color-primary-ink);font-size:var(--text-2xs);font-weight:600;border-radius:999px;padding:.15em .75em;margin:0 2px}
+.editor .tools{display:flex;align-items:center;gap:4px;border-top:1px solid var(--color-default-200);padding:4px 8px}
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:999px;color:var(--color-default-700);font-size:18px}
+@container (min-width:1024px){.iconbtn{width:36px;height:36px}}
+.addvar{display:inline-flex;align-items:center;min-height:44px}
+.addvar span{border:1px dashed color-mix(in srgb,var(--color-primary) 40%,transparent);color:var(--color-primary-ink);font-size:var(--text-2xs);font-weight:500;border-radius:999px;padding:2px 8px}
+.imgrow{display:flex;align-items:center;gap:12px;margin-top:10px}
+.thumb{width:64px;height:64px;border-radius:8px;background:var(--color-default-200);display:flex;align-items:center;justify-content:center;color:var(--color-default-500);font-size:24px;flex-shrink:0}
+.only-mobile{display:inline-flex}
+@container (min-width:768px){.only-mobile{display:none}}
+.savebar{position:sticky;bottom:72px;z-index:20;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--color-card);border-top:1px solid var(--color-default-300);box-shadow:var(--shadow);padding:10px 16px}
+.savebar .msg{flex:1 1 100%;font-size:var(--text-xs);color:var(--color-default-700)}
+.savebar .btn{flex:1}
+@container (min-width:768px){.savebar .msg{flex:1}.savebar .btn{flex:0 0 auto}}
+@container (min-width:1024px){.savebar{bottom:0;padding:12px var(--spacing-base)}}
+.bottomnav{position:sticky;bottom:0;z-index:20;height:72px;background:var(--color-card);border-top:1px solid var(--color-default-300);display:flex;justify-content:space-around;align-items:center;color:var(--color-default-600);font-size:var(--text-2xs)}
+.bottomnav div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.bottomnav svg.ii{font-size:22px}
+@container (min-width:1024px){.bottomnav{display:none}}
+
+/* ตัวอย่างในแชท */
+.divider-time{text-align:center;font-size:var(--text-xs);color:var(--color-default-600);margin:16px 0 8px}
+.adonly-tag{display:block;text-align:center;margin-top:-4px;margin-bottom:8px}
+.brow{display:flex;justify-content:flex-end;margin:20px 0 8px}
+.bubble-wrap{position:relative;min-width:0;max-width:24rem}
+.bubble{border-radius:var(--radius);padding:12px 24px;background:var(--color-primary);color:#fff;font-size:var(--text-sm)}
+.bubble.ghost{background:var(--color-default-100);color:var(--color-default-500);border:1px dashed var(--color-default-300)}
+.bubble.them{background:var(--color-light);color:var(--color-default-900)}
+.bubble.img{padding:0;background:none;width:180px;height:130px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;background:var(--color-default-200);color:var(--color-default-500);font-size:32px}
+/* ป้ายเกยขอบ ThreadMessageList.tsx:695-703 */
+.edge{position:absolute;top:0;inset-inline-end:10px;transform:translateY(-50%);z-index:2;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--color-default-300);background:var(--color-card);color:var(--color-default-700);font-size:var(--text-2xs);font-weight:500;border-radius:999px;padding:2px 8px;white-space:nowrap;box-shadow:var(--shadow)}
+
+/* ---------- จอ 3 แผงในห้อง ---------- */
+.panels{display:grid;grid-template-columns:1fr;gap:var(--spacing-base)}
+@container (min-width:1024px){.panels{grid-template-columns:repeat(3,384px)}}
+.cpanel{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.crm-ghost{font-size:var(--text-xs);color:var(--color-default-500);padding-bottom:12px}
+.fbsec{border-top:1px dashed var(--color-default-300);padding-top:16px}
+.srail .srow{position:relative;display:flex;align-items:center;gap:8px;min-height:32px;font-size:var(--text-sm);color:var(--color-default-800)}
+.srail .srow:not(:last-child)::after{content:"";position:absolute;inset-inline-start:7.5px;top:24px;bottom:-8px;border-inline-end:1px dashed var(--color-default-300)}
+.srail .srow .ic{position:relative;z-index:1;font-size:16px;background:var(--color-card)}
+.srail .srow .n{margin-inline-start:auto;font-size:var(--text-xs);color:var(--color-default-600);flex-shrink:0}
+.srail .srow.next{font-weight:500;color:var(--color-primary-ink)}
+.ring{width:16px;height:16px;border-radius:999px;border:4px solid var(--color-primary);background:var(--color-card);position:relative;z-index:1;flex-shrink:0}
+.hollow{width:16px;height:16px;border-radius:999px;border:1.5px solid var(--color-default-400);background:var(--color-card);position:relative;z-index:1;flex-shrink:0}
+.box-warn{background:var(--warning-15);color:var(--color-warning-ink);border-radius:8px;padding:12px;font-size:var(--text-xs);display:flex;gap:8px;align-items:flex-start}
+.box-hold{background:var(--color-default-100);color:var(--color-default-800);border-radius:8px;padding:12px;font-size:var(--text-xs);display:flex;gap:8px;align-items:flex-start}
+
+/* ---------- จอ 4 ห้องแชท ---------- */
+.chatgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.chatgrid>*,.formgrid>*,.panels>*{min-width:0}
+@container (min-width:1024px){.chatgrid{grid-template-columns:320px 1fr;gap:0;background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}}
+.inbox{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow)}
+@container (min-width:1024px){.inbox{box-shadow:none;border-radius:0;border-inline-end:1px solid var(--color-default-200)}}
+.irow{display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--color-default-200)}
+.irow.sel{background:var(--color-default-100)}
+.av{width:40px;height:40px;border-radius:999px;background:var(--color-default-200);color:var(--color-default-700);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:var(--text-xs);flex-shrink:0;position:relative}
+.av .cm{position:absolute;bottom:-2px;inset-inline-end:-2px;background:#fff;border-radius:999px;width:16px;height:16px;font-size:14px}
+.thread{background:var(--color-card);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}
+@container (min-width:1024px){.thread{box-shadow:none;border-radius:0}}
+.thead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--color-default-200)}
+.strip{border-bottom:1px solid var(--color-default-200)}
+.strip .row{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;overflow-x:auto;padding:8px 16px}
+.tchip{display:flex;align-items:center;gap:6px;max-width:13rem;flex-shrink:0;border-radius:999px;padding:4px 10px;font-size:var(--text-xs);font-weight:500}
+.tchip.open{box-shadow:0 0 0 1px var(--color-default-400)}
+.tc-info{background:var(--info-15);color:var(--color-info-ink)}
+.tc-warn{background:var(--warning-15);color:var(--color-warning-ink)}
+.tc-order{background:var(--primary-15);color:var(--color-primary-ink)}
+.tc-ctx{border:1px solid var(--color-default-300);color:var(--color-default-700)}
+.strip .detail{padding:0 16px 12px}
+.msgs{padding:8px 16px 16px}
+.mrow{display:flex;align-items:flex-start;gap:10px;margin:20px 0}
+.mrow.me{justify-content:flex-end}
+.mrow .av{width:32px;height:32px}
+.sysline{margin:20px 0;padding:0 16px;text-align:center;font-size:var(--text-xs);color:var(--color-default-600)}
+.sysline svg.ii{font-size:14px;vertical-align:-.2em;margin-inline-end:2px}
+.mrow>.bubble-wrap,.brow>.bubble-wrap{max-width:min(24rem,calc(100% - 42px))}
+.mrow .bubble,.brow .bubble{overflow-wrap:anywhere}
+.screen-label{font-size:var(--text-2xs);font-weight:600;color:var(--color-default-600);margin:0 0 6px}
+@container (min-width:1024px){.screen-label{display:none}}
+/* กล่องรายละเอียดชิป — ท่า ChatThread.tsx:2398-2547 (flex items-start gap-2 rounded-lg px-3 py-2 text-sm + tone/15 · ไอคอน mt-0.5 shrink-0 text-lg) */
+.fbbox{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;border-radius:8px;padding:8px 12px;font-size:var(--text-sm)}
+.fbbox.info{background:var(--info-15);color:var(--color-info-ink)}
+.fbbox.warn{background:var(--warning-15);color:var(--color-warning-ink)}
+.fbbox .fb-ic{margin-top:2px;font-size:1.125rem}
+.fbbox .fb-main{flex:1 1 0%;min-width:0}
+.fbbox .fb-acts{flex:1 1 100%;display:flex;gap:8px}
+.fbbox .fb-acts .btn{flex:1;min-height:44px}
+.fbbox .btn-ghost{color:inherit;font-weight:600}
+.fbbox .btn-outline{background:var(--color-card)}
+@container (min-width:768px){.fbbox .fb-acts{flex:0 0 auto;align-self:center}.fbbox .fb-acts .btn{flex:0 0 auto;min-height:32px}}
+.prog{display:inline-flex;gap:4px;align-items:center}
+.prog i{display:block;width:20px;height:6px;border-radius:999px;border:1px solid currentColor}
+.prog i.done{background:currentColor}
+.prog i.todo{opacity:.35}
+/* ตารางบอท (re-design): 4 คอลัมน์ + chevron · แถวกดได้ทั้งแถว */
+.table.bots td{vertical-align:top;padding-top:14px;padding-bottom:14px}
+.table.bots .c-bot{width:34%;max-width:0}
+.table.bots .c-who{width:30%;max-width:0}
+.table.bots .c-go{width:1%;vertical-align:middle}
+.table.bots .cellh{min-height:60px}
+.who{display:flex;align-items:center;gap:8px;min-width:0}
+.marks{display:inline-flex;gap:4px;width:56px;flex-shrink:0}
+.sdots{display:inline-flex;align-items:center;flex-shrink:0}
+.sdots .sd{display:block;width:8px;height:8px;border-radius:999px;background:var(--color-default-500)}
+.sdots .sd.ad{width:10px;height:10px;background:var(--color-card);border:2px solid var(--color-warning)}
+.sdots .sl{display:block;width:10px;height:1px;background:var(--color-default-300)}
+.pdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:currentColor}
+.bignum{font-size:var(--text-md);font-weight:600;color:var(--color-default-900)}
+.botcard .split>*:first-child{display:block}
+.mtime{font-size:var(--text-2xs);color:var(--color-default-500);margin-top:4px;text-align:end}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>00095 บอทติดตามยอดขาย · ฝั่งผู้ขาย (Paces)</h1>
+  <p class="lead">Mockup ตาม <code>UX-Design-Spec.md</code> · ไอคอนบอท = <code>tabler:target-arrow</code> (§14 Q1) · สลับความกว้างจอด้านล่าง ทุกกรอบจัดหน้าตามความกว้างจริง (container query) · 1440 ย่อแสดงให้พอดีจอ</p>
+  <div class="devices" id="devices">
+    <button data-w="390" class="on">มือถือ 390</button>
+    <button data-w="820">แท็บเล็ต 820</button>
+    <button data-w="1440">เดสก์ท็อป 1440</button>
+  </div>
+
+  <!-- ========================= 1 ========================= -->
+  <div class="sec"><h2>1. หน้ารายการ แท็บ "บอท"</h2><div class="ref">สเปก §1.2 · §1.3 · §1.5 · สี §0.2 · ≥1024 ตาราง · 768–1023 การ์ดแบ่ง 2 ซีก · &lt;768 การ์ดเรียงตั้ง</div></div>
+  <div class="stage"><div class="frame"><div class="page">
+    <div class="page-head">
+      <h4 class="page-title">บอทติดตามยอดขาย</h4>
+      <div class="crumb">ตั้งค่า <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> บอทติดตามยอดขาย</div>
+      <p class="t-sm c-700 mt-1">ทักลูกค้าที่เงียบไปเป็นขั้น ๆ แล้วหยุดเองเมื่อลูกค้าตอบ</p>
+    </div>
+    <div class="toolbar">
+      <div class="seg" role="tablist"><a class="on" role="tab" aria-selected="true">บอท</a><a role="tab">ประวัติการส่ง</a></div>
+      <button class="btn btn-primary"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:plus"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>สร้างบอทติดตาม</button>
+    </div>
+
+    <!-- desktop table -->
+    <div class="card only-lg"><div class="table-wrapper"><table class="table bots">
+      <thead><tr><th>บอท</th><th>ตามใคร</th><th>ขั้นตอน</th><th>สถานะ</th><th><span class="sr-only">เปิด</span></th></tr></thead>
+      <tbody>
+        <tr class="click">
+          <td class="c-bot"><div class="cellh"><div class="flex items-center gap-1 min-w-0"><span class="c-900 fw-m truncate">ตามคนถามราคา</span><svg class="ii c-warning-ink t-sm" width="1em" height="1em" viewBox="0 0 24 24" role="img" aria-label="มีแท็กที่ถูกลบ" data-icon="tabler:alert-triangle"><title>มีแท็กที่ถูกลบ</title><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m-1.637-9.409L2.257 17.125a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87L13.637 3.59a1.914 1.914 0 0 0-3.274 0M12 16h.01"/></svg></div><div class="t-xs c-700 truncate">สวัสดีค่ะ คุณสมชาย ยังสนใจสินค้าที่ถามไว้อยู่ไหมคะ</div><div class="t-xs c-warning-ink truncate">แท็ก “vip” ถูกลบ · ตามต่อด้วยแท็กที่เหลือ</div></div></td>
+          <td class="c-who"><div class="who"><span class="marks"><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-1-r3" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-1-r3)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-2-r4)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-2-r4)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-2-r4" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-2-r4" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">ยังไม่ซื้อ</b> · ถามราคา หรือ สนใจโปร</span></div></td>
+          <td><div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd"></i><i class="sl"></i><i class="sd ad" title="ขั้น 3 ส่งเฉพาะลูกค้าจากโฆษณา"><span class="sr-only">ขั้น 3 ส่งเฉพาะลูกค้าจากโฆษณา</span></i></span><span class="c-800 tabnum">3 ขั้น · 1 วัน 3 ชม. 30 นาที</span></div></td>
+          <td><span class="badge b-on"><i class="pdot"></i>เปิดใช้</span><div class="mt-0-5"><span class="bignum tabnum">1,234</span> <span class="t-xs c-700">ห้องที่ตามอยู่</span></div></td>
+          <td class="c-go"><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></td>
+        </tr>
+        <tr class="click">
+          <td class="c-bot"><div class="cellh"><div class="flex items-center gap-1 min-w-0"><span class="c-900 fw-m truncate">ตามคนลังเลเรื่องค่าส่ง</span></div><div class="t-xs c-700 truncate">คุณสมชายคะ ตอนนี้ส่งฟรีเมื่อซื้อครบ 2 ชิ้นนะคะ</div></div></td>
+          <td class="c-who"><div class="who"><span class="marks"><span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">เปิดบิล</b> · ถามค่าส่ง</span></div></td>
+          <td><div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd"></i></span><span class="c-800 tabnum">2 ขั้น · 5 ชม.</span></div></td>
+          <td><span class="badge b-test"><svg class="ii " width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:flask"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6m-5 6h4m-4-6v6L6 20a.7.7 0 0 0 .5 1h11a.7.7 0 0 0 .5-1L14 9V3"/></svg>ทดสอบ</span><div class="mt-0-5"><span class="bignum tabnum">2</span> <span class="t-xs c-700">ห้องทดสอบ</span></div></td>
+          <td class="c-go"><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></td>
+        </tr>
+        <tr class="click">
+          <td class="c-bot"><div class="cellh"><div class="flex items-center gap-1 min-w-0"><span class="c-900 fw-m truncate">ตามคนซื้อแล้วเงียบ</span></div><div class="t-xs c-700 truncate">ขอบคุณที่อุดหนุนนะคะ คุณสมชาย ได้รับของแล้วใช้เป็นอย่างไรบ้างคะ</div></div></td>
+          <td class="c-who"><div class="who"><span class="marks"><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-1-r8" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-1-r8)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">ส่งแล้ว หรือ สำเร็จ</b></span></div></td>
+          <td><div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd ad" title="ขั้น 2 ส่งเฉพาะลูกค้าจากโฆษณา"><span class="sr-only">ขั้น 2 ส่งเฉพาะลูกค้าจากโฆษณา</span></i></span><span class="c-800 tabnum">2 ขั้น · 2 วัน</span></div></td>
+          <td><span class="badge b-off">ปิด</span></td>
+          <td class="c-go"><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></td>
+        </tr>
+      </tbody>
+    </table></div></div>
+
+    <!-- tablet / mobile cards -->
+    <div class="below-lg">
+      <a class="botcard">
+        <div class="split">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2"><div class="flex items-center gap-1 min-w-0 flex-1"><span class="c-900 fw-m truncate">ตามคนถามราคา</span><svg class="ii c-warning-ink t-sm" width="1em" height="1em" viewBox="0 0 24 24" role="img" aria-label="มีแท็กที่ถูกลบ" data-icon="tabler:alert-triangle"><title>มีแท็กที่ถูกลบ</title><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m-1.637-9.409L2.257 17.125a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87L13.637 3.59a1.914 1.914 0 0 0-3.274 0M12 16h.01"/></svg></div><span class="badge b-on"><i class="pdot"></i>เปิดใช้</span></div>
+            <div class="t-xs c-700 truncate mt-0-5">สวัสดีค่ะ คุณสมชาย ยังสนใจสินค้าที่ถามไว้อยู่ไหมคะ</div>
+            <div class="t-xs c-warning-ink truncate">แท็ก “vip” ถูกลบ · ตามต่อด้วยแท็กที่เหลือ</div>
+          </div>
+          <div class="min-w-0 space-y-2">
+            <div class="who"><span class="marks"><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-1-r11" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-1-r11)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-2-r12)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-2-r12)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-2-r12" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-2-r12" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">ยังไม่ซื้อ</b> · ถามราคา หรือ สนใจโปร</span></div>
+            <div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd"></i><i class="sl"></i><i class="sd ad" title="ขั้น 3 ส่งเฉพาะลูกค้าจากโฆษณา"><span class="sr-only">ขั้น 3 ส่งเฉพาะลูกค้าจากโฆษณา</span></i></span><span class="c-800 tabnum">3 ขั้น · 1 วัน 3 ชม. 30 นาที</span></div>
+            <div class="flex items-center gap-2"><div class="flex-1"><span class="bignum tabnum">1,234</span> <span class="t-xs c-700">ห้องที่ตามอยู่</span></div><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></div>
+          </div>
+        </div>
+      </a>
+      <a class="botcard">
+        <div class="split">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2"><div class="flex items-center gap-1 min-w-0 flex-1"><span class="c-900 fw-m truncate">ตามคนลังเลเรื่องค่าส่ง</span></div><span class="badge b-test"><svg class="ii " width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:flask"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6m-5 6h4m-4-6v6L6 20a.7.7 0 0 0 .5 1h11a.7.7 0 0 0 .5-1L14 9V3"/></svg>ทดสอบ</span></div>
+            <div class="t-xs c-700 truncate mt-0-5">คุณสมชายคะ ตอนนี้ส่งฟรีเมื่อซื้อครบ 2 ชิ้นนะคะ</div>
+            
+          </div>
+          <div class="min-w-0 space-y-2">
+            <div class="who"><span class="marks"><span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">เปิดบิล</b> · ถามค่าส่ง</span></div>
+            <div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd"></i></span><span class="c-800 tabnum">2 ขั้น · 5 ชม.</span></div>
+            <div class="flex items-center gap-2"><div class="flex-1"><span class="bignum tabnum">2</span> <span class="t-xs c-700">ห้องทดสอบ</span></div><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></div>
+          </div>
+        </div>
+      </a>
+      <a class="botcard">
+        <div class="split">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2"><div class="flex items-center gap-1 min-w-0 flex-1"><span class="c-900 fw-m truncate">ตามคนซื้อแล้วเงียบ</span></div><span class="badge b-off">ปิด</span></div>
+            <div class="t-xs c-700 truncate mt-0-5">ขอบคุณที่อุดหนุนนะคะ คุณสมชาย ได้รับของแล้วใช้เป็นอย่างไรบ้างคะ</div>
+            
+          </div>
+          <div class="min-w-0 space-y-2">
+            <div class="who"><span class="marks"><span class="cm"><svg class="ii " width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-1-r16" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-1-r16)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></span><span class="truncate min-w-0"><b class="fw-sb c-900">ส่งแล้ว หรือ สำเร็จ</b></span></div>
+            <div class="flex items-center gap-2"><span class="sdots"><i class="sd"></i><i class="sl"></i><i class="sd ad" title="ขั้น 2 ส่งเฉพาะลูกค้าจากโฆษณา"><span class="sr-only">ขั้น 2 ส่งเฉพาะลูกค้าจากโฆษณา</span></i></span><span class="c-800 tabnum">2 ขั้น · 2 วัน</span></div>
+            <div class="flex items-center gap-2"><span class="flex-1"></span><svg class="ii c-500 t-md" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg></div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div></div></div>
+
+  <div class="sub">1b. สถานะว่าง (ไม่มีบอท — ซ่อนปุ่มสร้างที่หัว เหลือปุ่มเดียวกลางการ์ด · §1.5)</div>
+  <div class="stage"><div class="frame"><div class="page">
+    <div class="page-head">
+      <h4 class="page-title">บอทติดตามยอดขาย</h4>
+      <div class="crumb">ตั้งค่า <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> บอทติดตามยอดขาย</div>
+      <p class="t-sm c-700 mt-1">ทักลูกค้าที่เงียบไปเป็นขั้น ๆ แล้วหยุดเองเมื่อลูกค้าตอบ</p>
+    </div>
+    <div class="toolbar"><div class="seg" role="tablist"><a class="on" role="tab">บอท</a><a role="tab">ประวัติการส่ง</a></div></div>
+    <div class="card"><div class="card-body"><div class="empty">
+      <svg class="ii c-500" style="font-size:32px" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>
+      <p class="c-900 t-sm fw-m">ยังไม่มีบอทติดตาม</p>
+      <p class="c-700 t-sm">บอทใหม่เริ่มที่สถานะปิด ลองกับห้องทดสอบก่อนเปิดใช้</p>
+      <button class="btn btn-primary mt-2"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:plus"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>สร้างบอทติดตาม</button>
+    </div></div></div>
+  </div></div></div>
+
+  <!-- ========================= 2 ========================= -->
+  <div class="sec"><h2>2. แท็บ "ประวัติการส่ง"</h2><div class="ref">สเปก §1.2 (ประวัติ) · §1.3 · สีผล §0.2 (เขียวเฉพาะ "ส่งแล้ว") · ไม่มีตัวกรอง (BR-FB-71)</div></div>
+  <div class="stage"><div class="frame"><div class="page">
+    <div class="page-head">
+      <h4 class="page-title">บอทติดตามยอดขาย</h4>
+      <div class="crumb">ตั้งค่า <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> บอทติดตามยอดขาย</div>
+      <p class="t-sm c-700 mt-1">ทักลูกค้าที่เงียบไปเป็นขั้น ๆ แล้วหยุดเองเมื่อลูกค้าตอบ</p>
+    </div>
+    <div class="toolbar"><div class="seg" role="tablist"><a role="tab">บอท</a><a class="on" role="tab" aria-selected="true">ประวัติการส่ง</a></div></div>
+
+    <div class="card only-lg"><div class="table-wrapper"><table class="table">
+      <thead><tr><th>ลูกค้า</th><th>ช่องทาง</th><th>บอท</th><th>ผล</th><th>เวลา</th></tr></thead>
+      <tbody>
+        <tr><td><a class="link">สมชาย ใจดี <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></td><td><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-7" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-7)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></td><td>ตามคนถามราคา · ขั้น 2/3</td><td><span class="badge b-ok">ส่งแล้ว</span></td><td class="tabnum">16 พ.ย. 14:32</td></tr>
+        <tr><td><a class="link">คุณนุ่น <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></td><td><span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span></td><td>ตามคนลังเลเรื่องค่าส่ง · ขั้น 1/2</td><td><span class="badge b-warn">ข้าม</span><div class="t-xs c-700 mt-1">โควตา LINE เต็ม</div></td><td class="tabnum">16 พ.ย. 14:10</td></tr>
+        <tr><td><a class="link">มาลี ศรีสุข <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></td><td><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-8)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-8)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-8" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-8" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span></td><td>ตามคนถามราคา · ขั้น 3/3</td><td><span class="badge b-err">ส่งไม่สำเร็จ</span><div class="t-xs c-700 mt-1">Meta ไม่ให้ส่งนอกกรอบเวลา</div></td><td class="tabnum">16 พ.ย. 13:05</td></tr>
+        <tr><td><a class="link">ปกรณ์ วงศ์ดี <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></td><td><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-9" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-9)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></td><td>ตามคนถามราคา · ขั้น 1/3</td><td><span class="badge b-warn">ไม่ทราบผล</span><div class="t-xs c-700 mt-1">ไม่ทราบผล ระบบไม่ส่งซ้ำ</div></td><td class="tabnum">16 พ.ย. 11:47</td></tr>
+        <tr><td><a class="link">วิภา ทองคำ <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></td><td><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-10" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-10)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></td><td><span class="italic c-600">บอทที่ถูกลบแล้ว</span> · ขั้น 1/2</td><td><span class="badge b-ok">ส่งแล้ว</span></td><td class="tabnum">15 พ.ย. 18:20</td></tr>
+      </tbody>
+    </table></div></div>
+
+    <div class="below-lg">
+      <div class="logrow"><div class="flex items-center gap-2"><a class="link truncate min-w-0 flex-1">สมชาย ใจดี <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a><span class="t-xs c-600 tabnum">16 พ.ย. 14:32</span></div><div class="flex items-center gap-1-5 t-xs c-700 mt-1"><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-11" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-11)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span>ตามคนถามราคา · ขั้น 2/3</div><div class="flex items-center gap-2 mt-1"><span class="badge b-ok">ส่งแล้ว</span></div></div>
+      <div class="logrow"><div class="flex items-center gap-2"><a class="link truncate min-w-0 flex-1">คุณนุ่น <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a><span class="t-xs c-600 tabnum">16 พ.ย. 14:10</span></div><div class="flex items-center gap-1-5 t-xs c-700 mt-1"><span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span>ตามคนลังเลเรื่องค่าส่ง · ขั้น 1/2</div><div class="flex items-center gap-2 mt-1"><span class="badge b-warn">ข้าม</span><span class="t-xs c-700">โควตา LINE เต็ม</span></div></div>
+      <div class="logrow"><div class="flex items-center gap-2"><a class="link truncate min-w-0 flex-1">มาลี ศรีสุข <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a><span class="t-xs c-600 tabnum">16 พ.ย. 13:05</span></div><div class="flex items-center gap-1-5 t-xs c-700 mt-1"><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-12)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-12)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-12" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-12" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span>ตามคนถามราคา · ขั้น 3/3</div><div class="flex items-center gap-2 mt-1"><span class="badge b-err">ส่งไม่สำเร็จ</span><span class="t-xs c-700">Meta ไม่ให้ส่งนอกกรอบเวลา</span></div></div>
+      <div class="logrow"><div class="flex items-center gap-2"><a class="link truncate min-w-0 flex-1">ปกรณ์ วงศ์ดี <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a><span class="t-xs c-600 tabnum">16 พ.ย. 11:47</span></div><div class="flex items-center gap-1-5 t-xs c-700 mt-1"><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-13" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-13)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span>ตามคนถามราคา · ขั้น 1/3</div><div class="flex items-center gap-2 mt-1"><span class="badge b-warn">ไม่ทราบผล</span><span class="t-xs c-700">ไม่ทราบผล ระบบไม่ส่งซ้ำ</span></div></div>
+      <div class="logrow"><div class="flex items-center gap-2"><a class="link truncate min-w-0 flex-1">วิภา ทองคำ <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a><span class="t-xs c-600 tabnum">15 พ.ย. 18:20</span></div><div class="flex items-center gap-1-5 t-xs c-700 mt-1"><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-14" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-14)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span><span class="italic c-600">บอทที่ถูกลบแล้ว</span> · ขั้น 1/2</div><div class="flex items-center gap-2 mt-1"><span class="badge b-ok">ส่งแล้ว</span></div></div>
+    </div>
+    <div class="flex justify-center mt-3"><button class="btn btn-outline">โหลดเพิ่ม</button></div>
+  </div></div></div>
+
+  <!-- ========================= 3 ========================= -->
+  <div class="sec"><h2>3. ฟอร์มแก้บอท</h2><div class="ref">สเปก §2.1–§2.3 · Base product-add (§15) 2/3 + 1/3 · กรอบนี้เลื่อนได้เพื่อเห็น savebar sticky (มือถือ/แท็บเล็ตอยู่เหนือ bottom nav 72px)</div></div>
+  <div class="stage"><div class="frame scroll">
+    <div class="page">
+      <div class="page-head">
+        <h4 class="page-title">ตามคนถามราคา</h4>
+        <div class="crumb">ตั้งค่า <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> บอทติดตามยอดขาย <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> ตามคนถามราคา</div>
+      </div>
+      <div class="formgrid">
+        <div class="space-y-base min-w-0">
+          <!-- ชื่อและสถานะ -->
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ชื่อและสถานะ</h4><button class="btn btn-sm btn-danger-text"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:trash"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>ลบบอท</button></div>
+            <div class="card-body space-y-3">
+              <div>
+                <label class="label">ชื่อบอท</label>
+                <div class="form-input c-900">ตามคนถามราคา</div>
+                <div class="counter mt-1" style="text-align:end">12/60</div>
+              </div>
+              <div>
+                <label class="label">สถานะ</label>
+                <div class="seg locked" role="radiogroup" aria-disabled="true"><span role="radio">ปิด</span><span role="radio" class="on" aria-checked="true"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:flask"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6m-5 6h4m-4-6v6L6 20a.7.7 0 0 0 .5 1h11a.7.7 0 0 0 .5-1L14 9V3"/></svg>ทดสอบ</span><span role="radio">เปิดใช้</span></div>
+                <p class="t-xs c-700 mt-1">ทักเฉพาะห้องทดสอบที่เลือก</p>
+                <p class="t-xs c-warning-ink mt-0-5 flex items-center gap-1"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:lock"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0-2 0m-3-5V7a4 4 0 1 1 8 0v4"/></g></svg>บันทึกการแก้ไขก่อน แล้วจึงเปลี่ยนสถานะ</p>
+              </div>
+              <div>
+                <label class="label">ห้องทดสอบ (1-20 ห้อง)</label>
+                <div class="rs"><span class="mv"><span class="cm" style="font-size:12px;width:12px;height:12px"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-15" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-15)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span>สมชาย ใจดี<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="mv"><span class="cm" style="font-size:12px;width:12px;height:12px"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-16)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-16)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-16" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-16" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span>มาลี ศรีสุข<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="ph">ค้นชื่อลูกค้า</span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ตามห้องไหน -->
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ตามห้องไหน</h4></div>
+            <div class="card-body space-y-3">
+              <div class="pair">
+                <div>
+                  <label class="label">สถานะการขาย</label>
+                  <div class="rs"><span class="mv">ยังไม่ซื้อ<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="ph"></span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div>
+                </div>
+                <div>
+                  <div class="flex items-baseline justify-between"><label class="label">แท็กของร้าน</label><a class="link t-xs">จัดการแท็ก <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:external-link"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-7 1l9-9m-5 0h5v5"/></svg></a></div>
+                  <div class="rs"><span class="mv">ถามราคา<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="mv">สนใจโปร<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="mv miss">vip (ถูกลบแล้ว)<span class="x"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"/></svg></span></span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div>
+                  <div class="warnline"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:alert-triangle"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m-1.637-9.409L2.257 17.125a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87L13.637 3.59a1.914 1.914 0 0 0-3.274 0M12 16h.01"/></svg><span>แท็ก “vip” ถูกลบแล้ว · บอทตามต่อด้วยแท็กที่เหลือ</span></div>
+                </div>
+              </div>
+              <div class="seg sm" role="radiogroup"><span role="radio" class="on" aria-checked="true">ใดแท็กหนึ่ง</span><span role="radio">ครบทุกแท็ก</span></div>
+              <div class="summary"><svg class="ii c-600 mt-0-5" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:filter"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16v2.172a2 2 0 0 1-.586 1.414L15 12v7l-6 2v-8.5L4.52 7.572A2 2 0 0 1 4 6.227z"/></svg><span>ตามห้องที่<b class="fw-sb">ยังไม่ซื้อ</b> และมีแท็ก <b class="fw-sb">ถามราคา</b> หรือ <b class="fw-sb">สนใจโปร</b></span></div>
+            </div>
+          </div>
+
+          <!-- ช่องทาง -->
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ช่องทาง</h4></div>
+            <div class="card-body" style="padding-top:8px;padding-bottom:8px">
+              <label class="chrow"><span class="form-checkbox on"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:check"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 12l5 5L20 7"/></svg></span><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-17" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-17)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span><span class="c-900">เพจร้านนุ่น</span></label>
+              <label class="chrow"><span class="form-checkbox"></span><span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-18)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-18)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-18" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-18" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span><span class="c-900 flex-1">ร้านนุ่นไอจี</span><span class="badge b-warn">หลุดการเชื่อมต่อ</span></label>
+              <div class="chrow"><span class="form-checkbox dis"></span><span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span><div class="min-w-0 flex-1"><div class="c-600 flex items-center gap-1">ร้านนุ่น OA <svg class="ii c-600" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:lock"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0-2 0m-3-5V7a4 4 0 1 1 8 0v4"/></g></svg></div><div class="t-xs c-700">อยู่ในบอท <a class="link">“ตามคนลังเลเรื่องค่าส่ง”</a> แล้ว</div></div></div>
+            </div>
+          </div>
+
+          <!-- ข้อความที่จะส่ง (พระเอก) -->
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ข้อความที่จะส่ง</h4></div>
+            <div class="card-body">
+              <div class="rail">
+                <!-- ขั้น 1 -->
+                <div class="step"><div class="dot">1</div><div class="body">
+                  <div class="stephead"><span class="c-900 fw-m flex-1">ขั้นที่ 1</span>
+                    <button class="btn btn-icon btn-sm btn-outline" disabled title="ขั้นแรกเลื่อนขึ้นไม่ได้" aria-label="เลื่อนขึ้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-up"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-8l-6-6m-6 6l6-6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="เลื่อนลง"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-6l-6 6m-6-6l6 6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="ลบขั้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:trash"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>
+                  </div>
+                  <div class="timing">รอ <div class="input-group"><div class="form-input tabnum">30</div></div><div class="rs single unit"><span>นาที</span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div><span>หลังแอดมินตอบล่าสุด</span></div>
+                  <p class="t-xs c-700 mt-1">ส่งหลังแอดมินตอบราว 30 นาที</p>
+                  <div class="seg sm mt-2" role="radiogroup"><span role="radio" class="on">ข้อความ</span><span role="radio">ข้อความ + รูป</span></div>
+                  <div class="editor">
+                    <div class="txt">สวัสดีค่ะ คุณ<span class="varchip">ชื่อ</span> ยังสนใจสินค้าที่ถามไว้อยู่ไหมคะ</div>
+                    <div class="tools"><span class="iconbtn"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:mood-smile"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0m6-2h.01M15 10h.01"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/></g></svg></span><span class="addvar"><span>+ ชื่อ</span></span><button class="btn btn-sm only-mobile c-primary" style="padding:0 8px">ดูตัวอย่าง</button><span class="counter ms-auto tabnum">38/1000</span></div>
+                  </div>
+                </div></div>
+                <!-- ขั้น 2 -->
+                <div class="step"><div class="dot">2</div><div class="body">
+                  <div class="stephead"><span class="c-900 fw-m flex-1">ขั้นที่ 2</span>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="เลื่อนขึ้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-up"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-8l-6-6m-6 6l6-6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="เลื่อนลง"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-6l-6 6m-6-6l6 6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="ลบขั้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:trash"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>
+                  </div>
+                  <div class="timing">ถ้ายังไม่ตอบ รอต่ออีก <div class="input-group"><div class="form-input tabnum">3</div></div><div class="rs single unit"><span>ชั่วโมง</span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div></div>
+                  <p class="t-xs c-700 mt-1">ส่งหลังแอดมินตอบราว 3 ชม. 30 นาที</p>
+                  <div class="seg sm mt-2" role="radiogroup"><span role="radio">ข้อความ</span><span role="radio" class="on">ข้อความ + รูป</span></div>
+                  <div class="editor">
+                    <div class="txt">คุณ<span class="varchip">ชื่อ</span> คะ วันนี้มีโปรส่งฟรีถึงเที่ยงคืนนะคะ แนบรูปสินค้าให้ดูอีกครั้งค่ะ</div>
+                    <div class="tools"><span class="iconbtn"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:mood-smile"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0m6-2h.01M15 10h.01"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/></g></svg></span><span class="addvar"><span>+ ชื่อ</span></span><button class="btn btn-sm only-mobile c-primary" style="padding:0 8px">ดูตัวอย่าง</button><span class="counter ms-auto tabnum">56/1000</span></div>
+                  </div>
+                  <div class="imgrow"><div class="thumb"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:photo"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 8h.01M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="m3 16l5-5c.928-.893 2.072-.893 3 0l5 5"/><path d="m14 14l1-1c.928-.893 2.072-.893 3 0l3 3"/></g></svg></div><div class="flex wrap gap-2"><button class="btn btn-sm btn-outline">เปลี่ยนรูป</button><button class="btn btn-sm btn-danger-text">เอารูปออก</button></div></div>
+                </div></div>
+                <!-- ขั้น 3 (adOnly) -->
+                <div class="step"><div class="dot">3</div><div class="body">
+                  <div class="stephead"><span class="c-900 fw-m flex-1">ขั้นที่ 3</span>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="เลื่อนขึ้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-up"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-8l-6-6m-6 6l6-6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" disabled title="ขั้นสุดท้ายเลื่อนลงไม่ได้" aria-label="เลื่อนลง"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:arrow-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m6-6l-6 6m-6-6l6 6"/></svg></button>
+                    <button class="btn btn-icon btn-sm btn-outline" aria-label="ลบขั้น"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:trash"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16m-10 4v6m4-6v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button>
+                  </div>
+                  <div class="timing">ถ้ายังไม่ตอบ รอต่ออีก <div class="input-group"><div class="form-input tabnum">1</div></div><div class="rs single unit"><span>วัน</span><span class="ind"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-down"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></svg></span></div></div>
+                  <p class="t-xs c-700 mt-1">ส่งหลังแอดมินตอบราว 1 วัน 3 ชม. 30 นาที</p>
+                  <div class="mt-2"><span class="badge b-warn"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:speakerphone"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M18 8a3 3 0 0 1 0 6m-8-6v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-5"/><path d="m12 8l4.524-3.77A.9.9 0 0 1 18 4.922v12.156a.9.9 0 0 1-1.476.692L12 14H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/></g></svg>ส่งเฉพาะลูกค้าที่ทักจากโฆษณา (Messenger/IG)</span></div>
+                  <p class="t-xs c-700 mt-1">ลูกค้าที่ไม่ได้มาจากโฆษณาจะไม่ได้รับขั้นนี้</p>
+                  <div class="seg sm mt-2" role="radiogroup"><span role="radio" class="on">ข้อความ</span><span role="radio">ข้อความ + รูป</span></div>
+                  <div class="editor">
+                    <div class="txt ph">พิมพ์ข้อความที่จะส่ง</div>
+                    <div class="tools"><span class="iconbtn"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:mood-smile"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0m6-2h.01M15 10h.01"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/></g></svg></span><span class="addvar"><span>+ ชื่อ</span></span><span class="counter ms-auto tabnum">0/1000</span></div>
+                  </div>
+                </div></div>
+              </div>
+              <div class="flex wrap items-center gap-3 mt-3"><button class="btn btn-outline"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:plus"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"/></svg>เพิ่มขั้น</button><span class="t-sm c-700">รวม 3 ขั้น · ภายใน 1 วัน 3 ชม. 30 นาที</span></div>
+            </div>
+            <div class="card-footer t-xs c-700"><svg class="ii c-500" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:info-circle"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0-18 0m9-3h.01"/><path d="M11 12h1v4h1"/></g></svg>บอทหยุดเองเมื่อลูกค้าตอบ สถานะการขายเปลี่ยน แท็กถูกเอาออก หรือเลยกรอบเวลา</div>
+          </div>
+        </div>
+
+        <!-- ขวา: ตัวอย่างในแชท -->
+        <div class="sticky-lg min-w-0">
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ตัวอย่างในแชท</h4></div>
+            <div class="card-body">
+              <div class="divider-time">รอ 30 นาทีหลังแอดมินตอบ</div>
+              <div class="brow"><div class="bubble-wrap"><span class="edge" title="ส่งโดยบอทติดตาม"><svg class="ii t-xs" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>บอทติดตาม</span><div class="bubble">สวัสดีค่ะ คุณสมชาย ยังสนใจสินค้าที่ถามไว้อยู่ไหมคะ</div></div></div>
+              <div class="divider-time">ถ้ายังไม่ตอบ รออีก 3 ชม.</div>
+              <div class="brow"><div class="bubble-wrap"><span class="edge" title="ส่งโดยบอทติดตาม"><svg class="ii t-xs" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>บอทติดตาม</span><div class="bubble">คุณสมชาย คะ วันนี้มีโปรส่งฟรีถึงเที่ยงคืนนะคะ แนบรูปสินค้าให้ดูอีกครั้งค่ะ</div></div></div>
+              <div class="brow" style="margin-top:6px"><div class="bubble img"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:photo"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M15 8h.01M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="m3 16l5-5c.928-.893 2.072-.893 3 0l5 5"/><path d="m14 14l1-1c.928-.893 2.072-.893 3 0l3 3"/></g></svg></div></div>
+              <div class="divider-time">ถ้ายังไม่ตอบ รออีก 1 วัน</div>
+              <span class="adonly-tag"><span class="badge b-warn">เฉพาะลูกค้าจากโฆษณา</span></span>
+              <div class="brow"><div class="bubble ghost">ข้อความขั้นที่ 3 จะแสดงที่นี่</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="savebar"><span class="msg">มีการแก้ไขที่ยังไม่บันทึก</span><button class="btn btn-outline">ยกเลิก</button><button class="btn btn-primary">บันทึก</button></div>
+    <div class="bottomnav" aria-hidden="true"><div><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:layout-dashboard"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 4h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1m0 12h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1m10-4h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1m0-8h4a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1"/></svg>หน้าหลัก</div><div><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:message-circle"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 20l1.3-3.9C1.976 12.663 2.874 8.228 6.4 5.726c3.526-2.501 8.59-2.296 11.845.48c3.255 2.777 3.695 7.266 1.029 10.501S11.659 20.922 7.7 19z"/></svg>แชท</div><div><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:receipt"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2l-2 2l-2-2l-2 2l-2-2zM9 7h6m-6 4h6m-2 4h2"/></svg>ออเดอร์</div><div><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:menu-2"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>เมนู</div></div>
+  </div></div>
+
+  <!-- ========================= 4 ========================= -->
+  <div class="sec"><h2>4. แผง "บอทติดตาม" ในห้อง (แท็บข้อมูลลูกค้า ต่อจาก CRM) — 3 กรณี</h2><div class="ref">สเปก §3.1–§3.3 · กว้าง 384 บนเดสก์ท็อป · sheet เต็มกว้างบนมือถือ/แท็บเล็ต · ไม่มี run = ไม่แสดงอะไร (§14 Q3)</div></div>
+  <div class="stage"><div class="frame"><div class="page"><div class="panels">
+    <!-- ปกติ -->
+    <div class="cpanel">
+      <div class="crm-ghost">… บล็อก CRM (สถานะการขาย · แท็ก) …</div>
+      <div class="fbsec space-y-2">
+        <div class="flex items-center gap-2"><p class="c-900 t-sm fw-sb flex-1 min-w-0 truncate">บอทติดตาม</p><button class="btn btn-sm btn-outline">หยุดบอท</button></div>
+        <p class="t-xs c-700">ตามคนถามราคา · ยังไม่ซื้อ</p>
+        <div class="srail">
+          <div class="srow"><svg class="ii ic c-success-ink" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:circle-check-filled"><path fill="currentColor" d="M17 3.34a10 10 0 1 1-14.995 8.984L2 12l.005-.324A10 10 0 0 1 17 3.34m-1.293 5.953a1 1 0 0 0-1.32-.083l-.094.083L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.403 1.403l.083.094l2 2l.094.083a1 1 0 0 0 1.226 0l.094-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32"/></svg><span>ส่งแล้ว 14:32</span><span class="n">ขั้น 1</span></div>
+          <div class="srow next"><span class="ring"></span><span>อีก 2 ชม. 10 นาที <span class="c-700 t-xs" style="font-weight:400">ราว 16:40</span></span><span class="n">ขั้น 2</span></div>
+          <div class="srow"><span class="hollow"></span><span class="c-700">รอส่ง</span><span class="n">ขั้น 3</span></div>
+        </div>
+      </div>
+      <p class="t-2xs c-500 mt-3">กรณีปกติ — รอส่งขั้นถัดไป</p>
+    </div>
+    <!-- รอคุณตอบ -->
+    <div class="cpanel">
+      <div class="crm-ghost">… บล็อก CRM (สถานะการขาย · แท็ก) …</div>
+      <div class="fbsec space-y-2">
+        <div class="flex items-center gap-2"><p class="c-900 t-sm fw-sb flex-1 min-w-0 truncate">บอทติดตาม</p><button class="btn btn-sm btn-outline">หยุดบอท</button></div>
+        <p class="t-xs c-700">ตามคนถามราคา · ยังไม่ซื้อ</p>
+        <div class="box-warn"><svg class="ii" style="font-size:18px" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:alert-triangle"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m-1.637-9.409L2.257 17.125a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87L13.637 3.59a1.914 1.914 0 0 0-3.274 0M12 16h.01"/></svg><div><p class="t-sm fw-m">รอคุณตอบลูกค้า</p><p>บอทจะเริ่มนับเวลาหลังคุณตอบ</p></div></div>
+        <div class="srail">
+          <div class="srow"><span class="hollow"></span><span class="c-700">รอส่ง</span><span class="n">ขั้น 1</span></div>
+          <div class="srow"><span class="hollow"></span><span class="c-700">รอส่ง</span><span class="n">ขั้น 2</span></div>
+          <div class="srow"><span class="hollow"></span><span class="c-700">รอส่ง</span><span class="n">ขั้น 3</span></div>
+        </div>
+      </div>
+      <p class="t-2xs c-500 mt-3">กรณีร้านค้างตอบ (พระเอกของแผง)</p>
+    </div>
+    <!-- พัก/ข้าม/ล้ม -->
+    <div class="cpanel">
+      <div class="crm-ghost">… บล็อก CRM (สถานะการขาย · แท็ก) …</div>
+      <div class="fbsec space-y-2">
+        <div class="flex items-center gap-2"><p class="c-900 t-sm fw-sb flex-1 min-w-0 truncate">บอทติดตาม</p><button class="btn btn-sm btn-outline">หยุดบอท</button></div>
+        <p class="t-xs c-700">ตามคนถามราคา · ยังไม่ซื้อ</p>
+        <div class="box-hold"><svg class="ii" style="font-size:18px" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:player-pause"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zm8 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1z"/></svg><p class="t-sm">พักส่ง · Meta AI กำลังตอบห้องนี้</p></div>
+        <div class="srail">
+          <div class="srow"><svg class="ii ic c-success-ink" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:circle-check-filled"><path fill="currentColor" d="M17 3.34a10 10 0 1 1-14.995 8.984L2 12l.005-.324A10 10 0 0 1 17 3.34m-1.293 5.953a1 1 0 0 0-1.32-.083l-.094.083L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.403 1.403l.083.094l2 2l.094.083a1 1 0 0 0 1.226 0l.094-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32"/></svg><span>ส่งแล้ว 14:32</span><span class="n">ขั้น 1</span></div>
+          <div class="srow c-warning-ink"><svg class="ii ic" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:alert-triangle"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m-1.637-9.409L2.257 17.125a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87L13.637 3.59a1.914 1.914 0 0 0-3.274 0M12 16h.01"/></svg><span class="min-w-0">ข้ามขั้นนี้ · Meta ไม่ให้ส่งนอกกรอบเวลา</span><span class="n">ขั้น 2</span></div>
+          <div class="srow c-danger-ink"><svg class="ii ic" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:circle-x"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0m7-2l4 4m0-4l-4 4"/></svg><span>ส่งไม่สำเร็จ</span><span class="n">ขั้น 3</span></div>
+        </div>
+      </div>
+      <p class="t-2xs c-500 mt-3">กรณีพัก / ข้าม / ล้ม</p>
+    </div>
+  </div></div></div></div>
+
+  <!-- ========================= 5 ========================= -->
+  <div class="sec"><h2>5. ห้องแชท: ชิปหัวห้อง · ป้ายบับเบิล · บรรทัดระบบ · พรีวิวรายการห้อง</h2><div class="ref">สเปก §4.1–§4.4 · ชิป tone info / warning (§14 Q4) · ป้ายเกยขอบท่าเดียวกับ "ส่งโดยระบบ" ของ 00078</div></div>
+  <div class="stage"><div class="frame"><div class="page">
+    <div class="chatgrid">
+      <div><p class="screen-label">จอที่ 1 · รายการห้อง</p><div class="inbox">
+        <div class="irow sel"><div class="av">สม<span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="logos:messenger"><defs><radialGradient id="logos-messenger-SVGhphmYc3G-19" cx="19.247%" cy="99.465%" r="108.96%" fx="19.247%" fy="99.465%"><stop offset="0%" stop-color="#09f"/><stop offset="60.975%" stop-color="#a033ff"/><stop offset="93.482%" stop-color="#ff5280"/><stop offset="100%" stop-color="#ff7061"/></radialGradient></defs><path fill="url(#logos-messenger-SVGhphmYc3G-19)" d="M128 0C55.894 0 0 52.818 0 124.16c0 37.317 15.293 69.562 40.2 91.835c2.09 1.871 3.352 4.493 3.438 7.298l.697 22.77c.223 7.262 7.724 11.988 14.37 9.054L84.111 243.9a10.22 10.22 0 0 1 6.837-.501c11.675 3.21 24.1 4.92 37.052 4.92c72.106 0 128-52.818 128-124.16S200.106 0 128 0"/><path fill="#fff" d="m51.137 160.47l37.6-59.653c5.98-9.49 18.788-11.853 27.762-5.123l29.905 22.43a7.68 7.68 0 0 0 9.252-.027l40.388-30.652c5.39-4.091 12.428 2.36 8.82 8.085l-37.6 59.654c-5.981 9.489-18.79 11.852-27.763 5.122l-29.906-22.43a7.68 7.68 0 0 0-9.25.027l-40.39 30.652c-5.39 4.09-12.427-2.36-8.818-8.085"/></svg></span></div><div class="min-w-0 flex-1"><div class="t-xs fw-sb c-900 truncate">สมชาย ใจดี</div><div class="t-xs c-700 truncate"><span class="c-700" style="font-weight:400">บอทติดตาม: </span>คุณสมชาย คะ วันนี้มีโปรส่งฟรีถึงเที่ยงคืนนะคะ</div></div><span class="t-2xs c-500">14:32</span></div>
+        <div class="irow"><div class="av">นุ่<span class="cm"><svg class="ii line-brand" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:brand-line"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10.663C21 6.439 16.959 3 12 3s-9 3.439-9 7.663c0 3.783 3.201 6.958 7.527 7.56c1.053.239.932.644.696 2.133c-.039.238-.184.932.777.512c.96-.42 5.18-3.201 7.073-5.48C20.377 13.884 21 12.359 21 10.673z"/></svg></span></div><div class="min-w-0 flex-1"><div class="t-xs fw-sb c-900 truncate">คุณนุ่น</div><div class="t-xs c-700 truncate"><span style="font-weight:400">คุณ: </span>ส่งเลขพัสดุให้แล้วนะคะ</div></div><span class="t-2xs c-500">13:58</span></div>
+        <div class="irow"><div class="av">มา<span class="cm"><svg class="ii" width="1em" height="1em" viewBox="0 0 256 256" aria-hidden="true" data-icon="skill-icons:instagram"><g fill="none"><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGKdMMobCR-20)" rx="60"/><rect width="256" height="256" fill="url(#skill-icons-instagram-SVGqYUiQbXV-20)" rx="60"/><path fill="#fff" d="M128.009 28c-27.158 0-30.567.119-41.233.604c-10.646.488-17.913 2.173-24.271 4.646c-6.578 2.554-12.157 5.971-17.715 11.531c-5.563 5.559-8.98 11.138-11.542 17.713c-2.48 6.36-4.167 13.63-4.646 24.271c-.477 10.667-.602 14.077-.602 41.236s.12 30.557.604 41.223c.49 10.646 2.175 17.913 4.646 24.271c2.556 6.578 5.973 12.157 11.533 17.715c5.557 5.563 11.136 8.988 17.709 11.542c6.363 2.473 13.631 4.158 24.275 4.646c10.667.485 14.073.604 41.23.604c27.161 0 30.559-.119 41.225-.604c10.646-.488 17.921-2.173 24.284-4.646c6.575-2.554 12.146-5.979 17.702-11.542c5.563-5.558 8.979-11.137 11.542-17.712c2.458-6.361 4.146-13.63 4.646-24.272c.479-10.666.604-14.066.604-41.225s-.125-30.567-.604-41.234c-.5-10.646-2.188-17.912-4.646-24.27c-2.563-6.578-5.979-12.157-11.542-17.716c-5.562-5.562-11.125-8.979-17.708-11.53c-6.375-2.474-13.646-4.16-24.292-4.647c-10.667-.485-14.063-.604-41.23-.604zm-8.971 18.021c2.663-.004 5.634 0 8.971 0c26.701 0 29.865.096 40.409.575c9.75.446 15.042 2.075 18.567 3.444c4.667 1.812 7.994 3.979 11.492 7.48c3.5 3.5 5.666 6.833 7.483 11.5c1.369 3.52 3 8.812 3.444 18.562c.479 10.542.583 13.708.583 40.396s-.104 29.855-.583 40.396c-.446 9.75-2.075 15.042-3.444 18.563c-1.812 4.667-3.983 7.99-7.483 11.488c-3.5 3.5-6.823 5.666-11.492 7.479c-3.521 1.375-8.817 3-18.567 3.446c-10.542.479-13.708.583-40.409.583c-26.702 0-29.867-.104-40.408-.583c-9.75-.45-15.042-2.079-18.57-3.448c-4.666-1.813-8-3.979-11.5-7.479s-5.666-6.825-7.483-11.494c-1.369-3.521-3-8.813-3.444-18.563c-.479-10.542-.575-13.708-.575-40.413s.096-29.854.575-40.396c.446-9.75 2.075-15.042 3.444-18.567c1.813-4.667 3.983-8 7.484-11.5s6.833-5.667 11.5-7.483c3.525-1.375 8.819-3 18.569-3.448c9.225-.417 12.8-.542 31.437-.563zm62.351 16.604c-6.625 0-12 5.37-12 11.996c0 6.625 5.375 12 12 12s12-5.375 12-12s-5.375-12-12-12zm-53.38 14.021c-28.36 0-51.354 22.994-51.354 51.355s22.994 51.344 51.354 51.344c28.361 0 51.347-22.983 51.347-51.344c0-28.36-22.988-51.355-51.349-51.355zm0 18.021c18.409 0 33.334 14.923 33.334 33.334c0 18.409-14.925 33.334-33.334 33.334s-33.333-14.925-33.333-33.334c0-18.411 14.923-33.334 33.333-33.334"/><defs><radialGradient id="skill-icons-instagram-SVGKdMMobCR-20" cx="0" cy="0" r="1" gradientTransform="matrix(0 -253.715 235.975 0 68 275.717)" gradientUnits="userSpaceOnUse"><stop stop-color="#fd5"/><stop offset=".1" stop-color="#fd5"/><stop offset=".5" stop-color="#ff543e"/><stop offset="1" stop-color="#c837ab"/></radialGradient><radialGradient id="skill-icons-instagram-SVGqYUiQbXV-20" cx="0" cy="0" r="1" gradientTransform="rotate(78.68 -32.69 -16.937)scale(113.412 467.488)" gradientUnits="userSpaceOnUse"><stop stop-color="#3771c8"/><stop offset=".128" stop-color="#3771c8"/><stop offset="1" stop-color="#60f" stop-opacity="0"/></radialGradient></defs></g></svg></span></div><div class="min-w-0 flex-1"><div class="t-xs fw-b c-900 truncate" style="font-weight:700">มาลี ศรีสุข</div><div class="t-xs c-900 fw-m truncate">ขอคิดดูก่อนนะคะ</div></div><span class="t-2xs c-500">13:10</span></div>
+      </div>
+      </div>
+      <div class="min-w-0"><p class="screen-label">จอที่ 2 · ห้องแชท (แตะแถวแล้วเปิด)</p><div class="thread">
+        <div class="thead"><div class="av" style="width:36px;height:36px">สม</div><div class="min-w-0 flex-1"><div class="c-900 fw-sb truncate">สมชาย ใจดี</div><div class="t-xs c-600">เพจร้านนุ่น</div></div></div>
+        <!-- ชิปปกติ (กางอยู่) -->
+        <div class="strip">
+          <div class="row">
+            <span class="tchip tc-order"><svg class="ii t-sm" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:shopping-cart"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0m11 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M17 17H6V3H4"/><path d="m6 5l14 1l-1 7H6"/></g></svg><span class="truncate">ยังไม่ซื้อ</span></span>
+            <button class="tchip tc-info open" style="border:0;font:inherit;font-size:var(--text-xs);font-weight:500"><svg class="ii t-sm" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg><span class="truncate">บอทติดตามอยู่</span><svg class="ii t-sm" style="opacity:.7" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-up"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 15l6-6l6 6"/></svg></button>
+            <span class="tchip tc-ctx"><svg class="ii t-sm" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:tag"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M6.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592-5.592a2.41 2.41 0 0 0 0-3.408l-7.71-7.71A2 2 0 0 0 11.172 3H6a3 3 0 0 0-3 3"/></g></svg><span class="truncate">ถามราคา</span></span>
+          </div>
+          <div class="detail"><div class="fbbox info"><svg class="ii fb-ic" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg><div class="fb-main"><p class="fw-sb">บอท “ตามคนถามราคา” กำลังติดตาม</p><div class="flex wrap items-center gap-2 mt-1 t-xs"><span class="prog" aria-hidden="true"><i class="done"></i><i></i><i class="todo"></i></span><span>ขั้น 2/3 · ส่งอีก 2 ชม. 10 นาที (ราว 16:40)</span></div></div><div class="fb-acts"><button class="btn btn-sm btn-ghost">ดูทุกขั้นตอน</button><button class="btn btn-sm btn-outline">หยุดบอท</button></div></div></div>
+        </div>
+        <div class="msgs">
+          <div class="mrow"><div class="av">สม</div><div class="bubble-wrap"><div class="bubble them">สินค้าตัวนี้ราคาเท่าไหร่คะ</div></div></div>
+          <div class="mrow me"><div class="bubble-wrap"><div class="bubble">ตัวละ 390 บาทค่ะ ซื้อ 2 ชิ้นส่งฟรีนะคะ</div></div></div>
+          <div class="mrow me"><div class="bubble-wrap"><span class="edge" title="ส่งโดยบอทติดตาม"><svg class="ii t-xs" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg><span aria-hidden="true">บอทติดตาม</span><span class="sr-only">ส่งโดยบอทติดตาม</span></span><div class="bubble">สวัสดีค่ะ คุณสมชาย ยังสนใจสินค้าที่ถามไว้อยู่ไหมคะ</div><div class="mtime">14:32</div></div></div>
+          <div class="mrow"><div class="av">สม</div><div class="bubble-wrap"><div class="bubble them">ขอคิดดูก่อนนะคะ</div></div></div>
+          <div class="sysline"><svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>บอทติดตาม “ตามคนถามราคา” หยุด: ลูกค้าตอบแล้ว</div>
+        </div>
+      </div></div>
+    </div>
+    <div class="sub">ชิป "บอทรอคุณตอบ" กางอยู่ (tone warning)</div>
+    <div class="thread"><div class="strip" style="border-bottom:0"><div class="row">
+      <span class="tchip tc-order"><svg class="ii t-sm" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:shopping-cart"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M4 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0m11 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M17 17H6V3H4"/><path d="m6 5l14 1l-1 7H6"/></g></svg><span class="truncate">ยังไม่ซื้อ</span></span>
+      <button class="tchip tc-warn open" style="border:0;font:inherit;font-size:var(--text-xs);font-weight:500"><svg class="ii t-sm" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg><span class="truncate">บอทรอคุณตอบ</span><svg class="ii t-sm" style="opacity:.7" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-up"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 15l6-6l6 6"/></svg></button>
+    </div><div class="detail"><div class="fbbox warn"><svg class="ii fb-ic" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg><div class="fb-main"><p class="fw-sb">บอท “ตามคนถามราคา” รอคุณตอบลูกค้า</p><p class="t-xs mt-0-5">บอทจะเริ่มนับเวลาขั้นถัดไปหลังคุณตอบ</p></div><div class="fb-acts"><button class="btn btn-sm btn-ghost">ดูทุกขั้นตอน</button><button class="btn btn-sm btn-outline">หยุดบอท</button></div></div></div></div></div>
+  </div></div></div>
+
+  <!-- ========================= 6 ========================= -->
+  <div class="sec"><h2>6. ร้านที่ยังไม่เปิดใช้: "เร็ว ๆ นี้"</h2><div class="ref">สเปก §5 · card + empty state ของ AutoNotifyClient (§14 Q8) · ไม่ใช้ theme coming-soon</div></div>
+  <div class="stage"><div class="frame"><div class="page">
+    <div class="page-head">
+      <h4 class="page-title">บอทติดตามยอดขาย</h4>
+      <div class="crumb">ตั้งค่า <svg class="ii" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:chevron-right"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"/></svg> บอทติดตามยอดขาย</div>
+    </div>
+    <div class="card"><div class="card-body"><div class="empty">
+      <svg class="ii c-500" style="font-size:32px" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" data-icon="tabler:target-arrow"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055A9 9 0 1 0 20.941 11"/><path d="M15 6v3h3l3-3h-3V3zm0 3l-3 3"/></g></svg>
+      <p class="c-900 t-sm fw-m">บอทติดตามยอดขายยังไม่เปิดให้ร้านนี้ใช้</p>
+      <p class="c-700 t-sm">เปิดให้ร้านนำร่องที่ขายสินค้าออนไลน์ก่อน</p>
+      <button class="btn btn-outline mt-2">กลับไปตั้งค่า</button>
+    </div></div></div>
+  </div></div></div>
+</div>
+
+<script>
+  // สลับความกว้างกรอบ · 1440 ย่อด้วย zoom ให้พอดีจอ (container query ยังเห็นกว้าง 1440)
+  const btns = document.querySelectorAll('#devices button');
+  let w = 390;
+  function apply() {
+    document.querySelectorAll('.stage').forEach((s) => {
+      const f = s.querySelector('.frame');
+      f.style.setProperty('--w', w + 'px');
+      f.style.zoom = Math.min(1, s.clientWidth / (w + 2));
+    });
+  }
+  btns.forEach((b) => b.addEventListener('click', () => {
+    btns.forEach((x) => x.classList.toggle('on', x === b));
+    w = +b.dataset.w; apply();
+  }));
+  addEventListener('resize', apply); apply();
+</script>
+</body>
+</html>

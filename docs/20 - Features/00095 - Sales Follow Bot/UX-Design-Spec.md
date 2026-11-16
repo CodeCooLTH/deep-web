@@ -420,7 +420,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[API]]"]
 ```
 - โครงเดียวกับ empty state ของ `AutoNotifyClient` (`flex flex-col items-center gap-2 py-6 text-center`) บนทุกขนาดจอ ปุ่ม `min-h-11` บนมือถือ
 - เข้า URL ตรงของ `/new` และ `/[id]` ก็ได้หน้านี้ (ไม่ใช่ 500/ข้อมูล, AC-FB-83) · ไม่เห็นเมนู
-- **ไม่พบ theme match ที่ใช้ได้** `theme/.../(others)/pages/coming-soon/page.tsx` มีตัวนับถอยหลัง, ข้อความไล่สี (gradient text) และช่องกรอกอีเมลที่ไม่มีระบบรองรับ ขัด Impeccable ทั้งสามข้อ → closest primitive = card + empty-state ของ `AutoNotifyClient.tsx` (ดู Q8 ให้ Controller ยืนยัน)
+- **ไม่พบ theme match ที่ใช้ได้** `theme/paces/Admin/TS/src/app/(others)/pages/coming-soon/page.tsx` มีตัวนับถอยหลัง, ข้อความไล่สี (gradient text) และช่องกรอกอีเมลที่ไม่มีระบบรองรับ ขัด Impeccable ทั้งสามข้อ → closest primitive = card + empty-state ของ `AutoNotifyClient.tsx` (ดู Q8 ให้ Controller ยืนยัน)
 - แผงในห้อง/ชิป: ร้านไม่เปิด = ไม่แสดงอะไรเลย (API คืน `available:false`)
 
 ## 6. User flow
@@ -593,3 +593,10 @@ Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.
 | Q9 ข้อความเหตุผล | ใช้ชุด §4.3/§7 เป็น SSOT ฝั่ง server | Controller |
 | Q10 "ส่งแล้ว" สีเขียว | ใช้ได้ — `SENT` ตั้งตอนปิดผลจาก `deliveryStatus` ไม่ใช่ตอนจอง (SRS TFR-FB-14 ข้อ 5) | Controller |
 | Q11 ไม่ทราบผล | warning ไม่ใช่ danger | Controller |
+
+## 15. ผลตรวจ theme sourcing (2026-11-16, /ui-theme-sourcing)
+
+- ไฟล์ theme ที่อ้างมีจริง 9/9 · path coming-soon แก้เป็น `theme/paces/Admin/TS/src/app/(others)/pages/coming-soon/page.tsx` (ยังคงมติไม่ใช้)
+- **ฟอร์มสร้าง/แก้ (จอ 2): Base เปลี่ยนเป็น `theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx` + `components/*`** ตาม `docs/system/ui-guideline/seller/page-sourcing.md` (create form 2 คอลัมน์) — `account-settings/page.tsx` ใช้เป็นแบบการ์ด/savebar เสริมเท่านั้น
+- องค์ประกอบที่อ้างเฉพาะพี่น้องใน `src/` (ตัวแก้ข้อความ, แผงห้อง, ชิปหัวห้อง, ป้ายบับเบิล): commit ต้องมี `Base: theme/...` ตัวที่พี่น้องนั้น copy มา (ไล่จาก commit ของพี่น้อง) — ห้ามชี้ `src/`
+- mockup HTML 3 จอ: `docs/superpowers/specs/2026-11-16-00095-sales-follow-bot-mockup.html`
