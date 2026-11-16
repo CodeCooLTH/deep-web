@@ -267,3 +267,13 @@ DELETE FROM "_prisma_migrations" WHERE migration_name = '20261117100000_00095_sa
 2. Index ตัวหยิง evaluate: `(updatedAt) WHERE status='ACTIVE'` แทน `(status, updatedAt) WHERE …` (เทียบเท่า ประหยัดหนึ่งคอลัมน์)
 3. เพิ่ม index บน FK ที่ SRS ไม่ได้ระบุ (`createdByUserId`/`updatedByUserId`/`stoppedByUserId`/`conversationId` ของ TestRoom/`chatMessageId`/`imageMessageId`/`Run.shopId`) — ลบ/SET NULL แถวแม่ไม่ต้อง seq scan
 4. `SalesFollowBotTestRoom.createdAt` ใส่ default now · `SalesFollowSend.shopId` ไม่มี FK ตาม SRS (จดไว้ชัด)
+
+## ภาคผนวก — ส่วนต่อขยาย 2026-11-16
+
+| ตาราง | คอลัมน์ใหม่ | CHECK/Index |
+|---|---|---|
+| SalesFollowBot | `finalAction` text NOT NULL default 'NONE' · `finalDelayMin` int NOT NULL default 1440 | `_finalAction_check` ∈ NONE/RESOLVE/HIDE/SPAM · `_finalDelayMin_check` 0..10080 |
+| SalesFollowRun | `finalActionAt` timestamptz? · `finalActionTaken` text? | `_finalActionTaken_check` ∈ RESOLVE/HIDE/SPAM/NULL · partial index `SalesFollowRun_final_pending_idx (lastSentAt) WHERE status='DONE' AND finalActionAt IS NULL` |
+| SalesFollowSend | `controlReclaimed` bool NOT NULL default false | `_reason_check` ขยาย +`ROUTING_NOT_ENABLED`,`CHANNEL_TOKEN_INVALID` |
+
+migration `20261117100200_00095_ext_final_action` · `20261117100300_00095_ext_reclaim_control` — additive ล้วน (HR15: push main = deploy prod migrate) · local apply ด้วย `migrate deploy` ปักหมุด localhost:5434

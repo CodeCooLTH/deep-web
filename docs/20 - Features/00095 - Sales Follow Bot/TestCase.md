@@ -750,3 +750,15 @@ sequenceDiagram
 | Rollout / script / review gate | TC-500..508 | 9 |
 | **รวม** | | **264** |
 | Mutation ที่ต้องแดง | M-01..M-34, M-36 | 35 |
+
+## ภาคผนวก — เคสส่วนต่อขยาย 2026-11-16
+
+| รหัส | เคส | ไฟล์ |
+|---|---|---|
+| TC-FA-01..12 | ตัวตัดสิน: เวลารอ(0/พอดี/ก่อน) · ลูกค้า/ร้านตอบหลังรอบสุดท้าย · ห้องสแปม/ซ่อน/ปิดแล้ว · บอทลบ/ปิด · ทำแล้ว · run STOPPED/ACTIVE · NONE · TESTING | `__tests__/final-action.test.ts` |
+| TC-FA-20..28 | DB จริง: 3 action + บรรทัดระบบ · 3 tick พร้อมกัน=บรรทัดเดียว · ยังไม่ถึงเวลา · แก้เวลาทีหลัง · skip ปิดแถว · บอททดสอบ · ไม่มี lastSentAt | `services/__tests__/sales-follow-final-action.test.ts` |
+| TC-FA-30..33 | schema: finalDelayMin 0/10080 ผ่าน, -1/10081/1.5/สตริง ตก · action นอกชุด | `schemas.test.ts` |
+| TC-FA-40..45 | ดึงสิทธิ์: TAKEN→RESEND · REQUESTED→RETRY · ROUTING_NOT_ENABLED/TOKEN_INVALID→SKIP · Meta AI ไม่แตะ · backoff | `__tests__/thread-control.test.ts` |
+
+Mutation (แดงแล้วคืน): M-claim (ถอด `finalActionAt IS NULL`) · M-reply (ถอด CUSTOMER_REPLIED) · M-test (ถอด TEST_ROOM_ONLY) · M-ai (ถอด metaAiHolding ใน mayReclaim)
+🛑 ยังไม่มีเทส DB ของเส้นทาง reclaim (ต้อง mock Graph) และยังไม่เคยทดสอบกับเพจจริง

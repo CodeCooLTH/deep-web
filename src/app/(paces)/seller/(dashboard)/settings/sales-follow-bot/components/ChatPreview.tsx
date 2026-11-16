@@ -14,7 +14,7 @@ import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { formatDuration, previewRounds, type Draft, type QuickMessageLite } from '@/lib/sales-follow-bot/ui'
+import { FINAL_KEY, finalDelayOf, formatDuration, previewRounds, type Draft, type QuickMessageLite } from '@/lib/sales-follow-bot/ui'
 import { AvatarWithPlatform, FileThumb, useDurationWords } from './sfb-ui'
 
 export interface PreviewChannel {
@@ -106,6 +106,13 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
             </div>
           )
         })}
+        {/* ส่วนต่อขยาย: สิ่งที่ระบบทำกับแชทหลังตามครบ (ฝั่งร้านเท่านั้น ลูกค้าไม่เห็น) */}
+        {draft.finalAction !== 'NONE' && (
+          <p className="text-default-600 mt-5 flex items-center justify-center gap-1 text-center text-xs">
+            <Icon icon="flag" aria-hidden="true" />
+            {fmt(t.finalSummary, { d: formatDuration(finalDelayOf(draft), words), a: t[FINAL_KEY[draft.finalAction]] })}
+          </p>
+        )}
       </div>
     </div>
   )

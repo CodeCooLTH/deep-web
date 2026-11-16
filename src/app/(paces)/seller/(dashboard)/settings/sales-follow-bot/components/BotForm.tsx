@@ -169,7 +169,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
     if (hit) return issueText(hit, t)
     return kind === 'name' ? null : (serverMsg[kind] ?? null)
   }
-  const stepIssues = issues.filter((i) => ['steps', 'step', 'part'].includes(issueTarget(i).kind))
+  const stepIssues = issues.filter((i) => ['steps', 'step', 'part', 'final'].includes(issueTarget(i).kind))
 
   const conflicts = useMemo(() => {
     const m = new Map(channelConflictMap(draft, meta.id, options.channels.map((c) => c.id), others))
@@ -192,7 +192,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
 
   const goTo = (tg: IssueTarget) => {
     const id =
-      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-stage' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : 'sfb-sec-what'
+      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-stage' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : tg.kind === 'final' ? 'sfb-final-wait' : 'sfb-sec-what'
     // รอบที่ถูกพับอยู่ต้องกางก่อน ไม่งั้นช่องที่ผิดไม่อยู่ใน DOM
     if (tg.kind === 'part') {
       const uid = draft.steps[tg.stepIndex]?.uid
@@ -391,7 +391,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
         </nav>
 
         <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-center">
-          <label className="group hover:bg-default-200 focus-within:bg-card focus-within:ring-default-500 relative -ms-2 flex min-h-11 min-w-0 flex-1 cursor-text items-center gap-2 rounded px-2 focus-within:ring-1">
+          <label className="group hover:bg-default-100 focus-within:bg-card focus-within:ring-default-300 relative -ms-2 flex min-h-11 min-w-0 flex-1 cursor-text items-center gap-2 rounded px-2 focus-within:ring-1">
             <span className="sr-only">{fmt(t.nameLabel, { max: L.maxName })}</span>
             <input
               id="sfb-name"
@@ -401,7 +401,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               aria-invalid={nameErr ? true : undefined}
               aria-describedby={nameErr ? 'sfb-name-err' : undefined}
               onChange={(e) => update((d) => ({ ...d, name: e.target.value }))}
-              className="text-default-900 placeholder:text-default-400 min-w-0 flex-1 truncate bg-transparent text-xl font-semibold outline-none"
+              className="text-default-900 placeholder:text-default-400 min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xl font-semibold shadow-none outline-none focus:ring-0"
             />
             <Icon icon="pencil" className="text-default-400 group-focus-within:hidden" aria-hidden="true" />
             <span className="text-default-600 ms-auto hidden text-xs tabular-nums group-focus-within:inline">

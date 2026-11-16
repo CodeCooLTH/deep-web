@@ -46,6 +46,16 @@ export type FollowProvider = (typeof FOLLOW_PROVIDERS)[number]
 /** กรอบโฆษณา/Meta AI ใช้ได้เฉพาะ Meta — LINE ไม่มี (BR-FB-23 ก) */
 export const META_PROVIDERS = ['MESSENGER', 'INSTAGRAM'] as const
 
+/** ส่วนต่อขยาย 2026-11-16: ตามครบแล้วลูกค้ายังไม่ตอบ ทำอะไรกับห้อง — ต้องตรง CHECK SalesFollowBot.finalAction */
+export const FINAL_ACTIONS = ['NONE', 'RESOLVE', 'HIDE', 'SPAM'] as const
+export type FinalAction = (typeof FINAL_ACTIONS)[number]
+/** action ที่ทำจริง (ไม่รวม NONE) — ต้องตรง CHECK SalesFollowRun.finalActionTaken */
+export type FinalActionKind = Exclude<FinalAction, 'NONE'>
+export const FINAL_ACTION_DEFAULT: FinalAction = 'NONE'
+/** ค่าตั้งต้นเวลารอ = 1 วัน · เพดาน 7 วัน (BR-FA-2) — ต้องตรง CHECK SalesFollowBot.finalDelayMin */
+export const FINAL_DELAY_DEFAULT_MIN = 1440
+export const FINAL_DELAY_MAX_MIN = 10_080
+
 export const RUN_STATUSES = ['ACTIVE', 'DONE', 'STOPPED'] as const
 export type RunStatus = (typeof RUN_STATUSES)[number]
 
@@ -81,6 +91,10 @@ export const SEND_REASONS = [
   'META_WINDOW_REJECTED',
   'IMAGE_MISSING',
   'EMPTY_MESSAGE',
+  /** ส่วนต่อขยาย FR-FA-5: เพจไม่ได้ตั้ง Conversation Routing ให้แอปนี้ (ดึงสิทธิ์คืนไม่ได้) */
+  'ROUTING_NOT_ENABLED',
+  /** token เพจตาย — ต้องเชื่อมเพจใหม่ */
+  'CHANNEL_TOKEN_INVALID',
 ] as const
 export type SendReason = (typeof SEND_REASONS)[number]
 
@@ -112,6 +126,8 @@ export const SEND_REASON_TEXT: Record<SendReason, string> = {
   META_WINDOW_REJECTED: 'Meta ไม่ให้ส่งนอกกรอบ',
   IMAGE_MISSING: 'ไม่พบรูป',
   EMPTY_MESSAGE: 'ข้อความว่างหลังแทนตัวแปร',
+  ROUTING_NOT_ENABLED: 'เพจยังไม่ได้ตั้ง Conversation Routing ให้แอปนี้',
+  CHANNEL_TOKEN_INVALID: 'การเชื่อมเพจหมดอายุ',
 }
 
 /** ขีดจำกัดฟอร์ม (ใช้ทั้ง schemas.ts และ `options.limits` ของ API §4.7 — TC-107) */
@@ -154,6 +170,8 @@ export const MESSAGE_LOOKBACK_MS = 30 * DAY_MS
 // ── engine (ใช้โดย S-4 · วางที่นี่เพื่อให้ตัวเลขอยู่ที่เดียว) ──
 export const TICK_BUDGET_MS = 40_000
 export const EVALUATE_LIMIT = 50
+/** run ที่ครบแล้วรอทำ action ท้ายสุด ต่อ tick */
+export const FINAL_ACTION_LIMIT = 50
 export const ATTACH_ROOM_LIMIT = 200
 /** SENDING ที่ยังไม่มี chatMessageId เกินเวลานี้ = ไม่รู้ผล → UNCERTAIN_SEND (ไม่ยิงซ้ำ) */
 export const SENDING_STALE_MS = 10 * MIN_MS

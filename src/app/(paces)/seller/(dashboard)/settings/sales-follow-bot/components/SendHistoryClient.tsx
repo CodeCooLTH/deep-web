@@ -43,7 +43,7 @@ function ResultBadge({ item, t }: { item: SendHistoryItem; t: Dict }) {
 }
 
 const reasonOf = (item: SendHistoryItem, t: Dict): string | null =>
-  item.reason ? (t.sendReason[item.reason as SendReason] ?? item.reasonText) : null
+  item.reason ? (t.sendReason[item.reason as SendReason] ?? item.reasonText) : item.controlReclaimed ? t.reclaimedNote : null
 
 function CustomerBlock({ item }: { item: SendHistoryItem }) {
   return (

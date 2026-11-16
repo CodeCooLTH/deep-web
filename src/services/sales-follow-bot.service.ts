@@ -20,6 +20,7 @@ import {
   type BotStatus,
   type HoldReason,
   type SalesStageKey,
+  type FinalAction,
   type SendReason,
   type SendStatus,
   type TagMatch,
@@ -89,6 +90,8 @@ export interface BotDto {
   channels: BotChannelBrief[]
   testRoomIds: string[]
   steps: BotStepDto[]
+  finalAction: FinalAction
+  finalDelayMin: number
   totalDelayMin: number
   structureRev: number
   updatedAt: string
@@ -104,6 +107,8 @@ type BotRow = {
   tagKeys: string[]
   tagMatch: string
   steps: Prisma.JsonValue
+  finalAction: string
+  finalDelayMin: number
   structureRev: number
   updatedAt: Date
   channels: { shopChannelId: string }[]
@@ -112,7 +117,7 @@ type BotRow = {
 
 const BOT_SELECT = {
   id: true, name: true, status: true, salesStatuses: true, tagKeys: true, tagMatch: true, steps: true,
-  structureRev: true, updatedAt: true,
+  finalAction: true, finalDelayMin: true, structureRev: true, updatedAt: true,
   channels: { select: { shopChannelId: true } },
   testRooms: { select: { conversationId: true } },
 } as const
@@ -156,6 +161,8 @@ function toDto(
     channels: channelIds.map((id) => ctx.channels.get(id)).filter((c): c is BotChannelBrief => !!c),
     testRoomIds: b.testRooms.map((t) => t.conversationId),
     steps: steps.map((s, i) => ({ ...s, adOnly: tl.adOnly[i] })),
+    finalAction: b.finalAction as FinalAction,
+    finalDelayMin: b.finalDelayMin,
     totalDelayMin: tl.totalDelayMin,
     structureRev: b.structureRev,
     updatedAt: b.updatedAt.toISOString(),
@@ -311,7 +318,8 @@ export async function createBot(shopId: string, userId: string, input: BotFields
     const created = await tx.salesFollowBot.create({
       data: {
         shopId, name: f.name, status: 'CLOSED', salesStatuses: f.salesStatuses, tagKeys, tagMatch: f.tagMatch,
-        steps: f.steps as unknown as Prisma.InputJsonValue, createdByUserId: userId, updatedByUserId: userId,
+        steps: f.steps as unknown as Prisma.InputJsonValue, createdByUserId: userId,
+        ...(f.finalAction !== undefined ? { finalAction: f.finalAction } : {}), ...(f.finalDelayMin !== undefined ? { finalDelayMin: f.finalDelayMin } : {}), updatedByUserId: userId,
         channels: { create: [...new Set(f.channelIds)].map((shopChannelId) => ({ shopChannelId })) },
       },
       select: { id: true },
@@ -344,6 +352,8 @@ export async function updateBot(shopId: string, userId: string, botId: string, i
       tagMatch: input.tagMatch ?? (cur.tagMatch as TagMatch),
       channelIds: input.channelIds ?? curChannelIds,
       steps: input.steps ?? curSteps,
+      finalAction: input.finalAction ?? (cur.finalAction as FinalAction),
+      finalDelayMin: input.finalDelayMin ?? cur.finalDelayMin,
     })
     throwIfInvalid(f)
 
@@ -366,6 +376,8 @@ export async function updateBot(shopId: string, userId: string, botId: string, i
       data: {
         name: f.name, salesStatuses: f.salesStatuses, tagKeys, tagMatch: f.tagMatch,
         steps: f.steps as unknown as Prisma.InputJsonValue, updatedByUserId: userId,
+        // ไม่ใช่โครงรอบ → ไม่ขยับ structureRev/ไม่หยุด run (BR-FA-6)
+        finalAction: f.finalAction, finalDelayMin: f.finalDelayMin,
         ...(structureChanged ? { structureRev: { increment: 1 } } : {}),
         ...(input.channelIds ? { channels: { deleteMany: {}, create: channelIds.map((shopChannelId) => ({ shopChannelId })) } } : {}),
       },
@@ -554,6 +566,8 @@ export interface SendHistoryItem {
   status: SendStatus
   reason: SendReason | null
   reasonText: string | null
+  /** FR-FA-5: ส่งได้หลังบอทดึงสิทธิ์คุมเธรดคืนจาก Business Suite */
+  controlReclaimed: boolean
   /** SENT = เวลาฟองจริง (ChatMessage.createdAt) ไม่งั้น settledAt ?? createdAt */
   at: string
 }
@@ -573,7 +587,7 @@ export async function listSends(shopId: string, o: { cursor?: string | null; lim
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
-    select: { id: true, conversationId: true, botId: true, step: true, stepCount: true, status: true, reason: true, chatMessageId: true, settledAt: true, createdAt: true },
+    select: { id: true, conversationId: true, botId: true, step: true, stepCount: true, status: true, reason: true, controlReclaimed: true, chatMessageId: true, settledAt: true, createdAt: true },
   })
   const page = rows.slice(0, limit)
   if (page.length === 0) return empty
@@ -616,6 +630,7 @@ export async function listSends(shopId: string, o: { cursor?: string | null; lim
       status: r.status as SendStatus,
       reason: r.reason as SendReason | null,
       reasonText: r.reason ? (SEND_REASON_TEXT[r.reason as SendReason] ?? null) : null,
+      controlReclaimed: r.controlReclaimed,
       at: (real ?? r.settledAt ?? r.createdAt).toISOString(),
     }
   })

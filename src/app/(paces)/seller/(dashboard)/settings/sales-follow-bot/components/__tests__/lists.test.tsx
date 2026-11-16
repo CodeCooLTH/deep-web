@@ -28,6 +28,8 @@ const bot = (o: Partial<BotDto> = {}): BotDto => ({
     { delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดีค่ะ คุณ{ชื่อ}' }], adOnly: false },
     { delayMin: 1500, parts: [{ kind: 'TEXT', text: 'ยังสนใจไหมคะ' }], adOnly: true },
   ],
+  finalAction: 'NONE',
+  finalDelayMin: 1440,
   totalDelayMin: 1530,
   structureRev: 1,
   updatedAt: '2026-11-16T09:00:00.000Z',
@@ -50,6 +52,7 @@ const send = (o: Partial<SendHistoryItem> = {}): SendHistoryItem => ({
   status: 'SENT',
   reason: null,
   reasonText: null,
+  controlReclaimed: false,
   at: '2026-11-16T07:32:00.000Z',
   ...o,
 })

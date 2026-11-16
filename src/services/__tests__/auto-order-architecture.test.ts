@@ -235,6 +235,9 @@ describe('ครบทุกเส้นทางที่ร้านพิม�
   const SHOP_MESSAGE_WRITERS: Record<string, 'HOOKED' | { skip: string }> = {
     'src/services/chat.service.ts': 'HOOKED',
     'src/services/chat-outbox.service.ts': 'HOOKED',
+    'src/services/sales-follow-note.service.ts': {
+      skip: 'บรรทัดระบบของบอทติดตาม (FOLLOW_BOT_NOTE · 00095) — ระบบเขียน ไม่ใช่คำสั่งที่คนพิมพ์ · อยู่ใน INTERNAL_MESSAGE_TYPES',
+    },
     'src/services/auto-order-internal-message.service.ts': {
       skip: 'การ์ดผลลัพธ์ของฟีเจอร์นี้เอง — เป็น *ผลลัพธ์* ไม่ใช่ *คำสั่ง* · hook = วนดักตัวเอง',
     },
