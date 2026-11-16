@@ -6,12 +6,12 @@ import { countCodePoints, hasLoneSurrogate, parseTemplate } from '../auto-notify
 import {
   ALLOWED_VARIABLES,
   BOT_STATUSES,
+  PART_KINDS,
   SALES_FOLLOW_LIMITS as L,
   SALES_STAGE_KEYS,
-  STEP_KINDS,
   TAG_MATCHES,
   type BotStatus,
-  type StepKind,
+  type PartKind,
 } from './constants'
 
 export type BotIssueCode =
@@ -21,11 +21,13 @@ export type BotIssueCode =
   | 'STEPS_COUNT'
   | 'STEP_DELAY_MIN'
   | 'STEPS_TOTAL_TOO_LONG'
-  | 'STEP_TEXT_REQUIRED'
-  | 'STEP_TEXT_TOO_LONG'
-  | 'STEP_TEXT_INVALID'
-  | 'STEP_IMAGE_REQUIRED'
-  | 'STEP_KIND_INVALID'
+  | 'PARTS_COUNT'
+  | 'PART_KIND_INVALID'
+  | 'PART_TEXT_REQUIRED'
+  | 'PART_TEXT_TOO_LONG'
+  | 'PART_TEXT_INVALID'
+  | 'PART_IMAGES_COUNT'
+  | 'QUICK_MESSAGE_REQUIRED'
   | 'UNKNOWN_VARIABLE'
   | 'TOO_MANY_TAGS'
   | 'TOO_MANY_CHANNELS'
@@ -36,15 +38,21 @@ export interface BotIssue {
   code: BotIssueCode
   path: string
   stepIndex?: number
+  /** ชิ้นที่ผิดในรอบนั้น (issue ระดับชิ้น) */
+  partIndex?: number
   /** ชื่อตัวแปรที่ไม่รู้จัก (UNKNOWN_VARIABLE) */
   name?: string
 }
 
+/** ชิ้นในรอบ — quick message เก็บแค่ id (service เติมเนื้อหา ณ ตอนส่ง · ต้องเป็นของร้านตอนบันทึก) */
+export type BotPart =
+  | { kind: 'TEXT'; text: string }
+  | { kind: 'IMAGES'; fileIds: string[] }
+  | { kind: 'QUICK_MESSAGE'; quickMessageId: string }
+
 export interface BotStep {
   delayMin: number
-  kind: StepKind
-  text: string
-  imageFileId: string | null
+  parts: BotPart[]
 }
 
 export interface BotFields {
@@ -58,11 +66,14 @@ export interface BotFields {
 }
 
 // ── โครงชนิดข้อมูล (Valibot) — `adOnly` ที่ client ส่งมาถูกทิ้งเพราะ v.object ไม่เก็บคีย์เกิน (คำนวณฝั่งเซิร์ฟเวอร์เท่านั้น) ──
+const PartSchema = v.variant('kind', [
+  v.object({ kind: v.literal('TEXT'), text: v.string() }),
+  v.object({ kind: v.literal('IMAGES'), fileIds: v.array(v.string()) }),
+  v.object({ kind: v.literal('QUICK_MESSAGE'), quickMessageId: v.string() }),
+])
 const StepSchema = v.object({
   delayMin: v.number(),
-  kind: v.picklist(STEP_KINDS),
-  text: v.string(),
-  imageFileId: v.optional(v.nullable(v.string())),
+  parts: v.array(PartSchema),
 })
 const uuid = v.pipe(v.string(), v.uuid())
 const iso = v.pipe(v.string(), v.isoTimestamp())
@@ -121,15 +132,26 @@ function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
   const path = keys.join('.')
   const root = keys[0]
   const stepIndex = root === 'steps' && typeof keys[1] === 'number' ? keys[1] : undefined
-  const at = (code: BotIssueCode): BotIssue => (stepIndex === undefined ? { code, path } : { code, path, stepIndex })
+  const partIndex = stepIndex !== undefined && keys[2] === 'parts' && typeof keys[3] === 'number' ? keys[3] : undefined
+  const at = (code: BotIssueCode): BotIssue => ({
+    code,
+    path,
+    ...(stepIndex !== undefined ? { stepIndex } : {}),
+    ...(partIndex !== undefined ? { partIndex } : {}),
+  })
   if (root === 'name') return at('NAME_REQUIRED')
   if (root === 'channelIds' && keys.length === 1) return at('CHANNELS_REQUIRED')
   if (root === 'steps') {
     if (keys.length === 1) return at('STEPS_COUNT')
-    const field = keys[2]
-    if (field === 'delayMin') return at('STEP_DELAY_MIN')
-    if (field === 'kind') return at('STEP_KIND_INVALID')
-    if (field === 'text') return at('STEP_TEXT_REQUIRED')
+    if (keys[2] === 'delayMin') return at('STEP_DELAY_MIN')
+    if (keys[2] === 'parts') {
+      if (keys.length === 3) return at('PARTS_COUNT')
+      // variant ที่ discriminator ผิด/ขาด รายงานที่ path ของชิ้นเอง (ยาว 4) หรือที่ 'kind'
+      if (keys.length === 4 || keys[4] === 'kind') return at('PART_KIND_INVALID')
+      if (keys[4] === 'text') return at('PART_TEXT_REQUIRED')
+      if (keys[4] === 'fileIds') return at('PART_IMAGES_COUNT')
+      if (keys[4] === 'quickMessageId') return at('QUICK_MESSAGE_REQUIRED')
+    }
   }
   return at('INVALID_BODY')
 }
@@ -140,7 +162,7 @@ export type ParseResult<T> = { ok: true; value: T } | { ok: false; issues: BotIs
 export function parseCreateBot(raw: unknown): ParseResult<BotFields> {
   const r = v.safeParse(CreateBotSchema, raw)
   if (!r.success) return { ok: false, issues: r.issues.map(mapStructuralIssue) }
-  const value = normalizeBotFields({ ...r.output, steps: r.output.steps.map((s) => ({ ...s, imageFileId: s.imageFileId ?? null })) })
+  const value = normalizeBotFields(r.output as BotFields)
   const issues = validateBotFields(value)
   return issues.length > 0 ? { ok: false, issues } : { ok: true, value }
 }
@@ -150,11 +172,15 @@ export function normalizeBotFields(f: BotFields): BotFields {
     ...f,
     name: f.name.trim(),
     tags: f.tags.map((t) => t.trim()).filter(Boolean),
-    steps: f.steps.map((s) => ({
-      ...s,
-      text: s.text.trim(),
-      // TEXT ที่ client แนบ imageFileId มา = ไม่สนใจรูป (TC-073) ไม่ error
-      imageFileId: s.kind === 'TEXT_IMAGE' ? s.imageFileId : null,
+    steps: f.steps.map((st) => ({
+      delayMin: st.delayMin,
+      parts: st.parts.map((p): BotPart =>
+        p.kind === 'TEXT'
+          ? { kind: 'TEXT', text: p.text.trim() }
+          : p.kind === 'IMAGES'
+            ? { kind: 'IMAGES', fileIds: p.fileIds }
+            : { kind: 'QUICK_MESSAGE', quickMessageId: p.quickMessageId.trim() },
+      ),
     })),
   }
 }
@@ -179,37 +205,47 @@ export function validateBotFields(f: BotFields): BotIssue[] {
   return issues
 }
 
-/** ตรวจขั้นทั้งชุด (TFR-FB-04) — คืนทุก issue ไม่หยุดที่ข้อแรก */
+function validatePart(part: BotPart, i: number, j: number, issues: BotIssue[]) {
+  const p = `steps.${i}.parts.${j}`
+  const add = (code: BotIssueCode, field: string, name?: string) =>
+    issues.push({ code, path: `${p}.${field}`, stepIndex: i, partIndex: j, ...(name !== undefined ? { name } : {}) })
+  if (!(PART_KINDS as readonly string[]).includes(part.kind)) return add('PART_KIND_INVALID', 'kind')
+
+  if (part.kind === 'TEXT') {
+    const text = typeof part.text === 'string' ? part.text.trim() : ''
+    if (text === '') return add('PART_TEXT_REQUIRED', 'text')
+    if (countCodePoints(text) > L.maxText) add('PART_TEXT_TOO_LONG', 'text')
+    // NUL ทำ jsonb ตอนบันทึกล้ม (500) · surrogate เดี่ยวส่งให้แพลตฟอร์มไม่ได้
+    if (text.includes('\u0000') || hasLoneSurrogate(text)) add('PART_TEXT_INVALID', 'text')
+    const seen = new Set<string>()
+    for (const seg of parseTemplate(text)) {
+      if (seg.type !== 'var' || (ALLOWED_VARIABLES as readonly string[]).includes(seg.name) || seen.has(seg.name)) continue
+      seen.add(seg.name)
+      add('UNKNOWN_VARIABLE', 'text', seg.name)
+    }
+  } else if (part.kind === 'IMAGES') {
+    const ids = Array.isArray(part.fileIds) ? part.fileIds : []
+    if (ids.length < 1 || ids.length > L.maxImagesPerPart || ids.some((x) => typeof x !== 'string' || x.trim() === '')) add('PART_IMAGES_COUNT', 'fileIds')
+  } else if (typeof part.quickMessageId !== 'string' || part.quickMessageId.trim() === '') {
+    add('QUICK_MESSAGE_REQUIRED', 'quickMessageId')
+  }
+}
+
+/** ตรวจรอบทั้งชุด (TFR-FB-04 + TFR-FB-25) — คืนทุก issue ไม่หยุดที่ข้อแรก · issue ระดับชิ้นมี stepIndex + partIndex */
 export function validateSteps(steps: readonly BotStep[]): BotIssue[] {
   const issues: BotIssue[] = []
   if (steps.length < 1 || steps.length > L.maxSteps) issues.push({ code: 'STEPS_COUNT', path: 'steps' })
 
   let delaysValid = true
-  steps.forEach((s, i) => {
+  steps.forEach((st, i) => {
     const p = `steps.${i}`
-    const add = (code: BotIssueCode, field: string, name?: string) =>
-      issues.push({ code, path: `${p}.${field}`, stepIndex: i, ...(name !== undefined ? { name } : {}) })
-
-    if (!Number.isInteger(s.delayMin) || s.delayMin < L.minDelayMin) {
-      add('STEP_DELAY_MIN', 'delayMin')
+    if (!Number.isInteger(st.delayMin) || st.delayMin < L.minDelayMin) {
+      issues.push({ code: 'STEP_DELAY_MIN', path: `${p}.delayMin`, stepIndex: i })
       delaysValid = false
     }
-    if (!(STEP_KINDS as readonly string[]).includes(s.kind)) add('STEP_KIND_INVALID', 'kind')
-
-    const text = typeof s.text === 'string' ? s.text.trim() : ''
-    if (text === '') add('STEP_TEXT_REQUIRED', 'text')
-    else {
-      if (countCodePoints(text) > L.maxText) add('STEP_TEXT_TOO_LONG', 'text')
-      // NUL ทำ jsonb ตอนบันทึกล้ม (500) · surrogate เดี่ยวส่งให้แพลตฟอร์มไม่ได้
-      if (text.includes('\u0000') || hasLoneSurrogate(text)) add('STEP_TEXT_INVALID', 'text')
-      const seen = new Set<string>()
-      for (const seg of parseTemplate(text)) {
-        if (seg.type !== 'var' || (ALLOWED_VARIABLES as readonly string[]).includes(seg.name) || seen.has(seg.name)) continue
-        seen.add(seg.name)
-        add('UNKNOWN_VARIABLE', 'text', seg.name)
-      }
-    }
-    if (s.kind === 'TEXT_IMAGE' && !s.imageFileId) add('STEP_IMAGE_REQUIRED', 'imageFileId')
+    const parts = Array.isArray(st.parts) ? st.parts : []
+    if (parts.length < 1 || parts.length > L.maxParts) issues.push({ code: 'PARTS_COUNT', path: `${p}.parts`, stepIndex: i })
+    parts.forEach((part, j) => validatePart(part, i, j, issues))
   })
 
   // Σ delay: ชี้ขั้นที่ทำให้เกิน (ข้อความ "ขั้นที่ x เกินกรอบ 7 วัน") — ข้ามเมื่อมีขั้นที่ delay ใช้ไม่ได้ เพราะผลรวมไม่มีความหมาย
@@ -265,20 +301,35 @@ export function renderStepText(text: string, contactName: string | null | undefi
   return out.trim()
 }
 
-export type StepBubble = { type: 'TEXT'; text: string } | { type: 'IMAGE'; fileId: string }
-export type StepBubbles = { ok: true; bubbles: StepBubble[] } | { ok: false; reason: 'EMPTY_MESSAGE' | 'IMAGE_MISSING' }
+/**
+ * ฟองที่รอบหนึ่งจะส่ง เรียงตามชิ้น (TFR-FB-25) — ตัวเดียวกับตัวอย่างในแชท
+ * IMAGES = ฟองเดียวถือหลายรูป (ตัวส่งใช้ทางรูปหลายรูปเดียวกับช่องพิมพ์แชท) · QUICK_MESSAGE = placeholder: pure ไม่รู้เนื้อหา service เติมเอง
+ * (quick message ถูกลบ/ไฟล์รูปหาย = service ข้ามชิ้นนั้น)
+ */
+export type StepBubble =
+  | { type: 'TEXT'; partIndex: number; text: string }
+  | { type: 'IMAGES'; partIndex: number; fileIds: string[] }
+  | { type: 'QUICK_MESSAGE'; partIndex: number; quickMessageId: string }
+export type StepBubbles = { ok: true; bubbles: StepBubble[] } | { ok: false; reason: 'EMPTY_MESSAGE' }
 
-/** ฟองที่ขั้นหนึ่งจะส่ง: ข้อความก่อนแล้วรูป (AC-FB-12) · ข้อความว่างหลังแทนตัวแปร = ข้ามทั้งขั้น (TC-109) */
-export function buildStepBubbles(
-  step: Pick<BotStep, 'kind' | 'text' | 'imageFileId'>,
-  contactName: string | null | undefined,
-): StepBubbles {
-  const text = renderStepText(step.text, contactName)
-  if (text === '') return { ok: false, reason: 'EMPTY_MESSAGE' }
-  const bubbles: StepBubble[] = [{ type: 'TEXT', text }]
-  if (step.kind === 'TEXT_IMAGE') {
-    if (!step.imageFileId) return { ok: false, reason: 'IMAGE_MISSING' }
-    bubbles.push({ type: 'IMAGE', fileId: step.imageFileId })
-  }
-  return { ok: true, bubbles }
+/** ชิ้นข้อความว่างหลังแทนตัวแปรถูกข้ามเป็นรายชิ้น · ไม่เหลือชิ้นที่ส่งได้เลย = EMPTY_MESSAGE ข้ามทั้งรอบ (TC-109) */
+export function buildStepBubbles(step: Pick<BotStep, 'parts'>, contactName: string | null | undefined): StepBubbles {
+  const bubbles: StepBubble[] = []
+  step.parts.forEach((part, partIndex) => {
+    if (part.kind === 'TEXT') {
+      const text = renderStepText(part.text, contactName)
+      if (text !== '') bubbles.push({ type: 'TEXT', partIndex, text })
+    } else if (part.kind === 'IMAGES') {
+      if (part.fileIds.length > 0) bubbles.push({ type: 'IMAGES', partIndex, fileIds: [...part.fileIds] })
+    } else if (part.quickMessageId) bubbles.push({ type: 'QUICK_MESSAGE', partIndex, quickMessageId: part.quickMessageId })
+  })
+  return bubbles.length > 0 ? { ok: true, bubbles } : { ok: false, reason: 'EMPTY_MESSAGE' }
+}
+
+/**
+ * โครงรอบสำหรับ structureRev (TFR-FB-25): จำนวนรอบ + ลำดับชนิดชิ้นในแต่ละรอบ — "TEXT,IMAGES|QUICK_MESSAGE"
+ * แก้ข้อความ/รูป/เลือก quick message ตัวอื่น/delayMin ไม่เปลี่ยนค่านี้ = ไม่หยุด run · service เทียบค่านี้ของเดิมกับใหม่
+ */
+export function stepStructureKey(steps: readonly Pick<BotStep, 'parts'>[]): string {
+  return steps.map((s) => s.parts.map((p) => p.kind).join(',')).join('|')
 }

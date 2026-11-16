@@ -77,7 +77,7 @@ CREATE TABLE "SalesFollowSend" (
     "status" TEXT NOT NULL,
     "reason" TEXT,
     "chatMessageId" TEXT,
-    "imageMessageId" TEXT,
+    "messageIds" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "settledAt" TIMESTAMPTZ(3),
 
@@ -122,9 +122,6 @@ CREATE INDEX "SalesFollowSend_conversationId_createdAt_idx" ON "SalesFollowSend"
 
 -- CreateIndex
 CREATE INDEX "SalesFollowSend_chatMessageId_idx" ON "SalesFollowSend"("chatMessageId");
-
--- CreateIndex
-CREATE INDEX "SalesFollowSend_imageMessageId_idx" ON "SalesFollowSend"("imageMessageId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SalesFollowSend_runId_step_key" ON "SalesFollowSend"("runId", "step");
@@ -175,8 +172,6 @@ ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_conversationId_fke
 ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_chatMessageId_fkey" FOREIGN KEY ("chatMessageId") REFERENCES "ChatMessage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_imageMessageId_fkey" FOREIGN KEY ("imageMessageId") REFERENCES "ChatMessage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
 
 -- ============================================================================
 -- ส่วนที่ 2 — ที่ Prisma ไม่รู้จัก
@@ -185,6 +180,8 @@ ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_imageMessageId_fke
 -- Prisma ไม่ใส่ NOT NULL ให้ scalar list · บังคับเองเพราะ CHECK ด้านล่าง (cardinality(NULL) ทำให้ CHECK ผ่านเงียบ)
 ALTER TABLE "SalesFollowBot" ALTER COLUMN "salesStatuses" SET NOT NULL;
 ALTER TABLE "SalesFollowBot" ALTER COLUMN "tagKeys" SET NOT NULL;
+-- messageIds = ทุกฟองของรอบ (TFR-FB-25) · chatMessageId = ฟองแรก
+ALTER TABLE "SalesFollowSend" ALTER COLUMN "messageIds" SET NOT NULL;
 
 -- SalesFollowBot
 ALTER TABLE "SalesFollowBot" ADD CONSTRAINT "SalesFollowBot_name_check" CHECK (btrim("name") <> '' AND char_length("name") <= 60);

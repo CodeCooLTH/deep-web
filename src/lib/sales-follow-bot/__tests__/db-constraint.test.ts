@@ -71,3 +71,11 @@ describe('TC-120 ตัวเลขใน CHECK = constants.ts (SALES_FOLLOW_LIM
     expect(c).toContain('"step" < "stepCount"')
   })
 })
+
+describe('TFR-FB-25 คอลัมน์ฟองของรอบ', () => {
+  it('SalesFollowSend มี messageIds TEXT[] NOT NULL และไม่เหลือ imageMessageId (ทั้ง FK/index)', () => {
+    expect(SQL).toMatch(/"messageIds" TEXT\[\]/)
+    expect(SQL).toContain('ALTER TABLE "SalesFollowSend" ALTER COLUMN "messageIds" SET NOT NULL')
+    expect(SQL).not.toContain('imageMessageId')
+  })
+})

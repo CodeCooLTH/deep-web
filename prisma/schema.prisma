@@ -2490,7 +2490,6 @@ model ChatMessage {
 
   // feature 00095 — ฟองที่บอทติดตามส่ง (ข้อความ/รูป) · SET NULL เพื่อไม่ให้ประวัติหายตามข้อความ
   salesFollowSends      SalesFollowSend[] @relation("SalesFollowSendChatMessage")
-  salesFollowSendImages SalesFollowSend[] @relation("SalesFollowSendImageMessage")
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -5697,7 +5696,7 @@ model MetaAudienceMember {
 //    SalesFollowBot.steps (1..10) · SalesFollowRun.nextStep (0..10) · SalesFollowSend.step (0..9)
 // ============================================================================
 
-/// บอท 1 ตัวของร้าน · steps = JSON array ของขั้น {delayMin,kind,text,imageFileId} (ตรวจที่ service Valibot)
+/// บอท 1 ตัวของร้าน · steps = JSON array ของรอบ {delayMin, parts[1..5]} · part = {kind:'TEXT',text} | {kind:'IMAGES',fileIds[1..5]} | {kind:'QUICK_MESSAGE',quickMessageId} (ตรวจที่ service Valibot · TFR-FB-25)
 /// status CLOSED|TESTING|ACTIVE · tagMatch ANY|ALL · soft delete ด้วย deletedAt (ประวัติ Run/Send ยังอ้างได้)
 /// structureRev: เพิ่มเมื่อแก้ขั้น/เงื่อนไข → Run เก่าที่ rev ไม่ตรงถูกหยุด (BOT_EDITED)
 /// CHECK (migration 20261117100000): ชื่อ 1..60 · status/tagMatch/salesStatuses ⊆ 7 ค่า · tagKeys ≤20 ·
@@ -5812,19 +5811,19 @@ model SalesFollowSend {
   stepCount      Int
   status         String
   reason         String?
+  // chatMessageId = ฟองแรกของรอบ (ใช้ติดป้าย "บอทติดตาม n/N") · messageIds = ทุกฟองของรอบเรียงตามลำดับส่ง (รอบละหลายชิ้น TFR-FB-25)
+  // ไม่มี FK ต่อฟองรายตัว (array ทำ FK ไม่ได้) — ฟองที่ถูกลบจะ resolve ไม่เจอ ซึ่งยอมรับได้ (ประวัติอ่านอย่างเดียว)
   chatMessageId  String?
-  imageMessageId String?
+  messageIds     String[]  @default([])
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
   settledAt      DateTime? @db.Timestamptz(3)
 
   run          SalesFollowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   chatMessage  ChatMessage?   @relation("SalesFollowSendChatMessage", fields: [chatMessageId], references: [id], onDelete: SetNull)
-  imageMessage ChatMessage?   @relation("SalesFollowSendImageMessage", fields: [imageMessageId], references: [id], onDelete: SetNull)
 
   @@unique([runId, step], map: "SalesFollowSend_runId_step_key")
   @@index([shopId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([conversationId, createdAt])
   @@index([chatMessageId])
-  @@index([imageMessageId])
 }

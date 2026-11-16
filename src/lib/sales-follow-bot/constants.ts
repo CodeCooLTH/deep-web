@@ -33,9 +33,12 @@ export type BotStatus = (typeof BOT_STATUSES)[number]
 export const TAG_MATCHES = ['ANY', 'ALL'] as const
 export type TagMatch = (typeof TAG_MATCHES)[number]
 
-/** P1 มีแค่ข้อความ/ข้อความ+รูป — การ์ดสินค้า ฯลฯ เป็น P2 (เพิ่มค่าอย่างเดียว BR-FB-81) */
-export const STEP_KINDS = ['TEXT', 'TEXT_IMAGE'] as const
-export type StepKind = (typeof STEP_KINDS)[number]
+/**
+ * ชนิดชิ้นในรอบ (TFR-FB-25 — 1 รอบ = ชุดชิ้น 1..5): ข้อความ · รูป (1..5 รูปต่อชิ้น) · ข้อความที่ใช้บ่อย
+ * เลิกชนิด TEXT_IMAGE · การ์ดสินค้า ฯลฯ เป็น P2 (เพิ่มค่าอย่างเดียว BR-FB-81)
+ */
+export const PART_KINDS = ['TEXT', 'IMAGES', 'QUICK_MESSAGE'] as const
+export type PartKind = (typeof PART_KINDS)[number]
 
 /** ช่องทางที่บอทใช้ได้ — ไม่มี DEEP (ห้องแชทในแอป) */
 export const FOLLOW_PROVIDERS = ['MESSENGER', 'INSTAGRAM', 'LINE'] as const
@@ -114,6 +117,10 @@ export const SEND_REASON_TEXT: Record<SendReason, string> = {
 /** ขีดจำกัดฟอร์ม (ใช้ทั้ง schemas.ts และ `options.limits` ของ API §4.7 — TC-107) */
 export const SALES_FOLLOW_LIMITS = {
   maxSteps: 10,
+  /** ชิ้นต่อรอบ */
+  maxParts: 5,
+  /** รูปต่อชิ้นชนิด IMAGES */
+  maxImagesPerPart: 5,
   maxText: 1000,
   maxName: 60,
   maxTestRooms: 20,

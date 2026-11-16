@@ -4,6 +4,7 @@ import { SALES_FOLLOW_LIMITS as L } from '../constants'
 import {
   buildStepBubbles,
   parseCreateBot,
+  stepStructureKey,
   renderStepText,
   stepTimeline,
   testRoomsProblem,
@@ -11,11 +12,15 @@ import {
   validateSteps,
   type BotFields,
   type BotIssue,
+  type BotPart,
   type BotStep,
 } from '../schemas'
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
-const step = (o: Partial<BotStep> = {}): BotStep => ({ delayMin: 30, kind: 'TEXT', text: 'สวัสดีค่ะ คุณ{ชื่อ}', imageFileId: null, ...o })
+const text = (t: string): BotPart => ({ kind: 'TEXT', text: t })
+const step = (o: Partial<BotStep> = {}): BotStep => ({ delayMin: 30, parts: [text('สวัสดีค่ะ คุณ{ชื่อ}')], ...o })
+const stepText = (t: string) => step({ parts: [text(t)] })
+const raw = (parts: unknown[], delayMin: unknown = 30) => body({ steps: [{ delayMin, parts }] })
 const fields = (o: Partial<BotFields> = {}): BotFields => ({
   name: 'ตามคนถามราคา',
   salesStatuses: ['NOT_BOUGHT'],
@@ -69,34 +74,85 @@ describe('TC-071/072 เงื่อนไข · เพดานจำนวน'
   })
 })
 
-describe('TC-073 ข้อความขั้น', () => {
-  const one = (o: Partial<BotStep>) => validateSteps([step(o)])
+describe('TC-073 ชิ้นข้อความ (TEXT)', () => {
+  const one = (text: string) => validateSteps([stepText(text)])
   it.each([
-    ['ว่าง', '', ['STEP_TEXT_REQUIRED']],
-    ['ช่องว่างล้วน', '  \n ', ['STEP_TEXT_REQUIRED']],
+    ['ว่าง', '', ['PART_TEXT_REQUIRED']],
+    ['ช่องว่างล้วน', '  \n ', ['PART_TEXT_REQUIRED']],
     ['1,000 ตัว', 'ก'.repeat(1000), []],
-    ['1,001 ตัว', 'ก'.repeat(1001), ['STEP_TEXT_TOO_LONG']],
-    ['NUL', 'a\u0000b', ['STEP_TEXT_INVALID']],
-    ['surrogate เดี่ยว', 'a\uD800b', ['STEP_TEXT_INVALID']],
-  ])('%s', (_n, text, want) => {
-    expect(codes(one({ text }))).toEqual(want)
+    ['1,001 ตัว', 'ก'.repeat(1001), ['PART_TEXT_TOO_LONG']],
+    ['NUL', 'a\u0000b', ['PART_TEXT_INVALID']],
+    ['surrogate เดี่ยว', 'a\uD800b', ['PART_TEXT_INVALID']],
+  ])('%s', (_n, t, want) => {
+    expect(codes(one(t))).toEqual(want)
   })
-  it('TEXT_IMAGE ไม่มีรูป → STEP_IMAGE_REQUIRED · มีรูป ผ่าน', () => {
-    expect(codes(one({ kind: 'TEXT_IMAGE', imageFileId: null }))).toEqual(['STEP_IMAGE_REQUIRED'])
-    expect(one({ kind: 'TEXT_IMAGE', imageFileId: 'f1' })).toEqual([])
-  })
-  it('kind นอก {TEXT, TEXT_IMAGE} ถูกปฏิเสธที่ชั้นชนิด (การ์ดสินค้าเป็น P2)', () => {
-    const r = parseCreateBot(body({ steps: [{ delayMin: 30, kind: 'PRODUCT_CARD', text: 'x' }] }))
-    expect(r).toEqual({ ok: false, issues: [{ code: 'STEP_KIND_INVALID', path: 'steps.0.kind', stepIndex: 0 }] })
-  })
-  it('TEXT ที่แนบ imageFileId มา ไม่ error — ทิ้งรูป', () => {
-    const r = parseCreateBot(body({ steps: [{ delayMin: 30, kind: 'TEXT', text: ' สวัสดี ', imageFileId: 'f1' }] }))
-    expect(r).toMatchObject({ ok: true, value: { steps: [{ text: 'สวัสดี', imageFileId: null }] } })
+  it('issue ระดับชิ้นบอก stepIndex + partIndex', () => {
+    const issues = validateSteps([step(), step({ parts: [text('ok'), text('')] })])
+    expect(issues).toEqual([{ code: 'PART_TEXT_REQUIRED', path: 'steps.1.parts.1.text', stepIndex: 1, partIndex: 1 }])
   })
 })
 
-describe('TC-074 ตัวแปร', () => {
-  const vars = (text: string) => validateSteps([step({ text })]).map((i) => [i.code, i.name])
+describe('TFR-FB-25 รอบละหลายชิ้น', () => {
+  const parts = (n: number) => Array.from({ length: n }, (_, i) => text(`ข้อความ ${i}`))
+  it('PARTS_COUNT: 0 · 1 · 5 · 6 ชิ้น', () => {
+    expect(validateSteps([step({ parts: [] })])).toEqual([{ code: 'PARTS_COUNT', path: 'steps.0.parts', stepIndex: 0 }])
+    expect(validateSteps([step({ parts: parts(1) })])).toEqual([])
+    expect(validateSteps([step({ parts: parts(5) })])).toEqual([])
+    expect(codes(validateSteps([step({ parts: parts(6) })]))).toEqual(['PARTS_COUNT'])
+  })
+  it('IMAGES: 1..5 รูป · 0 / 6 / id ว่าง = PART_IMAGES_COUNT', () => {
+    const img = (n: number) => step({ parts: [{ kind: 'IMAGES', fileIds: Array.from({ length: n }, (_, i) => `f${i}`) }] })
+    expect(validateSteps([img(1)])).toEqual([])
+    expect(validateSteps([img(5)])).toEqual([])
+    expect(validateSteps([img(0)])).toEqual([{ code: 'PART_IMAGES_COUNT', path: 'steps.0.parts.0.fileIds', stepIndex: 0, partIndex: 0 }])
+    expect(codes(validateSteps([img(6)]))).toEqual(['PART_IMAGES_COUNT'])
+    expect(codes(validateSteps([step({ parts: [{ kind: 'IMAGES', fileIds: ['a', ' '] }] })]))).toEqual(['PART_IMAGES_COUNT'])
+  })
+  it('QUICK_MESSAGE ไม่มี id → QUICK_MESSAGE_REQUIRED · มี id ผ่าน', () => {
+    expect(validateSteps([step({ parts: [{ kind: 'QUICK_MESSAGE', quickMessageId: 'q1' }] })])).toEqual([])
+    expect(validateSteps([step({ parts: [{ kind: 'QUICK_MESSAGE', quickMessageId: '  ' }] })])).toEqual([
+      { code: 'QUICK_MESSAGE_REQUIRED', path: 'steps.0.parts.0.quickMessageId', stepIndex: 0, partIndex: 0 },
+    ])
+  })
+  it('ผสมชนิดในรอบเดียวได้ · issue ชี้ชิ้นที่ผิดเท่านั้น', () => {
+    const s = step({ parts: [text('ok'), { kind: 'IMAGES', fileIds: ['f'] }, { kind: 'QUICK_MESSAGE', quickMessageId: '' }, text('{ราคา}')] })
+    expect(validateSteps([s]).map((i) => [i.code, i.partIndex])).toEqual([['QUICK_MESSAGE_REQUIRED', 2], ['UNKNOWN_VARIABLE', 3]])
+  })
+  it('ชั้นชนิด (Valibot): kind นอกชุด/TEXT_IMAGE เดิม → PART_KIND_INVALID พร้อมตำแหน่ง', () => {
+    for (const kind of ['TEXT_IMAGE', 'PRODUCT_CARD', undefined]) {
+      expect(parseCreateBot(raw([{ kind, text: 'x' }]))).toEqual({
+        ok: false,
+        issues: [expect.objectContaining({ code: 'PART_KIND_INVALID', stepIndex: 0, partIndex: 0 })],
+      })
+    }
+  })
+  it('ชั้นชนิด: parts ไม่ใช่อาร์เรย์ → PARTS_COUNT · text/fileIds/quickMessageId ผิดชนิด → โค้ดของชิ้นนั้น', () => {
+    expect(parseCreateBot(raw('x' as never))).toMatchObject({ ok: false, issues: [{ code: 'PARTS_COUNT', stepIndex: 0 }] })
+    expect(parseCreateBot(raw([{ kind: 'TEXT', text: 5 }]))).toMatchObject({ ok: false, issues: [{ code: 'PART_TEXT_REQUIRED', partIndex: 0 }] })
+    expect(parseCreateBot(raw([{ kind: 'IMAGES', fileIds: 'a' }]))).toMatchObject({ ok: false, issues: [{ code: 'PART_IMAGES_COUNT', partIndex: 0 }] })
+    expect(parseCreateBot(raw([{ kind: 'QUICK_MESSAGE' }]))).toMatchObject({ ok: false, issues: [{ code: 'QUICK_MESSAGE_REQUIRED', partIndex: 0 }] })
+  })
+  it('normalize: trim ข้อความ · quick id · ทิ้งคีย์เกินของชิ้น', () => {
+    const r = parseCreateBot(raw([{ kind: 'TEXT', text: ' สวัสดี ', extra: 1 }, { kind: 'QUICK_MESSAGE', quickMessageId: ' q1 ' }]))
+    expect(r).toMatchObject({ ok: true, value: { steps: [{ parts: [{ kind: 'TEXT', text: 'สวัสดี' }, { kind: 'QUICK_MESSAGE', quickMessageId: 'q1' }] }] } })
+    expect(r.ok && JSON.stringify(r.value.steps[0].parts[0])).toBe('{"kind":"TEXT","text":"สวัสดี"}')
+  })
+  it('stepStructureKey: จำนวนรอบ + ลำดับชนิด — แก้เนื้อหา/delay ไม่เปลี่ยน · เพิ่มชิ้น/สลับชนิด/เพิ่มรอบ เปลี่ยน', () => {
+    const q = (id: string): BotPart => ({ kind: 'QUICK_MESSAGE', quickMessageId: id })
+    const img = (...f: string[]): BotPart => ({ kind: 'IMAGES', fileIds: f })
+    const base = [step({ parts: [text('a'), img('f1')] }), step({ parts: [q('q1')] })]
+    expect(stepStructureKey(base)).toBe('TEXT,IMAGES|QUICK_MESSAGE')
+    const same = [step({ delayMin: 999, parts: [text('ใหม่'), img('f9', 'f8')] }), step({ parts: [q('q2')] })]
+    expect(stepStructureKey(same)).toBe(stepStructureKey(base))
+    expect(stepStructureKey([step({ parts: [img('f1'), text('a')] }), base[1]])).not.toBe(stepStructureKey(base))
+    expect(stepStructureKey([step({ parts: [text('a')] }), base[1]])).not.toBe(stepStructureKey(base))
+    expect(stepStructureKey([...base, step()])).not.toBe(stepStructureKey(base))
+    expect(stepStructureKey([])).toBe('')
+  })
+})
+
+describe('TC-074 ตัวแปร (ต่อชิ้น TEXT)', () => {
+  const vars = (t: string) => validateSteps([stepText(t)]).map((i) => [i.code, i.name])
   it('{ชื่อ} ผ่าน', () => expect(vars('คุณ{ชื่อ}')).toEqual([]))
   it.each([['{สินค้า}', 'สินค้า'], ['{ราคา}', 'ราคา'], ['{ชื่อลูกค้า}', 'ชื่อลูกค้า'], ['{}', ''], ['{ ชื่อ }', ' ชื่อ ']])('%s → UNKNOWN_VARIABLE', (t, name) => {
     expect(vars(t)).toEqual([['UNKNOWN_VARIABLE', name]])
@@ -113,7 +169,7 @@ describe('TC-076 delayMin', () => {
   })
   it('1 ผ่าน', () => expect(validateSteps([step({ delayMin: 1 })])).toEqual([]))
   it('ชนิดผิด "30" → STEP_DELAY_MIN (ชั้น Valibot)', () => {
-    const r = parseCreateBot(body({ steps: [{ delayMin: '30', kind: 'TEXT', text: 'x' }] }))
+    const r = parseCreateBot(raw([{ kind: 'TEXT', text: 'x' }], '30'))
     expect(r).toEqual({ ok: false, issues: [{ code: 'STEP_DELAY_MIN', path: 'steps.0.delayMin', stepIndex: 0 }] })
   })
 })
@@ -130,7 +186,7 @@ describe('TC-077 Σ delayMin ≤ 10,020 + ชี้ขั้นที่ทำ�
     expect(codes(validateSteps([step({ delayMin: 0 }), step({ delayMin: 99_999 })]))).toEqual(['STEP_DELAY_MIN'])
   })
   it('ตัวเลขเพดานตรง constants (TC-107)', () => {
-    expect(L).toMatchObject({ maxSteps: 10, maxText: 1000, maxName: 60, maxTestRooms: 20, maxChannels: 50, maxTags: 20, minDelayMin: 1, maxTotalDelayMin: 10_020, adOnlyAfterMin: 1_380 })
+    expect(L).toMatchObject({ maxSteps: 10, maxParts: 5, maxImagesPerPart: 5, maxText: 1000, maxName: 60, maxTestRooms: 20, maxChannels: 50, maxTags: 20, minDelayMin: 1, maxTotalDelayMin: 10_020, adOnlyAfterMin: 1_380 })
   })
 })
 
@@ -150,7 +206,7 @@ describe('TC-078 adOnly คำนวณ ไม่เก็บ ไม่รับ
 
 describe('parseCreateBot ภาพรวม', () => {
   it('ผ่าน: ค่าตั้งต้น tagMatch=ANY, trim ชื่อ/แท็ก', () => {
-    const r = parseCreateBot({ name: ' บอท ', tags: [' a '], channelIds: [U(1)], steps: [{ delayMin: 30, kind: 'TEXT', text: 'x' }] })
+    const r = parseCreateBot({ name: ' บอท ', tags: [' a '], channelIds: [U(1)], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'x' }] }] })
     expect(r).toMatchObject({ ok: true, value: { name: 'บอท', tags: ['a'], tagMatch: 'ANY', salesStatuses: [] } })
   })
   it('สถานะการขายนอกชุด / channelId ไม่ใช่ uuid → INVALID_BODY', () => {
@@ -163,8 +219,8 @@ describe('parseCreateBot ภาพรวม', () => {
     expect(parseCreateBot(null).ok).toBe(false)
   })
   it('รวมหลาย issue ในครั้งเดียว', () => {
-    const r = parseCreateBot(body({ name: '', salesStatuses: [], steps: [step({ text: '' })] }))
-    expect(r.ok === false && codes(r.issues)).toEqual(['NAME_REQUIRED', 'NO_CONDITION', 'STEP_TEXT_REQUIRED'])
+    const r = parseCreateBot(body({ name: '', salesStatuses: [], steps: [stepText('')] }))
+    expect(r.ok === false && codes(r.issues)).toEqual(['NAME_REQUIRED', 'NO_CONDITION', 'PART_TEXT_REQUIRED'])
   })
   it('status ที่ client ส่งมาถูกทิ้ง (บอทใหม่ CLOSED เสมอ AC-FB-04)', () => {
     const r = parseCreateBot(body({ status: 'ACTIVE' }))
@@ -211,19 +267,30 @@ describe('TC-075 renderStepText — {ชื่อ} ไม่มีชื่อ =
   })
 })
 
-describe('TC-082/109 buildStepBubbles — ตัวเดียวกับตัวอย่างในแชท', () => {
-  it('TEXT_IMAGE = ข้อความก่อน แล้วรูป · ตัวแปรแทนเหมือนกัน', () => {
-    expect(buildStepBubbles({ kind: 'TEXT_IMAGE', text: 'สวัสดี{ชื่อ}', imageFileId: 'f1' }, 'ก')).toEqual({
+describe('TC-082/109 buildStepBubbles — ตัวเดียวกับตัวอย่างในแชท (ต่อชิ้น)', () => {
+  it('เรียงตามชิ้น · ตัวแปรแทนเหมือนกัน · IMAGES = ฟองเดียวหลายรูป · quick message = placeholder', () => {
+    const r = buildStepBubbles(
+      { parts: [text('สวัสดี{ชื่อ}'), { kind: 'IMAGES', fileIds: ['f1', 'f2'] }, { kind: 'QUICK_MESSAGE', quickMessageId: 'q1' }] },
+      'ก',
+    )
+    expect(r).toEqual({
       ok: true,
-      bubbles: [{ type: 'TEXT', text: 'สวัสดีก' }, { type: 'IMAGE', fileId: 'f1' }],
+      bubbles: [
+        { type: 'TEXT', partIndex: 0, text: 'สวัสดีก' },
+        { type: 'IMAGES', partIndex: 1, fileIds: ['f1', 'f2'] },
+        { type: 'QUICK_MESSAGE', partIndex: 2, quickMessageId: 'q1' },
+      ],
     })
-    expect(buildStepBubbles({ kind: 'TEXT', text: 'x', imageFileId: 'f1' }, null)).toEqual({ ok: true, bubbles: [{ type: 'TEXT', text: 'x' }] })
   })
-  it('TC-109 มีแต่ {ชื่อ} แล้วไม่มีชื่อ → EMPTY_MESSAGE (แม้เป็น TEXT_IMAGE)', () => {
-    expect(buildStepBubbles({ kind: 'TEXT', text: '{ชื่อ}', imageFileId: null }, null)).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
-    expect(buildStepBubbles({ kind: 'TEXT_IMAGE', text: '{ชื่อ}', imageFileId: 'f' }, ' ')).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
+  it('ชิ้นข้อความที่ว่างหลังแทนตัวแปรถูกข้าม ชิ้นอื่นยังส่ง', () => {
+    expect(buildStepBubbles({ parts: [text('{ชื่อ}'), { kind: 'IMAGES', fileIds: ['f'] }] }, null)).toEqual({
+      ok: true,
+      bubbles: [{ type: 'IMAGES', partIndex: 1, fileIds: ['f'] }],
+    })
   })
-  it('TEXT_IMAGE ไม่มี fileId → IMAGE_MISSING', () => {
-    expect(buildStepBubbles({ kind: 'TEXT_IMAGE', text: 'x', imageFileId: null }, null)).toEqual({ ok: false, reason: 'IMAGE_MISSING' })
+  it('TC-109 ไม่เหลือชิ้นที่ส่งได้ → EMPTY_MESSAGE', () => {
+    expect(buildStepBubbles({ parts: [text('{ชื่อ}')] }, null)).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
+    expect(buildStepBubbles({ parts: [text('{ชื่อ}'), text(' ')] }, ' ')).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
+    expect(buildStepBubbles({ parts: [] }, 'ก')).toEqual({ ok: false, reason: 'EMPTY_MESSAGE' })
   })
 })
