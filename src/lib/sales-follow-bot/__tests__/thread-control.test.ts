@@ -1,7 +1,7 @@
 // 00095-ext FR-FA-5/BR-FA-8 — ดึงสิทธิ์คุมเธรดคืนจาก Business Suite (pure)
 import { describe, expect, it } from 'vitest'
 import { MIN_MS } from '../constants'
-import { afterClaim, mayReclaim, META_BUSINESS_AI_APP_ID, RECLAIM_RETRY_MS, reclaimBackoffActive, OTHER_APP_CONTROLS_RE } from '../thread-control'
+import { afterClaim, BORROW_RETRY_MS, mayReclaim, META_BUSINESS_AI_APP_ID, RECLAIM_RETRY_MS, reclaimBackoffActive, OTHER_APP_CONTROLS_RE, shouldBorrowFromMetaAi } from '../thread-control'
 
 const gate = (o: Partial<Parameters<typeof mayReclaim>[0]> = {}) =>
   mayReclaim({ channel: 'MESSENGER', metaAiHolding: false, ownerAppId: null, lastHandover: null, ...o })
@@ -47,4 +47,21 @@ describe('reclaimBackoffActive', () => {
 it('ตรงถ้อยคำของ Meta', () => {
   expect(OTHER_APP_CONTROLS_RE.test('(#10) Message failed to send because another app is controlling this thread now.')).toBe(true)
   expect(OTHER_APP_CONTROLS_RE.test('WINDOW_CLOSED')).toBe(false)
+})
+
+describe('shouldBorrowFromMetaAi — ยืมห้องจาก Meta AI (2026-11-16)', () => {
+  const now = new Date('2026-11-16T10:00:00Z')
+  const base = { channel: 'MESSENGER', dueIfNotHeld: true, lastFailedBorrowAt: null as Date | null, now }
+  it('ห้อง Messenger/IG ที่ถึงเวลาส่ง + ไม่เคยยืมล้ม = ยืม', () => {
+    expect(shouldBorrowFromMetaAi(base)).toBe(true)
+    expect(shouldBorrowFromMetaAi({ ...base, channel: 'INSTAGRAM' })).toBe(true)
+  })
+  it('LINE / ยังไม่ถึงเวลาส่ง = ไม่ยืม (ไม่ยิง Graph เปล่า ๆ)', () => {
+    expect(shouldBorrowFromMetaAi({ ...base, channel: 'LINE' })).toBe(false)
+    expect(shouldBorrowFromMetaAi({ ...base, dueIfNotHeld: false })).toBe(false)
+  })
+  it('ยืมล้มไม่ถึง 30 นาที = ไม่ยิงซ้ำ · ครบ 30 นาที = ลองใหม่', () => {
+    expect(shouldBorrowFromMetaAi({ ...base, lastFailedBorrowAt: new Date(now.getTime() - BORROW_RETRY_MS + 1000) })).toBe(false)
+    expect(shouldBorrowFromMetaAi({ ...base, lastFailedBorrowAt: new Date(now.getTime() - BORROW_RETRY_MS) })).toBe(true)
+  })
 })

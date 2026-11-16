@@ -1,6 +1,6 @@
 // 00095 ส่วนต่อขยาย FR-FA-5/BR-FA-8 — บอทดึงสิทธิ์คุมเธรด (Messenger/IG) คืนจาก Business Suite แล้วส่ง · ตัวตัดสิน pure (ห้าม import prisma)
 //
-// 🛑 ห้ามแย่งจาก Meta AI / Business AI เด็ดขาด (มติเดิม webhook route "ห้าม take_thread_control อัตโนมัติจาก Meta AI")
+// 🛑 ทางนี้ (ฟองล้มแล้วดึงคืน) ห้ามแย่งจาก Meta AI / Business AI — ห้อง Meta AI มีทางแยกของมันเอง: ยืม→ส่ง→คืน (shouldBorrowFromMetaAi ท้ายไฟล์ · ผู้ใช้สั่ง 2026-11-16)
 // แยกเจ้าของเธรดไม่ได้แน่ชัด (Meta ไม่ส่ง handover ตอน AI ตอบ) → ถือว่าเป็น Business Suite (Page Inbox) **เมื่อไม่มีหลักฐาน Meta AI**
 // หลักฐาน Meta AI = (ก) สูตรถือห้อง decideMetaAiHolding ที่ decideRun HOLD อยู่แล้ว (ข) เจ้าของที่ spy ได้คือแอป Business AI
 // (ค) handover event ล่าสุดของเธรดเป็น take ด้วย metadata `axon_take_thread_control` (ของ Business AI — graph.ts META_BUSINESS_AI_APP_ID)
@@ -50,3 +50,17 @@ export function afterClaim(c: ClaimOutcome): AfterClaim {
 /** ยังอยู่ในช่วงรอหลังฟองล้มเพราะแอปอื่นคุมเธรด → ไม่เปิดฟองใหม่ใน tick นี้ */
 export const reclaimBackoffActive = (lastOtherAppFailureAt: Date | null, now: Date): boolean =>
   lastOtherAppFailureAt !== null && now.getTime() - lastOtherAppFailureAt.getTime() < RECLAIM_RETRY_MS
+
+// ── ยืมห้องจาก Meta AI (ผู้ใช้สั่ง 2026-11-16 — กลับมติ "ห้ามแตะห้อง Meta AI" เฉพาะจังหวะส่งรอบ) ─────────────
+// ห้องที่ Meta AI ถือ: ถึงเวลาส่งรอบ → take ก่อน (ไม่สร้างฟองจนกว่าจะได้สิทธิ์ = ไม่มีฟองล้มโผล่ในห้อง)
+// ได้สิทธิ์ → ส่งรอบ → คืนให้ Business AI ทันที · ไม่ได้ (เพจไม่ได้ตั้ง Conversation Routing ฯลฯ) → พักต่อแบบเดิม
+/** ลองยืมไม่สำเร็จแล้ว รอก่อนลองใหม่ — เพจที่ไม่ได้ตั้ง routing จะล้มทุกครั้ง ห้ามยิง Graph ทุก tick */
+export const BORROW_RETRY_MS = 30 * MIN_MS
+export const BORROW_METADATA = 'deep-follow-bot-borrow'
+
+/** ควรลองยืมห้องจาก Meta AI ใน tick นี้ไหม: เฉพาะ Meta channel · รอบถึงเวลาส่งแล้วถ้าไม่นับ Meta AI · พ้น backoff */
+export function shouldBorrowFromMetaAi(f: { channel: string; dueIfNotHeld: boolean; lastFailedBorrowAt: Date | null; now: Date }): boolean {
+  if (f.channel !== 'MESSENGER' && f.channel !== 'INSTAGRAM') return false
+  if (!f.dueIfNotHeld) return false
+  return f.lastFailedBorrowAt === null || f.now.getTime() - f.lastFailedBorrowAt.getTime() >= BORROW_RETRY_MS
+}
