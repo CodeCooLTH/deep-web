@@ -289,3 +289,5 @@ sequenceDiagram
 ## ภาคผนวก — ส่วนต่อขยาย 2026-11-16
 
 `POST …/bots` และ `PATCH …/bots/[id]` รับเพิ่ม `finalAction` (`NONE|RESOLVE|HIDE|SPAM`, ไม่ส่ง = NONE/ค่าเดิม) และ `finalDelayMin` (จำนวนเต็ม 0..10080 นาที, ไม่ส่ง = 1440/ค่าเดิม) · `BotDto` คืนทั้งสองฟิลด์ · ผิด → 400 `VALIDATION_ERROR` issue `FINAL_DELAY_INVALID` (delay) / `INVALID_BODY` (action) · แก้สองฟิลด์ไม่หยุด run · `GET …/sends` คืน `controlReclaimed` และ `reason` ใหม่ `ROUTING_NOT_ENABLED`/`CHANNEL_TOKEN_INVALID` · cron `TickResult` เพิ่ม `finalActed`,`finalSkipped`
+
+**FR-FA-7:** `POST …/bots` และ `PATCH …/bots/[id]` รับเพิ่ม `replyHandoff` (`ADMIN|META_AI`, ไม่ส่ง = ADMIN/ค่าเดิม) · `BotDto` คืนฟิลด์นี้ · ค่านอกชุด → 400 `VALIDATION_ERROR` issue `INVALID_BODY` · แก้ค่านี้ไม่หยุด run

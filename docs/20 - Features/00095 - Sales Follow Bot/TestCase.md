@@ -762,3 +762,6 @@ sequenceDiagram
 
 Mutation (แดงแล้วคืน): M-claim (ถอด `finalActionAt IS NULL`) · M-reply (ถอด CUSTOMER_REPLIED) · M-test (ถอด TEST_ROOM_ONLY) · M-ai (ถอด metaAiHolding ใน mayReclaim)
 🛑 ยังไม่มีเทส DB ของเส้นทาง reclaim (ต้อง mock Graph) และยังไม่เคยทดสอบกับเพจจริง
+
+| TC-FA-50..55 | ส่งห้องต่อเมื่อลูกค้าตอบ (FR-FA-7): pure `decideReplyHandoff` (ADMIN+Meta AI ถือ→TAKE_BACK · META_AI→PASS · LINE→NONE) + ข้อความบรรทัดระบบ 3 แบบ (`thread-control.test.ts`) · DB จริง Graph mock: ADMIN ดึงคืน+log owner · ADMIN ไม่มีหลักฐาน=ไม่ยิง · META_AI pass Business AI เท่านั้น · pass ล้ม=บรรทัดล้มเหลว · LINE ไม่ยิง · หยุดเหตุอื่นไม่แตะ · ซ้ำ tick ไม่ซ้ำ | `services/__tests__/sales-follow-reply-handoff.test.ts` |
+Mutation (แดงแล้วคืน): M-gate (ถอด CUSTOMER_REPLIED) · M-pass (ไม่จำกัด target Business AI) · M-owner (log take ไม่ส่ง newOwnerAppId)

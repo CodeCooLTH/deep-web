@@ -64,3 +64,32 @@ export function shouldBorrowFromMetaAi(f: { channel: string; dueIfNotHeld: boole
   if (!f.dueIfNotHeld) return false
   return f.lastFailedBorrowAt === null || f.now.getTime() - f.lastFailedBorrowAt.getTime() >= BORROW_RETRY_MS
 }
+
+// ── ส่งห้องต่อเมื่อลูกค้าตอบกลับ (FR-FA-7 · ผู้ใช้สั่ง 2026-11-16) ─────────────────────────────
+export const REPLY_HANDOFF_METADATA = 'deep-follow-bot-handoff'
+
+export type ReplyHandoffAction = 'NONE' | 'TAKE_BACK' | 'PASS_TO_META_AI'
+
+/**
+ * ตัดสินว่าต้องยิง Graph ไหมตอน run หยุดเพราะลูกค้าตอบ
+ * LINE = ADMIN เสมอ (ไม่มี thread control) · ADMIN ดึงคืนเฉพาะเมื่อมีหลักฐานว่า Meta AI ถือห้อง (ไม่ยิงโดยไม่จำเป็น)
+ * META_AI ที่ Meta AI ถืออยู่แล้ว = ไม่ต้องยิง (pass จากคนที่ไม่ใช่เจ้าของห้องไม่ได้ผลอยู่แล้ว)
+ */
+export function decideReplyHandoff(f: { channel: string; setting: 'ADMIN' | 'META_AI'; metaAiHolds: boolean }): ReplyHandoffAction {
+  if (f.channel !== 'MESSENGER' && f.channel !== 'INSTAGRAM') return 'NONE'
+  if (f.setting === 'META_AI') return f.metaAiHolds ? 'NONE' : 'PASS_TO_META_AI'
+  return f.metaAiHolds ? 'TAKE_BACK' : 'NONE'
+}
+
+/** บรรทัดระบบในห้อง — LINE ถือเป็นแอดมินเสมอ · failed = ยิง Graph แล้วไม่สำเร็จ ห้องอยู่กับแอดมิน */
+export function buildReplyHandoffNote(f: { channel: string; setting: 'ADMIN' | 'META_AI'; failed: boolean }): string {
+  const meta = f.channel === 'MESSENGER' || f.channel === 'INSTAGRAM'
+  if (f.setting === 'META_AI' && meta) {
+    return f.failed
+      ? 'ลูกค้าตอบแล้ว — ส่งต่อให้ Meta AI ไม่สำเร็จ (เพจยังไม่ได้ตั้ง Conversation Routing) ห้องอยู่กับแอดมิน'
+      : 'ลูกค้าตอบแล้ว — ส่งต่อให้ Meta AI'
+  }
+  return f.failed
+    ? 'ลูกค้าตอบแล้ว — ส่งต่อให้แอดมิน แต่ดึงห้องคืนจาก Meta AI ไม่สำเร็จ'
+    : 'ลูกค้าตอบแล้ว — ส่งต่อให้แอดมิน'
+}

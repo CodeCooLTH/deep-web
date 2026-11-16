@@ -277,3 +277,5 @@ DELETE FROM "_prisma_migrations" WHERE migration_name = '20261117100000_00095_sa
 | SalesFollowSend | `controlReclaimed` bool NOT NULL default false | `_reason_check` ขยาย +`ROUTING_NOT_ENABLED`,`CHANNEL_TOKEN_INVALID` |
 
 migration `20261117100200_00095_ext_final_action` · `20261117100300_00095_ext_reclaim_control` — additive ล้วน (HR15: push main = deploy prod migrate) · local apply ด้วย `migrate deploy` ปักหมุด localhost:5434
+
+**ต่อขยาย FR-FA-7:** `SalesFollowBot.replyHandoff` text NOT NULL default 'ADMIN' · `SalesFollowBot_replyHandoff_check` ∈ ADMIN/META_AI (migration `20261118110000_00095_ext_reply_handoff`)

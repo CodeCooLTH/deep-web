@@ -178,7 +178,7 @@ describe.skipIf(!isLocal)('sales-follow engine (DB จริง · ตัวส�
     expect((await runOf(r.runId)).nextStep).toBe(0)
   })
 
-  it('ลูกค้าตอบหลังฟองบอท = หยุด CUSTOMER_REPLIED + บรรทัดระบบเดียว · ไม่ส่งอีก', async () => {
+  it('ลูกค้าตอบหลังฟองบอท = หยุด CUSTOMER_REPLIED + บรรทัดหยุด + บรรทัดส่งห้องต่อ · ไม่ส่งอีก', async () => {
     const w = await mkWorld()
     const bot = await mkBot(w)
     const r = await mkRoom({ w, bot })
@@ -187,8 +187,10 @@ describe.skipIf(!isLocal)('sales-follow engine (DB จริง · ตัวส�
     const res = await tick(w)
     expect(res.stopped).toBe(1)
     expect(await runOf(r.runId)).toMatchObject({ status: 'STOPPED', stopReason: 'CUSTOMER_REPLIED' })
-    expect(await notes(r.conv)).toHaveLength(1)
+    // บรรทัดหยุด 1 + บรรทัดส่งห้องต่อ (FR-FA-7) 1 — ไม่ซ้ำเมื่อ tick ซ้ำ
+    expect(await notes(r.conv)).toHaveLength(2)
     expect((await tick(w)).stopped).toBe(0)
+    expect(await notes(r.conv)).toHaveLength(2)
     expect(mocks.transmit).toHaveBeenCalledTimes(1)
   })
 

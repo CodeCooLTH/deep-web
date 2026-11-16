@@ -540,3 +540,5 @@ SRS นี้ปักนิยามเชิงเทคนิคทั้ง�
 ## ภาคผนวก B — ส่วนต่อขยาย 2026-11-16 (ตามครบแล้วไม่ตอบ + ดึงสิทธิ์คืน)
 
 ต้นทาง [[EXT-2026-11-16-final-action]] · FR-FA-1..5 · BR-FA-1..8 · TFR-FB-26 action ท้ายสุด (`final-action.ts` ตัวตัดสิน pure → engine ขั้น (3) หลังแนบห้อง ≤50 run/tick) · TFR-FB-27 ดึงสิทธิ์คืน (`thread-control.ts` + `reclaimIfBlocked` ใน engine) · ลงมือผ่าน `updateConversationState` ตัวเดียวกับปุ่มกล่องแชท · บรรทัดระบบ `FOLLOW_BOT_NOTE` "บอทตามครบ {n} รอบ ลูกค้าไม่ตอบ — …" · แก้ค่าไม่นับเป็นโครงรอบ (ไม่ขยับ structureRev)
+
+**FR-FA-7 / BR-FA-10 (ต่อขยาย 2026-11-16 · ส่งห้องต่อเมื่อลูกค้าตอบ)** — ตั้งค่าบอท `replyHandoff` ∈ `ADMIN`(default)|`META_AI` · ทำเมื่อ run หยุด `CUSTOMER_REPLIED` เท่านั้น ครั้งเดียวต่อ run · ADMIN ดึงสิทธิ์คืนจาก Meta AI เมื่อมีหลักฐานว่าถือห้อง · META_AI ส่งให้ Business AI เท่านั้น · LINE = ADMIN เสมอ · เขียน FOLLOW_BOT_NOTE + `ChatHandoverEvent` `deep-follow-bot-handoff:*` · ดู [[EXT-2026-11-16-final-action]]

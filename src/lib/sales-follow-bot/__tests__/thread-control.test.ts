@@ -1,7 +1,7 @@
 // 00095-ext FR-FA-5/BR-FA-8 — ดึงสิทธิ์คุมเธรดคืนจาก Business Suite (pure)
 import { describe, expect, it } from 'vitest'
 import { MIN_MS } from '../constants'
-import { afterClaim, BORROW_RETRY_MS, mayReclaim, META_BUSINESS_AI_APP_ID, RECLAIM_RETRY_MS, reclaimBackoffActive, OTHER_APP_CONTROLS_RE, shouldBorrowFromMetaAi } from '../thread-control'
+import { afterClaim, BORROW_RETRY_MS, mayReclaim, META_BUSINESS_AI_APP_ID, RECLAIM_RETRY_MS, reclaimBackoffActive, OTHER_APP_CONTROLS_RE, shouldBorrowFromMetaAi, decideReplyHandoff, buildReplyHandoffNote } from '../thread-control'
 
 const gate = (o: Partial<Parameters<typeof mayReclaim>[0]> = {}) =>
   mayReclaim({ channel: 'MESSENGER', metaAiHolding: false, ownerAppId: null, lastHandover: null, ...o })
@@ -63,5 +63,30 @@ describe('shouldBorrowFromMetaAi — ยืมห้องจาก Meta AI (202
   it('ยืมล้มไม่ถึง 30 นาที = ไม่ยิงซ้ำ · ครบ 30 นาที = ลองใหม่', () => {
     expect(shouldBorrowFromMetaAi({ ...base, lastFailedBorrowAt: new Date(now.getTime() - BORROW_RETRY_MS + 1000) })).toBe(false)
     expect(shouldBorrowFromMetaAi({ ...base, lastFailedBorrowAt: new Date(now.getTime() - BORROW_RETRY_MS) })).toBe(true)
+  })
+})
+
+describe('decideReplyHandoff — ส่งห้องต่อเมื่อลูกค้าตอบ (FR-FA-7)', () => {
+  const d = decideReplyHandoff
+  it('ADMIN: ดึงคืนเฉพาะเมื่อ Meta AI ถือห้อง · ไม่ถือ = ไม่ยิง Graph', () => {
+    expect(d({ channel: 'MESSENGER', setting: 'ADMIN', metaAiHolds: true })).toBe('TAKE_BACK')
+    expect(d({ channel: 'INSTAGRAM', setting: 'ADMIN', metaAiHolds: true })).toBe('TAKE_BACK')
+    expect(d({ channel: 'MESSENGER', setting: 'ADMIN', metaAiHolds: false })).toBe('NONE')
+  })
+  it('META_AI: ส่งให้ Business AI · ถืออยู่แล้ว = ไม่ยิง', () => {
+    expect(d({ channel: 'MESSENGER', setting: 'META_AI', metaAiHolds: false })).toBe('PASS_TO_META_AI')
+    expect(d({ channel: 'MESSENGER', setting: 'META_AI', metaAiHolds: true })).toBe('NONE')
+  })
+  it('LINE = ไม่มี Graph ทุกค่าตั้ง', () => {
+    for (const setting of ['ADMIN', 'META_AI'] as const) for (const metaAiHolds of [true, false]) expect(d({ channel: 'LINE', setting, metaAiHolds })).toBe('NONE')
+  })
+})
+
+describe('buildReplyHandoffNote', () => {
+  it('ข้อความตามสเปก 3 แบบ + LINE นับเป็นแอดมินเสมอ', () => {
+    expect(buildReplyHandoffNote({ channel: 'MESSENGER', setting: 'ADMIN', failed: false })).toBe('ลูกค้าตอบแล้ว — ส่งต่อให้แอดมิน')
+    expect(buildReplyHandoffNote({ channel: 'MESSENGER', setting: 'META_AI', failed: false })).toBe('ลูกค้าตอบแล้ว — ส่งต่อให้ Meta AI')
+    expect(buildReplyHandoffNote({ channel: 'INSTAGRAM', setting: 'META_AI', failed: true })).toBe('ลูกค้าตอบแล้ว — ส่งต่อให้ Meta AI ไม่สำเร็จ (เพจยังไม่ได้ตั้ง Conversation Routing) ห้องอยู่กับแอดมิน')
+    expect(buildReplyHandoffNote({ channel: 'LINE', setting: 'META_AI', failed: false })).toBe('ลูกค้าตอบแล้ว — ส่งต่อให้แอดมิน')
   })
 })

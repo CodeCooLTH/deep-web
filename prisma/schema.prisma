@@ -5720,6 +5720,8 @@ model SalesFollowBot {
   /// ส่วนต่อขยาย 2026-11-16: ตามครบแล้วลูกค้าไม่ตอบ → NONE|RESOLVE|HIDE|SPAM (CHECK) · รอ finalDelayMin นาที (0..10080) นับจากรอบสุดท้ายที่ส่ง · แก้ค่านี้ไม่นับเป็นโครงรอบเปลี่ยน
   finalAction     String    @default("NONE")
   finalDelayMin   Int       @default(1440)
+  /// ส่วนต่อขยาย 2026-11-16 (FR-FA-7): เมื่อลูกค้าตอบกลับแล้วบอทหยุด ส่งห้องต่อให้ ADMIN|META_AI (CHECK) · Messenger/IG เท่านั้น (LINE = ADMIN เสมอ) · แก้ค่านี้ไม่นับเป็นโครงรอบเปลี่ยน
+  replyHandoff    String    @default("ADMIN")
   createdByUserId String?
   updatedByUserId String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)

@@ -10,13 +10,14 @@
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { FINAL_ACTIONS, SALES_FOLLOW_LIMITS as L, type FinalAction } from '@/lib/sales-follow-bot/constants'
+import { FINAL_ACTIONS, REPLY_HANDOFFS, SALES_FOLLOW_LIMITS as L, type FinalAction, type ReplyHandoff } from '@/lib/sales-follow-bot/constants'
 import type { BotIssue } from '@/lib/sales-follow-bot/schemas'
 import {
   addRoundBlocker,
   DELAY_UNITS,
   emptyStep,
   FINAL_KEY,
+  REPLY_HANDOFF_KEY,
   formatDuration,
   moveBlocker,
   moveItem,
@@ -326,6 +327,22 @@ export default function RoundsSection({
             </li>
           ))}
         </ul>
+        {/* FR-FA-7: ลูกค้าตอบแล้วบอทหยุด ห้องไปไหนต่อ — ค่าเดิม = แอดมิน · Meta AI ใช้ได้เฉพาะ Messenger/IG (LINE เป็นแอดมินเสมอ) */}
+        <div className="border-default-300 mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+          <label htmlFor="sfb-reply-handoff" className="text-default-800 text-sm">
+            {t.replyHandoffLabel}
+          </label>
+          <div className="min-w-36">
+            <SfbSelect
+              inputId="sfb-reply-handoff"
+              isSearchable={false}
+              options={REPLY_HANDOFFS.map((h) => ({ value: h, label: t[REPLY_HANDOFF_KEY[h]] }))}
+              value={{ value: draft.replyHandoff, label: t[REPLY_HANDOFF_KEY[draft.replyHandoff]] }}
+              onChange={(o: unknown) => onChange((d) => ({ ...d, replyHandoff: (o as { value: ReplyHandoff } | null)?.value ?? d.replyHandoff }))}
+            />
+          </div>
+        </div>
+        {draft.replyHandoff === 'META_AI' && <p className="text-default-600 mt-1.5 text-xs">{t.replyHandoffHint}</p>}
       </div>
     </div>
   )

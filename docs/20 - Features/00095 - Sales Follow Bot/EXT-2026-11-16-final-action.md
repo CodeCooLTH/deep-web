@@ -48,3 +48,20 @@
 - หลักฐาน + ตัวนับ backoff = `ChatHandoverEvent.metadata` `deep-follow-bot-borrow:<TAKEN|REQUESTED|FAILED_*|RETURNED|RETURN_FAILED>` · `newOwnerAppId` ของแถว take/pass ทำให้ `Conversation.metaOwnerAppId` ยังจำว่า Meta AI ถือห้องหลังคืน
 - ไม่มี migration · Native ไม่กระทบ
 - ⚠️ ยังไม่เคยทดสอบกับเพจจริง — ดูผลที่ `ChatHandoverEvent` ของร้านธนภัทร์หลังขึ้น prod
+
+## ภาคผนวก — ส่งห้องต่อเมื่อลูกค้าตอบกลับ (FR-FA-7 / BR-FA-10 · ผู้ใช้สั่ง 2026-11-16 "ครับ ลุยเลย")
+**คำผู้ใช้:** "บางร้านใช้ Meta AI อยากให้เวลาบอทหยุด เพราะลูกค้าพิมพ์ตอบกลับมา ให้มีตั้งได้ว่า จะส่งต่อให้ Admin / หรือ ส่งให้ Facebook Meta AI ได้ด้วย"
+
+- **FR-FA-7** ตั้งค่าต่อบอท `replyHandoff` ∈ `ADMIN` (ค่าตั้งต้น) | `META_AI` — "เมื่อลูกค้าตอบกลับ (บอทหยุด) ให้ส่งต่อให้" · อยู่ในกล่อง "บอทจะหยุดทักเองเมื่อ" ของฟอร์มบอท
+- **ADMIN:** ห้องอยู่กับ Deep ให้แอดมินตอบ — ถ้า ณ ตอนนั้นมีหลักฐานว่า Meta AI ถือห้อง (ด่านเดียวกับ `mayReclaim`: `decideMetaAiHolding` / `metaOwnerAppId` = Business AI / handover ล่าสุด `axon_take_thread_control`) → `claimThreadControl` ดึงคืน · ไม่มีหลักฐาน = ไม่ยิง Graph
+- **META_AI:** `passThreadControlToMetaAi(..., [Business AI])` เท่านั้น (ไม่ตกไป Page Inbox) · Meta AI ถืออยู่แล้ว = ไม่ยิง
+- เขียนบรรทัดระบบ `FOLLOW_BOT_NOTE` ทุกครั้ง: "ลูกค้าตอบแล้ว — ส่งต่อให้แอดมิน" / "… ส่งต่อให้ Meta AI" / ล้มเหลว "… ส่งต่อให้ Meta AI ไม่สำเร็จ (เพจยังไม่ได้ตั้ง Conversation Routing) ห้องอยู่กับแอดมิน" (ADMIN ดึงคืนไม่สำเร็จ: "… แต่ดึงห้องคืนจาก Meta AI ไม่สำเร็จ")
+
+| # | กฎเพิ่ม |
+|---|---|
+| BR-FA-10 | (ก) เกิดเมื่อ run หยุดด้วยเหตุ `CUSTOMER_REPLIED` เท่านั้น (เหตุอื่น = ไม่แตะ) · (ข) ทำครั้งเดียวต่อ run: ทำต่อเมื่อ `stopRunWithNote` คืนแถวเท่านั้น (ผู้ชนะ `UPDATE…WHERE status='ACTIVE'`) · (ค) Messenger/IG เท่านั้น — LINE เป็น ADMIN เสมอ ไม่ยิง Graph · (ง) ทุกครั้งที่ยิง Graph เขียน `ChatHandoverEvent` metadata `deep-follow-bot-handoff:<TAKEN\|REQUESTED\|FAILED_*\|PASSED\|PASS_FAILED>` พร้อม `newOwnerAppId` จริง (take สำเร็จ = แอปเรา `FB_CHAT_APP_ID` · pass สำเร็จ = Business AI · ล้ม = ไม่ระบุ) เพื่อให้ `Conversation.metaOwnerAppId` ตรงความจริง · (จ) แก้ค่านี้ไม่ใช่โครงรอบ (ไม่หยุด run) |
+
+- **ทำที่ไหน:** ใน cron tick (`evaluateRun` → `handoffAfterCustomerReply`) ไม่ใช่ใน webhook ขาเข้า — webhook ต้องตอบ Meta เร็วและห้องรอ Graph/ล้มแล้วลาก event หาย · ราคา = ช้าได้ ≤ 1 tick · ล้มทุกกรณีแค่ log (run หยุดสำเร็จไปแล้ว) ไม่โยน
+- **ข้อจำกัดที่รู้:** Meta อาจไม่ให้ Meta AI ตอบข้อความที่ลูกค้า *ส่งมาแล้ว* ตอนส่งมอบ — AI อาจตอบตั้งแต่ข้อความถัดไป (ข้อความใน UI ฟอร์มบอก) · เพจต้องตั้ง Conversation Routing ไม่งั้น pass/take ล้ม
+- **ข้อมูล:** migration `20261118110000_00095_ext_reply_handoff` — `SalesFollowBot.replyHandoff` text NOT NULL default 'ADMIN' CHECK in ('ADMIN','META_AI') · additive · Native ไม่กระทบ
+- ⚠️ ยังไม่เคยทดสอบกับเพจจริง — ตรวจ `ChatHandoverEvent` `deep-follow-bot-handoff:*` หลังขึ้น prod
