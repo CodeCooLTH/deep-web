@@ -12,8 +12,8 @@ vi.mock('@/i18n/LocaleProvider', async () => {
 })
 
 describe('FollowBotBubbleBadge', () => {
-  it('มีรอบ: เลข n/N (นับจาก 1) + title/sr-only บอกรอบ', () => {
-    const h = renderToStaticMarkup(<FollowBotBubbleBadge followStep={0} followStepCount={3} />)
+  it('มีรอบ: followStep เป็น 1-based จาก server → แสดงตรงตัว ไม่บวกซ้ำ', () => {
+    const h = renderToStaticMarkup(<FollowBotBubbleBadge followStep={1} followStepCount={3} />)
     expect(h).toContain('tabular-nums')
     expect(h).toContain('>1/3<')
     expect(h).toContain('title="ส่งโดยบอทติดตาม รอบที่ 1 จาก 3"')

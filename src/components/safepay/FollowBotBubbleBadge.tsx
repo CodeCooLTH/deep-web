@@ -12,7 +12,8 @@ import { useT } from '@/i18n/LocaleProvider'
 
 export default function FollowBotBubbleBadge({ followStep, followStepCount }: { followStep?: number | null; followStepCount?: number | null }) {
   const t = useT().autoNotify
-  const step = followStep != null && followStepCount ? { n: followStep + 1, total: followStepCount } : null
+  // followStep มาจาก server แบบ 1-based แล้ว (chat.service · TFR-FB-24) — ห้ามบวก 1 ซ้ำ
+  const step = followStep != null && followStepCount ? { n: followStep, total: followStepCount } : null
   const label = step ? fmt(t.followBotSentByStep, step) : t.followBotSentBy
   return (
     <span
