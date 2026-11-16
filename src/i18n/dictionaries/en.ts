@@ -1478,6 +1478,8 @@ export const en: Dictionary = {
     typeService: 'Service',
     rowsPerPage: 'Rows: {n}',
     viewOrders: 'View orders',
+    clearSection: 'Clear',
+    back: 'Back',
   },
 
   adReport: {
