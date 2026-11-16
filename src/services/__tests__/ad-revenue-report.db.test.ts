@@ -213,7 +213,7 @@ describe.skipIf(!isLocal)('00091 เฟส 3 วิเคราะห์ยอ�
   })
 
   // ── 00096 รายงานกำไรโฆษณารายวัน (BRD §3) ──────────────────────────────
-  const profit = () => getAdsProfitReport(x.shop, null, { from: gte, to: lt }, { spendSource: okSpend })
+  const profit = () => getAdsProfitReport(x.shop, null, { from: gte, to: lt }, { spendSource: okSpend, detailsSource: async () => ({ state: 'OK', ads: { AD1: { reach: 900, frequency: 1.4, status: 'ACTIVE', objective: 'OUTCOME_ENGAGEMENT' } } }) })
   it('00096 รับรู้แล้ว: กำไรก่อนค่าโฆษณาต่อแอด = 00091 profitBeforeAds (ชุด/สูตรเดียวกับหน้ากำไร)', async () => {
     const [p, r] = await Promise.all([profit(), report()])
     for (const row of p.rows) {
@@ -226,6 +226,12 @@ describe.skipIf(!isLocal)('00091 เฟส 3 วิเคราะห์ยอ�
     expect(p.totals.parts.expected.orders).toBe(r.summary.orders)
     expect(p.totals.spend).toBe(r.summary.spend)
     expect(p.rows.every((row) => r.ads.some((a) => a.adId === row.adId))).toBe(true)
+  })
+  it('00096 P1: reach/สถานะ/วัตถุประสงค์จาก Meta ผูกกับแถว · ไม่มีข้อมูล = null', async () => {
+    const p = await profit()
+    expect(p.rows.find((r) => r.adId === 'AD1')).toMatchObject({ reach: 900, frequency: 1.4, adStatus: 'ACTIVE', objective: 'OUTCOME_ENGAGEMENT' })
+    expect(p.rows.find((r) => r.adId === 'AD3')).toMatchObject({ reach: null, adStatus: null })
+    expect(Array.isArray(p.insights.expected)).toBe(true)
   })
   it('00096 แอดใช้เงินไม่มีใบ: 0 ใบ · กำไรหลังค่าโฆษณา = −ค่าโฆษณา', async () => {
     const p = await profit()

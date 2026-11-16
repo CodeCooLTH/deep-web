@@ -18,12 +18,13 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { formatOrderNo } from '@/lib/order-no'
 import { thaiDayKey } from '@/lib/format-date'
 import { isOrderUnpaid } from '@/lib/order-payment-state'
+import { buildProfitInsights } from '@/lib/ads-profit-insights'
 import { getT } from '@/i18n/server'
 import { getAdProfitOrders, getAdsProfitReport } from '@/services/ads-profit.service'
 import { getAdSpend } from '@/services/meta-ads-spend.service'
 import NoPermissionCard from '../../../_shared/NoPermissionCard'
 import SellerEmptyState from '../../../_shared/SellerEmptyState'
-import AdProfitDetail, { type DetailOrder } from '../components/AdProfitDetail'
+import AdProfitDetail, { type DetailOrder, type DetailTab } from '../components/AdProfitDetail'
 
 export const metadata: Metadata = { title: 'รายละเอียดโฆษณา' }
 
@@ -69,7 +70,7 @@ export default async function AdProfitDetailPage({ params, searchParams }: { par
     )
   }
 
-  const tab = sp.tab === 'orders' ? 'orders' : 'profit'
+  const tab: DetailTab = sp.tab === 'orders' || sp.tab === 'perf' || sp.tab === 'diag' ? sp.tab : 'profit'
   const [list, spendRes] = await Promise.all([
     getAdProfitOrders(shop.id, shop.vertical, { ...range, adId, mode }),
     getAdSpend(shop.id, q.label.from, q.label.to).catch(() => null),
@@ -95,7 +96,7 @@ export default async function AdProfitDetailPage({ params, searchParams }: { par
   return (
     <div className="mx-auto w-full max-w-480">
       <PageBreadcrumb title={title} subtitle={t.adsProfit.parent} />
-      <AdProfitDetail row={row} mode={mode} noun={noun} tab={tab} baseHref={`/reports/ads-profit/${encodeURIComponent(adId)}?${qs.toString()}`} backHref={backHref} orders={orders} daily={daily} />
+      <AdProfitDetail row={row} mode={mode} noun={noun} tab={tab} baseHref={`/reports/ads-profit/${encodeURIComponent(adId)}?${qs.toString()}`} backHref={backHref} orders={orders} daily={daily} insights={buildProfitInsights(report.rows.map((r) => ({ adId: r.adId, spend: r.spend, parts: r.parts[mode], metrics: r.metrics[mode], status: r.status[mode], cancelled: r.cancelled, returned: r.returned, objective: r.objective })), 1000).filter((i) => i.adId === adId)} />
     </div>
   )
 }

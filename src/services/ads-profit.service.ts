@@ -18,7 +18,8 @@ import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { MAX_ITEM_ROWS, salesOrderWhere } from '@/services/product-sales-series.service'
 import { ORDER_SELECT, pnlOrderParts, type PnlOrder } from '@/services/pnl.service'
-import { getAdSpend, type SpendSource } from '@/services/meta-ads-spend.service'
+import { getAdDetails, getAdSpend, type DetailsSource, type SpendSource } from '@/services/meta-ads-spend.service'
+import { buildProfitInsights, type ProfitInsight } from '@/lib/ads-profit-insights'
 import { getAdRevenueReport, type AdRevenueRange, type AdRevenueReport } from '@/services/ad-revenue-report.service'
 import type { ReturnAdjustment } from '@/lib/order-return'
 
@@ -43,6 +44,11 @@ export type AdProfitRow = {
   impressions: number | null
   clicks: number | null
   chatsMeta: number | null
+  /** P1 (FR-014) — reach/ความถี่ทั้งช่วง · สถานะ/วัตถุประสงค์ ณ ตอนนี้ (null = Meta ไม่ส่ง/ไม่เชื่อม) */
+  reach: number | null
+  frequency: number | null
+  adStatus: string | null
+  objective: string | null
   /** คุณภาพใบ (ชุด 00091 ตามวันที่สั่ง) */
   cancelled: number
   returned: number
@@ -56,6 +62,8 @@ export type AdsProfitReport = {
   /** ช่วงก่อนหน้าความยาวเท่ากัน (โหมดคาดการณ์เท่านั้น — เทียบบนการ์ด) */
   previous: { spend: number | null; orders: number; revenue: number; profitBefore: number }
   daily: { day: string; spend: number | null; orders: Record<ProfitMode, number>; revenue: Record<ProfitMode, number>; profitBefore: Record<ProfitMode, number> }[]
+  /** P1 คำแนะนำรายวัน (FR-012) ต่อโหมด */
+  insights: Record<ProfitMode, ProfitInsight[]>
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -87,7 +95,7 @@ export async function getAdsProfitReport(
   shopId: string,
   vertical: string | null | undefined,
   range: AdRevenueRange,
-  deps: { spendSource?: SpendSource } = {},
+  deps: { spendSource?: SpendSource; detailsSource?: DetailsSource } = {},
 ): Promise<AdsProfitReport> {
   const { from, to } = range
   const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
@@ -97,6 +105,7 @@ export async function getAdsProfitReport(
   const [base, serviceRules] = await Promise.all([getAdRevenueReport(shopId, vertical, range, { spendSource }), shopUsesServiceFinanceRules(shopId)])
 
   const adWhere = { adId: { not: null }, ...chan }
+  const detailsP = (deps.detailsSource ?? getAdDetails)(shopId, thaiDayKey(from), thaiDayKey(new Date(to.getTime() - 1))).catch(() => null)
   const [expectedOrders, realizedOrders, prevOrders, returnRows, returnAdj, spendRes] = await Promise.all([
     prisma.order.findMany({ where: { ...salesOrderWhere(shopId, serviceRules, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
     prisma.order.findMany({ where: { shopId, ...revenueWindowWhere(vertical, { gte: from, lt: to }), ...adWhere }, select: PROFIT_SELECT, orderBy: { createdAt: 'desc' }, take: MAX_ITEM_ROWS + 1 }),
@@ -177,6 +186,8 @@ export async function getAdsProfitReport(
     }
   }
 
+  const details = await detailsP
+  const det = details?.state === 'OK' ? details.ads : {}
   const round = (p: ProfitParts): ProfitParts => ({ ...p, revenue: r2(p.revenue), cogs: r2(p.cogs), variable: r2(p.variable) })
   const rows: AdProfitRow[] = base.ads
     .filter((a) => (a.spend ?? 0) > 0 || parts.has(a.adId))
@@ -192,6 +203,7 @@ export async function getAdsProfitReport(
         status: { expected: profitStatus(a.spend, pr.expected, metrics.expected), realized: profitStatus(a.spend, pr.realized, metrics.realized) },
         shippingInfo: r2(shippingInfo.get(a.adId) ?? 0),
         impressions: m?.impressions ?? null, clicks: m?.clicks ?? null, chatsMeta: m?.chatsMeta ?? null,
+        reach: det[a.adId]?.reach ?? null, frequency: det[a.adId]?.frequency ?? null, adStatus: det[a.adId]?.status ?? null, objective: det[a.adId]?.objective ?? null,
         cancelled: a.status.CANCELLED, returned: a.status.RETURNED, collected: a.collected,
       }
     })
@@ -221,6 +233,10 @@ export async function getAdsProfitReport(
       impressions: sumMeta('impressions'), clicks: sumMeta('clicks'), chatsMeta: sumMeta('chatsMeta'),
     },
     previous: { spend: base.previous.spend, orders: prevParts.orders, revenue: r2(prevParts.revenue), profitBefore: r2(prevParts.revenue - prevParts.cogs - prevParts.variable) },
+    insights: {
+      expected: buildProfitInsights(rows.map((r) => ({ adId: r.adId, spend: r.spend, parts: r.parts.expected, metrics: r.metrics.expected, status: r.status.expected, cancelled: r.cancelled, returned: r.returned, objective: r.objective }))),
+      realized: buildProfitInsights(rows.map((r) => ({ adId: r.adId, spend: r.spend, parts: r.parts.realized, metrics: r.metrics.realized, status: r.status.realized, cancelled: r.cancelled, returned: r.returned, objective: r.objective }))),
+    },
     daily: daily.map((d) => ({ ...d, revenue: { expected: r2(d.revenue.expected), realized: r2(d.revenue.realized) }, profitBefore: { expected: r2(d.profitBefore.expected), realized: r2(d.profitBefore.realized) } })),
   }
 }
