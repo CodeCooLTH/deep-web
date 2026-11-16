@@ -127,6 +127,10 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/(paces)/seller/(dashboard)/settings/reports/page.tsx': { page: 'F1', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/ai/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx': { page: 'H1', status: 'DECLARED' },
+  // 00095 บอทติดตามยอดขาย — H2 (OWNER/MANAGER/CHAT ตามมติ Q-11 ข) · ด่านร้านนำร่อง + ONLINE_SALES อยู่ในหน้า (เร็ว ๆ นี้) ไม่ใช่ที่นี่
+  'src/app/(paces)/seller/(dashboard)/settings/sales-follow-bot/page.tsx': { page: 'H2', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/sales-follow-bot/new/page.tsx': { page: 'H2', status: 'DECLARED' },
+  'src/app/(paces)/seller/(dashboard)/settings/sales-follow-bot/[id]/page.tsx': { page: 'H2', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/[id]/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/new/page.tsx': { page: 'H3', status: 'DECLARED' },
   'src/app/(paces)/seller/(dashboard)/settings/auto-reply/order-agent/page.tsx': { page: 'X3', status: 'DECLARED' },

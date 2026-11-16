@@ -186,6 +186,9 @@ export const sellerMenuItems: MenuItemType[] = [
       // (ร้านที่พักเห็นกรอบว่าง) · ด่านจริงอยู่ที่ route-capabilities (H1 อ่าน / X8 เขียน) ไม่ใช่เมนู
       // icon 'send' ใช้อยู่แล้วในหน้าเดียวกัน (กรอบว่าง) — ไม่ชนกับไอคอนอื่นในกลุ่ม
       { url: '/settings/auto-notify', slug: 'seller:settings-auto-notify', label: 'ส่งอัตโนมัติถึงลูกค้า', icon: 'send' },
+      // feature 00095 — บอทติดตามยอดขาย · ร้านขายออนไลน์ที่อยู่ในรายชื่อนำร่องเท่านั้น (ONLINE_SALES_ONLY_SLUGS + applySalesFollowBotMenu)
+      // 🛑 การซ่อนเมนูไม่ใช่ด่าน — หน้า/route ตรวจ H2 + isSalesFollowBotEnabled + vertical เอง · icon 'target-arrow' ผู้ใช้เคาะ (UX §14 Q1)
+      { url: '/settings/sales-follow-bot', slug: 'seller:settings-sales-follow-bot', label: 'บอทติดตามยอดขาย', icon: 'target-arrow' },
       { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ผู้ช่วยอัตโนมัติ', icon: 'robot' },
       /**
        * feature 00061 — อยู่ในกลุ่ม CHAT เพราะมันคือ "สิ่งที่เกิดขึ้นเมื่อร้านพิมพ์ในแชท"
@@ -369,6 +372,18 @@ export function applyMetaCapiMenu(items: MenuItemType[], enabled: boolean): Menu
 }
 
 /**
+ * applySalesFollowBotMenu — ซ่อนเมนูบอทติดตามยอดขายเมื่อร้านไม่อยู่ในรายชื่อนำร่อง (feature 00095 TFR-FB-08)
+ * fail-closed: ผู้เรียกที่ไม่ส่งค่า (เช่น แคตตาล็อกทางลัด) = ซ่อน · ด่านจริงอยู่ที่หน้า/route ไม่ใช่ที่นี่
+ */
+export function applySalesFollowBotMenu(items: MenuItemType[], enabled: boolean): MenuItemType[] {
+  if (enabled) return items
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.filter((child) => child.slug !== 'seller:settings-sales-follow-bot'),
+  })
+}
+
+/**
  * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02;
  * ขยาย 2→3 ทางที่ feature 00028 BR-SBT-15/16 — ยุบ applyAppointmentMenu เดิมเข้ามารวมที่นี่
  * เพราะเงื่อนไขเปิดคิวงานเหลือเช็คแค่ vertical เงื่อนไขเดียวแล้ว (canUseAppointments เปลี่ยนไปตาม
@@ -407,6 +422,7 @@ const ONLINE_SALES_ONLY_SLUGS = [
   'seller:auctions',
   'seller:reports-products',
   'seller:settings-order-agent',
+  'seller:settings-sales-follow-bot',
   'seller:pickups',
   // /settings เหลือแค่การตั้งค่าขนส่ง (iShip) ซึ่งหน้าเองแสดงเฉพาะ ONLINE_SALES — vertical อื่น
   // กดเข้าไปเจอ empty state "ยังไม่มีการตั้งค่าการจัดส่ง" จึงซ่อนเมนูให้ตรงกับหน้า
@@ -856,6 +872,8 @@ export function resolveVisibleSellerMenu(
     ownsShop: boolean
     /** 00089 — `isMetaCapiEnabled(shopId)` ของร้านที่เปิดอยู่ · ไม่ส่ง = false (ซ่อนเมนู Conversions API) */
     metaCapiEnabled?: boolean
+    /** 00095 — `isSalesFollowBotEnabled(shopId)` ของร้านที่เปิดอยู่ · ไม่ส่ง = false (ซ่อนเมนูบอทติดตามยอดขาย) */
+    salesFollowBotEnabled?: boolean
     /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
     hidePayments?: boolean
     /** เปิดจากในแอปที่ห้ามใช้ฟีเจอร์ซึ่งไม่มีขายเป็น IAP (iOS) — feature 00064 */
@@ -883,6 +901,7 @@ export function resolveVisibleSellerMenu(
     applyOrderLabel(
     applyVerticalMenu(
         applyLineReportMenu(
+          applySalesFollowBotMenu(
           applyMetaCapiMenu(
           applyCapabilityMenu(
             applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
@@ -895,6 +914,8 @@ export function resolveVisibleSellerMenu(
             { kind: ctx.staff.kind, isPrimaryOwner: ctx.shop.isPrimaryOwner, vertical: ctx.shop.vertical },
           ),
           ctx.metaCapiEnabled ?? false,
+          ),
+          ctx.salesFollowBotEnabled ?? false,
           ),
           { ownsShop: ctx.ownsShop },
         ),
@@ -1143,6 +1164,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-comment-reply': m.settingsCommentReply,
     'seller:settings-chatbot': m.settingsChatbot,
     'seller:settings-auto-notify': m.settingsAutoNotify,
+    'seller:settings-sales-follow-bot': m.settingsSalesFollowBot,
     'seller:settings-tags': m.settingsTags,
     'seller:reviews': m.reviews,
     'seller:verification': m.verification,

@@ -508,6 +508,18 @@ export async function searchTestRooms(shopId: string, channelIds: string[], q?: 
   }))
 }
 
+/** ชื่อ/ช่องทางของแชททดสอบที่เลือกไว้แล้ว (ฟอร์มแก้บอทต้องโชว์ชื่อ ไม่ใช่ id) — scope ด้วย shopId · id ของร้านอื่น/ที่หายไม่ปรากฏในผล */
+export async function getTestRoomLabels(shopId: string, conversationIds: string[]): Promise<TestRoomItem[]> {
+  if (conversationIds.length === 0) return []
+  const rows = await prisma.conversation.findMany({
+    where: { shopId, id: { in: conversationIds.slice(0, SALES_FOLLOW_LIMITS.maxTestRooms) } },
+    select: { id: true, alias: true, channel: true, shopChannelId: true, lastInboundAt: true, externalContact: { select: { name: true } } },
+  })
+  return rows.map((r) => ({
+    conversationId: r.id, contactName: roomName(r), channel: r.channel, shopChannelId: r.shopChannelId, lastInboundAt: iso(r.lastInboundAt),
+  }))
+}
+
 // ───────────────────────── ประวัติการส่ง ─────────────────────────
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

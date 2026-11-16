@@ -1,0 +1,24 @@
+/*
+ * Select2 (react-select) ของหน้าบอทติดตามยอดขายเท่านั้น — คอนทราสต์ชิปค่าที่เลือก (UX §20 · ผู้ใช้ตัดสิน 2026-11-16 "เอาเฉพาะหน้าบอทก่อน")
+ * ที่มา: framework-custom.css:110-115 ให้ชิป `!text-primary` บน `!bg-primary/20` = 3.19:1 ที่ 12px (ต่ำกว่า 4.5:1)
+ * แก้เป็น text-primary-ink (เฉดน้ำเงินเดิม เข้มขึ้น — convention contrast-fix-keeps-hue) ด้วย selector ที่เจาะจงกว่าเพื่อชนะ !important ของ theme
+ * 🛑 ห้ามแก้ framework-custom.css (ทั้งระบบยังเป็นแบบเดิม) · ค่าสีมาจาก token ไม่ใช่ hex
+ */
+.sfb-select .react-select__multi-value .react-select__multi-value__label,
+.sfb-select .react-select__multi-value .react-select__multi-value__remove {
+  color: var(--color-primary-ink) !important;
+}
+
+.sfb-select .react-select__multi-value .react-select__multi-value__remove:hover {
+  color: var(--color-primary-ink) !important;
+  background-color: color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
+}
+
+/* ชิปแท็กที่ถูกลบแล้ว (tone warning) — คอมโพเนนต์ใส่ class `sfb-chip-gone` ผ่าน classNames.multiValue */
+.sfb-select .react-select__multi-value.sfb-chip-gone {
+  background-color: color-mix(in srgb, var(--color-warning) 15%, transparent) !important;
+}
+.sfb-select .react-select__multi-value.sfb-chip-gone .react-select__multi-value__label,
+.sfb-select .react-select__multi-value.sfb-chip-gone .react-select__multi-value__remove {
+  color: var(--color-warning-ink) !important;
+}

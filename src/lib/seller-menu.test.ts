@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyFinanceMenu,
+  applySalesFollowBotMenu,
   applyMenuLocale,
   applyOrderLabel,
   FINANCE_MENU_LABEL,
@@ -109,6 +110,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings-comment-reply',
         // 00078 — ส่งอัตโนมัติถึงลูกค้า (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
         'seller:settings-auto-notify',
+        // 00095 — บอทติดตามยอดขาย (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:settings-sales-follow-bot',
         // 00083 — จัดการแท็ก (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
         'seller:settings-tags',
         'seller:shop',
@@ -519,5 +522,37 @@ describe('applyOwnerOnlyFinanceMenu — เมนูการเงินเฉ�
   it('ร้าน PERSONAL = เจ้าของ เห็นครบ', () => {
     const v = visible('ADMIN', 'PERSONAL')
     for (const s of FOUR) expect(v, s).toContain(s)
+  })
+})
+
+describe('00095 เมนูบอทติดตามยอดขาย', () => {
+  const visible = (vertical: string, salesFollowBotEnabled?: boolean) =>
+    flattenSellerMenu(
+      resolveVisibleSellerMenu(sellerMenuItems, {
+        entitlement: { status: 'ACTIVE', package: 'PRO' },
+        staff: { kind: 'BUSINESS', role: 'OWNER', roles: ['OWNER'] },
+        ownsShop: true,
+        salesFollowBotEnabled,
+        shop: { kind: 'BUSINESS', vertical, isPrimaryOwner: true },
+      }),
+    ).map((i) => i.slug)
+
+  it('เห็นเฉพาะร้านขายออนไลน์ที่อยู่ในรายชื่อนำร่อง — ต่อจากเมนูส่งอัตโนมัติ', () => {
+    const s = visible('ONLINE_SALES', true)
+    expect(s).toContain('seller:settings-sales-follow-bot')
+    expect(s.indexOf('seller:settings-sales-follow-bot')).toBe(s.indexOf('seller:settings-auto-notify') + 1)
+  })
+  it('ไม่ผ่านด่านนำร่อง (หรือไม่ส่งค่า) = ซ่อน (fail-closed)', () => {
+    expect(visible('ONLINE_SALES', false)).not.toContain('seller:settings-sales-follow-bot')
+    expect(visible('ONLINE_SALES', undefined)).not.toContain('seller:settings-sales-follow-bot')
+  })
+  it('ร้านบริการ/ที่พักไม่เห็นแม้อยู่ในรายชื่อนำร่อง', () => {
+    expect(visible('SERVICE_QUEUE', true)).not.toContain('seller:settings-sales-follow-bot')
+    expect(visible('LODGING', true)).not.toContain('seller:settings-sales-follow-bot')
+  })
+  it('applySalesFollowBotMenu ถอดเฉพาะรายการนี้', () => {
+    const off = flattenSellerMenu(applySalesFollowBotMenu(sellerMenuItems, false)).map((i) => i.slug)
+    expect(off).not.toContain('seller:settings-sales-follow-bot')
+    expect(off).toContain('seller:settings-auto-notify')
   })
 })
