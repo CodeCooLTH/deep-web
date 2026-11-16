@@ -650,3 +650,10 @@ Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.
 ผลต่อ API/SRS (ต้องทำตอนสร้าง):
 - `GET sends` เพิ่ม `contactAvatarUrl`, `channelName`, `channelHandle` · `GET options.channels` เพิ่ม `avatarUrl`, `handle`
 - รายการกล่องแชท (inbox list query) คืน `followBot: { sentStep, stepCount, awaitingShop } | null` ต่อแถว — แตะ `chat-list-query` ⇒ native-chat-sync ต้องตาม
+
+## 19. รอบละหลายชิ้น + quick message (ผู้ใช้ 2026-11-16)
+
+- ศัพท์: หน่วยที่บอทส่งตามเวลา = **"รอบ"** (รอบที่ 1, 2, 3 · ตาราง "3 รอบ · ภายใน …" · ชิปกล่องแชท "บอทตาม 1/3" = รอบ) · ภายในรอบมี "ข้อความ" และ "รูป" หลายชิ้น
+- การ์ดรอบ: รายการชิ้นเรียงตั้ง ลากหรือเลื่อนขึ้น/ลงได้ · ท้ายรายการมีปุ่ม 3 ตัว `+ ข้อความ` `+ รูป` `+ quick message` · ครบ 5 ชิ้นปุ่มล็อกพร้อมเหตุผล
+- ชิ้นรูป = แถวรูปย่อ 1–5 รูป + ปุ่มเพิ่มรูป · ชิ้น quick message = การ์ดอ่านอย่างเดียวแสดงชื่อ + ข้อความย่อ + รูปย่อ + ปุ่ม "เปลี่ยน" (เปิดตัวเลือก quick message ของร้านแบบเดียวกับในช่องพิมพ์แชท) · quick message ถูกลบ = การ์ดเตือน "quick message นี้ถูกลบแล้ว รอบนี้จะข้ามชิ้นนี้"
+- ตัวอย่างในแชทแสดงทุกฟองของรอบตามลำดับ ป้าย "บอทติดตาม n/N" ที่ฟองแรกของรอบ
