@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ตัวกรองออเดอร์ v2 — แยกหมวดซ้าย/ตัวเลือกขวา — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00091 (สกิน Paces) — ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }],
+          xs: ['13px', { lineHeight: '1.5' }],
+          sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }],
+          base: ['16px', { lineHeight: '1.5' }],
+        },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), light: v('light'),
+          d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'), primary15: v('primary15'), primary10: v('primary10'),
+          success: v('success'), 'success-ink': v('success-ink'), success15: v('success15'),
+          warning: v('warning'), 'warning-ink': v('warning-ink'), warning15: v('warning15'),
+          danger15: v('danger15'), 'danger-ink': v('danger-ink'), info15: v('info15'), 'info-ink': v('info-ink'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --light:#eef2f7;
+    --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a; --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --success:#02bc9c; --success-ink:#065f46; --success15:#d9f5f0;
+    --warning:#f9bf59; --warning-ink:#92400e; --warning15:#fef5e6;
+    --danger15:#fee6ec; --danger-ink:#7f1d1d; --info15:#e6f6fb; --info-ink:#1e40af;
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --page:#e9ebf0;
+  }
+  html, body { font-family:'Anuphan', sans-serif; }
+  body { background:var(--page); color:var(--d700); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  .frame { position:relative; border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; }
+  .backdrop { position:absolute; inset:0; background:rgba(49,58,70,.5); }
+  .form-check { appearance:none; width:18px; height:18px; border-radius:4px; border:1px solid var(--d300); background:var(--card); flex-shrink:0; display:grid; place-content:center; }
+  .form-check:checked { background:var(--primary); border-color:var(--primary); }
+  .form-check:checked::after { content:""; width:10px; height:6px; border:2px solid #fff; border-top:0; border-right:0; transform:rotate(-45deg) translate(1px,-1px); }
+  .opt[aria-pressed="true"] { border-color:var(--primary); background:var(--primary10); color:var(--primary-ink); font-weight:500; }
+  .adrow:has(input:checked) { background:var(--primary10); }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .card { @apply bg-card rounded flex flex-col; box-shadow:var(--shadow); }
+    .card-header { @apply flex flex-wrap items-center justify-between gap-2.5 px-5 py-4 border-b border-dashed border-d300; }
+    .btn { @apply inline-flex items-center justify-center gap-1.5 rounded px-4 py-2 text-sm font-medium whitespace-nowrap; }
+    .form-input { @apply block w-full rounded border border-d300 bg-card px-3 py-2 text-sm text-d900; }
+    .badge { @apply inline-flex items-center rounded px-1.5 text-2xs font-semibold leading-normal whitespace-nowrap; }
+    .chip { @apply inline-flex items-center gap-1 rounded-full border border-primary bg-primary10 py-0.5 ps-3 pe-0.5 text-xs font-medium text-primary-ink; }
+    .chip-x { @apply inline-flex size-6 items-center justify-center rounded-full hover:bg-primary15; }
+    .opt { @apply inline-flex min-h-9 items-center gap-1.5 rounded-full border border-d300 bg-card px-3 text-xs text-d700; }
+    .sec { @apply border-b border-d200 py-4; }
+    .sec-h { @apply mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-d900; }
+    .cnt { @apply tabular-nums text-d500; }
+  }
+</style>
+<style type="text/tailwindcss">
+  @layer components {
+    .nav { @apply flex min-h-11 w-full items-center gap-2 rounded px-3 text-sm text-d700; }
+    .nav[aria-current="true"] { @apply bg-primary10 text-primary-ink font-semibold; }
+    .nav .sel { @apply ms-auto rounded-full bg-primary px-1.5 text-2xs font-semibold text-white; }
+    .row { @apply flex min-h-11 items-center gap-3 rounded px-2 text-sm text-d900; }
+    .row:has(input:checked) { background:var(--primary10); }
+    .radio { appearance:none; width:18px; height:18px; border-radius:999px; border:1px solid var(--d300); flex-shrink:0; }
+    .radio:checked { border:5px solid var(--primary); }
+    .thumb { @apply size-8 shrink-0 rounded bg-d300; }
+    .note { @apply rounded border border-dashed border-d400 bg-card p-3 text-xs text-d600; }
+  }
+</style>
+</head>
+<body class="text-sm p-8 space-y-10">
+<div class="max-w-5xl space-y-2">
+  <h1 class="text-base font-semibold text-d900">ตัวกรองออเดอร์ v2 — หมวดซ้าย · ตัวเลือกขวา (แนะนำ)</h1>
+  <ul class="list-disc ps-5 text-xs text-d600 space-y-1">
+    <li>เดิม: 6 กลุ่มชิปกองในจอเดียว ขนส่งเรียงลงทีละบรรทัด กล่องโฆษณาเลื่อนในกล่องเห็นแค่ 6 แอด</li>
+    <li>ใหม่: ซ้ายเป็นรายชื่อหมวด (ตัวเลขฟ้า = เลือกอยู่) · ขวาแสดงหมวดเดียว เต็มความสูง · โฆษณาเห็นได้ ~10 แอดต่อจอ</li>
+    <li>ตัวเลือกเป็นแถว (วงกลม = เลือกได้ 1 · ช่องติ๊ก = โฆษณาเลือกได้หลายตัว) ตัวเลขชิดขวาเป็นคอลัมน์ กวาดตาง่ายกว่าชิป</li>
+    <li>ตัวเลือกที่นับได้ 0 ซ่อน (ยกเว้นตัวที่เลือกอยู่)</li>
+  </ul>
+</div>
+
+<!-- เดสก์ท็อป -->
+<div class="frame" style="width:1100px;height:720px">
+  <div class="backdrop"></div>
+  <div class="absolute inset-x-0 top-10 mx-auto flex flex-col bg-card rounded-2xl" style="width:880px;height:640px">
+    <div class="flex items-center justify-between border-b border-d200 px-6 py-3">
+      <h3 class="text-base font-semibold text-d900">ตัวกรอง</h3>
+      <iconify-icon icon="tabler:x" class="text-xl text-d700"></iconify-icon>
+    </div>
+    <div class="flex min-h-0 flex-1">
+      <nav class="w-56 shrink-0 space-y-0.5 border-e border-d200 p-3">
+        <button class="nav"><iconify-icon icon="tabler:calendar"></iconify-icon>ช่วงเวลา</button>
+        <button class="nav"><iconify-icon icon="tabler:progress-check"></iconify-icon>สถานะ<span class="sel">1</span></button>
+        <button class="nav"><iconify-icon icon="tabler:package"></iconify-icon>พัสดุ</button>
+        <button class="nav"><iconify-icon icon="tabler:truck-delivery"></iconify-icon>วิธีส่งมอบ</button>
+        <button class="nav"><iconify-icon icon="tabler:truck"></iconify-icon>ขนส่ง</button>
+        <button class="nav"><iconify-icon icon="tabler:category"></iconify-icon>ประเภท</button>
+        <button class="nav" aria-current="true"><iconify-icon icon="tabler:speakerphone"></iconify-icon>โฆษณา<span class="sel">2</span></button>
+      </nav>
+      <section class="min-w-0 flex-1 flex flex-col p-5">
+        <div class="mb-3 flex items-center gap-3">
+          <div class="relative flex-1"><iconify-icon icon="tabler:search" class="absolute start-3 top-2.5 text-d500"></iconify-icon><input class="form-input ps-9" placeholder="ค้นหาโฆษณา"></div>
+          <button class="text-xs text-primary">ล้างหมวดนี้</button>
+        </div>
+        <ul class="min-h-0 flex-1 overflow-y-auto space-y-0.5">
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="flex size-8 items-center justify-center rounded bg-d200"><iconify-icon icon="tabler:ad-off"></iconify-icon></span><span class="flex-1">ไม่ได้มาจากโฆษณา</span><span class="cnt">300</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check" checked><span class="thumb"></span><span class="flex-1 truncate">วิดีโอ แนวตั้ง</span><span class="cnt">582</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check" checked><span class="thumb"></span><span class="flex-1 truncate">video 360_Group 2026-10</span><span class="cnt">250</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">โพสแนวตั้ง</span><span class="cnt">119</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">โพสวิดีโอ แกนเงิน</span><span class="cnt">117</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">video v3</span><span class="cnt">72</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">รวมโพส</span><span class="cnt">58</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">ภาพสินค้า ชุดที่ 2</span><span class="cnt">41</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">คลิปรีวิว</span><span class="cnt">22</span></label></li>
+          <li><label class="row"><input type="checkbox" class="form-check"><span class="thumb"></span><span class="flex-1 truncate">โปรเดือน 11</span><span class="cnt">9</span></label></li>
+        </ul>
+      </section>
+    </div>
+    <div class="flex items-center gap-3 border-t border-d200 px-6 py-3">
+      <button class="btn border border-d300 text-d700">ล้างทั้งหมด</button>
+      <span class="text-xs text-d600">สถานะ: สำเร็จ · โฆษณา 2 ตัว</span>
+      <button class="btn ms-auto bg-primary text-white">ใช้ตัวกรอง · 640 ออเดอร์</button>
+    </div>
+  </div>
+</div>
+
+<!-- เดสก์ท็อป: หมวดขนส่ง -->
+<div class="frame" style="width:1100px;height:560px">
+  <div class="backdrop"></div>
+  <div class="absolute inset-x-0 top-10 mx-auto flex flex-col bg-card rounded-2xl" style="width:880px;height:480px">
+    <div class="flex items-center justify-between border-b border-d200 px-6 py-3"><h3 class="text-base font-semibold text-d900">ตัวกรอง</h3><iconify-icon icon="tabler:x" class="text-xl text-d700"></iconify-icon></div>
+    <div class="flex min-h-0 flex-1">
+      <nav class="w-56 shrink-0 space-y-0.5 border-e border-d200 p-3">
+        <button class="nav"><iconify-icon icon="tabler:calendar"></iconify-icon>ช่วงเวลา</button>
+        <button class="nav"><iconify-icon icon="tabler:progress-check"></iconify-icon>สถานะ<span class="sel">1</span></button>
+        <button class="nav"><iconify-icon icon="tabler:package"></iconify-icon>พัสดุ</button>
+        <button class="nav"><iconify-icon icon="tabler:truck-delivery"></iconify-icon>วิธีส่งมอบ</button>
+        <button class="nav" aria-current="true"><iconify-icon icon="tabler:truck"></iconify-icon>ขนส่ง</button>
+        <button class="nav"><iconify-icon icon="tabler:category"></iconify-icon>ประเภท</button>
+        <button class="nav"><iconify-icon icon="tabler:speakerphone"></iconify-icon>โฆษณา<span class="sel">2</span></button>
+      </nav>
+      <section class="min-w-0 flex-1 overflow-y-auto p-5">
+        <ul class="grid grid-cols-2 gap-x-4 gap-y-0.5">
+          <li><label class="row"><input type="radio" name="c" class="radio" checked><span class="flex-1">ทั้งหมด</span><span class="cnt">1,728</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">Flash ผ่าน iShip</span><span class="cnt">1,134</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">SPX Express</span><span class="cnt">280</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">Flash (บัญชีของร้านเอง)</span><span class="cnt">157</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">KEX Express</span><span class="cnt">95</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">KEX Bulky</span><span class="cnt">30</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">ไม่มีหมายเลขพัสดุ</span><span class="cnt">24</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">ไปรษณีย์ไทย (EMS) Bulky</span><span class="cnt">4</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">ไปรษณีย์ไทย (EMS) X</span><span class="cnt">1</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">DHL eCommerce</span><span class="cnt">1</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">DHL Next day</span><span class="cnt">1</span></label></li>
+          <li><label class="row"><input type="radio" name="c" class="radio"><span class="flex-1">J&amp;T Express</span><span class="cnt">1</span></label></li>
+        </ul>
+      </section>
+    </div>
+    <div class="flex items-center gap-3 border-t border-d200 px-6 py-3"><button class="btn border border-d300 text-d700">ล้างทั้งหมด</button><span class="text-xs text-d600">สถานะ: สำเร็จ · โฆษณา 2 ตัว</span><button class="btn ms-auto bg-primary text-white">ใช้ตัวกรอง · 640 ออเดอร์</button></div>
+  </div>
+</div>
+
+<!-- แท็บเล็ต + มือถือ -->
+<div class="flex gap-10 items-start">
+  <div>
+    <p class="mb-2 text-xs text-d600">แท็บเล็ต 768 — โครงเดียวกัน แถบหมวดแคบลง</p>
+    <div class="frame" style="width:768px;height:600px"><div class="backdrop"></div>
+      <div class="absolute inset-x-6 top-8 flex flex-col bg-card rounded-2xl" style="height:540px">
+        <div class="flex items-center justify-between border-b border-d200 px-5 py-3"><h3 class="text-base font-semibold text-d900">ตัวกรอง</h3><iconify-icon icon="tabler:x" class="text-xl"></iconify-icon></div>
+        <div class="flex min-h-0 flex-1">
+          <nav class="w-44 shrink-0 space-y-0.5 border-e border-d200 p-2">
+            <button class="nav">ช่วงเวลา</button><button class="nav" aria-current="true">สถานะ<span class="sel">1</span></button><button class="nav">พัสดุ</button><button class="nav">วิธีส่งมอบ</button><button class="nav">ขนส่ง</button><button class="nav">ประเภท</button><button class="nav">โฆษณา<span class="sel">2</span></button>
+          </nav>
+          <section class="flex-1 p-4"><ul class="space-y-0.5">
+            <li><label class="row"><input type="radio" name="s" class="radio"><span class="flex-1">ทั้งหมด</span><span class="cnt">1,728</span></label></li>
+            <li><label class="row"><input type="radio" name="s" class="radio"><span class="flex-1">รอดำเนินการ</span><span class="cnt">142</span></label></li>
+            <li><label class="row"><input type="radio" name="s" class="radio"><span class="flex-1">กำลังจัดส่ง</span><span class="cnt">128</span></label></li>
+            <li><label class="row"><input type="radio" name="s" class="radio" checked><span class="flex-1">สำเร็จ</span><span class="cnt">1,435</span></label></li>
+            <li><label class="row"><input type="radio" name="s" class="radio"><span class="flex-1">ยกเลิก</span><span class="cnt">18</span></label></li>
+            <li><label class="row"><input type="radio" name="s" class="radio"><span class="flex-1">คืนของแล้ว</span><span class="cnt">5</span></label></li>
+          </ul><p class="mt-2 text-2xs text-d500">(ร่าง 0 ซ่อน)</p></section>
+        </div>
+        <div class="flex items-center gap-2 border-t border-d200 px-5 py-3"><button class="btn border border-d300">ล้างทั้งหมด</button><button class="btn ms-auto bg-primary text-white">ใช้ตัวกรอง · 640 ออเดอร์</button></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="mb-2 text-xs text-d600">มือถือ 390 — แผ่นล่าง · หมวดเป็นรายการ แตะแล้วเข้าไป (ปุ่มย้อน)</p>
+    <div class="flex gap-4">
+      <div class="frame" style="width:390px;height:600px"><div class="backdrop"></div>
+        <div class="absolute inset-x-0 bottom-0 flex flex-col bg-card rounded-t-2xl" style="height:540px">
+          <div class="flex items-center justify-between border-b border-d200 px-4 py-3"><h3 class="text-base font-semibold text-d900">ตัวกรอง</h3><iconify-icon icon="tabler:x" class="text-xl"></iconify-icon></div>
+          <div class="flex-1 p-2 space-y-0.5">
+            <button class="nav">ช่วงเวลา<span class="ms-auto text-xs text-d500">ทั้งหมด</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">สถานะ<span class="ms-auto text-xs text-primary-ink font-medium">สำเร็จ</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">พัสดุ<span class="ms-auto text-xs text-d500">ทั้งหมด</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">วิธีส่งมอบ<span class="ms-auto text-xs text-d500">ทั้งหมด</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">ขนส่ง<span class="ms-auto text-xs text-d500">ทั้งหมด</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">ประเภท<span class="ms-auto text-xs text-d500">ทั้งหมด</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+            <button class="nav">โฆษณา<span class="ms-auto text-xs text-primary-ink font-medium">2 ตัว</span><iconify-icon icon="tabler:chevron-right" class="text-d400"></iconify-icon></button>
+          </div>
+          <div class="flex gap-2 border-t border-d200 p-3"><button class="btn border border-d300">ล้าง</button><button class="btn flex-1 bg-primary text-white">ใช้ตัวกรอง · 640</button></div>
+        </div>
+      </div>
+      <div class="frame" style="width:390px;height:600px"><div class="backdrop"></div>
+        <div class="absolute inset-x-0 bottom-0 flex flex-col bg-card rounded-t-2xl" style="height:540px">
+          <div class="flex items-center gap-2 border-b border-d200 px-2 py-3"><iconify-icon icon="tabler:chevron-left" class="text-xl p-2"></iconify-icon><h3 class="text-base font-semibold text-d900">ขนส่ง</h3></div>
+          <ul class="flex-1 overflow-y-auto p-2 space-y-0.5">
+            <li><label class="row"><input type="radio" name="m" class="radio" checked><span class="flex-1">ทั้งหมด</span><span class="cnt">1,728</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">Flash ผ่าน iShip</span><span class="cnt">1,134</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">SPX Express</span><span class="cnt">280</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">Flash (บัญชีของร้านเอง)</span><span class="cnt">157</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">KEX Express</span><span class="cnt">95</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">KEX Bulky</span><span class="cnt">30</span></label></li>
+            <li><label class="row"><input type="radio" name="m" class="radio"><span class="flex-1">ไม่มีหมายเลขพัสดุ</span><span class="cnt">24</span></label></li>
+          </ul>
+          <div class="flex gap-2 border-t border-d200 p-3"><button class="btn border border-d300">ล้าง</button><button class="btn flex-1 bg-primary text-white">ใช้ตัวกรอง · 640</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

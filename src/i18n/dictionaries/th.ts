@@ -2100,6 +2100,8 @@ export const th = {
     typeService: 'บริการ',
     rowsPerPage: 'แถวละ {n}',
     viewOrders: 'ดูออเดอร์',
+    clearSection: 'ล้างหมวดนี้',
+    back: 'กลับ',
   },
 
   adReport: {
