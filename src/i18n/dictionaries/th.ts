@@ -345,6 +345,7 @@ export const th = {
     followBotAfterReply: 'บอทจะนับเวลาต่อหลังจากคุณตอบลูกค้าแล้ว',
     followBotViewAll: 'ดูทุกรอบ',
     followBotStop: 'หยุดบอท',
+    followBotReplyNow: 'ตอบลูกค้าตอนนี้',
     followBotPanelTitle: 'บอทติดตาม',
     followBotLoadError: 'โหลดสถานะบอทไม่สำเร็จ',
     followBotRetry: 'ลองใหม่',

@@ -3162,7 +3162,12 @@ export default function ChatThread({
                   tone: chipTone(followBotRun),
                   icon: 'target-arrow',
                   short: followBotRun.awaitingShop ? t.autoNotify.followBotChipAwaiting : t.autoNotify.followBotChipActive,
-                  detail: <FollowBotChipDetail onViewAll={isXlUp ? undefined : () => openPanel('customer')} />,
+                  detail: (
+                    <FollowBotChipDetail
+                      onViewAll={isXlUp ? undefined : () => openPanel('customer')}
+                      onReply={() => composerRef.current?.focus()}
+                    />
+                  ),
                 },
               ]
             : []),

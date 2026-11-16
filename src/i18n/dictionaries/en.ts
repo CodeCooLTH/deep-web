@@ -175,6 +175,7 @@ export const en: Dictionary = {
     followBotAfterReply: 'The bot resumes its timer after you reply to the customer',
     followBotViewAll: 'See all rounds',
     followBotStop: 'Stop bot',
+    followBotReplyNow: 'Reply now',
     followBotPanelTitle: 'Follow-up bot',
     followBotLoadError: 'Could not load the bot status',
     followBotRetry: 'Try again',
