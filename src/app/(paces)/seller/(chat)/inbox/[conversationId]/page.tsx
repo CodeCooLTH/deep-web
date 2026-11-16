@@ -56,9 +56,10 @@ import { viewerRolesOf } from '@/lib/viewer-roles'
 import { canAccessShopWith, canCloseJobInShop } from '@/lib/shop-capability'
 import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
-import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
+import { syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
 import { after } from 'next/server'
+import { getWindowStateWithAd } from '@/services/ad-window.service'
 import { shouldAskMetaForInboundWindow } from '@/lib/inbound-window-sync'
 import { getThreadMessagesPage } from '@/services/chat-thread-messages.service'
 // (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
@@ -391,7 +392,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // ChatThread — ตัวจับเวลาฝั่ง client ที่มีอยู่แล้วจะพลิก "ส่งฟรี" เป็นสถานะโควตาเองเมื่อครบเวลา
   const windowState = isLineThread
     ? { ...getLineReplyWindowState(conversation, Date.now()), humanAgentOpen: false, humanAgentExpiresAt: null }
-    : getWindowState(effectiveLastInbound)
+    : await getWindowStateWithAd({ id: conversation.id, channel: conversation.channel, lastInboundAt: effectiveLastInbound })
   // แยกเคส "ลูกค้ายังไม่เคยทักเข้ามาเลย" (lastInboundAt=NULL) ออกจาก "ทักแล้วแต่เกิน 24 ชม."
   // (user report 2026-07-24) — ทั้งคู่ทำ window ปิดเหมือนกัน แต่ข้อความต่างกัน: เธรดที่ร้าน initiate
   // จาก Facebook เอง (echo เข้ามาเป็น SHOP ล้วน) จะไม่มี inbound เลย → banner ต้องบอกว่า "รอลูกค้า

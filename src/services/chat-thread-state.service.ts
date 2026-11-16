@@ -15,7 +15,8 @@ import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { can, rolesFromMembership } from '@/lib/shop-permissions'
 import { excludeDraftedWhere, withoutDrafted } from '@/lib/order-visibility'
-import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
+import { syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
+import { getWindowStateWithAd } from '@/services/ad-window.service'
 import { shouldAskMetaForInboundWindow } from '@/lib/inbound-window-sync'
 import { getLineReplyWindowState } from '@/lib/line/reply-window'
 import { getLineQuotaByChannelId } from '@/services/line-quota.service'
@@ -161,7 +162,7 @@ export async function getNativeThreadState(conversationId: string, shopId: strin
   // page.tsx:392-400
   const windowState = isLineThread
     ? { ...getLineReplyWindowState(conversation, Date.now()), humanAgentOpen: false, humanAgentExpiresAt: null }
-    : getWindowState(conversation.lastInboundAt)
+    : await getWindowStateWithAd(conversation)
 
   // page.tsx:485-497
   const commentOrigin = commentOriginLog?.comment

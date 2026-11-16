@@ -5,6 +5,7 @@ import { recordOurSendAsMetaOwner } from '@/services/meta-owner-on-send'
 import { META_PAGE_INBOX_APP_ID, META_IG_INBOX_APP_ID } from '@/lib/meta-ai-holder'
 import { INTERNAL_MESSAGE_TYPES, META_NOTICE_TYPE } from '@/lib/auto-order-message-type'
 import { prisma } from '@/lib/prisma'
+import { getWindowStateWithAd } from '@/services/ad-window.service'
 import { MESSAGING_WINDOW_MS, HUMAN_AGENT_WINDOW_MS, getWindowState } from '@/lib/messaging-window'
 import { shopSendSenderRolePatch, type AutoReplyKind } from '@/lib/auto-reply-constants'
 
@@ -205,7 +206,8 @@ export async function syncInboundWindowFromMeta(conversationId: string): Promise
   if (conv.shopChannel.status !== 'ACTIVE') return conv.lastInboundAt
 
   // ข้ามถ้าหน้าต่างเปิดอยู่แล้ว (ไม่ต้องถาม Meta) — caller ควรกันชั้นนี้อยู่แล้ว แต่กันซ้ำที่นี่ด้วย
-  if (getWindowState(conv.lastInboundAt).open) return conv.lastInboundAt
+  // กรอบโฆษณาเปิดอยู่ก็ไม่ต้องถาม Meta (00095)
+  if ((await getWindowStateWithAd(conv)).open) return conv.lastInboundAt
 
   const pageToken = decryptToken(conv.shopChannel.accessTokenEnc)
   const realLast = await getLastInboundTime(conv.externalContact.externalUserId, pageToken, conv.channel)
@@ -2816,7 +2818,7 @@ export async function sendOutboundReaction(params: {
     // ข้อความที่ยังไม่มี mid = ยังไม่ถึง Meta (ส่งไม่สำเร็จ/optimistic) — รีแอ็กชันไม่มีเป้าให้ผูก
     if (!message.externalMessageId) throw new Error('MESSAGE_NOT_ON_CHANNEL')
     // นโยบาย Meta: reaction (sender action) ใช้ได้เฉพาะใน 24 ชม. แนบแท็กไม่ได้ — ไม่ยิงให้โดนปฏิเสธ
-    if ((conversation.channel === 'MESSENGER' || conversation.channel === 'INSTAGRAM') && !getWindowState(conversation.lastInboundAt).open) {
+    if ((conversation.channel === 'MESSENGER' || conversation.channel === 'INSTAGRAM') && !(await getWindowStateWithAd(conversation)).open) {
       throw new Error('REACTION_WINDOW_CLOSED')
     }
     const pageToken = decryptToken(conversation.shopChannel!.accessTokenEnc)
@@ -3205,13 +3207,13 @@ export async function notifyTyping(params: {
     })
     if (conversation.channel !== 'MESSENGER' && conversation.channel !== 'INSTAGRAM') return false
     if (conversation.shopChannel.status !== 'ACTIVE') return false
-    // นโยบาย Meta: typing (sender action) ใช้ได้เฉพาะใน 24 ชม.
-    if (!getWindowState(conversation.lastInboundAt).open) return false
-
+    // throttle ก่อนเช็คกรอบ: ห้องที่ 24 ชม. ปิดแล้ว เช็คกรอบโฆษณาต้อง query ฐาน — ไม่ควรเสียทุกตัวอักษรที่พิมพ์
     const now = Date.now()
     const store = typingStore()
     const last = store.get(params.conversationId)
     if (last && now - last < TYPING_THROTTLE_MS) return false
+    // นโยบาย Meta: typing (sender action) ใช้ได้เฉพาะในหน้าต่างส่ง (24 ชม. หรือ 7 วันของห้องจากโฆษณา)
+    if (!(await getWindowStateWithAd(conversation)).open) return false
     // จองคิวก่อนยิง ไม่ใช่หลัง — ระหว่างรอ network ผู้ขายพิมพ์ต่ออีกหลายตัวอักษร
     // ถ้าจองหลังยิงจะได้คำขอซ้อนกันหลายใบต่อการพิมพ์หนึ่งครั้ง
     store.set(params.conversationId, now)
@@ -4041,7 +4043,8 @@ async function transmitMetaMessage(
   // ที่ยัง gate ไว้เหมือนเดิม (ห้ามผ่อน): เส้นทางระบบ/auto-reply/AI (actorUserId เป็น null) — ห้ามยิง
   // นอกหน้าต่างเด็ดขาด เพราะนั่นคือข้อความอัตโนมัติที่ผิดนโยบาย Meta จริง ๆ (เสี่ยงโดนระงับแอป)
   // ไม่ใช่แค่ error ที่คาดเดาได้ นี่คือ gate ของนโยบาย ห้ามผ่อน
-  const windowState = getWindowState(conversation.lastInboundAt)
+  // 00095: กรอบโฆษณา 7 วัน (Meta policy) นับด้วย — ไม่งั้น auto-notify/บอทโดน WINDOW_CLOSED ทั้งที่ Meta ให้ส่ง
+  const windowState = await getWindowStateWithAd(conversation)
   const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
   // การ throw WINDOW_CLOSED เมื่อ !sentByHuman ยังคงอยู่ตรงนี้เหมือนเดิมทุกประการ — shouldTagHumanAgent
   // แค่ตอบว่า "ติด tag ไหม" ไม่ได้ตัดสินว่า "throw ไหม" (คนละ concern — TFR-HA-02)
