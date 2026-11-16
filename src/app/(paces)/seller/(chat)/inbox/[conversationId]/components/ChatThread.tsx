@@ -148,6 +148,9 @@ import type { Dictionary } from '@/i18n/dictionaries/th'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab, useThreadShopId } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
+import FollowBotChipDetail from './FollowBotChipDetail'
+import { useFollowBotRoom } from '../../../_components/FollowBotRoomProvider'
+import { chipTone } from '@/lib/follow-bot-room'
 import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 
 /**
@@ -2276,6 +2279,16 @@ export default function ChatThread({
   useEffect(() => {
     if (aiReadyKey !== null) dispatchMemoryPoke()
   }, [aiReadyKey])
+  // 00095 บอทติดตาม — ข้อความล่าสุดเปลี่ยน (ลูกค้าตอบ/ร้านตอบ/บอทส่ง) = สถานะบอทอาจเปลี่ยน → โหลดซ้ำเงียบ ๆ
+  // reloadSoon เป็น callback เสถียรของ Provider (ใส่ deps ได้ · ไม่ใส่ทั้งก้อนที่ hook คืน — hook-return-identity-in-deps)
+  const { run: followBotRun, reloadSoon: reloadFollowBotSoon } = useFollowBotRoom()
+  const lastMessageId = messages[messages.length - 1]?.id ?? null
+  const lastSeenMessageId = useRef(lastMessageId)
+  useEffect(() => {
+    if (lastSeenMessageId.current === lastMessageId) return
+    lastSeenMessageId.current = lastMessageId
+    reloadFollowBotSoon() // debounce 800ms ใน Provider + ทิ้งคำตอบเก่ากว่าคำขอล่าสุด
+  }, [lastMessageId, reloadFollowBotSoon])
   // ค่า dismissed/recalled เทียบกับ anchor ตรง ๆ ใน getAutoSuggestView → anchor ใหม่ = ค่าเก่าไม่ตรง = หมดผลเอง ไม่ต้องมี effect ล้าง
   const [dismissedAnchorId, setDismissedAnchorId] = useState<string | null>(null)
   const [recalledAnchorId, setRecalledAnchorId] = useState<string | null>(null)
@@ -3137,6 +3150,19 @@ export default function ChatThread({
                       canCloseJob={customerPanelData.canCloseJob}
                     />
                   ),
+                },
+              ]
+            : []),
+          // 00095 บอทติดตาม — ต่อจากชิปสถานะ/ออเดอร์ ก่อนชิปบริบท (UX §4.1) · ไม่มี run = ไม่มีชิป
+          // "ดูทุกขั้นตอน" เปิดชีตเฉพาะ <1280px — ที่ ≥1280px แผงอยู่ข้าง ๆ ตลอด (ต้องตรงกับ xl:block ใน page.tsx)
+          ...(followBotRun
+            ? [
+                {
+                  key: 'follow-bot',
+                  tone: chipTone(followBotRun),
+                  icon: 'target-arrow',
+                  short: followBotRun.awaitingShop ? t.autoNotify.followBotChipAwaiting : t.autoNotify.followBotChipActive,
+                  detail: <FollowBotChipDetail onViewAll={isXlUp ? undefined : () => openPanel('customer')} />,
                 },
               ]
             : []),

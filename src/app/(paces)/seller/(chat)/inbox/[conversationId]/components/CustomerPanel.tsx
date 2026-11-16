@@ -69,6 +69,7 @@ import { fmt } from '@/i18n/fmt'
 import { byVertical } from '@/i18n/vertical'
 import type { Dictionary } from '@/i18n/dictionaries/th'
 import FollowUpPanel from './FollowUpPanel'
+import FollowBotSection from './FollowBotSection'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import ChatMemorySection from './ChatMemorySection'
 import InterestedProductsSection from './InterestedProductsSection'
@@ -1153,6 +1154,9 @@ export function CustomerPanelBody({
 
           {/* feature 00018 CRM — แก้ไข tag/สถานะ/เบอร์/ที่อยู่/ชื่อในแชท ต่อผู้ติดต่อ */}
           <div className="border-default-300 border-t border-dashed pt-4">{crmSlot('profile')}</div>
+
+          {/* 00095 บอทติดตามยอดขาย — ไม่มี run = ไม่ render (รวมเส้นคั่น) · ข้อมูลมาจาก FollowBotRoomProvider ของห้อง */}
+          <FollowBotSection />
 
           {/* feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติจาก Meta แบบ Business
               Suite: บอกว่าลูกค้าคนนี้มาจากโฆษณาไหน. แยกจาก tag ของ CRM ด้านบนชัดเจนเพราะอันนี้
