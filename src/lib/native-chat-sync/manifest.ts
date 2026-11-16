@@ -248,6 +248,9 @@ export const SYNC_ENTRIES: SyncEntry[] = [
   // ── parity รอบสอง 2026-10-31: ไฟล์ที่ bundle ดึงเพิ่ม (esbuild metafile) ──
   { web: 'src/lib/auto-order-card.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/auto-order-message-type.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
+  // 00095 บอทติดตามยอดขาย — แอปดึงผ่าน bundle (ป้ายฟองแรกของรอบ · สถานะ/รอบถัดไปของห้อง)
+  { web: 'src/lib/follow-bot-ui.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)', 'src/features/chat/ui/MessageBubble.tsx'], why: 'ป้าย "บอทติดตาม n/N" ฟองแรกของรอบ' },
+  { web: 'src/lib/follow-bot-room.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)', 'src/features/chat/store/follow-bot.ts', 'src/features/chat/ui/FollowBot.tsx'], why: 'สถานะบอทในห้อง · รอบถัดไป · ปุ่มหยุด' },
   { web: 'src/lib/auto-order-reason-label.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/auto-order-reasons.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
   { web: 'src/lib/chat-shipment-panel.ts', app: ['src/features/chat/vendor/web-chat-lib.js (สร้างใหม่: node scripts/vendor-web-chat-lib.mjs)'], why: 'ต้นฉบับของ bundle' },
