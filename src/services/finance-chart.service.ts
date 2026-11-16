@@ -198,7 +198,8 @@ export async function getFinanceChartData(
         unclosed: series.unclosedValues?.[i] ?? 0,
         jobs: series.orderCounts[i] ?? 0,
         cost: series.cogsValues?.[i] ?? 0,
-        expense: series.shippingValues?.[i] ?? 0,
+        // ค่าส่งขาไป + ต้นทุนต่อออเดอร์ที่ร้านตั้ง (00096 P2) — ต้นทุนต่อออเดอร์ใช้ชุดใบที่นับเป็นยอดขาย (ชุดเดียวกับ getPnlReport)
+        expense: (series.shippingValues?.[i] ?? 0) + (series.variableConfirmedValues?.[i] ?? 0),
       })
     }
   }

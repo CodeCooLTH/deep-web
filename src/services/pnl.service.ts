@@ -12,6 +12,7 @@ import { round2 } from '@/lib/round2'
 import { isServiceNoShow, revenueWindowWhere, serviceNoShowRevenue } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost } from '@/lib/order-return'
 import type { ResolvedDateRange } from '@/lib/date-range'
+import { orderVariableCost, resolveVariableCosts, hasVariableCosts, type VariableCostSettings } from '@/lib/variable-cost'
 
 export interface PnlReport {
   range: { start: string; end: string }
@@ -61,12 +62,21 @@ export interface PnlReport {
   shippingPendingCount: number
   /** ใบส่งเองที่ร้านยังไม่กรอกค่าส่ง (00078) — คนละความหมายกับราคาประมาณ จึงแยกนับ */
   shippingMissingCount: number
+  /**
+   * ต้นทุนผันแปรต่อออเดอร์ที่ร้านตั้งเอง (00096 P2 · `src/lib/variable-cost.ts`) — รวมอยู่ใน `totalExpense`/`netProfit` แล้ว
+   * ทุกประเภทร้าน · ร้านที่ไม่ได้ตั้ง = 0
+   */
+  variableCost: number
+  /** ร้านตั้งต้นทุนผันแปรไว้หรือยัง — false = UI ติดป้ายบอกว่ายังไม่ได้ตั้ง */
+  variableCostSet: boolean
 }
 
 /** โครง select เดียวกันทั้งช่วงปัจจุบันและช่วงก่อนหน้า — กันสูตรสองชุดหลุดจากกัน */
 export const ORDER_SELECT = {
   id: true,
   totalAmount: true,
+  // 00096 P2 — ค่าธรรมเนียมรับชำระตามวิธีชำระ (ต้นทุนผันแปรที่ร้านตั้ง)
+  paymentMethod: true,
   items: { select: { cost: true, qty: true } },
   // พัสดุขาไปใบล่าสุดที่ active — ชุดเดียวกับ /sales (orderListInclude) และชีต (find FORWARD CREATED)
   shipments: {
@@ -93,6 +103,7 @@ export const SERVICE_ORDER_SELECT = {
 export type PnlOrder = {
   id: string
   totalAmount: unknown
+  paymentMethod?: string | null
   items: { cost: unknown; qty: number }[]
   shipments: { carrierPrice: unknown; estimatedPrice: unknown; codFee: unknown }[]
   shipmentTracking?: { outboundShippingCost: unknown } | null
@@ -110,10 +121,12 @@ export function pnlOrderParts(
   o: PnlOrder,
   adj: ReturnAdjustment | undefined,
   isServiceShop: boolean,
-): { revenue: number; cogs: number; missingCost: boolean; shipping: number; shippingPending: boolean; shippingMissing: boolean } {
-  // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ)
+  /** 00096 P2 — ต้นทุนผันแปรที่ร้านตั้ง · ไม่ส่ง = 0 (`variable` = 0) */
+  vc?: VariableCostSettings,
+): { revenue: number; cogs: number; missingCost: boolean; shipping: number; shippingPending: boolean; shippingMissing: boolean; variable: number } {
+  // feature 00073 — ร้านบริการ ปิดแบบไม่มาตามนัด: ยอด = มัดจำที่เก็บ · ไม่มีต้นทุน (ไม่ได้ให้บริการ · ไม่มีค่าแพ็ก/ค่าธรรมเนียม)
   if (isServiceShop && isServiceNoShow(o)) {
-    return { revenue: serviceNoShowRevenue(o.payments ?? []), cogs: 0, missingCost: false, shipping: 0, shippingPending: false, shippingMissing: false }
+    return { revenue: serviceNoShowRevenue(o.payments ?? []), cogs: 0, missingCost: false, shipping: 0, shippingPending: false, shippingMissing: false, variable: 0 }
   }
   // คืนบางส่วนที่รับของแล้ว: หักยอดคืน + ต้นทุนชิ้นที่คืน (มติ 2026-10-01 · ตัวกลาง return-adjustment)
   const revenue = netOfReturns(Number(o.totalAmount), adj)
@@ -132,7 +145,10 @@ export function pnlOrderParts(
     shippingPending = c.pendingReason === 'ESTIMATE'
     shippingMissing = c.pendingReason === 'MISSING'
   }
-  return { revenue, cogs: costNetOfReturns(orderCogs, adj), missingCost, shipping, shippingPending, shippingMissing }
+  const variable = vc
+    ? orderVariableCost(vc, { revenue, paymentMethod: o.paymentMethod, ishipCodFee: sp?.codFee == null ? null : Number(sp.codFee), codFeeInShipping: isServiceShop })
+    : 0
+  return { revenue, cogs: costNetOfReturns(orderCogs, adj), missingCost, shipping, shippingPending, shippingMissing, variable }
 }
 
 /** รวมยอดจากออเดอร์ที่นับเป็นยอดขายแล้ว — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
@@ -140,10 +156,12 @@ function sumOrders(
   orders: PnlOrder[],
   returns: Map<string, ReturnAdjustment>,
   isServiceShop: boolean,
-): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number; shippingMissing: number } {
-  let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0, shippingMissing = 0
+  vc: VariableCostSettings,
+): { revenue: number; cogs: number; hasMissingCost: boolean; shipping: number; shippingPending: number; shippingMissing: number; variable: number } {
+  let revenue = 0, cogs = 0, hasMissingCost = false, shipping = 0, shippingPending = 0, shippingMissing = 0, variable = 0
   for (const o of orders) {
-    const p = pnlOrderParts(o, returns.get(o.id), isServiceShop)
+    const p = pnlOrderParts(o, returns.get(o.id), isServiceShop, vc)
+    variable += p.variable
     revenue += p.revenue
     cogs += p.cogs
     if (p.missingCost) hasMissingCost = true
@@ -151,7 +169,7 @@ function sumOrders(
     if (p.shippingPending) shippingPending += 1
     else if (p.shippingMissing) shippingMissing += 1
   }
-  return { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing }
+  return { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing, variable }
 }
 
 export async function getPnlReport(
@@ -165,7 +183,7 @@ export async function getPnlReport(
   vertical: string | null | undefined,
 ): Promise<PnlReport> {
   const newRules = usesServiceFinanceRules(vertical)
-  const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows, returnAdj] =
+  const [orders, expenseAgg, prevOrders, prevExpenseAgg, returnRows, prevReturnRows, returnAdj, shopRow] =
     await Promise.all([
     prisma.order.findMany({
       // ยอดขาย (SSOT: lib/order-revenue.ts) — ร้านบริการ: งานที่ปิดแล้ว ตัดช่วงด้วยวันปิดงาน (00073)
@@ -225,9 +243,11 @@ export async function getPnlReport(
     }),
     // ร้านที่ไม่ใช่บริการ: Map ว่าง ⇒ ไม่หักคืนบางส่วน (ของเดิม)
     newRules ? getReturnAdjustments(shopId) : Promise.resolve(new Map<string, ReturnAdjustment>()),
+    prisma.shop.findUnique({ where: { id: shopId }, select: { variableCosts: true } }),
   ])
+  const vc = resolveVariableCosts(shopRow?.variableCosts)
 
-  const { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing } = sumOrders(orders, returnAdj, newRules)
+  const { revenue, cogs, hasMissingCost, shipping, shippingPending, shippingMissing, variable } = sumOrders(orders, returnAdj, newRules, vc)
   const grossProfit = round2(revenue - cogs)
 
   /**
@@ -256,14 +276,16 @@ export async function getPnlReport(
   // ร้านที่ไม่ใช่บริการ: ค่าส่งขาไปไม่อยู่ในค่าใช้จ่าย (ของเดิม) ⇒ 0 ทั้งตัวเลขและแถวที่ UI แสดง
   const shippingCost = newRules ? round2(shipping) : 0
   // ค่าใช้จ่าย = ที่ร้านบันทึกเอง + ค่าส่งขาไปที่จ่ายจริง (D-EXT-10 · ร้านบริการ) + ค่าส่งขากลับของใบคืน (00056)
-  const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + shippingCost + returnShippingCost)
+  // + ต้นทุนผันแปรต่อออเดอร์ที่ร้านตั้ง (00096 P2 · ทุกประเภทร้าน)
+  const variableCost = round2(variable)
+  const totalExpense = round2(Number(expenseAgg._sum.amount ?? 0) + shippingCost + returnShippingCost + variableCost)
   const netProfit = round2(grossProfit - totalExpense)
 
   // ไม่มีทั้งออเดอร์และค่าใช้จ่ายในช่วงก่อนหน้า = ไม่มีฐานให้เทียบ (ไม่ใช่ "กำไร 0")
-  const prevSums = sumOrders(prevOrders, returnAdj, newRules)
+  const prevSums = sumOrders(prevOrders, returnAdj, newRules, vc)
   // ช่วงก่อนหน้าต้องนับด้วยเกณฑ์เดียวกันเป๊ะ (รวมค่าส่งขาไป) ไม่งั้น %เทียบเทียบของคนละชนิด
   const prevExpense = round2(
-    Number(prevExpenseAgg._sum.amount ?? 0) + (newRules ? prevSums.shipping : 0) + prevReturnCost.total,
+    Number(prevExpenseAgg._sum.amount ?? 0) + (newRules ? prevSums.shipping : 0) + prevReturnCost.total + prevSums.variable,
   )
   const prevNetProfit =
     prevOrders.length === 0 && prevExpense === 0
@@ -284,5 +306,7 @@ export async function getPnlReport(
     shippingCost,
     shippingPendingCount: newRules ? shippingPending : 0,
     shippingMissingCount: newRules ? shippingMissing : 0,
+    variableCost,
+    variableCostSet: hasVariableCosts(vc),
   }
 }

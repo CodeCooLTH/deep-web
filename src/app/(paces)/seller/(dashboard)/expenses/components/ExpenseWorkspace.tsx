@@ -254,13 +254,14 @@ export default function ExpenseWorkspace({
         }).complete}
       />}
 
-      {(expenses.length > 0 || (serviceRules && (report.shippingCost > 0 || report.returnShippingCost > 0))) && (
+      {(expenses.length > 0 || report.variableCost > 0 || (serviceRules && (report.shippingCost > 0 || report.returnShippingCost > 0))) && (
         <ExpenseBreakdownCard
           expenses={expenses}
           revenue={report.revenue}
           days={daysInRange(report.range)}
           returnShippingCost={serviceRules ? report.returnShippingCost : 0}
           shippingCost={serviceRules ? report.shippingCost : 0}
+          variableCost={report.variableCost}
           loading={loading}
         />
       )}

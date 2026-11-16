@@ -103,6 +103,8 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings-job-types',
         // 00073 เฟส B — ตั้งค่ารายงาน (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
         'seller:settings-reports',
+        // 00096 P2 — ต้นทุนต่อออเดอร์ (slug ใหม่ล้วน — เพิ่มได้ปลอดภัย)
+        'seller:settings-variable-costs',
         'seller:settings-chatbot',
         'seller:settings-order-agent',
         // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่

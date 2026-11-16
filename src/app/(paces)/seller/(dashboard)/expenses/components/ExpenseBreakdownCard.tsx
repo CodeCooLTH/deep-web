@@ -28,6 +28,7 @@ import {
   groupExpensesByCategory,
   SYSTEM_SHIPPING_LABEL_TH,
   SYSTEM_RETURN_SHIPPING_LABEL_TH,
+  SYSTEM_VARIABLE_COST_LABEL_TH,
 } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 
@@ -44,6 +45,8 @@ type Props = {
   returnShippingCost?: number
   /** ค่าส่งขาไปที่จ่ายขนส่งจริง (pnl.service shippingCost · D-EXT-10) — 0 = ไม่มี */
   shippingCost?: number
+  /** ต้นทุนต่อออเดอร์ที่ร้านตั้ง (pnl.service variableCost · 00096 P2) — 0 = ไม่มี */
+  variableCost?: number
   loading?: boolean
 }
 
@@ -53,6 +56,7 @@ export default function ExpenseBreakdownCard({
   days,
   returnShippingCost = 0,
   shippingCost = 0,
+  variableCost = 0,
   loading = false,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
@@ -61,13 +65,13 @@ export default function ExpenseBreakdownCard({
     () => ({
       // ใช้ util กลางร่วมกับ PnlReportCard — เขียนสูตร group-by แยกกันเมื่อไหร่จะหลุดจากกัน
       rows: groupExpensesByCategory(expenses),
-      total: expenses.reduce((s, e) => s + e.amount, 0) + shippingCost + returnShippingCost,
+      total: expenses.reduce((s, e) => s + e.amount, 0) + shippingCost + returnShippingCost + variableCost,
     }),
-    [expenses, shippingCost, returnShippingCost],
+    [expenses, shippingCost, returnShippingCost, variableCost],
   )
 
   // ไม่มีรายการในช่วงนี้ = ไม่มีอะไรให้แบ่งสัดส่วน — ซ่อนทั้งการ์ดดีกว่าโชว์การ์ดว่างที่ไม่บอกอะไร
-  if (rows.length === 0 && shippingCost <= 0 && returnShippingCost <= 0) return null
+  if (rows.length === 0 && shippingCost <= 0 && returnShippingCost <= 0 && variableCost <= 0) return null
 
   const hiddenCount = rows.length - MOBILE_PREVIEW_ROWS
   const perDay = days > 0 ? total / days : 0
@@ -146,6 +150,15 @@ export default function ExpenseBreakdownCard({
               <span className="truncate">{SYSTEM_RETURN_SHIPPING_LABEL_TH}</span>
             </span>
             <span className="text-default-900 font-semibold">{formatBaht(returnShippingCost)}</span>
+          </p>
+        )}
+        {variableCost > 0 && (
+          <p className="border-default-300 text-default-800 mt-2.5 mb-0 flex items-center justify-between gap-2 border-t border-dashed pt-2.5 text-xs">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <Icon icon="package" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
+              <span className="truncate">{SYSTEM_VARIABLE_COST_LABEL_TH}</span>
+            </span>
+            <span className="text-default-900 font-semibold">{formatBaht(variableCost)}</span>
           </p>
         )}
 

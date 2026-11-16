@@ -17,6 +17,7 @@ import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { shopUsesServiceFinanceRules } from '@/services/finance-rules.service'
 import { firstImage, MAX_ITEM_ROWS, salesOrderWhere } from '@/services/product-sales-series.service'
 import { ORDER_SELECT, SERVICE_ORDER_SELECT, pnlOrderParts, type PnlOrder } from '@/services/pnl.service'
+import { getShopVariableCosts } from '@/services/variable-cost.service'
 import { getAdSpend, type SpendResult, type SpendSource } from '@/services/meta-ads-spend.service'
 import { revenueWindowWhere } from '@/lib/order-revenue'
 import { RETURN_STATUS, sumReturnShippingCost, type ReturnAdjustment } from '@/lib/order-return'
@@ -106,6 +107,8 @@ export async function getAdRevenueReport(
   const { from, to } = range
   const chan = range.shopChannelId ? { shopChannelId: range.shopChannelId } : {}
   const newRules = await shopUsesServiceFinanceRules(shopId)
+  // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง (ชุดเดียวกับ getPnlReport) · ยิงขนานกับ query หลัก
+  const vcP = getShopVariableCosts(shopId)
   const span = to.getTime() - from.getTime()
   const prevFrom = new Date(from.getTime() - span)
   const spendSource = deps.spendSource ?? getAdSpend
@@ -323,12 +326,13 @@ export async function getAdRevenueReport(
 
   // กำไร — ชุดและสูตรเดียวกับ P&L
   let incompleteTotal = 0
+  const vc = await vcP
   for (const o of cap(profitOrders) as (PnlOrder & { adId: string | null; createdAt: Date; serviceClosedAt: Date | null })[]) {
     if (!o.adId) continue
-    const p = pnlOrderParts(o, returnAdj.get(o.id), newRules)
+    const p = pnlOrderParts(o, returnAdj.get(o.id), newRules, vc)
     const a = get(o.adId)
-    // ร้านที่ไม่ใช่บริการ: P&L ไม่นับค่าส่งขาไปเป็นค่าใช้จ่าย (มติ 2026-10-02) — ตามเป๊ะ
-    const profit = p.revenue - p.cogs - (newRules ? p.shipping : 0)
+    // ร้านที่ไม่ใช่บริการ: P&L ไม่นับค่าส่งขาไปเป็นค่าใช้จ่าย (มติ 2026-10-02) — ตามเป๊ะ · ต้นทุนต่อออเดอร์ที่ร้านตั้งหักทุกร้าน (00096 P2)
+    const profit = p.revenue - p.cogs - (newRules ? p.shipping : 0) - p.variable
     a.profitBeforeAds += profit
     const dp = slotOf(newRules ? o.serviceClosedAt ?? o.createdAt : o.createdAt)
     if (dp) dp.profitBeforeAds += profit

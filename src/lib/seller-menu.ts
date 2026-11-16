@@ -261,6 +261,8 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00073 เฟส B — ร้านบริการเท่านั้น (SERVICE_QUEUE_ONLY_SLUGS) · เจ้าของเท่านั้น (F1 ผ่าน route-capabilities)
       // icon 'adjustments-horizontal' ใช้อยู่แล้วในโปรเจกต์ (= ปรับตั้งค่า) · ไม่ใช้ 'report-money' ที่เป็นของเมนูค่าใช้จ่าย
       { url: '/settings/reports', slug: 'seller:settings-reports', label: 'ตั้งค่ารายงาน', icon: 'adjustments-horizontal' },
+      // feature 00096 P2 — ต้นทุนต่อออเดอร์ (ค่าแพ็ก · ค่าธรรมเนียม · คอมมิชชัน) · ทุกประเภทร้าน · เจ้าของเท่านั้น (F1 ผ่าน route-capabilities)
+      { url: '/settings/variable-costs', slug: 'seller:settings-variable-costs', label: 'ต้นทุนต่อออเดอร์', icon: 'package' },
       // เคยมีรายการ "โปรไฟล์" (ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ) ต่อจากนี้ — user ให้เอาออก
       // 2026-08-04 ทางเข้าหน้าร้านจริงเหลือที่ dropdown มุมขวาบน (desktop) กับแผงบัญชีในหน้าแรก
       // (มือถือ) ซึ่งเป็นที่ของ "ตัวคน" อยู่แล้ว ไม่ใช่เมนูตั้งค่าร้าน
@@ -1181,6 +1183,7 @@ export function applyMenuLocale(items: MenuItemType[], dict: Dictionary, vertica
     'seller:settings-conversions-api': m.settingsConversionsApi,
     'seller:settings-job-types': m.settingsJobTypes,
     'seller:settings-reports': m.settingsReports,
+    'seller:settings-variable-costs': m.settingsVariableCosts,
   }
 
   /**

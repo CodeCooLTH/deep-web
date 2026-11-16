@@ -11,7 +11,7 @@ import { withoutDrafted } from '@/lib/order-visibility'
 import { round2 } from '@/lib/round2'
 import { resolveShopVertical } from '@/lib/lodging'
 import { resolveProductVocab } from '@/lib/seller-menu'
-import { SYSTEM_RETURN_SHIPPING_LABEL_TH, SYSTEM_SHIPPING_LABEL_TH } from '@/lib/expense'
+import { SYSTEM_RETURN_SHIPPING_LABEL_TH, SYSTEM_SHIPPING_LABEL_TH, SYSTEM_VARIABLE_COST_LABEL_TH } from '@/lib/expense'
 import { combineTotals } from '@/lib/line-report/aggregate'
 import { deriveExposure, deriveFlags, type TemplateV1 } from '@/lib/line-report/template'
 import { detailExpiresAt } from '@/lib/line-report/detail-expiry'
@@ -84,7 +84,7 @@ const sumAmount = (os: CardOrder[]) => round2(os.reduce((a, o) => a + Number(o.t
  */
 export function expenseDetailRows(
   expenses: readonly { expenseDate: Date; category: string; amount: unknown; note: string | null }[],
-  report: { shippingCost: number; returnShippingCost: number },
+  report: { shippingCost: number; returnShippingCost: number; variableCost?: number },
   systemDate: Date,
 ): ExpenseRow[] {
   const sys = (category: string, amount: number) =>
@@ -95,6 +95,7 @@ export function expenseDetailRows(
   return [
     ...sys(SYSTEM_SHIPPING_LABEL_TH, report.shippingCost),
     ...sys(SYSTEM_RETURN_SHIPPING_LABEL_TH, report.returnShippingCost),
+    ...sys(SYSTEM_VARIABLE_COST_LABEL_TH, report.variableCost ?? 0),
     ...dated,
   ]
 }

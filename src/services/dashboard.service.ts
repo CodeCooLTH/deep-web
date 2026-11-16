@@ -28,6 +28,7 @@ import { getReturnAdjustments } from '@/services/return-adjustment.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { asParcelClose } from './parcel-close-input'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
+import { DEFAULT_VARIABLE_COSTS, orderVariableCost, resolveVariableCosts } from '@/lib/variable-cost'
 
 
 /** 'hourly' = 24 ชั่วโมงของวันเดียว (period.day) — ใช้กับการ์ดยอดขายรวมของบัญชี Personal เท่านั้น (00069 ext) */
@@ -212,6 +213,10 @@ export interface SalesSeries {
   cogsConfirmedValues?: number[]
   /** ค่าส่งเฉพาะใบที่นับเป็นยอดขายแล้ว ต่อ bucket — คู่กับ confirmedValues (ชีตใช้คิดกำไรจากการขาย ตรงกับ /sales) */
   shippingConfirmedValues?: number[]
+  /** 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง (src/lib/variable-cost.ts) ต่อ bucket · คู่กับ `values` / `confirmedValues` */
+  variableValues?: number[]
+  variableConfirmedValues?: number[]
+  totalVariable?: number
   /** กำไรต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า(เฉพาะใบที่ยืนยัน) − ค่าส่ง(เฉพาะใบที่ยืนยัน)
    *  🛑 ไม่หักค่าใช้จ่ายอื่นของร้าน จึง **ไม่เท่ากับ** กำไรสุทธิที่หน้า /expenses (SALES_PROFIT_FORMULA) */
   netProfitValues?: number[]
@@ -267,6 +272,10 @@ export async function getSalesSeries(
    * ตัวตัดสินเดียวกับ newRules (เดิมเทียบสตริงดิบ `vertical === 'SERVICE_QUEUE'`)
    */
   const isServiceShop = newRules
+  // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง · ยิงก่อนแล้ว await ก่อนลูป (ไม่ต่อคิว query หลัก)
+  const vcP = includeFinance
+    ? prisma.shop.findUnique({ where: { id: shopId }, select: { variableCosts: true } }).then((r) => resolveVariableCosts(r?.variableCosts))
+    : Promise.resolve(DEFAULT_VARIABLE_COSTS)
 
   // "ตอนนี้" ตามเวลาไทย — ใช้ตัดสินว่า bucket ไหนเป็นอนาคต
   const thaiNow = new Date(Date.now() + TZ_OFFSET_MS)
@@ -448,6 +457,9 @@ export async function getSalesSeries(
   /** พัสดุที่ยังไม่ถูกคิดเงินต่อ bucket — ทำให้ยอดค่าส่งของ bucket นั้นเป็นแค่บางส่วน */
   const pendingShipmentValues = new Array<number>(bucketCount).fill(0)
   let shippingMissingCount = 0
+  const variableValues = new Array<number>(bucketCount).fill(0)
+  const variableConfirmedValues = new Array<number>(bucketCount).fill(0)
+  const vc = await vcP
   /* เงินรับจริงของร้านบริการ — คู่กับ `values` (นับทุกใบที่ไม่ถูกยกเลิก) ไม่ใช่คู่กับ
      `confirmedValues` เพราะร้านเก็บมัดจำตั้งแต่ก่อนงานจบ ตัวหารกับตัวตั้งต้องเป็นชุดเดียวกัน */
   const receivedValues = isServiceShop ? new Array<number>(bucketCount).fill(0) : undefined
@@ -591,6 +603,12 @@ export async function getSalesSeries(
           if (c.pendingReason === 'MISSING') shippingMissingCount += 1
           if (c.pendingReason === 'ESTIMATE') pendingShipmentValues[idx] += 1 // ป้าย "ประมาณ" เท่านั้น — ใบที่ยังไม่กรอกไม่ใช่ราคาประมาณ
         }
+        // 00096 P2 — ต้นทุนต่อออเดอร์ที่ร้านตั้ง (สูตรเดียวกับ pnlOrderParts) · ใบไม่มาตามนัด/ปิดแบบไม่นับยอด = 0
+        const rowVariable = noShow || excluded
+          ? 0
+          : orderVariableCost(vc, { revenue: amt, paymentMethod: r.paymentMethod, ishipCodFee: activeShipment?.codFee == null ? null : Number(activeShipment.codFee), codFeeInShipping: newRules })
+        variableValues[idx] += rowVariable
+        if (isRevenue) variableConfirmedValues[idx] += rowVariable
 
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
         if (isRevenue) {
@@ -717,6 +735,7 @@ export async function getSalesSeries(
    * ดูเหตุผลที่สองหน้าไม่เท่ากันใน SALES_PROFIT_FORMULA (src/lib/format-money.ts)
    */
   const netProfitValues = confirmedValues.map(
+    // 00096 P2: ไม่หักต้นทุนต่อออเดอร์ที่ร้านตั้ง — ชีตนี้คือ "กำไรจากการขาย" (ไม่หักค่าใช้จ่ายอื่น) · ต้นทุนนั้นไปอยู่ในกำไรสุทธิ (getPnlReport)
     (v, i) => v - cogsConfirmedValues[i] - shippingConfirmedValues[i],
   )
 
@@ -728,6 +747,9 @@ export async function getSalesSeries(
     cogsValues,
     cogsConfirmedValues,
     shippingConfirmedValues,
+    variableValues,
+    variableConfirmedValues,
+    totalVariable: variableValues.reduce((s, v) => s + v, 0),
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalShipping: shippingValues.reduce((s, v) => s + v, 0),
     pendingShipmentCount: pendingShipmentValues.reduce((s, v) => s + v, 0),
