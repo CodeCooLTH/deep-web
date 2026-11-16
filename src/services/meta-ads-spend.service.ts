@@ -70,3 +70,30 @@ export const getAdDetails: DetailsSource = async (shopId, since, until) => {
     return { state: 'ERROR', ads: {} }
   }
 }
+
+// ── 00096 P1: ค่าโฆษณาของวันหนึ่งถึงก่อนชั่วโมงที่กำหนด (เทียบเมื่อวาน ณ เวลาเดียวกัน · แคชแยกคีย์ ad-hourly-v1) ──
+import { fetchSpendBeforeHour, type HourlySpendResult } from '@/lib/meta-ads-hourly'
+
+class HourlyNotOk extends Error {
+  constructor(public result: HourlySpendResult) { super('HOURLY_NOT_OK') }
+}
+async function loadHourly(shopId: string, adAccountId: string, day: string, beforeHour: number): Promise<HourlySpendResult> {
+  const conn = await prisma.metaAudienceConnection.findUnique({ where: { shopId }, select: { tokenEnc: true } })
+  if (!conn) throw new HourlyNotOk({ state: 'ERROR', spend: 0 })
+  const r = await fetchSpendBeforeHour({ adAccountId, token: decryptToken(conn.tokenEnc), day, beforeHour })
+  if (r.state !== 'OK') throw new HourlyNotOk(r)
+  return r
+}
+export type HourlySource = (shopId: string, day: string, beforeHour: number) => Promise<HourlySpendResult | null>
+/** null = ยังไม่เชื่อม/หยุดแล้ว · state ไม่ OK = ไม่มีตัวเทียบ (UI ไม่แสดง % เทียบ) */
+export const getSpendBeforeHour: HourlySource = async (shopId, day, beforeHour) => {
+  const conn = await prisma.metaAudienceConnection.findUnique({ where: { shopId }, select: { adAccountId: true, stoppedReason: true } })
+  if (!conn || conn.stoppedReason === 'TOKEN_OR_PERMISSION') return null
+  try {
+    return await unstable_cache(loadHourly, ['ad-hourly-v1', shopId, conn.adAccountId, day, String(beforeHour)], { revalidate: 900 })(shopId, conn.adAccountId, day, beforeHour)
+  } catch (e) {
+    if (e instanceof HourlyNotOk) return e.result
+    console.error('[ad-hourly] failed', e instanceof Error ? e.message : 'unknown')
+    return { state: 'ERROR', spend: 0 }
+  }
+}
