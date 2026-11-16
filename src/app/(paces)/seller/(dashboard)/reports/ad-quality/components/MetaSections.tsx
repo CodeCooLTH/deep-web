@@ -60,7 +60,7 @@ export async function CompareRowMeta(c: Common) {
   return (
     <div className="gap-base grid grid-cols-1 xl:grid-cols-3">
       <div className={metaOk ? 'xl:col-span-2' : 'xl:col-span-3'}><CompareChartCard rows={rows} metaOk={metaOk} /></div>
-      {metaOk && <ChatQualityCard totals={totals} />}
+      {metaOk && <ChatQualityCard totals={totals} close={{ orders: c.deep.ordersTotal, chats: c.deep.chatsTotal, pct: c.deep.closeRatePct }} />}
     </div>
   )
 }
