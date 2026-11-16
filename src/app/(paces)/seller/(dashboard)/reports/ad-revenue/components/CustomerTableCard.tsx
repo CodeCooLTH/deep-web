@@ -26,7 +26,8 @@ export default function CustomerTableCard({ ads, spendOk, noun }: { ads: Ad[]; s
   const unknownSales = (a: Ad) => Math.round((a.sales - a.newSales - a.returningSales) * 100) / 100
   const acq = (a: Ad) => (a.spend !== null && a.spend > 0 && a.newCustomers > 0 ? a.spend / a.newCustomers : null)
   const people = (n: number, sales: number, orders = false) => (
-    <span className="block"><span className="block">{fmt(orders ? t.ordersCount : t.peopleCount, { n: formatNumberNoSymbol(n) })}</span><span className="text-default-500 text-2xs block">{formatBaht(sales)}</span></span>
+    // บรรทัดเดียว: จำนวนเด่น · ยอดเป็นข้อมูลรองสีจาง (user 2026-11-16: แถวต้องอ่านได้ในแวบเดียว ไม่กองหลายบรรทัด)
+    <span className="whitespace-nowrap"><span className="text-default-900 font-medium">{fmt(orders ? t.ordersCount : t.peopleCount, { n: formatNumberNoSymbol(n) })}</span><span className="text-default-500 text-xs"> · {formatBaht(sales)}</span></span>
   )
 
   const columns: Col<Ad>[] = [

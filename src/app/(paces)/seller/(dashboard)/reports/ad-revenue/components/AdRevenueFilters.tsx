@@ -6,12 +6,14 @@
  * Base: src/app/(paces)/seller/(dashboard)/reports/ad-quality/components/AdQualityFilters.tsx
  *   (ซึ่ง Base เป็น reports/ads/components/AdReportFilters.tsx → src/components/safepay/FilterDropdown.tsx → theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx)
  * ต่างจากตัวต้นแบบ: เปลี่ยนช่วง/เพจ = คงแท็บ ทิ้งพารามิเตอร์ drill (campaign/adset) เพราะแคมเปญเดิมอาจไม่อยู่ในชุดใหม่
+ * ตัวกรองเพจ: PageFilterDropdown ของกล่องแชท (src/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown.tsx)
+ *   รูปเพจ + ไอคอนช่องทาง + ชื่อ — user 2026-11-16: รายการเพจต้องมีโปรไฟล์ ไม่ใช่ชื่อเปล่า (เดิม FilterDropdown ข้อความล้วน)
  * ไม่มี .card ห่อ — เป็นหัวหน้าเดียวกับเนื้อหาแท็บ ไม่ใช่การ์ดซ้อนการ์ด
  */
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 
-import FilterDropdown from '@/components/safepay/FilterDropdown'
+import PageFilterDropdown from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { DATE_RANGE_OPTIONS, resolveDateRange, type DateRangePreset } from '@/lib/date-range'
 import { useT } from '@/i18n/LocaleProvider'
@@ -23,7 +25,7 @@ type Props = {
   from: string
   to: string
   shopChannelId: string | null
-  channels: { id: string; name: string; provider: string }[]
+  channels: { id: string; name: string; provider: string; avatarUrl: string | null }[]
   clamped: boolean
   maxRangeDays: number
 }
@@ -31,6 +33,7 @@ const ALL = 'ALL'
 
 export default function AdRevenueFilters(props: Props) {
   const t = useT().adRevenue
+  const [pageOpen, setPageOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -70,11 +73,13 @@ export default function AdRevenueFilters(props: Props) {
         />
         <div className="ms-auto flex flex-wrap items-center gap-2">
           {props.channels.length > 1 && (
-            <FilterDropdown
-              icon="brand-facebook" align="right" value={props.shopChannelId ?? ALL} resetValue={ALL} defaultLabel={t.pageFilter}
-              options={[{ value: ALL, label: t.allPages }, ...props.channels.map((c) => ({ value: c.id, label: c.name }))]}
-              onChange={(v) => push({ shopChannelId: v })}
-            />
+            // popover ของ PageFilterDropdown อ้างอิง ancestor ที่ relative (inset-x-0) → กล่อง w-72 ชิดขวา = รายการกว้างพอ ไม่ล้นขอบจอ
+            <div className="relative flex w-72 justify-end">
+              <PageFilterDropdown
+                value={props.shopChannelId ?? ''} options={props.channels} open={pageOpen} onOpenChange={setPageOpen}
+                onChange={(v) => push({ shopChannelId: v || null })}
+              />
+            </div>
           )}
         </div>
       </div>

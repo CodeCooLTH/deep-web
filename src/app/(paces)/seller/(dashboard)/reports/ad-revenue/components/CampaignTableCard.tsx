@@ -109,9 +109,15 @@ export default function CampaignTableCard({ ads, spend, noun, rangeQuery, rangeL
           const v = profitOf(r)
           if (v === null) return dash
           return (
-            <span className="block">
+            // ต้นทุนไม่ครบ = ไอคอนเตือนข้างตัวเลข (ข้อความเต็มใน title + sr-only) ไม่ใช่บรรทัดที่สอง — แถวสูงเท่ากันอ่านแวบเดียว
+            <span className="inline-flex items-center justify-end gap-1">
+              {r.incompleteProfitOrders > 0 && (
+                <span className="text-warning-ink inline-flex" title={fmt(a.costIncompleteShort, { n: r.incompleteProfitOrders })}>
+                  <Icon icon="alert-triangle" className="text-sm" aria-hidden="true" />
+                  <span className="sr-only">{fmt(a.costIncompleteShort, { n: r.incompleteProfitOrders })}</span>
+                </span>
+              )}
               <span className={v < 0 ? 'text-danger-ink' : undefined}>{v < 0 ? '−' : ''}{baht(Math.abs(v))}</span>
-              {r.incompleteProfitOrders > 0 && <span className="text-warning-ink text-2xs block">{fmt(a.costIncompleteShort, { n: r.incompleteProfitOrders })}</span>}
             </span>
           )
         },
