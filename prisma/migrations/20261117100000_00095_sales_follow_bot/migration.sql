@@ -1,7 +1,7 @@
 -- feature 00095 บอทติดตามยอดขาย — 5 ตาราง (DATABASE.md · SRS §5)
 -- ส่วนที่ 1 = ผลจาก `prisma migrate diff` (schema เก่า → ใหม่) ไม่แก้มือ · ส่วนที่ 2 = CHECK/partial index ที่ Prisma DSL ประกาศไม่ได้
 -- ตารางใหม่ล้วน ไม่แตะตารางเดิม ไม่ backfill · ChatMessage.autoReplyKind='AUTO_FOLLOW' / type='FOLLOW_BOT_NOTE' ไม่มี CHECK จึงไม่ต้อง migration
--- 🛑 ขยายเพดานขั้นในอนาคตต้องไล่ CHECK 3 ตัวพร้อมกัน: SalesFollowBot_steps_check · SalesFollowRun_nextStep_check · SalesFollowSend_step_check
+-- 🛑 ขยายเพดานขั้นในอนาคตต้องไล่ CHECK 3 ตัวพร้อมกัน: SalesFollowBot_steps_check · SalesFollowRun_nextStep_check · SalesFollowSend_step_check · SalesFollowSend_stepCount_check
 
 
 -- CreateTable
@@ -73,6 +73,7 @@ CREATE TABLE "SalesFollowSend" (
     "conversationId" TEXT NOT NULL,
     "botId" TEXT NOT NULL,
     "step" INTEGER NOT NULL,
+    "stepCount" INTEGER NOT NULL,
     "status" TEXT NOT NULL,
     "reason" TEXT,
     "chatMessageId" TEXT,
@@ -215,6 +216,8 @@ CREATE INDEX "SalesFollowRun_botId_active_idx" ON "SalesFollowRun"("botId") WHER
 
 -- SalesFollowSend
 ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_step_check" CHECK ("step" BETWEEN 0 AND 9);
+-- ป้ายฟอง "บอทติดตาม n/N" อ่านจากแถวนี้ (snapshot) · step < stepCount เสมอ
+ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_stepCount_check" CHECK ("stepCount" BETWEEN 1 AND 10 AND "step" < "stepCount");
 ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_status_check" CHECK ("status" IN ('SENDING','SENT','FAILED','SKIPPED'));
 ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_reason_check" CHECK ("reason" IS NULL OR "reason" IN ('PLATFORM_REJECTED','UNCERTAIN_SEND','OTHER_APP_CONTROLS','LINE_QUOTA_FULL','META_WINDOW_REJECTED','IMAGE_MISSING','EMPTY_MESSAGE'));
 ALTER TABLE "SalesFollowSend" ADD CONSTRAINT "SalesFollowSend_reason_shape" CHECK (("status" IN ('FAILED','SKIPPED')) = ("reason" IS NOT NULL));

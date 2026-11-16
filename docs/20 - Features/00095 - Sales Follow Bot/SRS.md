@@ -520,3 +520,12 @@ SRS นี้ปักนิยามเชิงเทคนิคทั้ง�
 
 **Open Decisions (ต้องมีผู้ตัดสินก่อน/ระหว่างเขียนโค้ด — ค่าที่ SRS ใช้อยู่คือค่าตั้งต้น):**
 - **OD-FB-1** COD นับเป็น "ยืนยันแล้ว" ตั้งแต่เปิดบิล · **OD-FB-2** ออเดอร์นอกห้อง (R-FB-3): ยอมรับเป็นข้อจำกัดของ P1 หรือเพิ่มด่านจับคู่ด้วย `ExternalContact.customerId` · **OD-FB-3** NOT_BOUGHT แนบครั้งเดียวต่อรอบ (ตามต้นแบบ) หรือตามซ้ำทุกครั้งที่ทักใหม่ · **OD-FB-4** คำนำหน้าพรีวิว/ป้ายบับเบิล "บอทติดตาม" · **OD-FB-5** ไม่ push แจ้ง "ส่งไม่ออก" ให้ฟองบอท · **OD-FB-6** LINE postback ไม่นับเป็น "ลูกค้าตอบ" (ตาม Q-15) · **OD-FB-7** บอท ALL ที่แท็กหาย = ไม่แนบ (เข้มกว่า A-7)
+
+## ภาคผนวก A — เพิ่มหลังอนุมัติ (2026-11-16)
+
+### TFR-FB-24 ป้ายขั้นบนฟองบอท (ผู้ใช้ขอ "บอทติดตาม 1/3")
+- `SalesFollowSend.stepCount Int NOT NULL` + CHECK `stepCount BETWEEN 1 AND 10 AND step < stepCount` (อยู่ใน migration `20261117100000_00095_sales_follow_bot`) · ตั้ง = `bot.steps.length` ตอน claim (TFR-FB-14 ข้อ 1)
+- ข้อความแชทฝั่งร้าน (`getMessages` + delta/ห้อง) คืนฟิลด์เพิ่มสำหรับแถว `autoReplyKind='AUTO_FOLLOW'`: `followStep` (1-based) และ `followStepCount` จาก join `SalesFollowSend` ด้วย `chatMessageId OR imageMessageId` (กรอง shopId) · ไม่พบ = null ทั้งคู่ · ฝั่งผู้ซื้อไม่คืน
+- เทส: ฟองข้อความ+รูปได้เลขเดียวกันทั้งสองแถว · บอทถูกแก้จำนวนขั้นหลังส่ง = ป้ายเดิมไม่เปลี่ยน
+- ขยายเพดานขั้นในอนาคตต้องไล่ CHECK 4 ตัว (เพิ่ม `SalesFollowSend_stepCount_check`)
+- กระทบ native-chat-sync (shape ข้อความเปลี่ยน) — แอปต้องแสดงป้ายเดียวกัน

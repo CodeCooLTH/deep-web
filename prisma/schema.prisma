@@ -5808,6 +5808,8 @@ model SalesFollowSend {
   conversationId String
   botId          String
   step           Int
+  // จำนวนขั้นของบอท ณ ตอนจองส่ง — ป้ายบนฟอง "บอทติดตาม 2/3" ต้องคงตามจริงแม้บอทถูกแก้/ลบภายหลัง (ผู้ใช้ขอ 2026-11-16)
+  stepCount      Int
   status         String
   reason         String?
   chatMessageId  String?

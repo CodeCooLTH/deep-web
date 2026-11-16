@@ -600,3 +600,10 @@ Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.
 - **ฟอร์มสร้าง/แก้ (จอ 2): Base เปลี่ยนเป็น `theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx` + `components/*`** ตาม `docs/system/ui-guideline/seller/page-sourcing.md` (create form 2 คอลัมน์) — `account-settings/page.tsx` ใช้เป็นแบบการ์ด/savebar เสริมเท่านั้น
 - องค์ประกอบที่อ้างเฉพาะพี่น้องใน `src/` (ตัวแก้ข้อความ, แผงห้อง, ชิปหัวห้อง, ป้ายบับเบิล): commit ต้องมี `Base: theme/...` ตัวที่พี่น้องนั้น copy มา (ไล่จาก commit ของพี่น้อง) — ห้ามชี้ `src/`
 - mockup HTML 3 จอ: `docs/superpowers/specs/2026-11-16-00095-sales-follow-bot-mockup.html`
+
+## 16. ป้ายบนฟองแสดงขั้น (ผู้ใช้ขอ 2026-11-16)
+
+ผู้ใช้: "ขอให้เพิ่ม step ไปด้วย เช่น บอทติดตาม 1/3"
+- ป้ายเกยขอบฟอง = `บอทติดตาม {n}/{N}` (ตัวเลข `tabular-nums font-semibold`) · `title`/sr-only = "ส่งโดยบอทติดตาม ขั้นที่ {n} จาก {N}"
+- ข้อมูลมาจาก `SalesFollowSend.step + 1` และ `SalesFollowSend.stepCount` (snapshot ตอนจองส่ง — คงตามจริงแม้บอทถูกแก้/ลบ) ผูกด้วย `chatMessageId`/`imageMessageId`
+- ขั้น "ข้อความ + รูป" ติดป้ายเฉพาะฟองแรกตามเดิม · หาแถว Send ไม่เจอ (ข้อมูลเก่า/ถูกลบ) = แสดง "บอทติดตาม" เฉย ๆ ไม่เดาเลข
