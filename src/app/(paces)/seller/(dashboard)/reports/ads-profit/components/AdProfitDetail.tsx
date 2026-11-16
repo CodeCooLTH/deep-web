@@ -12,7 +12,7 @@ import Link from 'next/link'
 
 import AdThumb from '@/components/safepay/AdThumb'
 import Icon from '@/components/wrappers/Icon'
-import { allocateSpend } from '@/lib/ads-profit'
+import { allocateSpend, type ProductProfit } from '@/lib/ads-profit'
 import { adDisplayName } from '@/lib/ad-attribution'
 import { formatDate } from '@/lib/format-date'
 import { formatNumberNoSymbol } from '@/lib/format-money'
@@ -30,12 +30,12 @@ import { money, Signed } from './AdsProfitKpis'
 export type DetailOrder = { id: string; token: string; no: string; createdAt: string; customer: string | null; items: string; revenue: number; cogs: number; variable: number; paid: boolean; status: string }
 type Props = {
   row: AdProfitRow; mode: ProfitMode; noun: string; tab: DetailTab; baseHref: string; backHref: string; insights: ProfitInsight[]
-  orders: DetailOrder[]; daily: { day: string; spend: number; revenue: number; profit: number }[]
+  orders: DetailOrder[]; products: ProductProfit[]; daily: { day: string; spend: number; revenue: number; profit: number }[]
 }
 
-export type DetailTab = 'profit' | 'perf' | 'orders' | 'diag'
+export type DetailTab = 'profit' | 'perf' | 'orders' | 'products' | 'diag'
 
-export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHref, orders, daily, insights }: Props) {
+export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHref, orders, products, daily, insights }: Props) {
   const tt = useT()
   const t = tt.adsProfit
   const p = row.parts[mode], m = row.metrics[mode]
@@ -60,7 +60,7 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
   const after = m.profitAfter ?? m.profitBefore
   const pctOf = (v: number) => (v / scale) * 100
 
-  const tabs: [DetailTab, string][] = [['profit', t.detailTabProfit], ['perf', t.detailTabPerf], ['orders', fmt(t.detailTabOrders, { noun })], ['diag', t.detailTabDiag]]
+  const tabs: [DetailTab, string][] = [['profit', t.detailTabProfit], ['perf', t.detailTabPerf], ['orders', fmt(t.detailTabOrders, { noun })], ['products', t.detailTabProducts], ['diag', t.detailTabDiag]]
   const ratio = (a: number | null, b: number | null, k = 1) => (a === null || b === null || b <= 0 ? null : (a / b) * k)
   const n2 = (v: number | null, d = 0, pre = '', post = '') => (v === null ? '—' : `${pre}${v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}${post}`)
 
@@ -146,6 +146,36 @@ export default function AdProfitDetail({ row, mode, noun, tab, baseHref, backHre
             <DashCard title={t.perfDailySpend}>
               <Columns ariaLabel={t.perfDailySpend} categories={daily.map((d) => d.day.slice(8, 10))} series={[{ name: t.kpiSpend, data: daily.map((d) => Math.round(d.spend)), color: 'chart-gamma' }]} />
             </DashCard>
+          </div>
+        </div>
+      ) : tab === 'products' ? (
+        <div className="card">
+          <div className="card-header"><h4 className="card-title">{t.detailTabProducts}</h4><InfoTip text={t.productsTip} /></div>
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead className="bg-light/25 text-2xs uppercase">
+                <tr>
+                  <th className="w-full">{t.colProduct}</th><th className="text-end whitespace-nowrap">{t.colQty}</th><th className="text-end whitespace-nowrap">{fmt(t.colOrders, { noun })}</th>
+                  <th className="text-end whitespace-nowrap">{t.colRevenue}</th><th className="text-end whitespace-nowrap">{t.colCogs}</th><th className="text-end whitespace-nowrap">{t.colProfitBefore}</th>
+                  <th className="text-end whitespace-nowrap">{t.colAlloc}</th><th className="text-end whitespace-nowrap">{t.colOrderProfit}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((pp) => (
+                  <tr key={pp.key}>
+                    <td className="max-w-xs truncate" title={pp.name}>{pp.name}{pp.missingCost && <span className="badge bg-warning/15 text-warning-ink ms-2 py-0 text-xs">{t.status.INCOMPLETE}</span>}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(pp.qty)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{formatNumberNoSymbol(pp.orders)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{money(pp.revenue)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{money(pp.cogs)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap"><Signed v={pp.profitBefore} /></td>
+                    <td className="text-end tabular-nums whitespace-nowrap">{money(pp.allocated)}</td>
+                    <td className="text-end tabular-nums whitespace-nowrap"><b className="font-bold"><Signed v={pp.profitAfter} /></b></td>
+                  </tr>
+                ))}
+                {products.length === 0 && <tr><td colSpan={8} className="text-default-500 py-6 text-center">{fmt(t.emptyRange, { noun })}</td></tr>}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : tab === 'diag' ? (

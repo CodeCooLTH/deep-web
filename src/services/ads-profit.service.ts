@@ -259,7 +259,7 @@ export async function getAdProfitOrders(
       select: {
         ...PROFIT_SELECT, status: true, publicToken: true, orderNo: true, paymentConfirmedAt: true, codReceivedAt: true,
         buyerName: true,
-        items: { select: { cost: true, qty: true, name: true } },
+        items: { select: { cost: true, qty: true, name: true, price: true, productId: true } },
       },
       orderBy: { createdAt: 'asc' },
       take: MAX_ITEM_ROWS,
