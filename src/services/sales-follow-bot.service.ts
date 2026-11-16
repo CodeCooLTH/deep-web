@@ -26,6 +26,7 @@ import {
   type SendStatus,
   type TagMatch,
 } from '@/lib/sales-follow-bot/constants'
+import { aggregateBotStats, STATS_WINDOW_DAYS, type BotStatsResult } from '@/lib/sales-follow-bot/stats'
 import { findChannelConflicts, type ConflictBot, type ConflictOther } from '@/lib/sales-follow-bot/conflicts'
 import { computeDueAt } from '@/lib/sales-follow-bot/decide'
 import {
@@ -303,6 +304,18 @@ export async function listBots(shopId: string): Promise<BotDto[]> {
     select: BOT_SELECT,
   })
   return dtosOf(shopId, rows)
+}
+
+/** ตัวเลข 7 วันล่าสุดของทุกบอทในร้าน (00095 redesign) — ผูก shopId ทุก query · นิยามอยู่ที่ lib/sales-follow-bot/stats.ts */
+export async function getBotStats7d(shopId: string, now: Date = new Date()): Promise<BotStatsResult> {
+  const since = new Date(now.getTime() - STATS_WINDOW_DAYS * 86_400_000)
+  const sends = await prisma.salesFollowSend.findMany({
+    where: { shopId, createdAt: { gte: since }, status: { in: ['SENT', 'FAILED'] } },
+    select: { botId: true, runId: true, status: true },
+  })
+  const runIds = [...new Set(sends.filter((s) => s.status === 'SENT').map((s) => s.runId))]
+  const runs = runIds.length ? await prisma.salesFollowRun.findMany({ where: { shopId, id: { in: runIds } }, select: { id: true, stopReason: true } }) : []
+  return aggregateBotStats(sends, runs)
 }
 
 /** สร้างบอท — CLOSED เสมอ (AC-FB-04) · ตรวจชนช่องทางกับบอทที่ไม่ปิดของร้านแม้ตัวเองจะ CLOSED (ล็อกช่องใน UI ตรงกัน AC-FB-20) */

@@ -60,7 +60,7 @@ export function ComingSoon({ title, body, cta, href }: { title: string; body: st
     <div className="card">
       <div className="card-body">
         <div className="flex flex-col items-center gap-2 py-6 text-center">
-          <Icon icon="target-arrow" className="text-default-500 size-8" aria-hidden="true" />
+          <Icon icon="target-arrow" className="text-default-700 size-8" aria-hidden="true" />
           <h4 className="text-default-900 text-sm font-medium">{title}</h4>
           <p className="text-default-700 max-w-md text-sm">{body}</p>
           <Link href={href} className="btn border-default-300 text-default-800 mt-2 min-h-11 border lg:min-h-0">

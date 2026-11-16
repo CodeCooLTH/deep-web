@@ -32,7 +32,7 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
   return (
     <div className="bg-card border-default-300 mx-auto max-w-sm overflow-hidden rounded-3xl border shadow">
       <div className="border-default-200 flex items-center gap-2.5 border-b px-3.5 py-3">
-        <Icon icon="arrow-left" className="text-default-500" aria-hidden="true" />
+        <Icon icon="arrow-left" className="text-default-700" aria-hidden="true" />
         <AvatarWithPlatform imageUrl={channel?.avatarUrl ?? null} name={channel?.name ?? t.previewPageName} provider={channel?.provider ?? 'MESSENGER'} className="size-9" badge="sm" />
         <span className="text-default-900 min-w-0 truncate text-sm font-semibold">{channel?.name ?? t.previewPageName}</span>
       </div>
@@ -42,7 +42,7 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
           let shownBadge = false
           return (
             <div key={r.index}>
-              <p className="text-default-600 mt-4 mb-2 flex items-center justify-center gap-1 text-center text-xs">
+              <p className="text-default-700 mt-4 mb-2 flex items-center justify-center gap-1 text-center text-xs">
                 <Icon icon="clock" aria-hidden="true" />
                 {r.index === 0 ? fmt(t.previewWaitFirst, { d: `${wait} ` }) : fmt(t.previewWaitNext, { d: wait })}
               </p>
@@ -56,11 +56,11 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
               )}
               {r.empty && r.bubbles.length === 0 && (
                 <div className="mt-5 mb-2 flex justify-end">
-                  <div className="bg-default-100 text-default-500 border-default-300 min-w-0 max-w-96 rounded border border-dashed px-6 py-3 text-sm">{fmt(t.previewGhost, { n: r.index + 1 })}</div>
+                  <div className="bg-default-100 text-default-700 border-default-300 min-w-0 max-w-96 rounded border border-dashed px-6 py-3 text-sm">{fmt(t.previewGhost, { n: r.index + 1 })}</div>
                 </div>
               )}
               {r.bubbles.map((b, k) => {
-                if (b.type === 'GONE') return <p key={k} className="text-default-500 mt-1 text-end text-2xs italic">{t.previewSkipped}</p>
+                if (b.type === 'GONE') return <p key={k} className="text-default-700 mt-1 text-end text-2xs italic">{t.previewSkipped}</p>
                 // ป้ายเกยขอบเฉพาะฟองแรกของรอบ (รูป/ข้อความสำเร็จรูปเป็นฟองถัดไปในรอบเดียวกัน)
                 const withBadge = !shownBadge
                 shownBadge = true
@@ -93,7 +93,7 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={b.thumbUrl} alt="" className="bg-default-200 h-26 w-36 rounded object-cover" />
                           ) : (
-                            <span className="bg-default-200 text-default-500 flex h-26 w-36 items-center justify-center rounded">
+                            <span className="bg-default-200 text-default-700 flex h-26 w-36 items-center justify-center rounded">
                               <Icon icon="photo" className="text-3xl" aria-hidden="true" />
                             </span>
                           )}
@@ -108,7 +108,7 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
         })}
         {/* ส่วนต่อขยาย: สิ่งที่ระบบทำกับแชทหลังตามครบ (ฝั่งร้านเท่านั้น ลูกค้าไม่เห็น) */}
         {draft.finalAction !== 'NONE' && (
-          <p className="text-default-600 mt-5 flex items-center justify-center gap-1 text-center text-xs">
+          <p className="text-default-700 mt-5 flex items-center justify-center gap-1 text-center text-xs">
             <Icon icon="flag" aria-hidden="true" />
             {fmt(t.finalSummary, { d: formatDuration(finalDelayOf(draft), words), a: t[FINAL_KEY[draft.finalAction]] })}
           </p>
@@ -125,10 +125,10 @@ export default function ChatPreview({ draft, quick, channel }: { draft: Draft; q
     <div>
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h4 className="card-title">{t.previewTitle}</h4>
-        <span className="text-default-600 text-xs">{fmt(t.previewSample, { name: t.previewSampleName })}</span>
+        <span className="text-default-700 text-xs">{fmt(t.previewSample, { name: t.previewSampleName })}</span>
       </div>
       <Phone draft={draft} quick={quick} channel={channel} />
-      <p className="text-default-600 text-2xs mt-1">{t.previewNote}</p>
+      <p className="text-default-700 text-2xs mt-1">{t.previewNote}</p>
     </div>
   )
 }
@@ -163,11 +163,11 @@ export function PreviewSheet({ draft, quick, channel, onClose }: { draft: Draft;
         <div className="bg-default-300 mx-auto mt-1 mb-2 h-1 w-10 rounded-full" aria-hidden="true" />
         <div className="flex items-center gap-2">
           <h4 className="card-title flex-1">{t.previewTitle}</h4>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label={t.close} className="btn btn-icon text-default-600 hover:bg-default-100 size-11">
+          <button ref={closeRef} type="button" onClick={onClose} aria-label={t.close} className="btn btn-icon text-default-700 hover:bg-default-100 size-11">
             <Icon icon="x" className="size-5" aria-hidden="true" />
           </button>
         </div>
-        <p className="text-default-600 mb-2.5 text-xs">{fmt(t.previewSample, { name: t.previewSampleName })} · {t.previewNote}</p>
+        <p className="text-default-700 mb-2.5 text-xs">{fmt(t.previewSample, { name: t.previewSampleName })} · {t.previewNote}</p>
         <Phone draft={draft} quick={quick} channel={channel} />
       </div>
     </div>

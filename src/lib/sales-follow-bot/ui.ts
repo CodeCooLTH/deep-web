@@ -366,6 +366,58 @@ export function firstIssueTarget(issues: readonly BotIssue[]): IssueTarget | nul
   return sorted[0] ?? null
 }
 
+// ───────────────────────── redesign A: สถานะส่วนของฟอร์ม · รวมช่องทางตามเพจ · แถบเวลา ─────────────────────────
+
+export type SectionState = 'done' | 'warn' | 'todo'
+
+/**
+ * วงกลมเลขของแต่ละส่วน (1 ทักใคร · 2 ส่งทางไหน · 3 ส่งอะไร เมื่อไร · 4 เมื่อจบ) — มาจาก draftIssues ตัวเดียวกับที่ปุ่มบันทึกใช้ (ไม่เดา)
+ * ผิด = todo · ผ่านแต่มีแท็กที่ถูกลบ = warn (ไม่ใช่เครื่องหมายถูก — ผู้ใช้ยังต้องตัดสินใจ) · ช่องชน = ส่วน 2 todo
+ */
+export function sectionStates(d: Draft, hasConflict: boolean): { who: SectionState; via: SectionState; what: SectionState; end: SectionState } {
+  const kinds = new Set(draftIssues(d).map((i) => issueTarget(i).kind))
+  const bad = (...k: IssueTarget['kind'][]) => k.some((x) => kinds.has(x))
+  return {
+    who: bad('condition') ? 'todo' : d.tags.some((x) => x.missing) ? 'warn' : 'done',
+    via: bad('channels') || hasConflict ? 'todo' : 'done',
+    what: bad('steps', 'step', 'part') ? 'todo' : 'done',
+    end: bad('final') ? 'todo' : 'done',
+  }
+}
+
+/** เอาแท็กที่ถูกลบออกจากร่าง (ปุ่ม "เอาออกจากบอท") */
+export const removeGoneTags = (d: Draft): Draft => ({ ...d, tags: d.tags.filter((x) => !x.missing) })
+
+export interface ChannelGroup<C> {
+  key: string
+  name: string
+  avatarUrl: string | null
+  channels: C[]
+}
+/** รวมช่องทางที่เป็นเพจ/บัญชีเดียวกัน (Messenger + IG ของเพจเดียวกันชื่อเหมือนกัน) เป็นแถวเดียว · LINE แยกเสมอ · คงลำดับที่เจอก่อน */
+export function groupChannelsByPage<C extends { provider: string; name: string; avatarUrl: string | null }>(list: readonly C[]): ChannelGroup<C>[] {
+  const out = new Map<string, ChannelGroup<C>>()
+  for (const c of list) {
+    const key = `${c.provider === 'LINE' ? 'LINE' : 'META'}|${c.name.trim()}`
+    const g = out.get(key)
+    if (g) {
+      g.channels.push(c)
+      g.avatarUrl ??= c.avatarUrl
+    } else out.set(key, { key, name: c.name, avatarUrl: c.avatarUrl, channels: [c] })
+  }
+  return [...out.values()]
+}
+
+/** ความกว้าง % ของแต่ละรอบบนแถบเวลา เทียบกรอบ 7 วัน — รอบสั้นมากยังเห็นเป็นแท่ง (ขั้นต่ำ 2%) · รวมไม่เกิน 100 */
+export function rulerWidths(delaysMin: readonly number[], maxTotalMin: number): number[] {
+  let left = 100
+  return delaysMin.map((m) => {
+    const w = Math.min(left, Math.max(2, (Math.max(0, m) / maxTotalMin) * 100))
+    left -= w
+    return Math.round(w * 10) / 10
+  })
+}
+
 // ───────────────────────── รายการ/ประวัติ ─────────────────────────
 
 /** ตัดรายการยาวเป็น "แสดง max ตัว + เหลืออีก N" */

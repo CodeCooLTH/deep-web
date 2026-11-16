@@ -42,7 +42,7 @@ export default function Segmented<V extends string>({
         <label
           key={o.value}
           className={cn(
-            'text-default-600 has-checked:bg-card has-checked:text-dark has-focus-visible:ring-primary relative flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-nowrap has-checked:font-semibold has-checked:shadow-sm has-focus-visible:ring-2 lg:min-h-0 lg:py-1.5',
+            'text-default-700 has-checked:bg-card has-checked:text-dark has-focus-visible:ring-primary relative flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-nowrap has-checked:font-semibold has-checked:shadow-sm has-focus-visible:ring-2 lg:min-h-0 lg:py-1.5',
             compact && 'md:flex-none md:px-4',
             disabled ? 'cursor-not-allowed' : 'cursor-pointer',
           )}

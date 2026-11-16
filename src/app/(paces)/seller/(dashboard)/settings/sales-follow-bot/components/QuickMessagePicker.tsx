@@ -51,7 +51,7 @@ export default function QuickMessagePicker({
           <Icon icon="bolt" aria-hidden="true" />
           {t.quickPickTitle}
         </span>
-        <button type="button" onClick={onClose} aria-label={t.close} className="btn btn-icon text-default-600 hover:bg-default-100 size-11 lg:size-9">
+        <button type="button" onClick={onClose} aria-label={t.close} className="btn btn-icon text-default-700 hover:bg-default-100 size-11 lg:size-9">
           <Icon icon="x" className="size-5" aria-hidden="true" />
         </button>
       </div>

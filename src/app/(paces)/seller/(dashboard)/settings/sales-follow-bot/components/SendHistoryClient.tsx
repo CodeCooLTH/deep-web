@@ -51,7 +51,7 @@ function CustomerBlock({ item }: { item: SendHistoryItem }) {
       <AvatarWithPlatform imageUrl={item.contactAvatarUrl} name={item.contactName} provider={item.channel} className="size-10" />
       <span className="min-w-0 flex-1">
         <span className="text-default-900 block truncate text-sm font-medium">{item.contactName}</span>
-        <span className="text-default-600 block truncate text-xs">{[item.channelName, getChannelDisplay(item.channel).label].filter(Boolean).join(' · ')}</span>
+        <span className="text-default-700 block truncate text-xs">{[item.channelName, getChannelDisplay(item.channel).label].filter(Boolean).join(' · ')}</span>
       </span>
     </span>
   )
@@ -60,7 +60,7 @@ function CustomerBlock({ item }: { item: SendHistoryItem }) {
 function BotRound({ item, t }: { item: SendHistoryItem; t: Dict }) {
   return (
     <>
-      {item.botDeleted ? <span className="text-default-600 italic">{t.botDeleted}</span> : item.botName} · {fmt(t.roundOf, { n: item.step, total: item.stepCount })}
+      {item.botDeleted ? <span className="text-default-700 italic">{t.botDeleted}</span> : item.botName} · {fmt(t.roundOf, { n: item.step, total: item.stepCount })}
     </>
   )
 }
@@ -130,7 +130,7 @@ export default function SendHistoryClient({ initial, initialCursor }: { initial:
       <div className="card">
         <div className="card-body">
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <Icon icon="target-arrow" className="text-default-500 size-8" aria-hidden="true" />
+            <Icon icon="target-arrow" className="text-default-700 size-8" aria-hidden="true" />
             <h4 className="text-default-900 text-sm font-medium">{t.logEmptyTitle}</h4>
             <p className="text-default-700 max-w-md text-sm">{t.logEmptyBody}</p>
           </div>
@@ -154,7 +154,7 @@ export default function SendHistoryClient({ initial, initialCursor }: { initial:
                 <span className="min-w-0 flex-1">
                   <CustomerBlock item={it} />
                 </span>
-                <span className="text-default-600 shrink-0 text-xs tabular-nums">{formatDateTime(it.at)}</span>
+                <span className="text-default-700 shrink-0 text-xs tabular-nums">{formatDateTime(it.at)}</span>
               </span>
               <span className="text-default-700 mt-2 block ps-13 text-xs">
                 <BotRound item={it} t={t} />

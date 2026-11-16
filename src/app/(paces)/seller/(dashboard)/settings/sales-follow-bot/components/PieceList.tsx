@@ -100,7 +100,7 @@ export default function PieceList({
                   <Draggable key={part.uid} draggableId={part.uid} index={j}>
                     {(drag, snap) => (
                       <li ref={drag.innerRef} {...drag.draggableProps} className={`flex items-start gap-1 ${snap.isDragging ? 'bg-card rounded-lg shadow-lg' : ''}`}>
-                        <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-500 flex min-h-11 w-6 shrink-0 cursor-grab items-center justify-center text-base">
+                        <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-700 flex min-h-11 w-6 shrink-0 cursor-grab items-center justify-center text-base">
                           <Icon icon="grip-vertical" aria-hidden="true" />
                         </span>
                         <div id={`sfb-part-${stepIndex}-${j}`} className="min-w-0 flex-1">
@@ -138,7 +138,7 @@ export default function PieceList({
                                   </span>
                                 ))}
                                 {Array.from({ length: uploading[part.uid] ?? 0 }).map((_, k) => (
-                                  <span key={`up${k}`} role="status" aria-label={t.uploading} className="bg-default-100 text-default-600 flex size-16 items-center justify-center rounded-lg">
+                                  <span key={`up${k}`} role="status" aria-label={t.uploading} className="bg-default-100 text-default-700 flex size-16 items-center justify-center rounded-lg">
                                     <Icon icon="loader-2" className="size-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                                   </span>
                                 ))}
@@ -160,7 +160,7 @@ export default function PieceList({
                                   </label>
                                 )}
                               </div>
-                              <span className="text-default-600 text-xs tabular-nums">{fmt(t.imagesCount, { n: part.fileIds.length, max: L.maxImagesPerPart })}</span>
+                              <span className="text-default-700 text-xs tabular-nums">{fmt(t.imagesCount, { n: part.fileIds.length, max: L.maxImagesPerPart })}</span>
                             </div>
                           )}
 
@@ -258,7 +258,7 @@ export default function PieceList({
           </button>
         ))}
       </div>
-      <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-600 mt-1 ps-7 text-xs">
+      <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-700 mt-1 ps-7 text-xs">
         {blocker ? fmt(t.piecesFull, { max: L.maxParts }) : fmt(t.piecesLeft, { n: L.maxParts - parts.length, max: L.maxParts })}
       </p>
     </>

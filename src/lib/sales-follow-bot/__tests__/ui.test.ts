@@ -311,3 +311,49 @@ describe('ตัวอย่างในแชท', () => {
     expect(r[0].bubbles).toEqual([{ type: 'QUICK', text: 'ส่งฟรี', thumbUrl: null, imageCount: 1 }])
   })
 })
+
+// ───────────────────────── redesign A ─────────────────────────
+import { groupChannelsByPage, removeGoneTags, rulerWidths, sectionStates } from '../ui'
+
+describe('sectionStates', () => {
+  const ok = (): ReturnType<typeof toDraft> =>
+    toDraft({ name: 'x', status: 'CLOSED', testRoomIds: [], salesStatuses: ['NOT_BOUGHT'], tags: [], tagMatch: 'ANY', channelIds: ['c1'], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดี' }] }] })
+  it('ครบ = done ทั้ง 4 · แท็กถูกลบ = ส่วน 1 warn · ช่องชน = ส่วน 2 todo', () => {
+    expect(sectionStates(ok(), false)).toEqual({ who: 'done', via: 'done', what: 'done', end: 'done' })
+    expect(sectionStates({ ...ok(), tags: [{ key: 'v', name: 'vip', missing: true }] }, false).who).toBe('warn')
+    expect(sectionStates(ok(), true).via).toBe('todo')
+  })
+  it('ผิดตามส่วน: ไม่มีเงื่อนไข · ไม่มีช่อง · ข้อความว่าง · เวลารอหลังตามครบผิด', () => {
+    expect(sectionStates({ ...ok(), salesStatuses: [] }, false).who).toBe('todo')
+    expect(sectionStates({ ...ok(), channelIds: [] }, false).via).toBe('todo')
+    const d = ok()
+    expect(sectionStates({ ...d, steps: [{ ...d.steps[0], parts: [{ ...d.steps[0].parts[0], text: '' }] }] }, false).what).toBe('todo')
+    expect(sectionStates({ ...d, finalValue: '' }, false).end).toBe('todo')
+  })
+})
+describe('removeGoneTags', () => {
+  it('เอาเฉพาะแท็กที่ missing ออก', () => {
+    const d = { ...newDraft(), tags: [{ key: 'a', name: 'a', missing: false }, { key: 'v', name: 'v', missing: true }] }
+    expect(removeGoneTags(d).tags.map((x) => x.key)).toEqual(['a'])
+  })
+})
+describe('groupChannelsByPage', () => {
+  it('Messenger+IG ชื่อเดียวกัน = กลุ่มเดียว · LINE ชื่อเดียวกันก็แยก · คงลำดับ · เอารูปแรกที่มี', () => {
+    const g = groupChannelsByPage([
+      { id: '1', provider: 'MESSENGER', name: 'ร้านนุ่น', avatarUrl: null },
+      { id: '2', provider: 'LINE', name: 'ร้านนุ่น', avatarUrl: 'l.png' },
+      { id: '3', provider: 'INSTAGRAM', name: 'ร้านนุ่น ', avatarUrl: 'i.png' },
+    ])
+    expect(g.map((x) => x.channels.map((c) => c.id))).toEqual([['1', '3'], ['2']])
+    expect(g[0].avatarUrl).toBe('i.png')
+  })
+})
+describe('rulerWidths', () => {
+  it('สัดส่วนตามกรอบ · ขั้นต่ำ 2% · รวมไม่เกิน 100', () => {
+    expect(rulerWidths([10080], 10080)).toEqual([100])
+    expect(rulerWidths([30], 10080)).toEqual([2])
+    const w = rulerWidths([5040, 5040, 5040], 10080)
+    expect(w.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100)
+    expect(w).toEqual([50, 50, 0])
+  })
+})

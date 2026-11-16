@@ -71,7 +71,7 @@ export default function ActionMenu({ ariaLabel, items }: { ariaLabel: string; it
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="btn btn-icon text-default-600 hover:bg-default-100 size-11 lg:size-9"
+        className="btn btn-icon text-default-700 hover:bg-default-100 size-11 lg:size-9"
       >
         <Icon icon="dots-vertical" className="size-5" aria-hidden="true" />
       </button>
