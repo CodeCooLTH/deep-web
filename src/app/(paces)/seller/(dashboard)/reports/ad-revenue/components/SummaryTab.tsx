@@ -53,10 +53,10 @@ export default function SummaryTab({ report, noun, campaignsHref }: Props) {
     },
     ...(ok && s.spend !== null ? [
       {
-        key: 'spend', title: fmt(d.spendRoas, { r: totalRoas === null ? '—' : fmtRoas(totalRoas) }), icon: 'speakerphone', iconBg: kpiBg(2), value: formatBaht(Math.round(s.spend)),
+        key: 'spend', title: fmt(d.spendRoas, { r: totalRoas === null ? '—' : fmtRoas(totalRoas) }), icon: 'speakerphone', iconBg: kpiBg(2), value: formatBaht(s.spend),
         // มติ user 2026-11-15: ค่าโฆษณาขึ้น = เขียว
         badge: <DeltaBadge value={pctChangeVsPrev(s.spend, p.spend)} />,
-        sub: fmt(d.spendSub, { noun, v: s.orders > 0 ? formatBaht(Math.round(s.spend / s.orders)) : '—' }),
+        sub: fmt(d.spendSub, { noun, v: s.orders > 0 ? formatBaht(s.spend / s.orders) : '—' }),
         spark: { data: daily.map((x) => x.spend ?? 0), kind: 'area', name: `${t.colSpend} · ${d.dailySpark}` },
       } satisfies KpiSpec,
       {

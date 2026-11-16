@@ -17,7 +17,8 @@ import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
 import { cn } from '@/utils/helpers'
 
-export const money = (v: number | null) => (v === null ? '—' : `${v < 0 ? '−' : ''}${formatBaht(Math.round(Math.abs(v)))}`)
+// ไม่ปัด — formatBaht แสดงสตางค์เองเมื่อมีเศษ (user 2026-11-16: ค่าโฆษณา 1580.61 ต้องไม่ขึ้น ฿1,581)
+export const money = (v: number | null) => (v === null ? '—' : `${v < 0 ? '−' : ''}${formatBaht(Math.abs(v))}`)
 export const Signed = ({ v }: { v: number | null }) => <span className={cn(v !== null && v < 0 && 'text-danger-ink', v !== null && v > 0 && 'text-success-ink')}>{money(v)}</span>
 
 export default function AdsProfitKpis({ report, mode, noun, partial }: { report: AdsProfitReport; mode: ProfitMode; noun: string; partial: boolean }) {
@@ -32,7 +33,7 @@ export default function AdsProfitKpis({ report, mode, noun, partial }: { report:
 
   const kpis: KpiSpec[] = [
     {
-      key: 'spend', title: t.kpiSpend, icon: 'speakerphone', iconBg: kpiBg(2), value: totals.spend === null ? '—' : formatBaht(Math.round(totals.spend)),
+      key: 'spend', title: t.kpiSpend, icon: 'speakerphone', iconBg: kpiBg(2), value: totals.spend === null ? '—' : formatBaht(totals.spend),
       badge: d(totals.spend, p.spend), sub: totals.spend === null ? t.noSpend : undefined,
       spark: daily.length > 1 && totals.spend !== null ? { data: daily.map((x) => x.spend ?? 0), kind: 'area', name: t.kpiSpend } : undefined,
     },
