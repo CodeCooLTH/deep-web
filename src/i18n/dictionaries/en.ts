@@ -166,6 +166,7 @@ export const en: Dictionary = {
     followBotCapsuleAria: 'Follow-up bot, {n} of {total} rounds sent',
     followBotCapsuleAwaitingAria: 'waiting for you to reply to the customer first',
     followBotAwaiting: 'Reply needed',
+    followBotChip: 'Follow-up bot {n}/{total}',
 
     followBotChipActive: 'Bot is following up',
     followBotChipAwaiting: 'Reply needed',

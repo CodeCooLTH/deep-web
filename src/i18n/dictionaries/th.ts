@@ -336,6 +336,7 @@ export const th = {
     followBotCapsuleAria: 'บอทติดตาม ส่งแล้ว {n} จาก {total} รอบ',
     followBotCapsuleAwaitingAria: 'รอคุณตอบลูกค้าก่อน',
     followBotAwaiting: 'รอคุณตอบ',
+    followBotChip: 'บอทติดตาม {n}/{total}',
 
     /** บอทติดตามยอดขาย (00095 S-8b) — ชิปหัวห้อง · แผงในห้อง (ศัพท์ "รอบ"/"แชท" ตาม UX §18) */
     followBotChipActive: 'บอทกำลังตาม',
