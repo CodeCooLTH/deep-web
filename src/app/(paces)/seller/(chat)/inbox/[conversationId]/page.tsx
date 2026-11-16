@@ -58,6 +58,7 @@ import ChatNoPermission from '../../_components/ChatNoPermission'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import FollowBotRoomProvider from '../../_components/FollowBotRoomProvider'
 import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
+import { isMetaCapiEnabled } from '@/lib/meta-capi/gate'
 import { syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // เกณฑ์ "ต้องถาม Meta ไหม" = ฟังก์ชันบริสุทธิ์ที่มีเทส [blocker] คุม — ห้ามเขียน if เองที่นี่
 import { after } from 'next/server'
@@ -453,6 +454,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   const canVoidPaymentPromise = settle(canAccessShopWith(threadShopId, user.id as string, 'O6'))
   // 00086 S-5 (FR-005/FR-011) — ปุ่ม "ปิดงาน" ในแชทตามสิทธิ์ใน "ร้านของเธรด" (ไม่ใช่ร้านที่ active) · ตัวบังคับจริง = POST /close
   const canCloseJobPromise = settle(canCloseJobInShop(threadShopId, user.id as string))
+  // 00097 — บรรทัด event CAPI: X9 ตามบทบาทใน "ร้านของเธรด" (ไม่ใช่ร้านที่ active) + ฟีเจอร์เปิด + Messenger · ไม่เข้าเงื่อนไข = ไม่ยิงคำขอเลย (ตัวบังคับจริง = route capi-events)
+  const canSeeCapiPromise = settle(
+    conversation.channel === 'MESSENGER' && isMetaCapiEnabled(threadShopId)
+      ? canAccessShopWith(threadShopId, user.id as string, 'X9')
+      : Promise.resolve(false),
+  )
   const hidePaymentsPromise = settle(shouldHidePayments())
   const commentOriginLog = await prisma.commentReplyLog.findFirst({
     where: { conversationId: conversation.id },
@@ -779,6 +786,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // ซ่อนปุ่มอย่างเดียวไม่พอ: ตัวบังคับจริงคือ DELETE /api/orders/[token]/payments/[paymentId] (O6) · ค่านี้แค่ไม่ให้ UI เสนอปุ่มที่กดแล้ว 403
   const canVoidPayment = await canVoidPaymentPromise
   const canCloseJob = await canCloseJobPromise
+  const capiEnabled = (await canSeeCapiPromise) === true
   const customerPanelData: CustomerPanelData = {
     conversationId: conversation.id,
     canVoidPayment,
@@ -861,6 +869,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         botHandoffReason={conversation.handoffReason}
         isChatbotTestThread={isChatbotTestThread}
         botCouldReply={botCouldReply}
+        capiEnabled={capiEnabled}
         metaAiHoldUntilMs={metaAiHoldUntilMs}
         customerCounted={customerCounted}
         channel={conversation.channel}

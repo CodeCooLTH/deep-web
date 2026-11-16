@@ -326,6 +326,7 @@ const MATRIX: Entry[] = [
  * ใช้คำนำหน้า path (ลงท้าย /) หรือ path เต็ม
  */
 const COVERED: Record<string, string> = {
+  'src/app/api/chat/conversations/[id]/capi-events/': 'บรรทัด CAPI ในห้อง (X9 เจ้าของเท่านั้น · 00097) — ด่าน X9 ตามร้านของห้อง · ไม่มีต้นทุนสินค้า (มีแค่มูลค่า event ที่หน้าบันทึก 00089 ก็แสดงใต้ X9 เดียวกัน) · เทสด่านเฉพาะ: src/app/api/chat/conversations/[id]/capi-events/__tests__/route.test.ts',
   'src/app/api/seller/shipments/[id]/problem-close/': 'พรีวิวการปิดพัสดุมีปัญหา (S1 · 00085) — คืนผลตัดสินของพัสดุใบเดียว ไม่มีข้อมูลเงินรายใบ · ร้านตัดสินจากแถวพัสดุ (ไม่ตรง = 404) · เทสด่านเฉพาะ: src/app/api/seller/shipments/[id]/problem-close/__tests__/route.test.ts',
   'src/app/api/shops/current/report-settings/': 'ตั้งค่ารายงานการเงิน (F1 เจ้าของเท่านั้น · 00073 เฟส B) — config ล้วน ไม่มีแถวเงิน/ต้นทุน',
   'src/app/api/seller/service-report/': 'หน้ายอดขายและกำไรร้านบริการ (F1 เจ้าของเท่านั้น + ร้านบริการเท่านั้น · 00078) — ด่าน F1 ชุดเดียวกับ sales-series ที่อยู่ใน MATRIX · เทสด่านเฉพาะ: tests/integration/service-report-routes.test.ts',

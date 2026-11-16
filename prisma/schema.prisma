@@ -5602,7 +5602,7 @@ model MetaCapiDataset {
 /// dedupeKey ไม่ซ้ำต่อ dataset (BR-CAPI-01) — INSERT ... ON CONFLICT DO NOTHING
 /// pageId/psid/eventTime/payload = ภาพนิ่งตอนเข้าคิว ห้องถูกลบภายหลังก็ยังส่งได้ · conversationId ไม่มี FK
 /// payload: { value?, orderId?, items? } · status "PENDING"|"SENT"|"FAILED"|"SKIPPED"
-/// lastRequest/lastResponse: ครั้งล่าสุด ตัดขนาดแล้ว ไม่มี token · ลบแถวเก่ากว่า 180 วัน
+/// lastRequest/lastResponse: ครั้งล่าสุด ตัดขนาดแล้ว ไม่มี token · เก็บถาวร (PR #230 ถอด purge 180 วัน)
 model MetaCapiEvent {
   id             String    @id @default(uuid())
   shopId         String

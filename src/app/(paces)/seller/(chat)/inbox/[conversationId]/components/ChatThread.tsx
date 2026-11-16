@@ -79,6 +79,8 @@ import ThreadChipStrip, {
   type ThreadContextItem,
 } from './ThreadChipStrip'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
+import CapiStoppedBanner from './CapiStoppedBanner'
+import { useCapiLines } from './useCapiLines'
 import OrderProgressBar, { orderProgressChip } from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmAsync } from '@/lib/paces-swal'
@@ -811,6 +813,8 @@ type Props = {
   isChatbotTestThread?: boolean
   /** มีบอทตัวไหนจะตอบห้องนี้ไหม — false = ไม่ต้องบอกว่า "พัก" เพราะไม่มีอะไรถูกพัก */
   botCouldReply?: boolean
+  /** 00097 — server คำนวณ: X9 ของร้านเธรด && isMetaCapiEnabled && ห้อง Messenger · false = ไม่ยิงคำขอ ไม่มี DOM */
+  capiEnabled?: boolean
   /** 00078 — เวลา (ms) ที่ Meta AI ถือห้องถึง (primitive จาก server) · null = ไม่ถือ */
   metaAiHoldUntilMs?: number | null
   /** 00078 S-7 — ใบที่นับของลูกค้าห้องนี้กับร้านนี้ (summarizeCustomerBehavior) · null = ยังไม่ผูกลูกค้า */
@@ -1256,6 +1260,7 @@ export default function ChatThread({
   botHandoffReason = null,
   isChatbotTestThread = false,
   botCouldReply = false,
+  capiEnabled = false,
   metaAiHoldUntilMs = null,
   customerCounted = null,
   channel,
@@ -1616,6 +1621,8 @@ export default function ChatThread({
     quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false, initialMessages, customerPanelData?.vertical)
+  // 00097 — บรรทัด event ที่ส่งให้ Meta (ดึงแยกจากข้อความ ไม่แตะ store/delta) · ข้อความท้ายเปลี่ยน = ดึงใหม่
+  const capi = useCapiLines(conversationId, capiEnabled, messages[messages.length - 1]?.id ?? null)
 
   // ── แตะกล่อง quote แล้วเลื่อนไปหาข้อความต้นทาง (user report 2026-08-11) ──────────────
   //
@@ -2629,6 +2636,21 @@ export default function ChatThread({
       ),
     })
   }
+  // 00097 D13 — เพจหยุดส่ง CAPI ทั้งหมด · ต่อจาก 'bot' ก่อน 'chatbot-test' · channelId=null (เพจถูกถอด) = ไม่มีที่ให้ไปตั้งค่า ไม่ขึ้น
+  if (capiEnabled && capi.pageStopped && capi.channelId) {
+    threadStatuses.push({
+      key: 'capiStopped',
+      tone: 'warning',
+      icon: 'plug-connected-x',
+      short: t.conversionsApi.statusStoppedShort,
+      action: (
+        <Link href={`/settings/capis/${capi.channelId}`} className="shrink-0 text-xs font-semibold underline">
+          {t.conversionsApi.goSettings}
+        </Link>
+      ),
+      detail: <CapiStoppedBanner channelId={capi.channelId} />,
+    })
+  }
   if (isChatbotTestThread) {
     // feature 00023 (user สั่ง 2026-08-01) — ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่ง
     // ในโหมดนี้ถึงลูกค้าจริง ไม่ใช่การจำลอง คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น
@@ -3290,6 +3312,10 @@ export default function ChatThread({
             savedFiles={savedFiles}
             savingFileId={savingFileId}
             metaAiMessageIds={metaAiMessageIds}
+            capiGroups={capi.groups}
+            capiChannelId={capi.channelId}
+            capiPageStopped={capi.pageStopped}
+            capiHasOlder={oldestCursor !== null}
             toggleLibrary={toggleLibraryStable}
             setReplyingTo={setReplyingTo}
             setActionTarget={setActionTarget}

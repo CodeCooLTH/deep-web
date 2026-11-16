@@ -14,10 +14,10 @@
  */
 import { memo, useMemo } from 'react'
 import Icon from '@/components/wrappers/Icon'
-import { groupByDate, type ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+import { dayLabelOf, groupByDate, type ChatMessageView } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { computeBurstEndIds } from '@/lib/chat-message-burst'
 import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
-import { formatTimeHM, formatDateTimeTH, formatChatBubbleTime } from '@/lib/format-date'
+import { formatDate, formatTimeHM, formatDateTimeTH, formatChatBubbleTime } from '@/lib/format-date'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import { resolveChatChannel } from '@/lib/chat-channel'
@@ -38,6 +38,8 @@ import { isFollowBotKind, isSystemNoticeKind } from '@/lib/auto-reply-constants'
 import { systemNoticeLabelKey } from '@/lib/system-notice-label'
 import { chatOrderLabel } from '@/lib/chat-vocab'
 import { fmt } from '@/i18n/fmt'
+import { layoutCapiDays, type CapiLineGroup } from '@/lib/meta-capi/chat-lines'
+import CapiChatLine from './CapiChatLine'
 import AutoOrderResultCard from './AutoOrderResultCard'
 import AutoReplyTag from './AutoReplyTag'
 import type { OpenDraftInput } from '../../../_components/DraftOrderProvider'
@@ -95,6 +97,12 @@ export type ThreadMessageListProps = {
   metaAiMessageIds: Set<string>
   /** Shop.vertical — ใช้ผันคำ "สรุป{noun}" ของป้ายข้อความระบบ */
   vertical?: string | null
+  /** 00097 — กลุ่มเหตุการณ์ CAPI (ว่าง/ไม่ส่ง = ไม่มีบรรทัด) · ส่งแยกทีละ field ไม่ห่อ object ให้ memo เสถียร */
+  capiGroups?: CapiLineGroup[]
+  capiChannelId?: string | null
+  capiPageStopped?: boolean
+  /** ยังมีข้อความเก่ากว่าที่โหลด → ไม่แสดงกลุ่มที่เก่ากว่าข้อความแรก */
+  capiHasOlder?: boolean
   // ── callback: identity ต้องคงที่ (useStableCallback / setState / useCallback ของ hook) ──
   toggleLibrary: (m: { id: string; imageUrl?: string | null }) => Promise<void> | void
   setReplyingTo: (m: ChatMessageView | null) => void
@@ -129,6 +137,10 @@ function ThreadMessageListImpl({
   savingFileId,
   metaAiMessageIds,
   vertical,
+  capiGroups,
+  capiChannelId = null,
+  capiPageStopped = false,
+  capiHasOlder = false,
   toggleLibrary,
   setReplyingTo,
   setActionTarget,
@@ -147,19 +159,42 @@ function ThreadMessageListImpl({
   const albumRows = useMemo(() => groups.map((g) => buildAlbumRows(g.items)), [groups])
   const burstEndIds = useMemo(() => computeBurstEndIds(messages, GROUP_GAP_MS), [messages])
   const lastMsgId = messages[messages.length - 1]?.id ?? null
+  // 00097: แถว (บับเบิลเดี่ยว/อัลบั้ม) เป็นหน่วยเดียว at = ข้อความท้ายแถว → บรรทัด CAPI ไม่แทรกกลางบับเบิลกับ meta ของมัน
+  // ไม่มีกลุ่ม = โครงวันเดิมทุกตัวอักษร (ChatWidget/พรีวิวไม่ส่ง capiGroups)
+  const days = useMemo(() => {
+    const rows = groups.flatMap((g, gi) =>
+      albumRows[gi].map((row) => {
+        const last = row.kind === 'album' ? row.ms[row.ms.length - 1] : row.m
+        return { day: g.key, at: last.createdAt, r: row }
+      }),
+    )
+    return layoutCapiDays(rows, capiGroups ?? [], { hasOlder: capiHasOlder }, formatDate)
+  }, [groups, albumRows, capiGroups, capiHasOlder])
   // ป้ายบอทติดตามติดเฉพาะฟองแรกของรอบ (00095 UX §4.2) — ผูกกับ messages ทั้งก้อน ไม่คำนวณในลูป
   const followBadgeIds = useMemo(() => followBotBadgeIds(messages as ChatMessageWithDelivery[]), [messages])
 
   return (
     <>
-      {groups.map((g, gi) => (
-            <div key={g.key}>
+      {days.map((g) => (
+            <div key={g.day}>
               {/* date divider — badge chip กึ่งกลาง */}
               <div className="my-4 flex justify-center">
-                <span className="badge bg-default-100 text-default-700 text-2xs">{g.label}</span>
+                <span className="badge bg-default-100 text-default-700 text-2xs">{dayLabelOf(g.day)}</span>
               </div>
 
-              {albumRows[gi].map((row) => {
+              {g.items.map((item) => {
+                if (item.type === 'capi') {
+                  return (
+                    <CapiChatLine
+                      key={`capi-${item.groups[0].id}`}
+                      groups={item.groups}
+                      conversationId={conversationId}
+                      channelId={capiChannelId}
+                      pageStopped={capiPageStopped}
+                    />
+                  )
+                }
+                const row = item.r
                 // อัลบั้มรูป (ชุดรูปที่ส่งติดกัน) — render grid + meta ของข้อความตัวสุดท้ายในชุด
                 if (row.kind === 'album') {
                   const ms = row.ms

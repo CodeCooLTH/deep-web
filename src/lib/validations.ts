@@ -2664,6 +2664,8 @@ export const CapiDatasetTestSchema = v.object({
 export const CapiLogQuerySchema = v.object({
   status: v.optional(v.picklist(["PENDING", "SENT", "FAILED", "SKIPPED"], "สถานะไม่ถูกต้อง")),
   eventKey: v.optional(v.picklist(CAPI_EVENTS.map((e) => e.key), "เหตุการณ์ไม่ถูกต้อง")),
+  conversation: v.optional(v.pipe(v.string(), v.uuid("รหัสห้องแชทไม่ถูกต้อง"))),
+  order: v.optional(v.pipe(v.string(), v.maxLength(64, "รหัสคำสั่งซื้อยาวเกินไป"))),
   cursor: v.optional(v.pipe(v.string(), v.maxLength(64))),
   take: v.optional(v.pipe(v.string(), v.regex(/^\d{1,3}$/, "take ต้องเป็นตัวเลข"), v.transform(Number))),
 });

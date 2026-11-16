@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { isMetaCapiEnabled } from "@/lib/meta-capi/gate";
 import { CAPI_EVENTS, SELECTABLE_EVENTS, type CapiEventKey } from "@/lib/meta-capi/events";
 import { buildCapiBody } from "@/lib/meta-capi/payload";
+import { groupCapiRows, type CapiLineGroup, type CapiRowLite } from "@/lib/meta-capi/chat-lines";
+import { capiPageStatus } from "@/lib/meta-capi/ui";
 import { classifySendResult } from "@/lib/meta-capi/classify";
 import { GRAPH_BASE } from "@/lib/facebook/constants";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
@@ -400,19 +402,152 @@ export async function testCapiDataset(
 export interface CapiLogQuery {
   status?: "PENDING" | "SENT" | "FAILED" | "SKIPPED";
   eventKey?: CapiEventKey;
+  /** 00097 — เฉพาะแถวของห้องนี้ (Conversation.id) */
+  conversationId?: string;
+  /** 00097 — เฉพาะแถวของคำสั่งซื้อนี้ (Order.publicToken) · ไม่พบคำสั่งซื้อของร้าน = rows ว่าง */
+  orderToken?: string;
   /** id ของแถวสุดท้ายหน้าก่อน (nextCursor) */
   cursor?: string;
   take?: number;
+}
+
+// ─── 00097 เหตุการณ์ต่อห้อง / ต่อคำสั่งซื้อ (อ่านอย่างเดียว) ───────────────────────────────────
+
+const ROOM_CAP = 300;
+// 🛑 allow-list: ห้าม select psid/lastRequest/lastResponse/lastHttpStatus/lockedAt/nextAttemptAt
+const EVENT_SELECT = {
+  id: true, dedupeKey: true, eventKey: true, status: true, reason: true, attempts: true, sentAt: true, createdAt: true, payload: true,
+  dataset: { select: { label: true, datasetId: true, shopChannelId: true } },
+} as const;
+const ORDER_BY_NEWEST = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+
+export interface ConversationCapiEvents {
+  visible: boolean;
+  channelId: string | null;
+  pageStopped: boolean;
+  truncated: boolean;
+  groups: CapiLineGroup[];
+}
+
+/** สถานะเพจ (เปิดส่ง + ชุดข้อมูล) — ใช้ทั้งแถบหยุดส่งในห้อง และการ์ดคำสั่งซื้อ */
+async function pageStateOf(shopId: string, shopChannelId: string) {
+  const [setting, datasets] = await Promise.all([
+    prisma.metaCapiPageSetting.findUnique({ where: { shopChannelId }, select: { enabled: true } }),
+    prisma.metaCapiDataset.findMany({ where: { shopId, shopChannelId }, select: { status: true } }),
+  ]);
+  return { enabled: setting?.enabled ?? false, datasets };
+}
+
+/** บรรทัดเหตุการณ์ของห้อง Messenger (X9) — shopId ต้องมาจากห้องที่ด่านแชท resolve แล้ว */
+export async function listConversationCapiEvents(shopId: string, conversationId: string): Promise<ConversationCapiEvents> {
+  gate(shopId);
+  const none: ConversationCapiEvents = { visible: false, channelId: null, pageStopped: false, truncated: false, groups: [] };
+  const conv = await prisma.conversation.findFirst({
+    where: { id: conversationId, shopId },
+    select: { channel: true, shopChannelId: true, shopChannel: { select: { status: true } } },
+  });
+  if (!conv || conv.channel !== "MESSENGER" || !conv.shopChannelId) return none;
+  const [rows, ps] = await Promise.all([
+    prisma.metaCapiEvent.findMany({ where: { shopId, conversationId }, orderBy: ORDER_BY_NEWEST, take: ROOM_CAP + 1, select: EVENT_SELECT }),
+    pageStateOf(shopId, conv.shopChannelId),
+  ]);
+  const truncated = rows.length > ROOM_CAP;
+  // shortcut: ตัดเฉพาะกลุ่มของ rows[300] ได้ผลเพราะแถว dedupeKey เดียวกันเกิดจาก createMany เดียว (createdAt เท่ากัน
+  // จึงอยู่ติดกัน) — ถ้าเปลี่ยนวิธี enqueue ให้แถวของกลุ่มเดียวกันห่างกัน ต้องทบทวนตรงนี้
+  // ตัดแถวที่ 301 ทิ้งพร้อมทั้งกลุ่มของมัน — กลุ่มที่ชุดข้อมูลขาดไม่ควรโผล่เป็น "Meta รับแล้ว 1 จาก 1"
+  const cutKey = truncated ? rows[ROOM_CAP].dedupeKey : null;
+  const kept = truncated ? rows.slice(0, ROOM_CAP).filter((r) => r.dedupeKey !== cutKey) : rows;
+  const channelOpen = conv.shopChannel?.status !== "DISCONNECTED";
+  return {
+    visible: true,
+    channelId: channelOpen ? conv.shopChannelId : null,
+    pageStopped: channelOpen && capiPageStatus(ps) === "stopped",
+    truncated,
+    groups: groupCapiRows(kept as CapiRowLite[]),
+  };
+}
+
+/** convSet = ห้องของคำสั่งซื้อ ∪ ห้องที่การ์ดคำสั่งซื้อถูกส่ง (INITIATE_CHECKOUT/CART_ABANDONED อยู่ห้องของข้อความ) — SRS §1.4 */
+async function orderConvSet(shopId: string, o: { publicToken: string; conversationId: string | null }): Promise<string[]> {
+  const sent = await prisma.chatMessage.findMany({
+    where: { orderRefToken: o.publicToken, type: "ORDER", conversation: { shopId } },
+    select: { conversationId: true },
+    distinct: ["conversationId"],
+  });
+  return [...new Set([...(o.conversationId ? [o.conversationId] : []), ...sent.map((m) => m.conversationId)])];
+}
+
+export type OrderCapiPageState = "rows" | "empty" | "off";
+export type OrderCapiEvents =
+  | { show: false }
+  | { show: true; groups: CapiLineGroup[]; channelId: string | null; pageState: OrderCapiPageState; pageName: string | null };
+
+/**
+ * 🛑 ฟังก์ชันนี้ไม่ตรวจสิทธิ์เอง — caller ต้องผ่านด่าน X9 ของร้านเจ้าของ order (และ isMetaCapiEnabled) ก่อนเรียกเสมอ
+ */
+/** การ์ดเหตุการณ์ในหน้าคำสั่งซื้อ (X9) — จำกัดด้วย conversationId IN convSet ก่อน JSON path เสมอ (SRS §7.1) · เรียงใหม่ → เก่า */
+export async function listOrderCapiEvents(
+  shopId: string,
+  order: { id: string; publicToken: string; conversationId: string | null },
+): Promise<OrderCapiEvents> {
+  gate(shopId);
+  const convSet = await orderConvSet(shopId, order);
+  if (!convSet.length) return { show: false };
+  const rows = await prisma.metaCapiEvent.findMany({
+    where: { shopId, conversationId: { in: convSet }, payload: { path: ["orderId"], equals: order.id } },
+    orderBy: ORDER_BY_NEWEST,
+    select: EVENT_SELECT,
+  });
+  // ห้องของคำสั่งซื้อก่อน (ลิงก์ชี้เพจเดียว — SRS §7.1) ไม่งั้นเพจของแถวล่าสุด
+  const home = order.conversationId
+    ? await prisma.conversation.findFirst({ where: { id: order.conversationId, shopId }, select: { channel: true, shopChannelId: true } })
+    : null;
+  const homeChannel = home?.channel === "MESSENGER" ? home.shopChannelId : null;
+  const rowChannel = rows[0]?.dataset.shopChannelId ?? null;
+  const shopChannelId = homeChannel ?? rowChannel;
+  if (!rows.length && !homeChannel) return { show: false };
+  const ch = shopChannelId
+    ? await prisma.shopChannel.findFirst({ where: { id: shopChannelId, shopId }, select: { name: true, status: true } })
+    : null;
+  const channelId = ch && ch.status !== "DISCONNECTED" ? shopChannelId : null;
+  const groups = groupCapiRows(rows as CapiRowLite[]).reverse();
+  if (rows.length) return { show: true, groups, channelId, pageState: "rows", pageName: ch?.name ?? null };
+  const ps = await pageStateOf(shopId, homeChannel as string);
+  return { show: true, groups: [], channelId, pageState: capiPageStatus(ps) === "off" ? "off" : "empty", pageName: ch?.name ?? null };
+}
+
+/** 00097 — ชิปตัวกรองของหน้าบันทึก: ห้อง/ออเดอร์ที่ไม่ใช่ของร้านนี้ = null (ไม่มีชิป ไม่กรอง) · ผูกร้านเสมอ */
+export async function resolveCapiLogFilters(shopId: string, q: { conversation?: string; order?: string }) {
+  gate(shopId);
+  const [conv, order] = await Promise.all([
+    q.conversation
+      ? prisma.conversation.findFirst({ where: { id: q.conversation, shopId }, select: { id: true, externalContact: { select: { name: true } } } })
+      : null,
+    q.order ? prisma.order.findFirst({ where: { publicToken: q.order, shopId }, select: { publicToken: true, orderNo: true } }) : null,
+  ]);
+  return {
+    conversation: conv ? { id: conv.id, name: conv.externalContact?.name?.trim() || null } : null,
+    order: order ? { token: order.publicToken, no: order.orderNo } : null,
+  };
 }
 
 export async function listCapiLog(shopId: string, channelId: string, q: CapiLogQuery) {
   gate(shopId);
   await loadChannel(shopId, channelId);
   const take = Math.min(Math.max(Math.trunc(q.take ?? 20) || 20, 1), 50);
+  let scope: Prisma.MetaCapiEventWhereInput = q.conversationId ? { conversationId: q.conversationId } : {};
+  if (q.orderToken) {
+    const o = await prisma.order.findFirst({ where: { publicToken: q.orderToken, shopId }, select: { id: true, conversationId: true, publicToken: true } });
+    if (!o) return { rows: [], nextCursor: null };
+    const convSet = await orderConvSet(shopId, o);
+    // conversation + order พร้อมกัน = ซ้อนกันเป็น AND (ห้องนั้นต้องอยู่ใน convSet ด้วย)
+    scope = { AND: [scope, { conversationId: { in: convSet }, payload: { path: ["orderId"], equals: o.id } }] };
+  }
   const rows = await prisma.metaCapiEvent.findMany({
     where: {
       shopId,
       dataset: { shopChannelId: channelId },
+      ...scope,
       ...(q.status ? { status: q.status } : {}),
       ...(q.eventKey ? { eventKey: q.eventKey } : {}),
     },
@@ -421,7 +556,7 @@ export async function listCapiLog(shopId: string, channelId: string, q: CapiLogQ
     ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
     // ไม่ select psid/lastRequest/lastResponse — เป็นข้อมูลลูกค้า/ดิบ ไม่จำเป็นต่อหน้าจอ
     select: {
-      id: true, createdAt: true, eventKey: true, status: true, reason: true, attempts: true, payload: true, conversationId: true, eventTime: true,
+      id: true, createdAt: true, eventKey: true, status: true, reason: true, attempts: true, sentAt: true, payload: true, conversationId: true, eventTime: true,
       dataset: { select: { label: true, datasetId: true } },
     },
   });
@@ -461,6 +596,7 @@ export async function listCapiLog(shopId: string, channelId: string, q: CapiLogQ
         status: r.status,
         reason: r.reason,
         attempts: r.attempts,
+        sentAt: r.sentAt,
         customer: contact ? { name: contact.name, avatarUrl: contact.avatarUrl } : null,
         order: o ? { orderNo: o.orderNo, publicToken: o.publicToken } : null,
         ad: ref ? { adId: ref.adId, adTitle: ref.adTitle, photoFileId: ref.photoFileId, clickedAt: ref.receivedAt } : null,

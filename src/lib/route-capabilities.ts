@@ -265,6 +265,8 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/chat/conversations/[id]/read/route.ts': { POST: 'H1', status: 'DECLARED' },
   // 00088 — สถานะห้องสำหรับแชท Native (อ่านอย่างเดียว · ด่านเดียวกับ /preview)
   'src/app/api/chat/conversations/[id]/thread-state/route.ts': { GET: 'H1', status: 'DECLARED' },
+  // 00097 — บรรทัดเหตุการณ์ CAPI ของห้อง (X9 ตามร้านของห้อง ไม่ใช่ร้าน active)
+  'src/app/api/chat/conversations/[id]/capi-events/route.ts': { GET: 'X9', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/route.ts': { PATCH: 'H2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/thread-control/route.ts': { POST: 'X2', DELETE: 'X2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/typing/route.ts': { POST: 'H2', status: 'DECLARED' },
