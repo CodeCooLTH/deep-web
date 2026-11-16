@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { CAPI_EVENTS } from '@/lib/meta-capi/events'
 import { CAPI_EVENT_GROUPS } from '@/lib/meta-capi/ui'
@@ -39,6 +40,9 @@ export default function AddEventModal({ datasetName, purchaseWhen, available, on
   const [q, setQ] = useState('')
   const [saving, setSaving] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // กักโฟกัส (ประกาศก่อน effect ด้านล่าง เพื่อให้ช่องค้นหาได้โฟกัสเป็นตัวสุดท้าย)
+  useFocusTrap(panelRef)
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -73,7 +77,7 @@ export default function AddEventModal({ datasetName, purchaseWhen, available, on
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card flex h-full w-full flex-col max-sm:rounded-none sm:h-auto sm:max-w-lg">
+      <div ref={panelRef} className="card flex h-full w-full flex-col max-sm:rounded-none sm:h-auto sm:max-w-lg">
         <div className="card-header p-5 max-sm:py-3 max-sm:pe-2 max-sm:ps-4">
           <h3 id="capi-add-event-label" className="text-base font-semibold">
             {t.evAdd} <span className="text-default-700 text-xs font-normal">· {datasetName}</span>

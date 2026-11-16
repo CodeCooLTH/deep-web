@@ -17,6 +17,7 @@ import { useT } from '@/i18n/LocaleProvider'
 import { capiPageStatus } from '@/lib/meta-capi/ui'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { cn } from '@/utils/helpers'
 import DatasetsCard from './DatasetsCard'
 import type { EventSettingsResult } from './EventSettingsModal'
 import StatsRow from './StatsRow'
@@ -32,6 +33,8 @@ export default function DetailClient({ data }: { data: DetailData }) {
   const [opts, setOpts] = useState<EventOpts>(data.eventOptions)
   const [datasets, setDatasets] = useState<DatasetView[]>(data.datasets)
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
+  const [selectedDs, setSelectedDs] = useState<string | null>(null)
+  const [tokenJump, setTokenJump] = useState<{ id: string; n: number } | null>(null)
   const mark = (k: string, on: boolean) =>
     setBusy((s) => {
       const n = new Set(s)
@@ -119,16 +122,29 @@ export default function DetailClient({ data }: { data: DetailData }) {
     if (ok) pacesToast.success(fmt(t.evRemoved, { name: t.events[key as keyof typeof t.events].label }), { action: { label: t.evUndo, onClick: () => void saveEvents({ ...d, events: before.filter((e) => e !== key) }, before) } })
   }
 
+  const jumpToToken = (id: string) => {
+    setSelectedDs(id)
+    setTokenJump((j) => ({ id, n: (j?.n ?? 0) + 1 }))
+    // หลัง React commit แถวใหม่ (ฟอร์ม token เปิด) ค่อยเลื่อนไปหาและโฟกัสช่อง token
+    setTimeout(() => {
+      const box = document.getElementById(`capi-ds-${id}`)
+      box?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      box?.querySelector<HTMLInputElement>('[data-capi-token-input]')?.focus({ preventScroll: true })
+    }, 0)
+  }
+
   const logHref = `/settings/capis/${data.channelId}/log`
 
   return (
-    <div className="flex flex-col gap-base">
+    // cap 1280 กึ่งกลาง — จอกว้าง 2000px ไม่ให้ปุ่มในแถวห่างจากข้อความเป็นพันพิกเซล
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-base">
       <div className="card">
-        <div className="card-body flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* ตัวตนเพจ + สวิตช์จัดกลุ่มชิดกัน (ไม่ justify-between) คั่นด้วยเส้นตั้ง */}
+        <div className="card-body flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8">
           <div className="flex min-w-0 items-center gap-3">
             <PageAvatar src={data.avatarUrl} name={data.name} className="size-12" />
             <div className="min-w-0">
-              <p className="text-default-900 truncate text-base font-semibold" title={data.name}>
+              <p className="text-default-900 truncate text-lg font-semibold" title={data.name}>
                 {data.name}
               </p>
               <p className="text-default-700 mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
@@ -136,23 +152,18 @@ export default function DetailClient({ data }: { data: DetailData }) {
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-between gap-4 max-sm:border-default-200 max-sm:border-t max-sm:pt-3">
+          <div className="flex shrink-0 items-center justify-between gap-4 max-sm:border-default-200 max-sm:border-t max-sm:pt-3 sm:border-default-200 sm:border-s sm:ps-8">
             <label htmlFor="capi-main" className="text-default-900 text-sm font-medium">
               {t.mainSwitchLabel}
             </label>
             <input id="capi-main" type="checkbox" className="form-switch" checked={setting.enabled} disabled={datasets.length === 0 || busy.has('main')} title={datasets.length === 0 ? t.switchNeedsDataset : undefined} aria-busy={busy.has('main') || undefined} onChange={(e) => void toggleMain(e.target.checked)} />
           </div>
         </div>
-        {!setting.enabled && (
-          <p className="bg-default-100 text-default-800 mx-5 mb-5 rounded px-3 py-2 text-xs max-sm:mx-4 max-sm:mb-4">{t.offNote}</p>
-        )}
-        {/* เปิดส่งอยู่ = เตือนเสมอ: กดสถานะคำสั่งซื้อ/ลีดเองใน Meta Business Suite ซ้ำกับที่ Deep ส่ง อาจทำให้ยอดในแอดเบิ้ล */}
-        {setting.enabled && (
-          <p className="bg-warning/15 text-warning-ink mx-5 mb-5 flex items-start gap-2 rounded px-3 py-2 text-xs max-sm:mx-4 max-sm:mb-4">
-            <Icon icon="info-circle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>{t.metaManualWarn}</span>
-          </p>
-        )}
+        {/* หมายเหตุท้ายการ์ด (ไม่มีชุดข้อมูล = บอกว่าทำไมสวิตช์กดไม่ได้ เพราะ title มองไม่เห็นบนมือถือ): บรรทัดเดียวมีไอคอน ไม่ใช่กล่องสียืดเต็มจอ · เปิดส่ง = เตือนกดซ้ำใน Meta Business Suite (ยอดในแอดเบิ้ล) */}
+        <p className="border-default-300 text-default-800 flex items-start gap-2 border-t border-dashed px-5 py-3 text-xs max-sm:px-4">
+          <Icon icon="info-circle" className={cn('mt-0.5 size-4 shrink-0', setting.enabled ? 'text-warning-ink' : 'text-default-500')} aria-hidden="true" />
+          <span>{datasets.length === 0 ? t.switchNeedsDataset : setting.enabled ? t.metaManualWarn : t.offNote}</span>
+        </p>
       </div>
 
       {pageStopped.length > 0 && (
@@ -166,12 +177,17 @@ export default function DetailClient({ data }: { data: DetailData }) {
         </div>
       )}
       {manualStopped.map((d) => (
-        <div key={d.id} role="alert" className="bg-danger/15 text-danger-ink flex items-start gap-2.5 rounded-lg p-3 text-sm">
+        <div key={d.id} role="alert" className="bg-danger/15 text-danger-ink flex flex-wrap items-start gap-2.5 rounded-lg p-3 text-sm">
           <Icon icon="alert-triangle" className="mt-0.5 size-4.5 shrink-0" aria-hidden="true" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold">{fmt(t.bannerManualTitle, { name: datasetName(d, t.dsPageDefaultName) })}</p>
             <p className="mt-0.5">{t.bannerManualBody}</p>
           </div>
+          {/* ทางแก้อยู่ในปุ่มเลย: เลือกชุดนั้น + เปิดฟอร์ม token + เลื่อนไปโฟกัสช่อง (เดิมบอกให้ไปหาเอง) */}
+          <button type="button" onClick={() => jumpToToken(d.id)} className="btn btn-sm bg-primary/15 text-primary-ink hover:bg-primary/25 min-h-11 max-sm:w-full sm:self-center lg:min-h-0">
+            <Icon icon="key" className="size-3.5" aria-hidden="true" />
+            {t.dsChangeToken}
+          </button>
         </div>
       ))}
 
@@ -179,6 +195,10 @@ export default function DetailClient({ data }: { data: DetailData }) {
 
       <DatasetsCard
         channelId={data.channelId}
+        selected={selectedDs}
+        onSelect={setSelectedDs}
+        tokenJump={tokenJump}
+        pageEnabled={setting.enabled}
         datasets={datasets}
         onChange={setDatasets}
         eventOptions={opts}

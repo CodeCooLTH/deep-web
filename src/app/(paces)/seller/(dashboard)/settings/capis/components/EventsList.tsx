@@ -23,9 +23,28 @@ import { datasetName, type DatasetView, type EventOpts } from './types'
 
 const META = new Map(CAPI_EVENTS.map((e) => [e.key as string, e.metaName]))
 const ALL = CAPI_EVENT_GROUPS.flatMap((g) => g.keys as readonly string[])
+/** ไอคอนนำหน้าแถว — ให้สแกนรายการได้ด้วยตาโดยไม่ต้องอ่านชื่อ */
+const EV_ICON: Record<string, string> = {
+  PURCHASE: 'shopping-bag',
+  ORDER_CREATED: 'file-plus',
+  INITIATE_CHECKOUT: 'link',
+  ADD_PAYMENT_INFO: 'receipt',
+  ORDER_SHIPPED: 'truck',
+  ORDER_DELIVERED: 'package',
+  ORDER_CANCELED: 'circle-x',
+  ORDER_RETURNED: 'arrow-back-up',
+  VIEW_CONTENT: 'photo',
+  CART_ABANDONED: 'shopping-cart-x',
+  LEAD_SUBMITTED: 'user-plus',
+  QUALIFIED_LEAD: 'user-check',
+}
 
 type Props = {
   ds: DatasetView
+  /** เพจเปิดส่งและชุดนี้ไม่ถูกหยุด — false = ไอคอนแถวเป็นสีกลาง (ยังไม่ส่งจริง) */
+  sending: boolean
+  /** แสดงหัว "สิ่งที่แจ้งให้ Meta" — ปิดเมื่อการ์ดแม่ใช้คำนี้เป็นหัวการ์ดอยู่แล้ว (ชุดข้อมูลเดียว) */
+  heading?: boolean
   eventOptions: EventOpts
   purchaseAt: string
   countPromotedDraft: boolean
@@ -36,7 +55,7 @@ type Props = {
   onSaveSettings: (key: string, r: EventSettingsResult) => Promise<boolean>
 }
 
-export default function EventsList({ ds, eventOptions, purchaseAt, countPromotedDraft, tags, busyKeys, onAdd, onRemove, onSaveSettings }: Props) {
+export default function EventsList({ ds, sending, heading = true, eventOptions, purchaseAt, countPromotedDraft, tags, busyKeys, onAdd, onRemove, onSaveSettings }: Props) {
   const t = useT().conversionsApi
   const [settingsKey, setSettingsKey] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -51,9 +70,9 @@ export default function EventsList({ ds, eventOptions, purchaseAt, countPromoted
   )
 
   return (
-    <div className="border-default-200 mt-4 border-t pt-4">
-      <div className="flex items-center justify-between gap-2">
-        <h5 className="text-default-900 text-sm font-semibold">{t.evTitle}</h5>
+    <div>
+      <div className={cn('flex items-center gap-2', heading ? 'justify-between' : 'justify-end')}>
+        {heading && <h5 className="text-default-900 text-sm font-semibold">{t.evTitle}</h5>}
         {ds.events.length > 0 && addBtn('btn btn-sm border-default-300 text-default-800 min-h-11 border lg:min-h-0')}
       </div>
       {ds.events.length === 0 ? (
@@ -74,16 +93,20 @@ export default function EventsList({ ds, eventOptions, purchaseAt, countPromoted
               const rules = eventOptions[key]?.rules?.length ?? 0
               return (
                 <li key={key} className="py-3">
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3">
+                    <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', !sending ? 'bg-default-100 text-default-600' : isRule && rules === 0 ? 'bg-warning/15 text-warning-ink' : 'bg-primary/15 text-primary-ink')}>
+                      <Icon icon={EV_ICON[key] ?? 'bolt'} className="size-4.5" aria-hidden="true" />
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className={cn('text-default-900 text-sm', key === 'PURCHASE' ? 'font-semibold' : 'font-medium')}>
-                        {label.label} <span className="text-default-700 text-xs font-normal">({META.get(key)})</span>
+                        {label.label} <span className="text-default-700 text-2xs font-normal">{META.get(key)}</span>
                       </p>
                       <p className="text-default-700 mt-0.5 text-xs">{key === 'PURCHASE' ? fmt(label.desc, { when: t.purchaseAt[when] }) : label.desc}</p>
                       {key === 'VIEW_CONTENT' && <p className="text-default-800 mt-1 text-xs">{t.evViewContentNote}</p>}
-                      {isRule && <p className="text-default-800 mt-1 text-xs">{fmt(t.evRulesNote, { n: rules })}</p>}
+                      {isRule && rules > 0 && <p className="text-default-800 mt-1 text-xs">{fmt(t.evRulesNote, { n: rules })}</p>}
+                      {/* ยังไม่มีกฎ = บรรทัดเตือนในแถว (ไม่ใช่กล่องยืดเต็มความกว้าง) */}
                       {isRule && rules === 0 && (
-                        <p className="bg-warning/15 text-warning-ink mt-1.5 flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs">
+                        <p className="text-warning-ink mt-1 flex items-start gap-1.5 text-xs font-medium">
                           <Icon icon="alert-triangle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                           {t.evRulesWarn}
                         </p>
@@ -96,7 +119,8 @@ export default function EventsList({ ds, eventOptions, purchaseAt, countPromoted
                         aria-haspopup="dialog"
                         aria-label={fmt(t.evSettingsAria, { name: label.label })}
                         onClick={() => setSettingsKey(key)}
-                        className="btn btn-sm border-default-300 text-default-800 min-h-11 shrink-0 border lg:min-h-0"
+                        // ยังไม่มีกฎ = ปุ่มนี้คือทางแก้ → เน้นสี primary
+                        className={cn('btn btn-sm min-h-11 shrink-0 lg:min-h-0', isRule && rules === 0 ? 'bg-primary/15 text-primary-ink hover:bg-primary/25' : 'border-default-300 text-default-800 border')}
                       >
                         <Icon icon="settings" className="size-3.5" aria-hidden="true" />
                         {t.evSettings}
@@ -117,10 +141,6 @@ export default function EventsList({ ds, eventOptions, purchaseAt, countPromoted
               )
             })}
           </ul>
-          <p className="text-default-700 flex items-start gap-1.5 pt-3 text-xs">
-            <Icon icon="info-circle" className="text-default-500 mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            {t.evRemoveNote}
-          </p>
         </>
       )}
       {settingsKey && (
@@ -130,6 +150,7 @@ export default function EventsList({ ds, eventOptions, purchaseAt, countPromoted
           purchaseAt={purchaseAt}
           countPromotedDraft={countPromotedDraft}
           tags={tags}
+          multiDataset={heading}
           onSave={(r) => onSaveSettings(settingsKey, r)}
           onClose={() => {
             const k = settingsKey

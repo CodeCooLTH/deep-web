@@ -7,12 +7,15 @@
  *   + theme: .../form/elements/components/ChecksRadioSwitches.tsx (form-switch/form-radio) · InputTextfieldType.tsx (form-select) · InputGroup.tsx (input-group ฿)
  *   + กฎแท็ก ย้ายมาจาก RulesCard เดิม (ตัวเลือกแท็ก/ช่องมูลค่า/ตรวจ validate)
  *
+ * ตัวเลือกใช้ Select2 (react-select · มติห้าม native select) แบบ menuPosition="fixed" เพราะกล่องเนื้อหา overflow-y-auto ตัดเมนู · กักโฟกัสด้วย useFocusTrap
  * ตั้งค่าที่นี่เป็นระดับเพจ (ใช้กับทุกชุดข้อมูล) — มีข้อความบอกในโมดัล · mount = เปิดอยู่ จึง useLockBodyScroll(true)
  */
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
+import Select from '@/components/wrappers/Select'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { useT } from '@/i18n/LocaleProvider'
 import { CAPI_EVENTS } from '@/lib/meta-capi/events'
@@ -22,6 +25,8 @@ import { cn } from '@/utils/helpers'
 import type { EventOpt } from './types'
 
 const META = new Map(CAPI_EVENTS.map((e) => [e.key as string, e.metaName]))
+
+type Opt = { value: string; label: string }
 
 export type EventSettingsResult = { patch: Partial<EventOpt>; purchaseAt?: string; countPromotedDraft?: boolean }
 
@@ -34,11 +39,15 @@ type Props = {
   /** คืน true เมื่อบันทึกสำเร็จ → โมดัลปิดเอง · false = คงไว้ (ผู้เรียก toast error แล้ว) */
   onSave: (r: EventSettingsResult) => Promise<boolean>
   onClose: () => void
+  /** เพจมีหลายชุดข้อมูล — ค่อยบอกว่าค่าในหน้าต่างนี้ใช้กับทุกชุด (ชุดเดียว = ข้อมูลไม่มีความหมาย) */
+  multiDataset?: boolean
 }
 
-export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPromotedDraft, tags, onSave, onClose }: Props) {
+export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPromotedDraft, tags, onSave, onClose, multiDataset = false }: Props) {
   const t = useT().conversionsApi
   useLockBodyScroll(true)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef)
   const kind = eventSettingsKind(eventKey)
   const label = t.events[eventKey as keyof typeof t.events]
 
@@ -75,6 +84,8 @@ export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPro
 
   const patchRule = (i: number, p: Partial<RuleDraft>) => set({ rules: d.rules.map((r, j) => (j === i ? { ...r, ...p } : r)) })
   const used = new Set(d.rules.map((r) => r.tagId))
+  const timingOptions: Opt[] = (['CREATE', 'CONFIRM', 'PAYMENT'] as const).map((v) => ({ value: v, label: t.purchaseAt[v] }))
+  const tagOptions: Opt[] = tags.map((tg) => ({ value: tg.id, label: tg.name }))
   const hint = { CREATE: t.timingHintCREATE, CONFIRM: t.timingHintCONFIRM, PAYMENT: t.timingHintPAYMENT }[d.purchaseAt as 'CREATE' | 'CONFIRM' | 'PAYMENT'] ?? ''
 
   return (
@@ -87,7 +98,7 @@ export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPro
         if (e.target === e.currentTarget) void close()
       }}
     >
-      <div className="card flex h-full w-full flex-col max-sm:rounded-none sm:h-auto sm:max-w-lg">
+      <div ref={panelRef} className="card flex h-full w-full flex-col max-sm:rounded-none sm:h-auto sm:max-w-lg">
         <div className="card-header p-5 max-sm:py-3 max-sm:pe-2 max-sm:ps-4">
           <h3 id="capi-evs-label" className="text-base font-semibold">
             {t.evSettings} <span className="text-default-700 text-xs font-normal">· {label.label} ({META.get(eventKey)})</span>
@@ -98,21 +109,28 @@ export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPro
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5 max-sm:p-4 sm:max-h-96">
-          <p className="bg-default-100 text-default-800 flex items-start gap-1.5 rounded px-3 py-2 text-xs">
-            <Icon icon="info-circle" className="text-default-500 mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            {t.evsScope}
-          </p>
+          {multiDataset && (
+            <p className="bg-default-100 text-default-800 flex items-start gap-1.5 rounded px-3 py-2 text-xs">
+              <Icon icon="info-circle" className="text-default-500 mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              {t.evsScope}
+            </p>
+          )}
 
           {kind === 'purchase' && (
             <div>
               <label htmlFor="capi-timing-select" className="form-label">
                 {t.timingLabel}
               </label>
-              <select id="capi-timing-select" value={d.purchaseAt} onChange={(e) => set({ purchaseAt: e.target.value })} className="form-select min-h-11 lg:min-h-0">
-                <option value="CREATE">{t.purchaseAt.CREATE}</option>
-                <option value="CONFIRM">{t.purchaseAt.CONFIRM}</option>
-                <option value="PAYMENT">{t.purchaseAt.PAYMENT}</option>
-              </select>
+              <Select
+                inputId="capi-timing-select"
+                className="select2 react-select"
+                classNamePrefix="react-select"
+                isSearchable={false}
+                menuPosition="fixed"
+                options={timingOptions}
+                value={timingOptions.find((o) => o.value === d.purchaseAt) ?? null}
+                onChange={(o: unknown) => o && set({ purchaseAt: (o as Opt).value })}
+              />
               <p className="text-default-800 mt-1 text-xs">{hint}</p>
               <p className="text-default-700 mt-1 text-xs">{t.timingScope}</p>
             </div>
@@ -184,14 +202,20 @@ export default function EventSettingsModal({ eventKey, opt, purchaseAt, countPro
                           <label htmlFor={`capi-rt-${i}`} className="form-label sm:mb-0">
                             {t.rulesWhenTag}
                           </label>
-                          <select id={`capi-rt-${i}`} value={r.tagId} onChange={(e) => patchRule(i, { tagId: e.target.value })} className="form-select min-h-11 sm:w-40 lg:min-h-0" aria-invalid={!!err}>
-                            <option value="">{t.rulesPickTag}</option>
-                            {tags.map((tg) => (
-                              <option key={tg.id} value={tg.id} disabled={used.has(tg.id) && tg.id !== r.tagId}>
-                                {tg.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="sm:w-40">
+                            <Select
+                              inputId={`capi-rt-${i}`}
+                              aria-invalid={!!err}
+                              className="select2 react-select"
+                              classNamePrefix="react-select"
+                              menuPosition="fixed"
+                              placeholder={t.rulesPickTag}
+                              options={tagOptions}
+                              isOptionDisabled={(o: unknown) => used.has((o as Opt).value) && (o as Opt).value !== r.tagId}
+                              value={tagOptions.find((o) => o.value === r.tagId) ?? null}
+                              onChange={(o: unknown) => patchRule(i, { tagId: (o as Opt | null)?.value ?? '' })}
+                            />
+                          </div>
                           <label htmlFor={`capi-rv-${i}`} className="form-label sm:mb-0">
                             {t.rulesValue}
                           </label>
