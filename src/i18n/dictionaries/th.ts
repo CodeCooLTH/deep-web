@@ -2431,6 +2431,7 @@ export const th = {
     connectAds: 'เชื่อมบัญชีโฆษณา',
     reconnect: 'เชื่อมใหม่',
     dash: {
+      wfOfGross: '{p}% ของยอดสั่ง {v}',
       colMix: 'สัดส่วนลูกค้า',
       colNewSales: 'ยอดลูกค้าใหม่',
       colRetSales: 'ยอดลูกค้าเดิม',

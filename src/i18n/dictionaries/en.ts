@@ -1808,6 +1808,7 @@ export const en: Dictionary = {
     connectAds: 'Connect ad account',
     reconnect: 'Reconnect',
     dash: {
+      wfOfGross: '{p}% of {v} ordered',
       colMix: 'Customer mix',
       colNewSales: 'New customer sales',
       colRetSales: 'Returning sales',
