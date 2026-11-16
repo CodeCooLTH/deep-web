@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>00097 Event ที่ส่งให้ Meta รายแชทและรายออเดอร์ — ม็อกอัพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // โครงโทเคนลอกจากม็อกอัพ 00089 (2026-11-14-00089-capi-log-table-mockup.html) — สกิน Paces ทุกสีชี้ CSS variable ที่สลับตาม data-theme
+  const v = (n) => `var(--${n})`
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Anuphan', 'sans-serif'] },
+        fontSize: {
+          '2xs': ['11px', { lineHeight: '1.5' }], xs: ['13px', { lineHeight: '1.5' }], sm: ['14px', { lineHeight: '1.5' }],
+          md: ['15px', { lineHeight: '1.5' }], base: ['16px', { lineHeight: '1.5' }],
+        },
+        spacing: { 1.25: '5px', 3.75: '15px', 7.5: '30px', 18: '72px', 25: '100px' },
+        borderRadius: { DEFAULT: '4px' },
+        colors: {
+          card: v('card'), 'body-bg': v('body-bg'), light: v('light'),
+          d50: v('d50'), d100: v('d100'), d200: v('d200'), d300: v('d300'), d400: v('d400'), d500: v('d500'),
+          d600: v('d600'), d700: v('d700'), d800: v('d800'), d900: v('d900'),
+          primary: v('primary'), 'primary-ink': v('primary-ink'),
+          warning: v('warning'), 'warning-ink': v('warning-ink'), danger: v('danger'), 'danger-ink': v('danger-ink'),
+          success: v('success'), 'success-ink': v('success-ink'),
+          warning15: v('warning15'), danger15: v('danger15'), success15: v('success15'), primary15: v('primary15'), primary10: v('primary10'),
+        },
+      },
+    },
+  }
+</script>
+<style>
+  :root, [data-theme="light"] {
+    --card:#ffffff; --body-bg:#f6f7fb; --light:#eef2f7;
+    --d50:#fafbfd; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9aa2aa; --d500:#58626b;
+    --d600:#4a5358; --d700:#40454a; --d800:#343a40; --d900:#313a46;
+    --primary:#236dc9; --primary-ink:#1e3a8a;
+    --warning:#f9bf59; --warning-ink:#92400e; --danger:#f7577e; --danger-ink:#7f1d1d; --success:#02bc9c; --success-ink:#065f46;
+    --warning15:#fef5e6; --danger15:#fee6ec; --success15:#d9f5f0; --primary15:#dee9f7; --primary10:rgb(233,240,250);
+    --shadow:0px 1px 4px 0px rgba(130,143,163,.15); --scrim:rgba(49,58,70,.45); --page:#e9ebf0;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --card:#1e1f27; --body-bg:#17181e; --light:#252630;
+    --d50:#1b1c23; --d100:#272832; --d200:#27272a; --d300:#293036; --d400:#71717b; --d500:#a1a9b1;
+    --d600:#9f9fa9; --d700:#d4d4d8; --d800:#e4e4e7; --d900:#f4f4f5;
+    --primary:#236dc9; --primary-ink:#93c5fd;
+    --warning:#f9bf59; --warning-ink:#fcd34d; --danger:#f7577e; --danger-ink:#fda4af; --success:#02bc9c; --success-ink:#6ee7b7;
+    --warning15:rgb(62,54,46); --danger15:rgb(62,39,52); --success15:rgb(25,54,56); --primary15:rgb(30,42,63); --primary10:rgb(31,39,55);
+    --shadow:0px 0px 30px rgba(0,0,0,.3); --scrim:rgba(0,0,0,.6); --page:#0f1014;
+  }
+  html, body { font-family:'Anuphan', sans-serif; }
+  body { background:var(--page); color:var(--d700); }
+  iconify-icon { display:inline-block; flex-shrink:0; }
+  .frame { border-radius:14px; overflow:hidden; background:var(--body-bg); box-shadow:0 0 0 1px var(--d300), 0 8px 30px rgba(0,0,0,.08); flex-shrink:0; position:relative; }
+  .rowsdiv > * + * { border-top:1px solid var(--d200); }
+  .tabbtn[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+  /* เครื่องหมาย "ส่วนที่เพิ่มใหม่" ของม็อกอัพเท่านั้น ไม่ใช่ของจริง */
+  .isnew { outline:2px dashed var(--primary); outline-offset:6px; border-radius:2px; }
+  .stub { opacity:.55; }
+  .badge { display:inline-flex; align-items:center; gap:.25rem; border-radius:4px; padding:.15em .5em; font-weight:600; font-size:11px; line-height:1.5; white-space:nowrap; }
+  .card { background:var(--card); border-radius:4px; box-shadow:var(--shadow); display:flex; flex-direction:column; }
+  .card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border-bottom:1px dashed var(--d300); padding:15px 20px; }
+  .card-title { font-size:15px; font-weight:500; color:var(--d900); }
+  .card-body { padding:20px; }
+  .card-footer { border-top:1px solid var(--d200); padding:15px 20px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:.375rem; border-radius:4px; padding:.5rem 1rem; font-size:14px; font-weight:500; white-space:nowrap; }
+  .btn-sm { padding:.25rem .625rem; font-size:13px; }
+  .table-wrapper { overflow-x:auto; }
+  .ptable { width:100%; border-collapse:collapse; font-size:14px; }
+  .ptable thead tr { background:color-mix(in srgb, var(--light) 25%, transparent); }
+  .ptable th { padding:10px 12px; text-align:start; font-size:11px; font-weight:600; color:var(--d700); white-space:nowrap; border-bottom:1px solid var(--d200); }
+  .ptable td { padding:10px 12px; vertical-align:top; border-bottom:1px solid var(--d200); }
+  .ptable th:first-child, .ptable td:first-child { padding-inline-start:20px; }
+  .ptable th:last-child, .ptable td:last-child { padding-inline-end:20px; }
+  .nav-tab { display:inline-flex; align-items:center; gap:.25rem; margin-bottom:-1px; border-bottom:2px solid transparent; padding:.625rem .3rem; font-size:14px; color:var(--d700); white-space:nowrap; }
+  .nav-tab.active { border-color:var(--primary); color:var(--primary-ink); font-weight:500; }
+  @keyframes pulse { 50% { opacity:.5 } }
+  .sk { background:var(--d200); border-radius:8px; animation:pulse 2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .sk { animation:none } }
+</style>
+</head>
+<body class="text-sm">
+
+<header class="sticky top-0 z-20 border-b border-d300" style="background:var(--card)">
+  <div class="flex flex-wrap items-center gap-4 px-8 py-4">
+    <span class="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-warning bg-warning15 px-3 py-1 text-sm font-bold text-warning-ink">
+      <iconify-icon icon="tabler:pencil" width="16"></iconify-icon> ร่างเพื่อพิจารณา — ไม่ใช่หน้าจริง
+    </span>
+    <div class="min-w-0">
+      <h1 class="text-base font-bold text-d900">00097 Event ที่ส่งให้ Meta — ในห้องแชท · รายออเดอร์ · ตัวกรองหน้าบันทึกการส่ง</h1>
+      <p class="text-xs text-d600">Mobile 390 / Tablet 834 / Desktop 1440 · เห็นเฉพาะบทบาทที่มีสิทธิ์ X9 · ข้อมูลตัวอย่าง: ร้านอะไหล่มอเตอร์ไซค์ · กรอบเส้นประน้ำเงิน = ส่วนที่เพิ่มใหม่ (ในห้องแชท: บรรทัดเทากลางห้องทั้งหมดคือของใหม่)</p>
+    </div>
+    <nav class="flex flex-wrap gap-2" role="tablist" aria-label="เลือกหน้าจอ">
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="chat" aria-selected="true">1 ในห้องแชท</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="order" aria-selected="false">2 หน้าออเดอร์</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="log" aria-selected="false">3 หน้าบันทึกการส่ง</button>
+      <button type="button" role="tab" class="tabbtn btn border border-d300 text-d800" data-show="all" aria-selected="false">ทั้งหมด</button>
+    </nav>
+    <button id="themeBtn" type="button" class="ms-auto inline-flex items-center gap-2 rounded border border-d300 px-3 py-2 text-sm font-medium text-d800">
+      <iconify-icon icon="tabler:moon" width="16"></iconify-icon><span>สลับ light / dark</span>
+    </button>
+  </div>
+</header>
+
+<section class="mx-8 mt-8 rounded border border-d300 bg-card p-5 text-xs text-d700" aria-labelledby="legendTitle">
+  <h2 id="legendTitle" class="mb-2 text-sm font-semibold text-d900">ที่มาของแต่ละส่วน (theme file → ไฟล์ในโปรเจกต์ที่ลอกต่อ)</h2>
+  <table class="w-full">
+    <tbody class="align-top">
+      <tr><td class="w-64 py-1 pe-4 font-medium text-d900">ในห้องแชท · บรรทัด event กลางห้อง</td><td class="py-1">theme <code>apps/chat/components/ChatPage.tsx</code> (แถวข้อความ my-5) ผ่านพี่น้อง <code>ThreadMessageList.tsx</code> systemNotice ของ META_NOTICE + <code>FollowBotNoteLine.tsx</code> (00095: my-5 px-4 text-center · text-xs text-default-600) · ส่วนที่กาง = กล่อง rounded-lg ท่า ui/collapse/page.tsx</td></tr>
+      <tr><td class="py-1 pe-4 font-medium text-d900">หน้าออเดอร์ · การ์ด "Event ที่ส่งให้ Meta"</td><td class="py-1">theme <code>apps/ecommerce/(orders)/order-details/components/ShippingActivity.tsx</code> ผ่าน <code>orders/[token]/components/ShippingActivity.tsx</code> (คอลัมน์วันเวลา w-18/md:w-25 · วงกลม size-9 · เส้นประเป็น element จริง)</td></tr>
+      <tr><td class="py-1 pe-4 font-medium text-d900">หน้าบันทึกการส่ง · ชิปตัวกรอง</td><td class="py-1">theme <code>apps/ecommerce/(orders)/orders/components/OrdersList.tsx</code> ผ่าน <code>settings/capis/components/LogClient.tsx</code> (ตาราง 6 คอลัมน์ที่ขึ้นแล้ว + mobileCard) · ชิป = theme <code>ui/badges/page.tsx</code> (pill) + ปุ่มปิด</td></tr>
+      <tr><td class="py-1 pe-4 font-medium text-d900">ป้าย/ไอคอนสถานะ · ว่าง · ผิดพลาด</td><td class="py-1">theme <code>ui/badges/page.tsx</code> (soft + -ink) · <code>ui/placeholders/page.tsx</code> ผ่าน <code>_shared/SellerEmptyState.tsx</code> / <code>SellerErrorState.tsx</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<main id="app" class="space-y-16 px-8 py-10"></main>
+
+<script>
+const IC = (n, s = 16, c = '') => `<iconify-icon icon="${n.includes(':') ? n : 'tabler:' + n}" width="${s}" height="${s}" class="${c}" aria-hidden="true"></iconify-icon>`
+const DEVS = [{ k: 'm', w: 390, label: 'Mobile 390' }, { k: 't', w: 834, label: 'Tablet 834' }, { k: 'd', w: 1440, label: 'Desktop 1440' }]
+const T44 = (dev) => (dev.k !== 'd' ? 'min-h-11' : '') // seller: 44px เฉพาะ < lg (1024)
+function photo(h) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' fill='hsl(${h},45%,55%)'/><circle cx='20' cy='16' r='7' fill='hsl(${h},40%,88%)'/><ellipse cx='20' cy='37' rx='13' ry='10' fill='hsl(${h},40%,88%)'/></svg>`
+  return 'data:image/svg+xml,' + encodeURIComponent(svg)
+}
+function frame(dev, inner, h) {
+  return `<div class="shrink-0"><div class="mb-2 flex items-center gap-2 text-xs font-semibold text-d700">${IC(dev.k === 'm' ? 'device-mobile' : dev.k === 't' ? 'device-tablet' : 'device-desktop', 16)}${dev.label}</div>
+    <div class="frame" style="width:${dev.w}px;${h ? `height:${h}px;` : ''}">${inner}</div></div>`
+}
+function section(id, group, title, notes, body) {
+  return `<section id="${id}" data-group="${group}"><h2 class="mb-1 text-lg font-bold text-d900">${title}</h2>
+    <ul class="mb-4 max-w-[1500px] list-disc ps-5 text-xs text-d700">${notes.map((n) => `<li class="mt-0.5">${n}</li>`).join('')}</ul>${body}</section>`
+}
+const row3 = (fn, hFn) => `<div class="flex flex-wrap items-start gap-10">${DEVS.map((d) => frame(d, fn(d), hFn ? hFn(d) : 0)).join('')}</div>`
+
+// ---------- สถานะ: คำไทยชุดเดียวทั้ง 3 จอ · ไอคอน + คำเสมอ ไม่ใช้สีอย่างเดียว ----------
+const ST = {
+  SENT: { t: 'สำเร็จ', i: 'circle-check-filled', c: 'text-success-ink', bg: 'bg-success15 text-success-ink' },
+  PENDING: { t: 'รอ', i: 'clock', c: 'text-warning-ink', bg: 'bg-warning15 text-warning-ink' },
+  FAILED: { t: 'ล้มเหลว', i: 'circle-x', c: 'text-danger-ink', bg: 'bg-danger15 text-danger-ink' },
+  SKIPPED: { t: 'ข้าม', i: 'player-skip-forward', c: 'text-d700', bg: 'bg-d200 text-d800' },
+}
+const SEV = ['FAILED', 'PENDING', 'SKIPPED', 'SENT'] // ไอคอนนำของกลุ่มที่ผลไม่เท่ากัน = ตัวที่แย่สุด
+const badge = (s) => `<span class="badge ${ST[s].bg}">${IC(ST[s].i, 12)}${ST[s].t}</span>`
+const R = {
+  queued: 'รอส่งภายใน 1–2 นาที', retry2: 'ลองใหม่ครั้งที่ 2 จาก 3',
+  rejected: 'Meta ไม่บันทึกเหตุการณ์นี้ ระบบจะไม่ลองส่งซ้ำ', tooOld: 'เก่ากว่า 7 วัน Meta ไม่รับ',
+  maxAttempts: 'Meta ไม่รับเหตุการณ์นี้ ลองใหม่ครบ 3 ครั้งแล้ว', waitToken: 'รอเชื่อมเพจใหม่หรือเปลี่ยน token แล้วจะส่งต่อให้เอง',
+}
+const PAGE = 'ช่างเอก อะไหล่มอเตอร์ไซค์'
+const DS_PAGE = 'ชุดข้อมูลของเพจ', DS_WEB = 'เว็บไซต์ร้าน'
+const CUST = { name: 'วรรณา สุขสวัสดิ์', h: 330 }
+
+// เหตุการณ์ธุรกิจ 1 ครั้ง (dedupeKey เดียว) อาจมีหลายแถว = หลายชุดข้อมูล (สูงสุด 3) · เรียงใหม่ → เก่า
+const G = [
+  { k: 'ORDER_SHIPPED', th: 'จัดส่งแล้ว', meta: 'OrderShipped', d: '16 พ.ย.', ys: '69', y: '2569', t: '14:05', val: '฿1,290.00', order: 'DP-000214',
+    rows: [{ ds: DS_PAGE, s: 'PENDING', r: R.queued }, { ds: DS_WEB, s: 'PENDING', r: R.queued }] },
+  { k: 'PURCHASE', th: 'ซื้อ', meta: 'Purchase', d: '16 พ.ย.', ys: '69', y: '2569', t: '11:20', val: '฿1,290.00', order: 'DP-000214',
+    rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 11:21' }, { ds: DS_WEB, s: 'FAILED', r: R.rejected }] },
+  { k: 'ADD_PAYMENT_INFO', th: 'แนบสลิป', meta: 'AddPaymentInfo', d: '16 พ.ย.', ys: '69', y: '2569', t: '11:18', val: '฿1,290.00', order: 'DP-000214',
+    rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 11:18' }, { ds: DS_WEB, s: 'SENT', sent: '16 พ.ย. 11:19' }] },
+  { k: 'INITIATE_CHECKOUT', th: 'ส่งลิงก์คำสั่งซื้อ', meta: 'InitiateCheckout', d: '16 พ.ย.', ys: '69', y: '2569', t: '10:52', val: '฿1,290.00', order: 'DP-000214',
+    rows: [{ ds: DS_PAGE, s: 'PENDING', r: R.retry2 }] },
+  { k: 'ORDER_CREATED', th: 'สร้างคำสั่งซื้อ', meta: 'OrderCreated', d: '16 พ.ย.', ys: '69', y: '2569', t: '10:51', val: '฿1,290.00', order: 'DP-000214',
+    rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 10:52' }] },
+  { k: 'ORDER_DELIVERED', th: 'ส่งถึงลูกค้า', meta: 'OrderDelivered', d: '2 พ.ย.', ys: '69', y: '2569', t: '09:40', val: '฿590.00', order: 'DP-000188',
+    rows: [{ ds: DS_PAGE, s: 'SKIPPED', r: R.tooOld }] },
+]
+const ORDER_G = G.filter((g) => g.order === 'DP-000214') // การ์ดออเดอร์ = ทุกเหตุการณ์ของใบนี้
+
+/** สรุปกลุ่ม: ผลเท่ากันทุกชุด = สถานะเดียว · ไม่เท่ากัน = "สำเร็จ x จาก n ชุดข้อมูล" + แตกรายชุด */
+function summarize(g) {
+  const ss = [...new Set(g.rows.map((r) => r.s))]
+  if (ss.length === 1) {
+    const s = ss[0]
+    return { lead: s, text: ST[s].t, tone: ST[s].c, reason: g.rows[0].r, sent: s === 'SENT' ? g.rows[0].sent : null, mixed: false, n: g.rows.length }
+  }
+  const lead = SEV.find((s) => ss.includes(s))
+  const ok = g.rows.filter((r) => r.s === 'SENT').length
+  return { lead, text: `สำเร็จ ${ok} จาก ${g.rows.length} ชุดข้อมูล`, tone: ST[lead].c, mixed: true, n: g.rows.length }
+}
+const evName = (g, small = 'text-xs') => `${g.th} <span class="${small} font-normal text-d700">${g.meta}</span>`
+const dsLines = (g) => `<ul class="mt-1 space-y-1">${g.rows.map((r) => `<li class="flex items-start gap-1.5 text-xs ${ST[r.s].c}">${IC(ST[r.s].i, 14, 'mt-0.5')}<span class="min-w-0"><span class="text-d800">${r.ds}</span> · ${ST[r.s].t}${r.r ? ` — ${r.r}` : ''}</span></li>`).join('')}</ul>`
+
+// =====================================================================================
+// 1) ในห้องแชท — บรรทัดระบบกลางห้อง (ท่า META_NOTICE ใน ThreadMessageList + FollowBotNoteLine: my-5 px-4 text-center · text-xs text-default-600)
+// =====================================================================================
+// เหตุผลแบบสั้นสำหรับบรรทัดกลางห้อง (ตัวเต็ม = t.logReason อยู่ในส่วนที่กางออก)
+const SHORT = new Map([[R.retry2, 'ลองใหม่ครั้งที่ 2 จาก 3'], [R.rejected, 'Meta ไม่บันทึก'], [R.tooOld, 'เก่ากว่า 7 วัน'], [R.maxAttempts, 'ลองครบ 3 ครั้งแล้ว'], [R.waitToken, 'รอเชื่อมเพจใหม่']])
+const VIEW = { k: 'VIEW_CONTENT', th: 'ดูสินค้า', meta: 'ViewContent', t: '10:49', val: '฿1,290.00', rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 10:49' }] }
+const byKey = (k) => G.find((g) => g.k === k)
+
+function detailBox(dev, g) {
+  return `<div class="mx-auto mt-2 max-w-sm rounded-lg border border-dashed border-d300 bg-card p-3 text-start text-xs">
+    <ul class="space-y-1.5">${g.rows.map((r) => `<li class="flex items-start gap-1.5 ${ST[r.s].c}">${IC(ST[r.s].i, 14, 'mt-0.5')}<span class="min-w-0"><span class="text-d800">${r.ds}</span> · ${ST[r.s].t}${r.sent ? ` <span class="text-d700">· Meta รับเมื่อ <span class="tabular-nums">${r.sent}</span></span>` : ''}${r.r ? `<span class="block ${r.s === 'FAILED' ? 'text-danger-ink' : 'text-d700'}">${r.r}</span>` : ''}</span></li>`).join('')}</ul>
+    <a href="#" class="mt-2 inline-flex ${dev.k === 'd' ? '' : 'min-h-11'} items-center gap-1 font-medium text-primary-ink hover:underline">ดูในบันทึกการส่ง${IC('chevron-right', 14)}</a></div>`
+}
+/** บรรทัด event 1 บรรทัด = 1 dedupeKey · PENDING ที่ยังไม่มีเหตุผล (queued) = กำลังส่ง (อัปเดตสด) */
+function capiLine(dev, g, open = false) {
+  const s = summarize(g)
+  const inFlight = !s.mixed && s.lead === 'PENDING' && (!s.reason || s.reason === R.queued) // queued = ยังไม่เคยยิง
+  if (inFlight) {
+    return `<div class="my-5 px-4 text-center"><p class="inline-flex items-center gap-1 text-xs text-d500" role="status">${IC('loader-2', 14, 'animate-spin motion-reduce:animate-none')}กำลังส่ง “${g.th}” ให้ Meta…</p></div>`
+  }
+  const short = !s.mixed && s.reason ? SHORT.get(s.reason) : null
+  const result = s.mixed ? `สำเร็จ ${g.rows.filter((r) => r.s === 'SENT').length} จาก ${s.n}` : ST[s.lead].t
+  return `<div class="my-5 px-4 text-center">
+    <button type="button" aria-expanded="${open}" class="inline-flex ${dev.k === 'd' ? 'min-h-8' : 'min-h-11'} max-w-full flex-wrap items-center justify-center gap-x-1 rounded px-2 text-xs text-d600 hover:bg-d100">
+      ${IC('brand-meta', 14)}<span>ส่ง “${g.th}” ให้ Meta</span>${g.val ? `<span>·</span><span class="tabular-nums">${g.val}</span>` : ''}<span>·</span><span class="tabular-nums">${g.t}</span><span>·</span>
+      <span class="inline-flex items-center gap-0.5 font-medium ${ST[s.lead].c}">${IC(ST[s.lead].i, 14)}${result}</span>${short ? `<span class="${s.lead === 'FAILED' ? 'text-danger-ink' : ''}">· ${short}</span>` : ''}
+      ${IC(open ? 'chevron-up' : 'chevron-down', 14)}</button>
+    ${open ? detailBox(dev, g) : ''}</div>`
+}
+
+const bubble = (dev, mine, inner, t) => `<div class="my-5 flex ${mine ? 'justify-end' : 'items-start gap-2.5'}">${mine ? '' : `<img src="${photo(CUST.h)}" alt="" class="size-8 rounded-full" />`}
+  <div class="max-w-[75%]"><div class="rounded px-${dev.k === 'm' ? '4' : '6'} py-3 text-sm ${mine ? 'bg-primary text-white' : 'bg-light text-d900'}">${inner}</div><p class="mt-1 text-2xs text-d600 ${mine ? 'text-end' : ''}">${t}</p></div></div>`
+const card = (dev, mine, inner, t) => `<div class="my-5 flex ${mine ? 'justify-end' : ''}"><div class="max-w-[75%]"><div class="rounded ${mine ? 'bg-primary15' : 'bg-light'} px-4 py-3 text-sm text-d900">${inner}</div><p class="mt-1 text-2xs text-d600 ${mine ? 'text-end' : ''}">${t}</p></div></div>`
+
+function thread(dev, openPurchase) {
+  return [
+    `<div class="my-4 text-center"><span class="badge bg-d100 text-d700">วันนี้</span></div>`,
+    bubble(dev, false, 'สนใจหมวกกันน็อค Pro ไซซ์ L ค่ะ ยังมีไหมคะ', '10:48'),
+    card(dev, true, `<div class="flex items-center gap-3"><span class="flex size-12 items-center justify-center rounded-lg bg-card text-primary-ink">${IC('helmet', 24)}</span><div><p class="font-medium">หมวกกันน็อค Pro ไซซ์ L</p><p class="tabular-nums text-d800">฿1,290</p></div></div>`, '10:49'),
+    capiLine(dev, VIEW),
+    bubble(dev, false, 'เอาค่ะ ส่งลิงก์สั่งซื้อให้หน่อยนะคะ', '10:50'),
+    capiLine(dev, byKey('ORDER_CREATED')),
+    card(dev, true, `<p class="font-medium">คำสั่งซื้อ #DP-000214</p><p class="text-d800">หมวกกันน็อค Pro ไซซ์ L × 1</p><p class="mt-1 font-semibold tabular-nums">฿1,290.00</p><span class="mt-2 inline-flex rounded bg-primary px-3 py-1 text-xs text-white">ชำระเงิน</span>`, '10:52'),
+    capiLine(dev, byKey('INITIATE_CHECKOUT')),
+    `<div class="my-5 flex items-start gap-2.5"><img src="${photo(CUST.h)}" alt="" class="size-8 rounded-full" /><div><div class="flex h-40 w-28 items-center justify-center rounded bg-light text-d700">${IC('receipt', 32)}</div><p class="mt-1 text-2xs text-d600">11:17 · สลิปโอนเงิน</p></div></div>`,
+    capiLine(dev, byKey('ADD_PAYMENT_INFO')),
+    bubble(dev, true, 'ได้รับยอดแล้วค่ะ ยืนยันออเดอร์ให้เรียบร้อยนะคะ', '11:20'),
+    capiLine(dev, byKey('PURCHASE'), openPurchase),
+    bubble(dev, true, 'จัดส่งแล้วค่ะ เลขพัสดุ TH0123456789', '14:05'),
+    capiLine(dev, byKey('ORDER_SHIPPED')),
+  ].join('')
+}
+function threadCol(dev, openPurchase) {
+  return `<div class="flex min-h-0 flex-1 flex-col bg-card">
+    <div class="flex min-h-14 items-center gap-2 border-b border-d200 px-2 ${dev.k === 'd' ? 'ps-4' : ''}">
+      ${dev.k === 'd' ? '' : `<button type="button" aria-label="ย้อนกลับ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button>`}
+      <img src="${photo(CUST.h)}" alt="" class="size-9 rounded-full" /><div class="min-w-0"><p class="truncate text-sm font-semibold text-d900">${CUST.name}</p><p class="flex items-center gap-1 text-xs text-d700">${IC('brand-messenger', 14)}Messenger · ${PAGE}</p></div></div>
+    <div class="min-h-0 flex-1 overflow-y-auto px-${dev.k === 'm' ? '3' : '5'}">${thread(dev, openPurchase)}</div>
+    <div class="flex items-center gap-2 border-t border-d200 p-3"><div class="flex min-h-11 flex-1 items-center rounded border border-d300 px-3 text-d500">พิมพ์ข้อความ…</div><span class="flex size-11 items-center justify-center rounded bg-primary text-white">${IC('send', 18)}</span></div></div>`
+}
+function chatShell(dev, openPurchase) {
+  if (dev.k !== 'd') return `<div class="flex h-full flex-col">${threadCol(dev, openPurchase)}</div>`
+  const inbox = ['สมศักดิ์ ใจดี', CUST.name, 'นภาพร ศรีสุข', 'อนุชา มีสุข', 'กมลชนก ทองดี'].map((n, i) => `<div class="flex items-center gap-2 px-3 py-2.5 ${i === 1 ? 'bg-primary10' : ''}"><img src="${photo(40 + i * 60)}" alt="" class="size-9 rounded-full" /><div class="min-w-0"><p class="truncate text-sm ${i === 1 ? 'font-semibold text-d900' : 'text-d800'}">${n}</p><p class="truncate text-xs text-d700">${i === 1 ? 'จัดส่งแล้วค่ะ เลขพัสดุ…' : 'ขอบคุณค่ะ'}</p></div></div>`).join('')
+  const stubP = (w) => `<div class="mb-2 h-3 rounded bg-d200" style="width:${w}%"></div>`
+  return `<div class="flex h-full">
+    <div class="flex w-16 shrink-0 flex-col items-center gap-3 border-e border-d200 bg-card py-4 text-d700">${['message-circle', 'shopping-cart', 'users', 'settings'].map((i) => IC(i, 22)).join('')}</div>
+    <div class="w-80 shrink-0 border-e border-d200 bg-card"><p class="px-3 py-3 text-md font-semibold text-d900">ข้อความ</p>${inbox}</div>
+    ${threadCol(dev, openPurchase)}
+    <div class="stub w-96 shrink-0 border-s border-d200 bg-card p-4"><p class="mb-3 text-sm font-semibold text-d900">ข้อมูลลูกค้า (ไม่เปลี่ยน)</p>${[90, 60, 80, 70, 50].map(stubP).join('')}</div></div>`
+}
+// แกลเลอรีบรรทัดทุกแบบ ที่ความกว้างห้องจริงของแต่ละจอ (desktop: 1440 − ราง 64 − รายการ 320 − แผง 384 = 672)
+const VARIANTS = [
+  ['กำลังส่ง (รอ ยังไม่มีเหตุผล) — อัปเดตสดเป็นผล', { th: 'จัดส่งแล้ว', t: '14:05', val: '฿1,290.00', rows: [{ ds: DS_PAGE, s: 'PENDING' }] }],
+  ['สำเร็จ 1 ชุด', VIEW],
+  ['สำเร็จ ทุกชุด (ผลเท่ากัน)', { th: 'แนบสลิป', t: '11:18', val: '฿1,290.00', rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 11:18' }, { ds: DS_WEB, s: 'SENT', sent: '16 พ.ย. 11:19' }] }],
+  ['ผลไม่เท่ากัน', { th: 'ซื้อ', t: '11:20', val: '฿1,290.00', rows: [{ ds: DS_PAGE, s: 'SENT', sent: '16 พ.ย. 11:21' }, { ds: DS_WEB, s: 'FAILED', r: R.rejected }] }],
+  ['ล้มเหลว — Meta ไม่บันทึก', { th: 'ซื้อ', t: '09:12', val: '฿590.00', rows: [{ ds: DS_PAGE, s: 'FAILED', r: R.rejected }] }],
+  ['ล้มเหลว — ลองครบ 3 ครั้ง', { th: 'สร้างคำสั่งซื้อ', t: '09:10', val: '฿590.00', rows: [{ ds: DS_PAGE, s: 'FAILED', r: R.maxAttempts }] }],
+  ['รอ — กำลังลองใหม่', { th: 'ส่งลิงก์คำสั่งซื้อ', t: '10:52', val: '฿1,290.00', rows: [{ ds: DS_PAGE, s: 'PENDING', r: R.retry2 }] }],
+  ['รอ — token/สิทธิ์เพจ', { th: 'สนใจ', t: '08:30', rows: [{ ds: DS_PAGE, s: 'PENDING', r: R.waitToken }] }],
+  ['ข้าม — เก่ากว่า 7 วัน', { th: 'ส่งถึงลูกค้า', t: '09:40', val: '฿590.00', rows: [{ ds: DS_PAGE, s: 'SKIPPED', r: R.tooOld }] }],
+]
+const lineGallery = () => row3((d) => `<div class="bg-card py-2" style="${d.k === 'd' ? 'width:672px' : ''}">${VARIANTS.map(([label, g]) => `<p class="px-4 pt-3 text-2xs font-semibold text-d500">${label}</p>${capiLine(d, g)}`).join('')}</div>`)
+const lineOpen = () => row3((d) => `<div class="bg-card py-2" style="${d.k === 'd' ? 'width:672px' : ''}">${capiLine(d, VARIANTS[3][1], true)}${capiLine(d, VARIANTS[7][1], true)}</div>`)
+// =====================================================================================
+// 2) หน้าออเดอร์ — การ์ด timeline
+// =====================================================================================
+function orderTimeline(dev) {
+  return `<div>${ORDER_G.map((g, i) => {
+    const s = summarize(g), last = i === ORDER_G.length - 1
+    return `<div class="flex ${dev.k === 'm' ? 'gap-x-3' : 'gap-x-5'}">
+      <div class="${dev.k === 'm' ? 'w-18' : 'w-25'} shrink-0"><span class="flex min-h-9 flex-col items-end justify-center">
+        <span class="text-xs text-d800">${g.d} ${dev.k === 'm' ? g.ys : g.y}</span><span class="text-xs tabular-nums text-d700">${g.t}</span></span></div>
+      <div class="flex shrink-0 flex-col items-center">
+        <span class="flex size-9 items-center justify-center rounded-full ${ST[s.lead].bg}">${IC(ST[s.lead].i, 18)}</span>
+        ${last ? '' : '<span class="w-px flex-1 border-e border-dashed border-d300"></span>'}</div>
+      <div class="min-w-0 flex-1 ${last ? '' : 'pb-6'}">
+        <h5 class="flex min-h-9 items-center gap-2 text-sm font-medium text-d800"><span class="min-w-0 flex-1">${evName(g)}</span><span class="shrink-0 text-xs tabular-nums text-d900">${g.val}</span></h5>
+        <p class="text-xs text-d700"><span class="font-medium ${s.tone}">${s.text}</span>${!s.mixed && s.n > 1 ? ` · ${s.n} ชุดข้อมูล` : ''}${s.sent ? ` · Meta รับเมื่อ <span class="tabular-nums">${s.sent}</span>` : ''}</p>
+        ${!s.mixed && s.reason ? `<p class="text-xs ${s.lead === 'FAILED' ? 'text-danger-ink' : 'text-d700'}">${s.reason}</p>` : ''}
+        ${s.mixed ? dsLines(g) : ''}
+      </div></div>`
+  }).join('')}</div>`
+}
+function orderCard(dev, state = 'n') {
+  const link = `<a href="#" class="btn btn-sm border border-d300 text-d800 ${dev.k === 'd' ? '' : 'min-h-11'}">ดูในบันทึกการส่ง${IC('chevron-right', 14)}</a>`
+  const head = (withLink) => `<div class="card-header"><h4 class="card-title">Event ที่ส่งให้ Meta</h4>${withLink ? link : ''}</div>`
+  const pad = dev.k === 'm' ? 'p-5' : 'p-7.5'
+  let body
+  if (state === 'n') body = `<div class="card-body ${pad}">${orderTimeline(dev)}</div>`
+  else if (state === 'e') body = `<div class="card-body flex flex-col items-center py-6 text-center">${IC('send-off', 30, 'mb-2 text-d400')}<p class="text-sm font-medium text-d800">ยังไม่มีการส่ง event</p></div>`
+  else if (state === 'off') body = `<div class="card-body"><div class="flex flex-wrap items-center gap-2 rounded-lg bg-d100 p-3 text-sm text-d800">${IC('plug-connected-x', 18)}<span class="min-w-0 flex-1">เพจ ${PAGE} ยังไม่ได้เปิด Conversions API</span><a href="#" class="btn btn-sm border border-d300 bg-card text-d800 ${T44(dev)}">ไปตั้งค่า</a></div></div>`
+  else if (state === 'l') body = `<div class="card-body ${pad} space-y-4" role="status"><span class="sr-only">กำลังโหลด</span>${[1, 2, 3].map(() => `<div class="flex gap-4"><div class="sk h-9 w-18"></div><div class="sk size-9 rounded-full"></div><div class="sk h-9 flex-1"></div></div>`).join('')}</div>`
+  else body = `<div class="card-body flex flex-col items-center gap-2 py-6 text-center"><p class="text-sm text-d700">โหลด event ไม่สำเร็จ</p><button type="button" class="btn border border-d300 text-d800 ${T44(dev)}">${IC('refresh', 16)}ลองใหม่</button></div>`
+  return `<div class="card isnew">${head(state === 'n' || state === 'e')}${body}</div>`
+}
+function sideNav(active) {
+  const it = (i, l, a) => `<li class="flex items-center gap-2.5 rounded px-3 py-2 text-sm ${a ? 'bg-primary15 font-medium text-primary-ink' : 'text-d700'}">${IC(i, 18)}${l}</li>`
+  return `<aside class="w-[245px] shrink-0 border-e border-d200 bg-card px-3 py-4"><div class="mb-4 px-3 text-lg font-bold text-d900">Deep</div>
+    <ul class="space-y-0.5">${it('home', 'หน้าหลัก')}${it('message-circle', 'ข้อความ')}${it('shopping-cart', 'ออเดอร์', active === 'order')}${it('package', 'สินค้า')}${it('users', 'ลูกค้า')}${it('ad-2', 'Conversions API', active === 'log')}</ul></aside>`
+}
+const crumbs = (items) => `<nav aria-label="breadcrumb" class="mb-1 flex flex-wrap items-center gap-1.25 text-xs font-medium text-d600">${items.map((c, i) => i === items.length - 1 ? `<span aria-current="page" class="text-d700">${c}</span>` : `${c} ${IC('chevron-right', 12)}`).join(' ')}</nav>`
+const BOTTOM = [['home', 'หน้าหลัก'], ['message-circle', 'แชท'], ['shopping-cart', 'ออเดอร์'], ['package', 'สินค้า'], ['menu-2', 'เมนู']]
+function shell(dev, active, title, trail, inner) {
+  if (dev.k === 'd') {
+    return `<div class="flex">${sideNav(active)}<div class="min-w-0 flex-1">
+      <div class="flex h-[65px] items-center border-b border-d200 bg-card px-5">${IC('menu-2', 20, 'text-d700')}<span class="ms-auto flex items-center gap-4">${IC('bell', 20, 'text-d700')}<img src="${photo(30)}" alt="" class="size-8 rounded-full" /></span></div>
+      <div class="p-5"><div class="mb-5">${crumbs(trail)}<h3 class="text-lg font-semibold text-d900">${title}</h3></div>${inner}</div></div></div>`
+  }
+  return `<div class="flex min-h-14 items-center gap-2 border-b border-d200 bg-card px-2">
+      <button type="button" aria-label="ย้อนกลับ" class="flex size-11 items-center justify-center text-d700">${IC('arrow-left', 20)}</button>
+      <span class="min-w-0 truncate text-md font-semibold text-d900">${title}</span></div>
+    ${dev.k === 't' ? `<div class="px-4 pt-4">${crumbs(trail)}</div>` : ''}<div class="p-4">${inner}</div>
+    <nav class="grid h-[72px] grid-cols-5 items-center border-t border-d200 bg-card">${BOTTOM.map(([i, l]) => `<span class="flex flex-col items-center gap-0.5 text-2xs ${l === (active === 'order' ? 'ออเดอร์' : 'เมนู') ? 'font-medium text-primary-ink' : 'text-d600'}">${IC(i, 22)}${l}</span>`).join('')}</nav>`
+}
+function stubCard(title, lines) {
+  return `<div class="card stub"><div class="card-header"><h4 class="card-title">${title}</h4></div><div class="card-body">${lines.map((w) => `<div class="mb-2 h-3 rounded bg-d200" style="width:${w}%"></div>`).join('')}</div></div>`
+}
+function orderPage(dev) {
+  const left = `${stubCard('ออเดอร์ #DP-000214 · หมวกกันน็อค Pro ไซซ์ L × 1 · ฿1,290', [70, 40])}${stubCard('ประวัติออเดอร์', [60, 45, 50])}${orderCard(dev)}`
+  const right = `${stubCard('ลูกค้า · ' + CUST.name, [70, 50])}${stubCard('กำไร', [55, 40])}`
+  const inner = dev.k === 'd'
+    ? `<div class="grid grid-cols-4 gap-5"><div class="col-span-3 space-y-5">${left}</div><div class="space-y-5">${right}</div></div>`
+    : `<div class="space-y-4">${left}${right}</div>`
+  return shell(dev, 'order', 'รายละเอียดออเดอร์', ['ออเดอร์', 'รายละเอียดออเดอร์'], inner)
+}
+const orderOnly = (state) => row3((d) => `<div class="p-4">${orderCard(d, state)}</div>`)
+
+// =====================================================================================
+// 3) หน้าบันทึกการส่ง — ตารางที่ขึ้นแล้ว (6 คอลัมน์) + ชิปตัวกรองแชท/ออเดอร์ + "Meta รับเมื่อ"
+// =====================================================================================
+const LOG_ROWS = G.flatMap((g) => g.rows.map((r) => ({ ...r, g })))
+const DASH = '<span class="text-d700">–</span>'
+const evFull = (g) => `${g.th} (${g.meta})`
+const statusCell = (r) => `<span class="flex flex-col items-start gap-1" style="min-width:10rem;max-width:13rem">${badge(r.s)}
+  ${r.sent ? `<span class="text-xs text-d700">Meta รับเมื่อ <span class="tabular-nums">${r.sent}</span></span>` : ''}
+  ${r.r ? `<span class="text-xs ${r.s === 'FAILED' ? 'text-danger-ink' : 'text-d700'}">${r.r}</span>` : ''}</span>`
+function logTable(rows) {
+  const th = ['เวลา', 'ลูกค้า', 'เหตุการณ์', 'โฆษณา', '<span class="block w-full text-end">มูลค่า</span>', 'สถานะ']
+  const tr = (r) => `<tr>
+    <td><span class="whitespace-nowrap tabular-nums text-d800">${r.g.d} ${r.g.t}</span></td>
+    <td><span class="flex items-center gap-2"><img src="${photo(CUST.h)}" alt="" class="size-8 rounded-full" /><span class="truncate text-d900">${CUST.name}</span></span></td>
+    <td><span class="flex flex-col items-start"><span class="whitespace-nowrap text-d900">${evFull(r.g)}</span><span class="whitespace-nowrap text-xs text-d700">${r.ds}</span>
+      <a href="#" class="whitespace-nowrap text-xs text-primary-ink hover:underline">ออเดอร์ #${r.g.order}</a></span></td>
+    <td>${DASH}</td>
+    <td><span class="block whitespace-nowrap text-end tabular-nums text-d900">${r.g.val}</span></td>
+    <td>${statusCell(r)}</td></tr>`
+  return `<div class="table-wrapper"><table class="ptable"><thead><tr>${th.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(tr).join('')}</tbody></table></div>`
+}
+function logCards(dev, rows) {
+  const sm = dev.k !== 'm'
+  return `<div class="rowsdiv">${rows.map((r) => `<div class="${sm ? 'px-5' : 'px-4'} py-3">
+    <div class="flex items-start justify-between gap-3"><div class="flex min-w-0 items-center gap-2"><img src="${photo(CUST.h)}" alt="" class="size-9 rounded-full" />
+      <div class="min-w-0"><p class="truncate text-sm font-medium text-d900">${CUST.name}</p><p class="text-xs text-d800">${evFull(r.g)}</p></div></div>
+      <span class="shrink-0">${badge(r.s)}</span></div>
+    <p class="mt-0.5 text-xs text-d700"><span class="tabular-nums">${r.g.d} ${r.g.t}</span>${sm ? ' · ' : '<br />'}${r.ds} · <span class="tabular-nums text-d900">${r.g.val}</span></p>
+    <a href="#" class="inline-flex min-h-11 items-center text-xs text-primary-ink">ออเดอร์ #${r.g.order}</a>
+    ${r.sent ? `<p class="text-xs text-d700">Meta รับเมื่อ <span class="tabular-nums">${r.sent}</span></p>` : ''}
+    ${r.r ? `<p class="mt-1 text-xs ${r.s === 'FAILED' ? 'text-danger-ink' : 'text-d800'}">${r.r}</p>` : ''}</div>`).join('')}</div>`
+}
+function chip(dev, label, aria) {
+  return `<span class="inline-flex max-w-full items-center gap-1 rounded-full border border-primary bg-primary10 ps-3 text-xs font-medium text-primary-ink">
+    <span class="truncate">${label}</span><button type="button" aria-label="${aria}" class="flex ${dev.k === 'd' ? 'size-8' : 'size-11 -my-2'} shrink-0 items-center justify-center rounded-full">${IC('x', 14)}</button></span>`
+}
+function filterBtn(dev, label) {
+  return `<button type="button" aria-haspopup="listbox" class="btn ${dev.k === 'm' ? 'min-h-11 w-full justify-between' : T44(dev)} border border-d300 text-d800">${label}${IC('chevron-down', 16)}</button>`
+}
+function logHeader(dev, f) {
+  return `<div class="card-header"><div class="min-w-0"><h4 class="card-title">บันทึกการส่ง</h4><p class="text-xs text-d700">เก็บไว้ทั้งหมด ไม่มีหมดอายุ</p></div>
+    <div class="flex ${dev.k === 'm' ? 'w-full flex-col' : 'flex-row flex-wrap'} gap-2">${filterBtn(dev, 'สถานะ')}${filterBtn(dev, 'เหตุการณ์')}</div>
+    ${f ? `<div class="flex w-full flex-wrap gap-2">${f}</div>` : ''}</div>`
+}
+function logCard(dev, mode) {
+  const f = mode === 'chat' ? chip(dev, `แชท: ${CUST.name}`, 'ล้างตัวกรองแชท') : mode === 'order' ? chip(dev, 'ออเดอร์ #DP-000214', 'ล้างตัวกรองออเดอร์') : ''
+  const rows = mode === 'order' ? LOG_ROWS.filter((r) => r.g.order === 'DP-000214') : LOG_ROWS
+  if (mode === 'empty') {
+    return `<div class="card">${logHeader(dev, chip(dev, 'ออเดอร์ #DP-000230', 'ล้างตัวกรองออเดอร์'))}<div class="card-body flex flex-col items-center py-10 text-center">${IC('filter-off', 56, 'mb-4 text-d400')}
+      <p class="mb-1 text-base font-semibold text-d700">ไม่พบรายการที่ตรงกับตัวกรอง</p><button type="button" class="btn mt-5 rounded-full bg-primary px-6 text-white ${T44(dev)}">ล้างตัวกรอง</button></div></div>`
+  }
+  return `<div class="card">${logHeader(dev, f)}${dev.k === 'd' ? logTable(rows) : logCards(dev, rows)}
+    <div class="card-footer flex flex-wrap items-center justify-between gap-2"><span class="text-xs tabular-nums text-d700">แสดง ${rows.length} รายการ</span></div></div>`
+}
+const LOG_TRAIL = ['ตั้งค่า', 'Conversions API', PAGE, 'บันทึกการส่ง']
+const logPage = (mode) => (dev) => shell(dev, 'log', dev.k === 'd' ? PAGE : 'บันทึกการส่ง · ' + PAGE, LOG_TRAIL, logCard(dev, mode))
+
+// =====================================================================================
+let html = ''
+html += section('c1', 'chat', '1.1 ในห้องแชท — บรรทัด event ไหลไปกับบทสนทนา', [
+  'บรรทัดระบบกลางห้อง สีเทา ตัวเล็ก (ท่า META_NOTICE / FOLLOW_BOT_NOTE) แทรกตามเวลา — ไม่ใช่ฟอง ไม่ส่งเข้า Facebook · ลูกค้าไม่เห็น · เห็นเฉพาะ X9 (เจ้าของร้าน) · ห้อง Messenger เท่านั้น',
+  '1 บรรทัด = 1 event (รวมตาม dedupeKey ทุกชุดข้อมูล): ไอคอน Meta + ส่ง “{ชื่อ event}” ให้ Meta · มูลค่า · เวลา · ผล (ไอคอน + คำ) · เหตุผลสั้น',
+  'ลำดับในตัวอย่าง: การ์ดสินค้า → ดูสินค้า · สร้างออเดอร์ → สร้างคำสั่งซื้อ · การ์ดคำสั่งซื้อ → ส่งลิงก์คำสั่งซื้อ · สลิป → แนบสลิป · ยืนยัน → ซื้อ (กางอยู่ใน Mobile/Desktop) · จัดส่ง → กำลังส่ง…',
+  'กดบรรทัด = กาง/หุบรายละเอียดรายชุดข้อมูล + ลิงก์ "ดูในบันทึกการส่ง" (?conversation=) · Mobile/Tablet เป้ากด 44px · Desktop = ห้องกลางของ 3 คอลัมน์ (แผงลูกค้าไม่เปลี่ยน)',
+  'Mobile ยืดความสูงกรอบให้เห็นทั้งบทสนทนา (จอจริง 844 เลื่อนดู)',
+], row3((d) => chatShell(d, d.k !== 't'), (d) => (d.k === 'd' ? 1500 : d.k === 't' ? 1500 : 1700)))
+html += section('c2', 'chat', '1.2 บรรทัดทุกแบบ (หุบ)', ['ผลรวมแบบสั้น: สำเร็จ / สำเร็จ x จาก n / ล้มเหลว + เหตุผลสั้น / รอ + เหตุผลสั้น / ข้าม + เหตุผลสั้น · ล้มเหลวยังเป็นบรรทัดเทา มีแค่ไอคอน + คำ + เหตุผลเป็น danger-ink', 'กำลังส่ง = text-default-500 + ไอคอนหมุน (หยุดเมื่อ prefers-reduced-motion) ไม่มีปุ่มกาง'], lineGallery())
+html += section('c3', 'chat', '1.3 บรรทัดที่กางแล้ว', ['กล่องเส้นประ (ต่างจากฟองที่ไม่มีขอบ) รายชุดข้อมูล: ไอคอน + ชื่อชุด · สถานะ · Meta รับเมื่อ / เหตุผลเต็มจาก t.logReason + ลิงก์ "ดูในบันทึกการส่ง"', 'ไม่มีสถานะว่าง/โหลด/ผิดพลาดของตัวเอง — บรรทัดมากับรายการข้อความ (ไม่มี event = ไม่มีบรรทัด · ห้องไม่ใช่ Messenger / ไม่มี X9 / เพจไม่ได้เปิด = ไม่มีบรรทัด)'], lineOpen())
+
+html += section('o1', 'order', '2.1 หน้าออเดอร์ — มีรายการ', [
+  'การ์ดในคอลัมน์ซ้าย (lg:col-span-3) ใต้ "ประวัติออเดอร์" · หน้าตา timeline เดียวกับ ShippingActivity: คอลัมน์วันเวลา · วงกลม size-9 สีตามสถานะ + ไอคอน · เส้นประ',
+  'เหตุการณ์ทุกตัวที่ payload.orderId = ใบนี้ เรียงใหม่ → เก่า · SENT บอก "Meta รับเมื่อ …" (sentAt) · ผลไม่เท่ากันแตกรายชุดข้อมูล',
+  'ปุ่ม "ดูในบันทึกการส่ง" → /settings/capis/{channelId}/log?order={publicToken} · ออเดอร์ที่ไม่ได้มาจากห้อง Messenger = ไม่แสดงการ์ด',
+], row3(orderPage))
+html += section('o2', 'order', '2.2 หน้าออเดอร์ — ว่าง / ยังไม่ได้เปิด / กำลังโหลด / ผิดพลาด', ['ว่าง: ไอคอน send-off + "ยังไม่มีการส่ง event" (ไม่มีคำอธิบาย) · ยังไม่ได้เปิด: แถบเทา + "ไปตั้งค่า" · กำลังโหลด: skeleton 3 แถวรูปทรง timeline · ผิดพลาด: ข้อความ + ลองใหม่'],
+  `<div class="space-y-10">${orderOnly('e')}${orderOnly('off')}${orderOnly('l')}${orderOnly('err')}</div>`)
+
+html += section('l1', 'log', '3.1 หน้าบันทึกการส่ง — มาจากแชท (ชิป "แชท: ชื่อลูกค้า")', [
+  'ตารางคงภาษาที่อนุมัติแล้ว (ตามโค้ดที่ขึ้นแล้ว 6 คอลัมน์: ชุดข้อมูลอยู่ใต้เหตุการณ์ · เหตุผลอยู่ใต้ป้ายสถานะ) — 1 แถว = 1 ชุดข้อมูล เหมือนเดิม',
+  'เพิ่ม: (1) แถวชิปตัวกรองในหัวการ์ด กด × = ลบเฉพาะตัวกรองนั้น (คงสถานะ/เหตุการณ์ไว้) (2) "Meta รับเมื่อ {sentAt}" ใต้ป้ายสำเร็จ (3) ป้ายสถานะมีไอคอนนำหน้า (คำเดิม)',
+  'Desktop 1440 = ตาราง · Tablet 834 + Mobile 390 = การ์ดรายการ (DataTable สลับที่ lg 1024)',
+], row3(logPage('chat')))
+html += section('l2', 'log', '3.2 หน้าบันทึกการส่ง — มาจากออเดอร์ (ชิป "ออเดอร์ #…")', ['แถวทั้งหมดของออเดอร์นี้ทุกชุดข้อมูล'], row3(logPage('order')))
+html += section('l3', 'log', '3.3 หน้าบันทึกการส่ง — ตัวกรองไม่เจออะไร', ['ใช้ SellerEmptyState เดิม: filter-off + "ไม่พบรายการที่ตรงกับตัวกรอง" + "ล้างตัวกรอง" (ล้างทุกตัวรวมชิป) · กำลังโหลด/ผิดพลาดใช้ loading.tsx + SellerErrorState ที่มีอยู่ ไม่วาดซ้ำ'], row3((d) => `<div class="p-4">${logCard(d, 'empty')}</div>`))
+
+document.getElementById('app').innerHTML = html
+const tabs = document.querySelectorAll('.tabbtn')
+function show(g) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.show === g)))
+  document.querySelectorAll('section[data-group]').forEach((s) => { s.hidden = !(g === 'all' || s.dataset.group === g) })
+}
+tabs.forEach((b) => b.addEventListener('click', () => show(b.dataset.show)))
+show('chat')
+const redrawIcons = () => document.querySelectorAll('iconify-icon').forEach((i) => { if (i.shadowRoot && !i.shadowRoot.querySelector('svg')) i.replaceWith(i.cloneNode(true)) })
+;[800, 2000, 4000].forEach((t) => setTimeout(redrawIcons, t))
+document.getElementById('themeBtn').addEventListener('click', () => { const h = document.documentElement; h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark' })
+</script>
+</body>
+</html>
