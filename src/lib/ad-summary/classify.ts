@@ -31,7 +31,7 @@ const statOf = (r: RollUp): Stat => ({
 })
 
 export function classify<T extends RollUp>(rows: T[], groupOf: (r: T) => ObjectiveGroup): TagReason[] {
-  const out: TagReason[] = rows.map(() => ({ tag: null, reason: 'วัตถุประสงค์นี้ไม่นำมาเทียบกับกลุ่มปิดการขาย' }))
+  const out: TagReason[] = rows.map(() => ({ tag: null, reason: { key: 'other', params: {} } }))
   const base: Partial<Record<ObjectiveGroup, Stat>> = {}
   for (const g of ['close', 'other'] as const) {
     const ok = rows.filter((r) => groupOf(r) === g && !isThin(r))
@@ -45,28 +45,28 @@ export function classify<T extends RollUp>(rows: T[], groupOf: (r: T) => Objecti
   }
   rows.forEach((r, i) => {
     if (groupOf(r) !== 'close') return
-    if (isThin(r)) { out[i] = { tag: 'thin', reason: `ข้อมูลน้อย (ค่าโฆษณาต่ำกว่า ฿${MIN_SPEND} หรือแชทต่ำกว่า ${MIN_CHATS})` }; return }
+    if (isThin(r)) { out[i] = { tag: 'thin', reason: { key: 'thin', params: { spend: f0(MIN_SPEND), chats: MIN_CHATS } } }; return }
     const b = base.close
-    if (!b) { out[i] = { tag: null, reason: 'กลุ่มเดียวกันมีข้อมูลไม่พอสำหรับเทียบ' }; return }
+    if (!b) { out[i] = { tag: null, reason: { key: 'noBase', params: {} } }; return }
     const s = statOf(r)
     const spend = r.spend as number
     if (s.roas !== null && b.roas !== null && b.roas > 0 && s.cpo !== null && b.cpo !== null && s.roas >= GOOD_ROAS_X * b.roas && s.cpo <= GOOD_CPO_X * b.cpo) {
-      out[i] = { tag: 'good', reason: `ROAS ${f1(s.roas)} สูงกว่าแคมเปญกลุ่มเดียวกันเฉลี่ย ${f1(b.roas)}` }
+      out[i] = { tag: 'good', reason: { key: 'good', params: { v: f1(s.roas), avg: f1(b.roas) } } }
       return
     }
     if (r.orders === 0 && b.cpo !== null && spend >= WATCH_NO_ORDER_SPEND_X * b.cpo) {
-      out[i] = { tag: 'watch', reason: `ไม่มีออเดอร์ ทั้งที่ใช้ ฿${f0(spend)} (ต้นทุนต่อออเดอร์เฉลี่ยกลุ่ม ฿${f0(b.cpo)})` }
+      out[i] = { tag: 'watch', reason: { key: 'watchNoOrders', params: { spend: f0(spend), avg: f0(b.cpo) } } }
       return
     }
     if (s.roas !== null && b.roas !== null && b.roas > 0 && s.roas <= WATCH_ROAS_X * b.roas) {
-      out[i] = { tag: 'watch', reason: `ROAS ${f1(s.roas)} ต่ำกว่าแคมเปญกลุ่มเดียวกันเฉลี่ย ${f1(b.roas)}` }
+      out[i] = { tag: 'watch', reason: { key: 'watchRoas', params: { v: f1(s.roas), avg: f1(b.roas) } } }
       return
     }
     if (s.cpo !== null && b.cpo !== null && s.cpo >= WATCH_CPO_X * b.cpo) {
-      out[i] = { tag: 'watch', reason: `ต้นทุนต่อออเดอร์ ฿${f0(s.cpo)} สูงกว่าแคมเปญกลุ่มเดียวกันเฉลี่ย ฿${f0(b.cpo)}` }
+      out[i] = { tag: 'watch', reason: { key: 'watchCpo', params: { v: f0(s.cpo), avg: f0(b.cpo) } } }
       return
     }
-    out[i] = { tag: 'ok', reason: 'ใกล้เคียงค่าเฉลี่ยของแคมเปญกลุ่มเดียวกัน' }
+    out[i] = { tag: 'ok', reason: { key: 'ok', params: {} } }
   })
   return out
 }
