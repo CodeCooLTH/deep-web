@@ -93,6 +93,13 @@ function RhythmCell({ bot, words, t }: { bot: BotDto; words: DurationWords; t: D
           </span>
         ))}
       </div>
+      {/* ไม่พึ่งสีอย่างเดียว: รอบแรกเป็นรอบโฆษณา = ทั้งบอทไม่ถึงลูกค้าทั่วไปเลย (เข้าใจผิดแพงที่สุด) */}
+      {adRounds.length > 0 && (
+        <p className="text-warning-ink mt-1 flex items-start gap-1 text-xs" aria-hidden="true">
+          <Icon icon="speakerphone" className="mt-0.5 shrink-0" />
+          {adRounds[0] === 1 ? t.rhythmAdAll : fmt(t.rhythmAdSome, { list: adRounds.join(', ') })}
+        </p>
+      )}
     </div>
   )
 }

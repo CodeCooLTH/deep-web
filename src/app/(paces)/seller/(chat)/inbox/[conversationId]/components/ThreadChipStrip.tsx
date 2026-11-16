@@ -162,7 +162,8 @@ export default function ThreadChipStrip({ items }: { items: ThreadChipItem[] }) 
           <button
             type="button"
             onClick={() => setOpenKey(null)}
-            className="text-default-700 flex items-center gap-1 text-xs font-medium"
+            // พื้นที่นิ้ว ~44px บนมือถือ (ก้อนเดิมสูง 20px) — pb-3 ของกล่องรองรับส่วนที่ยื่นลง
+            className="text-default-700 relative flex items-center gap-1 text-xs font-medium after:absolute after:-inset-x-2 after:-inset-y-3 lg:after:hidden"
           >
             <Icon icon="chevron-up" className="text-sm" />
             {t.inbox.threadChipCollapse}

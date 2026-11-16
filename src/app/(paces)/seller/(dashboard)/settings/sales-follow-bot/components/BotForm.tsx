@@ -435,7 +435,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
         <p id="sfb-status-note" className="text-default-700 mt-1 text-sm">
           {statusNote}{' '}
           {lock && (
-            <span className="text-warning-ink inline-flex items-center gap-1 text-xs">
+            <span className="text-default-600 inline-flex items-center gap-1 text-xs">
               <Icon icon="lock" aria-hidden="true" />
               {lock === 'NEW' ? t.statusLockedNew : t.statusLockedDirty}
             </span>

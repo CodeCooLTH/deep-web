@@ -92,6 +92,13 @@ describe('BotListClient', () => {
     expect(any).not.toContain('ถามราคา · vip')
     expect(renderToStaticMarkup(<BotListClient bots={[bot({ tags, tagMatch: 'ALL' })]} hasChannel />)).toContain('บอทนี้ยังไม่ตามแชทใหม่')
   })
+  it('รอบโฆษณาบอกด้วยข้อความ ไม่ใช่สีอย่างเดียว · รอบแรกเป็นรอบโฆษณา = ทั้งบอท', () => {
+    expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)).toContain('รอบที่ 2 ส่งได้เฉพาะลูกค้าที่ทักมาจากโฆษณา')
+    const all = bot({ steps: [{ delayMin: 1500, parts: [{ kind: 'TEXT', text: 'x' }], adOnly: true }] })
+    expect(renderToStaticMarkup(<BotListClient bots={[all]} hasChannel />)).toContain(t.rhythmAdAll)
+    const none = bot({ steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'x' }], adOnly: false }] })
+    expect(renderToStaticMarkup(<BotListClient bots={[none]} hasChannel />)).not.toContain('เฉพาะลูกค้าที่ทักมาจากโฆษณา')
+  })
   it('ไม่เลือกสถานะการขาย = "ทุกสถานะ"', () => {
     expect(renderToStaticMarkup(<BotListClient bots={[bot({ salesStatuses: [] })]} hasChannel />)).toContain(t.allStatuses)
   })
