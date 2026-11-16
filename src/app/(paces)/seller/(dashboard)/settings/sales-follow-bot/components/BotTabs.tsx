@@ -23,7 +23,7 @@ export default function BotTabs({ active, labels }: { active: 'bots' | 'log'; la
           aria-selected={active === tab.id}
           className={cn(
             'flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-nowrap md:flex-none md:px-4 lg:min-h-0',
-            active === tab.id ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600',
+            active === tab.id ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-700',
           )}
         >
           {tab.label}

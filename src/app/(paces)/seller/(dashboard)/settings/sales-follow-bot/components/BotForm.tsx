@@ -2,10 +2,11 @@
 
 /**
  * BotForm — ฟอร์มสร้าง/แก้บอทติดตามยอดขาย (00095 S-7 · mockup ส่วน 3, 3b)
- * หัว (ชื่อแก้ในที่ · สถานะ · เมนู) → แถบสรุปเป็นประโยค → 3 ส่วนเรียงตามรางเส้นประ (ทักใคร · ส่งทางไหน · ส่งอะไร เมื่อไร) + ตัวอย่าง/แชททดสอบฝั่งขวา + แถบบันทึก sticky
+ * redesign A: หัว (ชื่อแก้ในที่ · สถานะ · เมนู) → 4 การ์ด (ทักใคร · ส่งทางไหน · ส่งอะไร เมื่อไร · เมื่อจบ) วงกลมเลข = ครบ/ต้องตรวจ ตาม draftIssues
+ * + คอลัมน์ขวา sticky ≥lg (สรุปบอทนี้ · ตัวอย่างแชท · แชททดสอบ) + แถบบันทึก sticky
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx (grid lg:grid-cols-3 gap-base · การ์ดซ้าย 2/3 + ขวา 1/3)
- *   + theme: .../pages/timeline/page.tsx (วงกลมเลข + รางเส้นประ — ตัดคอลัมน์เวลาซ้าย)
+ *   + theme: theme/paces/Admin/TS/src/app/(admin)/form/wizard/components/Steps.tsx (วงกลมเลข → เครื่องหมายถูก)
  *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/components/AutoNotifyClient.tsx (dirty · beforeunload · discard confirm · pacesToast)
  *   + src/app/(paces)/seller/(dashboard)/settings/auto-reply/[id]/KeywordEditorClient.tsx (แถบบันทึก sticky เหนือ bottom nav)
  *
@@ -14,7 +15,7 @@
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
@@ -29,14 +30,19 @@ import {
   draftIssues,
   fieldsDirty,
   fieldsOf,
+  finalDelayOf,
   firstIssueTarget,
+  FINAL_KEY,
+  REPLY_HANDOFF_KEY,
   formatDuration,
   isDirty,
+  groupChannelsByPage,
   isLiveIssue,
   issueTarget,
   needsActivateConfirm,
   needsStopConfirm,
   newDraft,
+  sectionStates,
   statusDirty,
   statusLock,
   timelineOf,
@@ -44,10 +50,12 @@ import {
   type Draft,
   type IssueTarget,
   type QuickMessageLite,
+  type SectionState,
 } from '@/lib/sales-follow-bot/ui'
 import type { BotDto, BotOptions, TestRoomItem } from '@/services/sales-follow-bot.service'
 import ActionMenu from './ActionMenu'
 import ChannelSection from './ChannelSection'
+import EndSection from './EndSection'
 import ChatPreview, { PreviewSheet, type PreviewChannel } from './ChatPreview'
 import { issueText } from './issue-text'
 import RoundsSection from './RoundsSection'
@@ -69,23 +77,32 @@ async function call(method: string, url: string, body?: unknown): Promise<Res> {
   }
 }
 
-/** รอบที่กางตั้งต้น: ≤3 รอบกางหมด · มากกว่านั้นกางรอบแรกรอบเดียว (ไม่ให้หน้ายาวเกินไปตั้งแต่เปิด) */
-const defaultOpen = (d: Draft): ReadonlySet<string> => new Set(d.steps.length <= 3 ? d.steps.map((s) => s.uid) : d.steps.slice(0, 1).map((s) => s.uid))
+/** รอบที่กางตั้งต้น: รอบแรกรอบเดียว (กางทีละรอบ — redesign A) */
+const defaultOpen = (d: Draft): ReadonlySet<string> => new Set(d.steps.slice(0, 1).map((s) => s.uid))
 
-/** ส่วนของฟอร์ม: วงกลมเลข + รางเส้นประเชื่อมส่วนถัดไป (เดสก์ท็อป) · มือถือ = เลขข้างหัวข้อ เนื้อหาเต็มกว้าง */
-function FormSection({ id, n, title, last, children }: { id: string; n: number; title: string; last?: boolean; children: React.ReactNode }) {
-  const dot = 'bg-primary/15 text-primary-ink relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full font-semibold'
+/** วงกลมเลขของส่วน: ครบ = เครื่องหมายถูก (success) · ต้องตรวจ (แท็กถูกลบ) = warning · ยังไม่ครบ = เลข — บอกสถานะเป็นข้อความสำหรับตัวอ่านหน้าจอด้วย */
+function StepMarker({ n, state }: { n: number; state: SectionState }) {
+  const t = useT().salesFollowBot
+  const tone = state === 'done' ? 'bg-success/15 text-success-ink' : state === 'warn' ? 'bg-warning/15 text-warning-ink' : 'bg-primary/15 text-primary-ink'
   return (
-    <section id={id} className="border-default-300 relative scroll-mt-24 max-md:border-t max-md:border-dashed max-md:pt-5 max-md:first:border-t-0 max-md:first:pt-0 md:flex md:gap-4">
-      <div className={`relative hidden shrink-0 md:block ${last ? '' : 'after:border-default-300 after:absolute after:start-1/2 after:top-9 after:bottom-0 after:border-s after:border-dashed'}`}>
-        <span className={dot} aria-hidden="true">{n}</span>
-      </div>
-      <div className={`min-w-0 flex-1 ${last ? '' : 'pb-8'}`}>
-        <h3 className="text-default-900 mt-0 flex min-h-8 items-center gap-3 text-base font-semibold">
-          <span className={`${dot} md:hidden`} aria-hidden="true">{n}</span>
-          {title}
-        </h3>
-        {children}
+    <span className={`${tone} flex size-8 shrink-0 items-center justify-center rounded-full font-semibold`}>
+      {state === 'done' ? <Icon icon="check" aria-hidden="true" /> : state === 'warn' ? <Icon icon="alert-triangle" aria-hidden="true" /> : <span aria-hidden="true">{n}</span>}
+      <span className="sr-only">{state === 'done' ? t.stepDoneSr : state === 'warn' ? t.stepWarnSr : t.stepTodoSr}</span>
+    </span>
+  )
+}
+
+/** การ์ดของส่วนหนึ่ง: หัว = วงกลมเลข + ชื่อ + ค่าสรุปชิดขวา (มือถือเห็นค่าที่ตั้งไว้โดยไม่ต้องกางอ่าน) */
+function SectionCard({ id, n, state, title, summary, children }: { id: string; n: number; state: SectionState; title: string; summary?: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="card min-w-0 scroll-mt-24">
+      <div className="card-body">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <StepMarker n={n} state={state} />
+          <h3 className="text-default-900 mt-0 text-base font-semibold">{title}</h3>
+          {summary && <span className="text-default-700 ms-auto max-w-full min-w-0 truncate text-xs tabular-nums md:text-sm">{summary}</span>}
+        </div>
+        <div className="mt-4 min-w-0">{children}</div>
       </div>
     </section>
   )
@@ -192,11 +209,11 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
 
   const goTo = (tg: IssueTarget) => {
     const id =
-      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-stage' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : tg.kind === 'final' ? 'sfb-final-wait' : 'sfb-sec-what'
+      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-stage' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : tg.kind === 'final' ? 'sfb-final-wait' : 'sfb-what'
     // รอบที่ถูกพับอยู่ต้องกางก่อน ไม่งั้นช่องที่ผิดไม่อยู่ใน DOM
     if (tg.kind === 'part') {
       const uid = draft.steps[tg.stepIndex]?.uid
-      if (uid) setOpen((s) => new Set(s).add(uid))
+      if (uid) setOpen(() => new Set([uid]))
     }
     setTimeout(() => {
       const el = document.getElementById(id)
@@ -360,16 +377,23 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
     }
   }
 
-  // ── ประโยคสรุป ──
-  const named = draft.channelIds.map((id) => channelById.get(id)?.name).filter((x): x is string => !!x)
+  // ── สรุปต่อส่วน (หัวการ์ด + การ์ด "สรุปบอทนี้") ──
   const tagNames = draft.tags.filter((x) => !x.missing).map((x) => x.name)
-  // ฟังก์ชันคืน element (ไม่ใช่ component ประกาศในตัว render — convention component-declared-in-render)
-  const sumLink = (href: string, text: string) => (
-    <a href={href} className="text-primary-ink decoration-default-400 font-semibold underline decoration-dotted underline-offset-4">
-      {text}
-    </a>
-  )
-  const empty = draft.salesStatuses.length === 0 && tagNames.length === 0 && named.length === 0
+  const goneCount = draft.tags.filter((x) => x.missing).length
+  const states = sectionStates(draft, hasConflict)
+  const handoffText = t[REPLY_HANDOFF_KEY[draft.replyHandoff]]
+  const finalText = draft.finalAction !== 'NONE' ? `${formatDuration(finalDelayOf(draft), words)} → ${t[FINAL_KEY[draft.finalAction]]}` : null
+  const whoSummary = [stageText(draft.salesStatuses), tagNames.join(` ${draft.tagMatch === 'ALL' ? t.andWord : t.orWord} `), goneCount > 0 ? fmt(t.tagsGoneCount, { n: goneCount }) : ''].filter(Boolean).join(' · ')
+  const pages = groupChannelsByPage(draft.channelIds.flatMap((id) => channelById.get(id) ?? []))
+  const roundsText = fmt(t.roundsSummary, { n: draft.steps.length, d: formatDuration(tl.total, words) })
+  const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), finalText].filter(Boolean).join(' · ')
+  const sumRows: { label: string; href: string; text: string }[] = [
+    { label: t.sumRowWho, href: '#sfb-who', text: whoSummary || t.sumWhoAll },
+    { label: t.sumRowVia, href: '#sfb-via', text: pages.length === 0 ? '–' : pages.map((g) => g.name).join(', ') },
+    { label: t.sumRowSend, href: '#sfb-what', text: roundsText },
+    { label: t.sumRowReply, href: '#sfb-end', text: fmt(t.endHandoffShort, { a: handoffText }) },
+    { label: t.sumRowNoReply, href: '#sfb-end', text: finalText ?? t.finalNone },
+  ]
 
   const nameErr = textOf('name')
   const statusNote = draft.status === 'TESTING' ? t.statusDescTesting : draft.status === 'ACTIVE' ? t.statusDescActive : t.statusDescClosed
@@ -382,7 +406,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   return (
     <>
       <div className="mb-base">
-        <nav aria-label={t.breadcrumbAria} className="text-default-600 flex flex-wrap items-center gap-1 text-xs">
+        <nav aria-label={t.breadcrumbAria} className="text-default-700 flex flex-wrap items-center gap-1 text-xs">
           <Link href="/settings" className="inline-flex min-h-11 items-center lg:min-h-0">{t.breadcrumbSettings}</Link>
           <Icon icon="chevron-right" aria-hidden="true" />
           <Link href={BASE} className="inline-flex min-h-11 items-center lg:min-h-0">{t.pageTitle}</Link>
@@ -401,10 +425,10 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               aria-invalid={nameErr ? true : undefined}
               aria-describedby={nameErr ? 'sfb-name-err' : undefined}
               onChange={(e) => update((d) => ({ ...d, name: e.target.value }))}
-              className="text-default-900 placeholder:text-default-400 min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xl font-semibold shadow-none outline-none focus:ring-0"
+              className="text-default-900 placeholder:text-default-700 min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xl font-semibold shadow-none outline-none focus:ring-0"
             />
-            <Icon icon="pencil" className="text-default-400 group-focus-within:hidden" aria-hidden="true" />
-            <span className="text-default-600 ms-auto hidden text-xs tabular-nums group-focus-within:inline">
+            <Icon icon="pencil" className="text-default-700 group-focus-within:hidden" aria-hidden="true" />
+            <span className="text-default-700 ms-auto hidden text-xs tabular-nums group-focus-within:inline">
               {Array.from(draft.name).length}/{L.maxName}
             </span>
           </label>
@@ -435,7 +459,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
         <p id="sfb-status-note" className="text-default-700 mt-1 text-sm">
           {statusNote}{' '}
           {lock && (
-            <span className="text-default-600 inline-flex items-center gap-1 text-xs">
+            <span className="text-default-700 inline-flex items-center gap-1 text-xs">
               <Icon icon="lock" aria-hidden="true" />
               {lock === 'NEW' ? t.statusLockedNew : t.statusLockedDirty}
             </span>
@@ -443,65 +467,46 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
         </p>
       </div>
 
-      <div className="bg-light text-default-800 mb-base flex items-start gap-3 rounded-lg px-4 py-3.5 text-base leading-loose" aria-label={t.sumAria} role="group">
-        <Icon icon="target-arrow" className="text-primary mt-1.5 shrink-0 text-xl" aria-hidden="true" />
-        {empty ? (
-          <p className="text-default-700">{t.sumEmpty}</p>
-        ) : (
-          <p>
-            {t.sumTap}{' '}
-            {draft.salesStatuses.length > 0 ? (
-              <>
-                {t.sumCustomersWho} {sumLink('#sfb-sec-who', stageText(draft.salesStatuses))}
-              </>
-            ) : tagNames.length === 0 ? (
-              sumLink('#sfb-sec-who', t.sumCustomersAll)
-            ) : null}
-            {tagNames.length > 0 && (
-              <>
-                {draft.salesStatuses.length > 0 ? ` ${t.sumTagged} ` : `${t.sumTaggedOnly} `}
-                {sumLink('#sfb-sec-who', tagNames.join(` ${draft.tagMatch === 'ALL' ? t.andWord : t.orWord} `))}
-              </>
-            )}
-            {named.length > 0 && (
-              <>
-                {' '}
-                {t.sumVia} {sumLink('#sfb-sec-via', named.join(', '))}
-              </>
-            )}{' '}
-            {t.sumTotal} {sumLink('#sfb-sec-what', fmt(t.roundsCount, { n: draft.steps.length }))} {t.sumWithin} {sumLink('#sfb-sec-what', formatDuration(tl.total, words))}
-          </p>
-        )}
-      </div>
-
       <div className="gap-base grid lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <div className="card">
-            <div className="card-body">
-              <FormSection id="sfb-sec-who" n={1} title={t.sectionWho}>
-                <div className="mt-3">
-                  <WhoSection draft={draft} onChange={update} stages={options.stages} tags={options.tags} error={textOf('condition')} />
-                </div>
-              </FormSection>
-              <FormSection id="sfb-sec-via" n={2} title={t.sectionVia}>
-                <div className="mt-1">
-                  <ChannelSection
-                    channels={options.channels}
-                    selected={draft.channelIds}
-                    conflicts={conflicts}
-                    error={textOf('channels')}
-                    onToggle={(id, on) => update((d) => ({ ...d, channelIds: on ? [...d.channelIds, id] : d.channelIds.filter((x) => x !== id) }))}
-                  />
-                </div>
-              </FormSection>
-              <FormSection id="sfb-sec-what" n={3} title={t.sectionWhat} last>
-                <RoundsSection draft={draft} onChange={update} open={open} setOpen={(fn) => setOpen(fn)} quick={quick} quickList={quickList} issues={stepIssues} />
-              </FormSection>
-            </div>
-          </div>
+        <div className="gap-base grid min-w-0 grid-cols-1 lg:col-span-2">
+          <SectionCard id="sfb-who" n={1} state={states.who} title={t.sectionWho} summary={whoSummary}>
+            <WhoSection draft={draft} onChange={update} stages={options.stages} tags={options.tags} error={textOf('condition')} />
+          </SectionCard>
+          <SectionCard id="sfb-via" n={2} state={states.via} title={t.sectionVia} summary={fmt(t.channelPlatforms, { n: draft.channelIds.length })}>
+            <ChannelSection
+              channels={options.channels}
+              selected={draft.channelIds}
+              conflicts={conflicts}
+              error={textOf('channels')}
+              onToggle={(id, on) => update((d) => ({ ...d, channelIds: on ? [...d.channelIds, id] : d.channelIds.filter((x) => x !== id) }))}
+            />
+          </SectionCard>
+          <SectionCard id="sfb-what" n={3} state={states.what} title={t.sectionWhat} summary={`${fmt(t.roundsCount, { n: draft.steps.length })} · ${formatDuration(tl.total, words)}`}>
+            <RoundsSection draft={draft} onChange={update} open={open} setOpen={(fn) => setOpen(fn)} quick={quick} quickList={quickList} issues={stepIssues} />
+          </SectionCard>
+          <SectionCard id="sfb-end" n={4} state={states.end} title={t.sectionEnd} summary={endSummary}>
+            <EndSection draft={draft} onChange={update} issues={stepIssues} />
+          </SectionCard>
         </div>
 
         <div className="min-w-0 space-y-base lg:sticky lg:top-20 lg:self-start">
+          <div className="card hidden lg:block">
+            <div className="card-body">
+              <h3 className="text-default-900 mt-0 text-base font-semibold">{t.summaryTitle}</h3>
+              <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+                {sumRows.map((r) => (
+                  <Fragment key={r.label}>
+                    <dt className="text-default-700">{r.label}</dt>
+                    <dd className="min-w-0">
+                      <a href={r.href} className="text-primary-ink break-words font-medium hover:underline">
+                        {r.text}
+                      </a>
+                    </dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </div>
+          </div>
           <div className="hidden md:block">
             <ChatPreview draft={draft} quick={quick} channel={previewChannel} />
           </div>

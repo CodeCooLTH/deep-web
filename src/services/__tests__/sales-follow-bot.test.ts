@@ -37,6 +37,7 @@ import {
   getBot,
   getBotOptions,
   getConversationPanel,
+  getBotStats7d,
   getFollowBotRowSummaries,
   listBots,
   listSends,
@@ -665,6 +666,29 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
       expect(await ids('%')).toEqual([c])
       expect(await ids(`_${tag}`)).toEqual([a])
       expect([b, d].some((x) => x === a)).toBe(false)
+    })
+  })
+
+  // ───────────────────────── ตัวเลข 7 วัน (redesign) ─────────────────────────
+  describe('getBotStats7d: ผูกร้าน + ช่วง 7 วัน + ตัวหารตอบกลับ', () => {
+    it('นับเฉพาะ SENT/FAILED ในช่วง · ตอบกลับ = run ที่ได้รับข้อความแล้วหยุดเพราะลูกค้าตอบ · ไม่รั่วข้ามร้าน', async () => {
+      await resetBots()
+      const a = await botWithRun()
+      const b = await botWithRun({ fields: { salesStatuses: ['BILLED'] } })
+      const mkSend = (runId: string, botId: string, conv: string, step: number, status: string, at: Date, shopId = S.shop) =>
+        db.salesFollowSend.create({ data: { shopId, runId, conversationId: conv, botId, step, stepCount: 2, status, reason: status === 'FAILED' ? 'PLATFORM_REJECTED' : null, createdAt: at, settledAt: at } as never })
+      await mkSend(a.runId, a.bot.id, a.conv, 0, 'SENT', ago(3_600_000))
+      await mkSend(a.runId, a.bot.id, a.conv, 1, 'SENT', ago(1_800_000))
+      await mkSend(b.runId, b.bot.id, b.conv, 0, 'FAILED', ago(3_600_000))
+      await mkSend(b.runId, b.bot.id, b.conv, 1, 'SENT', ago(8 * 86_400_000)) // นอกช่วง
+      await db.salesFollowRun.update({ where: { id: a.runId }, data: { status: 'STOPPED', stopReason: 'CUSTOMER_REPLIED', finishedAt: now } })
+      const r = await getBotStats7d(S.shop, now)
+      expect(r.byBot[a.bot.id]).toEqual({ sent: 2, failed: 0, reached: 1, replied: 1 })
+      expect(r.byBot[b.bot.id]).toEqual({ sent: 0, failed: 1, reached: 0, replied: 0 })
+      // ร้านเทสใช้ร่วมกับเคสอื่น (อาจมี send ค้าง) — เช็คว่ายอดรวม = ผลรวมต่อบอท ไม่ผูกกับตัวเลขตายตัว
+      expect(r.total.sent).toBe(Object.values(r.byBot).reduce((n, x) => n + x.sent, 0))
+      expect(r.total.sent).toBeGreaterThanOrEqual(2)
+      expect((await getBotStats7d(S.other, now)).total).toEqual({ sent: 0, failed: 0, reached: 0, replied: 0 })
     })
   })
 

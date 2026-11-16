@@ -72,36 +72,76 @@ describe('BotListClient', () => {
     expect(h).toMatch(/<button[^>]*disabled[^>]*aria-describedby="sfb-no-channel"|<button[^>]*aria-describedby="sfb-no-channel"[^>]*disabled/)
     expect(h).not.toContain('href="/settings/sales-follow-bot/new"')
   })
-  it('แถวบอท: ชื่อเป็นลิงก์ · ตัวอย่างข้อความแทน {ชื่อ} · จำนวนแชทที่ตามอยู่ · รอบ + ระยะรวม · ชิปรอบโฆษณา', () => {
-    const h = renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)
+  it('แถวบอท: ชื่อเป็นลิงก์ · ชิปสถานะ + "และมีแท็ก" + ชิปแท็ก · ลูกค้าตอบ → แอดมิน · รอบ + ระยะรวม · ผล 7 วัน', () => {
+    const h = renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel stats={{ b1: { sent: 30, failed: 1, reached: 10, replied: 3 } }} />)
     expect(h).toContain('href="/settings/sales-follow-bot/b1"')
-    expect(h).toContain('สวัสดีค่ะ คุณสมชาย')
-    expect(h).not.toContain('{ชื่อ}')
-    expect(h).toContain('>12<')
-    expect(h).toContain(t.followingChats)
+    expect(h).toContain('>ยังไม่ซื้อ<')
+    expect(h).toContain(t.condAndTag)
+    expect(h).toContain('>ถามราคา<')
+    expect(h).toContain('ลูกค้าตอบ → แอดมิน')
+    expect(h).not.toContain('สวัสดีค่ะ') // ข้อความรอบแรกไม่อยู่ในรายการแล้ว (อยู่ในฟอร์ม/ตัวอย่าง)
     expect(h).toContain('2 รอบ')
     expect(h).toContain('1 วัน 1 ชม. 30 นาที')
-    expect(h).toContain('(รอบที่ 2 ส่งได้เฉพาะลูกค้าที่ทักมาจากโฆษณา)')
+    expect(h).toContain('>12<') // กำลังตาม
+    expect(h).toContain('>30<') // ส่งแล้ว
+    expect(h).toContain('>30%<') // 3 จาก 10
   })
-  it('ตามอยู่ 0 แชท = ไม่แสดงเลข · ทดสอบ = จำนวนแชททดสอบ', () => {
-    expect(renderToStaticMarkup(<BotListClient bots={[bot({ activeRunCount: 0 })]} hasChannel />)).not.toContain(t.followingChats)
-    const h = renderToStaticMarkup(<BotListClient bots={[bot({ status: 'TESTING', testRoomIds: ['x', 'y'], activeRunCount: 7 })]} hasChannel />)
-    expect(h).toContain(t.testChats)
-    expect(h).not.toContain(t.followingChats)
+  it('ไม่มีสถิติ (โหลดไม่ได้) = "–" ไม่ใช่ 0% · ปิดอยู่ที่ไม่เคยส่ง = "ปิดอยู่" ตัวเดียว · ทดสอบ = สรุปแชททดสอบ', () => {
+    expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel stats={null} />)).toContain('>–<')
+    expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel stats={null} />)).not.toContain('>0%<')
+    const closed = renderToStaticMarkup(<BotListClient bots={[bot({ status: 'CLOSED', activeRunCount: 0 })]} hasChannel stats={{}} />)
+    expect(closed).toContain(t.closedOff)
+    expect(closed).not.toContain(t.statFollowing)
+    const test = renderToStaticMarkup(<BotListClient bots={[bot({ status: 'TESTING', testRoomIds: ['x', 'y'] })]} hasChannel stats={{ b1: { sent: 5, failed: 0, reached: 2, replied: 0 } }} />)
+    expect(test).toContain('2 แชททดสอบ · ส่งแล้ว 5')
   })
-  it('แท็กถูกลบ: ANY = ยังใช้แท็กที่เหลือ · ALL = ไม่ตามแชทใหม่ · ไม่โชว์แท็กที่ถูกลบในรายการแท็ก', () => {
+  it('สวิตช์ในแถว: เปิดใช้ = checked role=switch · ปิด = ไม่ checked · ทดสอบ = ไม่มีสวิตช์ แต่มีลิงก์ "เปิดใช้จริง…"', () => {
+    const on = renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)
+    expect(on).toMatch(/role="switch"[^>]*checked=""|checked=""[^>]*role="switch"/)
+    expect(on).toContain('aria-label="เปิดหรือปิดบอท ตามคนถามราคา"')
+    expect(renderToStaticMarkup(<BotListClient bots={[bot({ status: 'CLOSED' })]} hasChannel />)).not.toMatch(/role="switch"[^>]*checked=""|checked=""[^>]*role="switch"/)
+    const testing = renderToStaticMarkup(<BotListClient bots={[bot({ status: 'TESTING' })]} hasChannel />)
+    expect(testing).not.toContain('role="switch"')
+    expect(testing).toContain(t.goLive)
+  })
+  it('แท็กถูกลบ: ชิป warning ในแถวเดียวกับเงื่อนไข (ข้อความสั้น + ประโยคเต็มใน aria-label) ลิงก์ไป #sfb-who · ALL = ป้าย "ไม่ตามแชทใหม่" · ANY ไม่มี · ไม่มีบรรทัดส้มแยก', () => {
     const tags = [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }]
     const any = renderToStaticMarkup(<BotListClient bots={[bot({ tags })]} hasChannel />)
-    expect(any).toContain('แท็ก “vip” ถูกลบไปแล้ว บอทยังใช้แท็กที่เหลือต่อ')
-    expect(any).not.toContain('ถามราคา · vip')
-    expect(renderToStaticMarkup(<BotListClient bots={[bot({ tags, tagMatch: 'ALL' })]} hasChannel />)).toContain('บอทนี้ยังไม่ตามแชทใหม่')
+    expect(any).toContain('href="/settings/sales-follow-bot/b1#sfb-who"')
+    expect(any).toContain('vip (ถูกลบแล้ว)')
+    expect(any).toContain('aria-label="แท็ก “vip” ถูกลบไปแล้ว บอทยังใช้แท็กที่เหลือต่อ"')
+    expect(any).toContain('data-icon="alert-triangle"')
+    expect(any).not.toContain(t.tagGoneNoNew)
+    expect(any).not.toContain('<p class="text-warning-ink')
+    const all = renderToStaticMarkup(<BotListClient bots={[bot({ tags, tagMatch: 'ALL' })]} hasChannel />)
+    expect(all).toContain('aria-label="แท็ก “vip” ถูกลบไปแล้ว บอทนี้ยังไม่ตามแชทใหม่"')
+    expect(all).toContain(t.tagGoneNoNew)
   })
-  it('รอบโฆษณาบอกด้วยข้อความ ไม่ใช่สีอย่างเดียว · รอบแรกเป็นรอบโฆษณา = ทั้งบอท', () => {
-    expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)).toContain('รอบที่ 2 ส่งได้เฉพาะลูกค้าที่ทักมาจากโฆษณา')
+  it('ช่องทาง: Messenger + IG ของเพจเดียวกัน = ชื่อเพจครั้งเดียว + "Messenger · Instagram" · LINE คนละกลุ่ม = "อีก 1 เพจ"', () => {
+    const channels = [
+      { id: 'c1', provider: 'MESSENGER', name: 'เพจร้านนุ่น', avatarUrl: null, handle: null },
+      { id: 'c2', provider: 'INSTAGRAM', name: 'เพจร้านนุ่น', avatarUrl: null, handle: null },
+      { id: 'c3', provider: 'LINE', name: 'OA ร้านนุ่น', avatarUrl: null, handle: null },
+    ]
+    const h = renderToStaticMarkup(<BotListClient bots={[bot({ channels })]} hasChannel />)
+    expect(h.match(/>เพจร้านนุ่น</g)?.length).toBe(2) // ตาราง + การ์ด อย่างละครั้ง ไม่ซ้ำในแถวเดียว
+    expect(h).toContain('Messenger · Instagram')
+    expect(h).toContain('อีก 1 เพจ')
+  })
+  it('รอบโฆษณา: ชิป warning + ไอคอน speakerphone + คำอธิบายใน aria (ไม่พึ่งสีอย่างเดียว) · ไม่มีบรรทัดส้มแยก · รอบแรกเป็นรอบโฆษณา = ทั้งบอท', () => {
+    const h = renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)
+    expect(h).toContain('รอบที่ 2 ส่งได้เฉพาะลูกค้าที่ทักมาจากโฆษณา')
+    expect(h).toContain('data-icon="speakerphone"')
+    expect(h).toContain(`title="${t.rhythmAdChipTitle}"`)
+    expect(h).not.toContain('<p class="text-warning-ink')
     const all = bot({ steps: [{ delayMin: 1500, parts: [{ kind: 'TEXT', text: 'x' }], adOnly: true }] })
     expect(renderToStaticMarkup(<BotListClient bots={[all]} hasChannel />)).toContain(t.rhythmAdAll)
     const none = bot({ steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'x' }], adOnly: false }] })
     expect(renderToStaticMarkup(<BotListClient bots={[none]} hasChannel />)).not.toContain('เฉพาะลูกค้าที่ทักมาจากโฆษณา')
+  })
+  it('จบแล้วทำอะไร: ปลายรางมีธง "1 วัน → ปิดงาน" · NONE ไม่มี', () => {
+    expect(renderToStaticMarkup(<BotListClient bots={[bot({ finalAction: 'RESOLVE', finalDelayMin: 1440 })]} hasChannel />)).toContain('1 วัน → ปิดงาน')
+    expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)).not.toContain('→ ปิดงาน')
   })
   it('ไม่เลือกสถานะการขาย = "ทุกสถานะ"', () => {
     expect(renderToStaticMarkup(<BotListClient bots={[bot({ salesStatuses: [] })]} hasChannel />)).toContain(t.allStatuses)

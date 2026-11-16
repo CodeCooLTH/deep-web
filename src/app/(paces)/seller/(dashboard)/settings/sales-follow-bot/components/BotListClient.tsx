@@ -1,198 +1,317 @@
 'use client'
 
 /**
- * BotListClient — แท็บ "บอท": ตาราง (≥lg) / การ์ดทั้งใบกดได้ (<lg) / สถานะว่าง / ไม่มีช่องทาง (00095 S-7 · mockup ส่วน 1, 1b)
+ * BotListClient — แท็บ "บอท": ตาราง 5 คอลัมน์ (≥lg) / การ์ด (<lg) / สถานะว่าง / ไม่มีช่องทาง (00095 redesign แนวทาง A)
+ * คอลัมน์: บอท (ชื่อ + เงื่อนไข) · ช่องทาง (รวมตามเพจ) · รอบ (รางเวลา) · ผล 7 วัน · สถานะ (สวิตช์เปิด/ปิดในแถว)
+ * การ์ด <lg ไม่เป็นลิงก์ทั้งใบ — มีสวิตช์อยู่ข้างใน (ห้ามซ้อน interactive) ชื่อบอทกับปุ่ม > เป็นลิงก์
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
  *   (DataTable + useReactTable — ตัดค้นหา/แบ่งหน้า/เรียงลำดับ ไม่มีใน P1)
- *   + src/app/(paces)/seller/(dashboard)/settings/tags/components/TagsClient.tsx (DataTable · TagBadge · empty state · ท่า mobileCard — ที่นี่การ์ดแยกนอก .card ตาม mockup)
+ *   + theme: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx (form-switch)
+ *   + src/app/(paces)/seller/(dashboard)/settings/tags/components/TagsClient.tsx (DataTable · TagBadge · empty state)
  *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/components/AutoNotifyClient.tsx (banner noChannel · empty state flex-col py-6)
  *   theme: .../ui/badges/page.tsx (badge)
  */
 import { createColumnHelper, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import DataTable from '@/components/table/DataTable'
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
+import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesToast } from '@/lib/paces-toast'
 import type { SalesStageKey } from '@/lib/sales-follow-bot/constants'
-import { FINAL_KEY, REPLY_HANDOFF_KEY, firstTextPreview, formatDuration, limitList, type DurationWords } from '@/lib/sales-follow-bot/ui'
+import { repliedPct, type BotStats } from '@/lib/sales-follow-bot/stats'
+import { FINAL_KEY, REPLY_HANDOFF_KEY, formatDuration, groupChannelsByPage, limitList, type DurationWords } from '@/lib/sales-follow-bot/ui'
 import type { BotDto } from '@/services/sales-follow-bot.service'
-import { AvatarWithPlatform, StatusBadge, useDurationWords } from './sfb-ui'
+import { AvatarWithPlatform, useDurationWords } from './sfb-ui'
 
 const BASE = '/settings/sales-follow-bot'
+const API = '/api/shops/current/sales-follow-bot'
 const columnHelper = createColumnHelper<BotDto>()
 
 type Dict = ReturnType<typeof useT>['salesFollowBot']
+type StatsMap = Record<string, BotStats> | null
 
-function useBotText() {
+const PLATFORM_KEY = { MESSENGER: 'platMessenger', INSTAGRAM: 'platInstagram', LINE: 'platLine' } as const
+const platformText = (providers: readonly string[], t: Dict): string =>
+  [...new Set(providers)].map((p) => t[PLATFORM_KEY[p as keyof typeof PLATFORM_KEY]] ?? p).join(' · ')
+
+/**
+ * สถานะที่แถวแก้ได้เอง (สวิตช์) — เก็บทับ props จนกว่า router.refresh() ส่ง props ชุดใหม่มา
+ * updatedAt ต้องตามผลล่าสุดจาก server ไม่งั้นสลับสองครั้งติดจะชน BOT_STALE ของตัวเอง
+ */
+function useRowStatus(bots: BotDto[]) {
   const t = useT().salesFollowBot
-  const words = useDurationWords()
-  return { t, words }
+  const router = useRouter()
+  const [local, setLocal] = useState<Record<string, { status: BotDto['status']; updatedAt: string }>>({})
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
+  const [prevBots, setPrevBots] = useState(bots)
+  if (bots !== prevBots) {
+    setPrevBots(bots)
+    setLocal({})
+  }
+  const view = (b: BotDto): BotDto => (local[b.id] ? { ...b, ...local[b.id] } : b)
+
+  const change = async (bot: BotDto, next: 'ACTIVE' | 'CLOSED') => {
+    if (pending.has(bot.id)) return
+    // เปิดใช้จริง = ทักลูกค้าจริง — ถามยืนยันด้วยกล่องเดิมของฟอร์ม
+    if (next === 'ACTIVE') {
+      const ok = await pacesConfirm({ icon: 'warning', confirmSemantic: 'primary', focusCancel: true, title: t.activateTitle, text: t.activateBody, confirmButtonText: t.activateOk, cancelButtonText: t.activateCancel })
+      if (!ok) return
+    }
+    const prev = { status: bot.status, updatedAt: bot.updatedAt }
+    setPending((s) => new Set(s).add(bot.id))
+    setLocal((m) => ({ ...m, [bot.id]: { status: next, updatedAt: bot.updatedAt } })) // optimistic
+    try {
+      const r = await fetch(`${API}/bots/${bot.id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next, expectedUpdatedAt: bot.updatedAt }), cache: 'no-store' })
+      const body = (await r.json().catch(() => null)) as (Partial<BotDto> & { error?: string }) | null
+      if (r.status === 200 && body?.updatedAt && body.status) {
+        setLocal((m) => ({ ...m, [bot.id]: { status: body.status as BotDto['status'], updatedAt: body.updatedAt as string } }))
+        pacesToast.success(fmt(t.toastStatus, { status: next === 'ACTIVE' ? t.statusActive : t.statusClosed }))
+        return
+      }
+      setLocal((m) => ({ ...m, [bot.id]: prev }))
+      if (r.status === 409 && body?.error === 'BOT_STALE') {
+        pacesToast.error(t.staleTitle)
+        router.refresh()
+      } else if (r.status === 403) {
+        pacesToast.error(t.toastNoPermission)
+        router.refresh()
+      } else pacesToast.error(t.toggleFailed)
+    } catch {
+      setLocal((m) => ({ ...m, [bot.id]: prev }))
+      pacesToast.error(t.toggleFailed)
+    } finally {
+      setPending((s) => {
+        const n = new Set(s)
+        n.delete(bot.id)
+        return n
+      })
+    }
+  }
+  return { view, change, pending }
 }
 
-/** บรรทัดเงื่อนไข: **สถานะ** · แท็ก — สถานะ ≤2 ตัว + N · แท็ก ≤3 ตัว + N (แท็กที่ถูกลบไม่นับ ตามที่บอทใช้จริง) */
-function ConditionLine({ bot }: { bot: BotDto }) {
+/** แท็กที่ใช้อยู่ + แท็กที่ถูกลบ (ชิป warning ในบรรทัดเดียวกัน · ลิงก์ไปส่วน "ทักใคร" ของฟอร์ม) */
+function ConditionChips({ bot }: { bot: BotDto }) {
   const t = useT().salesFollowBot
   const stages = limitList(bot.salesStatuses, 2)
-  const tags = limitList(
-    bot.tags.filter((x) => !x.missing).map((x) => x.name),
-    3,
-  )
-  const stageText = bot.salesStatuses.length === 0 ? t.allStatuses : stages.shown.map((k) => t.stageLabel[k as SalesStageKey]).join(` ${t.orWord} `) + (stages.rest ? ` +${stages.rest}` : '')
-  const tagText = tags.shown.join(` ${bot.tagMatch === 'ALL' ? t.andWord : t.orWord} `) + (tags.rest ? ` +${tags.rest}` : '')
+  const present = limitList(bot.tags.filter((x) => !x.missing).map((x) => x.name), 3)
+  const gone = bot.tags.filter((x) => x.missing)
+  const joiner = bot.tagMatch === 'ALL' ? t.andWord : t.orWord
+  const chip = 'badge bg-default-200 text-default-800 text-xs'
+  const hasTags = present.shown.length > 0 || gone.length > 0
   return (
-    <p className="text-default-700 mt-1 truncate text-xs">
-      <b className="text-default-900 font-semibold">{stageText}</b>
-      {tagText && <> · {tagText}</>}
-    </p>
+    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
+      {bot.salesStatuses.length === 0 ? (
+        <span className={chip}>{t.allStatuses}</span>
+      ) : (
+        <>
+          {stages.shown.map((k) => (
+            <span key={k} className={chip}>
+              {t.stageLabel[k as SalesStageKey]}
+            </span>
+          ))}
+          {stages.rest > 0 && <span className="text-default-700 text-xs">+{stages.rest}</span>}
+        </>
+      )}
+      {hasTags && <span className="text-default-700 text-xs">{t.condAndTag}</span>}
+      {present.shown.map((n, i) => (
+        <span key={n} className="inline-flex items-center gap-1">
+          {i > 0 && <span className="text-default-700 text-xs">{joiner}</span>}
+          <span className={chip}>{n}</span>
+        </span>
+      ))}
+      {present.rest > 0 && <span className="text-default-700 text-xs">+{present.rest}</span>}
+      {gone.map((g) => {
+        const sentence = fmt(bot.tagMatch === 'ALL' ? t.tagGoneAll : t.tagGoneAny, { names: g.name })
+        return (
+          <Link key={g.key} href={`${BASE}/${bot.id}#sfb-who`} aria-label={sentence} title={sentence} className="badge bg-warning/15 text-warning-ink inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0">
+            <Icon icon="alert-triangle" aria-hidden="true" />
+            {fmt(t.tagGoneChip, { name: g.name })}
+          </Link>
+        )
+      })}
+    </div>
   )
 }
 
-/** เพจ/OA ที่บอทใช้: รูปโปรไฟล์ซ้อน ≤2 + "+N" และรายชื่อต่อกัน (truncate) */
+/** เพจ/OA ที่บอทใช้: รวมตามเพจ (Messenger + IG ชื่อเดียวกัน = 1 รูป) · รูปซ้อน ≤2 + "+N" · ชื่อเพจแรก + ชื่อแพลตฟอร์ม */
 function ChannelsCell({ bot }: { bot: BotDto }) {
   const t = useT().salesFollowBot
-  const names = bot.channels.map((c) => c.name).join(', ')
-  const stack = bot.channels.slice(0, 2)
-  const more = bot.channels.length - stack.length
+  const groups = useMemo(() => groupChannelsByPage(bot.channels), [bot.channels])
+  if (groups.length === 0) return null
+  const stack = groups.slice(0, 2)
+  // ชื่อโชว์เพจแรกเพจเดียว — เพจที่เหลือบอกเป็นจำนวน (รูปซ้อนได้ไม่เกิน 2)
+  const more = groups.length - 1
+  const first = groups[0]
+  const platforms = platformText(first.channels.map((c) => c.provider), t)
+  const names = groups.map((g) => g.name).join(', ')
   return (
     <div className="flex min-w-0 items-center gap-2" title={names}>
       <span className="flex shrink-0 items-center" aria-hidden="true">
-        {stack.map((c, i) => (
-          <span key={c.id} className={i > 0 ? '-ms-2' : ''}>
-            <AvatarWithPlatform imageUrl={c.avatarUrl} name={c.name} provider={c.provider} className="ring-card size-7 ring-2" badge="sm" />
+        {stack.map((g, i) => (
+          <span key={g.key} className={i > 0 ? '-ms-2' : ''}>
+            <AvatarWithPlatform imageUrl={g.avatarUrl} name={g.name} provider={g.channels[0].provider} className="ring-card size-8 ring-2" badge="sm" />
           </span>
         ))}
-        {more > 0 && <span className="bg-default-300 text-default-800 text-2xs ring-card -ms-2 flex size-7 items-center justify-center rounded-full font-semibold ring-2">+{more}</span>}
       </span>
-      <span className="text-default-800 min-w-0 truncate text-sm" aria-hidden="true">{names}</span>
+      <span className="min-w-0" aria-hidden="true">
+        <span className="text-default-900 block truncate text-sm">{first.name}</span>
+        <span className="text-default-700 block truncate text-xs">
+          {platforms}
+          {more > 0 && <> · {fmt(t.channelsMore, { n: more })}</>}
+        </span>
+      </span>
       <span className="sr-only">{fmt(t.channelsSr, { names })}</span>
     </div>
   )
 }
 
-/** จังหวะ: ชิปเวลารอของแต่ละรอบคั่นด้วยลูกศร · รอบที่ส่งได้เฉพาะลูกค้าโฆษณาใช้ tone warning (+ข้อความใน aria ไม่พึ่งสีอย่างเดียว) */
+/** รางเวลา: ชิปเวลารอของแต่ละรอบคั่นด้วยเส้น · รอบเฉพาะลูกค้าโฆษณา = ชิป warning + ไอคอน (ไม่พึ่งสีอย่างเดียว) · ปลายราง = จบแล้วทำอะไร */
 function RhythmCell({ bot, words, t }: { bot: BotDto; words: DurationWords; t: Dict }) {
   const list = bot.steps.map((s) => formatDuration(s.delayMin, words))
   const adRounds = bot.steps.flatMap((s, i) => (s.adOnly ? [i + 1] : []))
-  const aria = fmt(t.rhythmAria, { n: bot.steps.length, list: list.join(', ') }) + (adRounds.length ? ' ' + adRounds.map((n) => fmt(t.rhythmAdNote, { n })).join(' ') : '')
+  const adNote = adRounds[0] === 1 ? t.rhythmAdAll : adRounds.length ? fmt(t.rhythmAdSome, { list: adRounds.join(', ') }) : ''
+  const aria = fmt(t.rhythmAria, { n: bot.steps.length, list: list.join(', ') }) + (adRounds.length ? ' ' + adRounds.map((n) => fmt(t.rhythmAdNote, { n })).join(' ') + ' ' + adNote : '')
   return (
     <div>
       <p className="text-sm">
         <span className="text-default-900 font-medium tabular-nums">{fmt(t.roundsCount, { n: bot.steps.length })}</span>
-        <span className="text-default-600"> · {fmt(t.within, { d: formatDuration(bot.totalDelayMin, words) })}</span>
+        <span className="text-default-700"> · {formatDuration(bot.totalDelayMin, words)}</span>
       </p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1" role="img" aria-label={aria}>
         {bot.steps.map((s, i) => (
           <span key={i} className="inline-flex items-center gap-1" aria-hidden="true">
-            {i > 0 && <Icon icon="chevron-right" className="text-default-400 text-xs" />}
-            <span className={`text-2xs rounded px-1.5 py-0.5 whitespace-nowrap tabular-nums ${s.adOnly ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-800'}`}>{list[i]}</span>
+            {i > 0 && <Icon icon="chevron-right" className="text-default-700 text-xs" />}
+            <span title={s.adOnly ? t.rhythmAdChipTitle : undefined} className={`text-2xs inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 whitespace-nowrap tabular-nums ${s.adOnly ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-800'}`}>
+              {s.adOnly && <Icon icon="speakerphone" />}
+              {list[i]}
+            </span>
           </span>
         ))}
-      </div>
-      {bot.finalAction !== 'NONE' && (
-        <p className="text-default-700 mt-1 flex items-start gap-1 text-xs">
-          <Icon icon="flag" className="mt-0.5 shrink-0" aria-hidden="true" />
-          {fmt(t.finalSummary, { d: formatDuration(bot.finalDelayMin, words), a: t[FINAL_KEY[bot.finalAction]] })}
-        </p>
-      )}
-      {bot.replyHandoff === 'META_AI' && (
-        <p className="text-default-700 mt-1 flex items-start gap-1 text-xs">
-          <Icon icon="message-reply" className="mt-0.5 shrink-0" aria-hidden="true" />
-          {fmt(t.replySummary, { a: t[REPLY_HANDOFF_KEY.META_AI] })}
-        </p>
-      )}
-      {/* ไม่พึ่งสีอย่างเดียว: รอบแรกเป็นรอบโฆษณา = ทั้งบอทไม่ถึงลูกค้าทั่วไปเลย (เข้าใจผิดแพงที่สุด) */}
-      {adRounds.length > 0 && (
-        <p className="text-warning-ink mt-1 flex items-start gap-1 text-xs" aria-hidden="true">
-          <Icon icon="speakerphone" className="mt-0.5 shrink-0" />
-          {adRounds[0] === 1 ? t.rhythmAdAll : fmt(t.rhythmAdSome, { list: adRounds.join(', ') })}
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** จำนวนแชทที่บอทเกี่ยวข้อง: ทดสอบ = แชททดสอบที่เลือก · อย่างอื่น = แชทที่กำลังตาม (0 = ไม่แสดง) */
-function FollowCount({ bot, t }: { bot: BotDto; t: Dict }) {
-  const n = bot.status === 'TESTING' ? bot.testRoomIds.length : bot.activeRunCount
-  // ไม่แสดง "ตามอยู่ 0 แชท" — ค่าคงที่ที่ไม่ให้ข้อมูล
-  if (n <= 0) return null
-  return (
-    <p className="mt-1 text-xs">
-      <span className="text-default-900 text-base font-semibold tabular-nums">{n.toLocaleString()}</span>{' '}
-      <span className="text-default-700">{bot.status === 'TESTING' ? t.testChats : t.followingChats}</span>
-    </p>
-  )
-}
-
-function StatusCell({ bot, t }: { bot: BotDto; t: Dict }) {
-  return (
-    <div>
-      <StatusBadge status={bot.status} />
-      <FollowCount bot={bot} t={t} />
-    </div>
-  )
-}
-
-function BotNameBlock({ bot, link }: { bot: BotDto; link: boolean }) {
-  const t = useT().salesFollowBot
-  const preview = firstTextPreview(bot.steps, t.previewSampleName)
-  const missing = bot.tags.filter((x) => x.missing).map((x) => x.name)
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-1">
-        {link ? (
-          <Link href={`${BASE}/${bot.id}`} className="text-default-900 min-w-0 truncate font-medium">
-            {bot.name}
-          </Link>
-        ) : (
-          <span className="text-default-900 min-w-0 truncate font-medium">{bot.name}</span>
+        {bot.finalAction !== 'NONE' && (
+          <span className="text-default-800 text-2xs inline-flex items-center gap-1 whitespace-nowrap" aria-hidden="true">
+            <Icon icon="flag" />
+            {fmt(t.condEndShort, { d: formatDuration(bot.finalDelayMin, words), a: t[FINAL_KEY[bot.finalAction]] })}
+          </span>
         )}
-        {missing.length > 0 && <Icon icon="alert-triangle" className="text-warning-ink shrink-0 text-sm" role="img" aria-label={t.tagGoneAria} />}
       </div>
-      {preview && <p className="text-default-700 truncate text-xs">{preview}</p>}
-      {missing.length > 0 && (
-        <p className="text-warning-ink truncate text-xs">{fmt(bot.tagMatch === 'ALL' ? t.tagGoneAll : t.tagGoneAny, { names: missing.join(', ') })}</p>
-      )}
+      {bot.finalAction !== 'NONE' && <span className="sr-only">{fmt(t.finalSummary, { d: formatDuration(bot.finalDelayMin, words), a: t[FINAL_KEY[bot.finalAction]] })}</span>}
     </div>
   )
 }
 
-export default function BotListClient({ bots, hasChannel }: { bots: BotDto[]; hasChannel: boolean }) {
-  const { t, words } = useBotText()
+/** ผล 7 วัน: กำลังตาม · ส่งแล้ว · ตอบกลับ% (+แถบ) — ไม่มีสถิติ (เช่นโหลดไม่ได้) = "–" ไม่ใช่ 0 */
+function ResultCell({ bot, stats, t, compact }: { bot: BotDto; stats: StatsMap; t: Dict; compact?: boolean }) {
+  const s = stats ? (stats[bot.id] ?? { sent: 0, failed: 0, reached: 0, replied: 0 }) : null
+  if (bot.status === 'TESTING')
+    return (
+      <div>
+        <p className="text-default-700 text-xs">{t.testMode}</p>
+        <p className="text-default-900 text-sm tabular-nums">{fmt(t.testingSummary, { n: bot.testRoomIds.length, s: s ? s.sent : '–' })}</p>
+      </div>
+    )
+  if (bot.status === 'CLOSED' && s && s.sent === 0 && s.failed === 0 && bot.activeRunCount === 0) return compact ? null : <p className="text-default-700 text-xs">{t.closedOff}</p>
+  const pct = s ? repliedPct(s) : null
+  const cell = (v: string, l: string, bar?: boolean) => (
+    <div className="min-w-0">
+      <div className="text-default-900 text-base font-semibold tabular-nums">{v}</div>
+      <div className="text-default-700 text-xs">{l}</div>
+      {bar && pct !== null && (
+        <div className="bg-default-200 mt-1 h-1 w-full max-w-16 rounded-full" aria-hidden="true">
+          <div className="bg-success h-1 rounded-full" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  )
+  return (
+    <div className={`grid gap-3 ${compact ? 'grid-cols-3' : 'grid-cols-3 gap-4'}`}>
+      {cell(String(bot.activeRunCount), t.statFollowing)}
+      {cell(s ? s.sent.toLocaleString() : '–', t.statSent)}
+      {cell(pct === null ? '–' : `${pct}%`, t.statReplied, true)}
+    </div>
+  )
+}
+
+/** สวิตช์เปิด/ปิดในแถว · บอททดสอบไม่มีสวิตช์ (ต้องเลือกแชททดสอบในฟอร์ม) = ป้ายทดสอบ + ลิงก์ "เปิดใช้จริง…" */
+function StatusControl({ bot, t, busy, onChange }: { bot: BotDto; t: Dict; busy: boolean; onChange: (next: 'ACTIVE' | 'CLOSED') => void }) {
+  if (bot.status === 'TESTING')
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="badge bg-info/15 text-info-ink text-xs">
+          <Icon icon="flask" aria-hidden="true" />
+          {t.statusTesting}
+        </span>
+        <button type="button" onClick={() => onChange('ACTIVE')} disabled={busy} className="text-primary-ink inline-flex min-h-11 items-center text-xs font-medium underline disabled:opacity-50 lg:min-h-0">
+          {t.goLive}
+        </button>
+      </div>
+    )
+  const on = bot.status === 'ACTIVE'
+  const allGone = bot.tagMatch === 'ALL' && bot.tags.some((x) => x.missing)
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 lg:min-h-0">
+        <input type="checkbox" role="switch" className="form-switch checked:bg-success!" checked={on} disabled={busy} aria-label={fmt(t.toggleAria, { name: bot.name })} onChange={(e) => onChange(e.target.checked ? 'ACTIVE' : 'CLOSED')} />
+        <span className="text-default-800 text-sm">{on ? t.statusActive : t.statusClosed}</span>
+      </label>
+      {allGone && <span className="badge bg-warning/15 text-warning-ink text-xs">{t.tagGoneNoNew}</span>}
+    </div>
+  )
+}
+
+function ReplyLine({ bot, t }: { bot: BotDto; t: Dict }) {
+  return <p className="text-default-700 mt-1 text-xs">{fmt(t.condEndReply, { a: t[REPLY_HANDOFF_KEY[bot.replyHandoff]] })}</p>
+}
+
+export default function BotListClient({ bots, hasChannel, stats = null }: { bots: BotDto[]; hasChannel: boolean; stats?: StatsMap }) {
+  const t = useT().salesFollowBot
+  const words = useDurationWords()
   const router = useRouter()
+  const { view, change, pending } = useRowStatus(bots)
+  const rows = bots.map(view)
 
   const columns = useMemo(
     () => [
-      columnHelper.display({ id: 'bot', header: t.colBot, meta: { cellClassName: 'w-1/3 max-w-0 align-top' }, cell: ({ row }) => <BotNameBlock bot={row.original} link /> }),
       columnHelper.display({
-        id: 'condition',
-        header: t.colCondition,
+        id: 'bot',
+        header: t.colBot,
         meta: { cellClassName: 'w-1/3 max-w-0 align-top' },
         cell: ({ row }) => (
           <div className="min-w-0">
-            <ChannelsCell bot={row.original} />
-            <ConditionLine bot={row.original} />
+            <Link href={`${BASE}/${row.original.id}`} className="text-default-900 block min-w-0 truncate font-medium">
+              {row.original.name}
+            </Link>
+            <ConditionChips bot={row.original} />
+            <ReplyLine bot={row.original} t={t} />
           </div>
         ),
       }),
+      columnHelper.display({ id: 'channels', header: t.colChannels, meta: { cellClassName: 'align-top max-w-0 w-1/5' }, cell: ({ row }) => <ChannelsCell bot={row.original} /> }),
       columnHelper.display({ id: 'rounds', header: t.colRounds, meta: { cellClassName: 'align-top' }, cell: ({ row }) => <RhythmCell bot={row.original} words={words} t={t} /> }),
-      columnHelper.display({ id: 'status', header: t.colStatus, meta: { cellClassName: 'align-top' }, cell: ({ row }) => <StatusCell bot={row.original} t={t} /> }),
+      columnHelper.display({ id: 'result', header: t.colResult, meta: { cellClassName: 'align-top' }, cell: ({ row }) => <ResultCell bot={row.original} stats={stats} t={t} /> }),
+      columnHelper.display({
+        id: 'status',
+        header: t.colStatus,
+        meta: { cellClassName: 'align-top' },
+        cell: ({ row }) => <StatusControl bot={row.original} t={t} busy={pending.has(row.original.id)} onChange={(n) => void change(row.original, n)} />,
+      }),
       columnHelper.display({
         id: 'go',
         header: () => <span className="sr-only">{t.colOpen}</span>,
         meta: { cellClassName: 'w-px align-middle' },
-        cell: () => <Icon icon="chevron-right" className="text-default-500 text-lg" aria-hidden="true" />,
+        cell: () => <Icon icon="chevron-right" className="text-default-700 text-lg" aria-hidden="true" />,
       }),
     ],
-    [t, words],
+    [t, words, stats, pending, change],
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable ตามท่าเดียวกับ TagsClient
-  const table = useReactTable({ data: bots, columns, getCoreRowModel: getCoreRowModel() })
+  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() })
 
   return (
     <>
@@ -212,7 +331,7 @@ export default function BotListClient({ bots, hasChannel }: { bots: BotDto[]; ha
         <div className="card">
           <div className="card-body">
             <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <Icon icon="target-arrow" className="text-default-500 size-8" aria-hidden="true" />
+              <Icon icon="target-arrow" className="text-default-700 size-8" aria-hidden="true" />
               <h4 className="text-default-900 text-sm font-medium">{t.emptyTitle}</h4>
               <p className="text-default-700 max-w-md text-sm">{t.emptyBody}</p>
               {hasChannel ? (
@@ -236,35 +355,36 @@ export default function BotListClient({ bots, hasChannel }: { bots: BotDto[]; ha
             <DataTable<BotDto> table={table} onRowClick={(row) => router.push(`${BASE}/${row.original.id}`)} />
           </div>
 
-          {/* แท็บเล็ต/มือถือ <lg: การ์ดทั้งใบกดได้ · ≥md แบ่ง 2 ซีก */}
-          <ul className="space-y-3 lg:hidden">
-            {bots.map((bot) => (
-              <li key={bot.id}>
-                <Link href={`${BASE}/${bot.id}`} aria-label={fmt(t.openBotAria, { name: bot.name })} className="card block p-4">
-                  <div className="grid gap-2 md:grid-cols-2 md:gap-4">
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <BotNameBlock bot={bot} link={false} />
-                      </div>
-                      <span className="shrink-0">
-                        <StatusBadge status={bot.status} />
-                      </span>
-                    </div>
-                    <div className="border-default-300 min-w-0 space-y-2 md:border-s md:border-dashed md:ps-4">
-                      <div>
-                        <ChannelsCell bot={bot} />
-                        <ConditionLine bot={bot} />
-                      </div>
-                      <RhythmCell bot={bot} words={words} t={t} />
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <FollowCount bot={bot} t={t} />
-                        </div>
-                        <Icon icon="chevron-right" className="text-default-500 text-lg" aria-hidden="true" />
-                      </div>
-                    </div>
+          {/* แท็บเล็ต/มือถือ <lg: การ์ด (ไม่ใช่ลิงก์ทั้งใบ — มีสวิตช์ข้างใน) · ≥md 2 คอลัมน์ */}
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:hidden">
+            {rows.map((bot) => (
+              <li key={bot.id} className="card min-w-0 p-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Link href={`${BASE}/${bot.id}`} className="text-default-900 inline-flex min-h-11 max-w-full items-center font-medium lg:min-h-0">
+                      <span className="truncate">{bot.name}</span>
+                    </Link>
+                    <ConditionChips bot={bot} />
+                    <ReplyLine bot={bot} t={t} />
                   </div>
-                </Link>
+                  <div className="shrink-0">
+                    <StatusControl bot={bot} t={t} busy={pending.has(bot.id)} onChange={(n) => void change(bot, n)} />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <ChannelsCell bot={bot} />
+                </div>
+                <div className="border-default-300 mt-3 border-t border-dashed pt-3">
+                  <ResultCell bot={bot} stats={stats} t={t} compact />
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <RhythmCell bot={bot} words={words} t={t} />
+                  </div>
+                  <Link href={`${BASE}/${bot.id}`} aria-label={fmt(t.openBotAria, { name: bot.name })} className="btn text-default-700 size-11 shrink-0 p-0">
+                    <Icon icon="chevron-right" className="text-lg" aria-hidden="true" />
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

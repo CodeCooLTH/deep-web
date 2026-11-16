@@ -10,18 +10,18 @@
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { FINAL_ACTIONS, REPLY_HANDOFFS, SALES_FOLLOW_LIMITS as L, type FinalAction, type ReplyHandoff } from '@/lib/sales-follow-bot/constants'
+import { SALES_FOLLOW_LIMITS as L } from '@/lib/sales-follow-bot/constants'
 import type { BotIssue } from '@/lib/sales-follow-bot/schemas'
 import {
   addRoundBlocker,
   DELAY_UNITS,
   emptyStep,
-  FINAL_KEY,
-  REPLY_HANDOFF_KEY,
   formatDuration,
   moveBlocker,
   moveItem,
   remainingDelayMin,
+  rulerWidths,
+  stepDelayMin,
   timelineOf,
   type DelayUnit,
   type Draft,
@@ -34,6 +34,7 @@ import PieceList from './PieceList'
 import SfbSelect from './SfbSelect'
 import { FileThumb, useDurationWords } from './sfb-ui'
 
+const RULER_TONE = ['bg-primary', 'bg-primary/80', 'bg-primary/60', 'bg-primary/40', 'bg-primary/25'] as const
 const UNIT_KEY = { MIN: 'unitMinute', HOUR: 'unitHour', DAY: 'unitDay' } as const
 
 /** `{ชื่อ}` ในข้อความย่อของการ์ดที่พับ → ชิป (อ่านง่ายกว่าปีกกาดิบ) */
@@ -74,15 +75,9 @@ export default function RoundsSection({
 
   const setStep = (uid: string, next: DraftStep) => onChange((d) => ({ ...d, steps: d.steps.map((s) => (s.uid === uid ? next : s)) }))
   const moveStep = (from: number, to: number) => onChange((d) => ({ ...d, steps: moveItem(d.steps, from, to) }))
-  const toggle = (uid: string) =>
-    setOpen((s) => {
-      const n = new Set(s)
-      if (n.has(uid)) n.delete(uid)
-      else n.add(uid)
-      return n
-    })
+  // กางทีละรอบ (redesign A) — กางรอบใหม่ = พับรอบที่เปิดอยู่ ฟอร์มไม่ยาวเกินจอ
+  const toggle = (uid: string) => setOpen((s) => (s.has(uid) ? new Set() : new Set([uid])))
 
-  const finalIssues = issues.filter((i) => i.code === 'FINAL_DELAY_INVALID')
   const stepsIssues = issues.filter((i) => i.stepIndex === undefined && i.code !== 'FINAL_DELAY_INVALID')
 
   return (
@@ -95,7 +90,21 @@ export default function RoundsSection({
         </ul>
       )}
 
-      <div className="relative mt-3 before:absolute before:inset-y-0 before:start-4 before:border-s before:border-dashed before:border-default-300">
+      {/* แถบเวลาสะสม: สัดส่วนเวลาของแต่ละรอบเทียบกรอบ 7 วัน (ความกว้างเป็นค่าคำนวณ ไม่ใช่ class) */}
+      <div className="bg-default-200 flex h-2 w-full overflow-hidden rounded-full" role="img" aria-label={t.rulerAria}>
+        {rulerWidths(
+          draft.steps.map((s) => stepDelayMin(s)),
+          L.maxTotalDelayMin,
+        ).map((w, i) => (
+          <span key={i} className={`block h-full border-e border-card ${RULER_TONE[i % RULER_TONE.length]}`} style={{ width: `${w}%` }} />
+        ))}
+      </div>
+      <div className="text-default-700 mt-1 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
+        <span>{t.rulerStart}</span>
+        <span>{fmt(t.rulerEnd, { d: formatDuration(tl.total, words) })}</span>
+      </div>
+
+      <div className="relative mt-4 before:absolute before:inset-y-0 before:start-4 before:border-s before:border-dashed before:border-default-300">
         {draft.steps.map((step, i) => {
           const isOpen = open.has(step.uid)
           const ad = tl.adOnly[i]
@@ -119,7 +128,7 @@ export default function RoundsSection({
                 <div
                   className={`relative inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm md:rounded-full md:py-1 md:ps-3 md:pe-1.5 ${ad ? 'bg-warning/15 text-warning-ink border-transparent' : 'bg-card border-default-300 text-default-800'}`}
                 >
-                  <Icon icon="clock" className={ad ? 'text-warning-ink' : 'text-default-500'} aria-hidden="true" />
+                  <Icon icon="clock" className={ad ? 'text-warning-ink' : 'text-default-700'} aria-hidden="true" />
                   <span>{i === 0 ? t.waitFirst : t.waitNext}</span>
                   <div className="w-16">
                     <input
@@ -145,7 +154,7 @@ export default function RoundsSection({
                     />
                   </div>
                   {i === 0 && <span>{t.waitFirstSuffix}</span>}
-                  <span className={`px-1.5 text-xs tabular-nums ${ad ? 'text-warning-ink' : 'text-default-600'}`}>{fmt(t.cumulative, { d: formatDuration(tl.cumulative[i], words) })}</span>
+                  <span className={`px-1.5 text-xs tabular-nums ${ad ? 'text-warning-ink' : 'text-default-700'}`}>{fmt(t.cumulative, { d: formatDuration(tl.cumulative[i], words) })}</span>
                 </div>
                 {ad && (
                   <p id={noteId} className="text-warning-ink mt-1.5 flex items-start gap-1.5 ps-2 text-xs">
@@ -186,11 +195,14 @@ export default function RoundsSection({
                   <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isOpen ? 'bg-primary text-white' : 'bg-default-200 text-default-800'}`}>{i + 1}</span>
                   <span className="text-default-900 font-medium whitespace-nowrap">{fmt(t.roundTitle, { n: i + 1 })}</span>
                   {isOpen ? (
-                    <button type="button" onClick={() => toggle(step.uid)} aria-expanded="true" className="text-default-600 min-h-11 flex-1 text-start text-xs tabular-nums lg:min-h-0">
+                    <button type="button" onClick={() => toggle(step.uid)} aria-expanded="true" className="text-default-700 min-h-11 flex-1 text-start text-xs tabular-nums lg:min-h-0">
                       {fmt(t.roundPieceCount, { n: step.parts.length, max: L.maxParts })}
                     </button>
                   ) : (
-                    <span className="flex-1" />
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-8 shrink-0 rounded object-cover" />}
+                      <span className="text-default-700 min-w-0 truncate text-sm">{firstText ? withChips(firstText.text, t.varName) : summary}</span>
+                    </span>
                   )}
                   <ActionMenu
                     ariaLabel={fmt(t.roundMenuAria, { n: i + 1 })}
@@ -206,15 +218,6 @@ export default function RoundsSection({
                   <PieceList step={step} stepIndex={i} quick={quick} quickList={quickList} issues={partErrs} onChange={(next) => setStep(step.uid, next)} onDraft={onChange} />
                 ) : (
                   <>
-                    <p className="text-default-600 mt-1 text-xs md:ps-8">
-                      {fmt(t.pieceSummary, { n: step.parts.length })} · {summary}
-                    </p>
-                    {(firstText || firstImage) && (
-                      <div className="mt-1.5 flex items-start gap-2.5 md:ps-8">
-                        {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-10 shrink-0 rounded-lg object-cover" />}
-                        {firstText && <p className="text-default-700 line-clamp-2 text-sm">{withChips(firstText.text, t.varName)}</p>}
-                      </div>
-                    )}
                     {gone && (
                       <p className="bg-warning/15 text-warning-ink mt-2 flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs md:ms-8">
                         <Icon icon="alert-triangle" className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -235,57 +238,6 @@ export default function RoundsSection({
           )
         })}
 
-        {/* ส่วนต่อขยาย: ตามครบทุกรอบแล้วลูกค้ายังไม่ตอบ — ท่าเดียวกับชิปเวลารอระหว่างรอบ · ไม่ทำอะไร = พฤติกรรมเดิม */}
-        <div id="sfb-final" className="relative pt-1 pb-3">
-          <div className="bg-card border-default-300 text-default-800 relative inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm md:rounded-full md:py-1 md:ps-3 md:pe-1.5">
-            <Icon icon="flag" className="text-default-500" aria-hidden="true" />
-            <span>{t.finalPrefix}</span>
-            <div className="w-16">
-              <input
-                id="sfb-final-wait"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                value={draft.finalValue}
-                aria-label={`${t.finalWaitAria} · ${t.amountAria}`}
-                aria-invalid={finalIssues.length > 0 || undefined}
-                aria-describedby={finalIssues.length > 0 ? 'sfb-final-err' : undefined}
-                onChange={(e) => onChange((d) => ({ ...d, finalValue: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) }))}
-                className="form-input text-center tabular-nums"
-              />
-            </div>
-            <div className="min-w-28">
-              <SfbSelect
-                inputId="sfb-final-unit"
-                aria-label={`${t.finalWaitAria} · ${t.unitAria}`}
-                isSearchable={false}
-                options={DELAY_UNITS.map((u) => ({ value: u, label: t[UNIT_KEY[u]] }))}
-                value={{ value: draft.finalUnit, label: t[UNIT_KEY[draft.finalUnit]] }}
-                onChange={(o: unknown) => onChange((d) => ({ ...d, finalUnit: (o as { value: DelayUnit } | null)?.value ?? d.finalUnit }))}
-              />
-            </div>
-            <span>{t.finalThen}</span>
-            <div className="min-w-36">
-              <SfbSelect
-                inputId="sfb-final-action"
-                aria-label={t.finalActionAria}
-                isSearchable={false}
-                options={FINAL_ACTIONS.map((a) => ({ value: a, label: t[FINAL_KEY[a]] }))}
-                value={{ value: draft.finalAction, label: t[FINAL_KEY[draft.finalAction]] }}
-                onChange={(o: unknown) => onChange((d) => ({ ...d, finalAction: (o as { value: FinalAction } | null)?.value ?? d.finalAction }))}
-              />
-            </div>
-          </div>
-          {finalIssues.length > 0 ? (
-            <ul id="sfb-final-err" role="alert" className="text-danger-ink mt-1.5 space-y-1 ps-2 text-xs">
-              {finalIssues.map((e, k) => (
-                <li key={k}>{issueText(e, t)}</li>
-              ))}
-            </ul>
-          ) : (
-            draft.finalAction !== 'NONE' && <p className="text-default-600 mt-1.5 ps-2 text-xs">{t.finalHint}</p>
-          )}
-        </div>
       </div>
 
       <button
@@ -295,55 +247,20 @@ export default function RoundsSection({
         onClick={() => {
           const s = { ...emptyStep(), value: '1', unit: 'HOUR' as const }
           onChange((d) => ({ ...d, steps: [...d.steps, s] }))
-          setOpen((o) => new Set(o).add(s.uid))
+          setOpen(() => new Set([s.uid]))
         }}
         className="btn border-default-400 text-default-800 hover:bg-default-100 mt-3 min-h-11 w-full border border-dashed disabled:opacity-50 lg:min-h-0"
       >
         <Icon icon="plus" className="size-4" aria-hidden="true" />
         {t.addRound}
       </button>
-      <p id="sfb-add-round-note" className="text-default-600 mt-1 text-xs tabular-nums">
+      <p id="sfb-add-round-note" className="text-default-700 mt-1 text-xs tabular-nums">
         {blocker === 'MAX_ROUNDS'
           ? fmt(t.reasonMaxRounds, { max: L.maxSteps })
           : blocker === 'MAX_TOTAL'
             ? fmt(t.reasonMaxTotal, { d: formatDuration(L.maxTotalDelayMin, words) })
             : fmt(t.roundsLeft, { n: left, d: formatDuration(remainingDelayMin(draft), words) })}
       </p>
-
-      <div className="bg-default-100 mt-5 rounded-lg px-3.5 py-3">
-        <p className="text-default-800 text-sm font-medium">{t.stopTitle}</p>
-        <ul className="mt-2 grid gap-1.5 md:grid-cols-2">
-          {(
-            [
-              ['message-reply', t.stopReplied],
-              ['receipt', t.stopStage],
-              ['tag-off', t.stopTag],
-              ['clock-off', t.stopWindow],
-            ] as const
-          ).map(([icon, text]) => (
-            <li key={icon} className="text-default-700 flex items-start gap-2 text-sm">
-              <Icon icon={icon} className="mt-1 shrink-0" aria-hidden="true" />
-              <span>{text}</span>
-            </li>
-          ))}
-        </ul>
-        {/* FR-FA-7: ลูกค้าตอบแล้วบอทหยุด ห้องไปไหนต่อ — ค่าเดิม = แอดมิน · Meta AI ใช้ได้เฉพาะ Messenger/IG (LINE เป็นแอดมินเสมอ) */}
-        <div className="border-default-300 mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
-          <label htmlFor="sfb-reply-handoff" className="text-default-800 text-sm">
-            {t.replyHandoffLabel}
-          </label>
-          <div className="min-w-36">
-            <SfbSelect
-              inputId="sfb-reply-handoff"
-              isSearchable={false}
-              options={REPLY_HANDOFFS.map((h) => ({ value: h, label: t[REPLY_HANDOFF_KEY[h]] }))}
-              value={{ value: draft.replyHandoff, label: t[REPLY_HANDOFF_KEY[draft.replyHandoff]] }}
-              onChange={(o: unknown) => onChange((d) => ({ ...d, replyHandoff: (o as { value: ReplyHandoff } | null)?.value ?? d.replyHandoff }))}
-            />
-          </div>
-        </div>
-        {draft.replyHandoff === 'META_AI' && <p className="text-default-600 mt-1.5 text-xs">{t.replyHandoffHint}</p>}
-      </div>
     </div>
   )
 }
