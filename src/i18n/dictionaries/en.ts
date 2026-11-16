@@ -1866,7 +1866,7 @@ export const en: Dictionary = {
       covAdSales: 'Sales from ads',
       covUnknownSub: '{p} of all {noun}',
       covByCount: 'By {noun} count',
-      tabVal: { campaigns: 'ROAS {v}', quality: 'Collected {v}', products: '{n} items', customers: '{n} new' },
+      tabVal: { campaigns: 'ROAS {v}', quality: '{v}', products: '{n} items', customers: '{n} new' },
     },
   },
 

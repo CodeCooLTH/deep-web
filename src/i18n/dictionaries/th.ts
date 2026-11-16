@@ -2489,7 +2489,7 @@ export const th = {
       covAdSales: 'ยอดขายจากโฆษณา',
       covUnknownSub: '{p} ของ{noun}ทั้งร้าน',
       covByCount: 'ตามจำนวน{noun}',
-      tabVal: { campaigns: 'ROAS {v}', quality: 'รับเงิน {v}', products: '{n} รายการ', customers: '{n} คนใหม่' },
+      tabVal: { campaigns: 'ROAS {v}', quality: '{v}', products: '{n} รายการ', customers: '{n} คนใหม่' },
     },
   },
 
