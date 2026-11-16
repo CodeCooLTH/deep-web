@@ -90,11 +90,11 @@ export default async function AdRevenuePage({ searchParams }: { searchParams: Pr
   const tab = parseTab(sp.tab)
   const q = parseAdReportQuery({ from: sp.from, to: sp.to, shopChannelId: sp.shopChannelId })
 
-  let report, channels: { id: string; name: string; provider: string }[]
+  let report, channels: { id: string; name: string; provider: string; avatarUrl: string | null }[]
   try {
     ;[report, channels] = await Promise.all([
       getAdRevenueReport(shop.id, shop.vertical, { from: q.filters.from, to: q.filters.to, shopChannelId: q.filters.shopChannelId }),
-      prisma.shopChannel.findMany({ where: { shopId: shop.id }, select: { id: true, name: true, provider: true }, orderBy: { createdAt: 'asc' } }),
+      prisma.shopChannel.findMany({ where: { shopId: shop.id }, select: { id: true, name: true, provider: true, avatarUrl: true }, orderBy: { createdAt: 'asc' } }),
     ])
   } catch (e) {
     // ฐานล่มต้องไม่หน้าตาเหมือน "ร้านนี้ไม่มีข้อมูลโฆษณา"
