@@ -1,14 +1,16 @@
 'use client'
 
 /**
- * ReportTable — การ์ดตาราง: ค้นหา + เลือกจำนวนแถว + เรียงคอลัมน์ + แบ่งหน้า + แถวรวม + (ถ้าส่ง expand) กางแถวลูก (00091 เฟส 3 · ใช้ร่วม 4 แท็บ)
+ * ReportTable — การ์ดตาราง: ค้นหา + เลือกจำนวนแถว + เรียงคอลัมน์ + แบ่งหน้า + แถวรวม + (ถ้าส่ง subRows) กางแถวลูกในตารางเดียวกัน (00091 เฟส 3 · ใช้ร่วม 4 แท็บ)
  *
  * Base (แถบเครื่องมือ): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx
  *   (ซ้าย = input-icon-group ค้นหา · select จำนวนแถว · ขวา = ปุ่มหลัก) · ตัวตาราง: src/components/table/DataTable.tsx (สำเนาธีม · tanstack) + TablePagination
  *   ท่า useReactTable + getFilteredRowModel/getSortedRowModel/getPaginationRowModel: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/AnalyticsOverview.tsx
- *   แถวลูก: theme/paces/Admin/TS/src/app/(admin)/tables/datatables/child-rows/components/Table.tsx (คอลัมน์ควบคุม ⊕/⊖ ซ้ายสุด · `table-striped`)
+ *   แถวลูก: ไอคอน ⊕/⊖ วงกลม primary ตาม theme/paces/Admin/TS/src/app/(admin)/tables/datatables/child-rows/components/Table.tsx
+ *     แต่แถวลูกเป็นแถวในตารางเดียวกัน (tanstack subRows) คอลัมน์ชุดเดียวกับแถวแม่ — ไม่ใช่ตารางซ้อน (user 2026-11-16: ตารางซ้อนหัวซ้ำ คอลัมน์ไม่ตรง "ดูยาก")
+ * 🛑 paginateExpandedRows:false = แถวลูกตามแถวแม่ไปหน้าเดียวกัน · maxLeafRowFilterDepth:0 = ค้นหาเฉพาะแถวบนสุด (ค้นชื่อแคมเปญแล้วแถวลูกไม่หาย)
  * 🛑 pinnedLast ใช้ `sortUndefined: 'last'` ของ tanstack: แถวที่ปักท้าย (ไม่ทราบแคมเปญ) คืนค่าเรียง undefined ⇒ อยู่ท้ายเสมอทั้งขึ้นและลง
- * 🛑 แถวรวมต้องส่งมาจากผู้เรียก = ทุกแถว ไม่ใช่เฉพาะหน้า/ผลค้นหา (HR16) · ตัวเลขจัดกลาง (meta.align) ตามหน้าพี่น้อง
+ * 🛑 แถวรวมต้องส่งมาจากผู้เรียก = ทุกแถว ไม่ใช่เฉพาะหน้า/ผลค้นหา (HR16) · ตัวเลขชิดขวา (หลักตรงกันอ่านเทียบแถวได้ · theme tables/static/HoverableRows `text-end`) · คอลัมน์ชื่อรับที่ว่าง ตัวเลขจับกลุ่มขวา (theme AnalyticsOverview)
  */
 import {
   getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
@@ -53,8 +55,8 @@ type Props<T> = {
   pinnedLast?: (r: T) => boolean
   empty: string
   itemsName: string
-  /** แถวแม่กางแถวลูกได้ (ท่า child-rows ของธีม) — render = ตารางย่อใต้แถวแม่ */
-  expand?: { isExpandable: (r: T) => boolean; render: (r: T) => React.ReactNode }
+  /** แถวลูก (แคมเปญ → ชุดโฆษณา → โฆษณา) — กาง ⊕ แล้วแสดงเป็นแถวในตารางเดียวกัน เยื้องตามชั้น */
+  subRows?: (r: T) => T[] | undefined
   striped?: boolean
 }
 
@@ -86,35 +88,37 @@ export default function ReportTable<T>(p: Props<T>) {
         return typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare(String(y), 'th') : x - y
       },
       meta: {
-        align: c.align === 'end' ? 'center' : undefined,
-        headerClassName: c.xlOnly ? 'max-xl:hidden' : undefined,
-        cellClassName: cn('tabular-nums', c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'text-center', i === 0 && 'max-w-xs'),
+        align: c.align === 'end' ? 'end' : undefined,
+        headerClassName: cn(c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'whitespace-nowrap') || undefined,
+        cellClassName: cn('tabular-nums', c.xlOnly && 'max-xl:hidden', c.align === 'end' && 'text-end whitespace-nowrap', i === 0 && 'w-full min-w-48'),
       },
-      cell: ({ row }) =>
-        i === 0 && p.onOpen ? (
-          <button type="button" onClick={() => p.onOpen!(row.original)} className="hover:text-primary flex min-h-11 w-full min-w-0 max-w-full items-center gap-2 text-start lg:min-h-0">
-            <span className="flex min-w-0 items-center gap-2">{c.cell(row.original)}</span>
-          </button>
-        ) : i === 0 ? <div className="flex min-w-0 items-center gap-2">{c.cell(row.original)}</div> : c.cell(row.original),
+      cell: ({ row }) => {
+        if (i !== 0) return c.cell(row.original)
+        const canExpand = row.getCanExpand()
+        const body = <span className="flex min-w-0 items-center gap-2">{c.cell(row.original)}</span>
+        return (
+          // เยื้องตามชั้น 1.5rem ต่อชั้น (ค่าคำนวณรายแถว ใส่ผ่าน style ไม่ใช่ arbitrary class)
+          <div className="flex min-w-0 items-center gap-2" style={row.depth ? { paddingInlineStart: `${row.depth * 1.5}rem` } : undefined}>
+            {p.subRows && (
+              canExpand ? (
+                <button type="button" onClick={row.getToggleExpandedHandler()} aria-expanded={row.getIsExpanded()} aria-label={t.expandCol} className="text-primary flex min-h-11 shrink-0 items-center lg:min-h-0">
+                  <Icon icon={row.getIsExpanded() ? 'circle-minus' : 'circle-plus'} className="text-2xl" aria-hidden="true" />
+                </button>
+              ) : <span className="w-6 shrink-0" aria-hidden="true" />
+            )}
+            {canExpand ? (
+              <button type="button" onClick={row.getToggleExpandedHandler()} className="hover:text-primary flex min-h-11 min-w-0 items-center text-start lg:min-h-0">{body}</button>
+            ) : p.onOpen ? (
+              <button type="button" onClick={() => p.onOpen!(row.original)} className="hover:text-primary flex min-h-11 min-w-0 items-center text-start lg:min-h-0">{body}</button>
+            ) : body}
+          </div>
+        )
+      },
     }))
-    if (!p.expand) return defs
-    // คอลัมน์ควบคุมซ้ายสุดแบบ dt-control ของธีม child-rows (ไอคอนวงกลม primary)
-    const control: ColumnDef<T> = {
-      id: '__control',
-      header: () => <span className="sr-only">{t.expandCol}</span>,
-      enableSorting: false,
-      meta: { cellClassName: 'w-10' },
-      cell: ({ row }) =>
-        row.getCanExpand() ? (
-          <button type="button" onClick={row.getToggleExpandedHandler()} aria-expanded={row.getIsExpanded()} aria-label={t.expandCol} className="text-primary flex min-h-11 items-center lg:min-h-0">
-            <Icon icon={row.getIsExpanded() ? 'circle-minus' : 'circle-plus'} className="text-2xl" aria-hidden="true" />
-          </button>
-        ) : null,
-    }
-    return [control, ...defs]
+    return defs
     // columns/onOpen/expand ผูกกับ state ของผู้เรียกที่เสถียรในหนึ่งรอบ render — สร้างใหม่ทุกรอบตามท่า AdTableCard
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.columns, p.expand, p.onOpen, p.pinnedLast, t])
+  }, [p.columns, p.subRows, p.onOpen, p.pinnedLast, t])
 
   const table = useReactTable({
     data: p.rows,
@@ -125,7 +129,9 @@ export default function ReportTable<T>(p: Props<T>) {
     onGlobalFilterChange: setGlobalFilter,
     onExpandedChange: setExpanded,
     getRowId: (r) => p.rowKey(r),
-    getRowCanExpand: (row) => p.expand?.isExpandable(row.original) ?? false,
+    getSubRows: p.subRows,
+    paginateExpandedRows: false,
+    maxLeafRowFilterDepth: 0,
     globalFilterFn: (row, _id, q: string) => (p.matches ? p.matches(row.original, q.trim().toLowerCase()) : true),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -170,8 +176,8 @@ export default function ReportTable<T>(p: Props<T>) {
       </div>
       {p.subHeader}
       <DataTable<T>
-        table={table} emptyMessage={p.empty} footerRow={p.footer} striped={p.striped}
-        subRow={p.expand ? (row) => p.expand!.render(row.original) : undefined}
+        table={table} emptyMessage={p.empty} footerRow={p.footer} striped={p.striped && !p.subRows}
+        rowClassName={p.subRows ? (row) => (row.depth > 0 ? 'bg-default-50 text-sm' : undefined) : undefined}
       />
       {filtered > 0 && (
         <div className="card-footer">

@@ -76,17 +76,16 @@ type DataTableProps<TData> = {
   footerRow?: React.ReactNode
 
   /**
-   * Opt-in แถวลูกใต้แถวแม่ที่กางอยู่ (`row.getIsExpanded()`) — ท่า child-rows ของธีม (theme tables/datatables/child-rows)
-   * ผู้เรียกใช้ tanstack `getExpandedRowModel` + `getRowCanExpand` แล้วคืนเนื้อหา (เช่นตารางย่อ) ให้แถวนั้น
-   * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%)
+   * Opt-in คลาสของ `<tr>` รายแถว — เช่นแถวลูก (tanstack subRows, `row.depth > 0`) ใช้พื้นอ่อนให้แยกชั้นออกจากแถวแม่
+   * ไม่ส่ง → behavior เดิมเป๊ะ
    */
-  subRow?: (row: Row<TData>) => React.ReactNode
+  rowClassName?: (row: Row<TData>) => string | undefined
 
   /** Opt-in ตารางลายทาง (`table-striped` ของธีม) — ไม่ส่ง = เดิม */
   striped?: boolean
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick, footerRow, subRow, striped }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick, footerRow, rowClassName, striped }: DataTableProps<TData>) => {
   'use no memo'
   // visible ไม่ใช่ all — ตารางที่มีคอลัมน์ซ่อน (เช่น OrdersTable ที่เก็บ createdAtISO ไว้ให้
   // ตัวกรองเกาะอย่างเดียว) จะได้ colSpan ของแถว empty เกินจำนวนคอลัมน์จริงไป 1
@@ -103,7 +102,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
               <tr key={headerGroup.id} className="bg-light/25 text-2xs uppercase">
                 {headerGroup.headers.map((header) => (
                   <th key={header.id} onClick={header.column.getToggleSortingHandler()} className={cn('select-none', header.column.getCanSort() ? 'cursor-pointer' : 'cursor-default', (header.column.columnDef.meta as { headerClassName?: string } | undefined)?.headerClassName)}>
-                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' || (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'center' })}>
+                    <div className={cn('flex items-center', { 'justify-center': header.column.columnDef.header === 'Actions' || (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'center', 'justify-end': (header.column.columnDef.meta as { align?: string } | undefined)?.align === 'end' })}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getCanSort() &&
                         ({
@@ -132,7 +131,7 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
                   </tr>
                 )}
                 <tr
-                  className={onRowClick ? 'cursor-pointer' : undefined}
+                  className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row)) || undefined}
                   onClick={
                     onRowClick
                       ? (e) => {
@@ -153,13 +152,6 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
                     </td>
                   ))}
                 </tr>
-                {subRow && row.getIsExpanded() && (
-                  <tr>
-                    <td colSpan={row.getVisibleCells().length} className="p-0">
-                      {subRow(row)}
-                    </td>
-                  </tr>
-                )}
               </Fragment>
             ))
           ) : (
