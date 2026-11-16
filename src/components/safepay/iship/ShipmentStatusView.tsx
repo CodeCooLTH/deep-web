@@ -456,23 +456,34 @@ export default function ShipmentStatusView({
   }
 
   /**
-   * ใบปะหน้า Flash — ดึง PDF เองแล้วเปิดจาก blob (ไม่ใช้ <a target=_blank> แบบ iShip)
-   * เพราะเส้นทาง Flash มีผล JSON error จริง (409 key ใช้ไม่ได้) ถ้าเปิดตรงร้านจะเจอแท็บ JSON (Design-Spec §4.5)
+   * ใบปะหน้า (iShip + Flash) — ดึง PDF เองแล้วเปิดจาก blob ไม่ใช่ <a target=_blank> ตรงไปที่ API
+   * เพราะ (1) ล้มแล้วร้านต้องเห็น toast ไม่ใช่แท็บ JSON (Design-Spec §4.5) (2) ต้องแนบ shopId ผ่าน
+   * ishipUrl — ลิงก์เดิมของ iShip ไม่แนบ ในกล่องแชทรวมหลายร้านจึงไปหาพัสดุผิดร้าน (เคส DP256911438244CA)
+   *
+   * 🛑 เปิดแท็บเปล่า "ก่อน" await — Safari/iOS บล็อก window.open ที่เกิดหลัง await (ไม่ใช่ user gesture แล้ว)
    */
-  async function handlePrintFlashLabel() {
+  async function handlePrintLabel() {
     if (busy) return
     setBusy(true)
+    const tab = window.open('', '_blank')
     try {
       const res = await fetch(ishipUrl(`${apiBase}/shipments/${shipment.id}/label`), { cache: 'no-store' })
       if (!res.ok) {
+        tab?.close()
         pacesToast.error((await readApiError(res, 'พิมพ์ใบปะหน้าไม่สำเร็จ')).message)
         return
       }
       const url = URL.createObjectURL(await res.blob())
-      window.open(url, '_blank', 'noopener')
+      if (tab) {
+        tab.opener = null
+        tab.location.href = url
+      } else {
+        window.location.href = url // เบราว์เซอร์ไม่ให้เปิดแท็บใหม่ — เปิดในแท็บนี้แทน
+      }
       // ปล่อย object URL หลังแท็บใหม่โหลดเสร็จ — revoke ทันทีจะได้แท็บว่าง
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch {
+      tab?.close()
       pacesToast.error('พิมพ์ใบปะหน้าไม่สำเร็จ กรุณาลองใหม่')
     } finally {
       setBusy(false)
@@ -1269,29 +1280,16 @@ export default function ShipmentStatusView({
           </button>
         )}
 
-        {isFlash ? (
-          <button
-            type="button"
-            onClick={() => void handlePrintFlashLabel()}
-            disabled={busy}
-            aria-label="พิมพ์ใบปะหน้า"
-            title="พิมพ์ใบปะหน้า"
-            className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0 disabled:opacity-50"
-          >
-            <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
-          </button>
-        ) : (
-          <a
-            href={`/api/seller/iship/shipments/${shipment.id}/label`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="พิมพ์ใบปะหน้า"
-            title="พิมพ์ใบปะหน้า"
-            className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0"
-          >
-            <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
-          </a>
-        )}
+        <button
+          type="button"
+          onClick={() => void handlePrintLabel()}
+          disabled={busy}
+          aria-label="พิมพ์ใบปะหน้า"
+          title="พิมพ์ใบปะหน้า"
+          className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0 disabled:opacity-50"
+        >
+          <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
+        </button>
 
         <div ref={menuRef} className="relative shrink-0">
           <button
