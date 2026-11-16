@@ -33,21 +33,21 @@ import SellerErrorState from '../../_shared/SellerErrorState'
 import AdSpendNotice from '../ads/components/AdSpendNotice'
 import { AdReportPendingProvider } from '../ads/components/PendingContext'
 import PendingGrid from '../ad-quality/components/PendingGrid'
-import AdProductHeatmap from './components/AdProductHeatmap'
+import { roas } from '@/lib/ad-report-view'
+import { INSIGHT_RULES } from '@/lib/ad-revenue-view'
+import { formatBaht, formatNumberNoSymbol } from '@/lib/format-money'
 import AdRevenueFilters from './components/AdRevenueFilters'
 import AdRevenueTabs from './components/AdRevenueTabs'
-import CampaignTableCard from './components/CampaignTableCard'
-import CoverageCard from './components/CoverageCard'
-import CustomerMixCard from './components/CustomerMixCard'
-import CustomerTableCard from './components/CustomerTableCard'
-import ProductTableCard from './components/ProductTableCard'
-import QualityTableCard from './components/QualityTableCard'
+import CampaignsTab from './components/CampaignsTab'
+import CoverageTab from './components/CoverageTab'
+import CustomersTab from './components/CustomersTab'
+import ProductsTab from './components/ProductsTab'
+import QualityTab from './components/QualityTab'
 import RecommendationsBubble from './components/RecommendationsBubble'
-import RevenueSummaryCard from './components/RevenueSummaryCard'
-import SalesTimeHeatmap from './components/SalesTimeHeatmap'
-import StatusMixCard from './components/StatusMixCard'
-import StatusWaterfallCard from './components/StatusWaterfallCard'
-import { PANEL_ID, parseTab, TABS_NEEDING_SPEND } from './components/data'
+import SummaryTab from './components/SummaryTab'
+import TimeTab from './components/TimeTab'
+import { bestTwoHours, fmtPct, hh, PANEL_ID, parseTab, TABS_NEEDING_SPEND, type AdRevenueTab } from './components/data'
+import { fmtRoas } from '../ads/components/data'
 
 export const metadata: Metadata = { title: 'วิเคราะห์ยอดขายจากโฆษณา' }
 
@@ -157,54 +157,51 @@ export default async function AdRevenuePage({ searchParams }: { searchParams: Pr
       </div>
     )
   } else if (tab === 'summary') {
-    body = (
-      <div>
-        <RevenueSummaryCard summary={summary} previous={report.previous} spend={spend} daily={report.daily} prevDaily={report.prevDaily} serviceRules={report.serviceRules} noun={noun} />
-      </div>
-    )
+    body = <SummaryTab report={report} noun={noun} campaignsHref={`/reports/ad-revenue?${campaignsQs.toString()}`} />
   } else if (tab === 'campaigns') {
-    body = <CampaignTableCard ads={ads} spend={spend} noun={noun} rangeQuery={rangeQs.toString()} rangeLabel={`${q.label.from}_${q.label.to}`} />
+    body = <CampaignsTab report={report} noun={noun} rangeQuery={rangeQs.toString()} rangeLabel={`${q.label.from}_${q.label.to}`} />
   } else if (tab === 'quality') {
     const qAds = ads.map((a) => ({ ...adLite(a), status: a.status, gross: a.gross, collectedPlaced: a.collectedPlaced }))
-    body = (
-      <div className="gap-base grid grid-cols-1 xl:grid-cols-12">
-        <div className="xl:col-span-5"><StatusWaterfallCard waterfall={report.waterfall} /></div>
-        <div className="xl:col-span-7"><StatusMixCard ads={qAds} noun={noun} labels={statusLabels} /></div>
-        <div className="xl:col-span-12"><QualityTableCard ads={qAds} noun={noun} labels={statusLabels} /></div>
-      </div>
-    )
+    body = <QualityTab report={report} ads={qAds} noun={noun} labels={statusLabels} />
   } else if (tab === 'products') {
     const inMatrix = new Set(report.matrix.adIds)
-    body = (
-      <div className="gap-base grid grid-cols-1">
-        <ProductTableCard products={report.products} noun={noun} />
-        <AdProductHeatmap matrix={report.matrix} products={report.products} ads={ads.filter((a) => inMatrix.has(a.adId)).map(adLite)} />
-      </div>
-    )
+    body = <ProductsTab report={report} matrixAds={ads.filter((a) => inMatrix.has(a.adId)).map(adLite)} noun={noun} />
   } else if (tab === 'customers') {
-    body = (
-      <div className="gap-base grid grid-cols-1">
-        <CustomerMixCard summary={summary} noun={noun} />
-        <CustomerTableCard ads={ads} spendOk={spendOk} noun={noun} />
-      </div>
-    )
+    body = <CustomersTab report={report} noun={noun} />
   } else if (tab === 'time') {
-    body = <SalesTimeHeatmap heatmap={report.heatmap} totalOrders={summary.orders} noun={noun} />
+    body = <TimeTab report={report} noun={noun} />
   } else {
     body = (
-      <CoverageCard
-        coverage={report.coverage} spend={spend} noun={noun} campaignsHref={`/reports/ad-revenue?${campaignsQs.toString()}`} noticeCopy={noticeCopy}
+      <CoverageTab
+        report={report} noun={noun} campaignsHref={`/reports/ad-revenue?${campaignsQs.toString()}`} noticeCopy={noticeCopy}
         adsWithoutCampaign={spendOk ? ads.filter((a) => !a.campaignId).length : 0}
       />
     )
   }
 
+  // ตัวเลขเด่นบนแถบแท็บ (ตัวเลือก A ที่ user อนุมัติ 2026-11-16) — คิดจาก report ชุดเดียวกับเนื้อหาแท็บ
+  const w = report.waterfall
+  const totalRoas = roas(summary.sales, summary.spend)
+  const best = bestTwoHours(report.heatmap)
+  const covTotal = report.coverage.adOrders + report.coverage.chatOrders + report.coverage.otherOrders
+  const dv = ar.dash.tabVal
+  const tabValues: Record<AdRevenueTab, string | null> = {
+    summary: formatBaht(Math.round(summary.collected)),
+    campaigns: spendOk && totalRoas !== null ? fmt(dv.campaigns, { v: fmtRoas(totalRoas) }) : null,
+    quality: w.open > 0 ? fmt(dv.quality, { v: fmtPct(Math.round((w.collected / w.open) * 1000) / 10) }) : null,
+    products: fmt(dv.products, { n: formatNumberNoSymbol(report.products.length) }),
+    customers: fmt(dv.customers, { n: formatNumberNoSymbol(summary.newCustomers) }),
+    time: summary.orders >= INSIGHT_RULES.minOrders && best.v > 0 ? fmt(ar.dash.hourRange, { a: hh(best.h), b: hh(best.h + 2) }) : null,
+    coverage: covTotal > 0 ? fmtPct(Math.round((report.coverage.adOrders / covTotal) * 1000) / 10) : null,
+  }
+
   return (
-    <>
+    // จอเกิน 1920: เนื้อหากว้างไม่เกิน 1920 จัดกลาง (max-w-480 = 120rem ในสเกล spacing ปกติ · user อนุมัติ 2026-11-16)
+    <div className="mx-auto w-full max-w-480">
       <PageBreadcrumb title={title} subtitle={parent} />
       <AdReportPendingProvider>
         <AdRevenueFilters from={q.label.from} to={q.label.to} shopChannelId={q.filters.shopChannelId ?? null} channels={channels} clamped={q.clamped} maxRangeDays={MAX_RANGE_DAYS} />
-        <AdRevenueTabs active={tab} noun={noun} />
+        <AdRevenueTabs active={tab} noun={noun} values={tabValues} />
         <PendingGrid>
           {report.truncated && <p className="text-warning-ink bg-warning/15 mb-base rounded-lg px-3 py-2 text-sm">{t.adRevenue.truncated}</p>}
           {TABS_NEEDING_SPEND.includes(tab) && !noOrders && <AdSpendNotice ads={{ state: spend.state, currency: spend.currency }} noun={noun} copy={noticeCopy} />}
@@ -220,6 +217,6 @@ export default async function AdRevenuePage({ searchParams }: { searchParams: Pr
           />
         </PendingGrid>
       </AdReportPendingProvider>
-    </>
+    </div>
   )
 }

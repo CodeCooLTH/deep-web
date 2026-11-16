@@ -34,3 +34,12 @@ export const fmtPct = (v: number | null) => (v === null ? '—' : `${pct1(v)}%`)
 export type StatusLabels = Record<'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED' | 'RETURNED', string>
 
 export const spendIsOk = (s: SpendInfo) => s.state === 'OK'
+
+/** ช่วง 2 ชั่วโมงที่ยอดขายสูงสุด (ไม่ข้ามเที่ยงคืน) จาก heatmap — ใช้ทั้ง KPI แท็บช่วงเวลาและตัวเลขบนแถบแท็บ (ที่เดียว) */
+export function bestTwoHours(heatmap: AdRevenueReport['heatmap']): { h: number; v: number; total: number } {
+  const byHour = Array.from({ length: 24 }, (_, h) => heatmap.sales.reduce((n, row) => n + row[h], 0))
+  let best = { h: 0, v: 0 }
+  for (let h = 0; h < 23; h++) { const v = byHour[h] + byHour[h + 1]; if (v > best.v) best = { h, v } }
+  return { ...best, total: byHour.reduce((a, b) => a + b, 0) }
+}
+export const hh = (h: number) => String(h % 24).padStart(2, '0')

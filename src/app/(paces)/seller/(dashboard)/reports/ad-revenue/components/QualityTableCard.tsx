@@ -13,6 +13,7 @@ import { placedOf, STATUS_KEYS } from '@/lib/ad-revenue-view'
 import { formatNumberNoSymbol } from '@/lib/format-money'
 import { useT } from '@/i18n/LocaleProvider'
 import { fmt } from '@/i18n/fmt'
+import { SegBar } from './DashBits'
 import InfoTip from './InfoTip'
 import ReportTable, { type Col } from './ReportTable'
 import { fmtPct, type AdMetrics, type StatusLabels } from './data'
@@ -39,7 +40,11 @@ export default function QualityTableCard({ ads, noun, labels }: { ads: Ad[]; nou
       ),
     },
     { id: 'placed', header: fmt(t.colPlacedAll, { noun }), align: 'end', sort: (a) => placedOf(a.status), cell: (a) => formatNumberNoSymbol(placedOf(a.status)) },
-    { id: 'collected', header: t.colCollectedPct, align: 'end', sort: collectedPct, cell: (a) => fmtPct(collectedPct(a)) },
+    {
+      id: 'collected', header: t.colCollectedPct, align: 'end', sort: collectedPct,
+      // แถบแบ่งช่อง + ตัวเลขตัวหนา (user 2026-11-16: ความคืบหน้าใช้แถบทึบ ไม่ใช่ข้อความจาง)
+      cell: (a) => { const v = collectedPct(a); return <span className="inline-flex items-center justify-end gap-2"><SegBar pct={v ?? 0} tone="success" segments={10} className="w-24" /><b className="text-default-900 w-14 font-bold">{fmtPct(v)}</b></span> },
+    },
     { id: 'cancelled', header: labels.CANCELLED, align: 'end', sort: (a) => pct(a.status.CANCELLED, placedOf(a.status)), cell: (a) => fmtPct(pct(a.status.CANCELLED, placedOf(a.status))) },
     { id: 'returned', header: labels.RETURNED, align: 'end', sort: (a) => pct(a.status.RETURNED, placedOf(a.status)), cell: (a) => fmtPct(pct(a.status.RETURNED, placedOf(a.status))) },
   ]

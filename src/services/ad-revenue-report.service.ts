@@ -78,7 +78,8 @@ export type AdRevenueReport = {
   insights: Insight[]
   /** รายวันของช่วง (ไว้วาดกราฟเล็กบนการ์ดสรุป) — วันว่าง = 0 · ยอด/รับเงิน/ใบ ตามวันขาย · ยกเลิก/ตีกลับ ตามวันที่สั่ง */
   /** pending = ยอดของใบที่ยังไม่รับเงินและไม่ใช่ตีกลับ (รอเก็บเงิน) — ใบใหม่ที่ COD ยังไม่ถึงมือ ทำให้ "รับเงินแล้ว" ท้ายช่วงต่ำ ไม่ใช่ยอดหาย */
-  daily: { day: string; sales: number; collected: number; pending: number; orders: number; lost: number; profitBeforeAds: number }[]
+  /** spend = ค่าโฆษณารายวันจาก Insights (null ทั้งชุด = Meta ไม่ OK) — sparkline ค่าโฆษณา/กำไรส่วนเกินบน KPI */
+  daily: { day: string; sales: number; collected: number; pending: number; orders: number; lost: number; profitBeforeAds: number; spend: number | null }[]
   /** ช่วงก่อนหน้า เรียงตามตำแหน่งวัน (index ตรงกับ daily) — ยอด/รับเงิน/ใบ เท่านั้น (ช่วงก่อนไม่ได้ดึงใบทุกสถานะ/กำไร) */
   prevDaily: { day: string; sales: number; collected: number; orders: number }[]
 }
@@ -177,6 +178,7 @@ export async function getAdRevenueReport(
     ? new Set([...referrals.map((r) => r.adId!), ...salesOrders.flatMap((o) => (o.adId ? [o.adId] : [])), ...placedOrders.map((o) => o.adId!)])
     : null
   const spendByAd = new Map<string, number>()
+  const spendByDay = new Map<string, number>()
   let prevSpend = 0
   const hier = new Map<string, { campaignId: string | null; campaignName: string | null; adsetId: string | null; adsetName: string | null; adName: string | null; day: string }>()
   if (spendOk) {
@@ -191,7 +193,7 @@ export async function getAdRevenueReport(
         })
       }
       if (scope && !scope.has(r.adId)) continue
-      if (r.day >= curFromKey) spendByAd.set(r.adId, (spendByAd.get(r.adId) ?? 0) + r.spend)
+      if (r.day >= curFromKey) { spendByAd.set(r.adId, (spendByAd.get(r.adId) ?? 0) + r.spend); spendByDay.set(r.day, (spendByDay.get(r.day) ?? 0) + r.spend) }
       else prevSpend += r.spend
     }
   }
@@ -456,6 +458,6 @@ export async function getAdRevenueReport(
     coverage: { ...coverage, adSales: round2(coverage.adSales), chatSales: round2(coverage.chatSales), otherSales: round2(coverage.otherSales) },
     insights: buildInsights(ads, topProductByAd),
     prevDaily: prevDaily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected) })),
-    daily: daily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected), pending: round2(d.pending), profitBeforeAds: round2(d.profitBeforeAds) })),
+    daily: daily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected), pending: round2(d.pending), profitBeforeAds: round2(d.profitBeforeAds), spend: spendOk ? round2(spendByDay.get(d.day) ?? 0) : null })),
   }
 }

@@ -34,7 +34,7 @@ type Props = {
   status?: React.ReactNode
 }
 
-function Spark({ data, kind, name }: { data: number[]; kind: 'bar' | 'area'; name: string }) {
+export function Spark({ data, kind, name }: { data: number[]; kind: 'bar' | 'area'; name: string }) {
   const getOptions = useCallback(
     (): ApexOptions => ({
       chart: { type: kind, height: 48, sparkline: { enabled: true }, toolbar: { show: false } },
@@ -56,7 +56,7 @@ function Spark({ data, kind, name }: { data: number[]; kind: 'bar' | 'area'; nam
   )
 }
 
-function Tile({ title, icon, iconBg, number, badge, children }: { title: string; icon: string; iconBg: string; number: React.ReactNode; badge?: React.ReactNode; children?: React.ReactNode }) {
+export function Tile({ title, icon, iconBg, number, badge, children }: { title: string; icon: string; iconBg: string; number: React.ReactNode; badge?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="card h-full min-w-0">
       <div className="card-body">
