@@ -126,6 +126,32 @@ function aggregate(cands: readonly (Date | null | undefined)[], now: Date, agg: 
   return new Date(agg === 'min' ? Math.min(...ms) : Math.max(...ms))
 }
 
+/**
+ * OrderEvent ทุกชนิดที่ stampOfOrder อ่าน — ตัวโหลดข้อเท็จจริง (S-3) ใช้กรอง event ตอน query
+ * เพิ่มชนิดใน stampOfOrder แล้วลืมที่นี่ = stamp เป็น null เงียบ ๆ → มีเทสสแกนซอร์สบังคับ (sales-follow-facts.test.ts)
+ */
+export const STAMP_EVENT_TYPES = [
+  'ORDER_CREATED',
+  'MANUAL_DISPATCHED',
+  'SHIPMENT_CREATED',
+  'SHIPMENT_LINKED',
+  'TRACKING_ADDED',
+  'SELLER_DELIVERED',
+  'BUYER_CONFIRMED',
+  'SYSTEM_CONFIRMED',
+  'COD_SETTLED',
+  'HANDED_OVER',
+  'RETURN_RECEIVED',
+  'PARCEL_PROBLEM_CLOSED',
+  'ORDER_CANCELLED',
+] as const
+
+/** เกณฑ์จบรอบ: RealBuyerMsg ที่ createdAt > ค่านี้ = รอบใหม่ (NOT_BOUGHT) · null = สถานะนี้ไม่จบรอบเอง/ไม่มีตราประทับ */
+export function roundEndLimit(key: SalesStageKey, stamp: Date | null): Date | null {
+  const hold = HOLD_MS[key]
+  return hold !== undefined && stamp !== null ? new Date(stamp.getTime() + hold) : null
+}
+
 function eventTimes(e: StageOrder, types: readonly string[]): Date[] {
   return e.events.filter((x) => types.includes(x.type)).map((x) => x.occurredAt)
 }
@@ -173,9 +199,9 @@ export function deriveSalesStage(f: SalesStageFacts): SalesStageResult | null {
   if (key === null) return null
 
   const stamp = stampOfOrder(key, e, f.now)
-  const hold = HOLD_MS[key]
-  if (hold !== undefined && stamp !== null) {
-    const limit = stamp.getTime() + hold
+  const limitAt = roundEndLimit(key, stamp)
+  if (limitAt !== null) {
+    const limit = limitAt.getTime()
     // ข้อความแรกที่เกินพัก = ต่ำสุดของที่ > limit (ไม่พึ่งลำดับอาร์เรย์)
     const next = aggregate(
       f.buyerMsgTimes.filter((t) => t.getTime() > limit),

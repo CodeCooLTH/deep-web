@@ -122,6 +122,8 @@ export const SALES_FOLLOW_LIMITS = {
   /** รูปต่อชิ้นชนิด IMAGES */
   maxImagesPerPart: 5,
   maxText: 1000,
+  /** ความยาวสูงสุดของ fileId / quickMessageId ที่รับจาก client */
+  maxIdLength: 120,
   maxName: 60,
   maxTestRooms: 20,
   maxChannels: 50,

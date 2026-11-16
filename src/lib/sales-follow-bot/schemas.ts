@@ -27,6 +27,7 @@ export type BotIssueCode =
   | 'PART_TEXT_TOO_LONG'
   | 'PART_TEXT_INVALID'
   | 'PART_IMAGES_COUNT'
+  | 'PART_IMAGE_NOT_FOUND'
   | 'QUICK_MESSAGE_REQUIRED'
   | 'UNKNOWN_VARIABLE'
   | 'TOO_MANY_TAGS'
@@ -66,10 +67,13 @@ export interface BotFields {
 }
 
 // ── โครงชนิดข้อมูล (Valibot) — `adOnly` ที่ client ส่งมาถูกทิ้งเพราะ v.object ไม่เก็บคีย์เกิน (คำนวณฝั่งเซิร์ฟเวอร์เท่านั้น) ──
+/** id ไฟล์/ข้อความสำเร็จรูปยาวเกิน 120 = ไม่ใช่ของจริงแน่ (uuid คีย์ + path ≈ 50) — กัน payload บวม/jsonb ขยะ */
+const ID_MAX = L.maxIdLength
+const idString = v.pipe(v.string(), v.maxLength(ID_MAX))
 const PartSchema = v.variant('kind', [
   v.object({ kind: v.literal('TEXT'), text: v.string() }),
-  v.object({ kind: v.literal('IMAGES'), fileIds: v.array(v.string()) }),
-  v.object({ kind: v.literal('QUICK_MESSAGE'), quickMessageId: v.string() }),
+  v.object({ kind: v.literal('IMAGES'), fileIds: v.array(idString) }),
+  v.object({ kind: v.literal('QUICK_MESSAGE'), quickMessageId: idString }),
 ])
 const StepSchema = v.object({
   delayMin: v.number(),
@@ -225,8 +229,8 @@ function validatePart(part: BotPart, i: number, j: number, issues: BotIssue[]) {
     }
   } else if (part.kind === 'IMAGES') {
     const ids = Array.isArray(part.fileIds) ? part.fileIds : []
-    if (ids.length < 1 || ids.length > L.maxImagesPerPart || ids.some((x) => typeof x !== 'string' || x.trim() === '')) add('PART_IMAGES_COUNT', 'fileIds')
-  } else if (typeof part.quickMessageId !== 'string' || part.quickMessageId.trim() === '') {
+    if (ids.length < 1 || ids.length > L.maxImagesPerPart || ids.some((x) => typeof x !== 'string' || x.trim() === '' || x.length > L.maxIdLength)) add('PART_IMAGES_COUNT', 'fileIds')
+  } else if (typeof part.quickMessageId !== 'string' || part.quickMessageId.trim() === '' || part.quickMessageId.length > L.maxIdLength) {
     add('QUICK_MESSAGE_REQUIRED', 'quickMessageId')
   }
 }
