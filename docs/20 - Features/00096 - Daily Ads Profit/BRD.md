@@ -113,6 +113,20 @@ related: ["[[00096 - Daily Ads Profit/PRD]]", "[[00091 - Order Ad Attribution/BR
 - เพิ่ม field `reach` (รายโฆษณาทั้งช่วง — ไม่รวมข้ามวัน) · `effective_status` · `objective` (ระดับแคมเปญ)
 - ไม่เพิ่มคีย์ใหม่ในค่าที่แคชเดิม → เปลี่ยนคีย์แคช (บทเรียน unstable_cache เปลี่ยน shape)
 
+### 2.6 P2 (Draft — รอ user อนุมัติ)
+
+#### FR-015: แท็บสินค้าในรายละเอียดโฆษณา (เสร็จ — ไม่ต้อง migration)
+- รายบรรทัดสินค้า (ราคา × จำนวน ก่อนหักส่วนลดท้ายบิล) ไม่เอายอดทั้งบิลใส่ทุกสินค้า · ค่าโฆษณาจัดสรรตามสัดส่วนยอด รวม = ค่าโฆษณาจริง (`productProfit` + เทส)
+
+#### FR-016: ตั้งค่าต้นทุนผันแปรต่อร้าน (รออนุมัติ — migration)
+- ตาราง `ShopVariableCost` (shopId PK · packagingPerOrder · codFeePct · transferFeePct · commissionPct · Decimal(12,2)/(5,2) · DB CHECK ≥ 0) — เจ้าของร้านแก้ได้ (F1)
+- หน้าตั้งค่าใน `/settings` (react-select/ช่องตัวเลข · ไม่มี native select)
+- **AC:** ไม่ตั้ง = 0 ทั้งหมด ตัวเลขทุกหน้าเท่าเดิม · ตั้งค่าแพ็ก ฿10 → ใบละ −฿10 ในทุกหน้าที่ใช้ `pnlOrderParts`
+
+#### FR-017: ใช้ค่าตั้งค่าใน `pnlOrderParts` (รออนุมัติ — ขึ้นกับ Q2)
+- ค่าใช้จ่ายผันแปรต่อใบ = ค่าแพ็ก + ยอด × % (ตามวิธีชำระ) + ยอด × คอมมิชชัน % · ไม่ซ้ำกับ `Shipment.codFee` (ใบ iShip ที่มี codFee จริงไม่คิด % COD ซ้ำ)
+- เทส: ใบ iShip มี codFee ไม่ถูกคิด % ซ้ำ · ร้านไม่ตั้งค่า = ผลเท่าเดิมทุกเทสเดิม
+
 ---
 
 ## 3. Acceptance Criteria สรุป

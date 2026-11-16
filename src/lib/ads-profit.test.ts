@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allocateSpend, profitMetrics, profitStatus, sumParts, type ProfitParts } from './ads-profit'
+import { allocateSpend, productProfit, profitMetrics, profitStatus, sumParts, type ProfitParts } from './ads-profit'
 
 // ตัวอย่าง Video A จากบรีฟ (PRD §8) — fixture ความถูกต้องทางการเงิน
 const videoA: ProfitParts = { orders: 10, revenue: 5000, cogs: 2700, variable: 400, incomplete: 0 }
@@ -68,4 +68,22 @@ describe('allocateSpend — ผลรวม = ค่าโฆษณาจริ�
 
 it('sumParts รวมทุกช่อง', () => {
   expect(sumParts([videoA, { orders: 1, revenue: 10, cogs: 1, variable: 2, incomplete: 1 }])).toEqual({ orders: 11, revenue: 5010, cogs: 2701, variable: 402, incomplete: 1 })
+})
+
+describe('productProfit — รายบรรทัด ไม่นับซ้ำ · จัดสรรค่าโฆษณารวม = ค่าโฆษณาจริง', () => {
+  const lines = [
+    { key: 'A', name: 'โช๊ค', qty: 2, price: 500, cost: 300, orderId: 'o1' },
+    { key: 'B', name: 'น้ำมัน', qty: 1, price: 200, cost: null, orderId: 'o1' },
+    { key: 'A', name: 'โช๊ค', qty: 1, price: 500, cost: 300, orderId: 'o2' },
+  ]
+  const r = productProfit(lines, 100)
+  it('รวมตามสินค้า · นับใบไม่ซ้ำ · ต้นทุนว่างติดธง', () => {
+    expect(r[0]).toMatchObject({ key: 'A', qty: 3, orders: 2, revenue: 1500, cogs: 900, profitBefore: 600, missingCost: false })
+    expect(r[1]).toMatchObject({ key: 'B', orders: 1, revenue: 200, missingCost: true })
+  })
+  it('ค่าโฆษณาจัดสรรตามสัดส่วนยอด รวม = 100', () => {
+    expect(r[0].allocated).toBe(88.24)
+    expect(Math.round(r.reduce((n, p) => n + (p.allocated ?? 0), 0) * 100) / 100).toBe(100)
+  })
+  it('ไม่ทราบค่าโฆษณา = ไม่จัดสรร', () => expect(productProfit(lines, null)[0].allocated).toBeNull())
 })

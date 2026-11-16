@@ -82,3 +82,32 @@ export function allocateSpend(spend: number, orderCount: number): number[] {
 export const sumParts = (list: ProfitParts[]): ProfitParts =>
   list.reduce((s, p) => ({ orders: s.orders + p.orders, revenue: s.revenue + p.revenue, cogs: s.cogs + p.cogs, variable: s.variable + p.variable, incomplete: s.incomplete + p.incomplete }),
     { orders: 0, revenue: 0, cogs: 0, variable: 0, incomplete: 0 })
+
+export type ProductLine = { key: string; name: string; qty: number; price: number; cost: number | null; orderId: string }
+export type ProductProfit = { key: string; name: string; qty: number; orders: number; revenue: number; cogs: number; missingCost: boolean; profitBefore: number; allocated: number | null; profitAfter: number | null }
+
+/**
+ * สินค้าของโฆษณาเดียว (00096 P2 · PRD §3.4 แท็บ 4) — รายบรรทัด ไม่เอายอดทั้งบิลใส่ทุกสินค้า (ไม่นับซ้ำ)
+ * ยอด = ราคา × จำนวน (ก่อนหักส่วนลดท้ายบิล) · ค่าโฆษณาจัดสรรตามสัดส่วนยอดของสินค้า — ผลรวม = ค่าโฆษณาจริง (บรรทัดท้ายรับเศษ)
+ */
+export function productProfit(lines: ProductLine[], spend: number | null): ProductProfit[] {
+  const by = new Map<string, ProductProfit & { orderSet: Set<string> }>()
+  for (const l of lines) {
+    let p = by.get(l.key)
+    if (!p) by.set(l.key, (p = { key: l.key, name: l.name, qty: 0, orders: 0, revenue: 0, cogs: 0, missingCost: false, profitBefore: 0, allocated: null, profitAfter: null, orderSet: new Set() }))
+    p.qty += l.qty
+    p.revenue += l.price * l.qty
+    if (l.cost === null) p.missingCost = true
+    else p.cogs += l.cost * l.qty
+    p.orderSet.add(l.orderId)
+  }
+  const list = [...by.values()].sort((a, b) => b.revenue - a.revenue)
+  const total = list.reduce((n, p) => n + p.revenue, 0)
+  let left = spend ?? 0
+  return list.map(({ orderSet, ...p }, i) => {
+    const allocated = spend === null ? null : i === list.length - 1 ? r2(left) : r2(total > 0 ? (spend * p.revenue) / total : spend / list.length)
+    if (allocated !== null) left -= allocated
+    const profitBefore = r2(p.revenue - p.cogs)
+    return { ...p, orders: orderSet.size, revenue: r2(p.revenue), cogs: r2(p.cogs), profitBefore, allocated, profitAfter: allocated === null ? null : r2(profitBefore - allocated) }
+  })
+}
