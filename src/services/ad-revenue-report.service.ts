@@ -77,7 +77,8 @@ export type AdRevenueReport = {
   coverage: { adOrders: number; adSales: number; chatOrders: number; chatSales: number; otherOrders: number; otherSales: number }
   insights: Insight[]
   /** รายวันของช่วง (ไว้วาดกราฟเล็กบนการ์ดสรุป) — วันว่าง = 0 · ยอด/รับเงิน/ใบ ตามวันขาย · ยกเลิก/ตีกลับ ตามวันที่สั่ง */
-  daily: { day: string; sales: number; collected: number; orders: number; lost: number; profitBeforeAds: number }[]
+  /** pending = ยอดของใบที่ยังไม่รับเงินและไม่ใช่ตีกลับ (รอเก็บเงิน) — ใบใหม่ที่ COD ยังไม่ถึงมือ ทำให้ "รับเงินแล้ว" ท้ายช่วงต่ำ ไม่ใช่ยอดหาย */
+  daily: { day: string; sales: number; collected: number; pending: number; orders: number; lost: number; profitBeforeAds: number }[]
   /** ช่วงก่อนหน้า เรียงตามตำแหน่งวัน (index ตรงกับ daily) — ยอด/รับเงิน/ใบ เท่านั้น (ช่วงก่อนไม่ได้ดึงใบทุกสถานะ/กำไร) */
   prevDaily: { day: string; sales: number; collected: number; orders: number }[]
 }
@@ -118,7 +119,7 @@ export async function getAdRevenueReport(
       where: { ...salesOrderWhere(shopId, newRules, { gte: from, lt: to }), ...chan },
       select: {
         id: true, adId: true, adTitle: true, adPhotoFileId: true, adClickedAt: true, createdAt: true, serviceClosedAt: true,
-        conversationId: true, customerId: true, ...paymentSelect, ...itemSelect,
+        conversationId: true, customerId: true, status: true, ...paymentSelect, ...itemSelect,
       },
       orderBy: { createdAt: 'desc' },
       take: MAX_ITEM_ROWS + 1,
@@ -250,7 +251,7 @@ export async function getAdRevenueReport(
   const coverage = { adOrders: 0, adSales: 0, chatOrders: 0, chatSales: 0, otherOrders: 0, otherSales: 0 }
   const clickDays: number[] = []
   const slots = Math.max(1, Math.round(span / DAY))
-  const daily = Array.from({ length: slots }, (_, i) => ({ day: thaiDayKey(new Date(from.getTime() + i * DAY)), sales: 0, collected: 0, orders: 0, lost: 0, profitBeforeAds: 0 }))
+  const daily = Array.from({ length: slots }, (_, i) => ({ day: thaiDayKey(new Date(from.getTime() + i * DAY)), sales: 0, collected: 0, pending: 0, orders: 0, lost: 0, profitBeforeAds: 0 }))
   const slotOf = (d: Date) => daily[Math.floor((d.getTime() - from.getTime()) / DAY)]
   let unknownSales = 0
   const returningAll = new Set<string>()
@@ -271,7 +272,7 @@ export async function getAdRevenueReport(
     const isPaid = paid(o)
     if (isPaid) { a.collected += amount; a.collectedOrders += 1 }
     const dp = slotOf(newRules ? o.serviceClosedAt ?? o.createdAt : o.createdAt)
-    if (dp) { dp.sales += amount; dp.orders += 1; if (isPaid) dp.collected += amount }
+    if (dp) { dp.sales += amount; dp.orders += 1; if (isPaid) dp.collected += amount; else if (o.status !== 'RETURNED') dp.pending += amount }
 
     if (!o.customerId) { a.unknownCustomers += 1; unknownSales += amount } else {
       const first = firstBuyAt.get(o.customerId)
@@ -455,6 +456,6 @@ export async function getAdRevenueReport(
     coverage: { ...coverage, adSales: round2(coverage.adSales), chatSales: round2(coverage.chatSales), otherSales: round2(coverage.otherSales) },
     insights: buildInsights(ads, topProductByAd),
     prevDaily: prevDaily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected) })),
-    daily: daily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected), profitBeforeAds: round2(d.profitBeforeAds) })),
+    daily: daily.map((d) => ({ ...d, sales: round2(d.sales), collected: round2(d.collected), pending: round2(d.pending), profitBeforeAds: round2(d.profitBeforeAds) })),
   }
 }

@@ -201,6 +201,9 @@ describe.skipIf(!isLocal)('00091 เฟส 3 วิเคราะห์ยอ�
     expect(sum('orders')).toBe(r.summary.orders)
     expect(sum('lost')).toBe(r.summary.cancelled + r.summary.returned)
     expect(sum('profitBeforeAds')).toBe(220)
+    // รอเก็บเงิน = ใบเปิดที่ยังไม่รับเงิน — ชุดเดียวกับ "ยังไม่บันทึก" ของ waterfall
+    expect(r.waterfall.unrecorded).toBeGreaterThan(0)
+    expect(r.daily.reduce((t, d) => t + d.pending, 0)).toBe(r.waterfall.unrecorded)
     expect(r.prevDaily).toHaveLength(31)
     expect(r.prevDaily.reduce((t, d) => t + d.sales, 0)).toBe(r.previous.sales)
     expect(r.prevDaily.reduce((t, d) => t + d.collected, 0)).toBe(r.previous.collected) // ไม่มีใบคืนที่รับของ ⇒ เท่ากับผลรวมกำไรรายแอด 170 + 50

@@ -1693,6 +1693,7 @@ export const en: Dictionary = {
     gran: { day: 'Daily', week: 'Weekly', month: 'Monthly' },
     seriesThis: 'This period',
     seriesPrev: 'Previous period',
+    seriesPending: 'Awaiting payment',
     expandCol: 'Expand rows',
     infoLabel: 'Explanation',
     recoCap: 'Showing {a} of {n}',

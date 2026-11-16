@@ -7,6 +7,7 @@
  *   (card-header + แท็บขวาขีดเส้นใต้ primary · แถบสรุปพื้นจางเส้นประล่าง `bg-light/25 border-b border-dashed` · area gradient stroke 3 + เส้นประ dashArray 8 · grid strokeDashArray 7)
  * ต่างจากธีม: สี chart-primary (ธีมใช้ chart-secondary = ม่วง buyer ห้ามใช้) · แท็บเป็น state ฝั่ง client (ไม่ใช้ hs-tab) · ช่วงก่อนหน่วยเดียวกัน ไม่มีแกน y คู่
  * ข้อมูล: report.daily + report.prevDaily (index ตรงกัน) รวมเป็นสัปดาห์/เดือนฝั่ง client — ผลรวมทุกถัง = ตัวเลขในแถบสรุป
+ * "รับเงินแล้ว" นับตามวันสั่ง → ใบใหม่ (COD ยังไม่ถึงมือ) ทำให้ท้ายช่วงต่ำ: แสดงแท่ง "รอเก็บเงิน" (daily.pending) คู่กันให้เห็นว่าเงินรออยู่ ไม่ได้หาย (user 2026-11-16)
  * 🛑 ห้ามคีย์ undefined ใน options · getOptions ห่อ useCallback · สลับตัวชี้วัด/ช่วงไม่ remount
  */
 import type { ApexOptions } from 'apexcharts'
@@ -45,13 +46,15 @@ export default function SalesTrendCard({ summary, daily, prevDaily, noun }: { su
   const refs = useRef<Record<Gran, HTMLButtonElement | null>>({ day: null, week: null, month: null })
   const money = metric !== 'orders'
 
-  const { cats, cur, prev } = useMemo(() => {
+  const showPending = metric === 'collected'
+  const { cats, cur, prev, pending } = useMemo(() => {
     const bs = buckets(daily.map((d) => d.day), gran)
     const sum = (rows: { [k in Metric]: number }[], b: number[]) => Math.round(b.reduce((s, i) => s + (rows[i]?.[metric] ?? 0), 0) * 100) / 100
     return {
       cats: bs.map((b) => (gran === 'month' ? formatMonthYearTH(daily[b[0]].day) : formatDayMonth(daily[b[0]].day))),
       cur: bs.map((b) => sum(daily, b)),
       prev: bs.map((b) => sum(prevDaily, b)),
+      pending: bs.map((b) => Math.round(b.reduce((s, i) => s + (daily[i]?.pending ?? 0), 0) * 100) / 100),
     }
   }, [daily, prevDaily, gran, metric])
 
@@ -66,9 +69,11 @@ export default function SalesTrendCard({ summary, daily, prevDaily, noun }: { su
     series: [
       { name: t.seriesThis, type: 'area', data: cur },
       { name: t.seriesPrev, type: 'line', data: prev },
+      ...(showPending ? [{ name: t.seriesPending, type: 'column', data: pending }] : []),
     ],
-    stroke: { width: [3, 2], curve: 'smooth', dashArray: [0, 8] },
-    colors: [getColor('chart-primary'), getColor('default-400')],
+    stroke: { width: showPending ? [3, 2, 0] : [3, 2], curve: 'smooth', dashArray: showPending ? [0, 8, 0] : [0, 8] },
+    colors: [getColor('chart-primary'), getColor('default-400'), ...(showPending ? [getColor('chart-gamma')] : [])],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } },
     grid: { strokeDashArray: 7 },
     xaxis: { categories: cats, tickAmount: Math.min(cats.length, 9), axisBorder: { show: false }, labels: { offsetY: 2, rotate: 0, hideOverlappingLabels: true } },
     yaxis: { min: 0, tickAmount: 4, labels: { offsetX: -10, formatter: (v: number) => (money ? formatBahtCompact(v) : formatNumberNoSymbol(Math.round(v))) }, axisBorder: { show: false } },
@@ -76,8 +81,8 @@ export default function SalesTrendCard({ summary, daily, prevDaily, noun }: { su
     markers: { size: 0 },
     legend: { position: 'bottom' },
     tooltip: { shared: true, y: { formatter: (v: number) => (money ? formatBaht(v) : formatNumberNoSymbol(v)) } },
-    fill: { opacity: [1, 1], type: ['gradient', 'solid'], gradient: { type: 'vertical', inverseColors: false, opacityFrom: 0.5, opacityTo: 0, stops: [0, 70] } },
-  }), [cats, cur, prev, money, t.seriesThis, t.seriesPrev])
+    fill: { opacity: showPending ? [1, 1, 0.7] : [1, 1], type: showPending ? ['gradient', 'solid', 'solid'] : ['gradient', 'solid'], gradient: { type: 'vertical', inverseColors: false, opacityFrom: 0.5, opacityTo: 0, stops: [0, 70] } },
+  }), [cats, cur, prev, pending, showPending, money, t.seriesThis, t.seriesPrev, t.seriesPending])
 
   const onKey = (e: React.KeyboardEvent, i: number) => {
     const to = e.key === 'ArrowRight' ? (i + 1) % GRANS.length : e.key === 'ArrowLeft' ? (i - 1 + GRANS.length) % GRANS.length : e.key === 'Home' ? 0 : e.key === 'End' ? GRANS.length - 1 : null
