@@ -160,6 +160,13 @@ export const en: Dictionary = {
     bubbleFailed: 'System send failed',
     bubbleFailedTitle: 'The system could not send the message to the customer',
 
+    followBotBadge: 'Follow-up bot',
+    followBotSentBy: 'Sent by the follow-up bot',
+    followBotSentByStep: 'Sent by the follow-up bot, round {n} of {total}',
+    followBotCapsuleAria: 'Follow-up bot, {n} of {total} rounds sent',
+    followBotCapsuleAwaitingAria: 'waiting for you to reply to the customer first',
+    followBotAwaiting: 'Reply needed',
+
     orderRowSent: 'Auto-sent to the customer',
     orderRowPending: 'Sending to the customer',
     orderRowFailed: 'Auto-send to the customer failed',

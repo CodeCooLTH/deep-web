@@ -234,6 +234,9 @@ export type ChatMessageView = {
   // feature 00023 — null/ไม่มี = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบตอนโหมดทดสอบ | 'AUTO_NOTICE' = ข้อความระบบแจ้ง | 'AUTO_FOLLOW' = บอทติดตามยอดขาย (00095)
   // ใช้ติดป้ายบนบับเบิลให้ร้านแยกออกว่าข้อความไหนบอทตอบ (AC-012-02, AC-021-05)
   autoReplyKind?: string | null
+  // 00095 — ลำดับรอบ (0-based) + จำนวนรอบทั้งหมดของฟอง AUTO_FOLLOW (snapshot จาก SalesFollowSend) · ไม่มี = ป้ายไม่ขึ้นเลข
+  followStep?: number | null
+  followStepCount?: number | null
   // feature 00023 — เหตุผลเบื้องหลังคำตอบครั้งนั้น (snapshot จาก AutoReplyLog ตอนตัดสินใจ)
   // แสดงตอนชี้/แตะที่ป้าย "ระบบตอบ"; ทุกฟิลด์ null ได้ = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น
   autoReply?: {

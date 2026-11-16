@@ -327,6 +327,14 @@ export const th = {
     bubbleFailed: 'ระบบส่งไม่สำเร็จ',
     bubbleFailedTitle: 'ระบบส่งข้อความให้ลูกค้าไม่สำเร็จ',
 
+    /** บอทติดตามยอดขาย (00095) — ป้ายฟอง · คำนำหน้าพรีวิว · แคปซูลในแถวกล่องแชท */
+    followBotBadge: 'บอทติดตาม',
+    followBotSentBy: 'ส่งโดยบอทติดตาม',
+    followBotSentByStep: 'ส่งโดยบอทติดตาม รอบที่ {n} จาก {total}',
+    followBotCapsuleAria: 'บอทติดตาม ส่งแล้ว {n} จาก {total} รอบ',
+    followBotCapsuleAwaitingAria: 'รอคุณตอบลูกค้าก่อน',
+    followBotAwaiting: 'รอคุณตอบ',
+
     /** แถวสถานะบนการ์ดออเดอร์ */
     orderRowSent: 'ส่งให้ลูกค้าอัตโนมัติแล้ว',
     orderRowPending: 'กำลังส่งให้ลูกค้า',

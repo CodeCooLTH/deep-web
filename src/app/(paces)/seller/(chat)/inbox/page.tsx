@@ -278,7 +278,7 @@ export default async function SellerInboxPage() {
     const autoReplyBadgeMap = new Map(
       (await enrichWithAutoReplyBadge(result.items)).map((r) => [
         r.id,
-        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced, isSystem: r.lastMessageIsSystem },
+        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced, isSystem: r.lastMessageIsSystem, isFollowBot: r.lastMessageIsFollowBot },
       ]),
     )
 
@@ -346,6 +346,7 @@ export default async function SellerInboxPage() {
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
         lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
         lastMessageIsSystem: autoReplyBadgeMap.get(c.id)?.isSystem ?? false,
+        lastMessageIsFollowBot: autoReplyBadgeMap.get(c.id)?.isFollowBot ?? false,
         // 00078 TFR-003 — primitive (ms) เทียบกับ nowBucket ฝั่ง client · ฟังก์ชันเดียวกับ route
         metaAiHoldUntilMs: metaAiHoldingUntilMs(c, appId),
       }
