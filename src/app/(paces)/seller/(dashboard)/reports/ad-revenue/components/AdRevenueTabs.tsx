@@ -3,9 +3,10 @@
 /**
  * AdRevenueTabs — แถบแท็บ 7 มุมมองของหน้า "วิเคราะห์ยอดขายจากโฆษณา" (00091 เฟส 3 · ผูก ?tab=)
  *
- * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx (ชุด .nav-tabs/.nav-link ของ Paces) ผ่าน
- *   src/app/(paces)/seller/(dashboard)/sales/components/FinanceTabs.tsx (nav role=tablist + button role=tab + roving tabindex)
- * ไม่ทำจอมือถือ (มติ user) · ล้นที่ 768–1023 → wrap 2 แถว (`flex-wrap`) · 🛑 ห้าม overflow-x-auto (แท็บที่ถูกซ่อนครึ่งใบไม่มีใครรู้ว่ามี)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/components/SessionOverview.tsx (แถบตัวชี้วัดกดได้: card-body p-0 > nav grid · ปุ่ม border-b-2 · ชื่อ + ตัวเลขใหญ่)
+ *   โครง tablist + roving tabindex: src/app/(paces)/seller/(dashboard)/sales/components/FinanceTabs.tsx
+ * user 2026-11-16 (ตัวเลือก A): แท็บแต่ละใบมีตัวเลขเด่นของหน้านั้น · แท็บเลือกพื้นจาง + เส้นน้ำเงินหนา (เดิมเป็นตัวหนังสือเรียงเหมือนปุ่มวันที่ "ดูยาก ใช้ยาก")
+ * xl 7 คอลัมน์ · แท็บเล็ต 4 คอลัมน์ (2 แถว เห็นครบ ไม่ต้องเลื่อน — user ติว่าแท็บเล็ตไม่มีอะไรบอกว่าเลื่อนได้) · 🛑 ห้าม overflow-x-auto
  * สลับแท็บ = push (ปุ่มย้อนกลับพากลับแท็บเดิม) · ทิ้ง campaign/adset (drill ของแท็บเดิมไม่มีความหมายกับแท็บใหม่)
  * optimistic: แท็บที่กดขึ้น active ทันที ระหว่างรอ server
  */
@@ -18,7 +19,8 @@ import { cn } from '@/utils/helpers'
 import { useAdReportPending } from '../../ads/components/PendingContext'
 import { AD_REVENUE_TABS, DEFAULT_TAB, PANEL_ID, type AdRevenueTab } from './data'
 
-export default function AdRevenueTabs({ active, noun }: { active: AdRevenueTab; noun: string }) {
+/** values = ตัวเลขเด่นของแต่ละแท็บ (page คิดจาก report) · null = ไม่แสดงบรรทัดตัวเลข */
+export default function AdRevenueTabs({ active, noun, values }: { active: AdRevenueTab; noun: string; values: Record<AdRevenueTab, string | null> }) {
   const t = useT().adRevenue
   const router = useRouter()
   const pathname = usePathname()
@@ -49,20 +51,29 @@ export default function AdRevenueTabs({ active, noun }: { active: AdRevenueTab; 
   }
 
   return (
-    <div className="mb-base">
-      <nav ref={navRef} className="nav-tabs border-default-200 me-0 mt-0 flex h-auto flex-wrap border-b px-2" role="tablist" aria-label={t.viewLabel} onKeyDown={onKeyDown}>
-        {AD_REVENUE_TABS.map((k) => {
-          const selected = k === current
-          return (
-            <button
-              key={k} type="button" role="tab" data-tab={k} id={`ad-revenue-tab-${k}`} aria-selected={selected} aria-controls={PANEL_ID}
-              tabIndex={selected ? 0 : -1} onClick={() => go(k)}
-              className="nav-link -mb-px inline-flex min-h-11 min-w-0 items-end justify-center px-3 pt-3 pb-0 text-sm">
-              <span className={cn('max-w-full truncate border-b-2 px-1 pb-2.5', selected ? 'border-primary text-primary font-semibold' : 'border-transparent')}>{fmt(t.tabs[k], { noun })}</span>
-            </button>
-          )
-        })}
-      </nav>
+    <div className="card mb-base">
+      <div className="card-body p-0">
+        <nav ref={navRef} className="grid grid-cols-4 xl:grid-cols-7" role="tablist" aria-label={t.viewLabel} onKeyDown={onKeyDown}>
+          {AD_REVENUE_TABS.map((k, i) => {
+            const selected = k === current
+            return (
+              <button
+                key={k} type="button" role="tab" data-tab={k} id={`ad-revenue-tab-${k}`} aria-selected={selected} aria-controls={PANEL_ID}
+                tabIndex={selected ? 0 : -1} onClick={() => go(k)}
+                className={cn(
+                  'border-default-300 relative flex min-h-11 min-w-0 flex-col items-start gap-0.5 border-dashed px-4 py-3 text-start',
+                  // เส้นคั่นแนวตั้งเว้นใบท้ายแถว (แท็บเล็ตแถวละ 4 · xl แถวเดียว 7) · แถวแรกบนแท็บเล็ตมีเส้นคั่นล่าง
+                  i !== AD_REVENUE_TABS.length - 1 && 'xl:border-e', i % 4 !== 3 && i !== AD_REVENUE_TABS.length - 1 && 'max-xl:border-e', i < 4 && 'max-xl:border-b',
+                  selected ? 'bg-primary/5' : 'hover:bg-light/50',
+                )}>
+                {selected && <span className="bg-primary absolute inset-x-0 bottom-0 h-0.75" aria-hidden="true" />}
+                <span className={cn('max-w-full truncate text-sm', selected ? 'text-primary font-semibold' : 'text-default-700')}>{fmt(t.tabs[k], { noun })}</span>
+                {values[k] && <span className="text-default-900 max-w-full truncate text-base font-semibold tabular-nums">{values[k]}</span>}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
     </div>
   )
 }

@@ -203,6 +203,8 @@ describe.skipIf(!isLocal)('00091 เฟส 3 วิเคราะห์ยอ�
     expect(sum('profitBeforeAds')).toBe(220)
     // รอเก็บเงิน = ใบเปิดที่ยังไม่รับเงิน — ชุดเดียวกับ "ยังไม่บันทึก" ของ waterfall
     expect(r.waterfall.unrecorded).toBeGreaterThan(0)
+    expect(r.daily.every((d) => d.spend === null)).toBe(r.spend.state !== 'OK') // ค่าโฆษณารายวันมีเมื่อ Meta OK เท่านั้น
+    expect(r.daily.reduce((t, d) => t + (d.spend ?? 0), 0)).toBe(r.summary.spend ?? 0) // ผลรวมรายวัน = ค่าโฆษณาบนการ์ด
     expect(r.daily.reduce((t, d) => t + d.pending, 0)).toBe(r.waterfall.unrecorded)
     expect(r.prevDaily).toHaveLength(31)
     expect(r.prevDaily.reduce((t, d) => t + d.sales, 0)).toBe(r.previous.sales)

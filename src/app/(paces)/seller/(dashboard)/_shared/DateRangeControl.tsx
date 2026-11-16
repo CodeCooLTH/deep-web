@@ -35,6 +35,8 @@ type Props = {
   onCustomChange: (dates: [string, string]) => void
   /** กำลังโหลดผลของช่วงใหม่ — ปิดปุ่มกันกดซ้อน */
   pending?: boolean
+  /** outline = กล่องมีกรอบ อันที่เลือกน้ำเงินทึบ (แยกจากแถบแท็บใต้ตัวกรองให้ชัด — รายงาน 00091 user 2026-11-16) · ไม่ส่ง = soft เดิม */
+  variant?: 'soft' | 'outline'
 }
 
 type FlatpickrLike = { currentYear: number; yearElements?: HTMLInputElement[] }
@@ -65,7 +67,7 @@ function isoToLocalDate(iso: string): Date {
   return new Date(y, m - 1, d)
 }
 
-export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending }: Props) {
+export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending, variant = 'soft' }: Props) {
   /**
    * 🛑 ห้ามส่ง onChange เป็น prop ของ <Flatpickr> — react-flatpickr v4 **push handler จาก prop เข้าไปใน
    * object options ทุกครั้งที่ render** (mergeHooks แก้ object เดิม) และ options ของเราถูก memo ไว้
@@ -155,7 +157,9 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
               idx === 0 && 'rounded-e-none',
               idx > 0 && idx < DATE_RANGE_OPTIONS.length - 1 && 'rounded-none',
               idx === DATE_RANGE_OPTIONS.length - 1 && 'rounded-s-none',
-              range === opt.value ? 'bg-primary/15 text-primary-ink' : 'bg-light text-dark',
+              variant === 'outline'
+                ? cn('border-default-300 border', idx > 0 && '-ms-px', range === opt.value ? 'bg-primary border-primary relative z-10 text-white' : 'bg-card text-default-700 hover:bg-light')
+                : range === opt.value ? 'bg-primary/15 text-primary-ink' : 'bg-light text-dark',
             )}
           >
             {opt.label}

@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ม็อกอัพ 00091 วิเคราะห์ยอดขายจากโฆษณา แบบ Analytics Dashboard (2026-11-16)</title>
+<!-- ม็อกอัพ /impeccable audit 2026-11-15 · ยึด theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/ · โทเคนจาก src/assets/css/config/_root.css (skin default)
+     เฟรมใช้ container query แทน viewport จึงวาด 3 ความกว้างในหน้าเดียวได้ (@container frame ≥1200 = xl · ≥740 = md (เฟรมมีขอบ 1px จึงเผื่อ)) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a; --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e; --success-ink:#065f46;
+  --d100:#f6f7fb; --d200:#eef0f3; --d300:#e7e9eb; --d400:#627189; --d500:#58626b; --d700:#40454a; --d800:#343a40; --d900:#313a46; --dark:#313a46;
+  --zeta:#db9052; --delta:#5bc3e1; --chart-border:#ecf4fc; --body:#f6f7fb;
+  --shadow:0 1px 4px 0 rgba(130,143,163,.15); --radius:4px; --gap:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Anuphan",system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--d800);background:#dfe3ea}
+h1,h2,h3,h4,p{margin:0}
+.doc{padding:24px 24px 48px}
+.doc-title{font-size:20px;font-weight:700;color:var(--d900)}
+.doc-sub{color:var(--d700);font-size:13px;margin-top:4px}
+.state-h{font-size:16px;font-weight:700;color:var(--d900);margin:32px 0 4px}
+.frame-label{font-size:13px;font-weight:600;color:var(--d700);margin:16px 0 6px;display:flex;gap:6px;align-items:center}
+.frame-wrap{overflow-x:auto;padding-bottom:6px}
+.frame{container:frame / inline-size;background:var(--body);border:1px solid #c9ced8;border-radius:8px;overflow:hidden;flex:none}
+.frames-row{display:flex;gap:24px;align-items:flex-start}
+
+/* ── ห่อหน้า: sidenav (≥1024) / mobile header ───────────── */
+.app{display:flex;min-height:100%}
+.sidenav{display:none;width:250px;flex:none;background:#fff;border-right:1px solid var(--d300);padding:18px 14px}
+.sn-logo{font-weight:700;font-size:18px;color:var(--primary);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.sn-h{font-size:11px;color:var(--d500);font-weight:600;margin:14px 8px 6px}
+.sn-i{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--radius);color:var(--d700);font-size:14px}
+.sn-i.on{background:rgb(35 109 201 / .1);color:var(--primary);font-weight:600}
+.main{flex:1;min-width:0}
+.topbar{height:60px;background:#fff;border-bottom:1px solid var(--d300);display:flex;align-items:center;gap:12px;padding:0 16px}
+.topbar .mt{font-weight:600;font-size:16px;color:var(--d900)}
+.content{padding:16px}
+.crumb{display:none;align-items:center;justify-content:space-between;margin-bottom:var(--gap)}
+.crumb h4{font-size:18px;font-weight:600;color:var(--d900)}
+.crumb .bc{font-size:13px;color:var(--d500)}
+@container frame (min-width:1000px){ .sidenav{display:block} .topbar .mt,.topbar .burger{display:none} .crumb{display:flex} .content{padding:20px 24px} }
+
+/* ── primitives ของ Paces ─────────────────────────────── */
+.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);min-width:0;display:flex;flex-direction:column;height:100%}
+.card-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:15px 20px;border-bottom:1px dashed var(--d300)}
+.card-title{font-size:15px;font-weight:600;color:var(--d900)}
+.card-body{padding:20px;flex:1;min-width:0}
+.card-footer{padding:12px 20px;border-top:1px dashed var(--d300)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:var(--radius);white-space:nowrap}
+.b-warn{background:rgb(249 191 89 / .15);color:var(--warning-ink)}
+.b-info{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.b-gray{background:var(--d100);color:var(--d800)}
+.b-up{background:rgb(2 188 156 / .12);color:var(--success-ink)}
+.b-neutral{background:var(--d100);color:var(--d700)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;color:var(--d800);font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+.btn-sm{height:30px;font-size:13px;padding:0 10px}
+.btn-primary-soft{background:var(--primary);border-color:var(--primary);color:#fff}
+.sel{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;font-size:14px;color:var(--d800);white-space:nowrap}
+.sel-sm{height:30px;font-size:13px}
+.sel .chev{margin-left:auto;color:var(--d500)}
+.ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex:none}
+.ic-soft{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.bg-primary{background:var(--primary)} .bg-info{background:var(--info)} .bg-dark{background:var(--dark)} .bg-d400{background:var(--d400)}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--d700)} .muted5{color:var(--d500)}
+.xs{font-size:13px} .sm{font-size:14px}
+iconify-icon{display:inline-block;vertical-align:-.15em}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--d700)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ── กริด ──────────────────────────────────────────────── */
+.grid{display:grid;gap:var(--gap);margin-bottom:var(--gap);grid-template-columns:minmax(0,1fr)}
+.g-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@container frame (min-width:740px){ .g-kpi{gap:var(--gap)} }
+@container frame (min-width:1200px){
+  .g-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .g-12{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .s8{grid-column:span 8} .s4{grid-column:span 4} .s12{grid-column:span 12}
+}
+/* สถานะว่าง: [แชท (Deep) | ปิดการขาย (Deep) | แถบสถานะ] */
+.g-empty{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g-empty .notice-tile{grid-column:1 / -1;order:-1}
+@container frame (min-width:740px){ .g-empty{gap:var(--gap)} .g-empty .notice-tile{order:0} }
+@container frame (min-width:1200px){ .g-empty{grid-template-columns:repeat(4,minmax(0,1fr))} .g-empty .notice-tile{grid-column:span 2} }
+
+/* ── KPI tile (TotalOrder/TotalVisitors) ───────────────── */
+.kpi .card-body{padding:16px}
+.kpi-k{font-size:13px;font-weight:700;color:var(--d700);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.kpi-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kpi-n{font-size:20px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi-row .badge{margin-left:auto}
+.kpi-sub{font-size:13px;color:var(--d700);margin-top:8px;font-variant-numeric:tabular-nums}
+.spark{margin:8px -6px 0;min-height:48px}
+.spark-l{font-size:12px;color:var(--d500);margin-top:2px}
+.pair{margin-top:10px}
+.pair-r{display:flex;justify-content:space-between;font-size:13px;color:var(--d700);margin-bottom:3px}
+.bar{height:6px;background:var(--d100);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.bar>i{display:block;height:100%;border-radius:3px}
+@container frame (max-width:500px){
+  .kpi .card-body{padding:12px}
+  .kpi .ic{display:none}
+  .kpi-n{font-size:18px}
+  .kpi-row .badge{margin-left:0}
+}
+
+/* ── คุณภาพแชท ─────────────────────────────────────────── */
+.qrow{margin-top:14px}
+.qrow-h{display:flex;justify-content:space-between;font-size:14px;font-weight:600;color:var(--d900);margin-bottom:5px}
+.qrow-s{font-size:13px;color:var(--d700);font-variant-numeric:tabular-nums}
+
+/* ── แถบตัวชี้วัด (SessionOverview) ─────────────────────── */
+.strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.cell{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px dashed var(--d300);border-right:1px dashed var(--d300);min-width:0}
+.cell .l{font-size:13px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .v{font-size:17px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+@container frame (min-width:740px){ .strip{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@container frame (min-width:1200px){ .strip{grid-template-columns:repeat(7,minmax(0,1fr))} .cell{border-bottom:0} .cell .ic{display:none} }
+@container frame (max-width:500px){ .cell .ic{display:none} .cell{padding:12px} }
+
+/* ── ตำแหน่ง/อายุ ──────────────────────────────────────── */
+.split{display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+@container frame (min-width:1200px){ .split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .split>div+div{border-left:1px dashed var(--d300);padding-left:24px} }
+.sub-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sub-h h5{margin:0;font-size:14px;font-weight:600;color:var(--d900)}
+.place{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+@container frame (min-width:740px){ .place{grid-template-columns:180px minmax(0,1fr)} }
+.plist{list-style:none;margin:6px 0 0;padding:0;font-size:13px}
+.plist li{display:flex;align-items:center;gap:8px;padding:2px 0}
+.plist li span:nth-child(2){flex:1}
+
+/* ── ตาราง ─────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
+thead th{background:var(--d100);font-size:12px;font-weight:600;color:var(--d700);padding:8px 10px;text-align:center}
+thead th:first-child{text-align:left}
+thead .grp{display:block;font-size:11px;font-weight:500;color:var(--d500)}
+thead th.deep{background:rgb(35 109 201 / .08)}
+tbody td{padding:10px;border-bottom:1px solid var(--d200);text-align:center;font-variant-numeric:tabular-nums;vertical-align:middle}
+tbody td:first-child{text-align:left}
+tfoot td{padding:10px;background:rgb(246 247 251 / .7);font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+tfoot td:first-child{text-align:left}
+.ad{display:flex;align-items:center;gap:10px;max-width:260px}
+.thumb{width:40px;height:40px;border-radius:6px;background:var(--d200);display:flex;align-items:center;justify-content:center;color:var(--d400);font-size:18px;flex:none}
+.ad-n{font-weight:500;color:var(--d900);overflow:hidden;text-overflow:ellipsis;display:block}
+.ad-c{font-size:12px;color:var(--d500);overflow:hidden;text-overflow:ellipsis;display:block}
+.r2{display:block;font-size:12px;color:var(--d500)}
+.vbar{display:flex;gap:2px;width:72px;margin:3px auto 0}
+.vbar i{flex:1;height:5px;background:var(--d100);border-radius:2px;overflow:hidden;display:block}
+.vbar i b{display:block;height:100%;background:var(--info)}
+.mlist{display:none}
+.mrow{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--d200)}
+.mrow .g{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
+.mrow .g .l{font-size:12px;color:var(--d500)}
+.mrow .g .v{font-size:14px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+.mtotal{padding:12px 16px;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;border-top:1px solid var(--d200)}
+@container frame (max-width:999px){ .tbl-wrap{display:none} .mlist{display:block} }
+.tbl-tools{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.search{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);color:var(--d500);font-size:14px;min-width:200px}
+@container frame (max-width:500px){ .tbl-tools{width:100%} .search{flex:1;min-width:0} }
+
+/* ── แถวกรอง ───────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.meta-line{font-size:13px;color:var(--d700);margin:8px 0 var(--gap);font-variant-numeric:tabular-nums}
+@container frame (max-width:500px){ .filters .right{margin-left:0;width:100%} .filters .right .btn{flex:1;justify-content:center} }
+
+/* ── แถบสถานะ (สถานะว่าง) ──────────────────────────────── */
+.notice{display:flex;align-items:center;gap:12px;flex-wrap:wrap;height:100%}
+.notice .t{font-size:15px;font-weight:600;color:var(--d900);flex:1;min-width:200px}
+.notice .ic{background:var(--d100);color:var(--d700)}
+.notes{margin-top:40px;background:#fff;border-radius:8px;padding:16px 20px;max-width:980px;font-size:13px;color:var(--d800)}
+.notes h3{font-size:15px;margin-bottom:6px}
+.notes ul{margin:6px 0 0;padding-left:18px}
+.notes li{margin:3px 0}
+/* ── เพิ่มสำหรับ 00091 ─────────────────────────────────── */
+.doc-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 4px}
+.doc-tabs button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid #c9ced8;border-radius:6px;background:#fff;cursor:pointer}
+.doc-tabs button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.preset{display:inline-flex;background:var(--d100);border-radius:var(--radius);padding:2px}
+.preset span{padding:6px 12px;font-size:13px;color:var(--d700);border-radius:var(--radius)}
+.preset span.on{background:rgb(35 109 201 / .12);color:var(--primary);font-weight:600}
+.pagechip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:var(--radius);background:var(--d100);font-size:13px;color:var(--d800)}
+.av{position:relative;width:24px;height:24px;flex:none}
+.av>b{display:flex;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f9bf59,#db9052);color:#fff;font-size:11px;align-items:center;justify-content:center}
+.av>i{position:absolute;right:-3px;bottom:-3px;width:13px;height:13px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;color:#0866ff}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--d300);margin:4px 0 var(--gap);overflow-x:auto}
+.tabs span{padding:10px 14px;font-size:14px;color:var(--d700);white-space:nowrap;border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--primary);border-color:var(--primary);font-weight:600}
+.g-2{grid-template-columns:minmax(0,1fr)}
+@container frame (min-width:740px){ .g-2{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@container frame (min-width:1200px){ .s7{grid-column:span 7} .s5{grid-column:span 5} .s6{grid-column:span 6} .s3{grid-column:span 3} .s9{grid-column:span 9} }
+.flow{display:flex;flex-direction:column;gap:14px}
+.flow-r .h{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px}
+.flow-r .h b{font-weight:600;color:var(--d900)}
+.flow-r .h span{font-size:13px;color:var(--d700);font-variant-numeric:tabular-nums}
+.seg{display:flex;gap:2px;height:8px}
+.seg i{flex:1;border-radius:2px;background:var(--d100)}
+.seg i.f{background:var(--primary)}
+.src{position:relative;height:40px;border-radius:var(--radius);background:var(--d100);margin-bottom:10px;overflow:hidden}
+.src>i{position:absolute;inset:0 auto 0 0;background:rgb(35 109 201 / .14)}
+.src>div{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:14px;gap:10px}
+.src .n{font-weight:500;color:var(--d900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src .v{font-variant-numeric:tabular-nums;color:var(--d800);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px}
+.c-good{background:rgb(2 188 156 / .12);color:var(--success-ink)}
+.c-bad{background:rgb(249 191 89 / .18);color:var(--warning-ink)}
+tbody td.num-r,thead th.num-r,tfoot td.num-r{text-align:right}
+tr.child td{background:#fafbfd;font-size:13px}
+.ind1{padding-left:28px!important}.ind2{padding-left:56px!important}
+.tg{color:var(--primary);font-size:18px;vertical-align:-3px;margin-right:6px}
+.pbar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pbar .seg{width:90px}
+.warn-ic{color:var(--warning-ink)}
+.hm{display:grid;gap:2px;font-size:11px}
+.hm div{height:22px;border-radius:2px;display:flex;align-items:center;justify-content:center;color:#fff;font-variant-numeric:tabular-nums}
+.hm .lb{background:none;color:var(--d700);justify-content:flex-start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.big{font-size:28px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums}
+.bubble{position:absolute;right:20px;bottom:20px;width:52px;height:52px;border-radius:50%;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.bubble b{position:absolute;top:-4px;right:-4px;background:var(--warning);color:#313a46;font-size:11px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.main{position:relative}
+.callout{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;font-size:13px}
+.callout.ok{background:rgb(2 188 156 / .1);color:var(--success-ink)}
+/* ── แถบแท็บแบบ A + ช่วงวันที่ segmented + จำกัด 1920 ── */
+.seg2{display:inline-flex;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;overflow:hidden}
+.seg2 span{padding:7px 14px;font-size:13px;color:var(--d700);border-right:1px solid var(--d300);display:inline-flex;gap:4px;align-items:center}
+.seg2 span:last-child{border-right:0}
+.seg2 span.on{background:var(--primary);color:#fff;font-weight:600}
+.ktabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.ktabs a{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-right:1px dashed var(--d300);border-bottom:3px solid transparent;color:var(--d700);min-width:0}
+.ktabs a:last-child{border-right:0}
+.ktabs a .l{font-size:13px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ktabs a .v{font-size:17px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ktabs a.on{background:rgb(35 109 201 / .06);border-bottom-color:var(--primary)}
+.ktabs a.on .l{color:var(--primary);font-weight:600}
+@container frame (max-width:1199px){ .ktabs{grid-template-columns:repeat(4,minmax(0,1fr))} .ktabs a:nth-child(4){border-right:0} .ktabs a:nth-child(-n+4){border-bottom-color:var(--d200)} .ktabs a.on{border-bottom-color:var(--primary)!important} }
+.cap{max-width:1920px;margin:0 auto}
+.seg .f{background:var(--primary)}
+.flow-r .h span b{font-weight:700;color:var(--d900)}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1 class="doc-title">00091 วิเคราะห์ยอดขายจากโฆษณา · ม็อกอัพแบบ Analytics Dashboard</h1>
+  <p class="doc-sub">ยึด theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/ (KPI แถวบน → กราฟหลัก + การ์ดข้าง → ตาราง) · ตัวเลขตัวอย่าง · เดสก์ท็อป 1440 + แท็บเล็ต 768 (รายงานไม่ทำมือถือ)</p>
+  <div class="doc-tabs" id="docTabs"></div>
+  <div class="frame-label"><iconify-icon icon="tabler:device-desktop"></iconify-icon>Desktop 1440</div>
+  <div class="frame-wrap"><div class="frame" style="width:1440px" id="fd"></div></div>
+  <div class="frame-label"><iconify-icon icon="tabler:device-tablet"></iconify-icon>Tablet 768</div>
+  <div class="frame-wrap"><div class="frame" style="width:768px" id="ft"></div></div>
+  <div class="frame-label"><iconify-icon icon="tabler:device-desktop-analytics"></iconify-icon>จอใหญ่ 2560 (เนื้อหากว้างไม่เกิน 1920 จัดกลาง)</div>
+  <div class="frame-wrap"><div class="frame" style="width:2560px" id="fw"></div></div>
+  <div class="notes">
+    <h3>หลักการออกแบบ (ทุกแท็บใช้โครงเดียวกัน)</h3>
+    <ul>
+      <li>ทุกแท็บ = KPI 4 ใบ (ตัวเลขใหญ่ + เทียบช่วงก่อน + กราฟเล็ก) → กราฟหลักคู่การ์ดข้าง → ตาราง — โครงเดียวกับ dashboard/analytics ของ theme</li>
+      <li>แถบแท็บแบบ A: แต่ละแท็บมีตัวเลขเด่นของหน้านั้น · แท็บเล็ตเป็น 2 แถว (4+3) ไม่ต้องเลื่อน · ช่วงวันที่เป็นกล่องมีกรอบ อันที่เลือกสีน้ำเงินทึบ</li>
+      <li>จอเกิน 1920: เนื้อหากว้างไม่เกิน 1920 จัดกลาง (max-w-480 mx-auto)</li>
+      <li>KPI ไม่ซ้ำข้ามแท็บ: แต่ละแท็บตอบคำถามของตัวเอง (สรุป = เงิน · แคมเปญ = คุ้มไหม · คุณภาพ = เงินหายตรงไหน · สินค้า = ขายอะไร · ลูกค้า = ใหม่หรือเก่า · ช่วงเวลา = ขายดีเมื่อไร · ครอบคลุม = เชื่อตัวเลขได้แค่ไหน)</li>
+      <li>สัดส่วน/ความคืบหน้าใช้แถบแบ่งช่อง + ตัวเลข (user ชอบ progress bar) · ตัวเลขชิดขวา · แถวตารางบรรทัดเดียว</li>
+      <li>% เทียบช่วงก่อน = ป้ายสีตามดี/แย่ (ค่าโฆษณาขึ้น = เขียว ตามมติเดิม) · คำแนะนำยังเป็นปุ่มลอยมุมขวาล่าง (มติเดิม)</li>
+      <li>สีชิป ROAS = กำไรส่วนเกินบวก (เขียว) / ติดลบ (ส้ม) ไม่ใช่เกณฑ์ ROAS ตายตัว — ROAS 3 ยังขาดทุนได้ถ้าต้นทุนสินค้าสูง</li>
+      <li>ข้อมูลทั้งหมดมีใน service อยู่แล้ว ยกเว้นที่ติด ★ ต้องคำนวณเพิ่ม (sparkline รายวันของค่าโฆษณา/กำไร · ยอดรายชั่วโมง)</li>
+    </ul>
+  </div>
+</div>
+<script>
+const base = { fontFamily:'Anuphan, sans-serif', toolbar:{show:false}, animations:{enabled:false}, parentHeightOffset:0 }
+const grid = { borderColor:'#ecf4fc', strokeDashArray:4, padding:{left:4,right:8} }
+const I = (n,cls='')=>`<iconify-icon icon="tabler:${n}" class="${cls}" aria-hidden="true"></iconify-icon>`
+const fmt = (v)=>Math.round(v).toLocaleString('en-US')
+const baht = (v)=>'฿'+fmt(v)
+const kb = (v)=> v>=1000 ? '฿'+(v/1000).toFixed(1)+'k' : baht(v)
+const P = '#236dc9', INFO='#5bc3e1', ZETA='#db9052', GRAY='#9aa6b5', GAMMA='#f9bf59', DANGER='#f15776'
+
+// ── ข้อมูลตัวอย่าง ─────────────────────────────────────────
+const D = 30
+const days = Array.from({length:D},(_,i)=>{ const d=new Date(2026,9,18+i); return d.getDate()+'/'+(d.getMonth()+1) })
+const salesD = days.map((_,i)=>Math.round(5200+2600*Math.sin(i/3)+1200*Math.cos(i*1.3)))
+const collD = salesD.map((v,i)=> i<D-9 ? Math.round(v*(0.55+0.2*Math.sin(i))) : Math.round(v*Math.max(0,(D-3-i))/14))
+const pendD = salesD.map((v,i)=> Math.max(0, v - collD[i] - Math.round(v*0.03)))
+const prevD = days.map((_,i)=>Math.round(4300+2200*Math.sin(i/3+1)+900*Math.cos(i)))
+const spendD = days.map((_,i)=>Math.round(1600+400*Math.sin(i/2.5)))
+const CAMPS = [
+  {n:'Bid cap Oct wave video 360', spend:24032, ord:172, sales:73120, coll:15010, profit:-1429, kids:[
+    {n:'25-60', spend:21299, ord:159, sales:66370, coll:13640, profit:552},
+    {n:'25-60 - ลำปาง', spend:2733, ord:13, sales:6750, coll:1370, profit:-1981}]},
+  {n:'Bidcap Sep โช๊คสามล้อ', spend:11800, ord:86, sales:54030, coll:28670, profit:14075},
+  {n:'ADMD_สามล้อ', spend:8647, ord:51, sales:33660, coll:4130, profit:-3761},
+  {n:'โช๊คหลัง MIO 290', spend:2563, ord:23, sales:7480, coll:1270, profit:632},
+  {n:'ADMD_wave', spend:1406, ord:11, sales:5190, coll:1180, profit:854},
+  {n:'retarget สามล้อ', spend:278, ord:0, sales:0, coll:0, profit:-278},
+]
+const TOT = { spend:50625, ord:359, sales:182410, coll:51440, profit:10915, prevSales:151200, prevColl:47100, prevSpend:44100, prevProfit:9020, cancel:8, ret:4, pend:118400 }
+const PRODUCTS = [
+  {n:'โช๊คหลังเวฟ 125 (คู่)', u:212, s:76320, ord:180, lost:2.1},
+  {n:'โช๊คหลัง สามล้อ', u:96, s:52800, ord:88, lost:3.4},
+  {n:'โช๊ค MIO 290', u:31, s:11160, ord:27, lost:0},
+  {n:'สปริงโช๊คแต่ง', u:44, s:8800, ord:30, lost:6.7},
+  {n:'บูชโช๊ค (ชุด)', u:58, s:5800, ord:41, lost:0},
+]
+
+// ── ชิ้นส่วน ──────────────────────────────────────────────
+const delta = (v,good=true)=>`<span class="badge ${good?'b-up':'b-warn'} num">${I(v>=0?'arrow-up':'arrow-down')}${Math.abs(v).toFixed(1)}%</span>`
+function kpi({k, icon, bg, n, badge='', sub='', spark=null}){
+  return `<div class="card kpi"><div class="card-body">
+    <h3 class="kpi-k"><span>${k}</span>${badge}</h3>
+    <div class="kpi-row"><span class="ic ${bg}">${I(icon)}</span><span class="kpi-n">${n}</span></div>
+    ${sub?`<p class="kpi-sub">${sub}</p>`:''}
+    ${spark?`<div class="spark" data-spark="${spark}"></div>`:''}
+  </div></div>`
+}
+const card = (title, body, {tools='', cls='', flush=false}={})=>`<div class="card ${cls}"><div class="card-header"><h4 class="card-title">${title}</h4><span class="muted5" style="margin-left:4px">${I('info-circle')}</span>${tools?`<div class="tbl-tools">${tools}</div>`:''}</div>${flush?body:`<div class="card-body">${body}</div>`}</div>`
+const seg = (pct, n=10)=>`<span class="seg">${Array.from({length:n},(_,i)=>`<i class="${i < Math.round(pct/100*n)?'f':''}"></i>`).join('')}</span>`
+const tools = `<span class="search">${I('search')}ค้นหาชื่อหรือรหัส</span><span class="sel">10<span class="chev">${I('chevron-down')}</span></span>`
+const exportBtn = `<span class="btn btn-primary-soft">${I('download')}ส่งออก CSV</span>`
+const sign = (v)=>`<span style="color:${v<0?'#b42318':'inherit'}">${v<0?'−':''}${baht(Math.abs(v))}</span>`
+
+function shell(inner, tab){
+  const TABS=[['summary','สรุป','layout-dashboard','฿51,440'],['campaigns','แคมเปญ','speakerphone','ROAS 3.60'],['quality','คุณภาพคำสั่งซื้อ','receipt-2','รับเงิน 27.5%'],['products','สินค้า','package','14 รายการ'],['customers','ลูกค้า','users','214 คนใหม่'],['time','ช่วงเวลาขาย','clock','20–22 น.'],['coverage','ความครอบคลุม','chart-pie','78%']]
+  return `<div class="app">
+    <aside class="sidenav">
+      <div class="sn-logo">${I('shield-check')}Deep</div>
+      <div class="sn-h">ANALYTICS</div>
+      <div class="sn-i">${I('chart-dots')}คุณภาพโฆษณา</div>
+      <div class="sn-i">${I('speakerphone')}สรุปโฆษณา</div>
+      <div class="sn-i on">${I('report-analytics')}วิเคราะห์ยอดขายจากโฆษณา</div>
+      <div class="sn-h">MANAGE</div>
+      <div class="sn-i">${I('receipt')}คำสั่งซื้อ</div>
+    </aside>
+    <div class="main">
+      <div class="topbar"><span class="burger">${I('arrow-left')}</span><span class="mt">วิเคราะห์ยอดขายจากโฆษณา</span><span style="margin-left:auto" class="muted5">${I('bell')}</span></div>
+      <div class="content"><div class="cap">
+        <div class="crumb"><h4>วิเคราะห์ยอดขายจากโฆษณา</h4><span class="bc">หน้าหลัก › รายงาน › วิเคราะห์ยอดขายจากโฆษณา</span></div>
+        <div class="filters" style="margin-bottom:12px">
+          <span class="seg2"><span>วันนี้</span><span>7 วัน</span><span class="on">30 วัน</span><span>เดือนนี้</span><span>${I('calendar')}กำหนดเอง</span></span>
+          <div class="right"><span class="pagechip"><span class="av"><b>ธ</b><i>${I('brand-facebook')}</i></span>ธนภัทร์ อะไหล่ · Messenger<span class="chev">${I('chevron-down')}</span></span></div>
+        </div>
+        <div class="card" style="height:auto;margin-bottom:var(--gap)"><div class="ktabs">${TABS.map(([k,l,ic,v])=>`<a class="${k===tab?'on':''}"><span class="l">${I(ic)}${l}</span><span class="v">${v}</span></a>`).join('')}</div></div>
+        ${inner}
+      </div></div>
+      <div class="bubble">${I('bulb')}<b>6</b></div>
+    </div>
+  </div>`
+}
+
+// ── แท็บ ──────────────────────────────────────────────────
+const PAGES = {
+summary: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'รับเงินแล้ว', icon:'wallet', bg:'bg-primary', n:baht(TOT.coll), badge:delta(9.2), sub:'28.2% ของยอดขาย · รอเก็บ '+baht(130960), spark:'coll'})}
+    ${kpi({k:'ยอดขายจากโฆษณา', icon:'cash', bg:'bg-info', n:baht(TOT.sales), badge:delta(20.6), sub:'359 คำสั่งซื้อ · เฉลี่ย ฿508', spark:'sales'})}
+    ${kpi({k:'ค่าโฆษณา · ROAS 3.60', icon:'speakerphone', bg:'bg-dark', n:baht(TOT.spend), badge:delta(14.8), sub:'ต้นทุนต่อคำสั่งซื้อ ฿141', spark:'spend'})}
+    ${kpi({k:'กำไรส่วนเกิน', icon:'trending-up', bg:'bg-d400', n:baht(TOT.profit), badge:delta(21.0), sub:'หลังหักค่าโฆษณา · ต้นทุนไม่ครบ 12 ใบ', spark:'profit'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s8">${card('แนวโน้มรับเงิน (เทียบช่วงก่อน)', '<div data-chart="trend"></div>', {tools:'<span class="sel sel-sm">รายวัน<span class="chev">'+I('chevron-down')+'</span></span>'})}</div>
+    <div class="s4">${card('จากยอดสั่งถึงเงินเข้า', `<div class="flow">${[
+        ['ยอดสั่งทั้งหมด', 187200, 100],['ยกเลิก', 3300, 1.8],['ตีกลับ', 1500, 0.8],['รอเก็บเงิน', 130960, 70],['รับเงินแล้ว', 51440, 27.5]
+      ].map(([l,v,p])=>`<div class="flow-r"><div class="h"><b>${l}</b><span>${baht(v)} · ${p}%</span></div>${seg(p,20)}</div>`).join('')}</div>`)}</div>
+  </div>
+  <div class="grid g-12">
+    <div class="s7">${card('แคมเปญที่ทำเงิน (ตามยอดขาย)', CAMPS.slice(0,5).map(c=>`<div class="src"><i style="width:${c.sales/73120*100}%"></i><div><span class="n">${c.n}</span><span class="v">${baht(c.sales)} <span class="chip ${c.profit>=0?'c-good':'c-bad'}">ROAS ${(c.sales/c.spend).toFixed(2)}</span></span></div></div>`).join(''), {tools:'<span class="btn btn-sm">ดูทั้งหมด '+I('chevron-right')+'</span>'})}</div>
+    <div class="s5">${card('ลูกค้าจากโฆษณา', `<div data-chart="custDonut"></div>`)}</div>
+  </div>`,
+
+campaigns: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'แคมเปญที่ได้คำสั่งซื้อ', icon:'speakerphone', bg:'bg-primary', n:'12 / 13', sub:'1 แคมเปญใช้เงินแต่ยังไม่มีคำสั่งซื้อ', extra:''})}
+    ${kpi({k:'ROAS รวม', icon:'chart-arrows-vertical', bg:'bg-info', n:'3.60', badge:delta(4.9), sub:'ยอดขาย ÷ ค่าโฆษณา', spark:'roas'})}
+    ${kpi({k:'กำไรส่วนเกิน', icon:'trending-up', bg:'bg-d400', n:baht(TOT.profit), badge:delta(21.0), sub:'4 แคมเปญขาดทุน', spark:'profit'})}
+    ${kpi({k:'ต้นทุนต่อคำสั่งซื้อ', icon:'receipt-2', bg:'bg-dark', n:'฿141', badge:delta(-3.2), sub:'ค่าโฆษณา ÷ คำสั่งซื้อ', spark:'spend'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s12">${card('ค่าโฆษณาเทียบยอดขาย รายแคมเปญ', '<div data-chart="campBars"></div>', {tools:'<span class="legend"><span><i class="dot" style="background:#313a46"></i>ค่าโฆษณา</span><span><i class="dot" style="background:'+P+'"></i>ยอดขาย</span><span><i class="dot" style="background:'+INFO+'"></i>รับเงินแล้ว</span></span>'})}</div>
+  </div>
+  <div class="grid">${card('แคมเปญ', `<div class="card-body" style="padding-bottom:0"><div class="filters">${tools}<div class="right">${exportBtn}</div></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>ชื่อ</th><th class="num-r">ค่าโฆษณา</th><th class="num-r">คำสั่งซื้อ</th><th class="num-r">ยอดขาย</th><th class="num-r">รับเงินแล้ว</th><th class="num-r">ROAS</th><th class="num-r">กำไรส่วนเกิน</th></tr></thead><tbody>
+    ${CAMPS.map((c,ci)=>`<tr><td>${I(ci===0?'circle-minus':'circle-plus','tg')}<b style="font-weight:500">${c.n}</b></td><td class="num-r">${baht(c.spend)}</td><td class="num-r">${c.ord}</td><td class="num-r">${baht(c.sales)}</td><td class="num-r">${baht(c.coll)}</td><td class="num-r"><span class="chip ${c.profit>=0?'c-good':'c-bad'}">${(c.sales/c.spend).toFixed(2)}</span></td><td class="num-r">${c.profit<0?I('alert-triangle','warn-ic')+' ':''}${sign(c.profit)}</td></tr>
+      ${ci===0?c.kids.map(k=>`<tr class="child"><td class="ind1">${I('circle-plus','tg')}${k.n}</td><td class="num-r">${baht(k.spend)}</td><td class="num-r">${k.ord}</td><td class="num-r">${baht(k.sales)}</td><td class="num-r">${baht(k.coll)}</td><td class="num-r"><span class="chip ${k.profit>=0?'c-good':'c-bad'}">${(k.sales/k.spend).toFixed(2)}</span></td><td class="num-r">${sign(k.profit)}</td></tr>`).join(''):''}`).join('')}
+    </tbody><tfoot><tr><td>รวมทุกแคมเปญ (13)</td><td class="num-r">${baht(TOT.spend)}</td><td class="num-r">359</td><td class="num-r">${baht(TOT.sales)}</td><td class="num-r">${baht(TOT.coll)}</td><td class="num-r">3.60</td><td class="num-r">${baht(TOT.profit)}</td></tr></tfoot></table></div>`, {flush:true})}</div>`,
+
+quality: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'อัตรารับเงิน', icon:'wallet', bg:'bg-primary', n:'27.5%', badge:delta(-6.1,false), sub:'ของยอดสั่งที่ไม่ยกเลิก', spark:'coll'})}
+    ${kpi({k:'รอเก็บเงิน', icon:'hourglass', bg:'bg-info', n:baht(130960), sub:'COD ยังไม่ถึงมือ 241 ใบ', spark:'pend'})}
+    ${kpi({k:'ยกเลิก', icon:'circle-x', bg:'bg-dark', n:'1.8%', badge:delta(-0.4), sub:'8 ใบ · ฿3,300'})}
+    ${kpi({k:'ตีกลับ', icon:'arrow-back-up', bg:'bg-d400', n:'0.8%', badge:delta(0.2,false), sub:'4 ใบ · ฿1,500'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s6">${card('จากยอดสั่งถึงเงินที่ได้รับ', '<div data-chart="waterfall"></div>')}</div>
+    <div class="s6">${card('สถานะคำสั่งซื้อรายโฆษณา', '<div data-chart="statusMix"></div>')}</div>
+  </div>
+  <div class="grid">${card('ผลลัพธ์รายโฆษณา', `<div class="card-body" style="padding-bottom:0"><div class="filters">${tools}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>โฆษณา</th><th class="num-r">คำสั่งซื้อ</th><th class="num-r">รับเงินแล้ว</th><th class="num-r">ยกเลิก</th><th class="num-r">ตีกลับ</th></tr></thead><tbody>
+    ${[['video 360_Group_1',159,24],['video 390 - ลำนา 1',7,33],['ADMD สามล้อ ภาพ',51,12],['MIO 290 วิดีโอ',23,17],['retarget สามล้อ',3,0]].map(([n,o,c])=>`<tr><td><span class="ad"><span class="thumb">${I('photo')}</span><span class="ad-n">${n}</span></span></td><td class="num-r">${o}</td><td class="num-r"><span class="pbar">${seg(c,10)}<span style="width:42px">${c}%</span></span></td><td class="num-r">1.3%</td><td class="num-r">0.6%</td></tr>`).join('')}
+    </tbody></table></div>`, {flush:true})}</div>`,
+
+products: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'สินค้าที่ขายผ่านโฆษณา', icon:'package', bg:'bg-primary', n:'14 รายการ', sub:'441 ชิ้น'})}
+    ${kpi({k:'ยอดขายสินค้า', icon:'cash', bg:'bg-info', n:baht(154880), badge:delta(18.3), spark:'sales'})}
+    ${kpi({k:'สินค้าเด่น', icon:'star', bg:'bg-dark', n:'49%', sub:'โช๊คหลังเวฟ 125 (คู่)'})}
+    ${kpi({k:'ราคาเฉลี่ยต่อชิ้น', icon:'tag', bg:'bg-d400', n:'฿351', badge:delta(1.2)})}
+  </div>
+  <div class="grid g-12">
+    <div class="s5">${card('สินค้าขายดีจากโฆษณา', PRODUCTS.map(p=>`<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px"><span class="thumb">${I('photo')}</span><div style="flex:1;min-width:0"><div class="pair-r"><b style="color:var(--d900);font-weight:500">${p.n}</b><span class="num">${baht(p.s)}</span></div>${seg(p.s/76320*100,20)}</div></div>`).join(''))}</div>
+    <div class="s7">${card('โฆษณา × สินค้า (ยอดขาย)', '<div data-chart="heat"></div>')}</div>
+  </div>
+  <div class="grid">${card('สินค้า', `<div class="card-body" style="padding-bottom:0"><div class="filters">${tools}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>สินค้า</th><th class="num-r">คำสั่งซื้อ</th><th class="num-r">ชิ้น</th><th class="num-r">ยอดขาย</th><th class="num-r">ยกเลิก/ตีกลับ</th></tr></thead><tbody>
+    ${PRODUCTS.map(p=>`<tr><td><span class="ad"><span class="thumb">${I('photo')}</span><span class="ad-n">${p.n}</span></span></td><td class="num-r">${p.ord}</td><td class="num-r">${p.u}</td><td class="num-r">${baht(p.s)}</td><td class="num-r">${p.lost}%</td></tr>`).join('')}
+    </tbody></table></div>`, {flush:true})}</div>`,
+
+customers: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'ลูกค้าใหม่', icon:'user-plus', bg:'bg-primary', n:'214 คน', badge:delta(12.4), sub:'฿104,300 · 57%'})}
+    ${kpi({k:'ลูกค้าเดิม', icon:'users', bg:'bg-info', n:'98 คน', badge:delta(3.1), sub:'฿61,200 · 34%'})}
+    ${kpi({k:'ไม่ทราบลูกค้า', icon:'help-circle', bg:'bg-dark', n:'47 ใบ', sub:'฿16,910 · 9%'})}
+    ${kpi({k:'ต้นทุนได้ลูกค้าใหม่', icon:'coin', bg:'bg-d400', n:'฿237', badge:delta(-5.0), sub:'ค่าโฆษณา ÷ ลูกค้าใหม่'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s4">${card('สัดส่วนยอดขาย', '<div data-chart="custDonut"></div>')}</div>
+    <div class="s8">${card('ลูกค้าใหม่/เดิม รายโฆษณา', '<div data-chart="custStack"></div>')}</div>
+  </div>
+  <div class="grid">${card('รายโฆษณา', `<div class="card-body" style="padding-bottom:0"><div class="filters">${tools}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>โฆษณา</th><th class="num-r">ลูกค้าใหม่</th><th class="num-r">ลูกค้าเดิม</th><th class="num-r">ไม่ทราบ</th><th class="num-r">ต้นทุนได้ลูกค้าใหม่</th></tr></thead><tbody>
+    ${[['video 360_Group_1',96,41,22,222],['ADMD สามล้อ ภาพ',38,9,4,227],['MIO 290 วิดีโอ',14,6,3,183]].map(([n,a,b,c,d])=>`<tr><td><span class="ad"><span class="thumb">${I('photo')}</span><span class="ad-n">${n}</span></span></td><td class="num-r"><b style="font-weight:600">${a} คน</b> <span class="muted5 xs">· ${baht(a*487)}</span></td><td class="num-r"><b style="font-weight:600">${b} คน</b> <span class="muted5 xs">· ${baht(b*624)}</span></td><td class="num-r">${c} ใบ</td><td class="num-r">${baht(d)}</td></tr>`).join('')}
+    </tbody></table></div>`, {flush:true})}</div>`,
+
+time: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'ช่วงขายดีที่สุด', icon:'clock', bg:'bg-primary', n:'20:00–22:00', sub:'31% ของยอดขาย'})}
+    ${kpi({k:'วันขายดีที่สุด', icon:'calendar-event', bg:'bg-info', n:'วันอาทิตย์', sub:'เฉลี่ย ฿8,420 ต่อวัน'})}
+    ${kpi({k:'คลิกโฆษณาถึงสั่งซื้อ', icon:'hourglass', bg:'bg-dark', n:'1.0 วัน', sub:'มัธยฐาน · 62% สั่งในวันเดียว'})}
+    ${kpi({k:'ยอดขายเฉลี่ยต่อวัน', icon:'cash', bg:'bg-d400', n:baht(6080), badge:delta(20.6), spark:'sales'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s8">${card('ยอดขายตามวันและเวลา', '<div data-chart="weekHeat"></div>')}</div>
+    <div class="s4">${card('ยอดขายรายชั่วโมง', '<div data-chart="hourBar"></div>')}</div>
+  </div>`,
+
+coverage: ()=>`
+  <div class="grid g-kpi">
+    ${kpi({k:'คำสั่งซื้อจากโฆษณา', icon:'speakerphone', bg:'bg-primary', n:'78%', sub:'359 จาก 460 ใบ'})}
+    ${kpi({k:'ยอดขายจากโฆษณา', icon:'cash', bg:'bg-info', n:'74%', sub:baht(182410)+' จาก '+baht(246500)})}
+    ${kpi({k:'จากแชทแต่ระบุโฆษณาไม่ได้', icon:'message-question', bg:'bg-dark', n:'61 ใบ', sub:'13% · ลูกค้าทักเองไม่ผ่านโฆษณา'})}
+    ${kpi({k:'บัญชีโฆษณา Facebook', icon:'plug-connected', bg:'bg-d400', n:'เชื่อมแล้ว', sub:'ธนภัทร์ Ads · อัปเดต 10:42'})}
+  </div>
+  <div class="grid g-12">
+    <div class="s8">${card('คำสั่งซื้อทั้งร้านมาจากไหน', '<div data-chart="covBar"></div>')}</div>
+    <div class="s4">${card('ตามจำนวนคำสั่งซื้อ', '<div data-chart="covDonut"></div>')}</div>
+  </div>`,
+}
+
+// ── กราฟ ──────────────────────────────────────────────────
+function charts(f){
+  const mk=(sel,opt)=>f.querySelectorAll(`[data-chart="${sel}"]`).forEach(el=>new ApexCharts(el,opt).render())
+  const SP={coll:collD,sales:salesD,spend:spendD,pend:pendD,profit:salesD.map((v,i)=>Math.round(v*0.32-spendD[i])),roas:salesD.map((v,i)=>+(v/spendD[i]).toFixed(2))}
+  f.querySelectorAll('[data-spark]').forEach(el=>{const k=el.dataset.spark; new ApexCharts(el,{chart:{...base,type:k==='sales'||k==='pend'?'bar':'area',height:48,sparkline:{enabled:true}},series:[{data:SP[k]}],colors:[k==='spend'?'#313a46':k==='pend'?GAMMA:P],stroke:{width:2,curve:'smooth'},fill:{type:'gradient',gradient:{opacityFrom:.35,opacityTo:0}},plotOptions:{bar:{columnWidth:'55%'}},tooltip:{enabled:false}}).render()})
+  mk('trend',{chart:{...base,height:320},series:[{name:'รับเงินแล้ว',type:'area',data:collD},{name:'ช่วงก่อน',type:'line',data:prevD.map(v=>Math.round(v*.7))},{name:'รอเก็บเงิน',type:'column',data:pendD}],stroke:{width:[3,2,0],curve:'smooth',dashArray:[0,7,0]},colors:[P,GRAY,GAMMA],fill:{type:['gradient','solid','solid'],opacity:[1,1,.7],gradient:{opacityFrom:.4,opacityTo:0}},plotOptions:{bar:{columnWidth:'50%',borderRadius:2}},xaxis:{categories:days,tickAmount:10,labels:{rotate:0}},yaxis:{labels:{formatter:kb}},grid,legend:{position:'bottom'},dataLabels:{enabled:false},tooltip:{shared:true,y:{formatter:baht}}})
+  mk('custDonut',{chart:{...base,type:'donut',height:260},series:[104300,61200,16910],labels:['ลูกค้าใหม่','ลูกค้าเดิม','ไม่ทราบ'],colors:[P,INFO,'#ced4da'],legend:{position:'bottom'},dataLabels:{enabled:false},stroke:{width:0},plotOptions:{pie:{donut:{size:'72%',labels:{show:true,total:{show:true,label:'ยอดขาย',formatter:()=>'฿182k'}}}}}})
+  const cs=CAMPS.filter(c=>c.spend>500)
+  mk('campBars',{chart:{...base,type:'bar',height:300},plotOptions:{bar:{horizontal:false,columnWidth:'55%',borderRadius:2}},series:[{name:'ค่าโฆษณา',data:cs.map(c=>c.spend)},{name:'ยอดขาย',data:cs.map(c=>c.sales)},{name:'รับเงินแล้ว',data:cs.map(c=>c.coll)}],colors:['#313a46',P,INFO],xaxis:{categories:cs.map(c=>c.n.length>22?c.n.slice(0,21)+'…':c.n)},yaxis:{labels:{formatter:kb}},legend:{show:false},dataLabels:{enabled:false},grid,tooltip:{y:{formatter:baht}}})
+  mk('waterfall',{chart:{...base,type:'rangeBar',height:300},plotOptions:{bar:{horizontal:false,columnWidth:'50%',borderRadius:2,distributed:true}},series:[{data:[{x:'ยอดสั่ง',y:[0,187200]},{x:'ยกเลิก',y:[183900,187200]},{x:'ตีกลับ',y:[182400,183900]},{x:'รอเก็บเงิน',y:[51440,182400]},{x:'รับเงินแล้ว',y:[0,51440]}]}],colors:[P,DANGER,ZETA,GAMMA,'#02bc9c'],legend:{show:false},yaxis:{labels:{formatter:kb}},grid,dataLabels:{enabled:false},tooltip:{y:{formatter:(v)=>baht(v)}}})
+  mk('statusMix',{chart:{...base,type:'bar',height:300,stacked:true,stackType:'100%'},plotOptions:{bar:{horizontal:true,barHeight:'60%'}},series:[{name:'รอดำเนินการ',data:[44,30,52,20,10]},{name:'กำลังจัดส่ง',data:[30,40,20,40,0]},{name:'สำเร็จ',data:[24,27,25,38,90]},{name:'ยกเลิก/ตีกลับ',data:[2,3,3,2,0]}],xaxis:{categories:['video 360_Group_1','video 390 - ลำนา 1','ADMD สามล้อ ภาพ','MIO 290 วิดีโอ','retarget สามล้อ']},colors:[GAMMA,INFO,'#02bc9c',DANGER],legend:{position:'top',horizontalAlign:'left'},dataLabels:{enabled:false},grid})
+  const adsH=['video 360','ลำนา 1','ADMD ภาพ','MIO 290','retarget'], prH=['โช๊คเวฟ','โช๊คสามล้อ','MIO 290','สปริง','บูช']
+  mk('heat',{chart:{...base,type:'heatmap',height:300},series:adsH.map((a,i)=>({name:a,data:prH.map((p,j)=>({x:p,y:Math.round(Math.abs(Math.sin(i*3+j))*30000*(i===j?1.6:.4))}))})),colors:[P],dataLabels:{enabled:true,formatter:kb,style:{fontSize:'11px'}},plotOptions:{heatmap:{radius:2,enableShades:true,shadeIntensity:.6}},grid,legend:{show:false},tooltip:{y:{formatter:baht}}})
+  mk('custStack',{chart:{...base,type:'bar',height:280,stacked:true},plotOptions:{bar:{horizontal:true,barHeight:'55%',borderRadius:2}},series:[{name:'ลูกค้าใหม่',data:[96,38,14,8,3]},{name:'ลูกค้าเดิม',data:[41,9,6,4,1]},{name:'ไม่ทราบ',data:[22,4,3,2,0]}],xaxis:{categories:['video 360_Group_1','ADMD สามล้อ ภาพ','MIO 290 วิดีโอ','ลำนา 1','retarget']},colors:[P,INFO,'#ced4da'],legend:{position:'top',horizontalAlign:'left'},dataLabels:{enabled:false},grid})
+  const DOW=['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.']
+  mk('weekHeat',{chart:{...base,type:'heatmap',height:300},series:DOW.map((d,i)=>({name:d,data:Array.from({length:24},(_,h)=>({x:String(h),y:Math.round(Math.max(0,Math.sin((h-6)/5))*(h>=19&&h<=22?3:1)*(i===6?1.5:1)*900)}))})).reverse(),colors:[P],dataLabels:{enabled:false},plotOptions:{heatmap:{radius:2,shadeIntensity:.7}},xaxis:{labels:{formatter:(v)=>+v%3===0?v+':00':''}},grid,legend:{show:false},tooltip:{y:{formatter:baht}}})
+  mk('hourBar',{chart:{...base,type:'bar',height:300},plotOptions:{bar:{horizontal:true,barHeight:'60%',borderRadius:2,distributed:true}},series:[{name:'ยอดขาย',data:[56400,41200,30800,24100,18900,11010]}],xaxis:{categories:['20–22 น.','18–20 น.','12–14 น.','22–24 น.','09–12 น.','อื่น ๆ'],labels:{formatter:kb},tickAmount:3},colors:[P,'#7fa7dc','#7fa7dc','#a9c2e6','#a9c2e6','#ced4da'],legend:{show:false},dataLabels:{enabled:false},grid,tooltip:{y:{formatter:baht}}})
+  mk('covBar',{chart:{...base,type:'bar',height:220,stacked:true,stackType:'100%'},plotOptions:{bar:{horizontal:true,barHeight:'55%'}},series:[{name:'จากโฆษณา',data:[359,182410]},{name:'จากแชท ระบุโฆษณาไม่ได้',data:[61,38200]},{name:'ไม่ได้มาจากแชท',data:[40,25890]}],xaxis:{categories:['ตามจำนวน','ตามยอด']},colors:[P,'#627189','#dee2e6'],legend:{position:'bottom'},dataLabels:{enabled:true,formatter:(v)=>v.toFixed(0)+'%'},grid})
+  mk('covDonut',{chart:{...base,type:'donut',height:240},series:[359,61,40],labels:['จากโฆษณา','จากแชท ระบุไม่ได้','ไม่ได้มาจากแชท'],colors:[P,'#627189','#dee2e6'],legend:{position:'bottom'},dataLabels:{enabled:false},stroke:{width:0},plotOptions:{pie:{donut:{size:'72%',labels:{show:true,total:{show:true,label:'คำสั่งซื้อ',formatter:()=>'460'}}}}}})
+}
+
+const ORDER=[['summary','สรุป'],['campaigns','แคมเปญ'],['quality','คุณภาพคำสั่งซื้อ'],['products','สินค้า'],['customers','ลูกค้า'],['time','ช่วงเวลาขาย'],['coverage','ความครอบคลุม']]
+function render(tab){
+  ['fd','ft','fw'].forEach(id=>{const f=document.getElementById(id); f.innerHTML=shell(PAGES[tab](),tab); charts(f)})
+  document.querySelectorAll('#docTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab))
+  history.replaceState(null,'','#'+tab)
+}
+document.getElementById('docTabs').innerHTML=ORDER.map(([k,l])=>`<button data-t="${k}">${l}</button>`).join('')
+document.getElementById('docTabs').addEventListener('click',e=>{const t=e.target.dataset.t; if(t) render(t)})
+render((location.hash||'#summary').slice(1)); addEventListener('hashchange',()=>render(location.hash.slice(1)||'summary'))
+</script>
+</body>
+</html>

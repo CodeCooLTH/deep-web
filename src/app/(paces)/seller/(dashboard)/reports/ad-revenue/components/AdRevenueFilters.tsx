@@ -67,7 +67,7 @@ export default function AdRevenueFilters(props: Props) {
     <div className="mb-base flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <DateRangeControl
-          range={localRange} customDates={[props.from, props.to]} pending={pending}
+          range={localRange} customDates={[props.from, props.to]} pending={pending} variant="outline"
           onRangeChange={(next) => { setLocalRange(next); if (next === 'custom') return; const l = resolveDateRange(next).label; push({ from: l.start, to: l.end }) }}
           onCustomChange={([from, to]) => { setLocalRange('custom'); push({ from, to }) }}
         />
