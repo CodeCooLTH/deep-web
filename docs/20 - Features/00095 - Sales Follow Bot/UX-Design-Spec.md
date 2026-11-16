@@ -670,3 +670,6 @@ Base: theme/paces/Admin/TS/src/app/(admin)/form/fileuploads/components/Dropzone.
 - ไม่มี run = ไม่มีแคปซูล · ไม่แตะขอบรูป (ขอบม่วงลูกค้าเคยซื้อของ 00078 คงเดิม)
 - a11y: `role="progressbar"` + `aria-valuenow/max` + `aria-label` "บอทติดตาม ส่งแล้ว n จาก N รอบ" (ตัวเลขยังอยู่สำหรับตัวอ่านหน้าจอ)
 - ไฟล์เทียบ: `docs/superpowers/specs/2026-11-16-00095-avatar-ring-options.html`
+
+## 22. อนุมัติ mockup (2026-11-16)
+ผู้ใช้: "อนุมัติ ลุยพัฒนาเลย" — mockup `docs/superpowers/specs/2026-11-16-00095-sales-follow-bot-mockup.html` (commit aa0b7177e) + แคปซูล 3A คือแบบที่ต้องสร้างจริง · ใช้คู่กับสเปกนี้ §0-§21
