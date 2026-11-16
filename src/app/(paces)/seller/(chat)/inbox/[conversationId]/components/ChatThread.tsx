@@ -136,6 +136,7 @@ import { CUSTOMER_RING_CLS, CustomerSignalPlate, hasCustomerRing } from '@/compo
 import { chatCardPreview, chatItemLabel } from '@/lib/chat-vocab'
 import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
+import { useSwipeToReply } from '@/hooks/useSwipeToReply'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import RecordPaymentSheet from '../../../_components/RecordPaymentSheet'
 import { computeOrderMoneyFromSerialized } from '@/lib/order-payment'
@@ -1897,6 +1898,39 @@ export default function ChatThread({
   })
 
   /**
+   * ปัดข้อความเพื่อตอบกลับ (user สั่ง 2026-11-16 — แอปผู้ขายทำได้ เว็บต้องได้ด้วย) · ลูกค้า = ปัดขวา · เรา = ปัดซ้าย
+   * เงื่อนไข "ตอบได้" ชุดเดียวกับเมนูกดค้าง/ปุ่ม hover (actionTargetActions ข้างล่าง) — ไม่ได้ = ปัดไม่ติดเลย
+   * จับที่ container เดียวกับกดค้าง: ขยับเกิน 10px กดค้างยกเลิกตัวเองอยู่แล้ว ทั้งสองจึงไม่ชนกัน
+   */
+  const swipeReply = useSwipeToReply<ChatMessageView>(
+    (id) => {
+      const m = messagesRef.current.find((x) => x.id === id)
+      if (!m || m.isDeleted || m._status || m.id.startsWith('local-') || (m as ChatMessageWithDelivery).deliveryStatus === 'QUEUED') return null
+      return { message: m, mine: m.senderRole === 'SHOP' }
+    },
+    (m) => setReplyingTo(m),
+  )
+  const threadTouch = {
+    ...longPress.handlers,
+    onTouchStart: (e: React.TouchEvent) => {
+      longPress.handlers.onTouchStart(e)
+      swipeReply.onTouchStart(e)
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      longPress.handlers.onTouchMove(e)
+      swipeReply.onTouchMove(e)
+    },
+    onTouchEnd: () => {
+      longPress.handlers.onTouchEnd()
+      swipeReply.onTouchEnd()
+    },
+    onTouchCancel: () => {
+      longPress.handlers.onTouchCancel()
+      swipeReply.onTouchCancel()
+    },
+  }
+
+  /**
    * ── กดค้างบนรูปสลิป → บันทึกการรับเงิน (feature 00050) ─────────────────────────────
    *
    * หัวหน้าสั่งว่าอยากให้ "กดง่าย ๆ ที่หน้า chat" — เส้นทางเดิมคือ เปิดแผงลูกค้า → หาการ์ดใบที่ใช่
@@ -3268,8 +3302,9 @@ export default function ChatThread({
       )}
       <div
         ref={scrollRef}
-        {...longPress.handlers}
-        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
+        {...threadTouch}
+        // touch-pan-y: ปัดแนวนอนเป็นของ "ปัดตอบกลับ" — เบราว์เซอร์ไม่ต้องแย่งไปเลื่อนแนวนอน
+        className="card-body min-h-0 grow touch-pan-y overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
       >
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex h-9 items-center justify-center">
