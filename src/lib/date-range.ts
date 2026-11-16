@@ -17,7 +17,8 @@
  */
 export const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
 
-export type DateRangePreset = 'today' | '7d' | '30d' | 'month' | 'custom'
+/** yesterday · 14d = ใช้เฉพาะหน้าที่ส่ง options เอง (00096 รายงานกำไรโฆษณารายวัน) — ไม่อยู่ใน DATE_RANGE_OPTIONS หน้าอื่นจึงไม่เปลี่ยน */
+export type DateRangePreset = 'today' | 'yesterday' | '7d' | '14d' | '30d' | 'month' | 'custom'
 
 /**
  * ป้ายของช่วงเวลา — SSOT เดียวของตัวกรองช่วงเวลาฝั่งร้าน (HR16)
@@ -28,6 +29,16 @@ export const DATE_RANGE_OPTIONS: readonly { value: DateRangePreset; label: strin
   { value: '7d', label: '7 วัน' },
   { value: '30d', label: '30 วัน' },
   { value: 'month', label: 'เดือนนี้' },
+  { value: 'custom', label: 'กำหนดเอง' },
+]
+
+/** ตัวเลือกของรายงานรายวัน (00096 BRD FR-001) */
+export const DAILY_RANGE_OPTIONS: readonly { value: DateRangePreset; label: string }[] = [
+  { value: 'today', label: 'วันนี้' },
+  { value: 'yesterday', label: 'เมื่อวาน' },
+  { value: '7d', label: '7 วัน' },
+  { value: '14d', label: '14 วัน' },
+  { value: '30d', label: '30 วัน' },
   { value: 'custom', label: 'กำหนดเอง' },
 ]
 
@@ -177,7 +188,9 @@ export function resolveDateRange(
   let sy: number, sm0: number, sd: number, ey: number, em0: number, ed: number // ed = last day INCLUSIVE
 
   if (preset === 'today') { [sy, sm0, sd] = [y, m0, d]; [ey, em0, ed] = [y, m0, d] }
+  else if (preset === 'yesterday') { [sy, sm0, sd] = [y, m0, d - 1]; [ey, em0, ed] = [y, m0, d - 1] }
   else if (preset === '7d') { [sy, sm0, sd] = [y, m0, d - 6]; [ey, em0, ed] = [y, m0, d] }
+  else if (preset === '14d') { [sy, sm0, sd] = [y, m0, d - 13]; [ey, em0, ed] = [y, m0, d] }
   else if (preset === '30d') { [sy, sm0, sd] = [y, m0, d - 29]; [ey, em0, ed] = [y, m0, d] }
   else if (preset === 'month') { [sy, sm0, sd] = [y, m0, 1]; [ey, em0, ed] = [y, m0, d] }
   else {

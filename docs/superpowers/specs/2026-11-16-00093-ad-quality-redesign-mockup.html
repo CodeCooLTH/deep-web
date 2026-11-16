@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ม็อกอัพ 00093 คุณภาพโฆษณา redesign (2026-11-16)</title>
+<!-- ม็อกอัพ /impeccable audit 2026-11-15 · ยึด theme/paces/Admin/TS/src/app/(admin)/dashboard/analytics/ · โทเคนจาก src/assets/css/config/_root.css (skin default)
+     เฟรมใช้ container query แทน viewport จึงวาด 3 ความกว้างในหน้าเดียวได้ (@container frame ≥1200 = xl · ≥740 = md (เฟรมมีขอบ 1px จึงเผื่อ)) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a; --info:#5bc3e1; --info-ink:#1e40af; --warning:#f9bf59; --warning-ink:#92400e; --success-ink:#065f46;
+  --d100:#f6f7fb; --d200:#eef0f3; --d300:#e7e9eb; --d400:#627189; --d500:#58626b; --d700:#40454a; --d800:#343a40; --d900:#313a46; --dark:#313a46;
+  --zeta:#db9052; --delta:#5bc3e1; --chart-border:#ecf4fc; --body:#f6f7fb;
+  --shadow:0 1px 4px 0 rgba(130,143,163,.15); --radius:4px; --gap:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Anuphan",system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--d800);background:#dfe3ea}
+h1,h2,h3,h4,p{margin:0}
+.doc{padding:24px 24px 48px}
+.doc-title{font-size:20px;font-weight:700;color:var(--d900)}
+.doc-sub{color:var(--d700);font-size:13px;margin-top:4px}
+.state-h{font-size:16px;font-weight:700;color:var(--d900);margin:32px 0 4px}
+.frame-label{font-size:13px;font-weight:600;color:var(--d700);margin:16px 0 6px;display:flex;gap:6px;align-items:center}
+.frame-wrap{overflow-x:auto;padding-bottom:6px}
+.frame{container:frame / inline-size;background:var(--body);border:1px solid #c9ced8;border-radius:8px;overflow:hidden;flex:none}
+.frames-row{display:flex;gap:24px;align-items:flex-start}
+
+/* ── ห่อหน้า: sidenav (≥1024) / mobile header ───────────── */
+.app{display:flex;min-height:100%}
+.sidenav{display:none;width:250px;flex:none;background:#fff;border-right:1px solid var(--d300);padding:18px 14px}
+.sn-logo{font-weight:700;font-size:18px;color:var(--primary);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.sn-h{font-size:11px;color:var(--d500);font-weight:600;margin:14px 8px 6px}
+.sn-i{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--radius);color:var(--d700);font-size:14px}
+.sn-i.on{background:rgb(35 109 201 / .1);color:var(--primary);font-weight:600}
+.main{flex:1;min-width:0}
+.topbar{height:60px;background:#fff;border-bottom:1px solid var(--d300);display:flex;align-items:center;gap:12px;padding:0 16px}
+.topbar .mt{font-weight:600;font-size:16px;color:var(--d900)}
+.content{padding:16px}
+.crumb{display:none;align-items:center;justify-content:space-between;margin-bottom:var(--gap)}
+.crumb h4{font-size:18px;font-weight:600;color:var(--d900)}
+.crumb .bc{font-size:13px;color:var(--d500)}
+@container frame (min-width:1000px){ .sidenav{display:block} .topbar .mt,.topbar .burger{display:none} .crumb{display:flex} .content{padding:20px 24px} }
+
+/* ── primitives ของ Paces ─────────────────────────────── */
+.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);min-width:0;display:flex;flex-direction:column;height:100%}
+.card-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:15px 20px;border-bottom:1px dashed var(--d300)}
+.card-title{font-size:15px;font-weight:600;color:var(--d900)}
+.card-body{padding:20px;flex:1;min-width:0}
+.card-footer{padding:12px 20px;border-top:1px dashed var(--d300)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:var(--radius);white-space:nowrap}
+.b-warn{background:rgb(249 191 89 / .15);color:var(--warning-ink)}
+.b-info{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.b-gray{background:var(--d100);color:var(--d800)}
+.b-up{background:rgb(2 188 156 / .12);color:var(--success-ink)}
+.b-neutral{background:var(--d100);color:var(--d700)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;color:var(--d800);font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+.btn-sm{height:30px;font-size:13px;padding:0 10px}
+.btn-primary-soft{background:var(--primary);border-color:var(--primary);color:#fff}
+.sel{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;font-size:14px;color:var(--d800);white-space:nowrap}
+.sel-sm{height:30px;font-size:13px}
+.sel .chev{margin-left:auto;color:var(--d500)}
+.ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex:none}
+.ic-soft{background:rgb(91 195 225 / .15);color:var(--info-ink)}
+.bg-primary{background:var(--primary)} .bg-info{background:var(--info)} .bg-dark{background:var(--dark)} .bg-d400{background:var(--d400)}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--d700)} .muted5{color:var(--d500)}
+.xs{font-size:13px} .sm{font-size:14px}
+iconify-icon{display:inline-block;vertical-align:-.15em}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--d700)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ── กริด ──────────────────────────────────────────────── */
+.grid{display:grid;gap:var(--gap);margin-bottom:var(--gap);grid-template-columns:minmax(0,1fr)}
+.g-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@container frame (min-width:740px){ .g-kpi{gap:var(--gap)} }
+@container frame (min-width:1200px){
+  .g-kpi{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .g-12{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .s8{grid-column:span 8} .s4{grid-column:span 4} .s12{grid-column:span 12}
+}
+/* สถานะว่าง: [แชท (Deep) | ปิดการขาย (Deep) | แถบสถานะ] */
+.g-empty{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g-empty .notice-tile{grid-column:1 / -1;order:-1}
+@container frame (min-width:740px){ .g-empty{gap:var(--gap)} .g-empty .notice-tile{order:0} }
+@container frame (min-width:1200px){ .g-empty{grid-template-columns:repeat(4,minmax(0,1fr))} .g-empty .notice-tile{grid-column:span 2} }
+
+/* ── KPI tile (TotalOrder/TotalVisitors) ───────────────── */
+.kpi .card-body{padding:16px}
+.kpi-k{font-size:13px;font-weight:700;color:var(--d700);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+.kpi-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.kpi-n{font-size:20px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi-row .badge{margin-left:auto}
+.kpi-sub{font-size:13px;color:var(--d700);margin-top:8px;font-variant-numeric:tabular-nums}
+.spark{margin:8px -6px 0;min-height:48px}
+.spark-l{font-size:12px;color:var(--d500);margin-top:2px}
+.pair{margin-top:10px}
+.pair-r{display:flex;justify-content:space-between;font-size:13px;color:var(--d700);margin-bottom:3px}
+.bar{height:6px;background:var(--d100);border-radius:3px;overflow:hidden;margin-bottom:8px}
+.bar>i{display:block;height:100%;border-radius:3px}
+@container frame (max-width:500px){
+  .kpi .card-body{padding:12px}
+  .kpi .ic{display:none}
+  .kpi-n{font-size:18px}
+  .kpi-row .badge{margin-left:0}
+}
+
+/* ── คุณภาพแชท ─────────────────────────────────────────── */
+.qrow{margin-top:14px}
+.qrow-h{display:flex;justify-content:space-between;font-size:14px;font-weight:600;color:var(--d900);margin-bottom:5px}
+.qrow-s{font-size:13px;color:var(--d700);font-variant-numeric:tabular-nums}
+
+/* ── แถบตัวชี้วัด (SessionOverview) ─────────────────────── */
+.strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.cell{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px dashed var(--d300);border-right:1px dashed var(--d300);min-width:0}
+.cell .l{font-size:13px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .v{font-size:17px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+@container frame (min-width:740px){ .strip{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@container frame (min-width:1200px){ .strip{grid-template-columns:repeat(7,minmax(0,1fr))} .cell{border-bottom:0} .cell .ic{display:none} }
+@container frame (max-width:500px){ .cell .ic{display:none} .cell{padding:12px} }
+
+/* ── ตำแหน่ง/อายุ ──────────────────────────────────────── */
+.split{display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+@container frame (min-width:1200px){ .split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .split>div+div{border-left:1px dashed var(--d300);padding-left:24px} }
+.sub-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sub-h h5{margin:0;font-size:14px;font-weight:600;color:var(--d900)}
+.place{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+@container frame (min-width:740px){ .place{grid-template-columns:180px minmax(0,1fr)} }
+.plist{list-style:none;margin:6px 0 0;padding:0;font-size:13px}
+.plist li{display:flex;align-items:center;gap:8px;padding:2px 0}
+.plist li span:nth-child(2){flex:1}
+
+/* ── ตาราง ─────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
+thead th{background:var(--d100);font-size:12px;font-weight:600;color:var(--d700);padding:8px 10px;text-align:center}
+thead th:first-child{text-align:left}
+thead .grp{display:block;font-size:11px;font-weight:500;color:var(--d500)}
+thead th.deep{background:rgb(35 109 201 / .08)}
+tbody td{padding:10px;border-bottom:1px solid var(--d200);text-align:center;font-variant-numeric:tabular-nums;vertical-align:middle}
+tbody td:first-child{text-align:left}
+tfoot td{padding:10px;background:rgb(246 247 251 / .7);font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+tfoot td:first-child{text-align:left}
+.ad{display:flex;align-items:center;gap:10px;max-width:260px}
+.thumb{width:40px;height:40px;border-radius:6px;background:var(--d200);display:flex;align-items:center;justify-content:center;color:var(--d400);font-size:18px;flex:none}
+.ad-n{font-weight:500;color:var(--d900);overflow:hidden;text-overflow:ellipsis;display:block}
+.ad-c{font-size:12px;color:var(--d500);overflow:hidden;text-overflow:ellipsis;display:block}
+.r2{display:block;font-size:12px;color:var(--d500)}
+.vbar{display:flex;gap:2px;width:72px;margin:3px auto 0}
+.vbar i{flex:1;height:5px;background:var(--d100);border-radius:2px;overflow:hidden;display:block}
+.vbar i b{display:block;height:100%;background:var(--info)}
+.mlist{display:none}
+.mrow{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--d200)}
+.mrow .g{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:6px}
+.mrow .g .l{font-size:12px;color:var(--d500)}
+.mrow .g .v{font-size:14px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums}
+.mtotal{padding:12px 16px;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;border-top:1px solid var(--d200)}
+@container frame (max-width:999px){ .tbl-wrap{display:none} .mlist{display:block} }
+.tbl-tools{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.search{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:1px solid var(--d300);border-radius:var(--radius);color:var(--d500);font-size:14px;min-width:200px}
+@container frame (max-width:500px){ .tbl-tools{width:100%} .search{flex:1;min-width:0} }
+
+/* ── แถวกรอง ───────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.meta-line{font-size:13px;color:var(--d700);margin:8px 0 var(--gap);font-variant-numeric:tabular-nums}
+@container frame (max-width:500px){ .filters .right{margin-left:0;width:100%} .filters .right .btn{flex:1;justify-content:center} }
+
+/* ── แถบสถานะ (สถานะว่าง) ──────────────────────────────── */
+.notice{display:flex;align-items:center;gap:12px;flex-wrap:wrap;height:100%}
+.notice .t{font-size:15px;font-weight:600;color:var(--d900);flex:1;min-width:200px}
+.notice .ic{background:var(--d100);color:var(--d700)}
+.notes{margin-top:40px;background:#fff;border-radius:8px;padding:16px 20px;max-width:980px;font-size:13px;color:var(--d800)}
+.notes h3{font-size:15px;margin-bottom:6px}
+.notes ul{margin:6px 0 0;padding-left:18px}
+.notes li{margin:3px 0}
+/* ── เพิ่มสำหรับ 00091 ─────────────────────────────────── */
+.doc-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 4px}
+.doc-tabs button{font:inherit;font-size:13px;padding:6px 12px;border:1px solid #c9ced8;border-radius:6px;background:#fff;cursor:pointer}
+.doc-tabs button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.preset{display:inline-flex;background:var(--d100);border-radius:var(--radius);padding:2px}
+.preset span{padding:6px 12px;font-size:13px;color:var(--d700);border-radius:var(--radius)}
+.preset span.on{background:rgb(35 109 201 / .12);color:var(--primary);font-weight:600}
+.pagechip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:var(--radius);background:var(--d100);font-size:13px;color:var(--d800)}
+.av{position:relative;width:24px;height:24px;flex:none}
+.av>b{display:flex;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f9bf59,#db9052);color:#fff;font-size:11px;align-items:center;justify-content:center}
+.av>i{position:absolute;right:-3px;bottom:-3px;width:13px;height:13px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;color:#0866ff}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--d300);margin:4px 0 var(--gap);overflow-x:auto}
+.tabs span{padding:10px 14px;font-size:14px;color:var(--d700);white-space:nowrap;border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--primary);border-color:var(--primary);font-weight:600}
+.g-2{grid-template-columns:minmax(0,1fr)}
+@container frame (min-width:740px){ .g-2{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@container frame (min-width:1200px){ .s7{grid-column:span 7} .s5{grid-column:span 5} .s6{grid-column:span 6} .s3{grid-column:span 3} .s9{grid-column:span 9} }
+.flow{display:flex;flex-direction:column;gap:14px}
+.flow-r .h{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:5px}
+.flow-r .h b{font-weight:600;color:var(--d900)}
+.flow-r .h span{font-size:13px;color:var(--d700);font-variant-numeric:tabular-nums}
+.seg{display:flex;gap:2px;height:8px}
+.seg i{flex:1;border-radius:2px;background:var(--d100)}
+.seg i.f{background:var(--primary)}
+.src{position:relative;height:40px;border-radius:var(--radius);background:var(--d100);margin-bottom:10px;overflow:hidden}
+.src>i{position:absolute;inset:0 auto 0 0;background:rgb(35 109 201 / .14)}
+.src>div{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:14px;gap:10px}
+.src .n{font-weight:500;color:var(--d900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src .v{font-variant-numeric:tabular-nums;color:var(--d800);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px}
+.c-good{background:rgb(2 188 156 / .12);color:var(--success-ink)}
+.c-bad{background:rgb(249 191 89 / .18);color:var(--warning-ink)}
+tbody td.num-r,thead th.num-r,tfoot td.num-r{text-align:right}
+tr.child td{background:#fafbfd;font-size:13px}
+.ind1{padding-left:28px!important}.ind2{padding-left:56px!important}
+.tg{color:var(--primary);font-size:18px;vertical-align:-3px;margin-right:6px}
+.pbar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pbar .seg{width:90px}
+.warn-ic{color:var(--warning-ink)}
+.hm{display:grid;gap:2px;font-size:11px}
+.hm div{height:22px;border-radius:2px;display:flex;align-items:center;justify-content:center;color:#fff;font-variant-numeric:tabular-nums}
+.hm .lb{background:none;color:var(--d700);justify-content:flex-start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.big{font-size:28px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums}
+.bubble{position:absolute;right:20px;bottom:20px;width:52px;height:52px;border-radius:50%;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.bubble b{position:absolute;top:-4px;right:-4px;background:var(--warning);color:#313a46;font-size:11px;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.main{position:relative}
+.callout{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;font-size:13px}
+.callout.ok{background:rgb(2 188 156 / .1);color:var(--success-ink)}
+/* ── แถบแท็บแบบ A + ช่วงวันที่ segmented + จำกัด 1920 ── */
+.seg2{display:inline-flex;border:1px solid var(--d300);border-radius:var(--radius);background:#fff;overflow:hidden}
+.seg2 span{padding:7px 14px;font-size:13px;color:var(--d700);border-right:1px solid var(--d300);display:inline-flex;gap:4px;align-items:center}
+.seg2 span:last-child{border-right:0}
+.seg2 span.on{background:var(--primary);color:#fff;font-weight:600}
+.ktabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.ktabs a{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-right:1px dashed var(--d300);border-bottom:3px solid transparent;color:var(--d700);min-width:0}
+.ktabs a:last-child{border-right:0}
+.ktabs a .l{font-size:13px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ktabs a .v{font-size:17px;font-weight:600;color:var(--d900);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ktabs a.on{background:rgb(35 109 201 / .06);border-bottom-color:var(--primary)}
+.ktabs a.on .l{color:var(--primary);font-weight:600}
+@container frame (max-width:1199px){ .ktabs{grid-template-columns:repeat(4,minmax(0,1fr))} .ktabs a:nth-child(4){border-right:0} .ktabs a:nth-child(-n+4){border-bottom-color:var(--d200)} .ktabs a.on{border-bottom-color:var(--primary)!important} }
+.cap{max-width:1920px;margin:0 auto}
+.seg .f{background:var(--primary)}
+.flow-r .h span b{font-weight:700;color:var(--d900)}
+.cmp-row{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,5fr) minmax(0,3fr);gap:12px;align-items:center;padding:6px 0}
+.cmp-name{display:flex;align-items:center;gap:8px;min-width:0}
+.cmp-name .thumb{width:28px;height:28px;font-size:14px}
+.cmp-name span.n{font-size:14px;color:var(--d800);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp-bars{display:flex;flex-direction:column;gap:3px}
+.cmp-bars i{display:block;height:8px;border-radius:999px}
+.cmp-val{text-align:right;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--d700)}
+.cmp-val b{color:var(--d900)}
+.strip2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+@container frame (min-width:1200px){ .strip2{grid-template-columns:repeat(7,minmax(0,1fr))} }
+.strip2 div{padding:14px 16px;border-right:1px dashed var(--d300);border-bottom:1px dashed var(--d300)}
+.strip2 .l{font-size:12px;color:var(--d700);white-space:nowrap}
+.strip2 .v{font-size:18px;font-weight:700;color:var(--d900);font-variant-numeric:tabular-nums;margin-top:2px}
+.pl-ic{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex:none}
+</style></head><body><div class="doc">
+<h1 class="doc-title">00093 คุณภาพโฆษณา · ม็อกอัพ redesign</h1>
+<p class="doc-sub">แนวเดียวกับหน้าวิเคราะห์ยอดขายจากโฆษณา (analytics dashboard) · ตัวเลขตัวอย่าง · เดสก์ท็อป 1440 + แท็บเล็ต 768</p>
+<div class="frame-label"><iconify-icon icon="tabler:device-desktop"></iconify-icon>Desktop 1440</div>
+<div class="frame-wrap"><div class="frame" style="width:1440px" id="fd"></div></div>
+<div class="frame-label"><iconify-icon icon="tabler:device-tablet"></iconify-icon>Tablet 768</div>
+<div class="frame-wrap"><div class="frame" style="width:768px" id="ft"></div></div>
+<div class="notes"><h3>ที่เปลี่ยนจากหน้าเดิม</h3><ul>
+<li>หัวหน้า: ช่วงวันที่เป็นกล่องมีกรอบ · ตัวกรองเพจมีรูปเพจ · <b>ตัดบรรทัดช่วงวันที่ใต้ตัวกรอง</b> (มติเดิม: ไม่มีบรรทัดช่วงวันที่)</li>
+<li>KPI 4 ใบเหมือนเดิม (การ์ดชุดเดียวกับหน้าวิเคราะห์ยอดขาย) · กราฟเล็กเฉพาะใบที่มีข้อมูลรายวัน (แชทเข้าร้านไม่มีรายวัน)</li>
+<li>"แชท Meta เทียบแชทเข้าร้าน": เปลี่ยนจากกราฟแท่ง Apex เป็นแถวละโฆษณา รูป + แถบคู่ (Meta เทา · ร้าน น้ำเงิน) + ตัวเลข + ป้ายส่วนต่างสูง (ชุดเดียวกับกราฟสถานะคำสั่งซื้อ)</li>
+<li>"คุณภาพแชท": ตัดวงกลม radial ออก เหลือแถบแบ่งช่องไล่จาก แชท → คุยต่อ ≥2 → ≥3 → ตอบกลับ → ปิดการขาย · บล็อกเป็นแถบเตือนแยก</li>
+<li>"การแสดงผลและต้นทุน": แถบตัวเลข 7 ช่อง ตัวใหญ่ขึ้น ไม่มีไอคอน (แท็บเล็ต 4+3)</li>
+<li>"ตำแหน่ง": รายการอันดับพร้อมไอคอนแพลตฟอร์ม + ต้นทุนต่อแชท (แทนโดนัท + กราฟแท่ง) · "อายุและเพศ" คงกราฟแท่งซ้อน</li>
+<li>ตาราง "คุณภาพรายโฆษณา" ตามที่ปรับแล้วใน #256</li></ul></div>
+</div>
+<script>
+const base={fontFamily:'Anuphan, sans-serif',toolbar:{show:false},animations:{enabled:false},parentHeightOffset:0}
+const grid={borderColor:'#ecf4fc',strokeDashArray:4,padding:{left:4,right:8}}
+const I=(n,c='')=>`<iconify-icon icon="tabler:${n}" class="${c}" aria-hidden="true"></iconify-icon>`
+const fmt=v=>Math.round(v).toLocaleString('en-US'), baht=(v,d=0)=>'฿'+v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})
+const P='#236dc9'
+const ADS=[['โช๊คหลังเวฟ 125 · วิดีโอ A',312,198,true],['ไฟหน้า LED โปร 11.11',268,231,false],['ทักแชทรับส่วนลด 50',204,120,true],['ล้อแม็ก ลดล้างสต็อก',151,139,false],['ผ้าเบรก + น้ำมันเครื่อง',122,0,true],['แบรนด์ร้าน · แนะนำร้าน',96,75,false]]
+const days=Array.from({length:30},(_,i)=>i)
+function kpi({k,icon,bg,n,badge='',sub='',spark=null,extra=''}){return `<div class="card kpi"><div class="card-body"><h3 class="kpi-k"><span>${k}</span>${badge}</h3><div class="kpi-row"><span class="ic ${bg}">${I(icon)}</span><span class="kpi-n">${n}</span></div>${sub?`<p class="kpi-sub">${sub}</p>`:''}${extra}${spark?`<div class="spark" data-spark="${spark}"></div>`:''}</div></div>`}
+const up=(v,good=true)=>`<span class="badge ${good?'b-up':'b-warn'} num">${I(v>=0?'arrow-up':'arrow-down')}${Math.abs(v).toFixed(1)}%</span>`
+const seg=(p,tone='f',n=20)=>`<span class="seg">${Array.from({length:n},(_,i)=>`<i class="${i<Math.round(p/100*n)?tone:''}" ${i<Math.round(p/100*n)&&tone!=='f'?`style="background:${tone}"`:''}></i>`).join('')}</span>`
+const card=(t,b,tools='')=>`<div class="card"><div class="card-header"><h4 class="card-title">${t}</h4><span class="muted5">${I('info-circle')}</span>${tools?`<div class="tbl-tools">${tools}</div>`:''}</div><div class="card-body">${b}</div></div>`
+function page(){
+ const maxC=Math.max(...ADS.map(a=>a[1]))
+ const flow=[['แชท (Meta)',1238,100,P],['คุยต่อ ≥ 2 ข้อความ',814,65.8,P],['คุยต่อ ≥ 3 ข้อความ',528,42.6,P],['ตอบกลับ',949,76.7,P],['ปิดการขาย (แชทเข้าร้าน)',180,16.4,'#02bc9c']]
+ const places=[['facebook','#0866ff','Facebook ฟีด',602,11240],['instagram','#db9052','Instagram ฟีด',248,5880],['messenger','#5bc3e1','Messenger กล่องข้อความ',141,1920],['facebook','#0866ff','Facebook สตอรี่',112,2410],['instagram','#db9052','Instagram สตอรี่',74,1760]]
+ return `<div class="app"><aside class="sidenav"><div class="sn-logo">${I('shield-check')}Deep</div><div class="sn-h">ANALYTICS</div><div class="sn-i on">${I('chart-dots')}คุณภาพโฆษณา</div><div class="sn-i">${I('speakerphone')}สรุปโฆษณา</div><div class="sn-i">${I('report-analytics')}วิเคราะห์ยอดขายจากโฆษณา</div></aside>
+ <div class="main"><div class="topbar"><span class="burger">${I('arrow-left')}</span><span class="mt">คุณภาพโฆษณา</span></div><div class="content"><div class="cap">
+ <div class="crumb"><h4>คุณภาพโฆษณา</h4><span class="bc">หน้าหลัก › รายงาน › คุณภาพโฆษณา</span></div>
+ <div class="filters" style="margin-bottom:var(--gap)"><span class="seg2"><span>วันนี้</span><span>7 วัน</span><span class="on">30 วัน</span><span>เดือนนี้</span><span>${I('calendar')}กำหนดเอง</span></span>
+  <div class="right"><span class="pagechip"><span class="av"><b>ธ</b><i>${I('brand-facebook')}</i></span>ทุกเพจ ${I('chevron-down')}</span><span class="btn">${I('speakerphone')}ดูยอดขายตามโฆษณา</span></div></div>
+ <div class="grid g-kpi">
+  ${kpi({k:'แชทเข้าร้าน',icon:'message-circle',bg:'bg-primary',n:'1,092',badge:up(23.5),sub:'ช่วงก่อน 884'})}
+  ${kpi({k:'แชท (Meta)',icon:'brand-facebook',bg:'bg-d400',n:'1,238',badge:'<span class="badge b-warn num">ส่วนต่าง 23.4%</span>',extra:`<div class="pair"><div class="pair-r"><span>แชท (Meta)</span><b class="num">1,238</b></div><div class="bar"><i style="width:100%;background:var(--d400)"></i></div><div class="pair-r"><span>แชทเข้าร้าน</span><b class="num">948</b></div><div class="bar"><i style="width:76.6%;background:var(--primary)"></i></div></div>`})}
+  ${kpi({k:'ปิดการขาย',icon:'shopping-bag',bg:'bg-info',n:'16.5%',badge:'<span class="badge b-warn num">'+I('arrow-down')+'0.4 จุด</span>',sub:'180 คำสั่งซื้อ จาก 1,092 แชท',spark:'b'})}
+  ${kpi({k:'ค่าโฆษณา',icon:'cash',bg:'bg-dark',n:'฿24,560',badge:up(15.3),sub:'฿22.49 ต่อแชทเข้าร้าน',spark:'c'})}
+ </div>
+ <div class="grid g-12">
+  <div class="s8">${card('แชท Meta เทียบแชทเข้าร้าน รายโฆษณา',`<div class="legend" style="margin-bottom:10px"><span><i class="dot" style="background:var(--d400)"></i>แชท (Meta)</span><span><i class="dot" style="background:var(--primary)"></i>แชทเข้าร้าน</span></div>`+ADS.map(([n,m,d,hi])=>`<div class="cmp-row"><span class="cmp-name"><span class="thumb">${I('photo')}</span><span class="n">${n}</span></span><span class="cmp-bars"><i style="width:${m/maxC*100}%;background:var(--d400)"></i><i style="width:${Math.max(d/maxC*100,.5)}%;background:var(--primary)"></i></span><span class="cmp-val">${hi?`<span class="badge b-warn" style="margin-right:6px">${I('alert-triangle')}ส่วนต่างสูง</span>`:''}<b>${fmt(m)}</b> · ${fmt(d)}</span></div>`).join(''),'<span class="badge b-warn">'+I('alert-triangle')+'3 โฆษณาส่วนต่างสูง</span>')}</div>
+  <div class="s4">${card('คุณภาพแชท',`<div class="flow">${flow.map(([l,v,p,c])=>`<div class="flow-r"><div class="h"><b>${l}</b><span><b>${fmt(v)}</b> · ${p}%</span></div>${seg(p,c)}</div>`).join('')}<div class="callout" style="background:rgb(249 191 89 / .15);color:var(--warning-ink)">${I('ban')}บล็อกเพจ 26 แชท · 2.1%</div></div>`)}</div>
+ </div>
+ <div class="grid"><div class="card"><div class="card-header"><h4 class="card-title">การแสดงผลและต้นทุน</h4><span class="badge b-info">${I('info-circle')}≈ ประมาณการ</span></div>
+  <div class="strip2">${[['การแสดงผล','412,880'],['เข้าถึง','≈168,200'],['ความถี่','≈2.45'],['CTR','1.83%'],['CPC','฿3.25'],['ต้นทุนต่อแชท (Meta)','฿19.84'],['ต้นทุนต่อแชทเข้าร้าน','฿22.49']].map(([l,v])=>`<div><p class="l">${l}</p><p class="v">${v}</p></div>`).join('')}</div></div></div>
+ <div class="grid g-12">
+  <div class="s6">${card('ตำแหน่งโฆษณา',`<p class="xs muted" style="margin-bottom:10px">เรียงตามแชท (Meta) · ต้นทุนต่อแชท</p>`+places.map(([ic,col,l,ch,sp],i)=>`<div class="src" style="height:44px"><i style="width:${ch/602*100}%"></i><div><span class="n" style="display:flex;align-items:center;gap:10px"><span class="pl-ic" style="background:${col}">${I('brand-'+ic)}</span>${l}</span><span class="v"><b>${fmt(ch)}</b> แชท <span class="chip ${i===2?'c-good':'b-neutral'}" style="margin-left:6px">≈${baht(sp/ch,2)}</span></span></div></div>`).join(''),'<span class="sel sel-sm">'+I('speakerphone')+'ทุกโฆษณา<span class="chev">'+I('chevron-down')+'</span></span>')}</div>
+  <div class="s6">${card('อายุและเพศ','<div data-chart="age"></div>','<span class="sel sel-sm">แชท (Meta)<span class="chev">'+I('chevron-down')+'</span></span>')}</div>
+ </div>
+ <div class="grid"><div class="card"><div class="card-header"><h4 class="card-title">คุณภาพรายโฆษณา</h4></div><div class="card-body" style="color:var(--d500)">ตารางตามที่ปรับใน #256 (แถบเครื่องมือแถวเดียว · ตัวเลขชิดขวาบรรทัดเดียว)</div></div></div>
+ </div></div></div></div>`
+}
+function charts(f){
+ f.querySelectorAll('[data-spark]').forEach(el=>new ApexCharts(el,{chart:{...base,type:el.dataset.spark==='b'?'bar':'area',height:48,sparkline:{enabled:true}},series:[{data:days.map(i=>Math.round(30+15*Math.sin(i/3+el.dataset.spark.charCodeAt(0))+8*Math.cos(i)))}],colors:[el.dataset.spark==='c'?'#313a46':P],stroke:{width:2,curve:'smooth'},fill:{type:'gradient',gradient:{opacityFrom:.35,opacityTo:0}},tooltip:{enabled:false}}).render())
+ f.querySelectorAll('[data-chart="age"]').forEach(el=>new ApexCharts(el,{chart:{...base,type:'bar',height:300,stacked:true},plotOptions:{bar:{horizontal:true,barHeight:'60%',borderRadius:3}},series:[{name:'ชาย',data:[62,188,151,74,31,12]},{name:'หญิง',data:[91,254,203,118,47,19]},{name:'ไม่ระบุ',data:[4,11,9,5,2,1]}],xaxis:{categories:['18-24','25-34','35-44','45-54','55-64','65+']},colors:[P,'#db9052','#ced4da'],legend:{position:'top',horizontalAlign:'left'},dataLabels:{enabled:false},grid}).render())
+}
+['fd','ft'].forEach(id=>{const f=document.getElementById(id); f.innerHTML=page(); charts(f)})
+</script></body></html>

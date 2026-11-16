@@ -32,7 +32,9 @@ import type { ReportSettings } from '@/lib/report-settings'
 
 const RANGE_LABEL: Record<DateRangePreset, string> = {
   today: 'วันนี้',
+  yesterday: 'เมื่อวาน',
   '7d': '7 วันล่าสุด',
+  '14d': '14 วันล่าสุด',
   '30d': '30 วันล่าสุด',
   month: 'เดือนนี้',
   custom: 'ช่วงที่เลือก',

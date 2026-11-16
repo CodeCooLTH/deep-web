@@ -37,6 +37,8 @@ type Props = {
   pending?: boolean
   /** outline = กล่องมีกรอบ อันที่เลือกน้ำเงินทึบ (แยกจากแถบแท็บใต้ตัวกรองให้ชัด — รายงาน 00091 user 2026-11-16) · ไม่ส่ง = soft เดิม */
   variant?: 'soft' | 'outline'
+  /** ตัวเลือกช่วง — ไม่ส่ง = DATE_RANGE_OPTIONS เดิม */
+  options?: readonly { value: DateRangePreset; label: string }[]
 }
 
 type FlatpickrLike = { currentYear: number; yearElements?: HTMLInputElement[] }
@@ -67,7 +69,7 @@ function isoToLocalDate(iso: string): Date {
   return new Date(y, m - 1, d)
 }
 
-export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending, variant = 'soft' }: Props) {
+export default function DateRangeControl({ range, customDates, onRangeChange, onCustomChange, pending, variant = 'soft', options = DATE_RANGE_OPTIONS }: Props) {
   /**
    * 🛑 ห้ามส่ง onChange เป็น prop ของ <Flatpickr> — react-flatpickr v4 **push handler จาก prop เข้าไปใน
    * object options ทุกครั้งที่ render** (mergeHooks แก้ object เดิม) และ options ของเราถูก memo ไว้
@@ -111,7 +113,7 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
           เดิมเป็นแถบเลื่อนแนวนอน 5 ชิป ~300px ในพื้นที่ 288px (จอ 320) ⇒ "กำหนดเอง" ถูกตัดครึ่ง
           และไม่มีอะไรบอกว่าเลื่อนได้ · แพตเทิร์นเดียวกับแอปบัญชี (ช่วงสำเร็จรูป + ไอคอนปฏิทิน) ไม่ต้องเลื่อน */}
       <div className="flex w-full items-center gap-1.5 sm:hidden" role="group" aria-label="ช่วงเวลา">
-        {DATE_RANGE_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
+        {options.filter((o) => o.value !== 'custom').map((opt) => (
           <button
             key={opt.value}
             type="button"
@@ -144,7 +146,7 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
 
       {/* จอ ≥sm: segmented ติดกันเป็นแถบเดียว */}
       <div className="hidden sm:inline-flex" role="group" aria-label="ช่วงเวลา">
-        {DATE_RANGE_OPTIONS.map((opt, idx) => (
+        {options.map((opt, idx) => (
           <button
             key={opt.value}
             type="button"
@@ -155,8 +157,8 @@ export default function DateRangeControl({ range, customDates, onRangeChange, on
             className={cn(
               'btn btn-sm',
               idx === 0 && 'rounded-e-none',
-              idx > 0 && idx < DATE_RANGE_OPTIONS.length - 1 && 'rounded-none',
-              idx === DATE_RANGE_OPTIONS.length - 1 && 'rounded-s-none',
+              idx > 0 && idx < options.length - 1 && 'rounded-none',
+              idx === options.length - 1 && 'rounded-s-none',
               variant === 'outline'
                 ? cn('border-default-300 border', idx > 0 && '-ms-px', range === opt.value ? 'bg-primary border-primary relative z-10 text-white' : 'bg-card text-default-700 hover:bg-light')
                 : range === opt.value ? 'bg-primary/15 text-primary-ink' : 'bg-light text-dark',
