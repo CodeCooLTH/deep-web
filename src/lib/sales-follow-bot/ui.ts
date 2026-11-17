@@ -434,14 +434,13 @@ export function groupChannelsByPage<C extends { provider: string; name: string; 
   return [...out.values()]
 }
 
-/** ความกว้าง % ของแต่ละรอบบนแถบเวลา เทียบกรอบ 7 วัน — รอบสั้นมากยังเห็นเป็นแท่ง (ขั้นต่ำ 2%) · รวมไม่เกิน 100 */
-export function rulerWidths(delaysMin: readonly number[], maxTotalMin: number): number[] {
-  let left = 100
-  return delaysMin.map((m) => {
-    const w = Math.min(left, Math.max(2, (Math.max(0, m) / maxTotalMin) * 100))
-    left -= w
-    return Math.round(w * 10) / 10
-  })
+/** รอบแรกที่ส่งได้เฉพาะลูกค้าจากโฆษณา — หมายเหตุ "เฉพาะโฆษณา" โชว์ครั้งเดียวที่รอบนี้ (รอบถัดไปเป็นแบบเดียวกันหมด) · -1 = ไม่มี */
+export const firstAdOnlyIndex = (adOnly: readonly boolean[]): number => adOnly.findIndex(Boolean)
+
+/** ข้อความแรกที่ไม่ว่างของรอบ — ใช้เป็นตัวอย่างในบรรทัดเดียวตอนพับ · null = ไม่มีชิ้นข้อความ */
+export function draftStepPreview(step: DraftStep): string | null {
+  const p = step.parts.find((x) => x.kind === 'TEXT' && x.text.trim() !== '')
+  return p ? p.text.trim() : null
 }
 
 // ───────────────────────── รายการ/ประวัติ ─────────────────────────

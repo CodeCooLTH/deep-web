@@ -475,7 +475,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               onToggle={(id, on) => update((d) => ({ ...d, channelIds: on ? [...d.channelIds, id] : d.channelIds.filter((x) => x !== id) }))}
             />
           </SectionCard>
-          <SectionCard id="sfb-what" n={3} state={states.what} title={t.sectionWhat} summary={`${fmt(t.roundsCount, { n: draft.steps.length })} · ${formatDuration(tl.total, words)}`}>
+          <SectionCard id="sfb-what" n={3} state={states.what} title={t.sectionWhat}>
             <RoundsSection draft={draft} onChange={update} open={open} setOpen={(fn) => setOpen(fn)} quick={quick} quickList={quickList} issues={stepIssues} />
           </SectionCard>
           <SectionCard id="sfb-end" n={4} state={states.end} title={t.sectionEnd} summary={endSummary}>

@@ -80,6 +80,16 @@ describe('BotForm', () => {
     expect(h).toContain(t.adOnlyNote)
     expect(h).toContain(t.previewAdOnly)
   })
+  it('ส่วน 3 แบบ timeline: ไม่มีแถบเวลา/หัวสรุป · ปุ่มลบรอบแทนเมนูเลื่อน · ที่จับลาก · หมายเหตุโฆษณาครั้งเดียว · ตัวอย่างเป็น card เดียวมีท้ายการ์ด', () => {
+    const h = html(mk())
+    expect(h).not.toContain('h-2 w-full overflow-hidden') // แถบเวลาสะสมเดิม
+    expect(h).toContain('aria-label="ลบรอบที่ 1"')
+    expect(h).not.toContain('เลื่อนขึ้น')
+    expect(h).toContain(t.dragAria)
+    expect(h).toContain('border-dashed')
+    expect(h.split(t.adOnlyNote).length - 1).toBe(1)
+    expect(h).toContain('card-footer')
+  })
   it('ช่องทาง: ช่องที่ชนบอทอื่นถูกล็อกพร้อมลิงก์ไปบอทนั้น · ช่องหลุดมีป้าย · เลือก LINE มีหมายเหตุโควตา', () => {
     const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c3'] })
     const h = html(mk({ channelIds: ['c1'] }), [mk(), other])

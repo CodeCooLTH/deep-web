@@ -315,7 +315,7 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, rulerWidths, sectionStates } from '../ui'
+import { groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
@@ -359,13 +359,21 @@ describe('groupChannelsByPage', () => {
     expect(g[0].avatarUrl).toBe('i.png')
   })
 })
-describe('rulerWidths', () => {
-  it('สัดส่วนตามกรอบ · ขั้นต่ำ 2% · รวมไม่เกิน 100', () => {
-    expect(rulerWidths([10080], 10080)).toEqual([100])
-    expect(rulerWidths([30], 10080)).toEqual([2])
-    const w = rulerWidths([5040, 5040, 5040], 10080)
-    expect(w.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100)
-    expect(w).toEqual([50, 50, 0])
+describe('firstAdOnlyIndex · draftStepPreview', () => {
+  it('หมายเหตุโฆษณาโชว์ที่รอบแรกที่เป็น adOnly เท่านั้น', () => {
+    expect(firstAdOnlyIndex([false, false, true, true])).toBe(2)
+    expect(firstAdOnlyIndex([false, false])).toBe(-1)
+  })
+  it('ข้อความแรกที่ไม่ว่าง · ไม่มี = null', () => {
+    const st = (parts: Array<{ kind: string; text?: string }>) => ({ ...emptyStep(), parts: parts.map((p) => ({ ...emptyPart('TEXT'), ...p })) }) as never
+    expect(draftStepPreview(st([{ kind: 'TEXT', text: '  ' }, { kind: 'TEXT', text: ' สวัสดี ' }]))).toBe('สวัสดี')
+    expect(draftStepPreview(st([{ kind: 'IMAGES' }]))).toBeNull()
+  })
+  it('สลับรอบ: เวลารอเดินตามรอบ (delay อยู่ในรอบ) · รอบแรกเป็นรอบที่ย้ายขึ้นมา', () => {
+    const a = { ...emptyStep(), value: '1', unit: 'HOUR' as const }
+    const b = { ...emptyStep(), value: '2', unit: 'DAY' as const }
+    const out = moveItem([a, b], 1, 0)
+    expect(out.map((x) => stepDelayMin(x))).toEqual([2880, 60])
   })
 })
 

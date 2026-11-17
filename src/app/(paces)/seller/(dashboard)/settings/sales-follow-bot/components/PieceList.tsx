@@ -221,8 +221,6 @@ export default function PieceList({
                         <ActionMenu
                           ariaLabel={fmt(t.pieceMenuAria, { n: j + 1 })}
                           items={[
-                            { key: 'up', label: t.moveUp, icon: 'arrow-up', onSelect: () => move(j, j - 1), disabledReason: mb.up ? t.reasonFirstPiece : null },
-                            { key: 'down', label: t.moveDown, icon: 'arrow-down', onSelect: () => move(j, j + 1), disabledReason: mb.down ? t.reasonLastPiece : null },
                             { key: 'del', label: t.remove, icon: 'trash', danger: true, onSelect: () => setParts(parts.filter((p) => p.uid !== part.uid)), disabledReason: mb.remove ? t.reasonOnlyPiece : null },
                           ]}
                         />
