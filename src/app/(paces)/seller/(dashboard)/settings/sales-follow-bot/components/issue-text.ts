@@ -1,6 +1,7 @@
 // 00095 S-7 — ผล validateBotFields / server issues → ข้อความไทย/อังกฤษที่บอกทางออก (UX §7 "Validation")
 // ตัวตัดสินว่าผิดอะไรอยู่ที่ src/lib/sales-follow-bot/schemas.ts (ตัวเดียวกับ server) — ที่นี่แค่แปลงรหัสเป็นถ้อยคำ
 import { ALLOWED_VARIABLES, SALES_FOLLOW_LIMITS as L } from '@/lib/sales-follow-bot/constants'
+import { MAX_RULES, MAX_RULE_VALUES } from '@/lib/sales-follow-bot/conditions'
 import type { BotIssue } from '@/lib/sales-follow-bot/schemas'
 import { fmt } from '@/i18n/fmt'
 import type { useT } from '@/i18n/LocaleProvider'
@@ -14,7 +15,9 @@ export function issueText(i: BotIssue, t: Dict): string {
     case 'NAME_REQUIRED': return t.vNameRequired
     case 'NAME_TOO_LONG': return fmt(t.vNameTooLong, { max: L.maxName })
     case 'NO_CONDITION': return t.vNoCondition
-    case 'TOO_MANY_TAGS': return fmt(t.vTooManyTags, { max: L.maxTags })
+    case 'RULES_COUNT': return fmt(t.vRulesCount, { max: MAX_RULES })
+    case 'RULE_VALUES': return fmt(t.vRuleValues, { n: (i.ruleIndex ?? 0) + 1, max: MAX_RULE_VALUES })
+    case 'RULES_TOO_BROAD': return t.vRulesTooBroad
     case 'CHANNELS_REQUIRED': return t.vChannels
     case 'TOO_MANY_CHANNELS': return fmt(t.vTooManyChannels, { max: L.maxChannels })
     case 'FINAL_DELAY_INVALID': return t.vFinalDelay

@@ -64,8 +64,14 @@ const ago = (ms: number) => new Date(now.getTime() - ms)
 const S = { user: '', user2: '', shop: '', other: '', ch: '', ch2: '', line: '', otherCh: '', foreignQm: '', qm: '' }
 const TEXT = (t: string) => ({ kind: 'TEXT' as const, text: t })
 const step = (delayMin = 30, text = 'สวัสดีค่ะ คุณ{ชื่อ}') => ({ delayMin, parts: [TEXT(text)] })
-const fields = (o: Partial<BotFields> = {}): BotFields => ({
-  name: `บอท ${randomUUID().slice(0, 6)}`, salesStatuses: ['NOT_BOUGHT'], tags: [], tagMatch: 'ANY', channelIds: [S.ch], steps: [step(30), step(60)], ...o,
+/** รูปเดิมของเทส (สถานะ + แท็ก + tagMatch) → กฎแถวของ FR-FA-8 — เหมือน backfill ของ migration */
+const rulesOf = (st: string[] = [], tags: string[] = [], tagMatch: 'ANY' | 'ALL' = 'ANY'): BotFields['rules'] => [
+  ...(st.length ? [{ field: 'stage' as const, op: 'is' as const, values: st as never }] : []),
+  ...(tags.length ? [{ field: 'tag' as const, op: tagMatch === 'ALL' ? ('has_all' as const) : ('has_any' as const), values: tags }] : []),
+]
+type Legacy = Partial<BotFields> & { salesStatuses?: string[]; tags?: string[]; tagMatch?: 'ANY' | 'ALL' }
+const fields = ({ salesStatuses = ['NOT_BOUGHT'], tags = [], tagMatch = 'ANY', ...o }: Legacy = {}): BotFields => ({
+  name: `บอท ${randomUUID().slice(0, 6)}`, conditionMatch: 'ALL', rules: rulesOf(salesStatuses, tags, tagMatch), channelIds: [S.ch], steps: [step(30), step(60)], ...o,
 })
 
 async function mkConv(o: { shopId?: string; chId?: string; channel?: string } = {}) {
@@ -84,7 +90,7 @@ async function say(conversationId: string, at: Date, role: 'BUYER' | 'SHOP' = 'B
   return db.chatMessage.create({ data: { conversationId, senderRole: role, type: 'TEXT', body: 'x', createdAt: at, ...extra }, select: { id: true, seq: true } })
 }
 /** บอท ACTIVE (ผ่าน service) + run ที่แนบกับห้องหนึ่ง */
-async function botWithRun(o: { fields?: Partial<BotFields>; stamp?: Date; conv?: string } = {}) {
+async function botWithRun(o: { fields?: Legacy; stamp?: Date; conv?: string } = {}) {
   let bot = await createBot(S.shop, S.user, fields(o.fields))
   bot = await changeBotStatus(S.shop, S.user, bot.id, { status: 'ACTIVE', expectedUpdatedAt: bot.updatedAt })
   const conv = o.conv ?? (await mkConv())
@@ -137,14 +143,20 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
     it('สร้าง = CLOSED เสมอ · แท็กแปลงเป็นคีย์ · DTO ครบ (adOnly คำนวณ · ช่องทางมีรูป/handle)', async () => {
       const bot = await createBot(S.shop, S.user, fields({ tags: ['  VIP ', 'ถามราคา'], channelIds: [S.ch, S.line, S.ch2], steps: [step(30), step(600), step(900)] }))
       expect(bot.status).toBe('CLOSED')
-      expect(bot.tags).toEqual([{ key: 'vip', name: 'VIP', missing: false }, { key: 'ถามราคา', name: 'ถามราคา', missing: false }])
+      expect(bot.rules).toEqual([
+        { field: 'stage', op: 'is', values: ['NOT_BOUGHT'] },
+        { field: 'tag', op: 'has_any', values: [{ key: 'vip', name: 'VIP', missing: false }, { key: 'ถามราคา', name: 'ถามราคา', missing: false }] },
+      ])
       expect(bot.steps.map((s) => s.adOnly)).toEqual([false, false, true]) // สะสม 1530 > 1380
       expect(bot.totalDelayMin).toBe(1530)
       expect(bot.channels.map((c) => c.handle).sort()).toEqual(['@ig_shop', '@lineoa', null].sort())
       expect(bot.warnings).toEqual([])
       expect(bot.activeRunCount).toBe(0)
       const row = await db.salesFollowBot.findUniqueOrThrow({ where: { id: bot.id } })
-      expect(row).toMatchObject({ status: 'CLOSED', createdByUserId: S.user, structureRev: 1, tagKeys: ['vip', 'ถามราคา'] })
+      expect(row).toMatchObject({ status: 'CLOSED', createdByUserId: S.user, structureRev: 1, conditionMatch: 'ALL' })
+      // เก็บกฎเป็น nameKey · คอลัมน์เก่า (salesStatuses/tagKeys) ไม่ถูกเขียนอีก
+      expect(row.conditionRules).toEqual([{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }, { field: 'tag', op: 'has_any', values: ['vip', 'ถามราคา'] }])
+      expect(row.tagKeys).toEqual([])
     })
 
     it('ข้อมูลไม่ผ่าน: ไม่มีเงื่อนไข · ช่องของร้านอื่น · แท็กที่ไม่มี · quick message ของร้านอื่น', async () => {
@@ -167,7 +179,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
         const list = await listBots(S.shop)
         const mine = list.find((b) => b.id === bot.id)!
         expect(mine.warnings).toEqual([{ code: 'TAG_MISSING', keys: ['vip'] }])
-        expect(mine.tags[0]).toMatchObject({ key: 'vip', missing: true })
+        expect(mine.rules[0]).toMatchObject({ field: 'tag', values: [{ key: 'vip', missing: true }] })
         expect(mine.activeRunCount).toBe(1)
         expect(list.every((b) => b.id !== undefined)).toBe(true)
         expect((await listBots(S.other)).some((b) => b.id === bot.id)).toBe(false)
@@ -208,7 +220,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
     it('ใช้ช่อง/แท็ก/quick message ของร้านอื่นในการอัปเดต = ปฏิเสธ · searchTestRooms/listSends/summaries ไม่รั่ว', async () => {
       const mine = await createBot(S.shop, S.user, fields())
       await expect(updateBot(S.shop, S.user, mine.id, { channelIds: [S.otherCh], expectedUpdatedAt: mine.updatedAt })).rejects.toBeInstanceOf(SalesFollowBotChannelNotFoundError)
-      await expect(updateBot(S.shop, S.user, mine.id, { tags: ['ของร้านอื่น'], expectedUpdatedAt: mine.updatedAt })).rejects.toBeInstanceOf(SalesFollowBotTagNotFoundError)
+      await expect(updateBot(S.shop, S.user, mine.id, { rules: rulesOf([], ['ของร้านอื่น']), expectedUpdatedAt: mine.updatedAt })).rejects.toBeInstanceOf(SalesFollowBotTagNotFoundError)
 
       const { conv, runId, bot } = await botWithRun()
       await db.salesFollowSend.create({ data: { shopId: S.shop, runId, conversationId: conv, botId: bot.id, step: 0, stepCount: 2, status: 'SENDING' } })
@@ -310,6 +322,24 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
       expect(await notesOf(conv)).toHaveLength(0)
     })
 
+    it('FR-FA-8 แก้กฎเงื่อนไข = ไม่ใช่โครงรอบ (structureRev เท่าเดิม · run ไม่หยุด) · เก็บ has_none/is_not เป็น nameKey · แท็กที่ร้านไม่มี = TagNotFound', async () => {
+      const { bot, runId, conv } = await botWithRun()
+      const cur = await getBot(S.shop, bot.id)
+      const rules: BotFields['rules'] = [
+        { field: 'stage', op: 'is_not', values: ['SHIPPED'] },
+        { field: 'tag', op: 'has_none', values: ['  VIP '] },
+        { field: 'tag', op: 'has_any', values: ['ถามราคา'] },
+      ]
+      const r = await updateBot(S.shop, S.user, bot.id, { rules, conditionMatch: 'ALL', expectedUpdatedAt: cur.updatedAt })
+      expect(r).toMatchObject({ stoppedRuns: 0, structureRev: bot.structureRev })
+      expect(r.rules[1]).toEqual({ field: 'tag', op: 'has_none', values: [{ key: 'vip', name: 'VIP', missing: false }] })
+      expect(await db.salesFollowRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'ACTIVE', stopReason: null })
+      expect(await notesOf(conv)).toHaveLength(0)
+      await expect(updateBot(S.shop, S.user, bot.id, { rules: [{ field: 'tag', op: 'has_none', values: ['ไม่มีแท็กนี้'] }, { field: 'tag', op: 'has_any', values: ['VIP'] }], expectedUpdatedAt: r.updatedAt })).rejects.toBeInstanceOf(SalesFollowBotTagNotFoundError)
+      // มีแต่ "ไม่ใช่/ไม่มี" = ครอบเกือบทั้งร้าน ปฏิเสธ
+      await expect(updateBot(S.shop, S.user, bot.id, { rules: [{ field: 'tag', op: 'has_none', values: ['VIP'] }], expectedUpdatedAt: r.updatedAt })).rejects.toMatchObject({ issues: [expect.objectContaining({ code: 'RULES_TOO_BROAD' })] })
+    })
+
     it('แก้โครง (เพิ่มชิ้น/เปลี่ยนชนิด/เพิ่มรอบ/สลับลำดับ) = structureRev+1 · หยุด run BOT_EDITED + บรรทัดระบบในทรานแซกชันเดียว [M-rev]', async () => {
       const img = `2026/11/16/${randomUUID()}.png`
       await db.mediaAsset.create({ data: { shopId: S.shop, hash: randomUUID(), fileId: img, contentType: 'image/png', size: 1 } })
@@ -326,7 +356,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
         expect(r.structureRev).toBe(bot.structureRev + 1)
         expect(r.stoppedRuns).toBe(1)
         expect(await db.salesFollowRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'STOPPED', stopReason: 'BOT_EDITED', stoppedByUserId: S.user })
-        expect((await notesOf(conv)).map((n) => n.body)).toEqual([`บอท “${bot.name}” หยุดทักแล้ว เพราะบอทถูกแก้ไขขั้นตอน`])
+        expect((await notesOf(conv)).map((n) => n.body)).toEqual([`บอท “${bot.name}” หยุดติดตามแล้ว เพราะบอทถูกแก้ไขขั้นตอน`])
         await db.salesFollowBot.update({ where: { id: bot.id }, data: { deletedAt: new Date() } })
       }
     })
@@ -352,7 +382,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
       expect(await deleteBot(S.shop, S.user, bot.id, cur.updatedAt)).toEqual({ deleted: true, stoppedRuns: 1 })
       expect(await db.salesFollowBot.findUniqueOrThrow({ where: { id: bot.id } })).toMatchObject({ deletedAt: expect.any(Date) })
       expect(await db.salesFollowRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'STOPPED', stopReason: 'BOT_DELETED' })
-      expect((await notesOf(conv))[0].body).toBe(`บอท “${bot.name}” หยุดทักแล้ว เพราะบอทถูกลบ`)
+      expect((await notesOf(conv))[0].body).toBe(`บอท “${bot.name}” หยุดติดตามแล้ว เพราะบอทถูกลบ`)
       expect(await db.salesFollowRun.findUniqueOrThrow({ where: { id: r2.runId } })).toMatchObject({ status: 'ACTIVE' }) // บอทอื่นไม่โดน
       const hist = (await listSends(S.shop)).items.find((i) => i.conversationId === conv)!
       expect(hist).toMatchObject({ botDeleted: true, botName: bot.name, reason: 'IMAGE_MISSING', reasonText: 'ไม่พบรูป', step: 1, stepCount: 2 })
@@ -372,7 +402,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
       expect(row).toMatchObject({ status: 'STOPPED', stopReason: 'ADMIN_STOPPED', stoppedByUserId: S.user2, finishedAt: expect.any(Date), holdReason: null })
       const notes = await notesOf(conv)
       expect(notes).toHaveLength(1)
-      expect(notes[0]).toMatchObject({ senderRole: 'SHOP', senderUserId: null, autoReplyKind: null, type: 'FOLLOW_BOT_NOTE', body: `บอท “${bot.name}” หยุดทักแล้ว เพราะร้านสั่งหยุด` })
+      expect(notes[0]).toMatchObject({ senderRole: 'SHOP', senderUserId: null, autoReplyKind: null, type: 'FOLLOW_BOT_NOTE', body: `บอท “${bot.name}” หยุดติดตามแล้ว เพราะร้านสั่งหยุด` })
       expect(await db.conversation.findUniqueOrThrow({ where: { id: conv }, select: { lastMessageAt: true, lastMessagePreview: true, lastSenderRole: true } })).toEqual(before)
       // บรรทัดระบบไม่ใช่ "ร้านตอบ" (TFR-FB-17)
       expect((await loadRoomBundles(S.shop, [conv], now)).get(conv)!.latestShopReply).toBeNull()
@@ -388,7 +418,7 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
     it('ทุกเหตุหยุดมีคำไทยในบรรทัดระบบ (ไม่โชว์รหัสดิบ)', () => {
       for (const r of STOP_REASONS) {
         expect(STOP_NOTE_REASON_TEXT[r]).toMatch(/[ก-๙]/)
-        expect(buildStopNoteBody('ทดสอบ', r)).toBe(`บอท “ทดสอบ” หยุดทักแล้ว เพราะ${STOP_NOTE_REASON_TEXT[r]}`)
+        expect(buildStopNoteBody('ทดสอบ', r)).toBe(`บอท “ทดสอบ” หยุดติดตามแล้ว เพราะ${STOP_NOTE_REASON_TEXT[r]}`)
       }
     })
   })

@@ -61,10 +61,10 @@ async function mkWorld(): Promise<World> {
 
 const TEXT = (text: string) => ({ kind: 'TEXT' as const, text })
 const defSteps = [{ delayMin: 30, parts: [TEXT('สวัสดีค่ะ คุณ{ชื่อ}')] }, { delayMin: 600, parts: [TEXT('ยังสนใจไหมคะ')] }]
-async function mkBot(w: World, o: { steps?: unknown; channelIds?: string[]; status?: string } = {}) {
+async function mkBot(w: World, o: { steps?: unknown; channelIds?: string[]; status?: string; rules?: unknown } = {}) {
   const b = await db.salesFollowBot.create({
     data: {
-      shopId: w.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', salesStatuses: ['NOT_BOUGHT'], steps: (o.steps ?? defSteps) as never,
+      shopId: w.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', conditionRules: (o.rules ?? [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }]) as never, steps: (o.steps ?? defSteps) as never,
       channels: { create: (o.channelIds ?? [w.ch]).map((shopChannelId) => ({ shopChannelId })) },
     },
     select: { id: true, structureRev: true },
@@ -392,6 +392,50 @@ describe.skipIf(!isLocal)('sales-follow engine (DB จริง · ตัวส�
     expect(await runOf(failedSecond.runId)).toMatchObject({ status: 'STOPPED', stopReason: 'WINDOW_CLOSED' })
     expect((await sendsOf(queued.runId))[0].status).toBe('SENDING')
     expect((await runOf(queued.runId)).nextStep).toBe(0)
+  })
+
+  // FR-FA-8: ร้านธนภัทร์ — บอทตื้อห้องที่ลูกค้าสั่งในแชทแล้วแต่ยังไม่คีย์ออเดอร์ (ติดแท็ก "รอคีย์ออเดอร์") → ตั้งว่า "ไม่มีแท็ก" แล้วหยุดเอง
+  const KEY_RULES = [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }, { field: 'tag', op: 'has_none', values: ['รอคีย์ออเดอร์'] }]
+  const tagContact = async (conv: string, tags: string[]) => {
+    const c = await db.conversation.findUniqueOrThrow({ where: { id: conv }, select: { externalContactId: true } })
+    await db.externalContact.update({ where: { id: c.externalContactId! }, data: { tags } })
+  }
+
+  it('ติดแท็กที่ตั้งว่า "ไม่มี" กลางทาง = หยุด CONDITION_UNMATCHED + บรรทัดระบบบอกชื่อแท็ก · ไม่ส่งห้องต่อ (ไม่ใช่ลูกค้าตอบ) · ไม่ส่งรอบถัดไป [M-unmatched]', async () => {
+    const w = await mkWorld()
+    await db.shopTag.create({ data: { shopId: w.shop, name: 'รอคีย์ออเดอร์', nameKey: 'รอคีย์ออเดอร์' } })
+    const bot = await mkBot(w, { rules: KEY_RULES })
+    const r = await mkRoom({ w, bot })
+    await tick(w)
+    expect(mocks.transmit).toHaveBeenCalledTimes(1)
+    await tagContact(r.conv, ['รอคีย์ออเดอร์'])
+    const res = await tick(w)
+    expect(res.stopped).toBe(1)
+    expect(await runOf(r.runId)).toMatchObject({ status: 'STOPPED', stopReason: 'CONDITION_UNMATCHED' })
+    const n = await notes(r.conv)
+    expect(n).toHaveLength(1) // บรรทัดหยุดอย่างเดียว — handoff ผูกกับ CUSTOMER_REPLIED เท่านั้น
+    expect(n[0].body).toContain('ห้องไม่ตรงเงื่อนไขการเริ่มติดตามแล้ว (ติดแท็ก “รอคีย์ออเดอร์”)')
+    expect((await tick(w)).stopped).toBe(0)
+    expect(mocks.transmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('แท็กที่ตั้งว่า "ไม่มี" ถูกลบจากร้านแล้ว = ข้าม (run ไม่หยุด) · ห้องที่ติดแท็กอยู่ก่อนแนบ = ไม่แนบ · ไม่ติด = แนบ', async () => {
+    const w = await mkWorld()
+    await db.shopTag.create({ data: { shopId: w.shop, name: 'รอคีย์ออเดอร์', nameKey: 'รอคีย์ออเดอร์' } })
+    await mkBot(w, { rules: KEY_RULES })
+    const tagged = await mkRoom({ w, buyerAgo: 10 * MIN, replyAgo: null })
+    await tagContact(tagged.conv, ['รอคีย์ออเดอร์'])
+    const plain = await mkRoom({ w, buyerAgo: 10 * MIN, replyAgo: null })
+    expect((await tick(w)).attached).toBe(1)
+    const runs = await db.salesFollowRun.findMany({ where: { shopId: w.shop } })
+    expect(runs.map((x) => x.conversationId)).toEqual([plain.conv])
+
+    const w2 = await mkWorld()
+    const bot2 = await mkBot(w2, { rules: KEY_RULES }) // ร้านนี้ไม่มีแท็กนี้เลย = แท็กถูกลบ
+    const r2 = await mkRoom({ w: w2, bot: bot2 })
+    await tagContact(r2.conv, ['รอคีย์ออเดอร์'])
+    await tick(w2)
+    expect(await runOf(r2.runId)).toMatchObject({ status: 'ACTIVE' })
   })
 
   it('แนบห้องใหม่: ห้องที่ลูกค้าเพิ่งทัก + ตรงเงื่อนไข = ได้ run (stamp = ข้อความแรก) · ห้องเก่า/ร้านนอกนำร่อง/บอท CLOSED ไม่ได้', async () => {

@@ -37,9 +37,11 @@ const bot = (o: Partial<BotLike> = {}): BotLike => ({
   name: 'ตามคนถามราคา',
   status: 'CLOSED',
   testRoomIds: [],
-  salesStatuses: ['NOT_BOUGHT'],
-  tags: [{ key: 'a', name: 'ถามราคา', missing: false }],
-  tagMatch: 'ANY',
+  conditionMatch: 'ALL',
+  rules: [
+    { field: 'stage', op: 'is', values: ['NOT_BOUGHT'] },
+    { field: 'tag', op: 'has_any', values: [{ key: 'a', name: 'ถามราคา', missing: false }] },
+  ],
   channelIds: ['ch1'],
   steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดีค่ะ คุณ{ชื่อ}' }] }],
   ...o,
@@ -124,8 +126,8 @@ describe('dirty / patch', () => {
     expect(isDirty(draftOf(), draftOf())).toBe(false)
     expect(buildPatch(draftOf(), draftOf())).toEqual({})
   })
-  it('PATCH ส่งเฉพาะฟิลด์ที่เปลี่ยน — แท็กที่ถูกลบไม่ถูกส่งซ้ำถ้าไม่ได้แตะช่องแท็ก', () => {
-    const base = bot({ tags: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] })
+  it('PATCH ส่งเฉพาะฟิลด์ที่เปลี่ยน — แท็กที่ถูกลบไม่ถูกส่งซ้ำถ้าไม่ได้แตะกฎ', () => {
+    const base = bot({ rules: [{ field: 'tag', op: 'has_any', values: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] }] })
     const cur = toDraft(base)
     cur.name = 'ชื่อใหม่'
     expect(buildPatch(toDraft(base), cur)).toEqual({ name: 'ชื่อใหม่' })
@@ -219,15 +221,15 @@ describe('เพิ่มรอบ/ชิ้น · เลื่อน', () => {
 
 describe('ช่องทางชน (AC-FB-20)', () => {
   const others: OtherBotLike[] = [
-    { id: 'b1', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['ch1', 'ch2'], salesStatuses: ['NOT_BOUGHT'], tags: [] },
-    { id: 'b2', name: 'ปิดอยู่', status: 'CLOSED', channelIds: ['ch3'], salesStatuses: ['NOT_BOUGHT'], tags: [] },
+    { id: 'b1', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['ch1', 'ch2'], conditionMatch: 'ALL', rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }] },
+    { id: 'b2', name: 'ปิดอยู่', status: 'CLOSED', channelIds: ['ch3'], conditionMatch: 'ALL', rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }] },
   ]
   it('ล็อกช่องของบอทอื่นที่สถานะซ้อน · บอทปิดไม่ล็อก · สถานะไม่ซ้อนไม่ล็อก', () => {
     const d = draftOf()
     const m = channelConflictMap(d, null, ['ch1', 'ch2', 'ch3'], others)
     expect([...m.keys()].sort()).toEqual(['ch1', 'ch2'])
     expect(m.get('ch1')).toEqual({ botId: 'b1', botName: 'ตามคนซื้อ' })
-    d.salesStatuses = ['BILLED']
+    d.rules = [{ uid: 'q0', field: 'stage', op: 'is', values: ['BILLED'] }]
     expect(channelConflictMap(d, null, ['ch1'], others).size).toBe(0)
   })
   it('ไม่นับบอทตัวเอง', () => {
@@ -313,18 +315,18 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { groupChannelsByPage, removeGoneTags, rulerWidths, sectionStates } from '../ui'
+import { groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, rulerWidths, sectionStates } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
-    toDraft({ name: 'x', status: 'CLOSED', testRoomIds: [], salesStatuses: ['NOT_BOUGHT'], tags: [], tagMatch: 'ANY', channelIds: ['c1'], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดี' }] }] })
+    toDraft({ name: 'x', status: 'CLOSED', testRoomIds: [], conditionMatch: 'ALL', rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }], channelIds: ['c1'], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดี' }] }] })
   it('ครบ = done ทั้ง 4 · แท็กถูกลบ = ส่วน 1 warn · ช่องชน = ส่วน 2 todo', () => {
     expect(sectionStates(ok(), false)).toEqual({ who: 'done', via: 'done', what: 'done', end: 'done' })
-    expect(sectionStates({ ...ok(), tags: [{ key: 'v', name: 'vip', missing: true }] }, false).who).toBe('warn')
+    expect(sectionStates({ ...ok(), rules: [...ok().rules, { uid: 'q9', field: 'tag', op: 'has_any', values: [{ key: 'v', name: 'vip', missing: true }] }] }, false).who).toBe('warn')
     expect(sectionStates(ok(), true).via).toBe('todo')
   })
   it('ผิดตามส่วน: ไม่มีเงื่อนไข · ไม่มีช่อง · ข้อความว่าง · เวลารอหลังตามครบผิด', () => {
-    expect(sectionStates({ ...ok(), salesStatuses: [] }, false).who).toBe('todo')
+    expect(sectionStates({ ...ok(), rules: [] }, false).who).toBe('todo')
     expect(sectionStates({ ...ok(), channelIds: [] }, false).via).toBe('todo')
     const d = ok()
     expect(sectionStates({ ...d, steps: [{ ...d.steps[0], parts: [{ ...d.steps[0].parts[0], text: '' }] }] }, false).what).toBe('todo')
@@ -332,9 +334,18 @@ describe('sectionStates', () => {
   })
 })
 describe('removeGoneTags', () => {
-  it('เอาเฉพาะแท็กที่ missing ออก', () => {
-    const d = { ...newDraft(), tags: [{ key: 'a', name: 'a', missing: false }, { key: 'v', name: 'v', missing: true }] }
-    expect(removeGoneTags(d).tags.map((x) => x.key)).toEqual(['a'])
+  it('เอาเฉพาะแท็กที่ missing ออก · แถวที่ไม่เหลือแท็กเลยถูกตัดทิ้ง · แถวสถานะอยู่ครบ', () => {
+    const d = {
+      ...newDraft(),
+      rules: [
+        { uid: 'q0', field: 'stage' as const, op: 'is' as const, values: ['BILLED' as const] },
+        { uid: 'q1', field: 'tag' as const, op: 'has_any' as const, values: [{ key: 'a', name: 'a', missing: false }, { key: 'v', name: 'v', missing: true }] },
+        { uid: 'q2', field: 'tag' as const, op: 'has_none' as const, values: [{ key: 'w', name: 'w', missing: true }] },
+      ],
+    }
+    const r = removeGoneTags(d).rules
+    expect(r.map((x) => x.uid)).toEqual(['q0', 'q1'])
+    expect(r[1].values).toEqual([{ key: 'a', name: 'a', missing: false }])
   })
 })
 describe('groupChannelsByPage', () => {
@@ -355,5 +366,35 @@ describe('rulerWidths', () => {
     const w = rulerWidths([5040, 5040, 5040], 10080)
     expect(w.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100)
     expect(w).toEqual([50, 50, 0])
+  })
+})
+
+describe('FR-FA-8 ruleSentence · neverMatches', () => {
+  const w = { and: 'และ', or: 'หรือ', not: 'ไม่ใช่', hasTag: 'มีแท็ก', noTag: 'ไม่มีแท็ก' }
+  const lab = (k: string) => ({ NOT_BOUGHT: 'ยังไม่ซื้อ', BILLED: 'เปิดบิล' })[k as 'BILLED'] ?? k
+  const tg = (name: string, missing = false) => ({ key: name, name, missing })
+  it('ประโยคตามตัวอย่างที่ผู้ใช้เลือก: ยังไม่ซื้อ และ ไม่มีแท็ก รอคีย์ออเดอร์ และ มีแท็ก สนใจ หรือ ถามราคา', () => {
+    const s = ruleSentence(
+      [
+        { field: 'stage', op: 'is', values: ['NOT_BOUGHT'] },
+        { field: 'tag', op: 'has_none', values: [tg('รอคีย์ออเดอร์')] },
+        { field: 'tag', op: 'has_any', values: [tg('สนใจ'), tg('ถามราคา')] },
+      ],
+      'ALL',
+      w,
+      lab,
+    )
+    expect(s).toBe('ยังไม่ซื้อ และ ไม่มีแท็ก รอคีย์ออเดอร์ และ มีแท็ก สนใจ หรือ ถามราคา')
+  })
+  it('ANY ใช้ "หรือ" · has_all ใช้ "และ" ในแถว · is_not ใส่ "ไม่ใช่" · แถวไม่มีค่าไม่ออกเสียง', () => {
+    expect(ruleSentence([{ field: 'stage', op: 'is_not', values: ['BILLED'] }, { field: 'tag', op: 'has_all', values: [tg('a'), tg('b')] }, { field: 'tag', op: 'has_any', values: [] }], 'ANY', w, lab)).toBe('ไม่ใช่ เปิดบิล หรือ มีแท็ก a และ b')
+  })
+  it('neverMatches: has_all ที่แท็กหาย / has_any ที่หายหมด · ALL = แถวใดแถวหนึ่ง · ANY = ทุกแถว', () => {
+    const dead = { field: 'tag' as const, op: 'has_all' as const, values: [tg('a'), tg('g', true)] }
+    const alive = { field: 'stage' as const, op: 'is' as const, values: ['BILLED' as const] }
+    expect(neverMatches([alive, dead], 'ALL')).toBe(true)
+    expect(neverMatches([alive, dead], 'ANY')).toBe(false)
+    expect(neverMatches([dead], 'ANY')).toBe(true)
+    expect(neverMatches([{ field: 'tag', op: 'has_none', values: [tg('g', true)] }], 'ALL')).toBe(false)
   })
 })

@@ -15,10 +15,11 @@ import {
   STOP_REASONS,
   TAG_MATCHES,
 } from '../constants'
+import { CONDITION_MATCHES, MAX_RULES } from '../conditions'
 
 const MIG = join(fileURLToPath(new URL('.', import.meta.url)), '../../../../prisma/migrations')
 // migration ต่อขยาย (DROP + ADD CONSTRAINT ใหม่) ต่อท้าย — match ตัวสุดท้ายของแต่ละชื่อ = นิยามที่ใช้จริง
-const SQL = ['20261117100000_00095_sales_follow_bot', '20261117100300_00095_ext_reclaim_control']
+const SQL = ['20261117100000_00095_sales_follow_bot', '20261117100300_00095_ext_reclaim_control', '20261118130000_00095_ext_condition_rules']
   .map((d) => readFileSync(join(MIG, d, 'migration.sql'), 'utf8'))
   .join('\n')
 
@@ -41,6 +42,7 @@ describe('TC-120 ลิสต์ใน CHECK = constants.ts', () => {
   const LISTS: [string, readonly string[], string][] = [
     ['SalesFollowBot_status_check', BOT_STATUSES, 'สถานะบอท'],
     ['SalesFollowBot_tagMatch_check', TAG_MATCHES, 'tagMatch'],
+    ['SalesFollowBot_conditionMatch_check', CONDITION_MATCHES, 'conditionMatch'],
     ['SalesFollowBot_salesStatuses_check', SALES_STAGE_KEYS, 'salesStatuses'],
     ['SalesFollowRun_stageKey_check', SALES_STAGE_KEYS, 'stageKey'],
     ['SalesFollowRun_status_check', RUN_STATUSES, 'สถานะ run'],
@@ -51,6 +53,18 @@ describe('TC-120 ลิสต์ใน CHECK = constants.ts', () => {
   ]
   it.each(LISTS)('%s ↔ %s', (name, want) => {
     expect(sorted(listOf(check(name)))).toEqual(sorted(want))
+  })
+})
+
+describe('FR-FA-8 CHECK ของกฎเงื่อนไข', () => {
+  it('conditionRules เป็น array และไม่เกิน MAX_RULES · CHECK "สถานะหรือแท็กต้องไม่ว่าง" เดิมถูกถอน (กฎใหม่ตรวจที่ Valibot)', () => {
+    const c = check('SalesFollowBot_conditionRules_check')
+    expect(c).toContain("jsonb_typeof(\"conditionRules\") = 'array'")
+    expect(c).toContain(`jsonb_array_length("conditionRules") <= ${MAX_RULES}`)
+    expect(SQL).toContain('DROP CONSTRAINT "SalesFollowBot_condition_check"')
+  })
+  it('STOP_TAG_ADDED จากรอบก่อนไม่หลงเหลือใน CHECK สุดท้าย', () => {
+    expect(listOf(check('SalesFollowRun_stopReason_check'))).not.toContain('STOP_TAG_ADDED')
   })
 })
 

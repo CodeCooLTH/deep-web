@@ -618,7 +618,7 @@ async function evaluateRun(run: RunRow, facts: DecideFacts, now: Date, c: Counte
   const d = decideRun(facts)
   const nowIso = now.toISOString()
   if (d.action === 'STOP') {
-    const stopped = await stopRunWithNote({ shopId: run.shopId, runId: run.id }, d.reason, { now })
+    const stopped = await stopRunWithNote({ shopId: run.shopId, runId: run.id }, d.reason, { now, tagName: d.tagName })
     c.stopped += stopped.length
     if (d.reason === 'CUSTOMER_REPLIED' && stopped.length > 0) await handoffAfterCustomerReply(run, facts, now)
   } else if (d.action === 'DONE') {

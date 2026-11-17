@@ -78,7 +78,7 @@ async function mkOrder(conversationId: string, o: { status?: string; createdAt?:
 async function mkBot(o: { channelIds?: string[]; status?: string; salesStatuses?: string[]; shopId?: string; deletedAt?: Date | null } = {}) {
   const b = await db.salesFollowBot.create({
     data: {
-      shopId: o.shopId ?? S.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', salesStatuses: o.salesStatuses ?? ['NOT_BOUGHT'],
+      shopId: o.shopId ?? S.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', conditionRules: [{ field: 'stage', op: 'is', values: o.salesStatuses ?? ['NOT_BOUGHT'] }] as never,
       steps: [
         { delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดีค่ะ' }] },
         { delayMin: 60, parts: [{ kind: 'TEXT', text: 'ยังสนใจไหมคะ' }] },

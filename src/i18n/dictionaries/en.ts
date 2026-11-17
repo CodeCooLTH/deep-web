@@ -215,7 +215,7 @@ export const en: Dictionary = {
   /** 00095 Sales follow-up bot — seller settings pages (list · history · form · coming soon). "Round" = a timed send; "piece" = a message/image inside a round */
   salesFollowBot: {
     pageTitle: 'Sales follow-up bot',
-    pageSubtitle: 'Message customers who went quiet. Stops when they reply',
+    pageSubtitle: 'Follow up with customers who went quiet. Stops when they reply',
     breadcrumbSettings: 'Settings',
     breadcrumbAria: 'Breadcrumb',
     newBotTitle: 'Create follow-up bot',
@@ -251,7 +251,7 @@ export const en: Dictionary = {
     noChannelCta: 'Connect a channel',
     listFailed: 'Could not load the bot list',
     colBot: 'Bot',
-    colRounds: 'Rounds',
+    colRounds: 'Follow-up rounds',
     colStatus: 'Status',
     colOpen: 'Open',
     openBotAria: 'Open bot {name}',
@@ -266,7 +266,7 @@ export const en: Dictionary = {
     rhythmAdAll: 'The whole bot only reaches customers who came from an ad (Messenger/IG)',
     rhythmAdSome: 'Round {list} only reaches customers who came from an ad',
     tagGoneAny: 'Tag “{names}” was deleted. The bot keeps using the remaining tags',
-    tagGoneAll: 'Tag “{names}” was deleted. This bot will not follow new chats',
+    tagGoneAll: 'Tag “{names}” was deleted. This bot will not follow up new chats',
 
     unitMinute: 'minutes',
     unitHour: 'hours',
@@ -307,29 +307,84 @@ export const en: Dictionary = {
     nameLabel: 'Bot name (up to {max} characters)',
     namePlaceholder: 'Name the bot, e.g. Price-inquiry follow-up',
     statusAria: 'Bot status',
-    statusDescClosed: 'Off · the bot messages no one',
-    statusDescTesting: 'Testing · messages only the chats chosen for testing',
-    statusDescActive: 'Messaging real customers who match',
+    statusDescClosed: 'Off · the bot follows up no one',
+    statusDescTesting: 'Testing · follows up only the chats chosen for testing',
+    statusDescActive: 'Following up real customers who match',
     statusLockedNew: 'Save the bot first, then you can choose testing or live',
     statusLockedDirty: 'Save first, then change the status',
     botMenuAria: 'Bot options',
     deleteBot: 'Delete bot',
 
 
-    sectionWho: 'Who to message',
-    stageFieldLabel: 'Sales status',
+    sectionWho: 'Conditions to start following up',
+
+
+    ruleHead: 'Follow up rooms that match',
+
+
+    matchAll: 'all conditions',
+
+
+    matchAny: 'any condition',
+
+
+    ruleFieldStage: 'Sales status',
+
+
+    ruleFieldTag: 'Tag',
+
+
+    opIs: 'is',
+
+
+    opIsNot: 'is not',
+
+
+    opHasAny: 'has any of',
+
+
+    opHasAll: 'has all of',
+
+
+    opHasNone: 'has none of',
+
+
+    ruleFieldAria: 'Type of condition {n}',
+
+
+    ruleOpAria: 'Comparison of condition {n}',
+
+
+    ruleValuesAria: 'Values of condition {n}',
+
+
+    ruleRemoveAria: 'Remove condition {n}',
+
+
+    addRule: 'Add condition',
+
+
+    rulesFull: 'Already {max} conditions',
+
+
+    ruleSummaryLabel: 'Summary',
+
+
+    sentNot: 'not',
+
+
+    sentHasTag: 'tagged',
+
+
+    sentNoTag: 'not tagged',
     stagePlaceholder: 'Choose statuses',
-    tagFieldLabel: 'Shop tags',
     manageTags: 'Manage tags',
     tagPlaceholder: 'Choose tags',
     noTags: 'This shop has no tags yet',
     noOptions: 'No options',
     tagGoneChip: '{name} (deleted)',
-    tagMatchAria: 'How tags are matched',
-    tagMatchAny: 'Has any tag',
-    tagMatchAll: 'Has all tags',
 
-    sectionVia: 'Send through',
+    sectionVia: 'Follow-up channels',
     noChannelsInForm: 'No usable channel yet',
     goConnect: 'Connect a channel',
     kindMessenger: 'Facebook Page · Messenger',
@@ -338,12 +393,11 @@ export const en: Dictionary = {
     channelDisconnected: 'Connection lost',
     channelTakenBy: 'Bot',
     channelTakenBySuffix: 'is using this channel',
-    channelConflictErr: 'Clashes with bot {bot}. Remove this channel or pick sales statuses that do not overlap',
+    channelConflictErr: 'Clashes with bot {bot}. Remove this channel or change the conditions so they do not overlap',
     lineQuotaNote: 'Rounds sent through LINE use the shop’s message quota. If the quota is full, that round is not sent',
 
-    sectionWhat: 'What to send, and when',
-    waitFirst: 'Wait',
-    waitFirstSuffix: 'after the shop last replied',
+    sectionWhat: 'Follow-up rounds',
+    waitFirst: 'Counting from the shop\'s last reply, wait',
     waitNext: 'If the customer still has not replied, wait another',
     cumulative: 'total {d}',
     amountAria: 'Amount',
@@ -396,10 +450,10 @@ insertVarAria: 'Insert variable {name}',
     reasonMaxRounds: 'Already {max} rounds',
     reasonMaxTotal: 'Total wait has reached {d}. Shorten an earlier round to add a new one',
     /** Extension: what to do once all rounds are sent and the customer still has not replied */
-    finalPrefix: 'All rounds sent, no reply, wait',
+    finalPrefix: 'When all rounds are done and the customer has not replied, wait',
     finalThen: 'then',
-    finalWaitAria: 'Wait after all rounds are sent',
-    finalActionAria: 'What to do with the chat after all rounds',
+    finalWaitAria: 'Wait after all follow-up rounds',
+    finalActionAria: 'What to do with the chat after follow-up',
     finalNone: 'Do nothing',
     finalResolve: 'Resolve',
     finalHide: 'Hide',
@@ -407,15 +461,16 @@ insertVarAria: 'Insert variable {name}',
     finalSummary: 'No reply after the last round: {d} → {a}',
     finalHint: 'Undo anytime from the chat box',
     vFinalDelay: 'The wait after the last round must be between 0 minutes and 7 days',
-    replyHandoffLabel: 'Customer replies, bot stops, then hand over to',
+    replyHandoffLabel: 'When the customer replies, stop following up and hand over to',
     replyHandoffAdmin: 'Admins',
     replyHandoffMetaAi: 'Meta AI',
     replyHandoffHint: 'Meta AI works on Messenger and Instagram only',
-    stopTitle: 'When does the bot stop by itself',
-    stopReplied: 'The customer replies',
-    stopStage: 'The sales status changes, e.g. a bill is opened',
-    stopTag: 'The tag you set is removed',
+    stopTitle: 'Other reasons it stops',
     stopWindow: 'The channel’s sending window has passed',
+    stopUnmatched: 'It stops by itself when the room no longer matches the start conditions',
+    stopEdited: 'The follow-up rounds are restructured',
+    stopClosed: 'The bot is turned off or deleted',
+    stopAdmin: 'The shop stops it from the chat room',
 
     previewTitle: 'What the customer sees',
     previewSample: 'Sample customer name: {name}',
@@ -434,7 +489,7 @@ insertVarAria: 'Insert variable {name}',
     testTitle: 'Test chats',
     testHint: 'Pick 1–{max} chats',
     testPlaceholder: 'Search customer name',
-    testNote: 'While testing, the bot messages only the chats picked here',
+    testNote: 'While testing, the bot follows up only the chats picked here',
     testNeedChannel: 'Choose a channel first, then pick test chats',
     testSearching: 'Searching…',
     testNone: 'No chats found',
@@ -443,15 +498,15 @@ insertVarAria: 'Insert variable {name}',
     unsaved: 'You have unsaved changes',
     saving: 'Saving…',
     activateTitle: 'Turn this bot on now?',
-    activateBody: 'The bot will start messaging real customers who match, from the next cycle. Chats where the customer wrote longer ago than the first round’s wait are not messaged',
+    activateBody: 'The bot will start following up real customers who match, from the next cycle. Chats where the customer wrote longer ago than the first round’s wait are not followed up',
     activateOk: 'Turn on',
     activateCancel: 'Not yet',
-    structureTitle: 'Editing rounds will stop the bot following current chats',
-    structureBody: 'The bot is following {n} chats. They stop being followed as soon as you save. Editing only wording, images or wait times does not stop them',
-    structureOk: 'Save and stop following',
+    structureTitle: 'Editing rounds will stop the bot following up current chats',
+    structureBody: 'The bot is following up {n} chats. They stop as soon as you save. Editing only wording, images or wait times does not stop them',
+    structureOk: 'Save and stop following up',
     structureCancel: 'Go back and edit',
     deleteTitle: 'Delete bot “{name}”?',
-    deleteBodyN: 'The bot is following {n} chats. Deleting stops all of them. The send history stays',
+    deleteBodyN: 'The bot is following up {n} chats. Deleting stops all of them. The send history stays',
     deleteBody0: 'The bot will disappear from the list. The send history stays',
     deleteOk: 'Delete bot',
     deleteCancel: 'Keep',
@@ -469,8 +524,10 @@ insertVarAria: 'Insert variable {name}',
 
     vNameRequired: 'Name the bot first, e.g. “Price-inquiry follow-up”',
     vNameTooLong: 'The name is over {max} characters. Shorten it',
-    vNoCondition: 'Pick at least one sales status or tag so the bot knows who to message',
-    vTooManyTags: 'You can pick up to {max} tags',
+    vNoCondition: 'Add at least one condition so the bot knows who to follow up',
+    vRulesTooBroad: 'Add at least one “is” or “has” condition to narrow it down (in “any” mode every condition must be like that)',
+    vRulesCount: 'You can set up to {max} conditions',
+    vRuleValues: 'Condition {n} needs 1–{max} values',
     vChannels: 'Pick at least one channel',
     vTooManyChannels: 'You can pick up to {max} channels',
     vStepsCount: 'Needs at least 1 round and no more than {max}',
@@ -500,7 +557,7 @@ insertVarAria: 'Insert variable {name}',
     statsFailed: '{n} failed',
     colChannels: 'Channels',
     colResult: 'Last 7 days',
-    statFollowing: 'Following',
+    statFollowing: 'Following up',
     statSent: 'Sent',
     statReplied: 'Replied',
     testingSummary: '{n} test chats · {s} sent',
@@ -509,11 +566,9 @@ insertVarAria: 'Insert variable {name}',
     goLive: 'Go live…',
     toggleAria: 'Turn bot {name} on or off',
     toggleFailed: 'Could not change the status. Try again',
-    condAndTag: 'and tagged',
-    condOnlyTag: 'Tagged',
     condEndReply: 'Reply → {a}',
     condEndShort: '{d} → {a}',
-    tagGoneNoNew: 'Not following new chats',
+    tagGoneNoNew: 'Not following up new chats',
     tagGoneLine: 'Tag “{names}” was deleted',
     tagRemoveGone: 'Remove from bot',
     rhythmAdChipTitle: 'This round only reaches customers from ads',
@@ -521,19 +576,19 @@ insertVarAria: 'Insert variable {name}',
     stepWarnSr: 'Needs attention',
     stepTodoSr: 'Incomplete',
     endHandoffShort: 'Hand to {a}',
-    endSectionAria: 'When the bot finishes',
+    endSectionAria: 'Conditions to stop following up',
     channelsMore: '{n} more pages',
     channelPlatforms: '{n} channels',
     platMessenger: 'Messenger',
     platInstagram: 'Instagram',
     platLine: 'LINE OA',
-    sectionEnd: 'When it ends',
+    sectionEnd: 'Conditions to stop following up',
     summaryTitle: 'Bot summary',
-    sumRowWho: 'To',
-    sumRowVia: 'Via',
-    sumRowSend: 'Send',
-    sumRowReply: 'Reply',
-    sumRowNoReply: 'No reply',
+    sumRowWho: 'Start',
+    sumRowVia: 'Channels',
+    sumRowSend: 'Rounds',
+    sumRowReply: 'Customer replies',
+    sumRowNoReply: 'All rounds done',
     sumWhoAll: 'All customers',
     roundsSummary: '{n} rounds in {d}',
     tagsGoneCount: '{n} tag deleted',

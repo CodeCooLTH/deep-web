@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * RoundsSection — ③ "ส่งอะไร เมื่อไร": รางเวลาเส้นประ · ชิปเวลารอระหว่างรอบ · การ์ดรอบ (พับ/กาง) · เพิ่มรอบ · กล่อง "บอทจะหยุดทักเองเมื่อ" (mockup ส่วน 3)
+ * RoundsSection — ③ "รอบการติดตาม": รางเวลาเส้นประ · ชิปเวลารอระหว่างรอบ · การ์ดรอบ (พับ/กาง) · เพิ่มรอบ · (mockup ส่วน 3)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/pages/timeline/page.tsx (ท่า after:border-dashed + วงกลม — ตัดคอลัมน์เวลาซ้าย)
  *   + theme: .../form/select/components/Select2.tsx (หน่วยเวลา = Select2 ไม่ค้นหา ผ่าน SfbSelect)
@@ -153,7 +153,6 @@ export default function RoundsSection({
                       onChange={(o: unknown) => setStep(step.uid, { ...step, unit: ((o as { value: DelayUnit } | null)?.value ?? unit) })}
                     />
                   </div>
-                  {i === 0 && <span>{t.waitFirstSuffix}</span>}
                   <span className={`px-1.5 text-xs tabular-nums ${ad ? 'text-warning-ink' : 'text-default-700'}`}>{fmt(t.cumulative, { d: formatDuration(tl.cumulative[i], words) })}</span>
                 </div>
                 {ad && (

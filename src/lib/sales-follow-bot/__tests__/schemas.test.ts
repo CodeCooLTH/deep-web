@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SALES_FOLLOW_LIMITS as L } from '../constants'
 import {
   buildStepBubbles,
+  normalizeBotFields,
   parseCreateBot,
   stepStructureKey,
   renderStepText,
@@ -23,9 +24,8 @@ const stepText = (t: string) => step({ parts: [text(t)] })
 const raw = (parts: unknown[], delayMin: unknown = 30) => body({ steps: [{ delayMin, parts }] })
 const fields = (o: Partial<BotFields> = {}): BotFields => ({
   name: 'ตามคนถามราคา',
-  salesStatuses: ['NOT_BOUGHT'],
-  tags: [],
-  tagMatch: 'ANY',
+  conditionMatch: 'ALL',
+  rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }],
   channelIds: [U(1)],
   steps: [step()],
   ...o,
@@ -50,11 +50,27 @@ describe('TC-070 ชื่อ', () => {
 })
 
 describe('TC-071/072 เงื่อนไข · เพดานจำนวน', () => {
-  it('NO_CONDITION: ไม่มีทั้งสถานะและแท็ก (แท็กว่างล้วนก็นับว่าไม่มี)', () => {
-    expect(codes(validateBotFields(fields({ salesStatuses: [], tags: [] })))).toEqual(['NO_CONDITION'])
-    expect(codes(validateBotFields(fields({ salesStatuses: [], tags: ['  '] })))).toEqual(['NO_CONDITION'])
-    expect(validateBotFields(fields({ salesStatuses: ['BILLED'], tags: [] }))).toEqual([])
-    expect(validateBotFields(fields({ salesStatuses: [], tags: ['ถามราคา'] }))).toEqual([])
+  const stageIs = (...values: string[]) => ({ field: 'stage' as const, op: 'is' as const, values: values as never })
+  const tagRule = (op: 'has_any' | 'has_all' | 'has_none', ...values: string[]) => ({ field: 'tag' as const, op, values })
+  it('NO_CONDITION: ไม่มีแถวเลย · แถวที่ค่าว่างล้วน (แท็กว่าง/ช่องว่างนับว่าไม่มีค่า)', () => {
+    expect(codes(validateBotFields(fields({ rules: [] })))).toEqual(['NO_CONDITION'])
+    expect(codes(validateBotFields(normalizeBotFields(fields({ rules: [tagRule('has_any', '  ')] }))))).toEqual(['RULE_VALUES'])
+    expect(validateBotFields(fields({ rules: [stageIs('BILLED')] }))).toEqual([])
+    expect(validateBotFields(fields({ rules: [tagRule('has_any', 'ถามราคา')] }))).toEqual([])
+  })
+  it('FR-FA-8 จำกัดวง: ALL ต้องมีอย่างน้อยหนึ่งแถว "เป็น/มี" · ANY ทุกแถวต้องเป็น "เป็น/มี"', () => {
+    const isNot = { field: 'stage' as const, op: 'is_not' as const, values: ['NOT_BOUGHT' as const] }
+    expect(codes(validateBotFields(fields({ rules: [isNot, tagRule('has_none', 'k')] })))).toEqual(['RULES_TOO_BROAD'])
+    expect(validateBotFields(fields({ rules: [isNot, tagRule('has_any', 'k')] }))).toEqual([])
+    expect(codes(validateBotFields(fields({ conditionMatch: 'ANY', rules: [stageIs('BILLED'), tagRule('has_none', 'k')] })))).toEqual(['RULES_TOO_BROAD'])
+    expect(validateBotFields(fields({ conditionMatch: 'ANY', rules: [stageIs('BILLED'), tagRule('has_all', 'k')] }))).toEqual([])
+  })
+  it('แถวเงื่อนไข 10 / 11 · ค่าต่อแถว 20 / 21 (บอกลำดับแถวที่ผิด)', () => {
+    expect(validateBotFields(fields({ rules: Array.from({ length: 10 }, () => stageIs('BILLED')) }))).toEqual([])
+    expect(codes(validateBotFields(fields({ rules: Array.from({ length: 11 }, () => stageIs('BILLED')) })))).toEqual(['RULES_COUNT'])
+    const vals = (n: number) => Array.from({ length: n }, (_, i) => `t${i}`)
+    expect(validateBotFields(fields({ rules: [tagRule('has_any', ...vals(20))] }))).toEqual([])
+    expect(validateBotFields(fields({ rules: [stageIs('BILLED'), tagRule('has_any', ...vals(21))] }))).toEqual([{ code: 'RULE_VALUES', path: 'rules.1.values', ruleIndex: 1 }])
   })
   it('จำนวนขั้น 0 · 1 · 10 · 11', () => {
     expect(codes(validateBotFields(fields({ steps: [] })))).toEqual(['STEPS_COUNT'])
@@ -62,10 +78,7 @@ describe('TC-071/072 เงื่อนไข · เพดานจำนวน'
     expect(validateBotFields(fields({ steps: Array.from({ length: 10 }, () => step({ delayMin: 60 })) }))).toEqual([])
     expect(codes(validateBotFields(fields({ steps: Array.from({ length: 11 }, () => step({ delayMin: 60 })) })))).toEqual(['STEPS_COUNT'])
   })
-  it('แท็ก 20 / 21 · ช่องทาง 0 / 1 / 50 / 51', () => {
-    const tags = (n: number) => Array.from({ length: n }, (_, i) => `t${i}`)
-    expect(validateBotFields(fields({ tags: tags(20) }))).toEqual([])
-    expect(codes(validateBotFields(fields({ tags: tags(21) })))).toEqual(['TOO_MANY_TAGS'])
+  it('ช่องทาง 0 / 1 / 50 / 51', () => {
     const ch = (n: number) => Array.from({ length: n }, (_, i) => U(i + 1))
     expect(codes(validateBotFields(fields({ channelIds: [] })))).toEqual(['CHANNELS_REQUIRED'])
     expect(validateBotFields(fields({ channelIds: ch(1) }))).toEqual([])
@@ -205,12 +218,12 @@ describe('TC-078 adOnly คำนวณ ไม่เก็บ ไม่รับ
 })
 
 describe('parseCreateBot ภาพรวม', () => {
-  it('ผ่าน: ค่าตั้งต้น tagMatch=ANY, trim ชื่อ/แท็ก', () => {
-    const r = parseCreateBot({ name: ' บอท ', tags: [' a '], channelIds: [U(1)], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'x' }] }] })
-    expect(r).toMatchObject({ ok: true, value: { name: 'บอท', tags: ['a'], tagMatch: 'ANY', salesStatuses: [] } })
+  it('ผ่าน: ค่าตั้งต้น conditionMatch=ALL, trim ชื่อ/ชื่อแท็ก', () => {
+    const r = parseCreateBot({ name: ' บอท ', rules: [{ field: 'tag', op: 'has_any', values: [' a '] }], channelIds: [U(1)], steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'x' }] }] })
+    expect(r).toMatchObject({ ok: true, value: { name: 'บอท', conditionMatch: 'ALL', rules: [{ field: 'tag', op: 'has_any', values: ['a'] }] } })
   })
   it('สถานะการขายนอกชุด / channelId ไม่ใช่ uuid → INVALID_BODY', () => {
-    expect(parseCreateBot(body({ salesStatuses: ['CONFIRMED'] }))).toMatchObject({ ok: false, issues: [{ code: 'INVALID_BODY' }] })
+    expect(parseCreateBot(body({ rules: [{ field: 'stage', op: 'is', values: ['CONFIRMED'] }] }))).toMatchObject({ ok: false, issues: [{ code: 'INVALID_BODY' }] })
     expect(parseCreateBot(body({ channelIds: ['x'] }))).toMatchObject({ ok: false, issues: [{ code: 'INVALID_BODY' }] })
   })
   it('ไม่ส่งชื่อ → NAME_REQUIRED · steps ไม่ใช่อาร์เรย์ → STEPS_COUNT · body ไม่ใช่ object ไม่ crash', () => {
@@ -219,7 +232,7 @@ describe('parseCreateBot ภาพรวม', () => {
     expect(parseCreateBot(null).ok).toBe(false)
   })
   it('รวมหลาย issue ในครั้งเดียว', () => {
-    const r = parseCreateBot(body({ name: '', salesStatuses: [], steps: [stepText('')] }))
+    const r = parseCreateBot(body({ name: '', rules: [], steps: [stepText('')] }))
     expect(r.ok === false && codes(r.issues)).toEqual(['NAME_REQUIRED', 'NO_CONDITION', 'PART_TEXT_REQUIRED'])
   })
   it('status ที่ client ส่งมาถูกทิ้ง (บอทใหม่ CLOSED เสมอ AC-FB-04)', () => {

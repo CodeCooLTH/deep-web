@@ -13,8 +13,8 @@ import {
   type SalesStageKey,
   type SendReason,
   type SendStatus,
-  type TagMatch,
 } from './constants'
+import { MAX_RULES, type ConditionMatch, type ConditionRule, type StageOp, type TagOp } from './conditions'
 import { findChannelConflicts, type ConflictOther } from './conflicts'
 import {
   buildStepBubbles,
@@ -88,13 +88,20 @@ export interface DraftTag {
   name: string
   missing: boolean
 }
+/** แถวเงื่อนไขในร่าง (uid ไว้เป็น key ของแถว — ตำแหน่งตอน hydrate ตามกติกาเดียวกับรอบ/ชิ้น) */
+export type DraftRule =
+  | { uid: string; field: 'stage'; op: StageOp; values: SalesStageKey[] }
+  | { uid: string; field: 'tag'; op: TagOp; values: DraftTag[] }
+export type BotRuleLike =
+  | { field: 'stage'; op: StageOp; values: SalesStageKey[] }
+  | { field: 'tag'; op: TagOp; values: DraftTag[] }
+
 export interface Draft {
   name: string
   status: BotStatus
   testRoomIds: string[]
-  salesStatuses: SalesStageKey[]
-  tags: DraftTag[]
-  tagMatch: TagMatch
+  conditionMatch: ConditionMatch
+  rules: DraftRule[]
   channelIds: string[]
   steps: DraftStep[]
   finalAction: FinalAction
@@ -108,9 +115,8 @@ export interface BotLike {
   name: string
   status: BotStatus
   testRoomIds: string[]
-  salesStatuses: SalesStageKey[]
-  tags: DraftTag[]
-  tagMatch: TagMatch
+  conditionMatch: ConditionMatch
+  rules: BotRuleLike[]
   channelIds: string[]
   steps: BotStep[]
   finalAction?: FinalAction
@@ -142,9 +148,8 @@ export function toDraft(bot: BotLike, epoch = 0): Draft {
     name: bot.name,
     status: bot.status,
     testRoomIds: bot.testRoomIds,
-    salesStatuses: bot.salesStatuses,
-    tags: bot.tags,
-    tagMatch: bot.tagMatch,
+    conditionMatch: bot.conditionMatch,
+    rules: bot.rules.map((r, i) => ({ ...r, uid: `${uidPrefix(epoch)}q${i}` }) as DraftRule),
     channelIds: bot.channelIds,
     steps: bot.steps.map((s, i) => {
       const { value, unit } = splitDelay(s.delayMin)
@@ -168,7 +173,7 @@ export function toDraft(bot: BotLike, epoch = 0): Draft {
 export function newDraft(epoch = 0): Draft {
   const p = uidPrefix(epoch)
   const step: DraftStep = { uid: `${p}r0`, value: '30', unit: 'MIN', parts: [{ ...emptyPart('TEXT'), uid: `${p}r0p0` }] }
-  return { name: '', status: 'CLOSED', testRoomIds: [], salesStatuses: [], tags: [], tagMatch: 'ANY', channelIds: [], steps: [step], finalAction: FINAL_ACTION_DEFAULT, replyHandoff: REPLY_HANDOFF_DEFAULT, finalValue: '1', finalUnit: 'DAY' }
+  return { name: '', status: 'CLOSED', testRoomIds: [], conditionMatch: 'ALL', rules: [], channelIds: [], steps: [step], finalAction: FINAL_ACTION_DEFAULT, replyHandoff: REPLY_HANDOFF_DEFAULT, finalValue: '1', finalUnit: 'DAY' }
 }
 
 /** ต่อรูปที่อัปโหลดเสร็จเข้าชิ้นตาม uid บนร่างล่าสุด — ใช้เป็น functional updater (อัปโหลดหลายชิ้นพร้อมกัน/ผู้ใช้แก้ระหว่างรอ ห้ามอ่านค่าเก่าจาก closure) · ชิ้นถูกลบไปแล้ว = ไม่ทำอะไร */
@@ -205,9 +210,8 @@ export function stepsOf(d: Draft): BotStep[] {
 export function fieldsOf(d: Draft): BotFields {
   return {
     name: d.name,
-    salesStatuses: d.salesStatuses,
-    tags: d.tags.map((t) => t.name),
-    tagMatch: d.tagMatch,
+    conditionMatch: d.conditionMatch,
+    rules: d.rules.map((r): ConditionRule => (r.field === 'stage' ? { field: 'stage', op: r.op, values: r.values } : { field: 'tag', op: r.op, values: r.values.map((x) => x.name) })),
     channelIds: d.channelIds,
     steps: stepsOf(d),
     finalAction: d.finalAction,
@@ -216,8 +220,8 @@ export function fieldsOf(d: Draft): BotFields {
   }
 }
 
-type FieldKey = 'name' | 'salesStatuses' | 'tags' | 'tagMatch' | 'channelIds' | 'steps' | 'finalAction' | 'finalDelayMin' | 'replyHandoff'
-const FIELD_KEYS: readonly FieldKey[] = ['name', 'salesStatuses', 'tags', 'tagMatch', 'channelIds', 'steps', 'finalAction', 'finalDelayMin', 'replyHandoff']
+type FieldKey = 'name' | 'conditionMatch' | 'rules' | 'channelIds' | 'steps' | 'finalAction' | 'finalDelayMin' | 'replyHandoff'
+const FIELD_KEYS: readonly FieldKey[] = ['name', 'conditionMatch', 'rules', 'channelIds', 'steps', 'finalAction', 'finalDelayMin', 'replyHandoff']
 
 /** PATCH ส่งเฉพาะฟิลด์ที่เปลี่ยน — แท็กที่ถูกลบแล้วไม่ถูกส่งซ้ำถ้าผู้ใช้ยังไม่แตะช่องแท็ก (ไม่งั้น server ตอบ TAG_NOT_FOUND) */
 export function buildPatch(original: Draft, current: Draft): Partial<BotFields> {
@@ -296,9 +300,13 @@ export interface OtherBotLike {
   name: string
   status: string
   channelIds: string[]
-  salesStatuses: string[]
-  tags: { missing: boolean }[]
+  conditionMatch: ConditionMatch
+  rules: BotRuleLike[]
 }
+
+/** กฎของร่าง/บอทในรูปที่ตัวประเมินใช้ (ชื่อแท็กเทียบด้วย key เดียวกัน — แท็กที่ถูกลบไม่ตัดออก: conflicts ดูแค่ชุดสถานะ) */
+const ruleKeys = (r: BotRuleLike): ConditionRule => (r.field === 'stage' ? r : { field: 'tag', op: r.op, values: r.values.map((x) => x.key) })
+const conditionOf = (d: Draft) => ({ conditionMatch: d.conditionMatch, rules: d.rules.map(ruleKeys) })
 
 /** channelId → บอทที่ครองช่องนี้อยู่ (ตามสถานะการขาย/แท็กที่เลือกตอนนี้) — findChannelConflicts ตัวเดียวกับ server (AC-FB-20) */
 export function channelConflictMap(
@@ -308,13 +316,13 @@ export function channelConflictMap(
   others: readonly OtherBotLike[],
 ): Map<string, { botId: string; botName: string }> {
   const conflicts = findChannelConflicts(
-    { id: botId ?? '', name: d.name, channelIds, salesStatuses: d.salesStatuses, usableTagCount: d.tags.filter((t) => !t.missing).length },
+    { id: botId ?? '', name: d.name, channelIds, ...conditionOf(d) },
     others.map<ConflictOther>((o) => ({
       id: o.id,
       name: o.name,
       channelIds: o.channelIds,
-      salesStatuses: o.salesStatuses,
-      usableTagCount: o.tags.filter((t) => !t.missing).length,
+      conditionMatch: o.conditionMatch,
+      rules: o.rules.map(ruleKeys),
       status: o.status,
       deletedAt: null,
     })),
@@ -337,7 +345,7 @@ export type IssueTarget =
 
 export function issueTarget(i: BotIssue): IssueTarget {
   if (i.code === 'NAME_REQUIRED' || i.code === 'NAME_TOO_LONG') return { kind: 'name' }
-  if (i.code === 'NO_CONDITION' || i.code === 'TOO_MANY_TAGS') return { kind: 'condition' }
+  if (i.code === 'NO_CONDITION' || i.code === 'RULES_COUNT' || i.code === 'RULE_VALUES' || i.code === 'RULES_TOO_BROAD') return { kind: 'condition' }
   if (i.code === 'FINAL_DELAY_INVALID') return { kind: 'final' }
   if (i.code === 'CHANNELS_REQUIRED' || i.code === 'TOO_MANY_CHANNELS') return { kind: 'channels' }
   if (i.stepIndex !== undefined && i.partIndex !== undefined) return { kind: 'part', stepIndex: i.stepIndex, partIndex: i.partIndex }
@@ -378,7 +386,7 @@ export function sectionStates(d: Draft, hasConflict: boolean): { who: SectionSta
   const kinds = new Set(draftIssues(d).map((i) => issueTarget(i).kind))
   const bad = (...k: IssueTarget['kind'][]) => k.some((x) => kinds.has(x))
   return {
-    who: bad('condition') ? 'todo' : d.tags.some((x) => x.missing) ? 'warn' : 'done',
+    who: bad('condition') ? 'todo' : d.rules.some((r) => r.field === 'tag' && r.values.some((x) => x.missing)) ? 'warn' : 'done',
     via: bad('channels') || hasConflict ? 'todo' : 'done',
     what: bad('steps', 'step', 'part') ? 'todo' : 'done',
     end: bad('final') ? 'todo' : 'done',
@@ -386,7 +394,25 @@ export function sectionStates(d: Draft, hasConflict: boolean): { who: SectionSta
 }
 
 /** เอาแท็กที่ถูกลบออกจากร่าง (ปุ่ม "เอาออกจากบอท") */
-export const removeGoneTags = (d: Draft): Draft => ({ ...d, tags: d.tags.filter((x) => !x.missing) })
+export const removeGoneTags = (d: Draft): Draft => ({
+  ...d,
+  // แถวที่เหลือไม่มีแท็กเลยหลังเอาออก = ตัดแถวทิ้ง (แถวว่างผ่านตรวจไม่ได้)
+  rules: d.rules.flatMap((r): DraftRule[] => {
+    if (r.field !== 'tag') return [r]
+    const values = r.values.filter((x) => !x.missing)
+    return values.length > 0 ? [{ ...r, values }] : []
+  }),
+})
+
+/** ชื่อแท็กที่ถูกลบในร่าง (ไม่ซ้ำ) */
+export const goneTagNames = (d: Draft): string[] => [...new Set(d.rules.flatMap((r) => (r.field === 'tag' ? r.values.filter((x) => x.missing).map((x) => x.name) : [])))]
+
+/** แถวใหม่ — สถานะ "เป็น" / แท็ก "มีข้อใดข้อหนึ่ง" ค่าว่าง */
+export const emptyRule = (field: 'stage' | 'tag'): DraftRule =>
+  field === 'stage' ? { uid: newUid(), field: 'stage', op: 'is', values: [] } : { uid: newUid(), field: 'tag', op: 'has_any', values: [] }
+
+/** แถวทั้งหมดเลือกข้อเดียวกันซ้ำไม่ได้ ไม่ต้องกันที่นี่ — เพดานแถวที่ UI ปิดปุ่ม "เพิ่มเงื่อนไข" */
+export const canAddRule = (d: Draft): boolean => d.rules.length < MAX_RULES
 
 export interface ChannelGroup<C> {
   key: string
@@ -489,4 +515,43 @@ export function previewRounds(d: Draft, quick: ReadonlyMap<string, QuickMessageL
     const real = bubbles.filter((b) => b.type !== 'GONE')
     return { index: i, cumulativeMin: tl.cumulative[i], delayMin: st.delayMin, adOnly: tl.adOnly[i], empty: real.length === 0, bubbles }
   })
+}
+
+// ───────────────────────── ประโยคสรุปเงื่อนไข (FR-FA-8) ─────────────────────────
+
+export interface SentenceWords {
+  and: string
+  or: string
+  /** "ไม่ใช่" (สถานะ) */
+  not: string
+  /** "มีแท็ก" */
+  hasTag: string
+  /** "ไม่มีแท็ก" */
+  noTag: string
+}
+
+/**
+ * "ยังไม่ซื้อ และ ไม่มีแท็ก รอคีย์ออเดอร์ และ มีแท็ก สนใจ หรือ ถามราคา" — ประโยคเดียวใช้ทั้งการ์ดสรุปในฟอร์มและหน้ารายการ
+ * ค่าในแถวเดียวกันเชื่อมด้วย "หรือ" (has_all ใช้ "และ") · แถวเชื่อมกันด้วย "และ"/"หรือ" ตามโหมด
+ */
+export function ruleSentence(rules: readonly BotRuleLike[], match: ConditionMatch, w: SentenceWords, stageLabel: (k: SalesStageKey) => string): string {
+  const parts = rules
+    .map((r) => {
+      const names = r.field === 'stage' ? r.values.map(stageLabel) : r.values.map((x) => x.name)
+      if (names.length === 0) return ''
+      if (r.field === 'stage') return `${r.op === 'is_not' ? `${w.not} ` : ''}${names.join(` ${w.or} `)}`
+      return `${r.op === 'has_none' ? w.noTag : w.hasTag} ${names.join(` ${r.op === 'has_all' ? w.and : w.or} `)}`
+    })
+    .filter(Boolean)
+  return parts.join(` ${match === 'ALL' ? w.and : w.or} `)
+}
+
+/**
+ * บอทที่แท็กถูกลบจน "ไม่มีวันตรง" (has_all ที่แท็กหาย · has_any ที่แท็กหายหมด) — ALL: แถวไหนแถวหนึ่งตาย · ANY: ตายทุกแถว
+ * (ตรงกับ evaluateConditions ที่ fail-closed) ใช้ขึ้นป้าย "ไม่ติดตามแชทใหม่" ในรายการ
+ */
+export function neverMatches(rules: readonly BotRuleLike[], match: ConditionMatch): boolean {
+  const dead = (r: BotRuleLike) =>
+    r.field === 'tag' && ((r.op === 'has_all' && r.values.some((x) => x.missing)) || (r.op === 'has_any' && r.values.length > 0 && r.values.every((x) => x.missing)))
+  return match === 'ALL' ? rules.some(dead) : rules.length > 0 && rules.every(dead)
 }

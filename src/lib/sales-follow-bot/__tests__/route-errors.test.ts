@@ -50,7 +50,7 @@ describe('ตารางแปลง SDS §7', () => {
     expect(call(new errors.SalesFollowBotNotAvailableError('NOT_AVAILABLE_FOR_SHOP'))).toEqual({ body: { error: 'NOT_AVAILABLE_FOR_SHOP' }, status: 409 })
   })
   it('Validation → 400 VALIDATION_ERROR + issues', () => {
-    const issues = [{ code: 'NO_CONDITION' as const, path: 'salesStatuses' }]
+    const issues = [{ code: 'NO_CONDITION' as const, path: 'rules' }]
     expect(call(new errors.SalesFollowBotValidationError(issues))).toEqual({ body: { error: 'VALIDATION_ERROR', issues }, status: 400 })
     expect(validationErrorResponse(issues)).toEqual({ body: { error: 'VALIDATION_ERROR', issues }, status: 400 })
   })

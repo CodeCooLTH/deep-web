@@ -4,7 +4,6 @@
 import { UNCERTAIN_SEND_REASON } from '../chat-send-queue'
 import { getWindowState } from '../messaging-window'
 import { decideMetaAiHolding, type MetaAiFacts } from '../meta-ai-holder'
-import { tagNameKey } from '../shop-tag-match'
 import {
   MIN_MS,
   META_PROVIDERS,
@@ -13,18 +12,17 @@ import {
   type SalesStageKey,
   type SendReason,
   type StopReason,
-  type TagMatch,
 } from './constants'
+import { evaluateConditions, hasLimitingCondition, isStageUnrestricted, type ConditionMatch, type ConditionRule } from './conditions'
 import { customerRepliedAfterBot, isAwaitingShop, type MsgPos } from './message-defs'
 import type { SalesStageResult } from './sales-stage'
 
 export interface DecideBot {
   status: BotStatus
   structureRev: number
-  salesStatuses: readonly SalesStageKey[]
-  /** tagKeys ที่บันทึกไว้กับบอท (ผ่าน tagNameKey แล้ว) */
-  tagKeys: readonly string[]
-  tagMatch: TagMatch
+  /** เงื่อนไขการเริ่มติดตาม (FR-FA-8) — แท็กในกฎเป็น nameKey */
+  conditionMatch: ConditionMatch
+  rules: readonly ConditionRule[]
   /** delayMin ของทุกขั้นเรียงตามลำดับ */
   stepDelaysMin: readonly number[]
   channelIds: readonly string[]
@@ -73,7 +71,7 @@ export interface DecideFacts {
 }
 
 export type Decision =
-  | { action: 'STOP'; reason: StopReason }
+  | { action: 'STOP'; reason: StopReason; /** แท็กที่ทำให้ไม่ตรงเงื่อนไข (CONDITION_UNMATCHED) */ tagName?: string }
   | { action: 'DONE' }
   | { action: 'HOLD'; reason: HoldReason }
   | { action: 'WAIT'; dueAt: Date | null }
@@ -84,22 +82,6 @@ const isMeta = (channel: string) => (META_PROVIDERS as readonly string[]).includ
 /** กรอบโฆษณามีเฉพาะ Meta — LINE ได้ 24 ชม. จาก lastInboundAt เสมอ แม้ facts จะส่ง anchor มาผิดช่อง (BR-FB-23 ก, TC-058) */
 const windowOf = (room: DecideRoom, now: Date, adWindowStartAt: Date | null) =>
   getWindowState(room.lastInboundAt, now, isMeta(room.channel) ? adWindowStartAt : null)
-
-/** แท็กของบอทที่ยังมีในร้าน (แท็กหาย = key ไม่อยู่ใน ShopTag.nameKey — TFR-FB-07) */
-export function usableTagKeys(botTagKeys: readonly string[], shopTagKeys: ReadonlySet<string>): string[] {
-  return botTagKeys.filter((k) => shopTagKeys.has(k))
-}
-
-/** แท็กของลูกค้าผ่านเงื่อนไข ANY/ALL ของ key ที่ใช้ได้ — ไม่มี key ที่ใช้ได้ = ไม่มีเงื่อนไขแท็ก (ผ่าน) */
-export function tagsPass(contactTags: readonly string[], keys: readonly string[], match: TagMatch): boolean {
-  if (keys.length === 0) return true
-  const have = new Set(contactTags.map(tagNameKey))
-  return match === 'ALL' ? keys.every((k) => have.has(k)) : keys.some((k) => have.has(k))
-}
-
-/** บอทไม่เหลือเงื่อนไขเลย (ไม่มีสถานะและไม่มีแท็กที่ใช้ได้) */
-export const hasNoUsableCondition = (statuses: readonly unknown[], usableTags: readonly unknown[]): boolean =>
-  statuses.length === 0 && usableTags.length === 0
 
 /**
  * dueAt = max(ร้านตอบล่าสุด, run.lastSentAt) + delayMin(step) — null = ไม่มีฐานเวลาเลย (ไม่มีร้านตอบ ไม่มีฟองบอท ไม่มี lastInboundAt)
@@ -119,21 +101,15 @@ export function computeDueAt(
 /** ลำดับตัดสิน BR-FB-40 / TFR-FB-11 — ข้อแรกที่ตรงชนะ (ลำดับห้ามสลับ: STOP ชนะ HOLD ชนะ WAIT) */
 export function decideRun(f: DecideFacts): Decision {
   const { run, bot, room, contact, now } = f
-  const usable = usableTagKeys(bot.tagKeys, f.shopTagKeys)
 
   // 1 สถานะการขายเปลี่ยน (ข้ามเมื่อ stage ไม่รู้จัก — ไม่ย้ายสถานะ ไม่เดา NOT_BOUGHT)
   if (f.stage) {
     const stampChanged = (f.stage.stamp?.getTime() ?? null) !== (run.stageStamp?.getTime() ?? null)
-    if (
-      f.stage.key !== run.stageKey ||
-      stampChanged ||
-      (bot.salesStatuses.length > 0 && !bot.salesStatuses.includes(f.stage.key))
-    )
-      return { action: 'STOP', reason: 'STAGE_CHANGED' }
+    if (f.stage.key !== run.stageKey || stampChanged) return { action: 'STOP', reason: 'STAGE_CHANGED' }
   }
-  // 2 แท็กไม่ผ่าน หรือไม่เหลือเงื่อนไขเลย — อ่านแท็กปัจจุบันของลูกค้าทุกรอบ (BR-FB-50)
-  if (!tagsPass(contact.tags, usable, bot.tagMatch) || hasNoUsableCondition(bot.salesStatuses, usable))
-    return { action: 'STOP', reason: 'TAG_REMOVED' }
+  // 2 ห้องไม่ตรงเงื่อนไขการเริ่มติดตาม (สถานะ/แท็กปัจจุบันของลูกค้า ประเมินทุกรอบ BR-FB-50) — ตัวเดียวกับตัวแนบ
+  const cond = evaluateConditions(bot.rules, bot.conditionMatch, { stageKey: f.stage?.key ?? run.stageKey, contactTags: contact.tags, shopTagKeys: f.shopTagKeys })
+  if (!cond.ok) return { action: 'STOP', reason: 'CONDITION_UNMATCHED', ...(cond.blamedTag ? { tagName: cond.blamedTag } : {}) }
   // 3 บอทถูกปิด/แก้โครง
   if (bot.status === 'CLOSED') return { action: 'STOP', reason: 'BOT_DISABLED' }
   if (run.structureRev !== bot.structureRev) return { action: 'STOP', reason: 'BOT_EDITED' }
@@ -187,8 +163,7 @@ export type AttachRejection =
   | 'NOT_INTERESTED'
   | 'CONTACT_BLOCKED'
   | 'STAGE_UNKNOWN'
-  | 'STAGE_NOT_MATCH'
-  | 'TAG_NOT_MATCH'
+  | 'CONDITION_UNMATCHED'
   | 'NO_CONDITION'
   | 'ALREADY_RAN'
   | 'STAMP_MISSING'
@@ -235,14 +210,11 @@ export function eligibleToAttach(f: AttachFacts): { ok: true; stage: SalesStageR
   if (room.channel === 'LINE' && contact.isBlocked) return no('CONTACT_BLOCKED')
   // 4
   if (f.stage === null) return no('STAGE_UNKNOWN')
-  if (bot.salesStatuses.length > 0 && !bot.salesStatuses.includes(f.stage.key)) return no('STAGE_NOT_MATCH')
-  // 5 แท็ก — ALL ที่มีแท็กหาย = ไม่แนบ (fail-closed OD-FB-7) · ANY แนบต่อด้วยแท็กที่เหลือ
-  const usable = usableTagKeys(bot.tagKeys, f.shopTagKeys)
-  if (hasNoUsableCondition(bot.salesStatuses, usable)) return no('NO_CONDITION')
-  if (bot.tagMatch === 'ALL' && usable.length < bot.tagKeys.length) return no('TAG_NOT_MATCH')
-  if (!tagsPass(contact.tags, usable, bot.tagMatch)) return no('TAG_NOT_MATCH')
+  // 5 เงื่อนไขการเริ่มติดตาม — กฎว่าง/ไม่มีแถวจำกัดวง = ไม่แนบ (fail-closed) · แท็กหาย: has_all = ไม่ตรง (OD-FB-7)
+  if (!hasLimitingCondition(bot.rules, bot.conditionMatch)) return no('NO_CONDITION')
+  if (!evaluateConditions(bot.rules, bot.conditionMatch, { stageKey: f.stage.key, contactTags: contact.tags, shopTagKeys: f.shopTagKeys }).ok) return no('CONDITION_UNMATCHED')
   // 6 บอทไม่เลือกสถานะ: run เก่าจบแล้วต้องมีลูกค้าทักใหม่หลังจบ (BR-FB-09 กันหยิบซ้ำเมื่อสถานะเปลี่ยน)
-  if (bot.salesStatuses.length === 0 && f.lastRunFinishedAt && f.latestBuyerMsg.createdAt.getTime() <= f.lastRunFinishedAt.getTime())
+  if (isStageUnrestricted(bot.rules, bot.conditionMatch) && f.lastRunFinishedAt && f.latestBuyerMsg.createdAt.getTime() <= f.lastRunFinishedAt.getTime())
     return no('ALREADY_RAN')
   // 7
   if (f.stage.stamp === null) return no('STAMP_MISSING')

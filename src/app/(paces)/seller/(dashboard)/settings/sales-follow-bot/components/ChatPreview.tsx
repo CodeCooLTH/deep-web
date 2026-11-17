@@ -106,7 +106,7 @@ function Phone({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<str
             </div>
           )
         })}
-        {/* ส่วนต่อขยาย: สิ่งที่ระบบทำกับแชทหลังตามครบ (ฝั่งร้านเท่านั้น ลูกค้าไม่เห็น) */}
+        {/* ส่วนต่อขยาย: สิ่งที่ระบบทำกับแชทหลังติดตามครบ (ฝั่งร้านเท่านั้น ลูกค้าไม่เห็น) */}
         {draft.finalAction !== 'NONE' && (
           <p className="text-default-700 mt-5 flex items-center justify-center gap-1 text-center text-xs">
             <Icon icon="flag" aria-hidden="true" />

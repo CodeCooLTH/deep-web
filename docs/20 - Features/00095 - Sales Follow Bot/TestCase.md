@@ -765,3 +765,17 @@ Mutation (แดงแล้วคืน): M-claim (ถอด `finalActionAt IS 
 
 | TC-FA-50..55 | ส่งห้องต่อเมื่อลูกค้าตอบ (FR-FA-7): pure `decideReplyHandoff` (ADMIN+Meta AI ถือ→TAKE_BACK · META_AI→PASS · LINE→NONE) + ข้อความบรรทัดระบบ 3 แบบ (`thread-control.test.ts`) · DB จริง Graph mock: ADMIN ดึงคืน+log owner · ADMIN ไม่มีหลักฐาน=ไม่ยิง · META_AI pass Business AI เท่านั้น · pass ล้ม=บรรทัดล้มเหลว · LINE ไม่ยิง · หยุดเหตุอื่นไม่แตะ · ซ้ำ tick ไม่ซ้ำ | `services/__tests__/sales-follow-reply-handoff.test.ts` |
 Mutation (แดงแล้วคืน): M-gate (ถอด CUSTOMER_REPLIED) · M-pass (ไม่จำกัด target Business AI) · M-owner (log take ไม่ส่ง newOwnerAppId)
+
+## ต่อขยาย FR-FA-8 (2026-11-17)
+| TC | AC | ชนิด | ขั้น/ข้อมูล | ผลที่คาด |
+|---|---|---|---|---|
+| TC-FA8-01 | BR-FA-11 | U | `evaluateConditions` ทุก op × ALL/ANY · ไม่มีกฎ · แท็กถูกลบ (`conditions.test.ts`) | ตามตาราง BR-FA-11 ข-ง |
+| TC-FA8-02 | BR-FA-11 ค | U | `RULES_TOO_BROAD` ALL/ANY · `RULES_COUNT` 10/11 · `RULE_VALUES` 20/21 + `ruleIndex` (`schemas.test.ts`) | ตรงข้อกำหนด |
+| TC-FA8-03 | BR-FA-11 ญ | U | ชุดสถานะที่อาจตรง: is_not=ส่วนเติมเต็ม · ALL ตัดกัน · ANY+แท็ก=ทุกสถานะ (`conflicts.test.ts`) | ชน/ไม่ชนตรง |
+| TC-FA8-04 | AC-FA-8-1 | U | `eligibleToAttach` กับ `has_none` ห้องติดแท็กอยู่แล้ว (`decide.test.ts`) | `CONDITION_UNMATCHED` |
+| TC-FA8-05 | AC-FA-8-2 | I (DB 5434) | ส่งรอบแรก → ติดแท็ก `รอคีย์ออเดอร์` → tick (`sales-follow-engine.test.ts`) | STOPPED `CONDITION_UNMATCHED` · บรรทัดเดียวมีชื่อแท็ก · ไม่ส่งห้องต่อ · ไม่ส่งอีก |
+| TC-FA8-06 | BR-FA-11 ง | I | `has_none` ที่แท็กถูกลบจากร้าน = run ไม่หยุด | ACTIVE |
+| TC-FA8-07 | AC-FA-8-4 | I (DB 5434) | UPDATE backfill จริงบนตารางชั่วคราว (`condition-backfill.test.ts`) | stage is · tag has_all/has_any · ทั้งคู่ · ว่าง |
+| TC-FA8-08 | BR-FA-11 ฌ | I | `updateBot` เปลี่ยนกฎ (`sales-follow-bot.test.ts`) | `structureRev` เท่าเดิม · run ไม่หยุด · TagNotFound/`RULES_TOO_BROAD` |
+| TC-FA8-09 | UX | U | ฟอร์ม/รายการ: ตัวสร้างกฎ · ประโยคสรุป · ปุ่มเพิ่มปิดที่ 10 แถว · การ์ด 4 ไม่มีบล็อกเลือกหลายข้อ (`form.test.tsx`/`lists.test.tsx`/`ui.test.ts`) | ผ่าน |
+| Mutation | — | — | M1 `has_none` คืน true เสมอ → 5+2 เทสแดง · M2 ถอดด่านเงื่อนไขใน `eligibleToAttach` → 5+1 เทสแดง | แดงตามคาด (คืนค่าแล้ว) |

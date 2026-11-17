@@ -28,9 +28,8 @@ function base(): DecideFacts {
     bot: {
       status: 'ACTIVE',
       structureRev: 1,
-      salesStatuses: ['NOT_BOUGHT', 'BILLED'],
-      tagKeys: [],
-      tagMatch: 'ANY',
+      conditionMatch: 'ALL',
+      rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT', 'BILLED'] }],
       stepDelaysMin: [30, 120, 1440],
       channelIds: ['ch1'],
       testRoomIds: [],
@@ -58,7 +57,7 @@ const with_ = (f: (x: DecideFacts) => void): DecideFacts => {
 // ลำดับ = ตาราง TFR-FB-11 · ทุกตัวแตะเฉพาะฟิลด์ของตัวเอง (ให้เทสคู่ชนแยกไม่ได้ว่าเหตุไหนชนะนอกจากลำดับ)
 const TRIGGERS: { name: string; apply: (x: DecideFacts) => void; want: Decision }[] = [
   { name: 'stage เปลี่ยน', apply: (x) => (x.stage = { key: 'BILLED', stamp: at(-3 * H) }), want: { action: 'STOP', reason: 'STAGE_CHANGED' } },
-  { name: 'แท็กไม่ผ่าน', apply: (x) => { x.bot.tagKeys = ['a']; x.shopTagKeys = new Set(['a']) }, want: { action: 'STOP', reason: 'TAG_REMOVED' } },
+  { name: 'ห้องไม่ตรงเงื่อนไข (ไม่มีแท็กที่ต้องมี)', apply: (x) => { x.bot.rules = [...x.bot.rules, { field: 'tag', op: 'has_any', values: ['a'] }]; x.shopTagKeys = new Set(['a']) }, want: { action: 'STOP', reason: 'CONDITION_UNMATCHED' } },
   { name: 'บอทปิด', apply: (x) => (x.bot.status = 'CLOSED'), want: { action: 'STOP', reason: 'BOT_DISABLED' } },
   { name: 'โครงเปลี่ยน', apply: (x) => (x.bot.structureRev = 2), want: { action: 'STOP', reason: 'BOT_EDITED' } },
   { name: 'ลูกค้าตอบ', apply: (x) => (x.lastBotBubble = pos(-3 * H)), want: { action: 'STOP', reason: 'CUSTOMER_REPLIED' } },
@@ -97,29 +96,39 @@ describe('TC-040 ตารางลำดับ 1..16 อย่างละเ�
   })
 
   // เสริมเคสย่อยของแต่ละข้อ
-  it('ข้อ 1: stamp ต่าง · stage ไม่อยู่ในรายการบอท', () => {
+  it('ข้อ 1: stamp ต่าง · stage ไม่อยู่ในกฎ', () => {
     expect(decideRun(with_((x) => (x.stage = { key: 'NOT_BOUGHT', stamp: at(-2 * H) })))).toEqual({ action: 'STOP', reason: 'STAGE_CHANGED' })
+    // stage ที่ run ผูกไว้ไม่อยู่ในกฎแล้ว (key/stamp ไม่เปลี่ยน) = ไม่ตรงเงื่อนไข ไม่ใช่ STAGE_CHANGED
     expect(
       decideRun(with_((x) => { x.run.stageKey = 'SHIPPED'; x.stage = { key: 'SHIPPED', stamp: at(-3 * H) } })),
-    ).toEqual({ action: 'STOP', reason: 'STAGE_CHANGED' })
+    ).toEqual({ action: 'STOP', reason: 'CONDITION_UNMATCHED' })
   })
-  it('ข้อ 2: ALL ขาดหนึ่ง · ไม่เหลือเงื่อนไข · แท็กหายหมด', () => {
-    const tags = (x: DecideFacts, o: { keys: string[]; shop: string[]; have: string[]; match: 'ANY' | 'ALL'; statuses?: string[] }) => {
-      x.bot.tagKeys = o.keys
+  it('ข้อ 2: แถวแท็ก has_all/has_any/has_none · แท็กถูกลบ · เทียบด้วย tagNameKey', () => {
+    type Op = 'has_any' | 'has_all' | 'has_none'
+    const tags = (x: DecideFacts, o: { op: Op; keys: string[]; shop: string[]; have: string[] }) => {
+      x.bot.rules = [...x.bot.rules, { field: 'tag', op: o.op, values: o.keys }]
       x.shopTagKeys = new Set(o.shop)
       x.contact.tags = o.have
-      x.bot.tagMatch = o.match
-      if (o.statuses) x.bot.salesStatuses = o.statuses as never
     }
-    expect(decideRun(with_((x) => tags(x, { keys: ['a', 'b'], shop: ['a', 'b'], have: ['a'], match: 'ALL' })))).toEqual({ action: 'STOP', reason: 'TAG_REMOVED' })
-    expect(decideRun(with_((x) => tags(x, { keys: ['a', 'b'], shop: ['a', 'b'], have: ['a', 'b'], match: 'ALL' })))).toEqual({ action: 'SEND', step: 0 })
-    expect(decideRun(with_((x) => tags(x, { keys: ['a', 'b'], shop: ['a', 'b'], have: ['b'], match: 'ANY' })))).toEqual({ action: 'SEND', step: 0 })
-    // ไม่มีสถานะ + แท็กหายหมด = ไม่เหลือเงื่อนไข
-    expect(decideRun(with_((x) => tags(x, { keys: ['a'], shop: [], have: ['a'], match: 'ANY', statuses: [] })))).toEqual({ action: 'STOP', reason: 'TAG_REMOVED' })
-    // มีสถานะ + แท็กหายหมด = เหลือเงื่อนไขสถานะ → ไปต่อ
-    expect(decideRun(with_((x) => tags(x, { keys: ['a'], shop: [], have: [], match: 'ANY' })))).toEqual({ action: 'SEND', step: 0 })
+    const stop = { action: 'STOP', reason: 'CONDITION_UNMATCHED' }
+    expect(decideRun(with_((x) => tags(x, { op: 'has_all', keys: ['a', 'b'], shop: ['a', 'b'], have: ['a'] })))).toEqual(stop)
+    expect(decideRun(with_((x) => tags(x, { op: 'has_all', keys: ['a', 'b'], shop: ['a', 'b'], have: ['a', 'b'] })))).toEqual({ action: 'SEND', step: 0 })
+    expect(decideRun(with_((x) => tags(x, { op: 'has_any', keys: ['a', 'b'], shop: ['a', 'b'], have: ['b'] })))).toEqual({ action: 'SEND', step: 0 })
+    // has_all ที่แท็กหาย = ไม่ตรง (fail-closed) · has_any ที่แท็กหายหมด = ไม่ตรง
+    expect(decideRun(with_((x) => tags(x, { op: 'has_all', keys: ['a', 'gone'], shop: ['a'], have: ['a'] })))).toEqual(stop)
+    expect(decideRun(with_((x) => tags(x, { op: 'has_any', keys: ['gone'], shop: [], have: [] })))).toEqual(stop)
+    // has_none: ห้องติดแท็กกลางทาง → หยุด + บอกชื่อแท็ก · แท็กถูกลบ = ข้าม ไม่ทำให้หยุด
+    expect(decideRun(with_((x) => tags(x, { op: 'has_none', keys: ['a'], shop: ['a'], have: ['a'] })))).toEqual({ ...stop, tagName: 'a' })
+    expect(decideRun(with_((x) => tags(x, { op: 'has_none', keys: ['a'], shop: ['a'], have: [] })))).toEqual({ action: 'SEND', step: 0 })
+    expect(decideRun(with_((x) => tags(x, { op: 'has_none', keys: ['gone'], shop: [], have: ['gone'] })))).toEqual({ action: 'SEND', step: 0 })
     // เทียบด้วย tagNameKey ตัวเดียวกับ UI (ตัวพิมพ์/ช่องว่าง)
-    expect(decideRun(with_((x) => tags(x, { keys: [tagNameKey('VIP')], shop: [tagNameKey('VIP')], have: ['  vip '], match: 'ANY' })))).toEqual({ action: 'SEND', step: 0 })
+    expect(decideRun(with_((x) => tags(x, { op: 'has_any', keys: [tagNameKey('VIP')], shop: [tagNameKey('VIP')], have: ['  vip '] })))).toEqual({ action: 'SEND', step: 0 })
+  })
+  it('ข้อ 2: ไม่มีกฎ = ไม่ตรง (fail-closed) · ANY: ตรงข้อใดข้อหนึ่งก็พอ', () => {
+    expect(decideRun(with_((x) => (x.bot.rules = [])))).toEqual({ action: 'STOP', reason: 'CONDITION_UNMATCHED' })
+    expect(
+      decideRun(with_((x) => { x.bot.conditionMatch = 'ANY'; x.bot.rules = [{ field: 'stage', op: 'is', values: ['CANCELLED'] }, { field: 'tag', op: 'has_any', values: ['a'] }]; x.shopTagKeys = new Set(['a']); x.contact.tags = ['a'] })),
+    ).toEqual({ action: 'SEND', step: 0 })
   })
   it('ข้อ 8: ช่องไม่อยู่ในบอท · isHidden · TESTING ห้องไม่อยู่ใน test rooms (อยู่ = ผ่าน)', () => {
     const stop = { action: 'STOP', reason: 'OUT_OF_SCOPE' }
@@ -273,7 +282,7 @@ describe('TC-099/100/095..098 eligibleToAttach', () => {
     const b = base()
     const a: AttachFacts = {
       now: T0,
-      bot: { ...b.bot, deletedAt: null, tagKeys: [] },
+      bot: { ...b.bot, deletedAt: null },
       shopTagKeys: new Set(),
       room: { ...b.room, externalContactId: 'ec1' },
       contact: b.contact,
@@ -283,7 +292,7 @@ describe('TC-099/100/095..098 eligibleToAttach', () => {
       latestBuyerMsg: pos(-10 * MIN_MS),
       lastRunFinishedAt: null,
     }
-    a.bot.salesStatuses = ['NOT_BOUGHT']
+    a.bot.rules = [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }]
     f(a)
     return eligibleToAttach(a)
   }
@@ -297,7 +306,7 @@ describe('TC-099/100/095..098 eligibleToAttach', () => {
     ['NOT_INTERESTED', (x) => (x.contact = { ...x.contact, salesStatus: 'NOT_INTERESTED' }), 'NOT_INTERESTED'],
     ['LINE isBlocked', (x) => { x.room.channel = 'LINE'; x.contact = { ...x.contact, isBlocked: true } }, 'CONTACT_BLOCKED'],
     ['stage = null', (x) => (x.stage = null), 'STAGE_UNKNOWN'],
-    ['stage ไม่อยู่ในบอท', (x) => (x.stage = { key: 'SHIPPED', stamp: at(-H) }), 'STAGE_NOT_MATCH'],
+    ['stage ไม่อยู่ในกฎ', (x) => (x.stage = { key: 'SHIPPED', stamp: at(-H) }), 'CONDITION_UNMATCHED'],
     ['stamp = null', (x) => (x.stage = { key: 'NOT_BOUGHT', stamp: null }), 'STAMP_MISSING'],
     ['externalContactId = null', (x) => (x.room.externalContactId = null), 'OUT_OF_SCOPE'],
     ['ห้องสแปม', (x) => (x.room.isSpam = true), 'OUT_OF_SCOPE'],
@@ -318,10 +327,9 @@ describe('TC-099/100/095..098 eligibleToAttach', () => {
     })
     expect(r.ok).toBe(true)
   })
-  it('TC-098 บอทไม่เลือกสถานะ: run จบแล้ว — ข้อความ < F ไม่แนบ · > F แนบ (M-28)', () => {
+  it('TC-098 บอทไม่มีแถวสถานะ: run จบแล้ว — ข้อความ < F ไม่แนบ · > F แนบ (M-28)', () => {
     const f = (msg: number) => (x: AttachFacts) => {
-      x.bot.salesStatuses = []
-      x.bot.tagKeys = ['a']
+      x.bot.rules = [{ field: 'tag', op: 'has_any', values: ['a'] }]
       x.shopTagKeys = new Set(['a'])
       x.contact = { ...x.contact, tags: ['a'] }
       x.lastRunFinishedAt = at(-5 * MIN_MS)
@@ -336,28 +344,34 @@ describe('TC-099/100/095..098 eligibleToAttach', () => {
   })
 
   describe('TC-099 แท็ก (OD-FB-7)', () => {
-    const tg = (o: { keys: string[]; shop: string[]; have: string[]; match: 'ANY' | 'ALL' }) => (x: AttachFacts) => {
-      x.bot.salesStatuses = []
-      x.bot.tagKeys = o.keys
-      x.bot.tagMatch = o.match
+    type Op = 'has_any' | 'has_all' | 'has_none'
+    const tg = (o: { op: Op; keys: string[]; shop: string[]; have: string[]; stageToo?: boolean }) => (x: AttachFacts) => {
+      x.bot.rules = [...(o.stageToo ? [{ field: 'stage' as const, op: 'is' as const, values: ['NOT_BOUGHT' as const] }] : []), { field: 'tag', op: o.op, values: o.keys }]
       x.shopTagKeys = new Set(o.shop)
       x.contact = { ...x.contact, tags: o.have }
     }
-    it('ANY ตรงอย่างน้อยหนึ่ง · ALL ครบ · ALL ขาดหนึ่ง', () => {
-      expect(att(tg({ keys: ['a', 'b'], shop: ['a', 'b'], have: ['b'], match: 'ANY' })).ok).toBe(true)
-      expect(att(tg({ keys: ['a', 'b'], shop: ['a', 'b'], have: ['a', 'b'], match: 'ALL' })).ok).toBe(true)
-      expect(att(tg({ keys: ['a', 'b'], shop: ['a', 'b'], have: ['a'], match: 'ALL' }))).toEqual({ ok: false, reason: 'TAG_NOT_MATCH' })
+    const NM = { ok: false, reason: 'CONDITION_UNMATCHED' }
+    it('has_any ตรงอย่างน้อยหนึ่ง · has_all ครบ · has_all ขาดหนึ่ง', () => {
+      expect(att(tg({ op: 'has_any', keys: ['a', 'b'], shop: ['a', 'b'], have: ['b'] })).ok).toBe(true)
+      expect(att(tg({ op: 'has_all', keys: ['a', 'b'], shop: ['a', 'b'], have: ['a', 'b'] })).ok).toBe(true)
+      expect(att(tg({ op: 'has_all', keys: ['a', 'b'], shop: ['a', 'b'], have: ['a'] }))).toEqual(NM)
     })
-    it('แท็กหาย: ANY แนบต่อด้วยแท็กที่เหลือ · ALL ไม่แนบเลย (fail-closed)', () => {
-      expect(att(tg({ keys: ['a', 'gone'], shop: ['a'], have: ['a'], match: 'ANY' })).ok).toBe(true)
-      expect(att(tg({ keys: ['a', 'gone'], shop: ['a'], have: ['a'], match: 'ALL' }))).toEqual({ ok: false, reason: 'TAG_NOT_MATCH' })
+    it('แท็กหาย: has_any แนบต่อด้วยแท็กที่เหลือ · has_all ไม่แนบเลย (fail-closed)', () => {
+      expect(att(tg({ op: 'has_any', keys: ['a', 'gone'], shop: ['a'], have: ['a'] })).ok).toBe(true)
+      expect(att(tg({ op: 'has_all', keys: ['a', 'gone'], shop: ['a'], have: ['a'] }))).toEqual(NM)
     })
     it('เทียบด้วย tagNameKey (ตัวพิมพ์/ช่องว่าง)', () => {
-      expect(att(tg({ keys: [tagNameKey('VIP')], shop: [tagNameKey('VIP')], have: [' vip'], match: 'ANY' })).ok).toBe(true)
+      expect(att(tg({ op: 'has_any', keys: [tagNameKey('VIP')], shop: [tagNameKey('VIP')], have: [' vip'] })).ok).toBe(true)
     })
-    it('TC-100 ไม่มีทั้งสถานะและแท็กที่ใช้ได้ = ไม่แนบ', () => {
-      expect(att(tg({ keys: ['gone'], shop: [], have: ['gone'], match: 'ANY' }))).toEqual({ ok: false, reason: 'NO_CONDITION' })
-      expect(att(tg({ keys: [], shop: [], have: [], match: 'ANY' }))).toEqual({ ok: false, reason: 'NO_CONDITION' })
+    it('FR-FA-8 has_none: ห้องที่ติดแท็กอยู่แล้ว = ไม่แนบ (รอคีย์ออเดอร์) · ไม่ติด = แนบ · แท็กถูกลบ = ข้าม', () => {
+      expect(att(tg({ op: 'has_none', keys: ['k'], shop: ['k'], have: ['k'], stageToo: true }))).toEqual(NM)
+      expect(att(tg({ op: 'has_none', keys: ['k'], shop: ['k'], have: [], stageToo: true })).ok).toBe(true)
+      expect(att(tg({ op: 'has_none', keys: ['k'], shop: [], have: ['k'], stageToo: true })).ok).toBe(true)
+    })
+    it('TC-100 ไม่มีกฎ/มีแต่ "ไม่มีแท็ก" (ไม่จำกัดวง) = ไม่แนบ · has_any ที่แท็กหายหมด = ไม่ตรง', () => {
+      expect(att((x) => (x.bot.rules = []))).toEqual({ ok: false, reason: 'NO_CONDITION' })
+      expect(att(tg({ op: 'has_none', keys: ['k'], shop: ['k'], have: [] }))).toEqual({ ok: false, reason: 'NO_CONDITION' })
+      expect(att(tg({ op: 'has_any', keys: ['gone'], shop: [], have: ['gone'] }))).toEqual(NM)
     })
   })
 })

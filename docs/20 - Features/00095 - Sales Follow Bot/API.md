@@ -291,3 +291,10 @@ sequenceDiagram
 `POST …/bots` และ `PATCH …/bots/[id]` รับเพิ่ม `finalAction` (`NONE|RESOLVE|HIDE|SPAM`, ไม่ส่ง = NONE/ค่าเดิม) และ `finalDelayMin` (จำนวนเต็ม 0..10080 นาที, ไม่ส่ง = 1440/ค่าเดิม) · `BotDto` คืนทั้งสองฟิลด์ · ผิด → 400 `VALIDATION_ERROR` issue `FINAL_DELAY_INVALID` (delay) / `INVALID_BODY` (action) · แก้สองฟิลด์ไม่หยุด run · `GET …/sends` คืน `controlReclaimed` และ `reason` ใหม่ `ROUTING_NOT_ENABLED`/`CHANNEL_TOKEN_INVALID` · cron `TickResult` เพิ่ม `finalActed`,`finalSkipped`
 
 **FR-FA-7:** `POST …/bots` และ `PATCH …/bots/[id]` รับเพิ่ม `replyHandoff` (`ADMIN|META_AI`, ไม่ส่ง = ADMIN/ค่าเดิม) · `BotDto` คืนฟิลด์นี้ · ค่านอกชุด → 400 `VALIDATION_ERROR` issue `INVALID_BODY` · แก้ค่านี้ไม่หยุด run
+
+## ต่อขยาย FR-FA-8 — body/DTO ของเงื่อนไข (2026-11-17)
+**แทนที่** `salesStatuses` / `tags` / `tagMatch` ใน `POST …/bots` และ `PATCH …/bots/[id]` ด้วย:
+| Body | `conditionMatch` | `ALL`\|`ANY` | no (ค่าตั้งต้น ALL / ค่าเดิม) | |
+| Body | `rules` | `Rule[1..10]` | POST: ว่าง = `NO_CONDITION` | `{field:'stage',op:'is'\|'is_not',values:SalesStageKey[]}` หรือ `{field:'tag',op:'has_any'\|'has_all'\|'has_none',values:string[] ชื่อแท็ก}` · ค่า 1..20 ต่อแถว |
+- issue ใหม่: `RULES_COUNT` · `RULE_VALUES` (+`ruleIndex`) · `RULES_TOO_BROAD` · ชื่อแท็กที่ร้านไม่มี = 400 `TAG_NOT_FOUND {names}` เหมือนเดิม
+- `BotDto`: `conditionMatch`, `rules[]` (แถวแท็ก `values:[{key,name,missing}]`) แทน `salesStatuses/tags/tagMatch` · `warnings TAG_MISSING.keys` นับจากทุกแถวแท็ก · `stopReason` ใหม่ `CONDITION_UNMATCHED` ในประวัติ/สถิติ

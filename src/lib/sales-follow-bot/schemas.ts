@@ -14,10 +14,19 @@ import {
   PART_KINDS,
   SALES_FOLLOW_LIMITS as L,
   SALES_STAGE_KEYS,
-  TAG_MATCHES,
   type BotStatus,
   type PartKind,
 } from './constants'
+import {
+  CONDITION_MATCHES,
+  MAX_RULES,
+  MAX_RULE_VALUES,
+  STAGE_OPS,
+  TAG_OPS,
+  hasLimitingCondition,
+  type ConditionMatch,
+  type ConditionRule,
+} from './conditions'
 
 export type BotIssueCode =
   | 'NAME_REQUIRED'
@@ -35,7 +44,9 @@ export type BotIssueCode =
   | 'PART_IMAGE_NOT_FOUND'
   | 'QUICK_MESSAGE_REQUIRED'
   | 'UNKNOWN_VARIABLE'
-  | 'TOO_MANY_TAGS'
+  | 'RULES_COUNT'
+  | 'RULE_VALUES'
+  | 'RULES_TOO_BROAD'
   | 'TOO_MANY_CHANNELS'
   | 'FINAL_DELAY_INVALID'
   | 'CHANNELS_REQUIRED'
@@ -47,6 +58,8 @@ export interface BotIssue {
   stepIndex?: number
   /** ชิ้นที่ผิดในรอบนั้น (issue ระดับชิ้น) */
   partIndex?: number
+  /** แถวเงื่อนไขที่ผิด (RULE_VALUES) */
+  ruleIndex?: number
   /** ชื่อตัวแปรที่ไม่รู้จัก (UNKNOWN_VARIABLE) */
   name?: string
 }
@@ -64,10 +77,10 @@ export interface BotStep {
 
 export interface BotFields {
   name: string
-  salesStatuses: string[]
-  /** ชื่อแท็ก (ยังไม่แปลงเป็น tagKeys) */
-  tags: string[]
-  tagMatch: 'ANY' | 'ALL'
+  /** เงื่อนไขการเริ่มติดตาม (FR-FA-8): ALL = ทุกข้อ · ANY = ข้อใดข้อหนึ่ง */
+  conditionMatch: ConditionMatch
+  /** แถวเงื่อนไข 1..10 — values ของแถวแท็กที่ขาเข้าเป็น "ชื่อแท็ก" (service แปลงเป็น nameKey) */
+  rules: ConditionRule[]
   channelIds: string[]
   steps: BotStep[]
   /** ส่วนต่อขยาย: ไม่ส่ง = NONE/1 วัน (create) หรือค่าเดิมของบอท (patch) */
@@ -86,6 +99,10 @@ const PartSchema = v.variant('kind', [
   v.object({ kind: v.literal('IMAGES'), fileIds: v.array(idString) }),
   v.object({ kind: v.literal('QUICK_MESSAGE'), quickMessageId: idString }),
 ])
+const RuleSchema = v.variant('field', [
+  v.object({ field: v.literal('stage'), op: v.picklist(STAGE_OPS), values: v.array(v.picklist(SALES_STAGE_KEYS)) }),
+  v.object({ field: v.literal('tag'), op: v.picklist(TAG_OPS), values: v.array(v.string()) }),
+])
 const StepSchema = v.object({
   delayMin: v.number(),
   parts: v.array(PartSchema),
@@ -95,9 +112,8 @@ const iso = v.pipe(v.string(), v.isoTimestamp())
 
 const fieldEntries = {
   name: v.string(),
-  salesStatuses: v.array(v.picklist(SALES_STAGE_KEYS)),
-  tags: v.array(v.string()),
-  tagMatch: v.picklist(TAG_MATCHES),
+  conditionMatch: v.picklist(CONDITION_MATCHES),
+  rules: v.array(RuleSchema),
   channelIds: v.array(uuid),
   steps: v.array(StepSchema),
   finalAction: v.picklist(FINAL_ACTIONS),
@@ -109,9 +125,8 @@ const fieldEntries = {
 /** POST สร้างบอท — ไม่รับ status (บอทใหม่ CLOSED เสมอ AC-FB-04) */
 export const CreateBotSchema = v.object({
   name: fieldEntries.name,
-  salesStatuses: v.optional(fieldEntries.salesStatuses, []),
-  tags: v.optional(fieldEntries.tags, []),
-  tagMatch: v.optional(fieldEntries.tagMatch, 'ANY'),
+  conditionMatch: v.optional(fieldEntries.conditionMatch, 'ALL'),
+  rules: v.optional(fieldEntries.rules, []),
   channelIds: fieldEntries.channelIds,
   steps: fieldEntries.steps,
   finalAction: v.optional(fieldEntries.finalAction),
@@ -122,9 +137,8 @@ export const CreateBotSchema = v.object({
 /** PATCH — ส่งเฉพาะที่แก้ · ผลรวมกับบอทเดิมต้องผ่าน validateBotFields อีกรอบ (NO_CONDITION ข้ามฟิลด์) */
 export const UpdateBotSchema = v.object({
   name: v.optional(fieldEntries.name),
-  salesStatuses: v.optional(fieldEntries.salesStatuses),
-  tags: v.optional(fieldEntries.tags),
-  tagMatch: v.optional(fieldEntries.tagMatch),
+  conditionMatch: v.optional(fieldEntries.conditionMatch),
+  rules: v.optional(fieldEntries.rules),
   channelIds: v.optional(fieldEntries.channelIds),
   steps: v.optional(fieldEntries.steps),
   finalAction: v.optional(fieldEntries.finalAction),
@@ -167,7 +181,8 @@ export function mapStructuralIssue(i: v.BaseIssue<unknown>): BotIssue {
   if (root === 'name') return at('NAME_REQUIRED')
   if (root === 'channelIds' && keys.length === 1) return at('CHANNELS_REQUIRED')
   if (root === 'finalDelayMin') return at('FINAL_DELAY_INVALID')
-  if (root === 'finalAction' || root === 'replyHandoff') return at('INVALID_BODY')
+  if (root === 'rules') return { ...at('INVALID_BODY'), ...(typeof keys[1] === 'number' ? { ruleIndex: keys[1] } : {}) }
+  if (root === 'finalAction' || root === 'replyHandoff' || root === 'conditionMatch') return at('INVALID_BODY')
   if (root === 'steps') {
     if (keys.length === 1) return at('STEPS_COUNT')
     if (keys[2] === 'delayMin') return at('STEP_DELAY_MIN')
@@ -198,7 +213,11 @@ export function normalizeBotFields(f: BotFields): BotFields {
   return {
     ...f,
     name: f.name.trim(),
-    tags: f.tags.map((t) => t.trim()).filter(Boolean),
+    rules: f.rules.map((r): ConditionRule =>
+      r.field === 'stage'
+        ? { ...r, values: [...new Set(r.values)] }
+        : { ...r, values: [...new Set(r.values.map((x) => x.trim()).filter(Boolean))] },
+    ),
     steps: f.steps.map((st) => ({
       delayMin: st.delayMin,
       parts: st.parts.map((p): BotPart =>
@@ -219,10 +238,18 @@ export function validateBotFields(f: BotFields): BotIssue[] {
   if (name === '') issues.push({ code: 'NAME_REQUIRED', path: 'name' })
   else if (countCodePoints(name) > L.maxName) issues.push({ code: 'NAME_TOO_LONG', path: 'name' })
 
-  const tagCount = f.tags.map((t) => t.trim()).filter(Boolean).length
-  if (tagCount > L.maxTags) issues.push({ code: 'TOO_MANY_TAGS', path: 'tags' })
-  // เงื่อนไขอย่างน้อยหนึ่งอย่าง (AC-FB-02) — แท็กอย่างเดียวบันทึกได้ (บทเรียน gochat #1)
-  if (f.salesStatuses.length === 0 && tagCount === 0) issues.push({ code: 'NO_CONDITION', path: 'salesStatuses' })
+  // เงื่อนไขการเริ่มติดตาม: 1..10 แถว · แต่ละแถวมีค่า 1..20 · ต้องมีแถวที่จำกัดวง (ALL: อย่างน้อยหนึ่ง · ANY: ทุกแถว) ไม่งั้นครอบทั้งร้าน
+  if (f.rules.length === 0) issues.push({ code: 'NO_CONDITION', path: 'rules' })
+  else if (f.rules.length > MAX_RULES) issues.push({ code: 'RULES_COUNT', path: 'rules' })
+  let valuesOk = f.rules.length > 0
+  f.rules.forEach((r, i) => {
+    const n = new Set(r.values).size
+    if (n < 1 || n > MAX_RULE_VALUES) {
+      valuesOk = false
+      issues.push({ code: 'RULE_VALUES', path: `rules.${i}.values`, ruleIndex: i })
+    }
+  })
+  if (valuesOk && f.rules.length <= MAX_RULES && !hasLimitingCondition(f.rules, f.conditionMatch)) issues.push({ code: 'RULES_TOO_BROAD', path: 'rules' })
 
   const channels = new Set(f.channelIds).size
   if (channels < 1) issues.push({ code: 'CHANNELS_REQUIRED', path: 'channelIds' })

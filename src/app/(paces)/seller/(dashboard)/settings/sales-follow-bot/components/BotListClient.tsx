@@ -23,9 +23,8 @@ import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import type { SalesStageKey } from '@/lib/sales-follow-bot/constants'
 import { repliedPct, type BotStats } from '@/lib/sales-follow-bot/stats'
-import { FINAL_KEY, REPLY_HANDOFF_KEY, formatDuration, groupChannelsByPage, limitList, type DurationWords } from '@/lib/sales-follow-bot/ui'
+import { FINAL_KEY, REPLY_HANDOFF_KEY, formatDuration, groupChannelsByPage, neverMatches, ruleSentence, type DurationWords } from '@/lib/sales-follow-bot/ui'
 import type { BotDto } from '@/services/sales-follow-bot.service'
 import { AvatarWithPlatform, useDurationWords } from './sfb-ui'
 
@@ -96,46 +95,30 @@ function useRowStatus(bots: BotDto[]) {
   return { view, change, pending }
 }
 
-/** แท็กที่ใช้อยู่ + แท็กที่ถูกลบ (ชิป warning ในบรรทัดเดียวกัน · ลิงก์ไปส่วน "ทักใคร" ของฟอร์ม) */
+/** เงื่อนไขการเริ่มติดตามเป็นประโยคบรรทัดเดียว + ชิป warning แท็กที่ถูกลบ (ลิงก์ไปการ์ดเงื่อนไขของฟอร์ม) */
 function ConditionChips({ bot }: { bot: BotDto }) {
   const t = useT().salesFollowBot
-  const stages = limitList(bot.salesStatuses, 2)
-  const present = limitList(bot.tags.filter((x) => !x.missing).map((x) => x.name), 3)
-  const gone = bot.tags.filter((x) => x.missing)
-  const joiner = bot.tagMatch === 'ALL' ? t.andWord : t.orWord
-  const chip = 'badge bg-default-200 text-default-800 text-xs'
-  const hasTags = present.shown.length > 0 || gone.length > 0
+  const sentence = ruleSentence(bot.rules, bot.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k])
+  const gone = bot.rules.flatMap((r) => (r.field === 'tag' ? r.values.filter((x) => x.missing) : []))
+  const dead = neverMatches(bot.rules, bot.conditionMatch)
   return (
-    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
-      {bot.salesStatuses.length === 0 ? (
-        <span className={chip}>{t.allStatuses}</span>
-      ) : (
-        <>
-          {stages.shown.map((k) => (
-            <span key={k} className={chip}>
-              {t.stageLabel[k as SalesStageKey]}
-            </span>
-          ))}
-          {stages.rest > 0 && <span className="text-default-700 text-xs">+{stages.rest}</span>}
-        </>
+    <div className="mt-1.5 min-w-0">
+      <p className="text-default-800 min-w-0 truncate text-xs" title={sentence}>
+        {sentence || t.allStatuses}
+      </p>
+      {gone.length > 0 && (
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {gone.map((g) => {
+            const sentenceGone = fmt(dead ? t.tagGoneAll : t.tagGoneAny, { names: g.name })
+            return (
+              <Link key={g.key} href={`${BASE}/${bot.id}#sfb-who`} aria-label={sentenceGone} title={sentenceGone} className="badge bg-warning/15 text-warning-ink inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0">
+                <Icon icon="alert-triangle" aria-hidden="true" />
+                {fmt(t.tagGoneChip, { name: g.name })}
+              </Link>
+            )
+          })}
+        </div>
       )}
-      {hasTags && <span className="text-default-700 text-xs">{t.condAndTag}</span>}
-      {present.shown.map((n, i) => (
-        <span key={n} className="inline-flex items-center gap-1">
-          {i > 0 && <span className="text-default-700 text-xs">{joiner}</span>}
-          <span className={chip}>{n}</span>
-        </span>
-      ))}
-      {present.rest > 0 && <span className="text-default-700 text-xs">+{present.rest}</span>}
-      {gone.map((g) => {
-        const sentence = fmt(bot.tagMatch === 'ALL' ? t.tagGoneAll : t.tagGoneAny, { names: g.name })
-        return (
-          <Link key={g.key} href={`${BASE}/${bot.id}#sfb-who`} aria-label={sentence} title={sentence} className="badge bg-warning/15 text-warning-ink inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0">
-            <Icon icon="alert-triangle" aria-hidden="true" />
-            {fmt(t.tagGoneChip, { name: g.name })}
-          </Link>
-        )
-      })}
     </div>
   )
 }
@@ -253,7 +236,7 @@ function StatusControl({ bot, t, busy, onChange }: { bot: BotDto; t: Dict; busy:
       </div>
     )
   const on = bot.status === 'ACTIVE'
-  const allGone = bot.tagMatch === 'ALL' && bot.tags.some((x) => x.missing)
+  const allGone = neverMatches(bot.rules, bot.conditionMatch)
   return (
     <div className="flex flex-col items-start gap-1">
       <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 lg:min-h-0">

@@ -76,6 +76,8 @@ export const STOP_REASONS = [
   'OUT_OF_SCOPE',
   'CONTACT_BLOCKED',
   'ADMIN_STOPPED',
+  /** ส่วนต่อขยาย FR-FA-8: ห้องไม่ตรงเงื่อนไขการเริ่มติดตามแล้ว (แทน TAG_REMOVED เดิม — ค่าเก่ายังอยู่เพราะแถวใน prod) */
+  'CONDITION_UNMATCHED',
 ] as const
 export type StopReason = (typeof STOP_REASONS)[number]
 
@@ -115,6 +117,7 @@ export const STOP_REASON_TEXT: Record<StopReason, string> = {
   OUT_OF_SCOPE: 'ห้องหลุดขอบเขต',
   CONTACT_BLOCKED: 'ลูกค้าบล็อก/เลิกติดตาม',
   ADMIN_STOPPED: 'หยุดโดยแอดมิน',
+  CONDITION_UNMATCHED: 'ห้องไม่ตรงเงื่อนไขแล้ว',
 }
 export const HOLD_REASON_TEXT: Record<HoldReason, string> = {
   SHOP_NOT_ENABLED: 'ร้านยังไม่เปิดใช้',

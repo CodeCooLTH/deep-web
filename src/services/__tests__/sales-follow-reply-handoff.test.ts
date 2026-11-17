@@ -59,7 +59,7 @@ async function mkRepliedRoom(o: { setting: 'ADMIN' | 'META_AI'; channel?: 'MESSE
   })
   const bot = await db.salesFollowBot.create({
     data: {
-      shopId: shop.id, name: `บอท-${run}`, status: 'ACTIVE', salesStatuses: ['NOT_BOUGHT'], replyHandoff: o.setting,
+      shopId: shop.id, name: `บอท-${run}`, status: 'ACTIVE', conditionRules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }] as never, replyHandoff: o.setting,
       steps: [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดีค่ะ' }] }, { delayMin: 600, parts: [{ kind: 'TEXT', text: 'ยังสนใจไหมคะ' }] }] as never,
       channels: { create: [{ shopChannelId: ch.id }] },
     },
