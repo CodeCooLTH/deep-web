@@ -2575,9 +2575,19 @@ export async function ingestAdReferral(params: {
   // ข้อความโฆษณาจริง: `ad_title` ที่มากับ webhook คือ **ชื่อ ad ใน Ads Manager** ("video v3",
   // "โพสแนวตั้ง") ผู้ขายอ่านแล้วไม่รู้ว่าเป็นโฆษณาชิ้นไหน (user report prod 2026-07-26) — ข้อความที่
   // ลูกค้าเห็นจริงอยู่ที่โพสต์ ต้องดึงเพิ่มด้วย post_id. best-effort: ดึงไม่ได้ก็ตกไปใช้ ad_title
+  // IG: pageExternalId = IG account id ไม่ใช่ Page id — fetchAdPostContent หา Page id จาก token เอง (user 2026-11-17)
   const post = ctx?.post_id
-    ? await fetchAdPostContent(params.pageExternalId, ctx.post_id, channel.accessToken)
+    ? await fetchAdPostContent(params.pageExternalId, ctx.post_id, channel.accessToken, { provider: params.provider })
     : { message: null, fullPicture: null, permalink: null }
+  if (params.provider === 'INSTAGRAM') {
+    // ตรวจย้อนได้ว่า IG ส่งอะไรมา/ดึงข้อความโฆษณาได้ไหม — ชื่อฟิลด์ที่มีเท่านั้น ไม่มีเนื้อหา/ตัวตนลูกค้า
+    console.info('[ig-referral]', {
+      fields: Object.keys(ctx ?? {}),
+      hasAdId: !!referral.ad_id,
+      gotBody: !!post.message,
+      gotPicture: !!post.fullPicture,
+    })
+  }
 
   // เลือกรูปตามลำดับที่ "มีของจริง" มากสุด:
   //   full_picture ของโพสต์ > photo_url > video_url

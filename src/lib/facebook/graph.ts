@@ -621,10 +621,39 @@ export async function fetchAdPostContent(
   pageId: string,
   postId: string,
   pageToken: string,
+  /**
+   * ช่องทางของเธรด — `'INSTAGRAM'` = `pageId` ที่ส่งมาคือ **IG business account id** ไม่ใช่ Page id
+   *
+   * 🛑 (user report 2026-11-17 "ของอินตราแกรมเอาชื่อ ads มาแสดง") เดิมยิง `{igId}_{postId}` ซึ่ง
+   * ไม่มีอยู่จริง ⇒ Meta 400 ทุกครั้ง ⇒ ข้อความโฆษณาว่าง ⇒ แบนเนอร์ IG ตกไปโชว์ `ad_title`
+   * = ชื่อภายในใน Ads Manager ("รวมโพส_Group_1") ทั้งเว็บและแอป — คลาสเดียวกับที่ E5 แก้ให้ Messenger ไปแล้ว
+   * แถว IG ใช้ page token ของเพจที่ผูกอยู่ (shop-channel.service) ⇒ ถาม `/me` ได้ Page id จริง
+   */
+  opts?: { provider?: string },
+): Promise<{ message: string | null; fullPicture: string | null; permalink: string | null }> {
+  const empty = { message: null, fullPicture: null, permalink: null }
+  if (opts?.provider !== 'INSTAGRAM') return fetchPagePostContent(pageId, postId, pageToken)
+  // IG: (1) โพสต์ของเพจ Facebook ที่ผูกอยู่ (โฆษณาส่วนใหญ่สร้างจากโพสต์เพจ แล้วไปโชว์บน IG)
+  const fbPageId = postId.includes('_') ? null : await fetchTokenPageId(pageToken)
+  if (postId.includes('_') || fbPageId) {
+    const viaPage = await fetchPagePostContent(fbPageId ?? '', postId, pageToken)
+    if (viaPage.message || viaPage.fullPicture) return viaPage
+  }
+  // (2) post_id เป็น IG media id (โฆษณาที่ใช้โพสต์ IG เดิม) — caption คือข้อความที่ลูกค้าเห็น
+  const ig = await fetchIgMediaContent(postId, pageToken)
+  return ig ?? empty
+}
+
+/** `{pageId}_{postId}` → ข้อความ/รูป/ลิงก์ของโพสต์เพจ (post_id ที่มี `_` อยู่แล้ว = ใช้ตามนั้น) */
+async function fetchPagePostContent(
+  pageId: string,
+  postId: string,
+  pageToken: string,
 ): Promise<{ message: string | null; fullPicture: string | null; permalink: string | null }> {
   const empty = { message: null, fullPicture: null, permalink: null }
   try {
-    const res = await fetch(`${GRAPH_BASE}/${pageId}_${postId}?fields=message,full_picture,permalink_url`, {
+    const id = postId.includes('_') ? postId : `${pageId}_${postId}`
+    const res = await fetch(`${GRAPH_BASE}/${id}?fields=message,full_picture,permalink_url`, {
       headers: { Authorization: `Bearer ${pageToken}` },
       signal: AbortSignal.timeout(3000),
     })
@@ -644,6 +673,50 @@ export async function fetchAdPostContent(
     }
   } catch {
     return empty
+  }
+}
+
+/** Page id ของ page token (`/me` ของ page token = ตัวเพจ) — null เมื่อถามไม่ได้ */
+async function fetchTokenPageId(pageToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${GRAPH_BASE}/me?fields=id`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => ({}))) as { id?: string }
+    // กันชั้นสอง: id ไปอยู่ใน path ของ URL ถัดไป — ต้องเป็นตัวเลขล้วน
+    return typeof json.id === 'string' && /^\d+$/.test(json.id) ? json.id : null
+  } catch {
+    return null
+  }
+}
+
+/** IG media → caption/รูป(วิดีโอ = thumbnail)/permalink — null เมื่อไม่ใช่ media ที่ token นี้อ่านได้ */
+async function fetchIgMediaContent(
+  mediaId: string,
+  pageToken: string,
+): Promise<{ message: string | null; fullPicture: string | null; permalink: string | null } | null> {
+  if (!/^\d+$/.test(mediaId)) return null
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${mediaId}?fields=caption,media_type,media_url,thumbnail_url,permalink`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => ({}))) as {
+      caption?: string
+      media_type?: string
+      media_url?: string
+      thumbnail_url?: string
+      permalink?: string
+    }
+    const caption = json.caption?.trim()
+    const picture = json.media_type === 'VIDEO' ? (json.thumbnail_url ?? null) : (json.media_url ?? json.thumbnail_url ?? null)
+    if (!caption && !picture) return null
+    return { message: caption && caption.length > 0 ? caption : null, fullPicture: picture, permalink: json.permalink ?? null }
+  } catch {
+    return null
   }
 }
 

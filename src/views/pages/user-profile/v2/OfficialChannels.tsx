@@ -339,7 +339,8 @@ export function ChannelStrip({
     return (
       /* ม็อกอัพ `.channel-grid` — 2 คอลัมน์บนจอกว้าง 1 คอลัมน์บนมือถือ
          `md:` ในสกินนี้ = 900px ตรงกับเบรกพอยต์ของม็อกอัพพอดี (marketing.css remap ไว้) */
-      <div className='grid gap-2.5 md:grid-cols-2'>
+      /* text-start: จอ guest วางบล็อกนี้ในหัวโปรไฟล์ที่จัดข้อความกลาง — ไทล์ต้องชิดซ้ายเสมอ */
+      <div className='grid gap-2.5 md:grid-cols-2 text-start'>
         {ordered.map((c) => {
           const meta = PROVIDER[c.provider]
           if (!meta) return null
@@ -362,7 +363,14 @@ export function ChannelStrip({
                 />
               </span>
               <span className='min-is-0 flex-1'>
-                <span className='block text-[13px] font-medium truncate'>{c.name}</span>
+                {/* clamp 2 บรรทัด ไม่ใช่ truncate — หางชื่อคือที่ที่เพจของร้านเดียวกันต่างกัน
+                    ("… สายซิ่ง" vs "… สาขาสอง") เหตุผลเดียวกับโหมด strip ด้านล่าง */}
+                <span
+                  className='block text-[13px] font-medium'
+                  style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}
+                >
+                  {c.name}
+                </span>
                 <span className='block text-[13px] text-[var(--mui-palette-text-secondary)]'>
                   {meta.label}
                   {typeof c.followerCount === 'number' && (
