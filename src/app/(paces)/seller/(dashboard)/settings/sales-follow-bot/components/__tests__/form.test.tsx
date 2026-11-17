@@ -58,11 +58,11 @@ const html = (bot: BotDto | null, bots: BotDto[] = []) => renderToStaticMarkup(<
 describe('BotForm', () => {
   it('บอทใหม่: สถานะล็อกที่ปิด + เหตุผล · ไม่มีเมนูลบ · มีทั้ง 4 ส่วน + การ์ดสรุป + ตัวอย่าง', () => {
     const h = html(null)
-    expect(h).toContain(t.statusLockedNew)
+    expect(h).not.toContain(t.statusLockedNew) // ผู้ใช้ 2026-11-17: ไม่ต้องมีบรรทัดอธิบายใต้ปุ่มสถานะ
     expect(h).not.toContain(t.botMenuAria)
     for (const s of [t.sectionWho, t.sectionVia, t.sectionWhat, t.sectionEnd, t.summaryTitle, t.previewTitle, t.stopTitle]) expect(h).toContain(s)
     for (const id of ['sfb-who', 'sfb-via', 'sfb-what', 'sfb-end']) expect(h).toContain(`id="${id}"`)
-    expect(h).toContain(t.statusDescClosed)
+    expect(h).not.toContain(t.statusDescClosed)
   })
   it('บอทเดิม: ชื่ออยู่ในช่อง · มีเมนูลบ · การ์ดสรุป key-value · เวลารอแยกจำนวน/หน่วย · เวลาสะสมของแต่ละรอบ', () => {
     const h = html(mk())
@@ -123,10 +123,10 @@ describe('BotForm', () => {
     expect(html(null)).toContain(t.stepTodoSr)
     expect(html(mk()).split(`>${t.stepDoneSr}<`).length - 1).toBe(4)
   })
-  it('ช่องทางรวมตามเพจ: Messenger + IG ชื่อเดียวกัน = ชื่อเพจครั้งเดียวในส่วน 2', () => {
+  it('ช่องทาง: 1 แถวต่อ 1 ช่องทาง ทั้งแถวเป็นตัวเลือก (ผู้ใช้ 2026-11-17 เลิกรวมตามเพจ)', () => {
     const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น', status: 'ACTIVE' as const }] }
     const h = renderToStaticMarkup(<BotForm bot={mk()} bots={[]} options={o} testRooms={[]} />)
-    expect(h.match(/<p class="text-default-900 truncate text-sm font-medium">เพจร้านนุ่น<\/p>/g)?.length).toBe(1)
+    expect(h.match(/<span class="text-default-900 block truncate text-sm font-medium">เพจร้านนุ่น<\/span>/g)?.length).toBe(2)
   })
   it('สถานะทดสอบ = โผล่การ์ดแชทสำหรับทดสอบ · สถานะอื่นไม่โผล่', () => {
     expect(html(mk({ status: 'TESTING', testRoomIds: ['r1'] }))).toContain(t.testTitle)

@@ -13,7 +13,7 @@
  * 🛑 ตรรกะตัดสิน (dirty/PATCH diff/ล็อกสถานะ/ถามก่อนหยุดแชท/ช่องชน/ตรวจฟิลด์) อยู่ที่ src/lib/sales-follow-bot/ui.ts + schemas.ts (มีเทส) — ไฟล์นี้ต่อสายอย่างเดียว
  * 🛑 บันทึก = PATCH (ถ้าฟิลด์เปลี่ยน) แล้ว PUT status (ถ้าสถานะ/แชททดสอบเปลี่ยน) ตามลำดับ ใช้ expectedUpdatedAt ต่อเนื่อง · บอทใหม่ POST (CLOSED เสมอ)
  */
-import Link from 'next/link'
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -396,7 +396,6 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   ]
 
   const nameErr = textOf('name')
-  const statusNote = draft.status === 'TESTING' ? t.statusDescTesting : draft.status === 'ACTIVE' ? t.statusDescActive : t.statusDescClosed
   const statusOpts: { value: BotStatus; label: string; icon?: string }[] = [
     { value: 'CLOSED', label: t.statusClosed },
     { value: 'TESTING', label: t.statusTesting, icon: 'flask' },
@@ -405,18 +404,24 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
 
   return (
     <>
-      <div className="mb-base">
-        <nav aria-label={t.breadcrumbAria} className="text-default-700 flex flex-wrap items-center gap-1 text-xs">
-          <Link href="/settings" className="inline-flex min-h-11 items-center lg:min-h-0">{t.breadcrumbSettings}</Link>
-          <Icon icon="chevron-right" aria-hidden="true" />
-          <Link href={BASE} className="inline-flex min-h-11 items-center lg:min-h-0">{t.pageTitle}</Link>
-          <Icon icon="chevron-right" aria-hidden="true" />
-          <span aria-current="page" className="text-default-800">{isNew ? t.newBotTitle : original.name || t.newBotTitle}</span>
-        </nav>
+      {/* หัวหน้าแบบเดียวกับหน้ารายการ (PageBreadcrumb) — แยกชื่อหน้า / breadcrumb / ช่องแก้ชื่อให้ชัด (ผู้ใช้ 2026-11-17) */}
+      <PageBreadcrumb
+        title={isNew ? t.newBotTitle : original.name || t.newBotTitle}
+        homeLabel={common.home}
+        trail={[{ label: t.breadcrumbSettings, href: '/settings' }, { label: t.pageTitle, href: BASE }]}
+      />
 
-        <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-center">
-          <label className="group hover:bg-default-100 focus-within:bg-card focus-within:ring-default-300 relative -ms-2 flex min-h-11 min-w-0 flex-1 cursor-text items-center gap-2 rounded px-2 focus-within:ring-1">
-            <span className="sr-only">{fmt(t.nameLabel, { max: L.maxName })}</span>
+      <div className="card mb-base">
+        <div className="card-body flex flex-col gap-4 md:flex-row md:items-start">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <label htmlFor="sfb-name" className="text-default-800 text-sm font-medium">
+                {t.nameFieldLabel}
+              </label>
+              <span className="text-default-700 text-xs tabular-nums">
+                {Array.from(draft.name).length}/{L.maxName}
+              </span>
+            </div>
             <input
               id="sfb-name"
               type="text"
@@ -425,46 +430,35 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               aria-invalid={nameErr ? true : undefined}
               aria-describedby={nameErr ? 'sfb-name-err' : undefined}
               onChange={(e) => update((d) => ({ ...d, name: e.target.value }))}
-              className="text-default-900 placeholder:text-default-700 min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xl font-semibold shadow-none outline-none focus:ring-0"
+              className="form-input"
             />
-            <Icon icon="pencil" className="text-default-700 group-focus-within:hidden" aria-hidden="true" />
-            <span className="text-default-700 ms-auto hidden text-xs tabular-nums group-focus-within:inline">
-              {Array.from(draft.name).length}/{L.maxName}
-            </span>
-          </label>
-          <div className="flex items-center gap-2 md:shrink-0">
-            <div className="flex-1 md:flex-none">
-              <Segmented
-                name="sfb-status"
-                ariaLabel={t.statusAria}
-                value={draft.status}
-                options={statusOpts}
-                disabled={lock !== null}
-                describedBy="sfb-status-note"
-                onChange={(v) => update((d) => ({ ...d, status: v }))}
-                compact
-              />
-            </div>
-            {!isNew && (
-              <ActionMenu ariaLabel={t.botMenuAria} items={[{ key: 'delete', label: t.deleteBot, icon: 'trash', danger: true, onSelect: () => void remove() }]} />
+            {nameErr && (
+              <p id="sfb-name-err" role="alert" className="text-danger-ink mt-1 flex items-start gap-1 text-xs">
+                <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
+                {nameErr}
+              </p>
             )}
           </div>
+          <div className="md:shrink-0">
+            <p className="text-default-800 mb-1.5 text-sm font-medium">{t.statusFieldLabel}</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 md:flex-none">
+                <Segmented
+                  name="sfb-status"
+                  ariaLabel={t.statusAria}
+                  value={draft.status}
+                  options={statusOpts}
+                  disabled={lock !== null}
+                  onChange={(v) => update((d) => ({ ...d, status: v }))}
+                  compact
+                />
+              </div>
+              {!isNew && (
+                <ActionMenu ariaLabel={t.botMenuAria} items={[{ key: 'delete', label: t.deleteBot, icon: 'trash', danger: true, onSelect: () => void remove() }]} />
+              )}
+            </div>
+          </div>
         </div>
-        {nameErr && (
-          <p id="sfb-name-err" role="alert" className="text-danger-ink mt-1 flex items-start gap-1 text-xs">
-            <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
-            {nameErr}
-          </p>
-        )}
-        <p id="sfb-status-note" className="text-default-700 mt-1 text-sm">
-          {statusNote}{' '}
-          {lock && (
-            <span className="text-default-700 inline-flex items-center gap-1 text-xs">
-              <Icon icon="lock" aria-hidden="true" />
-              {lock === 'NEW' ? t.statusLockedNew : t.statusLockedDirty}
-            </span>
-          )}
-        </p>
       </div>
 
       <div className="gap-base grid lg:grid-cols-3">
