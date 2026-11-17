@@ -118,10 +118,11 @@ describe('BotForm', () => {
     for (const id of ['sfb-reply-handoff', 'sfb-final-wait']) expect(h).toContain(id) // Select2 ถูก mock — ผูกด้วย label/ช่องตัวเลขแทน
     expect(html(mk({ finalAction: 'RESOLVE', finalDelayMin: 1440 }))).toContain('ส่งต่อแอดมิน · 1 วัน → ปิดงาน')
   })
-  it('แท็กถูกลบ: วงกลมเลขส่วน 1 เป็น warning (ไม่ใช่เครื่องหมายถูก) + หัว "แท็กถูกลบ 1" + บรรทัด/ปุ่ม "เอาออกจากบอท"', () => {
+  it('แท็กถูกลบ: วงกลมเลขส่วน 1 เป็น warning (ไม่ใช่เครื่องหมายถูก) + ชื่อแท็กในประโยคสรุปเป็นสีเทา + sr-only "(ถูกลบแล้ว)" (ไม่มีท้ายประโยค " · แท็กถูกลบ n") + บรรทัด/ปุ่ม "เอาออกจากบอท"', () => {
     const rules: BotDto['rules'] = [{ field: 'tag', op: 'has_any', values: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] }]
     const h = html(mk({ rules }))
-    expect(h).toContain('แท็กถูกลบ 1')
+    expect(h).not.toContain('แท็กถูกลบ 1')
+    expect(h).toContain(`<span class="text-default-600">vip<span class="sr-only"> ${t.tagGoneSr}</span></span>`)
     expect(h).toContain('แท็ก “vip” ถูกลบไปแล้ว')
     expect(h).toContain(t.tagRemoveGone)
     expect(h).toContain(t.stepWarnSr)

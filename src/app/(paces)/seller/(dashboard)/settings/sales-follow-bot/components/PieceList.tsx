@@ -102,11 +102,11 @@ export default function PieceList({
                 return (
                   <Draggable key={part.uid} draggableId={part.uid} index={j}>
                     {(drag, snap) => (
-                      <li ref={drag.innerRef} {...drag.draggableProps} className={`flex items-start gap-1 ${snap.isDragging ? 'bg-card rounded-lg shadow-lg' : ''}`}>
-                        <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-700 flex min-h-11 w-11 shrink-0 cursor-grab lg:w-6 items-center justify-center text-base">
+                      <li ref={drag.innerRef} {...drag.draggableProps} className={`flex flex-wrap items-start gap-1 md:flex-nowrap ${snap.isDragging ? 'bg-card rounded-lg shadow-lg' : ''}`}>
+                        <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-700 flex order-1 min-h-11 w-11 shrink-0 cursor-grab md:order-none lg:w-6 items-center justify-center text-base">
                           <Icon icon="grip-vertical" aria-hidden="true" />
                         </span>
-                        <div id={`sfb-part-${stepIndex}-${j}`} className="min-w-0 flex-1">
+                        <div id={`sfb-part-${stepIndex}-${j}`} className="order-3 w-full min-w-0 md:order-none md:w-auto md:flex-1">
                           {part.kind === 'TEXT' && (
                             <VarChipEditor
                               key={part.uid}
@@ -221,12 +221,15 @@ export default function PieceList({
                             </ul>
                           )}
                         </div>
-                        <ActionMenu
-                          ariaLabel={fmt(t.pieceMenuAria, { n: j + 1 })}
-                          items={[
-                            { key: 'del', label: t.remove, icon: 'trash', danger: true, onSelect: () => setParts(parts.filter((p) => p.uid !== part.uid)), disabledReason: mb.remove ? t.reasonOnlyPiece : null },
-                          ]}
-                        />
+                        {/* <md: ที่จับ + เมนูอยู่แถบบนของชิ้น ตัวแก้ข้อความได้ความกว้างเต็ม (เดิมเหลือ ~200px บน 390) */}
+                        <div className="order-2 ms-auto md:order-none md:ms-0">
+                          <ActionMenu
+                            ariaLabel={fmt(t.pieceMenuAria, { n: j + 1 })}
+                            items={[
+                              { key: 'del', label: t.remove, icon: 'trash', danger: true, onSelect: () => setParts(parts.filter((p) => p.uid !== part.uid)), disabledReason: mb.remove ? t.reasonOnlyPiece : null },
+                            ]}
+                          />
+                        </div>
                       </li>
                     )}
                   </Draggable>
@@ -238,7 +241,7 @@ export default function PieceList({
         </Droppable>
       </DragDropContext>
 
-      <div className="mt-2.5 flex flex-wrap gap-2 ps-12 lg:ps-7">
+      <div className="mt-2.5 flex flex-wrap gap-2 md:ps-12 lg:ps-7">
         {(
           [
             ['TEXT', t.addText],
@@ -259,7 +262,7 @@ export default function PieceList({
           </button>
         ))}
       </div>
-      <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-700 mt-1 ps-12 lg:ps-7 text-xs">
+      <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-700 mt-1 md:ps-12 lg:ps-7 text-xs">
         {blocker ? fmt(t.piecesFull, { max: L.maxParts }) : fmt(t.piecesLeft, { n: L.maxParts - parts.length, max: L.maxParts })}
       </p>
     </>
