@@ -276,7 +276,15 @@ export function ShopChannels({
 export default function ShopEvidence(p: ShopEvidenceData) {
   return (
     <>
-      <ShopChannels channels={p.channels} originChannel={p.originChannel} />
+      {/* 🛑 ไทล์ `rows` ชุดเดียวกับจอหลังล็อกอิน (ShopInfoCard / OrderDetailMobile) ไม่ใช่ `strip` จัดกลาง
+          user 2026-11-17 ส่งรูปจอ guest บนมือถือ "มันไม่สวยเลยเรียงให้ใหม่": strip จัดกลางทีละก้อน
+          ⇒ สองเพจกว้างไม่เท่ากัน รูป/ชื่อ/ป้าย "คุยกันที่นี่" เริ่มคนละ x · ชื่อหักสองบรรทัดที่ 150px
+          ไทล์เต็มความกว้างเรียงขอบซ้ายตรงกันทุกใบ และสองจอ (ก่อน/หลังล็อกอิน) หน้าตาเดียวกัน */}
+      {p.channels.length > 0 && (
+        <Box sx={{ mt: 2 }}>
+          <ShopChannels channels={p.channels} originChannel={p.originChannel} variant='rows' />
+        </Box>
+      )}
       <ShopStats
         completedOrders={p.completedOrders}
         completedLabel={p.completedLabel}
