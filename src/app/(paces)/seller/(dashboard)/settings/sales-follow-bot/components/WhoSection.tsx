@@ -76,7 +76,7 @@ export default function WhoSection({
               : r.values.map((k) => ({ value: k, label: stageLabel(k) }))
           return (
             <li key={r.uid} className="flex flex-wrap items-start gap-2">
-              <div className="w-32 shrink-0">
+              <div className="w-40 shrink-0">
                 <SfbSelect
                   inputId={`sfb-rule-${i}-field`}
                   aria-label={fmt(t.ruleFieldAria, { n: i + 1 })}
