@@ -434,6 +434,19 @@ export function groupChannelsByPage<C extends { provider: string; name: string; 
   return [...out.values()]
 }
 
+/** ค้นหาในโมดัลเลือกช่องทาง — ตรงชื่อเพจ/handle (ไม่สนตัวพิมพ์) · คำค้นว่าง = ทั้งหมด · คืนกลุ่มที่เหลือช่องอย่างน้อย 1 */
+export function filterChannelGroups<C extends { provider: string; name: string; avatarUrl: string | null; handle?: string | null }>(groups: readonly ChannelGroup<C>[], q: string): ChannelGroup<C>[] {
+  const k = q.trim().toLowerCase()
+  if (!k) return [...groups]
+  return groups.flatMap((g) => {
+    const hit = g.channels.filter((c) => `${c.name} ${c.handle ?? ''}`.toLowerCase().includes(k))
+    return hit.length ? [{ ...g, channels: hit }] : []
+  })
+}
+
+/** ป้ายบนพิล: "ชื่อเพจ · แพลตฟอร์ม" */
+export const channelPillLabel = (name: string, platform: string): string => `${name} · ${platform}`
+
 /** ช่องทางหนึ่งแถวอยู่สถานะไหน — ล็อก (บอทอื่นครอง · ยังไม่ได้เลือก) / เลือกแล้ว (ชนก็ยังขึ้นเลือก เพื่อให้ผู้ใช้ปลดเอง) / ไม่ได้เลือก */
 export function channelRowState(a: { checked: boolean; clashed: boolean }): 'locked' | 'on' | 'off' {
   if (a.clashed && !a.checked) return 'locked'

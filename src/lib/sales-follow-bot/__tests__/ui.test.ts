@@ -315,7 +315,7 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { channelRowState, metaAiLineNote, finalWaitDisabled, toSimpleConditions, fromSimpleConditions, type DraftRule, avatarInitial, ruleSentenceSegments, groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
+import { channelRowState, metaAiLineNote, finalWaitDisabled, toSimpleConditions, fromSimpleConditions, type DraftRule, avatarInitial, ruleSentenceSegments, groupChannelsByPage, filterChannelGroups, channelPillLabel, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
@@ -477,4 +477,20 @@ describe('avatarInitial · ruleSentenceSegments', () => {
     expect(segs.filter((x) => x.gone).map((x) => x.text)).toEqual(['b'])
     expect(segs.map((x) => x.text).join('')).toBe(ruleSentence(rules, 'ALL', w, (k) => k))
   })
+})
+
+describe('filterChannelGroups / channelPillLabel', () => {
+  const g = groupChannelsByPage([
+    { id: '1', provider: 'MESSENGER', name: 'ร้านนุ่น', avatarUrl: null, handle: null },
+    { id: '2', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: null, handle: '@nunshop' },
+    { id: '3', provider: 'LINE', name: 'OA ข้าว', avatarUrl: null, handle: '@Rice' },
+  ])
+  it('คำค้นว่าง = ทั้งหมด · ตรงชื่อ = ทั้งกลุ่ม · ตรง handle = เหลือเฉพาะช่องที่ตรง · ไม่สนตัวพิมพ์ · ไม่ตรง = ว่าง', () => {
+    expect(filterChannelGroups(g, '  ')).toHaveLength(2)
+    expect(filterChannelGroups(g, 'นุ่น')[0].channels).toHaveLength(2)
+    expect(filterChannelGroups(g, '@NUN')[0].channels.map((c) => c.id)).toEqual(['2'])
+    expect(filterChannelGroups(g, 'rice').map((x) => x.name)).toEqual(['OA ข้าว'])
+    expect(filterChannelGroups(g, 'zzz')).toEqual([])
+  })
+  it('ป้ายพิล', () => expect(channelPillLabel('ร้านนุ่น', 'Instagram')).toBe('ร้านนุ่น · Instagram'))
 })

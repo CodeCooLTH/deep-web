@@ -91,15 +91,17 @@ describe('BotForm', () => {
     expect(h.split(t.adOnlyNote).length - 1).toBe(1)
     expect(h).toContain('card-footer')
   })
-  it('ช่องทาง: ช่องที่ชนบอทอื่นถูกล็อกพร้อมลิงก์ไปบอทนั้น · ช่องหลุดมีป้าย · เลือก LINE มีหมายเหตุโควตา', () => {
-    const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c3'] })
-    const h = html(mk({ channelIds: ['c1'] }), [mk(), other])
-    expect(h).toContain('href="/settings/sales-follow-bot/b2"')
-    expect(h).toContain(t.channelTakenBySuffix)
+  it('ช่องทาง: ช่องที่เลือกเป็นพิล + ปุ่มเพิ่ม · ช่องหลุดเป็นพิลเหลืองมีลิงก์เชื่อมใหม่ · เลือก LINE มีหมายเหตุโควตา · โมดัลปิดอยู่ไม่ render ช่องที่ไม่ได้เลือก', () => {
+    const h = html(mk({ channelIds: ['c1', 'c2'] }), [mk()])
+    expect(h).toContain(`aria-label="${t.channelRemove.replace('{name}', 'เพจร้านนุ่น · Messenger')}"`)
+    expect(h).toContain(t.channelAdd)
     expect(h).toContain(t.channelDisconnected)
+    expect(h).toContain(t.channelReconnect)
+    expect(h).toContain('bg-warning/15')
+    expect(h).not.toContain('role="dialog"')
     expect(h).not.toContain(t.lineQuotaNote)
-    const withLine = html(mk({ channelIds: ['c1', 'c3'] }), [mk()])
-    expect(withLine).toContain(t.lineQuotaNote)
+    expect(html(mk({ channelIds: ['c1', 'c3'] }), [mk()])).toContain(t.lineQuotaNote)
+    expect(html(mk({ channelIds: [] }))).toContain(t.channelNone)
   })
   it('ช่องที่ติ๊กไว้แล้วชนบอทอื่น (เปลี่ยนสถานะภายหลัง) = ข้อความแดงบอกทางออก', () => {
     const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c1'] })
@@ -171,14 +173,6 @@ describe('BotForm', () => {
   it('บอทใหม่ว่าง: ส่วนที่ยังไม่ครบไม่ติ๊กถูก (todo) · บอทครบ = ติ๊กถูกทั้ง 4', () => {
     expect(html(null)).toContain(t.stepTodoSr)
     expect(html(mk()).split(`>${t.stepDoneSr}<`).length - 1).toBe(4)
-  })
-  it('ช่องทาง: จัดกลุ่มตามเพจ — ชื่อเพจครั้งเดียว · IG หลุดชื่อเดียวกันเป็นอีกแถวในกลุ่มเดิม มีลิงก์เชื่อมใหม่ · แต่ละแถวเป็นสวิตช์', () => {
-    const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น' }] }
-    const h = renderToStaticMarkup(<BotForm bot={mk()} bots={[]} options={o} testRooms={[]} />)
-    expect(h.match(/text-default-900 min-w-0 flex-1 truncate text-sm font-semibold">เพจร้านนุ่น</g)?.length).toBe(1)
-    expect(h.match(/role="switch"/g)?.length).toBe(2)
-    expect(h).toContain(t.channelReconnect)
-    expect(h).toContain(t.channelDisconnected)
   })
   it('สถานะทดสอบ = โผล่การ์ดแชทสำหรับทดสอบ · สถานะอื่นไม่โผล่', () => {
     expect(html(mk({ status: 'TESTING', testRoomIds: ['r1'] }))).toContain(t.testTitle)
