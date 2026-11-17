@@ -10,7 +10,8 @@ import { asParcelClose } from '@/services/parcel-close-input'
 import { getAdWindowStartAtMany } from '@/services/ad-window.service'
 import { ACTIVE_FORWARD_SHIPMENT } from '@/lib/shipment-direction'
 import type { MetaAiFacts } from '@/lib/meta-ai-holder'
-import { META_PROVIDERS, type BotStatus, type FinalAction, type SalesStageKey, type TagMatch } from '@/lib/sales-follow-bot/constants'
+import type { ConditionMatch, ConditionRule } from '@/lib/sales-follow-bot/conditions'
+import { META_PROVIDERS, type BotStatus, type FinalAction, type SalesStageKey } from '@/lib/sales-follow-bot/constants'
 import {
   decideRun,
   type AttachFacts,
@@ -47,9 +48,9 @@ export interface LoadedBot {
   name: string
   status: BotStatus
   structureRev: number
-  salesStatuses: SalesStageKey[]
-  tagKeys: string[]
-  tagMatch: TagMatch
+  conditionMatch: ConditionMatch
+  /** แท็กในกฎเป็น nameKey */
+  rules: ConditionRule[]
   steps: BotStep[]
   finalAction: FinalAction
   finalDelayMin: number
@@ -65,8 +66,8 @@ export async function loadBots(shopId: string, botIds: string[]): Promise<Map<st
   const rows = await prisma.salesFollowBot.findMany({
     where: { shopId, id: { in: botIds } },
     select: {
-      id: true, shopId: true, name: true, status: true, structureRev: true, salesStatuses: true, tagKeys: true,
-      tagMatch: true, steps: true, finalAction: true, finalDelayMin: true, deletedAt: true, updatedAt: true,
+      id: true, shopId: true, name: true, status: true, structureRev: true, conditionMatch: true, conditionRules: true,
+      steps: true, finalAction: true, finalDelayMin: true, deletedAt: true, updatedAt: true,
       channels: { select: { shopChannelId: true } },
       testRooms: { select: { conversationId: true } },
     },
@@ -76,7 +77,7 @@ export async function loadBots(shopId: string, botIds: string[]): Promise<Map<st
       b.id,
       {
         id: b.id, shopId: b.shopId, name: b.name, status: b.status as BotStatus, structureRev: b.structureRev,
-        salesStatuses: b.salesStatuses as SalesStageKey[], tagKeys: b.tagKeys, tagMatch: b.tagMatch as TagMatch,
+        conditionMatch: b.conditionMatch as ConditionMatch, rules: b.conditionRules as unknown as ConditionRule[],
         steps: b.steps as unknown as BotStep[], finalAction: b.finalAction as FinalAction, finalDelayMin: b.finalDelayMin, channelIds: b.channels.map((c) => c.shopChannelId),
         testRoomIds: b.testRooms.map((t) => t.conversationId), deletedAt: b.deletedAt, updatedAt: b.updatedAt,
       } satisfies LoadedBot,
@@ -95,9 +96,8 @@ export function toDecideBot(b: LoadedBot): DecideBot {
   return {
     status: b.deletedAt ? 'CLOSED' : b.status,
     structureRev: b.structureRev,
-    salesStatuses: b.salesStatuses,
-    tagKeys: b.tagKeys,
-    tagMatch: b.tagMatch,
+    conditionMatch: b.conditionMatch,
+    rules: b.rules,
     stepDelaysMin: b.steps.map((s) => s.delayMin),
     channelIds: b.channelIds,
     testRoomIds: b.testRoomIds,

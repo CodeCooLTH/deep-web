@@ -18,9 +18,11 @@ const bot = (o: Partial<BotDto> = {}): BotDto => ({
   id: 'b1',
   name: 'ตามคนถามราคา',
   status: 'ACTIVE',
-  salesStatuses: ['NOT_BOUGHT'],
-  tags: [{ key: 'a', name: 'ถามราคา', missing: false }],
-  tagMatch: 'ANY',
+  conditionMatch: 'ALL',
+  rules: [
+    { field: 'stage', op: 'is', values: ['NOT_BOUGHT'] },
+    { field: 'tag', op: 'has_any', values: [{ key: 'a', name: 'ถามราคา', missing: false }] },
+  ],
   channelIds: ['c1'],
   channels: [{ id: 'c1', provider: 'MESSENGER', name: 'เพจร้านนุ่น', avatarUrl: null, handle: null }],
   testRoomIds: [],
@@ -72,12 +74,10 @@ describe('BotListClient', () => {
     expect(h).toMatch(/<button[^>]*disabled[^>]*aria-describedby="sfb-no-channel"|<button[^>]*aria-describedby="sfb-no-channel"[^>]*disabled/)
     expect(h).not.toContain('href="/settings/sales-follow-bot/new"')
   })
-  it('แถวบอท: ชื่อเป็นลิงก์ · ชิปสถานะ + "และมีแท็ก" + ชิปแท็ก · ลูกค้าตอบ → แอดมิน · รอบ + ระยะรวม · ผล 7 วัน', () => {
+  it('แถวบอท: ชื่อเป็นลิงก์ · เงื่อนไขเป็นประโยคเดียว · ลูกค้าตอบ → แอดมิน · รอบ + ระยะรวม · ผล 7 วัน', () => {
     const h = renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel stats={{ b1: { sent: 30, failed: 1, reached: 10, replied: 3 } }} />)
     expect(h).toContain('href="/settings/sales-follow-bot/b1"')
-    expect(h).toContain('>ยังไม่ซื้อ<')
-    expect(h).toContain(t.condAndTag)
-    expect(h).toContain('>ถามราคา<')
+    expect(h).toContain('ยังไม่ซื้อ และ มีแท็ก ถามราคา')
     expect(h).toContain('ลูกค้าตอบ → แอดมิน')
     expect(h).not.toContain('สวัสดีค่ะ') // ข้อความรอบแรกไม่อยู่ในรายการแล้ว (อยู่ในฟอร์ม/ตัวอย่าง)
     expect(h).toContain('2 รอบ')
@@ -104,17 +104,17 @@ describe('BotListClient', () => {
     expect(testing).not.toContain('role="switch"')
     expect(testing).toContain(t.goLive)
   })
-  it('แท็กถูกลบ: ชิป warning ในแถวเดียวกับเงื่อนไข (ข้อความสั้น + ประโยคเต็มใน aria-label) ลิงก์ไป #sfb-who · ALL = ป้าย "ไม่ตามแชทใหม่" · ANY ไม่มี · ไม่มีบรรทัดส้มแยก', () => {
-    const tags = [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }]
-    const any = renderToStaticMarkup(<BotListClient bots={[bot({ tags })]} hasChannel />)
+  it('แท็กถูกลบ: ชิป warning ในแถวเดียวกับเงื่อนไข (ข้อความสั้น + ประโยคเต็มใน aria-label) ลิงก์ไป #sfb-who · has_all = ป้าย "ไม่ติดตามแชทใหม่" · has_any ไม่มี · ไม่มีบรรทัดส้มแยก', () => {
+    const rules = (op: 'has_any' | 'has_all'): BotDto['rules'] => [{ field: 'tag', op, values: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] }]
+    const any = renderToStaticMarkup(<BotListClient bots={[bot({ rules: rules('has_any') })]} hasChannel />)
     expect(any).toContain('href="/settings/sales-follow-bot/b1#sfb-who"')
     expect(any).toContain('vip (ถูกลบแล้ว)')
     expect(any).toContain('aria-label="แท็ก “vip” ถูกลบไปแล้ว บอทยังใช้แท็กที่เหลือต่อ"')
     expect(any).toContain('data-icon="alert-triangle"')
     expect(any).not.toContain(t.tagGoneNoNew)
     expect(any).not.toContain('<p class="text-warning-ink')
-    const all = renderToStaticMarkup(<BotListClient bots={[bot({ tags, tagMatch: 'ALL' })]} hasChannel />)
-    expect(all).toContain('aria-label="แท็ก “vip” ถูกลบไปแล้ว บอทนี้ยังไม่ตามแชทใหม่"')
+    const all = renderToStaticMarkup(<BotListClient bots={[bot({ rules: rules('has_all') })]} hasChannel />)
+    expect(all).toContain('aria-label="แท็ก “vip” ถูกลบไปแล้ว บอทนี้ยังไม่ติดตามแชทใหม่"')
     expect(all).toContain(t.tagGoneNoNew)
   })
   it('ช่องทาง: Messenger + IG ของเพจเดียวกัน = ชื่อเพจครั้งเดียว + "Messenger · Instagram" · LINE คนละกลุ่ม = "อีก 1 เพจ"', () => {
@@ -143,8 +143,13 @@ describe('BotListClient', () => {
     expect(renderToStaticMarkup(<BotListClient bots={[bot({ finalAction: 'RESOLVE', finalDelayMin: 1440 })]} hasChannel />)).toContain('1 วัน → ปิดงาน')
     expect(renderToStaticMarkup(<BotListClient bots={[bot()]} hasChannel />)).not.toContain('→ ปิดงาน')
   })
-  it('ไม่เลือกสถานะการขาย = "ทุกสถานะ"', () => {
-    expect(renderToStaticMarkup(<BotListClient bots={[bot({ salesStatuses: [] })]} hasChannel />)).toContain(t.allStatuses)
+  it('เงื่อนไข has_none / is_not ออกเสียงเป็น "ไม่มีแท็ก" / "ไม่ใช่" ในประโยคเดียวกัน', () => {
+    const rules: BotDto['rules'] = [
+      { field: 'stage', op: 'is_not', values: ['BILLED'] },
+      { field: 'tag', op: 'has_none', values: [{ key: 'k', name: 'รอคีย์ออเดอร์', missing: false }] },
+      { field: 'tag', op: 'has_any', values: [{ key: 'a', name: 'สนใจ', missing: false }] },
+    ]
+    expect(renderToStaticMarkup(<BotListClient bots={[bot({ rules })]} hasChannel />)).toContain('ไม่ใช่ เปิดบิล และ ไม่มีแท็ก รอคีย์ออเดอร์ และ มีแท็ก สนใจ')
   })
 })
 

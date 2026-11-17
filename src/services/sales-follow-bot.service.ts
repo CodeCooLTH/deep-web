@@ -24,8 +24,8 @@ import {
   type ReplyHandoff,
   type SendReason,
   type SendStatus,
-  type TagMatch,
 } from '@/lib/sales-follow-bot/constants'
+import { tagKeysOfRules, type ConditionMatch, type ConditionRule } from '@/lib/sales-follow-bot/conditions'
 import { aggregateBotStats, STATS_WINDOW_DAYS, type BotStatsResult } from '@/lib/sales-follow-bot/stats'
 import { findChannelConflicts, type ConflictBot, type ConflictOther } from '@/lib/sales-follow-bot/conflicts'
 import { computeDueAt } from '@/lib/sales-follow-bot/decide'
@@ -81,13 +81,17 @@ export interface BotStepDto extends BotStep {
   adOnly: boolean
 }
 
+export type BotRuleDto =
+  | Extract<ConditionRule, { field: 'stage' }>
+  | { field: 'tag'; op: Extract<ConditionRule, { field: 'tag' }>['op']; values: { key: string; name: string; missing: boolean }[] }
+
 export interface BotDto {
   id: string
   name: string
   status: BotStatus
-  salesStatuses: SalesStageKey[]
-  tags: { key: string; name: string; missing: boolean }[]
-  tagMatch: TagMatch
+  /** FR-FA-8: เงื่อนไขการเริ่มติดตาม — แถวแท็กมี values เป็น {key,name,missing} */
+  conditionMatch: ConditionMatch
+  rules: BotRuleDto[]
   channelIds: string[]
   channels: BotChannelBrief[]
   testRoomIds: string[]
@@ -106,9 +110,8 @@ type BotRow = {
   id: string
   name: string
   status: string
-  salesStatuses: string[]
-  tagKeys: string[]
-  tagMatch: string
+  conditionMatch: string
+  conditionRules: Prisma.JsonValue
   steps: Prisma.JsonValue
   finalAction: string
   finalDelayMin: number
@@ -120,7 +123,7 @@ type BotRow = {
 }
 
 const BOT_SELECT = {
-  id: true, name: true, status: true, salesStatuses: true, tagKeys: true, tagMatch: true, steps: true,
+  id: true, name: true, status: true, conditionMatch: true, conditionRules: true, steps: true,
   finalAction: true, finalDelayMin: true, replyHandoff: true, structureRev: true, updatedAt: true,
   channels: { select: { shopChannelId: true } },
   testRooms: { select: { conversationId: true } },
@@ -152,15 +155,17 @@ function toDto(
 ): BotDto {
   const steps = b.steps as unknown as BotStep[]
   const tl = stepTimeline(steps.map((s) => s.delayMin))
-  const missing = b.tagKeys.filter((k) => !ctx.tagNameByKey.has(k))
+  const rules = b.conditionRules as unknown as ConditionRule[]
+  const missing = tagKeysOfRules(rules).filter((k) => !ctx.tagNameByKey.has(k))
   const channelIds = b.channels.map((c) => c.shopChannelId)
   return {
     id: b.id,
     name: b.name,
     status: b.status as BotStatus,
-    salesStatuses: b.salesStatuses as SalesStageKey[],
-    tags: b.tagKeys.map((k) => ({ key: k, name: ctx.tagNameByKey.get(k) ?? k, missing: !ctx.tagNameByKey.has(k) })),
-    tagMatch: b.tagMatch as TagMatch,
+    conditionMatch: b.conditionMatch as ConditionMatch,
+    rules: rules.map((r): BotRuleDto =>
+      r.field === 'stage' ? r : { ...r, values: r.values.map((k) => ({ key: k, name: ctx.tagNameByKey.get(k) ?? k, missing: !ctx.tagNameByKey.has(k) })) },
+    ),
     channelIds,
     channels: channelIds.map((id) => ctx.channels.get(id)).filter((c): c is BotChannelBrief => !!c),
     testRoomIds: b.testRooms.map((t) => t.conversationId),
@@ -218,6 +223,12 @@ async function resolveTagKeys(tx: Tx, shopId: string, names: string[]): Promise<
   return keys
 }
 
+/** กฎขาเข้า (แถวแท็กใช้ชื่อ) → กฎที่เก็บ (nameKey) · ชื่อที่ร้านไม่มี = TagNotFound */
+async function resolveRules(tx: Tx, shopId: string, rules: ConditionRule[]): Promise<ConditionRule[]> {
+  await resolveTagKeys(tx, shopId, rules.flatMap((r) => (r.field === 'tag' ? r.values : [])))
+  return rules.map((r): ConditionRule => (r.field === 'stage' ? r : { ...r, values: [...new Set(r.values.map(tagNameKey))] }))
+}
+
 /**
  * quick message ของทุกชิ้นต้องเป็นของร้าน — ไม่ใช่ = issue 400 (ใช้รหัส QUICK_MESSAGE_REQUIRED ที่ path ของชิ้นนั้น: "เลือกใหม่")
  * `allowIds` = id ที่บอทเดิมถืออยู่แล้ว (PATCH) — ถูกลบไปแล้วยังบันทึกได้ (UX §19: การ์ดเตือน "รอบนี้จะข้ามชิ้นนี้")
@@ -238,29 +249,20 @@ async function assertQuickMessages(tx: Tx, shopId: string, steps: BotStep[], all
 }
 
 async function assertNoConflicts(tx: Tx, shopId: string, cand: ConflictBot) {
-  const [others, shopTags] = await Promise.all([
-    tx.salesFollowBot.findMany({
-      where: { shopId, deletedAt: null, status: { not: 'CLOSED' }, ...(cand.id ? { id: { not: cand.id } } : {}) },
-      select: { id: true, name: true, status: true, deletedAt: true, salesStatuses: true, tagKeys: true, channels: { select: { shopChannelId: true } } },
-    }),
-    tx.shopTag.findMany({ where: { shopId }, select: { nameKey: true } }),
-  ])
-  const live = new Set(shopTags.map((t) => t.nameKey))
+  const others = await tx.salesFollowBot.findMany({
+    where: { shopId, deletedAt: null, status: { not: 'CLOSED' }, ...(cand.id ? { id: { not: cand.id } } : {}) },
+    select: { id: true, name: true, status: true, deletedAt: true, conditionMatch: true, conditionRules: true, channels: { select: { shopChannelId: true } } },
+  })
   const conflicts = findChannelConflicts(
     cand,
     others.map(
       (o): ConflictOther => ({
-        id: o.id, name: o.name, status: o.status, deletedAt: o.deletedAt, salesStatuses: o.salesStatuses,
-        channelIds: o.channels.map((c) => c.shopChannelId), usableTagCount: o.tagKeys.filter((k) => live.has(k)).length,
+        id: o.id, name: o.name, status: o.status, deletedAt: o.deletedAt, conditionMatch: o.conditionMatch as ConditionMatch,
+        rules: o.conditionRules as unknown as ConditionRule[], channelIds: o.channels.map((c) => c.shopChannelId),
       }),
     ),
   )
   if (conflicts.length > 0) throw new SalesFollowBotChannelConflictError(conflicts)
-}
-
-async function usableTagCount(tx: Tx, shopId: string, keys: string[]): Promise<number> {
-  if (keys.length === 0) return 0
-  return tx.shopTag.count({ where: { shopId, nameKey: { in: keys } } })
 }
 
 function throwIfInvalid(f: BotFields) {
@@ -326,15 +328,15 @@ export async function createBot(shopId: string, userId: string, input: BotFields
   const id = await prisma.$transaction(async (tx) => {
     await lockShop(tx, shopId)
     await assertChannels(tx, shopId, f.channelIds)
-    const tagKeys = await resolveTagKeys(tx, shopId, f.tags)
+    const rules = await resolveRules(tx, shopId, f.rules)
     await assertQuickMessages(tx, shopId, f.steps)
     await assertOwnedImages(tx, shopId, f.steps)
     await assertNoConflicts(tx, shopId, {
-      id: '', name: f.name, channelIds: [...new Set(f.channelIds)], salesStatuses: f.salesStatuses, usableTagCount: tagKeys.length,
+      id: '', name: f.name, channelIds: [...new Set(f.channelIds)], conditionMatch: f.conditionMatch, rules,
     })
     const created = await tx.salesFollowBot.create({
       data: {
-        shopId, name: f.name, status: 'CLOSED', salesStatuses: f.salesStatuses, tagKeys, tagMatch: f.tagMatch,
+        shopId, name: f.name, status: 'CLOSED', conditionMatch: f.conditionMatch, conditionRules: rules as unknown as Prisma.InputJsonValue,
         steps: f.steps as unknown as Prisma.InputJsonValue, createdByUserId: userId,
         ...(f.finalAction !== undefined ? { finalAction: f.finalAction } : {}), ...(f.finalDelayMin !== undefined ? { finalDelayMin: f.finalDelayMin } : {}), ...(f.replyHandoff !== undefined ? { replyHandoff: f.replyHandoff } : {}), updatedByUserId: userId,
         channels: { create: [...new Set(f.channelIds)].map((shopChannelId) => ({ shopChannelId })) },
@@ -364,9 +366,8 @@ export async function updateBot(shopId: string, userId: string, botId: string, i
     // ผลรวมกับบอทเดิมต้องผ่าน validate อีกรอบ (NO_CONDITION ข้ามฟิลด์) — แท็กเดิมนับเป็นจำนวน
     const f = normalizeBotFields({
       name: input.name ?? cur.name,
-      salesStatuses: input.salesStatuses ?? cur.salesStatuses,
-      tags: input.tags ?? cur.tagKeys,
-      tagMatch: input.tagMatch ?? (cur.tagMatch as TagMatch),
+      conditionMatch: input.conditionMatch ?? (cur.conditionMatch as ConditionMatch),
+      rules: input.rules ?? (cur.conditionRules as unknown as ConditionRule[]),
       channelIds: input.channelIds ?? curChannelIds,
       steps: input.steps ?? curSteps,
       finalAction: input.finalAction ?? (cur.finalAction as FinalAction),
@@ -377,22 +378,21 @@ export async function updateBot(shopId: string, userId: string, botId: string, i
 
     const channelIds = [...new Set(f.channelIds)]
     if (input.channelIds) await assertChannels(tx, shopId, channelIds)
-    const tagKeys = input.tags ? await resolveTagKeys(tx, shopId, f.tags) : cur.tagKeys
+    const rules = input.rules ? await resolveRules(tx, shopId, f.rules) : (cur.conditionRules as unknown as ConditionRule[])
     if (input.steps) {
       const had = new Set(curSteps.flatMap((s) => s.parts.flatMap((p) => (p.kind === 'QUICK_MESSAGE' ? [p.quickMessageId] : []))))
       await assertQuickMessages(tx, shopId, f.steps, had)
       await assertOwnedImages(tx, shopId, f.steps, imageIdsOf(curSteps))
     }
     await assertNoConflicts(tx, shopId, {
-      id: cur.id, name: f.name, channelIds, salesStatuses: f.salesStatuses,
-      usableTagCount: input.tags ? tagKeys.length : await usableTagCount(tx, shopId, tagKeys),
+      id: cur.id, name: f.name, channelIds, conditionMatch: f.conditionMatch, rules,
     })
 
     const structureChanged = stepStructureKey(f.steps) !== stepStructureKey(curSteps)
     await tx.salesFollowBot.update({
       where: { id: cur.id },
       data: {
-        name: f.name, salesStatuses: f.salesStatuses, tagKeys, tagMatch: f.tagMatch,
+        name: f.name, conditionMatch: f.conditionMatch, conditionRules: rules as unknown as Prisma.InputJsonValue,
         steps: f.steps as unknown as Prisma.InputJsonValue, updatedByUserId: userId,
         // ไม่ใช่โครงรอบ → ไม่ขยับ structureRev/ไม่หยุด run (BR-FA-6)
         finalAction: f.finalAction, finalDelayMin: f.finalDelayMin, replyHandoff: f.replyHandoff,
@@ -436,7 +436,7 @@ export async function changeBotStatus(shopId: string, userId: string, botId: str
     }
     if (input.status !== 'CLOSED') {
       await assertNoConflicts(tx, shopId, {
-        id: cur.id, name: cur.name, channelIds, salesStatuses: cur.salesStatuses, usableTagCount: await usableTagCount(tx, shopId, cur.tagKeys),
+        id: cur.id, name: cur.name, channelIds, conditionMatch: cur.conditionMatch as ConditionMatch, rules: cur.conditionRules as unknown as ConditionRule[],
       })
     }
     await tx.salesFollowBot.update({ where: { id: cur.id }, data: { status: input.status, updatedByUserId: userId } })
@@ -690,7 +690,7 @@ export type ConversationPanel = { available: false } | { available: true; run: P
 
 /**
  * แผงในห้อง (TFR-FB-20) · ห้องของร้านอื่น = NotFound · DEEP/ร้านไม่ผ่านด่าน/ไม่ใช่ ONLINE_SALES = available:false
- * ซ่อน run ที่ decideRun (ตัวเดียวกับ engine) บอกว่าจะหยุดด้วย CUSTOMER_REPLIED/TAG_REMOVED ทันที ไม่รอ tick (AC-FB-74)
+ * ซ่อน run ที่ decideRun (ตัวเดียวกับ engine) บอกว่าจะหยุดด้วย CUSTOMER_REPLIED/CONDITION_UNMATCHED ทันที ไม่รอ tick (AC-FB-74)
  */
 export async function getConversationPanel(shopId: string, conversationId: string, now: Date = new Date()): Promise<ConversationPanel> {
   const [room, shop] = await Promise.all([
@@ -715,7 +715,7 @@ export async function getConversationPanel(shopId: string, conversationId: strin
   const bot = bots.get(run.botId)
   if (!decided || !bot) return { available: true, run: null }
   const { facts, decision } = decided
-  if (decision.action === 'STOP' && (decision.reason === 'CUSTOMER_REPLIED' || decision.reason === 'TAG_REMOVED')) return { available: true, run: null }
+  if (decision.action === 'STOP' && (decision.reason === 'CUSTOMER_REPLIED' || decision.reason === 'CONDITION_UNMATCHED')) return { available: true, run: null }
 
   const msgs = await prisma.chatMessage.findMany({
     where: { id: { in: run.sends.flatMap((s) => (s.chatMessageId ? [s.chatMessageId] : [])) }, conversationId },

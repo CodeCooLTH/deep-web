@@ -83,9 +83,9 @@ describe('TC-045 ฟังก์ชันตัดสินเป็น pure', (
   })
 })
 
-describe('TC-108 ข้อความไทยครบทุกรหัสใน CHECK (11 stop + 4 hold + 9 send)', () => {
+describe('TC-108 ข้อความไทยครบทุกรหัสใน CHECK (12 stop + 4 hold + 9 send)', () => {
   it('จำนวนและไม่มีค่าว่าง', () => {
-    expect(STOP_REASONS).toHaveLength(11)
+    expect(STOP_REASONS).toHaveLength(12)
     expect(HOLD_REASONS).toHaveLength(4)
     expect(SEND_REASONS).toHaveLength(9)
     for (const [k, t] of [...Object.entries(STOP_REASON_TEXT), ...Object.entries(HOLD_REASON_TEXT), ...Object.entries(SEND_REASON_TEXT)]) {

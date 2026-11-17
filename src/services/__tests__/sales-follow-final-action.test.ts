@@ -38,7 +38,7 @@ const STEPS = [{ delayMin: 30, parts: [{ kind: 'TEXT', text: 'สวัสดี
 async function mkBot(w: World, o: { finalAction?: string; finalDelayMin?: number; status?: string } = {}) {
   return db.salesFollowBot.create({
     data: {
-      shopId: w.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', salesStatuses: ['NOT_BOUGHT'], steps: STEPS as never,
+      shopId: w.shop, name: `บอท-${run}`, status: o.status ?? 'ACTIVE', conditionRules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }] as never, steps: STEPS as never,
       finalAction: o.finalAction ?? 'SPAM', finalDelayMin: o.finalDelayMin ?? 240,
       channels: { create: [{ shopChannelId: w.ch }] },
     },

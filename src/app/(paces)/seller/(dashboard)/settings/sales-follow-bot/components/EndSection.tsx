@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * EndSection — ④ "เมื่อจบ": 2 ประโยคเติมคำ (ลูกค้าตอบกลับ → ส่งต่อให้ใคร · ตามครบแล้วไม่ตอบ → รอเท่าไรแล้วทำอะไร) + พับ "บอทหยุดเองเมื่อไร" — redesign A
+ * EndSection — ④ "เงื่อนไขการหยุดติดตาม": 2 ประโยคเติมคำ (ลูกค้าตอบกลับ → ส่งต่อให้ใคร · ติดตามครบแล้วไม่ตอบ → รอเท่าไรแล้วทำอะไร) + บรรทัด "หยุดเองเมื่อห้องไม่ตรงเงื่อนไข" + พับ "เหตุหยุดอื่น" — redesign A
  * ย้ายมาจากท้ายรางรอบ (finalAction/finalDelayMin) และกล่องเทา "บอทจะหยุดทักเองเมื่อ" (replyHandoff) — ตรรกะ/ฟิลด์เดิมทุกอย่าง
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/form/select/components/Select2.tsx (SfbSelect — จำนวน + หน่วย + การกระทำ)
@@ -45,7 +45,7 @@ export default function EndSection({ draft, onChange, issues }: { draft: Draft; 
         <p className="text-default-700 mt-1.5 text-xs md:ps-10">{t.replyHandoffHint}</p>
       </div>
 
-      {/* ตามครบทุกรอบแล้วลูกค้ายังไม่ตอบ — ไม่ทำอะไร = พฤติกรรมเดิม */}
+      {/* ติดตามครบทุกรอบแล้วลูกค้ายังไม่ตอบ — ไม่ทำอะไร = พฤติกรรมเดิม */}
       <div id="sfb-final" className={row}>
         <div className={sentence}>
           <span className="bg-default-100 text-default-800 flex size-8 shrink-0 items-center justify-center rounded-lg">
@@ -99,6 +99,16 @@ export default function EndSection({ draft, onChange, issues }: { draft: Draft; 
         )}
       </div>
 
+      {/* สถานะเปลี่ยน/ติดแท็กที่ตั้งว่า "ไม่มี" = ห้องไม่ตรงเงื่อนไขการเริ่มติดตามแล้ว (FR-FA-8) — บรรทัดเดียวแทนรายการซ้ำ */}
+      <div className={row}>
+        <p className="text-default-800 flex items-start gap-2 text-sm">
+          <span className="bg-default-100 text-default-800 flex size-8 shrink-0 items-center justify-center rounded-lg">
+            <Icon icon="filter-off" aria-hidden="true" />
+          </span>
+          <span className="pt-1">{t.stopUnmatched}</span>
+        </p>
+      </div>
+
       <details className={`group ${row}`}>
         <summary className="text-default-800 flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium lg:min-h-0">
           <Icon icon="info-circle" aria-hidden="true" />
@@ -108,10 +118,10 @@ export default function EndSection({ draft, onChange, issues }: { draft: Draft; 
         <ul className="mt-2 grid grid-cols-1 gap-1.5 md:grid-cols-2">
           {(
             [
-              ['message-reply', t.stopReplied],
-              ['receipt', t.stopStage],
-              ['tag-off', t.stopTag],
               ['clock-off', t.stopWindow],
+              ['edit', t.stopEdited],
+              ['power', t.stopClosed],
+              ['hand-stop', t.stopAdmin],
             ] as const
           ).map(([icon, text]) => (
             <li key={icon} className="text-default-700 flex items-start gap-2 text-sm">

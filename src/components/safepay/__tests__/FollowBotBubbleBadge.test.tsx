@@ -32,9 +32,9 @@ describe('FollowBotBubbleBadge', () => {
 
 describe('FollowBotNoteLine', () => {
   it('บรรทัดกลางห้อง: เนื้อหาตรง body · ไม่มีปุ่ม/ลิงก์', () => {
-    const h = renderToStaticMarkup(<FollowBotNoteLine body="บอท “ตามคนถามราคา” หยุดทักแล้ว เพราะลูกค้าตอบกลับ" />)
+    const h = renderToStaticMarkup(<FollowBotNoteLine body="บอท “ตามคนถามราคา” หยุดติดตามแล้ว เพราะลูกค้าตอบกลับ" />)
     expect(h).toContain('text-center')
-    expect(h).toContain('บอท “ตามคนถามราคา” หยุดทักแล้ว เพราะลูกค้าตอบกลับ')
+    expect(h).toContain('บอท “ตามคนถามราคา” หยุดติดตามแล้ว เพราะลูกค้าตอบกลับ')
     expect(h).not.toMatch(/<(a|button)[ >]/)
   })
 })

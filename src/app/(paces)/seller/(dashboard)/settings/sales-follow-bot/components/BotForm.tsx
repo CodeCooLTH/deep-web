@@ -2,7 +2,7 @@
 
 /**
  * BotForm — ฟอร์มสร้าง/แก้บอทติดตามยอดขาย (00095 S-7 · mockup ส่วน 3, 3b)
- * redesign A: หัว (ชื่อแก้ในที่ · สถานะ · เมนู) → 4 การ์ด (ทักใคร · ส่งทางไหน · ส่งอะไร เมื่อไร · เมื่อจบ) วงกลมเลข = ครบ/ต้องตรวจ ตาม draftIssues
+ * redesign A: หัว (ชื่อแก้ในที่ · สถานะ · เมนู) → 4 การ์ด (เงื่อนไขการเริ่มติดตาม · ช่องทางที่ติดตาม · รอบการติดตาม · เงื่อนไขการหยุดติดตาม) วงกลมเลข = ครบ/ต้องตรวจ ตาม draftIssues
  * + คอลัมน์ขวา sticky ≥lg (สรุปบอทนี้ · ตัวอย่างแชท · แชททดสอบ) + แถบบันทึก sticky
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/product-add/page.tsx (grid lg:grid-cols-3 gap-base · การ์ดซ้าย 2/3 + ขวา 1/3)
@@ -22,7 +22,7 @@ import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { SALES_FOLLOW_LIMITS as L, type BotStatus, type SalesStageKey } from '@/lib/sales-follow-bot/constants'
+import { SALES_FOLLOW_LIMITS as L, type BotStatus } from '@/lib/sales-follow-bot/constants'
 import { testRoomsProblem, type BotIssue } from '@/lib/sales-follow-bot/schemas'
 import {
   buildPatch,
@@ -32,6 +32,8 @@ import {
   fieldsOf,
   finalDelayOf,
   firstIssueTarget,
+  goneTagNames,
+  ruleSentence,
   FINAL_KEY,
   REPLY_HANDOFF_KEY,
   formatDuration,
@@ -205,11 +207,10 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
     return c ? { name: c.name, provider: c.provider, avatarUrl: c.avatarUrl } : null
   })()
 
-  const stageText = (keys: readonly SalesStageKey[]) => keys.map((k) => t.stageLabel[k]).join(` ${t.orWord} `)
 
   const goTo = (tg: IssueTarget) => {
     const id =
-      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-stage' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : tg.kind === 'final' ? 'sfb-final-wait' : 'sfb-what'
+      tg.kind === 'name' ? 'sfb-name' : tg.kind === 'condition' ? 'sfb-match' : tg.kind === 'channels' ? 'sfb-ch' : tg.kind === 'part' ? `sfb-part-${tg.stepIndex}-${tg.partIndex}` : tg.kind === 'step' ? `sfb-step-${tg.stepIndex}` : tg.kind === 'final' ? 'sfb-final-wait' : 'sfb-what'
     // รอบที่ถูกพับอยู่ต้องกางก่อน ไม่งั้นช่องที่ผิดไม่อยู่ใน DOM
     if (tg.kind === 'part') {
       const uid = draft.steps[tg.stepIndex]?.uid
@@ -378,12 +379,11 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   }
 
   // ── สรุปต่อส่วน (หัวการ์ด + การ์ด "สรุปบอทนี้") ──
-  const tagNames = draft.tags.filter((x) => !x.missing).map((x) => x.name)
-  const goneCount = draft.tags.filter((x) => x.missing).length
   const states = sectionStates(draft, hasConflict)
   const handoffText = t[REPLY_HANDOFF_KEY[draft.replyHandoff]]
   const finalText = draft.finalAction !== 'NONE' ? `${formatDuration(finalDelayOf(draft), words)} → ${t[FINAL_KEY[draft.finalAction]]}` : null
-  const whoSummary = [stageText(draft.salesStatuses), tagNames.join(` ${draft.tagMatch === 'ALL' ? t.andWord : t.orWord} `), goneCount > 0 ? fmt(t.tagsGoneCount, { n: goneCount }) : ''].filter(Boolean).join(' · ')
+  const goneCount = goneTagNames(draft).length
+  const whoSummary = [ruleSentence(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]), goneCount > 0 ? fmt(t.tagsGoneCount, { n: goneCount }) : ''].filter(Boolean).join(' · ')
   const pages = groupChannelsByPage(draft.channelIds.flatMap((id) => channelById.get(id) ?? []))
   const roundsText = fmt(t.roundsSummary, { n: draft.steps.length, d: formatDuration(tl.total, words) })
   const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), finalText].filter(Boolean).join(' · ')

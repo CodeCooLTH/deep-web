@@ -12,7 +12,7 @@ import { buildFinalActionNote } from '@/lib/sales-follow-bot/final-action'
 
 type Tx = Prisma.TransactionClient
 
-/** เหตุผลในประโยค "บอท “…” หยุดทักแล้ว เพราะ…" (UX §18) — Record บังคับให้เพิ่มรหัสแล้วต้องมีคำ */
+/** เหตุผลในประโยค "บอท “…” หยุดติดตามแล้ว เพราะ…" (UX §18) — Record บังคับให้เพิ่มรหัสแล้วต้องมีคำ */
 export const STOP_NOTE_REASON_TEXT: Record<StopReason, string> = {
   STAGE_CHANGED: 'สถานะการขายเปลี่ยน',
   TAG_REMOVED: 'แท็กของลูกค้าไม่ตรงเงื่อนไขแล้ว',
@@ -25,10 +25,12 @@ export const STOP_NOTE_REASON_TEXT: Record<StopReason, string> = {
   OUT_OF_SCOPE: 'แชทนี้หลุดขอบเขตของบอท',
   CONTACT_BLOCKED: 'ลูกค้าบล็อกหรือเลิกติดตามแล้ว',
   ADMIN_STOPPED: 'ร้านสั่งหยุด',
+  CONDITION_UNMATCHED: 'ห้องไม่ตรงเงื่อนไขการเริ่มติดตามแล้ว',
 }
 
-export const buildStopNoteBody = (botName: string, reason: StopReason): string =>
-  `บอท “${botName}” หยุดทักแล้ว เพราะ${STOP_NOTE_REASON_TEXT[reason]}`
+/** tagName = แท็กที่ทำให้ไม่ตรง (เฉพาะ CONDITION_UNMATCHED จากกฎ "ไม่มีแท็ก") — บอกร้านว่าแท็กไหน */
+export const buildStopNoteBody = (botName: string, reason: StopReason, tagName?: string): string =>
+  `บอท “${botName}” หยุดติดตามแล้ว เพราะ${STOP_NOTE_REASON_TEXT[reason]}${reason === 'CONDITION_UNMATCHED' && tagName ? ` (ติดแท็ก “${tagName}”)` : ''}`
 
 export interface StopRunsFilter {
   shopId: string
@@ -54,7 +56,7 @@ export async function stopRunsWithNote(
   tx: Tx,
   f: StopRunsFilter,
   reason: StopReason,
-  o: { stoppedByUserId?: string | null; now?: Date; botName?: string } = {},
+  o: { stoppedByUserId?: string | null; now?: Date; botName?: string; tagName?: string } = {},
 ): Promise<StoppedRun[]> {
   if (!f.botId && !f.conversationId && !f.runId) throw new Error('stopRunsWithNote: ต้องระบุ botId/conversationId/runId')
   const now = o.now ?? new Date()
@@ -88,7 +90,7 @@ export async function stopRunsWithNote(
       senderUserId: null,
       autoReplyKind: null,
       type: FOLLOW_BOT_NOTE_TYPE,
-      body: buildStopNoteBody(names.get(s.botId) ?? 'บอทติดตาม', reason),
+      body: buildStopNoteBody(names.get(s.botId) ?? 'บอทติดตาม', reason, o.tagName),
     })),
   })
   return stopped
@@ -98,7 +100,7 @@ export async function stopRunsWithNote(
 export async function stopRunWithNote(
   f: StopRunsFilter,
   reason: StopReason,
-  o: { stoppedByUserId?: string | null; now?: Date } = {},
+  o: { stoppedByUserId?: string | null; now?: Date; tagName?: string } = {},
 ): Promise<StoppedRun[]> {
   return prisma.$transaction((tx) => stopRunsWithNote(tx, f, reason, o))
 }

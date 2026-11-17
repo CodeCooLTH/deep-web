@@ -279,3 +279,11 @@ DELETE FROM "_prisma_migrations" WHERE migration_name = '20261117100000_00095_sa
 migration `20261117100200_00095_ext_final_action` · `20261117100300_00095_ext_reclaim_control` — additive ล้วน (HR15: push main = deploy prod migrate) · local apply ด้วย `migrate deploy` ปักหมุด localhost:5434
 
 **ต่อขยาย FR-FA-7:** `SalesFollowBot.replyHandoff` text NOT NULL default 'ADMIN' · `SalesFollowBot_replyHandoff_check` ∈ ADMIN/META_AI (migration `20261118110000_00095_ext_reply_handoff`)
+
+## ต่อขยาย FR-FA-8 (migration `20261118130000_00095_ext_condition_rules`)
+| คอลัมน์ | ชนิด | NULL | default | หมายเหตุ |
+|---|---|---|---|---|
+| `SalesFollowBot.conditionMatch` | text | NO | `'ALL'` | CHECK `IN ('ALL','ANY')` (`_conditionMatch_check`) |
+| `SalesFollowBot.conditionRules` | jsonb | NO | `'[]'` | CHECK `jsonb_typeof='array' AND jsonb_array_length<=10` (`_conditionRules_check`) · รูปแถว/จำนวนค่า/จำกัดวง ตรวจที่ Valibot |
+- ถอน `SalesFollowBot_condition_check` (เดิม "สถานะหรือแท็กไม่ว่าง") · `SalesFollowRun_stopReason_check` เพิ่ม `CONDITION_UNMATCHED` (ค่าเดิมครบ รวม `TAG_REMOVED`)
+- backfill ใน migration เดียวกัน (เทส `condition-backfill.test.ts` รัน UPDATE จริงบนตารางชั่วคราว) · `salesStatuses`/`tagKeys`/`tagMatch` เก็บไว้ไม่ใช้อ่าน · `DROP COLUMN IF EXISTS "stopTagKeys"` ล้างของ `20261118120000_00095_ext_stop_tags`

@@ -39,7 +39,7 @@ import { PrefetchKind } from 'next/dist/client/components/router-reducer/router-
 import { isMetaAiHolding } from '@/lib/meta-ai-holder'
 import { shouldPrefetchRow } from '@/lib/inbox-row-prefetch'
 import { rowChipOverflow } from '@/lib/inbox-row-chips'
-import FollowBotCapsule from '@/components/safepay/FollowBotCapsule'
+import FollowBotRowChip, { followBotRowChipName } from '@/components/safepay/FollowBotRowChip'
 import { CustomerSignalPlate, hasCustomerRing } from '@/components/safepay/CustomerRingAvatar'
 
 export type InboxRowProps = {
@@ -117,7 +117,10 @@ function InboxRowImpl({
       const warnBadges = behaviorBadges.filter((b) => b.key !== 'NEW' && b.key !== 'REGULAR')
       const botLabel = c.lastSenderRole === 'SHOP' && c.lastMessageAutoReplyKind ? (c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot') : null
       const salesMeta = salesStatus !== 'UNSPECIFIED' ? SALES_STATUS_META[salesStatus] : null
+      const botChipName = c.followBot ? followBotRowChipName(t.autoNotify, c.followBot) : null
       const rowChips: { name: string; node: React.ReactNode }[] = [
+        // ชิปบอทติดตาม (00095 แบบ 2 · user 2026-11-16) — ใบแรกสุดของบรรทัดป้าย ก่อนติดตามลูกค้า/แท็ก/ad_id · ไม่มี run = ไม่มีชิป
+        ...(c.followBot && botChipName ? [{ name: botChipName, node: <FollowBotRowChip key="followbot" {...c.followBot} /> }] : []),
         ...(followBadge !== null && c.followUp
           ? [{
               name: followBadgeText,
@@ -411,8 +414,6 @@ function InboxRowImpl({
                   {prefix === 'FOLLOW_BOT' && <span className="text-default-700 font-normal">{t.autoNotify.followBotBadge}: </span>}
                   {preview}
                 </span>
-                {/* แคปซูลบอทติดตาม (00095 UX §21) — ใต้พรีวิว ก่อนบรรทัดชิป · ไม่มี run = ไม่ render */}
-                {c.followBot && <FollowBotCapsule {...c.followBot} />}
                 {/* บรรทัด "ที่มา" (มติแบบ C 2026-08-09) — ตอบว่า "บัญชีไหน" ที่ badge มุม
                     avatar ตอบไม่ได้ เพราะ badge บอกได้แค่แพลตฟอร์ม. เบาที่สุดในแถวโดยตั้งใจ
                     (text-2xs + เทา) ไม่ให้แย่งลำดับชั้นจากชื่อลูกค้าซึ่งยังเป็นพระเอก
@@ -433,7 +434,7 @@ function InboxRowImpl({
                 {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
                     + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
                 {/* บรรทัดป้าย (00078 S-8): สูงสุด 2 ใบ + "+N" ทุกขนาดจอ — ลำดับ = ความสำคัญ
-                    ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id · แท็กแยกไปบรรทัดล่างสุด (2026-10-22)
+                    บอทติดตาม → ติดตาม → ตีกลับ/ยกเลิก → DeepBot → สถานะขาย → ad_id · แท็กแยกไปบรรทัดล่างสุด (2026-10-22)
                     (เดิมไม่มีเพดาน แถวสูงต่างกันได้ 2.4 เท่า — impeccable critique 2026-08-09) */}
                 {rowChips.length > 0 && (
                   <span className="mt-1 flex flex-wrap items-center gap-1">

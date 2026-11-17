@@ -270,3 +270,9 @@ tag any/all, สถานะ, กรอบ ตัดสินด้วยฟั�
 - **TD-FB-010 ดึงสิทธิ์คืน:** หลัง deliverRoom ถ้าฟองล้ม "another app is controlling" → `mayReclaim` → `claimThreadControl` → `afterClaim` (RESEND/RETRY_LATER/SKIP) · backoff 5 นาทีหลังฟองล้มกันล้มทุก tick · ฟองเดิมล้มแน่นอน จึงส่งซ้ำไม่ซ้อน
 
 - **TD-FB-011 ส่งห้องต่อเมื่อลูกค้าตอบ (FR-FA-7):** ตัดสินด้วย `decideReplyHandoff` (pure, `thread-control.ts`) · ลงมือใน `handoffAfterCustomerReply` (engine) หลัง `stopRunWithNote` คืนแถวด้วยเหตุ `CUSTOMER_REPLIED` · เลือกทำใน cron tick แทน webhook เพื่อไม่ผูกเวลา/ความล้มเหลวของ Graph กับ webhook ขาเข้า · ล้ม = log + บรรทัดระบบแบบล้มเหลว ไม่โยน
+
+## ต่อขยาย FR-FA-8 — ตัวประเมินเงื่อนไข (2026-11-17)
+- `src/lib/sales-follow-bot/conditions.ts` (pure · client ใช้ได้ ห้าม import `shop-tag-match` เพราะลาก `node:crypto`): `evaluateConditions(rules, match, {stageKey, contactTags, shopTagKeys}) → {ok, blamedTag?}` · `hasLimitingCondition` · `possibleStages` (ใช้ใน `conflicts.ts`) · `tagKeysOfRules`
+- `decide.ts`: `DecideBot.{conditionMatch, rules}` แทน `salesStatuses/tagKeys/tagMatch` · `Decision.STOP.tagName?` ส่งชื่อแท็กไป `stopRunWithNote` → `buildStopNoteBody` · `AttachRejection` = `CONDITION_UNMATCHED` | `NO_CONDITION` แทน `STAGE_NOT_MATCH`/`TAG_NOT_MATCH`
+- Service: `resolveRules` แปลงชื่อแท็ก→nameKey (ไม่มีในร้าน = TagNotFound) · `BotDto.rules` ส่งแท็กเป็น `{key,name,missing}` · `assertNoConflicts` ส่ง `conditionMatch+rules` เข้า `findChannelConflicts`
+- UI: `WhoSection.tsx` = ตัวสร้างกฎ (SfbSelect/Select2) · `ruleSentence`/`neverMatches` ใน `ui.ts` ใช้ทั้งฟอร์มและรายการ · `EndSection.tsx` = เงื่อนไขการหยุดติดตาม

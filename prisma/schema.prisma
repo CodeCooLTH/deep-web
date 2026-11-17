@@ -5713,8 +5713,12 @@ model SalesFollowBot {
   name            String
   status          String    @default("CLOSED")
   salesStatuses   String[]  @default([])
+  /// 🛑 salesStatuses/tagKeys/tagMatch = คอลัมน์เก่า เก็บไว้แต่ไม่ใช้อ่านแล้ว (migration 20261118130000 backfill เป็น conditionRules) — เงื่อนไขจริงอยู่ที่ conditionMatch + conditionRules
   tagKeys         String[]  @default([])
   tagMatch        String    @default("ANY")
+  /// ส่วนต่อขยาย 2026-11-17 (FR-FA-8): ALL|ANY (CHECK) · conditionRules = array 1..10 แถว {field:'stage',op:'is'|'is_not',values:SalesStageKey[]} | {field:'tag',op:'has_any'|'has_all'|'has_none',values:tagNameKey[]} (ตรวจที่ Valibot) · แก้ไม่นับเป็นโครงรอบเปลี่ยน
+  conditionMatch  String    @default("ALL")
+  conditionRules  Json      @default("[]")
   steps           Json
   structureRev    Int       @default(1)
   /// ส่วนต่อขยาย 2026-11-16: ตามครบแล้วลูกค้าไม่ตอบ → NONE|RESOLVE|HIDE|SPAM (CHECK) · รอ finalDelayMin นาที (0..10080) นับจากรอบสุดท้ายที่ส่ง · แก้ค่านี้ไม่นับเป็นโครงรอบเปลี่ยน

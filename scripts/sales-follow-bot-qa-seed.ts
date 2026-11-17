@@ -149,7 +149,7 @@ async function seed() {
   const mkBot = (b: string, name: string, status: string, salesStatuses: string[], tagKeys: string[], channels: string[], steps: object[], extra: object = {}) =>
     prisma.salesFollowBot.create({
       data: {
-        id: b, shopId, name: `${TAG} ${name}`, status, salesStatuses, tagKeys, tagMatch: 'ANY', steps: steps as never,
+        id: b, shopId, name: `${TAG} ${name}`, status, conditionMatch: 'ALL', conditionRules: [...(salesStatuses.length ? [{ field: 'stage', op: 'is', values: salesStatuses }] : []), ...(tagKeys.length ? [{ field: 'tag', op: 'has_any', values: tagKeys }] : [])] as never, steps: steps as never,
         createdByUserId: seller.id, updatedByUserId: seller.id,
         channels: { create: channels.map((shopChannelId) => ({ shopChannelId })) }, ...extra,
       },

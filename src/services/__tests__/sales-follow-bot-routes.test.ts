@@ -33,7 +33,7 @@ const req = (path: string, method = 'GET', body?: unknown) =>
   new NextRequest(`${BASE}${path}`, { method, ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) })
 const p = (id: string) => ({ params: Promise.resolve({ id }) })
 const step = (delayMin = 30, text = 'สวัสดีค่ะ คุณ{ชื่อ}') => ({ delayMin, parts: [{ kind: 'TEXT', text }] })
-const botBody = (o: Record<string, unknown> = {}) => ({ name: `บอท ${randomUUID().slice(0, 6)}`, salesStatuses: ['NOT_BOUGHT'], channelIds: [S.ch], steps: [step()], ...o })
+const botBody = (o: Record<string, unknown> = {}) => ({ name: `บอท ${randomUUID().slice(0, 6)}`, conditionMatch: 'ALL', rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }], channelIds: [S.ch], steps: [step()], ...o })
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const json = async (r: Response) => ({ status: r.status, body: (await r.json()) as Record<string, any> })
 const mk = async (o: Record<string, unknown> = {}) => (await json(await botsRoute.POST(req('/bots', 'POST', botBody(o))))).body
@@ -152,7 +152,7 @@ describe.skipIf(!isLocal)('sales-follow-bot routes (DB จริง)', () => {
         expect.objectContaining({ code: 'PART_TEXT_REQUIRED', stepIndex: 1, partIndex: 0 }),
         expect.objectContaining({ code: 'UNKNOWN_VARIABLE', stepIndex: 1, partIndex: 1, name: 'อะไร' }),
       ]))
-      const none = await json(await botsRoute.POST(req('/bots', 'POST', botBody({ salesStatuses: [] }))))
+      const none = await json(await botsRoute.POST(req('/bots', 'POST', botBody({ rules: [] }))))
       expect(none.body.issues).toEqual([expect.objectContaining({ code: 'NO_CONDITION' })])
       const raw = await json(await botsRoute.POST(new NextRequest(`${BASE}/bots`, { method: 'POST', body: 'not json' })))
       expect([raw.status, raw.body.error]).toEqual([400, 'VALIDATION_ERROR'])
@@ -166,7 +166,7 @@ describe.skipIf(!isLocal)('sales-follow-bot routes (DB จริง)', () => {
         const r = await json(await botsRoute.POST(req('/bots', 'POST', botBody({ channelIds: [id] }))))
         expect([r.status, r.body]).toEqual([400, { error: 'CHANNEL_NOT_FOUND' }])
       }
-      const t = await json(await botsRoute.POST(req('/bots', 'POST', botBody({ tags: ['ไม่มีแท็กนี้'] }))))
+      const t = await json(await botsRoute.POST(req('/bots', 'POST', botBody({ rules: [{ field: 'stage', op: 'is', values: ['NOT_BOUGHT'] }, { field: 'tag', op: 'has_none', values: ['ไม่มีแท็กนี้'] }] }))))
       expect([t.status, t.body]).toEqual([400, { error: 'TAG_NOT_FOUND', names: ['ไม่มีแท็กนี้'] }])
     })
 
@@ -206,7 +206,7 @@ describe.skipIf(!isLocal)('sales-follow-bot routes (DB จริง)', () => {
     it('PATCH ผลรวมไม่ผ่าน = 400 · ขาด expectedUpdatedAt = 400 · DELETE ไม่มี query = 400', async () => {
       await resetBots()
       const b = await mk()
-      const none = await json(await botRoute.PATCH(req('/x', 'PATCH', { salesStatuses: [], expectedUpdatedAt: b.updatedAt }), p(b.id)))
+      const none = await json(await botRoute.PATCH(req('/x', 'PATCH', { rules: [], expectedUpdatedAt: b.updatedAt }), p(b.id)))
       expect([none.status, none.body.error]).toEqual([400, 'VALIDATION_ERROR'])
       expect(none.body.issues).toEqual([expect.objectContaining({ code: 'NO_CONDITION' })])
       expect((await botRoute.PATCH(req('/x', 'PATCH', { name: 'x' }), p(b.id))).status).toBe(400)
