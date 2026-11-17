@@ -253,7 +253,7 @@ export default function PieceList({
             key={kind}
             type="button"
             disabled={!!blocker}
-            aria-describedby={`sfb-round-${stepIndex}-parts-note`}
+            aria-describedby={blocker ? `sfb-round-${stepIndex}-parts-note` : undefined}
             onClick={() => add(kind)}
             className="btn btn-sm border-default-300 text-default-800 min-h-11 border disabled:opacity-50 lg:min-h-8"
           >
@@ -262,9 +262,12 @@ export default function PieceList({
           </button>
         ))}
       </div>
-      <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-700 mt-1 md:ps-12 lg:ps-7 text-xs">
-        {blocker ? fmt(t.piecesFull, { max: L.maxParts }) : fmt(t.piecesLeft, { n: L.maxParts - parts.length, max: L.maxParts })}
-      </p>
+      {/* จำนวนชิ้นแสดงที่หัวรอบแล้ว ("1/5 ชิ้น") — ที่นี่บอกเฉพาะตอนเต็ม */}
+      {blocker && (
+        <p id={`sfb-round-${stepIndex}-parts-note`} className="text-default-700 mt-1 text-xs md:ps-12 lg:ps-7">
+          {fmt(t.piecesFull, { max: L.maxParts })}
+        </p>
+      )}
     </>
   )
 }
