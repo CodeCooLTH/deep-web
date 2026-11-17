@@ -339,9 +339,9 @@ export const th = {
     followBotChip: 'บอทติดตาม {n}/{total}',
 
     /** บอทติดตามยอดขาย (00095 S-8b) — ชิปหัวห้อง · แผงในห้อง (ศัพท์ "รอบ"/"แชท" ตาม UX §18) */
-    followBotChipActive: 'บอทกำลังตาม',
+    followBotChipActive: 'บอทกำลังติดตาม',
     followBotChipAwaiting: 'รอคุณตอบ',
-    followBotBoxTitle: 'บอท “{name}” กำลังตามลูกค้าคนนี้',
+    followBotBoxTitle: 'บอท “{name}” กำลังติดตามลูกค้าคนนี้',
     followBotBoxTitleAwaiting: 'บอท “{name}” รอให้คุณตอบลูกค้าก่อน',
     followBotNextRound: 'รอบที่ {n} จาก {total} จะส่งในอีก {in} (ประมาณ {at})',
     followBotAfterReply: 'บอทจะนับเวลาต่อหลังจากคุณตอบลูกค้าแล้ว',
@@ -365,8 +365,8 @@ export const th = {
     followBotUnitHour: 'ชม.',
     followBotUnitMinute: 'นาที',
     followBotStopTitle: 'หยุดบอทติดตามแชทนี้ไหม',
-    followBotStopText: 'บอทจะไม่ทักลูกค้าคนนี้ต่อ ข้อความที่ส่งไปแล้วยังอยู่ในแชท',
-    followBotStopKeep: 'ให้บอทตามต่อ',
+    followBotStopText: 'บอทจะไม่ติดตามลูกค้าคนนี้ต่อ ข้อความที่ส่งไปแล้วยังอยู่ในแชท',
+    followBotStopKeep: 'ให้บอทติดตามต่อ',
     followBotStopped: 'หยุดบอทติดตามแชทนี้แล้ว',
     followBotStopFailed: 'หยุดบอทไม่สำเร็จ ลองอีกครั้ง',
 

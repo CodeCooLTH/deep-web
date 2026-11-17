@@ -51,7 +51,7 @@
     "src/app/api/seller/push-token/route.ts": "93288d9d6057468c",
     "src/i18n/dictionaries/th.ts#inbox: {": "9a40d6f898798891",
     "src/i18n/dictionaries/th.ts#followUps: {": "7d78c627c262dbaf",
-    "src/i18n/dictionaries/th.ts#autoNotify: {": "2b11a74788466420",
+    "src/i18n/dictionaries/th.ts#autoNotify: {": "91c2215be5bbeb67",
     "src/lib/comment-tree-visibility.ts": "c17d42f8761d01f9",
     "src/lib/comment-handled.ts": "f2600048c2b33d1c",
     "src/lib/comment-focus-target.ts": "6ee7b3035cb52c87",
