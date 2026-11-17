@@ -1,26 +1,29 @@
 'use client'
 
 /**
- * ChannelSection — ② "ช่องทางที่ติดตาม": รวมตามเพจ/OA 1 แถวต่อเพจ (รูป 1 รูป + ชื่อครั้งเดียว) พร้อมปุ่มเลือกแพลตฟอร์ม (Messenger / Instagram / LINE OA) — redesign A
+ * ChannelSection — ② "ช่องทางที่ติดตาม": จัดกลุ่มตามเพจ/OA — หัวกลุ่ม 1 ครั้ง (รูปเพจจริง + ชื่อ) แล้วแถวละแพลตฟอร์มพร้อมสวิตช์ (redesign C · ผู้ใช้เลือก 2026-11-17)
  * ช่องที่ชน (findChannelConflicts ตัวเดียวกับ server · คำนวณสดตามสถานะการขายที่เลือก): ล็อก + lock + "บอท “…” ใช้ช่องทางนี้อยู่" (AC-FB-20)
- * ช่องที่ติ๊กไว้แล้วกลับกลายเป็นชน = ข้อความแดง (ผู้ใช้เปลี่ยนสถานะภายหลัง)
+ * ช่องที่เปิดไว้แล้วกลับกลายเป็นชน = ข้อความแดง (ผู้ใช้เปลี่ยนสถานะภายหลัง) · ช่องที่หลุดเลือกได้เหมือนเดิม แต่มีป้าย + ลิงก์เชื่อมใหม่
  *
- * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx (form-checkbox + label)
- *   + src/app/(paces)/seller/(dashboard)/settings/channels/page.tsx (รูปเพจ + ชื่อ + ชนิดช่องทาง)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx (form-switch + label)
+ *   + theme/paces/Admin/TS/src/app/(admin)/ui/list-group/page.tsx (กลุ่ม + แถว)
+ *   + src/app/(paces)/seller/(dashboard)/settings/channels/ChannelsClient.tsx (รูปเพจ + ชื่อ + ชนิดช่องทาง)
  */
 import Link from 'next/link'
 
+import { getChannelDisplay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
+import { channelRowState, groupChannelsByPage } from '@/lib/sales-follow-bot/ui'
 import type { BotOptions } from '@/services/sales-follow-bot.service'
 import { AvatarWithPlatform } from './sfb-ui'
 
 type ChannelOpt = BotOptions['channels'][number]
 
 const PLATFORM = {
-  MESSENGER: { icon: 'brand-messenger', key: 'platMessenger' },
-  INSTAGRAM: { icon: 'brand-instagram', key: 'platInstagram' },
-  LINE: { icon: 'brand-line', key: 'platLine' },
+  MESSENGER: { key: 'platMessenger' },
+  INSTAGRAM: { key: 'platInstagram' },
+  LINE: { key: 'platLine' },
 } as const
 
 export default function ChannelSection({
@@ -49,49 +52,91 @@ export default function ChannelSection({
       </p>
     )
 
+  const groups = groupChannelsByPage(channels)
+
   return (
     <div id="sfb-ch">
-      {/* 1 แถว = 1 ช่องทาง ทั้งแถวกดเลือกได้ (ผู้ใช้ 2026-11-17 "UI ตรงนี้คืออะไร" — ชิปเลือกแพลตฟอร์มใต้ชื่อเพจอ่านไม่ออก) */}
-      <ul className="grid gap-2 md:grid-cols-2">
-        {channels.map((c) => {
-          const checked = selected.includes(c.id)
-          const clash = conflicts.get(c.id)
-          const locked = !!clash && !checked
-          const pf = PLATFORM[c.provider as keyof typeof PLATFORM]
+      <ul className="grid gap-3 lg:grid-cols-2">
+        {groups.map((g) => {
+          const on = g.channels.filter((c) => selected.includes(c.id)).length
           return (
-            <li key={c.id} className="min-w-0">
-              <label
-                className={`has-focus-visible:ring-primary flex min-h-11 items-start gap-3 rounded-lg border p-3 has-focus-visible:ring-2 ${checked ? 'border-primary bg-primary/10' : 'border-default-300 hover:bg-default-100'} ${locked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <input type="checkbox" className="form-checkbox mt-2.5 shrink-0" aria-describedby={error ? 'sfb-ch-err' : undefined} checked={checked} disabled={locked} onChange={(e) => onToggle(c.id, e.target.checked)} />
-                <AvatarWithPlatform imageUrl={c.avatarUrl} name={c.name} provider={c.provider} className="size-10" badge="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="text-default-900 block truncate text-sm font-medium">{c.name}</span>
-                  <span className="text-default-700 flex items-center gap-1 text-xs">
-                    <Icon icon={locked ? 'lock' : (pf?.icon ?? 'message')} aria-hidden="true" />
-                    <span className="truncate">
-                      {pf ? t[pf.key] : c.provider}
-                      {c.handle ? ` · ${c.handle}` : ''}
-                    </span>
-                  </span>
-                  {c.status !== 'ACTIVE' && <span className="badge bg-warning/15 text-warning-ink mt-1 text-xs">{t.channelDisconnected}</span>}
-                  {clash && (
-                    <span className={`mt-1 block text-xs ${checked ? 'text-danger-ink' : 'text-default-700'}`} role={checked ? 'alert' : undefined}>
-                      {checked ? (
-                        <>
-                          {t.channelConflictErr.split('{bot}')[0]}
-                          <BotLink id={clash.botId} name={clash.botName} />
-                          {t.channelConflictErr.split('{bot}')[1]}
-                        </>
+            <li key={g.key} className="border-default-200 min-w-0 overflow-hidden rounded-lg border">
+              <div className="border-default-200 flex items-center gap-3 border-b px-3 py-2.5">
+                <AvatarWithPlatform imageUrl={g.avatarUrl} name={g.name} provider={g.channels[0].provider} className="size-10" badge="none" />
+                <span className="text-default-900 min-w-0 flex-1 truncate text-sm font-semibold">{g.name}</span>
+                {on > 0 && <span className="badge bg-primary/15 text-primary-ink shrink-0 text-xs">{t.channelGroupOn.replace('{n}', String(on))}</span>}
+              </div>
+              <ul>
+                {g.channels.map((c) => {
+                  const checked = selected.includes(c.id)
+                  const clash = conflicts.get(c.id)
+                  const state = channelRowState({ checked, clashed: !!clash })
+                  const pf = PLATFORM[c.provider as keyof typeof PLATFORM]
+                  const logo = getChannelDisplay(c.provider).logoSrc
+                  const dead = c.status !== 'ACTIVE'
+                  const inner = (
+                    <>
+                      {logo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={logo} alt="" className={`size-8 shrink-0 rounded-lg ${dead ? 'grayscale' : ''}`} />
                       ) : (
-                        <>
-                          {t.channelTakenBy} <BotLink id={clash.botId} name={clash.botName} /> {t.channelTakenBySuffix}
-                        </>
+                        <Icon icon="message" className="size-8 shrink-0" aria-hidden="true" />
                       )}
-                    </span>
-                  )}
-                </span>
-              </label>
+                      <span className="min-w-0 flex-1">
+                        <span className="text-default-900 block truncate text-sm font-medium">
+                          {pf ? t[pf.key] : c.provider}
+                          {c.handle && <span className="text-default-700 font-normal"> · {c.handle}</span>}
+                        </span>
+                        {dead && (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2">
+                            <span className="badge bg-warning/15 text-warning-ink text-xs">{t.channelDisconnected}</span>
+                            <Link href="/settings/channels" className="text-primary-ink -my-2 inline-flex min-h-11 items-center text-xs font-medium underline lg:my-0 lg:min-h-0">
+                              {t.channelReconnect}
+                            </Link>
+                          </span>
+                        )}
+                        {clash && (
+                          <span id={`sfb-ch-clash-${c.id}`} className={`mt-0.5 block text-xs ${checked ? 'text-danger-ink' : 'text-default-700'}`} role={checked ? 'alert' : undefined}>
+                            {checked ? (
+                              <>
+                                {t.channelConflictErr.split('{bot}')[0]}
+                                <BotLink id={clash.botId} name={clash.botName} />
+                                {t.channelConflictErr.split('{bot}')[1]}
+                              </>
+                            ) : (
+                              <>
+                                {t.channelTakenBy} <BotLink id={clash.botId} name={clash.botName} /> {t.channelTakenBySuffix}
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  )
+                  return (
+                    <li key={c.id} className="border-default-200 border-b last:border-b-0">
+                      {state === 'locked' ? (
+                        <div className="flex min-h-11 items-center gap-3 px-3 py-2">
+                          {inner}
+                          <Icon icon="lock" className="text-default-700 size-5 shrink-0" aria-hidden="true" />
+                        </div>
+                      ) : (
+                        <label className="has-focus-visible:ring-primary hover:bg-default-100 flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 has-focus-visible:ring-2 has-focus-visible:ring-inset">
+                          {inner}
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            className="form-switch shrink-0"
+                            aria-describedby={[error ? 'sfb-ch-err' : '', clash ? `sfb-ch-clash-${c.id}` : ''].filter(Boolean).join(' ') || undefined}
+                            checked={checked}
+                            onChange={(e) => onToggle(c.id, e.target.checked)}
+                          />
+                        </label>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
             </li>
           )
         })}

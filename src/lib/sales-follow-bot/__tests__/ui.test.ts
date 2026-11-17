@@ -315,7 +315,7 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { avatarInitial, ruleSentenceSegments, groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
+import { channelRowState, avatarInitial, ruleSentenceSegments, groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
@@ -357,6 +357,25 @@ describe('groupChannelsByPage', () => {
     ])
     expect(g.map((x) => x.channels.map((c) => c.id))).toEqual([['1', '3'], ['2']])
     expect(g[0].avatarUrl).toBe('i.png')
+  })
+})
+describe('groupChannelsByPage · ช่องหลุดชื่อเดียวกัน', () => {
+  it('IG ที่หลุด (คนละบัญชี ชื่อเดียวกัน) เป็นอีกแถวในกลุ่มเดิม ไม่ใช่กลุ่มซ้ำ · รูปกลุ่ม = ช่องแรกที่มีรูป', () => {
+    const g = groupChannelsByPage([
+      { id: '1', provider: 'MESSENGER', name: 'ร้านนุ่น', avatarUrl: 'm.png' },
+      { id: '2', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: null },
+      { id: '3', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: 'i.png' },
+    ])
+    expect(g).toHaveLength(1)
+    expect(g[0].channels.map((c) => c.id)).toEqual(['1', '2', '3'])
+    expect(g[0].avatarUrl).toBe('m.png')
+  })
+})
+describe('channelRowState', () => {
+  it('ชนแล้วยังไม่เลือก = ล็อก · ชนแต่เลือกไว้ = on (ปลดเองได้)', () => {
+    expect(channelRowState({ checked: false, clashed: true })).toBe('locked')
+    expect(channelRowState({ checked: true, clashed: true })).toBe('on')
+    expect(channelRowState({ checked: false, clashed: false })).toBe('off')
   })
 })
 describe('firstAdOnlyIndex · draftStepPreview', () => {

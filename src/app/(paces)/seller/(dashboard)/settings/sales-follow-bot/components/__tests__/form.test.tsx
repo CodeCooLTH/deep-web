@@ -135,10 +135,13 @@ describe('BotForm', () => {
     expect(html(null)).toContain(t.stepTodoSr)
     expect(html(mk()).split(`>${t.stepDoneSr}<`).length - 1).toBe(4)
   })
-  it('ช่องทาง: 1 แถวต่อ 1 ช่องทาง ทั้งแถวเป็นตัวเลือก (ผู้ใช้ 2026-11-17 เลิกรวมตามเพจ)', () => {
-    const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น', status: 'ACTIVE' as const }] }
+  it('ช่องทาง: จัดกลุ่มตามเพจ — ชื่อเพจครั้งเดียว · IG หลุดชื่อเดียวกันเป็นอีกแถวในกลุ่มเดิม มีลิงก์เชื่อมใหม่ · แต่ละแถวเป็นสวิตช์', () => {
+    const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น' }] }
     const h = renderToStaticMarkup(<BotForm bot={mk()} bots={[]} options={o} testRooms={[]} />)
-    expect(h.match(/<span class="text-default-900 block truncate text-sm font-medium">เพจร้านนุ่น<\/span>/g)?.length).toBe(2)
+    expect(h.match(/text-default-900 min-w-0 flex-1 truncate text-sm font-semibold">เพจร้านนุ่น</g)?.length).toBe(1)
+    expect(h.match(/role="switch"/g)?.length).toBe(2)
+    expect(h).toContain(t.channelReconnect)
+    expect(h).toContain(t.channelDisconnected)
   })
   it('สถานะทดสอบ = โผล่การ์ดแชทสำหรับทดสอบ · สถานะอื่นไม่โผล่', () => {
     expect(html(mk({ status: 'TESTING', testRoomIds: ['r1'] }))).toContain(t.testTitle)

@@ -390,6 +390,8 @@ export const en: Dictionary = {
     kindInstagram: 'Instagram',
     kindLine: 'LINE OA',
     channelDisconnected: 'Connection lost',
+    channelReconnect: 'Reconnect',
+    channelGroupOn: '{n} on',
     channelTakenBy: 'Bot',
     channelTakenBySuffix: 'is using this channel',
     channelConflictErr: 'Clashes with bot {bot}. Remove this channel or change the conditions so they do not overlap',

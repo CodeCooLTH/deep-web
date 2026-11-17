@@ -434,6 +434,12 @@ export function groupChannelsByPage<C extends { provider: string; name: string; 
   return [...out.values()]
 }
 
+/** ช่องทางหนึ่งแถวอยู่สถานะไหน — ล็อก (บอทอื่นครอง · ยังไม่ได้เลือก) / เลือกแล้ว (ชนก็ยังขึ้นเลือก เพื่อให้ผู้ใช้ปลดเอง) / ไม่ได้เลือก */
+export function channelRowState(a: { checked: boolean; clashed: boolean }): 'locked' | 'on' | 'off' {
+  if (a.clashed && !a.checked) return 'locked'
+  return a.checked ? 'on' : 'off'
+}
+
 /** รอบแรกที่ส่งได้เฉพาะลูกค้าจากโฆษณา — หมายเหตุ "เฉพาะโฆษณา" โชว์ครั้งเดียวที่รอบนี้ (รอบถัดไปเป็นแบบเดียวกันหมด) · -1 = ไม่มี */
 export const firstAdOnlyIndex = (adOnly: readonly boolean[]): number => adOnly.findIndex(Boolean)
 

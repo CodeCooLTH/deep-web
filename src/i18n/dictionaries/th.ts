@@ -535,6 +535,8 @@ export const th = {
     kindInstagram: 'Instagram',
     kindLine: 'LINE OA',
     channelDisconnected: 'การเชื่อมต่อหลุด',
+    channelReconnect: 'เชื่อมใหม่',
+    channelGroupOn: 'เปิด {n}',
     channelTakenBy: 'บอท',
     channelTakenBySuffix: 'ใช้ช่องทางนี้อยู่',
     channelConflictErr: 'ชนกับบอท {bot} เอาช่องนี้ออก หรือเลือกสถานะการขายที่ไม่ซ้อนกัน',
