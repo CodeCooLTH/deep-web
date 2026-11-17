@@ -4,8 +4,8 @@
  * QuickMessagePicker — แผงเลือก "ข้อความสำเร็จรูป" ของร้าน (ท่าเดียวกับตัวเลือกในช่องพิมพ์แชท: ช่องค้นหา + การ์ดกริด) — 00095 S-7
  * ข้อมูลมาจาก options.quickMessages (id/ชื่อ/ตัวอย่างข้อความ/รูปย่อ) · เลือกแล้วเก็บแค่ id (service เติมเนื้อหา ณ ตอนส่ง)
  *
- * Base: src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/QuickMessageBar.tsx (ค้นหา + การ์ดเลือก)
- *   theme: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx (input-icon-group ค้นหา)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/OrdersList.tsx (input-icon-group ค้นหา)
+ *   + src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/QuickMessageBar.tsx (ค้นหา + การ์ดเลือก)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 

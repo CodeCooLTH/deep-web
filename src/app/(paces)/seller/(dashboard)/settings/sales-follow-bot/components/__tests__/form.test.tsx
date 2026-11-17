@@ -58,11 +58,11 @@ const html = (bot: BotDto | null, bots: BotDto[] = []) => renderToStaticMarkup(<
 describe('BotForm', () => {
   it('บอทใหม่: สถานะล็อกที่ปิด + เหตุผล · ไม่มีเมนูลบ · มีทั้ง 4 ส่วน + การ์ดสรุป + ตัวอย่าง', () => {
     const h = html(null)
-    expect(h).toContain(t.statusLockedNew)
+    expect(h).not.toContain(t.statusLockedNew) // ผู้ใช้ 2026-11-17: ไม่ต้องมีบรรทัดอธิบายใต้ปุ่มสถานะ
     expect(h).not.toContain(t.botMenuAria)
     for (const s of [t.sectionWho, t.sectionVia, t.sectionWhat, t.sectionEnd, t.summaryTitle, t.previewTitle, t.stopTitle]) expect(h).toContain(s)
     for (const id of ['sfb-who', 'sfb-via', 'sfb-what', 'sfb-end']) expect(h).toContain(`id="${id}"`)
-    expect(h).toContain(t.statusDescClosed)
+    expect(h).not.toContain(t.statusDescClosed)
   })
   it('บอทเดิม: ชื่ออยู่ในช่อง · มีเมนูลบ · การ์ดสรุป key-value · เวลารอแยกจำนวน/หน่วย · เวลาสะสมของแต่ละรอบ', () => {
     const h = html(mk())
@@ -70,7 +70,8 @@ describe('BotForm', () => {
     expect(h).toContain(t.botMenuAria)
     expect(h).toContain('ยังไม่ซื้อ')
     expect(h).toContain('เพจร้านนุ่น')
-    expect(h).toContain('2 รอบ ใน 1 วัน 1 ชม. 30 นาที') // แถว "ส่ง" ในการ์ดสรุป
+    expect(h).toContain('2 รอบ') // แถว "รอบ" ในการ์ดสรุป
+    expect(h).toContain('>1 วัน 1 ชม. 30 นาที</a>') // แถว "ระยะเวลา" แยกจากจำนวนรอบ
     expect(h).toContain('ส่งต่อแอดมิน') // หัวส่วน 4
     expect(h).toContain('รวม 1 วัน 1 ชม. 30 นาที')
     expect(h).toContain('value="25"') // 1500 นาที = 25 ชม. (หน่วยใหญ่สุดที่หารลงตัวคือชั่วโมง ไม่ใช่วัน)
@@ -79,6 +80,16 @@ describe('BotForm', () => {
     const h = html(mk())
     expect(h).toContain(t.adOnlyNote)
     expect(h).toContain(t.previewAdOnly)
+  })
+  it('ส่วน 3 แบบ timeline: ไม่มีแถบเวลา/หัวสรุป · ปุ่มลบรอบแทนเมนูเลื่อน · ที่จับลาก · หมายเหตุโฆษณาครั้งเดียว · ตัวอย่างเป็น card เดียวมีท้ายการ์ด', () => {
+    const h = html(mk())
+    expect(h).not.toContain('h-2 w-full overflow-hidden') // แถบเวลาสะสมเดิม
+    expect(h).toContain('aria-label="ลบรอบที่ 1"')
+    expect(h).not.toContain('เลื่อนขึ้น')
+    expect(h).toContain(t.dragAria)
+    expect(h).toContain('border-dashed')
+    expect(h.split(t.adOnlyNote).length - 1).toBe(1)
+    expect(h).toContain('card-footer')
   })
   it('ช่องทาง: ช่องที่ชนบอทอื่นถูกล็อกพร้อมลิงก์ไปบอทนั้น · ช่องหลุดมีป้าย · เลือก LINE มีหมายเหตุโควตา', () => {
     const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c3'] })
@@ -107,10 +118,11 @@ describe('BotForm', () => {
     for (const id of ['sfb-reply-handoff', 'sfb-final-wait']) expect(h).toContain(id) // Select2 ถูก mock — ผูกด้วย label/ช่องตัวเลขแทน
     expect(html(mk({ finalAction: 'RESOLVE', finalDelayMin: 1440 }))).toContain('ส่งต่อแอดมิน · 1 วัน → ปิดงาน')
   })
-  it('แท็กถูกลบ: วงกลมเลขส่วน 1 เป็น warning (ไม่ใช่เครื่องหมายถูก) + หัว "แท็กถูกลบ 1" + บรรทัด/ปุ่ม "เอาออกจากบอท"', () => {
+  it('แท็กถูกลบ: วงกลมเลขส่วน 1 เป็น warning (ไม่ใช่เครื่องหมายถูก) + ชื่อแท็กในประโยคสรุปเป็นสีเทา + sr-only "(ถูกลบแล้ว)" (ไม่มีท้ายประโยค " · แท็กถูกลบ n") + บรรทัด/ปุ่ม "เอาออกจากบอท"', () => {
     const rules: BotDto['rules'] = [{ field: 'tag', op: 'has_any', values: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] }]
     const h = html(mk({ rules }))
-    expect(h).toContain('แท็กถูกลบ 1')
+    expect(h).not.toContain('แท็กถูกลบ 1')
+    expect(h).toContain(`<span class="text-default-600">vip<span class="sr-only"> ${t.tagGoneSr}</span></span>`)
     expect(h).toContain('แท็ก “vip” ถูกลบไปแล้ว')
     expect(h).toContain(t.tagRemoveGone)
     expect(h).toContain(t.stepWarnSr)
@@ -123,10 +135,10 @@ describe('BotForm', () => {
     expect(html(null)).toContain(t.stepTodoSr)
     expect(html(mk()).split(`>${t.stepDoneSr}<`).length - 1).toBe(4)
   })
-  it('ช่องทางรวมตามเพจ: Messenger + IG ชื่อเดียวกัน = ชื่อเพจครั้งเดียวในส่วน 2', () => {
+  it('ช่องทาง: 1 แถวต่อ 1 ช่องทาง ทั้งแถวเป็นตัวเลือก (ผู้ใช้ 2026-11-17 เลิกรวมตามเพจ)', () => {
     const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น', status: 'ACTIVE' as const }] }
     const h = renderToStaticMarkup(<BotForm bot={mk()} bots={[]} options={o} testRooms={[]} />)
-    expect(h.match(/<p class="text-default-900 truncate text-sm font-medium">เพจร้านนุ่น<\/p>/g)?.length).toBe(1)
+    expect(h.match(/<span class="text-default-900 block truncate text-sm font-medium">เพจร้านนุ่น<\/span>/g)?.length).toBe(2)
   })
   it('สถานะทดสอบ = โผล่การ์ดแชทสำหรับทดสอบ · สถานะอื่นไม่โผล่', () => {
     expect(html(mk({ status: 'TESTING', testRoomIds: ['r1'] }))).toContain(t.testTitle)

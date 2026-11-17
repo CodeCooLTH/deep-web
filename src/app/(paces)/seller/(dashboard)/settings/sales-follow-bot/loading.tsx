@@ -1,7 +1,8 @@
 /**
  * loading.tsx — skeleton ของ /settings/sales-follow-bot (3 แถว/การ์ด · ไม่ใช้ spinner กลางจอ)
  *
- * Base: src/app/(paces)/seller/(dashboard)/settings/auto-notify/loading.tsx (PageBreadcrumb + skeleton animate-pulse)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/placeholders/page.tsx (placeholder/skeleton)
+ *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/loading.tsx (PageBreadcrumb + skeleton animate-pulse)
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { getT } from '@/i18n/server'

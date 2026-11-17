@@ -13,7 +13,7 @@
  * 🛑 ตรรกะตัดสิน (dirty/PATCH diff/ล็อกสถานะ/ถามก่อนหยุดแชท/ช่องชน/ตรวจฟิลด์) อยู่ที่ src/lib/sales-follow-bot/ui.ts + schemas.ts (มีเทส) — ไฟล์นี้ต่อสายอย่างเดียว
  * 🛑 บันทึก = PATCH (ถ้าฟิลด์เปลี่ยน) แล้ว PUT status (ถ้าสถานะ/แชททดสอบเปลี่ยน) ตามลำดับ ใช้ expectedUpdatedAt ต่อเนื่อง · บอทใหม่ POST (CLOSED เสมอ)
  */
-import Link from 'next/link'
+import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -32,8 +32,7 @@ import {
   fieldsOf,
   finalDelayOf,
   firstIssueTarget,
-  goneTagNames,
-  ruleSentence,
+  ruleSentenceSegments,
   FINAL_KEY,
   REPLY_HANDOFF_KEY,
   formatDuration,
@@ -95,14 +94,14 @@ function StepMarker({ n, state }: { n: number; state: SectionState }) {
 }
 
 /** การ์ดของส่วนหนึ่ง: หัว = วงกลมเลข + ชื่อ + ค่าสรุปชิดขวา (มือถือเห็นค่าที่ตั้งไว้โดยไม่ต้องกางอ่าน) */
-function SectionCard({ id, n, state, title, summary, children }: { id: string; n: number; state: SectionState; title: string; summary?: string; children: React.ReactNode }) {
+function SectionCard({ id, n, state, title, summary, children }: { id: string; n: number; state: SectionState; title: string; summary?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section id={id} className="card min-w-0 scroll-mt-24">
       <div className="card-body">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <StepMarker n={n} state={state} />
           <h3 className="text-default-900 mt-0 text-base font-semibold">{title}</h3>
-          {summary && <span className="text-default-700 ms-auto max-w-full min-w-0 truncate text-xs tabular-nums md:text-sm">{summary}</span>}
+          {summary && (Array.isArray(summary) ? summary.length > 0 : true) && <span className="text-default-700 ms-auto max-w-full min-w-0 truncate text-xs tabular-nums md:text-sm">{summary}</span>}
         </div>
         <div className="mt-4 min-w-0">{children}</div>
       </div>
@@ -344,7 +343,12 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
     }
   }
 
-  const closePreview = useCallback(() => setPreviewOpen(false), [])
+  const previewBtnRef = useRef<HTMLButtonElement>(null)
+  // ปิดแผง = คืนโฟกัสที่ปุ่ม "ดูตัวอย่าง" (ถ้าปุ่มยังมองเห็น)
+  const closePreview = useCallback(() => {
+    setPreviewOpen(false)
+    previewBtnRef.current?.focus()
+  }, [])
 
   const cancel = async () => {
     if (dirty && !(await pacesConfirm.warning(ta.discardConfirmTitle, undefined, { confirmButtonText: ta.discardConfirmOk, cancelButtonText: ta.keepEditing }))) return
@@ -382,21 +386,30 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   const states = sectionStates(draft, hasConflict)
   const handoffText = t[REPLY_HANDOFF_KEY[draft.replyHandoff]]
   const finalText = draft.finalAction !== 'NONE' ? `${formatDuration(finalDelayOf(draft), words)} → ${t[FINAL_KEY[draft.finalAction]]}` : null
-  const goneCount = goneTagNames(draft).length
-  const whoSummary = [ruleSentence(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]), goneCount > 0 ? fmt(t.tagsGoneCount, { n: goneCount }) : ''].filter(Boolean).join(' · ')
+  // ชื่อแท็กที่ถูกลบอยู่ในประโยคแล้ว → เทา + อ่านออกเสียงว่าถูกลบ (ไม่ต่อท้าย " · แท็กถูกลบ n" ซ้ำ)
+  const whoSummary = ruleSentenceSegments(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]).map((x, k) =>
+    x.gone ? (
+      <span key={k} className="text-default-600">
+        {x.text}
+        <span className="sr-only"> {t.tagGoneSr}</span>
+      </span>
+    ) : (
+      x.text
+    ),
+  )
   const pages = groupChannelsByPage(draft.channelIds.flatMap((id) => channelById.get(id) ?? []))
   const roundsText = fmt(t.roundsSummary, { n: draft.steps.length, d: formatDuration(tl.total, words) })
   const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), finalText].filter(Boolean).join(' · ')
-  const sumRows: { label: string; href: string; text: string }[] = [
-    { label: t.sumRowWho, href: '#sfb-who', text: whoSummary || t.sumWhoAll },
+  const sumRows: { label: string; href: string; text: React.ReactNode }[] = [
+    { label: t.sumRowWho, href: '#sfb-who', text: whoSummary.length > 0 ? whoSummary : t.sumWhoAll },
     { label: t.sumRowVia, href: '#sfb-via', text: pages.length === 0 ? '–' : pages.map((g) => g.name).join(', ') },
     { label: t.sumRowSend, href: '#sfb-what', text: roundsText },
+    { label: t.sumRowDuration, href: '#sfb-what', text: formatDuration(tl.total, words) },
     { label: t.sumRowReply, href: '#sfb-end', text: fmt(t.endHandoffShort, { a: handoffText }) },
     { label: t.sumRowNoReply, href: '#sfb-end', text: finalText ?? t.finalNone },
   ]
 
   const nameErr = textOf('name')
-  const statusNote = draft.status === 'TESTING' ? t.statusDescTesting : draft.status === 'ACTIVE' ? t.statusDescActive : t.statusDescClosed
   const statusOpts: { value: BotStatus; label: string; icon?: string }[] = [
     { value: 'CLOSED', label: t.statusClosed },
     { value: 'TESTING', label: t.statusTesting, icon: 'flask' },
@@ -405,18 +418,24 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
 
   return (
     <>
-      <div className="mb-base">
-        <nav aria-label={t.breadcrumbAria} className="text-default-700 flex flex-wrap items-center gap-1 text-xs">
-          <Link href="/settings" className="inline-flex min-h-11 items-center lg:min-h-0">{t.breadcrumbSettings}</Link>
-          <Icon icon="chevron-right" aria-hidden="true" />
-          <Link href={BASE} className="inline-flex min-h-11 items-center lg:min-h-0">{t.pageTitle}</Link>
-          <Icon icon="chevron-right" aria-hidden="true" />
-          <span aria-current="page" className="text-default-800">{isNew ? t.newBotTitle : original.name || t.newBotTitle}</span>
-        </nav>
+      {/* หัวหน้าแบบเดียวกับหน้ารายการ (PageBreadcrumb) — แยกชื่อหน้า / breadcrumb / ช่องแก้ชื่อให้ชัด (ผู้ใช้ 2026-11-17) */}
+      <PageBreadcrumb
+        title={isNew ? t.newBotTitle : original.name || t.newBotTitle}
+        homeLabel={common.home}
+        trail={[{ label: t.breadcrumbSettings, href: '/settings' }, { label: t.pageTitle, href: BASE }]}
+      />
 
-        <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-center">
-          <label className="group hover:bg-default-100 focus-within:bg-card focus-within:ring-default-300 relative -ms-2 flex min-h-11 min-w-0 flex-1 cursor-text items-center gap-2 rounded px-2 focus-within:ring-1">
-            <span className="sr-only">{fmt(t.nameLabel, { max: L.maxName })}</span>
+      <div className="card mb-base">
+        <div className="card-body flex flex-col gap-4 md:flex-row md:items-start">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <label htmlFor="sfb-name" className="text-default-800 text-sm font-medium">
+                {t.nameFieldLabel}
+              </label>
+              <span className="text-default-700 text-xs tabular-nums">
+                {Array.from(draft.name).length}/{L.maxName}
+              </span>
+            </div>
             <input
               id="sfb-name"
               type="text"
@@ -425,46 +444,35 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               aria-invalid={nameErr ? true : undefined}
               aria-describedby={nameErr ? 'sfb-name-err' : undefined}
               onChange={(e) => update((d) => ({ ...d, name: e.target.value }))}
-              className="text-default-900 placeholder:text-default-700 min-w-0 flex-1 truncate border-0 bg-transparent p-0 text-xl font-semibold shadow-none outline-none focus:ring-0"
+              className="form-input"
             />
-            <Icon icon="pencil" className="text-default-700 group-focus-within:hidden" aria-hidden="true" />
-            <span className="text-default-700 ms-auto hidden text-xs tabular-nums group-focus-within:inline">
-              {Array.from(draft.name).length}/{L.maxName}
-            </span>
-          </label>
-          <div className="flex items-center gap-2 md:shrink-0">
-            <div className="flex-1 md:flex-none">
-              <Segmented
-                name="sfb-status"
-                ariaLabel={t.statusAria}
-                value={draft.status}
-                options={statusOpts}
-                disabled={lock !== null}
-                describedBy="sfb-status-note"
-                onChange={(v) => update((d) => ({ ...d, status: v }))}
-                compact
-              />
-            </div>
-            {!isNew && (
-              <ActionMenu ariaLabel={t.botMenuAria} items={[{ key: 'delete', label: t.deleteBot, icon: 'trash', danger: true, onSelect: () => void remove() }]} />
+            {nameErr && (
+              <p id="sfb-name-err" role="alert" className="text-danger-ink mt-1 flex items-start gap-1 text-xs">
+                <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
+                {nameErr}
+              </p>
             )}
           </div>
+          <div className="md:shrink-0">
+            <p className="text-default-800 mb-1.5 text-sm font-medium">{t.statusFieldLabel}</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 md:flex-none">
+                <Segmented
+                  name="sfb-status"
+                  ariaLabel={t.statusAria}
+                  value={draft.status}
+                  options={statusOpts}
+                  disabled={lock !== null}
+                  onChange={(v) => update((d) => ({ ...d, status: v }))}
+                  compact
+                />
+              </div>
+              {!isNew && (
+                <ActionMenu ariaLabel={t.botMenuAria} items={[{ key: 'delete', label: t.deleteBot, icon: 'trash', danger: true, onSelect: () => void remove() }]} />
+              )}
+            </div>
+          </div>
         </div>
-        {nameErr && (
-          <p id="sfb-name-err" role="alert" className="text-danger-ink mt-1 flex items-start gap-1 text-xs">
-            <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
-            {nameErr}
-          </p>
-        )}
-        <p id="sfb-status-note" className="text-default-700 mt-1 text-sm">
-          {statusNote}{' '}
-          {lock && (
-            <span className="text-default-700 inline-flex items-center gap-1 text-xs">
-              <Icon icon="lock" aria-hidden="true" />
-              {lock === 'NEW' ? t.statusLockedNew : t.statusLockedDirty}
-            </span>
-          )}
-        </p>
       </div>
 
       <div className="gap-base grid lg:grid-cols-3">
@@ -481,7 +489,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
               onToggle={(id, on) => update((d) => ({ ...d, channelIds: on ? [...d.channelIds, id] : d.channelIds.filter((x) => x !== id) }))}
             />
           </SectionCard>
-          <SectionCard id="sfb-what" n={3} state={states.what} title={t.sectionWhat} summary={`${fmt(t.roundsCount, { n: draft.steps.length })} · ${formatDuration(tl.total, words)}`}>
+          <SectionCard id="sfb-what" n={3} state={states.what} title={t.sectionWhat}>
             <RoundsSection draft={draft} onChange={update} open={open} setOpen={(fn) => setOpen(fn)} quick={quick} quickList={quickList} issues={stepIssues} />
           </SectionCard>
           <SectionCard id="sfb-end" n={4} state={states.end} title={t.sectionEnd} summary={endSummary}>
@@ -493,7 +501,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
           <div className="card hidden lg:block">
             <div className="card-body">
               <h3 className="text-default-900 mt-0 text-base font-semibold">{t.summaryTitle}</h3>
-              <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"> {/* HR7: คอลัมน์ป้ายกว้างตามเนื้อหา + ค่ายุบได้ (minmax 0) ไม่มี token Tailwind เทียบเท่า */}
                 {sumRows.map((r) => (
                   <Fragment key={r.label}>
                     <dt className="text-default-700">{r.label}</dt>
@@ -530,7 +538,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
           <span className="text-default-700 min-w-0 flex-1 basis-full text-xs md:basis-0" aria-live="polite">
             {dirty ? t.unsaved : ''}
           </span>
-          <button type="button" onClick={() => setPreviewOpen(true)} className="btn border-default-300 text-default-800 min-h-11 flex-1 border md:hidden">
+          <button ref={previewBtnRef} type="button" onClick={() => setPreviewOpen(true)} className="btn border-default-300 text-default-800 min-h-11 flex-1 border md:hidden">
             <Icon icon="eye" className="size-4" aria-hidden="true" />
             {t.previewOpen}
           </button>

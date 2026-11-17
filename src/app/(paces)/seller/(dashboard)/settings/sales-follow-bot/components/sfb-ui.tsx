@@ -3,8 +3,8 @@
 /**
  * ชิ้นส่วนร่วมของหน้าบอทติดตามยอดขาย (00095 S-7) — ป้ายสถานะ · รูปโปรไฟล์+โลโก้แพลตฟอร์ม · รูปจากไฟล์ · การ์ดโหลดล้ม · คำเรียกเวลา
  *
- * Base: settings/tags/components/TagsClient.tsx (TagBadge — badge) · inbox/components/ChannelBadge.tsx (ChannelBadgeOverlay — โลโก้เกยมุมรูป)
- *   theme: theme/paces/Admin/TS/src/app/(admin)/ui/badges/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/badges/page.tsx
+ *   + settings/tags/components/TagsClient.tsx (TagBadge — badge) · inbox/components/ChannelBadge.tsx (ChannelBadgeOverlay — โลโก้เกยมุมรูป)
  */
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -14,7 +14,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useT } from '@/i18n/LocaleProvider'
 import { fileUrlOf, variantUrlOf } from '@/lib/file-url'
 import type { BotStatus } from '@/lib/sales-follow-bot/constants'
-import type { DurationWords } from '@/lib/sales-follow-bot/ui'
+import { avatarInitial, type DurationWords } from '@/lib/sales-follow-bot/ui'
 
 /** คำเรียกหน่วยเวลาแบบสั้น (ชม./นาที/วัน) — ตามภาษาที่เลือก */
 export function useDurationWords(): DurationWords {
@@ -75,7 +75,7 @@ export function AvatarWithPlatform({
         <img src={imageUrl} alt="" className="size-full rounded-full object-cover" onError={() => setFailed(true)} />
       ) : (
         <span className="bg-default-200 text-default-700 flex size-full items-center justify-center rounded-full text-xs font-semibold" aria-hidden="true">
-          {Array.from(name.trim())[0] ?? '?'}
+          {avatarInitial(name)}
         </span>
       )}
       <ChannelBadgeOverlay channel={provider} size={badge} />

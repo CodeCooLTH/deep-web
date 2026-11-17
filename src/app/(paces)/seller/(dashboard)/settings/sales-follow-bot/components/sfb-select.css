@@ -14,11 +14,26 @@
   background-color: color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
 }
 
-/* ชิปแท็กที่ถูกลบแล้ว (tone warning) — คอมโพเนนต์ใส่ class `sfb-chip-gone` ผ่าน classNames.multiValue */
+/* ชิปแท็กที่ถูกลบแล้ว — เทา disabled ไม่มีสีเตือน (ผู้ใช้ 2026-11-17) · ปุ่ม × ยังกดเอาออกได้ปกติ · คอมโพเนนต์ใส่ class `sfb-chip-gone` ผ่าน classNames.multiValue */
 .sfb-select .react-select__multi-value.sfb-chip-gone {
-  background-color: color-mix(in srgb, var(--color-warning) 15%, transparent) !important;
+  background-color: var(--color-default-100) !important;
 }
 .sfb-select .react-select__multi-value.sfb-chip-gone .react-select__multi-value__label,
 .sfb-select .react-select__multi-value.sfb-chip-gone .react-select__multi-value__remove {
-  color: var(--color-warning-ink) !important;
+  color: var(--color-default-600) !important;
+}
+.sfb-select .react-select__multi-value.sfb-chip-gone .react-select__multi-value__remove:hover {
+  background-color: var(--color-default-200) !important;
+}
+
+/* มือถือ/แท็บเล็ต (<lg): พื้นที่นิ้ว ≥44px — กล่องเลือกสูง 2.75rem · ปุ่ม × ในชิปกว้าง/สูง 2.75rem (พื้นที่กด ไม่ใช่ก้อนสี) */
+@media (max-width: 1023.98px) {
+  .sfb-select .react-select__control {
+    min-height: 2.75rem;
+  }
+  .sfb-select .react-select__multi-value .react-select__multi-value__remove {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    justify-content: center;
+  }
 }

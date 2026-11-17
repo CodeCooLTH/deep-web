@@ -1,12 +1,17 @@
 'use client'
 
 /**
- * RoundsSection — ③ "รอบการติดตาม": รางเวลาเส้นประ · ชิปเวลารอระหว่างรอบ · การ์ดรอบ (พับ/กาง) · เพิ่มรอบ · (mockup ส่วน 3)
+ * RoundsSection — ③ "รอบการติดตาม": timeline แนวตั้ง (รางซ้ายเส้นประ · วงนาฬิกา = เวลารอ · วงเลข = รอบ) · ลากสลับรอบ · การ์ดรอบ (พับ/กาง) · เพิ่มรอบ · (mockup ส่วน 3)
  *
- * Base: theme/paces/Admin/TS/src/app/(admin)/pages/timeline/page.tsx (ท่า after:border-dashed + วงกลม — ตัดคอลัมน์เวลาซ้าย)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/pages/timeline/page.tsx (ท่าเส้นประ + วงกลม — ตัดคอลัมน์เวลาซ้าย)
+ *   + src/app/(paces)/seller/(dashboard)/orders/[token]/components/ShippingActivity.tsx (เส้นประเป็น element จริง w-px flex-1 border-e border-dashed)
+ *   + settings/auto-notify … TemplateBuilderClient.tsx (ท่า @hello-pangea/dnd)
  *   + theme: .../form/select/components/Select2.tsx (หน่วยเวลา = Select2 ไม่ค้นหา ผ่าน SfbSelect)
  *   + theme: .../apps/ecommerce/(products)/product-add/components/ProductInformation.tsx (form-input · label)
  */
+import { DragDropContext, Draggable, Droppable, type DropResult, type ResponderProvided } from '@hello-pangea/dnd'
+import { useRef } from 'react'
+
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
@@ -17,24 +22,27 @@ import {
   DELAY_UNITS,
   emptyStep,
   formatDuration,
+  firstAdOnlyIndex,
+  draftStepPreview,
   moveBlocker,
   moveItem,
   remainingDelayMin,
-  rulerWidths,
-  stepDelayMin,
   timelineOf,
   type DelayUnit,
   type Draft,
   type DraftStep,
   type QuickMessageLite,
 } from '@/lib/sales-follow-bot/ui'
-import ActionMenu from './ActionMenu'
 import { issueText } from './issue-text'
+import { useDragAnnounce } from './drag-announce'
 import PieceList from './PieceList'
 import SfbSelect from './SfbSelect'
 import { FileThumb, useDurationWords } from './sfb-ui'
 
-const RULER_TONE = ['bg-primary', 'bg-primary/80', 'bg-primary/60', 'bg-primary/40', 'bg-primary/25'] as const
+// ราง timeline: after:top-8 = ต่อจากขอบล่างวง (size-8) ลงไปสุดแถว · border-default-500 ≥3:1 บนการ์ด (วัดใน browser)
+const RAIL = 'relative after:absolute after:start-1/2 after:top-8 after:bottom-0 after:w-px after:border-e after:border-dashed after:border-default-500'
+const MARK = 'relative z-10 flex size-8 items-center justify-center rounded-full'
+
 const UNIT_KEY = { MIN: 'unitMinute', HOUR: 'unitHour', DAY: 'unitDay' } as const
 
 /** `{ชื่อ}` ในข้อความย่อของการ์ดที่พับ → ชิป (อ่านง่ายกว่าปีกกาดิบ) */
@@ -74,11 +82,27 @@ export default function RoundsSection({
   const left = L.maxSteps - draft.steps.length
 
   const setStep = (uid: string, next: DraftStep) => onChange((d) => ({ ...d, steps: d.steps.map((s) => (s.uid === uid ? next : s)) }))
-  const moveStep = (from: number, to: number) => onChange((d) => ({ ...d, steps: moveItem(d.steps, from, to) }))
   // กางทีละรอบ (redesign A) — กางรอบใหม่ = พับรอบที่เปิดอยู่ ฟอร์มไม่ยาวเกินจอ
   const toggle = (uid: string) => setOpen((s) => (s.has(uid) ? new Set() : new Set([uid])))
 
+  // ลากเริ่ม = พับทุกรอบเป็นบรรทัดเดียว (ลากข้ามรอบที่กางสูงไม่ไหว) · วางแล้วเปิดรอบที่เปิดอยู่ก่อนลากกลับ
+  const openBeforeDrag = useRef<ReadonlySet<string>>(new Set())
+  const onBeforeCapture = () => {
+    openBeforeDrag.current = open
+    setOpen(() => new Set())
+  }
+  const total = draft.steps.length
+  const announce = useDragAnnounce(t, total)
+  const onDragEnd = (r: DropResult, p: ResponderProvided) => {
+    announce.end(r, p)
+    // delayMin อยู่ในรอบเอง ⇒ ย้ายรอบ = เวลารอย้ายตาม · "นับจากร้านตอบล่าสุด" ผูกกับตำแหน่ง i===0
+    if (r.destination && r.destination.index !== r.source.index) onChange((d) => ({ ...d, steps: moveItem(d.steps, r.source.index, r.destination!.index) }))
+    setOpen(() => openBeforeDrag.current)
+  }
+
   const stepsIssues = issues.filter((i) => i.stepIndex === undefined && i.code !== 'FINAL_DELAY_INVALID')
+  const adFirst = firstAdOnlyIndex(tl.adOnly)
+  const noteId = 'sfb-ad-note'
 
   return (
     <div>
@@ -90,154 +114,160 @@ export default function RoundsSection({
         </ul>
       )}
 
-      {/* แถบเวลาสะสม: สัดส่วนเวลาของแต่ละรอบเทียบกรอบ 7 วัน (ความกว้างเป็นค่าคำนวณ ไม่ใช่ class) */}
-      <div className="bg-default-200 flex h-2 w-full overflow-hidden rounded-full" role="img" aria-label={t.rulerAria}>
-        {rulerWidths(
-          draft.steps.map((s) => stepDelayMin(s)),
-          L.maxTotalDelayMin,
-        ).map((w, i) => (
-          <span key={i} className={`block h-full border-e border-card ${RULER_TONE[i % RULER_TONE.length]}`} style={{ width: `${w}%` }} />
-        ))}
-      </div>
-      <div className="text-default-700 mt-1 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
-        <span>{t.rulerStart}</span>
-        <span>{fmt(t.rulerEnd, { d: formatDuration(tl.total, words) })}</span>
-      </div>
+      <DragDropContext onBeforeCapture={onBeforeCapture} onDragStart={announce.start} onDragUpdate={announce.update} onDragEnd={onDragEnd} dragHandleUsageInstructions={t.dragUsage}>
+        <Droppable droppableId="sfb-rounds">
+          {(drop) => (
+            <div ref={drop.innerRef} {...drop.droppableProps}>
+              {draft.steps.map((step, i) => {
+                const isOpen = open.has(step.uid)
+                const isLast = i === draft.steps.length - 1
+                const ad = tl.adOnly[i]
+                const stepErrs = issues.filter((x) => x.stepIndex === i && x.partIndex === undefined)
+                const partErrs = issues.filter((x) => x.stepIndex === i && x.partIndex !== undefined)
+                const mb = moveBlocker(i, draft.steps.length)
+                const unit = step.unit
+                const gone = step.parts.some((p) => p.kind === 'QUICK_MESSAGE' && p.quickMessageId !== '' && !quick.has(p.quickMessageId))
+                const preview = draftStepPreview(step)
+                const firstImage = step.parts.find((p) => p.kind === 'IMAGES' && p.fileIds.length > 0)
+                const summary = step.parts
+                  .map((p) => (p.kind === 'TEXT' ? t.pieceKindText : p.kind === 'IMAGES' ? fmt(t.pieceKindImages, { n: p.fileIds.length }) : t.pieceKindQuick))
+                  .join(', ')
+                const errId = `sfb-step-${i}-err`
 
-      <div className="relative mt-4 before:absolute before:inset-y-0 before:start-4 before:border-s before:border-dashed before:border-default-300">
-        {draft.steps.map((step, i) => {
-          const isOpen = open.has(step.uid)
-          const ad = tl.adOnly[i]
-          const stepErrs = issues.filter((x) => x.stepIndex === i && x.partIndex === undefined)
-          const partErrs = issues.filter((x) => x.stepIndex === i && x.partIndex !== undefined)
-          const mb = moveBlocker(i, draft.steps.length)
-          const unit = step.unit
-          const gone = step.parts.some((p) => p.kind === 'QUICK_MESSAGE' && p.quickMessageId !== '' && !quick.has(p.quickMessageId))
-          const firstText = step.parts.find((p) => p.kind === 'TEXT' && p.text.trim() !== '')
-          const firstImage = step.parts.find((p) => p.kind === 'IMAGES' && p.fileIds.length > 0)
-          const summary = step.parts
-            .map((p) => (p.kind === 'TEXT' ? t.pieceKindText : p.kind === 'IMAGES' ? fmt(t.pieceKindImages, { n: p.fileIds.length }) : t.pieceKindQuick))
-            .join(', ')
-          const errId = `sfb-step-${i}-err`
-          const noteId = `sfb-step-${i}-ad`
+                return (
+                  <Draggable key={step.uid} draggableId={step.uid} index={i}>
+                    {(drag, snap) => (
+                      <div ref={drag.innerRef} {...drag.draggableProps} className={snap.isDragging ? 'bg-card rounded-lg shadow-lg' : ''}>
+                        {/* เวลารอก่อนรอบนี้ — แถวธรรมดา ไม่มีพื้นหลัง */}
+                        <div id={`sfb-step-${i}`} className="flex md:gap-x-3">
+                          {/* ราง (≥md): เส้นประเป็น ::after ของคอลัมน์ ท่าเดียวกับธีม timeline — ต่อเนื่องข้ามแถวเพราะคอลัมน์สูงเท่าแถว · <md ซ่อนรางเอาความกว้างคืนให้ตัวแก้ข้อความ */}
+                          <div className={`${RAIL} hidden w-8 shrink-0 md:block`}>
+                            <span className={`${MARK} ${ad ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-700'}`}>
+                              <Icon icon="clock" className="text-base" aria-hidden="true" />
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 pb-3">
+                            <div className={`flex min-h-8 flex-wrap items-center gap-1.5 text-sm ${ad ? 'text-warning-ink' : 'text-default-800'}`}>
+                              <span className="inline-flex items-center gap-1.5">
+                                <Icon icon="clock" className="text-base md:hidden" aria-hidden="true" />
+                                {i === 0 ? t.waitFirst : t.waitNext}
+                              </span>
+                              <div className="w-16">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  autoComplete="off"
+                                  value={step.value}
+                                  aria-label={`${fmt(t.roundTitle, { n: i + 1 })} · ${t.amountAria}`}
+                                  aria-invalid={stepErrs.length > 0 || undefined}
+                                  aria-describedby={[stepErrs.length ? errId : '', ad ? noteId : ''].filter(Boolean).join(' ') || undefined}
+                                  onChange={(e) => setStep(step.uid, { ...step, value: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
+                                  className="form-input text-center tabular-nums"
+                                />
+                              </div>
+                              <div className="min-w-28">
+                                <SfbSelect
+                                  inputId={`sfb-unit-${i}`}
+                                  aria-label={`${fmt(t.roundTitle, { n: i + 1 })} · ${t.unitAria}`}
+                                  isSearchable={false}
+                                  options={DELAY_UNITS.map((u) => ({ value: u, label: t[UNIT_KEY[u]] }))}
+                                  value={{ value: unit, label: t[UNIT_KEY[unit]] }}
+                                  onChange={(o: unknown) => setStep(step.uid, { ...step, unit: ((o as { value: DelayUnit } | null)?.value ?? unit) })}
+                                />
+                              </div>
+                              <span className={`text-xs tabular-nums ${ad ? 'text-warning-ink' : 'text-default-700'}`}>{fmt(t.cumulative, { d: formatDuration(tl.cumulative[i], words) })}</span>
+                            </div>
+                            {i === adFirst && (
+                              <p id={noteId} className="text-warning-ink mt-1 flex items-start gap-1.5 text-xs">
+                                <Icon icon="speakerphone" className="mt-0.5 shrink-0" aria-hidden="true" />
+                                {t.adOnlyNote}
+                              </p>
+                            )}
+                            {stepErrs.length > 0 && (
+                              <ul id={errId} role="alert" className="text-danger-ink mt-1 space-y-1 text-xs">
+                                {stepErrs.map((e, k) => (
+                                  <li key={k}>{issueText(e, t)}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
 
-          return (
-            <div key={step.uid}>
-              {/* ชิปเวลารอก่อนรอบนี้ */}
-              <div id={`sfb-step-${i}`} className="relative pt-1 pb-3">
-                <div
-                  className={`relative inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm md:rounded-full md:py-1 md:ps-3 md:pe-1.5 ${ad ? 'bg-warning/15 text-warning-ink border-transparent' : 'bg-card border-default-300 text-default-800'}`}
-                >
-                  <Icon icon="clock" className={ad ? 'text-warning-ink' : 'text-default-700'} aria-hidden="true" />
-                  <span>{i === 0 ? t.waitFirst : t.waitNext}</span>
-                  <div className="w-16">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      value={step.value}
-                      aria-label={`${fmt(t.roundTitle, { n: i + 1 })} · ${t.amountAria}`}
-                      aria-invalid={stepErrs.length > 0 || undefined}
-                      aria-describedby={[stepErrs.length ? errId : '', ad ? noteId : ''].filter(Boolean).join(' ') || undefined}
-                      onChange={(e) => setStep(step.uid, { ...step, value: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
-                      className="form-input text-center tabular-nums"
-                    />
-                  </div>
-                  <div className="min-w-28">
-                    <SfbSelect
-                      inputId={`sfb-unit-${i}`}
-                      aria-label={`${fmt(t.roundTitle, { n: i + 1 })} · ${t.unitAria}`}
-                      isSearchable={false}
-                      options={DELAY_UNITS.map((u) => ({ value: u, label: t[UNIT_KEY[u]] }))}
-                      value={{ value: unit, label: t[UNIT_KEY[unit]] }}
-                      onChange={(o: unknown) => setStep(step.uid, { ...step, unit: ((o as { value: DelayUnit } | null)?.value ?? unit) })}
-                    />
-                  </div>
-                  <span className={`px-1.5 text-xs tabular-nums ${ad ? 'text-warning-ink' : 'text-default-700'}`}>{fmt(t.cumulative, { d: formatDuration(tl.cumulative[i], words) })}</span>
-                </div>
-                {ad && (
-                  <p id={noteId} className="text-warning-ink mt-1.5 flex items-start gap-1.5 ps-2 text-xs">
-                    <Icon icon="speakerphone" className="mt-0.5 shrink-0" aria-hidden="true" />
-                    {t.adOnlyNote}
-                  </p>
-                )}
-                {stepErrs.length > 0 && (
-                  <ul id={errId} role="alert" className="text-danger-ink mt-1.5 space-y-1 ps-2 text-xs">
-                    {stepErrs.map((e, k) => (
-                      <li key={k}>{issueText(e, t)}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                        {/* รอบ: วงเลขบนราง + การ์ดทางขวา */}
+                        <div className="flex md:gap-x-3">
+                          <div className={`${RAIL} hidden w-8 shrink-0 md:block ${isLast ? 'after:hidden' : ''}`}>
+                            <span className={`${MARK} bg-primary/15 text-primary-ink text-sm font-semibold tabular-nums`}>{i + 1}</span>
+                          </div>
+                          <div className={`min-w-0 flex-1 ${isLast ? '' : 'pb-3'}`}>
+                            <div className={`bg-card relative rounded-lg border p-2 ${isOpen ? 'border-primary' : 'border-default-300 hover:border-default-400'}`}>
+                              <div className="flex items-center gap-1">
+                                <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-700 flex size-11 shrink-0 cursor-grab items-center justify-center text-base lg:size-9">
+                                  <Icon icon="grip-vertical" aria-hidden="true" />
+                                </span>
+                                {/* ปุ่มจริงสำหรับพับ/กาง — ลาก/ลบเป็นพี่น้อง ไม่ซ้อนปุ่มในปุ่ม */}
+                                <button type="button" onClick={() => toggle(step.uid)} aria-expanded={isOpen} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-start lg:min-h-9">
+                                  <span className="bg-primary/15 text-primary-ink flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums md:hidden" aria-hidden="true">{i + 1}</span>
+                                  <span className="text-default-900 font-medium whitespace-nowrap">{fmt(t.roundTitle, { n: i + 1 })}</span>
+                                  {isOpen ? (
+                                    <span className="text-default-700 text-xs tabular-nums">{fmt(t.roundPieceCount, { n: step.parts.length, max: L.maxParts })}</span>
+                                  ) : (
+                                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                                      {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-8 shrink-0 rounded object-cover" />}
+                                      <span className="text-default-700 min-w-0 truncate text-sm">{preview ? withChips(preview, t.varName) : summary}</span>
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={fmt(t.roundRemoveAria, { n: i + 1 })}
+                                  aria-disabled={mb.remove ? true : undefined}
+                                  aria-describedby={mb.remove ? `sfb-step-${i}-del-why` : undefined}
+                                  onClick={() => {
+                                    if (mb.remove) return
+                                    onChange((d) => ({ ...d, steps: d.steps.filter((s) => s.uid !== step.uid) }))
+                                  }}
+                                  className={`btn btn-icon text-danger-ink hover:bg-default-100 size-11 shrink-0 lg:size-9 ${mb.remove ? 'cursor-not-allowed opacity-50' : ''}`}
+                                >
+                                  <Icon icon="trash" className="size-5" aria-hidden="true" />
+                                </button>
+                              </div>
+                              {mb.remove && (
+                                <p id={`sfb-step-${i}-del-why`} className="text-default-700 mt-1 text-xs">
+                                  {t.reasonOnlyRound}
+                                </p>
+                              )}
 
-              {/* การ์ดรอบ */}
-              <div
-                className={`bg-card relative rounded-lg border p-3 ${isOpen ? 'border-primary' : 'border-default-300 hover:border-default-400'}`}
-                {...(!isOpen
-                  ? {
-                      role: 'button' as const,
-                      tabIndex: 0,
-                      'aria-label': fmt(t.roundEditAria, { n: i + 1 }),
-                      onClick: (e: React.MouseEvent) => {
-                        if (!(e.target as HTMLElement).closest('[role="menu"], [aria-haspopup]')) toggle(step.uid)
-                      },
-                      onKeyDown: (e: React.KeyboardEvent) => {
-                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                          e.preventDefault()
-                          toggle(step.uid)
-                        }
-                      },
-                    }
-                  : {})}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isOpen ? 'bg-primary text-white' : 'bg-default-200 text-default-800'}`}>{i + 1}</span>
-                  <span className="text-default-900 font-medium whitespace-nowrap">{fmt(t.roundTitle, { n: i + 1 })}</span>
-                  {isOpen ? (
-                    <button type="button" onClick={() => toggle(step.uid)} aria-expanded="true" className="text-default-700 min-h-11 flex-1 text-start text-xs tabular-nums lg:min-h-0">
-                      {fmt(t.roundPieceCount, { n: step.parts.length, max: L.maxParts })}
-                    </button>
-                  ) : (
-                    <span className="flex min-w-0 flex-1 items-center gap-2">
-                      {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-8 shrink-0 rounded object-cover" />}
-                      <span className="text-default-700 min-w-0 truncate text-sm">{firstText ? withChips(firstText.text, t.varName) : summary}</span>
-                    </span>
-                  )}
-                  <ActionMenu
-                    ariaLabel={fmt(t.roundMenuAria, { n: i + 1 })}
-                    items={[
-                      { key: 'up', label: t.moveUp, icon: 'arrow-up', onSelect: () => moveStep(i, i - 1), disabledReason: mb.up ? t.reasonFirstRound : null },
-                      { key: 'down', label: t.moveDown, icon: 'arrow-down', onSelect: () => moveStep(i, i + 1), disabledReason: mb.down ? t.reasonLastRound : null },
-                      { key: 'del', label: t.remove, icon: 'trash', danger: true, onSelect: () => onChange((d) => ({ ...d, steps: d.steps.filter((s) => s.uid !== step.uid) })), disabledReason: mb.remove ? t.reasonOnlyRound : null },
-                    ]}
-                  />
-                </div>
-
-                {isOpen ? (
-                  <PieceList step={step} stepIndex={i} quick={quick} quickList={quickList} issues={partErrs} onChange={(next) => setStep(step.uid, next)} onDraft={onChange} />
-                ) : (
-                  <>
-                    {gone && (
-                      <p className="bg-warning/15 text-warning-ink mt-2 flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs md:ms-8">
-                        <Icon icon="alert-triangle" className="mt-0.5 shrink-0" aria-hidden="true" />
-                        {t.quickGone}
-                      </p>
+                              {isOpen ? (
+                                <PieceList step={step} stepIndex={i} quick={quick} quickList={quickList} issues={partErrs} onChange={(next) => setStep(step.uid, next)} onDraft={onChange} />
+                              ) : (
+                                <>
+                                  {gone && (
+                                    <p className="bg-warning/15 text-warning-ink mt-2 flex items-start gap-1.5 rounded px-2.5 py-1.5 text-xs">
+                                      <Icon icon="alert-triangle" className="mt-0.5 shrink-0" aria-hidden="true" />
+                                      {t.quickGone}
+                                    </p>
+                                  )}
+                                  {partErrs.length > 0 && (
+                                    <p role="alert" className="text-danger-ink mt-2 flex items-start gap-1.5 text-xs">
+                                      <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
+                                      {issueText(partErrs[0], t)}
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
-                    {partErrs.length > 0 && (
-                      <p role="alert" className="text-danger-ink mt-2 flex items-start gap-1.5 text-xs md:ps-8">
-                        <Icon icon="alert-circle" className="mt-0.5 shrink-0" aria-hidden="true" />
-                        {issueText(partErrs[0], t)}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="pb-3" />
+                  </Draggable>
+                )
+              })}
+              {drop.placeholder}
             </div>
-          )
-        })}
-
-      </div>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       <button
         type="button"

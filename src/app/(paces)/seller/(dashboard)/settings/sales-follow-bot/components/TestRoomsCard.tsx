@@ -82,7 +82,7 @@ export default function TestRoomsCard({
           isClearable
           isDisabled={noChannel}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? 'sfb-test-err' : 'sfb-test-note'}
+          aria-errormessage={error ? 'sfb-test-err' : undefined}
           placeholder={t.testPlaceholder}
           options={full ? [] : options}
           value={selected.map(toOpt)}

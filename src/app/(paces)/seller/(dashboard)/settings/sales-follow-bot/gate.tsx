@@ -1,8 +1,8 @@
 /**
  * ด่านร่วมของทุกหน้าบอทติดตามยอดขาย (00095 S-7) — สิทธิ์ H2 → ร้านนำร่อง + ONLINE_SALES → "เร็ว ๆ นี้"
  *
- * Base: src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx (gatePage + PageBreadcrumb + NoPermissionCard)
- *   theme: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
+ *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx (gatePage + PageBreadcrumb + NoPermissionCard)
  *
  * 🛑 ลำดับสำคัญ: บทบาทไม่ถึง = NoPermissionCard (ไม่ใช่ "เร็ว ๆ นี้") · เข้า URL ตรง /new และ /[id] ของร้านที่ไม่เปิด = หน้า "เร็ว ๆ นี้" ไม่ใช่ 500/ข้อมูล (AC-FB-83)
  * 🛑 ด่านจริงของข้อมูลอยู่ที่ route/service (assertAvailable) — หน้านี้แค่ไม่ยิงบริการเมื่อรู้ว่าไม่เปิด

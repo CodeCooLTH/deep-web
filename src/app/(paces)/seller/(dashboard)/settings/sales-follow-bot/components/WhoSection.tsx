@@ -54,7 +54,7 @@ export default function WhoSection({
             inputId="sfb-match"
             isSearchable={false}
             aria-invalid={error ? true : undefined}
-            aria-describedby={errId}
+            aria-errormessage={errId}
             options={CONDITION_MATCHES.map((m) => ({ value: m, label: matchLabel(m) }))}
             value={{ value: draft.conditionMatch, label: matchLabel(draft.conditionMatch) }}
             onChange={(o: unknown) => onChange((d) => ({ ...d, conditionMatch: (o as { value: ConditionMatch } | null)?.value ?? d.conditionMatch }))}
@@ -110,7 +110,7 @@ export default function WhoSection({
                   isMulti
                   isClearable
                   aria-invalid={error ? true : undefined}
-                  aria-describedby={errId}
+                  aria-errormessage={errId}
                   placeholder={isTag ? t.tagPlaceholder : t.stagePlaceholder}
                   noOptionsMessage={() => (isTag && tags.length === 0 ? t.noTags : t.noOptions)}
                   options={isTag ? tagOpts : stageOpts}
