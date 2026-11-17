@@ -15,7 +15,7 @@ import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { CONDITION_MATCHES, MAX_RULES, STAGE_OPS, TAG_OPS, type ConditionMatch, type StageOp, type TagOp } from '@/lib/sales-follow-bot/conditions'
 import type { SalesStageKey } from '@/lib/sales-follow-bot/constants'
-import { canAddRule, emptyRule, goneTagNames, removeGoneTags, ruleSentence, type Draft, type DraftRule, type DraftTag } from '@/lib/sales-follow-bot/ui'
+import { canAddRule, emptyRule, fromSimpleConditions, goneTagNames, removeGoneTags, ruleSentence, toSimpleConditions, type Draft, type DraftRule, type DraftTag } from '@/lib/sales-follow-bot/ui'
 import SfbSelect from './SfbSelect'
 
 type Opt = { value: string; label: string; missing?: boolean }
@@ -26,12 +26,17 @@ export default function WhoSection({
   stages,
   tags,
   error,
+  advanced,
+  setAdvanced,
 }: {
   draft: Draft
   onChange: (fn: (d: Draft) => Draft) => void
   stages: readonly { key: SalesStageKey; label: string }[]
   tags: readonly { key: string; name: string }[]
   error: string | null
+  /** โหมดขั้นสูง = ตัวสร้างกฎเดิม · ไม่ใช่ = แถวเดียว "สถานะการขาย" (UI เท่านั้น ข้อมูลรูปเดิม) */
+  advanced: boolean
+  setAdvanced: (v: boolean) => void
 }) {
   const t = useT().salesFollowBot
   const stageLabel = (k: SalesStageKey, fallback?: string) => t.stageLabel[k] ?? fallback ?? k
@@ -45,121 +50,169 @@ export default function WhoSection({
   const setRule = (uid: string, fn: (r: DraftRule) => DraftRule) => onChange((d) => ({ ...d, rules: d.rules.map((r) => (r.uid === uid ? fn(r) : r)) }))
   const sentence = ruleSentence(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => stageLabel(k))
 
+  const simple = toSimpleConditions(draft.conditionMatch, draft.rules)
+  const setStages = (stages: SalesStageKey[]) =>
+    onChange((d) => {
+      const cur = toSimpleConditions(d.conditionMatch, d.rules)
+      if (!cur) return d // กันไว้: อยู่โหมดง่ายแล้วกฎแทนไม่ได้ = ไม่แตะข้อมูล
+      const r = fromSimpleConditions({ ...cur, stages })
+      return { ...d, conditionMatch: r.match, rules: r.rules }
+    })
+  const switchBtn = 'text-primary-ink inline-flex min-h-11 items-center gap-1 text-xs font-medium underline lg:min-h-0'
+
   return (
     <div>
-      <div className="text-default-800 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-        <label htmlFor="sfb-match">{t.ruleHead}</label>
-        <div className="min-w-36">
+      {!advanced && simple ? (
+        <div>
+          <label htmlFor="sfb-simple-stage" className="text-default-800 mb-1.5 block text-sm">
+            {t.simpleStageLabel}
+          </label>
           <SfbSelect
-            inputId="sfb-match"
-            isSearchable={false}
+            inputId="sfb-simple-stage"
+            isMulti
+            isClearable
             aria-invalid={error ? true : undefined}
             aria-errormessage={errId}
-            options={CONDITION_MATCHES.map((m) => ({ value: m, label: matchLabel(m) }))}
-            value={{ value: draft.conditionMatch, label: matchLabel(draft.conditionMatch) }}
-            onChange={(o: unknown) => onChange((d) => ({ ...d, conditionMatch: (o as { value: ConditionMatch } | null)?.value ?? d.conditionMatch }))}
+            placeholder={t.stagePlaceholder}
+            noOptionsMessage={() => t.noOptions}
+            options={stageOpts}
+            value={simple.stages.map((k) => ({ value: k, label: stageLabel(k) }))}
+            onChange={(v: unknown) => setStages(((v as readonly Opt[] | null) ?? []).map((o) => o.value as SalesStageKey))}
           />
+          <button type="button" onClick={() => setAdvanced(true)} className={`${switchBtn} mt-2`}>
+            <Icon icon="adjustments" aria-hidden="true" />
+            {t.simpleToAdvanced}
+          </button>
         </div>
-        <Link href="/settings/tags" className="text-primary-ink ms-auto inline-flex min-h-11 items-center gap-1 text-xs font-medium lg:min-h-0">
-          {t.manageTags}
-          <Icon icon="external-link" aria-hidden="true" />
-        </Link>
-      </div>
+      ) : (
+        <>
+      <div className="text-default-800 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+          <label htmlFor="sfb-match">{t.ruleHead}</label>
+          <div className="min-w-36">
+            <SfbSelect
+              inputId="sfb-match"
+              isSearchable={false}
+              aria-invalid={error ? true : undefined}
+              aria-errormessage={errId}
+              options={CONDITION_MATCHES.map((m) => ({ value: m, label: matchLabel(m) }))}
+              value={{ value: draft.conditionMatch, label: matchLabel(draft.conditionMatch) }}
+              onChange={(o: unknown) => onChange((d) => ({ ...d, conditionMatch: (o as { value: ConditionMatch } | null)?.value ?? d.conditionMatch }))}
+            />
+          </div>
+          <Link href="/settings/tags" className="text-primary-ink ms-auto inline-flex min-h-11 items-center gap-1 text-xs font-medium lg:min-h-0">
+            {t.manageTags}
+            <Icon icon="external-link" aria-hidden="true" />
+          </Link>
+        </div>
 
-      <ul className="mt-3 space-y-2">
-        {draft.rules.map((r, i) => {
-          const isTag = r.field === 'tag'
-          const ops = (isTag ? TAG_OPS : STAGE_OPS) as readonly (StageOp | TagOp)[]
-          const value: Opt[] =
-            r.field === 'tag'
-              ? r.values.map((x) => ({ value: x.key, label: x.missing ? fmt(t.tagGoneChip, { name: x.name }) : x.name, missing: x.missing }))
-              : r.values.map((k) => ({ value: k, label: stageLabel(k) }))
-          return (
-            <li key={r.uid} className="flex flex-wrap items-start gap-2">
-              <div className="w-40 shrink-0">
-                <SfbSelect
-                  inputId={`sfb-rule-${i}-field`}
-                  aria-label={fmt(t.ruleFieldAria, { n: i + 1 })}
-                  isSearchable={false}
-                  options={(['stage', 'tag'] as const).map((f) => ({ value: f, label: fieldLabel(f) }))}
-                  value={{ value: r.field, label: fieldLabel(r.field) }}
-                  onChange={(o: unknown) => {
-                    const f = (o as { value: 'stage' | 'tag' } | null)?.value
-                    // เปลี่ยนชนิด = ค่าเดิมใช้ต่อไม่ได้ (สถานะ ↔ แท็ก) เริ่มแถวใหม่แต่คง uid ไว้
-                    if (f && f !== r.field) setRule(r.uid, (x) => ({ ...emptyRule(f), uid: x.uid }))
-                  }}
-                />
-              </div>
-              <div className="w-44 shrink-0">
-                <SfbSelect
-                  inputId={`sfb-rule-${i}-op`}
-                  aria-label={fmt(t.ruleOpAria, { n: i + 1 })}
-                  isSearchable={false}
-                  options={ops.map((o) => ({ value: o, label: opLabel[o] }))}
-                  value={{ value: r.op, label: opLabel[r.op] }}
-                  onChange={(o: unknown) => {
-                    const op = (o as { value: StageOp | TagOp } | null)?.value
-                    if (op) setRule(r.uid, (x) => ({ ...x, op }) as DraftRule)
-                  }}
-                />
-              </div>
-              <div className="min-w-0 flex-1 basis-60">
-                <SfbSelect
-                  inputId={`sfb-rule-${i}-values`}
-                  aria-label={fmt(t.ruleValuesAria, { n: i + 1 })}
-                  isMulti
-                  isClearable
-                  aria-invalid={error ? true : undefined}
-                  aria-errormessage={errId}
-                  placeholder={isTag ? t.tagPlaceholder : t.stagePlaceholder}
-                  noOptionsMessage={() => (isTag && tags.length === 0 ? t.noTags : t.noOptions)}
-                  options={isTag ? tagOpts : stageOpts}
-                  value={value}
-                  classNames={{ multiValue: (s: { data: unknown }) => ((s.data as Opt).missing ? 'sfb-chip-gone' : '') }}
-                  onChange={(v: unknown) => {
-                    const picked = (v as readonly Opt[] | null) ?? []
-                    setRule(r.uid, (x) => {
-                      if (x.field === 'stage') return { ...x, values: picked.map((o) => o.value as SalesStageKey) }
-                      const prev = new Map(x.values.map((y) => [y.key, y]))
-                      return { ...x, values: picked.map((o): DraftTag => prev.get(o.value) ?? { key: o.value, name: o.label, missing: false }) }
-                    })
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => onChange((d) => ({ ...d, rules: d.rules.filter((x) => x.uid !== r.uid) }))}
-                aria-label={fmt(t.ruleRemoveAria, { n: i + 1 })}
-                className="text-default-700 hover:bg-default-100 inline-flex size-11 shrink-0 items-center justify-center rounded lg:size-9"
-              >
-                <Icon icon="x" aria-hidden="true" />
+        <ul className="mt-3 space-y-2">
+          {draft.rules.map((r, i) => {
+            const isTag = r.field === 'tag'
+            const ops = (isTag ? TAG_OPS : STAGE_OPS) as readonly (StageOp | TagOp)[]
+            const value: Opt[] =
+              r.field === 'tag'
+                ? r.values.map((x) => ({ value: x.key, label: x.missing ? fmt(t.tagGoneChip, { name: x.name }) : x.name, missing: x.missing }))
+                : r.values.map((k) => ({ value: k, label: stageLabel(k) }))
+            return (
+              <li key={r.uid} className="flex flex-wrap items-start gap-2">
+                <div className="w-40 shrink-0">
+                  <SfbSelect
+                    inputId={`sfb-rule-${i}-field`}
+                    aria-label={fmt(t.ruleFieldAria, { n: i + 1 })}
+                    isSearchable={false}
+                    options={(['stage', 'tag'] as const).map((f) => ({ value: f, label: fieldLabel(f) }))}
+                    value={{ value: r.field, label: fieldLabel(r.field) }}
+                    onChange={(o: unknown) => {
+                      const f = (o as { value: 'stage' | 'tag' } | null)?.value
+                      // เปลี่ยนชนิด = ค่าเดิมใช้ต่อไม่ได้ (สถานะ ↔ แท็ก) เริ่มแถวใหม่แต่คง uid ไว้
+                      if (f && f !== r.field) setRule(r.uid, (x) => ({ ...emptyRule(f), uid: x.uid }))
+                    }}
+                  />
+                </div>
+                <div className="w-44 shrink-0">
+                  <SfbSelect
+                    inputId={`sfb-rule-${i}-op`}
+                    aria-label={fmt(t.ruleOpAria, { n: i + 1 })}
+                    isSearchable={false}
+                    options={ops.map((o) => ({ value: o, label: opLabel[o] }))}
+                    value={{ value: r.op, label: opLabel[r.op] }}
+                    onChange={(o: unknown) => {
+                      const op = (o as { value: StageOp | TagOp } | null)?.value
+                      if (op) setRule(r.uid, (x) => ({ ...x, op }) as DraftRule)
+                    }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 basis-60">
+                  <SfbSelect
+                    inputId={`sfb-rule-${i}-values`}
+                    aria-label={fmt(t.ruleValuesAria, { n: i + 1 })}
+                    isMulti
+                    isClearable
+                    aria-invalid={error ? true : undefined}
+                    aria-errormessage={errId}
+                    placeholder={isTag ? t.tagPlaceholder : t.stagePlaceholder}
+                    noOptionsMessage={() => (isTag && tags.length === 0 ? t.noTags : t.noOptions)}
+                    options={isTag ? tagOpts : stageOpts}
+                    value={value}
+                    classNames={{ multiValue: (s: { data: unknown }) => ((s.data as Opt).missing ? 'sfb-chip-gone' : '') }}
+                    onChange={(v: unknown) => {
+                      const picked = (v as readonly Opt[] | null) ?? []
+                      setRule(r.uid, (x) => {
+                        if (x.field === 'stage') return { ...x, values: picked.map((o) => o.value as SalesStageKey) }
+                        const prev = new Map(x.values.map((y) => [y.key, y]))
+                        return { ...x, values: picked.map((o): DraftTag => prev.get(o.value) ?? { key: o.value, name: o.label, missing: false }) }
+                      })
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onChange((d) => ({ ...d, rules: d.rules.filter((x) => x.uid !== r.uid) }))}
+                  aria-label={fmt(t.ruleRemoveAria, { n: i + 1 })}
+                  className="text-default-700 hover:bg-default-100 inline-flex size-11 shrink-0 items-center justify-center rounded lg:size-9"
+                >
+                  <Icon icon="x" aria-hidden="true" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            id="sfb-rule-add"
+            disabled={!canAddRule(draft)}
+            onClick={() => onChange((d) => ({ ...d, rules: [...d.rules, emptyRule('stage')] }))}
+            className="text-primary-ink inline-flex min-h-11 items-center gap-1 text-sm font-medium disabled:opacity-50 lg:min-h-0"
+          >
+            <Icon icon="plus" aria-hidden="true" />
+            {t.addRule}
+          </button>
+          {!canAddRule(draft) && <span className="text-default-700 text-xs">{fmt(t.rulesFull, { max: MAX_RULES })}</span>}
+        </div>
+
+        {sentence && (
+          <p className="text-default-800 bg-default-100 mt-3 flex items-start gap-2 rounded px-3 py-2 text-sm">
+            <Icon icon="list-check" className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              <span className="font-medium">{t.ruleSummaryLabel}</span> {sentence}
+            </span>
+          </p>
+        )}
+
+
+          <div className="mt-3">
+            {simple ? (
+              <button type="button" onClick={() => setAdvanced(false)} className={switchBtn}>
+                <Icon icon="arrow-back-up" aria-hidden="true" />
+                {t.advancedToSimple}
               </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button
-          type="button"
-          id="sfb-rule-add"
-          disabled={!canAddRule(draft)}
-          onClick={() => onChange((d) => ({ ...d, rules: [...d.rules, emptyRule('stage')] }))}
-          className="text-primary-ink inline-flex min-h-11 items-center gap-1 text-sm font-medium disabled:opacity-50 lg:min-h-0"
-        >
-          <Icon icon="plus" aria-hidden="true" />
-          {t.addRule}
-        </button>
-        {!canAddRule(draft) && <span className="text-default-700 text-xs">{fmt(t.rulesFull, { max: MAX_RULES })}</span>}
-      </div>
-
-      {sentence && (
-        <p className="text-default-800 bg-default-100 mt-3 flex items-start gap-2 rounded px-3 py-2 text-sm">
-          <Icon icon="list-check" className="mt-0.5 shrink-0" aria-hidden="true" />
-          <span>
-            <span className="font-medium">{t.ruleSummaryLabel}</span> {sentence}
-          </span>
-        </p>
+            ) : (
+              <p className="text-default-700 text-xs">{t.advancedToSimpleNo}</p>
+            )}
+          </div>
+        </>
       )}
 
       {gone.length > 0 && (
