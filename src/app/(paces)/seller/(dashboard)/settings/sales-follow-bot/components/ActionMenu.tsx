@@ -63,7 +63,14 @@ export default function ActionMenu({ ariaLabel, items }: { ariaLabel: string; it
   }, [open])
 
   return (
-    <div ref={wrapRef} className="relative shrink-0">
+    <div
+      ref={wrapRef}
+      className="relative shrink-0"
+      onBlur={(e) => {
+        // โฟกัสออกนอกกล่องเมนู (Tab ออก) = ปิด · ย้ายภายในไม่ปิด
+        if (open && !e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false)
+      }}
+    >
       <button
         ref={btnRef}
         type="button"

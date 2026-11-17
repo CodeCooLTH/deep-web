@@ -534,15 +534,29 @@ export interface SentenceWords {
  * ค่าในแถวเดียวกันเชื่อมด้วย "หรือ" (has_all ใช้ "และ") · แถวเชื่อมกันด้วย "และ"/"หรือ" ตามโหมด
  */
 export function ruleSentence(rules: readonly BotRuleLike[], match: ConditionMatch, w: SentenceWords, stageLabel: (k: SalesStageKey) => string): string {
-  const parts = rules
-    .map((r) => {
-      const names = r.field === 'stage' ? r.values.map(stageLabel) : r.values.map((x) => x.name)
-      if (names.length === 0) return ''
-      if (r.field === 'stage') return `${r.op === 'is_not' ? `${w.not} ` : ''}${names.join(` ${w.or} `)}`
-      return `${r.op === 'has_none' ? w.noTag : w.hasTag} ${names.join(` ${r.op === 'has_all' ? w.and : w.or} `)}`
+  return ruleSentenceSegments(rules, match, w, stageLabel).map((x) => x.text).join('')
+}
+
+/** ประโยคเดียวกับ ruleSentence แต่แยกชิ้น — ชื่อแท็กที่ถูกลบมี gone=true ให้ UI ทำสีเทา (ต่อชิ้นกลับได้เท่ากับ ruleSentence ทุกตัวอักษร) */
+export function ruleSentenceSegments(rules: readonly BotRuleLike[], match: ConditionMatch, w: SentenceWords, stageLabel: (k: SalesStageKey) => string): { text: string; gone?: boolean }[] {
+  const out: { text: string; gone?: boolean }[] = []
+  const push = (text: string, gone?: boolean) => out.push(gone ? { text, gone } : { text })
+  let first = true
+  for (const r of rules) {
+    if (r.values.length === 0) continue
+    if (!first) push(` ${match === 'ALL' ? w.and : w.or} `)
+    first = false
+    if (r.field === 'stage') {
+      push(`${r.op === 'is_not' ? `${w.not} ` : ''}${r.values.map(stageLabel).join(` ${w.or} `)}`)
+      continue
+    }
+    push(`${r.op === 'has_none' ? w.noTag : w.hasTag} `)
+    r.values.forEach((x, k) => {
+      if (k > 0) push(` ${r.op === 'has_all' ? w.and : w.or} `)
+      push(x.name, x.missing)
     })
-    .filter(Boolean)
-  return parts.join(` ${match === 'ALL' ? w.and : w.or} `)
+  }
+  return out
 }
 
 /**
@@ -554,3 +568,6 @@ export function neverMatches(rules: readonly BotRuleLike[], match: ConditionMatc
     r.field === 'tag' && ((r.op === 'has_all' && r.values.some((x) => x.missing)) || (r.op === 'has_any' && r.values.length > 0 && r.values.every((x) => x.missing)))
   return match === 'ALL' ? rules.some(dead) : rules.length > 0 && rules.every(dead)
 }
+
+/** ตัวอักษรแรกของชื่อสำหรับวงรูปโปรไฟล์ — ข้ามเครื่องหมาย/ตัวเลขนำหน้า เช่น "[QA00095] ร้าน" → "Q" (อักษรไทยนับ) · ไม่มีตัวอักษรเลย = "?" */
+export const avatarInitial = (name: string): string => name.match(/\p{L}/u)?.[0] ?? '?'

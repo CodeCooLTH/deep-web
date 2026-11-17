@@ -240,7 +240,7 @@ function StatusControl({ bot, t, busy, onChange }: { bot: BotDto; t: Dict; busy:
   return (
     <div className="flex flex-col items-start gap-1">
       <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 lg:min-h-0">
-        <input type="checkbox" role="switch" className="form-switch checked:bg-success!" checked={on} disabled={busy} aria-label={fmt(t.toggleAria, { name: bot.name })} onChange={(e) => onChange(e.target.checked ? 'ACTIVE' : 'CLOSED')} />
+        <input type="checkbox" role="switch" className="form-switch" checked={on} disabled={busy} aria-label={fmt(t.toggleAria, { name: bot.name })} onChange={(e) => onChange(e.target.checked ? 'ACTIVE' : 'CLOSED')} />
         <span className="text-default-800 text-sm">{on ? t.statusActive : t.statusClosed}</span>
       </label>
       {allGone && <span className="badge bg-warning/15 text-warning-ink text-xs">{t.tagGoneNoNew}</span>}

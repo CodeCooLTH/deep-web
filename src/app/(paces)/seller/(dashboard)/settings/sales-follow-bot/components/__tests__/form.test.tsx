@@ -70,7 +70,8 @@ describe('BotForm', () => {
     expect(h).toContain(t.botMenuAria)
     expect(h).toContain('ยังไม่ซื้อ')
     expect(h).toContain('เพจร้านนุ่น')
-    expect(h).toContain('2 รอบ ใน 1 วัน 1 ชม. 30 นาที') // แถว "ส่ง" ในการ์ดสรุป
+    expect(h).toContain('2 รอบ') // แถว "รอบ" ในการ์ดสรุป
+    expect(h).toContain('>1 วัน 1 ชม. 30 นาที</a>') // แถว "ระยะเวลา" แยกจากจำนวนรอบ
     expect(h).toContain('ส่งต่อแอดมิน') // หัวส่วน 4
     expect(h).toContain('รวม 1 วัน 1 ชม. 30 นาที')
     expect(h).toContain('value="25"') // 1500 นาที = 25 ชม. (หน่วยใหญ่สุดที่หารลงตัวคือชั่วโมง ไม่ใช่วัน)

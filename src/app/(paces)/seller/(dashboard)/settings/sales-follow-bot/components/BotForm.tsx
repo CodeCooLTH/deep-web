@@ -32,8 +32,7 @@ import {
   fieldsOf,
   finalDelayOf,
   firstIssueTarget,
-  goneTagNames,
-  ruleSentence,
+  ruleSentenceSegments,
   FINAL_KEY,
   REPLY_HANDOFF_KEY,
   formatDuration,
@@ -95,14 +94,14 @@ function StepMarker({ n, state }: { n: number; state: SectionState }) {
 }
 
 /** การ์ดของส่วนหนึ่ง: หัว = วงกลมเลข + ชื่อ + ค่าสรุปชิดขวา (มือถือเห็นค่าที่ตั้งไว้โดยไม่ต้องกางอ่าน) */
-function SectionCard({ id, n, state, title, summary, children }: { id: string; n: number; state: SectionState; title: string; summary?: string; children: React.ReactNode }) {
+function SectionCard({ id, n, state, title, summary, children }: { id: string; n: number; state: SectionState; title: string; summary?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section id={id} className="card min-w-0 scroll-mt-24">
       <div className="card-body">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <StepMarker n={n} state={state} />
           <h3 className="text-default-900 mt-0 text-base font-semibold">{title}</h3>
-          {summary && <span className="text-default-700 ms-auto max-w-full min-w-0 truncate text-xs tabular-nums md:text-sm">{summary}</span>}
+          {summary && (Array.isArray(summary) ? summary.length > 0 : true) && <span className="text-default-700 ms-auto max-w-full min-w-0 truncate text-xs tabular-nums md:text-sm">{summary}</span>}
         </div>
         <div className="mt-4 min-w-0">{children}</div>
       </div>
@@ -344,7 +343,12 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
     }
   }
 
-  const closePreview = useCallback(() => setPreviewOpen(false), [])
+  const previewBtnRef = useRef<HTMLButtonElement>(null)
+  // ปิดแผง = คืนโฟกัสที่ปุ่ม "ดูตัวอย่าง" (ถ้าปุ่มยังมองเห็น)
+  const closePreview = useCallback(() => {
+    setPreviewOpen(false)
+    previewBtnRef.current?.focus()
+  }, [])
 
   const cancel = async () => {
     if (dirty && !(await pacesConfirm.warning(ta.discardConfirmTitle, undefined, { confirmButtonText: ta.discardConfirmOk, cancelButtonText: ta.keepEditing }))) return
@@ -382,15 +386,25 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   const states = sectionStates(draft, hasConflict)
   const handoffText = t[REPLY_HANDOFF_KEY[draft.replyHandoff]]
   const finalText = draft.finalAction !== 'NONE' ? `${formatDuration(finalDelayOf(draft), words)} → ${t[FINAL_KEY[draft.finalAction]]}` : null
-  const goneCount = goneTagNames(draft).length
-  const whoSummary = [ruleSentence(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]), goneCount > 0 ? fmt(t.tagsGoneCount, { n: goneCount }) : ''].filter(Boolean).join(' · ')
+  // ชื่อแท็กที่ถูกลบอยู่ในประโยคแล้ว → เทา + อ่านออกเสียงว่าถูกลบ (ไม่ต่อท้าย " · แท็กถูกลบ n" ซ้ำ)
+  const whoSummary = ruleSentenceSegments(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]).map((x, k) =>
+    x.gone ? (
+      <span key={k} className="text-default-600">
+        {x.text}
+        <span className="sr-only"> {t.tagGoneSr}</span>
+      </span>
+    ) : (
+      x.text
+    ),
+  )
   const pages = groupChannelsByPage(draft.channelIds.flatMap((id) => channelById.get(id) ?? []))
   const roundsText = fmt(t.roundsSummary, { n: draft.steps.length, d: formatDuration(tl.total, words) })
   const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), finalText].filter(Boolean).join(' · ')
-  const sumRows: { label: string; href: string; text: string }[] = [
-    { label: t.sumRowWho, href: '#sfb-who', text: whoSummary || t.sumWhoAll },
+  const sumRows: { label: string; href: string; text: React.ReactNode }[] = [
+    { label: t.sumRowWho, href: '#sfb-who', text: whoSummary.length > 0 ? whoSummary : t.sumWhoAll },
     { label: t.sumRowVia, href: '#sfb-via', text: pages.length === 0 ? '–' : pages.map((g) => g.name).join(', ') },
     { label: t.sumRowSend, href: '#sfb-what', text: roundsText },
+    { label: t.sumRowDuration, href: '#sfb-what', text: formatDuration(tl.total, words) },
     { label: t.sumRowReply, href: '#sfb-end', text: fmt(t.endHandoffShort, { a: handoffText }) },
     { label: t.sumRowNoReply, href: '#sfb-end', text: finalText ?? t.finalNone },
   ]
@@ -487,7 +501,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
           <div className="card hidden lg:block">
             <div className="card-body">
               <h3 className="text-default-900 mt-0 text-base font-semibold">{t.summaryTitle}</h3>
-              <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"> {/* HR7: คอลัมน์ป้ายกว้างตามเนื้อหา + ค่ายุบได้ (minmax 0) ไม่มี token Tailwind เทียบเท่า */}
                 {sumRows.map((r) => (
                   <Fragment key={r.label}>
                     <dt className="text-default-700">{r.label}</dt>
@@ -524,7 +538,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
           <span className="text-default-700 min-w-0 flex-1 basis-full text-xs md:basis-0" aria-live="polite">
             {dirty ? t.unsaved : ''}
           </span>
-          <button type="button" onClick={() => setPreviewOpen(true)} className="btn border-default-300 text-default-800 min-h-11 flex-1 border md:hidden">
+          <button ref={previewBtnRef} type="button" onClick={() => setPreviewOpen(true)} className="btn border-default-300 text-default-800 min-h-11 flex-1 border md:hidden">
             <Icon icon="eye" className="size-4" aria-hidden="true" />
             {t.previewOpen}
           </button>

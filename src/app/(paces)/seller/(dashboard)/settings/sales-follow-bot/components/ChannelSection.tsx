@@ -52,7 +52,7 @@ export default function ChannelSection({
   return (
     <div id="sfb-ch">
       {/* 1 แถว = 1 ช่องทาง ทั้งแถวกดเลือกได้ (ผู้ใช้ 2026-11-17 "UI ตรงนี้คืออะไร" — ชิปเลือกแพลตฟอร์มใต้ชื่อเพจอ่านไม่ออก) */}
-      <ul className="grid gap-2 md:grid-cols-2" aria-describedby={error ? 'sfb-ch-err' : undefined}>
+      <ul className="grid gap-2 md:grid-cols-2">
         {channels.map((c) => {
           const checked = selected.includes(c.id)
           const clash = conflicts.get(c.id)
@@ -61,9 +61,9 @@ export default function ChannelSection({
           return (
             <li key={c.id} className="min-w-0">
               <label
-                className={`flex min-h-11 items-start gap-3 rounded-lg border p-3 ${checked ? 'border-primary bg-primary/10' : 'border-default-300 hover:bg-default-100'} ${locked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`has-focus-visible:ring-primary flex min-h-11 items-start gap-3 rounded-lg border p-3 has-focus-visible:ring-2 ${checked ? 'border-primary bg-primary/10' : 'border-default-300 hover:bg-default-100'} ${locked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <input type="checkbox" className="form-checkbox mt-2.5 shrink-0" checked={checked} disabled={locked} onChange={(e) => onToggle(c.id, e.target.checked)} />
+                <input type="checkbox" className="form-checkbox mt-2.5 shrink-0" aria-describedby={error ? 'sfb-ch-err' : undefined} checked={checked} disabled={locked} onChange={(e) => onToggle(c.id, e.target.checked)} />
                 <AvatarWithPlatform imageUrl={c.avatarUrl} name={c.name} provider={c.provider} className="size-10" badge="sm" />
                 <span className="min-w-0 flex-1">
                   <span className="text-default-900 block truncate text-sm font-medium">{c.name}</span>

@@ -3,8 +3,8 @@
 /**
  * Segmented — ตัวเลือกแบบปุ่มแบ่งช่อง (สถานะบอท · วิธีนับแท็ก) เป็น radiogroup จริง (native radio ซ่อนไว้ → คีย์บอร์ด/ตัวอ่านหน้าจอได้ฟรี)
  *
- * Base: src/app/(paces)/seller/(dashboard)/settings/chatbot/ChatbotTabs.tsx (bg-light rounded-lg p-1 · active = bg-card shadow-sm)
- *   theme: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/tabs/page.tsx
+ *   + src/app/(paces)/seller/(dashboard)/settings/chatbot/ChatbotTabs.tsx (bg-light rounded-lg p-1 · active = bg-card shadow-sm)
  * ต่างจากพี่น้อง: ใช้เป็น radiogroup ไม่ใช่ลิงก์ (UX §2.5)
  */
 import Icon from '@/components/wrappers/Icon'
@@ -42,7 +42,7 @@ export default function Segmented<V extends string>({
         <label
           key={o.value}
           className={cn(
-            'text-default-700 has-checked:bg-card has-checked:text-dark has-focus-visible:ring-primary relative flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-nowrap has-checked:font-semibold has-checked:shadow-sm has-focus-visible:ring-2 lg:min-h-0 lg:py-1.5',
+            'text-default-700 has-checked:bg-card has-checked:text-default-900 has-checked:ring-1 has-checked:ring-default-300 has-focus-visible:ring-primary relative flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-2 py-2 text-sm font-medium text-nowrap has-checked:font-semibold has-checked:shadow-sm has-focus-visible:ring-2 lg:min-h-0 lg:py-1.5',
             compact && 'md:flex-none md:px-4',
             disabled ? 'cursor-not-allowed' : 'cursor-pointer',
           )}

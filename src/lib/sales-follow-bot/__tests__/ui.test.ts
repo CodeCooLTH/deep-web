@@ -315,7 +315,7 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
+import { avatarInitial, ruleSentenceSegments, groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
@@ -404,5 +404,20 @@ describe('FR-FA-8 ruleSentence · neverMatches', () => {
     expect(neverMatches([alive, dead], 'ANY')).toBe(false)
     expect(neverMatches([dead], 'ANY')).toBe(true)
     expect(neverMatches([{ field: 'tag', op: 'has_none', values: [tg('g', true)] }], 'ALL')).toBe(false)
+  })
+})
+
+describe('avatarInitial · ruleSentenceSegments', () => {
+  it('ข้ามเครื่องหมาย/ตัวเลขนำหน้า · อักษรไทยนับ · ไม่มีตัวอักษร = ?', () => {
+    expect(avatarInitial('[QA00095] ร้าน')).toBe('Q')
+    expect(avatarInitial('  ร้านนุ่น')).toBe('ร')
+    expect(avatarInitial('123 !!')).toBe('?')
+  })
+  it('ชื่อแท็กที่ถูกลบมี gone=true และต่อชิ้นกลับได้เท่า ruleSentence', () => {
+    const w = { and: 'และ', or: 'หรือ', not: 'ไม่ใช่', hasTag: 'มีแท็ก', noTag: 'ไม่มีแท็ก' }
+    const rules = [{ field: 'tag' as const, op: 'has_any' as const, values: [{ key: 'a', name: 'a', missing: false }, { key: 'b', name: 'b', missing: true }] }]
+    const segs = ruleSentenceSegments(rules, 'ALL', w, (k) => k)
+    expect(segs.filter((x) => x.gone).map((x) => x.text)).toEqual(['b'])
+    expect(segs.map((x) => x.text).join('')).toBe(ruleSentence(rules, 'ALL', w, (k) => k))
   })
 })

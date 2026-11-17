@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ChatPreview — "ตัวอย่างที่ลูกค้าเห็น": กรอบมือถือ + ตัวคั่นเวลา + ฟองข้อความของทุกรอบ + ป้ายเกยขอบ "บอทติดตาม n/N" (mockup ส่วน 3 / 3b)
+ * ChatPreview — "ตัวอย่างที่ลูกค้าเห็น": กรอบมือถือ + ตัวคั่นเวลา + ฟองข้อความของทุกรอบ + ป้าย "บอทติดตาม n/N" เหนือฟองแรกของรอบ (mockup ส่วน 3 / 3b)
  * ไม่ใส่ข้อความลูกค้าสมมติ — แสดงเฉพาะสิ่งที่ระบบส่งจริง (buildStepBubbles ตัวเดียวกับตัวส่ง ผ่าน previewRounds) · ป้าย/ตัวคั่นเห็นเฉพาะฝั่งร้าน
  * มือถือ: เปิดเป็น sheet จากปุ่ม "ดูตัวอย่าง" ในแถบบันทึก (PreviewSheet)
  *
@@ -59,18 +59,18 @@ function ChatBody({ draft, quick, channel }: { draft: Draft; quick: ReadonlyMap<
               )}
               {r.bubbles.map((b, k) => {
                 if (b.type === 'GONE') return <p key={k} className="text-default-700 text-end text-2xs italic">{t.previewSkipped}</p>
-                // ป้ายเกยขอบเฉพาะฟองแรกของรอบ (รูป/ข้อความสำเร็จรูปเป็นฟองถัดไปในรอบเดียวกัน)
+                // ป้ายอยู่บรรทัดของตัวเองเหนือฟอง (ไม่เกยทับข้อความ) เฉพาะฟองแรกของรอบ (รูป/ข้อความสำเร็จรูปเป็นฟองถัดไปในรอบเดียวกัน)
                 const withBadge = !shownBadge
                 shownBadge = true
                 const title = fmt(t.previewBadgeTitle, { n: r.index + 1, total })
                 const text = b.type === 'TEXT' || b.type === 'QUICK' ? b.text : null
                 return (
-                  <div key={k} className={`flex justify-end ${withBadge ? 'pt-2.5' : ''}`}>
-                    <div className="relative min-w-0 max-w-96">
+                  <div key={k} className="flex justify-end">
+                    <div className="flex min-w-0 max-w-96 flex-col items-end gap-1">
                       {withBadge && (
                         <span
                           title={title}
-                          className="border-default-300 bg-card text-default-700 text-2xs absolute -top-2.5 end-2.5 z-10 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium whitespace-nowrap shadow"
+                          className="border-default-300 bg-card text-default-700 text-2xs inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium whitespace-nowrap"
                         >
                           <Icon icon="target-arrow" aria-hidden="true" />
                           {t.previewBadge} <span className="font-semibold tabular-nums">{r.index + 1}/{total}</span>
@@ -138,6 +138,7 @@ export function PreviewSheet({ draft, quick, channel, onClose }: { draft: Draft;
   const t = useT().salesFollowBot
   useLockBodyScroll(true)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     closeRef.current?.focus()
   }, [])
@@ -148,6 +149,21 @@ export function PreviewSheet({ draft, quick, channel, onClose }: { draft: Draft;
     mq.addEventListener('change', onMq)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      // focus trap: Tab วนอยู่ในแผง (ฉากหลังเข้าถึงด้วยคีย์บอร์ดไม่ได้ขณะเปิด)
+      if (e.key === 'Tab') {
+        const els = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])') ?? [])
+        if (els.length === 0) return
+        const first = els[0]
+        const last = els[els.length - 1]
+        const inside = dialogRef.current?.contains(document.activeElement)
+        if (!inside || (e.shiftKey && document.activeElement === first)) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => {
@@ -159,7 +175,7 @@ export function PreviewSheet({ draft, quick, channel, onClose }: { draft: Draft;
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <div className="bg-dark/45 absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-label={t.previewTitle} className="bg-card absolute inset-x-0 bottom-0 max-h-5/6 overflow-auto rounded-t-2xl px-4 pt-2 pb-6 shadow-lg">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t.previewTitle} className="bg-card absolute inset-x-0 bottom-0 max-h-5/6 overflow-auto rounded-t-2xl px-4 pt-2 pb-6 shadow-lg">
         <div className="bg-default-300 mx-auto mt-1 mb-2 h-1 w-10 rounded-full" aria-hidden="true" />
         <div className="flex items-center gap-2">
           <h4 className="card-title flex-1">{t.previewTitle}</h4>

@@ -9,7 +9,7 @@
  *   + theme: .../form/select/components/Select2.tsx (หน่วยเวลา = Select2 ไม่ค้นหา ผ่าน SfbSelect)
  *   + theme: .../apps/ecommerce/(products)/product-add/components/ProductInformation.tsx (form-input · label)
  */
-import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable, type DropResult, type ResponderProvided } from '@hello-pangea/dnd'
 import { useRef } from 'react'
 
 import Icon from '@/components/wrappers/Icon'
@@ -34,9 +34,14 @@ import {
   type QuickMessageLite,
 } from '@/lib/sales-follow-bot/ui'
 import { issueText } from './issue-text'
+import { useDragAnnounce } from './drag-announce'
 import PieceList from './PieceList'
 import SfbSelect from './SfbSelect'
 import { FileThumb, useDurationWords } from './sfb-ui'
+
+// ราง timeline: after:top-8 = ต่อจากขอบล่างวง (size-8) ลงไปสุดแถว · border-default-500 ≥3:1 บนการ์ด (วัดใน browser)
+const RAIL = 'relative after:absolute after:start-1/2 after:top-8 after:bottom-0 after:w-px after:border-e after:border-dashed after:border-default-500'
+const MARK = 'relative z-10 flex size-8 items-center justify-center rounded-full'
 
 const UNIT_KEY = { MIN: 'unitMinute', HOUR: 'unitHour', DAY: 'unitDay' } as const
 
@@ -86,7 +91,10 @@ export default function RoundsSection({
     openBeforeDrag.current = open
     setOpen(() => new Set())
   }
-  const onDragEnd = (r: DropResult) => {
+  const total = draft.steps.length
+  const announce = useDragAnnounce(t, total)
+  const onDragEnd = (r: DropResult, p: ResponderProvided) => {
+    announce.end(r, p)
     // delayMin อยู่ในรอบเอง ⇒ ย้ายรอบ = เวลารอย้ายตาม · "นับจากร้านตอบล่าสุด" ผูกกับตำแหน่ง i===0
     if (r.destination && r.destination.index !== r.source.index) onChange((d) => ({ ...d, steps: moveItem(d.steps, r.source.index, r.destination!.index) }))
     setOpen(() => openBeforeDrag.current)
@@ -106,7 +114,7 @@ export default function RoundsSection({
         </ul>
       )}
 
-      <DragDropContext onBeforeCapture={onBeforeCapture} onDragEnd={onDragEnd}>
+      <DragDropContext onBeforeCapture={onBeforeCapture} onDragStart={announce.start} onDragUpdate={announce.update} onDragEnd={onDragEnd} dragHandleUsageInstructions={t.dragUsage}>
         <Droppable droppableId="sfb-rounds">
           {(drop) => (
             <div ref={drop.innerRef} {...drop.droppableProps}>
@@ -131,16 +139,19 @@ export default function RoundsSection({
                     {(drag, snap) => (
                       <div ref={drag.innerRef} {...drag.draggableProps} className={snap.isDragging ? 'bg-card rounded-lg shadow-lg' : ''}>
                         {/* เวลารอก่อนรอบนี้ — แถวธรรมดา ไม่มีพื้นหลัง */}
-                        <div id={`sfb-step-${i}`} className="flex gap-x-3">
-                          <div className="flex w-8 shrink-0 flex-col items-center">
-                            <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${ad ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-700'}`}>
+                        <div id={`sfb-step-${i}`} className="flex md:gap-x-3">
+                          {/* ราง (≥md): เส้นประเป็น ::after ของคอลัมน์ ท่าเดียวกับธีม timeline — ต่อเนื่องข้ามแถวเพราะคอลัมน์สูงเท่าแถว · <md ซ่อนรางเอาความกว้างคืนให้ตัวแก้ข้อความ */}
+                          <div className={`${RAIL} hidden w-8 shrink-0 md:block`}>
+                            <span className={`${MARK} ${ad ? 'bg-warning/15 text-warning-ink' : 'bg-default-100 text-default-700'}`}>
                               <Icon icon="clock" className="text-base" aria-hidden="true" />
                             </span>
-                            <span className="border-default-300 w-px flex-1 border-e border-dashed" />
                           </div>
                           <div className="min-w-0 flex-1 pb-3">
                             <div className={`flex min-h-8 flex-wrap items-center gap-1.5 text-sm ${ad ? 'text-warning-ink' : 'text-default-800'}`}>
-                              <span>{i === 0 ? t.waitFirst : t.waitNext}</span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <Icon icon="clock" className="text-base md:hidden" aria-hidden="true" />
+                                {i === 0 ? t.waitFirst : t.waitNext}
+                              </span>
                               <div className="w-16">
                                 <input
                                   type="text"
@@ -183,57 +194,48 @@ export default function RoundsSection({
                         </div>
 
                         {/* รอบ: วงเลขบนราง + การ์ดทางขวา */}
-                        <div className="flex gap-x-3">
-                          <div className="flex w-8 shrink-0 flex-col items-center">
-                            <span className="bg-primary/15 text-primary-ink flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular-nums">{i + 1}</span>
-                            {!isLast && <span className="border-default-300 w-px flex-1 border-e border-dashed" />}
+                        <div className="flex md:gap-x-3">
+                          <div className={`${RAIL} hidden w-8 shrink-0 md:block ${isLast ? 'after:hidden' : ''}`}>
+                            <span className={`${MARK} bg-primary/15 text-primary-ink text-sm font-semibold tabular-nums`}>{i + 1}</span>
                           </div>
                           <div className={`min-w-0 flex-1 ${isLast ? '' : 'pb-3'}`}>
-                            <div
-                              className={`bg-card relative rounded-lg border p-2 ${isOpen ? 'border-primary' : 'border-default-300 hover:border-default-400'}`}
-                              {...(!isOpen
-                                ? {
-                                    role: 'button' as const,
-                                    tabIndex: 0,
-                                    'aria-label': fmt(t.roundEditAria, { n: i + 1 }),
-                                    onClick: (e: React.MouseEvent) => {
-                                      if (!(e.target as HTMLElement).closest('button, [data-rfd-drag-handle-draggable-id]')) toggle(step.uid)
-                                    },
-                                    onKeyDown: (e: React.KeyboardEvent) => {
-                                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                                        e.preventDefault()
-                                        toggle(step.uid)
-                                      }
-                                    },
-                                  }
-                                : {})}
-                            >
+                            <div className={`bg-card relative rounded-lg border p-2 ${isOpen ? 'border-primary' : 'border-default-300 hover:border-default-400'}`}>
                               <div className="flex items-center gap-1">
                                 <span {...drag.dragHandleProps} aria-label={t.dragAria} title={t.dragAria} className="text-default-700 flex size-11 shrink-0 cursor-grab items-center justify-center text-base lg:size-9">
                                   <Icon icon="grip-vertical" aria-hidden="true" />
                                 </span>
-                                <span className="text-default-900 font-medium whitespace-nowrap">{fmt(t.roundTitle, { n: i + 1 })}</span>
-                                {isOpen ? (
-                                  <button type="button" onClick={() => toggle(step.uid)} aria-expanded="true" className="text-default-700 min-h-11 flex-1 text-start text-xs tabular-nums lg:min-h-0">
-                                    {fmt(t.roundPieceCount, { n: step.parts.length, max: L.maxParts })}
-                                  </button>
-                                ) : (
-                                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                                    {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-8 shrink-0 rounded object-cover" />}
-                                    <span className="text-default-700 min-w-0 truncate text-sm">{preview ? withChips(preview, t.varName) : summary}</span>
-                                  </span>
-                                )}
+                                {/* ปุ่มจริงสำหรับพับ/กาง — ลาก/ลบเป็นพี่น้อง ไม่ซ้อนปุ่มในปุ่ม */}
+                                <button type="button" onClick={() => toggle(step.uid)} aria-expanded={isOpen} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-start lg:min-h-9">
+                                  <span className="bg-primary/15 text-primary-ink flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums md:hidden" aria-hidden="true">{i + 1}</span>
+                                  <span className="text-default-900 font-medium whitespace-nowrap">{fmt(t.roundTitle, { n: i + 1 })}</span>
+                                  {isOpen ? (
+                                    <span className="text-default-700 text-xs tabular-nums">{fmt(t.roundPieceCount, { n: step.parts.length, max: L.maxParts })}</span>
+                                  ) : (
+                                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                                      {firstImage && firstImage.kind === 'IMAGES' && <FileThumb fileId={firstImage.fileIds[0]} alt="" className="bg-default-200 size-8 shrink-0 rounded object-cover" />}
+                                      <span className="text-default-700 min-w-0 truncate text-sm">{preview ? withChips(preview, t.varName) : summary}</span>
+                                    </span>
+                                  )}
+                                </button>
                                 <button
                                   type="button"
                                   aria-label={fmt(t.roundRemoveAria, { n: i + 1 })}
-                                  title={mb.remove ? t.reasonOnlyRound : fmt(t.roundRemoveAria, { n: i + 1 })}
-                                  disabled={!!mb.remove}
-                                  onClick={() => onChange((d) => ({ ...d, steps: d.steps.filter((s) => s.uid !== step.uid) }))}
-                                  className="btn btn-icon text-danger-ink hover:bg-default-100 size-11 shrink-0 disabled:opacity-50 lg:size-9"
+                                  aria-disabled={mb.remove ? true : undefined}
+                                  aria-describedby={mb.remove ? `sfb-step-${i}-del-why` : undefined}
+                                  onClick={() => {
+                                    if (mb.remove) return
+                                    onChange((d) => ({ ...d, steps: d.steps.filter((s) => s.uid !== step.uid) }))
+                                  }}
+                                  className={`btn btn-icon text-danger-ink hover:bg-default-100 size-11 shrink-0 lg:size-9 ${mb.remove ? 'cursor-not-allowed opacity-50' : ''}`}
                                 >
                                   <Icon icon="trash" className="size-5" aria-hidden="true" />
                                 </button>
                               </div>
+                              {mb.remove && (
+                                <p id={`sfb-step-${i}-del-why`} className="text-default-700 mt-1 text-xs">
+                                  {t.reasonOnlyRound}
+                                </p>
+                              )}
 
                               {isOpen ? (
                                 <PieceList step={step} stepIndex={i} quick={quick} quickList={quickList} issues={partErrs} onChange={(next) => setStep(step.uid, next)} onDraft={onChange} />

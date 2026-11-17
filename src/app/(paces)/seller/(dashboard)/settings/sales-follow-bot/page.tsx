@@ -1,8 +1,8 @@
 /**
  * บอทติดตามยอดขาย — รายการบอท + ประวัติการส่ง (feature 00095 S-7 · mockup ส่วน 1, 1b, 2)
  *
- * Base: src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx (gate + PageBreadcrumb + บรรทัดอธิบายเดียว)
- *   theme: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
+ * Base: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
+ *   + src/app/(paces)/seller/(dashboard)/settings/auto-notify/page.tsx (gate + PageBreadcrumb + บรรทัดอธิบายเดียว)
  *
  * ด่าน = H2 (OWNER/MANAGER/CHAT — มติ Q-11 ข: ไม่มีหน้าอ่านอย่างเดียว) · แท็บเป็นลิงก์ `?tab=log`
  * ข้อมูลโหลดจาก service ตรง (ไม่ self-fetch API ตัวเอง) — โหลดไม่สำเร็จ = การ์ด "โหลด…ไม่สำเร็จ" + ลองใหม่ ไม่ใช่หน้า 500
