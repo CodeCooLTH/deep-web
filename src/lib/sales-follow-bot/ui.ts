@@ -434,6 +434,68 @@ export function groupChannelsByPage<C extends { provider: string; name: string; 
   return [...out.values()]
 }
 
+/** ค้นหาในโมดัลเลือกช่องทาง — ตรงชื่อเพจ/handle (ไม่สนตัวพิมพ์) · คำค้นว่าง = ทั้งหมด · คืนกลุ่มที่เหลือช่องอย่างน้อย 1 */
+export function filterChannelGroups<C extends { provider: string; name: string; avatarUrl: string | null; handle?: string | null }>(groups: readonly ChannelGroup<C>[], q: string): ChannelGroup<C>[] {
+  const k = q.trim().toLowerCase()
+  if (!k) return [...groups]
+  return groups.flatMap((g) => {
+    const hit = g.channels.filter((c) => `${c.name} ${c.handle ?? ''}`.toLowerCase().includes(k))
+    return hit.length ? [{ ...g, channels: hit }] : []
+  })
+}
+
+/** ป้ายบนพิล: "ชื่อเพจ · แพลตฟอร์ม" */
+export const channelPillLabel = (name: string, platform: string): string => `${name} · ${platform}`
+
+/** ช่องทางหนึ่งแถวอยู่สถานะไหน — ล็อก (บอทอื่นครอง · ยังไม่ได้เลือก) / เลือกแล้ว (ชนก็ยังขึ้นเลือก เพื่อให้ผู้ใช้ปลดเอง) / ไม่ได้เลือก */
+export function channelRowState(a: { checked: boolean; clashed: boolean }): 'locked' | 'on' | 'off' {
+  if (a.clashed && !a.checked) return 'locked'
+  return a.checked ? 'on' : 'off'
+}
+
+/** เลือก Meta AI แล้วบอทมีช่อง LINE → ห้องจาก LINE ส่งต่อแอดมินแทน (Meta AI ใช้ได้เฉพาะ Messenger/IG) */
+export const metaAiLineNote = (handoff: ReplyHandoff, hasLine: boolean): boolean => handoff === 'META_AI' && hasLine
+
+/** "ไม่ทำอะไร" = ไม่มีอะไรให้รอ → ช่องเวลารอปิด (ค่ายังอยู่ในร่าง ไม่ถูกล้าง: BR-FA-6) */
+export const finalWaitDisabled = (action: FinalAction): boolean => action === 'NONE'
+
+// ───────────────────────── โหมดง่าย/ขั้นสูงของเงื่อนไข (UI เท่านั้น — ข้อมูลยังเป็น conditionMatch + conditionRules) ─────────────────────────
+
+export interface SimpleConditions {
+  stages: SalesStageKey[]
+  /** แท็กที่ทำให้หยุด (= แถว has_none) */
+  stopTags: DraftTag[]
+}
+
+/**
+ * แทนแบบง่ายได้เมื่อ match=ALL และกฎมีแค่ ≤1 แถว "สถานะ เป็น" + ≤1 แถว "แท็ก ไม่มี" — นอกนั้น null (= ต้องใช้ขั้นสูง)
+ * ไม่มีกฎเลย = แทนได้ (บอทใหม่)
+ */
+export function toSimpleConditions(match: ConditionMatch, rules: readonly DraftRule[]): SimpleConditions | null {
+  if (match !== 'ALL') return null
+  const out: SimpleConditions = { stages: [], stopTags: [] }
+  let seenStage = false
+  let seenTag = false
+  for (const r of rules) {
+    if (r.field === 'stage' && r.op === 'is' && !seenStage) {
+      seenStage = true
+      out.stages = [...r.values]
+    } else if (r.field === 'tag' && r.op === 'has_none' && !seenTag) {
+      seenTag = true
+      out.stopTags = [...r.values]
+    } else return null
+  }
+  return out
+}
+
+/** ประกอบกฎกลับจากแบบง่าย — ละแถวที่ไม่มีค่า (uid คงที่ ไม่ใช้ตัวนับ: เรียกหลัง hydrate แต่ไม่ต้องพึ่งลำดับ) */
+export function fromSimpleConditions(s: SimpleConditions): { match: ConditionMatch; rules: DraftRule[] } {
+  const rules: DraftRule[] = []
+  if (s.stages.length > 0) rules.push({ uid: 'qs', field: 'stage', op: 'is', values: [...s.stages] })
+  if (s.stopTags.length > 0) rules.push({ uid: 'qt', field: 'tag', op: 'has_none', values: [...s.stopTags] })
+  return { match: 'ALL', rules }
+}
+
 /** รอบแรกที่ส่งได้เฉพาะลูกค้าจากโฆษณา — หมายเหตุ "เฉพาะโฆษณา" โชว์ครั้งเดียวที่รอบนี้ (รอบถัดไปเป็นแบบเดียวกันหมด) · -1 = ไม่มี */
 export const firstAdOnlyIndex = (adOnly: readonly boolean[]): number => adOnly.findIndex(Boolean)
 

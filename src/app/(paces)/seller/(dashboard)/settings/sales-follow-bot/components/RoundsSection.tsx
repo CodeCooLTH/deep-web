@@ -269,6 +269,7 @@ export default function RoundsSection({
         </Droppable>
       </DragDropContext>
 
+      {/* ความจุเป็นป้ายในปุ่มเพิ่มรอบ (ผู้ใช้ 2026-11-17: บรรทัดข้อความเล็กใต้ปุ่มไม่เข้าธีม) */}
       <button
         type="button"
         disabled={!!blocker}
@@ -278,18 +279,28 @@ export default function RoundsSection({
           onChange((d) => ({ ...d, steps: [...d.steps, s] }))
           setOpen(() => new Set([s.uid]))
         }}
-        className="btn border-default-400 text-default-800 hover:bg-default-100 mt-3 min-h-11 w-full border border-dashed disabled:opacity-50 lg:min-h-0"
+        className="btn border-default-400 text-default-800 hover:bg-default-100 mt-3 min-h-11 w-full flex-wrap justify-between gap-2 border border-dashed disabled:opacity-60 lg:min-h-0"
       >
-        <Icon icon="plus" className="size-4" aria-hidden="true" />
-        {t.addRound}
+        <span className="flex items-center gap-1.5">
+          <Icon icon="plus" className="size-4" aria-hidden="true" />
+          {t.addRound}
+        </span>
+        <span id="sfb-add-round-note" className="flex flex-wrap items-center gap-1.5 text-xs font-normal tabular-nums">
+          {blocker ? (
+            <span className="badge bg-warning/15 text-warning-ink">
+              {blocker === 'MAX_ROUNDS' ? fmt(t.reasonMaxRounds, { max: L.maxSteps }) : fmt(t.reasonMaxTotal, { d: formatDuration(L.maxTotalDelayMin, words) })}
+            </span>
+          ) : (
+            <>
+              <span className="badge bg-default-100 text-default-800">{fmt(t.roundsLeftCount, { n: left })}</span>
+              <span className="badge bg-default-100 text-default-800 gap-1">
+                <Icon icon="clock" className="size-3.5" aria-hidden="true" />
+                {fmt(t.timeLeft, { d: formatDuration(remainingDelayMin(draft), words) })}
+              </span>
+            </>
+          )}
+        </span>
       </button>
-      <p id="sfb-add-round-note" className="text-default-700 mt-1 text-xs tabular-nums">
-        {blocker === 'MAX_ROUNDS'
-          ? fmt(t.reasonMaxRounds, { max: L.maxSteps })
-          : blocker === 'MAX_TOTAL'
-            ? fmt(t.reasonMaxTotal, { d: formatDuration(L.maxTotalDelayMin, words) })
-            : fmt(t.roundsLeft, { n: left, d: formatDuration(remainingDelayMin(draft), words) })}
-      </p>
     </div>
   )
 }

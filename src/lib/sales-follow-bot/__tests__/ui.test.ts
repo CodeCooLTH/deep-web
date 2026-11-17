@@ -315,7 +315,7 @@ describe('ตัวอย่างในแชท', () => {
 })
 
 // ───────────────────────── redesign A ─────────────────────────
-import { avatarInitial, ruleSentenceSegments, groupChannelsByPage, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
+import { channelRowState, metaAiLineNote, finalWaitDisabled, toSimpleConditions, fromSimpleConditions, type DraftRule, avatarInitial, ruleSentenceSegments, groupChannelsByPage, filterChannelGroups, channelPillLabel, neverMatches, removeGoneTags, ruleSentence, sectionStates, firstAdOnlyIndex, draftStepPreview, emptyStep, stepDelayMin } from '../ui'
 
 describe('sectionStates', () => {
   const ok = (): ReturnType<typeof toDraft> =>
@@ -357,6 +357,63 @@ describe('groupChannelsByPage', () => {
     ])
     expect(g.map((x) => x.channels.map((c) => c.id))).toEqual([['1', '3'], ['2']])
     expect(g[0].avatarUrl).toBe('i.png')
+  })
+})
+describe('groupChannelsByPage · ช่องหลุดชื่อเดียวกัน', () => {
+  it('IG ที่หลุด (คนละบัญชี ชื่อเดียวกัน) เป็นอีกแถวในกลุ่มเดิม ไม่ใช่กลุ่มซ้ำ · รูปกลุ่ม = ช่องแรกที่มีรูป', () => {
+    const g = groupChannelsByPage([
+      { id: '1', provider: 'MESSENGER', name: 'ร้านนุ่น', avatarUrl: 'm.png' },
+      { id: '2', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: null },
+      { id: '3', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: 'i.png' },
+    ])
+    expect(g).toHaveLength(1)
+    expect(g[0].channels.map((c) => c.id)).toEqual(['1', '2', '3'])
+    expect(g[0].avatarUrl).toBe('m.png')
+  })
+})
+describe('channelRowState', () => {
+  it('ชนแล้วยังไม่เลือก = ล็อก · ชนแต่เลือกไว้ = on (ปลดเองได้)', () => {
+    expect(channelRowState({ checked: false, clashed: true })).toBe('locked')
+    expect(channelRowState({ checked: true, clashed: true })).toBe('on')
+    expect(channelRowState({ checked: false, clashed: false })).toBe('off')
+  })
+})
+describe('metaAiLineNote · finalWaitDisabled', () => {
+  it('โน้ตเฉพาะ Meta AI + มี LINE', () => {
+    expect(metaAiLineNote('META_AI', true)).toBe(true)
+    expect(metaAiLineNote('META_AI', false)).toBe(false)
+    expect(metaAiLineNote('ADMIN', true)).toBe(false)
+  })
+  it('รอเวลาปิดเฉพาะ "ไม่ทำอะไร"', () => {
+    expect(finalWaitDisabled('NONE')).toBe(true)
+    for (const a of ['RESOLVE', 'HIDE', 'SPAM'] as const) expect(finalWaitDisabled(a)).toBe(false)
+  })
+})
+describe('toSimpleConditions · fromSimpleConditions', () => {
+  const stage: DraftRule = { uid: 'a', field: 'stage', op: 'is', values: ['NOT_BOUGHT', 'BILLED'] }
+  const none: DraftRule = { uid: 'b', field: 'tag', op: 'has_none', values: [{ key: 'vip', name: 'vip', missing: false }, { key: 'x', name: 'x', missing: true }] }
+  it('ไม่มีกฎ / สถานะอย่างเดียว / แท็กอย่างเดียว / ทั้งสอง (สลับลำดับก็ได้) = แทนได้', () => {
+    expect(toSimpleConditions('ALL', [])).toEqual({ stages: [], stopTags: [] })
+    expect(toSimpleConditions('ALL', [stage])?.stages).toEqual(['NOT_BOUGHT', 'BILLED'])
+    expect(toSimpleConditions('ALL', [none])?.stopTags).toHaveLength(2)
+    expect(toSimpleConditions('ALL', [none, stage])).toEqual({ stages: ['NOT_BOUGHT', 'BILLED'], stopTags: none.values })
+  })
+  it('round-trip: from(to(x)) ได้กฎชุดเดิม (ค่า/op/field) · แท็กถูกลบยังติดมา', () => {
+    const r = fromSimpleConditions(toSimpleConditions('ALL', [stage, none])!)
+    expect(r.match).toBe('ALL')
+    expect(r.rules.map(({ uid: _u, ...x }) => x)).toEqual([stage, none].map(({ uid: _u, ...x }) => x))
+  })
+  it('ละแถวที่ค่าว่าง', () => {
+    expect(fromSimpleConditions({ stages: [], stopTags: [] }).rules).toEqual([])
+    expect(fromSimpleConditions({ stages: ['BILLED'], stopTags: [] }).rules).toHaveLength(1)
+  })
+  it('ต้องเป็น null: ANY · has_any · has_all · is_not · กฎซ้ำชนิดเดียวกัน', () => {
+    expect(toSimpleConditions('ANY', [stage])).toBeNull()
+    expect(toSimpleConditions('ALL', [{ ...none, op: 'has_any' }])).toBeNull()
+    expect(toSimpleConditions('ALL', [{ ...none, op: 'has_all' }])).toBeNull()
+    expect(toSimpleConditions('ALL', [{ ...stage, op: 'is_not' }])).toBeNull()
+    expect(toSimpleConditions('ALL', [stage, { ...stage, uid: 'c' }])).toBeNull()
+    expect(toSimpleConditions('ALL', [none, { ...none, uid: 'd' }])).toBeNull()
   })
 })
 describe('firstAdOnlyIndex · draftStepPreview', () => {
@@ -420,4 +477,20 @@ describe('avatarInitial · ruleSentenceSegments', () => {
     expect(segs.filter((x) => x.gone).map((x) => x.text)).toEqual(['b'])
     expect(segs.map((x) => x.text).join('')).toBe(ruleSentence(rules, 'ALL', w, (k) => k))
   })
+})
+
+describe('filterChannelGroups / channelPillLabel', () => {
+  const g = groupChannelsByPage([
+    { id: '1', provider: 'MESSENGER', name: 'ร้านนุ่น', avatarUrl: null, handle: null },
+    { id: '2', provider: 'INSTAGRAM', name: 'ร้านนุ่น', avatarUrl: null, handle: '@nunshop' },
+    { id: '3', provider: 'LINE', name: 'OA ข้าว', avatarUrl: null, handle: '@Rice' },
+  ])
+  it('คำค้นว่าง = ทั้งหมด · ตรงชื่อ = ทั้งกลุ่ม · ตรง handle = เหลือเฉพาะช่องที่ตรง · ไม่สนตัวพิมพ์ · ไม่ตรง = ว่าง', () => {
+    expect(filterChannelGroups(g, '  ')).toHaveLength(2)
+    expect(filterChannelGroups(g, 'นุ่น')[0].channels).toHaveLength(2)
+    expect(filterChannelGroups(g, '@NUN')[0].channels.map((c) => c.id)).toEqual(['2'])
+    expect(filterChannelGroups(g, 'rice').map((x) => x.name)).toEqual(['OA ข้าว'])
+    expect(filterChannelGroups(g, 'zzz')).toEqual([])
+  })
+  it('ป้ายพิล', () => expect(channelPillLabel('ร้านนุ่น', 'Instagram')).toBe('ร้านนุ่น · Instagram'))
 })

@@ -33,6 +33,8 @@ import {
   finalDelayOf,
   firstIssueTarget,
   ruleSentenceSegments,
+  fromSimpleConditions,
+  toSimpleConditions,
   FINAL_KEY,
   REPLY_HANDOFF_KEY,
   formatDuration,
@@ -121,6 +123,8 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   const epochRef = useRef(0)
   const [original, setOriginal] = useState<Draft>(() => (bot ? toDraft(bot) : newDraft()))
   const [draft, setDraft] = useState<Draft>(original)
+  // โหมดเงื่อนไข (UI เท่านั้น): กฎที่แทนแบบง่ายไม่ได้ = ขั้นสูงตั้งแต่เปิด · สลับโหมดไม่แตะข้อมูล
+  const [advanced, setAdvanced] = useState(() => toSimpleConditions(original.conditionMatch, original.rules) === null)
   const [meta, setMeta] = useState({ id: bot?.id ?? null, updatedAt: bot?.updatedAt ?? null, activeRunCount: bot?.activeRunCount ?? 0 })
   const [rooms, setRooms] = useState<TestRoomItem[]>(testRooms)
   const [open, setOpen] = useState<ReadonlySet<string>>(() => defaultOpen(original))
@@ -387,7 +391,12 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   const handoffText = t[REPLY_HANDOFF_KEY[draft.replyHandoff]]
   const finalText = draft.finalAction !== 'NONE' ? `${formatDuration(finalDelayOf(draft), words)} → ${t[FINAL_KEY[draft.finalAction]]}` : null
   // ชื่อแท็กที่ถูกลบอยู่ในประโยคแล้ว → เทา + อ่านออกเสียงว่าถูกลบ (ไม่ต่อท้าย " · แท็กถูกลบ n" ซ้ำ)
-  const whoSummary = ruleSentenceSegments(draft.rules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]).map((x, k) =>
+  const simpleCond = toSimpleConditions(draft.conditionMatch, draft.rules)
+  const simpleView = advanced ? null : simpleCond
+  // โหมดง่าย: "เริ่มติดตาม" = เฉพาะสถานะ (แท็กที่ทำให้หยุดไปอยู่แถว "หยุดเมื่อ")
+  const whoRules = simpleView ? fromSimpleConditions({ stages: simpleView.stages, stopTags: [] }).rules : draft.rules
+  const stopTagNames = simpleView ? simpleView.stopTags.map((x) => x.name).join(', ') : ''
+  const whoSummary = ruleSentenceSegments(whoRules, draft.conditionMatch, { and: t.andWord, or: t.orWord, not: t.sentNot, hasTag: t.sentHasTag, noTag: t.sentNoTag }, (k) => t.stageLabel[k]).map((x, k) =>
     x.gone ? (
       <span key={k} className="text-default-600">
         {x.text}
@@ -399,12 +408,13 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
   )
   const pages = groupChannelsByPage(draft.channelIds.flatMap((id) => channelById.get(id) ?? []))
   const roundsText = fmt(t.roundsSummary, { n: draft.steps.length, d: formatDuration(tl.total, words) })
-  const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), finalText].filter(Boolean).join(' · ')
+  const endSummary = [fmt(t.endHandoffShort, { a: handoffText }), stopTagNames && fmt(t.sumStopTags, { tags: stopTagNames }), finalText].filter(Boolean).join(' · ')
   const sumRows: { label: string; href: string; text: React.ReactNode }[] = [
     { label: t.sumRowWho, href: '#sfb-who', text: whoSummary.length > 0 ? whoSummary : t.sumWhoAll },
     { label: t.sumRowVia, href: '#sfb-via', text: pages.length === 0 ? '–' : pages.map((g) => g.name).join(', ') },
     { label: t.sumRowSend, href: '#sfb-what', text: roundsText },
     { label: t.sumRowDuration, href: '#sfb-what', text: formatDuration(tl.total, words) },
+    { label: t.sumRowStop, href: '#sfb-end', text: [t.sumStopReply, stopTagNames && fmt(t.sumStopTags, { tags: stopTagNames })].filter(Boolean).join(' · ') },
     { label: t.sumRowReply, href: '#sfb-end', text: fmt(t.endHandoffShort, { a: handoffText }) },
     { label: t.sumRowNoReply, href: '#sfb-end', text: finalText ?? t.finalNone },
   ]
@@ -478,7 +488,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
       <div className="gap-base grid lg:grid-cols-3">
         <div className="gap-base grid min-w-0 grid-cols-1 lg:col-span-2">
           <SectionCard id="sfb-who" n={1} state={states.who} title={t.sectionWho} summary={whoSummary}>
-            <WhoSection draft={draft} onChange={update} stages={options.stages} tags={options.tags} error={textOf('condition')} />
+            <WhoSection draft={draft} onChange={update} stages={options.stages} tags={options.tags} error={textOf('condition')} advanced={advanced} setAdvanced={setAdvanced} />
           </SectionCard>
           <SectionCard id="sfb-via" n={2} state={states.via} title={t.sectionVia} summary={fmt(t.channelPlatforms, { n: draft.channelIds.length })}>
             <ChannelSection
@@ -493,7 +503,7 @@ export default function BotForm({ bot, bots, options, testRooms }: { bot: BotDto
             <RoundsSection draft={draft} onChange={update} open={open} setOpen={(fn) => setOpen(fn)} quick={quick} quickList={quickList} issues={stepIssues} />
           </SectionCard>
           <SectionCard id="sfb-end" n={4} state={states.end} title={t.sectionEnd} summary={endSummary}>
-            <EndSection draft={draft} onChange={update} issues={stepIssues} />
+            <EndSection draft={draft} onChange={update} issues={stepIssues} tags={options.tags} advanced={advanced} hasLine={draft.channelIds.some((id) => channelById.get(id)?.provider === 'LINE')} />
           </SectionCard>
         </div>
 

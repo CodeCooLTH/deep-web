@@ -91,15 +91,17 @@ describe('BotForm', () => {
     expect(h.split(t.adOnlyNote).length - 1).toBe(1)
     expect(h).toContain('card-footer')
   })
-  it('ช่องทาง: ช่องที่ชนบอทอื่นถูกล็อกพร้อมลิงก์ไปบอทนั้น · ช่องหลุดมีป้าย · เลือก LINE มีหมายเหตุโควตา', () => {
-    const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c3'] })
-    const h = html(mk({ channelIds: ['c1'] }), [mk(), other])
-    expect(h).toContain('href="/settings/sales-follow-bot/b2"')
-    expect(h).toContain(t.channelTakenBySuffix)
+  it('ช่องทาง: ช่องที่เลือกเป็นพิล + ปุ่มเพิ่ม · ช่องหลุดเป็นพิลเหลืองมีลิงก์เชื่อมใหม่ · เลือก LINE มีหมายเหตุโควตา · โมดัลปิดอยู่ไม่ render ช่องที่ไม่ได้เลือก', () => {
+    const h = html(mk({ channelIds: ['c1', 'c2'] }), [mk()])
+    expect(h).toContain(`aria-label="${t.channelRemove.replace('{name}', 'เพจร้านนุ่น · Messenger')}"`)
+    expect(h).toContain(t.channelAdd)
     expect(h).toContain(t.channelDisconnected)
+    expect(h).toContain(t.channelReconnect)
+    expect(h).toContain('bg-warning/15')
+    expect(h).not.toContain('role="dialog"')
     expect(h).not.toContain(t.lineQuotaNote)
-    const withLine = html(mk({ channelIds: ['c1', 'c3'] }), [mk()])
-    expect(withLine).toContain(t.lineQuotaNote)
+    expect(html(mk({ channelIds: ['c1', 'c3'] }), [mk()])).toContain(t.lineQuotaNote)
+    expect(html(mk({ channelIds: [] }))).toContain(t.channelNone)
   })
   it('ช่องที่ติ๊กไว้แล้วชนบอทอื่น (เปลี่ยนสถานะภายหลัง) = ข้อความแดงบอกทางออก', () => {
     const other = mk({ id: 'b2', name: 'ตามคนซื้อ', status: 'ACTIVE', channelIds: ['c1'] })
@@ -112,11 +114,48 @@ describe('BotForm', () => {
     expect(h).toContain(t.quickGone)
     expect(h).toContain(t.previewSkipped)
   })
-  it('ส่วน 4 "เงื่อนไขการหยุดติดตาม": ประโยคเติมคำ 2 แถว (ส่งต่อให้ใคร · ตามครบแล้วรอเท่าไรแล้วทำอะไร) ยังผูกกับช่องเดิม · หัวสรุป "ส่งต่อแอดมิน · 1 วัน → ปิดงาน"', () => {
+  it('ส่วน 4: ไทล์ส่งต่อ 2 + ไทล์ตามครบแล้ว 4 เป็น radio จริง · เลือกอันไหนติด checked ตามร่าง · หัวสรุป "ส่งต่อแอดมิน · 1 วัน → ปิดงาน"', () => {
     const h = html(mk({ finalAction: 'RESOLVE', finalDelayMin: 1440, replyHandoff: 'META_AI' }))
-    for (const k of [t.replyHandoffLabel, t.finalPrefix, t.finalThen, t.replyHandoffHint, t.finalHint]) expect(h).toContain(k)
-    for (const id of ['sfb-reply-handoff', 'sfb-final-wait']) expect(h).toContain(id) // Select2 ถูก mock — ผูกด้วย label/ช่องตัวเลขแทน
+    for (const k of [t.stopWhenHead, t.stopReplyTitle, t.handoffThen, t.finalHead, t.finalResolveDesc, t.finalSpamDesc, t.finalHideDesc, t.finalNoneDesc, t.stopStageUnmatched]) expect(h).toContain(k)
+    expect(h.match(/type="radio"[^>]*name="sfb-handoff"|name="sfb-handoff"[^>]*type="radio"/g)?.length).toBe(2)
+    expect(h.match(/name="sfb-final-action"/g)?.length).toBe(4)
+    expect(h).toContain('id="sfb-reply-handoff"')
+    expect(h).toContain('id="sfb-final-wait"')
     expect(html(mk({ finalAction: 'RESOLVE', finalDelayMin: 1440 }))).toContain('ส่งต่อแอดมิน · 1 วัน → ปิดงาน')
+  })
+  it('Meta AI + บอทมีช่อง LINE = โน้ตส่งต่อแอดมินแทน · ไม่มี LINE = ไม่มีโน้ต', () => {
+    expect(html(mk({ replyHandoff: 'META_AI', channelIds: ['c1', 'c3'] }))).toContain(t.handoffLineNote)
+    expect(html(mk({ replyHandoff: 'META_AI', channelIds: ['c1'] }))).not.toContain(t.handoffLineNote)
+  })
+  it('"ไม่ทำอะไร" = ช่องรอปิด + บอกเหตุผล · อย่างอื่นเปิด', () => {
+    const off = html(mk({ finalAction: 'NONE' }))
+    expect(off).toMatch(/id="sfb-final-wait"[^>]*disabled/)
+    expect(off).toContain(t.finalWaitOff)
+    expect(html(mk({ finalAction: 'SPAM' }))).not.toContain(t.finalWaitOff)
+  })
+  it('โหมดง่าย (กฎ สถานะ-เป็น + แท็ก-ไม่มี): ช่องสถานะแถวเดียว + ช่องแท็กหยุด · ปุ่มไปขั้นสูง · ไม่มีตัวสร้างกฎ', () => {
+    const simpleRules: BotDto['rules'] = [
+      { field: 'stage', op: 'is', values: ['NOT_BOUGHT'] },
+      { field: 'tag', op: 'has_none', values: [{ key: 'v', name: 'vip', missing: false }] },
+    ]
+    const h = html(mk({ rules: simpleRules }))
+    expect(h).toContain('for="sfb-simple-stage"') // Select2 ถูก mock — ผูกด้วย label
+    expect(h).toContain('for="sfb-stop-tags"')
+    expect(h).toContain(t.simpleToAdvanced)
+    expect(h).not.toContain('id="sfb-rule-add"')
+    expect(h).toContain(`${t.sumStopReply} · ${t.sumStopTags.replace('{tags}', 'vip')}`)
+  })
+  it('กฎซับซ้อน (has_any) = ขั้นสูงตั้งแต่เปิด · แท็กหยุดเป็นข้อความเทา · กลับไปแบบง่ายไม่ได้', () => {
+    const h = html(mk())
+    expect(h).toContain('id="sfb-rule-add"')
+    expect(h).toContain(t.stopTagAdvancedNote)
+    expect(h).toContain(t.advancedToSimpleNo)
+  })
+  it('การ์ด 4: กล่องเทา "เหตุหยุดอื่น" แสดงเปิดไว้ครบ ไม่พับ', () => {
+    const h = html(mk())
+    expect(h).toContain(t.stopTitle)
+    for (const k of [t.stopWindow, t.stopEdited, t.stopClosed, t.stopAdmin]) expect(h).toContain(k)
+    expect(h).not.toContain('<details')
   })
   it('แท็กถูกลบ: วงกลมเลขส่วน 1 เป็น warning (ไม่ใช่เครื่องหมายถูก) + ชื่อแท็กในประโยคสรุปเป็นสีเทา + sr-only "(ถูกลบแล้ว)" (ไม่มีท้ายประโยค " · แท็กถูกลบ n") + บรรทัด/ปุ่ม "เอาออกจากบอท"', () => {
     const rules: BotDto['rules'] = [{ field: 'tag', op: 'has_any', values: [{ key: 'v', name: 'vip', missing: true }, { key: 'a', name: 'ถามราคา', missing: false }] }]
@@ -134,11 +173,6 @@ describe('BotForm', () => {
   it('บอทใหม่ว่าง: ส่วนที่ยังไม่ครบไม่ติ๊กถูก (todo) · บอทครบ = ติ๊กถูกทั้ง 4', () => {
     expect(html(null)).toContain(t.stepTodoSr)
     expect(html(mk()).split(`>${t.stepDoneSr}<`).length - 1).toBe(4)
-  })
-  it('ช่องทาง: 1 แถวต่อ 1 ช่องทาง ทั้งแถวเป็นตัวเลือก (ผู้ใช้ 2026-11-17 เลิกรวมตามเพจ)', () => {
-    const o = { ...options, channels: [{ ...options.channels[0], id: 'c1' }, { ...options.channels[1], id: 'c2', name: 'เพจร้านนุ่น', status: 'ACTIVE' as const }] }
-    const h = renderToStaticMarkup(<BotForm bot={mk()} bots={[]} options={o} testRooms={[]} />)
-    expect(h.match(/<span class="text-default-900 block truncate text-sm font-medium">เพจร้านนุ่น<\/span>/g)?.length).toBe(2)
   })
   it('สถานะทดสอบ = โผล่การ์ดแชทสำหรับทดสอบ · สถานะอื่นไม่โผล่', () => {
     expect(html(mk({ status: 'TESTING', testRoomIds: ['r1'] }))).toContain(t.testTitle)
@@ -172,13 +206,6 @@ describe('FR-FA-8 ตัวสร้างเงื่อนไขการเ�
     const h = html(mk({ rules: [] }))
     expect(h).not.toContain('data-icon="list-check"') // ไอคอนของกล่องประโยคสรุป
     expect(h).toContain(t.stepTodoSr)
-  })
-  it('การ์ด 4: ไม่มีบล็อก "หยุดเมื่อ" แบบเลือกหลายข้อ · มีบรรทัดห้องไม่ตรงเงื่อนไข · พับ "เหตุหยุดอื่น" ไม่ซ้ำแถวบน', () => {
-    const h = html(mk())
-    expect(h).toContain(t.stopUnmatched)
-    expect(h).toContain(t.stopTitle)
-    for (const k of [t.stopWindow, t.stopEdited, t.stopClosed, t.stopAdmin]) expect(h).toContain(k)
-    expect(h).not.toContain('เลือกได้หลายข้อ') // ไม่มีบล็อก "บอทหยุดเมื่อ (เลือกได้หลายข้อ)" (สเปกเดิม stopTagKeys ถูกแทนที่)
   })
   it('ครบ 10 แถว: ปุ่มเพิ่มปิด + บอกเพดาน', () => {
     const many: BotDto['rules'] = Array.from({ length: 10 }, () => ({ field: 'stage' as const, op: 'is' as const, values: ['BILLED' as const] }))

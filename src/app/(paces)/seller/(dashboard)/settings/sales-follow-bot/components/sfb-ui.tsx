@@ -65,7 +65,7 @@ export function AvatarWithPlatform({
   provider: string
   /** ขนาดวงกลม (คลาส size-*) */
   className?: string
-  badge?: 'sm' | 'md'
+  badge?: 'sm' | 'md' | 'none'
 }) {
   const [failed, setFailed] = useState(false)
   return (
@@ -78,7 +78,7 @@ export function AvatarWithPlatform({
           {avatarInitial(name)}
         </span>
       )}
-      <ChannelBadgeOverlay channel={provider} size={badge} />
+      {badge !== 'none' && <ChannelBadgeOverlay channel={provider} size={badge} />}
     </span>
   )
 }

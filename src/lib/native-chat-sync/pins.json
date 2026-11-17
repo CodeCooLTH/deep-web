@@ -290,7 +290,7 @@
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/AutoReplyTag.tsx": "1d820a772e2e668c",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/BotPausedBanner.tsx": "d8eb03cb32e93c5c",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/BuyerReputationRow.tsx": "dbd66a6e430a4451",
-    "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CapiChatLine.tsx": "5e14c8af3b8ad3bb",
+    "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CapiChatLine.tsx": "25f7acc4fa6e5198",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CapiStoppedBanner.tsx": "d22223ae59fac141",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatMemorySection.tsx": "e1514d69e2e111a3",
     "src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatShopAutoSwitch.tsx": "d027f9c5e4a861f1",
