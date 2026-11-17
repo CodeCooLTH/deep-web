@@ -82,6 +82,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - [[docs/conventions/image-thumbnails]] — รูปย่อตัวกลางเดียว: สาธารณะ `variantUrlOf` · อื่น ๆ `?variant=` ย่อสดไม่เก็บ · แอป `RemoteImage`/`ChatList`
   - [[docs/conventions/native-chat-sync]] — แก้แชทเว็บต้องแก้แชท Native ในแอปผู้ขายตาม (HR18 · เทสแดงบอกไฟล์ที่ต้องแก้)
   - [[docs/conventions/local-qa-blocks-external-side-effects]] — browser QA กดปุ่มแจ้งเตือน ต้องเปิด dev ด้วย `scripts/qa-block-external.cjs` (ฐาน local มี push token จริง)
+  - [[docs/conventions/no-double-count-claim-must-trace-deduction]] — "ไม่คิดซ้ำเพราะหักที่อื่นแล้ว" ต้องชี้บรรทัดที่หักจริง แยกร้านบริการ/ร้านอื่น + เทสสองขา
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
