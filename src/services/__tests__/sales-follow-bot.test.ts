@@ -543,12 +543,12 @@ describe.skipIf(!isLocal)('sales-follow-bot service (DB จริง)', () => {
 
       let m = await getFollowBotRowSummaries(S.shop, [a.conv, idle, a.conv])
       expect([...m.keys()].sort()).toEqual([a.conv, idle].sort())
-      expect(m.get(a.conv)).toEqual({ sentRounds: 1, totalRounds: 3, awaitingShop: false }) // ข้าม ≠ ส่งแล้ว
+      expect(m.get(a.conv)).toEqual({ sentRounds: 1, totalRounds: 3, awaitingShop: false, finalPending: null }) // ข้าม ≠ ส่งแล้ว
       expect(m.get(idle)).toBeNull()
 
       await say(a.conv, ago(1 * 60_000)) // ลูกค้าพิมพ์ล่าสุด
       m = await getFollowBotRowSummaries(S.shop, [a.conv])
-      expect(m.get(a.conv)).toEqual({ sentRounds: 1, totalRounds: 3, awaitingShop: true })
+      expect(m.get(a.conv)).toEqual({ sentRounds: 1, totalRounds: 3, awaitingShop: true, finalPending: null })
 
       process.env.SALES_FOLLOW_BOT_SHOP_IDS = ''
       try {

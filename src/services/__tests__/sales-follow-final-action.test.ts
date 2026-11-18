@@ -171,7 +171,7 @@ describe.skipIf(!isLocal)('sales-follow final action (DB จริง)', () => {
     expect(after.finalActionAt).not.toBeNull()
     expect(after.finalActionTaken).toBeNull()
     // ลูกค้าตอบ = BR-FA-12 ข เขียนบรรทัด "ยกเลิก" + บรรทัดส่งห้องต่อ (2) · เหตุอื่น = ไม่มีบรรทัด
-    expect(await notes(r.conv)).toHaveLength(o.buyerAfter ? 2 : 0)
+    expect(await notes(r.conv)).toHaveLength('buyerAfter' in o ? 2 : 0)
     expect((await tick(w)).finalSkipped).toBe(0) // ปิดแถวแล้ว ไม่หยิบซ้ำ
   })
 
@@ -264,8 +264,8 @@ describe.skipIf(!isLocal)('00095 BR-FA-12 ช่วงรอ action ท้าย
     expect(after.finalActionTaken).toBeNull()
     expect((await convOf(r.conv)).isSpam).toBe(false)
     const ns = await notes(r.conv)
-    expect(ns.filter((n) => n.body.includes('ยกเลิกการย้ายไปสแปม'))).toHaveLength(1)
-    expect(ns.filter((n) => !n.body.includes('ยกเลิกการ'))).toHaveLength(1) // บรรทัดส่งห้องต่อ (BR-FA-10) หนึ่งครั้ง
+    expect(ns.filter((n) => (n.body ?? '').includes('ยกเลิกการย้ายไปสแปม'))).toHaveLength(1)
+    expect(ns.filter((n) => !(n.body ?? '').includes('ยกเลิกการ'))).toHaveLength(1) // บรรทัดส่งห้องต่อ (BR-FA-10) หนึ่งครั้ง
   })
 
   it('ร้านตอบระหว่างรอ → SKIP ทันที ไม่มีบรรทัดระบบ', async () => {
