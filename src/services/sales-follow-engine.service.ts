@@ -15,6 +15,7 @@ import {
   EVALUATE_LIMIT,
   FINAL_ACTION_LIMIT,
   MESSAGE_LOOKBACK_MS,
+  type FinalActionKind,
   MIN_MS,
   SENDING_STALE_MS,
   TICK_BUDGET_MS,
@@ -27,7 +28,8 @@ import { decideMetaAiHolding } from '@/lib/meta-ai-holder'
 import { claimThreadControl, passThreadControlToMetaAi, META_BUSINESS_AI_APP_ID } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { afterClaim, BORROW_METADATA, buildReplyHandoffNote, decideReplyHandoff, mayReclaim, REPLY_HANDOFF_METADATA, OTHER_APP_CONTROLS_RE, reclaimBackoffActive, shouldBorrowFromMetaAi } from '@/lib/sales-follow-bot/thread-control'
-import { decideFinalAction } from '@/lib/sales-follow-bot/final-action'
+import { buildFinalReplyCancelNote, decideFinalAction } from '@/lib/sales-follow-bot/final-action'
+import { finalPendingSql } from '@/lib/sales-follow-bot/final-pending-sql'
 import { isSalesFollowBotEnabled } from '@/lib/sales-follow-bot/gate'
 import { countedShopReplyWhere, realBuyerMsgWhere } from '@/lib/sales-follow-bot/message-defs'
 import { buildStepBubbles, type BotStep } from '@/lib/sales-follow-bot/schemas'
@@ -645,6 +647,9 @@ async function evaluateRun(run: RunRow, facts: DecideFacts, now: Date, c: Counte
 
 // ───────────────────────── (2) แนบห้องใหม่ ─────────────────────────
 
+/** BR-FA-12 (ง): run ที่รอ action ท้ายสุดถือว่าครอบครองห้อง — SQL ที่เดียวกับชิป/ยกเลิก */
+const pendingSql = (now: Date, r: string, b: string) => Prisma.raw(finalPendingSql(r, b, new Date(now.getTime() - MESSAGE_LOOKBACK_MS).toISOString()))
+
 async function attachPhase(now: Date, shopIds: string[] | undefined, deadline: number, c: Counters, shops: Set<string>): Promise<boolean> {
   const bots = await prisma.salesFollowBot.findMany({
     where: {
@@ -677,7 +682,8 @@ async function attachPhase(now: Date, shopIds: string[] | undefined, deadline: n
           AND c."isSpam" = false AND c."isHidden" = false AND sc."status" = 'ACTIVE'
           AND c."lastInboundAt" > ${since}::timestamptz
           ${bot.status === 'TESTING' ? Prisma.sql`AND c."id" = ANY(${testRoomIds}::text[])` : Prisma.empty}
-          AND NOT EXISTS (SELECT 1 FROM "SalesFollowRun" r WHERE r."conversationId" = c."id" AND r."status" = 'ACTIVE')
+          AND NOT EXISTS (SELECT 1 FROM "SalesFollowRun" r JOIN "SalesFollowBot" pb ON pb."id" = r."botId"
+                          WHERE r."conversationId" = c."id" AND (r."status" = 'ACTIVE' OR ${pendingSql(now, 'r', 'pb')}))
         ORDER BY c."lastInboundAt" DESC LIMIT ${ATTACH_ROOM_LIMIT}`
       if (cands.length === 0) continue
       const facts = await loadAttachFacts(bot.shopId, bot.id, cands.map((x) => x.id), now)
@@ -768,6 +774,47 @@ async function finalActionPhase(now: Date, shopIds: string[] | undefined, deadli
   return false
 }
 
+/**
+ * BR-FA-12 (ข): ระหว่างรอ action ท้ายสุด ลูกค้า/ร้านตอบหลังรอบสุดท้าย = ยกเลิกทันที (ไม่รอถึงเวลา)
+ * claim แบบเดียวกับ finalActionPhase (ข้าม = finalActionAt ตั้ง taken ว่าง) · ลูกค้าตอบ → ผู้ชนะ claim คนเดียวส่งห้องต่อ + เขียนบรรทัดระบบ (BR-FA-10 ข)
+ * ตัวตัดสิน "ตอบ" = latestBuyerMsg/latestShopReply จาก loadDecideFacts ตัวเดียวกับ decideRun (นิยามข้อความจริงเดียวทั้งระบบ)
+ */
+async function pendingReplyPhase(now: Date, shopIds: string[] | undefined, deadline: number, c: Counters, shops: Set<string>): Promise<boolean> {
+  const nowIso = now.toISOString()
+  const rows = await prisma.$queryRaw<(RunRow & { botName: string; finalAction: FinalActionKind })[]>`
+    SELECT r."id", r."shopId", r."botId", r."conversationId", r."stageKey", r."stageStamp", r."structureRev", r."nextStep",
+           r."lastSentAt", r."nextDueAt", r."holdReason", b."name" AS "botName", b."finalAction"
+    FROM "SalesFollowRun" r JOIN "SalesFollowBot" b ON b."id" = r."botId"
+    WHERE ${pendingSql(now, 'r', 'b')} ${shopCond('r."shopId"', shopIds)}
+    ORDER BY r."lastSentAt" ASC LIMIT ${FINAL_ACTION_LIMIT}`
+  if (rows.length === 0) return false
+  const allowed = rows.filter((r) => isSalesFollowBotEnabled(r.shopId))
+  const facts = await loadDecideFacts(allowed, now)
+  for (const r of allowed) {
+    if (Date.now() >= deadline) return true
+    const f = facts.get(r.id)
+    if (!f || !r.lastSentAt) continue
+    const customer = !!f.latestBuyerMsg && f.latestBuyerMsg.createdAt.getTime() > r.lastSentAt.getTime()
+    const shop = !!f.latestShopReply && f.latestShopReply.createdAt.getTime() > r.lastSentAt.getTime()
+    if (!customer && !shop) continue
+    try {
+      shops.add(r.shopId)
+      const claimed = await prisma.$executeRaw`
+        UPDATE "SalesFollowRun" SET "finalActionAt" = ${nowIso}::timestamptz, "updatedAt" = ${nowIso}::timestamptz
+        WHERE "id" = ${r.id} AND "shopId" = ${r.shopId} AND "status" = 'DONE' AND "finalActionAt" IS NULL`
+      if (claimed === 0) continue
+      c.finalSkipped++
+      if (customer) {
+        await writeNoteBody(r.conversationId, buildFinalReplyCancelNote(r.botName, r.finalAction))
+        await handoffAfterCustomerReply(r, f, now)
+      }
+    } catch (e) {
+      console.error('[sales-follow-bot] ยกเลิก action ท้ายสุดเมื่อมีคนตอบล้มเหลว (ข้าม run นี้)', { runId: r.id, err: errTag(e) })
+    }
+  }
+  return false
+}
+
 // ───────────────────────── tick ─────────────────────────
 
 export async function runSalesFollowTick(now: Date, opts: TickOptions = {}): Promise<TickResult> {
@@ -812,6 +859,14 @@ export async function runSalesFollowTick(now: Date, opts: TickOptions = {}): Pro
       timedOut = await attachPhase(now, opts.shopIds, deadline, c, shops)
     } catch (e) {
       console.error('[sales-follow-bot] ขั้นแนบล้มเหลว', { err: errTag(e) })
+    }
+  }
+
+  if (!timedOut) {
+    try {
+      timedOut = await pendingReplyPhase(now, opts.shopIds, deadline, c, shops)
+    } catch (e) {
+      console.error('[sales-follow-bot] ขั้นยกเลิก action ท้ายสุดเมื่อมีคนตอบล้มเหลว', { err: errTag(e) })
     }
   }
 

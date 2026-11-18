@@ -53,7 +53,11 @@ import {
 } from '@/lib/sales-follow-bot/schemas'
 import { countedShopReplySql, messageLookbackSince, realBuyerMsgSql } from '@/lib/sales-follow-bot/message-defs'
 import { loadBots, decideRunNow, type DecideRunInput } from '@/services/sales-follow-facts.service'
-import { stopRunsWithNote } from '@/services/sales-follow-note.service'
+import { stopRunsWithNote, writeNoteBody } from '@/services/sales-follow-note.service'
+import { finalPendingOf } from '@/lib/sales-follow-bot/final-pending'
+import { finalPendingSql } from '@/lib/sales-follow-bot/final-pending-sql'
+import { buildFinalCancelNote } from '@/lib/sales-follow-bot/final-action'
+import type { FinalActionKind } from '@/lib/sales-follow-bot/constants'
 import { assertOwnedImages } from '@/services/sales-follow-images.service'
 
 type Tx = Prisma.TransactionClient
@@ -668,6 +672,24 @@ export async function stopRunForConversation(shopId: string, conversationId: str
   return { stopped: stopped.length > 0 }
 }
 
+/**
+ * แอดมินยกเลิก action ท้ายสุดที่ค้างรอ (BR-FA-12 ค) — claim แบบเดียวกับ engine (finalActionAt ตั้ง · taken ว่าง = "ข้าม")
+ * idempotent: ผู้ชนะ UPDATE…WHERE finalActionAt IS NULL คนเดียวเขียนบรรทัดระบบ · กดซ้ำ/ไม่มี pending = cancelled:false
+ */
+export async function cancelFinalForConversation(shopId: string, conversationId: string, now: Date = new Date()): Promise<{ cancelled: boolean }> {
+  const room = await prisma.conversation.findFirst({ where: { shopId, id: conversationId }, select: { id: true } })
+  if (!room) throw new SalesFollowBotNotFoundError()
+  const nowIso = now.toISOString()
+  const FP = Prisma.raw(finalPendingSql('r', 'b', messageLookbackSince(now).toISOString()))
+  const won = await prisma.$queryRaw<{ id: string; name: string; finalAction: FinalActionKind }[]>`
+    UPDATE "SalesFollowRun" r SET "finalActionAt" = ${nowIso}::timestamptz, "updatedAt" = ${nowIso}::timestamptz
+    FROM "SalesFollowBot" b
+    WHERE b."id" = r."botId" AND r."shopId" = ${shopId} AND r."conversationId" = ${room.id} AND ${FP}
+    RETURNING r."id", b."name", b."finalAction"`
+  for (const w of won) await writeNoteBody(room.id, buildFinalCancelNote(w.name, w.finalAction))
+  return { cancelled: won.length > 0 }
+}
+
 export interface PanelStep {
   index: number
   state: 'SENT' | 'PENDING' | 'SENDING' | 'SKIPPED' | 'FAILED'
@@ -684,6 +706,8 @@ export interface PanelRun {
   holdText: string | null
   awaitingShop: boolean
   canStop: boolean
+  /** BR-FA-12: run DONE ที่รอ action ท้ายสุด — มี = แผงโชว์แถว "จะย้ายไปสแปม …" + ปุ่มยกเลิก */
+  finalPending: { kind: FinalActionKind; dueAt: string } | null
   steps: PanelStep[]
 }
 export type ConversationPanel = { available: false } | { available: true; run: PanelRun | null }
@@ -694,28 +718,39 @@ export type ConversationPanel = { available: false } | { available: true; run: P
  */
 export async function getConversationPanel(shopId: string, conversationId: string, now: Date = new Date()): Promise<ConversationPanel> {
   const [room, shop] = await Promise.all([
-    prisma.conversation.findFirst({ where: { shopId, id: conversationId }, select: { id: true, channel: true } }),
+    prisma.conversation.findFirst({ where: { shopId, id: conversationId }, select: { id: true, channel: true, isSpam: true, isHidden: true, resolvedAt: true } }),
     prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true } }),
   ])
   if (!room) throw new SalesFollowBotNotFoundError()
   if (room.channel === 'DEEP' || !isSalesFollowBotEnabled(shopId) || shop?.vertical !== 'ONLINE_SALES') return { available: false }
 
   const run = await prisma.salesFollowRun.findFirst({
-    where: { shopId, conversationId, status: 'ACTIVE' },
+    // ACTIVE ก่อน (status asc) แล้วค่อย DONE ล่าสุดที่ยังไม่ถูก claim = ช่วงรอ action ท้ายสุด (BR-FA-12)
+    where: { shopId, conversationId, status: { in: ['ACTIVE', 'DONE'] }, finalActionAt: null },
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     select: {
       id: true, shopId: true, botId: true, conversationId: true, stageKey: true, stageStamp: true, structureRev: true, nextStep: true,
-      lastSentAt: true,
+      lastSentAt: true, status: true, finalActionAt: true,
       sends: { select: { step: true, status: true, reason: true, chatMessageId: true, settledAt: true, createdAt: true } },
     },
   })
   if (!run) return { available: true, run: null }
 
   const input: DecideRunInput = { ...run, stageKey: run.stageKey as SalesStageKey }
-  const [decided, bots] = await Promise.all([decideRunNow(input, now), loadBots(shopId, [run.botId])])
+  const isDone = run.status === 'DONE'
+  const [decided, bots] = await Promise.all([isDone ? Promise.resolve(null) : decideRunNow(input, now), loadBots(shopId, [run.botId])])
   const bot = bots.get(run.botId)
-  if (!decided || !bot) return { available: true, run: null }
-  const { facts, decision } = decided
-  if (decision.action === 'STOP' && (decision.reason === 'CUSTOMER_REPLIED' || decision.reason === 'CONDITION_UNMATCHED')) return { available: true, run: null }
+  if (!bot) return { available: true, run: null }
+  let finalPending: PanelRun['finalPending'] = null
+  if (isDone) {
+    const p = finalPendingOf(run, bot, now)
+    const botLive = !bot.deletedAt && (bot.status === 'ACTIVE' || (bot.status === 'TESTING' && bot.testRoomIds.includes(room.id)))
+    if (!p || !botLive || room.isSpam || room.isHidden || room.resolvedAt) return { available: true, run: null }
+    finalPending = { kind: p.kind, dueAt: p.dueAt.toISOString() }
+  } else if (!decided) return { available: true, run: null }
+  const facts = decided?.facts
+  const decision = decided?.decision
+  if (decision?.action === 'STOP' && (decision.reason === 'CUSTOMER_REPLIED' || decision.reason === 'CONDITION_UNMATCHED')) return { available: true, run: null }
 
   const msgs = await prisma.chatMessage.findMany({
     where: { id: { in: run.sends.flatMap((s) => (s.chatMessageId ? [s.chatMessageId] : [])) }, conversationId },
@@ -723,10 +758,10 @@ export async function getConversationPanel(shopId: string, conversationId: strin
   })
   const msgAt = new Map(msgs.map((m) => [m.id, m.createdAt]))
   const sendBy = new Map(run.sends.map((s) => [s.step, s]))
-  const awaitingShop = isAwaitingShop(facts.latestBuyerMsg, facts.latestShopReply)
+  const awaitingShop = facts ? isAwaitingShop(facts.latestBuyerMsg, facts.latestShopReply) : false
 
   // dueAt ของรอบถัดไปจาก computeDueAt (สูตรเดียวกับ decide) · รอบหลังจากนั้น = ประมาณการต่อท้ายด้วย delayMin ของแต่ละรอบ
-  let due: number | null = awaitingShop ? null : (computeDueAt(facts)?.getTime() ?? null)
+  let due: number | null = awaitingShop || !facts ? null : (computeDueAt(facts)?.getTime() ?? null)
   const steps = bot.steps.map((st, i): PanelStep => {
     const send = sendBy.get(i)
     if (send && send.status !== 'SENDING') {
@@ -744,12 +779,12 @@ export async function getConversationPanel(shopId: string, conversationId: strin
     return { index: i + 1, state: 'PENDING', delayMin: st.delayMin, sentAt: null, dueAt: iso(dueAt), reasonText: null }
   })
 
-  const hold = decision.action === 'HOLD' ? decision.reason : null
+  const hold = decision?.action === 'HOLD' ? decision.reason : null
   return {
     available: true,
     run: {
       runId: run.id, botName: bot.name, stageLabel: SALES_STAGE_LABEL[run.stageKey as SalesStageKey] ?? run.stageKey,
-      holdReason: hold, holdText: hold ? HOLD_REASON_TEXT[hold] : null, awaitingShop, canStop: true, steps,
+      holdReason: hold, holdText: hold ? HOLD_REASON_TEXT[hold] : null, awaitingShop, canStop: true, finalPending, steps,
     },
   }
 }
@@ -759,6 +794,8 @@ export interface FollowBotRowSummary {
   sentRounds: number
   totalRounds: number
   awaitingShop: boolean
+  /** BR-FA-12: run DONE ที่รอ action ท้ายสุด (null = ไม่มี) */
+  finalPending: { kind: FinalActionKind; dueAt: string } | null
 }
 
 /**
@@ -776,10 +813,11 @@ export async function getFollowBotRowSummaries(shopId: string, conversationIds: 
   const sinceExpr = `'${messageLookbackSince(now).toISOString()}'::timestamp`
   const RB = Prisma.raw(realBuyerMsgSql('m', sinceExpr))
   const CS = Prisma.raw(countedShopReplySql('m', sinceExpr))
+  const FP = Prisma.raw(finalPendingSql('r', 'b', messageLookbackSince(now).toISOString()))
   const rows = await prisma.$queryRaw<
-    { conversationId: string; total: number; sent: number; lbAt: Date | null; lbSeq: number | null; lsAt: Date | null; lsSeq: number | null }[]
+    { conversationId: string; status: string; total: number; sent: number; lbAt: Date | null; lbSeq: number | null; lsAt: Date | null; lsSeq: number | null; lastSentAt: Date | null; finalAction: string; finalDelayMin: number }[]
   >`
-    SELECT r."conversationId", jsonb_array_length(b."steps")::int AS "total",
+    SELECT r."conversationId", r."status", r."lastSentAt", b."finalAction", b."finalDelayMin", jsonb_array_length(b."steps")::int AS "total",
            (SELECT count(*)::int FROM "SalesFollowSend" s WHERE s."runId" = r."id" AND s."status" = 'SENT') AS "sent",
            lb."createdAt" AS "lbAt", lb."seq" AS "lbSeq", ls."createdAt" AS "lsAt", ls."seq" AS "lsSeq"
     FROM "SalesFollowRun" r
@@ -788,12 +826,19 @@ export async function getFollowBotRowSummaries(shopId: string, conversationIds: 
                        ORDER BY m."createdAt" DESC, m."seq" DESC LIMIT 1) lb ON true
     LEFT JOIN LATERAL (SELECT m."createdAt", m."seq" FROM "ChatMessage" m WHERE m."conversationId" = r."conversationId" AND ${CS}
                        ORDER BY m."createdAt" DESC, m."seq" DESC LIMIT 1) ls ON true
-    WHERE r."shopId" = ${shopId} AND r."status" = 'ACTIVE' AND r."conversationId" = ANY(${ids}::text[])`
+    JOIN "Conversation" cv ON cv."id" = r."conversationId"
+    WHERE r."shopId" = ${shopId} AND r."conversationId" = ANY(${ids}::text[])
+      AND (r."status" = 'ACTIVE' OR (${FP} AND NOT cv."isSpam" AND NOT cv."isHidden" AND cv."resolvedAt" IS NULL))`
+  // DONE (รอ action) ก่อน ACTIVE: ถ้าห้องมีทั้งสอง ACTIVE ชนะ (ตัวที่กำลังทำงานอยู่)
+  rows.sort((a, b) => (a.status === b.status ? 0 : a.status === 'DONE' ? -1 : 1))
   for (const r of rows) {
+    const fp = r.status === 'DONE' && r.lastSentAt ? finalPendingOf({ status: 'DONE', lastSentAt: r.lastSentAt, finalActionAt: null }, { finalAction: r.finalAction as FinalAction, finalDelayMin: r.finalDelayMin }, now) : null
+    if (r.status === 'DONE' && !fp) continue
     out.set(r.conversationId, {
+      finalPending: fp && { kind: fp.kind, dueAt: fp.dueAt.toISOString() },
       sentRounds: r.sent,
       totalRounds: r.total,
-      awaitingShop: isAwaitingShop(
+      awaitingShop: r.status === 'DONE' ? false : isAwaitingShop(
         r.lbAt && r.lbSeq !== null ? { createdAt: r.lbAt, seq: r.lbSeq } : null,
         r.lsAt && r.lsSeq !== null ? { createdAt: r.lsAt, seq: r.lsSeq } : null,
       ),

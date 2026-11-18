@@ -15,8 +15,8 @@ import Icon from '@/components/wrappers/Icon'
 import { useNowMs } from '@/hooks/useNowMs'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { formatTimeHM } from '@/lib/format-date'
-import { formatRemaining, nextStepIndex, stepRowKind, stopControl, type StepRowKind } from '@/lib/follow-bot-room'
+import { formatDateTime, formatTimeHM } from '@/lib/format-date'
+import { FINAL_ACTION_KEY, formatRemaining, nextStepIndex, stepRowKind, stopControl, type StepRowKind } from '@/lib/follow-bot-room'
 import type { PanelStep } from '@/services/sales-follow-bot.service'
 import { useFollowBotRoom } from '../../../_components/FollowBotRoomProvider'
 
@@ -126,7 +126,7 @@ export default function FollowBotSection() {
             aria-busy={stopping}
             className="btn btn-sm min-h-11 shrink-0 border border-default-300 text-default-800 lg:min-h-8"
           >
-            {t.followBotStop}
+            {run.finalPending ? t.followBotFinalCancel : t.followBotStop}
           </button>
         </div>
         {ctl.showReason && <p className="text-default-700 mb-0 text-xs">{t.followBotCannotStop}</p>}
@@ -147,7 +147,18 @@ export default function FollowBotSection() {
           </div>
         ) : null}
 
-        <ol className="m-0 list-none space-y-2 p-0">{run.steps.map(renderStep)}</ol>
+        <ol className="m-0 list-none space-y-2 p-0">
+          {run.steps.map(renderStep)}
+          {run.finalPending && (
+            // BR-FA-12: แถวปิดท้ายราง — ครบรอบแล้ว บอกว่าจะทำอะไรกับห้องเมื่อไร (เวลาเต็ม ไม่ใช่นับถอยหลัง)
+            <li className="text-primary-ink flex min-h-8 items-center gap-2 text-sm font-medium">
+              <Icon icon="clock-play" className="relative z-10 shrink-0 bg-card text-base" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                {fmt(t.followBotFinalRow, { action: t[FINAL_ACTION_KEY[run.finalPending.kind]], at: formatDateTime(run.finalPending.dueAt) })}
+              </span>
+            </li>
+          )}
+        </ol>
       </div>
     </div>
   )

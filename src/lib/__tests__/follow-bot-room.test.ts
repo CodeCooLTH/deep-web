@@ -8,7 +8,7 @@ const step = (index: number, state: PanelStep['state'], dueAt: string | null = n
 })
 const run = (over: Partial<PanelRun> = {}): PanelRun => ({
   runId: 'r', botName: 'ตามคนถามราคา', stageLabel: 'ยังไม่ซื้อ', holdReason: null, holdText: null,
-  awaitingShop: false, canStop: true,
+  awaitingShop: false, canStop: true, finalPending: null,
   steps: [step(1, 'SENT'), step(2, 'PENDING', '2026-11-16T09:40:00.000Z'), step(3, 'PENDING', '2026-11-16T11:40:00.000Z')],
   ...over,
 })

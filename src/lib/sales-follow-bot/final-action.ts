@@ -68,3 +68,11 @@ export const FINAL_ACTION_NOTE_TEXT: Record<FinalActionKind, string> = {
 
 export const buildFinalActionNote = (rounds: number, kind: FinalActionKind): string =>
   `บอทตามครบ ${rounds} รอบ ลูกค้าไม่ตอบ — ${FINAL_ACTION_NOTE_TEXT[kind]}`
+
+/** บรรทัดระบบเมื่อแอดมินยกเลิก action ท้ายสุดที่ค้างรอ (BR-FA-12 ค) */
+export const buildFinalCancelNote = (botName: string, kind: FinalActionKind): string =>
+  `แอดมินยกเลิกการ${FINAL_ACTION_NOTE_TEXT[kind]}ของบอท “${botName}”`
+
+/** บรรทัดระบบเมื่อลูกค้าตอบระหว่างรอ — action ท้ายสุดถูกยกเลิก (BR-FA-12 ข) */
+export const buildFinalReplyCancelNote = (botName: string, kind: FinalActionKind): string =>
+  `บอท “${botName}” ยกเลิกการ${FINAL_ACTION_NOTE_TEXT[kind]} เพราะลูกค้าตอบกลับ`

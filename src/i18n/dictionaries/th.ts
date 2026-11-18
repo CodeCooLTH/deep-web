@@ -369,6 +369,22 @@ export const th = {
     followBotStopKeep: 'ให้บอทติดตามต่อ',
     followBotStopped: 'หยุดบอทติดตามแชทนี้แล้ว',
     followBotStopFailed: 'หยุดบอทไม่สำเร็จ ลองอีกครั้ง',
+    /** BR-FA-12 รอ action ท้ายสุด — ชิปแถว (สั้น) · แผงในห้อง (เต็ม) */
+    followBotFinalChip: 'บอทติดตาม · {action}ใน {in}',
+    followBotFinalChipAria: 'บอทติดตามครบทุกรอบแล้ว จะ{action}ในอีก {in}',
+    followBotFinalShortSpam: 'ย้ายสแปม',
+    followBotFinalShortHide: 'ซ่อน',
+    followBotFinalShortResolve: 'ปิดงาน',
+    followBotFinalRow: 'ครบทุกรอบแล้ว → จะ{action} {at}',
+    followBotFinalSpam: 'ย้ายไปสแปม',
+    followBotFinalHide: 'ซ่อนแชท',
+    followBotFinalResolve: 'ปิดงาน',
+    followBotFinalCancel: 'ยกเลิก',
+    followBotFinalCancelTitle: 'ยกเลิกการ{action}ไหม',
+    followBotFinalCancelText: 'แชทนี้จะอยู่ตามเดิม บอทจะไม่ทำอะไรกับห้องนี้อีก',
+    followBotFinalCancelKeep: 'ให้บอททำต่อ',
+    followBotFinalCancelled: 'ยกเลิกแล้ว',
+    followBotFinalCancelFailed: 'ยกเลิกไม่สำเร็จ ลองอีกครั้ง',
 
     /** แถวสถานะบนการ์ดออเดอร์ */
     orderRowSent: 'ส่งให้ลูกค้าอัตโนมัติแล้ว',
