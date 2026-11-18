@@ -16,18 +16,18 @@ export interface CapiEventDef {
 }
 
 export const CAPI_EVENTS: readonly CapiEventDef[] = [
-  { key: "PURCHASE", metaName: "Purchase", label: "ซื้อ", hasValue: true, source: "SYSTEM" },
-  { key: "ORDER_CREATED", metaName: "OrderCreated", label: "สร้างคำสั่งซื้อ", hasValue: true, source: "SYSTEM" },
-  { key: "INITIATE_CHECKOUT", metaName: "InitiateCheckout", label: "ส่งลิงก์สั่งซื้อ", hasValue: false, source: "SYSTEM" },
-  { key: "ADD_PAYMENT_INFO", metaName: "AddPaymentInfo", label: "แนบสลิป", hasValue: true, source: "SYSTEM" },
-  { key: "ORDER_SHIPPED", metaName: "OrderShipped", label: "จัดส่งแล้ว", hasValue: true, source: "SYSTEM" },
-  { key: "ORDER_DELIVERED", metaName: "OrderDelivered", label: "ส่งถึงแล้ว", hasValue: true, source: "SYSTEM" },
-  { key: "ORDER_CANCELED", metaName: "OrderCanceled", label: "ยกเลิก", hasValue: true, source: "SYSTEM" },
-  { key: "ORDER_RETURNED", metaName: "OrderReturned", label: "คืนสินค้า", hasValue: true, source: "SYSTEM" },
-  { key: "VIEW_CONTENT", metaName: "ViewContent", label: "ส่งการ์ดสินค้า", hasValue: true, source: "SYSTEM" },
-  { key: "CART_ABANDONED", metaName: "CartAbandoned", label: "ทิ้งตะกร้า", hasValue: true, source: "SYSTEM" },
-  { key: "LEAD_SUBMITTED", metaName: "LeadSubmitted", label: "ผู้สนใจ", hasValue: true, source: "TAG_RULE" },
-  { key: "QUALIFIED_LEAD", metaName: "QualifiedLead", label: "ผู้สนใจที่มีคุณภาพ", hasValue: true, source: "TAG_RULE" },
+  { key: "PURCHASE", metaName: "Purchase", label: "Purchase", hasValue: true, source: "SYSTEM" },
+  { key: "ORDER_CREATED", metaName: "OrderCreated", label: "OrderCreated", hasValue: true, source: "SYSTEM" },
+  { key: "INITIATE_CHECKOUT", metaName: "InitiateCheckout", label: "InitiateCheckout", hasValue: false, source: "SYSTEM" },
+  { key: "ADD_PAYMENT_INFO", metaName: "AddPaymentInfo", label: "AddPaymentInfo", hasValue: true, source: "SYSTEM" },
+  { key: "ORDER_SHIPPED", metaName: "OrderShipped", label: "OrderShipped", hasValue: true, source: "SYSTEM" },
+  { key: "ORDER_DELIVERED", metaName: "OrderDelivered", label: "OrderDelivered", hasValue: true, source: "SYSTEM" },
+  { key: "ORDER_CANCELED", metaName: "OrderCanceled", label: "OrderCanceled", hasValue: true, source: "SYSTEM" },
+  { key: "ORDER_RETURNED", metaName: "OrderReturned", label: "OrderReturned", hasValue: true, source: "SYSTEM" },
+  { key: "VIEW_CONTENT", metaName: "ViewContent", label: "ViewContent", hasValue: true, source: "SYSTEM" },
+  { key: "CART_ABANDONED", metaName: "CartAbandoned", label: "CartAbandoned", hasValue: true, source: "SYSTEM" },
+  { key: "LEAD_SUBMITTED", metaName: "LeadSubmitted", label: "LeadSubmitted", hasValue: true, source: "TAG_RULE" },
+  { key: "QUALIFIED_LEAD", metaName: "QualifiedLead", label: "QualifiedLead", hasValue: true, source: "TAG_RULE" },
 ];
 
 // PaymentSlipAttached ไม่มีจุดเกิดแยก — รวมใน AddPaymentInfo (PRD Q2) จึงไม่อยู่ในรายการเลย
