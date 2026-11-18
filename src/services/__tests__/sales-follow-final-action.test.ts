@@ -14,6 +14,7 @@ import { PrismaClient } from '@prisma/client'
 vi.mock('server-only', () => ({}))
 
 import { runSalesFollowTick } from '@/services/sales-follow-engine.service'
+import { cancelFinalForConversation, getConversationPanel, getFollowBotRowSummaries } from '@/services/sales-follow-bot.service'
 
 const url = process.env.DATABASE_URL ?? ''
 const isLocal = /@(localhost|127\.0\.0\.1):5434\//.test(url)
@@ -169,7 +170,8 @@ describe.skipIf(!isLocal)('sales-follow final action (DB จริง)', () => {
     const after = await runOf(r.runId)
     expect(after.finalActionAt).not.toBeNull()
     expect(after.finalActionTaken).toBeNull()
-    expect(await notes(r.conv)).toHaveLength(0)
+    // ลูกค้าตอบ = BR-FA-12 ข เขียนบรรทัด "ยกเลิก" + บรรทัดส่งห้องต่อ (2) · เหตุอื่น = ไม่มีบรรทัด
+    expect(await notes(r.conv)).toHaveLength(o.buyerAfter ? 2 : 0)
     expect((await tick(w)).finalSkipped).toBe(0) // ปิดแถวแล้ว ไม่หยิบซ้ำ
   })
 
@@ -203,5 +205,112 @@ describe.skipIf(!isLocal)('sales-follow final action (DB จริง)', () => {
     expect((await tick(w)).finalActed).toBe(0)
     expect((await convOf(none.conv)).isSpam).toBe(false)
     expect((await convOf(stopped.conv)).isSpam).toBe(false)
+  })
+})
+
+describe.skipIf(!isLocal)('00095 BR-FA-12 ช่วงรอ action ท้ายสุด (DB จริง)', () => {
+  const prevEnv = process.env.SALES_FOLLOW_BOT_SHOP_IDS
+  beforeAll(async () => {
+    const u = await db.user.create({ data: { displayName: `sffp-${run}`, username: `sffp_${run}` }, select: { id: true } })
+    S.user = u.id
+  })
+  afterAll(async () => {
+    if (prevEnv === undefined) delete process.env.SALES_FOLLOW_BOT_SHOP_IDS
+    else process.env.SALES_FOLLOW_BOT_SHOP_IDS = prevEnv
+    await db.shop.deleteMany({ where: { id: { in: worlds } } })
+    await db.user.deleteMany({ where: { id: S.user } })
+    await db.$disconnect()
+  })
+  beforeEach(() => {
+    process.env.SALES_FOLLOW_BOT_SHOP_IDS = worlds.join(',')
+  })
+
+  it('แถวกล่องแชท + แผงในห้องเห็น pending พร้อมเวลา · NONE = ไม่เห็น · [M-pending-clause]', async () => {
+    const w = await mkWorld()
+    const bot = await mkBot(w, { finalDelayMin: 24 * 60 })
+    const r = await mkDoneRoom({ w, botId: bot.id, lastSentAgo: HOUR })
+    const sums = await getFollowBotRowSummaries(w.shop, [r.conv])
+    const fp = sums.get(r.conv)?.finalPending
+    expect(fp?.kind).toBe('SPAM')
+    const run0 = await runOf(r.runId)
+    expect(Date.parse(fp!.dueAt)).toBe(run0.lastSentAt!.getTime() + 24 * HOUR)
+    const panel = await getConversationPanel(w.shop, r.conv)
+    expect(panel.available && panel.run?.finalPending?.kind).toBe('SPAM')
+    // บอท NONE = ไม่มี pending
+    const w2 = await mkWorld()
+    const bot2 = await mkBot(w2, { finalAction: 'NONE' })
+    const r2 = await mkDoneRoom({ w: w2, botId: bot2.id, lastSentAgo: HOUR })
+    expect((await getFollowBotRowSummaries(w2.shop, [r2.conv])).get(r2.conv)).toBeNull()
+    const p2 = await getConversationPanel(w2.shop, r2.conv)
+    expect(p2.available && p2.run).toBeNull()
+  })
+
+  it('ทำ action ไปแล้ว (finalActionAt ตั้ง) = ไม่เป็น pending', async () => {
+    const w = await mkWorld()
+    const bot = await mkBot(w, { finalDelayMin: 24 * 60 })
+    const r = await mkDoneRoom({ w, botId: bot.id, lastSentAgo: HOUR })
+    await db.salesFollowRun.update({ where: { id: r.runId }, data: { finalActionAt: new Date() } })
+    expect((await getFollowBotRowSummaries(w.shop, [r.conv])).get(r.conv)).toBeNull()
+  })
+
+  it('ลูกค้าตอบระหว่างรอ → tick ถัดไป SKIP ทันที + ส่งห้องต่อครั้งเดียว + บรรทัดระบบ · ห้องไม่ถูกย้าย', async () => {
+    const w = await mkWorld()
+    const bot = await mkBot(w, { finalDelayMin: 24 * 60 })
+    const r = await mkDoneRoom({ w, botId: bot.id, lastSentAgo: 2 * HOUR, buyerAfter: true })
+    await Promise.all([tick(w), tick(w)])
+    await tick(w)
+    const after = await runOf(r.runId)
+    expect(after.finalActionAt).not.toBeNull()
+    expect(after.finalActionTaken).toBeNull()
+    expect((await convOf(r.conv)).isSpam).toBe(false)
+    const ns = await notes(r.conv)
+    expect(ns.filter((n) => n.body.includes('ยกเลิกการย้ายไปสแปม'))).toHaveLength(1)
+    expect(ns.filter((n) => !n.body.includes('ยกเลิกการ'))).toHaveLength(1) // บรรทัดส่งห้องต่อ (BR-FA-10) หนึ่งครั้ง
+  })
+
+  it('ร้านตอบระหว่างรอ → SKIP ทันที ไม่มีบรรทัดระบบ', async () => {
+    const w = await mkWorld()
+    const bot = await mkBot(w, { finalDelayMin: 24 * 60 })
+    const r = await mkDoneRoom({ w, botId: bot.id, lastSentAgo: 2 * HOUR, shopReplyAfter: true })
+    await tick(w)
+    expect((await runOf(r.runId)).finalActionAt).not.toBeNull()
+    expect(await notes(r.conv)).toHaveLength(0)
+  })
+
+  it('แอดมินยกเลิก: claim ครั้งเดียว (ครั้งสองไม่ทำอะไร) + บรรทัดระบบ + tick ไม่ทำ action', async () => {
+    const w = await mkWorld()
+    const bot = await mkBot(w, { finalDelayMin: 10 })
+    const r = await mkDoneRoom({ w, botId: bot.id, lastSentAgo: 5 * HOUR })
+    expect(await cancelFinalForConversation(w.shop, r.conv)).toEqual({ cancelled: true })
+    expect(await cancelFinalForConversation(w.shop, r.conv)).toEqual({ cancelled: false })
+    await tick(w)
+    expect((await convOf(r.conv)).isSpam).toBe(false)
+    const ns = await notes(r.conv)
+    expect(ns).toHaveLength(1)
+    expect(ns[0].body).toContain('แอดมินยกเลิกการย้ายไปสแปม')
+  })
+
+  it('ยกเลิกห้องร้านอื่น = NotFound', async () => {
+    const w = await mkWorld()
+    const other = await mkWorld()
+    const bot = await mkBot(w)
+    const r = await mkDoneRoom({ w, botId: bot.id })
+    await expect(cancelFinalForConversation(other.shop, r.conv)).rejects.toThrow()
+  })
+
+  it('pending กันบอทอื่นแนบห้อง · run ที่ทำไปแล้ว = แนบได้ (ตัวควบคุม) · [M-attach-guard]', async () => {
+    const attached = async (acted: boolean) => {
+      const w = await mkWorld()
+      const a = await mkBot(w, { finalDelayMin: 24 * 60 })
+      const r = await mkDoneRoom({ w, botId: a.id, lastSentAgo: 10 * 60_000 })
+      // ลูกค้าทักก่อนรอบสุดท้าย 10 นาที (ยังอยู่ในหน้าต่าง delay รอบแรกของบอท B) — ไม่ใช่ "ตอบหลังรอบสุดท้าย" จึงไม่ถูกยกเลิกก่อนตัวแนบ
+      await db.chatMessage.create({ data: { conversationId: r.conv, senderRole: 'BUYER', type: 'TEXT', body: 'ราคาเท่าไหร่', createdAt: ago(20 * 60_000) } })
+      await db.conversation.update({ where: { id: r.conv }, data: { lastInboundAt: ago(20 * 60_000) } })
+      if (acted) await db.salesFollowRun.update({ where: { id: r.runId }, data: { finalActionAt: new Date() } })
+      await mkBot(w, { finalAction: 'NONE' })
+      return (await tick(w)).attached
+    }
+    expect(await attached(true)).toBeGreaterThan(0)
+    expect(await attached(false)).toBe(0)
   })
 })
