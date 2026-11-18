@@ -208,7 +208,8 @@ export default function ChatContextMenu({
     // สีไอคอนบอกน้ำหนักของคำสั่ง ไม่ใช่ตกแต่ง: ปักหมุด=warning, ปิดงาน=success (งานจบแล้ว),
     // ซ่อน=กลาง, สแปม=danger. ใช้ token `-ink` เพราะเป็นตัวอักษร/ไอคอนบนพื้นอ่อน (ดู DESIGN.md
     // "สองโทน: เขียวเป็นพื้น vs เขียวเป็นหมึก")
-    <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+    <>
+        <div className="grid grid-cols-4 gap-2 px-3 pb-3">
       {(
         [
           { action: (isPinned ? 'unpin' : 'pin') as RowAction, icon: isPinned ? 'star-off' : 'star', label: isPinned ? 'เลิกปักหมุด' : 'ปักหมุด', tone: 'text-warning-ink', on: isPinned },
@@ -237,6 +238,8 @@ export default function ChatContextMenu({
         </button>
       ))}
     </div>
+    <p className="text-default-700 text-2xs px-4 pb-3">ปิดงาน ซ่อน และสแปม มีผลเฉพาะในกล่องแชท Deep — ไม่ย้ายใน Meta Business Suite / LINE OA</p>
+    </>
   )
 
   const salesSegmented = (
