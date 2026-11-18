@@ -14,8 +14,9 @@
  * Base: pattern state/context จาก ./DraftOrderProvider.tsx (ThreadShopProvider) · โหลด/ล้ม/รีเฟรชเงียบ จาก inbox/[conversationId]/components/FollowUpPanel.tsx
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
-import { createDebounced, createLatestGate, runOf } from '@/lib/follow-bot-room'
+import { FINAL_ACTION_KEY, createDebounced, createLatestGate, runOf } from '@/lib/follow-bot-room'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { ConversationPanel, PanelRun } from '@/services/sales-follow-bot.service'
@@ -119,14 +120,27 @@ export default function FollowBotRoomProvider({
   }, [enabled, reload])
 
   const stop = useCallback(async () => {
-    const ok = await pacesConfirm({
-      title: t.followBotStopTitle,
-      text: t.followBotStopText,
-      icon: 'warning',
-      confirmButtonText: t.followBotStop,
-      cancelButtonText: t.followBotStopKeep,
-      confirmSemantic: 'primary',
-    })
+    // BR-FA-12: run ที่ครบรอบแล้วรอ action ท้ายสุด = "ยกเลิก" action (endpoint/ข้อความอีกชุด) ไม่ใช่หยุดบอท
+    const pending = runOf(panelRef.current)?.finalPending ?? null
+    const ok = await pacesConfirm(
+      pending
+        ? {
+            title: fmt(t.followBotFinalCancelTitle, { action: t[FINAL_ACTION_KEY[pending.kind]] }),
+            text: t.followBotFinalCancelText,
+            icon: 'warning',
+            confirmButtonText: t.followBotFinalCancel,
+            cancelButtonText: t.followBotFinalCancelKeep,
+            confirmSemantic: 'primary',
+          }
+        : {
+            title: t.followBotStopTitle,
+            text: t.followBotStopText,
+            icon: 'warning',
+            confirmButtonText: t.followBotStop,
+            cancelButtonText: t.followBotStopKeep,
+            confirmSemantic: 'primary',
+          },
+    )
     if (!ok) return
     const before = panelRef.current
     // token ของการหยุด: คำตอบ reload เก่าที่ยังลอยอยู่ห้ามทับสถานะ optimistic
@@ -135,13 +149,13 @@ export default function FollowBotRoomProvider({
     // optimistic: แถวหายทันที (AC-FB-88) · ล้ม = คืนของเดิม (เฉพาะเมื่อยังเป็นห้อง/รอบล่าสุด)
     setPanel({ available: true, run: null })
     try {
-      const res = await fetch(`${url}/stop`, { method: 'POST' })
+      const res = await fetch(`${url}/${pending ? 'cancel-final' : 'stop'}`, { method: 'POST' })
       if (!res.ok) throw new Error(String(res.status))
-      pacesToast.chat.success(t.followBotStopped)
+      pacesToast.chat.success(pending ? t.followBotFinalCancelled : t.followBotStopped)
       void reload(true)
     } catch {
       if (gate.isLatest(token)) setPanel(before)
-      pacesToast.chat.error(t.followBotStopFailed)
+      pacesToast.chat.error(pending ? t.followBotFinalCancelFailed : t.followBotStopFailed)
     } finally {
       setStopping(false) // ห้องอื่นรีเซ็ตเองใน effect สลับห้อง จึงไม่ต้องเช็คห้อง
     }

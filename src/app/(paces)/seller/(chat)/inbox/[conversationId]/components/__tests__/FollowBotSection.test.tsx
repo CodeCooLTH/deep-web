@@ -21,7 +21,7 @@ const step = (index: number, state: PanelStep['state'], extra: Partial<PanelStep
 })
 const mkRun = (over: Partial<PanelRun> = {}): PanelRun => ({
   runId: 'r', botName: 'ตามคนถามราคา', stageLabel: 'ยังไม่ซื้อ', holdReason: null, holdText: null,
-  awaitingShop: false, canStop: true, steps: [], ...over,
+  awaitingShop: false, canStop: true, finalPending: null, steps: [], ...over,
 })
 const set = (run: PanelRun | null, over: Partial<FollowBotRoomValue> = {}) => {
   room = { status: 'ready', run, stopping: false, reload: async () => {}, reloadSoon: () => {}, stop: async () => {}, ...over }

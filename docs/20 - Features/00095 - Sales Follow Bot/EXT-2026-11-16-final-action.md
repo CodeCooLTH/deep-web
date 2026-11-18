@@ -82,3 +82,13 @@
 
 - **ข้อมูล:** migration `20261118130000_00095_ext_condition_rules` — `SalesFollowBot.conditionMatch` text NOT NULL default 'ALL' CHECK ∈ (ALL,ANY) · `conditionRules` jsonb NOT NULL default '[]' CHECK array ≤10 · backfill: `salesStatuses` → แถว stage `is` · `tagKeys` → แถว tag `has_all`/`has_any` ตาม `tagMatch` · ร้อยกันด้วย ALL · ถอน CHECK `SalesFollowBot_condition_check` (ย้ายไป Valibot) · ขยาย CHECK `SalesFollowRun_stopReason_check` เพิ่ม `CONDITION_UNMATCHED` · ล้างคอลัมน์ `stopTagKeys` ของ migration ก่อนหน้า (`20261118120000_00095_ext_stop_tags` คงไว้ใน branch — prod สร้างแล้ว DROP ทิ้งทันที) · คอลัมน์เก่า `salesStatuses/tagKeys/tagMatch` เก็บไว้ไม่ใช้อ่าน
 - **ค่าที่ไม่ได้ทำ:** เทมเพลตกฎสำเร็จรูป · NOT ซ้อนกลุ่ม (กลุ่มย่อยในกฎ) · แอปมือถือยังไม่ตามถ้อยคำ "ติดตาม" (ไม่แตะคำในกล่องแชท/หัวห้อง)
+
+## ภาคผนวก — ช่วง "รอ action ท้ายสุด" ต้องมองเห็นและควบคุมได้ (FR-FA-9 / BR-FA-12 · แก้บั๊ก 2026-11-18)
+
+ปัญหา: ตามครบรอบสุดท้ายแล้ว run เป็น `DONE` ทันที ชิปแถวกล่องแชทและแผงในห้องอ่านแค่ `ACTIVE` จึงหายหมด ทั้งที่บอทยังจะย้ายห้อง/ซ่อน/ปิดงานอีกหลายชั่วโมง (เงียบ · ไม่มีใครรู้ · ยกเลิกไม่ได้)
+
+นิยาม "รอ action" (pending) = run `DONE` + `bot.finalAction <> 'NONE'` + `finalActionAt IS NULL` + ยังไม่เกิน `MESSAGE_LOOKBACK_MS` · เวลาลงมือ = `lastSentAt + finalDelayMin` (`finalPendingOf` ใน `src/lib/sales-follow-bot/final-pending.ts` — ตัวเดียวทั้งชิป/แผง)
+
+| BR | กฎ |
+|---|---|
+| BR-FA-12 | (ก) ระหว่างรอ ชิปแถว + แผงในห้องยังแสดงบอทพร้อมเวลาที่จะลงมือ ("ย้ายสแปมใน 18 ชม." / แผง "จะย้ายไปสแปม {วันเวลา}") · (ข) ลูกค้าตอบหลัง `lastSentAt` ระหว่างรอ = ยกเลิกทันทีใน tick ถัดไป (claim `finalActionAt` · taken ว่าง) + ส่งห้องต่อตาม `replyHandoff` **ครั้งเดียว** โดยผู้ชนะ claim (BR-FA-10 ข) + บรรทัดระบบ · ร้านตอบเอง = ยกเลิกทันทีเช่นกัน (ไม่ส่งห้องต่อ) · (ค) แอดมินกด "ยกเลิก" ที่แผงได้ (claim เดียวกัน · idempotent · บรรทัดระบบ "แอดมินยกเลิกการ… ของบอท") · (ง) ระหว่างรอ ห้องนี้ถือว่าถูกบอทครอบครอง: ตัวแนบบอทอื่นไม่แนบ (ไม่ใช้ cancel-on-attach) |

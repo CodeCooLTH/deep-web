@@ -208,7 +208,7 @@ export type ConversationListItem = {
   /** ข้อความล่าสุดเป็นฟองบอทติดตามยอดขาย (00095) — คำนำหน้าพรีวิว "บอทติดตาม:" · enrichWithAutoReplyBadge */
   lastMessageIsFollowBot?: boolean
   /** สถานะบอทติดตามของแถว (00095 UX §21) — ต่อจาก getFollowBotRowSummaries ภายหลัง · ไม่มี/null = ไม่มีแคปซูล */
-  followBot?: { sentRounds: number; totalRounds: number; awaitingShop: boolean } | null
+  followBot?: { sentRounds: number; totalRounds: number; awaitingShop: boolean; finalPending: { kind: 'RESOLVE' | 'HIDE' | 'SPAM'; dueAt: string } | null } | null
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
   referralAdId?: string | null

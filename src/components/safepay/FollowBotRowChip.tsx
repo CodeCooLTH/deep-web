@@ -10,13 +10,26 @@
 import Icon from '@/components/wrappers/Icon'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
+import { useNowMs } from '@/hooks/useNowMs'
 import { capsuleSegments } from '@/lib/follow-bot-ui'
+import { formatRemaining } from '@/lib/follow-bot-room'
+import type { FinalActionKind } from '@/lib/sales-follow-bot/constants'
 import type { FollowBotCapsuleProps } from './FollowBotCapsule'
 
 type Copy = ReturnType<typeof useT>['autoNotify']
 
-function view(t: Copy, { sentRounds, totalRounds, awaitingShop }: FollowBotCapsuleProps) {
+type ChipProps = FollowBotCapsuleProps & { finalPending?: { kind: FinalActionKind; dueAt: string } | null }
+
+const SHORT = { SPAM: 'followBotFinalShortSpam', HIDE: 'followBotFinalShortHide', RESOLVE: 'followBotFinalShortResolve' } as const
+
+function view(t: Copy, { sentRounds, totalRounds, awaitingShop, finalPending }: ChipProps, nowMs: number) {
   const segs = capsuleSegments(sentRounds, totalRounds)
+  if (finalPending) {
+    // BR-FA-12: ตามครบแล้วแต่ยังรอ action ท้ายสุด — บอกว่าจะทำอะไรเมื่อไร
+    const units = { day: t.followBotUnitDay, hour: t.followBotUnitHour, minute: t.followBotUnitMinute }
+    const vars = { action: t[SHORT[finalPending.kind]], in: formatRemaining(Math.max(0, Date.parse(finalPending.dueAt) - nowMs), units) }
+    return { text: fmt(t.followBotFinalChip, vars), aria: fmt(t.followBotFinalChipAria, vars) }
+  }
   if (segs.length === 0) return null
   const n = segs.filter((s) => s === 'sent').length
   const text = awaitingShop ? t.followBotAwaiting : fmt(t.followBotChip, { n, total: segs.length })
@@ -25,11 +38,12 @@ function view(t: Copy, { sentRounds, totalRounds, awaitingShop }: FollowBotCapsu
 }
 
 /** ชื่อชิปสำหรับนับ "+N" ใน rowChipOverflow — null = ไม่มีชิป */
-export const followBotRowChipName = (t: Copy, p: FollowBotCapsuleProps): string | null => view(t, p)?.text ?? null
+export const followBotRowChipName = (t: Copy, p: ChipProps): string | null => view(t, p, Date.now())?.text ?? null
 
-export default function FollowBotRowChip(p: FollowBotCapsuleProps) {
+export default function FollowBotRowChip(p: ChipProps) {
   const t = useT().autoNotify
-  const v = view(t, p)
+  const nowMs = useNowMs(!!p.finalPending) // เวลาสัมพัทธ์ไม่ค้างค่าเก่า — ขยับเฉพาะชิปที่รอ action
+  const v = view(t, p, nowMs)
   if (!v) return null
   return (
     <span

@@ -16,7 +16,7 @@ import { useNowMs } from '@/hooks/useNowMs'
 import { fmt } from '@/i18n/fmt'
 import { useT } from '@/i18n/LocaleProvider'
 import { formatTimeHM } from '@/lib/format-date'
-import { chipTone, formatRemaining, nextRoundSummary, sentRounds, stopControl } from '@/lib/follow-bot-room'
+import { FINAL_ACTION_KEY, chipTone, formatRemaining, nextRoundSummary, sentRounds, stopControl } from '@/lib/follow-bot-room'
 import { useFollowBotRoom } from '../../../_components/FollowBotRoomProvider'
 
 export default function FollowBotChipDetail({ onViewAll, onReply }: { onViewAll?: () => void; onReply?: () => void }) {
@@ -31,7 +31,9 @@ export default function FollowBotChipDetail({ onViewAll, onReply }: { onViewAll?
   const replyFirst = run.awaitingShop && !!onReply
   const units = { day: t.followBotUnitDay, hour: t.followBotUnitHour, minute: t.followBotUnitMinute }
   const text =
-    summary?.kind === 'afterReply'
+    summary?.kind === 'final'
+      ? fmt(t.followBotFinalChip, { action: t[FINAL_ACTION_KEY[summary.action]], in: formatRemaining(summary.remainingMs, units) })
+      : summary?.kind === 'afterReply'
       ? t.followBotAfterReply
       : summary?.kind === 'hold'
         ? summary.text
@@ -88,7 +90,7 @@ export default function FollowBotChipDetail({ onViewAll, onReply }: { onViewAll?
               : 'btn bg-card border-default-300 text-default-800 min-h-11 flex-1 border @3xl:min-h-8 @3xl:flex-none'
           }
         >
-          {t.followBotStop}
+          {run.finalPending ? t.followBotFinalCancel : t.followBotStop}
         </button>
       </div>
     </div>

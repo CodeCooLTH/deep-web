@@ -1,5 +1,6 @@
 // ตรรกะตัดสินของ "บอทติดตามในห้อง" (00095 S-8b) — pure · client-safe · เทส: __tests__/follow-bot-room.test.ts
 // (convention ui-boolean-needs-a-testable-home: ชิป/แผงห้ามตัดสินเอง — ถามที่นี่ที่เดียว)
+import type { FinalActionKind } from '@/lib/sales-follow-bot/constants'
 import type { ConversationPanel, PanelRun, PanelStep } from '@/services/sales-follow-bot.service'
 
 export type FollowBotChipTone = 'info' | 'warning'
@@ -48,6 +49,7 @@ export function formatRemaining(ms: number, u: DurationUnits): string {
 
 export type NextRoundSummary =
   | { kind: 'afterReply' }
+  | { kind: 'final'; action: FinalActionKind; remainingMs: number }
   | { kind: 'hold'; text: string }
   | { kind: 'due'; n: number; total: number; remainingMs: number; dueAt: string }
 
@@ -56,6 +58,7 @@ export type NextRoundSummary =
  * ไม่มีอะไรจะบอก (ไม่มีรอบเหลือ / ไม่มีเวลา) = null
  */
 export function nextRoundSummary(run: PanelRun, nowMs: number): NextRoundSummary | null {
+  if (run.finalPending) return { kind: 'final', action: run.finalPending.kind, remainingMs: Math.max(0, Date.parse(run.finalPending.dueAt) - nowMs) }
   if (run.awaitingShop) return { kind: 'afterReply' }
   if (run.holdText) return { kind: 'hold', text: run.holdText }
   const i = nextStepIndex(run.steps)
@@ -109,3 +112,6 @@ export function createDebounced(fn: () => void, ms: number) {
     cancel: () => clearTimeout(timer),
   }
 }
+
+/** คีย์คำ "จะ…" ของ action ท้ายสุดในพจนานุกรม autoNotify — แผง/กล่องชิปใช้ร่วม */
+export const FINAL_ACTION_KEY = { SPAM: 'followBotFinalSpam', HIDE: 'followBotFinalHide', RESOLVE: 'followBotFinalResolve' } as const

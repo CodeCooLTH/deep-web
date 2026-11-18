@@ -5,7 +5,7 @@ vi.mock('../sales-follow-bot.service', () => ({ getFollowBotRowSummaries: (...a:
 
 import { enrichWithFollowBot } from '../sales-follow-inbox-enrich'
 
-const S = { sentRounds: 1, totalRounds: 3, awaitingShop: false }
+const S = { sentRounds: 1, totalRounds: 3, awaitingShop: false, finalPending: null }
 
 // ปีกกา: ห้ามคืนค่า mock จาก hook — vitest จะเรียกมันเป็น teardown
 beforeEach(() => {

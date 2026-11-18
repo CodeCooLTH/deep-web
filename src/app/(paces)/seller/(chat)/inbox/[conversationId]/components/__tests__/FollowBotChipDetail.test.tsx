@@ -16,7 +16,7 @@ vi.mock('../../../../_components/FollowBotRoomProvider', () => ({ useFollowBotRo
 
 const mkRun = (over: Partial<PanelRun> = {}): PanelRun => ({
   runId: 'r', botName: 'ตามคนถามราคา', stageLabel: '', holdReason: null, holdText: null,
-  awaitingShop: false, canStop: true, steps: [{ index: 1, state: 'PENDING', delayMin: 60, sentAt: null, dueAt: null, reasonText: null }], ...over,
+  awaitingShop: false, canStop: true, finalPending: null, steps: [{ index: 1, state: 'PENDING', delayMin: 60, sentAt: null, dueAt: null, reasonText: null }], ...over,
 })
 const html = (run: PanelRun, onReply?: () => void) => {
   room = { status: 'ready', run, stopping: false, reload: async () => {}, reloadSoon: () => {}, stop: async () => {} }
