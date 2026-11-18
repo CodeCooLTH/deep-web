@@ -534,6 +534,7 @@ export const ROUTE_CAPABILITIES: Record<string, RouteEntry> = {
   'src/app/api/shops/current/sales-follow-bot/sends/route.ts': { GET: 'H2', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/follow-bot/route.ts': { GET: 'H1', status: 'DECLARED' },
   'src/app/api/chat/conversations/[id]/follow-bot/stop/route.ts': { POST: 'H2', status: 'DECLARED' },
+  'src/app/api/chat/conversations/[id]/follow-bot/cancel-final/route.ts': { POST: 'H2', status: 'DECLARED' },
   'src/app/api/shops/current/appointment-settings/route.ts': { PATCH: 'Q2', status: 'DECLARED' },
   'src/app/api/shops/current/appointments/day/route.ts': { GET: 'Q1', status: 'DECLARED' },
   // 00086 P3 — งานของฉันที่ค้างจากวันก่อน (ผูกกับผู้เรียก) · ทรงแถวเดียวกับ day
