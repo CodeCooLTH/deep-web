@@ -7,6 +7,19 @@ const row = (o: Partial<AdReferralRow>): AdReferralRow => ({
   source: "ADS", adId: "A1", adTitle: "โปรล้อแม็ก", photoFileId: null, receivedAt: d("2026-11-01T00:00:00Z"), ...o,
 });
 
+describe("เวลาอ้างอิงระดับนาที", () => {
+  const ref = d("2026-11-06T02:23:00Z");
+  it("คลิก 19 วินาทีหลัง :00 ของนาทีเดียวกัน นับ", () => {
+    expect(pickAdAttribution([row({ adId: "NEW", receivedAt: d("2026-11-06T02:23:19Z") }), row({ adId: "OLD" })], ref)?.adId).toBe("NEW");
+  });
+  it("คลิกนาทีถัดไปไม่นับ", () => {
+    expect(pickAdAttribution([row({ receivedAt: d("2026-11-06T02:24:00Z") })], ref)).toBeNull();
+  });
+  it("เวลาอ้างอิงมีวินาที ไม่ขยาย", () => {
+    expect(pickAdAttribution([row({ receivedAt: d("2026-11-06T02:23:19Z") })], d("2026-11-06T02:23:10Z"))).toBeNull();
+  });
+});
+
 describe("pickAdAttribution (00091)", () => {
   it("เลือกตัวล่าสุดที่เวลา ≤ เวลาอ้างอิง (ตัวอย่างใน PRD)", () => {
     const rows = [
