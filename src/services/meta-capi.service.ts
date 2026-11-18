@@ -2,6 +2,7 @@
 //
 // 🛑 caller ต้องเรียกเฉพาะฝั่งที่เขียนสำเร็จ (count > 0) และส่ง tx เดียวกับธุรกิจถ้ามี —
 // ฟังก์ชันนี้แค่ INSERT ลงคิว ไม่เรียก Meta (ตัวส่งอยู่ใน sweepMetaCapi)
+import { clampCapiEventTime } from "@/lib/meta-capi/event-time";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { isMetaCapiEnabled } from "@/lib/meta-capi/gate";
 import { eventsForTrigger, type OrderTrigger, type PurchaseAt } from "@/lib/meta-capi/triggers";
@@ -51,7 +52,7 @@ async function resolveTarget(db: Db, shopId: string, conversationId: string, at:
 async function insertRows(
   db: Db,
   t: { shopId: string; shopChannelId: string; conversationId: string; psid: string; pageId: string },
-  events: { key: CapiEventKey; dedupeKey: string; payload: Prisma.InputJsonValue }[],
+  events: { key: CapiEventKey; dedupeKey: string; payload: Prisma.InputJsonValue; eventTime?: Date }[],
   at: Date,
 ) {
   if (!events.length) return;
@@ -64,7 +65,7 @@ async function insertRows(
       .filter((e) => ds.events.includes(e.key))
       .map((e) => ({
         shopId: t.shopId, datasetRowId: ds.id, conversationId: t.conversationId, eventKey: e.key,
-        dedupeKey: e.dedupeKey, eventTime: at, pageId: t.pageId, psid: t.psid, payload: e.payload,
+        dedupeKey: e.dedupeKey, eventTime: e.eventTime ?? at, pageId: t.pageId, psid: t.psid, payload: e.payload,
       })),
   );
   if (data.length) await db.metaCapiEvent.createMany({ data, skipDuplicates: true });
@@ -94,7 +95,7 @@ export async function enqueueOrderCapi(db: Db, orderId: string, trigger: OrderTr
   const order = await db.order.findUnique({
     where: { id: orderId },
     select: {
-      shopId: true, conversationId: true, isDryRun: true, status: true, totalAmount: true, vatAmount: true,
+      shopId: true, conversationId: true, isDryRun: true, status: true, createdAt: true, totalAmount: true, vatAmount: true,
       items: { select: { id: true, productId: true, qty: true, price: true } },
     },
   });
@@ -112,6 +113,9 @@ export async function enqueueOrderCapi(db: Db, orderId: string, trigger: OrderTr
     key,
     dedupeKey: `${key.toLowerCase()}:${orderId}`,
     payload: orderPayload({ id: orderId, ...order }, key, t.setting.eventOptions),
+    // เฉพาะ "สร้างออเดอร์" (ORDER_CREATED + PURCHASE จังหวะ CREATE) ใช้วันที่ในออเดอร์ที่ร้านตั้งย้อนหลังได้
+    // · ร่างที่ยืนยัน/ยืนยัน/ชำระ/จัดส่ง = เหตุการณ์ตอนนั้นจริง คงเวลาจริง · createdAt ของร่าง = เวลาสร้างร่าง จึงไม่ใช้
+    ...(trigger === "CREATED" ? { eventTime: clampCapiEventTime(order.createdAt, at) } : {}),
   }));
   await insertRows(db, { shopId: order.shopId, conversationId: order.conversationId, ...t }, events, at);
 }

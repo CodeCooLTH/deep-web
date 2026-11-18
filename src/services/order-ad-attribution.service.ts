@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { pickAdAttribution, type OrderAdAttribution } from "@/lib/ad-attribution";
+import { effectiveReferenceTime, pickAdAttribution, type OrderAdAttribution } from "@/lib/ad-attribution";
 
 /**
  * 00091 — หาแอดล่าสุดที่ห้องแชทนี้คลิก ณ เวลาอ้างอิง (ผูก shop ผ่านห้อง — ห้องร้านอื่นไม่เข้า)
@@ -16,7 +16,7 @@ export async function findAdAttribution(
       conversation: { shopId },
       source: "ADS",
       adId: { not: null },
-      receivedAt: { lte: referenceTime },
+      receivedAt: { lte: effectiveReferenceTime(referenceTime) },
     },
     orderBy: { receivedAt: "desc" },
     take: 1, // ใช้ index (conversationId, receivedAt) — 1 query ต่อการสร้างคำสั่งซื้อ (BRD §5)

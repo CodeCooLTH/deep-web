@@ -333,7 +333,7 @@
     "src/app/(paces)/seller/(chat)/inbox/comments/loading.tsx": "f771fd766bd0190f",
     "src/app/(paces)/seller/(chat)/inbox/comments/page.tsx": "30191711dfde4809",
     "src/app/(paces)/seller/(chat)/inbox/components/ChannelBadge.tsx": "6e61657200a94473",
-    "src/app/(paces)/seller/(chat)/inbox/components/ChatContextMenu.tsx": "46cad26941496913",
+    "src/app/(paces)/seller/(chat)/inbox/components/ChatContextMenu.tsx": "ea1824fa0684fa0e",
     "src/app/(paces)/seller/(chat)/inbox/components/InboxFilterPanel.tsx": "1ca5dbea92577edd",
     "src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx": "03bdb23a5e867c4a",
     "src/app/(paces)/seller/(chat)/inbox/components/InboxRow.tsx": "fb22257fce8ea293",

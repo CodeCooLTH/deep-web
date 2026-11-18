@@ -3,6 +3,7 @@
  *
  *   npx dotenv -e .env -- npx tsx scripts/backfill-00091-order-ad-attribution.ts            # dry-run (ค่าตั้งต้น) นับอย่างเดียว
  *   npx dotenv -e .env -- npx tsx scripts/backfill-00091-order-ad-attribution.ts --apply    # เขียนจริง
+ *   ... --shop <shopId> [--apply]   # จำกัดทีละร้าน
  *
  * 🛑 เขียนเฉพาะแถวที่ adId ยังว่าง (ไม่ทับ) · รันซ้ำได้ · ไม่ลบอะไรเลย
  * 🛑 ปฏิเสธถ้า DATABASE_URL ไม่ใช่ localhost — ยกเว้นใส่ `--i-know-this-is-prod` ชัด ๆ (Controller เป็นคนรันบน prod)
@@ -10,6 +11,9 @@
 import { backfillOrderAdAttribution } from '../src/services/order-ad-attribution.service'
 
 const APPLY = process.argv.includes('--apply')
+const si = process.argv.indexOf('--shop')
+const SHOP = si >= 0 ? process.argv[si + 1] : undefined
+if (si >= 0 && !SHOP) { console.error('--shop ต้องตามด้วย shopId'); process.exit(1) }
 const PROD_OK = process.argv.includes('--i-know-this-is-prod')
 
 function dbHost(): string {
@@ -27,8 +31,8 @@ async function main() {
     console.error(`ปฏิเสธ: DATABASE_URL host = "${host || 'ไม่ทราบ'}" ไม่ใช่ localhost — ถ้าตั้งใจรันบน prod ให้ใส่ --i-know-this-is-prod`)
     process.exit(1)
   }
-  console.log(`${APPLY ? 'APPLY' : 'DRY-RUN'} · host=${host}`)
-  const r = await backfillOrderAdAttribution({ apply: APPLY })
+  console.log(`${APPLY ? 'APPLY' : 'DRY-RUN'} · host=${host} shop=${SHOP ?? 'ทั้งหมด'}`)
+  const r = await backfillOrderAdAttribution({ apply: APPLY, shopId: SHOP })
   console.log(`scanned=${r.scanned} matched=${r.matched} written=${r.written}`)
   if (!APPLY) console.log('(dry-run — ยังไม่เขียนอะไร · ใส่ --apply เพื่อเขียนจริง)')
 }

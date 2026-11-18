@@ -41,7 +41,18 @@ export function toOrderAdView(o: {
   };
 }
 
+/**
+ * เวลาอ้างอิงจากตัวเลือกเวลาแบบนาที (วินาที+มิลลิวินาที = 0) แปลว่า "ทั้งนาทีนั้น" — คลิกที่ 09:23:19
+ * ต้องนับกับใบที่เวลา 09:23:00 · เวลาที่มีวินาทีจริง (เช่น ตอนกดยืนยัน) ไม่เปลี่ยน
+ * เลือกปลายนาทีแทนใช้เวลาบันทึกจริง เพราะเวลาบันทึกไม่ถูกเก็บแยกและใบย้อนหลังต้องไม่ดึงคลิกหลังนาทีนั้นมา
+ */
+export function effectiveReferenceTime(referenceTime: Date): Date {
+  const t = referenceTime.getTime();
+  return t % 60_000 === 0 ? new Date(t + 59_999) : referenceTime;
+}
+
 export function pickAdAttribution(rows: AdReferralRow[], referenceTime: Date): OrderAdAttribution | null {
+  referenceTime = effectiveReferenceTime(referenceTime);
   let best: AdReferralRow | null = null;
   for (const r of rows) {
     // ไม่มี adId = ไม่รู้ว่าแอดไหน จึงไม่มีอะไรให้บันทึก
