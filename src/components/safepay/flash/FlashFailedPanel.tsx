@@ -32,6 +32,8 @@ interface Props {
   onEditRequest?: () => void
   /** "ส่งเองแทน" — ผู้เรียกที่พาไปส่งเองได้เท่านั้น (แชท) */
   onSelfShipRequest?: () => void
+  /** ยกเลิกใบที่ล้มนี้ — ทางออกเดียวเมื่อจะเปลี่ยนไปเปิดผ่าน iShip/ส่งเอง (ใบ FAILED กันการเปิดใบใหม่ทุกทาง) · ไม่ส่ง = ไม่มีปุ่ม */
+  onCancel?: () => void
 }
 
 const PRIMARY = 'bg-primary text-white hover:bg-primary-hover'
@@ -53,6 +55,7 @@ export default function FlashFailedPanel({
   onRetry,
   onEditRequest,
   onSelfShipRequest,
+  onCancel,
 }: Props) {
   const view = flashFailedView(shipment.lastErrorCode, isOwner, shipment.lastErrorMessage)
   // ปุ่มแก้ที่ต้องสลับกลับฟอร์ม แต่ผู้เรียกไม่มีทางสลับ → ไม่ใช่ปุ่มทึบ (ไม่ทิ้งปุ่มที่กดแล้วไม่ทำอะไร)
@@ -148,6 +151,19 @@ export default function FlashFailedPanel({
           >
             <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
             ส่งเองแทน
+          </button>
+        )}
+
+        {/* prod 2026-11-19: ใบ FAILED ค้าง = เปิด iShip ไม่ได้ (409) และไม่มีทางยกเลิก → ร้านติดตาย */}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="btn inline-flex min-h-11 items-center justify-center gap-2 text-sm text-danger-ink hover:bg-danger/10 disabled:opacity-60"
+          >
+            <Icon icon="tabler:x" className="text-base" aria-hidden="true" />
+            ยกเลิกพัสดุนี้
           </button>
         )}
 
