@@ -574,6 +574,7 @@ export default function ShipmentStatusView({
         onRetry={handleRetry}
         onEditRequest={onEditRequest}
         onSelfShipRequest={onSelfShipRequest}
+        onCancel={handleCancel}
       />
     )
   }
