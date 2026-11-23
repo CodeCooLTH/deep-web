@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { ChatPathIdSchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { sessionUserId } from "@/lib/session-user";
 import { getSubdomain } from "@/lib/subdomain";
 import { markRead, type SenderRole } from "@/services/chat.service";
 import { ForbiddenRoleError } from "@/lib/shop-capability";
@@ -15,11 +18,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  // "มี session" ≠ "รู้ว่าเป็นใคร" — ดู src/lib/session-user.ts
+  const userId = sessionUserId(session);
+  if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as any).id as string;
   const { id } = await params;
+  // id ผิดรูป = ไม่มีห้องนี้แน่นอน — ตอบแบบเดียวกับไม่พบ ไม่ลงไปถึง Prisma
+  if (!v.safeParse(ChatPathIdSchema, id).success) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
+  }
 
   const host = request.headers.get("host") || "";
   const role: SenderRole = getSubdomain(host) === "seller" ? "SHOP" : "BUYER";

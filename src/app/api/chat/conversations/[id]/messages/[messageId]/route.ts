@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { ChatPathIdSchema, ChatReactionBodySchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { sessionUserId } from "@/lib/session-user";
 import { cancelFailedOutboundMessage, sendOutboundReaction } from "@/services/channel-chat.service";
 import { GraphApiError } from "@/lib/facebook/graph";
 import { ForbiddenRoleError } from "@/lib/shop-capability";
@@ -22,11 +25,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; messageId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  // "มี session" ≠ "รู้ว่าเป็นใคร" — ดู src/lib/session-user.ts
+  const userId = sessionUserId(session);
+  if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as any).id as string;
   const { id, messageId } = await params;
+  const bad = badIds(id, messageId);
+  if (bad) return bad;
 
   try {
     await cancelFailedOutboundMessage({
@@ -75,24 +81,24 @@ export async function POST(
   { params }: { params: Promise<{ id: string; messageId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  // "มี session" ≠ "รู้ว่าเป็นใคร" — ดู src/lib/session-user.ts
+  const userId = sessionUserId(session);
+  if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as any).id as string;
   const { id, messageId } = await params;
+  const bad = badIds(id, messageId);
+  if (bad) return bad;
 
-  let emoji: string | null = null;
-  try {
-    const body = (await request.json()) as { emoji?: unknown };
-    if (body.emoji !== null && body.emoji !== undefined) {
-      if (typeof body.emoji !== "string" || body.emoji.length === 0 || body.emoji.length > 8) {
-        return NextResponse.json({ error: "รีแอ็กชันไม่ถูกต้อง" }, { status: 400 });
-      }
-      emoji = body.emoji;
-    }
-  } catch {
+  const raw = await request.json().catch(() => undefined);
+  if (raw === undefined) {
     return NextResponse.json({ error: "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400 });
   }
+  const parsed = v.safeParse(ChatReactionBodySchema, raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "รีแอ็กชันไม่ถูกต้อง" }, { status: 400 });
+  }
+  const emoji: string | null = parsed.output.emoji ?? null;
 
   try {
     const result = await sendOutboundReaction({
@@ -135,4 +141,15 @@ export async function POST(
     console.error("[POST /api/chat/conversations/[id]/messages/[messageId]]", msg || e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
+}
+
+/** id ห้อง/ข้อความต้องเป็น uuid — ผิดรูป = ไม่มีของนั้นแน่นอน ตอบ 404 แบบเดียวกับไม่พบ */
+function badIds(id: string, messageId: string): NextResponse | null {
+  if (!v.safeParse(ChatPathIdSchema, id).success) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
+  }
+  if (!v.safeParse(ChatPathIdSchema, messageId).success) {
+    return NextResponse.json({ error: "ไม่พบข้อความนี้" }, { status: 404 });
+  }
+  return null;
 }

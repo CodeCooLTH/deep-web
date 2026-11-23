@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { ChatPathIdSchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
@@ -26,6 +28,8 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  // id ผิดรูป = ไม่ยิง แต่ยังตอบ 200 ตามสัญญา "ของประดับห้ามแดง" ด้านบน
+  if (!v.safeParse(ChatPathIdSchema, id).success) return NextResponse.json({ sent: false });
   // notifyTyping ไม่ throw เลย (ของประดับ) — ไม่ต้องมี try/catch ซ้อนที่นี่
   const sent = await notifyTyping({ conversationId: id, actorUserId: userId, cap: "H2" });
   return NextResponse.json({ sent });

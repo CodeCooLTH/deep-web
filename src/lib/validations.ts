@@ -988,6 +988,33 @@ export const ChatMessagesQuerySchema = v.object({
   sync: v.optional(v.literal('1')),
 });
 
+// ─── ด่าน input ของ route แชทที่เคยตรวจด้วยมือ (2026-11-23) ───────────────────────────────
+// id ทุกตัวใน path เป็น uuid (Conversation/ChatMessage/PageComment/FacebookPost @default(uuid()))
+// ไม่ผ่าน = 400 ที่หน้าประตู ไม่ปล่อยค่าแปลก ๆ ลงไปถึง Prisma/service
+// 🛑 schema พวกนี้ "แทน" เช็กเดิมแบบพฤติกรรมเท่าเดิม — ห้ามเข้มกว่าที่ client (เว็บ + แอป native) ส่งจริง
+export const ChatPathIdSchema = v.pipe(v.string(), v.uuid());
+
+/** POST .../messages/[messageId] — null/ไม่ส่ง = ถอนรีแอ็กชัน · 8 หน่วย UTF-16 พอสำหรับอิโมจิ ZWJ/ธง */
+export const ChatReactionBodySchema = v.object({
+  emoji: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(8)))),
+});
+
+/** ตอบคอมเมนต์ / คอมเมนต์โพสต์ — "ต้องมีข้อความหรือรูปอย่างน้อยหนึ่ง" ตรวจต่อที่ route (ข้อความ error เฉพาะ) */
+export const CHAT_COMMENT_MAX_LEN = 8000; // เพดานคอมเมนต์ของ Facebook เอง
+export const ChatCommentBodySchema = v.object({
+  message: v.optional(v.nullable(v.pipe(v.string(), v.trim(), v.maxLength(CHAT_COMMENT_MAX_LEN, 'ข้อความยาวเกินไป'))), ''),
+  // fileId = key ของ storage (YYYY/MM/DD/<uuid>.<ext>) — ว่าง = ไม่แนบ (เว็บเดิมส่ง "" ได้)
+  fileId: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(300)))),
+});
+
+/** POST /api/chat/comments/resolve-expired — provider ที่ไม่รู้จักตกไป ALL ที่ route (allow-list เดิม) */
+export const ChatResolveExpiredBodySchema = v.nullable(
+  v.object({
+    channelId: v.optional(v.nullable(v.union([v.literal(''), v.pipe(v.string(), v.uuid())]))),
+    provider: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(20)))),
+  }),
+);
+
 // T1 (feature 00018): filter/ค้นหา ฝั่ง seller inbox — channel/shopChannelId/q เป็น optional ทั้งหมด
 // (buyer surface ไม่ใช้ field พวกนี้ — route derive role จาก subdomain แล้วไม่ส่งต่อให้ buyer branch)
 export const ChatConversationsQuerySchema = v.object({
