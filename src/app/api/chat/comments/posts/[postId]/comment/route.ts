@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { CHAT_COMMENT_MAX_LEN, ChatCommentBodySchema, ChatPathIdSchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { commentOnPost } from "@/services/page-comment.service";
@@ -15,7 +17,6 @@ import { forbiddenRoleResponse } from "@/lib/forbidden-role";
  * 🛑 สาธารณะเหมือนกัน — UI ต้องเตือนก่อนส่ง (BR-23)
  */
 export const dynamic = "force-dynamic";
-const MAX_LEN = 8000;
 
 export async function POST(
   request: NextRequest,
@@ -25,21 +26,24 @@ export async function POST(
   const userId = sessionUserId(session);
   if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { postId } = await params;
+  if (!v.safeParse(ChatPathIdSchema, postId).success) {
+    return NextResponse.json({ error: "ไม่พบโพสต์นี้" }, { status: 404 });
+  }
 
-  let message = "";
-  let fileId: string | null = null;
-  try {
-    const body = (await request.json()) as { message?: unknown; fileId?: unknown };
-    if (typeof body.fileId === "string" && body.fileId.length > 0) fileId = body.fileId;
-    if (typeof body.message === "string") message = body.message.trim();
-    if (!message && !fileId) {
-      return NextResponse.json({ error: "กรุณาพิมพ์ข้อความหรือแนบรูปก่อนส่ง" }, { status: 400 });
-    }
-    if (message.length > MAX_LEN) {
-      return NextResponse.json({ error: "ข้อความยาวเกินไป" }, { status: 400 });
-    }
-  } catch {
+  const raw = await request.json().catch(() => undefined);
+  const parsed = raw === undefined ? null : v.safeParse(ChatCommentBodySchema, raw);
+  if (!parsed) {
     return NextResponse.json({ error: "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400 });
+  }
+  if (!parsed.success) {
+    const tooLong = parsed.issues.some((i) => i.type === "max_length" && i.requirement === CHAT_COMMENT_MAX_LEN);
+    return NextResponse.json({ error: tooLong ? "ข้อความยาวเกินไป" : "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400 });
+  }
+  const message = parsed.output.message ?? "";
+  const fileId = parsed.output.fileId || null;
+  // เอกสาร Meta: ต้องมีอย่างน้อยหนึ่งใน message/attachment_url/... — รูปอย่างเดียวก็ส่งได้
+  if (!message && !fileId) {
+    return NextResponse.json({ error: "กรุณาพิมพ์ข้อความหรือแนบรูปก่อนส่ง" }, { status: 400 });
   }
 
   try {

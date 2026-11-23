@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { ChatResolveExpiredBodySchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
@@ -46,10 +48,16 @@ export async function POST(request: NextRequest) {
   if ("response" in gate) return gate.response;
   const { scope } = gate;
 
-  const body = (await request.json().catch(() => null)) as
-    | { channelId?: string | null; provider?: string | null }
-    | null;
-  const shopChannelId = typeof body?.channelId === "string" && body.channelId ? body.channelId : undefined;
+  // body ว่าง/อ่านไม่ได้ = ไม่กรอง (พฤติกรรมเดิม) · มี body แต่ผิดรูป (เช่น channelId ไม่ใช่ uuid) = 400
+  const parsed = v.safeParse(ChatResolveExpiredBodySchema, await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "รูปแบบคำขอไม่ถูกต้อง", code: "VALIDATION_ERROR" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+  const body = parsed.output;
+  const shopChannelId = body?.channelId || undefined;
   // allow-list เหมือน route พี่น้อง — ค่าที่ไม่รู้จักตกไป 'ALL' (ไม่กรอง) ไม่ใช่หลุดลงไปเป็น
   // provider ดิบใน SQL
   const providerRaw = body?.provider;

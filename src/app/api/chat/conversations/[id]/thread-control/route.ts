@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
+import { ChatPathIdSchema } from "@/lib/validations";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sessionUserId } from "@/lib/session-user";
@@ -40,6 +42,9 @@ async function handle(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  if (!v.safeParse(ChatPathIdSchema, id).success) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
+  }
 
   try {
     return NextResponse.json(await run(id, userId));
